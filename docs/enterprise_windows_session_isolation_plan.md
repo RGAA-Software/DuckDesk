@@ -63,8 +63,8 @@
 | `src/px_render/webview/webview_runtime.cpp` | CEF OSR、按实例分 profile、启动/退出清理临时 profile，`no_sandbox = true` | 保留既有 OSR/profile 行为；沙箱和持久 profile 属于独立待评估项，不作为本次新建用户工作的一部分 |
 
 现有 LogicalSession 是网络访问会话，不是 Windows Session；不能用增加观察者数量来实现多用户桌面。
-现有 `docs/logical_session_product_definition.md` 含历史传输策略；传输边界以更新的
-`docs/native_client_sdk_transport_decision.md` 为准。企业细粒度权限作为新模式设计，不悄然修改旧角色语义。
+现有 `docs/logical_session_product_definition.md` 含历史传输策略；当前产品边界以
+`docs/product_build_and_usage.md` 及活动代码为准。企业细粒度权限作为新模式设计，不悄然修改旧角色语义。
 
 ## 3. 身份链与职责
 
@@ -202,7 +202,7 @@ RDP 客户端选型先验证无交互启动、Session 0/辅助进程部署方式
 
 自动化覆盖队列中对象销毁、派发中注销、回调触发关闭、反复启停及初始化各失败点。
 交付 C++ 使用 `scripts_build/build_cpp_*.bat`；只有明确要求全量发布构建才用 `build_official.bat`。
-客户端运行产物必须同步至 `build_official/dist` 并核对 SHA-256 后才报告可验证。
+客户端运行产物必须同步至 `build_official/<product>/dist` 并核对 SHA-256 后才报告可验证。
 
 ## 8. 部署条件与待定项
 

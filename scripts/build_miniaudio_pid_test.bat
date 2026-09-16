@@ -2,6 +2,19 @@
 setlocal enabledelayedexpansion
 cd /d "%~dp0.."
 
+if "%~1"=="" (
+    echo Usage: %~nx0 cloud_node^|remote [jobs]
+    exit /b 2
+)
+if /I not "%~1"=="cloud_node" if /I not "%~1"=="remote" (
+    echo ERROR: product must be cloud_node or remote.
+    exit /b 2
+)
+set "PRODUCT=%~1"
+set "BUILD_DIR=build_official\%PRODUCT%\cmake"
+set "JOBS=%~2"
+if "%JOBS%"=="" set "JOBS=18"
+
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 set "VS_INSTALL_DIR="
 if exist "%VSWHERE%" (
@@ -27,8 +40,8 @@ if not "%VC_TOOLS_DIR%"=="" (
     set "INCLUDE=!VC_MSVC_DIR%\include;%INCLUDE%"
 )
 
-cmake -S . -B build_official -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTARGET_TYPE=Official -Wno-dev
+cmake -S . -B "%BUILD_DIR%" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTARGET_TYPE=Official -DPX_PRODUCT=%PRODUCT% -Wno-dev
 if errorlevel 1 exit /b %errorlevel%
 
-cmake --build build_official --target test_miniaudio_pid_loopback -j18
+cmake --build "%BUILD_DIR%" --target test_miniaudio_pid_loopback -j%JOBS%
 exit /b %errorlevel%

@@ -15,8 +15,12 @@ if (-not $CacheRoot) {
 
 $manifestPath = Join-Path $PSScriptRoot 'manifest.json'
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-if (-not $manifest.url.StartsWith('https://cef-builds.spotifycdn.com/')) {
-    throw 'CEF manifest URL must use the official cef-builds.spotifycdn.com host.'
+$artifactPrefix = 'https://github.com/RGAA-Software/GammaRayServerCxx/releases/download/'
+if (-not $manifest.url.StartsWith($artifactPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "CEF manifest URL must use the approved Pixels artifact prefix: $artifactPrefix"
+}
+if (-not $manifest.sha256 -or $manifest.sha256 -notmatch '^[A-Fa-f0-9]{64}$') {
+    throw 'CEF manifest must contain a SHA-256 digest.'
 }
 
 $distributionName = [IO.Path]::GetFileNameWithoutExtension(
@@ -25,9 +29,23 @@ $distributionName = [IO.Path]::GetFileNameWithoutExtension(
 $destination = Join-Path $DestinationRoot $distributionName
 $marker = Join-Path $destination '.cef-ready'
 if ((Test-Path -LiteralPath $marker) -and -not $Force) {
-    Write-Host "CEF is ready: $destination"
-    Write-Output $destination
-    exit 0
+    $markerHash = (Get-Content -LiteralPath $marker -Raw).Trim()
+    $requiredFiles = @(
+        'CMakeLists.txt',
+        'Release\libcef.dll',
+        'Release\chrome_elf.dll',
+        'Resources\icudtl.dat',
+        'Resources\resources.pak'
+    )
+    $missingFiles = @($requiredFiles | Where-Object {
+        -not (Test-Path -LiteralPath (Join-Path $destination $_) -PathType Leaf)
+    })
+    if ($markerHash -eq $manifest.sha256.ToLowerInvariant() -and $missingFiles.Count -eq 0) {
+        Write-Host "CEF is ready: $destination"
+        Write-Output $destination
+        exit 0
+    }
+    Write-Warning "CEF ready marker is stale or the extracted runtime is incomplete; restoring $destination"
 }
 
 New-Item -ItemType Directory -Force -Path $CacheRoot | Out-Null
@@ -39,8 +57,8 @@ function Test-CefArchive {
     if (-not (Test-Path -LiteralPath $Path)) {
         return $false
     }
-    $actual = (Get-FileHash -LiteralPath $Path -Algorithm SHA1).Hash.ToLowerInvariant()
-    return $actual -eq $manifest.sha1.ToLowerInvariant()
+    $actual = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+    return $actual -eq $manifest.sha256.ToLowerInvariant()
 }
 
 if (-not (Test-CefArchive -Path $archivePath) -or $Force) {
@@ -94,6 +112,6 @@ if (-not (Test-Path -LiteralPath (Join-Path $destination 'CMakeLists.txt'))) {
     throw "CEF extraction did not create the expected directory: $destination"
 }
 
-Set-Content -LiteralPath $marker -Value $manifest.sha1 -Encoding ascii
+Set-Content -LiteralPath $marker -Value $manifest.sha256.ToLowerInvariant() -Encoding ascii
 Write-Host "CEF is ready: $destination"
 Write-Output $destination

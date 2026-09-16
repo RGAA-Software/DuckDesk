@@ -20,7 +20,7 @@
 5. UDP Direct、RTC、Relay 等连接方式共享同一套显示拓扑和采集行为。
 6. 新安装包不再携带、安装或使用 USBMMIDD。
 7. 升级安装可以精确清理旧版 GammaRay 安装的 USBMMIDD 设备节点和驱动包。
-8. 所有实际运行产物进入 `build_official/dist`，并与构建树产物完成 SHA-256 一致性校验。
+8. 所有实际运行产物进入 `build_official/<product>/dist`，并与构建树产物完成 SHA-256 一致性校验。
 
 ### 2.2 非目标
 
@@ -221,7 +221,7 @@ IPC 必须满足：
 - 输出统一命名为 `px_display.exe`。
 - 将项目接入 `build_official` 的正式构建入口。
 - `scripts/collect_dist.py` 必须从权威输出位置复制 `px_display.exe`。
-- `build_official/dist` 不得含 `ParsecDisplay.exe`、`vdd.exe` 或 USBMMIDD 文件。
+- `build_official/<product>/dist` 不得含 `ParsecDisplay.exe`、`vdd.exe` 或 USBMMIDD 文件。
 - 构建树与 dist 中 `px_display.exe`、`px_service.exe` 及所有受影响运行资产必须逐项匹配 SHA-256。
 
 ### 8.3 安装包
@@ -347,7 +347,7 @@ IPC 必须满足：
 - DDA、编码、客户端帧率和帧间隔数据。
 - 安装、升级、卸载日志。
 - 关键截图和设备枚举结果。
-- `build_official/dist` 产物清单和 SHA-256 对照。
+- `build_official/<product>/dist` 产物清单和 SHA-256 对照。
 - 已知限制、残余风险及是否达到交付门禁。
 
 ## 11. 实施阶段
@@ -373,4 +373,4 @@ IPC 必须满足：
 - 10轮端到端验收全部通过。
 - 新安装包不含 USBMMIDD 运行资产。
 - 静默安装和卸载闭环通过。
-- 运行产物同步到 `build_official/dist` 且 SHA-256 匹配。
+- 运行产物同步到 `build_official/<product>/dist` 且 SHA-256 匹配。

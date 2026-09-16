@@ -168,7 +168,7 @@ MiniAudio 的默认设备 loopback、以及（未打补丁前）PID loopback，�
 scripts\build_miniaudio_pid_test.bat
 
 rem 先启动会出声的游戏，再：
-build_official\src\px_render\plugins\was_audio_capture\test_miniaudio_pid_loopback.exe <pid>
+build_official\cloud_node\cmake\src\px_render\plugins\was_audio_capture\test_miniaudio_pid_loopback.exe <pid>
 ```
 
 期望：

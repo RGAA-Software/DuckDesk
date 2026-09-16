@@ -28,20 +28,19 @@ MF 仍是上游标注为 experimental 的解码器；修复首帧不意味着已
 ## 重建及一致性门禁
 
 2026-09-10：已改为仓库源码子模块依赖，普通开发不再需要外部绝对路径。
-先运行无参 `scripts_build\build_cpp_rdp_sdk.bat`，再运行 `scripts_build\build_cpp_rdp_policy.bat`。
+先运行无参 `scripts_build\build_cpp_rdp_sdk.bat`，再运行 `scripts_build\build_cpp_rdp_policy.bat <product>`。
 新机器准备、依赖固定与升级步骤见 [源码依赖说明](../../third_party/freerdp/README.md)。
-下方显式路径命令和旧构建目录仍作为历史验证记录；新的默认构建目录按源码/补丁/依赖摘要生成。
 
 ```bat
-scripts_build\build_cpp_rdp_sdk.bat <干净的固定版本源码> <独立构建目录> <SDK目录>
-scripts_build\build_cpp_rdp_policy.bat <SDK目录> <SDK目录>
-scripts_build\build_cpp_client.bat
-scripts_build\build_cpp_render.bat
+scripts_build\build_cpp_rdp_sdk.bat
+scripts_build\build_cpp_rdp_policy.bat client
+scripts_build\build_cpp_client.bat client
+scripts_build\build_cpp_render.bat cloud_node
 ```
 
 `prepare_rdp_sdk.ps1` 将两个补丁应用到补丁摘要隔离的 `.cache/rdp_source_*`，每次构建验证
 基线、两个补丁和意外文件；不自动重置有改动的源码。修改补丁后使用新的独立构建目录，
-避免复用绑定旧源码目录的 CMake cache。本次构建目录为 `.cache/rdp_proxy_patched_3_31`。
+避免复用绑定旧源码目录的 CMake cache。
 `px_rdp_sdk.json` 记录基线、两个补丁摘要、解码器和运行库 SHA-256；Client CMake 与
 节点部署入口均检查它。节点部署还要求代理构建树与 SDK 中 RDP 主 DLL 完全一致。
 
@@ -51,7 +50,7 @@ scripts_build\build_cpp_render.bat
 
 ## 已执行的 decoder A/B 门禁
 
-聚焦入口为 `scripts_build/build_cpp_tests.bat test_client_rdp_decoder`，随后运行
+聚焦入口为 `scripts_build/build_cpp_tests.bat client test_client_rdp_decoder`，随后运行
 `ctest --test-dir build_official -R "^client_rdp_decoder$" --output-on-failure`。
 A/B 必须使用同一测试 exe、相同帧数据和独立运行目录；只交换整套同版本 FreeRDP/WinPR 运行库，
 不能替换正在使用的 dist DLL，也不能混合版本。记录两套 DLL 的 SHA-256。

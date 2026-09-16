@@ -22,7 +22,7 @@
 - EXE 约 971 KiB，静态 UI/CRT；dumpbin 直接导入仅有 Windows 系统 DLL：
   gdiplus、COMCTL32、ole32、GDI32、USER32、KERNEL32、OLEAUT32、IMM32。
   这不是干净系统完整安装验收，但不需要另装 Qt/.NET/DuiLib UI 运行时。
-- 已发布到 `build_official/dist/workspace_ui_demo/`，EXE、XML、DuiLib 许可证与构建输出逐项 SHA-256 一致。
+- 已发布到 `build_official/<product>/dist/workspace_ui_demo/`，EXE、XML、DuiLib 许可证与构建输出逐项 SHA-256 一致。
 
 | 文件 | SHA-256 |
 |---|---|
@@ -77,7 +77,7 @@
    用图示按钮表示应用即可，不启动或接管用户的业务程序。
 6. 检查构建及发布产物的依赖清单、文件体积和基础运行占用；确认不需要 Qt/.NET/浏览器运行时，
    明确区分 Windows 系统 DLL、既有 VC 运行库与新增依赖，不提前承诺单 EXE 零依赖。
-7. demo 的 EXE、必要 DLL 和资源发布到 `build_official/dist/workspace_ui_demo/` 独立目录，
+7. demo 的 EXE、必要 DLL 和资源发布到 `build_official/<product>/dist/workspace_ui_demo/` 独立目录，
    与构建输出逐项核对 SHA-256 后提供可直接启动的路径，供用户查看界面。
 8. 记录 vcpkg 版本/baseline、源码版本、构建命令、截图、依赖清单、发布哈希和已知问题。
    本机交互每批含收尾不超过 10 分钟；公网节点验证按需后续安排，不以本机通过冒充 Server 已通过。
@@ -438,7 +438,7 @@ Console 新类型、独立账号域、状态/租约、参数验证；Service 幂
 
 分批测试，每批含收尾最多 10 分钟；公网节点只使用其当前可运行的受控业务应用，Office 不存在则明确待测。
 检查每个批次的会话和原生界面恢复，不能把应用 Stop 当作注销或删除账号。
-通过后增量构建；所有变更运行产物同步 `build_official/dist` 并校验 SHA-256，远端部署也记录哈希和回滚位置。
+通过后增量构建；所有变更运行产物同步 `build_official/<product>/dist` 并校验 SHA-256，远端部署也记录哈希和回滚位置。
 
 ## 13. 完整测试矩阵（扩展清单，不要求首版全部完成）
 

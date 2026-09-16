@@ -1,7 +1,6 @@
 # WebRTC 普通 C++ DLL 迁移实施方案
 
-> 2026-09-07 范围更新：Windows、Android、iOS 原生客户端取消全部 WebRTC，包括 host 直连。本文的 Client 接入/打包要求已被
-> [原生客户端 SDK 与 WebRTC 产品边界](native_client_sdk_transport_decision.md) 替代；Render 服务 Web 客户端的 RTC 实现与生命周期约束继续保留。
+> 2026-09-07 范围更新：Windows、Android、iOS 原生客户端取消全部 WebRTC，包括 host 直连。本文的 Client 接入/打包要求已退役；Render 服务 Web 客户端的 RTC 实现与生命周期约束继续保留。
 > 以下 Client 迁移内容仅记录历史实现，不作为后续原生客户端目标。
 
 ## 1. 产品决定
@@ -131,9 +130,9 @@ event=<事件> component=<组件> code=<稳定错误码> operation=<阶段> outc
 - `px_render.exe`、`px_client.exe`、`px_panel.exe` 的链接命令和 map 文件不得包含 `webrtc.lib` 或 libwebrtc object。
 - `net_rtc`、`net_rtc_local`、Client RTC target 的 `INTERFACE_LINK_LIBRARIES` 不得包含 `webrtc.lib`。
 - `dumpbin /DEPENDENTS px_render.exe` 应包含 `px_render_rtc_remote.dll` 和 `px_render_rtc.dll`。
-- `px_render_rtc_remote.dll` 和 `px_render_rtc.dll` 必须发布到 `build_official/dist` 根目录，与 `px_render.exe` 相邻；发布器必须清理
+- `px_render_rtc_remote.dll` 和 `px_render_rtc.dll` 必须发布到 `build_official/<product>/dist` 根目录，与 `px_render.exe` 相邻；发布器必须清理
   `deps/network` 中的新旧 WebRTC 副本。
-- 所有 DLL、EXE、语言资源和运行资源发布到 `build_official/dist` 后必须与 build tree 的 SHA-256 一致。
+- 所有 DLL、EXE、语言资源和运行资源发布到 `build_official/<product>/dist` 后必须与 build tree 的 SHA-256 一致。
 - 日常验证仅使用 `scripts_build\build_cpp_*.bat`；不得调用 release-only 的 `scripts_build\build_official.bat`。
 
 ## 8. 详细测试方案
@@ -161,7 +160,7 @@ event=<事件> component=<组件> code=<稳定错误码> operation=<阶段> outc
 - 远端网络：首次连接、连续断网重连、ICE restart、TURN/直连路径、Relay fallback、退出中断重连。
 - 30 分钟高码率/多屏压力测试检查 CPU、内存、线程、句柄、队列高水位和错误日志。
 - 8 小时 soak 检查内存/句柄单调增长、迟到 callback、死连接残留、周期日志限频和停止耗时。
-- 验收只使用 `build_official/dist`，并在启动前复核所有变更 EXE/DLL/资源与 build tree 的 SHA-256。
+- 验收只使用 `build_official/<product>/dist`，并在启动前复核所有变更 EXE/DLL/资源与 build tree 的 SHA-256。
 
 ## 9. 当前实施状态与完成定义
 
@@ -178,16 +177,17 @@ event=<事件> component=<组件> code=<稳定错误码> operation=<阶段> outc
 
 ## 10. 自动化交付记录（2026-09-05）
 
-- `scripts_build\build_cpp_render.bat 8`、`scripts_build\build_cpp_client.bat 8` 与 `scripts_build\build_cpp_panel.bat 8` 通过；未运行 release-only 的 `scripts_build\build_official.bat`。
+- `scripts_build\build_cpp_render.bat cloud_node 8`、`scripts_build\build_cpp_client.bat cloud_node 8` 与
+  `scripts_build\build_cpp_panel.bat cloud_node 8` 通过；未运行 release-only 的 `scripts_build\build_official.bat`。
 - Render 生命周期集合通过 19/19，其中 `webrtc_transport_lifecycle` 执行 Remote/Local 100 轮重复创建、启停和销毁，
   `rtc_client_dll_lifecycle` 覆盖 Client 具体 DLL factory、重复 Exit 和销毁。
 - `scripts_build\build_cpp_render_arch_tests.bat all 8` 最终通过：2 项架构门禁和 36 项 unit/lifecycle/integration 测试全部成功；证据目录为
   `test-results/render-architecture/20260905-022104-all`。
 - ownership、async lifetime、WebRTC link boundary、Render architecture 和 retired-module delivery 五类门禁全部通过。
 - `dumpbin /DEPENDENTS px_render.exe` 同时包含 `px_render_rtc_remote.dll` 与 `px_render_rtc.dll`；主程序链接边界不包含静态 `webrtc.lib`。
-- `build_official/dist` 中两个 Render RTC DLL 与 `px_render.exe` 相邻；根目录旧名称以及 `deps/network` 下的新旧副本均不存在。
+- `build_official/<product>/dist` 中两个 Render RTC DLL 与 `px_render.exe` 相邻；根目录旧名称以及 `deps/network` 下的新旧副本均不存在。
 
-| 产物 | SHA-256（build tree 与 `build_official/dist` 一致） |
+| 产物 | SHA-256（build tree 与 `build_official/<product>/dist` 一致） |
 |---|---|
 | `px_render.exe` | `7EB6698ACEE23AE036A023CEFB9741EB91689A0C2AA0AC0EE759EB31863B32CA` |
 | `px_gh.dll` | `1D19C8019FDA6C9B329513356D0D48333A1CC639260E3D0906ADE1DD176DE7E4` |
@@ -230,7 +230,7 @@ WebRTC 普通 DLL 迁移完成后，`src/px_render/plugin_interface` 中仍混�
 - `src/px_render/plugin_interface` 目录和对应 `px_plugin/px_net_plugin` CMake target 被删除。
 - `rg` 边界检查证明内建模块不包含旧插件路径，新流程节点接口不使用 `std::any`、裸指针或通用事件枚举。
 - queued callback 后销毁、dispatch 中注销、callback 中 shutdown、重复 Start/Stop 和 scope drain 测试通过。
-- 使用 `scripts_build\build_cpp_*.bat` 完成 Render 定向构建与架构测试；所有改变的运行产物发布到 `build_official/dist` 后 SHA-256 一致。
+- 使用 `scripts_build\build_cpp_*.bat` 完成 Render 定向构建与架构测试；所有改变的运行产物发布到 `build_official/<product>/dist` 后 SHA-256 一致。
 
 ## 12. Render 旧插件基础设施收敛实施记录（2026-09-05）
 
@@ -250,4 +250,4 @@ WebRTC 普通 DLL 迁移完成后，`src/px_render/plugin_interface` 中仍混�
 - 最终发布哈希：`px_render.exe` 为 `7EB6698ACEE23AE036A023CEFB9741EB91689A0C2AA0AC0EE759EB31863B32CA`，
   `px_render_rtc_remote.dll` 为 `0F8B9D6AD0FFE782E65EAC64B9EB5498BB405C8671F66A70816E9B653F0A0DAF`，
   `px_render_rtc.dll` 为 `F65DD80169F8F0D1F951C83CAD8891D84FEFA5038B1E89652CB814C1A8F75F8D`；build tree 与
-  `build_official/dist` 一致。
+  `build_official/<product>/dist` 一致。

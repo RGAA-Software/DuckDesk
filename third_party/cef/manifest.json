@@ -1,8 +1,8 @@
 {
-  "version": "151.3.23+gd211df0+chromium-151.0.7922.170",
+  "version": "151.3.23+gd211df0+chromium-151.0.7922.170-pixels.1",
   "platform": "windows64",
   "distribution": "standard",
-  "archive": "cef_binary_151.3.23+gd211df0+chromium-151.0.7922.170_windows64.tar.bz2",
-  "url": "https://cef-builds.spotifycdn.com/cef_binary_151.3.23%2Bgd211df0%2Bchromium-151.0.7922.170_windows64.tar.bz2",
-  "sha1": "883ab84793ee16cc152d7403b6e4aefadf61b28c"
+  "archive": "cef_binary_151.3.23+gd211df0+chromium-151.0.7922.170_pixels_windows64.tar.bz2",
+  "url": "https://github.com/RGAA-Software/GammaRayServerCxx/releases/download/cef/cef_binary_151.3.23%2Bgd211df0%2Bchromium-151.0.7922.170_pixels_windows64.tar.bz2",
+  "sha256": "267c0fcea5d17309f508e1b7604fabb614700559caf8b6fa1584103ebe1c8101"
 }

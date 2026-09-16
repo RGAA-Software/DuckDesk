@@ -1,5 +1,7 @@
 param(
-    [string]$BuildDirectory = "build_official"
+    [Parameter(Mandatory = $true)]
+    [ValidateSet("cloud_node", "client", "remote")]
+    [string]$Product
 )
 
 $ErrorActionPreference = "Stop"
@@ -17,10 +19,11 @@ function Get-Sha256([string]$Path) {
 }
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$source = Join-Path $repoRoot "$BuildDirectory\src\px_deps\px_panel_imgui_preview.exe"
-$destinationDirectory = Join-Path $repoRoot "build_official\dist"
+$buildDirectory = "build_official\$Product\cmake"
+$source = Join-Path $repoRoot "$buildDirectory\src\px_deps\px_panel_imgui_preview.exe"
+$destinationDirectory = Join-Path $repoRoot "build_official\$Product\dist"
 $destination = Join-Path $destinationDirectory "px_panel_imgui_preview.exe"
-$fontSource = Join-Path $repoRoot "$BuildDirectory\src\px_deps\resources\fonts\Roboto-Regular.ttf"
+$fontSource = Join-Path $repoRoot "$buildDirectory\src\px_deps\resources\fonts\Roboto-Regular.ttf"
 $fontDestination = Join-Path $destinationDirectory "resources\fonts\Roboto-Regular.ttf"
 
 if (-not (Test-Path -LiteralPath $source)) {

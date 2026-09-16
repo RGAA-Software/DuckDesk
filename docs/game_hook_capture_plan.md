@@ -30,7 +30,7 @@ settings.toml
         │
         ▼
 scripts/start_render_hook.bat
-  - 工作目录 = build_official/dist
+  - 工作目录 = build_official/<product>/dist
   - 同步 settings.toml（仅 game-path / capture-method 等）
   - 启动时显式传参：--app_mode=game-hook --app_game_path=<Base64 UTF-8> --capture_video_type=inner ...
         │
@@ -139,7 +139,7 @@ scripts\run_game_hook_render.bat
 手动等价：
 
 ```bat
-cd /d build_official\dist
+cd /d build_official\<product>\dist
 copy /Y ..\..\src\px_render\settings.toml settings.toml
 rem fill game-path in settings.toml
 px_render.exe --logfile --app_mode=game-hook --app_game_path=<Base64 UTF-8 path> --capture_video_type=inner --network_listen_port=32000

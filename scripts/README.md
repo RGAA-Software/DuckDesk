@@ -29,9 +29,9 @@ Found 1 px_render.exe process(es):
 PID              : 30644
 Name             : px_render.exe
 Parent PID       : 18960
-Executable Path  : <repo>\build_official\dist\px_render.exe
+Executable Path  : <repo>\build_official\cloud_node\dist\px_render.exe
 Start Time       : 2026-06-12 15:38:24
-Command Line     : <repo>/build_official/dist/px_render.exe
+Command Line     : <repo>/build_official/cloud_node/dist/px_render.exe
                    --app_mode=desktop
                    --panel_server_host=127.0.0.1
                    --panel_server_port=4999
@@ -107,6 +107,6 @@ Run `output\px_desk\px_desk.exe` and open
 
 ## Other scripts
 
-- `collect_dist.py` — Collect build artifacts from `build_official/` into `build_official/dist/`.
+- `collect_dist.py` — Collect one product's artifacts from `build_official/<product>/` into its isolated `dist/` directory.
 - `../scripts_build/build_cpp_common.bat` — Build the `px_common` target through the supported focused-build entry point.
 - `build_tc_tests.bat` / `run_tc_tests.bat` — Build and run tc tests.

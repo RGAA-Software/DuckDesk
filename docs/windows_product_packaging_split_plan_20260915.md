@@ -1,7 +1,7 @@
 # Windows 产品构建与安装包拆分改造方案
 
 日期：2026-09-15  
-状态：实现完成；三产品 3.3.69 构建/封装门禁、实体 Windows 安装生命周期及公网 Cloud Node WebView/RDP E2E 已通过
+状态：实现完成；2026-09-16 起采用产品完整构建沙箱，不再兼容根 `build_official`、公共 `dist` 或共享编译产物
 适用范围：Windows 原生 Panel、Client、Render、Service、RDP、WebView、Game Hook、虚拟显示与安装器，以及 Pixels Android 产品版本构建
 
 ## 1. 目标
@@ -30,6 +30,7 @@
 10. 三个产品均处于开发阶段，不提供旧单体产品、旧配置、旧节点身份、旧文件名或旧安装目录的兼容迁移。发现旧产品时要求用户先卸载，不建立导入、转发、双份文件或运行时 fallback。
 11. Cloud Node、Client、Remote 和 Android 的产品发布版本完全独立演进。编译或发布一个目标不得自动修改另外三个目标的版本，也不得要求四个产品保持相同版本号。
 12. Cloud Node、Client、Remote 和 Android 的公司品牌统一为 `Pixels`。Windows PE 版本资源、安装器 Publisher/Company、卸载信息、产品清单、界面中公开的作者或供应商字段，以及 Android 发布元数据均不得使用 RGAA 名称或 RGAA 组织链接。源码历史作者注释不作为产品品牌元数据；当前仍由权威配置使用的网络服务地址也不通过品牌替换擅自改写，待对应服务正式迁移后单独删除。
+13. 四个产品的编译、暂存、运行和报告产物必须完全位于各自的 `build_official/<product>/` 沙箱中。允许共享下载、源码和工具链缓存，但安装包收集器不得直接读取共享编译产物。旧根构建树和公共 `build_official/dist` 不提供兼容入口。
 
 ### 2.1 品牌元数据规则
 
@@ -152,15 +153,14 @@ system_information
 
 ## 5. CMake 构建图拆分
 
-使用三个独立 CMake 构建目录，避免同一个 CMake Cache 中的条件源文件、编译宏和静态库互相污染；产品无关的 Rust 产物使用共享构建区：
+使用三个完整隔离的 Windows 产品构建沙箱，避免 CMake Cache、条件源文件、编译宏、静态库、Rust、Web 和 RDP Policy 产物互相污染：
 
 ```text
 build_official/
-├── cloud_node/
-├── client/
-├── remote/
-└── shared/
-    └── rust/
+├── cloud_node/{cmake,cargo,web,rdp_policy,dist,installer,reports}/
+├── client/{cmake,cargo,dist,installer,reports}/
+├── remote/{cmake,cargo,web,rdp_policy,dist,installer,reports}/
+└── android/{gradle,native,dist,reports}/
 ```
 
 提供三个产品聚合目标：
@@ -182,11 +182,11 @@ scripts_build/build_remote_product.bat
 不提升版本的定向验证使用 `scripts_build/build_cpp_product_panel.bat <product>`、`scripts_build/build_cpp_product_client.bat <product>`、
 `scripts_build/build_cpp_product_panel_tests.bat <product>` 和 `scripts_build/build_cpp_product_render.bat <cloud_node|remote>`；它们分别进入独立产品构建树，不能复用其他 Edition 的 CMake Cache。
 
-现有 `scripts_build/build_official.bat` 继续作为发布级完整构建入口，但必须显式接收 Edition，先且只提升当前 Edition 的独立产品版本一次，再将 CMake 配置到对应的 `build_official/<edition>/` 并只构建该产品聚合目标。脚本不得继续无条件调用全局 `set_app_version.py --bump`。日常开发仍使用 `scripts_build/build_cpp_*.bat` 定向构建，这些 focused 入口不生成完整产品包、不提升产品版本，也不得借拆包改造绕过现有增量构建规则。
+发布级完整构建分别使用 `build_cloud_node.bat`、`build_client_product.bat` 和 `build_remote_product.bat`；每个入口先且只提升对应产品的独立版本一次，再将 CMake 配置到 `build_official/<product>/cmake/` 并只构建该产品聚合目标。旧的根构建入口不是兼容入口。日常开发仍使用 `scripts_build/build_cpp_*.bat` 定向构建，这些 focused 入口不生成完整产品包、不提升产品版本，也不得借拆包改造绕过现有增量构建规则。
 
-`px_service.exe`、`px_service_manager.exe`、`px_function.exe` 和 `px_osinfo.exe` 等没有产品代码差异的 Rust 产物在同一 Git revision、锁文件、工具链和构建配置下只需在共享区构建一次，再由产品白名单选择。共享缓存必须校验这些构建输入和组件版本，不得把其他 revision 的陈旧产物装入当前产品。不得为 Remote 创建删减版 Service，也不得给同名 Service 维护两套 feature 组合。产品无关的 `web_client` 同样可以构建一次并由 Cloud Node、Remote 的清单引用；Console 前端不进入任何桌面产品。
+`px_service.exe`、`px_service_manager.exe`、`px_function.exe` 和 `px_osinfo.exe` 仍使用同一套完整源码与 feature 组合，但分别通过产品专属 `CARGO_TARGET_DIR` 构建、暂存和收集。Cloud Node 与 Remote 不维护删减版 Service；相同输入应产生相同哈希，但任何产品不得从另一产品目录取文件。`web_client` 也分别输出到 Cloud Node 和 Remote 的 `web/`，Console 前端不进入任何桌面产品。共享目录只允许保存下载包、依赖源码和工具链缓存。
 
-现有 `scripts_build/build_client.bat` 只是“跳过服务器的旧全量构建”入口。产品拆分落地时必须将其改为新 Client 产品入口或明确退役，不能与 `build_client_product.bat` 长期保留两种不同的 Client 语义。
+旧 `build_official.bat` 和 `build_client.bat` 语义已退役，不得恢复为根构建树或另一套 Client 产品入口。
 
 顶层 CMake 中 Cargo、MSBuild、CEF、Hook SDK 等依赖发现也必须按产品能力延迟执行。构建 Client 时不应要求本机准备 CEF、Parsec VDD 构建环境或 Host Service Rust 目标。
 
@@ -403,12 +403,12 @@ packaging/
 输出目录：
 
 ```text
-build_official/dist/cloud_node/
-build_official/dist/client/
-build_official/dist/remote/
+build_official/cloud_node/dist/
+build_official/client/dist/
+build_official/remote/dist/
 ```
 
-Android 不进入上述 Windows `dist` 目录。其 APK、AAB、mapping、native symbols、LGPL relink 材料和发布清单继续由 Android 发布脚本原子发布到 Android 专属版本目录，目录名使用 Android 自己的 `product_version`。
+Android 不进入 Windows 产品目录。Gradle、native、APK、AAB、mapping、native symbols、LGPL relink 材料和发布清单全部位于 `build_official/android/`，版本目录使用 Android 自己的 `product_version`。
 
 收集器必须：
 
@@ -520,7 +520,7 @@ PixelsRemote_<version>_Setup.exe
 ## 15. 实施阶段
 
 1. 引入三个 Windows Edition、Android 产品目标、四个独立产品版本清单和强类型能力矩阵，固定 Windows 产品互斥、Service 完整通用、Client 管理员权限和不兼容旧产品的行为；先不改变现有默认 Cloud Node 行为。
-2. 用显式产品版本工具替换全局 `set_app_version.py --bump` 产品发布行为；建立 `build_official/<edition>/` 三个独立 CMake 构建树、`build_official/shared/rust/` 共享 Rust 产物区和 Android 产品构建入口，确保每次入口调用只提升和构建指定产品一次。
+2. 用显式产品版本工具替换全局 `set_app_version.py --bump` 产品发布行为；建立 `build_official/<product>/` 四个完全独立的产品沙箱，CMake、Cargo、Web、RDP policy、Gradle、Native、dist 和 reports 产物均不跨产品共享，确保每次入口调用只提升和构建指定产品一次。
 3. 改造收集器为组件白名单和临时目录原子发布，清理当前 `dist` 污染，并先用 Cloud Node 清单核对现有完整产品。
 4. 完成 Client 产品图、Client Panel 页面组合及 `px_osinfo` 生命周期；保留管理员权限，但不创建 Host 运行时模块。
 5. 拆分 Remote Render，保留桌面、文件传输、RDP、RTC、虚拟显示及手柄；Remote 继续使用完整通用 Service。
@@ -536,7 +536,7 @@ PixelsRemote_<version>_Setup.exe
 
 - 四份独立产品清单、独立版本递增工具、三个 Windows 发布入口、Android 发布入口和三个互不复用 CMake Cache 的产品构建树；发布入口一次只消耗目标产品的一个版本，focused C++、lint 和单元测试不提升版本；
 - 产品能力驱动的 Panel 组合：Remote 构建图不包含云应用页面与产品端口，Client 构建图不包含服务状态页面与产品端口，也不生成 Render；Client 的 `px_osinfo.exe` 由 Panel 监督，Host 产品继续由 Function 监督；
-- Cloud Node 与 Remote 使用 `build_official/shared/rust/` 中同一完整 Service；Service 严格读取相邻 `product-manifest.json`，上报 `Pixels` 公司、Edition、产品版本和能力，缺失或错误描述直接失败；
+- Cloud Node 与 Remote 各自在 `build_official/<product>/cargo/` 构建和暂存完整 Service；两者使用相同源码和能力配置，但不共享已编译二进制。Service 严格读取相邻 `product-manifest.json`，上报 `Pixels` 公司、Edition、产品版本和能力，缺失或错误描述直接失败；
 - Console 严格接受当前 Cloud Node/Remote 身份，按产品能力执行桌面、RDP、云应用、Game Hook、WebView 等调度准入，不推断旧节点身份且不提供兼容回退；
 - Remote Render 从编译图排除 Game Hook、CEF/WebView，在启动入口拒绝不支持模式；PE 导入闭包门禁同时拒绝 CEF、EasyHook 和 `px_gh*`；
 - 固定 RDP SDK 构建链生成 `px_rdp_` DLL、导入库和代理程序；Client 只加载新名称，策略加载器只解析 `px_rdp_policy.dll`；SDK 清单记录固定 revision、两个补丁、许可证和全部运行时哈希；
@@ -573,7 +573,7 @@ PixelsRemote_<version>_Setup.exe
 - Client：3.3.67 → 3.3.68 升级、旧 32 位卸载项迁移、3.3.68 同版本覆盖、卸载、无 Host Service/Render，全部通过；
 - Remote：3.3.67 → 3.3.68 升级、旧 32 位卸载项迁移、3.3.68 同版本覆盖、Service 重启、卸载后 Service/进程清理，全部通过；
 - 最终发布候选 3.3.69 再以 3.3.68 为基线完整复测：三个产品分别完成版本升级、3.3.69 同版本覆盖和卸载；Cloud Node 再次验证跨产品安装返回 1638；全部关键文件哈希与 3.3.69 `dist` 一致；
-- 三个产品在升级和覆盖后均核对关键 EXE 的 SHA-256 与对应 `build_official/dist/<product>` 完全一致；三套 `dist` 分别通过 47、84、322 个制品的清单、哈希和产品依赖边界校验；
+- 三个产品在升级和覆盖后均核对关键 EXE 的 SHA-256 与对应 `build_official/<product>/dist` 完全一致；三套 `dist` 分别通过 47、84、322 个制品的清单、哈希和产品依赖边界校验；
 - 公网节点最终恢复为 Pixels Cloud Node 3.3.69，Service 正常运行；重新部署的 RDP 运行库、策略、证书和密钥逐项哈希校验通过；
 - 公网 Cloud Node WebView/Native 端到端通过，实际动态端口为 4613，公网 TCP、工作区就绪和客户端解码帧均通过；RDP 端到端同样通过并收到连续解码帧。
 

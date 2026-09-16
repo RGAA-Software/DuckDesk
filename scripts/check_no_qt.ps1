@@ -1,15 +1,12 @@
 param(
-    [string]$BuildDir = "build_official",
-    [string]$DistDir = ""
+    [Parameter(Mandatory = $true)]
+    [ValidateSet("cloud_node", "client", "remote")]
+    [string]$Product
 )
 
 $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$distRoot = if ([string]::IsNullOrWhiteSpace($DistDir)) {
-    Join-Path $repoRoot "$BuildDir\dist"
-} else {
-    [IO.Path]::GetFullPath((Join-Path $repoRoot $DistDir))
-}
+$distRoot = Join-Path $repoRoot "build_official\$Product\dist"
 
 $sourceFiles = & rg --files CMakeLists.txt env_premium.cmake src scripts_build | Where-Object {
     $_ -notmatch '(^|[\\/])(backup|px_3rdparty|px_sdl3)([\\/]|$)' -and

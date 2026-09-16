@@ -1,5 +1,11 @@
 @echo off
-call "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64 > nul
-cd /d "%~dp0.."
-cmake --build build_official --target test_string_util test_file test_file_util test_folder_util test_auto_start test_win_helper test_dxgi_mon_detector test_network_adapter test_qr_generator > build_tc_tests.log 2>&1
-echo DONE
+setlocal
+if "%~1"=="" (
+    echo Usage: %~nx0 cloud_node^|client^|remote [jobs]
+    exit /b 2
+)
+set "CPP_PRODUCT=%~1"
+set "CPP_BUILD_DIR=build_official\%CPP_PRODUCT%\cmake"
+if not "%~2"=="" set "CPP_BUILD_JOBS=%~2"
+call "%~dp0build_cpp_target.bat" test_string_util test_file test_file_util test_folder_util test_auto_start test_win_helper test_dxgi_mon_detector test_network_adapter test_qr_generator
+exit /b %errorlevel%

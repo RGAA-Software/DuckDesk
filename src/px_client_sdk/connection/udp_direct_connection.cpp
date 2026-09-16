@@ -95,7 +95,7 @@ void UdpDirectConnection::Start(const std::string& host, int udp_port, const std
     // 1040, 1200, or 1400 bytes; retaining the larger receive capacity also keeps custom server caps valid.
     constexpr std::size_t maximumUdpDatagramSize{1500};
     udp_client_ = std::make_shared<asio2::udp_client>(maximumUdpDatagramSize, maximumUdpDatagramSize);
-    // 注意:裸 UDP,不传 asio2::use_kcp(可靠重传对视频是负优化,见 udp_gamestream_channel_plan.md)
+    // 注意:裸 UDP,不传 asio2::use_kcp(可靠重传对视频是负优化,见 native_udp_media_v2_wire.md)
 
     udp_client_
         ->bind_connect([weak_self]() {

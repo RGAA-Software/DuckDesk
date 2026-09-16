@@ -1,20 +1,27 @@
 @echo off
 setlocal
 rem Focused Rust build only: no version bump, web build, deployment or config replacement.
-if /i "%~1"=="console" (
-    set "RUST_WORKSPACE=rust_server"
-    set "RUST_PACKAGE=px_console_server"
-) else if /i "%~1"=="service" (
+if "%~1"=="" (
+    echo Usage: %~nx0 cloud_node^|client^|remote service^|user-proxy
+    exit /b 2
+)
+if /I not "%~1"=="cloud_node" if /I not "%~1"=="client" if /I not "%~1"=="remote" (
+    echo ERROR: product must be cloud_node, client, or remote.
+    exit /b 2
+)
+set "RUST_PRODUCT=%~1"
+if /i "%~2"=="service" (
     set "RUST_WORKSPACE=rust_client"
     set "RUST_PACKAGE=px_service"
-) else if /i "%~1"=="user-proxy" (
+) else if /i "%~2"=="user-proxy" (
     set "RUST_WORKSPACE=rust_client"
     set "RUST_PACKAGE=px_user_proxy"
 ) else (
-    echo Usage: build_rust_target.bat console^|service^|user-proxy
+    echo Usage: %~nx0 cloud_node^|client^|remote service^|user-proxy
     exit /b 2
 )
 set "RUST_REPO=%~dp0.."
+set "CARGO_TARGET_DIR=%RUST_REPO%\build_official\%RUST_PRODUCT%\cargo\target"
 set "RUST_VS="
 for /f "usebackq delims=" %%V in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "RUST_VS=%%V"
 if not defined RUST_VS exit /b 2

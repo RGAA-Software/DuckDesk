@@ -2,12 +2,14 @@
 setlocal
 cd /d "%~dp0.." || exit /b 1
 
-if not "%~1"=="" if /I not "%~1"=="full" if /I not "%~1"=="reconfigure" (
-    echo Usage: %~nx0 [full^|reconfigure]
+if not "%~1"=="" (
+    echo Usage: %~nx0
     exit /b 2
 )
 
 where python >nul 2>&1 || (echo ERROR: python is required. & exit /b 1)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0clean_product_outputs.ps1" -Product client
+if errorlevel 1 exit /b %errorlevel%
 python "%~dp0..\scripts\validate_product_manifests.py"
 if errorlevel 1 exit /b %errorlevel%
 python "%~dp0..\scripts\validate_product_branding.py"
@@ -20,7 +22,7 @@ python "%~dp0..\set_product_version.py" --product client --bump
 if errorlevel 1 exit /b %errorlevel%
 
 set "CPP_PRODUCT=client"
-set "CPP_BUILD_DIR=build_official\client"
+set "CPP_BUILD_DIR=build_official\client\cmake"
 set "CPP_BUILD_JOBS=18"
 call "%~dp0..\scripts\build_cpp_target.bat" px_build_client_all
 if errorlevel 1 exit /b %errorlevel%

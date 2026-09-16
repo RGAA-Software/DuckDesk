@@ -46,7 +46,7 @@ D/E 是探索与可行的最小集成，不预先承诺通用 Vulkan/OpenGL、�
 - C++ 使用 typed RAII/智能指针和显式初始化；排队、销毁、撤权、重复启动停止都需要回归。
 - 删除/替换旧分支前完整归档至新的 `backup/` 批次；OBS 与游戏工程均为只读参考。
 - 只使用 `scripts_build/build_cpp_*.bat` 增量目标，不运行 release 全量构建。
-- 改动 exe/DLL/资源必须同步 `build_official/dist` 并逐项 SHA-256 校验；测试配置及凭证不提交。
+- 改动 exe/DLL/资源必须同步 `build_official/<product>/dist` 并逐项 SHA-256 校验；测试配置及凭证不提交。
 - 中文输入范围是 Qt Windows 与桌面 Web；本轮不把 Android/iOS 实机或 RDP/WebView 扩展验收纳入完成承诺。
 
 ## 状态
@@ -150,7 +150,7 @@ D/E 是探索与可行的最小集成，不预先承诺通用 Vulkan/OpenGL、�
 - 构建仅使用 `scripts_build/build_cpp_*.bat` 指定目标、Web build 和 Service 单包 release build，未运行全量 release 脚本。
   枚举修复阶段的 Android 构建已通过；本次新增 Game 修复没有再改变共享 SDK/协议/JNI，未新增 Android 实机通过声明。
 
-最终运行文件已同步 `build_official/dist`，逐项 SHA-256 与构建源一致：
+最终运行文件已同步 `build_official/<product>/dist`，逐项 SHA-256 与构建源一致：
 
 | 文件 | SHA-256 |
 | --- | --- |
@@ -204,8 +204,7 @@ Qt/Web 各负向项若只由自动化覆盖，不升级为真实游戏人工操�
 ## 本轮实施结果（2026-09-10）
 
 用户确认四 API 目标后，本轮已经补齐 OpenGL 帧 IPC、Vulkan Layer 与安全启动，并完成 Windows 本机验收。
-原有探索记录和待实施措辞保留为历史；当前结果以
-[四 API 实施与验收记录](game_graphics_hook_delivery_20260910.md) 为准。
+原有探索记录和待实施措辞仅作为历史；当前结果以活动代码和当前自动化验收为准。
 
 | API | 本轮状态 |
 | --- | --- |

@@ -9,6 +9,17 @@ if(NOT PX_PRODUCT STREQUAL "cloud_node" AND NOT PX_PRODUCT STREQUAL "client" AND
     message(FATAL_ERROR "PX_PRODUCT must be cloud_node, client, or remote; got '${PX_PRODUCT}'")
 endif()
 
+set(PX_PRODUCT_BUILD_ROOT "${CMAKE_SOURCE_DIR}/build_official/${PX_PRODUCT}")
+set(PX_EXPECTED_BINARY_DIR "${PX_PRODUCT_BUILD_ROOT}/cmake")
+cmake_path(NORMAL_PATH PX_EXPECTED_BINARY_DIR)
+cmake_path(ABSOLUTE_PATH CMAKE_BINARY_DIR NORMALIZE OUTPUT_VARIABLE PX_ACTUAL_BINARY_DIR)
+string(TOLOWER "${PX_EXPECTED_BINARY_DIR}" PX_EXPECTED_BINARY_DIR_LOWER)
+string(TOLOWER "${PX_ACTUAL_BINARY_DIR}" PX_ACTUAL_BINARY_DIR_LOWER)
+if(NOT PX_ACTUAL_BINARY_DIR_LOWER STREQUAL PX_EXPECTED_BINARY_DIR_LOWER)
+    message(FATAL_ERROR
+        "Pixels product builds are isolated. Configure ${PX_PRODUCT} only in ${PX_EXPECTED_BINARY_DIR}; got ${PX_ACTUAL_BINARY_DIR}")
+endif()
+
 find_program(PX_PYTHON_EXECUTABLE NAMES python python3 REQUIRED)
 set(PX_PRODUCT_MANIFEST_PATH "${CMAKE_SOURCE_DIR}/packaging/products/${PX_PRODUCT}.toml")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${PX_PRODUCT_MANIFEST_PATH}")
@@ -43,6 +54,25 @@ configure_file(
     "${CMAKE_SOURCE_DIR}/src/px_panel/icon.ico"
     "${PX_PRODUCT_GENERATED_DIR}/icon.ico"
     COPYONLY)
+execute_process(
+    COMMAND git -C "${CMAKE_SOURCE_DIR}" rev-parse --short=12 HEAD
+    RESULT_VARIABLE PX_GIT_REVISION_RESULT
+    OUTPUT_VARIABLE PX_GIT_REVISION
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+if(NOT PX_GIT_REVISION_RESULT EQUAL 0 OR PX_GIT_REVISION STREQUAL "")
+    message(FATAL_ERROR "Unable to resolve the Git revision for the product build stamp")
+endif()
+file(WRITE "${PX_PRODUCT_BUILD_ROOT}/product-build.json"
+    "{\n"
+    "  \"schema_version\": 1,\n"
+    "  \"product\": \"${PX_PRODUCT_NAME}\",\n"
+    "  \"edition\": \"${PX_PRODUCT_EDITION}\",\n"
+    "  \"company\": \"${PX_PRODUCT_COMPANY}\",\n"
+    "  \"product_version\": \"${PX_PRODUCT_VERSION}\",\n"
+    "  \"product_version_code\": ${PX_PRODUCT_VERSION_CODE},\n"
+    "  \"git_revision\": \"${PX_GIT_REVISION}\",\n"
+    "  \"cmake_binary_dir\": \"build_official/${PX_PRODUCT}/cmake\"\n"
+    "}\n")
 message(STATUS "Pixels product: ${PX_PRODUCT_NAME} (${PX_PRODUCT_EDITION}) ${PX_PRODUCT_VERSION} (${PX_PRODUCT_VERSION_CODE})")
 
 if(WIN32)
@@ -55,6 +85,7 @@ if(WIN32)
     add_custom_target(check_no_qt
         COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass
                 -File "${CMAKE_SOURCE_DIR}/scripts/check_no_qt.ps1"
+                -Product "${PX_PRODUCT}"
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
         COMMENT "Checking active source and product artifacts for retired Qt dependencies"
         VERBATIM)
@@ -183,13 +214,13 @@ find_package(OpenCV REQUIRED)
 #find_package(protobuf REQUIRED)
 #find_package(gRPC REQUIRED)
 
-# WebView application mode embeds the pinned official CEF binary distribution.
+# WebView application mode embeds the pinned Pixels CEF binary distribution.
 # Binary payloads are fetched locally by third_party/cef/fetch_cef.ps1 and are
 # intentionally not stored in Git. CEF_ROOT may point at a shared machine cache.
 if(WIN32 AND PX_CAPABILITY_WEBVIEW_HOST)
     if(NOT DEFINED CEF_ROOT OR CEF_ROOT STREQUAL "")
         set(CEF_ROOT
-            "${CMAKE_SOURCE_DIR}/third_party/cef/cef_binary_151.3.23+gd211df0+chromium-151.0.7922.170_windows64"
+            "${CMAKE_SOURCE_DIR}/third_party/cef/cef_binary_151.3.23+gd211df0+chromium-151.0.7922.170_pixels_windows64"
             CACHE PATH "Path to the CEF Windows x64 Standard Distribution")
     endif()
     if(NOT EXISTS "${CEF_ROOT}/cmake/FindCEF.cmake")
@@ -288,49 +319,54 @@ if(PX_CAPABILITY_VIRTUAL_DISPLAY)
 endif()
 
 set(PX_RUST_WORKSPACE_ROOT ${CMAKE_SOURCE_DIR}/rust_client)
+set(PX_RUST_TARGET_DIR ${PX_PRODUCT_BUILD_ROOT}/cargo/target)
+set(PX_PRODUCT_RUST_OUTPUT_DIR ${PX_PRODUCT_BUILD_ROOT}/cargo/stage)
+file(MAKE_DIRECTORY "${PX_PRODUCT_RUST_OUTPUT_DIR}")
 set(PX_RUST_PROFILE debug)
 set(PX_RUST_BUILD_FLAG "")
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(PX_RUST_PROFILE release)
     set(PX_RUST_BUILD_FLAG --release)
 endif()
-set(PX_SYSINFO_RUST_EXE ${PX_RUST_WORKSPACE_ROOT}/target/${PX_RUST_PROFILE}/${PX_SYSINFO_EXE_NAME})
-set(PX_SERVICE_RUST_EXE ${PX_RUST_WORKSPACE_ROOT}/target/${PX_RUST_PROFILE}/${PX_SERVICE_EXE_NAME})
-set(PX_SERVICE_MGR_RUST_EXE ${PX_RUST_WORKSPACE_ROOT}/target/${PX_RUST_PROFILE}/${PX_SERVICE_MGR_EXE_NAME})
-set(PX_USER_PROXY_RUST_EXE ${PX_RUST_WORKSPACE_ROOT}/target/${PX_RUST_PROFILE}/${PX_USER_PROXY_EXE_NAME})
-set(PX_UNINSTALL_RUST_EXE ${PX_RUST_WORKSPACE_ROOT}/target/${PX_RUST_PROFILE}/${PX_UNINSTALL_EXE_NAME})
+set(PX_SYSINFO_RUST_EXE ${PX_RUST_TARGET_DIR}/${PX_RUST_PROFILE}/${PX_SYSINFO_EXE_NAME})
+set(PX_SERVICE_RUST_EXE ${PX_RUST_TARGET_DIR}/${PX_RUST_PROFILE}/${PX_SERVICE_EXE_NAME})
+set(PX_SERVICE_MGR_RUST_EXE ${PX_RUST_TARGET_DIR}/${PX_RUST_PROFILE}/${PX_SERVICE_MGR_EXE_NAME})
+set(PX_USER_PROXY_RUST_EXE ${PX_RUST_TARGET_DIR}/${PX_RUST_PROFILE}/${PX_USER_PROXY_EXE_NAME})
+set(PX_UNINSTALL_RUST_EXE ${PX_RUST_TARGET_DIR}/${PX_RUST_PROFILE}/${PX_UNINSTALL_EXE_NAME})
 
-set(PX_SHARED_RUST_OUTPUT_DIR ${CMAKE_SOURCE_DIR}/build_official/shared/rust)
-file(MAKE_DIRECTORY "${PX_SHARED_RUST_OUTPUT_DIR}")
-set(PX_SYSINFO_STAGED_EXE ${PX_SHARED_RUST_OUTPUT_DIR}/${PX_SYSINFO_EXE_NAME})
-set(PX_SERVICE_STAGED_EXE ${PX_SHARED_RUST_OUTPUT_DIR}/${PX_SERVICE_EXE_NAME})
-set(PX_SERVICE_MGR_STAGED_EXE ${PX_SHARED_RUST_OUTPUT_DIR}/${PX_SERVICE_MGR_EXE_NAME})
-set(PX_USER_PROXY_STAGED_EXE ${PX_SHARED_RUST_OUTPUT_DIR}/${PX_USER_PROXY_EXE_NAME})
+set(PX_SYSINFO_STAGED_EXE ${PX_PRODUCT_RUST_OUTPUT_DIR}/${PX_SYSINFO_EXE_NAME})
+set(PX_SERVICE_STAGED_EXE ${PX_PRODUCT_RUST_OUTPUT_DIR}/${PX_SERVICE_EXE_NAME})
+set(PX_SERVICE_MGR_STAGED_EXE ${PX_PRODUCT_RUST_OUTPUT_DIR}/${PX_SERVICE_MGR_EXE_NAME})
+set(PX_USER_PROXY_STAGED_EXE ${PX_PRODUCT_RUST_OUTPUT_DIR}/${PX_USER_PROXY_EXE_NAME})
 set(PX_UNINSTALL_STAGED_EXE ${PX_PROJECT_BINARY_PATH}/${PX_UNINSTALL_EXE_NAME})
 
 add_custom_target(px_osinfo_rust
-        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${PX_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_sysinfo --bin px_osinfo ${PX_RUST_BUILD_FLAG}
+        COMMAND ${CMAKE_COMMAND} -E env "CARGO_TARGET_DIR=${PX_RUST_TARGET_DIR}"
+                ${CARGO_EXECUTABLE} build --locked --manifest-path ${PX_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_sysinfo --bin px_osinfo ${PX_RUST_BUILD_FLAG}
         WORKING_DIRECTORY ${PX_RUST_WORKSPACE_ROOT}
         COMMENT "Building Rust px_osinfo"
         VERBATIM
 )
 
 add_custom_target(px_service_rust
-        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${PX_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_service --bin px_service ${PX_RUST_BUILD_FLAG}
+        COMMAND ${CMAKE_COMMAND} -E env "CARGO_TARGET_DIR=${PX_RUST_TARGET_DIR}"
+                ${CARGO_EXECUTABLE} build --locked --manifest-path ${PX_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_service --bin px_service ${PX_RUST_BUILD_FLAG}
         WORKING_DIRECTORY ${PX_RUST_WORKSPACE_ROOT}
         COMMENT "Building Rust px_service"
         VERBATIM
 )
 
 add_custom_target(px_service_manager_rust
-        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${PX_RUST_WORKSPACE_ROOT}/Cargo.toml -p service_manager --bin px_service_manager ${PX_RUST_BUILD_FLAG}
+        COMMAND ${CMAKE_COMMAND} -E env "CARGO_TARGET_DIR=${PX_RUST_TARGET_DIR}"
+                ${CARGO_EXECUTABLE} build --locked --manifest-path ${PX_RUST_WORKSPACE_ROOT}/Cargo.toml -p service_manager --bin px_service_manager ${PX_RUST_BUILD_FLAG}
         WORKING_DIRECTORY ${PX_RUST_WORKSPACE_ROOT}
         COMMENT "Building Rust px_service_manager"
         VERBATIM
 )
 
 add_custom_target(px_function_rust
-        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${PX_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_user_proxy --bin px_function ${PX_RUST_BUILD_FLAG}
+        COMMAND ${CMAKE_COMMAND} -E env "CARGO_TARGET_DIR=${PX_RUST_TARGET_DIR}"
+                ${CARGO_EXECUTABLE} build --locked --manifest-path ${PX_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_user_proxy --bin px_function ${PX_RUST_BUILD_FLAG}
         WORKING_DIRECTORY ${PX_RUST_WORKSPACE_ROOT}
         COMMENT "Building Rust px_function"
         VERBATIM
@@ -365,7 +401,8 @@ add_custom_target(px_function_stage
 )
 
 add_custom_target(px_uninstall_rust
-        COMMAND ${CARGO_EXECUTABLE} build --locked --manifest-path ${PX_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_uninstall --bin px_uninstall ${PX_RUST_BUILD_FLAG}
+        COMMAND ${CMAKE_COMMAND} -E env "CARGO_TARGET_DIR=${PX_RUST_TARGET_DIR}"
+                ${CARGO_EXECUTABLE} build --locked --manifest-path ${PX_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_uninstall --bin px_uninstall ${PX_RUST_BUILD_FLAG}
         WORKING_DIRECTORY ${PX_RUST_WORKSPACE_ROOT}
         COMMENT "Building Rust px_uninstall"
         VERBATIM
@@ -490,9 +527,9 @@ function(pixels_add_product_packaging target product)
                 --build-dir "${CMAKE_BINARY_DIR}"
                 --source-dir "${CMAKE_SOURCE_DIR}"
                 --product "${product}"
-                --dist-dir "${CMAKE_SOURCE_DIR}/build_official/dist/${product}"
+                --dist-dir "${PX_PRODUCT_BUILD_ROOT}/dist"
         COMMAND python "${CMAKE_SOURCE_DIR}/scripts/verify_product_dist.py"
-                "${CMAKE_SOURCE_DIR}/build_official/dist/${product}"
+                "${PX_PRODUCT_BUILD_ROOT}/dist"
         VERBATIM
     )
 endfunction()

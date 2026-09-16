@@ -3,7 +3,7 @@
 ## 1. 目标与边界
 
 为 Pixels WebView 构建一套可复现的 Windows x64 CEF Release 发行包，同时启用 Chromium 的硬件媒体解码路径和 FFmpeg 软件解码兜底。
-本阶段只生成并验证自定义 CEF，不替换 `third_party/cef`，也不修改 Pixels 运行时。替换、回滚和安装包集成在自定义发行包验收后另行规划。
+本计划的构建、替换和安装包集成现已完成。`third_party/cef/manifest.json` 固定 Pixels 发行包及 SHA-256，Cloud Node 构建、增量发布和正式安装包均使用同一套 runtime；2026-09-16 已由用户确认视频播放正常。
 
 ## 2. 固定版本
 
@@ -25,7 +25,7 @@
 - 构建日志：`D:\GoCloud\cef_151\logs`
 - 发行包：由 CEF automate 脚本生成在工作区的 `chromium\src\cef\binary_distrib` 下
 
-现有 `D:\GoCloud\GammaRayPremium\third_party\cef` 在本阶段保持不变。
+`D:\GoCloud\GammaRayPremium\third_party\cef` 已切换到 Pixels 自定义发行包；二进制仍不进入 Git，由 manifest 下载并校验。
 
 ## 4. 网络与工具链
 
@@ -117,8 +117,8 @@ use_thin_lto=false
   每个阶段都检查剩余空间。实际空间不足时停止在可恢复点，不删除项目或用户数据。
 - Chromium 源码和依赖体积大，代理中断后使用 depot_tools/automate 的增量同步继续，不重新创建第二套 checkout。
 - H.264、AAC、HEVC 等格式可能涉及专利和分发许可。技术验收通过不代表获得商业分发授权，正式发布前需单独完成许可审查。
-- 本阶段不修改现有 Pixels CEF，因而失败或中断不会影响当前产品构建。
+- CEF 已进入 Cloud Node 正式构建；更新 manifest、归档或默认目录时必须同步校验下载、构建树、dist 和安装包清单。
 
 ## 9. 后续替换规划输入
 
-构建完成后，替换方案至少基于以下真实产物制定：CEF 发行包布局、`libcef.dll` 和资源文件版本、sandbox 依赖、locales、SwiftShader/ANGLE 文件、编解码验证记录、产物体积以及 SHA-256。替换时必须同时覆盖构建链接输入和 `build_official\dist` 运行时文件，并逐项校验哈希。
+当前替换已同时覆盖构建链接输入、`build_official\cloud_node\dist` runtime 和 Cloud Node 安装包。后续升级仍必须记录发行包布局、`libcef.dll` 和资源文件版本、sandbox 依赖、locales、SwiftShader/ANGLE 文件、功能验证、产物体积以及 SHA-256，并逐项校验哈希。

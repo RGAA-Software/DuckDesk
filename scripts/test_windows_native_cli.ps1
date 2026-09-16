@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$client = Join-Path $repo 'build_official/dist/px_client.exe'
-$output = Join-Path $repo 'test-results'
+$client = Join-Path $repo 'build_official/client/dist/px_client.exe'
+$output = Join-Path $repo 'build_official/client/reports/native-cli'
 New-Item -ItemType Directory -Force -Path $output | Out-Null
 $previous = $env:QT_COMMAND_LINE_PARSER_NO_GUI_MESSAGE_BOXES
 $env:QT_COMMAND_LINE_PARSER_NO_GUI_MESSAGE_BOXES = '1'

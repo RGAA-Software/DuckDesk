@@ -261,7 +261,7 @@ Run `clang-format --style=file --dry-run --Werror` on changed project-owned C++
 files. The root configuration enforces the 150-column policy. Do not include
 generated or read-only third-party sources in a mechanical formatting pass.
 
-Run `cmake --build build_official --target check_cpp_ownership` before native
+Run `cmake --build build_official/<product>/cmake --target check_cpp_ownership` before native
 code review. The checker examines added lines in the working tree and rejects
 raw-pointer declarations in locals/members/parameters/results, asynchronous
 `this` captures, manual `new`/`delete`, unreviewed smart-pointer `release()` and

@@ -108,8 +108,8 @@ VIAddVersionKey /LANG=1033 "LegalCopyright" "Copyright (C) ${COMPANY}"
 
 LangString MSG_CONFLICT ${LANG_ENGLISH} "${PRODUCT_NAME} cannot be installed while $R9 is present.$\r$\nUninstall the other Pixels product first, then run this setup again."
 LangString MSG_CONFLICT ${LANG_SIMPCHINESE} "检测到 $R9，无法安装 ${PRODUCT_NAME}。$\r$\n请先卸载其他 Pixels 产品，再重新运行安装程序。"
-LangString MSG_LEGACY_CONFLICT ${LANG_ENGLISH} "An old or unowned Pixels installation is present. Uninstall it before installing ${PRODUCT_NAME}."
-LangString MSG_LEGACY_CONFLICT ${LANG_SIMPCHINESE} "检测到旧版或无法确认归属的 Pixels 安装。请先卸载，再安装 ${PRODUCT_NAME}。"
+LangString MSG_LEGACY_CONFLICT ${LANG_ENGLISH} "An old or unowned Pixels installation blocks ${PRODUCT_NAME} setup.$\r$\n$\r$\nDetected item:$\r$\n$R9$\r$\n$\r$\nUninstall or remove this exact installation before running setup again."
+LangString MSG_LEGACY_CONFLICT ${LANG_SIMPCHINESE} "旧版或无法确认归属的 Pixels 安装阻止安装 ${PRODUCT_NAME}。$\r$\n$\r$\n检测到的项目：$\r$\n$R9$\r$\n$\r$\n请先卸载或移除此确切安装项目，再重新运行安装程序。"
 LangString MSG_REPLACE_FAILED ${LANG_ENGLISH} "The existing ${PRODUCT_NAME} files could not be replaced. Close any process using $INSTDIR and run setup again."
 LangString MSG_REPLACE_FAILED ${LANG_SIMPCHINESE} "无法覆盖现有 ${PRODUCT_NAME} 文件。请关闭正在使用 $INSTDIR 的程序后重新运行安装程序。"
 
@@ -288,6 +288,7 @@ resolve_existing_found:
     StrCpy $INSTDIR $R0
     Goto resolve_existing_done
 resolve_existing_legacy:
+    StrCpy $R9 "${UNINSTALL_KEY}$\r$\n$R0"
     Call AbortLegacyProduct
 resolve_existing_done:
 FunctionEnd
@@ -336,12 +337,14 @@ check_other_two_32:
 check_legacy_key:
     ReadRegStr $R0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Pixels px_panel" "DisplayName"
     StrCmp $R0 "" check_legacy_key_32
+        StrCpy $R9 "$R0$\r$\nHKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall\Pixels px_panel"
         Call AbortLegacyProduct
 check_legacy_key_32:
     SetRegView 32
     ReadRegStr $R0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Pixels px_panel" "DisplayName"
     SetRegView 64
     StrCmp $R0 "" check_known_directories
+        StrCpy $R9 "$R0$\r$\nHKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall\Pixels px_panel"
         Call AbortLegacyProduct
 
 check_known_directories:
@@ -367,12 +370,14 @@ remote_directory_conflict:
 check_legacy_directory:
 !endif
     IfFileExists "$PROGRAMFILES64\PixelsRender\*" 0 check_service
+        StrCpy $R9 "$PROGRAMFILES64\PixelsRender"
         Call AbortLegacyProduct
 
 check_service:
     ReadRegStr $R1 HKLM "SYSTEM\CurrentControlSet\Services\px_service" "ImagePath"
     StrCmp $R1 "" mutual_check_done
 !if ${HAS_HOST} == 0
+        StrCpy $R9 "px_service$\r$\n$R1"
         Call AbortLegacyProduct
 !else
     SetRegView 64
@@ -388,6 +393,7 @@ check_service_install_found:
     ${StrStr} $R2 $R1 "$R0\px_service.exe"
     StrCmp $R2 "" service_conflict mutual_check_done
 service_conflict:
+        StrCpy $R9 "px_service$\r$\n$R1"
         Call AbortLegacyProduct
 !endif
 mutual_check_done:

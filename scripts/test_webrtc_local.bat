@@ -32,9 +32,9 @@ rem ============================================================================
 cd /d "%~dp0\.."
 set "REPO_ROOT=%cd%"
 
-set "CLIENT_EXE=%REPO_ROOT%\build_official\dist\px_client.exe"
+set "CLIENT_EXE=%REPO_ROOT%\build_official\client\dist\px_client.exe"
 if not exist "%CLIENT_EXE%" (
-    echo ERROR: %CLIENT_EXE% not found. Run scripts_build\build_official.bat first.
+    echo ERROR: %CLIENT_EXE% not found. Build the Client product first.
     exit /b 1
 )
 

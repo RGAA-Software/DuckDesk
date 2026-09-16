@@ -1,85 +1,44 @@
 # Pixels Android Client
 
-`src/px_android` 正在原地重建为正式的 Pixels Android 客户端。旧 Android 应用不再维护，也不承担数据、API、UI、包名或安装升级兼容。
+`src/px_android` 是正式 Pixels Android 客户端，产品名为 `Pixels`，applicationId 为 `yun.pixels.client`。只发布 `arm64-v8a`，最低系统版本为 Android 12 / API 31；不保留旧 Android 应用、数据、入口、协议默认值或包名兼容。
 
-完整且具有约束力的产品、架构、删除范围、里程碑和验收标准见：
+产品能力和设计边界见：
 
-- [Pixels Android 客户端最终产品规划](../../docs/android_pixels_product_plan.md)
+- [Pixels Android 客户端产品规划](../../docs/android_pixels_product_plan.md)
 - [Pixels Android UI/UX 设计规范](../../docs/android_pixels_ui_design.md)
-- [Android 云应用模块实施计划](../../docs/android_cloud_apps_implementation_plan_20260914.md)
-- [原生客户端 SDK 与 WebRTC 产品边界](../../docs/native_client_sdk_transport_decision.md)
+- [Android 云应用模块实施记录](../../docs/android_cloud_apps_implementation_plan_20260914.md)
+- [产品编译、产物与使用说明](../../docs/product_build_and_usage.md)
 
-## 已确认的方向
+## 产品构建
 
-- 产品显示名为 `Pixels`。
-- 最终 namespace/applicationId 为 `yun.pixels.client`。
-- 只发布 `arm64-v8a`，最低系统基线为 Android 12 / API 31；不保留低版本兼容分支。
-- 使用 Kotlin、Compose、显式会话状态机和类型化 JNI。
-- 复用项目协议、SDK 和媒体核心，删除旧 Fragment、GreenDAO、事件总线、JSON JNI、音乐频谱和 Steam 专属 UI。
-- 最终产品包含音视频串流、完整输入、多显示器、独立云应用、文件传输、剪贴板、录制、语音和完整传输能力。
-- 不保留兼容层、迁移代码、旧入口或新版/旧版并行包。
-- Windows、Android、iOS、macOS 原生客户端仅使用 UDP+FEC 媒体与 WebSocket 控制/文件这一种直连组合；iOS/macOS 平台适配列为后续工作；取消原生 RTC、Relay、旧 UDP/KCP 和 WS 视频回退。
-- WebRTC 仅用于 Web 客户端；原生公网 P2P/Relay 留待后续 RustDesk 方案，本轮不实现。
+必须从仓库根目录使用统一产品入口：
 
-## 当前状态
-
-2026-09-07 已完成 SDK 抽离、UDP 媒体回退退役及 Android 固定原生接入：账号与局域网连接统一使用 UDP+FEC 媒体和 WebSocket 控制/文件。RTC AAR、信令、专属录制/语音/文件 JNI 已归档退役。Debug 编译及 34 项单元测试通过；无手机，尚未真机复验。共享 SDK 的旧通道代码清理和平台分层仍待实施，详见 [第三检查点](../../docs/android_native_only_checkpoint_20260907.md)。
-
-M0–M2 已完成。当前应用已包含 Pixels 品牌与最终包名、设备发现和扫码、Quick Connect、Console 账号与设备、前台会话服务、MediaCodec Surface 视频及 FFmpeg 软件解码回退、AAudio、完整桌面输入、虚拟/实体手柄、远端已有显示器发现与切换、按设备保存并应用的帧率/音频/输入模式/解码策略偏好、双向文本及 URI 图片/文件剪贴板、基于 SAF 的双向文件传输和任务中心、直接复用编码码流并发布到 MediaStore 的本地录制，以及经 Windows 用户同意的双向 Opus 语音通话。旧的设备内应用页和旧会话模型不是已交付的云应用，将直接替换为独立“云应用” Tab，不做数据或入口兼容。Android 不创建或删除 Windows 虚拟显示器。
-
-语音通话使用 AAudio 通信流，支持麦克风/远端声音静音、听筒/耳机与扬声器切换，并在 Android 路由改变时重建音频流而不中断会话。URI 剪贴板把 Android 内容安全物化到私有缓存，通过既有虚拟文件协议按需分块传输，远端文件则通过非导出的 `FileProvider` 写回系统剪贴板。手柄双电机振动回传已完成真机闭环；此前的标准 WebRTC 实现已按产品决定归档退役，相关旧测试不代表当前包的功能验收。M5–M6 的完整网络与发布矩阵尚未完成，未完成能力不会以占位实现伪装为可用。
-
-完整画质预设、编码输出分辨率、码率和 codec 的跨平台能力协商已经形成设计，但当前暂缓实施。当前执行项为收敛原生 UDP+FEC 与 WS 控制/文件，
-验证直连账号与工具能力、文件并发隔离、Wi-Fi/生命周期，以及补齐发布输入。公网 P2P/Relay 留待 RustDesk 方案，性能/设备/API/无障碍矩阵仍不在本轮执行。
-
-### 无 USB 设备时的交接点
-
-截至 2026-09-07，新传输决定之前的 debug APK 已构建完成，SHA-256 为
-`B0ED8D4C9C699106BF55EB4D1931CBD76B5A1B1EAEB92010B7C5D454AEB33E0D`，但因手机从 ADB 消失尚未覆盖安装。手机重新连接后只执行下述
-`adb install -r -d`，不得为日常验证卸载应用或清空数据。上述旧 APK 不作为新候选包，完成 RTC 移除后重新构建并记录哈希。单次真机验证限制在 5 分钟内，
-检查 UDP+FEC 直连的语音同意、挂断释放、WS 文件/文件型剪贴板、录制和前后台/锁屏恢复；取消原生 RTC/Relay/P2P 与 WS 视频回退待测项。远程应用配置和发布输入仍待解决。
-
-构建基线为 Gradle 9.3.1、AGP 9.1.1、内置 Kotlin 2.4.10、Compose BOM 2026.08.00、API 37，最低系统 API 31。日常验证使用：
-
-```powershell
-cd src/px_android
-./gradlew.bat testDebugUnitTest :app:assembleDebug :app:lintDebug
+```bat
+scripts_build\build_android_product.bat debug
+scripts_build\build_android_product.bat debug install
+scripts_build\build_android_product.bat release
 ```
 
-Debug APK 输出为 `app/build/outputs/apk/debug/app-debug.apk`。USB 安装和启动：
+每次调用都会删除 `build_official/android` 旧沙箱、独立提升 Android 版本，并构建完整目标。`debug install` 使用 `adb install -r` 覆盖安装，不卸载应用或清除用户数据。
 
-```powershell
-adb install -r -d app/build/outputs/apk/debug/app-debug.apk
-adb shell am start -n yun.pixels.client.debug/yun.pixels.client.MainActivity
+Debug APK：
+
+```text
+build_official/android/dist/Pixels-<version>-debug-arm64-v8a.apk
 ```
 
-日常真机验证只做 `-r` 覆盖安装，不主动卸载或清空应用数据。`core-native` 打包 `pixels_android_core`，并通过 `RegisterNatives` 提供类型化 JNI；没有旧 JSON JNI 或 RTC stub。
+Release 目录：
 
-后续 native C++ 聚焦验证使用仓库的 `scripts_build\build_cpp_android_*.bat` 入口。Windows release-only `scripts_build\build_official.bat` 不是 Android 开发命令。
-
-## 发布构建
-
-正式包只允许使用独立的 Pixels 签名。可通过环境变量注入：
-
-```powershell
-$env:PIXELS_KEYSTORE_FILE = 'C:\secure\pixels-release.jks'
-$env:PIXELS_KEYSTORE_PASSWORD = '<secret>'
-$env:PIXELS_KEY_ALIAS = 'pixels'
-$env:PIXELS_KEY_PASSWORD = '<secret>'
-$env:PIXELS_SIGNING_CERT_SHA256 = '<approved-64-hex-certificate-sha256>'
-$env:PIXELS_VERSION_CODE = '1'
-$env:PIXELS_VERSION_NAME = '1.0.0'
-$env:PIXELS_FFMPEG_SOURCE_ARCHIVE = 'C:\release-inputs\ffmpeg-6.1-source.zip'
-$env:PIXELS_LGPL_RELINK_ARCHIVE = 'C:\release-inputs\pixels-1.0.0-relink-objects.zip'
-.\build_official_release.bat
+```text
+build_official/android/dist/<version>/
 ```
 
-本机已经在被 Git 忽略的 `signing/pixels-release.jks` 和 `keystore.properties` 中配置 RSA-4096、50 年 Pixels 产品签名；Gradle `release` 变体会直接读取该配置，证书 SHA-256 为 `C8C97549200D26FC44E17DA5694C8B1FBE80321417F924F1BDD42A863A60A0D0`。密钥库和明文密码不得提交到仓库。
+Release 同时生成并校验签名 APK、AAB、R8 mapping、native symbols、FFmpeg n6.1 对应源码、从本次 native 构建对象自动生成的 LGPL relink kit、第三方 notices 和带 SHA-256 的 `release-manifest.json`。FFmpeg 源码由当前 `VCPKG_ROOT`（未设置时为 `C:\source\vcpkg`）的已安装 SPDX 清单与下载缓存锁定，不再要求手工准备旧的源码/relink ZIP。
 
-也可以复制 `keystore.properties.example` 为被 Git 忽略的 `keystore.properties`。脚本执行 release lint、单元测试、R8/resource shrink、
-arm64 native 构建以及 APK/AAB 签名校验；APK 与 AAB 的实际签名证书必须同时匹配显式配置的正式证书 SHA-256。脚本还通过 ELF Build ID 保证归档的
-native symbols 与 APK 内实际 `.so` 完全对应，并把签名证书 SHA-256、native Build ID、APK、AAB、R8 mapping、native symbols 和带 SHA-256 的发布清单归档到
-`app/apk/release/<version>/`。所有文件先在构建目录隔离校验，全部通过后才一次性发布；已经存在的版本目录不可覆盖。Android native 当前静态链接 LGPL FFmpeg，因此正式构建还必须提供与构建版本完全一致的 FFmpeg 源码 ZIP 和包含
-应用可重链接目标文件的 ZIP；流水线校验二者内容后将其与完整第三方许可材料一起归档并写入清单。缺少签名或 LGPL 合规输入时 release 打包会立即失败；
-debug 构建不受影响。版本可由
-`PIXELS_VERSION_CODE`/`PIXELS_VERSION_NAME` 注入，Git revision 会自动写入构建元数据。
+正式签名通过被 Git 忽略的 `keystore.properties` 或完整的 `PIXELS_*` 签名环境变量提供。不得直接调用 Gradle 的 Release 打包任务；它们会拒绝绕过统一入口，以防产生缺少合规材料或发布清单的半成品。
+
+## 开发验证
+
+聚焦 native C++ 修改可使用 `scripts_build\build_cpp_android_*.bat`，这类命令不代表完整产品交付。最终交付必须重新执行上述完整产品构建。
+
+Android 使用独立“云应用”一级 Tab、`client_type=android` 和 Console 返回的权威端点；不使用旧设备内应用页、旧身份、旧固定端口或任何运行时回退。

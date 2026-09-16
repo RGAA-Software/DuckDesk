@@ -15,7 +15,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $repository = Split-Path $PSScriptRoot -Parent
 $consoleBase = 'https://39.71.45.66:4600'
-$clientPath = Join-Path $repository 'build_official/dist/px_client.exe'
+$clientPath = Join-Path $repository 'build_official/client/dist/px_client.exe'
 $credentialsPath = Join-Path $repository '.env/public_test_user.json'
 $licensePath = Join-Path $repository '.env/public_license.json'
 $machinePath = Join-Path $repository '.env/test_machine.md'
@@ -47,7 +47,7 @@ foreach ($path in @($clientPath, $credentialsPath, $licensePath, $machinePath)) 
         throw "Native acceptance input is missing: $path"
     }
 }
-$buildClient = Join-Path $repository 'build_official/src/px_deps/px_client.exe'
+$buildClient = Join-Path $repository 'build_official/client/cmake/src/px_deps/px_client.exe'
 if ((Get-FileHash -LiteralPath $clientPath -Algorithm SHA256).Hash -ne
     (Get-FileHash -LiteralPath $buildClient -Algorithm SHA256).Hash) {
     throw 'The official Client and build-tree artifact hashes differ.'

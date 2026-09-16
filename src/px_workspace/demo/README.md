@@ -15,10 +15,10 @@ do not update its baseline or other installed packages just to run the demo.
 
 ```powershell
 C:/source/vcpkg/vcpkg.exe install duilib:x64-windows-static-release
-scripts_build/build_cpp_workspace_demo.bat
-ctest --test-dir build_workspace_demo --output-on-failure
-powershell -NoProfile -File scripts_build/publish_workspace_demo.ps1
-build_official/dist/workspace_ui_demo/workspace_ui_demo.exe
+scripts_build/build_cpp_workspace_demo.bat client
+ctest --test-dir build_official/client/tools/workspace_demo --output-on-failure
+powershell -NoProfile -File scripts_build/publish_workspace_demo.ps1 -Product client
+build_official/client/dist/workspace_ui_demo/workspace_ui_demo.exe
 ```
 
 Set `VCPKG_ROOT` before the build script if the dependency checkout is elsewhere.

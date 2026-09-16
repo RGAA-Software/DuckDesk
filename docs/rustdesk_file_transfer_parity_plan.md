@@ -140,7 +140,7 @@ Panel 设备操作
 1. 运行 `px_ft_engine`、Client、Panel 和 Render 的针对性单元测试。
 2. 使用 Console 当前配置的公网节点验证：无远控时打开、与远控并行、分别关闭、上传/下载/取消/覆盖/续传、断线重连。
 3. 使用聚焦 C++ 构建脚本构建 Panel、Client、Render；需要 Service 变化时使用聚焦 Rust 构建。
-4. 同步所有运行时文件到 `build_official/dist`，逐项校验 SHA-256。
+4. 同步所有运行时文件到 `build_official/<product>/dist`，逐项校验 SHA-256。
 
 ## 8. 完成标准
 
@@ -149,7 +149,7 @@ Panel 设备操作
 - RustDesk 桌面文件管理器当前可见的布局和操作在 Pixels 中都有对应实现。
 - 本地/远端文件操作、覆盖、取消、失败、续传和审计均有自动化或节点联调证据。
 - 中英文、明暗主题、普通/高端视觉效果均可用。
-- `build_official/dist` 与构建产物哈希一致后才标记可验收。
+- `build_official/<product>/dist` 与构建产物哈希一致后才标记可验收。
 
 ## 9. 实施记录
 
@@ -186,8 +186,8 @@ Panel 设备操作
 - `test_client_file_browser_model`：3/3 通过，覆盖 Ctrl/Shift 选择和稳定排序。
 - `test_ft_recursive_remove`：1/1 通过；`test_ft_engine`：15/15 通过；`test_ft_async_session`：16/16 通过。
 - 旧固定节点实机记录已经删除；独立文件传输、上传、下载、远端删除和无媒体依赖必须在当前公网节点重新验收。
-- 最终 Client 聚焦构建已同步到 `build_official/dist`，构建树和发布目录的 `px_client.exe` SHA-256 均为 `8B8A9CC8EEF372F9AC73AE32CBB5DD81D6B932E765120ECC176121E487C71A0F`。
-- 共享文件引擎变更已重新链接到 Render；构建树与 `build_official/dist` 的 `px_render.exe` SHA-256 必须一致。
+- 最终 Client 聚焦构建已同步到 `build_official/<product>/dist`，构建树和发布目录的 `px_client.exe` SHA-256 均为 `8B8A9CC8EEF372F9AC73AE32CBB5DD81D6B932E765120ECC176121E487C71A0F`。
+- 共享文件引擎变更已重新链接到 Render；构建树与 `build_official/<product>/dist` 的 `px_render.exe` SHA-256 必须一致。
 
 ### 2026-09-14：阶段 E 单例与路径导航已完成
 

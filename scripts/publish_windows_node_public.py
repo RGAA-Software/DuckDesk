@@ -173,7 +173,7 @@ try {{
 
 def main() -> int:
     args = parse_args()
-    dist_directory = ROOT / "build_official" / "dist" / args.product
+    dist_directory = ROOT / "build_official" / args.product / "dist"
     remote_directory = REMOTE_DIRECTORIES[args.product]
     subprocess.run(
         ["python", str(ROOT / "scripts" / "verify_product_dist.py"), str(dist_directory)],

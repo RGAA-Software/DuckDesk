@@ -203,11 +203,11 @@ demo 的 EndPaint 到 paintGL 计时不是输入到屏幕的端到端时延，�
   不机械修改第三方源树；确需补丁时列最小变更、测试和升级风险后单独审查。
 - 新增/迁入 C++ 按 `docs/cpp_smart_pointer_standard.md` 实现：确定性初始化、RAII、弱引用异步回调、Qt 单一所有权、150 列。
   FreeRDP ABI 只在最小适配边界出现，不借“demo 原来如此”新增裸指针生命周期债务。
-- C++ 用 `scripts_build/build_cpp_client.bat`、`build_cpp_render.bat`、`build_cpp_sdk.bat` 及聚焦测试入口；
-  新测试可由 `build_cpp_tests.bat <target>` 调用，不运行 release-only `build_official.bat`。
+- C++ Client 用 `scripts_build/build_cpp_client.bat client` 与 `build_cpp_sdk.bat client`，Render 用
+  `build_cpp_render.bat cloud_node`；新测试可由 `build_cpp_tests.bat <product> <target>` 调用，不运行 release-only `build_official.bat`。
 - Rust 针对 `service_core`、`px_service`、`px_console_server` 相关用例做测试/构建；Console Web 做 type-check、聚焦单测和实际改动对应构建。
   生成协议走源 `.proto` 的既有流程，不只手改生成文件；并验证旧字段/旧端能力拒绝行为。
-- 变更 Client exe、FreeRDP/WinPR/依赖 DLL、语言资源/相关资产均同步到 `build_official/dist`，逐项 SHA-256 一致才交付。
+- 变更 Client exe、FreeRDP/WinPR/依赖 DLL、语言资源/相关资产均同步到 `build_official/<product>/dist`，逐项 SHA-256 一致才交付。
   文件占用时停止准确对应进程再发布并复核；公网节点部署也记录源/目标版本及哈希，不用旧 DLL 混测。
 - 每阶段独立变更与验证记录，提交/push 按后续用户要求执行；不修改无关脏文件，不移除现有归档。
 - 回退通过停止新 RDP 运行实例、关闭入口/撤回运行产物，不删除已创建的持久账号/profile 或注销用户。

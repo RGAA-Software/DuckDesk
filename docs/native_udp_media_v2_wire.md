@@ -1,6 +1,10 @@
 # Native UDP 媒体 v2 字节合同
 
-固定上游版本见 `native_udp_fec_upstream_implementation_plan.md`。仅替换下行音视频；关联、心跳、恢复请求、语音及 WS 不变。不支持旧媒体格式回退；两端必须一起部署。
+本文是 Native UDP 媒体 v2 的当前权威协议说明。仅替换下行音视频；关联、心跳、恢复请求、语音及 WS 不变。不支持旧媒体格式回退；两端必须一起部署。
+
+固定参考版本：Sunshine `3cba9baebac882b336be3ebe129ee612cb189853`；配套 `moonlight-common-c`
+`e41355ea01670fd4c830b384009d31dd0339a705`；配套 nanors `b1e3c22ca0cdc0bb83e3cd6ed1a2fc77869ed99a`。
+参考源位于 `D:/source/Sunshine`，只读使用；项目维护的 Windows 批量 UDP 适配按 GPL-3.0 保留来源和许可清单。
 
 ## Pixels 适配层
 

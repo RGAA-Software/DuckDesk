@@ -10,7 +10,7 @@
 - Android 新增独立一级 Tab，中文固定为“云应用”，英文为“Cloud Apps”。
 - 旧固定 Render 端口已完全退役，不是默认值、回退值、探测目标或验收端口。Android 必须使用 Console/节点配置返回的实际端点；
   当前统一默认中桌面 Render 为 4601，应用 Render 从 4613–4998 动态分配，同一实际端口承载 TCP/WS 与 UDP。
-  端口与节点连接基线以 [调试环境](debug_environment.md) 和 [节点连接配置](node_connection_configuration.md) 为准。
+  端口与节点连接基线以 [节点连接配置](node_connection_configuration.md) 为准。
 - “设备”和“云应用”是两个独立资源域。云应用不再作为设备卡片动作，也不写入设备数据库。
 - 设置页提供 PX Console 地址配置、连接检查、账号注册、登录和退出。
 - 未登录用户进入“云应用”时使用仅驻留内存的 Android guest Bearer，只显示 public 应用。
@@ -236,7 +236,7 @@ request ID 和错误分类，不记录 token、密码或完整连接描述。注
 
 - 单元测试、Compose 导航测试、网络契约测试和进程内假 API 集成测试。
 - 用目标级日常构建产出本批 Console、Service/Render 与 Android 产物，不运行 release-only 全量构建。
-- 将本批改变的 Windows 运行时产物同步到 `build_official/dist` 和公网测试部署，逐文件核对 SHA-256；确认 Console、节点和 Android 的 API/身份契约来自同一批次。
+- 将本批改变的 Windows 运行时产物同步到 `build_official/<product>/dist` 和公网测试部署，逐文件核对 SHA-256；确认 Console、节点和 Android 的 API/身份契约来自同一批次。
 - 当前公网测试 Console 与 Android 真机完成端到端矩阵。
 - 执行 Android 日常构建与 lint；覆盖安装，不卸载、不清数据；记录 APK SHA-256、Console/Render 版本和测试实例 ID。
 

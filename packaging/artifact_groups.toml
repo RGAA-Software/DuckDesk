@@ -14,7 +14,7 @@ destination = "px_client.exe"
 owned_pe = true
 
 [[groups.desktop_client]]
-root = "rust_shared"
+root = "product_rust"
 source = "px_osinfo.exe"
 destination = "px_osinfo.exe"
 owned_pe = true
@@ -92,7 +92,7 @@ kind = "tree"
 include = ["px_rdp_client.dll", "px_rdp_core.dll", "px_rdp_winpr.dll", "libusb-1.0.dll", "libssl-3-x64.dll", "libcrypto-3-x64.dll", "zlib1.dll", "cjson.dll", "legacy.dll", "openh264-6.dll"]
 
 [[groups.host_common]]
-root = "rust_shared"
+root = "product_rust"
 source = "px_service.exe"
 destination = "px_service.exe"
 owned_pe = true
@@ -117,13 +117,13 @@ destination = "rdp/px_rdp_sdk.json"
 replace = true
 
 [[groups.host_common]]
-root = "rust_shared"
+root = "product_rust"
 source = "px_service_manager.exe"
 destination = "px_service_manager.exe"
 owned_pe = true
 
 [[groups.host_common]]
-root = "rust_shared"
+root = "product_rust"
 source = "px_function.exe"
 destination = "px_function.exe"
 owned_pe = true
@@ -209,8 +209,8 @@ destination = "px_render_rtc.dll"
 owned_pe = true
 
 [[groups.browser_remote]]
-root = "source"
-source = "web/px_web_client/dist"
+root = "product_web"
+source = "."
 destination = "web_client"
 kind = "tree"
 include = ["**/*"]

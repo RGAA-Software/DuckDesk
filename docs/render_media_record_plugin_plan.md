@@ -329,7 +329,7 @@ rec_{monitor}_{YYYYMMDD}_{HH.MM.SS}.mp4
 | 基建 | 位置/说明 |
 |---|---|
 | 桌面构建 | `build_official/`（Ninja，RelWithDebInfo，triplet `x64-windows-static-release`，VCPKG `C:/source/vcpkg`） |
-| 可运行部署 | `build_official/dist/`：`px_render.exe` / `px_client.exe` / `px_panel.exe` / `settings.toml` / `deps/rd_plugins/*.dll`（`media_recorder.dll` 已存在，当前是空壳） |
+| 可运行部署 | `build_official/<product>/dist/`：`px_render.exe` / `px_client.exe` / `px_panel.exe` / `settings.toml` / `deps/rd_plugins/*.dll`（`media_recorder.dll` 已存在，当前是空壳） |
 | 单测体系 | `TESTS_ENABLED=ON`；GTest；模式 = 模块下 `tests/` 子目录 + `add_tc_test()`；构建 `scripts_build\build_official_tests.bat`、运行 `run_tc_tests.bat`（现有 19 个 `test_*`） |
 | 媒体工具 | `C:\source\vcpkg\installed\x64-windows-static-release\tools\ffmpeg\ffmpeg.exe` / `ffprobe.exe` |
 | 其他插件 | `mock_video_stream.dll`（可模拟流，多屏测试不用真接第二显示器） |
@@ -357,7 +357,7 @@ rec_{monitor}_{YYYYMMDD}_{HH.MM.SS}.mp4
 
 > 测试向量：视频用 avcodec 内存内 libx264 编码生成（或读素材文件），音频用 `px_opus_codec` 编码正弦 PCM——完全自包含、可重复、无外部依赖。
 
-### 9.4 端到端用例（本机真机，build_official/dist）
+### 9.4 端到端用例（本机真机，build_official/<product>/dist）
 
 环境：本机运行 Render（`px_render.exe`，使用测试启动描述分配的实际端口，采集 DDA/GDI，音频 WASAPI 全局）和 Client（`px_client.exe` 连接该实际端点）。
 

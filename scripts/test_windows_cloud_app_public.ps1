@@ -13,8 +13,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repository = Split-Path $PSScriptRoot -Parent
-$clientPath = Join-Path $repository 'build_official/dist/client/px_client.exe'
-$buildClientPath = Join-Path $repository 'build_official/client/src/px_deps/px_client.exe'
+$clientPath = Join-Path $repository 'build_official/client/dist/px_client.exe'
+$buildClientPath = Join-Path $repository 'build_official/client/cmake/src/px_deps/px_client.exe'
 $credentialsPath = Join-Path $repository '.env/public_test_user.json'
 $licensePath = Join-Path $repository '.env/public_license.json'
 $clientLogPath = Join-Path (Split-Path $clientPath -Parent) 'px_logs/px_client.log'

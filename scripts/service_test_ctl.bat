@@ -10,7 +10,7 @@ setlocal
 set "ACTION=%~1"
 set "PORT=%~2"
 if "%PORT%"=="" set "PORT=4603"
-set "DIST=%~dp0..\build_official\dist"
+set "DIST=%~dp0..\build_official\cloud_node\dist"
 set "EXE=%DIST%\px_service.exe"
 
 if /I "%ACTION%"=="start" goto :start

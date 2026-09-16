@@ -4,17 +4,20 @@ param(
     [ValidateSet('service')]
     [string]$Component,
 
-    [string]$OutputDir = 'build_official\shared\rust'
+    [Parameter(Mandatory = $true)]
+    [ValidateSet('cloud_node', 'remote')]
+    [string]$Product
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$outputRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot $OutputDir))
+$productRoot = Join-Path $repoRoot "build_official\$Product\cargo"
+$outputRoot = Join-Path $productRoot 'stage'
 New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
 
-$source = Join-Path $repoRoot 'rust_client\target\release\px_service.exe'
+$source = Join-Path $productRoot 'target\release\px_service.exe'
 $destination = Join-Path $outputRoot 'px_service.exe'
 if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
     throw "Rust service artifact does not exist: $source"

@@ -280,7 +280,7 @@ void NetClient::Start() {
         });
     }
     // GameStream 风格双通道:ws 控制面(可靠消息/状态机全复用) + 裸 UDP 媒体面,
-    // 见 docs/udp_gamestream_channel_plan.md
+    // 见 docs/native_udp_media_v2_wire.md
     LOGI("Start native connection mode={}, route={}, control={}:{}", static_cast<int>(params_.session_mode_), static_cast<int>(params_.route_),
          params_.ip_, params_.port_);
     LOGI("Native media transport: {}", params_.media_transport_ == SdkMediaTransport::kWebSocket ? "WebSocket/TCP" : "UDP/FEC");

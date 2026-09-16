@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
-    [string]$BuildDir = "build_official",
+    [Parameter(Mandatory = $true)]
+    [ValidateSet("cloud_node", "remote")]
+    [string]$Product,
     [string]$RenderDir = "",
     [int]$PagePort = 43177,
     [int]$RenderPort = 4835,
@@ -13,7 +15,7 @@ param(
 $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 if ([string]::IsNullOrWhiteSpace($RenderDir)) {
-    $renderDir = Join-Path $repoRoot "$BuildDir\src\px_render"
+    $renderDir = Join-Path $repoRoot "build_official/$Product/cmake/src/px_render"
 } else {
     $renderDir = (Resolve-Path -LiteralPath $RenderDir).Path
 }

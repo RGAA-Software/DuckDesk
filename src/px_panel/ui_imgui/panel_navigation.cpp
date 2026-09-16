@@ -1,40 +1,17 @@
 #include "panel_navigation.h"
 #include "panel_layout.h"
+#include "panel_navigation_model.h"
 
 #include "px_ui/components/navigation.h"
 #include "px_ui/layout_metrics.h"
 #include "px_ui/theme_tokens.h"
-#include "version_config.h"
-
 #include <imgui.h>
 
-#include <array>
 #include <string>
 #include <string_view>
 #include <utility>
 
 namespace px::panel::ui {
-namespace {
-
-struct NavigationItem final {
-    PanelPage page{};
-    px::ui::TextId text{};
-    px::ui::VectorIcon icon{};
-};
-
-constexpr std::array kNavigationItems{
-    NavigationItem{PanelPage::RemoteControl, px::ui::TextId::RemoteControl, px::ui::VectorIcon::Monitor},
-    NavigationItem{PanelPage::DeviceList, px::ui::TextId::DeviceList, px::ui::VectorIcon::List},
-#if PX_CAPABILITY_CLOUD_APP_CATALOG
-    NavigationItem{PanelPage::CloudApplications, px::ui::TextId::CloudApplications, px::ui::VectorIcon::Cloud},
-#endif
-#if PX_CAPABILITY_DESKTOP_HOST
-    NavigationItem{PanelPage::ServerStatus, px::ui::TextId::ServerStatus, px::ui::VectorIcon::Activity},
-#endif
-    NavigationItem{PanelPage::Settings, px::ui::TextId::Settings, px::ui::VectorIcon::Settings},
-};
-
-} // namespace
 
 PanelNavigation::PanelNavigation(std::shared_ptr<AccountPort> accountPort) : account_{std::move(accountPort)} {}
 
@@ -56,7 +33,7 @@ NavigationAction PanelNavigation::Draw(const px::ui::Localizer& localizer) {
     const float buttonHeight{px::ui::Scale(35.0F)};
     const float iconInset{px::ui::Scale(15.0F)};
     const auto centerButton = [buttonWidth] { ImGui::SetCursorPosX((ImGui::GetWindowWidth() - buttonWidth) * 0.5F); };
-    for (const auto& item : kNavigationItems) {
+    for (const auto& item : kProductNavigationItems) {
         centerButton();
         const bool wasSelected{item.page == selectedPage_};
         const std::string id{"navigation-" + std::to_string(static_cast<int>(item.page))};

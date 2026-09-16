@@ -27,7 +27,7 @@ if(PX_CAPABILITY_DESKTOP_HOST)
 endif()
 
 target_link_libraries(px_panel_imgui_views PUBLIC px_panel_desktop_shell px_ui px_imgui SDL3::SDL3-static PRIVATE px_common Comdlg32.lib)
-target_include_directories(px_panel_imgui_views PRIVATE "${PX_PRODUCT_GENERATED_DIR}")
+target_include_directories(px_panel_imgui_views BEFORE PRIVATE "${PX_PRODUCT_GENERATED_DIR}")
 
 add_executable(px_panel_imgui_preview
     main.cpp
@@ -195,6 +195,7 @@ if(BUILD_TESTING AND TARGET GTest::gtest)
         product/panel_worker.cpp
         product/windows_environment_probe.cpp
     )
+    target_include_directories(px_panel_product_tests BEFORE PRIVATE "${PX_PRODUCT_GENERATED_DIR}")
     target_include_directories(px_panel_product_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/product)
     target_link_libraries(px_panel_product_tests PRIVATE
         px_common

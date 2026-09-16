@@ -17,7 +17,7 @@
   → Panel 全局框架和六个页面逐页迁移
   → Client 悬浮控制器、分层菜单、反馈和文件传输迁移
   → 全功能、主题、DPI、性能回归
-  → 发布到 build_official/dist 并核对 SHA-256
+  → 发布到 build_official/<product>/dist 并核对 SHA-256
 ```
 
 组件库通过阶段验收以前，不调整产品页面布局。页面重排开始后也不临时保留两套产品 UI；每个页面在独立分支步骤内一次完成组件接入、功能守恒检查和新布局。
@@ -409,9 +409,9 @@ px_ui foundation → px_ui components → px_panel product composites → px_pan
 日常只使用：
 
 ```bat
-scripts_build\build_cpp_panel_imgui_preview.bat
-scripts_build\build_cpp_panel_imgui.bat
-scripts_build\build_cpp_client.bat
+scripts_build\build_cpp_panel_imgui_preview.bat client
+scripts_build\build_cpp_panel_imgui.bat client
+scripts_build\build_cpp_client.bat client
 ```
 
 不运行 `scripts_build\build_official.bat`，除非用户明确要求完整发布构建。
@@ -427,10 +427,11 @@ scripts_build\build_cpp_client.bat
 
 ### I4. 发布验收
 
-- `scripts_build\build_cpp_panel_imgui.bat` 与 `scripts_build\build_cpp_client.bat` 分别将 Panel/Client 运行时文件、字体、许可证和语言资源同步到 `build_official\dist`。
+- `scripts_build\build_cpp_panel_imgui.bat <product>` 与 `scripts_build\build_cpp_client.bat <product>` 分别将 Panel/Client
+  运行时文件、字体、许可证和语言资源同步到 `build_official\<product>\dist`。
 - 如果目标文件被占用，停止对应进程后发布。
-- 对每个变更的运行时文件核对 build tree 与 `build_official\dist` 的 SHA-256；任何不一致都不能报告可验收。
-- 用户从 `build_official\dist\px_panel.exe` 启动最终版本。
+- 对每个变更的运行时文件核对 build tree 与 `build_official\<product>\dist` 的 SHA-256；任何不一致都不能报告可验收。
+- 用户从 `build_official\<product>\dist\px_panel.exe` 启动最终版本。
 
 ## 13. 推荐提交边界
 
@@ -458,4 +459,4 @@ scripts_build\build_cpp_client.bat
 - 深浅主题、中英文、普通/高级效果和跨 DPI 正常。
 - 外层窗口行为符合 Win10 直角、Win11 系统圆角要求。
 - 自动测试、增量构建、产品运行验证通过。
-- `build_official\dist` 中全部变化运行时文件与 build tree SHA-256 一致。
+- `build_official\<product>\dist` 中全部变化运行时文件与 build tree SHA-256 一致。

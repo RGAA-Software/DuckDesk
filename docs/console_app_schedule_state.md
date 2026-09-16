@@ -174,7 +174,7 @@ http://{device_ip}:{listen_port}/web_client/?deviceId={device_id}&instanceId={in
 | 组件 | 典型路径 / 参数 |
 |------|------------------|
 | Console | `output/px_console/px_console.exe --running-mode=server`（HTTPS `:30500`） |
-| Service | `scripts\service_test_ctl.bat start`（封装 `build_official/dist/px_service.exe --console --port 20375`） |
+| Service | `scripts\service_test_ctl.bat start`（封装 `build_official/<product>/dist/px_service.exe --console --port 20375`） |
 
 Service 启停脚本（console 模式，2026-08-08 新增）：
 
@@ -185,7 +185,7 @@ scripts\service_test_ctl.bat status         rem 查看是否在跑
 scripts\service_test_ctl.bat stop           rem 停止
 ```
 
-- 工作目录固定 `build_official\dist`，日志直接打在 console 窗口。
+- 工作目录固定 `build_official\<product>\dist`，日志直接打在 console 窗口。
 - SCM 服务方式（开机自启）不需要脚本，用 dist 里的 `px_service_manager.exe install --service-bin <path>` / `stop` / `query` / `remove`。
 | 鉴权注入 | `node scripts/inject_service_auth.mjs --device-id e2e-machine-1 --appkey … --console-host 127.0.0.1 --console-port 30500` |
 | Render | 与 Service 同目录的 `px_render.exe` |

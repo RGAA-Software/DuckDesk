@@ -84,7 +84,7 @@
 当前 focused 结果：callback quiescence、UDP receive storm、OBS repeated lifecycle/真实 server reconnect、WebRTC 连续 10 轮 load/start/StopAsync/unload 均通过；
 OBS lifecycle 额外连续执行 20 轮通过；SDK WS/WSS、Relay WS、公共 supervisor 和 Opus 并发关闭测试通过。最终 `Mode all` 自动化门禁通过 37 项、
 失败 0、跳过 0、unexpected ERROR 0；证据位于 `test-results/render-architecture/20260904-195634-all`。`px_render.exe`、`px_gh.dll`、
-`px_render_rtc_remote.dll`、`px_render_rtc.dll` 的构建树与 `build_official/dist` SHA-256 均一致。该结果不替代用户最终产品验收。
+`px_render_rtc_remote.dll`、`px_render_rtc.dll` 的构建树与 `build_official/<product>/dist` SHA-256 均一致。该结果不替代用户最终产品验收。
 
 ### 2.2 复审加固（2026-09-04）
 
@@ -608,9 +608,10 @@ supervisor 的 `connection_attempts`、`successful_connections`、`reconnect_wai
 
 - 运行 ownership gate，新增行不得出现项目 raw pointer、`[this]`、`[&]` 异步捕获和 manual `new/delete`。
 - 增加 initialization/architecture guard，检查未初始化成员、通用 transport/plugin 接口、私有 runtime 和同步 callback wait 不得回归。
-- 使用 `scripts_build\build_cpp_common.bat`、`scripts_build\build_cpp_render_network_libraries.bat`、`scripts_build\build_cpp_render.bat` 和对应 focused test runner；不运行 release-only
+- 使用 `scripts_build\build_cpp_common.bat cloud_node`、`scripts_build\build_cpp_render_network_libraries.bat cloud_node`、
+  `scripts_build\build_cpp_render.bat cloud_node`（Remote 改用 `remote`）和对应 focused test runner；不运行 release-only
   `scripts_build\build_official.bat`。
-- 改动运行产物同步到 `build_official/dist` 后逐项比较 SHA-256；哈希不一致不得报告可验收。
+- 改动运行产物同步到 `build_official/<product>/dist` 后逐项比较 SHA-256；哈希不一致不得报告可验收。
 - 保存 JUnit、日志隐私扫描、性能对比、process metrics 和 artifact hash 到独立 test-results 目录。
 
 ## 13. 实施批次与工期

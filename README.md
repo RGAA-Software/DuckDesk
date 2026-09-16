@@ -8,8 +8,7 @@
 [B站演示地址(远程桌面)](https://www.bilibili.com/video/BV1qF5NzfENv/)  
 
 ## Usage
-##### 1. [How To Use](docs/pixels/How_to_use.md)
-##### 2. [How To Build](docs/pixels/How_to_build.md)
+#### [当前产品编译、安装与使用说明](docs/product_build_and_usage.md)
 ## More
 #### [Official Site (官网)](https://pixels.yun)
 #### [Documentation (文档)](https://docs.pixels.yun)

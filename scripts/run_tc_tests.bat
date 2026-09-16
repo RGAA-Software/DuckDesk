@@ -1,13 +1,24 @@
 @echo off
 setlocal enabledelayedexpansion
 
+if "%~1"=="" (
+    echo Usage: %~nx0 cloud_node^|client^|remote
+    exit /b 2
+)
+if /I not "%~1"=="cloud_node" if /I not "%~1"=="client" if /I not "%~1"=="remote" (
+    echo ERROR: product must be cloud_node, client, or remote.
+    exit /b 2
+)
+set PRODUCT=%~1
 set REPO_ROOT=%~dp0..
-set TEST_DIR=%REPO_ROOT%\build_official\src\px_deps\px_common\tests
-set FT_TEST_DIR=%REPO_ROOT%\build_official\src\px_deps\px_ft_engine\tests
-set RECORD_TEST_DIR=%REPO_ROOT%\build_official\src\px_deps\px_media_record\tests
-set VOICE_TEST_DIR=%REPO_ROOT%\build_official\src\px_deps\px_voice_call
-set CLIENT_TEST_DIR=%REPO_ROOT%\build_official\src\px_client
-set LOG=%REPO_ROOT%\build_official\run_tests.log
+set PRODUCT_ROOT=%REPO_ROOT%\build_official\%PRODUCT%
+set TEST_DIR=%PRODUCT_ROOT%\cmake\src\px_deps\px_common\tests
+set FT_TEST_DIR=%PRODUCT_ROOT%\cmake\src\px_deps\px_ft_engine\tests
+set RECORD_TEST_DIR=%PRODUCT_ROOT%\cmake\src\px_deps\px_media_record\tests
+set VOICE_TEST_DIR=%PRODUCT_ROOT%\cmake\src\px_deps\px_voice_call
+set CLIENT_TEST_DIR=%PRODUCT_ROOT%\cmake\src\px_client
+if not exist "%PRODUCT_ROOT%\reports" mkdir "%PRODUCT_ROOT%\reports"
+set LOG=%PRODUCT_ROOT%\reports\run_tests.log
 set FAILED=0
 
 echo. > "%LOG%"

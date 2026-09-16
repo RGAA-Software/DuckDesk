@@ -1,7 +1,13 @@
+param(
+    [Parameter(Mandatory = $true)]
+    [ValidateSet('cloud_node', 'client', 'remote')]
+    [string]$Product
+)
+
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
-$source = Join-Path $repo 'build_workspace_demo'
-$destination = Join-Path $repo 'build_official/dist/workspace_ui_demo'
+$source = Join-Path $repo "build_official/$Product/tools/workspace_demo"
+$destination = Join-Path $repo "build_official/$Product/dist/workspace_ui_demo"
 $null = New-Item -ItemType Directory -Path $destination -Force
 foreach ($name in @('workspace_ui_demo.exe', 'workspace.xml', 'duilib-copyright.txt')) {
     $inputFile = Join-Path $source $name

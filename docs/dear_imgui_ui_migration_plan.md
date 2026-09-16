@@ -15,7 +15,7 @@
    浮动控制器、设置、确认/错误提示、文件传输、录制、语音、剪贴板交互、中文输入、多屏/多窗口和退出流程。业务协议、编码、
    捕获、输入和四种类型语义保持不变；正式 Client 目标和运行闭包不得导入、加载或部署 Qt 组件。
 
-完成门禁：相关定向构建和测试通过；正式 Panel/Client 从 `build_official/dist` 启动；变更的 EXE、DLL、语言、字体和 Web 资源完成
+完成门禁：相关定向构建和测试通过；正式 Panel/Client 从 `build_official/<product>/dist` 启动；变更的 EXE、DLL、语言、字体和 Web 资源完成
 同步及 SHA-256 一致性检查；运行模块无 Qt；关键 UI 事件有明确响应；本机和 90 可执行的真实连接回归单轮不超过 5 分钟。
 
 完成状态（2026-09-12）：上述两项目标及门禁已经完成。Native 活动启动链已不再依赖 Console 一次性连接票据或会话预留；正式
@@ -45,7 +45,7 @@ SDL3 + Dear ImGui 承载。Win32 只保留窗口、凭据保险库、进程、�
 - Remote Control、Cloud Applications、Security Records、General、Network、Security、Controller、About 均已替换为真实 ImGui 页面和类型化业务端口，不再保留占位页。
 - 左侧账户区已提供真实的登录、注册和退出流程；网络请求在现有工作线程执行，ImGui 只持有输入和结果状态，失败不再依赖旧登录对话框。
 - 远控设备页已覆盖启动控制、仅观看、停止、文件传输、锁屏、重启、关机、删除和设备设置；危险操作使用 ImGui 确认框，连接方式互斥规则保持不变。
-- 正式入口已支持隐藏自启、单实例唤醒、关闭到托盘和显式退出；构建产物已按仓库交付规则同步到 `build_official/dist` 并核对哈希。
+- 正式入口已支持隐藏自启、单实例唤醒、关闭到托盘和显式退出；构建产物已按仓库交付规则同步到 `build_official/<product>/dist` 并核对哈希。
 - 语音呼叫同意流程已迁移为独立 ImGui 模态控制器，覆盖托盘唤醒、协议校验、忙状态、取消、超时、接受/拒绝和决策回包。
 - 旧 `px_panel_qt_legacy` 构建目标已经移除；旧 QWidget 源码不再参与正式 Panel 展示层。2026-09-11 发现的 Qt Core/Network
   间接依赖已经解除，正式 `px_panel.exe` 的导入表、运行模块和发布闭包均以零 Qt 为硬门禁。
@@ -308,10 +308,10 @@ Panel 第一阶段要求展示层和业务适配层均不依赖 Qt。正式 Pane
 辅助 Panel 进程或动态加载间接使用 Qt。整个安装目录是否仍因未迁移 Client 暂存 Qt，是单独的发布清理事项。
 
 - 为迁移完成的程序建立独立最小运行目录，仅复制其声明的依赖和资源，检查传递导入和动态加载并执行真实流程。
-- Panel 阶段共享 `build_official/dist` 中的 Qt、皮肤和相关资源仍可能被 Client/其他组件使用，必须保留。
+- Panel 阶段共享 `build_official/<product>/dist` 中的 Qt、皮肤和相关资源仍可能被 Client/其他组件使用，必须保留。
 - Client 迁移完成后仍要清点其他使用者；只有确认无活动消费者的文件才能从共享打包清单移除。
 - 必需的 Helper 进程和 DLL 若仍使用 Qt，应如实列入目标依赖，不能仅检查主 EXE 即宣布 Qt 清零。
-- 用户运行目录始终为 `build_official/dist`；独立最小目录只用于依赖验证，不代替正式交付。
+- 用户运行目录始终为 `build_official/<product>/dist`；独立最小目录只用于依赖验证，不代替正式交付。
 - 使用定向 `scripts_build/build_cpp_*.bat`，必要时增加 UI 定向目标；不运行 release-only `build_official.bat`。
 - 每批 changed runtime artifacts、语言和资源同步到 dist，并验证构建树与 dist 的 SHA-256。
 - 迁移期间旧正式入口保持可用；最终不保留双 UI 运行开关。退役 Qt UI 归档到 `backup/`，共享消费者用完后再退出对应构建。
@@ -342,7 +342,7 @@ Panel 第一阶段要求展示层和业务适配层均不依赖 Qt。正式 Pane
 - 构建脚本会执行产品生命周期/审计测试、词典完整性测试、发布同步及 SHA-256 校验，并检查 PE 导入表和链接闭包；
   `px_panel.exe` 不导入或加载 Qt DLL。产品测试还覆盖连接选项的保存、重载和清理；项目 C++ 所有权门禁也作为交付检查执行。
 - 本机已验证普通启动、隐藏自启、单实例唤醒、关闭到托盘、4999 监听、Panel→Service 4603、Render→Panel 4999、
-  Render 4601 和无 Qt 运行模块。90 已部署与 `build_official/dist` 哈希一致的 EXE、字体和语言资源，并验证同一启动链、
+  Render 4601 和无 Qt 运行模块。90 已部署与 `build_official/<product>/dist` 哈希一致的 EXE、字体和语言资源，并验证同一启动链、
   进程响应及无 Qt 运行模块；最终人工页面交互由用户从正式发布目录验收。
 - 页面验收补充修正了导航选中态和无滚动布局、链接省略展示与完整复制/打开、错误弹窗居中，以及 Guest 运行实例识别；
   桌面链接保留地址、Panel/Render/Relay 端口及授权信息等完整既有载荷，网页地址保留 `?c=` 连接令牌，不得用简化的设备 ID/密码
@@ -433,7 +433,7 @@ Panel 第一阶段完成后才进入 Client 的 C0 基线。Hardware 页面继�
 - Client 启动信封保留 `force_tcp`、`force_relay`、强制软件解码、GDI 捕获、调试等待及其他现有连接偏好；已退役页面不因 UI 迁移恢复。
 - 启动请求无效、调试等待和连接拒绝均使用居中的 ImGui 对话框；正式 Client 活动源码中不再调用 Qt 对话框或 Win32 `MessageBox`。
 - 定向构建脚本只构建 Client/测试及必要 RTC 目标，并将 EXE、FreeRDP 运行库、语音处理 DLL、字体和语言资源同步到
-  `build_official/dist` 后逐项验证 SHA-256。正式 Client 的 Qt 导入与运行模块检查是最终验收门禁。
+  `build_official/<product>/dist` 后逐项验证 SHA-256。正式 Client 的 Qt 导入与运行模块检查是最终验收门禁。
 
 #### 视频显示链路纠正（2026-09-12）
 
@@ -449,14 +449,14 @@ Panel 第一阶段完成后才进入 Client 的 C0 基线。Hardware 页面继�
 
 #### 最终验收（2026-09-12）
 
-- `scripts_build/build_cpp_client.bat` 通过；3 项 Native/RDP 无票据启动信封测试通过。`build_official/src/px_deps/px_client.exe` 与
-  `build_official/dist/px_client.exe` 的当前 SHA-256 均为 `BB7FBFF4D5D5558AA4858CA196D0C954E782617C657B88724AAFDA70E62910BE`；
+- `scripts_build/build_cpp_client.bat client` 通过；3 项 Native/RDP 无票据启动信封测试通过。`build_official/client/cmake/src/px_deps/px_client.exe` 与
+  `build_official/<product>/dist/px_client.exe` 的当前 SHA-256 均为 `BB7FBFF4D5D5558AA4858CA196D0C954E782617C657B88724AAFDA70E62910BE`；
   Vulkan loader、libplacebo、FreeRDP、语音、字体和语言运行资源逐项哈希一致。
 - `scripts/test_native_imgui_public.ps1` 曾使用正式 dist Client、当前 Console 和公网 Render，分别完成 UDP/FEC 与强制 WebSocket 真实首帧
   验收；这些结果覆盖连接和无 Qt 基线，不替代 2026-09-12 新视频显示链路的真流复验。新链路已在本机分别验证 Vulkan、D3D11 后端
   成功初始化且标准错误为空，真实系统点击悬浮按钮后日志为 `menu_open=true`；公网真首帧和流畅度仍需在当前 Console 配置的节点补做。
   无启动信封与错误密码两种失败路径的 ImGui 对话框此前已分别验证可见且 Qt 模块数为 0。
-- `scripts_build/build_cpp_panel.bat` 的 6 项 Panel 测试通过，正式 Panel 哈希为
+- `scripts_build/build_cpp_panel.bat client` 的 6 项 Panel 测试通过，正式 Panel 哈希为
   `65CC6031FB6E7C95C5C8263361AF2B28AEFA4B249F699DB86A16CD59B1C9CD28`，构建树和 dist 一致；当前运行模块均无 Qt。
 - Console 的 Native 描述结构测试明确禁止 `ticket`、`renewal_token`、`reservation`、`expires_at` 字段；RDP 密钥脱敏测试和
   `cargo check -p px_console_server` 通过。90 已部署最终 Console，二进制 SHA-256 为
@@ -471,7 +471,7 @@ Panel 第一阶段完成后才进入 Client 的 C0 基线。Hardware 页面继�
   `backup/qt_legacy_20260912`，不参与任何活动构建或发布。保留该目录仅用于历史追溯，不允许从产品 CMake 再次引用。
 - Panel 仍需使用的 Render API、运行管道、字体和语言文件已迁入 `ui_imgui/product` 与 `src/px_ui/resources`；活动代码不依赖备份目录。
 - 发布脚本会主动删除 `Qt5/Qt6` DLL、平台/图像/样式等 Qt 插件目录、旧皮肤和旧多屏插件；全量收集脚本也不再复制这些内容。
-- `scripts/check_no_qt.ps1` 同时检查活动源码/构建声明、正式产品导入表和 `build_official/dist` 运行闭包。Client、Panel、Render
+- `scripts/check_no_qt.ps1` 同时检查活动源码/构建声明、正式产品导入表和 `build_official/<product>/dist` 运行闭包。Client、Panel、Render
   的定向构建入口都会执行该门禁，防止后续重新引入 Qt。
 
 ## 12. 设备入口与在线状态（2026-09-13）

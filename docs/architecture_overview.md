@@ -19,8 +19,8 @@ UDP+FEC 媒体、WebSocket 可靠控制和独立文件通道，组成唯一的�
 双端入口已固定原生接入，Android RTC AAR、Windows 通道设置及启动回退已退役；共享 SDK 旧 RTC/Relay/KCP 连接与独立 WS 媒体分支也已归档。旧诊断与 SDK 重复 OpenGL 代码已退出活动源码，SDK 不再直接依赖 Qt；解码器/帧数据的平台分层仍待完成。
 Vulkan 显示帧使用独立 FFmpeg 引用和 renderer/device lease；D3D11VA 显示帧同时持有 COM 纹理、设备及解码池源帧引用。软件解码帧以
 I420/I444/NV12 平面上传，CPU 不生成 Native 视频的 RGB 中间帧。平台解码工厂和帧资源边界已经建立，其余历史解码器内部实现仍需按触及范围持续整理。
-既有客户端 RTC 测试记录不表示它仍属于产品目标。具体清理范围、SDK 分层与验收见
-[原生客户端 SDK 与 WebRTC 产品边界](native_client_sdk_transport_decision.md)。
+既有客户端 RTC 测试记录不表示它仍属于产品目标。当前可交付的产品边界、构建和验收入口以
+[产品编译、产物与使用说明](product_build_and_usage.md)为准。
 
 SDK 目录迁移已实施（第一检查点双端编译与 Windows 冒烟验证已通过）：`src/px_deps/px_client_sdk` → `src/px_client_sdk`，作为与客户端同级的独立项目模块。复用现有实现，
 原版按约定归档到 `backup/`；根工程、Android native、测试和构建脚本同步改用新路径。活动 SDK 已位于新目录；目录搬迁不等于传输退役或平台分层已经完成。
@@ -134,7 +134,7 @@ WS + UDP 模式中，WS 在会话准入后记录短期的首次 UDP 媒体端点
 - game-hook 采集/注入总纲：`game_hook_capture_plan.md`（含 §10 UE boot/view、§11 事件重放与焦点保持）
 - 音频采集（PID loopback / 进程内 hook）：`game_hook_audio_capture.md`
 - Console 调度状态与测试：`console_app_schedule_plan.md`、`console_app_schedule_state.md`
-- 构建/部署：`../build_doc.md`、`pixels/How_to_*.md`
+- 产品构建、产物、安装与使用：`product_build_and_usage.md`
 - WebRTC/Coturn 的当前行为以 Console 配置和 RTC 模块测试为准；旧专项实施计划已删除。
 - 多用户会话、控制租约与无 Console 直连产品契约：`logical_session_product_definition.md`
 - Pixels Android 最终产品、架构、删除范围和交付门禁：`android_pixels_product_plan.md`

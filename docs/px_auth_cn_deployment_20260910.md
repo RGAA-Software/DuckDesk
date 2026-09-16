@@ -2,8 +2,7 @@
 
 日期：2026-09-10。
 
-本服务作为整体调试环境的统一授权节点；Console、Render 与客户端按当前公网拓扑连接，见
-[整体调试环境](debug_environment.md)。
+本服务作为统一授权节点；Console、Render 与客户端使用当前公网配置连接。
 
 - 目标：代号 CN，49.232.190.218，Ubuntu 24.04 x86_64。
 - 域名 `rgaa.vip` 解析至 CN；用户确认沿用既有授权入口 `https://auth.rgaa.vip`。

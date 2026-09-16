@@ -67,7 +67,7 @@ TCP/WebSocket 拥塞时，项目只允许丢弃以下实时媒体：
 6. 对新消息类型增加能力协商或版本门控，禁止无条件发送给旧端。
 7. 运行协议往返、跨版本、畸形输入和未知字段测试。
 8. 修改 `px.Message` 时必须运行 `test_ws_realtime_media_queue`；测试应遍历生成的全部 `MessageType`，确认只有三种音视频帧可进入丢弃路径。
-9. 将使用同一 Protobuf 生成布局的运行时产物原子发布，并验证构建目录与 `build_official/dist` 中对应文件的 SHA-256 一致。
+9. 将使用同一 Protobuf 生成布局的运行时产物原子发布，并验证构建目录与 `build_official/<product>/dist` 中对应文件的 SHA-256 一致。
 
 ## 6. 破坏性变更的正确做法
 

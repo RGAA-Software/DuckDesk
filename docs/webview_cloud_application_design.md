@@ -9,9 +9,9 @@
 - Console 保存网页入口 URL；启动实例时将 URL 以 UTF-8 Base64URL 传给宿主。
 - 不新增 WebView 配置文件。
 - px_render 是插件宿主；WebView 是新的采集源插件，复用既有编码、流化和客户端协议。
-- 首先使用官方 Windows x64 CEF 标准 binary distribution 调通。
+- Windows Cloud Node 使用版本固定、项目自建并按 SHA-256 校验的 Pixels CEF x64 Release 发行包。
 - 不代理控制端客户端的摄像头、麦克风或本地文件系统。
-- 不保证官方标准 CEF 播放 H.264/AAC 的 MP4、HLS。
+- 自定义 CEF 使用 `proprietary_codecs=true` 与 `ffmpeg_branding="Chrome"` 构建；2026-09-16 已由用户确认视频播放正常。
 - WebView 输入不经 Windows SendInput，也不经 Game Hook IPC。
 
 Base64URL 仅解决命令行传递中的 Unicode、空格、问号、与号等转义问题，不是加密。完整解码 URL 不得写入 Service、宿主或 CEF 日志。
@@ -21,7 +21,7 @@ Base64URL 仅解决命令行传递中的 Unicode、空格、问号、与号等�
 - Console 数据模型、接口和管理页已支持 `game-hook` / `webview`，WebView 表单校验入口 URL。
 - Console → Service 协议已使用 tag 15/16 下发模式和 Base64URL；Service 不再要求游戏目录或 EXE。
 - Service 按端口识别 Browser 根进程、排除带 `--type` 的 CEF 子进程，并等待 Render 的首帧 Ready 回执后才向 Console 返回启动成功。
-- px_render 已接入固定版本的官方 CEF 151，使用自身承载 Browser、renderer、GPU 和 utility 进程。
+- px_render 已接入固定版本的 Pixels CEF 151，使用自身承载 Browser、renderer、GPU 和 utility 进程。
 - 默认使用 D3D11 accelerated OSR，共享纹理在 CEF 回调内复制到宿主双缓冲后进入原硬编码链；`--webview_gpu=false` 保留 CPU BGRA 回退。
 - CEF 网页音频直接进入内部音频链；无观看者时首帧探测完成后降到非活动状态，不持续采集编码。
 - Windows 客户端和高版本 Chrome Web 客户端已支持独立 UTF-8 文本/IME 提交；WebView 键鼠只进入 CEF，不经过 SendInput 或 Game Hook IPC。
@@ -130,13 +130,13 @@ return PxRenderPluginHostMain(argc, argv);
 
 若现有入口无法安全做到这一点，才增加极小 CEF subprocess helper。该 helper 不是 Console 应用，不加载插件、不编码、不监听端口。
 
-### 4.2 官方 CEF runtime
+### 4.2 Pixels CEF runtime
 
-使用 [CEF 官方下载页](https://cef-builds.spotifycdn.com/index.html) 的 Windows x64 标准包，固定版本、架构和 MSVC runtime。CEF 不是单个 libcef.dll；必须完整部署版本匹配的 DLL、pak、locales、icudtl.dat、V8 snapshot、ANGLE/Vulkan 依赖等文件。
+使用固定到 CEF `d211df08c47ea7284a58f0106ca7a80e716f758c` 和对应 Chromium 提交的 Pixels Windows x64 Release 发行包。构建启用 `proprietary_codecs=true` 与 `ffmpeg_branding="Chrome"`，归档由 `third_party/cef/manifest.json` 固定下载地址和 SHA-256。CEF 不是单个 libcef.dll；必须完整部署版本匹配的 DLL、pak、locales、icudtl.dat、V8 snapshot、ANGLE/Vulkan 依赖等文件。
 
-建议将其安装到 third_party/cef/<version>/ 并由构建/安装脚本复制。禁止从 Chrome 安装目录拆 DLL，禁止随意使用未知来源的“带 H264 CEF”包。
+`third_party/cef/fetch_cef.ps1` 负责校验并解压发行包，构建和安装脚本负责复制完整 runtime。禁止从 Chrome 安装目录拆 DLL，也不得接受 manifest 之外的未知 CEF 包。
 
-官方标准包以 WebM、WebRTC、VP8/VP9/Opus 为媒体基线。若将来必须播放 H.264/AAC，需要独立决策并自建带 proprietary_codecs=true、ffmpeg_branding=Chrome 的 CEF；不改变本文的插件接口。
+2026-09-16 已由用户完成当前 Pixels CEF 的视频播放验证。CEF 替换不改变 WebView 插件接口、实例隔离或安全边界。
 
 ### 4.3 实例隔离
 

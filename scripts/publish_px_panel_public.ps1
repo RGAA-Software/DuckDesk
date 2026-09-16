@@ -5,7 +5,7 @@ param()
 
 $ErrorActionPreference = 'Stop'
 $repository = Split-Path $PSScriptRoot -Parent
-$source = Join-Path $repository 'build_official/dist/px_panel.exe'
+$source = Join-Path $repository 'build_official/cloud_node/dist/px_panel.exe'
 $machineFile = Join-Path $repository '.env/test_machine.md'
 $targetHost = '39.71.45.66'
 $target = 'D:\software\esprit_169811\render\px_panel.exe'

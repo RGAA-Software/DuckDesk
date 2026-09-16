@@ -7,6 +7,14 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $androidRoot = Split-Path -Parent $PSScriptRoot
+$androidBuildRoot = [Environment]::GetEnvironmentVariable('PIXELS_ANDROID_BUILD_ROOT')
+if ([string]::IsNullOrWhiteSpace($androidBuildRoot)) {
+    throw 'PIXELS_ANDROID_BUILD_ROOT must be assigned by scripts_build\build_android_product.bat.'
+}
+$androidNativeRoot = [Environment]::GetEnvironmentVariable('PIXELS_ANDROID_NATIVE_ROOT')
+if ([string]::IsNullOrWhiteSpace($androidNativeRoot)) {
+    throw 'PIXELS_ANDROID_NATIVE_ROOT must be assigned by scripts_build\build_android_product.bat.'
+}
 $expectedVersionName = [Environment]::GetEnvironmentVariable('PIXELS_VERSION_NAME')
 $expectedVersionCodeText = [Environment]::GetEnvironmentVariable('PIXELS_VERSION_CODE')
 $expectedCompany = [Environment]::GetEnvironmentVariable('PIXELS_COMPANY')
@@ -21,13 +29,17 @@ if ($expectedVersionCode -le 0) {
     throw 'PIXELS_VERSION_CODE must be positive.'
 }
 $gradle = Join-Path $androidRoot 'gradlew.bat'
-$metadataPath = Join-Path $androidRoot 'app\build\outputs\apk\release\output-metadata.json'
-$bundlePath = Join-Path $androidRoot 'app\build\outputs\bundle\release\app-release.aab'
-$mappingPath = Join-Path $androidRoot 'app\build\outputs\mapping\release\mapping.txt'
+$metadataPath = Join-Path $androidBuildRoot 'app\outputs\apk\release\output-metadata.json'
+$bundlePath = Join-Path $androidBuildRoot 'app\outputs\bundle\release\app-release.aab'
+$mappingPath = Join-Path $androidBuildRoot 'app\outputs\mapping\release\mapping.txt'
 $propertiesPath = Join-Path $androidRoot 'keystore.properties'
 $noticeSourceRoot = Join-Path $androidRoot 'feature-settings\src\main\res\raw'
-$ffmpegSourceArchive = [Environment]::GetEnvironmentVariable('PIXELS_FFMPEG_SOURCE_ARCHIVE')
-$lgplRelinkArchive = [Environment]::GetEnvironmentVariable('PIXELS_LGPL_RELINK_ARCHIVE')
+$vcpkgRoot = [Environment]::GetEnvironmentVariable('VCPKG_ROOT')
+if ([string]::IsNullOrWhiteSpace($vcpkgRoot)) {
+    $vcpkgRoot = 'C:\source\vcpkg'
+}
+$ffmpegSpdxPath = Join-Path $vcpkgRoot 'installed\arm64-android\share\ffmpeg\vcpkg.spdx.json'
+$ffmpegSourceArchive = Join-Path $vcpkgRoot 'downloads\ffmpeg-ffmpeg-n6.1.tar.gz'
 
 $environmentSigningNames = @(
     'PIXELS_KEYSTORE_FILE',
@@ -58,13 +70,15 @@ if ($expectedSigningCertificateSha256 -notmatch '^[0-9A-F]{64}$') {
     throw 'PIXELS_SIGNING_CERT_SHA256 or certificateSha256 must contain the approved 64-hex signing certificate SHA-256.'
 }
 
-if ([string]::IsNullOrWhiteSpace($ffmpegSourceArchive) -or
-    -not (Test-Path -LiteralPath $ffmpegSourceArchive -PathType Leaf)) {
-    throw 'PIXELS_FFMPEG_SOURCE_ARCHIVE must point to the exact corresponding FFmpeg source ZIP archive.'
+if (-not (Test-Path -LiteralPath $ffmpegSpdxPath -PathType Leaf)) {
+    throw "The installed Android FFmpeg SPDX manifest is missing: $ffmpegSpdxPath"
 }
-if ([string]::IsNullOrWhiteSpace($lgplRelinkArchive) -or
-    -not (Test-Path -LiteralPath $lgplRelinkArchive -PathType Leaf)) {
-    throw 'PIXELS_LGPL_RELINK_ARCHIVE must point to the relinkable Pixels application object ZIP archive.'
+$ffmpegSpdx = Get-Content -LiteralPath $ffmpegSpdxPath -Raw
+if ($ffmpegSpdx -notmatch 'git\+https://github\.com/ffmpeg/ffmpeg@n6\.1(?:\"|\s)') {
+    throw 'The installed arm64-android FFmpeg dependency is not the approved n6.1 source revision.'
+}
+if (-not (Test-Path -LiteralPath $ffmpegSourceArchive -PathType Leaf)) {
+    throw "The exact FFmpeg n6.1 source archive from the vcpkg cache is missing: $ffmpegSourceArchive"
 }
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -82,6 +96,81 @@ function Assert-ZipContent {
         }
     } finally {
         $archive.Dispose()
+    }
+}
+
+function Assert-TarContent {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$RequiredPattern,
+        [Parameter(Mandatory = $true)][string]$Description
+    )
+    $files = @(& tar.exe -tf $Path 2>&1)
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to inspect $Description archive: $Path"
+    }
+    if ($files.Count -eq 0 -or -not ($files | Where-Object { $_ -match $RequiredPattern } | Select-Object -First 1)) {
+        throw "$Description archive does not contain the required files: $Path"
+    }
+}
+
+function New-LgplRelinkArchive {
+    param(
+        [Parameter(Mandatory = $true)][string]$NativeRoot,
+        [Parameter(Mandatory = $true)][string]$OutputPath,
+        [Parameter(Mandatory = $true)][string]$Revision,
+        [Parameter(Mandatory = $true)][string]$VersionName
+    )
+
+    $objectFiles = @(Get-ChildItem -LiteralPath $NativeRoot -Recurse -File -Filter '*.o')
+    if ($objectFiles.Count -eq 0) {
+        throw "No Android native object files were produced under $NativeRoot."
+    }
+
+    $stagingRoot = Join-Path $androidBuildRoot "staging\pixels-lgpl-relink\$([Guid]::NewGuid().ToString('N'))"
+    $objectRoot = Join-Path $stagingRoot 'objects'
+    try {
+        New-Item -ItemType Directory -Path $objectRoot -Force | Out-Null
+        foreach ($objectFile in $objectFiles) {
+            $relativePath = [System.IO.Path]::GetRelativePath($NativeRoot, $objectFile.FullName)
+            $destination = Join-Path $objectRoot $relativePath
+            New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
+            Copy-Item -LiteralPath $objectFile.FullName -Destination $destination
+        }
+
+        $buildFiles = @(Get-ChildItem -LiteralPath $NativeRoot -Recurse -File | Where-Object {
+            $_.Name -in @('build.ninja', 'CMakeCache.txt', 'compile_commands.json')
+        })
+        $metadataRoot = Join-Path $stagingRoot 'build-metadata'
+        foreach ($buildFile in $buildFiles) {
+            $relativePath = [System.IO.Path]::GetRelativePath($NativeRoot, $buildFile.FullName)
+            $destination = Join-Path $metadataRoot $relativePath
+            New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
+            Copy-Item -LiteralPath $buildFile.FullName -Destination $destination
+        }
+
+        $readme = @"
+# Pixels Android LGPL relink kit
+
+Product version: $VersionName
+Git revision: $Revision
+ABI: arm64-v8a
+FFmpeg source revision: n6.1
+
+This archive contains the application object files retained from the exact release build, together with its CMake and Ninja metadata. To relink, install the Android NDK and the dependencies recorded by CMakeCache.txt, build a modified LGPL FFmpeg n6.1 for arm64-android with compatible options, replace the FFmpeg static archives referenced by build.ninja, and run the recorded pixels_android_core link command. The resulting libpixels_android_core.so can replace the same ABI library in the APK before the APK is signed again.
+
+The absolute paths in the build metadata describe the original reproducible build environment and may be remapped to another workspace. No Pixels signing key is included.
+"@
+        Set-Content -LiteralPath (Join-Path $stagingRoot 'README.md') -Value $readme -Encoding utf8
+
+        if (Test-Path -LiteralPath $OutputPath -PathType Leaf) {
+            Remove-Item -LiteralPath $OutputPath -Force
+        }
+        Compress-Archive -Path (Join-Path $stagingRoot '*') -DestinationPath $OutputPath -CompressionLevel Optimal
+    } finally {
+        if (Test-Path -LiteralPath $stagingRoot -PathType Container) {
+            Remove-Item -LiteralPath $stagingRoot -Recurse -Force
+        }
     }
 }
 
@@ -105,24 +194,24 @@ function Get-ElfBuildId {
     return $buildIds[0]
 }
 
-Assert-ZipContent -Path $ffmpegSourceArchive -RequiredPattern '\.(c|h|S|asm)$' -Description 'FFmpeg corresponding source'
-Assert-ZipContent -Path $lgplRelinkArchive -RequiredPattern '\.(o|obj)$' -Description 'LGPL relink'
-Assert-ZipContent -Path $lgplRelinkArchive -RequiredPattern '(^|/)(README|RELINK)(\.[^/]*)?$' -Description 'LGPL relink instructions'
+Assert-TarContent -Path $ffmpegSourceArchive -RequiredPattern '\.(c|h|S|asm)$' -Description 'FFmpeg corresponding source'
 
 $revision = (& git -C $androidRoot rev-parse --short=12 HEAD).Trim()
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($revision)) {
     throw 'Unable to resolve the Git revision for release metadata.'
 }
 $env:PIXELS_GIT_REVISION = $revision
+$env:PIXELS_RELEASE_COMPLIANCE_DRIVER = '1'
 
 $tasks = @(':app:lintRelease', 'testDebugUnitTest', ':app:assembleRelease', ':app:bundleRelease', '--stacktrace')
 if (-not $SkipClean) {
     $tasks = @('clean') + $tasks
 }
+$gradleArguments = @('--project-cache-dir', (Join-Path $androidBuildRoot 'project-cache')) + $tasks
 
 Push-Location $androidRoot
 try {
-    & $gradle @tasks
+    & $gradle @gradleArguments
     if ($LASTEXITCODE -ne 0) {
         throw "Gradle release build failed with exit code $LASTEXITCODE."
     }
@@ -150,12 +239,17 @@ if ($versionName -ne $expectedVersionName -or $versionCode -ne $expectedVersionC
     throw "Release output version $versionName ($versionCode) does not match Android product version $expectedVersionName ($expectedVersionCode)."
 }
 
-$artifactParent = Join-Path $androidRoot 'app\apk\release'
+$generatedRelinkArchive = Join-Path $androidBuildRoot "staging\pixels-lgpl-relink-$versionName.zip"
+New-LgplRelinkArchive -NativeRoot $androidNativeRoot -OutputPath $generatedRelinkArchive -Revision $revision -VersionName $versionName
+Assert-ZipContent -Path $generatedRelinkArchive -RequiredPattern '\.(o|obj)$' -Description 'LGPL relink'
+Assert-ZipContent -Path $generatedRelinkArchive -RequiredPattern '(^|/)(README|RELINK)(\.[^/]*)?$' -Description 'LGPL relink instructions'
+
+$artifactParent = Join-Path (Split-Path -Parent $androidBuildRoot) 'dist'
 $finalArtifactRoot = Join-Path $artifactParent $versionName
 if (Test-Path -LiteralPath $finalArtifactRoot) {
     throw "Release $versionName already exists and will not be overwritten: $finalArtifactRoot"
 }
-$artifactStagingRoot = Join-Path $androidRoot "app\build\intermediates\pixels-release-publish\$([Guid]::NewGuid().ToString('N'))"
+$artifactStagingRoot = Join-Path $androidBuildRoot "staging\pixels-release-publish\$([Guid]::NewGuid().ToString('N'))"
 $artifactRoot = $artifactStagingRoot
 New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
 $releasePublished = $false
@@ -166,11 +260,12 @@ Copy-Item -LiteralPath $apkPath -Destination $apkDestination -Force
 Copy-Item -LiteralPath $bundlePath -Destination $bundleDestination -Force
 
 $publishedArtifacts = @($apkDestination, $bundleDestination)
-$ffmpegSourceDestination = Join-Path $artifactRoot 'ffmpeg-corresponding-source.zip'
+$ffmpegSourceDestination = Join-Path $artifactRoot 'ffmpeg-corresponding-source.tar.gz'
 $lgplRelinkDestination = Join-Path $artifactRoot 'pixels-lgpl-relink-kit.zip'
 $noticesDestination = Join-Path $artifactRoot 'third-party-notices.zip'
 Copy-Item -LiteralPath $ffmpegSourceArchive -Destination $ffmpegSourceDestination -Force
-Copy-Item -LiteralPath $lgplRelinkArchive -Destination $lgplRelinkDestination -Force
+Copy-Item -LiteralPath $generatedRelinkArchive -Destination $lgplRelinkDestination -Force
+Remove-Item -LiteralPath $generatedRelinkArchive -Force
 $requiredNoticeFiles = @(
     'open_source_inventory.txt',
     'license_apache_2_0.txt',
@@ -180,7 +275,6 @@ $requiredNoticeFiles = @(
     'license_leveldb_bsd_3_clause.txt',
     'license_opus_bsd_3_clause.txt',
     'license_protobuf_bsd_3_clause.txt',
-    'license_webrtc_bsd_3_clause.txt',
     'license_zlib.txt'
 )
 $noticeFiles = @($requiredNoticeFiles | ForEach-Object {
@@ -190,17 +284,34 @@ $noticeFiles = @($requiredNoticeFiles | ForEach-Object {
     }
     Get-Item -LiteralPath $path
 })
-$apkArchive = [System.IO.Compression.ZipFile]::OpenRead($apkDestination)
-try {
-    $apkEntries = @($apkArchive.Entries | ForEach-Object { $_.FullName.ToLowerInvariant() })
-    foreach ($noticeName in $requiredNoticeFiles) {
-        $entryName = "res/raw/$noticeName"
-        if ($entryName -notin $apkEntries) {
-            throw "Release APK does not contain required third-party notice: $entryName"
-        }
+$localPropertiesPath = Join-Path $androidRoot 'local.properties'
+$sdkRoot = [Environment]::GetEnvironmentVariable('ANDROID_SDK_ROOT')
+if ([string]::IsNullOrWhiteSpace($sdkRoot) -and (Test-Path -LiteralPath $localPropertiesPath -PathType Leaf)) {
+    $sdkEntry = Get-Content -LiteralPath $localPropertiesPath | Where-Object { $_ -match '^sdk\.dir=' } | Select-Object -First 1
+    if ($sdkEntry) {
+        $sdkRoot = (($sdkEntry -replace '^sdk\.dir=', '') -replace '\\:', ':') -replace '\\\\', '\'
     }
-} finally {
-    $apkArchive.Dispose()
+}
+if ([string]::IsNullOrWhiteSpace($sdkRoot)) {
+    throw 'ANDROID_SDK_ROOT or sdk.dir in local.properties is required to verify the release artifacts.'
+}
+$aapt2 = Get-ChildItem -LiteralPath (Join-Path $sdkRoot 'build-tools') -Directory |
+    Sort-Object { [version]$_.Name } -Descending |
+    ForEach-Object { Join-Path $_.FullName 'aapt2.exe' } |
+    Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+    Select-Object -First 1
+if (-not $aapt2) {
+    throw 'No aapt2.exe was found in the configured Android SDK.'
+}
+$apkResources = @(& $aapt2 dump resources $apkDestination 2>&1)
+if ($LASTEXITCODE -ne 0) {
+    throw 'Unable to inspect the optimized APK resource table.'
+}
+foreach ($noticeName in $requiredNoticeFiles) {
+    $resourceName = [System.IO.Path]::GetFileNameWithoutExtension($noticeName)
+    if (-not ($apkResources | Where-Object { $_ -match "\sraw/$([regex]::Escape($resourceName))\s*$" } | Select-Object -First 1)) {
+        throw "Release APK resource table does not contain required third-party notice: raw/$resourceName"
+    }
 }
 if (Test-Path -LiteralPath $noticesDestination -PathType Leaf) {
     Remove-Item -LiteralPath $noticesDestination -Force
@@ -212,23 +323,11 @@ if (Test-Path -LiteralPath $mappingPath -PathType Leaf) {
     Copy-Item -LiteralPath $mappingPath -Destination $mappingDestination -Force
     $publishedArtifacts += $mappingDestination
 }
-$nativeSymbolCandidates = @(Get-ChildItem -LiteralPath (Join-Path $androidRoot 'core-native\build\intermediates\cxx\RelWithDebInfo') -Recurse -File `
+$nativeSymbolCandidates = @(Get-ChildItem -LiteralPath (Join-Path $androidBuildRoot 'core-native\intermediates\cxx\RelWithDebInfo') -Recurse -File `
     -Filter 'libpixels_android_core.so.dbg' |
     Sort-Object LastWriteTimeUtc -Descending)
 if ($nativeSymbolCandidates.Count -eq 0) {
     throw 'The release native symbol file was not produced.'
-}
-
-$localPropertiesPath = Join-Path $androidRoot 'local.properties'
-$sdkRoot = [Environment]::GetEnvironmentVariable('ANDROID_SDK_ROOT')
-if ([string]::IsNullOrWhiteSpace($sdkRoot) -and (Test-Path -LiteralPath $localPropertiesPath -PathType Leaf)) {
-    $sdkEntry = Get-Content -LiteralPath $localPropertiesPath | Where-Object { $_ -match '^sdk\.dir=' } | Select-Object -First 1
-    if ($sdkEntry) {
-        $sdkRoot = (($sdkEntry -replace '^sdk\.dir=', '') -replace '\\:', ':') -replace '\\\\', '\'
-    }
-}
-if ([string]::IsNullOrWhiteSpace($sdkRoot)) {
-    throw 'ANDROID_SDK_ROOT or sdk.dir in local.properties is required to verify the APK signature.'
 }
 
 $apksigner = Get-ChildItem -LiteralPath (Join-Path $sdkRoot 'build-tools') -Directory |
@@ -249,7 +348,7 @@ if (-not $readElf) {
     throw 'No llvm-readelf.exe was found in the configured Android NDK.'
 }
 
-$symbolStagingRoot = Join-Path $androidRoot "app\build\intermediates\pixels-native-symbols\$([Guid]::NewGuid().ToString('N'))"
+$symbolStagingRoot = Join-Path $androidBuildRoot "staging\pixels-native-symbols\$([Guid]::NewGuid().ToString('N'))"
 $packagedNativePath = Join-Path $symbolStagingRoot 'packaged\libpixels_android_core.so'
 $symbolAbiRoot = Join-Path $symbolStagingRoot 'symbols\lib\arm64-v8a'
 $symbolsDestination = Join-Path $artifactRoot 'native-debug-symbols.zip'

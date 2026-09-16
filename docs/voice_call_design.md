@@ -191,7 +191,7 @@ Windows 原生 MVP、正式 Panel 来电 UI 的核心 Console 路径和 WebClien
 - Relay/UDP/KCP 弱网、虚拟屏并发、发布安装矩阵与 Android；
 - 回调内停止、注销中派发、销毁后迟到消息和重复启停。
 
-自动化结果不能替代公网实机与双物理机音质验收。变更运行产物必须同步到 `build_official\dist` 并与构建树通过 SHA-256 一致性检查。
+自动化结果不能替代公网实机与双物理机音质验收。变更运行产物必须同步到 `build_official\<product>\dist` 并与构建树通过 SHA-256 一致性检查。
 
 - 单元：状态机、请求重放、错误 `call_id`、超时、序号去重、乱序、抖动缓冲、PCM/Opus 编解码。
 - 组件：确定性 PCM 向量经 APM/Opus/模拟网络后，校验帧数、时长、PLC 和队列水位。

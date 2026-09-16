@@ -770,7 +770,7 @@ L1-L3 必须能够在没有真实显示器变更、外部 Relay 或公网 Coturn
 3. 新增聚焦入口 `scripts_build\build_cpp_render_arch_tests.bat`，职责为：
    - 调用 `scripts/build_cpp_target.bat` 构建精确测试目标；
    - 执行 L0 门禁；
-   - 使用 `ctest --test-dir build_official --output-on-failure` 执行 L1-L3；
+   - 使用 `ctest --test-dir build_official/<product>/cmake --output-on-failure` 执行 L1-L3；
    - 保留退出码，任何测试失败都使脚本失败；
    - 将 JUnit/控制台日志写入本次 run 的证据目录。
 4. 原有 `scripts_build\build_cpp_gdi_capture_tests.bat`、`scripts_build\build_cpp_was_audio_tests.bat`、
@@ -883,7 +883,7 @@ Probe 只保存有界数量的 owned/value snapshot，记录调用次数、顺�
 每个 C++ 变更运行：
 
 ```text
-cmake --build build_official --target check_cpp_ownership
+cmake --build build_official/<product>/cmake --target check_cpp_ownership
 scripts/check_async_lifetime.ps1
 git diff --check
 ```
@@ -1112,7 +1112,7 @@ processor chain、软件 encoder 和多个 test Sink。验证：
 
 ### 12.10 L4 本机进程测试
 
-从 `build_official/dist` 启动真实 `px_render.exe`，验证用户实际运行目录，而不是只运行
+从 `build_official/<product>/dist` 启动真实 `px_render.exe`，验证用户实际运行目录，而不是只运行
 build tree 产物。每个用例使用独立端口、独立日志 token 和明确超时，结束后检查残留进程。
 
 场景：
@@ -1319,7 +1319,7 @@ test-results/render-architecture/<run-id>/
 
 ## 13. 构建和交付规则
 
-日常开发使用 `scripts_build\build_cpp_render.bat`、对应 `build_cpp_*_tests.bat` 或精确 CMake target。
+日常开发使用 `scripts_build\build_cpp_render.bat cloud_node`（或 `remote`）、对应带产品参数的 `build_cpp_*_tests.bat` 或精确 CMake target。
 不为此升级运行 release-only 的 `scripts_build\build_official.bat`。
 
 每个迁移批次交付前：
@@ -1329,7 +1329,7 @@ test-results/render-architecture/<run-id>/
 3. 运行相关单元、生命周期和集成测试；
 4. 同步 `px_render.exe`、仍保留的 WebRTC DLL、资源和语言文件；
 5. 清理已经退休的 Render DLL；
-6. 比较 build tree 与 `build_official/dist` 对应文件的 SHA-256；
+6. 比较 build tree 与 `build_official/<product>/dist` 对应文件的 SHA-256；
 7. 哈希一致后才能报告可供 Windows Client 验证。
 
 ## 14. 完成标准
@@ -1357,7 +1357,7 @@ test-results/render-architecture/<run-id>/
 4. 建立 typed error、结构化日志上下文、限频器和性能窗口；
 5. 迁移 `frame_debugger` 作为第一个 Observer；
 6. 验证 RAII、queued callback、unregister、shutdown、日志限频和性能聚合；
-7. 聚焦构建、同步到 `build_official/dist` 并核对 SHA-256。
+7. 聚焦构建、同步到 `build_official/<product>/dist` 并核对 SHA-256。
 
 第一批不改变 capture、encoder、transport 或 WebRTC 生产行为，用于先证明新骨架和交付
 流程可靠，再进入高风险媒体与网络迁移。

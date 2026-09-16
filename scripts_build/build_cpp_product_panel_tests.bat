@@ -11,7 +11,7 @@ if /I not "%~1"=="cloud_node" if /I not "%~1"=="client" if /I not "%~1"=="remote
 )
 
 set "CPP_PRODUCT=%~1"
-if not defined CPP_BUILD_DIR set "CPP_BUILD_DIR=build_official\%CPP_PRODUCT%"
+if not defined CPP_BUILD_DIR set "CPP_BUILD_DIR=build_official\%CPP_PRODUCT%\cmake"
 if not "%~2"=="" set "CPP_BUILD_JOBS=%~2"
 
 call "%~dp0..\scripts\build_cpp_target.bat" px_panel_product_tests

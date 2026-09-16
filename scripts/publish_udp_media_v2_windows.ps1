@@ -1,15 +1,22 @@
 #requires -Version 7.0
-param([switch]$Render)
+param(
+    [Parameter(Mandatory = $true)]
+    [ValidateSet('cloud_node', 'client', 'remote')]
+    [string]$Product,
+    [switch]$Render
+)
 $ErrorActionPreference='Stop'
 $repo=Split-Path $PSScriptRoot -Parent
-$dist=Join-Path $repo 'build_official/dist'
+if ($Render -and $Product -eq 'client') { throw 'The client product does not contain Render.' }
+$productRoot=Join-Path $repo "build_official/$Product"
+$dist=Join-Path $productRoot 'dist'
 $names=if($Render){@('px_client','px_render')}else{@('px_client')}
 $service=Get-Service px_service
 $restart=$Render -and $service.Status -eq 'Running'
 try {
     if($restart){Stop-Service px_service -Force}
     foreach($name in $names){
-        $relativeSource=if($name -eq 'px_client'){'build_official/src/px_deps/px_client.exe'}else{"build_official/src/$name/$name.exe"}
+        $relativeSource=if($name -eq 'px_client'){"build_official/$Product/cmake/src/px_deps/px_client.exe"}else{"build_official/$Product/cmake/src/$name/$name.exe"}
         $source=Join-Path $repo $relativeSource
         $target=Join-Path $dist "$name.exe"
         Get-Process $name -ErrorAction SilentlyContinue | Where-Object {$_.Path -eq $target} | Stop-Process -Force

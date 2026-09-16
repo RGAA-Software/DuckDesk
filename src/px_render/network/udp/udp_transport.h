@@ -1,7 +1,7 @@
 //
 // Created by RGAA on 15/11/2024.
 // Rewritten on 12/08/2026: GameStream 风格裸 UDP 媒体面(旧 KCP + proto 广播全部废弃),
-// 设计见 docs/udp_gamestream_channel_plan.md,协议见 px_common/px_udp_protocol.h
+// 设计见 docs/native_udp_media_v2_wire.md,协议见 px_common/px_udp_protocol.h
 //
 
 #ifndef PX_UDP_TRANSPORT_H

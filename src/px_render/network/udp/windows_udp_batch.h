@@ -10,7 +10,7 @@ namespace px {
 enum class UdpBatchResult { kSent, kFallback, kIncomplete };
 
 // Sunshine 3cba9bae, platform/windows/misc.cpp: per-message UDP segmentation, then unbatched fallback.
-// Project-maintained GPL-3.0 adaptation; upstream source/license inventory: docs/native_udp_fec_upstream_implementation_plan.md.
+// Project-maintained GPL-3.0 adaptation; upstream source/license inventory: docs/native_udp_media_v2_wire.md.
 // The socket and endpoint are borrowed synchronously. No socket option, worker or overlapped lifetime is introduced.
 inline UdpBatchResult TryWindowsUdpBatch(asio::ip::udp::socket& socket, asio::ip::udp::endpoint endpoint, std::span<const media::Packet> packets) {
     if (packets.size() < 2 || packets.front().empty() || packets.front().size() > 65536 / packets.size())

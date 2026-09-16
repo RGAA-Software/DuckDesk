@@ -6,6 +6,7 @@ def configuredVcpkgRoot = providers.gradleProperty('pixelsVcpkgRoot')
     .orElse(providers.environmentVariable('VCPKG_ROOT'))
     .orElse('C:/source/vcpkg')
     .get()
+def pixelsAndroidNativeRoot = providers.environmentVariable('PIXELS_ANDROID_NATIVE_ROOT').orNull?.trim()
 android {
     namespace = 'yun.pixels.client.core.nativebridge'
     compileSdk = 37
@@ -36,6 +37,9 @@ android {
         cmake {
             path = file('src/main/cpp/CMakeLists.txt')
             version = '3.30.5'
+            if (pixelsAndroidNativeRoot) {
+                buildStagingDirectory = file(pixelsAndroidNativeRoot)
+            }
         }
     }
 

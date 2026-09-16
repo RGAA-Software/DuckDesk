@@ -1,4 +1,8 @@
 param(
+    [Parameter(Mandatory = $true)]
+    [ValidateSet("cloud_node", "remote")]
+    [string]$Product,
+
     [ValidateSet("quick", "lifecycle", "integration", "hardware", "all", "performance")]
     [string]$Mode = "all",
 
@@ -8,9 +12,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$buildRoot = Join-Path $repoRoot "build_official"
+$productRoot = Join-Path $repoRoot "build_official/$Product"
+$buildRoot = Join-Path $productRoot "cmake"
 $runId = "{0}-{1}" -f (Get-Date -Format "yyyyMMdd-HHmmss"), $Mode
-$evidenceRoot = Join-Path $repoRoot "test-results/render-architecture/$runId"
+$evidenceRoot = Join-Path $productRoot "reports/render-architecture/$runId"
 New-Item -ItemType Directory -Path $evidenceRoot -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $evidenceRoot "e2e") -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $evidenceRoot "performance") -Force | Out-Null
@@ -185,6 +190,8 @@ Write-Utf8File (Join-Path $evidenceRoot "performance/comparison.json") @(
 )
 
 $overallExit = 0
+$env:CPP_PRODUCT = $Product
+$env:CPP_BUILD_DIR = "build_official\$Product\cmake"
 $env:CPP_BUILD_JOBS = $Jobs.ToString()
 $builder = Join-Path $repoRoot "scripts/build_cpp_target.bat"
 $buildLog = Join-Path $evidenceRoot "build.log"

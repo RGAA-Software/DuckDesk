@@ -59,7 +59,6 @@ UU/向日葵的这个距离很小 = 它们端到端延迟比我们低 1–2 帧�
 | `src/px_deps/px_common/process_util.{h,cpp}` + `src/px_render/rd_main.cpp` | 新增 `PinToPerformanceCores()`，render 钉大核 | 优化（实测无太大改善，保留） |
 | `src/px_client/front_render/d3d11/d3d11_render_manager.cpp` | `FLIP_SEQUENTIAL`→`FLIP_DISCARD`；`SetMaximumFrameLatency(1)` | 边际优化（保留） |
 | `tests/dxgi_capture_probe.cpp` | 探针加 60s/分窗口/区分 AccumulatedFrames | 诊断工具 |
-| `docs/input_latency_instrumentation_plan.md` | 插桩方案文档 | 文档 |
 
 ### 已撤销的改动
 

@@ -9,6 +9,7 @@
 #include "panel_worker.h"
 #include "windows_environment_probe.h"
 #include "connection_progress_tracker.h"
+#include "panel_navigation_model.h"
 
 #include "px_common/base64.h"
 #include "px_common/shared_preference.h"
@@ -19,6 +20,7 @@
 #include <asio2/websocket/ws_client.hpp>
 
 #include <array>
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -27,10 +29,30 @@
 #include <fstream>
 #include <future>
 #include <mutex>
+#include <string_view>
 #include <thread>
 #include <vector>
 
 namespace px::panel::product {
+
+TEST(PanelProductNavigation, MatchesTheConfiguredProductCapabilities) {
+    const auto hasPage = [](const ui::PanelPage page) {
+        return std::ranges::any_of(ui::kProductNavigationItems, [page](const ui::PanelNavigationItemSpec& item) { return item.page == page; });
+    };
+    const std::string_view product{PROJECT_PRODUCT};
+    if (product == "cloud_node") {
+        EXPECT_TRUE(hasPage(ui::PanelPage::CloudApplications));
+        EXPECT_TRUE(hasPage(ui::PanelPage::ServerStatus));
+    } else if (product == "client") {
+        EXPECT_TRUE(hasPage(ui::PanelPage::CloudApplications));
+        EXPECT_FALSE(hasPage(ui::PanelPage::ServerStatus));
+    } else if (product == "remote") {
+        EXPECT_FALSE(hasPage(ui::PanelPage::CloudApplications));
+        EXPECT_TRUE(hasPage(ui::PanelPage::ServerStatus));
+    } else {
+        FAIL() << "Unexpected product: " << product;
+    }
+}
 
 TEST(PanelDeviceName, UsesPrivateIpv4LastSegmentWithMcPrefix) {
     EXPECT_EQ(BuildDefaultDeviceName({"203.0.113.8", "192.168.31.6"}), "MC-6");

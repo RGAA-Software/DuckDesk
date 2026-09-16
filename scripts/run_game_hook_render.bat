@@ -8,7 +8,7 @@ rem See docs/game_hook_capture_plan.md
 set "REPO_ROOT=%~dp0.."
 cd /d "%REPO_ROOT%"
 
-set "DIST=%REPO_ROOT%\build_official\dist"
+set "DIST=%REPO_ROOT%\build_official\cloud_node\dist"
 set "SRC_TOML=%REPO_ROOT%\src\px_render\settings.toml"
 
 rem ===== launch parameters =====

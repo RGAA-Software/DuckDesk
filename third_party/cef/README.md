@@ -1,7 +1,8 @@
 # CEF dependency
 
-WebView mode uses the pinned official Windows x64 CEF Standard Distribution in
-`manifest.json`. Binary payloads are intentionally excluded from Git.
+WebView mode uses the pinned Pixels Windows x64 CEF Standard Distribution in
+`manifest.json`. The artifact is built from the pinned CEF source and published
+as a GitHub Release asset; binary payloads are intentionally excluded from Git.
 
 From the repository root:
 
@@ -9,7 +10,7 @@ From the repository root:
 powershell -ExecutionPolicy Bypass -File third_party/cef/fetch_cef.ps1
 ```
 
-The script verifies the archive SHA-1 and extracts CEF beside this file. It uses
+The script verifies the archive SHA-256 and extracts CEF beside this file. It uses
 `HTTPS_PROXY`/`HTTP_PROXY` first and falls back to the proxy configured in Git.
 Set `CEF_ROOT` to another extracted CEF directory if the build must use a shared
 machine-level cache.

@@ -1,63 +1,28 @@
 # Pixels Android 客户端最终产品规划
 
-> 状态：Native 传输与入口精简、SDK 抽离已实施；独立“云应用” Tab、Android Console 身份和最新端口模型待实施；工具能力仍待原生路径实测；M6 本机长期签名已完成，发布归档待验收；完整视频能力协商暂缓
-> 更新日期：2026-09-14
+> 状态：Native 传输、SDK 抽离、独立“云应用” Tab、Android Console 身份、最新端口模型和正式 Release 归档均已实施；完整视频能力协商暂缓
+> 更新日期：2026-09-16
 > 范围：`src/px_android` 及 Android 所需的项目自维护 C++ 公共模块
 
 > 最终传输决定：Windows、Android、iOS、macOS 原生客户端均不支持 WebRTC，包括 host 直连；WebRTC 只用于 Web 客户端。iOS/macOS 平台适配列为后续工作。
 > 原生端当前只有 UDP+FEC 媒体与 WebSocket 可靠控制/文件这一种直连组合；公网 P2P 和 Relay 留待后续 RustDesk 方案，本轮不实现。
 > 归档规则更新：本次精简的旧实现完整保存到根目录 `backup/`，文中“删除/移除”表示退出活动源码和构建，不直接销毁原代码。
-> 以 [原生客户端 SDK 与 WebRTC 产品边界](native_client_sdk_transport_decision.md) 为准；本文第 13 节 RTC 实施和测试内容保留为历史记录。
+> 当前产品构建和交付边界以 [产品编译、产物与使用说明](product_build_and_usage.md) 为准；本文第 13 节 RTC 实施和测试内容仅为历史记录。
 > 2026-09-12 鉴权更新：Android 已删除一次性连接票据与续期状态机。账号设备和应用入口从 Console 获取稳定 Native 端点与设备密码摘要，最终仍由 Render 直接鉴权；旧 M5 票据内容仅为历史记录。
 > 2026-09-14 云应用更新：新增独立一级“云应用”Tab、PX Console 配置、游客 public 应用、账号注册/登录与 ACL 应用；
 > 实施计划见 [Android 云应用模块实施计划](android_cloud_apps_implementation_plan_20260914.md)。
 
 ## 当前剩余工作
 
-Android 已具备设备接入、远控音视频、完整输入、已有显示器切换、远程应用、文件/剪贴板、录制、语音和诊断等主功能。2026-09-07
-重新评估后，剩余事项按以下顺序执行；每个真机场景单次验证不超过 5 分钟：
+Android 已具备设备接入、远控音视频、完整输入、已有显示器切换、独立云应用、文件/剪贴板、录制、语音和诊断等主功能。云应用公网端到端验收已经完成，`client_type=android`、游客/注册/登录、public/ACL 应用和权威端点模型均已落地。
 
-1. **P0，云应用前置收口**：清除活动代码、默认配置、测试和开发脚本中已退役的端口基线；Console 原生支持 `client_type=android`；
-   用全新 endpoint/session schema 实现 PX Console 配置、游客、注册和登录，不读取旧数据、不伪装 Panel、不回退旧端口。
-2. **P0，主路径验收补全**：Android RTC、原生 Relay、旧 UDP/KCP 与 WS 视频回退已退出活动 SDK；USB 真机已短测局域网直连、
-   账号设备连接及 UDP+FEC 实际画面。继续验收 UDP 音频、WebSocket 控制/文件以及账号失败反馈；远程应用启动、停止和重连等待真实应用授权。
-3. **P0，已有工具能力的真实传输验收**：复用原生实现，在直连会话验证文件传输、文件型剪贴板、双向语音和带音录制。
-   RTC、原生 Relay/P2P 和 WS 视频回退待测项取消；文件并发时验证控制不被大文件队列阻塞。
-4. **P1，当前可执行的网络和生命周期验收**：覆盖 Wi-Fi 弱网、Wi-Fi 恢复、锁屏与前后台；每轮只验证一个明确场景且不超过 5 分钟。公网、蜂窝、
-   来电、耳机矩阵和系统资源压力留到相应环境具备后执行，不阻塞本轮开发收口。
-5. **本轮明确跳过的矩阵**：性能/设备矩阵以及 API 31、多形态、200% 字体、无障碍和仪器化实机矩阵不在本轮执行；代码编译和现有自动化门禁继续保留。
-6. **P2，发布前清理**：首轮旧源码、无引用资源、无用依赖和过期兼容分支审计已完成；正式候选前仍需基于最终代码再跑一次相同门禁。
-7. **P2，正式发布输入与候选包**：50 年 Pixels 本机签名和批准摘要已生成并接入被 Git 忽略的 Gradle 本机配置；仍需提供最终 FFmpeg 源码及
-   LGPL 可重链接归档、完成法律复核，生成正式
-   APK/AAB、符号和清单归档，并安装候选包验收。
+当前剩余事项仅包括更广泛的弱网、生命周期、设备/API/无障碍矩阵和后续 RustDesk 公网 P2P/Relay；它们不改变现有产品构建方式。正式 Release 流水线已验证 APK/AAB 签名、FFmpeg n6.1 对应源码、自动生成的 LGPL relink kit、R8 mapping、native symbols、ELF Build ID 和 SHA-256 发布清单。构建与产物边界统一以 [产品编译、产物与使用说明](product_build_and_usage.md) 为准。
 
 以下内容已经规划但按当前产品决策**暂缓实施，不属于上述执行队列**：按设备保存完整画质预设、编码输出分辨率、码率和 codec，以及 Android、
 iOS、macOS、Windows Client 与 Windows Render 之间的统一视频能力探测和协商。当前已交付的 30/60 FPS、远端音频、输入模式、硬解优先/软件解码策略继续保留；
 原生路径的 MediaCodec→FFmpeg 回退、实际解码器展示和双解码器失败提示继续作为现行可靠性边界。暂缓项的完整设计见第 14 节。
 
 Android **不缺少也不计划增加** Windows 虚拟显示器创建/删除能力；手机只展示和切换远端主机已经存在的显示器。
-
-### 当前真机检查点（2026-09-07，USB 已接入）
-
-手机空间不足阻塞已解除，修正版 Native APK 已覆盖安装，未卸载或清数据。启动门禁取得完整关键帧和参数集后再创建解码器；
-局域网和账号设备入口均可连接，截图确认实际桌面画面正常，前后台恢复与结束回设备页通过短测。
-手机现有 Console 地址是 `https://localhost:30500`，USB 测试通过 `adb reverse tcp:30500 tcp:30500` 访问本机服务；
-这不是脱离 USB 后的 Console 可达性验收，也不代表公网部署。Windows 自连的高 DPI 光标放大反馈已修复，20 秒连续解码冒烟通过。
-双端编译、8 组 CTest 和产物同步通过。工具功能、弱网/锁屏、远程应用与正式发布输入仍按上述范围待验收，
-详见 [真机与启动门禁记录](native_decoder_startup_usb_checkpoint_20260907.md)。
-
-### 历史暂停点（2026-09-07 较早阶段，无 USB 设备）
-
-- 新产品决定之前的实现已提交并推送到 `master`；Android RTC 退役已完成编译检查，SDK 深层收敛尚未完成，当前不能仅凭旧验收将原生客户端标记为完成。
-- 新决定之前的 debug APK 已完成单元测试、debug/release Lint、arm64 native 构建和打包，文件为
-  `src/px_android/app/build/outputs/apk/debug/app-debug.apk`，SHA-256 为
-  `B0ED8D4C9C699106BF55EB4D1931CBD76B5A1B1EAEB92010B7C5D454AEB33E0D`。
-- USB 手机在最终构建完成后从 ADB 消失，因此上述 APK **尚未覆盖安装到手机**；这不是代码或构建失败，也不能把之前安装的 APK 结果作为该构建的验收证据。
-- 该 APK 仍包含 RTC，不是新产品边界的候选包。完成原生路径收敛后重新构建并记录哈希；手机接入后仅用 `adb install -r -d` 覆盖安装。
-  单次验证不超过 5 分钟，检查 UDP+FEC 直连、可靠控制/文件、语音同意和挂断释放、剪贴板、录制以及前后台/锁屏恢复。
-- 本机 Console 账号当前返回空的远程应用列表，所以应用启动/停止、实例票据和对应重连仍等待真实应用、placement 与授权配置；不得伪造记录为通过。
-- 原生公网 P2P/Relay 测试退出本轮，后续按 RustDesk 方案另行规划；性能/设备/API/无障碍矩阵按本轮决定跳过。正式 APK/AAB 仍等待匹配 FFmpeg 6.1 的源码归档、LGPL
-  relink 对象归档和法律复核；50 年 Pixels 正式签名及 Gradle 本机配置已经就绪。
 
 ## 1. 产品决策
 
@@ -178,7 +143,7 @@ Pixels Android 使用独立且统一的品牌资源：
 共享原生 SDK 已从 `src/px_deps/px_client_sdk` 迁移到 `src/px_client_sdk`，独立于 Android 工程和 `px_deps`。
 Android `core-native` 的 CMake、头文件搜索与构建脚本同步接入新位置；复用现有 UDP/FEC 与 WebSocket 实现。
 迁移前原代码完整归档到 `backup/`；Android Debug 已从新目录编译成功，Windows Client/Panel 构建与本机 UDP 冒烟验证通过。
-传输退役和平台分层尚未完成，详见 [SDK 产品决定](native_client_sdk_transport_decision.md)。
+传输退役和平台分层以活动代码、本文和当前产品构建说明为准。
 
 Android 工程采用单应用、多职责模块。`app` 是唯一组合根，其他模块不能反向依赖 `app`。
 
@@ -270,7 +235,7 @@ Windows Client 的剪贴板、文件传输和录制模块不能直接携带 Qt/W
 - WebSocket 文件消息：文件传输、目录与文件型剪贴板数据，沿用现有背压。普通会话复用已认证控制连接，独立文件模式保留现有文件连接。
 - UDP 不可达明确失败并允许重试，不自动回退为 WS 视频；公网 P2P、Relay 留待后续 RustDesk 方案。
 
-Android 最终构建不包含 WebRTC AAR、PeerConnection、SDP/ICE 信令和 RTC 专属文件、录制、语音路径。RTC 专属实现已归档退出活动源码，见 [第三检查点](android_native_only_checkpoint_20260907.md)；
+Android 最终构建不包含 WebRTC AAR、PeerConnection、SDP/ICE 信令和 RTC 专属文件、录制、语音路径。RTC 专属实现已归档退出活动源码；
 原生 UDP+FEC 媒体、WS 控制/文件、共享文件引擎、编码帧录制和原生语音保留，删除原生 Relay 与 WS 视频回退。账号票据及旋转 renewal capability 属于通用授权流程，仍需保留并维持
 logical session 与 stream 绑定。Web 客户端使用的服务端 RTC 能力不在此次删除范围内。
 
@@ -542,7 +507,7 @@ logical session 与 stream 绑定。Web 客户端使用的服务端 RTC 能力�
 
 ### 13.1 2026-09-06 USB 真机验收记录
 
-- 开发机运行 `build_official/dist` 中的 Panel、Service 和 Render；Android 手机为 Xiaomi 22021211RC、Android 14、arm64，应用通过
+- 开发机运行 `build_official/<product>/dist` 中的 Panel、Service 和 Render；Android 手机为 Xiaomi 22021211RC、Android 14、arm64，应用通过
   `adb install -r` 覆盖安装，全程未卸载。
 - 手机通过 `192.168.31.6` 完成私网设备验证并保存，随后使用密码预授权收据建立 `/media` 和 `/file/transfer` WebSocket；
   Render 侧不接受把密码直接放入 WebSocket 查询参数。
@@ -641,7 +606,7 @@ logical session 与 stream 绑定。Web 客户端使用的服务端 RTC 能力�
   `lookup_active`，随后覆盖客户端控制消息中的凭据，避免伪造字段和提前消费；Render 是唯一票据兑换方，逻辑会话准入成功后才接受房间，并按 `view`、
   `input`、`clipboard`、`file`、`audio` 权限逐房间路由。媒体与文件复用同一已准入房间，避免一次性票据被双连接竞争消费；重连、停止以及准入回调晚于
   owner 销毁时均关闭逻辑绑定。Console 定向安全用例 3/3、Relay SDK 用例 4/4、逻辑会话与 Relay owner 生命周期用例通过；Windows Client 与 Render
-  增量构建通过并同步到 `build_official/dist`，其中 `px_client.exe` SHA-256 为
+  增量构建通过并同步到 `build_official/<product>/dist`，其中 `px_client.exe` SHA-256 为
   `A8F123276BB46BA3BEB85C1D21C5625A09B067DE807B14E2A8D958FADD406C02`，`px_render.exe` 为
   `E4531C867B5BA42AF704C29CA14564CB6A43BAC0384A805A397B2D2D5919E73F`。真实公网 Relay 媒体交付尚未完成，不据此关闭 M5 网络矩阵。
 - 2026-09-07 M5 WebRTC 信令安全复核将 Console appkey 过滤器与 WebSocket 处理器统一到同一个 ticketed RTC 校验入口。信令查询现在必须完整携带
@@ -732,7 +697,7 @@ logical session 与 stream 绑定。Web 客户端使用的服务端 RTC 能力�
   Xiaomi 22021211RC 覆盖安装后录制 `android_real_av_final_20260907_085129.mp4`：12.225 秒、718688 字节、H.264 1920×1080/722 帧与 Opus
   48 kHz 双声道/611 包；音视频完整解码均为零错误，前 610 个音频包 duration 与 DTS 步长均为 960 samples，末包按容器结尾裁为 720 samples，音量
   mean/max 为 -19.4/-4.2 dB，文件 SHA-256 为 `6A34ECA923DAB38B19E0A07C8F2A4F6BA4D5671EC9B4A360443A80E6CDFCB0E9`。
-  `test_record_writer` 7 项、`test_media_recorder_sink` 4 项和 C++ 所有权门禁通过；`px_render.exe`、`px_client.exe` 已同步到 `build_official/dist`，构建树与发布目录
+  `test_record_writer` 7 项、`test_media_recorder_sink` 4 项和 C++ 所有权门禁通过；`px_render.exe`、`px_client.exe` 已同步到 `build_official/<product>/dist`，构建树与发布目录
   SHA-256 分别一致为 `D03578398CE344B5CC0452006D090542704952071009F649F212093ABD18FF73`、`2F7DF6306C3006003B8352F634B59665652F87AECB98E10717E35F32D7E1C900`。
   最终 APK 与手机 `base.apk` SHA-256 均为 `B9AAB5272410EE8C5CF641061FBCF0C0A5A560CB0FDE351BD008DBF8B1BFC579`。
 - 2026-09-07 页面跳转与返回再次按真机反馈收敛：删除 AndroidX Navigation 依赖及嵌套图/页面状态的双重来源，由单一可保存的 `AppDestination` 明确表示三个一级根页、
@@ -868,5 +833,5 @@ logical session 与 stream 绑定。Web 客户端使用的服务端 RTC 能力�
 7. Windows Client 与 iOS 平台适配器。
 
 验收至少覆盖：能力交集为空、硬件声明但创建失败、硬解运行时失败、codec/分辨率切换、晚到确认、重连、网络升降档、连续 start/stop、回调内关闭和销毁后排队回调。
-Windows 端改动必须使用对应 `scripts_build\build_cpp_*.bat` 构建；发生运行产物变化时同步到 `build_official/dist` 并核对 SHA-256。Android 真机继续只用
+Windows 端改动必须使用对应 `scripts_build\build_cpp_*.bat` 构建；发生运行产物变化时同步到 `build_official/<product>/dist` 并核对 SHA-256。Android 真机继续只用
 `adb install -r -d` 覆盖安装，每个验证场景不超过 5 分钟。

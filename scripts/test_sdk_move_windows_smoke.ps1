@@ -2,7 +2,7 @@ param([ValidateRange(10, 60)][int]$Seconds = 20)
 
 $ErrorActionPreference = 'Stop'
 $smokeRepo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$smokeDist = Join-Path $smokeRepo 'build_official/dist'
+$smokeDist = Join-Path $smokeRepo 'build_official/client/dist'
 if (Get-Process -Name px_client -ErrorAction SilentlyContinue) {
     throw 'Close the existing remote-control client before running this local smoke test.'
 }

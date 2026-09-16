@@ -67,7 +67,7 @@ queued close, composition/draft preservation and repeated disposal. Input tests
 cover held non-modifier release, suppression and ordinary English before/after.
 
 The production bundle is `web/px_web_client/dist`; the official collection is
-`build_official/dist/web_client` (see the release script's frontend mapping).
+`build_official/<product>/dist/web_client` (see the release script's frontend mapping).
 Publish all generated assets and compare relative-file SHA-256 values. Render's
 deployed `web_client` directory also needs the same files for remote browser
 acceptance. Do not infer this deployed state merely from a successful Vite build.

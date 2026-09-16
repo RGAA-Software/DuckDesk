@@ -2,7 +2,7 @@
 // Created by RGAA on 12/08/2026.
 // GameStream-style UDP media protocol (custom, NOT wire-compatible with GameStream).
 // Shared by render (net_udp plugin) and client (px_client_sdk).
-// See docs/udp_gamestream_channel_plan.md
+// See docs/native_udp_media_v2_wire.md
 //
 
 #ifndef PX_UDP_PROTOCOL_H

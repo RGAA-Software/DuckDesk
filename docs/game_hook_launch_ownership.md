@@ -42,7 +42,7 @@ Hook 前必须同时满足：**本次启动的私有 Windows Job 成员 AND 完�
 - 自动化必须覆盖同路径外部实例拒绝、错误路径拒绝、根/子进程准入、空格与 Unicode 路径、停止互不影响、回调内停止和重复启停。
 - 公网实机验收只使用 Console 当前配置的节点与应用描述，不写死机器、路径、端口或设备 ID。
 - 实机必须分别验证 Hook 图像、音频、输入、自然退出、显式停止、重复停止和外部同名进程不受影响。
-- 构建树与 `build_official/dist` 中所有变更运行产物的 SHA-256 必须一致后才能交付。
+- 构建树与 `build_official/<product>/dist` 中所有变更运行产物的 SHA-256 必须一致后才能交付。
 
 旧实现完整归档位于 `backup/game_hook_owned_process_20260909/`、`backup/app_stop_idempotency_20260909/` 和
 `backup/app_exit_observation_20260909/`，仅供参考，不参与构建、打包或运行。

@@ -24,8 +24,8 @@ $LivePushEnabled = $true
 # =============================
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$Dist = Join-Path $RepoRoot 'build_official\dist'
-$BuiltExe = Join-Path $RepoRoot 'build_official\src\px_render\px_render.exe'
+$Dist = Join-Path $RepoRoot 'build_official\cloud_node\dist'
+$BuiltExe = Join-Path $RepoRoot 'build_official\cloud_node\cmake\src\px_render\px_render.exe'
 $SrcToml = Join-Path $RepoRoot 'src\px_render\settings.toml'
 $Exe = Join-Path $Dist 'px_render.exe'
 $WebUrl = "http://127.0.0.1:${Port}/web/?deviceId=${DeviceId}"

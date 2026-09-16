@@ -3,23 +3,34 @@ param(
     [ValidateSet("render", "client", "panel", "render_network_libraries", "render_network_library", "hook_audio", "ft_protocol")]
     [string]$Component,
     [string]$LibraryTarget = "",
-    [string]$BuildDir = "build_official",
-    [string]$DistDir = ""
+    [Parameter(Mandatory = $true)]
+    [string]$BuildDir,
+    [Parameter(Mandatory = $true)]
+    [string]$DistDir
 )
 
 $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$buildRoot = Join-Path $repoRoot $BuildDir
-$distRoot = Join-Path $buildRoot "dist"
-if (-not [string]::IsNullOrWhiteSpace($DistDir)) {
-    # An isolated clean build can publish into the user's existing validation tree.
-    $distRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot $DistDir))
+$buildRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot $BuildDir))
+$distRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot $DistDir))
+$cachePath = Join-Path $buildRoot "CMakeCache.txt"
+if (-not (Test-Path -LiteralPath $cachePath -PathType Leaf)) {
+    throw "CMake cache does not exist: $cachePath"
+}
+$productEntry = Select-String -LiteralPath $cachePath -Pattern '^PX_PRODUCT:STRING=(cloud_node|client|remote)$'
+if (-not $productEntry) { throw "PX_PRODUCT is missing or invalid in $cachePath" }
+$product = $productEntry.Matches[0].Groups[1].Value
+$expectedBuildRoot = Join-Path $repoRoot "build_official\$product\cmake"
+$expectedDistRoot = Join-Path $repoRoot "build_official\$product\dist"
+if (-not $buildRoot.Equals($expectedBuildRoot, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "BuildDir must be the isolated $product CMake directory: $expectedBuildRoot"
+}
+if (-not $distRoot.Equals($expectedDistRoot, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "DistDir must be the isolated $product runtime directory: $expectedDistRoot"
 }
 $restartRenderService = $false
 
-if (-not (Test-Path -LiteralPath $distRoot -PathType Container)) {
-    throw "dist directory does not exist: $distRoot"
-}
+New-Item -ItemType Directory -Path $distRoot -Force | Out-Null
 
 function Stop-RenderServiceForPublish {
     $service = Get-Service -Name "px_service" -ErrorAction SilentlyContinue
@@ -308,6 +319,57 @@ function Publish-RenderNetworkLibrary {
     Publish-VerifiedFile -Source $source -Destination $destination -ProcessName "px_render"
 }
 
+function Publish-RenderCefRuntime {
+    $cachePath = Join-Path $buildRoot "CMakeCache.txt"
+    if (-not (Test-Path -LiteralPath $cachePath -PathType Leaf)) {
+        throw "CMake cache does not exist: $cachePath"
+    }
+    $productEntry = Select-String -LiteralPath $cachePath -Pattern '^PX_PRODUCT:STRING=(.+)$'
+    if (-not $productEntry) {
+        throw "PX_PRODUCT is missing from CMake cache: $cachePath"
+    }
+    $buildProduct = $productEntry.Matches[0].Groups[1].Value
+    if ($buildProduct -ne "cloud_node") {
+        Write-Host "SKIP CEF runtime for PX_PRODUCT=$buildProduct"
+        return
+    }
+
+    $renderBuildDirectory = Join-Path $buildRoot "src\px_render"
+    $runtimeFiles = @(
+        "chrome_elf.dll",
+        "d3dcompiler_47.dll",
+        "dxcompiler.dll",
+        "dxil.dll",
+        "libcef.dll",
+        "libEGL.dll",
+        "libGLESv2.dll",
+        "v8_context_snapshot.bin",
+        "vk_swiftshader.dll",
+        "vk_swiftshader_icd.json",
+        "vulkan-1.dll",
+        "chrome_100_percent.pak",
+        "chrome_200_percent.pak",
+        "icudtl.dat",
+        "resources.pak"
+    )
+
+    foreach ($name in $runtimeFiles) {
+        Publish-VerifiedFile -Source (Join-Path $renderBuildDirectory $name) `
+            -Destination (Join-Path $distRoot $name) -ProcessName "px_render"
+    }
+
+    $localeSource = Join-Path $renderBuildDirectory "locales"
+    if (-not (Test-Path -LiteralPath $localeSource -PathType Container)) {
+        throw "CEF locales were not staged beside px_render.exe: $localeSource"
+    }
+
+    Get-ChildItem -LiteralPath $localeSource -File -Recurse | ForEach-Object {
+        $relative = $_.FullName.Substring($localeSource.Length).TrimStart('\')
+        Publish-VerifiedFile -Source $_.FullName -Destination (Join-Path $distRoot (Join-Path "locales" $relative)) `
+            -ProcessName "px_render"
+    }
+}
+
 try {
 switch ($Component) {
     "render" {
@@ -324,6 +386,7 @@ switch ($Component) {
         foreach ($target in $renderNetworkLibraryMap.Keys | Sort-Object) {
             Publish-RenderNetworkLibrary -Target $target
         }
+        Publish-RenderCefRuntime
     }
     "client" {
         Remove-RetiredQtArtifacts
@@ -348,10 +411,12 @@ switch ($Component) {
             -Source (Join-Path $buildRoot 'src\px_deps\libplacebo-349.dll') `
             -Destination (Join-Path $distRoot 'libplacebo-349.dll') `
             -ProcessName 'px_client'
-        foreach ($relative in @('rdp\px_rdp_sdk.json', 'rdp\licenses\FreeRDP-LICENSE', 'rdp\licenses\openssl-LICENSE',
-            'rdp\licenses\libusb-LICENSE', 'rdp\licenses\zlib-LICENSE', 'rdp\licenses\cjson-LICENSE', 'rdp\licenses\openh264-LICENSE')) {
-            Publish-VerifiedFile -Source (Join-Path $buildRoot ('src\px_deps\' + $relative)) `
-                -Destination (Join-Path $distRoot $relative) -ProcessName 'px_client'
+        Publish-VerifiedFile -Source (Join-Path $buildRoot 'src\px_deps\rdp\px_rdp_sdk.json') `
+            -Destination (Join-Path $distRoot 'rdp\px_rdp_sdk.json') -ProcessName 'px_client'
+        $retiredRdpLicenses = Join-Path $distRoot 'rdp\licenses'
+        if (Test-Path -LiteralPath $retiredRdpLicenses -PathType Container) {
+            Remove-Item -LiteralPath $retiredRdpLicenses -Recurse -Force
+            Write-Host "REMOVED retired RDP license output: $retiredRdpLicenses"
         }
         # Voice processing is a shared runtime dependency of Client and Render.
         # The client executable above is published first, stopping any active client.
@@ -428,6 +493,7 @@ switch ($Component) {
         foreach ($target in $renderNetworkLibraryMap.Keys | Sort-Object) {
             Publish-RenderNetworkLibrary -Target $target
         }
+        Publish-RenderCefRuntime
     }
     "ft_protocol" {
         Remove-RetiredQtArtifacts
@@ -446,6 +512,7 @@ switch ($Component) {
         foreach ($target in @("net_rtc", "net_rtc_local")) {
             Publish-RenderNetworkLibrary -Target $target
         }
+        Publish-RenderCefRuntime
         Publish-VerifiedFile `
             -Source (Join-Path $buildRoot "src\px_deps\px_client.exe") `
             -Destination (Join-Path $distRoot "px_client.exe") `

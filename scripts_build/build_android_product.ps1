@@ -13,6 +13,8 @@ Set-StrictMode -Version Latest
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $androidRoot = Join-Path $repoRoot 'src\px_android'
+$androidBuildRoot = Join-Path $repoRoot 'build_official\android\gradle'
+$androidNativeRoot = Join-Path $repoRoot 'build_official\android\native'
 $gradle = Join-Path $androidRoot 'gradlew.bat'
 $versionTool = Join-Path $repoRoot 'set_product_version.py'
 
@@ -48,6 +50,8 @@ if ($Action -eq 'install' -and -not (Get-Command adb -ErrorAction SilentlyContin
     throw 'adb is required for build_android_product.bat debug install.'
 }
 
+& (Join-Path $PSScriptRoot 'clean_product_outputs.ps1') -Product android
+
 $versionOutput = @(& python $versionTool --product android --bump --json 2>&1)
 if ($LASTEXITCODE -ne 0) {
     throw "Unable to assign the Android product version: $($versionOutput -join [Environment]::NewLine)"
@@ -64,6 +68,8 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($revision)) {
     throw 'Unable to resolve the Git revision after assigning the Android product version.'
 }
 $env:PIXELS_GIT_REVISION = $revision
+$env:PIXELS_ANDROID_BUILD_ROOT = $androidBuildRoot
+$env:PIXELS_ANDROID_NATIVE_ROOT = $androidNativeRoot
 
 Write-Host "Building Pixels Android $($env:PIXELS_VERSION_NAME) ($($env:PIXELS_VERSION_CODE)) $Configuration."
 
@@ -75,7 +81,7 @@ if ($Configuration -eq 'release') {
     exit 0
 }
 
-$tasks = @(':app:lintDebug', 'testDebugUnitTest', ':app:assembleDebug', '--stacktrace')
+$tasks = @('--project-cache-dir', (Join-Path $androidBuildRoot 'project-cache'), ':app:lintDebug', 'testDebugUnitTest', ':app:assembleDebug', '--stacktrace')
 Push-Location $androidRoot
 try {
     & $gradle @tasks
@@ -86,7 +92,7 @@ try {
     Pop-Location
 }
 
-$metadataPath = Join-Path $androidRoot 'app\build\outputs\apk\debug\output-metadata.json'
+$metadataPath = Join-Path $androidBuildRoot 'app\outputs\apk\debug\output-metadata.json'
 if (-not (Test-Path -LiteralPath $metadataPath -PathType Leaf)) {
     throw 'Gradle completed without producing debug APK metadata.'
 }
@@ -101,7 +107,7 @@ if (-not (Test-Path -LiteralPath $apkPath -PathType Leaf)) {
     throw "Debug APK is missing: $apkPath"
 }
 
-$distRoot = Join-Path $repoRoot 'build_official\dist\android'
+$distRoot = Join-Path $repoRoot 'build_official\android\dist'
 New-Item -ItemType Directory -Path $distRoot -Force | Out-Null
 $destination = Join-Path $distRoot "Pixels-$($env:PIXELS_VERSION_NAME)-debug-arm64-v8a.apk"
 $temporaryDestination = "$destination.tmp"

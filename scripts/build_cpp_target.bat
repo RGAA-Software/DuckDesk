@@ -4,7 +4,8 @@ setlocal enabledelayedexpansion
 rem Incremental C++ target builder. This script never bumps the product version,
 rem runs npm, invokes Cargo, collects the complete dist tree, or builds servers.
 rem Usage: scripts\build_cpp_target.bat target [target ...]
-rem Optional environment: CPP_BUILD_DIR (default build_official), CPP_BUILD_JOBS (default 8), CPP_PRODUCT
+rem Required environment: CPP_PRODUCT. The build directory is always isolated
+rem at build_official\<product>\cmake unless a product wrapper supplies the same path.
 
 cd /d "%~dp0\.."
 if "%~1"=="" (
@@ -13,8 +14,21 @@ if "%~1"=="" (
     exit /b 2
 )
 
+if not defined CPP_PRODUCT (
+    echo ERROR: CPP_PRODUCT is required. Use a scripts_build\build_cpp_product_*.bat entry point.
+    exit /b 2
+)
+if /I not "%CPP_PRODUCT%"=="cloud_node" if /I not "%CPP_PRODUCT%"=="client" if /I not "%CPP_PRODUCT%"=="remote" (
+    echo ERROR: CPP_PRODUCT must be cloud_node, client, or remote.
+    exit /b 2
+)
+set "EXPECTED_BUILD_DIR=build_official\%CPP_PRODUCT%\cmake"
 set "BUILD_DIR=%CPP_BUILD_DIR%"
-if not defined BUILD_DIR set "BUILD_DIR=build_official"
+if not defined BUILD_DIR set "BUILD_DIR=%EXPECTED_BUILD_DIR%"
+if /I not "%BUILD_DIR%"=="%EXPECTED_BUILD_DIR%" (
+    echo ERROR: product build directory must be %EXPECTED_BUILD_DIR%; got %BUILD_DIR%.
+    exit /b 2
+)
 set "BUILD_JOBS=%CPP_BUILD_JOBS%"
 if not defined BUILD_JOBS set "BUILD_JOBS=8"
 
@@ -43,6 +57,15 @@ if not defined VS_INSTALL_DIR (
 call "%VS_INSTALL_DIR%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64 >nul
 if errorlevel 1 exit /b %errorlevel%
 set "VSLANG=1033"
+
+rem VsDevCmd may replace VCPKG_ROOT with Visual Studio's private vcpkg tree.
+rem Cargo build scripts must use the repository-pinned protoc regardless of that
+rem ambient mutation, including when Rust targets are launched by Ninja.
+set "PROTOC=%CD%\tools\protoc.exe"
+if not exist "%PROTOC%" (
+    echo ERROR: repository protoc is missing: %PROTOC%
+    exit /b 1
+)
 
 if exist "%BUILD_DIR%\build.ninja" if defined CPP_PRODUCT (
     findstr.exe /x /c:"PX_PRODUCT:STRING=%CPP_PRODUCT%" "%BUILD_DIR%\CMakeCache.txt" >nul 2>&1

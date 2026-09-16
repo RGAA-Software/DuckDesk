@@ -6,6 +6,17 @@ set "VSLANG=1033"
 
 cd /d "%~dp0.." || exit /b 1
 
+if "%~1"=="" (
+    echo Usage: %~nx0 cloud_node^|client^|remote [incremental] [run]
+    exit /b 2
+)
+if /I not "%~1"=="cloud_node" if /I not "%~1"=="client" if /I not "%~1"=="remote" (
+    echo ERROR: product must be cloud_node, client, or remote.
+    exit /b 2
+)
+set "CPP_PRODUCT=%~1"
+set "PRODUCT_BUILD_DIR=build_official\%CPP_PRODUCT%\cmake"
+
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 set "VS_INSTALL_DIR="
 
@@ -71,13 +82,13 @@ for %%a in (%*) do (
 )
 
 if "%SKIP_CONFIGURE%"=="0" (
-    cmake -S . -B build_official -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTARGET_TYPE=Official -Wno-dev
+    cmake -S . -B "%PRODUCT_BUILD_DIR%" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTARGET_TYPE=Official -DPX_PRODUCT=%CPP_PRODUCT% -Wno-dev
     if errorlevel 1 exit /b %errorlevel%
 )
 
 echo ----------------------BUILD TESTS START------------------------
 echo ---------------------------------------------------------
-cmake --build build_official -j18 --target ^
+cmake --build "%PRODUCT_BUILD_DIR%" -j18 --target ^
     px_common ^
     test_string_util test_file_util test_folder_util test_file ^
     test_auto_start test_win_helper test_dxgi_mon_detector test_network_adapter ^
@@ -99,7 +110,7 @@ if errorlevel 1 exit /b %errorlevel%
 echo ----------------------BUILD TESTS DONE-------------------------
 
 if "%RUN_TESTS%"=="1" (
-    call "%~dp0..\scripts\run_tc_tests.bat"
+    call "%~dp0..\scripts\run_tc_tests.bat" "%CPP_PRODUCT%"
     if errorlevel 1 exit /b !errorlevel!
 )
 

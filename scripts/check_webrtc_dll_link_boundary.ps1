@@ -1,11 +1,13 @@
 param(
-    [string]$BuildDirectory = "build_official"
+    [Parameter(Mandatory = $true)]
+    [ValidateSet("cloud_node", "remote")]
+    [string]$Product
 )
 
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
-$buildPath = Join-Path $root $BuildDirectory
+$buildPath = Join-Path $root "build_official/$Product/cmake"
 $ninjaPath = Join-Path $buildPath "build.ninja"
 
 if (-not (Test-Path -LiteralPath $ninjaPath)) {

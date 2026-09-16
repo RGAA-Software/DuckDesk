@@ -92,7 +92,7 @@ foreach ($library in @("px_render_rtc_remote.dll", "px_render_rtc.dll")) {
 
 if ($CheckDist) {
     foreach ($product in @("cloud_node", "remote")) {
-        $runtimeDirectory = Join-Path $RepoRoot "build_official\dist\$product"
+        $runtimeDirectory = Join-Path $RepoRoot "build_official\$product\dist"
         $legacyDistDirectory = Join-Path $runtimeDirectory "deps\rd_plugins"
         if (Test-Path -LiteralPath $legacyDistDirectory) {
             throw "legacy Render plugin delivery directory still exists: $legacyDistDirectory"

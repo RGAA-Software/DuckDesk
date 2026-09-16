@@ -204,7 +204,10 @@ def main() -> int:
     setup_dir = Path(__file__).resolve().parent
     repo_root = setup_dir.parent
     config = load_product_config(repo_root, args.product)
-    dist_dir = (args.dist_dir or repo_root / "build_official" / "dist" / args.product).resolve()
+    expected_dist_dir = (repo_root / "build_official" / args.product / "dist").resolve()
+    dist_dir = (args.dist_dir or expected_dist_dir).resolve()
+    if dist_dir != expected_dist_dir:
+        raise RuntimeError(f"installer input must be the isolated product dist {expected_dist_dir}; got {dist_dir}")
     manifest = validate_dist(repo_root, args.product, dist_dir, config)
     if args.validate_only:
         print(f"Validated installer input: {args.product} {config['product_version']} ({dist_dir})")
@@ -213,7 +216,10 @@ def main() -> int:
     tool_config = load_tool_config(setup_dir)
     seven_zip = find_7z(tool_config.get("7z_path"), repo_root)
     makensis = find_nsis(tool_config.get("nsis_dir_path"), repo_root)
-    output_root = (args.output_root or repo_root / "output" / args.product).resolve()
+    expected_output_root = (repo_root / "build_official" / args.product / "installer").resolve()
+    output_root = (args.output_root or expected_output_root).resolve()
+    if output_root != expected_output_root:
+        raise RuntimeError(f"installer output must be the isolated product directory {expected_output_root}; got {output_root}")
     final_dir = output_root / str(config["product_version"])
     if final_dir.exists():
         raise RuntimeError(f"installer version output already exists and will not be overwritten: {final_dir}")

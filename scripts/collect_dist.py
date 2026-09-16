@@ -245,6 +245,15 @@ def main() -> int:
     build_dir = args.build_dir.resolve()
     source_dir = args.source_dir.resolve()
     final_dir = args.dist_dir.resolve()
+    product_root = build_dir.parent
+    expected_product_root = (source_dir / "build_official" / args.product).resolve()
+    if build_dir.name != "cmake" or product_root != expected_product_root:
+        raise RuntimeError(
+            f"product build directory must be {expected_product_root / 'cmake'}; got {build_dir}"
+        )
+    expected_dist = product_root / "dist"
+    if final_dir != expected_dist:
+        raise RuntimeError(f"product dist directory must be {expected_dist}; got {final_dir}")
     if final_dir in {source_dir, build_dir} or final_dir.parent == final_dir:
         raise RuntimeError(f"unsafe distribution target: {final_dir}")
 
@@ -254,13 +263,27 @@ def main() -> int:
         artifact_config = tomllib.load(source)
     if product_config.get("product") != args.product:
         raise RuntimeError(f"product manifest identity mismatch: {args.product}")
+    with (product_root / "product-build.json").open("r", encoding="utf-8") as source:
+        build_stamp = json.load(source)
+    expected_stamp = {
+        "product": args.product,
+        "edition": product_config["edition"],
+        "company": product_config["company"],
+        "product_version": product_config["product_version"],
+        "product_version_code": product_config["product_version_code"],
+        "cmake_binary_dir": f"build_official/{args.product}/cmake",
+    }
+    actual_stamp = {key: build_stamp.get(key) for key in expected_stamp}
+    if actual_stamp != expected_stamp:
+        raise RuntimeError(f"product build stamp mismatch: expected={expected_stamp}, actual={actual_stamp}")
 
     roots = {
         "source": source_dir,
         "build": build_dir,
-        "rust_shared": source_dir / "build_official" / "shared" / "rust",
+        "product_rust": product_root / "cargo" / "stage",
+        "product_web": product_root / "web",
         "rdp_sdk": source_dir / ".cache" / "rdp_sdk",
-        "rdp_policy": source_dir / ".cache" / "rdp_policy_build" / "Release",
+        "rdp_policy": product_root / "rdp_policy" / "Release",
     }
     final_dir.parent.mkdir(parents=True, exist_ok=True)
     staging_dir = Path(tempfile.mkdtemp(prefix=f".{final_dir.name}.staging-", dir=final_dir.parent))
