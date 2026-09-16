@@ -6,6 +6,7 @@
 #include "px_ui/components/overlay.h"
 #include "px_ui/components/surface.h"
 #include "px_ui/layout_metrics.h"
+#include "version_config.h"
 
 #include <imgui.h>
 
@@ -100,6 +101,7 @@ std::optional<px::ui::Theme> GeneralSettingsPage::Draw(px::ui::Localizer& locali
         }
         ImGui::EndTable();
     }
+#if PX_CAPABILITY_JOYSTICK
     ImGui::Spacing();
     const bool gamepadDriverReady{serverStatusPort_->Snapshot().controllerDriverReady};
     if (ImGui::BeginTable("GeneralGamepadDriver", 2, ImGuiTableFlags_SizingFixedFit)) {
@@ -123,6 +125,8 @@ std::optional<px::ui::Theme> GeneralSettingsPage::Draw(px::ui::Localizer& locali
         ImGui::SetWindowFontScale(1.0F);
         ImGui::EndTable();
     }
+#endif
+#if PX_CAPABILITY_DESKTOP_HOST
     ImGui::Spacing();
     px::ui::SectionTitle(localizer.Text(px::ui::TextId::EncoderSettings));
     px::ui::HorizontalSeparator();
@@ -221,6 +225,7 @@ std::optional<px::ui::Theme> GeneralSettingsPage::Draw(px::ui::Localizer& locali
             ImGui::CloseCurrentPopup();
         }
     }
+#endif
     return selectedTheme;
 }
 

@@ -1,0 +1,18 @@
+product = "remote"
+edition = "REMOTE"
+company = "Pixels"
+product_version = "3.3.69"
+product_version_code = 30369
+package_groups = ["desktop_client", "host_common", "rdp_host", "render_common", "browser_remote"]
+
+capabilities = [
+    "desktop_client",
+    "desktop_host",
+    "file_transfer",
+    "rdp_client",
+    "rdp_host",
+    "browser_remote",
+    "virtual_display",
+    "joystick",
+    "system_information",
+]

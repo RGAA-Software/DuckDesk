@@ -1,4 +1,4 @@
-; Parsec VDD install, legacy migration, and ownership-aware uninstall helpers.
+; Parsec VDD install and ownership-aware uninstall helpers.
 
 Function InstallParsecVddDriver
     IfFileExists "$INSTDIR\parsec_vdd\nefconw.exe" +2 0
@@ -51,7 +51,22 @@ parsec_vdd_install_verified:
     Return
 
 parsec_vdd_install_already_present:
+    ; Preserve ownership across the one-time migration from installers that
+    ; wrote this marker through NSIS's 32-bit registry view.
+    SetRegView 64
+    ReadRegDWORD $R0 HKLM "Software\Pixels\VirtualDisplay" "ParsecVddOwned"
+    StrCmp $R0 "1" parsec_vdd_install_existing_owned
+    SetRegView 32
+    ReadRegDWORD $R0 HKLM "Software\Pixels\VirtualDisplay" "ParsecVddOwned"
+    SetRegView 64
+    StrCmp $R0 "1" 0 parsec_vdd_install_existing_external
+    WriteRegDWORD HKLM "Software\Pixels\VirtualDisplay" "ParsecVddOwned" 1
+parsec_vdd_install_existing_owned:
+    DetailPrint "A healthy Pixels-owned Parsec VDD already exists; preserving its ownership."
+    Goto parsec_vdd_install_existing_done
+parsec_vdd_install_existing_external:
     DetailPrint "A healthy Parsec VDD already exists; preserving its external ownership."
+parsec_vdd_install_existing_done:
     SetOutPath "$INSTDIR"
     Push "0"
     Return
@@ -62,35 +77,16 @@ parsec_vdd_install_failed:
     Push "1"
 FunctionEnd
 
-Function CleanupLegacyUsbMmIddDriver
-    ; Only clean the legacy driver when an older Pixels installation left its
-    ; product-owned payload. A fresh install must not remove another product's
-    ; independently installed Amyuni driver.
-    IfFileExists "$INSTDIR\usbmmidd_v2\usbmmIdd.inf" 0 legacy_usbmmidd_cleanup_not_owned
-    SetOutPath "$PLUGINSDIR"
-    File /oname=cleanup_legacy_usbmmidd_driver.ps1 "cleanup_legacy_usbmmidd_driver.ps1"
-    ${DisableX64FSRedirection}
-    nsExec::ExecToStack '"$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\cleanup_legacy_usbmmidd_driver.ps1"'
-    ${EnableX64FSRedirection}
-    Pop $R3
-    Pop $R4
-    DetailPrint "$R4"
-    StrCmp $R3 "0" legacy_usbmmidd_cleanup_success
-        Push "1"
-        Return
-
-legacy_usbmmidd_cleanup_success:
-    RMDir /r "$INSTDIR\usbmmidd_v2"
-    DetailPrint "Legacy Pixels USBMMIDD payload and driver were removed."
-
-legacy_usbmmidd_cleanup_not_owned:
-    SetOutPath "$INSTDIR"
-    Push "0"
-FunctionEnd
-
 Function un.UninstallParsecVddDriver
+    SetRegView 64
     ReadRegDWORD $R0 HKLM "Software\Pixels\VirtualDisplay" "ParsecVddOwned"
+    StrCmp $R0 "1" parsec_vdd_uninstall_owned
+    SetRegView 32
+    ReadRegDWORD $R0 HKLM "Software\Pixels\VirtualDisplay" "ParsecVddOwned"
+    SetRegView 64
     StrCmp $R0 "1" 0 parsec_vdd_uninstall_not_owned
+
+parsec_vdd_uninstall_owned:
 
     IfFileExists "$INSTDIR\parsec_vdd\nefconw.exe" +2 0
         Goto parsec_vdd_uninstall_failed
@@ -115,6 +111,9 @@ parsec_vdd_uninstall_verify:
     Goto parsec_vdd_uninstall_verify
 
 parsec_vdd_uninstall_verified:
+    SetRegView 32
+    DeleteRegValue HKLM "Software\Pixels\VirtualDisplay" "ParsecVddOwned"
+    SetRegView 64
     DeleteRegValue HKLM "Software\Pixels\VirtualDisplay" "ParsecVddOwned"
     DetailPrint "Pixels-owned Parsec VDD was removed."
     SetOutPath "$INSTDIR"

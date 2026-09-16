@@ -4,7 +4,7 @@
 > 范围：Console Web 页查看 render 端录屏文件（`C:\Users\Public\Pixels\px_render_records`）
 > 核心决策：**不做全量上传归档**，panel 作为录像的稳定出口；同网段直连，上层网段按需代理。
 
-> **2026-08-24 传输策略更新：**本文后文保留的 Console HTTP/WS 方案仅作为历史决策记录，已经废弃，不再用于实现或部署。当前唯一受支持的边界是 Console 30500 使用 HTTPS/WSS（允许自签名证书），Render 20371、Panel 本地服务和进程间通信继续使用 HTTP/WS，详见 `docs/console_https_transport.md`。
+> 当前传输策略：Console 使用 HTTPS/WSS；Render 端口只读取 Console 节点描述中的实际值，同一实际端口承载 TCP/WS 与 UDP。Panel 本地服务和进程间通信继续使用回环 HTTP/WS，不保留旧固定端口兼容。
 
 ---
 
@@ -38,7 +38,7 @@ render 端录屏已落地：录像文件落在本机 `C:\Users\Public\Pixels\px_
 |---|---|---|
 | 进程性质 | 随时会死（崩溃/被重启）、**可多开** | 常驻、服务托管、单例 |
 | 与 console 连接 | **无**（render 与 console 无长连接，也无 console 客户端代码） | 与 console 保持 `/console/panel` 长连接；`console_device_api`（px_console_client 库）被 panel 广泛使用 |
-| 本机 HTTP 服务 | net_ws 插件 20371（但随 render 生死） | **自带 asio2 `http_server`，监听 20369**（`ws_panel_server.cpp`，现挂 ws 端点，可加 HTTP 路由） |
+| 本机 HTTP 服务 | Render 实际端口（随 Render 生死，由当前节点描述提供） | **自带 asio2 `http_server`，监听 Panel 当前回环配置端口**（`ws_panel_server.cpp`，现挂 WS 端点，可加 HTTP 路由） |
 | 录像目录访问 | 写入方 | **同机可读**（公共目录 `Public\Pixels`），render 死活不影响 |
 
 结论：panel 常驻、单例、同机可读录像目录、与 console 有现成长连接和 HTTP 客户端——是录像的稳定出口。render 死掉/多开不影响已录文件的查看与回传。
@@ -215,10 +215,10 @@ web 请求设备 X 的录像列表/播放
   - 录制中文件（手工造 `.recording`）不出现在列表、不可下载
   - `curl .../records/../../etc/passwd` → 400
 
-### 9.3 拓扑 1 端到端（双机：本机 Console + 10.0.0.90 设备）
+### 9.3 拓扑 1 端到端（Console + 当前配置的公网 Windows 节点）
 
-- **测试视频预制（不手工录屏）**：`tests/gen_test_videos.sh` 用 ffmpeg（testsrc2 彩条 + 正弦音轨，h264/aac/yuv420p/+faststart）生成 `tests/test_videos/render/` 与 `tests/test_videos/client/` 两组样例，命名与 `px_media_record` 一致（`rec_{monitor}_{YYYYMMDD}_{HH.MM.SS}.mp4`），每组各含一个 `.recording` sidecar 模拟录制中文件；部署时直接拷贝到 10.0.0.90（administrator）的 `C:\Users\Public\Pixels\px_render_records` / `px_client_records`
-- 10.0.0.90 部署 panel + render（render 无需实际录屏）
+- **测试视频预制（不手工录屏）**：`tests/gen_test_videos.sh` 用 ffmpeg（testsrc2 彩条 + 正弦音轨，h264/aac/yuv420p/+faststart）生成 `tests/test_videos/render/` 与 `tests/test_videos/client/` 两组样例，命名与 `px_media_record` 一致（`rec_{monitor}_{YYYYMMDD}_{HH.MM.SS}.mp4`），每组各含一个 `.recording` sidecar 模拟录制中文件；通过当前公网节点的受控部署入口写入产品数据目录。
+- 在 Console 当前选择的公网 Windows 节点部署 Panel 与 Render（Render 无需实际录屏）。
 - Console web（HTTP 部署）→ 设备 → 录像列表 → `<video>` 播放 + **拖拽进度条**（验证 Range 生效，DevTools Network 应见 206）
 - **真实录像播放验证（关键）**：预制视频是 h264/aac 不够，须取一段真实 render 录制文件放入 `px_render_records`，确认浏览器可播；若实际为 H265 则验证列表"仅可下载"标记与下载流程，并回报任务 0 的决策结果
 - **拓扑自动选择**：直连可达时走拓扑 1；断开局域网连通性（防火墙拦 20369 入方向）后前端自动回退拓扑 2，无报错弹窗
@@ -258,13 +258,13 @@ web 请求设备 X 的录像列表/播放
 3. 拓扑 2 下载：与播放同源，随播放实现，不单独做。
 4. panel IP 透传：字段 `panel_lan_ips`（数组），panel 握手时主动上报本机网卡 IP（§5.2）。
 
-## 12. 双机联调记录（2026-08-17,本机 Console 10.0.0.16 + 设备 10.0.0.90)
+## 12. 历史双机联调记录（2026-08-17）
 
 ### 12.1 联调拓扑与环境
 
-- Console 跑本机（HTTPS,`output/px_console`,force_authorize=false）；设备 10.0.0.90 全新安装 `Pixels_3.3.42_Setup.exe`（装到 `C:\Program Files\PixelsRender`)。
+- Console 运行于开发机；当时的固定局域网安装步骤已经退役，不再作为可执行测试方案。
 - 设备 Console 配置通过 leveldb 注入工具 `tests/sp_put`(panel 设置持久化在 `px_data\pixels.dat` / `panel_companion.dat`)：`console_server_host/port`、`relay_server_host/port`、`key_auth_appkey`、`device_safety_pwd`(md5)。注入前必须停 px_service 并杀净 px_panel，否则 leveldb LOCK 被占。
-- 远程运维通道：SMB(`\\10.0.0.90\C$`)+ schtasks 以 SYSTEM 远程执行（WinRM 需 TrustedHosts，未用）。
+- 旧 SMB 与计划任务运维方式已经退役；当前测试只使用公网节点的受控部署入口。
 - 注意：px_service 注册了失败自动重启（3s),`sc stop` 也会被拉回；要真停需先 `sc config start= disabled`。
 
 ### 12.2 联调发现并修复的缺陷（已随代码提交）
@@ -277,7 +277,7 @@ web 请求设备 X 的录像列表/播放
 §9.1/9.2 单测与 curl 集成：全绿（ticket 12 例、rust 4 例、catalog/transfer 等此前已过）。
 
 §9.3 拓扑 1（同网段）:
-- 设备上线注册（`/console/panel` + relay `server_/ft_server_`)、`panel_lan_ips=["10.0.0.90"]` 透传 ✓
+- 设备上线注册（`/console/panel` + relay `server_/ft_server_`）与节点地址透传完成。
 - ticket 签发 + 直连列表 / Range(206 首段/尾段、416 越界）、路径穿越 400、录制中文件 403(不出列表也不可下载）✓
 - 浏览器 E2E(`scripts/cdp_records_e2e.mjs`,headless Chrome)：列表渲染、直连播放、拖拽 seek（见 206)、h264+**Opus** 样例可播、控制台零报错 ✓
 - 浏览器直下 md5 与设备一致 ✓
@@ -318,8 +318,8 @@ relay 两端本来就是明文，web 端已协议自适应，均不需要改。
 ### 13.2 验证结果
 
 - 单测：`test_access_decrypt` 新增三组断言（旧串缺省 true / 显式 false / 显式 true)✓;`test_records_ticket` 12/12 ✓;rust `px_console_server` access_info 3 例、`px_service` 33/33 ✓。
-- 部署：本机 Console `ssl_enable=false` 重启，日志 `http.listening on 0.0.0.0:30500 (ssl_enable=false)`;90 侧重拷新 `px_service.exe`/`px_panel.exe` + `sp_put` 注入 `console_ssl_enable=false`(`tests/_redeploy_service_90.bat` 新增、`_redeploy_panel_90.bat`、`_cfg3_90.bat` + `cfg_panel3_90.bat` 带杀 panel 重试）。
-- 90 重连：Console 日志确认 relay 与 `/console/panel` 明文 ws 握手来自 10.0.0.90 ✓。
+- 旧固定节点的手工拷贝、配置注入和专用批处理记录已删除；当前部署只走公网产品发布入口。
+- 节点重连：Console 日志确认 relay 与 `/console/panel` 握手恢复。
 - E2E(HTTP，无 `--ignore-certificate-errors`/`--allow-running-insecure-content`):§9.3 拓扑 1 全项（列表/ticket/206/拖拽/控制台零报错）✓；离线提示（990405157)✓;Console web 冒烟（`scripts/cdp_console_smoke.mjs`：设备列表/设备监控/资源总览渲染正常、控制台零报错）✓。
 
 ### 13.3 遗留
@@ -333,7 +333,7 @@ relay 两端本来就是明文，web 端已协议自适应，均不需要改。
 
 ### 13.5 部署形态约定（2026-08-18 确认）
 
-**内网/自托管部署（当前形态，推荐默认）**：全链路明文 HTTP/WS——Console `ssl_enable=false`(30500 单端口承载 HTTP/WS/REST/`/ping`/静态资源），设备端 `console_ssl_enable=false`，浏览器无需任何特殊 flag，无混合内容问题。render 侧本来就是明文（web client 托管 20371、panel 录像 20369 均为 plain HTTP)，无需改造。
+**当前部署**：Console 使用 HTTPS/WSS；Render Web Client 与录像入口使用节点描述中的实际公网端点。浏览器不得依赖忽略证书或允许混合内容的测试开关。
 
 **公网部署：nginx 终结 TLS，后端零改动**。nginx 反代 30500 时必须透传 WebSocket 升级头（`/console/panel`、`/console/website` 等长连），并放宽超时与上传体积：
 
@@ -362,7 +362,7 @@ server {
 1. **设备端开关**：设备 `console_ssl_enable=true`（缺省值）以 wss 连 nginx 443；所有 wss 客户端均为 `verify_none`/`NoCertVerifier`，自签证书可连，CA 证书则浏览器零警告。
 2. **relay(30502）也是 WS**，过中继的设备需要第二个 server 块单独反代。
 3. **UDP 广播（30501）不过公网**，设备靠粘贴 access 串接入（公网场景本来如此）。
-4. **混合内容的根治靠"不直连设备"**:https 页面内嵌 `http://设备IP:20369/20371` 仍会被浏览器拦，因此公网形态下录像走拓扑 2（经 Console 回传，URL 为同源 `/uploads/records/...`)、远程桌面走 relay 而非直连 web client——页面内不出现任何 `http://设备IP` 内容，nginx 一层即完整解决。LAN 直连模式仅适用于内网。
+4. **混合内容的根治靠同源安全入口**：HTTPS 页面不得内嵌节点明文 HTTP 内容。公网录像经 Console 回传并使用同源 `/uploads/records/...`；远程桌面使用当前授权端点，页面不拼接固定设备地址。
 5. **WebRTC 媒体面**(DTLS-SRTP）与 nginx 无关；P2P 打洞失败时需 TURN 或全 relay，属另一层部署问题。
 
 TLS 能力在代码里是双向保留的：Console 拨回 `ssl_enable=true` + 设备重新下发 access 串即回到 HTTPS/WSS 直连模式（此时浏览器对自签证书有警告、且混合内容问题回归，仅建议配合受信证书使用）。

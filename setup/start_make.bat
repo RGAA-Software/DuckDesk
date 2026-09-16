@@ -1,16 +1,14 @@
 @echo off
-
 if "%~1"=="" (
-    set "BUILD_DIR=..\build_official"
-) else (
-    set "BUILD_DIR=%~1"
+    echo Usage: %~nx0 ^<cloud_node^|client^|remote^> [dist-dir]
+    exit /b 2
 )
 
-python make_setup.py --build-dir "%BUILD_DIR%"
+if "%~2"=="" (
+    python make_setup.py --product "%~1"
+) else (
+    python make_setup.py --product "%~1" --dist-dir "%~2"
+)
 if errorlevel 1 exit /b %errorlevel%
 
-rem PDB collection is auxiliary; do not fail packaging if it only produces warnings/logs.
-python save_pdb.py --build-dir "%BUILD_DIR%" || echo Warning: save_pdb.py finished with non-zero exit code, but packaging is already complete.
-
-rem binarycreator.exe -c config/config.xml -p packages PixelsSetup.exe -v
 exit /b 0

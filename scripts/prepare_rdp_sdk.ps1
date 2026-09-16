@@ -42,27 +42,35 @@ if ((& git -C $source rev-parse HEAD) -ne $revision -or $LASTEXITCODE -ne 0) { t
 if ((& git -C $source status --porcelain --untracked-files=no)) { throw 'Pinned FreeRDP source must be clean; no implicit third-party patches' }
 # The original checkout stays read-only. A patch-addressed build copy is never
 # reset or repaired implicitly: unexpected source changes are a hard failure.
-$patch = Join-Path $repo 'patches/freerdp/0001-mf-output-state.patch'
-$patchHash = Get-SdkHash $patch
+$decoderPatch = Join-Path $repo 'patches/freerdp/0001-mf-output-state.patch'
+$outputNamesPatch = Join-Path $repo 'patches/freerdp/0002-pixels-rdp-output-names.patch'
+$decoderPatchHash = Get-SdkHash $decoderPatch
+$outputNamesPatchHash = Get-SdkHash $outputNamesPatch
 $dependencyHash = Get-SdkHash $dependencyManifest
-$buildKey = $revision.Substring(0, 12) + '_' + $patchHash.Substring(0, 12).ToLowerInvariant() + '_' + $dependencyHash.Substring(0, 12).ToLowerInvariant()
+$buildKey = $revision.Substring(0, 12) + '_' + $decoderPatchHash.Substring(0, 12).ToLowerInvariant() + '_' +
+    $outputNamesPatchHash.Substring(0, 12).ToLowerInvariant() + '_' + $dependencyHash.Substring(0, 12).ToLowerInvariant()
 if (-not $BuildDirectory) { $BuildDirectory = Join-Path $repo ('.cache/rdp_build_' + $buildKey) }
 $BuildDirectory = [IO.Path]::GetFullPath($BuildDirectory)
 $installed = Join-Path $BuildDirectory 'vcpkg_installed'
-$patchedSource = Join-Path $repo ('.cache/rdp_source_' + $revision.Substring(0, 12) + '_' + $patchHash.Substring(0, 12).ToLowerInvariant())
+$patchedSource = Join-Path $repo ('.cache/rdp_source_' + $revision.Substring(0, 12) + '_' +
+    $decoderPatchHash.Substring(0, 12).ToLowerInvariant() + '_' + $outputNamesPatchHash.Substring(0, 12).ToLowerInvariant())
 if (-not (Test-Path -LiteralPath $patchedSource)) {
     & git clone --quiet --no-hardlinks $source $patchedSource
     if ($LASTEXITCODE -ne 0) { throw 'Isolated FreeRDP build copy failed' }
-    & git -C $patchedSource apply --check $patch
-    if ($LASTEXITCODE -ne 0) { throw 'Reviewed FreeRDP patch does not apply to pinned source' }
-    & git -C $patchedSource apply $patch
-    if ($LASTEXITCODE -ne 0) { throw 'FreeRDP patch application failed' }
+    foreach ($reviewedPatch in @($decoderPatch, $outputNamesPatch)) {
+        & git -C $patchedSource apply --check $reviewedPatch
+        if ($LASTEXITCODE -ne 0) { throw "Reviewed FreeRDP patch does not apply: $reviewedPatch" }
+        & git -C $patchedSource apply $reviewedPatch
+        if ($LASTEXITCODE -ne 0) { throw "FreeRDP patch application failed: $reviewedPatch" }
+    }
 }
 if ((& git -C $patchedSource rev-parse HEAD) -ne $revision -or $LASTEXITCODE -ne 0) { throw 'Patched FreeRDP base changed' }
-$actualPatch = (& git -C $patchedSource diff --abbrev=7 --binary --no-ext-diff --no-color HEAD --) -join "`n"
-if ($LASTEXITCODE -ne 0 -or $actualPatch.TrimEnd() -cne ([IO.File]::ReadAllText($patch).Replace("`r`n", "`n").TrimEnd())) {
-    throw 'Isolated FreeRDP build copy differs from the reviewed patch'
+foreach ($reviewedPatch in @($decoderPatch, $outputNamesPatch)) {
+    & git -C $patchedSource apply --reverse --check $reviewedPatch
+    if ($LASTEXITCODE -ne 0) { throw "Isolated FreeRDP build copy is missing a reviewed patch: $reviewedPatch" }
 }
+& git -C $patchedSource diff --check
+if ($LASTEXITCODE -ne 0) { throw 'Isolated FreeRDP build copy contains invalid patch content' }
 if ((& git -C $patchedSource ls-files --others --exclude-standard)) { throw 'Unexpected files in patched FreeRDP build copy' }
 $source = $patchedSource
 & cmake -S $source -B $BuildDirectory -G 'Visual Studio 17 2022' -A x64 `
@@ -80,14 +88,19 @@ $source = $patchedSource
 if ($LASTEXITCODE -ne 0) { throw 'FreeRDP configure failed' }
 & cmake --build $BuildDirectory --config Release --target freerdp-proxy --parallel 6
 if ($LASTEXITCODE -ne 0) { throw 'FreeRDP SDK build failed' }
+if ($SdkDirectory -eq $repo -or $SdkDirectory -eq [IO.Path]::GetPathRoot($SdkDirectory) -or
+    $SdkDirectory -eq $source -or $SdkDirectory -eq $BuildDirectory -or $SdkDirectory -eq $VcpkgDirectory) {
+    throw "Unsafe RDP SDK output directory: $SdkDirectory"
+}
+if (Test-Path -LiteralPath $SdkDirectory) { Remove-Item -LiteralPath $SdkDirectory -Recurse -Force }
 foreach ($component in @('libraries', 'Unspecified')) {
     & cmake --install $BuildDirectory --config Release --prefix $SdkDirectory --component $component
     if ($LASTEXITCODE -ne 0) { throw "FreeRDP install failed: $component" }
 }
 # Upstream's library install components omit the proxy executable/import library.
-Copy-Item -LiteralPath (Join-Path $BuildDirectory 'server/proxy/cli/Release/freerdp-proxy.exe') -Destination (Join-Path $SdkDirectory 'bin') -Force
-Copy-Item -LiteralPath (Join-Path $BuildDirectory 'server/proxy/Release/freerdp-server-proxy3.dll') -Destination (Join-Path $SdkDirectory 'bin') -Force
-Copy-Item -LiteralPath (Join-Path $BuildDirectory 'server/proxy/Release/freerdp-server-proxy3.lib') -Destination (Join-Path $SdkDirectory 'lib') -Force
+Copy-Item -LiteralPath (Join-Path $BuildDirectory 'server/proxy/cli/Release/px_rdp_proxy.exe') -Destination (Join-Path $SdkDirectory 'bin') -Force
+Copy-Item -LiteralPath (Join-Path $BuildDirectory 'server/proxy/Release/px_rdp_server_proxy.dll') -Destination (Join-Path $SdkDirectory 'bin') -Force
+Copy-Item -LiteralPath (Join-Path $BuildDirectory 'server/proxy/Release/px_rdp_server_proxy.lib') -Destination (Join-Path $SdkDirectory 'lib') -Force
 foreach ($name in @('libusb-1.0.dll', 'libssl-3-x64.dll', 'libcrypto-3-x64.dll', 'zlib1.dll', 'cjson.dll', 'legacy.dll', 'openh264-6.dll')) {
     Copy-Item -LiteralPath (Join-Path $installed "x64-windows/bin/$name") -Destination (Join-Path $SdkDirectory "bin/$name") -Force
 }
@@ -103,9 +116,10 @@ $runtime = @{}
 Get-ChildItem -LiteralPath (Join-Path $SdkDirectory 'bin') -File -Filter '*.dll' | ForEach-Object {
     $runtime[$_.Name] = Get-SdkHash $_.FullName
 }
-$manifest = [ordered]@{ schema = 1; freerdp_revision = $revision; freerdp_patch_sha256 = $patchHash;
+$manifest = [ordered]@{ schema = 2; freerdp_revision = $revision; decoder_patch_sha256 = $decoderPatchHash;
+    output_names_patch_sha256 = $outputNamesPatchHash;
     h264_decoder = 'media-foundation'; vcpkg_revision = $vcpkgRevision; dependency_manifest_sha256 = $dependencyHash;
-    proxy_exe_sha256 = (Get-SdkHash (Join-Path $SdkDirectory 'bin/freerdp-proxy.exe')); runtime_sha256 = $runtime }
-[IO.File]::WriteAllText((Join-Path $SdkDirectory 'pixels-rdp-sdk.json'), ($manifest | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false))
+    proxy_exe_sha256 = (Get-SdkHash (Join-Path $SdkDirectory 'bin/px_rdp_proxy.exe')); runtime_sha256 = $runtime }
+[IO.File]::WriteAllText((Join-Path $SdkDirectory 'px_rdp_sdk.json'), ($manifest | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false))
 & (Join-Path $PSScriptRoot 'verify_rdp_sdk.ps1') -SdkDirectory $SdkDirectory
 Write-Host "Pinned SDK installed: $SdkDirectory"

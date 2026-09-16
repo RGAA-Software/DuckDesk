@@ -1,0 +1,269 @@
+# Every distributable input is declared here. A directory entry is allowed
+# only for an authoritative runtime tree and must include an explicit pattern.
+
+[[groups.desktop_client]]
+root = "build"
+source = "src/px_deps/px_panel.exe"
+destination = "px_panel.exe"
+owned_pe = true
+
+[[groups.desktop_client]]
+root = "build"
+source = "src/px_deps/px_client.exe"
+destination = "px_client.exe"
+owned_pe = true
+
+[[groups.desktop_client]]
+root = "rust_shared"
+source = "px_osinfo.exe"
+destination = "px_osinfo.exe"
+owned_pe = true
+
+[[groups.desktop_client]]
+root = "build"
+source = "src/px_deps/libplacebo-349.dll"
+destination = "libplacebo-349.dll"
+
+[[groups.desktop_client]]
+root = "build"
+source = "src/px_deps/vulkan-1.dll"
+destination = "vulkan-1.dll"
+
+[[groups.desktop_client]]
+root = "build"
+source = "src/px_deps/px_voice_call/px_voice_apm.dll"
+destination = "px_voice_apm.dll"
+optional = true
+
+[[groups.desktop_client]]
+root = "source"
+source = "src/px_ui/resources/fonts/Roboto-Regular.ttf"
+destination = "resources/fonts/Roboto-Regular.ttf"
+
+[[groups.desktop_client]]
+root = "source"
+source = "src/px_deps/px_imgui/misc/fonts/Roboto-Medium.ttf"
+destination = "resources/fonts/Roboto-Medium.ttf"
+
+[[groups.desktop_client]]
+root = "source"
+source = "web/px_web_client/src/assets/px_icon.png"
+destination = "resources/icons/px_icon.png"
+
+[[groups.desktop_client]]
+root = "source"
+source = "src/px_ui/resources/icons"
+destination = "resources/icons"
+kind = "tree"
+include = ["**/*.png"]
+
+[[groups.desktop_client]]
+root = "source"
+source = "src/px_ui/resources/language"
+destination = "resources/language"
+kind = "tree"
+include = ["*.json"]
+
+[[groups.desktop_client]]
+root = "source"
+source = "src/px_ui/resources/fonts/LICENSE.freetype"
+destination = "resources/licenses/FreeType.txt"
+
+[[groups.desktop_client]]
+root = "source"
+source = "src/px_ui/resources/icons/LICENSE.lucide"
+destination = "resources/licenses/Lucide.txt"
+
+[[groups.desktop_client]]
+root = "source"
+source = "src/px_ui/resources/icons/platform/LICENSE.tabler"
+destination = "resources/licenses/Tabler.txt"
+
+[[groups.desktop_client]]
+root = "rdp_sdk"
+source = "px_rdp_sdk.json"
+destination = "rdp/px_rdp_sdk.json"
+
+[[groups.desktop_client]]
+root = "rdp_sdk"
+source = "licenses"
+destination = "rdp/licenses"
+kind = "tree"
+include = ["*-LICENSE"]
+
+[[groups.desktop_client]]
+root = "rdp_sdk"
+source = "bin"
+destination = "."
+kind = "tree"
+include = ["px_rdp_client.dll", "px_rdp_core.dll", "px_rdp_winpr.dll", "libusb-1.0.dll", "libssl-3-x64.dll", "libcrypto-3-x64.dll", "zlib1.dll", "cjson.dll", "legacy.dll", "openh264-6.dll"]
+
+[[groups.host_common]]
+root = "rust_shared"
+source = "px_service.exe"
+destination = "px_service.exe"
+owned_pe = true
+
+[[groups.rdp_host]]
+root = "rdp_sdk"
+source = "bin"
+destination = "rdp"
+kind = "tree"
+include = ["px_rdp_proxy.exe", "px_rdp_server_proxy.dll", "px_rdp_server.dll", "px_rdp_client.dll", "px_rdp_core.dll", "px_rdp_winpr.dll", "libusb-1.0.dll", "libssl-3-x64.dll", "libcrypto-3-x64.dll", "zlib1.dll", "cjson.dll", "legacy.dll", "openh264-6.dll"]
+
+[[groups.rdp_host]]
+root = "rdp_policy"
+source = "px_rdp_policy.dll"
+destination = "rdp/proxy/px_rdp_policy.dll"
+owned_pe = true
+
+[[groups.rdp_host]]
+root = "rdp_sdk"
+source = "px_rdp_sdk.json"
+destination = "rdp/px_rdp_sdk.json"
+replace = true
+
+[[groups.rdp_host]]
+root = "rdp_sdk"
+source = "licenses"
+destination = "rdp/licenses"
+kind = "tree"
+include = ["*-LICENSE"]
+replace = true
+
+[[groups.host_common]]
+root = "rust_shared"
+source = "px_service_manager.exe"
+destination = "px_service_manager.exe"
+owned_pe = true
+
+[[groups.host_common]]
+root = "rust_shared"
+source = "px_function.exe"
+destination = "px_function.exe"
+owned_pe = true
+
+[[groups.host_common]]
+root = "source"
+source = "rust_client/px_service/px_service.toml"
+destination = "px_service.toml"
+
+[[groups.host_common]]
+root = "build"
+source = "px_display/px_display.exe"
+destination = "px_display.exe"
+owned_pe = true
+
+[[groups.host_common]]
+root = "build"
+source = "px_display/px_display.exe.config"
+destination = "px_display.exe.config"
+
+[[groups.host_common]]
+root = "source"
+source = "src/px_deps/px_controller/vigem/driver/px_joystick.exe"
+destination = "px_joystick.exe"
+owned_pe = true
+
+[[groups.host_common]]
+root = "source"
+source = "third_party/parsec_vdd/nefconw.exe"
+destination = "parsec_vdd/nefconw.exe"
+
+[[groups.host_common]]
+root = "source"
+source = "third_party/parsec_vdd/SOURCE.md"
+destination = "parsec_vdd/SOURCE.md"
+
+[[groups.host_common]]
+root = "source"
+source = "third_party/parsec_vdd/SHA256SUMS.txt"
+destination = "parsec_vdd/SHA256SUMS.txt"
+
+[[groups.host_common]]
+root = "source"
+source = "third_party/parsec_vdd/driver/mm.cat"
+destination = "parsec_vdd/driver/mm.cat"
+
+[[groups.host_common]]
+root = "source"
+source = "third_party/parsec_vdd/driver/mm.dll"
+destination = "parsec_vdd/driver/mm.dll"
+
+[[groups.host_common]]
+root = "source"
+source = "third_party/parsec_vdd/driver/mm.inf"
+destination = "parsec_vdd/driver/mm.inf"
+
+[[groups.render_common]]
+root = "build"
+source = "src/px_render/px_render.exe"
+destination = "px_render.exe"
+owned_pe = true
+
+[[groups.render_common]]
+root = "source"
+source = "src/px_render/settings.toml"
+destination = "settings.toml"
+
+[[groups.render_common]]
+root = "source"
+source = "src/px_render/architecture/processors/frame_carrier/resources/ic_logo_point.png"
+destination = "resources/render/frame_carrier/ic_logo_point.png"
+
+[[groups.render_common]]
+root = "build"
+source = "src/px_render/network/webrtc/remote/px_render_rtc_remote.dll"
+destination = "px_render_rtc_remote.dll"
+owned_pe = true
+
+[[groups.render_common]]
+root = "build"
+source = "src/px_render/network/webrtc/local/px_render_rtc.dll"
+destination = "px_render_rtc.dll"
+owned_pe = true
+
+[[groups.browser_remote]]
+root = "source"
+source = "web/px_web_client/dist"
+destination = "web_client"
+kind = "tree"
+include = ["**/*"]
+
+[[groups.webview_host]]
+root = "build"
+source = "src/px_render"
+destination = "."
+kind = "tree"
+include = ["chrome_elf.dll", "d3dcompiler_47.dll", "dxcompiler.dll", "dxil.dll", "libcef.dll", "libEGL.dll", "libGLESv2.dll", "v8_context_snapshot.bin", "vk_swiftshader.dll", "vk_swiftshader_icd.json", "vulkan-1.dll", "chrome_100_percent.pak", "chrome_200_percent.pak", "resources.pak", "icudtl.dat"]
+replace = true
+
+[[groups.webview_host]]
+root = "build"
+source = "src/px_render/locales"
+destination = "locales"
+kind = "tree"
+include = ["*.pak"]
+
+[[groups.game_hook]]
+root = "build"
+source = "src/px_render/hook_capture/win/hk_obs/layers/pixels-vulkan64.json"
+destination = "layers/pixels-vulkan64.json"
+
+[[groups.game_hook]]
+root = "build"
+source = "src/px_render/hook_capture/win/hk_obs/px_gh.dll"
+destination = "px_gh.dll"
+owned_pe = true
+
+[[groups.game_hook]]
+root = "build"
+source = "src/px_render/hook_capture/win/hk_obs/injector/px_gh_injector.exe"
+destination = "px_gh_injector.exe"
+owned_pe = true
+
+[[groups.game_hook]]
+root = "build"
+source = "src/px_render/hook_capture/win/hk_obs/offsets/px_gh_address.exe"
+destination = "px_gh_address.exe"
+owned_pe = true

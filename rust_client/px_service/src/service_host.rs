@@ -84,6 +84,24 @@ pub enum ControlEvent {
     SessionUnlock(u32),
 }
 
+fn rebase_missing_desktop_launch(
+    mut launch: RenderLaunchSpec,
+    service_directory: &std::path::Path,
+) -> (RenderLaunchSpec, bool) {
+    if std::path::Path::new(&launch.work_dir).is_dir()
+        && std::path::Path::new(&launch.app_path).is_file()
+    {
+        return (launch, false);
+    }
+    let current_render = service_directory.join(service_core::config::RENDER_EXE_NAME);
+    if !current_render.is_file() {
+        return (launch, false);
+    }
+    launch.work_dir = service_directory.to_string_lossy().to_string();
+    launch.app_path = current_render.to_string_lossy().to_string();
+    (launch, true)
+}
+
 impl ServiceRuntime {
     pub fn new(
         config: ServiceConfig,
@@ -228,6 +246,21 @@ impl ServiceRuntime {
     pub fn load_persisted_state(&mut self) -> Result<(), String> {
         let persisted = self.storage.load().map_err(|err| err.to_string())?;
         self.state.last_desktop_launch = persisted.desktop_launch.map(Into::into);
+        let service_directory = std::env::current_exe()
+            .ok()
+            .and_then(|path| path.parent().map(std::path::Path::to_path_buf));
+        let mut desktop_launch_rebased = false;
+        if let Some(directory) = service_directory {
+            if let Some(launch) = self.state.last_desktop_launch.take() {
+                let (launch, rebased) = rebase_missing_desktop_launch(launch, &directory);
+                self.state.last_desktop_launch = Some(launch);
+                desktop_launch_rebased = rebased;
+            }
+        }
+        if desktop_launch_rebased {
+            warn!("persisted desktop runtime is unavailable; rebased launch to the current Pixels installation");
+            self.persist_state()?;
+        }
         if let Some(auth_info) = self.node_auth_store.load()? {
             let auth_info = self.normalize_auth_info(auth_info)?;
             self.config
@@ -330,7 +363,9 @@ impl ServiceRuntime {
             self.approved_auth_info = None;
             self.state.last_auth_info = None;
             self.config.node.set_access_host(String::new())?;
-            warn!("Console rejected the approved node authorization; awaiting new Panel authorization");
+            warn!(
+                "Console rejected the approved node authorization; awaiting new Panel authorization"
+            );
         } else {
             self.rejected_panel_appkeys.insert(attempted.appkey.clone());
             self.state.last_auth_info = self.approved_auth_info.clone();
@@ -341,7 +376,9 @@ impl ServiceRuntime {
                 .map(|auth| auth.node_access_host.clone())
                 .unwrap_or_default();
             self.config.node.set_access_host(access_host)?;
-            warn!("Console rejected Panel authorization; restored the last Console-approved authorization");
+            warn!(
+                "Console rejected Panel authorization; restored the last Console-approved authorization"
+            );
         }
         Ok(())
     }
@@ -737,11 +774,17 @@ impl ServiceRuntime {
         match process_manager.observe_exit(pid, &record.launch.app_path) {
             Ok(observer) => {
                 let mut guard = runtime.lock().await;
-                if guard.app_registry.get(&instance_id).is_some_and(|current| current.request_id == record.request_id && current.is_active()) {
-                    guard.app_exit_observers.insert(instance_id.clone(), (record.request_id.clone(), observer));
+                if guard.app_registry.get(&instance_id).is_some_and(|current| {
+                    current.request_id == record.request_id && current.is_active()
+                }) {
+                    guard
+                        .app_exit_observers
+                        .insert(instance_id.clone(), (record.request_id.clone(), observer));
                 }
             }
-            Err(_) => warn!("application exit observation unavailable; unexpected disappearance will remain unclassified"),
+            Err(_) => warn!(
+                "application exit observation unavailable; unexpected disappearance will remain unclassified"
+            ),
         }
 
         // Game-hook must actually launch the game. WebView readiness is
@@ -1688,6 +1731,35 @@ mod tests {
             .node
             .configure_render(&mut expected.args, true);
         assert_eq!(runtime.state.last_desktop_launch, Some(expected));
+    }
+
+    #[test]
+    fn missing_persisted_desktop_runtime_rebases_to_current_installation() {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!(
+            "pixels_service_rebase_{}_{}",
+            std::process::id(),
+            stamp
+        ));
+        std::fs::create_dir_all(&directory).unwrap();
+        let current_render = directory.join(service_core::config::RENDER_EXE_NAME);
+        std::fs::write(&current_render, b"test").unwrap();
+        let original = RenderLaunchSpec {
+            work_dir: "D:/retired/pixels".to_string(),
+            app_path: "D:/retired/pixels/px_render.exe".to_string(),
+            args: vec!["--app_mode=desktop".to_string()],
+        };
+
+        let (rebased, changed) = rebase_missing_desktop_launch(original, &directory);
+
+        assert!(changed);
+        assert_eq!(rebased.work_dir, directory.to_string_lossy());
+        assert_eq!(rebased.app_path, current_render.to_string_lossy());
+        assert_eq!(rebased.args, vec!["--app_mode=desktop"]);
+        std::fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]

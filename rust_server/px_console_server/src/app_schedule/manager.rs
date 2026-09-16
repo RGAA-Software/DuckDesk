@@ -98,6 +98,14 @@ impl ApplicationType {
             Self::Rdp => "rdp",
         }
     }
+
+    fn required_node_capabilities(&self) -> &'static [&'static str] {
+        match self {
+            Self::GameHook => &["cloud_app_host", "game_hook"],
+            Self::Webview => &["cloud_app_host", "webview_host"],
+            Self::Rdp => &["rdp_host"],
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -1396,6 +1404,34 @@ impl AppScheduleManager {
     ) -> Result<AppInstance, String> {
         let request_id = inst.request_id.clone();
         let instance_id = inst.instance_id.clone();
+        let required_capabilities = app.app_type.required_node_capabilities();
+        let missing_capability = {
+            let connection = conn.lock().await;
+            required_capabilities
+                .iter()
+                .find(|capability| !connection.supports_capability(capability))
+                .copied()
+        };
+        if let Some(required_capability) = missing_capability {
+            let error = format!(
+                "目标节点产品不支持 {}（缺少能力 {}）",
+                app.app_type.as_str(),
+                required_capability
+            );
+            self.on_start_result(
+                inst.device_id.clone(),
+                ConsoleServiceStartAppInstanceResult {
+                    request_id: request_id.clone(),
+                    instance_id: instance_id.clone(),
+                    ok: false,
+                    error: error.clone(),
+                    listen_port: 0,
+                    pid: 0,
+                },
+            )
+            .await;
+            return Err(error);
+        }
         let rdp_workspace = if app.app_type == ApplicationType::Rdp {
             let prepared = async {
                 if !conn.lock().await.rdp_available {
@@ -2361,6 +2397,22 @@ impl AppScheduleManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn application_types_require_their_declared_node_capabilities() {
+        assert_eq!(
+            ApplicationType::GameHook.required_node_capabilities(),
+            ["cloud_app_host", "game_hook"]
+        );
+        assert_eq!(
+            ApplicationType::Webview.required_node_capabilities(),
+            ["cloud_app_host", "webview_host"]
+        );
+        assert_eq!(
+            ApplicationType::Rdp.required_node_capabilities(),
+            ["rdp_host"]
+        );
+    }
 
     #[tokio::test]
     async fn create_app_and_placements_on_two_machines() {

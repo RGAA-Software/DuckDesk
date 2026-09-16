@@ -15,11 +15,11 @@ BEGIN
     BEGIN
         BLOCK "040004b0"
         BEGIN
-            VALUE "CompanyName", "RGAA"
+            VALUE "CompanyName", "@PX_PRODUCT_COMPANY@"
             VALUE "FileDescription", "Pixels Panel"
             VALUE "FileVersion", "@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@"
             VALUE "InternalName", "px_panel.exe"
-            VALUE "LegalCopyright", "<https://github.com/rgaa-software> Copyright (c) 2022-2025 RGAA "
+            VALUE "LegalCopyright", "Copyright (c) 2022-2026 @PX_PRODUCT_COMPANY@"
             VALUE "OriginalFilename", "px_panel.exe"
             VALUE "ProductName", "Pixels"
             VALUE "ProductVersion", "@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@"

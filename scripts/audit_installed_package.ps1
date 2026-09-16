@@ -3,19 +3,31 @@ param(
     [Alias("ResultPath")]
     [string]$OutputPath,
 
-    [string]$InstallRoot = "C:\Program Files\PixelsRender",
+    [ValidateSet("cloud_node", "client", "remote")]
+    [string]$Product = "cloud_node",
 
-    # Optional compatibility parameters let this read-only audit reuse the
-    # silent-installer scheduled-task entry point on locked-down test hosts.
+    [string]$InstallRoot = "",
+
+    # Optional scheduled-task parameters let this read-only audit run on
+    # locked-down test hosts.
     [string]$Mode,
     [string]$Executable
 )
 
 $ErrorActionPreference = "Stop"
 
+$productInfo = @{
+    cloud_node = @{ directory = "C:\Program Files\Pixels Cloud Node"; uninstall_key = "PixelsCloudNode" }
+    client = @{ directory = "C:\Program Files\Pixels Client"; uninstall_key = "PixelsClient" }
+    remote = @{ directory = "C:\Program Files\Pixels Remote"; uninstall_key = "PixelsRemote" }
+}[$Product]
+if ([string]::IsNullOrWhiteSpace($InstallRoot)) {
+    $InstallRoot = $productInfo.directory
+}
+
 $uninstallKeys = @(
-    "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Pixels px_panel",
-    "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Pixels px_panel"
+    "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$($productInfo.uninstall_key)",
+    "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\$($productInfo.uninstall_key)"
 )
 $service = Get-Service -Name px_service -ErrorAction SilentlyContinue
 $processNames = @("px_service", "px_panel", "px_render", "px_function", "px_osinfo", "px_display")

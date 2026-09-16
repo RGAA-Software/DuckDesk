@@ -44,6 +44,7 @@ PanelLocalServer::~PanelLocalServer() {
 
 LocalServerSnapshot PanelLocalServer::Snapshot() const {
     return {.listening = server_ && server_->is_started(),
+            .listenPort = server_ ? server_->listen_port() : 0,
             .rendererConnected = rendererConnections_.load(std::memory_order_acquire) > 0,
             .clientConnections = clientConnections_.load(std::memory_order_acquire)};
 }

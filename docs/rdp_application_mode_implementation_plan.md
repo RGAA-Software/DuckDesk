@@ -1,9 +1,9 @@
 # RDP 应用模式开发计划
 
-> 日期：2026-09-08。状态：已取得产品客户端经 WebSocket/proxy 到 90 标准用户的桌面，完成初步输入和会话保留重连；完整功能与故障验收仍在进行，见 [实施进度](rdp_implementation_progress_20260908.md)。
+> 日期：2026-09-08。状态：WebSocket/proxy、初步输入和会话保留重连已经实现；完整功能与故障验收需在 Console 当前配置的公网 Windows 节点重新执行。
 > 用户确认单工作区单客户端设计。本文是后续实施入口；产品决策见
 > [RDP 模式设计第 0 节](rdp_application_mode_design.md#0-最新决策rdp-原生代理与会话保留)，
-> 已有实现见 [自有 Qt demo 功能盘点](rdp_qt_client_reuse_inventory.md)。
+> 已有实现以只读参考仓库 `D:/dolit/rdp` 的当前代码为准；旧功能盘点文档已不存在。
 
 ## 1. 固定边界与首版范围
 
@@ -28,7 +28,7 @@
 
 ### 2.1 已选实现路线
 
-使用已在 90 验证的 FreeRDP proxy 和 Windows 原生 SSPI。console 自动提供所需凭证，无交互认证步骤；
+使用 FreeRDP proxy 和 Windows 原生 SSPI。Console 自动提供所需凭证，无交互认证步骤；
 客户端仅在连接内存持有 Windows 凭证，不以“仅服务端可知 Windows 密码”为首版要求。
 接下来接通现有 WebSocket/RDP 适配，再接入 console 工作区调度、Service 账号与独占管理、Render 超时退出。
 
@@ -54,7 +54,7 @@ TCP 原型与后续 WebSocket 产品承载是验证阶段的差异，不是同�
 - 本地 FreeRDP `server/proxy/pf_utils.c::pf_utils_is_passthrough` 当前返回透传模式；
   `pf_server.c` 包含 `FreeRDP_DeactivateClientDecoding` 设置，`pf_update.c` 转发图形更新，
   `pf_client.c`/`pf_channel.c`/`pf_config.c` 包含通道映射、过滤和目标配置。
-  已实测 AVC444v2 桌面和重连，详见 [proxy 实测记录](rdp_proxy_validation_20260908.md)；未验收通道不视为通过。
+  AVC444v2 桌面和重连路径已实现；旧固定节点实测记录已删除，未在当前公网环境验收的通道不视为通过。
 - demo 自编译配置关闭 `WITH_SERVER`，不能直接把原构建产物当作已经包含代理能力。
   本地 `server/proxy/CMakeLists.txt` 的目标为 `freerdp-server-proxy`；构建依赖需单独核对。
 - FreeRDP `include/freerdp/transport_io.h` 有 IO 回调/传输层扩展入口；优先用受控适配器，
@@ -145,7 +145,7 @@ UI 的“断开/停止连接”与“注销 Windows/销毁工作区”明确区�
 |---|---|---|
 | P0 路线验证与适配 | 原生 SSPI/proxy 桌面与重连已验证；补现有 WebSocket 的 RDP 字节流适配 | 经现有 WS 收到真实桌面；有界队列/关闭正确；退出不注销；不把已知 TCP 可靠性另立研究项目 |
 | P1 demo 产品内复用 | Qt 6 适配，协议与 GUI 职责分离，内部 RDP 工作区；智能所有权、可取消初始化、停止清理；移除硬编码凭据 | Client 内可连接/显示/输入/resize，普通模式不创建 FreeRDP；关闭及重复启停无残留/晚回调 |
-| P2 端到端模式接入 | app type/proto/能力、受权 RDP 数据通道、Render 模式装配、两层 Ready（代理可接入、远端首帧） | 从 Console 进入 Windows Client，经 90 Render 接 RDP；不走捕获/编码/普通视频 UDP 建连门禁；旧端明确不支持 |
+| P2 端到端模式接入 | app type/proto/能力、受权 RDP 数据通道、Render 模式装配、两层 Ready（代理可接入、远端首帧） | 从 Console 进入 Windows Client，经当前公网 Render 接 RDP；不走捕获/编码/普通视频 UDP 建连门禁；旧端明确不支持 |
 | P3 工作区与准入 | console 秘密权威、应用+节点映射、Service 标准账号、匿名自动准入、独占与幂等恢复 | 不同工作区隔离；同应用/节点不同访问者复用账号；双请求只一个成功；匿名不绕过票据/忙状态 |
 | P4 停止与快速恢复 | 既有宽限退出、停止只回收 Render/代理、RDS 原会话复用、连接代次与权限撤销 | 宽限内重连不被旧回调杀死；超时后 Render 消失而账号/Session/应用保留；新 Render 接回原状态 |
 | P5 基础桌面通道 | 系统音频、文本/HTML/DIB/文件目录剪贴板、分辨率与常用输入体验；政策与能力路由 | 双向内容与文件校验、取消/重名、可听音频、DPI/光标正确；不访问错误用户或宿主资源 |
@@ -188,7 +188,7 @@ FreeRDP proxy 若无法满足必要能力，只继续安全的诊断/最小接�
 | T3 桌面通道 | 2 听音 + 2 文本/HTML/DIB + 3 文件/目录校验及取消 + 1 显示恢复 + 1 收尾 + 1 余量 |
 | T4 性能 | 1 基线 + 2 单会话动态内容 + 2 双工作区 + 2 resize/重连 + 2 报告/收尾 + 1 余量 |
 
-本机运行 Console 与 Client，90 运行 Service/Render/RDS；只有在对应实现就绪并获得实施任务后才部署或测试。
+本机运行 Console 与 Client，Console 当前配置的公网 Windows 节点运行 Service/Render/RDS；只有在对应实现就绪并获得实施任务后才部署或测试。
 准备授权的专用测试工作区，不读取或输出已有秘密，不注销无关会话；结束时关闭测试 Client/Render，保留按产品规则应保留的 Windows 会话。
 多屏、打印机、智能卡、触摸/笔等按独立短批次验收，缺设备标记未测；不宣称四批已覆盖所有外围硬件。
 
@@ -208,7 +208,7 @@ demo 的 EndPaint 到 paintGL 计时不是输入到屏幕的端到端时延，�
 - Rust 针对 `service_core`、`px_service`、`px_console_server` 相关用例做测试/构建；Console Web 做 type-check、聚焦单测和实际改动对应构建。
   生成协议走源 `.proto` 的既有流程，不只手改生成文件；并验证旧字段/旧端能力拒绝行为。
 - 变更 Client exe、FreeRDP/WinPR/依赖 DLL、语言资源/相关资产均同步到 `build_official/dist`，逐项 SHA-256 一致才交付。
-  文件占用时停止准确对应进程再发布并复核；90 的服务端部署也记录源/目标版本及哈希，不用旧 DLL 混测。
+  文件占用时停止准确对应进程再发布并复核；公网节点部署也记录源/目标版本及哈希，不用旧 DLL 混测。
 - 每阶段独立变更与验证记录，提交/push 按后续用户要求执行；不修改无关脏文件，不移除现有归档。
 - 回退通过停止新 RDP 运行实例、关闭入口/撤回运行产物，不删除已创建的持久账号/profile 或注销用户。
   数据字段尽量向后兼容；不为回退恢复已经退役的 Native RTC/Relay/WS 视频实现。
@@ -228,31 +228,23 @@ Console 工作区凭证、Service 标准账号、Render 原生代理及 Client Q
 Panel 已实现关闭 Client 后短暂窗口内、由用户再次访问触发的续票恢复（不是自动重连），
 实机已验证沿用原逻辑会话、宽限期间重开及最终自然退出。外围硬件和既有 game-hook 问题按进度记录继续推进，
 不能将这些子项推导为 P0–P7 全部完成。
-最新 10:34 后双工作区复测触发/伴随 90 `dwm.exe/dwmcore.dll` 连续崩溃，随后单工作区也无首帧；
-绕过产品链路的原生 RDP 直连期间同样有崩溃，系统图形栈根因待转储分析，当前真实桌面验收暂停。
-不得通过注销工作区或重启 RDS 来掩盖故障；转储采集、驱动/策略调整和重启按明确授权进行。
-后续 10:51 用户明确授权仅注销一个测试会话：B 的 Session 4 注销后以原 SID 新登录 Session 8，
-真实桌面恢复，普通重连/自然退出复测通过；其他用户会话未操作。重连期间仍记录一次 DWM 崩溃，
-这是一次性授权恢复而非根因修复，不能转成产品自动注销策略；A 和双工作区的完整恢复尚未验证。
-最新事实及未测项以 [实施进度](rdp_implementation_progress_20260908.md) 为准。
-11:35 恢复检查确认 90 已于 11:23 重启；原 A/B 会话不在。B 再登录后图像和 Panel 续票恢复通过，
-但 Windows 使用临时 profile，原 SID 的 profile 带 `.bak` 且原目录缺少 `NTUSER.DAT`。
-工作区持久化不能标为通过；保留现场，profile 修复及必要的该用户注销仍需单独授权。
+旧固定节点的 DWM 故障、一次性授权恢复、临时 profile 和重启记录已经删除，不能据此形成产品自动注销策略。
+当前公网节点的真实桌面、故障恢复和双工作区仍需按本计划的当前验收矩阵重新执行。
 Rust 聚焦回归入口为 `scripts_build/test_rdp_rust.bat`；真实桌面操作需本机交互桌面可用。
 
 ### 保留：最初的原型交接
 
-已完成独立 proxy 编译、90 原生 SSPI 连接、AVC444v2 桌面和原会话重连；demo 增加了自动凭证启动支持。
+已完成独立 proxy 编译、原生 SSPI 连接、AVC444v2 桌面和原会话重连路径；demo 增加了自动凭证启动支持。
 最新用户决策是应用+节点账号、console 凭证权威、允许未登录自动准入、复用现有 WebSocket。详细证据见实测记录。
 P0 已新增 `px_rdp_stream`：现有 `px::Message` 增加 `kRdpStream`，实现 32 KiB 分块、代次隔离、
 有界接收队列、发送完成后继续读取、错误关闭与弱引用生命周期；新增单元测试及限时独立 WebSocket 探针。
-90 实测通过新封装完成两次自动连接，协商 AVC444v2，退出后仍保留同一 Windows 会话。
+新封装支持自动连接、AVC444v2 协商和退出后保留 Windows 会话；旧固定节点实测记录已删除。
 探针复用项目 asio2 实现及消息封装，但尚未接入产品 `WsServer/WsConnection` 的既有连接、准入和控制消息调度，
 不能把独立探针端口当作新增产品连接要求，也不能据此把 P0 全部门禁或 P1/P2 标为完成。
-详细结果及未通过项见 [WebSocket 适配验证记录](rdp_websocket_adapter_validation_20260908.md)。
+旧 WebSocket 适配验证记录已经删除；后续结果直接更新本计划的当前验收矩阵。
 下一项是接入 SDK/Render 的既有 WebSocket 路由及受控实例绑定，随后迁入 Client Qt 6 RDP 工作区并完成真实画面验收；
 Console 凭证、Service 账号/节点独占与 Render 退出宽限仍按阶段实现。
-90 继续作为远端，禁止用 Administrator 登录 RDP；每批测试与收尾不超过 10 分钟。
+公网测试节点禁止用 Administrator 登录 RDP；每批测试与收尾不超过 10 分钟。
 其余工程细节按上述默认方案实施，不因已确定的账号粒度、自动授权、TCP 可靠性再次等待产品确认。
 
 上游核对入口：[FreeRDP 代理配置 API](https://pub.freerdp.com/api/group__proxy__config.html)、

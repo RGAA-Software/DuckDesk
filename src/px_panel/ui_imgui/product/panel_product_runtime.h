@@ -16,6 +16,7 @@
 #include "panel_console_session.h"
 #include "panel_local_server.h"
 #include "panel_node_presence.h"
+#include "panel_os_info_supervisor.h"
 #include "panel_service_bridge.h"
 #include "panel_worker.h"
 
@@ -32,8 +33,8 @@ class PanelProductRuntime final {
     PanelProductRuntime(std::shared_ptr<PanelConfigStore> config, std::shared_ptr<PanelConsoleSession> console,
                         std::shared_ptr<PanelClientLauncher> launcher, std::shared_ptr<PanelServiceBridge> service,
                         std::shared_ptr<PanelLocalServer> localServer, std::shared_ptr<PanelNodePresence> nodePresence,
-                        std::shared_ptr<PanelAuditStore> auditStore, std::shared_ptr<PanelWorker> worker,
-                        std::shared_ptr<ui::NotificationCenter> notifications);
+                        std::shared_ptr<PanelOsInfoSupervisor> osInfoSupervisor, std::shared_ptr<PanelAuditStore> auditStore,
+                        std::shared_ptr<PanelWorker> worker, std::shared_ptr<ui::NotificationCenter> notifications);
     ~PanelProductRuntime();
 
     [[nodiscard]] const std::shared_ptr<PanelConfigStore>& Config() const;
@@ -53,6 +54,7 @@ class PanelProductRuntime final {
     std::shared_ptr<PanelServiceBridge> service_{};
     std::shared_ptr<PanelLocalServer> localServer_{};
     std::shared_ptr<PanelNodePresence> nodePresence_{};
+    std::shared_ptr<PanelOsInfoSupervisor> osInfoSupervisor_{};
     std::shared_ptr<PanelAuditStore> auditStore_{};
     std::shared_ptr<PanelWorker> worker_{};
     std::shared_ptr<ui::NotificationCenter> notifications_{};

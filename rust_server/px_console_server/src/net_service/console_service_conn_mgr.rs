@@ -273,6 +273,15 @@ mod tests {
             device_id: device_id.to_string(),
             appkey: appkey.to_string(),
             version: "1.0.0".to_string(),
+            company: "Pixels".to_string(),
+            product: "cloud_node".to_string(),
+            edition: "CLOUD_NODE".to_string(),
+            product_version: "3.3.67".to_string(),
+            product_version_code: 30367,
+            capabilities: crate::net_service::console_service_conn::CLOUD_NODE_CAPABILITIES
+                .iter()
+                .map(|value| value.to_string())
+                .collect(),
             rdp_available: false,
             rdp_domain: String::new(),
             rdp_proxy_certificate_sha256: String::new(),
@@ -387,6 +396,15 @@ mod tests {
                 rdp_available: false,
                 rdp_domain: String::new(),
                 rdp_proxy_certificate_sha256: String::new(),
+                company: "Pixels".to_string(),
+                product: "remote".to_string(),
+                edition: "REMOTE".to_string(),
+                product_version: "2.1.4".to_string(),
+                product_version_code: 20104,
+                capabilities: crate::net_service::console_service_conn::REMOTE_CAPABILITIES
+                    .iter()
+                    .map(|value| value.to_string())
+                    .collect(),
             });
             assert!(
                 c.process_message(
@@ -396,6 +414,9 @@ mod tests {
                 .await
             );
             assert_eq!(c.version, "2.0.0");
+            assert_eq!(c.product, "remote");
+            assert_eq!(c.edition, "REMOTE");
+            assert_eq!(c.product_version, "2.1.4");
             assert!(c.hello_timestamp > 0);
             assert_eq!(c.last_update_timestamp, c.hello_timestamp);
 

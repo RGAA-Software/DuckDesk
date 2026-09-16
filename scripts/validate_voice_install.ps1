@@ -1,5 +1,7 @@
 param(
-    [string]$InstallDirectory = "C:\Program Files\PixelsRender",
+    [ValidateSet("cloud_node", "remote")]
+    [string]$Product = "cloud_node",
+    [string]$InstallDirectory = "",
     [string]$ExpectedVersion = "",
     [string]$OutputPath = "C:\Windows\Temp\PixelsVoiceInstallValidation.json",
     [ValidateRange(0, 300)]
@@ -7,6 +9,9 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+if ([string]::IsNullOrWhiteSpace($InstallDirectory)) {
+    $InstallDirectory = if ($Product -eq "cloud_node") { "C:\Program Files\Pixels Cloud Node" } else { "C:\Program Files\Pixels Remote" }
+}
 trap {
     $failure = [ordered]@{
         passed = $false
@@ -95,8 +100,8 @@ $controlledWarningPresent = $null -ne $language -and
 
 $uninstall = $null
 foreach ($uninstallKey in @(
-    "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Pixels px_panel",
-    "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Pixels px_panel"
+    "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$(if ($Product -eq 'cloud_node') { 'PixelsCloudNode' } else { 'PixelsRemote' })",
+    "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\$(if ($Product -eq 'cloud_node') { 'PixelsCloudNode' } else { 'PixelsRemote' })"
 )) {
     $uninstall = Get-ItemProperty -LiteralPath $uninstallKey -ErrorAction SilentlyContinue
     if ($null -ne $uninstall) { break }

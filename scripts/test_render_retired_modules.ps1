@@ -41,7 +41,7 @@ if (Test-Path -LiteralPath $legacySourceDirectory) {
 $renderRootCmake = Join-Path $RepoRoot "src\px_render\CMakeLists.txt"
 $architectureCmake = Join-Path $RepoRoot "src\px_render\architecture\CMakeLists.txt"
 $publisher = Join-Path $RepoRoot "scripts\publish_cpp_artifacts.ps1"
-$collector = Join-Path $RepoRoot "scripts\collect_dist.py"
+$artifactGroups = Join-Path $RepoRoot "packaging\artifact_groups.toml"
 
 Assert-NotMatch -Path $renderRootCmake `
     -Pattern 'add_subdirectory\s*\(\s*plugins\s*\)' `
@@ -76,26 +76,32 @@ foreach ($requiredSource in @(
         -Reason "built-in Render implementation is missing from the static graph: $requiredSource"
 }
 
-foreach ($script in @($publisher, $collector)) {
-    Assert-Match -Path $script `
-        -Pattern 'rd_plugins' `
-        -Reason "legacy rd_plugins cleanup is missing"
-}
+Assert-Match -Path $publisher `
+    -Pattern 'rd_plugins' `
+    -Reason "focused publishing does not remove the legacy rd_plugins tree"
+Assert-NotMatch -Path $artifactGroups `
+    -Pattern 'rd_plugins' `
+    -Reason "product artifact declarations still package the legacy rd_plugins tree"
 Assert-Match -Path $publisher -Pattern '\$destination\s*=\s*Join-Path\s+\$distRoot\s+\(Split-Path\s+-Leaf' `
     -Reason "focused publishing does not place WebRTC beside px_render.exe"
-Assert-Match -Path $collector -Pattern 'copy_file\(source, os\.path\.join\(dist_dir, name\)\)' `
-    -Reason "full dist collection does not place WebRTC beside px_render.exe"
+foreach ($library in @("px_render_rtc_remote.dll", "px_render_rtc.dll")) {
+    Assert-Match -Path $artifactGroups `
+        -Pattern ('destination\s*=\s*"' + [regex]::Escape($library) + '"') `
+        -Reason "product artifact declarations do not place $library beside px_render.exe"
+}
 
 if ($CheckDist) {
-    $legacyDistDirectory = Join-Path $RepoRoot "build_official\dist\deps\rd_plugins"
-    if (Test-Path -LiteralPath $legacyDistDirectory) {
-        throw "legacy Render plugin delivery directory still exists: $legacyDistDirectory"
-    }
-    $runtimeDirectory = Join-Path $RepoRoot "build_official\dist"
-    foreach ($library in @("px_render_rtc_remote.dll", "px_render_rtc.dll")) {
-        $path = Join-Path $runtimeDirectory $library
-        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
-            throw "required WebRTC runtime library is missing beside px_render.exe: $path"
+    foreach ($product in @("cloud_node", "remote")) {
+        $runtimeDirectory = Join-Path $RepoRoot "build_official\dist\$product"
+        $legacyDistDirectory = Join-Path $runtimeDirectory "deps\rd_plugins"
+        if (Test-Path -LiteralPath $legacyDistDirectory) {
+            throw "legacy Render plugin delivery directory still exists: $legacyDistDirectory"
+        }
+        foreach ($library in @("px_render_rtc_remote.dll", "px_render_rtc.dll")) {
+            $path = Join-Path $runtimeDirectory $library
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+                throw "required WebRTC runtime library is missing beside px_render.exe: $path"
+            }
         }
     }
 }

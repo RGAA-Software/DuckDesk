@@ -1,9 +1,9 @@
 # 远控语音通话设计（非 WebRTC 传输兼容）
 
-> 状态：Windows 原生客户端、正式 `px_panel` 授权闭环、M2 核心音频链和 WebClient 双向实现已完成；核心路径、真实 WASAPI 双工/2小时闭环以及 Chrome WebClient 双向 RTP 已在 10.0.0.90 验证。2026-08-24 又完成浏览器上行 RTP → Render 解码 PCM → 通话端点接收的量化闭环。双物理机主观音质、设备/弱网矩阵、生产 HTTPS 入口和完整发布矩阵仍待验收。
+> 状态：Windows 原生客户端、正式 `px_panel` 授权闭环、M2 核心音频链和 WebClient 双向实现已完成；旧固定节点验收记录已删除。双物理机主观音质、设备/弱网矩阵、生产 HTTPS 入口和完整发布矩阵仍待在当前公网环境验收。
 > 目标：Windows 主控端与 Windows Render 之间的一对一、全双工语音通话；音频媒体可走 WebRTC、UDP、KCP、WebSocket 或 Relay。
 >
-> 配套执行文档：[工程实施计划](voice_call_implementation_plan.md)；[测试与验收计划](voice_call_test_acceptance_plan.md)。
+> 配套执行文档：[工程实施计划](voice_call_implementation_plan.md)。
 
 ## 结论
 
@@ -174,7 +174,7 @@ WebRTC 路径使用原生 audio track，不把 Opus 再封装进 protobuf data c
 
 1. **Windows 原生 MVP（已完成）**：协议、状态机、SDL2 麦克风采集/播放、独立 Opus、非 WebRTC 会话媒体通道、原生悬浮入口和本地确认。
 2. **Windows 音质阶段（开发中）**：APM/AEC、WASAPI 通信设备后端、设备枚举和显式选择、默认设备重路由、抖动缓冲、PLC 和原生静音已实现；蓝牙/热插拔矩阵、码率自适应、双物理机音质和长稳仍待验收。
-3. **WebRTC local / Web 客户端（已实现、核心实机路径已验证）**：浏览器悬浮入口、权限、严格关联、双向原生 audio track、独立静音，以及 Render `RemoteAudioSink` 授权后实际播放均已落地；90号机 Chrome 已通过接受/拒绝/超时、双向 RTP、独立静音和挂断清理。当前 `http://IP` 入口不属于浏览器安全上下文，生产环境必须提供 HTTPS（或 localhost）后才能调用麦克风；Edge、真实浏览器麦克风和异常矩阵仍待执行。
+3. **WebRTC local / Web 客户端（已实现）**：浏览器悬浮入口、权限、严格关联、双向原生 audio track、独立静音，以及 Render `RemoteAudioSink` 授权后实际播放均已落地。当前公网环境必须提供 HTTPS 才能调用麦克风；Chrome、Edge、真实浏览器麦克风和异常矩阵需重新执行。
 4. **Android（待实施）**：`RECORD_AUDIO`、`VOICE_COMMUNICATION`、AudioFocus、蓝牙路由、前台服务。
 
 以上仅定义平台顺序。具体工作编号、依赖、里程碑退出条件、兼容策略、风险与交付清单以
@@ -183,28 +183,15 @@ Windows 原生 MVP、正式 Panel 来电 UI 的核心 Console 路径和 WebClien
 
 ## 测试与验收
 
-详尽的 P0/P1/P2 用例、环境矩阵、量化指标、90号机执行步骤、证据格式和发布门禁见
-[测试与验收计划](voice_call_test_acceptance_plan.md)。本节只保留已经执行的历史基线，不能替代候选版本的正式验收。
+旧固定节点测试计划和结果报告已经删除。候选版本必须在 Console 当前配置的公网节点重新覆盖：
 
-### 已执行结果（2026-08-23）
+- 请求接受、拒绝、超时、等待中取消、挂断和迟到响应丢弃；
+- Windows WASAPI 双工、真实 AEC/扬声器回声、设备热插拔和两小时稳定性；
+- Chrome/Edge HTTPS 麦克风权限、双向 RTP、独立静音和异常清理；
+- Relay/UDP/KCP 弱网、虚拟屏并发、发布安装矩阵与 Android；
+- 回调内停止、注销中派发、销毁后迟到消息和重复启停。
 
-| 项目 | 结果 |
-| --- | --- |
-| `test_voice_call` | 33 项：本地 31 通过、2 项条件测试按设计跳过（2小时长稳、真实WASAPI）；覆盖状态机、日志脱敏、64包重放窗口、抖动缓冲、APM、WebRTC PCM播放参考、拥塞保新队列、静音恢复、并发Stop、设备枚举/切换事件、SDL dummy闭环、Panel IPC和授权缓存。真实WASAPI条件项已在90号机用显式麦克风端点单独通过。 |
-| `test_client_voice_call_protocol` | 5/5：请求关联、挂断身份、固定格式、独立消息类型、非零唯一请求 ID。 |
-| `test_client_virtual_display` 回归 | 11/11，通过；悬浮控制条改动未破坏虚拟显示器状态/协议。 |
-| 90 号机连接与画面 | 原生客户端经 WebSocket 连接成功，收到 `DISPLAY1`、`DISPLAY44` 和首帧，语音 capability 正常。 |
-| 请求超时闭环 | 30 秒后主控发送同一 `call_id/request_id` 的 `connect=false`；90 收到取消，迟到响应在主控端按 stale/replay 丢弃。 |
-| 正式 Panel 授权 | 实际 `px_panel` 窗口展示访问者、开麦告知、倒计时、拒绝/接受按钮；UI Automation 保存控件树并真实点击接受/拒绝。接受后才创建音频端点；拒绝、等待中取消和 Panel 不可用 fail-closed 均通过。 |
-| 双向媒体与挂断 | 正式 Panel 点击接受后持续约 128 秒并主动挂断。90：`tx=5623, rx=6082`；主控：`tx=6082, rx=5618`，证明双向均有实际 Opus 包。 |
-| 加固候选回归 | 新 Panel 再次通过接受/拒绝/超时/等待中取消；56 秒媒体阶段主控 `tx=2655, rx=2459`、90 `tx=2463, rx=2655`。外部 `/panel` 可用，内部 `/panel/renderer`、`/sys/info` 均拒绝非回环连接。 |
-| 自动化入口 | 三个测试目标已注册到 CTest；`ctest --test-dir build_official -C RelWithDebInfo --output-on-failure` 为 3/3。远端 UI 探针位于 `src/px_deps/px_voice_call/tests/integration/`，脚本不含凭据。 |
-| M2真实声卡 | 90号机交互 Console 下 WASAPI 48 kHz mono 双工采集/播放回调通过；系统麦克风总开关为Deny时可复现并诊断为capture permission denied，临时Allow后通过，测试后恢复原值。详见 [M2测试报告](voice_call_m2_test_report_20260823.md)。 |
-| Web实现与90号机E2E | `npm run test:voice` 19项关联/格式/每次通话前提示/安全上下文断言通过；`vue-tsc --noEmit && vite build` 生产构建通过。90号机 Chrome 实际连接正式 Render/Panel，接受、拒绝、30秒超时、双向 RTP、麦克风静音、通话扬声器独立静音、挂断清理和再次提示均通过。为隔离服务器 HTTP 限制，媒体正向 E2E 使用 Chrome 的仅测试安全源开关；正常 `http://IP` 另测为明确禁用并提示 HTTPS/localhost，不能把测试开关视作生产 HTTPS 验收。 |
-| 2026-08-24 Web上行PCM闭环 | 浏览器麦克风 outbound bytes `95→7506`；90端收到48kHz/mono/16-bit/480-frame首个PCM，RTC统计153包/7506字节/0丢包，通话端点结束统计 `rx_pcm_samples=207840`。挂断后同一远控连接继续120秒并以1998帧/connected结束。详见 [RTC验收报告](webrtc_rtc_acceptance_report_20260824.md)。 |
-| 2026-08-30 生命周期加固 | Render插件改为薄 ABI 适配器，`VoiceCallRuntime` 以共享所有权持有状态、端点和传输；设备丢失、PCM、Opus及传输发送回调不再捕获插件实例。音频端点及 SDL/WASAPI backend 的回调桥改用共享状态，PCM 参数改为 `span`，支持回调内 Stop、重复启停以及销毁后迟到回调安全丢弃。新增回调内注销、回调内Shutdown、外部Shutdown等待在途投递、销毁后迟到消息、10轮Runtime生命周期、传输回调内Stop及10轮DLL加载/卸载测试。`test_voice_call` 共39项；常规矩阵启用真实WASAPI后38项通过、仅2小时门禁跳过，2秒真实WASAPI→APM→Opus端点用例另行启用并通过；Runtime 6/6、传输3/3、客户端协议5/5、DLL 10/10、真实WASAPI smoke 10/10通过。focused构建发布`px_client.exe`、`voice_call.dll`、`px_voice_apm.dll`时强制校验`build_official\dist` SHA-256一致。 |
-
-尚未完成的验收项是双物理机 AEC/扬声器主观回声、设备热插拔、Relay/UDP/KCP专项弱网、生产 HTTPS/Edge/真实浏览器麦克风异常矩阵以及Android；这些不能由当前自动化结果替代。
+自动化结果不能替代公网实机与双物理机音质验收。变更运行产物必须同步到 `build_official\dist` 并与构建树通过 SHA-256 一致性检查。
 
 - 单元：状态机、请求重放、错误 `call_id`、超时、序号去重、乱序、抖动缓冲、PCM/Opus 编解码。
 - 组件：确定性 PCM 向量经 APM/Opus/模拟网络后，校验帧数、时长、PLC 和队列水位。

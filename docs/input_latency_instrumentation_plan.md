@@ -95,7 +95,7 @@
 - 只改 render 插件时，仅重编对应目标并覆盖远端 `px_plugins\`，不必全量 `scripts_build\build_client.bat`。
 - 覆盖前必须先杀 `px_render.exe`（dll 被占用会静默失败）。
 - 日志：`\\10.0.0.70\C$\Users\Public\GoDesk\px_logs\`（`plugin_dda_capture.dll.log`、
-  `plugin_event_replayer.dll.log`、`godesk_render_20371.log`）。
+  `plugin_event_replayer.dll.log`、当前 Render 端口对应的运行日志）。
 
 ## 6. 观测执行顺序
 

@@ -6,7 +6,9 @@
 #include "window_host.h"
 #include "windows_title_bar_behavior.h"
 
+#if PX_DESKTOP_SHELL_MEDIA
 #include "px_client_sdk/platform/windows/windows_video_resources.h"
+#endif
 
 #include <SDL3/SDL.h>
 #include <Windows.h>

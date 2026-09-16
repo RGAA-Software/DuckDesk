@@ -1,9 +1,13 @@
 #include "d3d11_renderer.h"
 
+#if PX_DESKTOP_SHELL_MEDIA
 #include "d3d11_video_presenter.h"
+#endif
 #include "window_host.h"
 
+#if PX_DESKTOP_SHELL_MEDIA
 #include "px_common/win32/d3d11_wrapper.h"
+#endif
 
 #include <SDL3/SDL.h>
 #include <backends/imgui_impl_dx11.h>
@@ -33,12 +37,14 @@ struct D3d11Renderer::Impl final {
     Microsoft::WRL::ComPtr<ID3D11DeviceContext> deviceContext{};
     Microsoft::WRL::ComPtr<IDXGISwapChain> swapChain{};
     Microsoft::WRL::ComPtr<ID3D11RenderTargetView> renderTarget{};
+#if PX_DESKTOP_SHELL_MEDIA
     Microsoft::WRL::ComPtr<ID3D11Texture2D> videoTexture{};
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> videoTextureView{};
     std::shared_ptr<px::D3D11DeviceWrapper> deviceResources{};
     std::shared_ptr<D3d11VideoPresenter> videoPresenter{};
     int videoWidth{};
     int videoHeight{};
+#endif
     bool imguiBackendInitialized{false};
     bool allowTearing{};
 
@@ -78,8 +84,13 @@ std::expected<D3d11Renderer, std::string> D3d11Renderer::Create(const WindowHost
     auto impl = std::make_unique<Impl>();
     constexpr std::array featureLevels{D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_0};
     D3D_FEATURE_LEVEL selectedFeatureLevel{};
+    constexpr UINT creationFlags{D3D11_CREATE_DEVICE_BGRA_SUPPORT
+#if PX_DESKTOP_SHELL_MEDIA
+                                 | D3D11_CREATE_DEVICE_VIDEO_SUPPORT
+#endif
+    };
     const HRESULT result{D3D11CreateDeviceAndSwapChain(
-        nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, D3D11_CREATE_DEVICE_VIDEO_SUPPORT | D3D11_CREATE_DEVICE_BGRA_SUPPORT, featureLevels.data(),
+        nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, creationFlags, featureLevels.data(),
         static_cast<UINT>(featureLevels.size()), D3D11_SDK_VERSION, &description, impl->swapChain.GetAddressOf(), impl->device.GetAddressOf(),
         &selectedFeatureLevel, impl->deviceContext.GetAddressOf())};
     if (FAILED(result) || !impl->CreateRenderTarget()) {
@@ -90,16 +101,19 @@ std::expected<D3d11Renderer, std::string> D3d11Renderer::Create(const WindowHost
     Microsoft::WRL::ComPtr<IDXGIDevice1> latencyDevice{};
     if (SUCCEEDED(impl->device.As(&latencyDevice)))
         static_cast<void>(latencyDevice->SetMaximumFrameLatency(1));
+#if PX_DESKTOP_SHELL_MEDIA
     impl->deviceResources = std::make_shared<px::D3D11DeviceWrapper>();
     impl->deviceResources->d3d11_device_ = impl->device;
     impl->deviceResources->d3d11_device_context_ = impl->deviceContext;
     impl->videoPresenter = D3d11VideoPresenter::Create(impl->deviceResources);
     if (!impl->videoPresenter)
         return std::unexpected{"D3D11 video presenter initialization failed"};
+#endif
     return D3d11Renderer{std::move(impl)};
 }
 
 std::shared_ptr<D3D11DeviceWrapper> D3d11Renderer::CreateVideoDeviceResources() {
+#if PX_DESKTOP_SHELL_MEDIA
     Microsoft::WRL::ComPtr<ID3D11Device> device{};
     Microsoft::WRL::ComPtr<ID3D11DeviceContext> context{};
     constexpr std::array featureLevels{D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_0};
@@ -114,6 +128,9 @@ std::shared_ptr<D3D11DeviceWrapper> D3d11Renderer::CreateVideoDeviceResources() 
     resources->d3d11_device_ = std::move(device);
     resources->d3d11_device_context_ = std::move(context);
     return resources;
+#else
+    return {};
+#endif
 }
 
 D3d11Renderer::D3d11Renderer(std::unique_ptr<Impl> impl) noexcept : impl_{std::move(impl)} {}
@@ -156,6 +173,7 @@ bool D3d11Renderer::Resize(const int width, const int height) {
 }
 
 bool D3d11Renderer::UpdateVideoTexture(const int width, const int height, const std::span<const std::uint8_t> bgra) {
+#if PX_DESKTOP_SHELL_MEDIA
     if (width <= 0 || height <= 0 || bgra.size() != static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4U) {
         return false;
     }
@@ -191,19 +209,38 @@ bool D3d11Renderer::UpdateVideoTexture(const int width, const int height, const 
     }
     impl_->deviceContext->Unmap(impl_->videoTexture.Get(), 0);
     return true;
+#else
+    static_cast<void>(width);
+    static_cast<void>(height);
+    static_cast<void>(bgra);
+    return false;
+#endif
 }
 
 bool D3d11Renderer::UpdateVideoFrame(const std::shared_ptr<RawImage>& image) {
+#if PX_DESKTOP_SHELL_MEDIA
     return impl_->videoPresenter && impl_->videoPresenter->Present(image);
+#else
+    static_cast<void>(image);
+    return false;
+#endif
 }
 
 std::uint64_t D3d11Renderer::VideoTextureId() const noexcept {
+#if PX_DESKTOP_SHELL_MEDIA
     const auto nativeVideo = impl_->videoPresenter ? impl_->videoPresenter->TextureId() : 0U;
     return nativeVideo != 0U ? nativeVideo : reinterpret_cast<std::uint64_t>(impl_->videoTextureView.Get());
+#else
+    return 0U;
+#endif
 }
 
 std::shared_ptr<D3D11DeviceWrapper> D3d11Renderer::DeviceResources() const noexcept {
+#if PX_DESKTOP_SHELL_MEDIA
     return impl_->deviceResources;
+#else
+    return {};
+#endif
 }
 
 void D3d11Renderer::Render() const {

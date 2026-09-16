@@ -7,6 +7,19 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $androidRoot = Split-Path -Parent $PSScriptRoot
+$expectedVersionName = [Environment]::GetEnvironmentVariable('PIXELS_VERSION_NAME')
+$expectedVersionCodeText = [Environment]::GetEnvironmentVariable('PIXELS_VERSION_CODE')
+$expectedCompany = [Environment]::GetEnvironmentVariable('PIXELS_COMPANY')
+if ($expectedVersionName -notmatch '^\d+\.\d+\.\d+$' -or $expectedVersionCodeText -notmatch '^\d+$') {
+    throw 'Run scripts_build\build_android_product.bat release so the independent Android product version is assigned first.'
+}
+if ($expectedCompany -ne 'Pixels') {
+    throw 'PIXELS_COMPANY must be Pixels and must come from the Android product manifest.'
+}
+$expectedVersionCode = [int]$expectedVersionCodeText
+if ($expectedVersionCode -le 0) {
+    throw 'PIXELS_VERSION_CODE must be positive.'
+}
 $gradle = Join-Path $androidRoot 'gradlew.bat'
 $metadataPath = Join-Path $androidRoot 'app\build\outputs\apk\release\output-metadata.json'
 $bundlePath = Join-Path $androidRoot 'app\build\outputs\bundle\release\app-release.aab'
@@ -132,6 +145,9 @@ $versionName = [string]$element.versionName
 $versionCode = [int]$element.versionCode
 if ([string]::IsNullOrWhiteSpace($versionName) -or $versionCode -le 0) {
     throw 'Release output metadata does not contain a valid version.'
+}
+if ($versionName -ne $expectedVersionName -or $versionCode -ne $expectedVersionCode) {
+    throw "Release output version $versionName ($versionCode) does not match Android product version $expectedVersionName ($expectedVersionCode)."
 }
 
 $artifactParent = Join-Path $androidRoot 'app\apk\release'
@@ -337,6 +353,7 @@ $artifactMetadata = $publishedArtifacts | ForEach-Object {
 }
 $manifest = [ordered]@{
     product = 'Pixels Android'
+    company = $expectedCompany
     applicationId = [string]$metadata.applicationId
     versionName = $versionName
     versionCode = $versionCode

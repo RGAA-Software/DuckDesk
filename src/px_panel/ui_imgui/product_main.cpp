@@ -9,6 +9,7 @@
 #include "px_common/log.h"
 #include "px_common/process_util.h"
 #include "product/panel_running_pipe.h"
+#include "version_config.h"
 
 #include <array>
 #include <atomic>
@@ -97,7 +98,7 @@ int main(int argc, char* argv[]) { // NOLINT(pixels-raw-pointer-boundary): proce
         if (!runtime) {
             return 4;
         }
-        static_cast<void>(autoStart->CreateLogonTask("px_panel_start", executablePath, "--run_automatically", "GR"));
+        static_cast<void>(autoStart->CreateLogonTask("px_panel_start", executablePath, "--run_automatically", "Pixels"));
         const auto showPanel = [weakShell] {
             if (const auto activeShell = weakShell.lock())
                 activeShell->RequestShowAndRaise();
@@ -106,9 +107,17 @@ int main(int argc, char* argv[]) { // NOLINT(pixels-raw-pointer-boundary): proce
             .account = px::panel::product::CreateProductAccountPort(runtime),
             .notifications = notifications,
             .networkSettings = px::panel::product::CreateProductNetworkSettingsPort(runtime),
+#if PX_CAPABILITY_DESKTOP_HOST
             .serverStatus = px::panel::product::CreateProductServerStatusPort(runtime),
+#else
+            .serverStatus = nullptr,
+#endif
             .remoteControl = px::panel::product::CreateProductRemoteControlPort(runtime),
+#if PX_CAPABILITY_CLOUD_APP_CATALOG
             .cloudApplications = px::panel::product::CreateProductCloudApplicationsPort(runtime),
+#else
+            .cloudApplications = nullptr,
+#endif
             .settings = px::panel::product::CreateProductSettingsPort(runtime),
             .securityRecords = px::panel::product::CreateProductSecurityRecordsPort(runtime),
             .voiceCallConsent = px::panel::product::CreateProductVoiceCallConsentOverlay(runtime, showPanel),

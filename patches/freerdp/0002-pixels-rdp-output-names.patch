@@ -1,0 +1,91 @@
+diff --git a/client/common/CMakeLists.txt b/client/common/CMakeLists.txt
+--- a/client/common/CMakeLists.txt
++++ b/client/common/CMakeLists.txt
+@@ -72,5 +72,6 @@ endif()
+ 
+ addtargetwithresourcefile(${MODULE_NAME} FALSE "${FREERDP_VERSION}" SRCS)
++set_target_properties(${MODULE_NAME} PROPERTIES OUTPUT_NAME "px_rdp_client")
+ 
+ if(WITH_SSO_MIB)
+   if(SSO_MIB_EXTERNAL_DIR)
+diff --git a/libfreerdp/CMakeLists.txt b/libfreerdp/CMakeLists.txt
+--- a/libfreerdp/CMakeLists.txt
++++ b/libfreerdp/CMakeLists.txt
+@@ -207,5 +207,6 @@ endif()
+ 
+ addtargetwithresourcefile(${MODULE_NAME} FALSE "${FREERDP_VERSION}" LIBFREERDP_SRCS)
++set_target_properties(${MODULE_NAME} PROPERTIES OUTPUT_NAME "px_rdp_core")
+ 
+ if(WITH_RESOURCE_VERSIONING)
+   target_compile_definitions(${MODULE_NAME} PRIVATE WITH_RESOURCE_VERSIONING)
+diff --git a/server/common/CMakeLists.txt b/server/common/CMakeLists.txt
+--- a/server/common/CMakeLists.txt
++++ b/server/common/CMakeLists.txt
+@@ -25,5 +25,6 @@ endif()
+ 
+ addtargetwithresourcefile(${MODULE_NAME} FALSE "${FREERDP_VERSION}" ${MODULE_PREFIX}_SRCS)
++set_target_properties(${MODULE_NAME} PROPERTIES OUTPUT_NAME "px_rdp_server")
+ 
+ target_include_directories(${MODULE_NAME} INTERFACE $<INSTALL_INTERFACE:include/freerdp${FREERDP_VERSION_MAJOR}>)
+ target_link_libraries(${MODULE_NAME} PRIVATE ${FREERDP_CHANNELS_SERVER_LIBS})
+diff --git a/server/proxy/CMakeLists.txt b/server/proxy/CMakeLists.txt
+--- a/server/proxy/CMakeLists.txt
++++ b/server/proxy/CMakeLists.txt
+@@ -47,5 +47,6 @@ add_subdirectory("channels")
+ 
+ addtargetwithresourcefile(${MODULE_NAME} FALSE "${FREERDP_VERSION}" ${MODULE_PREFIX}_SRCS)
++set_target_properties(${MODULE_NAME} PROPERTIES OUTPUT_NAME "px_rdp_server_proxy")
+ 
+ set(PRIVATE_LIBS freerdp-client freerdp-server)
+ 
+diff --git a/server/proxy/cli/CMakeLists.txt b/server/proxy/cli/CMakeLists.txt
+--- a/server/proxy/cli/CMakeLists.txt
++++ b/server/proxy/cli/CMakeLists.txt
+@@ -20,5 +20,6 @@ set(PROXY_APP_SRCS freerdp_proxy.c)
+ 
+ set(APP_NAME "freerdp-proxy")
+ addtargetwithresourcefile(${APP_NAME} TRUE "${FREERDP_VERSION}" PROXY_APP_SRCS)
++set_target_properties(${APP_NAME} PROPERTIES OUTPUT_NAME "px_rdp_proxy")
+ 
+ target_link_libraries(${APP_NAME} PRIVATE ${MODULE_NAME})
+ installwithrpath(TARGETS ${APP_NAME} DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT server)
+diff --git a/server/proxy/pf_modules.c b/server/proxy/pf_modules.c
+--- a/server/proxy/pf_modules.c
++++ b/server/proxy/pf_modules.c
+@@ -603,22 +603,10 @@ static BOOL pf_modules_load_module(const char* module_path, const char* module_n
+ 	if (pf_modules_load_static_module(module_name, module, userdata))
+ 		return TRUE;
+ 
+-	char names[5][MAX_PATH] = WINPR_C_ARRAY_INIT;
+-	(void)_snprintf(names[0], sizeof(names[0]), "proxy-%s-plugin%s", module_name,
+-	                FREERDP_SHARED_LIBRARY_SUFFIX);
+-	(void)_snprintf(names[1], sizeof(names[1]), "%sproxy-%s-plugin%s",
+-	                FREERDP_SHARED_LIBRARY_PREFIX, module_name, FREERDP_SHARED_LIBRARY_SUFFIX);
+-	(void)_snprintf(names[2], sizeof(names[2]), "%sproxy-%s-plugin%s.%d",
+-	                FREERDP_SHARED_LIBRARY_PREFIX, module_name, FREERDP_SHARED_LIBRARY_SUFFIX,
+-	                FREERDP_VERSION_MAJOR);
+-	(void)_snprintf(names[3], sizeof(names[3]), "%sproxy-%s-plugin%d%s",
+-	                FREERDP_SHARED_LIBRARY_PREFIX, module_name, FREERDP_VERSION_MAJOR,
+-	                FREERDP_SHARED_LIBRARY_SUFFIX);
+-	(void)_snprintf(names[4], sizeof(names[4]), "%sproxy-%s-plugin%d%s.%d",
+-	                FREERDP_SHARED_LIBRARY_PREFIX, module_name, FREERDP_VERSION_MAJOR,
+-	                FREERDP_SHARED_LIBRARY_SUFFIX, FREERDP_VERSION_MAJOR);
+-
+-	const char* cnames[5] = { names[0], names[1], names[2], names[3], names[4] };
++	char name[MAX_PATH] = WINPR_C_ARRAY_INIT;
++	(void)_snprintf(name, sizeof(name), "px_rdp_%s%s", module_name,
++	                FREERDP_SHARED_LIBRARY_SUFFIX);
++	const char* cnames[1] = { name };
+ 	return pf_modules_try_load_dynamic_module(module_path, module, userdata, ARRAYSIZE(cnames),
+ 	                                          cnames);
+ }
+diff --git a/winpr/libwinpr/CMakeLists.txt b/winpr/libwinpr/CMakeLists.txt
+--- a/winpr/libwinpr/CMakeLists.txt
++++ b/winpr/libwinpr/CMakeLists.txt
+@@ -76,5 +76,6 @@ list(REMOVE_DUPLICATES WINPR_SYSTEM_INCLUDES)
+ 
+ addtargetwithresourcefile(${MODULE_NAME} FALSE "${WINPR_VERSION}" WINPR_SRCS)
++set_target_properties(${MODULE_NAME} PROPERTIES OUTPUT_NAME "px_rdp_winpr")
+ 
+ # pipe2()/accept4() are only declared by glibc under _GNU_SOURCE (see the WINPR_HAVE_PIPE2/
+ # WINPR_HAVE_ACCEPT4 detection in the top-level winpr/CMakeLists.txt, which probes for them with

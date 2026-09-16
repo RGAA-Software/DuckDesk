@@ -56,7 +56,11 @@ if (WIN32)
 
     endif ()
 
-    add_subdirectory(win/hk_obs)
+    if(PX_CAPABILITY_GAME_HOOK)
+        add_subdirectory(win/hk_obs)
+    else()
+        message(STATUS "Game Hook targets are excluded from the ${PX_PRODUCT_NAME} product graph")
+    endif()
 
 elseif (APPLE)
 

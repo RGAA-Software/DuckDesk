@@ -57,10 +57,10 @@ class PanelPreview final {
     ConnectionProgressDialog connectionProgressDialog_;
     PanelNavigation navigation_;
     SettingsPage settings_;
-    ServerStatusPage serverStatus_;
+    std::optional<ServerStatusPage> serverStatus_{};
     RemoteControlPage remoteControl_;
     DeviceListPage deviceList_;
-    CloudApplicationsPage cloudApplications_;
+    std::optional<CloudApplicationsPage> cloudApplications_{};
 };
 
 } // namespace px::panel::ui

@@ -359,7 +359,7 @@ rec_{monitor}_{YYYYMMDD}_{HH.MM.SS}.mp4
 
 ### 9.4 端到端用例（本机真机，build_official/dist）
 
-环境：本机跑 render（`px_render.exe`，端口 20371，采集 DDA/GDI，音频 WASAPI 全局）+ 本机跑 client（`px_client.exe` 连 127.0.0.1）。
+环境：本机运行 Render（`px_render.exe`，使用测试启动描述分配的实际端口，采集 DDA/GDI，音频 WASAPI 全局）和 Client（`px_client.exe` 连接该实际端点）。
 
 | # | 场景 | 步骤 | 判据 |
 |---|---|---|---|

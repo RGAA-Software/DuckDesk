@@ -1,11 +1,14 @@
-# FreeRDP：固定版本的最小 MF 输出状态补丁
+# FreeRDP：固定版本的解码与 Pixels 产物命名补丁
 
 2026-09-09 经用户确认维护。原始参考 `D:/dolit/rdp` 和干净上游 checkout 均只读。
 
 - 上游：FreeRDP 3.31.0，`aa8650b300aa4cabd85d9c72b431301509b9043f`。
-- 补丁：`0001-mf-output-state.patch`。
-- SHA-256：`A74AAD69B61E4E6E4758EFC6F1E38E9D07C2663E5613923E3F0097AD0EAE640B`。
-- 修改范围：`libfreerdp/codec/h264_mf.c`、`h264.c`；不修改协议、NLA、代理或用户会话策略。
+- 解码补丁：`0001-mf-output-state.patch`，SHA-256
+  `944F5544BFE7624763C09565DF4C531E1CDFD8CE359FAC9474834127266E4178`。
+- 命名补丁：`0002-pixels-rdp-output-names.patch`，SHA-256
+  `D2A07138B8009C6DCDA88B53C2D364178FEF80625A70EC9F1903FCA057A2F057`。
+- 解码补丁只修改 `libfreerdp/codec/h264_mf.c`、`h264.c`。命名补丁使隔离构建直接产出
+  `px_rdp_*` 主文件，并把代理模块解析收敛为 `px_rdp_<module>.dll`，不保留旧文件名回退。
 - 原 FreeRDP Apache-2.0 许可继续适用；SDK/发行产物携带 `licenses/FreeRDP-LICENSE`。
 
 ## 原因及边界
@@ -36,15 +39,15 @@ scripts_build\build_cpp_client.bat
 scripts_build\build_cpp_render.bat
 ```
 
-`prepare_rdp_sdk.ps1` 将补丁应用到 `.cache/rdp_source_<补丁摘要前12位>`，每次构建验证
-基线、完整 diff 和意外文件；不自动重置有改动的源码。修改补丁后使用新的独立构建目录，
+`prepare_rdp_sdk.ps1` 将两个补丁应用到补丁摘要隔离的 `.cache/rdp_source_*`，每次构建验证
+基线、两个补丁和意外文件；不自动重置有改动的源码。修改补丁后使用新的独立构建目录，
 避免复用绑定旧源码目录的 CMake cache。本次构建目录为 `.cache/rdp_proxy_patched_3_31`。
-`pixels-rdp-sdk.json` 记录基线、补丁摘要、解码器和运行库 SHA-256；Client CMake 与
-90 部署入口均检查它。节点部署还要求代理构建树与 SDK 中 FreeRDP/WinPR DLL 完全一致。
+`px_rdp_sdk.json` 记录基线、两个补丁摘要、解码器和运行库 SHA-256；Client CMake 与
+节点部署入口均检查它。节点部署还要求代理构建树与 SDK 中 RDP 主 DLL 完全一致。
 
 升级先复现并回归连接、动态图像、resize、音频、剪贴板、重复连接和错误路径；
 若上游已修复，重新审查后删除补丁依赖，不能在新版本上盲目继续应用。
-当前实测及尚未验收项见 [实施进度](../../docs/rdp_implementation_progress_20260908.md)。
+当前实现范围及尚未验收项见 [RDP 应用模式实施计划](../../docs/rdp_application_mode_implementation_plan.md)。
 
 ## 已执行的 decoder A/B 门禁
 
@@ -54,6 +57,6 @@ A/B 必须使用同一测试 exe、相同帧数据和独立运行目录；只交
 不能替换正在使用的 dist DLL，也不能混合版本。记录两套 DLL 的 SHA-256。
 
 本次未打补丁的官方 3.31.0 两项均复现 `0x0/-1015`；补丁版两项通过，覆盖首帧、八次重置、
-仅 SPS/PPS 无图像后再提交 IDR，以及八次创建/销毁。已部署补丁版 `freerdp3.dll` SHA-256：
+仅 SPS/PPS 无图像后再提交 IDR，以及八次创建/销毁。历史部署的补丁版 `freerdp3.dll` SHA-256：
 `771BF6F7D8E8BA77EB1954B56F1C5ED13A91A3AC3A2CFEFAAE5BDBA6DC3B337E`。
 这不是 60 FPS 结论：目前真实 1920×1080 动态样本的稳定统计窗口为 24–31 FPS。

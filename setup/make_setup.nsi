@@ -1,31 +1,86 @@
-;--------------------------------
+﻿;--------------------------------
 ; Modern UI
 Unicode true
 
 !include "MUI2.nsh"
 !include "x64.nsh"
 !include "nsProcess.nsh"
-!include "proj_version.nsh"
-!include "parsec_vdd_setup.nsh"
+!include "StrFunc.nsh"
+
+!ifndef PRODUCT_ID
+    !error "PRODUCT_ID is required"
+!endif
+!ifndef PRODUCT_VERSION
+    !error "PRODUCT_VERSION is required"
+!endif
+!ifndef PRODUCT_VERSION_CODE
+    !error "PRODUCT_VERSION_CODE is required"
+!endif
+!ifndef COMPANY
+    !error "COMPANY is required"
+!endif
+!if "${COMPANY}" != "Pixels"
+    !error "COMPANY must be Pixels"
+!endif
+
+!if "${PRODUCT_ID}" == "cloud_node"
+    !define PRODUCT_NAME "Pixels Cloud Node"
+    !define INSTALLER_BASENAME "PixelsCloudNode"
+    !define INSTALL_DIR "$PROGRAMFILES64\Pixels Cloud Node"
+    !define UNINSTALL_KEY "PixelsCloudNode"
+    !define PRODUCT_MARKER "cloud_node"
+    !define OTHER_PRODUCT_ONE_KEY "PixelsClient"
+    !define OTHER_PRODUCT_TWO_KEY "PixelsRemote"
+    !define HAS_HOST 1
+!else if "${PRODUCT_ID}" == "client"
+    !define PRODUCT_NAME "Pixels Client"
+    !define INSTALLER_BASENAME "PixelsClient"
+    !define INSTALL_DIR "$PROGRAMFILES64\Pixels Client"
+    !define UNINSTALL_KEY "PixelsClient"
+    !define PRODUCT_MARKER "client"
+    !define OTHER_PRODUCT_ONE_KEY "PixelsCloudNode"
+    !define OTHER_PRODUCT_TWO_KEY "PixelsRemote"
+    !define HAS_HOST 0
+!else if "${PRODUCT_ID}" == "remote"
+    !define PRODUCT_NAME "Pixels Remote"
+    !define INSTALLER_BASENAME "PixelsRemote"
+    !define INSTALL_DIR "$PROGRAMFILES64\Pixels Remote"
+    !define UNINSTALL_KEY "PixelsRemote"
+    !define PRODUCT_MARKER "remote"
+    !define OTHER_PRODUCT_ONE_KEY "PixelsCloudNode"
+    !define OTHER_PRODUCT_TWO_KEY "PixelsClient"
+    !define HAS_HOST 1
+!else
+    !error "PRODUCT_ID must be cloud_node, client, or remote"
+!endif
+
+!if ${HAS_HOST} == 1
+    ${StrStr}
+    !include "parsec_vdd_setup.nsh"
+!endif
 
 RequestExecutionLevel admin
 
 ;--------------------------------
 ; App Info
-!define PRODUCT_NAME "Pixels"
 !define APPNAME "px_panel"
-!define COMPANY "Pixels"
-!define INSTALL_DIR "C:\Program Files\PixelsRender"
-
 !ifndef OUTPUT_DIR
     !define OUTPUT_DIR "."
 !endif
 
-OutFile "${OUTPUT_DIR}\${PRODUCT_NAME}_${PRODUCT_VERSION}_Setup.exe"
+OutFile "${OUTPUT_DIR}\${INSTALLER_BASENAME}_${PRODUCT_VERSION}_Setup.exe"
 
 InstallDir "${INSTALL_DIR}"
 
 Name "${PRODUCT_NAME}"
+
+VIProductVersion "${PRODUCT_VERSION}.0"
+VIAddVersionKey /LANG=1033 "CompanyName" "${COMPANY}"
+VIAddVersionKey /LANG=1033 "ProductName" "${PRODUCT_NAME}"
+VIAddVersionKey /LANG=1033 "ProductVersion" "${PRODUCT_VERSION}"
+VIAddVersionKey /LANG=1033 "FileVersion" "${PRODUCT_VERSION}"
+VIAddVersionKey /LANG=1033 "FileDescription" "${PRODUCT_NAME} Setup"
+VIAddVersionKey /LANG=1033 "LegalCopyright" "Copyright (C) ${COMPANY}"
 
 ;--------------------------------
 !define MUI_ICON "image\logo.ico"
@@ -49,27 +104,49 @@ Name "${PRODUCT_NAME}"
 !insertmacro MUI_UNPAGE_FINISH
 
 !insertmacro MUI_LANGUAGE "English"
+!insertmacro MUI_LANGUAGE "SimpChinese"
+
+LangString MSG_CONFLICT ${LANG_ENGLISH} "${PRODUCT_NAME} cannot be installed while $R9 is present.$\r$\nUninstall the other Pixels product first, then run this setup again."
+LangString MSG_CONFLICT ${LANG_SIMPCHINESE} "检测到 $R9，无法安装 ${PRODUCT_NAME}。$\r$\n请先卸载其他 Pixels 产品，再重新运行安装程序。"
+LangString MSG_LEGACY_CONFLICT ${LANG_ENGLISH} "An old or unowned Pixels installation is present. Uninstall it before installing ${PRODUCT_NAME}."
+LangString MSG_LEGACY_CONFLICT ${LANG_SIMPCHINESE} "检测到旧版或无法确认归属的 Pixels 安装。请先卸载，再安装 ${PRODUCT_NAME}。"
+LangString MSG_REPLACE_FAILED ${LANG_ENGLISH} "The existing ${PRODUCT_NAME} files could not be replaced. Close any process using $INSTDIR and run setup again."
+LangString MSG_REPLACE_FAILED ${LANG_SIMPCHINESE} "无法覆盖现有 ${PRODUCT_NAME} 文件。请关闭正在使用 $INSTDIR 的程序后重新运行安装程序。"
 
 ;--------------------------------
 ; Sections
 Section "Install required files" SecMain
 
-    SetOutPath "$INSTDIR"
+    ; Mutating work starts only after the user has confirmed installation.
+    ; This keeps cancelling the welcome/directory pages side-effect free.
+!if ${HAS_HOST} == 1
+    Call StopServiceForUpgrade
+!endif
+    Call KillProcesses
 
-    ; Clean stale plugins/skins from previous installs.
-    ; Old DLLs no longer shipped (e.g. net_udp.dll) are ABI-incompatible
-    ; and crash the render process when the plugin loader scans this directory.
-    RMDir /r "$INSTDIR\px_plugins"
-    RMDir /r "$INSTDIR\px_plugins_client"
-    RMDir /r "$INSTDIR\px_skins"
-    RMDir /r "$INSTDIR\px_client"
-    RMDir /r "$INSTDIR\deps"
+    ; A same-Edition install is a complete replacement. Runtime state lives
+    ; outside the installation root, so removing the old tree prevents files
+    ; retired by the new version from surviving an upgrade or same-version
+    ; covering install.
+    SetOutPath "$TEMP"
+    RMDir /r "$INSTDIR"
+    IfFileExists "$INSTDIR\*" replace_failed 0
+    CreateDirectory "$INSTDIR"
+    SetOutPath "$INSTDIR"
+    Goto replace_ready
+replace_failed:
+    IfSilent +2
+        MessageBox MB_OK|MB_ICONSTOP|MB_TOPMOST "$(MSG_REPLACE_FAILED)"
+    SetErrorLevel 1603
+    Abort "$(MSG_REPLACE_FAILED)"
+replace_ready:
 
     ; 1. Extract app.7z
     File "${OUTPUT_DIR}\app\app.7z"
     Nsis7z::ExtractWithCallback "$INSTDIR\app.7z" $R9
     Delete "$INSTDIR\app.7z"
 
+!if ${HAS_HOST} == 1
     ; 2. Install the Microsoft-signed Parsec virtual display driver.
     Call InstallParsecVddDriver
     Pop $R0
@@ -80,23 +157,13 @@ Section "Install required files" SecMain
         Abort "Parsec virtual display driver installation failed"
 parsec_vdd_install_ok:
 
-    ; Remove the legacy product USBMMIDD device/package only after Parsec VDD
-    ; is healthy. It is an upgrade cleanup path, never a runtime fallback.
-    Call CleanupLegacyUsbMmIddDriver
-    Pop $R0
-    StrCmp $R0 "0" legacy_usbmmidd_cleanup_ok
-        IfSilent +2
-            MessageBox MB_OK|MB_ICONSTOP|MB_TOPMOST "Failed to remove the legacy USBMMIDD driver. Setup cannot continue."
-        SetErrorLevel 1603
-        Abort "Legacy USBMMIDD cleanup failed"
-legacy_usbmmidd_cleanup_ok:
-
     ; 3. Install ViGEm joystick driver silently
     ExecWait '"$INSTDIR\px_joystick.exe" /S'
 
     ; 4. Register or update the Windows service only after all runtime files
     ; have been published. The service manager also starts the service.
     Call InstallAndStartService
+!endif
 
     ; 5. Create shortcuts
     CreateShortCut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\${APPNAME}.exe"
@@ -104,12 +171,25 @@ legacy_usbmmidd_cleanup_ok:
     CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME}.lnk" "$INSTDIR\${APPNAME}.exe"
     CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
 
-    ; 6. Write uninstall registry info
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "DisplayName" "${PRODUCT_NAME}"
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "UninstallString" "$\"$INSTDIR\Uninstall.exe$\""
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "InstallLocation" "$INSTDIR"
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "Publisher" "${COMPANY}"
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}" "DisplayVersion" "${PRODUCT_VERSION}"
+    ; 6. Write uninstall registry info. Remove the former 32-bit-view key so
+    ; packages produced before the registry-view fix cannot leave a ghost
+    ; installation behind after upgrade.
+    SetRegView 32
+    DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}"
+    SetRegView 64
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "DisplayName" "${PRODUCT_NAME}"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "UninstallString" "$\"$INSTDIR\Uninstall.exe$\""
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "QuietUninstallString" "$\"$INSTDIR\Uninstall.exe$\" /S"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\${APPNAME}.exe"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "Publisher" "${COMPANY}"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "DisplayVersion" "${PRODUCT_VERSION}"
+    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "NoModify" 1
+    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "NoRepair" 1
+
+    FileOpen $R0 "$INSTDIR\product-edition.txt" w
+    FileWrite $R0 "${PRODUCT_MARKER}$\r$\n${PRODUCT_VERSION}$\r$\n${COMPANY}$\r$\n"
+    FileClose $R0
 
     ; Set the app to run as administrator
     WriteRegStr HKCU "Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers" "$INSTDIR\${APPNAME}.exe" "RUNASADMIN"
@@ -123,6 +203,12 @@ SectionEnd
 ;--------------------------------
 ; Uninstaller
 Section "Uninstall"
+!if ${HAS_HOST} == 1
+    Call un.StopServiceForRemoval
+!endif
+    Call un.KillProcesses
+
+!if ${HAS_HOST} == 1
     ; Remove Parsec VDD only when this product installed/owns the device.
     Call un.UninstallParsecVddDriver
     Pop $R0
@@ -132,6 +218,8 @@ Section "Uninstall"
         SetErrorLevel 1603
         Abort "Parsec virtual display driver removal failed"
 parsec_vdd_uninstall_ok:
+    Call un.DeleteServiceRegistration
+!endif
 
     ; Delete files
     ; The driver function used $INSTDIR as its working directory. Move away
@@ -148,37 +236,170 @@ parsec_vdd_uninstall_ok:
     RMDir "$SMPROGRAMS\${PRODUCT_NAME}"
 
     ; Delete registry entries
-    DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${COMPANY} ${APPNAME}"
+    SetRegView 32
+    DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}"
+    SetRegView 64
+    DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}"
+!if ${HAS_HOST} == 1
+    SetRegView 32
     DeleteRegKey HKLM "Software\Pixels\VirtualDisplay"
+    SetRegView 64
+    DeleteRegKey HKLM "Software\Pixels\VirtualDisplay"
+!endif
     DeleteRegValue HKCU "Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers" "$INSTDIR\${APPNAME}.exe"
 
 SectionEnd
 
 ;--------------------------------
 Function .onInit
-    ; Check whether the app is already running
-    ${nsProcess::FindProcess} "${APPNAME}.exe" $R0
-    ${If} $R0 == 0
-        IfSilent +2
-            MessageBox MB_OK|MB_TOPMOST "Please close the running program and reinstall"
+    ${IfNot} ${RunningX64}
+        SetErrorLevel 1633
+        Abort "${PRODUCT_NAME} requires 64-bit Windows."
     ${EndIf}
+    SetRegView 64
+    SetShellVarContext all
 
-    ; A background service or render process may still be active even when the
-    ; panel is not. Stop it before replacing files, but keep the px_service
-    ; registration so a covering install can update it in place.
-    Call StopServiceForUpgrade
-    Call KillProcesses
+    ; Reuse a same-product custom installation directory for upgrades and
+    ; covering installs. Accept the old 32-bit uninstall-registry view once,
+    ; then normalize it to the 64-bit view during installation.
+    Call ResolveExistingInstallDirectory
+
+    ; Product mutual exclusion is checked before any process, file, service or
+    ; driver is stopped or changed.
+    Call CheckProductMutualExclusion
 FunctionEnd
 
 Function un.onInit
-    Call un.StopAndDeleteService
-    Call un.KillProcesses
+    SetRegView 64
+    SetShellVarContext all
+FunctionEnd
+
+Function ResolveExistingInstallDirectory
+    SetRegView 64
+    ReadRegStr $R0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "InstallLocation"
+    StrCmp $R0 "" resolve_existing_32 resolve_existing_found
+resolve_existing_32:
+    SetRegView 32
+    ReadRegStr $R0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "InstallLocation"
+    SetRegView 64
+resolve_existing_found:
+    StrCmp $R0 "" resolve_existing_done
+    IfFileExists "$R0\product-edition.txt" 0 resolve_existing_legacy
+    StrCpy $INSTDIR $R0
+    Goto resolve_existing_done
+resolve_existing_legacy:
+    Call AbortLegacyProduct
+resolve_existing_done:
+FunctionEnd
+
+Function AbortConflictingProduct
+    IfSilent conflict_abort
+        MessageBox MB_OK|MB_ICONSTOP|MB_TOPMOST "$(MSG_CONFLICT)"
+conflict_abort:
+    SetErrorLevel 1638
+    Abort "$(MSG_CONFLICT)"
+FunctionEnd
+
+Function AbortLegacyProduct
+    IfSilent legacy_abort
+        MessageBox MB_OK|MB_ICONSTOP|MB_TOPMOST "$(MSG_LEGACY_CONFLICT)"
+legacy_abort:
+    SetErrorLevel 1638
+    Abort "$(MSG_LEGACY_CONFLICT)"
+FunctionEnd
+
+Function CheckProductMutualExclusion
+    SetRegView 64
+    ReadRegStr $R0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${OTHER_PRODUCT_ONE_KEY}" "DisplayName"
+    StrCmp $R0 "" check_other_one_32
+        StrCpy $R9 $R0
+        Call AbortConflictingProduct
+check_other_one_32:
+    SetRegView 32
+    ReadRegStr $R0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${OTHER_PRODUCT_ONE_KEY}" "DisplayName"
+    SetRegView 64
+    StrCmp $R0 "" check_other_two
+        StrCpy $R9 $R0
+        Call AbortConflictingProduct
+check_other_two:
+    ReadRegStr $R0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${OTHER_PRODUCT_TWO_KEY}" "DisplayName"
+    StrCmp $R0 "" check_other_two_32
+        StrCpy $R9 $R0
+        Call AbortConflictingProduct
+check_other_two_32:
+    SetRegView 32
+    ReadRegStr $R0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${OTHER_PRODUCT_TWO_KEY}" "DisplayName"
+    SetRegView 64
+    StrCmp $R0 "" check_legacy_key
+        StrCpy $R9 $R0
+        Call AbortConflictingProduct
+check_legacy_key:
+    ReadRegStr $R0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Pixels px_panel" "DisplayName"
+    StrCmp $R0 "" check_legacy_key_32
+        Call AbortLegacyProduct
+check_legacy_key_32:
+    SetRegView 32
+    ReadRegStr $R0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Pixels px_panel" "DisplayName"
+    SetRegView 64
+    StrCmp $R0 "" check_known_directories
+        Call AbortLegacyProduct
+
+check_known_directories:
+!if "${PRODUCT_ID}" != "cloud_node"
+    IfFileExists "$PROGRAMFILES64\Pixels Cloud Node\product-edition.txt" cloud_node_directory_conflict check_client_directory
+cloud_node_directory_conflict:
+        StrCpy $R9 "Pixels Cloud Node"
+        Call AbortConflictingProduct
+check_client_directory:
+!endif
+!if "${PRODUCT_ID}" != "client"
+    IfFileExists "$PROGRAMFILES64\Pixels Client\product-edition.txt" client_directory_conflict check_remote_directory
+client_directory_conflict:
+        StrCpy $R9 "Pixels Client"
+        Call AbortConflictingProduct
+check_remote_directory:
+!endif
+!if "${PRODUCT_ID}" != "remote"
+    IfFileExists "$PROGRAMFILES64\Pixels Remote\product-edition.txt" remote_directory_conflict check_legacy_directory
+remote_directory_conflict:
+        StrCpy $R9 "Pixels Remote"
+        Call AbortConflictingProduct
+check_legacy_directory:
+!endif
+    IfFileExists "$PROGRAMFILES64\PixelsRender\*" 0 check_service
+        Call AbortLegacyProduct
+
+check_service:
+    ReadRegStr $R1 HKLM "SYSTEM\CurrentControlSet\Services\px_service" "ImagePath"
+    StrCmp $R1 "" mutual_check_done
+!if ${HAS_HOST} == 0
+        Call AbortLegacyProduct
+!else
+    SetRegView 64
+    ReadRegStr $R0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "InstallLocation"
+    StrCmp $R0 "" check_service_install_32
+    Goto check_service_install_found
+check_service_install_32:
+    SetRegView 32
+    ReadRegStr $R0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "InstallLocation"
+    SetRegView 64
+check_service_install_found:
+    StrCmp $R0 "" service_conflict
+    ${StrStr} $R2 $R1 "$R0\px_service.exe"
+    StrCmp $R2 "" service_conflict mutual_check_done
+service_conflict:
+        Call AbortLegacyProduct
+!endif
+mutual_check_done:
 FunctionEnd
 
 Function LaunchLink
+    IfSilent launch_done
     ExecShell "" "$INSTDIR\${APPNAME}.exe"
+launch_done:
 FunctionEnd
 
+!if ${HAS_HOST} == 1
 Function StopServiceForUpgrade
     ; net stop waits for the service process to release files. A missing service
     ; is valid during a clean installation.
@@ -208,10 +429,14 @@ service_manager_present:
 service_install_ok:
 FunctionEnd
 
-Function un.StopAndDeleteService
+Function un.StopServiceForRemoval
     nsExec::ExecToLog 'net stop "px_service"'
+FunctionEnd
+
+Function un.DeleteServiceRegistration
     nsExec::ExecToLog 'sc delete "px_service"'
 FunctionEnd
+!endif
 
 
 Function KillProcesses
@@ -219,21 +444,29 @@ Function KillProcesses
     ; SysInfo needs only one kill
     nsExec::ExecToLog 'taskkill /F /T /IM px_function.exe'
     nsExec::ExecToLog 'taskkill /F /T /IM px_client.exe'
+!if ${HAS_HOST} == 1
     nsExec::ExecToLog 'taskkill /F /T /IM px_render.exe'
+!endif
     nsExec::ExecToLog 'taskkill /F /T /IM px_panel.exe'
     nsExec::ExecToLog 'taskkill /F /T /IM px_osinfo.exe'
+!if ${HAS_HOST} == 1
     nsExec::ExecToLog 'taskkill /F /T /IM px_display.exe'
     nsExec::ExecToLog 'taskkill /F /T /IM px_service.exe'
     nsExec::ExecToLog 'taskkill /F /T /IM px_service_manager.exe'
+!endif
 FunctionEnd
 
 Function un.KillProcesses
     nsExec::ExecToLog 'taskkill /F /T /IM px_function.exe'
     nsExec::ExecToLog 'taskkill /F /T /IM px_client.exe'
+!if ${HAS_HOST} == 1
     nsExec::ExecToLog 'taskkill /F /T /IM px_render.exe'
+!endif
     nsExec::ExecToLog 'taskkill /F /T /IM px_panel.exe'
     nsExec::ExecToLog 'taskkill /F /T /IM px_osinfo.exe'
+!if ${HAS_HOST} == 1
     nsExec::ExecToLog 'taskkill /F /T /IM px_display.exe'
     nsExec::ExecToLog 'taskkill /F /T /IM px_service.exe'
     nsExec::ExecToLog 'taskkill /F /T /IM px_service_manager.exe'
+!endif
 FunctionEnd

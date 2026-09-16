@@ -602,7 +602,7 @@ logical session 与 stream 绑定。Web 客户端使用的服务端 RTC 能力�
   Android 12 / API 31；同一真机覆盖安装后确认 `minSdk=31`、`targetSdk=37`，冷启动与 JNI/崩溃日志仍正常。
 - M5 UDP Direct 轮次继续使用同一真机和本机 Panel/Service/Render。客户端首先完成认证 WebSocket 控制连接并建立 UDP socket；在四秒媒体探测窗口
   内未收到 UDP 媒体后，自动请求同一认证会话上的 WebSocket 媒体，未出现无限黑屏或重新传递密码。即使为当前 `px_render.exe` 临时添加精确到程序与
-  UDP 20371 端口的入站规则，本机环境仍未交付 UDP 媒体；规则已在测试结束后删除，因此 UDP 真正承载媒体仍是网络矩阵缺口，不能记为通过。
+  临时 UDP 入站规则已经在测试结束后删除；本机环境仍未交付 UDP 媒体，因此 UDP 真正承载媒体仍是网络矩阵缺口，不能记为通过。
   该轮同时发现并修复旧 H.264 Annex-B 参数集解析器跳过首个 start code、解码器读取未初始化长度并拒绝大访问单元的问题；新解析器使用有界
   `std::string_view`，覆盖三/四字节 start code，并有独立 C++ 回归测试。修复后真机由 `OMX.qcom.video.decoder.avc` 实际解码 3840×2160，动态画面
   达到约 28 FPS / 5 ms / 4593 kbps，静止桌面按服务端内容下降帧率；无 JNI 或崩溃错误。

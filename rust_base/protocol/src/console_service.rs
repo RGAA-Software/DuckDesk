@@ -14,6 +14,20 @@ pub struct ConsoleServiceHello {
     pub rdp_domain: ::prost::alloc::string::String,
     #[prost(string, tag = "6")]
     pub rdp_proxy_certificate_sha256: ::prost::alloc::string::String,
+    /// Immutable installed-product identity. This comes from the packaged
+    /// product-manifest.json beside px_service.exe, never from the Service PE version.
+    #[prost(string, tag = "7")]
+    pub company: ::prost::alloc::string::String,
+    #[prost(string, tag = "8")]
+    pub product: ::prost::alloc::string::String,
+    #[prost(string, tag = "9")]
+    pub edition: ::prost::alloc::string::String,
+    #[prost(string, tag = "10")]
+    pub product_version: ::prost::alloc::string::String,
+    #[prost(uint32, tag = "11")]
+    pub product_version_code: u32,
+    #[prost(string, repeated, tag = "12")]
+    pub capabilities: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ConsoleServiceHeartBeat {

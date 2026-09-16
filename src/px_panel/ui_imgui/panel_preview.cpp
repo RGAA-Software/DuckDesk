@@ -3,6 +3,7 @@
 
 #include "px_ui/components/surface.h"
 #include "px_ui/layout_metrics.h"
+#include "version_config.h"
 
 #include <imgui.h>
 
@@ -14,8 +15,17 @@ PanelPreview::PanelPreview(PanelPreviewServices services)
     : settingsPort_{services.settings}, notifications_{std::move(services.notifications)}, voiceCallConsent_{std::move(services.voiceCallConsent)},
       remoteControlPort_{services.remoteControl}, connectionProgressDialog_{remoteControlPort_}, navigation_{std::move(services.account)},
       settings_{std::move(services.networkSettings), services.settings, services.serverStatus, std::move(services.securityRecords)},
-      serverStatus_{std::move(services.serverStatus)}, remoteControl_{services.remoteControl}, deviceList_{std::move(services.remoteControl)},
-      cloudApplications_{std::move(services.cloudApplications)} {
+      remoteControl_{services.remoteControl}, deviceList_{std::move(services.remoteControl)} {
+#if PX_CAPABILITY_DESKTOP_HOST
+    if (services.serverStatus) {
+        serverStatus_.emplace(std::move(services.serverStatus));
+    }
+#endif
+#if PX_CAPABILITY_CLOUD_APP_CATALOG
+    if (services.cloudApplications) {
+        cloudApplications_.emplace(std::move(services.cloudApplications));
+    }
+#endif
     const auto appearance = settingsPort_->Snapshot();
     localizer_.SetLanguage(appearance.language);
     theme_ = appearance.theme;
@@ -65,9 +75,15 @@ PanelPreviewAction PanelPreview::Draw(const px::desktop::PlatformIconAtlas& plat
     } else if (navigationAction.selectedPage == PanelPage::DeviceList) {
         deviceList_.Draw(localizer_, platformIcons);
     } else if (navigationAction.selectedPage == PanelPage::CloudApplications) {
-        cloudApplications_.Draw(localizer_);
+#if PX_CAPABILITY_CLOUD_APP_CATALOG
+        if (cloudApplications_)
+            cloudApplications_->Draw(localizer_);
+#endif
     } else if (navigationAction.selectedPage == PanelPage::ServerStatus) {
-        serverStatus_.Draw(localizer_);
+#if PX_CAPABILITY_DESKTOP_HOST
+        if (serverStatus_)
+            serverStatus_->Draw(localizer_);
+#endif
     }
     ImGui::EndChild();
     notifications_->Draw();

@@ -1,8 +1,8 @@
 # Game 最终文字提交后端
 
-状态：2026-09-10 已改用本机 Auth/Console/Service 和 StarIsland 进行 Qt/Web 实机验收，不再等待远端 90。
+状态：2026-09-10 已改用本机 Auth/Console/Service 和 StarIsland 进行 Qt/Web 实机验收。
 本轮修复、真实游戏证据、构建哈希及覆盖边界见 `starisland_game_input_capture_plan_20260910.md`。
-早期自动化记录仍见 `application_text_input_progress_20260909.md`；单款游戏通过不代表所有引擎/API 兼容。
+旧固定节点自动化记录已经删除；单款游戏通过不代表所有引擎/API 兼容。
 
 ## 路径及授权
 

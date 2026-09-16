@@ -52,7 +52,7 @@ SDL3 + Dear ImGui 承载。Win32 只保留窗口、凭据保险库、进程、�
 - Hardware 统计图及整个 Hardware 页面按 2026-09-11 产品决定暂缓，不进入本轮 Panel 迁移、正式切换或验收门禁；底层硬件采集和 Console 上报保持不变。
 - 远控/云应用资源发现、授权和 Client 启动已经由无窗口会话控制器承担，Console 资源同步进一步拆分为独立目录组件；正式目标不存在隐藏 QWidget。
 - 2026-09-11 已完成的定向构建、15 项测试、ownership 门禁及发布哈希核对，只证明当前中间版本可构建，不能作为 Panel 迁移验收。
-  远控和云应用启动按钮还出现过无反应，且 90 上中间版本启动崩溃；两项都必须在最终无 Qt 构建上重新验收。
+  远控和云应用启动按钮还出现过无反应，且旧固定节点的中间版本出现过启动崩溃；旧记录已删除，两项都必须在最终无 Qt 构建上重新验收。
 
 ## 1. 目标与硬边界
 
@@ -454,10 +454,10 @@ Panel 第一阶段完成后才进入 Client 的 C0 基线。Hardware 页面继�
   Vulkan loader、libplacebo、FreeRDP、语音、字体和语言运行资源逐项哈希一致。
 - `scripts/test_native_imgui_public.ps1` 曾使用正式 dist Client、当前 Console 和公网 Render，分别完成 UDP/FEC 与强制 WebSocket 真实首帧
   验收；这些结果覆盖连接和无 Qt 基线，不替代 2026-09-12 新视频显示链路的真流复验。新链路已在本机分别验证 Vulkan、D3D11 后端
-  成功初始化且标准错误为空，真实系统点击悬浮按钮后日志为 `menu_open=true`；本次 90 复验在启动 Client 前被节点 WinRM 拒绝访问，待更新
-  当前节点运维凭据后补做真首帧和流畅度验收。无启动信封与错误密码两种失败路径的 ImGui 对话框此前已分别验证可见且 Qt 模块数为 0。
+  成功初始化且标准错误为空，真实系统点击悬浮按钮后日志为 `menu_open=true`；公网真首帧和流畅度仍需在当前 Console 配置的节点补做。
+  无启动信封与错误密码两种失败路径的 ImGui 对话框此前已分别验证可见且 Qt 模块数为 0。
 - `scripts_build/build_cpp_panel.bat` 的 6 项 Panel 测试通过，正式 Panel 哈希为
-  `65CC6031FB6E7C95C5C8263361AF2B28AEFA4B249F699DB86A16CD59B1C9CD28`，构建树和 dist 一致；本机及既有 90 验收的运行模块均无 Qt。
+  `65CC6031FB6E7C95C5C8263361AF2B28AEFA4B249F699DB86A16CD59B1C9CD28`，构建树和 dist 一致；当前运行模块均无 Qt。
 - Console 的 Native 描述结构测试明确禁止 `ticket`、`renewal_token`、`reservation`、`expires_at` 字段；RDP 密钥脱敏测试和
   `cargo check -p px_console_server` 通过。90 已部署最终 Console，二进制 SHA-256 为
   `6EBE5A6F900B5EFF2C8F68CC4CF2961E2A416019618BC615DF2B81B6C522DB6B`，仓库配置哈希为

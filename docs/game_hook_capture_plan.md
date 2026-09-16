@@ -63,7 +63,7 @@ WsPluginServer(net_ws) /ipc → OnIpcVideoFrame   ※ 仅 loopback；帧为 152B
   → PluginStreamEventRouter → /media + WebRTC local
         │
         ▼
-浏览器 http://127.0.0.1:20371/web_client/?deviceId=debug1
+浏览器 http://127.0.0.1:<render-port>/web_client/?deviceId=debug1
   （空密码时 auth 放行；先连 peer 再出画，HasConnectedPeer 门闩）
 
 输入（game-hook / event-replay-mode=inner）:
@@ -154,7 +154,7 @@ http://127.0.0.1:32000/web_client/?deviceId=debug1
 日志：
 
 ```
-%ProgramData%\GoDesk\px_logs\godesk_render_20371.log
+%ProgramData%\Pixels\px_logs\pixels_render_<render-port>.log
 ```
 
 （或 `FolderUtil::GetProgramDataPath()` 实际路径下的同名文件）

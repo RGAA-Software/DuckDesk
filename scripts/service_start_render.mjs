@@ -1,11 +1,13 @@
 // Start desktop render on a remote px_service via /service/message ws.
-// Usage: node scripts/service_start_render.mjs [host] [port]
+// Usage: RENDER_WORK_DIR="C:/Program Files/Pixels Cloud Node" node scripts/service_start_render.mjs <host> [port]
 import net from 'node:net'
 import crypto from 'node:crypto'
 
-const HOST = process.argv[2] || '10.0.0.70'
+const HOST = process.argv[2]
 const PORT = Number(process.argv[3] || 4603)
-const WORK_DIR = process.env.RENDER_WORK_DIR || 'C:/Program Files/PixelsRender'
+const WORK_DIR = process.env.RENDER_WORK_DIR
+if (!HOST) throw new Error('host is required')
+if (!WORK_DIR) throw new Error('RENDER_WORK_DIR must name the installed Pixels Cloud Node or Pixels Remote directory')
 const APP_PATH = process.env.RENDER_APP_PATH || `${WORK_DIR}/px_render.exe`
 const RENDER_ARGS = process.env.RENDER_ARGS_JSON
   ? JSON.parse(process.env.RENDER_ARGS_JSON)

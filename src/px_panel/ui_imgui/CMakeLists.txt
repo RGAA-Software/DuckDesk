@@ -2,7 +2,6 @@ add_library(px_panel_imgui_views STATIC
     account_avatar_picker.cpp
     account_control.cpp
     about_settings_page.cpp
-    cloud_applications_page.cpp
     connection_progress_dialog.cpp
     connection_qr_dialog.cpp
     controller_settings_page.cpp
@@ -15,13 +14,20 @@ add_library(px_panel_imgui_views STATIC
     panel_preview.cpp
     remote_control_page.cpp
     remote_device_actions.cpp
-    server_status_page.cpp
     settings_page.cpp
     security_settings_page.cpp
     security_records_page.cpp
 )
 
-target_link_libraries(px_panel_imgui_views PUBLIC px_desktop_shell px_ui px_imgui SDL3::SDL3-static PRIVATE px_common Comdlg32.lib)
+if(PX_CAPABILITY_CLOUD_APP_CATALOG)
+    target_sources(px_panel_imgui_views PRIVATE cloud_applications_page.cpp)
+endif()
+if(PX_CAPABILITY_DESKTOP_HOST)
+    target_sources(px_panel_imgui_views PRIVATE server_status_page.cpp)
+endif()
+
+target_link_libraries(px_panel_imgui_views PUBLIC px_panel_desktop_shell px_ui px_imgui SDL3::SDL3-static PRIVATE px_common Comdlg32.lib)
+target_include_directories(px_panel_imgui_views PRIVATE "${PX_PRODUCT_GENERATED_DIR}")
 
 add_executable(px_panel_imgui_preview
     main.cpp
@@ -63,20 +69,34 @@ add_executable(px_panel WIN32
     product/panel_system_information.cpp
     product/panel_worker.cpp
     product/product_account_port.cpp
-    product/product_cloud_applications_port.cpp
     product/product_network_settings_port.cpp
     product/product_remote_control_port.cpp
     product/product_security_records_port.cpp
-    product/product_server_status_port.cpp
     product/product_settings_port.cpp
     product/product_voice_call_consent_overlay.cpp
     product/windows_environment_probe.cpp
-    ${CMAKE_BINARY_DIR}/src/px_base/icon.rc
+    ${PX_PRODUCT_GENERATED_DIR}/icon.rc
 )
+
+if(PX_CAPABILITY_CLOUD_APP_CATALOG)
+    target_sources(px_panel PRIVATE product/product_cloud_applications_port.cpp)
+endif()
+if(PX_CAPABILITY_DESKTOP_HOST)
+    target_sources(px_panel PRIVATE product/product_server_status_port.cpp)
+endif()
+if(PX_CAPABILITY_SYSTEM_INFORMATION AND NOT PX_CAPABILITY_DESKTOP_HOST)
+    target_sources(px_panel PRIVATE product/panel_os_info_supervisor.cpp)
+endif()
 
 target_include_directories(px_panel PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/product)
 set_target_properties(px_panel PROPERTIES LINK_FLAGS "/MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\"")
 target_link_options(px_panel PRIVATE "/ENTRY:mainCRTStartup")
+if(MSVC)
+    # RelWithDebInfo enables /DEBUG, whose linker default retains otherwise
+    # unreachable COMDATs. Panel does not use DesktopShell's media presentation
+    # methods, so remove those paths and their static FFmpeg/SDK dependencies.
+    target_link_options(px_panel PRIVATE "$<$<NOT:$<CONFIG:Debug>>:/OPT:REF>" "$<$<NOT:$<CONFIG:Debug>>:/OPT:ICF>")
+endif()
 
 target_link_libraries(px_panel PRIVATE
     px_panel_imgui_views
@@ -124,7 +144,7 @@ add_executable(px_ui_component_gallery
     component_gallery.cpp
     component_gallery_main.cpp
 )
-target_link_libraries(px_ui_component_gallery PRIVATE px_desktop_shell px_ui px_imgui SDL3::SDL3-static)
+target_link_libraries(px_ui_component_gallery PRIVATE px_panel_desktop_shell px_ui px_imgui SDL3::SDL3-static)
 set_target_properties(px_ui_component_gallery PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${PX_PROJECT_BINARY_PATH}"
     WIN32_EXECUTABLE TRUE
@@ -190,4 +210,18 @@ if(BUILD_TESTING AND TARGET GTest::gtest)
         PowrProf.lib
     )
     add_test(NAME px_panel_product_tests COMMAND px_panel_product_tests)
+    if(PX_CAPABILITY_SYSTEM_INFORMATION AND NOT PX_CAPABILITY_DESKTOP_HOST)
+        add_executable(px_panel_os_info_test_child product/tests/os_info_test_child.cpp)
+        set_target_properties(px_panel_os_info_test_child PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/os_info_test_runtime"
+        )
+        target_sources(px_panel_product_tests PRIVATE
+            product/panel_os_info_supervisor.cpp
+            product/tests/panel_os_info_supervisor_tests.cpp
+        )
+        add_dependencies(px_panel_product_tests px_panel_os_info_test_child)
+        set_tests_properties(px_panel_product_tests PROPERTIES
+            ENVIRONMENT "PIXELS_OS_INFO_TEST_CHILD=$<TARGET_FILE:px_panel_os_info_test_child>"
+        )
+    endif()
 endif()

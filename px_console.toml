@@ -60,7 +60,7 @@ app_secret = ""
 # 媒体服务与 Console 同机，端口统一位于当前部署区间。
 [live]
 media_server_url = "http://127.0.0.1:4606"
-# Render 通过公网映射访问 90 上的媒体发布入口。
+# Render 通过当前公网映射访问媒体发布入口。
 publish_public_host = "39.71.45.66"
 publish_rtmp_url = "rtmp://127.0.0.1:4607/live/{live_stream_id}"
 # 回环管理不需要 API 密钥；若媒体服务拆分到其他机器必须设置。
@@ -105,7 +105,7 @@ enabled = true
 listen_ip = "0.0.0.0"
 public_host = "39.71.45.66"
 port = 4602
-# 5300/TCP 是 90 的远程管理映射，因此媒体分配池从 5301 开始。
+# 5300/TCP 由当前公网节点保留给远程管理，因此媒体分配池从 5301 开始。
 # 128 个端口匹配当前单机服务能力；扩大前应先验证硬件、带宽与并发容量。
 relay_min_port = 5301
 relay_max_port = 5428

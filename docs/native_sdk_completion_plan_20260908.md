@@ -36,8 +36,8 @@ Windows/Android 注入平台解码工厂；Android Surface 使用有类型的所
 | 双端使用已有文件/录制/语音基础模块，但另有 NativeSession、Client 内部模块及两份语音编排 | 引擎复用不等于编排全部复用 | P3b/P3c |
 | SDK CMake 依赖父工程变量、预先定义的共享目标；完整 SDK 测试配置会查找 Qt | 已提供自定位依赖、无 Qt 的独立 full/core 消费与双端构建验证 | P4 已完成 |
 
-本轮基线验证见 `native_sdk_decoder_factory_surface_checkpoint_20260908.md`：双端构建、8 组回归、Windows 短实连、
-Android 文件页返回后恢复硬解。已有文件/语音/重试证据见 `native_short_regression_fixes_20260907.md`。
+旧固定节点基线验证记录已经删除。双端构建、8 组回归、Windows 短实连和 Android 文件页返回后恢复硬解
+必须使用当前实现重新验证。已有文件/语音/重试证据见 `native_short_regression_fixes_20260907.md`。
 历史通过结果不能冒充后续修改版本的实测。
 
 ## 3. 目标职责与依赖
@@ -155,7 +155,7 @@ SDK 通过小型、有类型的音频端口拥有当前通话的设备会话；�
 Windows 设备选择和 Android 权限/路由留宿主。独立 SDK 不因此强制引入 SDL、WASAPI、AAudio 或 APM DLL。
 控制消息和实时包使用两个明确的发送入口；随后 P3c-2 已接入双向 UDP Voice，控制消息保留 WS。
 共享控制器结果见 [P3c-1 检查点](native_sdk_voice_controller_checkpoint_20260908.md)。
-UDP、并发文件与 Web 保留验证见 [P3c-2 检查点](native_sdk_udp_voice_checkpoint_20260908.md)。
+UDP、并发文件与 Web 保留验证必须按当前公网环境重新执行。
 P3c-2 沿用硬件检查点 §4 的最小方案，用户此前已确认；该节的“待批准”字样是历史状态，不要求重复确认。
 
 - 已有 `VoiceCallState`、`VoicePacketTransport`、`VoiceAudioEndpoint` 继续复用。
@@ -190,7 +190,7 @@ Windows 应用、Android JNI 都使用同一套公开接入方式；最小示例
 语音相关 7 组、剪贴板/录制/重连相关 8 组自动回归通过。Android 最新 Debug 构建及 18 项 JVM 测试通过，尚未安装。
 剩余验收是最新手机包的页面/重试/剪贴板、Windows 系统剪贴板跨进程复制及真实设备语音听音。
 手机正在供另一个项目使用，未切换应用、覆盖安装或清理数据；待确认空闲后继续，不以旧包验收替代。
-详细边界和日志见 [UDP 语音检查点](native_sdk_udp_voice_checkpoint_20260908.md)。
+旧 UDP 语音检查点已经删除，详细边界以当前实现和本计划为准。
 
 ### 自动检查
 

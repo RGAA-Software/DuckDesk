@@ -2,51 +2,78 @@
 
 [CmdletBinding()]
 param(
-    [string]$ComputerName = '39.71.45.66',
-    [ValidateRange(10, 120)]
-    [int]$TimeoutSeconds = 35,
-    [ValidateRange(5, 180)]
-    [int]$StaticHoldSeconds = 35
+    [string]$ConsoleBase = 'https://39.71.45.66:4600',
+    [string]$DeviceId = '',
+    [ValidateRange(15, 180)]
+    [int]$ClientTimeoutSeconds = 60
 )
 
 $ErrorActionPreference = 'Stop'
 $repository = Split-Path $PSScriptRoot -Parent
-$clientPath = Join-Path $repository 'build_official/dist/px_client.exe'
-$buildClientPath = Join-Path $repository 'build_official/src/px_deps/px_client.exe'
+$clientPath = Join-Path $repository 'build_official/dist/client/px_client.exe'
+$buildClientPath = Join-Path $repository 'build_official/client/src/px_deps/px_client.exe'
+$credentialsPath = Join-Path $repository '.env/public_test_user.json'
 $licensePath = Join-Path $repository '.env/public_license.json'
-$machinePath = Join-Path $repository '.env/test_machine.md'
-$levelDbTool = 'C:/source/vcpkg/buildtrees/leveldb/x64-windows-rel/leveldbutil.exe'
 $clientLogPath = Join-Path (Split-Path $clientPath -Parent) 'px_logs/px_client.log'
 
-foreach ($path in @($clientPath, $buildClientPath, $licensePath, $machinePath, $levelDbTool)) {
-    if (-not (Test-Path -LiteralPath $path)) {
-        throw "Desktop acceptance input is missing: $path"
+foreach ($path in @($clientPath, $buildClientPath, $credentialsPath, $licensePath)) {
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        throw "Windows desktop acceptance input is missing: $path"
     }
 }
 if ((Get-FileHash -LiteralPath $clientPath -Algorithm SHA256).Hash -ne
     (Get-FileHash -LiteralPath $buildClientPath -Algorithm SHA256).Hash) {
-    throw 'The official Client and build-tree artifact hashes differ.'
+    throw 'The Client product build and dist artifact hashes differ.'
 }
 
-$machineText = Get-Content -LiteralPath $machinePath -Raw
-$nodePassword = [regex]::Match($machineText, '(?m)^\s*-\s*密码\s*[:：]\s*(.+?)\s*$').Groups[1].Value
-$machineName = [regex]::Match($machineText, '(?m)^\s*-\s*主机名\s*[:：]\s*(.+?)\s*$').Groups[1].Value
-if (-not $nodePassword -or -not $machineName) {
-    throw 'Public test host machine-qualified deployment credential is incomplete.'
-}
-$credential = [pscredential]::new("$machineName\Administrator", (ConvertTo-SecureString $nodePassword -AsPlainText -Force))
+$credentials = Get-Content -LiteralPath $credentialsPath -Raw | ConvertFrom-Json
 $license = Get-Content -LiteralPath $licensePath -Raw | ConvertFrom-Json
-$previousTrustedHosts = (Get-Item WSMan:\localhost\Client\TrustedHosts).Value
-$preferenceSnapshot = Join-Path $env:TEMP "pixels-public-desktop-$PID-$([guid]::NewGuid().ToString('N'))"
-$clientLogOffset = if (Test-Path -LiteralPath $clientLogPath) { (Get-Item -LiteralPath $clientLogPath).Length } else { 0L }
-$session = $null
+$token = ''
 $client = $null
+$clientLogOffset = if (Test-Path -LiteralPath $clientLogPath) { (Get-Item -LiteralPath $clientLogPath).Length } else { 0L }
+
+function Invoke-ConsoleApi {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+        [ValidateSet('GET', 'POST')]
+        [string]$Method = 'GET',
+        [object]$Body = $null,
+        [string]$AccessToken = ''
+    )
+
+    $headers = @{ Accept = 'application/json'; Origin = $ConsoleBase }
+    if ($AccessToken) {
+        $headers.Authorization = "Bearer $AccessToken"
+    }
+    $parameters = @{
+        Uri = "$ConsoleBase$Path"
+        Method = $Method
+        Headers = $headers
+        SkipCertificateCheck = $true
+        NoProxy = $true
+        TimeoutSec = 20
+    }
+    if ($null -ne $Body) {
+        $parameters.ContentType = 'application/json'
+        $parameters.Body = $Body | ConvertTo-Json -Compress -Depth 12
+    }
+    $response = Invoke-RestMethod @parameters
+    if ($response.code -ne 200) {
+        throw "Console API failed: path=$Path code=$($response.code)"
+    }
+    return $response.data
+}
 
 function Read-NewClientLog {
     if (-not (Test-Path -LiteralPath $clientLogPath)) {
         return ''
     }
-    $stream = [IO.File]::Open($clientLogPath, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+    $stream = [IO.File]::Open(
+        $clientLogPath,
+        [IO.FileMode]::Open,
+        [IO.FileAccess]::Read,
+        [IO.FileShare]::ReadWrite)
     try {
         [void]$stream.Seek([Math]::Min($clientLogOffset, $stream.Length), [IO.SeekOrigin]::Begin)
         $reader = [IO.StreamReader]::new($stream)
@@ -61,66 +88,53 @@ function Read-NewClientLog {
 }
 
 try {
-    Set-Item WSMan:\localhost\Client\TrustedHosts -Value $ComputerName -Force
-    $session = New-PSSession -ComputerName $ComputerName -Credential $credential
-    $remotePreferences = @(Invoke-Command -Session $session -ScriptBlock {
-        Get-ChildItem 'C:\Users\Public\Pixels\px_data\pixels.dat' -Filter '*.ldb' |
-            Sort-Object LastWriteTime -Descending |
-            Select-Object -ExpandProperty FullName
-    })
-    if ($remotePreferences.Count -eq 0) {
-        throw 'No public test host preference database was found.'
+    $login = Invoke-ConsoleApi -Path '/api/v1/session/user/login' -Method POST -Body @{
+        username = $credentials.username
+        password = $credentials.password
+        client_type = 'panel'
     }
-    [void](New-Item -ItemType Directory -Path $preferenceSnapshot -Force)
-    foreach ($remotePreference in $remotePreferences) {
-        Copy-Item -FromSession $session -LiteralPath $remotePreference -Destination $preferenceSnapshot -Force
+    $token = [string]$login.access_token
+    if (-not $token) {
+        throw 'Windows Panel login returned no access token.'
     }
 
-    Push-Location $preferenceSnapshot
-    try {
-        $dump = @(Get-ChildItem -LiteralPath $preferenceSnapshot -Filter '*.ldb' | ForEach-Object {
-            & $levelDbTool dump $_.Name 2>&1
-        }) -join "`n"
-    } finally {
-        Pop-Location
+    $devices = @(Invoke-ConsoleApi -Path '/api/v1/user/devices' -AccessToken $token)
+    $device = if ($DeviceId) {
+        $devices | Where-Object { $_.device_id -eq $DeviceId -and $_.online } | Select-Object -First 1
+    } else {
+        $devices | Where-Object { $_.online -and $_.platform -eq 'windows' } | Select-Object -First 1
     }
-    $passwordEntries = @([regex]::Matches($dump, "'device_random_pwd'\s+@\s+(\d+)\s+:\s+val\s+=>\s+'([^'\r\n]+)'") | ForEach-Object {
-        [pscustomobject]@{ Sequence = [uint64]$_.Groups[1].Value; Value = $_.Groups[2].Value }
-    } | Sort-Object Sequence -Descending)
-    if ($passwordEntries.Count -eq 0) {
-        throw 'The node temporary password was not found in the preference snapshot.'
+    if (-not $device) {
+        throw 'No matching online Windows desktop is available to the test user.'
     }
-    $remotePassword = $passwordEntries[0].Value.Trim()
-    $deviceIdEntries = @([regex]::Matches($dump, "'device_id'\s+@\s+(\d+)\s+:\s+val\s+=>\s+'([^'\r\n]+)'") | ForEach-Object {
-        [pscustomobject]@{ Sequence = [uint64]$_.Groups[1].Value; Value = $_.Groups[2].Value }
-    } | Sort-Object Sequence -Descending)
-    if ($deviceIdEntries.Count -eq 0) {
-        throw 'The node device ID was not found in the preference snapshot.'
+
+    $encodedDeviceId = [Uri]::EscapeDataString([string]$device.device_id)
+    $descriptor = Invoke-ConsoleApi -Path "/api/v1/user/devices/$encodedDeviceId/native-connection" -Method POST -Body @{} -AccessToken $token
+    if (-not $descriptor.host -or -not $descriptor.device_id -or -not $descriptor.password_hash -or
+        [int]$descriptor.port -le 0 -or [int]$descriptor.port -gt 65535) {
+        throw 'Console returned an invalid current desktop connection descriptor.'
     }
-    $remoteDeviceId = $deviceIdEntries[0].Value.Trim()
-    $algorithm = [Security.Cryptography.MD5]::Create()
-    try {
-        $passwordHash = ([BitConverter]::ToString($algorithm.ComputeHash([Text.Encoding]::UTF8.GetBytes($remotePassword)))).Replace('-', '').ToLowerInvariant()
-    } finally {
-        $algorithm.Dispose()
-        $remotePassword = $null
-        $dump = $null
+    if ($descriptor.PSObject.Properties['ticket']) {
+        throw 'Console returned a retired desktop connection field.'
+    }
+    if (-not (Test-NetConnection -ComputerName ([string]$descriptor.host) -Port ([int]$descriptor.port) -InformationLevel Quiet)) {
+        throw 'The Console-provided desktop TCP endpoint is unreachable.'
     }
 
     $nonce = [guid]::NewGuid().ToString('N')
     $launch = @{
         schema = 1
-        host = $ComputerName
-        port = 4601
+        host = [string]$descriptor.host
+        port = [int]$descriptor.port
         stream_id = "direct-$nonce"
         connection_instance_id = "direct-$nonce"
         connection_nonce = $nonce
         device_id = "desktop_acceptance_$nonce"
-        remote_device_id = $remoteDeviceId
-        remote_password_hash = $passwordHash
+        remote_device_id = [string]$descriptor.device_id
+        remote_password_hash = [string]$descriptor.password_hash
         mode = 'desktop'
         appkey = [string]$license.appkey
-        stream_name = 'Public desktop UDP acceptance'
+        stream_name = 'Windows public desktop acceptance'
         language = 'zh-CN'
         decoder = 'Auto'
         audio = $true
@@ -129,74 +143,69 @@ try {
         force_tcp = $false
         force_relay = $false
         split_windows = $false
+        relay_host = [string]$descriptor.relay_host
+        relay_port = [int]$descriptor.relay_port
+        relay_remote_device_id = [string]$descriptor.signal_device_id
     }
-    $envelope = $launch | ConvertTo-Json -Compress -Depth 8
-    $launch = $null
-    $start = [Diagnostics.ProcessStartInfo]::new($clientPath, '--native-launch-stdin')
-    $start.WorkingDirectory = Split-Path $clientPath -Parent
-    $start.UseShellExecute = $false
-    $start.RedirectStandardInput = $true
-    $start.RedirectStandardOutput = $true
-    $start.RedirectStandardError = $true
-    $client = [Diagnostics.Process]::Start($start)
+    $startInfo = [Diagnostics.ProcessStartInfo]::new($clientPath, '--native-launch-stdin')
+    $startInfo.WorkingDirectory = Split-Path $clientPath -Parent
+    $startInfo.UseShellExecute = $false
+    $startInfo.RedirectStandardInput = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $client = [Diagnostics.Process]::Start($startInfo)
     $stdoutDrain = $client.StandardOutput.ReadToEndAsync()
     $stderrDrain = $client.StandardError.ReadToEndAsync()
-    $client.StandardInput.Write($envelope)
+    $client.StandardInput.Write(($launch | ConvertTo-Json -Compress -Depth 12))
     $client.StandardInput.Close()
-    $envelope = $null
-    $passwordHash = $null
+    $launch = $null
 
-    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
-    $evidence = ''
+    $deadline = [DateTime]::UtcNow.AddSeconds($ClientTimeoutSeconds)
+    $frameReady = $false
     do {
-        Start-Sleep -Milliseconds 250
+        Start-Sleep -Milliseconds 500
         $client.Refresh()
         if ($client.HasExited) {
-            throw "Desktop Client exited before acceptance: exit=$($client.ExitCode)"
+            throw "Windows desktop Client exited before acceptance completed: exit=$($client.ExitCode)"
         }
         $evidence = Read-NewClientLog
-        $hasDeliveredFrame = $evidence -match 'UDP media v2 video delivered:'
-        $hasDecodedFrame = $evidence -match '\[LAT-decode\].*frames=[1-9][0-9]*|Video frame (came|stream reset)'
-    } while ((-not $hasDeliveredFrame -or -not $hasDecodedFrame) -and [DateTime]::UtcNow -lt $deadline)
+        $frameReady = $evidence -match 'Video frame came|Video frame stream reset|key frame|\[LAT-decode\].*frames=[1-9][0-9]*'
+    } while ((-not $frameReady -or $client.MainWindowHandle -eq [IntPtr]::Zero) -and [DateTime]::UtcNow -lt $deadline)
 
-    if (-not $hasDeliveredFrame -or -not $hasDecodedFrame) {
-        throw "Desktop UDP acceptance timed out: delivered=$hasDeliveredFrame decoded=$hasDecodedFrame"
+    if (-not $frameReady) {
+        throw 'Windows desktop Client did not decode a video frame before the deadline.'
     }
-    Start-Sleep -Seconds $StaticHoldSeconds
-    $evidence = Read-NewClientLog
-    $positiveWindow = $evidence -match 'UDP media v2 window: frames=[1-9][0-9]*'
-    $watchdogTimeout = $evidence -match 'Udp direct watchdog timeout'
-    $mediaUnavailable = $evidence -match 'UDP media unavailable'
-    if ($watchdogTimeout -or $mediaUnavailable) {
-        throw "Desktop UDP became unavailable during the ${StaticHoldSeconds}s static hold: watchdog=$watchdogTimeout mediaUnavailable=$mediaUnavailable"
+    if ($client.MainWindowHandle -eq [IntPtr]::Zero) {
+        throw 'Windows desktop Client did not expose a workspace window before the deadline.'
     }
-    $filteredEvidence = @($evidence -split "`r?`n" | Where-Object {
-        $_ -match 'Native media transport|UDP datagram profile|UDP media v2 video delivered|UDP media v2 window|UDP video totals|LAT-decode|Video frame'
-    } | Select-Object -Last 40)
+    $qtModules = @($client.Modules | Where-Object { $_.ModuleName -match '^Qt\d' })
+    if ($qtModules.Count -ne 0) {
+        throw "Windows desktop Client loaded $($qtModules.Count) Qt runtime modules."
+    }
+
     [pscustomobject]@{
         Result = 'PASS'
-        Mode = 'Desktop UDP/FEC'
-        Endpoint = "$ComputerName`:4601"
-        RemoteDeviceId = $remoteDeviceId
-        DeliveredFrame = $hasDeliveredFrame
-        DecodedFrame = $hasDecodedFrame
-        PositiveFiveSecondWindow = $positiveWindow
-        StaticHoldSeconds = $StaticHoldSeconds
-        WatchdogTimeout = $watchdogTimeout
-        MediaUnavailable = $mediaUnavailable
+        Mode = 'Desktop Native'
+        Login = $true
+        DeviceId = [string]$device.device_id
+        DeviceName = [string]$device.name
+        Endpoint = "$($descriptor.host):$($descriptor.port)"
+        TcpReachable = $true
+        WorkspaceReady = $true
+        DecodedFrame = $frameReady
+        QtModuleCount = $qtModules.Count
         ClientHash = (Get-FileHash -LiteralPath $clientPath -Algorithm SHA256).Hash
-        Evidence = $filteredEvidence -join "`n"
     }
 } finally {
     if ($client -and -not $client.HasExited) {
         $client.Kill()
         [void]$client.WaitForExit(5000)
     }
-    if ($session) {
-        Remove-PSSession $session
+    if ($token) {
+        try {
+            [void](Invoke-ConsoleApi -Path '/api/v1/session/user/logout' -Method POST -Body @{} -AccessToken $token)
+        } catch {
+            Write-Warning "Windows desktop test login cleanup failed: $($_.Exception.Message)"
+        }
     }
-    if ($preferenceSnapshot.StartsWith($env:TEMP, [StringComparison]::OrdinalIgnoreCase)) {
-        Remove-Item -LiteralPath $preferenceSnapshot -Recurse -Force -ErrorAction SilentlyContinue
-    }
-    Set-Item WSMan:\localhost\Client\TrustedHosts -Value $previousTrustedHosts -Force
 }

@@ -70,7 +70,7 @@ struct WebRtcTransportSettings final {
 struct WebRtcTransportInfo final {
     std::string id;
     std::string name;
-    std::string author{"RGAA"};
+    std::string author{"Pixels"};
     std::string description;
     std::string version_name;
     std::uint32_t version_code{0};

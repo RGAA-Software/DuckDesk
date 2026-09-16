@@ -27,6 +27,7 @@ use px_auth_mgr::app_secret_util::calculate_app_secret;
 use px_auth_mgr::auth_token::{generate_connection_token, ConnectionToken};
 use service_core::StartAppRequest;
 
+use crate::product_descriptor::ProductDescriptor;
 use crate::service_host::{RdpValidationRequest, RdpValidationResult, ServiceRuntime};
 
 type WsSink = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, TungsteniteMessage>;
@@ -36,6 +37,7 @@ const RECONNECT_DELAY_SECS: u64 = 2;
 const HEARTBEAT_INTERVAL_SECS: u64 = 3;
 const AUTH_INFO_POLL_SECS: u64 = 1;
 const RTC_CONFIG_POLL_SECS: u64 = 60;
+const RDP_CONSOLE_CA_FILE: &str = "px_rdp_console_ca.der";
 
 /// WSS client loop towards the Console (px_console_server) `/console/service` endpoint.
 ///
@@ -44,6 +46,7 @@ const RTC_CONFIG_POLL_SECS: u64 = 60;
 /// and cannot downgrade the transport. A fresh connection token is generated
 /// on every reconnect.
 pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), String> {
+    let product_descriptor = ProductDescriptor::load_for_current_executable()?;
     let mut stop_rx = {
         let guard = runtime.lock().await;
         guard.subscribe_stop()
@@ -135,7 +138,7 @@ pub async fn console_client_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<
         }
 
         // say hello right after connecting
-        let mut hello = hello_message(&auth_info.device_id, &auth_info.appkey);
+        let mut hello = hello_message(&auth_info.device_id, &auth_info.appkey, &product_descriptor);
         if let Some(payload) = hello.hello.as_mut() {
             if trusted_console {
                 if let Some(deployment) = rdp_install_dir()
@@ -559,7 +562,11 @@ async fn refresh_rtc_config(
     Ok(())
 }
 
-fn hello_message(device_id: &str, appkey: &str) -> ConsoleServiceMessage {
+fn hello_message(
+    device_id: &str,
+    appkey: &str,
+    product: &ProductDescriptor,
+) -> ConsoleServiceMessage {
     ConsoleServiceMessage {
         msg_type: ConsoleServiceMessageType::KConsoleServiceHello as i32,
         device_id: device_id.to_string(),
@@ -570,6 +577,12 @@ fn hello_message(device_id: &str, appkey: &str) -> ConsoleServiceMessage {
             rdp_available: false,
             rdp_domain: String::new(),
             rdp_proxy_certificate_sha256: String::new(),
+            company: product.company.clone(),
+            product: product.product.clone(),
+            edition: product.edition.clone(),
+            product_version: product.product_version.clone(),
+            product_version_code: product.product_version_code,
+            capabilities: product.capabilities.clone(),
         }),
         heartbeat: None,
         start_app_instance: None,
@@ -1126,13 +1139,13 @@ fn rdp_install_dir() -> Option<std::path::PathBuf> {
 }
 
 fn rdp_console_connector() -> Result<(Connector, bool), String> {
-    let Some(path) = rdp_install_dir().map(|dir| dir.join("console-ca.der")) else {
+    let Some(path) = rdp_install_dir().map(|dir| dir.join(RDP_CONSOLE_CA_FILE)) else {
         return Err("Cannot locate service deployment trust directory".into());
     };
     let certificate = match std::fs::read(path) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Ok((tls_connector(), false))
+            return Ok((tls_connector(), false));
         }
         Err(_) => return Err("RDP Console trust anchor unreadable; refusing TLS downgrade".into()),
     };
@@ -1165,6 +1178,18 @@ fn tls_connector() -> Connector {
 mod tests {
     use super::*;
 
+    fn sample_product() -> ProductDescriptor {
+        ProductDescriptor {
+            schema_version: 2,
+            product: "cloud_node".to_string(),
+            edition: "CLOUD_NODE".to_string(),
+            company: "Pixels".to_string(),
+            product_version: "3.3.67".to_string(),
+            product_version_code: 30367,
+            capabilities: vec!["cloud_app_host".to_string(), "game_hook".to_string()],
+        }
+    }
+
     fn sample_auth_info() -> MsgAuthInfo {
         MsgAuthInfo {
             device_id: "dev-1".to_string(),
@@ -1181,6 +1206,11 @@ mod tests {
             console_ssl: true,
             node_access_host: "203.0.113.8".to_string(),
         }
+    }
+
+    #[test]
+    fn rdp_console_trust_anchor_matches_deployment_contract() {
+        assert_eq!(RDP_CONSOLE_CA_FILE, "px_rdp_console_ca.der");
     }
 
     #[test]
@@ -1247,7 +1277,7 @@ mod tests {
 
     #[test]
     fn hello_message_carries_device_appkey_version() {
-        let message = hello_message("dev-1", "ak-1");
+        let message = hello_message("dev-1", "ak-1", &sample_product());
         assert_eq!(
             message.msg_type,
             ConsoleServiceMessageType::KConsoleServiceHello
@@ -1257,6 +1287,11 @@ mod tests {
         assert_eq!(hello.device_id, "dev-1");
         assert_eq!(hello.appkey, "ak-1");
         assert_eq!(hello.version, env!("CARGO_PKG_VERSION"));
+        assert_eq!(hello.company, "Pixels");
+        assert_eq!(hello.product, "cloud_node");
+        assert_eq!(hello.edition, "CLOUD_NODE");
+        assert_eq!(hello.product_version, "3.3.67");
+        assert_eq!(hello.product_version_code, 30367);
         assert!(message.heartbeat.is_none());
     }
 
@@ -1285,7 +1320,7 @@ mod tests {
 
     #[test]
     fn encoded_hello_round_trips() {
-        let bytes = encode_message(&hello_message("dev-1", "ak-1"));
+        let bytes = encode_message(&hello_message("dev-1", "ak-1", &sample_product()));
         let decoded = ConsoleServiceMessage::decode(bytes.as_slice()).unwrap();
         assert_eq!(
             decoded.msg_type,

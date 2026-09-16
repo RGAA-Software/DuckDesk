@@ -61,7 +61,7 @@ std::string RenderModule::Name() const {
     return Id();
 }
 std::string RenderModule::Author() const {
-    return "RGAA";
+    return "Pixels";
 }
 std::string RenderModule::Description() const {
     return {};

@@ -1,4 +1,4 @@
-project(px_render VERSION ${TC_APP_VERSION} LANGUAGES CXX)
+project(px_render VERSION ${PX_PRODUCT_VERSION} LANGUAGES CXX)
 
 add_subdirectory(settings)
 if(PLUGIN_NET_UDP_ENABLED)
@@ -51,9 +51,14 @@ set(SRCS
         pipeline/encoded_video_fanout.cpp
         ingress/network_event_ingress.cpp
         ingress/application_text_service.cpp
-        webview/webview_runtime.cpp
         rdp/rdp_application.cpp
 )
+
+if(PX_CAPABILITY_WEBVIEW_HOST)
+    list(APPEND SRCS webview/webview_runtime.cpp)
+else()
+    list(APPEND SRCS webview/webview_runtime_unavailable.cpp)
+endif()
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/app)
 #add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/webrtc)
@@ -87,7 +92,7 @@ else()
 endif()
 SET_TARGET_PROPERTIES(${PROJECT_NAME} PROPERTIES LINK_FLAGS "/MANIFESTUAC:\"level=\'requireAdministrator\' uiAccess=\'false\'\" /ENTRY:mainCRTStartup")
 target_link_libraries(${PROJECT_NAME} settings main px_common px_message px_steam_manager px_vigem)
-if(WIN32)
+if(WIN32 AND PX_CAPABILITY_WEBVIEW_HOST)
     add_dependencies(${PROJECT_NAME} libcef_dll_wrapper)
     target_include_directories(main PRIVATE "${CEF_ROOT}")
     target_include_directories(${PROJECT_NAME} PRIVATE "${CEF_ROOT}")
@@ -115,7 +120,7 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         # COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/swscale-8.dll"  "${PX_PROJECT_BINARY_PATH}"
 )
 
-if(WIN32)
+if(WIN32 AND PX_CAPABILITY_WEBVIEW_HOST)
     # CEF subprocesses are px_render.exe itself, therefore all runtime DLLs and
     # resources must be adjacent to px_render.exe in both local and packaged builds.
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")

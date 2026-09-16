@@ -22,10 +22,6 @@ void AboutSettingsPage::Draw(const px::ui::Localizer& localizer) const {
         port_->CheckForUpdates();
     }
     ImGui::SameLine();
-    if (px::ui::ActionButton({"about-github"}, "GitHub", {.variant = px::ui::ButtonVariant::Outline})) {
-        SDL_OpenURL("https://github.com/RGAA-Software");
-    }
-    ImGui::SameLine();
     if (px::ui::ActionButton({"about-website"}, localizer.Text(px::ui::TextId::Website), {.variant = px::ui::ButtonVariant::Outline})) {
         SDL_OpenURL("https://pixels.yun");
     }

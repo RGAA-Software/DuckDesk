@@ -41,6 +41,7 @@ setup/app/*
 setup/Pixels_pdb_*/
 rust_client/px_sysinfo/build/*
 __pycache__/
+packaging/products/.version.lock
 certs/
 vc_redist.x64_cpy.exe
 src/px_panel/src/tests/test_access_decrypt.exe
@@ -81,6 +82,7 @@ rustdesk/
 
 # Private, generated real-client media validation captures, logs and screenshots.
 /test-results/
+/temp/
 
 # Generated Python bytecode.
 __pycache__/

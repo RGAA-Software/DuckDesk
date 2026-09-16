@@ -1,0 +1,51 @@
+#include "webview_runtime.h"
+
+#include <utility>
+
+namespace px {
+
+class WebViewRuntime::Impl {};
+
+// These two unnamed void* parameters are transient Win32 module-instance ABI
+// boundaries retained by the common Render interface. Remote never stores or
+// dereferences them and rejects WebView mode before constructing this runtime.
+int ExecuteCefSubprocess(void*) {
+    return -1;
+}
+
+WebViewRuntime::WebViewRuntime() = default;
+WebViewRuntime::~WebViewRuntime() = default;
+
+bool WebViewRuntime::Start(void*, const WebViewRuntimeConfig&, WebViewRuntimeCallbacks, std::string& error) {
+    error = "WebView host capability is not included in this product";
+    return false;
+}
+
+void WebViewRuntime::Stop() {}
+void WebViewRuntime::SetActive(bool) {}
+void WebViewRuntime::SendMouseEvent(const MouseEvent&) {}
+void WebViewRuntime::SendKeyEvent(const KeyEvent&) {}
+void WebViewRuntime::SendTextInput(const TextInput&) {}
+void WebViewRuntime::SendFocusEvent(bool) {}
+void WebViewRuntime::SetClipboardText(std::string) {}
+
+void WebViewRuntime::QueryTextTarget(std::function<void(WebViewTextTarget)> completion) {
+    if (completion) {
+        completion({});
+    }
+}
+
+void WebViewRuntime::ReleaseTextInputKeys(std::function<void()> completion) {
+    if (completion) {
+        completion();
+    }
+}
+
+void WebViewRuntime::CommitApplicationText(std::string, std::string, std::function<bool()>,
+                                           std::function<void(ApplicationTextOutcome)> completion) {
+    if (completion) {
+        completion(TEXT_TARGET_UNAVAILABLE);
+    }
+}
+
+} // namespace px

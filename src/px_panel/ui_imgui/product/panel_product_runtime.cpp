@@ -1,4 +1,5 @@
 #include "panel_product_runtime.h"
+#include "version_config.h"
 
 #include <utility>
 
@@ -17,31 +18,45 @@ std::shared_ptr<PanelProductRuntime> PanelProductRuntime::Create(const std::file
     const auto localServer = PanelLocalServer::Create(config, auditStore);
     if (!localServer || !localServer->Snapshot().listening)
         return {};
-    const auto service = PanelServiceBridge::Create(config);
+    std::shared_ptr<PanelServiceBridge> service{};
+    std::shared_ptr<PanelNodePresence> nodePresence{};
+    std::shared_ptr<PanelOsInfoSupervisor> osInfoSupervisor{};
+#if PX_CAPABILITY_DESKTOP_HOST
+    service = PanelServiceBridge::Create(config);
     const std::weak_ptr<PanelServiceBridge> weakService{service};
     localServer->SetRestartHandler([weakService] {
         if (const auto activeService = weakService.lock())
             static_cast<void>(activeService->RestartRender());
     });
-    const auto nodePresence = PanelNodePresence::Create(config);
+    nodePresence = PanelNodePresence::Create(config);
+#elif PX_CAPABILITY_SYSTEM_INFORMATION
+    osInfoSupervisor = PanelOsInfoSupervisor::Create(executableDirectory, config->Ports().panel);
+    if (!osInfoSupervisor)
+        return {};
+#endif
     const auto worker = PanelWorker::Create();
-    return std::make_shared<PanelProductRuntime>(config, console, launcher, service, localServer, nodePresence, auditStore, worker, notifications);
+    return std::make_shared<PanelProductRuntime>(config, console, launcher, service, localServer, nodePresence, osInfoSupervisor, auditStore, worker,
+                                                 notifications);
 }
 
 PanelProductRuntime::PanelProductRuntime(std::shared_ptr<PanelConfigStore> config, std::shared_ptr<PanelConsoleSession> console,
                                          std::shared_ptr<PanelClientLauncher> launcher, std::shared_ptr<PanelServiceBridge> service,
                                          std::shared_ptr<PanelLocalServer> localServer, std::shared_ptr<PanelNodePresence> nodePresence,
-                                         std::shared_ptr<PanelAuditStore> auditStore, std::shared_ptr<PanelWorker> worker,
-                                         std::shared_ptr<ui::NotificationCenter> notifications)
+                                         std::shared_ptr<PanelOsInfoSupervisor> osInfoSupervisor, std::shared_ptr<PanelAuditStore> auditStore,
+                                         std::shared_ptr<PanelWorker> worker, std::shared_ptr<ui::NotificationCenter> notifications)
     : config_{std::move(config)}, console_{std::move(console)}, launcher_{std::move(launcher)}, service_{std::move(service)},
-      localServer_{std::move(localServer)}, nodePresence_{std::move(nodePresence)}, auditStore_{std::move(auditStore)}, worker_{std::move(worker)},
-      notifications_{std::move(notifications)} {}
+      localServer_{std::move(localServer)}, nodePresence_{std::move(nodePresence)}, osInfoSupervisor_{std::move(osInfoSupervisor)},
+      auditStore_{std::move(auditStore)}, worker_{std::move(worker)}, notifications_{std::move(notifications)} {}
 
 PanelProductRuntime::~PanelProductRuntime() {
     if (worker_)
         worker_->Stop();
     if (nodePresence_)
         nodePresence_->Stop();
+#if PX_CAPABILITY_SYSTEM_INFORMATION && !PX_CAPABILITY_DESKTOP_HOST
+    if (osInfoSupervisor_)
+        osInfoSupervisor_->Stop();
+#endif
     if (service_)
         service_->Stop();
     if (localServer_)

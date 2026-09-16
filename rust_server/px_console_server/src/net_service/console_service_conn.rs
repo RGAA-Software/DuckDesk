@@ -10,10 +10,58 @@ use protocol::console_service::{
     RtcIceConfigChanged,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 pub type ConsoleServiceConnPtr = Arc<Mutex<ConsoleServiceConn>>;
+
+pub(super) const CLOUD_NODE_CAPABILITIES: &[&str] = &[
+    "browser_remote",
+    "cloud_app_catalog",
+    "cloud_app_host",
+    "desktop_client",
+    "desktop_host",
+    "file_transfer",
+    "game_hook",
+    "joystick",
+    "rdp_client",
+    "rdp_host",
+    "system_information",
+    "virtual_display",
+    "webview_host",
+];
+pub(super) const REMOTE_CAPABILITIES: &[&str] = &[
+    "browser_remote",
+    "desktop_client",
+    "desktop_host",
+    "file_transfer",
+    "joystick",
+    "rdp_client",
+    "rdp_host",
+    "system_information",
+    "virtual_display",
+];
+
+fn validate_product_identity(hello: &ConsoleServiceHello) -> Result<(), &'static str> {
+    if hello.company != "Pixels"
+        || hello.product_version_code == 0
+        || hello.product_version.split('.').count() != 3
+    {
+        return Err("invalid Pixels product identity");
+    }
+    let expected = match (hello.product.as_str(), hello.edition.as_str()) {
+        ("cloud_node", "CLOUD_NODE") => CLOUD_NODE_CAPABILITIES,
+        ("remote", "REMOTE") => REMOTE_CAPABILITIES,
+        _ => return Err("service reported an unsupported product edition"),
+    };
+    let actual: HashSet<&str> = hello.capabilities.iter().map(String::as_str).collect();
+    let required: HashSet<&str> = expected.iter().copied().collect();
+    if actual.len() != hello.capabilities.len() || actual != required {
+        return Err("service capability set does not match its edition");
+    }
+    Ok(())
+}
 
 #[derive(Clone)]
 pub struct ConsoleServiceConn {
@@ -22,6 +70,12 @@ pub struct ConsoleServiceConn {
     pub device_id: String,
     pub appkey: String,
     pub version: String,
+    pub company: String,
+    pub product: String,
+    pub edition: String,
+    pub product_version: String,
+    pub product_version_code: u32,
+    pub capabilities: Vec<String>,
     pub rdp_available: bool,
     pub rdp_domain: String,
     pub rdp_proxy_certificate_sha256: String,
@@ -42,6 +96,12 @@ pub struct ConsoleServiceConnVo {
     pub rdp_available: bool,
     pub device_id: String,
     pub version: String,
+    pub company: String,
+    pub product: String,
+    pub edition: String,
+    pub product_version: String,
+    pub product_version_code: u32,
+    pub capabilities: Vec<String>,
     pub hello_timestamp: i64,
     pub last_update_timestamp: i64,
     pub hb_index: i64,
@@ -54,6 +114,10 @@ pub struct ConsoleServiceConnVo {
 }
 
 impl ConsoleServiceConn {
+    pub fn supports_capability(&self, capability: &str) -> bool {
+        self.capabilities.iter().any(|value| value == capability)
+    }
+
     //
     pub async fn new(
         context: Arc<Mutex<ConsoleContext>>,
@@ -67,6 +131,12 @@ impl ConsoleServiceConn {
             device_id,
             appkey,
             version: "".to_string(),
+            company: String::new(),
+            product: String::new(),
+            edition: String::new(),
+            product_version: String::new(),
+            product_version_code: 0,
+            capabilities: Vec::new(),
             rdp_available: false,
             rdp_domain: String::new(),
             rdp_proxy_certificate_sha256: String::new(),
@@ -87,6 +157,12 @@ impl ConsoleServiceConn {
             rdp_available: self.rdp_available,
             device_id: self.device_id.to_string(),
             version: self.version.to_string(),
+            company: self.company.clone(),
+            product: self.product.clone(),
+            edition: self.edition.clone(),
+            product_version: self.product_version.clone(),
+            product_version_code: self.product_version_code,
+            capabilities: self.capabilities.clone(),
             hello_timestamp: self.hello_timestamp,
             last_update_timestamp: self.last_update_timestamp,
             hb_index: self.hb_index,
@@ -116,9 +192,19 @@ impl ConsoleServiceConn {
             if sub.device_id != self.device_id || sub.appkey != self.appkey {
                 return false;
             }
+            if let Err(error) = validate_product_identity(&sub) {
+                tracing::warn!(device_id = %self.device_id, error, "rejecting invalid service product identity");
+                return false;
+            }
             self.last_update_timestamp = self.hello_timestamp;
             let device_id = sub.device_id;
             self.version = sub.version;
+            self.company = sub.company;
+            self.product = sub.product;
+            self.edition = sub.edition;
+            self.product_version = sub.product_version;
+            self.product_version_code = sub.product_version_code;
+            self.capabilities = sub.capabilities;
             self.rdp_available = sub.rdp_available;
             self.rdp_domain = sub.rdp_domain;
             self.rdp_proxy_certificate_sha256 = sub.rdp_proxy_certificate_sha256;
@@ -259,6 +345,12 @@ impl ConsoleServiceConn {
             rdp_available: self.rdp_available,
             rdp_domain: self.rdp_domain.clone(),
             rdp_proxy_certificate_sha256: self.rdp_proxy_certificate_sha256.clone(),
+            company: self.company.clone(),
+            product: self.product.clone(),
+            edition: self.edition.clone(),
+            product_version: self.product_version.clone(),
+            product_version_code: self.product_version_code,
+            capabilities: self.capabilities.clone(),
         });
         let buffer = sv_msg.encode_to_vec();
         self.send_bin_message_vec(buffer).await;
@@ -356,5 +448,52 @@ impl ConsoleServiceConn {
             return false;
         }
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn hello(product: &str, edition: &str, capabilities: &[&str]) -> ConsoleServiceHello {
+        ConsoleServiceHello {
+            company: "Pixels".into(),
+            product: product.into(),
+            edition: edition.into(),
+            product_version: "3.3.67".into(),
+            product_version_code: 30367,
+            capabilities: capabilities
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn product_identity_requires_exact_edition_and_capability_set() {
+        assert!(validate_product_identity(&hello(
+            "cloud_node",
+            "CLOUD_NODE",
+            CLOUD_NODE_CAPABILITIES
+        ))
+        .is_ok());
+        assert!(validate_product_identity(&hello("remote", "REMOTE", REMOTE_CAPABILITIES)).is_ok());
+
+        let mut missing = REMOTE_CAPABILITIES.to_vec();
+        missing.retain(|capability| *capability != "rdp_host");
+        assert!(validate_product_identity(&hello("remote", "REMOTE", &missing)).is_err());
+
+        let mut extra = REMOTE_CAPABILITIES.to_vec();
+        extra.push("cloud_app_host");
+        assert!(validate_product_identity(&hello("remote", "REMOTE", &extra)).is_err());
+
+        let mut wrong_company = hello("remote", "REMOTE", REMOTE_CAPABILITIES);
+        wrong_company.company = "RGAA".into();
+        assert!(validate_product_identity(&wrong_company).is_err());
+
+        assert!(
+            validate_product_identity(&hello("remote", "CLOUD_NODE", REMOTE_CAPABILITIES)).is_err()
+        );
     }
 }

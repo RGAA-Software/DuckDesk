@@ -1,0 +1,11 @@
+product = "android"
+company = "Pixels"
+product_version = "1.0.3"
+product_version_code = 10003
+capabilities = [
+    "desktop_client",
+    "file_transfer",
+    "rdp_client",
+    "cloud_app_catalog",
+    "system_information",
+]

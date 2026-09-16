@@ -24,8 +24,28 @@ def releaseCertificateSha256 = releaseValue('certificateSha256', 'PIXELS_SIGNING
 def releaseCertificateReady = releaseCertificateSha256 ==~ /(?i)[0-9a-f]{64}/
 def releaseSigningReady = [releaseStorePath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword].every { it } &&
     releaseCertificateReady
-def pixelsVersionCode = (System.getenv('PIXELS_VERSION_CODE') ?: '1').toInteger()
-def pixelsVersionName = System.getenv('PIXELS_VERSION_NAME') ?: '1.0.0'
+def pixelsVersionCodeInput = System.getenv('PIXELS_VERSION_CODE')?.trim()
+def pixelsVersionNameInput = System.getenv('PIXELS_VERSION_NAME')?.trim()
+def pixelsCompanyInput = System.getenv('PIXELS_COMPANY')?.trim()
+def hasExplicitProductVersion = pixelsVersionCodeInput && pixelsVersionNameInput
+def requestedArtifactTask = gradle.startParameter.taskNames.any { requestedTask ->
+    def taskName = requestedTask.tokenize(':').last().toLowerCase(Locale.ROOT)
+    taskName == 'build' || taskName == 'assemble' || taskName.startsWith('assemble') ||
+        taskName == 'bundle' || taskName.startsWith('bundle') ||
+        taskName == 'install' || taskName.startsWith('install') ||
+        taskName == 'package' || taskName.startsWith('package')
+}
+if (requestedArtifactTask && !hasExplicitProductVersion) {
+    throw new GradleException(
+        'APK/AAB tasks require PIXELS_VERSION_NAME and PIXELS_VERSION_CODE from scripts_build/build_android_product.bat.'
+    )
+}
+if (requestedArtifactTask && pixelsCompanyInput != 'Pixels') {
+    throw new GradleException('APK/AAB tasks require PIXELS_COMPANY=Pixels from the Android product manifest.')
+}
+def pixelsVersionCode = (pixelsVersionCodeInput ?: '1').toInteger()
+def pixelsVersionName = pixelsVersionNameInput ?: '1.0.0'
+def pixelsCompany = pixelsCompanyInput ?: 'Pixels'
 def pixelsGitRevision = System.getenv('PIXELS_GIT_REVISION') ?: 'unknown'
 def ffmpegSourceArchive = System.getenv('PIXELS_FFMPEG_SOURCE_ARCHIVE')?.trim()
 def lgplRelinkArchive = System.getenv('PIXELS_LGPL_RELINK_ARCHIVE')?.trim()
@@ -47,6 +67,7 @@ android {
         versionCode = pixelsVersionCode
         versionName = pixelsVersionName
         buildConfigField 'String', 'GIT_REVISION', "\"${pixelsGitRevision}\""
+        buildConfigField 'String', 'COMPANY', "\"${pixelsCompany}\""
 
         testInstrumentationRunner = 'androidx.test.runner.AndroidJUnitRunner'
 

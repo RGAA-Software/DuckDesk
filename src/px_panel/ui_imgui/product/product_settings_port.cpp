@@ -48,7 +48,8 @@ class ProductSettingsPort final : public ui::SettingsPort, public std::enable_sh
     }
 
     void RestartRender() override {
-        if (!runtime_->Service()->RestartRender())
+        const auto service = runtime_->Service();
+        if (!service || !service->RestartRender())
             runtime_->Notify(true, "Pixels", "Render service is not connected");
     }
     void SaveController(const ui::ControllerSettings& settings) override {
@@ -98,7 +99,8 @@ class ProductSettingsPort final : public ui::SettingsPort, public std::enable_sh
         static_cast<void>(runtime_->AuditStore()->DeleteAll(ui::SecurityRecordKind::FileTransfer));
         runtime_->Config()->Clear();
         runtime_->LocalServer()->RefreshPanelInfo();
-        static_cast<void>(runtime_->Service()->RestartRender());
+        if (const auto service = runtime_->Service())
+            static_cast<void>(service->RestartRender());
         runtime_->Notify(false, "Pixels", "Local Panel data cleared");
     }
     void CheckForUpdates() override {

@@ -4,8 +4,7 @@
 > 用于保留风险来源和整改依据，不代表当前 Asio Notify 交付状态。此次变更范围内的
 > MessageNotifier/asio2 并发访问、Client/Panel/Render/SDK/encoder/relay/Android native
 > 监听生命周期，以及 `Thread`、`Data`、`File`、`SharedPreference` 基础问题已经整改并
-> 通过析构时仍有排队回调、派发中注销、回调内停止和重复启停测试。当前结果见
-> `docs/asio_notify_concurrency_acceptance_report_20260826.md`。
+> 通过析构时仍有排队回调、派发中注销、回调内停止和重复启停测试。
 >
 > 这不等于宣称整个历史仓库的所有裸指针债务已经清零。未触及的旧代码仍按本文库存
 > 分批治理；所有新代码及变更范围内旧代码受

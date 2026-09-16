@@ -93,7 +93,7 @@ DEFINE_bool(relay_enabled, true, "");
 
 DEFINE_int32(language, 0, "");
 
-DEFINE_string(app_mode, "", "desktop | game-hook | inner_capture; empty => settings.toml application.mode");
+DEFINE_string(app_mode, "", "desktop | game-hook | webview | rdp; empty => settings.toml application.mode");
 DEFINE_string(app_instance_id, "", "Console application instance id");
 DEFINE_string(webview_url_b64, "", "Base64URL-encoded WebView entry URL (never log decoded value)");
 DEFINE_string(webview_instance_id, "", "Console WebView instance id");
@@ -326,10 +326,11 @@ void PrintInputArgs() {
 int main(int argc, char** argv) {
     // CEF renderer/GPU/utility children re-enter px_render.exe. They must be
     // dispatched before gflags, dump handlers, singleton locks or service links.
-    if (const int cef_exit_code = ExecuteCefSubprocess(GetModuleHandleW(nullptr));
-        cef_exit_code >= 0) {
+#if PX_CAPABILITY_WEBVIEW_HOST
+    if (const int cef_exit_code = ExecuteCefSubprocess(GetModuleHandleW(nullptr)); cef_exit_code >= 0) {
         return cef_exit_code;
     }
+#endif
 
     // hook 模式下 render 需要按游戏窗口真实物理像素换算鼠标坐标；
     // 不设 DPI aware 时 GetClientRect/ClientToScreen 会被系统虚拟化（如 4K@150% 下只有 2560x1440），
@@ -337,20 +338,6 @@ int main(int argc, char** argv) {
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
     gflags::ParseCommandLineFlags(&argc, &argv, true);
-
-    // dump
-    //CaptureDump();
-    // Breakpad
-    auto bc = std::make_shared<BreakpadContext>(BreakpadContext {
-        .version_ = PROJECT_VERSION,
-        .app_name_ = "px_render",
-    });
-    [[maybe_unused]] const auto dump_registration = CaptureDumpByBreakpad(std::move(bc));
-
-    // run in high level
-    px::ProcessUtil::SetProcessInHighLevel();
-    // 混合架构 CPU(8P+8E):钉到大核,避免采集/编码线程被调度到小核
-    px::ProcessUtil::PinToPerformanceCores();
 
     // 1. settings.toml defaults (application.mode / game-path / capture-method)
     // 2. CLI overrides (panel: --app_mode=desktop; game-hook script: --app_mode=game-hook)
@@ -361,6 +348,36 @@ int main(int argc, char** argv) {
         return 1;
     }
     UpdateSettings(settings);
+#if !PX_CAPABILITY_GAME_HOOK
+    if (settings.IsGameHookMode()) {
+        OutputDebugStringA("Pixels Render: selected product does not include the game-hook capability\n");
+        return ERROR_NOT_SUPPORTED;
+    }
+#endif
+#if !PX_CAPABILITY_WEBVIEW_HOST
+    if (settings.IsWebViewMode()) {
+        OutputDebugStringA("Pixels Render: selected product does not include the WebView host capability\n");
+        return ERROR_NOT_SUPPORTED;
+    }
+#endif
+
+    // Product admission is intentionally earlier than process tuning, crash
+    // handling and network startup so an unsupported build mode has no side effects.
+    px::ProcessUtil::SetProcessInHighLevel();
+    px::ProcessUtil::PinToPerformanceCores();
+
+    auto log_file_path = std::format(L"{}/px_logs/pixels_render_{}.log",
+                                     FolderUtil::GetProgramDataPath(), settings.transmission_.listening_port_);
+    Logger::InitLog(log_file_path, FLAGS_logfile);
+
+    // Install crash handling only after product-mode admission. Unsupported
+    // modes must fail without competing with a running Render's dump handler.
+    auto bc = std::make_shared<BreakpadContext>(BreakpadContext{
+        .version_ = PROJECT_VERSION,
+        .app_name_ = "px_render",
+    });
+    [[maybe_unused]] const auto dump_registration = CaptureDumpByBreakpad(std::move(bc));
+
     const auto valid_port = [](int port) { return port > 0 && port <= 65535; };
     if (!valid_port(settings.transmission_.listening_port_) || !valid_port(settings.service_server_port_) ||
         !valid_port(settings.rtc_port_start_) || !valid_port(settings.rtc_port_end_) || settings.rtc_port_start_ > settings.rtc_port_end_) {
@@ -369,11 +386,6 @@ int main(int argc, char** argv) {
     }
     settings.ApplyApplicationMode();
     settings.LoadSettingsFromDatabase();
-
-    // Log
-    auto log_file_path = std::format(L"{}/px_logs/pixels_render_{}.log",
-         FolderUtil::GetProgramDataPath(), settings.transmission_.listening_port_);
-    Logger::InitLog(log_file_path, FLAGS_logfile);
 
     PrintInputArgs();
 

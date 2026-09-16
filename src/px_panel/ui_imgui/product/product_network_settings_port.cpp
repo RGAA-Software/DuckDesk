@@ -137,7 +137,8 @@ class ProductNetworkSettingsPort final : public ui::NetworkSettingsPort, public 
     }
 
     void RestartRender() override {
-        if (!runtime_->Service()->RestartRender())
+        const auto service = runtime_->Service();
+        if (!service || !service->RestartRender())
             runtime_->Notify(true, "Pixels", "Render service is not connected");
         Acknowledge();
     }

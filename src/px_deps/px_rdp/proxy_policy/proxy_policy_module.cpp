@@ -187,7 +187,10 @@ proxy_module_entry_point(proxyPluginsManager* manager, void*) { // NOLINT(pixels
         return FALSE;
     }
     proxyPlugin plugin{};
-    plugin.name = "pixels-policy";
+    // The loader maps the logical module name "policy" to the branded
+    // px_rdp_policy.dll filename. FreeRDP validates Required entries against
+    // this registered logical name, not against the DLL basename.
+    plugin.name = "policy";
     plugin.description = "Pixels fixed-workspace admission, pinned RDS certificate and channel policy";
     plugin.ServerPeerLogon = PeerLogon;
     plugin.ClientPreConnect = PrepareBackend;

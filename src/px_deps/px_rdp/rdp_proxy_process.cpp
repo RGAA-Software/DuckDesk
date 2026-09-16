@@ -192,9 +192,9 @@ std::unique_ptr<RdpProxyProcess> RdpProxyProcess::Start(const RdpProxyLaunch& la
     if (entropy.empty() || !launch.proxy_directory.is_absolute() || !launch.private_root.is_absolute()) {
         return {};
     }
-    const auto executable = launch.proxy_directory / "freerdp-proxy.exe";
+    const auto executable = launch.proxy_directory / "px_rdp_proxy.exe";
     if (!std::filesystem::is_regular_file(executable) ||
-        !std::filesystem::is_regular_file(launch.proxy_directory / "proxy" / "proxy-pixels-policy-plugin.dll")) {
+        !std::filesystem::is_regular_file(launch.proxy_directory / "proxy" / "px_rdp_policy.dll")) {
         return {};
     }
     auto lease = RdpWorkspaceLease::Acquire(launch.private_root, launch.workspace_id);

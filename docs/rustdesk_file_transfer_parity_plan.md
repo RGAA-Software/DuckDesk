@@ -138,7 +138,7 @@ Panel 设备操作
 ### 阶段 D：集成与交付
 
 1. 运行 `px_ft_engine`、Client、Panel 和 Render 的针对性单元测试。
-2. 使用节点 90 验证：无远控时打开、与远控并行、分别关闭、上传/下载/取消/覆盖/续传、断线重连。
+2. 使用 Console 当前配置的公网节点验证：无远控时打开、与远控并行、分别关闭、上传/下载/取消/覆盖/续传、断线重连。
 3. 使用聚焦 C++ 构建脚本构建 Panel、Client、Render；需要 Service 变化时使用聚焦 Rust 构建。
 4. 同步所有运行时文件到 `build_official/dist`，逐项校验 SHA-256。
 
@@ -185,11 +185,9 @@ Panel 设备操作
 - `test_client_local_file_system`：5/5 通过，覆盖导航、路径边界、本地创建/重命名/批量删除。
 - `test_client_file_browser_model`：3/3 通过，覆盖 Ctrl/Shift 选择和稳定排序。
 - `test_ft_recursive_remove`：1/1 通过；`test_ft_engine`：15/15 通过；`test_ft_async_session`：16/16 通过。
-- node90 实机验证：开始前无 `px_client` 进程；从 Panel 的设备右键菜单启动后创建独立 `px_client`，文件通道连接成功并返回远端目录，无远控窗口或媒体首帧依赖。
-- node90 实机上传、下载和远端删除闭环通过。测试文件为 60 B，下载文件 SHA-256 与源文件均为 `97B36B56331D1E6AABADC9B9979260629B1B6CD5B22078D1E9ED8CFE518EFADB`；远端测试文件随后已删除。
+- 旧固定节点实机记录已经删除；独立文件传输、上传、下载、远端删除和无媒体依赖必须在当前公网节点重新验收。
 - 最终 Client 聚焦构建已同步到 `build_official/dist`，构建树和发布目录的 `px_client.exe` SHA-256 均为 `8B8A9CC8EEF372F9AC73AE32CBB5DD81D6B932E765120ECC176121E487C71A0F`。
-- 共享文件引擎变更已重新链接到 Render；构建树、`build_official/dist` 和 node90 的 `px_render.exe` SHA-256 均为 `BA5F021FDA93EA935ABDEEC30502BFB37B2008D2AB1C6424056CC9592958A8C3`。原子发布后服务恢复 Running，文件传输重新连接成功。
-- node90 更新后又完成非空目录专项验证：上传含测试文件的 `source` 目录，刷新后可见，执行递归删除并再次刷新后目录消失；远端未留下测试文件或测试目录。
+- 共享文件引擎变更已重新链接到 Render；构建树与 `build_official/dist` 的 `px_render.exe` SHA-256 必须一致。
 
 ### 2026-09-14：阶段 E 单例与路径导航已完成
 
@@ -197,5 +195,4 @@ Panel 设备操作
 - 窗口恢复请求由监视线程通过 Win32 消息投递到 SDL 窗口线程；最小化期间暂停 ImGui/视频呈现，避免 Vulkan 在最小化同帧继续提交导致崩溃。
 - 本地和远端路径选择已合并为资源管理器式路径栏：面包屑分段可点击跳转，常用位置下拉按钮内嵌在同一组件中，超长路径折叠，双击路径栏仍可直接输入路径。
 - Render 的独立文件传输绑定不再占用桌面控制席位，同时保留文件操作所需的 Controller 能力授权；关闭独立文件传输不会释放或干扰桌面输入租约。
-- `client_instance_guard` 4/4、Client/px_ui/LogicalSessionRegistry 聚焦 CTest 8/8 通过；node90 实机先启动文件传输、再启动远控均通过准入，重复点击两种入口后 PID 和进程数量保持不变。
-- node90 已通过原子替换更新 Render 并恢复 `px_service`，本机构建、`build_official/dist` 与 node90 的 `px_render.exe` SHA-256 均为 `CD7B2233FBD670C8E1775301E6903461CD876195AF568310545DF31CB0799256`。
+- `client_instance_guard` 4/4、Client/px_ui/LogicalSessionRegistry 聚焦 CTest 8/8 通过；远端准入、重复入口与进程数量需在当前公网节点重新验收。

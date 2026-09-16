@@ -8,6 +8,7 @@
 #include "px_ui/components/surface.h"
 #include "px_ui/layout_metrics.h"
 #include "px_ui/theme_tokens.h"
+#include "version_config.h"
 
 #include <imgui.h>
 #include <misc/cpp/imgui_stdlib.h>
@@ -371,14 +372,18 @@ void RemoteControlPage::DrawDirectPasswordDialog(const px::ui::Localizer& locali
 
 void RemoteControlPage::Draw(const px::ui::Localizer& localizer, const px::desktop::PlatformIconAtlas& platformIcons) {
     const auto state = port_->Snapshot();
+#if PX_CAPABILITY_DESKTOP_HOST
     px::ui::PageTitle(localizer.Text(px::ui::TextId::ThisDevice));
     DrawIdentity(state, localizer);
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + px::ui::Scale(13.0F));
+#endif
     px::ui::PageTitle(localizer.Text(px::ui::TextId::RemoteControl));
+#if PX_CAPABILITY_DESKTOP_HOST
     ImGui::SameLine(0.0F, px::ui::Scale(14.0F));
     const std::string managerState{std::string{localizer.Text(px::ui::TextId::ManagerService)} + " " +
                                    std::string{localizer.Text(state.managerOnline ? px::ui::TextId::Online : px::ui::TextId::Offline)}};
     px::ui::StatusBadge(managerState, state.managerOnline ? px::ui::BadgeVariant::Success : px::ui::BadgeVariant::Destructive);
+#endif
     DrawConnections(state, localizer, platformIcons);
     qrDialog_.Draw(localizer);
 }

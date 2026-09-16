@@ -5,7 +5,7 @@
 > 用户明确提出：新增与 game-hook、webview 平行的模式，由 FreeRDP 接收目标用户会话画面，避免再次采集该桌面。
 > 本文取代早期“FreeRDP 仅保活 + 用户 Session 内 Render 做 DDA/GDI 采集”的方案。
 > 历史讨论、参考仓库与版本见 [企业会话调研记录](enterprise_windows_session_isolation_plan.md)。
-> 自有 `D:/dolit/rdp` 已有较完整 Qt 客户端实现，作为优先复用基础；详见 [功能盘点与复用边界](rdp_qt_client_reuse_inventory.md)。
+> 自有 `D:/dolit/rdp` 已有较完整 Qt 客户端实现，作为优先复用基础；复用边界以当前代码核对结果为准。
 > 用户确认单工作区单客户端设计；分阶段代码落点、代理验证门禁、短时测试及交付见
 > [RDP 模式开发计划](rdp_application_mode_implementation_plan.md)，后续实施以该计划和本页第 0 节为入口。
 
@@ -40,8 +40,7 @@ Native 的承载适配、可靠性/顺序/背压与通道隔离须验证；Web �
   proxy 由 Render 作为受控子进程管理，端点仅允许受控桥接访问；不把测试用的裸 `13389` 入口直接作为产品入口。
 - 测试使用 Console 当前配置的公网 Windows 节点，RDP 登录使用专用的非 Administrator 测试账号，不接管管理员桌面。
   创建账号等管理动作由既有受权服务执行，不等同于用管理员账号登录 RDP；不顺带重启系统或注销无关会话。
-- 实测证据见 [2026-09-08 proxy 验证记录](rdp_proxy_validation_20260908.md)。TCP 直连 proxy 已通过；
-  接下来的验证对象是新增 WebSocket/RDP 适配及产品生命周期，不是重新论证 TCP 可靠性。
+- 旧固定节点 proxy 验证记录已删除。当前验证对象是公网节点上的 WebSocket/RDP 适配及产品生命周期。
 
 ### 0.1 连接可以关闭，账号与 Windows 会话不主动注销
 

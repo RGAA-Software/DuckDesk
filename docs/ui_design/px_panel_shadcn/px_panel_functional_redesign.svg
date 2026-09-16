@@ -56,7 +56,7 @@
     <rect x="646" y="320" width="352" height="118" rx="10" fill="#101014" class="border"/>
     <circle cx="670" cy="345" r="5" fill="#22c55e"/><text x="968" y="350" class="muted h2" text-anchor="middle">···</text>
     <rect x="670" y="363" width="48" height="48" rx="9" fill="#052e22"/><rect x="684" y="376" width="20" height="14" rx="2" fill="none" stroke="#8ceec0"/><path d="M694 390v5m-8 0h16" stroke="#8ceec0"/>
-    <text x="738" y="383" class="fg h2">035 179 718</text><text x="738" y="407" class="muted body">MC-90</text>
+    <text x="738" y="383" class="fg h2">035 179 718</text><text x="738" y="407" class="muted body">NODE-A</text>
   </g>
 
   <!-- This device, lower-priority reference/share section -->

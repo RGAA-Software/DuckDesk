@@ -332,7 +332,7 @@ switch ($Component) {
             -Destination (Join-Path $distRoot "px_client.exe") `
             -ProcessName "px_client"
         Move-RetiredClientRtcRuntime
-        foreach ($name in @('freerdp-client3.dll', 'freerdp3.dll', 'winpr3.dll', 'libusb-1.0.dll',
+        foreach ($name in @('px_rdp_client.dll', 'px_rdp_core.dll', 'px_rdp_winpr.dll', 'libusb-1.0.dll',
                             'libssl-3-x64.dll', 'libcrypto-3-x64.dll', 'zlib1.dll', 'cjson.dll', 'legacy.dll', 'openh264-6.dll')) {
             Publish-VerifiedFile -Source (Join-Path $buildRoot ('src\px_deps\' + $name)) `
                 -Destination (Join-Path $distRoot $name) -ProcessName 'px_client'
@@ -348,7 +348,7 @@ switch ($Component) {
             -Source (Join-Path $buildRoot 'src\px_deps\libplacebo-349.dll') `
             -Destination (Join-Path $distRoot 'libplacebo-349.dll') `
             -ProcessName 'px_client'
-        foreach ($relative in @('rdp\sdk.json', 'rdp\licenses\FreeRDP-LICENSE', 'rdp\licenses\openssl-LICENSE',
+        foreach ($relative in @('rdp\px_rdp_sdk.json', 'rdp\licenses\FreeRDP-LICENSE', 'rdp\licenses\openssl-LICENSE',
             'rdp\licenses\libusb-LICENSE', 'rdp\licenses\zlib-LICENSE', 'rdp\licenses\cjson-LICENSE', 'rdp\licenses\openh264-LICENSE')) {
             Publish-VerifiedFile -Source (Join-Path $buildRoot ('src\px_deps\' + $relative)) `
                 -Destination (Join-Path $distRoot $relative) -ProcessName 'px_client'

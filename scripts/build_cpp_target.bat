@@ -4,7 +4,7 @@ setlocal enabledelayedexpansion
 rem Incremental C++ target builder. This script never bumps the product version,
 rem runs npm, invokes Cargo, collects the complete dist tree, or builds servers.
 rem Usage: scripts\build_cpp_target.bat target [target ...]
-rem Optional environment: CPP_BUILD_DIR (default build_official), CPP_BUILD_JOBS (default 8)
+rem Optional environment: CPP_BUILD_DIR (default build_official), CPP_BUILD_JOBS (default 8), CPP_PRODUCT
 
 cd /d "%~dp0\.."
 if "%~1"=="" (
@@ -44,9 +44,21 @@ call "%VS_INSTALL_DIR%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64 >nul
 if errorlevel 1 exit /b %errorlevel%
 set "VSLANG=1033"
 
+if exist "%BUILD_DIR%\build.ninja" if defined CPP_PRODUCT (
+    findstr.exe /x /c:"PX_PRODUCT:STRING=%CPP_PRODUCT%" "%BUILD_DIR%\CMakeCache.txt" >nul 2>&1
+    if errorlevel 1 (
+        echo ERROR: %BUILD_DIR% is not configured for PX_PRODUCT=%CPP_PRODUCT%.
+        exit /b 1
+    )
+)
+
 if not exist "%BUILD_DIR%\build.ninja" (
     echo C++ build tree does not exist; configuring CMake only: %CD%\%BUILD_DIR%
-    cmake -S . -B "%BUILD_DIR%" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTARGET_TYPE=Official -Wno-dev
+    if defined CPP_PRODUCT (
+        cmake -S . -B "%BUILD_DIR%" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTARGET_TYPE=Official -DPX_PRODUCT=%CPP_PRODUCT% -Wno-dev
+    ) else (
+        cmake -S . -B "%BUILD_DIR%" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTARGET_TYPE=Official -Wno-dev
+    )
     if errorlevel 1 exit /b %errorlevel%
 )
 

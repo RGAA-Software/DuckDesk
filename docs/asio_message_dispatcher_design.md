@@ -14,7 +14,7 @@ to use GreenRobot EventBus and is a separate migration scope.
 
 The source migration and current-environment delivery are complete. The final
 whole-product build, repeated tests, published-artifact hash checks and
-machine-90 runtime acceptance all passed.
+The retired fixed-machine acceptance record has been removed.
 
 Completed:
 
@@ -41,9 +41,8 @@ Completed:
 - The authoritative Windows build and Android official Release APK build pass.
 - Shutdown, destruction-with-queued-callbacks, concurrent unregister and
   repeated start/stop coverage passes the required 10-round gate.
-- Changed runtime artifacts are published to `build_official\\dist`; source,
-  dist and machine-90 SHA-256 values match. The final evidence is in
-  `docs/asio_notify_concurrency_acceptance_report_20260826.md`.
+- Changed runtime artifacts are published to `build_official\\dist`; source and
+  dist SHA-256 values must match before delivery.
 
 Accordingly, implementation and current-environment delivery are complete.
 Cross-public-network TURN/NAT remains separately blocked by environment and is

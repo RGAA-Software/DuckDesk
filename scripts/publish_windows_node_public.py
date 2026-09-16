@@ -1,0 +1,263 @@
+#!/usr/bin/env python3
+"""Publish focused Service or Render artifacts to the configured public Windows node."""
+
+from __future__ import annotations
+
+import argparse
+import base64
+import hashlib
+import json
+import re
+import subprocess
+from pathlib import Path
+
+import paramiko
+
+ROOT = Path(__file__).resolve().parent.parent
+MACHINE_FILE = ROOT / ".env" / "test_machine.md"
+REMOTE_DIRECTORIES = {
+    "cloud_node": "C:/Program Files/Pixels Cloud Node",
+    "remote": "C:/Program Files/Pixels Remote",
+}
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--product", required=True, choices=("cloud_node", "remote"))
+    parser.add_argument("--component", required=True, choices=("service", "render"))
+    parser.add_argument("--preflight-only", action="store_true")
+    return parser.parse_args()
+
+
+def machine_value(text: str, label: str) -> str:
+    match = re.search(rf"^\s*-\s*{re.escape(label)}\s*[:：]\s*(.+?)\s*$", text, re.MULTILINE | re.IGNORECASE)
+    if not match:
+        raise RuntimeError(f"Missing {label} in the test-machine document")
+    return match.group(1).strip()
+
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest().upper()
+
+
+def encoded_powershell(script: str) -> str:
+    return base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+
+
+def run_powershell(client: paramiko.SSHClient, script: str) -> dict[str, object]:
+    command = f"powershell.exe -NoProfile -NonInteractive -EncodedCommand {encoded_powershell(script)}"
+    _, stdout, stderr = client.exec_command(command, timeout=120)
+    status = stdout.channel.recv_exit_status()
+    output = stdout.read().decode("utf-8", errors="replace").strip()
+    error = stderr.read().decode("utf-8", errors="replace").strip()
+    if status != 0:
+        raise RuntimeError(error or output or f"Remote command exited with {status}")
+    json_line = next((line for line in reversed(output.splitlines()) if line.strip().startswith("{")), "")
+    if not json_line:
+        raise RuntimeError(f"Remote deployment did not return JSON: {output}")
+    return json.loads(json_line)
+
+
+def service_script(
+    remote_directory: str,
+    product: str,
+    exe_hash: str,
+    config_hash: str,
+    descriptor_hash: str,
+) -> str:
+    return rf"""
+$ErrorActionPreference = 'Stop'
+$directory = '{remote_directory}'
+$target = Join-Path $directory 'px_service.exe'
+$staging = Join-Path $directory 'px_service.staged.exe'
+$configTarget = Join-Path $directory 'px_service.toml'
+$configStaging = Join-Path $directory 'px_service.staged.toml'
+$descriptorTarget = Join-Path $directory 'product-manifest.json'
+$descriptorStaging = Join-Path $directory 'product-manifest.staged.json'
+if (-not (Test-Path -LiteralPath $descriptorTarget -PathType Leaf)) {{ throw 'Focused publish requires an installed current product descriptor' }}
+$installedProduct = Get-Content -LiteralPath $descriptorTarget -Raw | ConvertFrom-Json
+if ($installedProduct.schema_version -ne 2 -or $installedProduct.company -ne 'Pixels' -or $installedProduct.product -ne '{product}') {{
+    throw 'Installed product identity does not match the requested focused publish'
+}}
+if ((Get-FileHash -LiteralPath $staging -Algorithm SHA256).Hash -ne '{exe_hash}') {{ throw 'Service staging hash mismatch' }}
+if ((Get-FileHash -LiteralPath $configStaging -Algorithm SHA256).Hash -ne '{config_hash}') {{ throw 'Service config staging hash mismatch' }}
+if ((Get-FileHash -LiteralPath $descriptorStaging -Algorithm SHA256).Hash -ne '{descriptor_hash}') {{ throw 'Product descriptor staging hash mismatch' }}
+$services = @(Get-CimInstance Win32_Service | Where-Object {{
+    $_.PathName -and $_.PathName.IndexOf($target, [StringComparison]::OrdinalIgnoreCase) -ge 0
+}})
+if ($services.Count -ne 1) {{ throw 'Service identity is ambiguous' }}
+$serviceName = $services[0].Name
+try {{
+    if ((Get-Service -Name $serviceName).Status -ne 'Stopped') {{
+        Stop-Service -Name $serviceName -Force
+        (Get-Service -Name $serviceName).WaitForStatus('Stopped', [TimeSpan]::FromSeconds(20))
+    }}
+    Copy-Item -LiteralPath $staging -Destination $target -Force
+    Copy-Item -LiteralPath $configStaging -Destination $configTarget -Force
+    Copy-Item -LiteralPath $descriptorStaging -Destination $descriptorTarget -Force
+    Remove-Item -LiteralPath $staging, $configStaging, $descriptorStaging -Force
+    if ((Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash -ne '{exe_hash}') {{ throw 'Service deployment hash mismatch' }}
+    if ((Get-FileHash -LiteralPath $configTarget -Algorithm SHA256).Hash -ne '{config_hash}') {{ throw 'Service config deployment hash mismatch' }}
+    if ((Get-FileHash -LiteralPath $descriptorTarget -Algorithm SHA256).Hash -ne '{descriptor_hash}') {{ throw 'Product descriptor deployment hash mismatch' }}
+}} finally {{
+    if ((Get-Service -Name $serviceName).Status -ne 'Running') {{
+        Start-Service -Name $serviceName
+        (Get-Service -Name $serviceName).WaitForStatus('Running', [TimeSpan]::FromSeconds(20))
+    }}
+}}
+[pscustomobject]@{{
+    Component = 'service'
+    Service = $serviceName
+    State = (Get-Service -Name $serviceName).Status.ToString()
+    ExeHash = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash
+    ConfigHash = (Get-FileHash -LiteralPath $configTarget -Algorithm SHA256).Hash
+    DescriptorHash = (Get-FileHash -LiteralPath $descriptorTarget -Algorithm SHA256).Hash
+}} | ConvertTo-Json -Compress
+"""
+
+
+def render_script(remote_directory: str, product: str, exe_hash: str) -> str:
+    return rf"""
+$ErrorActionPreference = 'Stop'
+$directory = '{remote_directory}'
+$target = Join-Path $directory 'px_render.exe'
+$staging = Join-Path $directory 'px_render.staged.exe'
+$descriptorTarget = Join-Path $directory 'product-manifest.json'
+if (-not (Test-Path -LiteralPath $descriptorTarget -PathType Leaf)) {{ throw 'Focused publish requires an installed current product descriptor' }}
+$installedProduct = Get-Content -LiteralPath $descriptorTarget -Raw | ConvertFrom-Json
+if ($installedProduct.schema_version -ne 2 -or $installedProduct.company -ne 'Pixels' -or $installedProduct.product -ne '{product}') {{
+    throw 'Installed product identity does not match the requested focused publish'
+}}
+if ((Get-FileHash -LiteralPath $staging -Algorithm SHA256).Hash -ne '{exe_hash}') {{ throw 'Render staging hash mismatch' }}
+$services = @(Get-CimInstance Win32_Service | Where-Object {{
+    $_.PathName -and $_.PathName.IndexOf((Join-Path $directory 'px_service.exe'), [StringComparison]::OrdinalIgnoreCase) -ge 0
+}})
+if ($services.Count -ne 1) {{ throw 'Service identity is ambiguous' }}
+$serviceName = $services[0].Name
+try {{
+    if ((Get-Service -Name $serviceName).Status -ne 'Stopped') {{
+        Stop-Service -Name $serviceName -Force
+        (Get-Service -Name $serviceName).WaitForStatus('Stopped', [TimeSpan]::FromSeconds(20))
+    }}
+    $deadline = [DateTime]::UtcNow.AddSeconds(20)
+    do {{
+        $processes = @(Get-Process -Name px_render, px_panel -ErrorAction SilentlyContinue | Where-Object {{
+            $_.Path -and [IO.Path]::GetFullPath($_.Path).StartsWith([IO.Path]::GetFullPath($directory), [StringComparison]::OrdinalIgnoreCase)
+        }})
+        if ($processes.Count -eq 0) {{ break }}
+        $processes | Stop-Process -Force
+        Start-Sleep -Milliseconds 250
+    }} while ([DateTime]::UtcNow -lt $deadline)
+    if ($processes.Count -ne 0) {{ throw 'Render or Panel did not stop before deployment' }}
+    Copy-Item -LiteralPath $staging -Destination $target -Force
+    Remove-Item -LiteralPath $staging -Force
+    if ((Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash -ne '{exe_hash}') {{ throw 'Render deployment hash mismatch' }}
+}} finally {{
+    if ((Get-Service -Name $serviceName).Status -ne 'Running') {{
+        Start-Service -Name $serviceName
+        (Get-Service -Name $serviceName).WaitForStatus('Running', [TimeSpan]::FromSeconds(20))
+    }}
+}}
+[pscustomobject]@{{
+    Component = 'render'
+    Service = $serviceName
+    State = (Get-Service -Name $serviceName).Status.ToString()
+    ExeHash = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash
+}} | ConvertTo-Json -Compress
+"""
+
+
+def main() -> int:
+    args = parse_args()
+    dist_directory = ROOT / "build_official" / "dist" / args.product
+    remote_directory = REMOTE_DIRECTORIES[args.product]
+    subprocess.run(
+        ["python", str(ROOT / "scripts" / "verify_product_dist.py"), str(dist_directory)],
+        check=True,
+    )
+    machine_text = MACHINE_FILE.read_text(encoding="utf-8")
+    host = machine_value(machine_text, "地址")
+    port = int(machine_value(machine_text, "SSH 端口").split("，", 1)[0].split(",", 1)[0])
+    username = machine_value(machine_text, "用户名")
+    password = machine_value(machine_text, "密码")
+
+    if args.component == "service":
+        sources = {
+            "px_service.staged.exe": dist_directory / "px_service.exe",
+            "px_service.staged.toml": dist_directory / "px_service.toml",
+            "product-manifest.staged.json": dist_directory / "product-manifest.json",
+        }
+    else:
+        sources = {"px_render.staged.exe": dist_directory / "px_render.exe"}
+    for source in sources.values():
+        if not source.is_file():
+            raise RuntimeError(f"Required deployment input is missing: {source}")
+
+    expected_hashes = {name: sha256(source) for name, source in sources.items()}
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client.connect(host, port=port, username=username, password=password, timeout=15, banner_timeout=15, auth_timeout=15)
+    try:
+        with client.open_sftp() as sftp:
+            descriptor_path = f"{remote_directory}/product-manifest.json"
+            try:
+                with sftp.open(descriptor_path, "rb") as descriptor_file:
+                    installed_descriptor = json.loads(descriptor_file.read().decode("utf-8"))
+            except (OSError, UnicodeError, json.JSONDecodeError) as error:
+                raise RuntimeError(
+                    "Focused public publish requires a valid current product installation; run the product installer first"
+                ) from error
+            expected_identity = {"schema_version": 2, "product": args.product, "company": "Pixels"}
+            actual_identity = {key: installed_descriptor.get(key) for key in expected_identity}
+            if actual_identity != expected_identity:
+                raise RuntimeError(
+                    f"Public node product mismatch: expected={expected_identity}, actual={actual_identity}"
+                )
+            if args.preflight_only:
+                print(
+                    json.dumps(
+                        {"Host": host, "Product": args.product, "Component": args.component, "Preflight": "passed"},
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    )
+                )
+                return 0
+            for name, source in sources.items():
+                sftp.put(str(source), f"{remote_directory}/{name}")
+        if args.component == "service":
+            result = run_powershell(
+                client,
+                service_script(
+                    remote_directory,
+                    args.product,
+                    expected_hashes["px_service.staged.exe"],
+                    expected_hashes["px_service.staged.toml"],
+                    expected_hashes["product-manifest.staged.json"],
+                ),
+            )
+            if result.get("ExeHash") != expected_hashes["px_service.staged.exe"]:
+                raise RuntimeError("Remote Service hash verification failed")
+            if result.get("ConfigHash") != expected_hashes["px_service.staged.toml"]:
+                raise RuntimeError("Remote Service config hash verification failed")
+            if result.get("DescriptorHash") != expected_hashes["product-manifest.staged.json"]:
+                raise RuntimeError("Remote product descriptor hash verification failed")
+        else:
+            result = run_powershell(
+                client,
+                render_script(remote_directory, args.product, expected_hashes["px_render.staged.exe"]),
+            )
+            if result.get("ExeHash") != expected_hashes["px_render.staged.exe"]:
+                raise RuntimeError("Remote Render hash verification failed")
+        result["Host"] = host
+        print(json.dumps(result, ensure_ascii=False, separators=(",", ":")))
+        return 0
+    finally:
+        client.close()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

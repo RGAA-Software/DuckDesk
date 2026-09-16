@@ -1,155 +1,260 @@
+#!/usr/bin/env python3
+"""Create one strict Pixels Windows product installer from its verified dist."""
+
+from __future__ import annotations
+
 import argparse
+import hashlib
 import json
 import os
+import shutil
 import subprocess
-
-from gen_pack_name import extract_project_version
-
-
-def load_config():
-    config_path = "make_setup_config.json"
-    if os.path.isfile(config_path):
-        with open(config_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {}
+import tempfile
+import tomllib
+from pathlib import Path
 
 
-def find_7z(configured_path: str | None, current_dir: str) -> str:
-    candidates = []
-    if configured_path:
-        candidates.append(configured_path)
-    candidates.extend([
-        os.path.join(current_dir, "..", "tools", "7z", "7za.exe"),
-        r"C:\Program Files\7-Zip\7z.exe",
-        r"C:\Program Files (x86)\7-Zip\7z.exe",
-        r"D:\company\software\7-Zip\7z.exe",
-        r"D:\software\7-Zip\7-Zip\7z.exe",
-    ])
+PRODUCTS = ("cloud_node", "client", "remote")
+HOST_PRODUCTS = {"cloud_node", "remote"}
+FORBIDDEN_FILES = {
+    "client": {
+        "px_render.exe",
+        "px_service.exe",
+        "px_service_manager.exe",
+        "px_function.exe",
+        "px_display.exe",
+        "px_joystick.exe",
+        "libcef.dll",
+        "px_gh.dll",
+        "px_gh_injector.exe",
+        "px_gh_address.exe",
+    },
+    "remote": {
+        "libcef.dll",
+        "chrome_elf.dll",
+        "px_gh.dll",
+        "px_gh_injector.exe",
+        "px_gh_address.exe",
+    },
+}
+REQUIRED_HOST_FILES = {
+    "px_render.exe",
+    "px_service.exe",
+    "px_service_manager.exe",
+    "px_function.exe",
+    "px_display.exe",
+    "px_joystick.exe",
+    "rdp/px_rdp_proxy.exe",
+    "rdp/px_rdp_server_proxy.dll",
+    "rdp/px_rdp_server.dll",
+    "rdp/proxy/px_rdp_policy.dll",
+}
+RETIRED_RDP_NAMES = {
+    "freerdp-proxy.exe",
+    "freerdp-server-proxy3.dll",
+    "freerdp-server3.dll",
+    "freerdp-client3.dll",
+    "freerdp3.dll",
+    "winpr3.dll",
+    "proxy-pixels-policy-plugin.dll",
+    "pixels-rdp-sdk.json",
+}
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--product", required=True, choices=PRODUCTS)
+    parser.add_argument("--dist-dir", type=Path, help="Verified product dist directory")
+    parser.add_argument("--output-root", type=Path, help="Installer output root")
+    parser.add_argument("--validate-only", action="store_true")
+    return parser.parse_args()
+
+
+def load_json(path: Path) -> dict[str, object]:
+    with path.open("r", encoding="utf-8") as source:
+        value = json.load(source)
+    if not isinstance(value, dict):
+        raise RuntimeError(f"expected a JSON object: {path}")
+    return value
+
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest().upper()
+
+
+def load_product_config(repo_root: Path, product: str) -> dict[str, object]:
+    path = repo_root / "packaging" / "products" / f"{product}.toml"
+    with path.open("rb") as source:
+        config = tomllib.load(source)
+    if config.get("product") != product or config.get("company") != "Pixels":
+        raise RuntimeError(f"invalid Pixels product manifest: {path}")
+    return config
+
+
+def validate_dist(repo_root: Path, product: str, dist_dir: Path, config: dict[str, object]) -> dict[str, object]:
+    if not dist_dir.is_dir():
+        raise RuntimeError(f"product dist folder not found: {dist_dir}")
+    subprocess.run(
+        ["python", str(repo_root / "scripts" / "verify_product_dist.py"), str(dist_dir)],
+        check=True,
+    )
+    manifest = load_json(dist_dir / "product-manifest.json")
+    expected_identity = {
+        "product": product,
+        "company": config["company"],
+        "product_version": config["product_version"],
+        "product_version_code": config["product_version_code"],
+    }
+    actual_identity = {key: manifest.get(key) for key in expected_identity}
+    if actual_identity != expected_identity:
+        raise RuntimeError(f"dist identity mismatch: expected={expected_identity}, actual={actual_identity}")
+
+    present = {path.relative_to(dist_dir).as_posix() for path in dist_dir.rglob("*") if path.is_file()}
+    retired_rdp = {Path(path).name for path in present} & RETIRED_RDP_NAMES
+    if retired_rdp:
+        raise RuntimeError(f"installer payload contains retired RDP artifact names: {sorted(retired_rdp)}")
+    missing_base = {"px_panel.exe", "px_client.exe", "px_osinfo.exe"} - present
+    if missing_base:
+        raise RuntimeError(f"installer payload is missing base files: {sorted(missing_base)}")
+    if product in HOST_PRODUCTS:
+        missing_host = REQUIRED_HOST_FILES - present
+        if missing_host:
+            raise RuntimeError(f"host installer payload is missing files: {sorted(missing_host)}")
+    forbidden = FORBIDDEN_FILES.get(product, set()) & present
+    if forbidden:
+        raise RuntimeError(f"{product} installer payload contains forbidden files: {sorted(forbidden)}")
+    return manifest
+
+
+def load_tool_config(setup_dir: Path) -> dict[str, str]:
+    path = setup_dir / "make_setup_config.json"
+    return load_json(path) if path.is_file() else {}
+
+
+def find_7z(configured_path: str | None, repo_root: Path) -> Path:
+    candidates = [
+        Path(configured_path) if configured_path else None,
+        repo_root / "tools" / "7z" / "7za.exe",
+        Path(r"C:\Program Files\7-Zip\7z.exe"),
+        Path(r"C:\Program Files (x86)\7-Zip\7z.exe"),
+    ]
     for path in candidates:
-        if os.path.isfile(path):
-            return path
-    raise RuntimeError(
-        "Cannot find 7z.exe. Please install 7-Zip or update make_setup_config.json."
+        if path and path.is_file():
+            return path.resolve()
+    raise RuntimeError("Cannot find 7z.exe; configure setup/make_setup_config.json")
+
+
+def find_nsis(configured_dir: str | None, repo_root: Path) -> Path:
+    candidates = [
+        Path(configured_dir) / "makensis.exe" if configured_dir else None,
+        repo_root / "tools" / "nsis" / "makensis.exe",
+        Path(r"C:\Program Files (x86)\NSIS\makensis.exe"),
+        Path(r"C:\Program Files\NSIS\makensis.exe"),
+    ]
+    for path in candidates:
+        if path and path.is_file():
+            return path.resolve()
+    raise RuntimeError("Cannot find makensis.exe; configure setup/make_setup_config.json")
+
+
+def create_archive(seven_zip: Path, dist_dir: Path, archive: Path) -> None:
+    archive.parent.mkdir(parents=True)
+    subprocess.run(
+        [str(seven_zip), "a", "-t7z", str(archive), "."],
+        cwd=dist_dir,
+        check=True,
     )
 
 
-def find_nsis(configured_dir: str | None, current_dir: str) -> str:
-    candidates = []
-    if configured_dir:
-        candidates.append(os.path.join(configured_dir, "makensis.exe"))
-    candidates.extend([
-        os.path.join(current_dir, "..", "tools", "nsis", "makensis.exe"),
-        r"C:\Program Files (x86)\NSIS\makensis.exe",
-        r"C:\Program Files\NSIS\makensis.exe",
-        r"D:\company\software\NSIS\makensis.exe",
-        r"D:\software\newNSIS3.06.1\newNSIS3.06.1\makensis.exe",
-    ])
-    for path in candidates:
-        if os.path.isfile(path):
-            return os.path.dirname(path)
-    raise RuntimeError(
-        "Cannot find NSIS makensis.exe. Please install NSIS or update make_setup_config.json."
+def create_installer(
+    makensis: Path,
+    setup_dir: Path,
+    staging_dir: Path,
+    product: str,
+    version: str,
+    version_code: int,
+    company: str,
+) -> Path:
+    subprocess.run(
+        [
+            str(makensis),
+            f"/DOUTPUT_DIR={staging_dir}",
+            f"/DPRODUCT_ID={product}",
+            f"/DPRODUCT_VERSION={version}",
+            f"/DPRODUCT_VERSION_CODE={version_code}",
+            f"/DCOMPANY={company}",
+            str(setup_dir / "make_setup.nsi"),
+        ],
+        cwd=setup_dir,
+        check=True,
     )
+    basename = {"cloud_node": "PixelsCloudNode", "client": "PixelsClient", "remote": "PixelsRemote"}[product]
+    installer = staging_dir / f"{basename}_{version}_Setup.exe"
+    if not installer.is_file():
+        raise RuntimeError(f"NSIS did not create expected installer: {installer}")
+    return installer
 
 
-def compute_output_dir(build_dir: str, current_dir: str) -> str:
-    build_name = os.path.basename(os.path.normpath(build_dir))
-    version_file = os.path.join(build_dir, "src", "px_base", "version_config.h")
-    version = extract_project_version(version_file)
-    if not version:
-        raise RuntimeError(f"Cannot extract PROJECT_VERSION from {version_file}")
-    output_dir = os.path.join(current_dir, "..", "output", build_name, version)
-    return os.path.abspath(output_dir)
+def main() -> int:
+    args = parse_args()
+    setup_dir = Path(__file__).resolve().parent
+    repo_root = setup_dir.parent
+    config = load_product_config(repo_root, args.product)
+    dist_dir = (args.dist_dir or repo_root / "build_official" / "dist" / args.product).resolve()
+    manifest = validate_dist(repo_root, args.product, dist_dir, config)
+    if args.validate_only:
+        print(f"Validated installer input: {args.product} {config['product_version']} ({dist_dir})")
+        return 0
 
+    tool_config = load_tool_config(setup_dir)
+    seven_zip = find_7z(tool_config.get("7z_path"), repo_root)
+    makensis = find_nsis(tool_config.get("nsis_dir_path"), repo_root)
+    output_root = (args.output_root or repo_root / "output" / args.product).resolve()
+    final_dir = output_root / str(config["product_version"])
+    if final_dir.exists():
+        raise RuntimeError(f"installer version output already exists and will not be overwritten: {final_dir}")
+    output_root.mkdir(parents=True, exist_ok=True)
 
-def run_7z(seven_zip_path, target_dir, output_7z):
-    print(f"Running 7z compression: {seven_zip_path}")
-
-    os.makedirs(os.path.dirname(output_7z), exist_ok=True)
-    # `7z a` updates an existing archive and retains entries that disappeared
-    # from dist/.  A release package must be an exact snapshot of dist, so
-    # recreate this specific output archive on every run.
-    if os.path.isfile(output_7z):
-        os.remove(output_7z)
-
-    cmd = [
-        seven_zip_path,
-        "a",                 # add
-        "-t7z",              # format
-        output_7z,
-        f"{target_dir}/*"    # files to compress
-    ]
-
-    subprocess.run(cmd, check=True)
-    print("7z compression completed.")
-
-
-def run_nsis(nsis_dir, nsi_script_path, working_dir, output_dir):
-    makensis_exe = os.path.join(nsis_dir, "makensis.exe")
-
-    print(f"Running NSIS to generate installer: {makensis_exe}")
-    print(f"Output directory: {output_dir}")
-
-    cmd = [
-        makensis_exe,
-        f"/DOUTPUT_DIR={output_dir}",
-        nsi_script_path,
-    ]
-
-    subprocess.run(cmd, check=True, cwd=working_dir)
-    print("NSIS build completed.")
-
-
-def validate_service_install_inputs(target_dir: str) -> None:
-    required = ["px_service.exe", "px_service_manager.exe"]
-    missing = [name for name in required if not os.path.isfile(os.path.join(target_dir, name))]
-    if missing:
-        raise RuntimeError(
-            "Installer cannot register px_service because required runtime files are missing: "
-            + ", ".join(missing)
+    staging_dir = Path(tempfile.mkdtemp(prefix=f".{args.product}-installer-", dir=output_root))
+    try:
+        archive = staging_dir / "app" / "app.7z"
+        create_archive(seven_zip, dist_dir, archive)
+        installer = create_installer(
+            makensis,
+            setup_dir,
+            staging_dir,
+            args.product,
+            str(config["product_version"]),
+            int(config["product_version_code"]),
+            str(config["company"]),
         )
+        release_manifest = {
+            "schema_version": 1,
+            "product": args.product,
+            "company": config["company"],
+            "product_version": config["product_version"],
+            "product_version_code": config["product_version_code"],
+            "git_revision": manifest["git_revision"],
+            "payload_manifest_sha256": sha256(dist_dir / "product-manifest.json"),
+            "payload_archive": {"path": "app/app.7z", "sha256": sha256(archive)},
+            "installer": {"path": installer.name, "sha256": sha256(installer)},
+        }
+        (staging_dir / "installer-manifest.json").write_text(
+            json.dumps(release_manifest, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        os.replace(staging_dir, final_dir)
+    except Exception:
+        shutil.rmtree(staging_dir, ignore_errors=True)
+        raise
 
-
-def main():
-    parser = argparse.ArgumentParser(description="Package dist into installer")
-    parser.add_argument("--build-dir", required=True, help="CMake binary dir containing dist/")
-    args = parser.parse_args()
-
-    cfg = load_config()
-
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    build_dir = os.path.abspath(args.build_dir)
-
-    seven_zip_path = find_7z(cfg.get("7z_path"), current_dir)
-    nsis_dir = find_nsis(cfg.get("nsis_dir_path"), current_dir)
-
-    # 目标压缩文件夹：直接使用编译好的 dist/
-    target_dir = os.path.join(build_dir, "dist")
-    if not os.path.isdir(target_dir):
-        raise RuntimeError(f"dist folder not found: {target_dir}")
-    validate_service_install_inputs(target_dir)
-
-    # 输出目录：output/<build_name>/<version>/
-    output_dir = compute_output_dir(build_dir, current_dir)
-    os.makedirs(output_dir, exist_ok=True)
-
-    # 输出 app.7z
-    output_7z = os.path.join(output_dir, "app", "app.7z")
-
-    # NSIS 脚本路径
-    nsi_script_path = os.path.join(current_dir, "make_setup.nsi")
-
-    # NSIS 的工作目录保持为 setup/，以便找到 image/ 等资源
-    nsi_workdir = current_dir
-
-    # 调用 7z 压缩
-    run_7z(seven_zip_path, target_dir, output_7z)
-
-    # 调用 NSIS 生成安装包
-    run_nsis(nsis_dir, nsi_script_path, nsi_workdir, output_dir)
-
-    print(f"All tasks finished successfully. Output: {output_dir}")
+    print(f"Published installer atomically: {final_dir}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

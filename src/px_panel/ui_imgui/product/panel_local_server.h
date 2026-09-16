@@ -18,6 +18,7 @@ namespace px::panel::product {
 
 struct LocalServerSnapshot final {
     bool listening{};
+    int listenPort{};
     bool rendererConnected{};
     int clientConnections{};
 };

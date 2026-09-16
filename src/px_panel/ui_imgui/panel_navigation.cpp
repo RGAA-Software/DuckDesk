@@ -4,6 +4,7 @@
 #include "px_ui/components/navigation.h"
 #include "px_ui/layout_metrics.h"
 #include "px_ui/theme_tokens.h"
+#include "version_config.h"
 
 #include <imgui.h>
 
@@ -24,8 +25,12 @@ struct NavigationItem final {
 constexpr std::array kNavigationItems{
     NavigationItem{PanelPage::RemoteControl, px::ui::TextId::RemoteControl, px::ui::VectorIcon::Monitor},
     NavigationItem{PanelPage::DeviceList, px::ui::TextId::DeviceList, px::ui::VectorIcon::List},
+#if PX_CAPABILITY_CLOUD_APP_CATALOG
     NavigationItem{PanelPage::CloudApplications, px::ui::TextId::CloudApplications, px::ui::VectorIcon::Cloud},
+#endif
+#if PX_CAPABILITY_DESKTOP_HOST
     NavigationItem{PanelPage::ServerStatus, px::ui::TextId::ServerStatus, px::ui::VectorIcon::Activity},
+#endif
     NavigationItem{PanelPage::Settings, px::ui::TextId::Settings, px::ui::VectorIcon::Settings},
 };
 

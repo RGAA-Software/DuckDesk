@@ -287,8 +287,7 @@ RDP 客户端选型先验证无交互启动、Session 0/辅助进程部署方式
 
 `D:/dolit/rdp`：
 
-用户已确认这是自有实现，不仅是上游参考样例。详细功能、历史验证边界和服务端桥接改造点见
-[自有 Qt RDP 客户端功能盘点](rdp_qt_client_reuse_inventory.md)。
+用户已确认这是自有实现，不仅是上游参考样例。详细功能与服务端桥接改造点以该只读参考仓库的当前代码核对结果为准。
 
 - `README.md`、`cmake/FreeRDP.cmake`：Windows Qt/VS 构建与 FreeRDP 依赖。配置启用 Media Foundation H.264 解码后端；
   启用后端不代表每台机器、每次协商都实际走 GPU 解码。
@@ -304,7 +303,7 @@ RDP 客户端选型先验证无交互启动、Session 0/辅助进程部署方式
 RustDesk 的根目录旧副本曾作为文件传输协议/引擎迁移参考，历史研究基线为 `7aa98d43c`，未作为本仓库跟踪的子模块。
 现参考目录为 `D:/source/rustdesk`，不再使用 `D:/GoCloud/rustdesk` 或本仓库根下的 `rustdesk/`。
 已有 C++ 文件传输引擎 `src/px_deps/px_ft_engine` 是活动产品代码；移除参考副本不代表移除该功能。
-详情见 [文件传输迁移记录](rustdesk_file_transfer_migration_plan.md)。后续公网“RustDesk 方案”仍未确定为直接集成代码或服务器协议，
+后续公网“RustDesk 方案”仍未确定为直接集成代码或服务器协议，
 不能将该参考路径当成新增生产依赖。
 
 ## 11. FreeRDP 与 60fps 调研结论

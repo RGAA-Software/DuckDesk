@@ -4,6 +4,7 @@ mod app;
 mod console_client;
 mod node_auth_store;
 mod parsec_vdd;
+mod product_descriptor;
 mod rdp_authorization;
 mod service_host;
 mod service_windows;

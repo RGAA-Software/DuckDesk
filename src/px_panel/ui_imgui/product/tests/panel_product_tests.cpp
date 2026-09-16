@@ -360,11 +360,10 @@ TEST(PanelConfigStoreTest, PersistsAndClearsConnectionPreferences) {
 
 TEST(PanelLocalServerTest, RuntimeDesktopAccessUpdatesAreDeliveredOnTheRendererSessionThread) {
     TemporaryDirectory directory{};
-    constexpr int panelPort{29499};
     {
         std::ofstream serviceConfig{directory.Path() / "px_service.toml"};
         ASSERT_TRUE(serviceConfig);
-        serviceConfig << "[network]\npanel_port = " << panelPort << '\n';
+        serviceConfig << "[network]\npanel_port = 0\n";
     }
     const auto preferences = std::make_shared<SharedPreference>();
     ASSERT_TRUE(preferences->Init(directory.Path(), "preferences"));
@@ -373,7 +372,9 @@ TEST(PanelLocalServerTest, RuntimeDesktopAccessUpdatesAreDeliveredOnTheRendererS
     ASSERT_TRUE(audit);
     const auto server = PanelLocalServer::Create(config, audit);
     ASSERT_TRUE(server);
-    ASSERT_TRUE(server->Snapshot().listening);
+    const auto serverSnapshot = server->Snapshot();
+    ASSERT_TRUE(serverSnapshot.listening);
+    ASSERT_GT(serverSnapshot.listenPort, 0);
 
     struct Probe final {
         std::mutex mutex{};
@@ -393,7 +394,7 @@ TEST(PanelLocalServerTest, RuntimeDesktopAccessUpdatesAreDeliveredOnTheRendererS
         }
         probe->changed.notify_all();
     });
-    ASSERT_TRUE(client->start("127.0.0.1", panelPort, "/panel/renderer?instance_id=test-desktop"));
+    ASSERT_TRUE(client->start("127.0.0.1", serverSnapshot.listenPort, "/panel/renderer?instance_id=test-desktop"));
     const auto waitForCount = [probe](const std::size_t count) {
         std::unique_lock lock{probe->mutex};
         return probe->changed.wait_for(lock, std::chrono::seconds{3}, [probe, count] { return probe->disabledValues.size() >= count; });
@@ -425,11 +426,10 @@ TEST(PanelLocalServerTest, RuntimeDesktopAccessUpdatesAreDeliveredOnTheRendererS
 
 TEST(PanelLocalServerTest, ReceivesPxOsInfoSnapshotsOverTheLocalSystemInformationRoute) {
     TemporaryDirectory directory{};
-    constexpr int panelPort{29500};
     {
         std::ofstream serviceConfig{directory.Path() / "px_service.toml"};
         ASSERT_TRUE(serviceConfig);
-        serviceConfig << "[network]\npanel_port = " << panelPort << '\n';
+        serviceConfig << "[network]\npanel_port = 0\n";
     }
     const auto preferences = std::make_shared<SharedPreference>();
     ASSERT_TRUE(preferences->Init(directory.Path(), "preferences"));
@@ -438,9 +438,12 @@ TEST(PanelLocalServerTest, ReceivesPxOsInfoSnapshotsOverTheLocalSystemInformatio
     ASSERT_TRUE(audit);
     const auto server = PanelLocalServer::Create(config, audit);
     ASSERT_TRUE(server);
+    const auto serverSnapshot = server->Snapshot();
+    ASSERT_TRUE(serverSnapshot.listening);
+    ASSERT_GT(serverSnapshot.listenPort, 0);
 
     const auto client = std::make_shared<asio2::ws_client>();
-    ASSERT_TRUE(client->start("127.0.0.1", panelPort, "/sys/info"));
+    ASSERT_TRUE(client->start("127.0.0.1", serverSnapshot.listenPort, "/sys/info"));
     constexpr std::string_view payload{R"json({"cpu":{"usage":12.5,"brand":"Route CPU"},"mem":{"used":4,"total":8},"disks":[],"gpus":[]})json"};
     client->async_send(payload);
     bool received{};

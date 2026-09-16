@@ -126,7 +126,7 @@ WS + UDP 模式中，WS 在会话准入后记录短期的首次 UDP 媒体端点
 
 1. **授权链对 panel 的硬依赖**：service 连 Console 的地址/凭据由 panel 经本机 WS 推来——panel 不运行机器就永远离线。目标模型下应改为「安装包写入凭据，service 直连 Console」，panel 降级为可选入口。
 2. **数据面零鉴权**：`/media` 只校验 stream_id 非空、`/alloc/local/rtc` 裸开——同网段知道 IP:port 就能拉流。应由 Console 签发带时效的观看 token，render 校验。
-3. **标准 RTC 的异网生产门禁尚未完成**：Console 托管 Coturn，`net_rtc` 支持动态 ICE、配置热更新/ICE restart、Direct 失败后标准 RTC 回退和候选统计。本机与90号机已经通过强制 TURN UDP、受控 TURN TCP 回退、自动 Direct、全功能和重连验收；仍需两台不同公网/NAT 的真实 relay、对称 NAT、并发 allocation 和端口耗尽门禁。详见 `webrtc_rtc_acceptance_report_20260824.md`。
+3. **标准 RTC 的异网生产门禁尚未完成**：Console 托管 Coturn，`net_rtc` 支持动态 ICE、配置热更新/ICE restart、Direct 失败后标准 RTC 回退和候选统计。旧固定节点验收记录已经删除；仍需在当前公网环境完成真实 relay、对称 NAT、并发 allocation 和端口耗尽门禁。
 4. **本机控制面默认 :4603 无鉴权**：本机任意进程可推 AuthInfo/StartServer 让 service 拉进程，本地提权面。
 
 ## 8. 专题文档索引
@@ -135,7 +135,7 @@ WS + UDP 模式中，WS 在会话准入后记录短期的首次 UDP 媒体端点
 - 音频采集（PID loopback / 进程内 hook）：`game_hook_audio_capture.md`
 - Console 调度状态与测试：`console_app_schedule_plan.md`、`console_app_schedule_state.md`
 - 构建/部署：`../build_doc.md`、`pixels/How_to_*.md`
-- WebRTC/Coturn 配置、构建与验收：`webrtc_coturn_implementation_plan.md`
+- WebRTC/Coturn 的当前行为以 Console 配置和 RTC 模块测试为准；旧专项实施计划已删除。
 - 多用户会话、控制租约与无 Console 直连产品契约：`logical_session_product_definition.md`
 - Pixels Android 最终产品、架构、删除范围和交付门禁：`android_pixels_product_plan.md`
 - Pixels Android 页面、视觉、交互、响应式布局和组件规范：`android_pixels_ui_design.md`
