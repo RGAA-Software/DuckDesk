@@ -9,6 +9,15 @@
 
 ## Usage
 #### [当前产品编译、安装与使用说明](docs/product_build_and_usage.md)
+
+服务改造规划（待实施）：[连接与业务架构](docs/server_refactoring_plan.md) · [独立部署、Official/Customer 发行与升级](docs/server_deployment_and_upgrade_plan.md) · [服务管理与运维后台](docs/service_operations_console_plan.md)
+
+优先实施：[PostgreSQL 数据库改造、备份与升级方案](docs/postgresql_database_migration_plan.md)（先 DB0–DB5，再推进服务拆分与 GPU 调度）。
+
+交互图解：[打开服务拓扑网页](docs/server_topology.html)（下载后可直接用浏览器离线打开）。
+
+云应用业务规划：[应用管理、机器选择与多 GPU 调度](docs/cloud_application_scheduling_plan.md)；网页第五页可交互查看候选和预约变化。
+
 ## More
 #### [Official Site (官网)](https://pixels.yun)
 #### [Documentation (文档)](https://docs.pixels.yun)

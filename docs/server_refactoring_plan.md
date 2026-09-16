@@ -1,12 +1,14 @@
 # Pixels 服务端改造计划
 
-> 状态：设计草案，等待按阶段实施
+> 状态：设计草案；已按独立部署、Official/Customer 发行和升级要求修订，尚未实施
 >
 > 日期：2026-09-16
 >
 > 范围：`px_console_server`、未来连接协调服务、Native P2P/Relay、云运行时调度及其客户端协议边界
 >
-> 核心决定：远程连接与云业务共用连接基础设施，但业务资源、业务会话和生命周期保持独立；不采用客户端短期一次性票据。
+> 核心决定：服务端共用一套实现，不引入多租户；Official 仅接入自营官方平台，Customer 仅接入客户私有平台。远控和云业务共用连接基础设施，业务生命周期独立；不采用客户端短期一次性连接票据。
+>
+> 产品、部署、发行、安全更新、热升级边界及新的实施阶段以 [独立部署与升级实施计划](server_deployment_and_upgrade_plan.md) 为准；本文保留领域与连接架构细节。所有阶段仍为待实施，文档不是验收报告。
 
 ## 0. 文档目的
 
@@ -23,6 +25,9 @@ Pixels 当前同时发展两类业务：
 - 吸收现有 P2P/Relay 技术验证的可复用部分，避免直接复制其单体结构；
 - 以稳定会话、幂等操作和服务端授权取代脆弱的短期票据；
 - 为 Windows 一体化安装和 Linux Docker 部署保留一致的服务边界。
+- 自营公网和客户私有部署共用服务端实现；各部署独立拥有用户、设备和数据，不引入 Tenant 模型。
+- 客户端按产品与 Official/Customer 两个维度发行，平台发现、准入、更新来源和节点归属遵守同一部署边界。
+- 将升级、数据迁移、回滚、连接排空和恢复作为架构输入，而非完成拆分后再补安装器。
 
 本文是目标架构和迁移顺序，不代表所有能力已经实现或通过生产验证。
 
@@ -131,9 +136,13 @@ Relay 节点选择目前主要依赖静态优先级和 pending allocation 数量
 
 ## 4. 目标架构
 
+可直接打开 [交互拓扑网页](server_topology.html)，按步骤查看组件职责、连接路径与升级维护场景。
+各服务的管理页面、状态来源、运维操作和故障恢复边界见 [服务管理与运维后台计划](service_operations_console_plan.md)。
+数据库已确定改用 PostgreSQL，先执行 [数据库前置改造、备份与升级方案](postgresql_database_migration_plan.md)，再推进服务拆分与新调度。
+
 ```text
                                  px_console
-                 统一 API、身份、租户、策略、管理与审计
+                 统一 API、身份、权限、策略、管理与审计
                                       │
                       ┌───────────────┴───────────────┐
                       │                               │
@@ -151,7 +160,7 @@ Relay 节点选择目前主要依赖静态优先级和 pending allocation 数量
 
 节点侧：
   px_service / Node Agent
-      ├─ 节点注册、心跳和资源上报
+      ├─ 直连 Console：节点注册、管理长连接、心跳和资源上报
       ├─ 启停与监督 Render/RDP Proxy
       ├─ 动态分配实际 Render 端口
       └─ 上报实例/工作区运行状态
@@ -167,11 +176,12 @@ Relay 节点选择目前主要依赖静态优先级和 pending allocation 数量
 
 保留持久业务控制面：
 
-- 用户、租户、角色、ACL、配额和策略；
+- 本部署内的用户、角色、ACL、配额和策略；不增加企业多租户；
 - DeviceId、NodeId、ApplicationId、InstanceId、WorkspaceId 管理；
 - 设备注册、禁用、凭据轮换；
 - 应用目录、可见性、版本和兼容性；
 - 云节点、GPU/容量和应用放置；
+- 节点 Service 的认证管理长连接、资源/实例上报、管理命令与结果对账；
 - 云实例和云电脑 Workspace 生命周期；
 - 远控授权、云资源授权；
 - 创建、撤销和审计 SessionGrant；
@@ -180,12 +190,34 @@ Relay 节点选择目前主要依赖静态优先级和 pending allocation 数量
 
 逐步移出 Console：
 
-- 终端公网长连接；
+- 用于用户会话在线、Attach、路径协商的终端信令长连接；不包含 Service → Console 节点管理长连接；
 - TCP/UDP observer；
 - P2P 尝试状态；
 - 路径提名和质量切换；
 - Relay channel pairing；
 - 媒体数据转发。
+
+### 5.1.1 节点管理连接与会话信令连接分离
+
+产品决策（2026-09-16）：云节点安装包中的 `px_service` 常驻，主动与所属部署的 Console 建立认证管理长连接。
+这条连接不依赖 Panel 打开，也不依赖任何 Render 实例正在运行；节点空闲时仍上报机器和每张 GPU 的资源状态。
+节点管理入口使用当前平台配置/认证发现描述，不猜测端口，不经 Broker 转发应用管理命令。
+
+| 链路 | 用途 | 权威边界 |
+|---|---|---|
+| Service ↔ Console | 注册、心跳、资源/实例/工作区快照、预约、Start/Stop、排空、配置、任务回执 | Console 决定业务期望与预约；Service 确认本机实际执行和最终准入 |
+| Render ↔ Service（受认证本机 IPC） | Ready、实际 GPU、运行指标、参与者/断线宽限、错误和退出协作 | Render 提供自身运行事实；Service 结合进程监督汇总，不能仅信任自报 PID |
+| 客户端/运行 Endpoint ↔ Broker | 会话认证、Attach、连接在线、候选路径、Relay 分配和恢复 | Broker 管连接状态，不替代节点资源与实例状态权威 |
+
+Render 不必另建一条向 Console 重复上报整机资源的管理连接；它按连接协议需要与 Broker 保持独立信令关系。
+Broker 的 Endpoint 在线不等于 Service 管理在线，更不等于该机器可调度；反之，Service 在线也不证明 Render 健康。
+Console 分别保存管理可达、资源新鲜度、实例状态和会话路径状态，不合并成一个“在线”字段。
+
+长连接并不保证无信息差：关键事件立即推送，资源定期汇总；Console 先持久预约，节点执行前再次核验。
+管理链路断开或关键数据过期时暂停该节点的新调度，保留未知占用，不能按零用户回收或升级。
+重连必须重新认证、同步快照及未决任务、对账代际和预约，完成后才恢复符合其他门禁的准入。
+既有业务沿用已批准授权和断线宽限，不因管理连接断开全部终止，更不能注销 RDP 工作区。
+上报来源、可靠传递与恢复验收见 [运维后台计划第 6 节](service_operations_console_plan.md#6-状态指标和事件如何进入后台)。
 
 ### 5.2 Remote Access Domain
 
@@ -215,11 +247,16 @@ Relay 节点选择目前主要依赖静态优先级和 pending allocation 数量
 
 云游戏、云应用和云电脑共用这个运行时平台，但使用不同 `WorkloadProfile` 和生命周期策略，不需要立即拆成三个后端服务。
 
+应用目录/部署、机器与逐 GPU 调度的完整设计见 [云应用业务管理与多 GPU 调度](cloud_application_scheduling_plan.md)。
+新请求按已部署版本构造 `机器 + GPU + ApplicationDeployment` 候选，先硬过滤再按请求后的资源压力排序，
+通过持久原子预约和节点二次准入防止超售；不能只按用户数、整机 GPU 均值或最久未运行时间选择。
+已有实例/工作区恢复优先，RDP 固定原 owner，运行中游戏不自动迁移。
+
 ### 5.4 `px_connect_broker`
 
 负责实时连接控制面：
 
-- 用户端、设备端、节点端和实例端的认证连接；
+- 用户端、设备端及节点/实例 Endpoint 的认证会话信令连接；不承接 Service → Console 节点管理连接；
 - Endpoint 在线状态和当前连接代际；
 - 会话邀请、接受、拒绝和 Attach；
 - TCP/UDP 公网地址观察；
@@ -253,7 +290,11 @@ Broker 不负责：
 - 上报活动连接、流量、RTT、丢包、带宽和健康度；
 - 支持 draining，不再接受新会话但保留已有会话。
 
-第一阶段可以继续使用或兼容现有 `hbbr` 数据面，不必为了服务拆分同步重写所有转发协议。但 Broker 与 Relay 的控制协议必须逐步类型化，并支持真实负载和健康度上报。
+升级按可用容量分流：有替代 Relay 容量时新旧实例排空切换；单 Relay 或无替代容量时提前公告维护窗口，停止新分配，
+在约定时点中断中转路径、升级验证后恢复有效会话。客户端显示维护状态并有界重连；仅升级 Relay 不主动中断已有 Direct 会话。
+维护预算必须核对 Render 的既有断线保留期限，不因中转维护注销 RDP 工作区；详见 [Relay 维护规则](server_deployment_and_upgrade_plan.md#63-relay-冗余容量与单实例维护窗口)。
+
+现有 Relay 与参考 `hbbr` 只作为实现调研输入；交付使用唯一的类型化 Broker/Relay 协议，不保留旧客户端兼容入口。可复用经审查的内部转发组件；若第三方实现无法满足部署认证、可撤销 allocation 和 draining，则不能直接作为商业交付数据面。
 
 ### 5.6 `px_probe`（后期可选）
 
@@ -301,7 +342,8 @@ Broker 不负责：
   → 断开后按应用保活/空闲策略决定是否停止 Instance
 ```
 
-`WorkloadProfile` 至少区分：
+业务分类与运行模式分开：`business_kind=game/application`，`runtime_mode=game_hook/webview/rdp`；
+资源与生命周期由版本化 `WorkloadProfile` 描述，只开放验证通过的组合。以下为规格示例，不是三个独立服务或同维度枚举：
 
 | 类型 | 主要特性 |
 |---|---|
@@ -354,7 +396,7 @@ Workspace
 
 ```text
 UserId
-TenantId
+DeploymentId
 DeviceId
 NodeId
 ApplicationId
@@ -460,10 +502,11 @@ TransportPolicy
 Console ── CreateSessionGrant ──┘
 ```
 
-SessionGrant 是 Broker 内的服务端授权状态：
+SessionGrant 是 Broker 执行的服务端授权状态；Console 持久化授权依据、授权版本和撤销记录，通过可重试事件同步。Broker 内存不是重启恢复的唯一来源：
 
 ```text
 SessionGrant
+  deployment_id
   session_id
   business_kind
   initiator_identity
@@ -474,6 +517,13 @@ SessionGrant
   transport_policy
   lifecycle_state
   revocation_state
+  authorization_revision
+  authority_epoch
+  issued_at
+  not_after
+  lease_revision
+  offline_policy
+  target_kind / app_id / instance_id / instance_generation
 ```
 
 基本关系：
@@ -491,6 +541,14 @@ SessionGrant    = 服务端判断这个身份“能否加入该会话”
 - 请求角色与 capabilities 匹配；
 - Session 未关闭、未撤销；
 - 当前连接代际仍有效。
+
+云应用会话使用独立 CloudApplication 目标；业务 owner、Android 身份及字段约束见
+[调度计划第 2.1 节](cloud_application_scheduling_plan.md#21-android-云应用身份与会话目标)，不得用 device/account fallback。
+上面的 app_id/instance_id/instance_generation 属于 cloud_application 类型化目标的必填字段，其他目标按各自类型校验，不填伪造应用 ID。
+服务端授权租约不是客户端一次性连接票据：只有 Console 权威可续期，Broker、Render（含 Direct）及 Relay 均强制有效边界。
+普通策略最多 300 秒、严格策略最多 30 秒，执行容差和失联收敛上限按
+[部署计划第 5.3 节](server_deployment_and_upgrade_plan.md#53-持久授权与中断策略)；心跳/重连不延长租约。
+DB0–DB5 至 P4 为单活动 Console；P5 才验收升级双实例且每作用域单 owner。PG 事务与命令 fencing 分别保护数据库和网络副作用，不能互相替代。
 
 ### 8.3 SessionGrant 生命周期
 
@@ -571,7 +629,7 @@ EndpointBinding
   last_heartbeat_at
 ```
 
-新代际注册成功后，旧代际不再有资格发送控制消息、提交路径或改变 Session 状态，避免旧连接晚到消息破坏新连接。
+新代际注册成功后，旧代际不再有资格发送控制消息、提交路径或改变 Session 状态，避免旧连接晚到消息破坏新连接。权威代际由服务端分配；进程重启、数据恢复和 owner 切换必须推进持久化 epoch，不能接受客户端任意递增值作为接管凭据。辅助进程绑定按参与者和角色区分，不得替换整个 Endpoint 的所有通道。
 
 ## 10. Relay allocation 不使用一次性票据
 
@@ -607,11 +665,7 @@ authentication_proof
 - Relay 进程重启后可以从 Broker 恢复或重新创建同一代际 allocation；
 - 只有 Session 关闭、授权撤销、allocation 明确换代或服务端回收时失效。
 
-可选验证方式：
-
-1. Relay 保存 Broker 下发的 allocation 状态；
-2. Relay 通过内部认证通道查询 Broker；
-3. 使用会话生命周期内稳定、可轮换的证明材料。
+首版由 Relay 保存 Broker 经认证控制通道下发的 allocation 状态，并执行可重复的持有者证明。证明绑定 deployment、session、allocation generation、角色、通道用途和本次握手挑战；SessionId、静态内置 app secret 或可重放的旧响应均不能作为准入凭据。密钥可以轮换而不消费业务 Session，撤销和换代同步推进授权版本。具体握手与密钥协议在 P0 评审，不能以自定义未审查密码学直接实现。
 
 即使采用密码学证明，也不能将其设计成几秒有效、首次连接即消费的客户端票据。
 
@@ -662,22 +716,28 @@ Relay 节点离线或 draining 时不得继续分配新会话，但已有连接�
 
 | 状态 | 权威所有者 | 建议存储 |
 |---|---|---|
-| 用户、租户、ACL、配额 | Console | 持久数据库 |
+| 本部署用户、ACL、配额 | Console | 持久数据库 |
 | Device/Application/Workspace | Console | 持久数据库 |
 | AppNode/Instance 调度状态 | Cloud Runtime Domain | 持久数据库 + 心跳对账 |
+| 机器/逐 GPU/实例实际状态 | Service 汇总本机监督与 Render IPC；Console 保存带新鲜度的投影 | 认证管理长连接快照/事件；关键回执与对账记录持久化 |
+| 节点资源预约与期望状态 | Console / Cloud Runtime；Service 执行本机最终准入 | 持久预约/任务、代际及节点回执，不以监控图表代替台账 |
 | Endpoint 当前连接 | Broker | 内存；集群路由索引可放 Redis |
-| SessionGrant | Broker 为运行权威，Console 为业务来源 | Broker 内存/共享 TTL 状态 + Console 审计 |
+| SessionGrant | Console 持久化授权来源，Broker 执行运行状态 | 持久化依据/撤销记录/outbox；Broker 缓存与可恢复快照 |
+| owner epoch、幂等结果、升级任务 | 各领域唯一 owner | 持久存储；恢复后隔离旧 owner，禁止代际回退 |
 | P2P attempt/path nomination | Broker | 内存，短期 TTL |
 | Relay 节点目录和负载 | Broker | 内存 + 心跳/指标系统 |
 | Relay channel pairing | Relay | 内存 |
 | 连接用量和审计 | Console/分析系统 | 异步事件持久化 |
 | 媒体数据 | Client/Render/Relay | 不进入数据库或 Redis |
 
+上表中的主业务持久数据库统一为 PostgreSQL；先迁移当前 Console/Auth/Desk 和事务基线，再按各领域阶段扩展表。
+媒体和高频全量遥测不进入业务事务热路径，Redis 不替代持久授权、预约或任务。迁移与备份规则以数据库前置方案为准。
+
 Redis 只用于多 Broker 的 Endpoint 路由、短期 Session/Grant 协调、去重和节点目录；不得把媒体包或所有热路径消息通过 Redis 转发。
 
 ## 13. Broker 集群与路由
 
-单实例阶段只需内存状态。多实例阶段需要解决：
+单实例阶段可在内存保存连接与尝试，但授权依据、撤销、幂等结果和 owner epoch 必须可恢复。多实例阶段还需要解决：
 
 - 同一 Endpoint 只能有一个当前有效 generation；
 - 两个参与者可能连接到不同 Broker；
@@ -704,7 +764,7 @@ Redis 只用于多 Broker 的 Endpoint 路由、短期 Session/Grant 协调、�
 - Android 必须使用 `client_type=android`，不得伪装成 Panel；
 - 连接日志不记录密码、完整证明材料或可重用秘密。
 
-当前连接描述中的 `password_hash` 属于已有兼容模型，不应继续扩展为未来 Broker/Relay 的跨服务凭据。
+当前连接描述中的 `password_hash` 属于待退役的旧认证边界，新 Broker/Relay 不接受它作为跨服务凭据；迁移到新基线时删除对应旧准入路径。
 
 ### 14.2 授权
 
@@ -723,7 +783,7 @@ Redis 只用于多 Broker 的 Endpoint 路由、短期 Session/Grant 协调、�
 
 ## 15. 客户端配套改造
 
-保留：
+参考实现中优先评估复用的组件（不能视为当前 Pixels 已具备；取得可复现参考代码后审查所有权、协议和依赖）：
 
 - `NativeSession`；
 - `TcpPathAttempt`；
@@ -745,7 +805,7 @@ NativeConnectionCoordinator
   └─ PathRecoveryCoordinator
 ```
 
-仍由一个显式状态机做最终路径提交，避免 TCP、UDP、Relay 三个子系统同时争抢活动连接。服务端第一阶段可以兼容现有协议，避免服务拆分与媒体传输重写同时进行。
+仍由一个显式状态机做最终路径提交，避免 TCP、UDP、Relay 三个子系统同时争抢活动连接。本次迁移直接切到新基线，不保留旧协议适配器；未来发布的有限协议共存窗口仅用于滚动升级，规则见独立部署与升级实施计划。
 
 客户端必须区分：
 
@@ -775,7 +835,7 @@ NativeConnectionCoordinator
 
 ### 16.2 Windows
 
-- `px_console.exe`、`px_connect_broker.exe`、`px_relay.exe` 可以由同一个安装包安装；
+- `px_console.exe`、`px_connect_broker.exe`、`px_relay.exe` 可以由独立服务端套件安装；该套件不混入 Cloud Node、Client、Remote 桌面产品安装包；
 - 它们即使默认部署在同一台机器，也必须通过明确接口协作，不能直接共享全局内存或数据库内部表；
 - 服务安装、升级和卸载必须独立且幂等；
 - 覆盖安装不得因 Broker/Relay 重启破坏 Console 持久数据；
@@ -784,100 +844,47 @@ NativeConnectionCoordinator
 ### 16.3 Linux Docker
 
 - Console、Broker、Relay 使用独立容器；
-- 配置数据库、Redis 和内部服务认证；
+- 配置 PostgreSQL、数据库备份执行器和内部服务认证；单机版不强制引入 Redis，集群协调确有需要时再启用；
 - Relay 使用 host network 或明确映射所需 TCP/UDP 端口；
 - 节点、区域和动态端点由配置描述下发，不把部署端口写死在客户端；
-- 生产环境可以按区域独立扩展 Broker/Relay，Console 保持中心控制面。
+- 首版支持同一部署内多个 Render 主机和 Relay；Broker 多实例按第 13 节另验路由/owner，不能只增加容器数。
+- 区域标签可预留，跨地区控制面/自动就近调度属于后续专项；Console 首版保持中心控制面。
+
+### 16.4 多机管理与监控边界
+
+多 Render/多 Relay、资源池、服务发现、容量门禁、应用分发和分批维护属于 P7 商业首版，不要求 Kubernetes。
+管理员首版准备主机，节点认证、能力发现、应用准备与验证通过后进入池；一个 Console 管理本部署多台机器，不为每机复制账号库。
+Render 由 Cloud Runtime 选机/逐 GPU 预约，Relay 由 Broker 分配；增加机器只承接合规新业务，不迁移已有游戏或 RDP 工作区。
+缩容先关闭新准入、排空和对账；有保留工作区/本机数据/未知占用时不能自动销毁主机。
+
+Prometheus/Alertmanager 是监控告警，不是容器编排或业务权威；自营公网商业版独立部署，小型私有版可选装，Grafana 可补充图表。
+管理长连接/PG 预约/节点准入负责业务事实，监控负责历史趋势，不能用监控采样替代事务和新鲜度门禁。
+Linux 服务初期沿用成熟部署工具和受限执行器；Kubernetes 可在后续适配，Windows Render 保持完整 Windows + Service 模式。
+云厂商 API 自动采购、Console 常态多活、跨地区调度和活动 Relay 路径迁移单独立项。
+阶段与规模门槛见 [部署计划第 1 节](server_deployment_and_upgrade_plan.md#1-交付物与责任边界)，
+独立监控与批量后台见 [运维计划](service_operations_console_plan.md#64-独立监控发现与容量边界)。
 
 ## 17. 分阶段迁移计划
 
-### P0：冻结概念和协议语义
+阶段编号已按新的产品目标调整；详细交付物、依赖和验收见 [实施阶段](server_deployment_and_upgrade_plan.md#9-实施阶段与完成条件)。
+优先完成必要的 P0 数据契约和 DB0–DB5，再推进 P1/P2/P3；不先建设 Mongo 上的新调度/HA。
 
-- 批准本文的服务边界和命名；
-- 明确 RemoteDevice、CloudInstance、CloudWorkspace 三类 Target；
-- 明确禁用短期一次性连接票据；
-- 为所有请求定义 `request_id`、SessionId 和 generation 语义；
-- 记录现有协议、部署和端到端行为基线；
-- 不改变当前生产流量。
+| 阶段 | 工作与出口 |
+|---|---|
+| P0 | 冻结部署身份、发行隔离、发现/认证/升级协议和中断预算；取得参考源码或明确替代实现 |
+| DB0–DB5 | PostgreSQL 基础、Console/Auth/Desk 数据层、事务/幂等、备份恢复、一次性转换与功能验收；服务拆分的前置门槛 |
+| DB-HA | PostgreSQL 主备与自动切换专项；在 DB 基线后推进，公网/私有 HA 商业发布前必过 |
+| P1 | Official/Customer 全产品构建与平台配置；两套真实部署验证双向隔离 |
+| P2 | Console 领域边界、独立身份/许可证、持久 SessionGrant、撤销、幂等和恢复 |
+| P3 | Broker/Relay 拆分、多 Render/多 Relay 身份发现与容量准入、类型化多业务连接和监控指标 |
+| P4 | 单机私有部署套件、安全更新、离线交付，将 DB 阶段备份恢复能力纳入停机升级闭环 |
+| P5 | 双实例控制面滚动升级、Broker 恢复、Relay 排空；按组件实测中断 |
+| P6 | 应用分发、完整包预准备、按资源池分批升级/安全退役、Windows/Android 更新、安装身份和数据保护 |
+| P7 | 多 Render/多 Relay 公网/私有验收，独立监控告警、安全/容量/故障演练和经测规模上限 |
+| P8 | 云厂商自动扩缩容、Console 多活、跨地区调度、Kubernetes 适配、活动 Relay 路径迁移等；不推迟首版多机能力 |
 
-验收：领域模型、状态机、错误码和幂等规则通过设计评审，不存在同一字段在不同业务中表达不同身份的问题。
-
-### P1：在 `px_console_server` 内建立逻辑边界
-
-先不拆进程，抽取窄接口：
-
-```text
-IdentityDirectory
-RemoteAccessAuthorizer
-CloudRuntimeScheduler
-EndpointRegistry
-SessionGrantRegistry
-RendezvousCoordinator
-RelayDirectory / RelayAllocator
-AuditEventSink
-```
-
-- 将业务授权与实时连接状态分开；
-- 将连接描述改为类型化 Target/Endpoint；
-- 给启动、停止、Attach、allocation 增加幂等行为测试；
-- 避免新增全局单例和无类型 JSON bag；
-- 保持现有外部 API 可工作，必要兼容只放在边界适配器中。
-
-验收：单进程部署行为不回退；内部模块可通过假实现独立测试。
-
-### P2：引入稳定 Session 与 SessionGrant
-
-- 建立 ConnectionSession 状态机；
-- Console 创建业务 Session，Broker 模块保存运行 Grant；
-- 客户端通过认证连接 Attach(SessionId)；
-- 支持 Detached/重连；
-- 路径失败不关闭 Session；
-- 支持多进程 participant 和 connection generation；
-- 删除把短期票据当作 P2P/Relay 重连条件的路径。
-
-验收：模拟延迟启动、重复请求、客户端崩溃、多进程 Attach、网络切换和 Console 短时不可用，Session 均按规则恢复。
-
-### P3：拆出 `px_connect_broker`
-
-- 从 Console 迁出终端长连接、presence、observer、rendezvous、nomination 和 relay allocation；
-- 建立 Console ↔ Broker 内部认证接口；
-- Console 创建/撤销 SessionGrant；
-- Broker 发布异步连接审计事件；
-- 保证 Console 重启不主动结束已有 Session；
-- 单 Broker 先使用内存状态。
-
-验收：远控和云应用都通过 Broker 建立连接；Console 重启期间已连接会话继续运行，恢复后可对账。
-
-### P4：独立 Relay 数据面
-
-- 将现有 Relay 或 hbbr 兼容实现置于独立部署；
-- Broker 负责创建会话级 allocation；
-- Relay 支持同一 allocation 多连接、多通道和重连；
-- 引入健康、容量、带宽和 draining；
-- 验证 Direct → Relay、Relay → Direct 和 Relay 节点切换。
-
-验收：首次握手失败、控制/媒体并发建连、进程重启、NAT rebinding 都不会因一次性凭证失效而失败。
-
-### P5：两类业务完整接入
-
-- Remote Access Domain 接入 Device Target；
-- CloudGame/CloudApplication 接入 Instance Target；
-- Cloud Desktop 接入 Workspace Target 和 RDP 专用 carrier；
-- 每类业务使用独立生命周期策略；
-- 统一审计但不混淆资源 ID。
-
-验收：三类 Target 不能互相伪装；停止连接不会误停设备或错误注销 Workspace。
-
-### P6：集群和多地区
-
-- Broker 粘性路由和跨 Broker 消息；
-- Redis Endpoint/Session 索引；
-- Session owner 接管代际；
-- 地域 Probe 和 Relay；
-- 基于地区、运营商、负载和质量的调度；
-- 故障演练和容量门禁。
-
-验收：Broker/Relay 单实例故障可恢复；同一 Endpoint 不出现双活控制；媒体不经过 Redis。
+数据库基线完成后 P1 可先实现发行与配置框架，但实际认证和连接隔离验收依赖 P2/P3；不得把 UI 隐藏地址当作完整准入控制。
+每一阶段交付仍须包含测试、完整产品构建、制品校验和部署证据，不能仅以代码合并标记完成。
 
 ## 18. 测试与验收矩阵
 
@@ -948,17 +955,24 @@ AuditEventSink
 - 不把标准 WebRTC TURN 与 Native `px_relay` 混为一个协议；
 - 不恢复已退役端口或旧 Endpoint fallback；
 - 不把当前 `px_desk_server` 改造成云电脑调度器。
+- 不引入多企业租户体系；不允许 Customer 回退或接入官方业务平台。
+- 不把发行字符串、静态内置秘密或 IP 黑名单视为客户端真实性证明。
+- 不承诺单进程替换、活动 Render 替换、驱动升级或 Android APK 更新零中断。
 
 ## 20. 最终决策摘要
 
 1. **产品有两个业务域**：Remote Access 与 Cloud Runtime。
 2. **Cloud Runtime 内有三类工作负载**：云游戏、云应用、云电脑；前两者以 Instance 为核心，云电脑以持久 Workspace 为核心。
 3. **业务域共用连接平台**：`px_connect_broker + px_relay`，但不共用业务生命周期。
-4. **Console 保留身份、管理和业务编排**；实时在线、P2P、路径与 Relay allocation 逐步迁出。
+4. **Console 保留身份、管理、业务编排和 Service 管理长连接**；会话 Endpoint 在线、P2P、路径与 Relay allocation 逐步迁出。
 5. **Relay 是纯数据面**，不理解用户、设备、应用和 Workspace。
 6. **不使用客户端短期一次性票据**；使用认证长连接、服务端 SessionGrant、稳定 SessionId 和幂等 generation。
 7. **重连是 Session 的正常状态迁移**，不是重新创建业务授权。
 8. **先模块化、后拆进程、再做集群**，每一步都保持现有远控和云业务可验证。
+9. **一套服务端、两种客户端发行**：Official 固定官方入口，Customer 自填私有入口，独立部署无多租户。
+10. **升级分级交付**：先有安全更新和恢复，再实现滚动升级/排空；协议共存、schema 迁移和回滚边界先定义再实施。
+11. **Render 首版采用整节点空闲升级**：云游戏节点按通常约 2–4 个并发用户规划，先准备完整包，停止新调度，等无用户且既有重连/任务保留结束后统一升级；不要求活动实例迁移或同节点新旧 Render 并行。
+12. **数据库先改为 PostgreSQL**：唯一业务存储基线，先完成 DB0–DB5 的现有功能、事务与备份恢复，再拆服务；不保留 Mongo 双写或运行 fallback。
 
 ## 21. 调研证据索引
 

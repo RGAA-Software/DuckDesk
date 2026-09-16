@@ -1,0 +1,3645 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Pixels · 服务架构 / Architecture</title>
+    <style>
+      :root {
+        --bg: #f4f6f8;
+        --surface: #fff;
+        --surface2: #edf2f5;
+        --ink: #172b36;
+        --muted: #657782;
+        --line: #dce5e9;
+        --accent: #087e74;
+        --accentSoft: #e5f5ef;
+        --blue: #456cd7;
+        --blueSoft: #ebf0ff;
+        --amber: #a9680a;
+        --amberSoft: #fff3da;
+        --danger: #b94747;
+        --shadow: 0 8px 30px #233f4a06;
+        --radius: 20px;
+      }
+      :root[data-theme="dark"] {
+        --bg: #101a20;
+        --surface: #19262f;
+        --surface2: #22333e;
+        --ink: #e6eef2;
+        --muted: #9aaeb9;
+        --line: #344751;
+        --accent: #63d4b9;
+        --accentSoft: #203d38;
+        --blue: #a0b6ff;
+        --blueSoft: #29354e;
+        --amber: #f1c575;
+        --amberSoft: #403625;
+        --danger: #ff9a9a;
+        --shadow: none;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          14px/1.65 "Segoe UI",
+          "Microsoft YaHei",
+          sans-serif;
+      }
+      button,
+      a,
+      input {
+        font: inherit;
+      }
+      button {
+        cursor: pointer;
+        color: inherit;
+      }
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.45;
+      }
+      button:focus-visible,
+      a:focus-visible,
+      input:focus-visible {
+        outline: 3px solid var(--blue);
+        outline-offset: 4px;
+      }
+      a {
+        color: var(--accent);
+        text-underline-offset: 4px;
+      }
+      button {
+        border: 0;
+      }
+      svg {
+        display: block;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      .shell {
+        max-width: 1400px;
+        margin: auto;
+        padding: 0 40px;
+      }
+      .topbar {
+        height: 83px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid var(--line);
+        gap: 20px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 750;
+        font-size: 23px;
+        letter-spacing: -0.8px;
+      }
+      .brandmark {
+        width: 29px;
+        height: 29px;
+        display: grid;
+        grid-template-columns: repeat(3, 7px);
+        grid-template-rows: repeat(3, 7px);
+        gap: 3px;
+        transform: rotate(-5deg);
+      }
+      .brandmark i {
+        background: var(--accent);
+        border-radius: 2px;
+      }
+      .brandmark i:nth-child(3),
+      .brandmark i:nth-child(8) {
+        opacity: 0.35;
+      }
+      .brand small {
+        font-size: 12px;
+        letter-spacing: 1px;
+        font-weight: 500;
+        color: var(--muted);
+        border-left: 1px solid var(--line);
+        padding-left: 15px;
+        margin-left: 6px;
+      }
+      .tools {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+      }
+      .icon-button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-width: 38px;
+        min-height: 38px;
+        padding: 7px 11px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--surface);
+      }
+      .icon {
+        width: 20px;
+        height: 20px;
+        stroke: currentColor;
+        stroke-width: 1.7;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
+      }
+      .status {
+        font-size: 12px;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-right: 12px;
+      }
+      .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--accent);
+        display: inline-block;
+        flex-shrink: 0;
+      }
+      .hero {
+        padding: 35px 0 27px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 28px;
+      }
+      .eyebrow {
+        color: var(--accent);
+        font-size: 11px;
+        letter-spacing: 2.5px;
+        font-weight: 750;
+        text-transform: uppercase;
+        margin: 0 0 10px;
+      }
+      h1 {
+        font-size: clamp(27px, 3vw, 41px);
+        line-height: 1.25;
+        letter-spacing: -1.4px;
+        margin: 0;
+        font-weight: 720;
+      }
+      h1 span {
+        color: var(--accent);
+      }
+      .hero p.description {
+        margin: 13px 0 0;
+        color: var(--muted);
+        max-width: 690px;
+        font-size: 14px;
+      }
+      .hero-note {
+        border-left: 2px solid var(--line);
+        padding-left: 20px;
+        font-size: 12px;
+        min-width: 174px;
+        color: var(--muted);
+      }
+      .hero-note strong {
+        display: block;
+        font-size: 19px;
+        color: var(--ink);
+        font-weight: 650;
+        margin-bottom: 2px;
+      }
+      .tabs {
+        display: flex;
+        gap: 6px;
+        border-bottom: 1px solid var(--line);
+        margin-bottom: 24px;
+        overflow: auto;
+      }
+      .tab {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        white-space: nowrap;
+        padding: 13px 18px;
+        background: none;
+        border-bottom: 3px solid transparent;
+        color: var(--muted);
+        font-weight: 650;
+      }
+      .tab.active {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+      }
+      .tab-number {
+        font: 11px monospace;
+        opacity: 0.7;
+      }
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+      }
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 282px;
+        gap: 20px;
+      }
+      .diagram-panel {
+        min-width: 0;
+        overflow: hidden;
+      }
+      .panel-bar {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .segmented {
+        display: inline-flex;
+        background: var(--surface2);
+        border-radius: 11px;
+        padding: 4px;
+        gap: 3px;
+      }
+      .segmented button {
+        background: transparent;
+        border-radius: 8px;
+        padding: 7px 13px;
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 650;
+      }
+      .segmented button.active {
+        background: var(--surface);
+        box-shadow: 0 2px 6px #00000008;
+        color: var(--ink);
+      }
+      .small-label {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .platform-note {
+        display: flex;
+        align-items: flex-start;
+        gap: 9px;
+        color: var(--muted);
+        padding: 14px 24px 0;
+        font-size: 12px;
+      }
+      .platform-note .icon {
+        width: 16px;
+        height: 16px;
+        color: var(--accent);
+        margin-top: 2px;
+      }
+      .map {
+        position: relative;
+        isolation: isolate;
+        display: grid;
+        grid-template-columns: 1fr 1.06fr 1fr;
+        gap: 44px;
+        padding: 24px 24px 68px;
+        min-height: 458px;
+      }
+      .lane {
+        min-width: 0;
+        z-index: 1;
+        pointer-events: none;
+      }
+      .lane > * {
+        pointer-events: auto;
+      }
+      .lane-head {
+        font-size: 11px;
+        color: var(--muted);
+        letter-spacing: 0.5px;
+        margin-bottom: 16px;
+        display: flex;
+        justify-content: space-between;
+        gap: 5px;
+      }
+      .lane-head span:first-child {
+        font-weight: 650;
+      }
+      .lane-head span:last-child {
+        font-family: monospace;
+        opacity: 0.6;
+      }
+      .lane-left .node {
+        margin-top: 126px;
+      }
+      .lane-right .node + .node {
+        margin-top: 40px;
+      }
+      .lane-center .node + .node {
+        margin-top: 22px;
+      }
+      .node {
+        position: relative;
+        text-align: left;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 13px;
+        padding: 14px;
+        width: 100%;
+        min-height: 88px;
+        transition:
+          border-color 0.2s,
+          box-shadow 0.2s,
+          transform 0.2s;
+      }
+      .node:hover {
+        transform: translateY(-2px);
+        border-color: var(--accent);
+      }
+      .node.selected {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accentSoft);
+      }
+      .node.flow-on {
+        border-color: var(--blue);
+        box-shadow: 0 0 0 3px var(--blueSoft);
+      }
+      .node-title {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin-bottom: 4px;
+      }
+      .node-title strong {
+        font-size: 14px;
+        font-weight: 700;
+      }
+      .node-title .icon {
+        color: var(--accent);
+        width: 19px;
+        height: 19px;
+      }
+      .node p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .node small {
+        display: block;
+        margin-top: 7px;
+        font-size: 10px;
+        color: var(--muted);
+      }
+      .node.relay {
+        background: var(--surface2);
+      }
+      .node.relay.in-use {
+        background: var(--accentSoft);
+        border-color: var(--accent);
+      }
+      .badge {
+        display: inline-block;
+        background: var(--accentSoft);
+        color: var(--accent);
+        font-size: 10px;
+        font-weight: 700;
+        border-radius: 5px;
+        padding: 1px 6px;
+        margin-top: 7px;
+      }
+      .connections {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+        overflow: visible;
+        pointer-events: none;
+      }
+      .wire {
+        fill: none;
+        stroke: var(--line);
+        stroke-width: 1.6;
+        stroke-dasharray: 5 5;
+      }
+      .wire.active {
+        stroke: var(--blue);
+        stroke-width: 2.5;
+        stroke-dasharray: 6 5;
+      }
+      .wire.data {
+        stroke: var(--accent);
+        stroke-width: 2.5;
+        stroke-dasharray: 0;
+      }
+      .wire.data.active {
+        stroke-dasharray: 8 6;
+        animation: travel 1.6s linear infinite;
+      }
+      @keyframes travel {
+        to {
+          stroke-dashoffset: -28;
+        }
+      }
+      .route-caption {
+        position: absolute;
+        bottom: 17px;
+        left: 0;
+        right: 0;
+        text-align: center;
+        color: var(--accent);
+        font-size: 11px;
+        z-index: 2;
+        pointer-events: none;
+      }
+      .map-footer {
+        border-top: 1px solid var(--line);
+        padding: 13px 24px;
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .legend {
+        display: flex;
+        gap: 16px;
+      }
+      .legend span {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .legend i {
+        width: 22px;
+        border-top: 2px dashed var(--muted);
+      }
+      .legend i.data-key {
+        border-top: 2px solid var(--accent);
+      }
+      .inspector {
+        padding: 25px;
+        display: flex;
+        flex-direction: column;
+        min-height: 100%;
+      }
+      .inspector .big-icon {
+        width: 43px;
+        height: 43px;
+        padding: 11px;
+        background: var(--accentSoft);
+        color: var(--accent);
+        border-radius: 12px;
+        margin: 20px 0 13px;
+      }
+      .inspector h2 {
+        font-size: 22px;
+        margin: 0 0 9px;
+        letter-spacing: -0.6px;
+      }
+      .inspector p {
+        font-size: 13px;
+        color: var(--muted);
+        margin: 0 0 18px;
+      }
+      .detail-list {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .detail-list li {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        font-size: 12px;
+        margin: 12px 0;
+      }
+      .detail-list .icon {
+        color: var(--accent);
+        width: 15px;
+        height: 15px;
+        margin-top: 3px;
+      }
+      .boundary {
+        margin-top: auto;
+        padding: 15px 0 0;
+        border-top: 1px solid var(--line);
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .boundary strong {
+        color: var(--ink);
+        display: block;
+        font-size: 11px;
+        margin-bottom: 6px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-top: 20px;
+      }
+      .fact {
+        padding: 20px 22px;
+      }
+      .fact .index {
+        color: var(--accent);
+        font: 12px monospace;
+      }
+      .fact h3 {
+        margin: 8px 0 5px;
+        font-size: 14px;
+      }
+      .fact p {
+        color: var(--muted);
+        font-size: 12px;
+        margin: 0;
+      }
+      .flow-controls {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-bottom: 17px;
+      }
+      .flow-controls p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .steps {
+        list-style: none;
+        margin: 18px 0;
+        padding: 0;
+      }
+      .step-button {
+        display: flex;
+        text-align: left;
+        gap: 10px;
+        align-items: flex-start;
+        width: 100%;
+        padding: 11px 0;
+        background: none;
+        color: var(--muted);
+      }
+      .step-count {
+        width: 23px;
+        height: 23px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        border: 1px solid var(--line);
+        border-radius: 50%;
+        font: 11px monospace;
+      }
+      .step-button.active {
+        color: var(--ink);
+        font-weight: 650;
+      }
+      .step-button.active .step-count {
+        background: var(--blue);
+        color: var(--surface);
+        border-color: var(--blue);
+      }
+      .step-button small {
+        display: block;
+        font-size: 11px;
+        font-weight: 400;
+        margin-top: 3px;
+      }
+      .button-row {
+        display: flex;
+        gap: 9px;
+        margin-top: 16px;
+      }
+      .primary,
+      .secondary {
+        padding: 10px 16px;
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 650;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+      }
+      .primary {
+        background: var(--accent);
+        color: var(--surface);
+      }
+      .secondary {
+        background: var(--surface2);
+        color: var(--ink);
+      }
+      .upgrade-intro {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 15px;
+        margin-bottom: 21px;
+      }
+      .upgrade-intro h2 {
+        font-size: 24px;
+        margin: 0;
+        letter-spacing: -0.7px;
+      }
+      .upgrade-intro p {
+        font-size: 13px;
+        color: var(--muted);
+        margin: 6px 0 0;
+      }
+      .upgrade-layout {
+        display: grid;
+        grid-template-columns: 1fr 310px;
+        gap: 20px;
+      }
+      .simulation {
+        padding: 26px;
+      }
+      .simulation-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .scenario-label {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+      .sim-stage {
+        display: grid;
+        grid-template-columns: 1fr 45px 1fr;
+        gap: 18px;
+        align-items: center;
+        margin: 28px 0;
+      }
+      .server {
+        padding: 25px 19px;
+        background: var(--surface2);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        min-height: 179px;
+      }
+      .server.green {
+        background: var(--accentSoft);
+        border-color: var(--accent);
+      }
+      .server.amber {
+        background: var(--amberSoft);
+        border-color: var(--amber);
+      }
+      .server .icon {
+        width: 27px;
+        height: 27px;
+        color: var(--muted);
+        margin-bottom: 12px;
+      }
+      .server h3 {
+        font-size: 15px;
+        margin: 0;
+      }
+      .server p {
+        color: var(--muted);
+        font-size: 12px;
+        margin: 7px 0 0;
+      }
+      .server-status {
+        font-size: 11px;
+        display: inline-block;
+        padding: 3px 8px;
+        background: var(--surface);
+        border-radius: 6px;
+        margin-top: 12px;
+        color: var(--ink);
+      }
+      .sim-arrow {
+        color: var(--muted);
+        display: flex;
+        justify-content: center;
+      }
+      .sim-arrow .icon {
+        width: 26px;
+        height: 26px;
+      }
+      .notice {
+        padding: 15px 17px;
+        background: var(--blueSoft);
+        border-radius: 11px;
+        color: var(--blue);
+        font-size: 12px;
+        min-height: 67px;
+      }
+      .notice.warning {
+        background: var(--amberSoft);
+        color: var(--amber);
+      }
+      .progress {
+        display: flex;
+        gap: 6px;
+        margin: 24px 0 11px;
+      }
+      .progress span {
+        height: 4px;
+        border-radius: 3px;
+        background: var(--line);
+        flex: 1;
+      }
+      .progress span.done {
+        background: var(--accent);
+      }
+      .sim-caption {
+        font-size: 13px;
+        font-weight: 650;
+        min-height: 25px;
+      }
+      .upgrade-aside {
+        padding: 25px;
+      }
+      .upgrade-aside h3 {
+        font-size: 16px;
+        margin: 0 0 14px;
+      }
+      .upgrade-aside p {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .pill {
+        display: inline-block;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 3px 10px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .capacity-control {
+        margin: 17px 0;
+        background: var(--surface2);
+        padding: 15px;
+        border-radius: 11px;
+      }
+      .capacity-control label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        gap: 10px;
+      }
+      .capacity-control input {
+        width: 100%;
+        accent-color: var(--accent);
+        margin: 15px 0 3px;
+      }
+      .capacity-control small {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .ops-layout {
+        display: grid;
+        grid-template-columns: 185px minmax(0, 1fr);
+        gap: 20px;
+      }
+      .ops-nav {
+        padding: 14px;
+        align-self: start;
+      }
+      .ops-nav-label {
+        font-size: 10px;
+        letter-spacing: 1.5px;
+        color: var(--muted);
+        padding: 8px 10px 15px;
+      }
+      .ops-nav button {
+        width: 100%;
+        text-align: left;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 11px 10px;
+        margin: 3px 0;
+        border-radius: 9px;
+        background: transparent;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .ops-nav button.active {
+        color: var(--accent);
+        background: var(--accentSoft);
+        font-weight: 700;
+      }
+      .ops-nav .icon {
+        width: 17px;
+        height: 17px;
+      }
+      .ops-content {
+        min-width: 0;
+      }
+      .ops-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+      .ops-header h2 {
+        font-size: 24px;
+        margin: 0;
+        letter-spacing: -0.6px;
+      }
+      .ops-header p {
+        font-size: 12px;
+        color: var(--muted);
+        margin: 5px 0;
+      }
+      .ops-toolbar {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+        margin: 14px 0;
+      }
+      .ops-toolbar .segmented {
+        flex-wrap: wrap;
+      }
+      .ops-stale {
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: var(--surface);
+        padding: 8px 12px;
+        font-size: 12px;
+      }
+      .ops-stale[aria-pressed="true"] {
+        color: var(--amber);
+        background: var(--amberSoft);
+        border-color: var(--amber);
+      }
+      .ops-metrics {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin: 16px 0;
+      }
+      .ops-metric {
+        padding: 16px;
+      }
+      .ops-metric small {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .ops-metric strong {
+        display: block;
+        margin-top: 6px;
+        font-size: 24px;
+        font-weight: 650;
+        letter-spacing: -0.5px;
+      }
+      .ops-table-panel {
+        overflow: hidden;
+      }
+      .ops-table-head {
+        padding: 15px 18px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .ops-table-head strong {
+        font-size: 13px;
+      }
+      .ops-filter {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .ops-filter input {
+        accent-color: var(--accent);
+      }
+      .ops-scroll {
+        overflow-x: auto;
+      }
+      .ops-table {
+        width: 100%;
+        min-width: 640px;
+        border-collapse: collapse;
+        font-size: 12px;
+        text-align: left;
+      }
+      .ops-table th {
+        padding: 11px 17px;
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 600;
+        background: var(--surface2);
+      }
+      .ops-table td {
+        padding: 15px 17px;
+        border-top: 1px solid var(--line);
+        white-space: nowrap;
+      }
+      .ops-table tr.selected td {
+        background: var(--accentSoft);
+      }
+      .ops-row-button {
+        background: none;
+        color: var(--accent);
+        padding: 0;
+        font-weight: 650;
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+      .ops-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 10px;
+        border-radius: 20px;
+        padding: 3px 8px;
+        background: var(--accentSoft);
+        color: var(--accent);
+      }
+      .ops-badge.amber {
+        background: var(--amberSoft);
+        color: var(--amber);
+      }
+      .ops-badge.unknown {
+        background: var(--surface2);
+        color: var(--muted);
+      }
+      .ops-detail-grid {
+        display: grid;
+        grid-template-columns: 1.15fr 1fr;
+        gap: 16px;
+        margin-top: 16px;
+      }
+      .ops-detail {
+        padding: 21px;
+        min-width: 0;
+      }
+      .ops-detail h3 {
+        margin: 0 0 12px;
+        font-size: 15px;
+      }
+      .ops-detail p,
+      .ops-detail li {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .ops-detail ul {
+        padding-left: 18px;
+        margin: 10px 0;
+      }
+      .ops-detail li {
+        margin: 7px 0;
+      }
+      .ops-kv {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 8px 16px;
+        margin: 13px 0;
+        font-size: 12px;
+      }
+      .ops-kv dt {
+        color: var(--muted);
+      }
+      .ops-kv dd {
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      .ops-action-note {
+        color: var(--amber) !important;
+        min-height: 21px;
+      }
+      .ops-preflight {
+        margin-top: 16px;
+        padding: 16px;
+        border-radius: 10px;
+        background: var(--blueSoft);
+        color: var(--blue);
+        font-size: 12px;
+      }
+      .ops-preflight ol {
+        padding-left: 20px;
+      }
+      .ops-empty {
+        padding: 25px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .ops-caption {
+        font-size: 11px;
+        color: var(--muted);
+        margin: 12px 0;
+      }
+      .ops-notice {
+        margin-bottom: 13px;
+      }
+      @media (max-width: 1050px) {
+        .ops-layout {
+          grid-template-columns: 160px minmax(0, 1fr);
+        }
+        .ops-metrics {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .ops-detail-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      @media (max-width: 800px) {
+        .ops-layout {
+          grid-template-columns: 1fr;
+        }
+        .ops-nav {
+          display: flex;
+          gap: 5px;
+          overflow: auto;
+        }
+        .ops-nav-label {
+          display: none;
+        }
+        .ops-nav button {
+          width: auto;
+          white-space: nowrap;
+          margin: 0;
+          flex-shrink: 0;
+        }
+        .ops-header {
+          flex-wrap: wrap;
+        }
+      }
+      @media (max-width: 540px) {
+        .ops-header h2 {
+          font-size: 21px;
+        }
+        .ops-metric {
+          padding: 13px;
+        }
+        .ops-metric strong {
+          font-size: 22px;
+        }
+        .ops-detail {
+          padding: 17px;
+        }
+        .ops-toolbar {
+          gap: 7px;
+        }
+      }
+      .business-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+        margin: 20px 0;
+      }
+      .business-card {
+        padding: 20px;
+        text-align: left;
+        min-width: 0;
+      }
+      .business-card.active {
+        border-color: var(--accent);
+        background: var(--accentSoft);
+      }
+      .business-card strong,
+      .business-card small {
+        display: block;
+      }
+      .business-card small {
+        color: var(--muted);
+        margin-top: 10px;
+        line-height: 1.6;
+      }
+      .business-controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin: 20px 0;
+      }
+      .business-controls label {
+        display: grid;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .business-controls select {
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--surface);
+        color: var(--ink);
+        max-width: 100%;
+      }
+      .business-result {
+        padding: 22px;
+        margin: 20px 0;
+        border-left: 4px solid var(--accent);
+      }
+      .business-result p {
+        line-height: 1.7;
+        color: var(--muted);
+      }
+      .business-table {
+        min-width: 980px;
+      }
+      .business-table td {
+        vertical-align: top;
+        white-space: normal;
+      }
+      .business-table small {
+        display: block;
+        margin-top: 6px;
+        color: var(--muted);
+      }
+      .business-details {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-top: 20px;
+      }
+      .business-details .panel {
+        padding: 22px;
+        min-width: 0;
+      }
+      .business-details li {
+        line-height: 1.8;
+        margin-bottom: 8px;
+      }
+      @media (max-width: 800px) {
+        .business-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .business-details {
+          grid-template-columns: 1fr;
+        }
+      }
+      @media (max-width: 540px) {
+        .business-controls {
+          display: grid;
+        }
+      }
+      footer {
+        margin: 30px 0 24px;
+        padding-top: 18px;
+        border-top: 1px solid var(--line);
+        display: flex;
+        justify-content: space-between;
+        gap: 15px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      footer a {
+        margin-left: 16px;
+      }
+      .mobile-route {
+        display: none;
+      }
+      noscript {
+        display: block;
+        padding: 25px;
+        color: var(--danger);
+      }
+      @media (min-width: 1450px) {
+        .map {
+          gap: 60px;
+          padding-left: 30px;
+          padding-right: 30px;
+        }
+      }
+      @media (max-width: 1050px) {
+        .shell {
+          padding: 0 24px;
+        }
+        .workspace {
+          grid-template-columns: minmax(0, 1fr) 240px;
+          gap: 15px;
+        }
+        .map {
+          gap: 24px;
+          padding-left: 18px;
+          padding-right: 18px;
+        }
+        .inspector {
+          padding: 20px;
+        }
+        .node {
+          padding: 11px;
+        }
+        .node-title {
+          gap: 6px;
+        }
+        .node-title strong {
+          font-size: 12px;
+        }
+        .hero-note {
+          display: none;
+        }
+      }
+      @media (max-width: 800px) {
+        .workspace,
+        .upgrade-layout {
+          grid-template-columns: 1fr;
+        }
+        .inspector {
+          min-height: 0;
+        }
+        .inspector .big-icon {
+          margin-top: 10px;
+        }
+        .detail-list {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0 20px;
+        }
+        .boundary {
+          margin-top: 12px;
+        }
+        .map {
+          gap: 40px;
+        }
+        .cards {
+          gap: 10px;
+        }
+        .hero {
+          padding-top: 25px;
+        }
+        .status {
+          display: none;
+        }
+        .upgrade-intro {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+        .brand small {
+          font-size: 10px;
+        }
+        .steps {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 0 15px;
+        }
+        .node-title strong {
+          font-size: 14px;
+        }
+      }
+      @media (max-width: 540px) {
+        .shell {
+          padding: 0 16px;
+        }
+        .topbar {
+          height: 69px;
+        }
+        .brand small {
+          display: none;
+        }
+        .hero {
+          padding-bottom: 22px;
+        }
+        h1 {
+          font-size: 29px;
+        }
+        .tabs {
+          gap: 0;
+        }
+        .tab {
+          padding: 12px 10px;
+          font-size: 12px;
+        }
+        .tab-number {
+          display: none;
+        }
+        .panel-bar {
+          padding: 15px;
+        }
+        .platform-note {
+          padding: 13px 15px 0;
+        }
+        .map {
+          display: flex;
+          flex-direction: column;
+          gap: 18px;
+          padding: 21px 18px 15px;
+          min-height: 0;
+        }
+        .lane-head {
+          margin-bottom: 10px;
+        }
+        .lane-left .node,
+        .lane-right .node + .node,
+        .lane-center .node + .node {
+          margin-top: 0;
+        }
+        .lane-center,
+        .lane-right {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+        }
+        .lane-head {
+          grid-column: 1/-1;
+        }
+        .lane-center .relay {
+          grid-column: 1/-1;
+        }
+        .node {
+          min-height: 88px;
+        }
+        .node-title strong {
+          font-size: 12px;
+        }
+        .connections,
+        .route-caption {
+          display: none;
+        }
+        .mobile-route {
+          display: block;
+          padding: 12px 16px;
+          background: var(--accentSoft);
+          color: var(--accent);
+          font-size: 12px;
+        }
+        .map-footer {
+          padding: 12px 16px;
+        }
+        .cards {
+          grid-template-columns: 1fr;
+        }
+        .fact {
+          padding: 17px;
+        }
+        .fact .index {
+          float: right;
+        }
+        .sim-stage {
+          gap: 8px;
+          grid-template-columns: 1fr 22px 1fr;
+        }
+        .simulation {
+          padding: 18px;
+        }
+        .server {
+          padding: 17px 12px;
+          min-height: 180px;
+        }
+        .server h3 {
+          font-size: 13px;
+        }
+        .steps {
+          grid-template-columns: 1fr;
+        }
+        .segmented button {
+          padding: 7px 10px;
+        }
+        .upgrade-intro h2 {
+          font-size: 22px;
+        }
+        footer {
+          flex-direction: column;
+        }
+        footer a {
+          margin: 0 16px 0 0;
+        }
+        .legend {
+          gap: 10px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation: none !important;
+          transition: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <svg width="0" height="0" aria-hidden="true" style="position: absolute">
+      <defs>
+        <symbol id="monitor" viewBox="0 0 24 24">
+          <rect x="3" y="4" width="18" height="12" rx="2" />
+          <path d="M8 21h8M12 16v5" />
+        </symbol>
+        <symbol id="console" viewBox="0 0 24 24">
+          <rect x="3" y="3" width="18" height="18" rx="3" />
+          <path d="M3 9h18M9 9v12M6 6h.01M9 6h.01M13 13h4M13 17h4" />
+        </symbol>
+        <symbol id="broker" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="3" />
+          <circle cx="4" cy="4" r="2" />
+          <circle cx="20" cy="4" r="2" />
+          <circle cx="4" cy="20" r="2" />
+          <circle cx="20" cy="20" r="2" />
+          <path d="m6 6 4 4m4 4 4 4m-4-8 4-4M6 18l4-4" />
+        </symbol>
+        <symbol id="relay" viewBox="0 0 24 24"><path d="M4 7h16m-4-4 4 4-4 4M20 17H4m4-4-4 4 4 4" /></symbol>
+        <symbol id="server" viewBox="0 0 24 24">
+          <rect x="3" y="3" width="18" height="7" rx="2" />
+          <rect x="3" y="14" width="18" height="7" rx="2" />
+          <path d="M7 6.5h.01M7 17.5h.01M12 6.5h5M12 17.5h5" />
+        </symbol>
+        <symbol id="render" viewBox="0 0 24 24">
+          <rect x="6" y="6" width="12" height="12" rx="2" />
+          <path d="M9 2v4m6-4v4M9 18v4m6-4v4M2 9h4m-4 6h4m12-6h4m-4 6h4" />
+          <path d="m10 9 5 3-5 3z" />
+        </symbol>
+        <symbol id="lock" viewBox="0 0 24 24">
+          <rect x="5" y="10" width="14" height="11" rx="2" />
+          <path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3" />
+        </symbol>
+        <symbol id="check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" /></symbol>
+        <symbol id="arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6" /></symbol>
+        <symbol id="icon-theme" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="8" />
+          <path d="M12 4v16" />
+        </symbol>
+      </defs>
+    </svg>
+    <div class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brandmark" aria-hidden="true"
+            ><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span
+          >Pixels<small>ARCHITECTURE EXPLORER</small>
+        </div>
+        <div class="tools">
+          <span class="status"><i class="dot"></i><span data-t="draft"></span></span
+          ><button class="icon-button" id="language" aria-label="Switch language">EN</button
+          ><button class="icon-button" id="theme" data-label="theme">
+            <svg class="icon"><use href="#icon-theme" /></svg>
+          </button>
+        </div>
+      </header>
+      <section class="hero">
+        <div>
+          <p class="eyebrow">THE PIXELS PLATFORM</p>
+          <h1><span data-t="heroA"></span><br /><span data-t="heroB" style="color: var(--ink)"></span></h1>
+          <p class="description" data-t="heroDesc"></p>
+        </div>
+        <div class="hero-note"><strong data-t="noteTitle"></strong><span data-t="noteText"></span></div>
+      </section>
+      <nav class="tabs" data-label="navigation">
+        <button class="tab active" data-view="overview" aria-pressed="true">
+          <span class="tab-number">01</span><span data-t="tabOverview"></span></button
+        ><button class="tab" data-view="connection" aria-pressed="false">
+          <span class="tab-number">02</span><span data-t="tabConnection"></span></button
+        ><button class="tab" data-view="upgrade" aria-pressed="false">
+          <span class="tab-number">03</span><span data-t="tabUpgrade"></span>
+        </button>
+        <button class="tab" data-view="operations" aria-pressed="false">
+          <span class="tab-number">04</span><span data-t="tabOperations"></span>
+        </button>
+        <button class="tab" data-view="business" aria-pressed="false">
+          <span class="tab-number">05</span><span data-t="tabBusiness"></span>
+        </button>
+      </nav>
+      <main>
+        <section id="architecture">
+          <div class="flow-controls" id="flowControls" hidden>
+            <div class="segmented" data-label="pathType">
+              <button class="active" data-path="direct" aria-pressed="true" data-t="direct"></button
+              ><button data-path="relay" aria-pressed="false" data-t="viaRelay"></button
+              ><button data-path="rdp" aria-pressed="false">RDP</button>
+            </div>
+            <p data-t="flowHint"></p>
+          </div>
+          <div class="workspace">
+            <div class="panel diagram-panel">
+              <div class="panel-bar">
+                <div class="segmented" data-label="deployment">
+                  <button class="active" data-deploy="official" aria-pressed="true" data-t="official"></button
+                  ><button data-deploy="private" aria-pressed="false" data-t="private"></button>
+                </div>
+                <span class="small-label" data-t="sameCode"></span>
+              </div>
+              <div class="platform-note">
+                <svg class="icon"><use href="#lock" /></svg><span id="platformNote"></span>
+              </div>
+              <div class="map" id="map">
+                <svg class="connections" id="connections" aria-hidden="true"></svg>
+                <div class="lane lane-left">
+                  <div class="lane-head"><span data-t="laneClient"></span><span>01</span></div>
+                  <button class="node" id="node-client" data-node="client"></button>
+                </div>
+                <div class="lane lane-center">
+                  <div class="lane-head"><span data-t="lanePlatform"></span><span>02</span></div>
+                  <button class="node" id="node-console" data-node="console"></button
+                  ><button class="node" id="node-broker" data-node="broker"></button
+                  ><button class="node relay" id="node-relay" data-node="relay"></button>
+                </div>
+                <div class="lane lane-right">
+                  <div class="lane-head"><span data-t="laneHost"></span><span>03</span></div>
+                  <button class="node" id="node-service" data-node="service"></button
+                  ><button class="node" id="node-render" data-node="render"></button>
+                </div>
+                <div class="route-caption" id="routeCaption"></div>
+              </div>
+              <div class="mobile-route" id="mobileRoute"></div>
+              <div class="map-footer">
+                <div class="legend">
+                  <span><i></i><span data-t="controlLegend"></span></span
+                  ><span><i class="data-key"></i><span data-t="dataLegend"></span></span>
+                </div>
+                <span data-t="mapHint"></span>
+              </div>
+            </div>
+            <aside class="panel inspector" id="inspector" aria-live="polite"></aside>
+          </div>
+          <div class="cards" id="facts"></div>
+        </section>
+        <section id="upgrades" hidden>
+          <div class="upgrade-intro">
+            <div>
+              <h2 data-t="upgradeTitle"></h2>
+              <p data-t="upgradeDesc"></p>
+            </div>
+            <span class="pill" data-t="simulationOnly"></span>
+          </div>
+          <div class="upgrade-layout">
+            <div class="panel simulation">
+              <div class="simulation-top">
+                <div class="segmented" data-label="upgradeScenario">
+                  <button class="active" data-scenario="redundant" aria-pressed="true" data-t="multiRelay"></button
+                  ><button data-scenario="single" aria-pressed="false" data-t="singleRelay"></button
+                  ><button data-scenario="node" aria-pressed="false" data-t="cloudNode"></button>
+                </div>
+                <span class="scenario-label" id="simIndex"></span>
+              </div>
+              <div class="capacity-control" id="userControl" hidden>
+                <label for="users"><span data-t="activeUsers"></span><strong id="userCount">2 / 4</strong></label
+                ><input id="users" type="range" min="0" max="4" value="2" /><small data-t="userHelp"></small>
+              </div>
+              <div class="sim-stage">
+                <div class="server" id="serverA"></div>
+                <div class="sim-arrow">
+                  <svg class="icon"><use href="#arrow" /></svg>
+                </div>
+                <div class="server" id="serverB"></div>
+              </div>
+              <div class="notice" id="simNotice" aria-live="polite"></div>
+              <div class="progress" id="progress" aria-hidden="true"></div>
+              <div class="sim-caption" id="simCaption"></div>
+              <div class="button-row">
+                <button class="primary" id="simNext"></button
+                ><button class="secondary" id="simReset" data-t="reset"></button>
+              </div>
+            </div>
+            <aside class="panel upgrade-aside" id="upgradeAside" aria-live="polite"></aside>
+          </div>
+          <div class="cards" id="upgradeFacts"></div>
+        </section>
+        <section id="business" hidden></section>
+        <section id="operations" hidden>
+          <div class="notice ops-notice" id="opsPrototype"></div>
+          <div class="ops-layout">
+            <nav class="panel ops-nav" id="opsNav"></nav>
+            <div class="ops-content">
+              <div class="ops-header">
+                <div>
+                  <p class="eyebrow" id="opsEyebrow"></p>
+                  <h2 id="opsTitle"></h2>
+                  <p id="opsSubtitle"></p>
+                </div>
+                <span class="pill" id="opsMode"></span>
+              </div>
+              <div class="ops-toolbar">
+                <div class="segmented" id="opsRoles">
+                  <button data-role="operator" aria-pressed="true" class="active"></button
+                  ><button data-role="viewer" aria-pressed="false"></button>
+                </div>
+                <button class="ops-stale" id="opsStale" aria-pressed="false"></button
+                ><span class="small-label" id="opsFreshness"></span>
+              </div>
+              <div class="ops-metrics" id="opsMetrics"></div>
+              <div class="panel ops-table-panel">
+                <div class="ops-table-head">
+                  <strong id="opsListTitle"></strong
+                  ><label class="ops-filter"
+                    ><input type="checkbox" id="opsFilter" /><span id="opsFilterLabel"></span
+                  ></label>
+                </div>
+                <div class="ops-scroll" id="opsTable"></div>
+              </div>
+              <div class="ops-detail-grid">
+                <section class="panel ops-detail" id="opsDetail" aria-live="polite"></section>
+                <section class="panel ops-detail" id="opsActions" aria-live="polite"></section>
+              </div>
+              <div class="ops-preflight" id="opsPreflight" hidden aria-live="polite"></div>
+              <p class="ops-caption" id="opsCaption"></p>
+            </div>
+          </div>
+        </section>
+      </main>
+      <footer>
+        <span data-t="footer"></span>
+        <div>
+          <a href="server_deployment_and_upgrade_plan.md" data-t="fullPlan"></a
+          ><a href="server_refactoring_plan.md" data-t="architectureDoc"></a>
+          <a href="service_operations_console_plan.md" data-t="operationsDoc"></a>
+          <a href="cloud_application_scheduling_plan.md" data-t="schedulingDoc"></a>
+          <a href="postgresql_database_migration_plan.md" data-t="databaseDoc"></a>
+        </div>
+      </footer>
+      <noscript>请启用 JavaScript 查看交互架构说明。Enable JavaScript to explore the architecture.</noscript>
+    </div>
+    <script>
+      "use strict";
+      const catalogs = {
+        zh: {
+          draft: "目标架构 · 待实施",
+          theme: "切换明暗主题",
+          navigation: "页面导航",
+          heroA: "一套服务端。",
+          heroB: "两种独立部署。",
+          heroDesc: "从用户点下“连接”，到云端画面出现在屏幕上。把每个服务的作用，以及升级时发生的事情，看清楚。",
+          noteTitle: "连接与运行分开",
+          noteText: "服务协调连接，节点运行应用。",
+          tabOverview: "部署总览",
+          tabConnection: "一次连接怎么发生",
+          tabUpgrade: "升级时用户会怎样",
+          deployment: "部署方式",
+          official: "官方公网",
+          private: "客户私有部署",
+          sameCode: "相同代码 · 独立身份与数据",
+          officialNote: "Official 只连接官方平台。入口内置，账号、设备和节点归官方平台管理。",
+          privateNote: "Customer 只连接私有平台。用户填写一个入口，平台下发其余地址；官方平台禁止接入。",
+          laneClient: "用户手中",
+          lanePlatform: "平台服务",
+          laneHost: "节点与工作区",
+          controlLegend: "登录、授权与连接协调",
+          dataLegend: "画面、声音与实际数据",
+          mapHint: "点击卡片，查看职责",
+          pathType: "连接路径",
+          direct: "Native 直连",
+          viaRelay: "Native 中转",
+          flowHint: "按步骤查看：先获得授权，再建立路径，最后传输数据。",
+          routeDirect: "实际数据：客户端 ↔ Render，绕过 Console 和 Broker",
+          routeRelay: "实际数据：客户端 ↔ Relay ↔ Render",
+          routeRdp: "实际数据：客户端 ↔ 专用可靠 RDP 通道 ↔ 工作区",
+          roleLabel: "这个组件做什么",
+          boundaryLabel: "职责边界",
+          next: "下一步",
+          restart: "重新演示",
+          reset: "重置",
+          stepLabel: "连接流程",
+          selectedStep: "当前步骤",
+          client: "访问端",
+          console: "Console",
+          broker: "Broker",
+          relay: "Relay",
+          service: "节点 Service",
+          render: "Render",
+          rdpRender: "RDP 工作区",
+          clientShort: "Windows / Android",
+          officialClient: "Official 客户端",
+          privateClient: "Customer 客户端",
+          clientDesc: "用户登录、选择设备或云应用，然后发起连接。",
+          clientItems: ["Official 使用官方入口", "Customer 自填私有入口", "账号与缓存按平台隔离"],
+          clientBoundary: "访问方切换平台，不会自动改变本机 Service 的归属。",
+          consoleShort: "管账号、权限与业务",
+          consoleDesc: "平台的管理中心。决定谁可以访问什么，以及云应用在哪台机器上启动。",
+          consoleItems: ["用户、设备、应用目录与权限", "实例调度和会话授权", "持久数据、维护任务与管理后台"],
+          consoleBoundary: "不转发画面和声音。多实例调度仍需唯一有效 owner。",
+          brokerShort: "帮双方建立连接",
+          brokerDesc: "知道双方在哪里，协调直连尝试，并在需要时分配 Relay。",
+          brokerItems: ["在线状态与认证信令", "路径协商与 Relay 分配", "重连、代际和授权执行"],
+          brokerBoundary: "不运行云游戏，不处理媒体编解码，也不转发媒体数据。",
+          relayShort: "无法直连时转发数据",
+          relayDesc: "当直连不可用或策略要求中转时，为双方转发加密数据。",
+          relayItems: ["转发画面、声音和其他子通道", "执行连接与带宽限制", "维护时排空或受控重连"],
+          relayBoundary: "不是每次连接都会使用。Native Relay 与 WebRTC TURN 是不同协议。",
+          serviceShort: "管理这台机器",
+          serviceDesc: "注册节点、上报容量，按授权启动和监督 Render，并执行节点维护。",
+          serviceItems: ["节点注册、心跳与资源上报", "启动、停止与监督运行实例", "升级前禁止新调度并等待空闲"],
+          serviceBoundary: "服务完整能力共用；产品决定允许的工作负载，不靠换平台扩大权限。",
+          renderShort: "产生画面，接收操作",
+          renderDesc: "真正与桌面或应用交互的运行时，负责采集、编码、音频与输入。",
+          renderItems: ["桌面远控或云应用实例", "云游戏、Game Hook、WebView", "无人使用后更新受影响运行时"],
+          renderBoundary: "RDP 使用自己的可靠协议通道，不能套用 Native 视频转发流程。",
+          rdpShort: "保留用户的 Windows 会话",
+          rdpDesc: "通过专用可靠 RDP 通道访问工作区，保留 Windows 账号、会话和应用状态。",
+          rdpItems: ["授权访问已有工作区", "代理和连接可以重建", "首版拒绝第二个活动前端"],
+          rdpBoundary: "断线和普通维护不注销 Windows 会话，也不删除账号或工作区应用。",
+          relayUnused: "直连时不经过",
+          relayUsed: "当前经过中转",
+          platformBadge: "账号 / 数据库 / 管理",
+          hostBadge: "云游戏 · 云应用 · 远控",
+          facts: [
+            ["两套部署，不是两套代码", "官方和客户部署同一套服务；身份、账号与数据各自独立。"],
+            ["一个入口，不用填一堆地址", "用户只配置平台入口。Broker、Relay 和实际连接端点由平台管理。"],
+            ["能直连，数据就直接走", "Console 管业务，Broker 管连接；它们不承载画面与声音。"],
+          ],
+          steps: [
+            ["申请访问", "客户端向 Console 登录并申请会话。"],
+            ["授权并准备目标", "Console 检查权限；云应用按需调度到节点。"],
+            ["建立连接路径", "Broker 协调双方，为本次会话准备正确路径。"],
+            ["开始使用", "沿已授权路径传输数据，保留逻辑会话以供恢复。"],
+          ],
+          rdpStep: "取得工作区授权和可靠 RDP 连接描述，不走 Native Relay。",
+          upgradeTitle: "升级的是程序，守住的是用户会话。",
+          upgradeDesc: "选择部署场景，逐步看升级过程。所有数字都是演示值。",
+          simulationOnly: "交互示意 · 非实时监控",
+          upgradeScenario: "升级场景",
+          multiRelay: "Relay 有冗余",
+          singleRelay: "Relay 无冗余",
+          cloudNode: "云端 Render",
+          activeUsers: "模拟节点上的活动用户",
+          userHelp: "拖到 0，模拟所有用户已退出。实际升级还需确认重连宽限、任务及预约结束。",
+          simulationStep: "阶段",
+          continue: "继续演示",
+          waiting: "等待用户退出",
+          finish: "演示已完成",
+          coreRule: "这次升级的关键",
+          userImpact: "用户会看到什么",
+          scope: "影响范围",
+          upgradeFacts: [
+            ["有容量，才能接替", "看带宽、吞吐和连接容量。两台都满载，也没有冗余。"],
+            ["无替代容量，提前公告", "单 Relay 升级允许短时中断。恢复后重新认证并恢复有效会话。"],
+            ["工作区不是网络连接", "RDP 断线不注销 Windows 工作区；云游戏恢复受既有保留期限约束。"],
+          ],
+          footer: "Pixels · 架构说明 / 2026-09-16 · 离线可用，非部署控制台",
+          fullPlan: "完整实施计划",
+          architectureDoc: "服务架构文档",
+          operationsDoc: "服务管理与运维计划",
+          schedulingDoc: "应用与多 GPU 调度设计",
+          databaseDoc: "PostgreSQL 前置改造与恢复",
+          tabBusiness: "云应用与 GPU 调度",
+          redundantRule: "新连接去新版，已有连接留在旧版。不要切端口后期待 Socket 自动迁移。",
+          redundantImpact: "正常排空时继续使用。长期不退出的会话需要预告后的重连，主动无感迁移是后续能力。",
+          redundantScope: "平台中转路径；前提是备用实例有实际可用容量。",
+          singleRule: "提前公告开始时间、预计结束时间与影响范围；到维护时点按计划中断。",
+          singleImpact:
+            "客户端显示维护并限制重试。恢复须重新核验授权和实例：Game Hook 原实例可能已结束，RDP 可重新附着保留的工作区。",
+          singleScope: "中转会话受影响。已有直连不主动中断，但此时无法回退到受维护的 Relay。",
+          nodeRule: "包先准备，停止接新用户，等全部用户退出后再升级整台节点。",
+          nodeImpact: "已有用户继续使用；升级节点停止接新用户，多节点时可选择其他有余量的节点。",
+          nodeScope: "通常约 2–4 个云游戏用户只是部署假设，不是硬编码容量限制。",
+          usersSuffix: "位用户",
+          graceNote:
+            "启动保护结束且最后确认客户端离开后，Game Hook/RDP 连续 5 秒无人恢复会退出运行时；前者结束原实例，后者保留 Windows 工作区。WebView 不走此分支；Direct 未受影响或仍有客户端时不据此退出。",
+          nodeGate: "演示中设为 0 即可继续；真实门禁还检查重连保留、预约、文件任务和晚到请求。",
+          moreClick: "点击另一个组件继续了解",
+          flowActive: "高亮显示当前步骤涉及的组件。",
+          tabOperations: "服务管理后台",
+          ops: {
+            prototype:
+              "后台页面原型 · 全部为示例数据。切换左侧页面查看字段与操作规划，任何按钮都不会连接或修改真实服务。",
+            navigation: "统一管理后台",
+            eyebrow: "ONE PLATFORM · ONE CONSOLE",
+            mode: "原型 · 非实时状态",
+            operator: "运维人员",
+            viewer: "只读观察员",
+            staleToggle: "模拟状态过期",
+            fresh: "示例采集：2 秒前",
+            stale: "数据已过期：15 分钟前 · 不是当前状态",
+            filter: "仅显示需关注项",
+            list: "实例列表",
+            tasks: "维护任务",
+            columns: ["实例 / 查看详情", "所在主机", "健康状态", "新业务准入", "版本", "负载摘要"],
+            taskColumns: ["任务 / 查看详情", "目标", "任务状态", "当前阶段", "目标版本", "执行摘要"],
+            detail: "当前对象",
+            fields: "这页应提供的信息",
+            actions: "可以执行什么",
+            preview: "查看操作预检",
+            readonly: "只读角色不能发起运维操作；正式接口必须同样校验权限。",
+            blocked: "数据过期，无法确认当前用户和容量；先恢复采集再做操作预检。",
+            available: "所有写操作先预检、再确认；前端成功响应不等于服务已执行。",
+            object: "对象标识",
+            host: "所在主机 / 目标",
+            health: "健康 / 任务状态",
+            admission: "准入 / 阶段",
+            version: "运行 / 目标版本",
+            load: "当前负载 / 摘要",
+            lastKnown: "最后已知摘要",
+            unknown: "未知",
+            selected: "已选择",
+            empty: "没有符合筛选条件的对象。",
+            choose: "选择列表中的对象查看详情。",
+            freshLabel: "采集新鲜度",
+            preflightTitle: "操作方案预检（仅说明，不执行）",
+            preflight: [
+              "验证角色、平台归属、目标身份及当前代际。",
+              "重新读取权威状态，确认用户、预约、依赖任务与可替代容量。",
+              "展示中断范围、维护时间、版本与回滚限制，操作人确认。",
+              "创建可追踪的 task_id，由认证执行端处理，再核对结果并记录审计。",
+            ],
+            caption:
+              "真实后台还应提供：趋势与时间窗口、依赖下钻、配置差异、脱敏日志、诊断包和操作历史。Console 不可用时使用独立本地恢复工具。",
+            states: {
+              healthy: "健康",
+              degraded: "降级",
+              unknown: "未知 / 过期",
+              waiting: "等待用户",
+              queued: "已排队",
+              completed: "已完成",
+            },
+            modes: {
+              open: "接收新业务",
+              closed: "排空 / 不接新业务",
+              na: "不适用",
+              gate: "空闲门禁",
+              preflight: "预检阶段",
+              done: "已验证",
+            },
+            loads: {
+              c01: "API 128 req/s",
+              a01: "官方签发队列 0 · 仅 key ID",
+              d01: "发布队列 0 · 制品已验证",
+              b01: "84 个逻辑会话",
+              r01: "620 / 1,000 Mbps",
+              r02: "2 个旧会话待结束",
+              n01: "2 / 4 用户 · GPU 2 / 4",
+              n02: "最后已知 1 / 4 用户",
+              g01: "1 位主控 · 编码 60 FPS",
+              g02: "0 用户 · 保留宽限中",
+              w01: "1 位前端 · busy",
+              w02: "0 前端 · Windows 会话保留",
+              u01: "等待现有 2 位用户退出",
+              u02: "签名与版本检查中",
+              u03: "健康验证已完成",
+            },
+            pages: {
+              overview: {
+                title: "平台总览",
+                desc: "先看哪里影响用户，再进入对应服务。进程存活、准入状态和数据新鲜度分别展示。",
+                ids: ["console-01", "broker-01", "relay-01", "relay-02", "node-01", "node-02"],
+                metrics: [
+                  ["登记实例", "6"],
+                  ["可接新业务", "4"],
+                  ["需关注对象", "2"],
+                ],
+                fields: [
+                  "平台身份、整体可用性与组件依赖",
+                  "活动告警、维护计划及用户影响",
+                  "可调度容量、版本分布、证书和备份风险",
+                ],
+                actions: ["定位异常组件与关联会话", "创建有范围的维护计划", "查看告警、任务与审计"],
+                boundary: "不提供无条件“重启全部”。未知节点不能被算作空闲容量。",
+              },
+              console: {
+                title: "Console 服务",
+                desc: "业务控制面的可用性、数据库依赖和调度权威。",
+                ids: ["console-01"],
+                metrics: [
+                  ["API 请求率", "128 /s"],
+                  ["示例 p95 延迟", "42 ms"],
+                  ["待同步授权事件", "0"],
+                ],
+                fields: [
+                  "API 延迟、错误率与数据库延迟",
+                  "调度队列、唯一 owner 与 schema 版本",
+                  "Grant/outbox 积压、配置版本和实例身份",
+                ],
+                actions: ["校验并热加载允许的配置", "单实例排空或滚动升级", "查看依赖、脱敏日志和诊断"],
+                boundary: "Console 自身停机/恢复由独立部署执行器负责，不能只靠已经挂掉的后台自救。",
+              },
+              auth: {
+                title: "Auth 签发服务",
+                desc: "仅官方授权运维域；私有平台不管理签发服务或私钥。",
+                ids: ["auth-01"],
+                metrics: [
+                  ["待签发任务", "0"],
+                  ["签名器状态", "Ready"],
+                  ["撤销同步积压", "0"],
+                ],
+                fields: [
+                  "签发/撤销水位、DB/schema 与审计",
+                  "签名器健康及 key ID，不展示私钥",
+                  "恢复集、证书期限和在途任务",
+                ],
+                actions: ["关闭新签发并排空", "预检维护升级与恢复", "密钥轮换另需专属权限与复核"],
+                boundary: "私有许可证验证不依赖后台能管理官方 Auth；普通升级不自动更换签名密钥。",
+              },
+              desk: {
+                title: "Desk 业务服务",
+                desc: "可选部署示例：咨询、问题与版本发布；不是私有登录的强制依赖。",
+                ids: ["desk-01"],
+                metrics: [
+                  ["待发布任务", "0"],
+                  ["制品摘要", "Verified"],
+                  ["待处理问题", "2"],
+                ],
+                fields: [
+                  "API/DB 健康、处理积压和版本 revision",
+                  "元数据到签名制品的关联",
+                  "恢复集和发布审计；内容按权限脱敏",
+                ],
+                actions: ["暂停写入/发布并排空", "预检配置和升级", "校验元数据与实际制品"],
+                boundary: "未部署应显示不适用。恢复旧版本记录不能绕过制品签名或安全防回滚。",
+              },
+              broker: {
+                title: "Broker 服务",
+                desc: "用户连不上时，查看认证、信令、路径建立和重连原因。",
+                ids: ["broker-01"],
+                metrics: [
+                  ["逻辑会话", "84"],
+                  ["认证连接", "176"],
+                  ["建连耗时 p95", "280 ms"],
+                ],
+                fields: [
+                  "端点与连接数，不能混作用户数",
+                  "授权同步延迟、建连失败分类",
+                  "owner epoch、重连率及 Relay 分配结果",
+                ],
+                actions: ["关闭新准入并排空", "创建安全重启或证书轮换任务", "按 Session 查看完整建连事件"],
+                boundary: "Broker 重启可恢复信令；不能因连接数暂时归零就关闭业务实例。",
+              },
+              relay: {
+                title: "Relay 服务",
+                desc: "先看容量和已有会话，再决定排空接替还是预告停机。",
+                ids: ["relay-01", "relay-02"],
+                metrics: [
+                  ["当前吞吐", "620 Mbps"],
+                  ["配置带宽预算", "1 Gbps"],
+                  ["旧版待排空会话", "2"],
+                ],
+                fields: [
+                  "Session、allocation 和子通道分别计数",
+                  "上下行带宽、限流、配对失败和剩余容量",
+                  "排空进度、替代节点、会话保留期限",
+                ],
+                actions: ["停止新分配、调整受控限额", "有备用容量时排空换版", "无备用容量时发布维护窗口"],
+                boundary: "不从加密转发数据猜测画面 FPS。RTT/丢包须注明观测来源，未采集就显示未知。",
+              },
+              node: {
+                title: "节点 Service",
+                desc: "把机器资源、运行实例与升级门禁放在同一个页面。",
+                ids: ["node-01", "node-02"],
+                metrics: [
+                  ["在线确认节点", "1"],
+                  ["已知活动用户", "2"],
+                  ["状态未知节点", "1"],
+                ],
+                fields: [
+                  "CPU、内存、磁盘、GPU/显存/编码器",
+                  "可调度槽位、实际端点、版本与心跳",
+                  "每 GPU 对应实例、用户、任务和宽限",
+                ],
+                actions: ["禁止新调度，等待用户全部退出", "生成诊断包与核对配置", "空闲门禁通过后升级节点"],
+                boundary: "失联不是无人使用。未知用户数不能用 0 代替，也不能直接据此激活升级。",
+              },
+              render: {
+                title: "Render 运行实例",
+                desc: "每个实例关联到真实用户、GPU、应用和版本。",
+                ids: ["render-01", "render-02"],
+                metrics: [
+                  ["运行实例", "2"],
+                  ["活动主控", "1"],
+                  ["编码输出示例", "60 FPS"],
+                ],
+                fields: [
+                  "应用模式、启动/Ready 时间、所属节点/GPU",
+                  "采集与编码 FPS、码率、输入与错误",
+                  "Session、Job 身份、端点、最后断线宽限",
+                ],
+                actions: ["定位 Session 与节点日志", "预览精确停止实例的影响", "通过节点维护计划更新运行时"],
+                boundary: "编码 FPS 不等于客户端呈现 FPS；不按进程名或端口认领和清理其他进程。",
+              },
+              rdp: {
+                title: "RDP 工作区",
+                desc: "分别展示持久工作区与可以重建的代理连接。",
+                ids: ["workspace-01", "workspace-02"],
+                metrics: [
+                  ["保留工作区", "2"],
+                  ["活动前端", "1"],
+                  ["空闲但保留会话", "1"],
+                ],
+                fields: [
+                  "Workspace ID 与脱敏用户映射",
+                  "Windows Session 身份、busy、代理和传输状态",
+                  "关联授权、最后连接及恢复失败原因",
+                ],
+                actions: ["查看活动前端与授权轨迹", "预览仅断开传输的影响", "重新授权后附着已有工作区"],
+                boundary: "普通运维页面不提供一键注销用户或删除工作区。第二个前端仍按 busy 拒绝。",
+              },
+              maintenance: {
+                title: "维护与升级任务",
+                desc: "看清谁发起、正在等什么、影响谁，以及失败后如何恢复。",
+                ids: ["upgrade-01", "upgrade-02", "upgrade-03"],
+                metrics: [
+                  ["进行中任务", "2"],
+                  ["等待用户退出", "1"],
+                  ["已完成任务", "1"],
+                ],
+                fields: [
+                  "发起人、目标、时间窗、阶段与进度",
+                  "影响用户、门禁阻塞、版本和预检结果",
+                  "失败原因、回滚条件与不可取消阶段",
+                ],
+                actions: ["查看预检和通知范围", "在安全阶段取消或延后", "按既定条件创建恢复任务"],
+                boundary: "关闭网页不会取消已执行任务。HTTP 200 不是升级成功，需要执行端回执和健康验证。",
+              },
+            },
+          },
+        },
+        en: {
+          draft: "Target design · Not implemented",
+          theme: "Toggle light or dark theme",
+          navigation: "Page navigation",
+          heroA: "One server platform.",
+          heroB: "Two independent deployments.",
+          heroDesc:
+            "Follow a connection from the user’s first click to the remote screen. See what each service does and what happens during an upgrade.",
+          noteTitle: "Control meets runtime",
+          noteText: "Services coordinate. Nodes run apps.",
+          tabOverview: "Deployment overview",
+          tabConnection: "Follow a connection",
+          tabUpgrade: "Explore upgrades",
+          deployment: "Deployment type",
+          official: "Official cloud",
+          private: "Private deployment",
+          sameCode: "Same code · Separate identity and data",
+          officialNote:
+            "Official clients connect only to the official platform. The entry point is built in; accounts, devices and nodes belong to that platform.",
+          privateNote:
+            "Customer clients accept private deployments only. Enter one platform URL; other endpoints are discovered. Official deployments are rejected.",
+          laneClient: "User devices",
+          lanePlatform: "Platform services",
+          laneHost: "Nodes & workspaces",
+          controlLegend: "Authentication and coordination",
+          dataLegend: "Media and session data",
+          mapHint: "Select a component",
+          pathType: "Connection path",
+          direct: "Native direct",
+          viaRelay: "Native relay",
+          flowHint: "Follow authorization, path establishment, then data transfer.",
+          routeDirect: "Data: client ↔ Render, bypassing Console and Broker",
+          routeRelay: "Data: client ↔ Relay ↔ Render",
+          routeRdp: "Data: client ↔ dedicated reliable RDP carrier ↔ workspace",
+          roleLabel: "Component responsibilities",
+          boundaryLabel: "Boundary",
+          next: "Next step",
+          restart: "Start again",
+          reset: "Reset",
+          stepLabel: "Connection workflow",
+          selectedStep: "Current step",
+          client: "Client",
+          console: "Console",
+          broker: "Broker",
+          relay: "Relay",
+          service: "Node Service",
+          render: "Render",
+          rdpRender: "RDP workspace",
+          clientShort: "Windows / Android",
+          officialClient: "Official client",
+          privateClient: "Customer client",
+          clientDesc: "The user signs in, selects a device or cloud app, and requests access.",
+          clientItems: [
+            "Official uses the official entry point",
+            "Customer configures a private entry point",
+            "Credentials and caches stay deployment-scoped",
+          ],
+          clientBoundary: "Changing the client platform does not reassign the local host Service.",
+          consoleShort: "Identity, access and business logic",
+          consoleDesc:
+            "The management center decides who can access resources and where cloud applications should run.",
+          consoleItems: [
+            "Accounts, devices, app catalogs and ACLs",
+            "Scheduling and session authorization",
+            "Persistent data and maintenance tasks",
+          ],
+          consoleBoundary: "Does not forward media. Multiple schedulers still require a single fenced owner.",
+          brokerShort: "Helps peers establish a connection",
+          brokerDesc: "Tracks participants, coordinates direct paths and allocates a Relay when needed.",
+          brokerItems: [
+            "Presence and authenticated signaling",
+            "Path coordination and relay allocation",
+            "Reconnect generations and grant enforcement",
+          ],
+          brokerBoundary: "Does not run games, encode media or carry the media data path.",
+          relayShort: "Forwards data when needed",
+          relayDesc: "Forwards encrypted data when a direct path is unavailable or relay use is required by policy.",
+          relayItems: [
+            "Media and other session subchannels",
+            "Connection and bandwidth limits",
+            "Draining or controlled reconnects for upgrades",
+          ],
+          relayBoundary: "Not used by every connection. Native Relay and WebRTC TURN are separate protocols.",
+          serviceShort: "Manages this host",
+          serviceDesc:
+            "Registers capacity, starts and supervises authorized runtimes, and coordinates node maintenance.",
+          serviceItems: [
+            "Registration, heartbeat and resource reports",
+            "Runtime launch and supervision",
+            "Admission gating and idle-node upgrades",
+          ],
+          serviceBoundary: "The full Service implementation is shared. Product capabilities still limit workloads.",
+          renderShort: "Produces media and accepts input",
+          renderDesc: "The runtime interacts with desktops or apps, handling capture, encoding, audio and input.",
+          renderItems: [
+            "Desktop or cloud application instances",
+            "Game Hook and WebView runtimes",
+            "Updates after the node becomes idle",
+          ],
+          renderBoundary: "RDP uses its own reliable carrier, not the Native media forwarding path.",
+          rdpShort: "Preserves the Windows workspace",
+          rdpDesc:
+            "Accesses a workspace over a dedicated reliable RDP carrier while preserving accounts, sessions and apps.",
+          rdpItems: [
+            "Authorized access to an existing workspace",
+            "Transport and proxies may restart",
+            "One active frontend in the first release",
+          ],
+          rdpBoundary: "Disconnects and routine maintenance do not log off or delete the Windows workspace.",
+          relayUnused: "Bypassed on a direct path",
+          relayUsed: "In this data path",
+          platformBadge: "Accounts / database / admin",
+          hostBadge: "Games · apps · remote desktop",
+          facts: [
+            [
+              "Two deployments, one codebase",
+              "Official and private platforms run the same services with independent identities, accounts and data.",
+            ],
+            [
+              "One entry point",
+              "Users enter one platform URL. The platform supplies Broker, Relay and session endpoints.",
+            ],
+            [
+              "Direct data when possible",
+              "Console handles business logic and Broker coordinates connections. Neither carries media.",
+            ],
+          ],
+          steps: [
+            ["Request access", "The client signs in and requests a session from Console."],
+            ["Authorize and prepare", "Console checks permissions and schedules a cloud runtime if required."],
+            ["Establish a path", "Broker coordinates the authorized peers and their connection path."],
+            ["Use the session", "Data flows on the selected path. The logical session supports recovery."],
+          ],
+          rdpStep: "Obtain workspace authorization and a reliable RDP descriptor; do not use Native Relay.",
+          upgradeTitle: "Update the software. Preserve the session.",
+          upgradeDesc: "Select a scenario and step through the upgrade. All counts are illustrative.",
+          simulationOnly: "Interactive illustration · Not live telemetry",
+          upgradeScenario: "Upgrade scenario",
+          multiRelay: "Spare Relay capacity",
+          singleRelay: "No spare Relay",
+          cloudNode: "Cloud Render",
+          activeUsers: "Simulated active users on the node",
+          userHelp:
+            "Set to 0 to model users leaving. Real upgrades also check reconnect grace, tasks and reservations.",
+          simulationStep: "Stage",
+          continue: "Continue",
+          waiting: "Waiting for users",
+          finish: "Walkthrough complete",
+          coreRule: "The key rule",
+          userImpact: "What users experience",
+          scope: "Scope",
+          upgradeFacts: [
+            [
+              "Capacity enables replacement",
+              "Bandwidth, throughput and connections matter. Two fully loaded hosts provide no spare capacity.",
+            ],
+            [
+              "Announce maintenance without redundancy",
+              "A single Relay may briefly interrupt sessions. Reauthenticate and recover valid sessions after service returns.",
+            ],
+            [
+              "A workspace is not a socket",
+              "RDP disconnects preserve Windows workspaces. Cloud games remain subject to their existing retention period.",
+            ],
+          ],
+          footer: "Pixels · Architecture / 2026-09-16 · Offline-ready, not an operations console",
+          fullPlan: "Implementation plan",
+          architectureDoc: "Architecture document",
+          operationsDoc: "Service operations plan",
+          schedulingDoc: "Application & multi-GPU scheduling",
+          databaseDoc: "PostgreSQL migration & recovery prerequisite",
+          tabBusiness: "Apps & GPU scheduling",
+          redundantRule:
+            "Send new sessions to the new instance and retain existing ones on the old instance. Sockets do not migrate when a port changes.",
+          redundantImpact:
+            "Users continue during normal draining. Long-lived sessions need an announced reconnect; seamless path migration is a later feature.",
+          redundantScope: "Relay paths, provided the replacement instance has real spare capacity.",
+          singleRule:
+            "Announce the start, expected end and impact. Interrupt affected relay paths at the scheduled time.",
+          singleImpact:
+            "Clients show maintenance and limit retries. Revalidate authorization and instances: Game Hook may have ended; RDP can reattach its retained workspace.",
+          singleScope:
+            "Relayed sessions are affected. Direct paths are not proactively stopped, but cannot fall back to the maintained Relay.",
+          nodeRule: "Prepare the package, stop new admissions, wait for users to leave, then update the node.",
+          nodeImpact: "Existing users continue. Other nodes can accept new users if they have capacity.",
+          nodeScope: "Approximately 2–4 cloud game users is a deployment assumption, not a hard-coded limit.",
+          usersSuffix: "users",
+          graceNote:
+            "After startup protection, losing the last confirmed client for 5 seconds ends Game Hook/RDP runtimes. Game Hook loses its instance; RDP retains its Windows workspace. WebView uses another branch; unaffected Direct paths or remaining clients do not trigger this exit.",
+          nodeGate:
+            "Zero users unlocks this illustration. Production also checks reconnect grace, reservations, transfers and late requests.",
+          moreClick: "Select another component to explore",
+          flowActive: "Highlighted components participate in the current step.",
+          tabOperations: "Service administration",
+          ops: {
+            prototype:
+              "Admin page prototype · All data is illustrative. Explore pages and operation requirements; no control action connects to a real service.",
+            navigation: "Unified administration",
+            eyebrow: "ONE PLATFORM · ONE CONSOLE",
+            mode: "Prototype · Not live",
+            operator: "Operator",
+            viewer: "Read-only observer",
+            staleToggle: "Simulate stale telemetry",
+            fresh: "Example sample: 2 seconds ago",
+            stale: "Stale: 15 minutes ago · Not current state",
+            filter: "Needs attention only",
+            list: "Service instances",
+            tasks: "Maintenance tasks",
+            columns: ["Instance / details", "Host", "Health", "New admissions", "Version", "Load summary"],
+            taskColumns: ["Task / details", "Target", "Task state", "Phase", "Target version", "Summary"],
+            detail: "Selected object",
+            fields: "Information this page provides",
+            actions: "Available operations",
+            preview: "Preview operation preflight",
+            readonly: "A read-only role cannot initiate operations. Production APIs must enforce the same permissions.",
+            blocked:
+              "Telemetry is stale. Restore collection before checking active users, capacity and operation safety.",
+            available:
+              "All writes require preflight and confirmation. A successful HTTP response is not execution success.",
+            object: "Object ID",
+            host: "Host / target",
+            health: "Health / task state",
+            admission: "Admission / phase",
+            version: "Running / target version",
+            load: "Current load / summary",
+            lastKnown: "Last known summary",
+            unknown: "Unknown",
+            selected: "Selected",
+            empty: "No objects match this filter.",
+            choose: "Select an object to see its details.",
+            freshLabel: "Sample freshness",
+            preflightTitle: "Operation preflight outline (no execution)",
+            preflight: [
+              "Verify the role, deployment, stable target identity and current generation.",
+              "Read authoritative state again: users, reservations, tasks and replacement capacity.",
+              "Present impact, timing, version and rollback limits for operator confirmation.",
+              "Create a durable task_id; an authenticated executor acts, reconciles results and records audit.",
+            ],
+            caption:
+              "Production pages also need trends, time windows, dependency links, configuration diffs, redacted logs, diagnostics and audit. Use independent local recovery tools if Console is unavailable.",
+            states: {
+              healthy: "Healthy",
+              degraded: "Degraded",
+              unknown: "Unknown / stale",
+              waiting: "Waiting for users",
+              queued: "Queued",
+              completed: "Completed",
+            },
+            modes: {
+              open: "Accepting new work",
+              closed: "Draining / gated",
+              na: "Not applicable",
+              gate: "Idle gate",
+              preflight: "Preflight",
+              done: "Verified",
+            },
+            loads: {
+              c01: "API 128 req/s",
+              a01: "Official signing queue 0 · key ID only",
+              d01: "Publish queue 0 · artifacts verified",
+              b01: "84 logical sessions",
+              r01: "620 / 1,000 Mbps",
+              r02: "2 old sessions remain",
+              n01: "2 / 4 users · GPU 2 / 4",
+              n02: "Last known: 1 / 4 users",
+              g01: "1 controller · encoded 60 FPS",
+              g02: "0 users · reconnect grace",
+              w01: "1 frontend · busy",
+              w02: "0 frontends · Windows session retained",
+              u01: "Waiting for 2 users to leave",
+              u02: "Checking signatures and versions",
+              u03: "Health verification complete",
+            },
+            pages: {
+              overview: {
+                title: "Platform overview",
+                desc: "Start with user impact, then drill into services. Process state, readiness and freshness are distinct.",
+                ids: ["console-01", "broker-01", "relay-01", "relay-02", "node-01", "node-02"],
+                metrics: [
+                  ["Registered instances", "6"],
+                  ["Accepting new work", "4"],
+                  ["Need attention", "2"],
+                ],
+                fields: [
+                  "Deployment identity, availability and dependencies",
+                  "Active alerts, maintenance and user impact",
+                  "Capacity, versions, certificates and backup risks",
+                ],
+                actions: [
+                  "Locate affected services and sessions",
+                  "Plan scoped maintenance",
+                  "Review alerts, tasks and audit",
+                ],
+                boundary: "No unconditional restart-all button. An unknown node is not spare capacity.",
+              },
+              console: {
+                title: "Console services",
+                desc: "Business control plane health, database dependencies and scheduling authority.",
+                ids: ["console-01"],
+                metrics: [
+                  ["API request rate", "128 /s"],
+                  ["Example p95 latency", "42 ms"],
+                  ["Pending grant events", "0"],
+                ],
+                fields: [
+                  "API latency, error rate and database latency",
+                  "Scheduler queue, fenced owner and schema version",
+                  "Grant/outbox backlog and configuration revisions",
+                ],
+                actions: [
+                  "Validate and hot-load allowed settings",
+                  "Drain one replica or plan a rolling upgrade",
+                  "Inspect dependencies and redacted diagnostics",
+                ],
+                boundary:
+                  "Independent deployment executors stop or recover Console. Recovery cannot depend on the failed web UI.",
+              },
+              auth: {
+                title: "Auth signing service",
+                desc: "Official authorized operations only; private platforms cannot manage the signer or its keys.",
+                ids: ["auth-01"],
+                metrics: [
+                  ["Signing queue", "0"],
+                  ["Signer status", "Ready"],
+                  ["Revocation backlog", "0"],
+                ],
+                fields: [
+                  "Issuance/revocation watermarks, DB/schema and audit",
+                  "Signer health and key IDs, never private keys",
+                  "Recovery set, certificate expiry and in-flight tasks",
+                ],
+                actions: [
+                  "Close issuance and drain tasks",
+                  "Preflight maintenance and recovery",
+                  "Key rotation requires separate permission and review",
+                ],
+                boundary:
+                  "Private license verification grants no control over official Auth. Routine upgrades do not rotate signing keys.",
+              },
+              desk: {
+                title: "Desk business service",
+                desc: "Optional deployment example: inquiries, issues and releases; not a private login prerequisite.",
+                ids: ["desk-01"],
+                metrics: [
+                  ["Release queue", "0"],
+                  ["Artifact hashes", "Verified"],
+                  ["Open issues", "2"],
+                ],
+                fields: [
+                  "API/DB health, backlog and release revision",
+                  "Metadata linked to signed artifacts",
+                  "Recovery set and release audit; redact sensitive content",
+                ],
+                actions: [
+                  "Pause writes/releases and drain",
+                  "Preflight configuration and upgrades",
+                  "Reconcile metadata with actual artifacts",
+                ],
+                boundary:
+                  "Absent deployments are not applicable. Restored release records never bypass signatures or security rollback protection.",
+              },
+              broker: {
+                title: "Broker services",
+                desc: "Investigate authentication, signaling, path establishment and reconnect failures.",
+                ids: ["broker-01"],
+                metrics: [
+                  ["Logical sessions", "84"],
+                  ["Authenticated connections", "176"],
+                  ["Connection p95", "280 ms"],
+                ],
+                fields: [
+                  "Endpoint and connection counts, separate from users",
+                  "Grant synchronization lag and failure categories",
+                  "Owner epochs, reconnect rates and relay allocation",
+                ],
+                actions: [
+                  "Gate new admissions and drain",
+                  "Plan a safe restart or certificate rotation",
+                  "Trace establishment events by Session",
+                ],
+                boundary:
+                  "Signaling recovery must not stop business instances simply because connection counts temporarily reach zero.",
+              },
+              relay: {
+                title: "Relay services",
+                desc: "Check capacity and existing sessions before choosing draining or announced downtime.",
+                ids: ["relay-01", "relay-02"],
+                metrics: [
+                  ["Current throughput", "620 Mbps"],
+                  ["Configured budget", "1 Gbps"],
+                  ["Old sessions to drain", "2"],
+                ],
+                fields: [
+                  "Separate sessions, allocations and subchannels",
+                  "Bandwidth, rate limits, pairing errors and capacity",
+                  "Drain progress, replacements and session retention",
+                ],
+                actions: [
+                  "Stop new allocations or adjust bounded limits",
+                  "Drain to available replacement capacity",
+                  "Announce maintenance when no capacity is available",
+                ],
+                boundary:
+                  "Do not infer screen FPS from encrypted forwarding. Identify the source of RTT/loss or report unknown.",
+              },
+              node: {
+                title: "Node Services",
+                desc: "Machine resources, runtime instances and upgrade gates on one page.",
+                ids: ["node-01", "node-02"],
+                metrics: [
+                  ["Confirmed online nodes", "1"],
+                  ["Known active users", "2"],
+                  ["Unknown nodes", "1"],
+                ],
+                fields: [
+                  "CPU, memory, disk, GPU/VRAM and encoder usage",
+                  "Schedulable slots, endpoints, versions and heartbeat",
+                  "Instances, users, tasks and grace per GPU",
+                ],
+                actions: [
+                  "Gate new scheduling and wait for users",
+                  "Collect diagnostics and compare configuration",
+                  "Upgrade only after authoritative idle checks",
+                ],
+                boundary: "Unreachable does not mean idle. Never replace an unknown user count with zero.",
+              },
+              render: {
+                title: "Render instances",
+                desc: "Associate each runtime with its real users, GPU, application and version.",
+                ids: ["render-01", "render-02"],
+                metrics: [
+                  ["Running instances", "2"],
+                  ["Active controllers", "1"],
+                  ["Example encoder output", "60 FPS"],
+                ],
+                fields: [
+                  "Workload mode, readiness time, node and GPU",
+                  "Capture/encoder FPS, bitrate, input and errors",
+                  "Session, Job identity, endpoints and disconnect grace",
+                ],
+                actions: [
+                  "Locate session and node logs",
+                  "Preview exact-instance stop impact",
+                  "Update through node maintenance tasks",
+                ],
+                boundary:
+                  "Encoder FPS is not client presentation FPS. Never adopt or clean processes by executable name or port.",
+              },
+              rdp: {
+                title: "RDP workspaces",
+                desc: "Separate persistent workspaces from replaceable transport and proxy processes.",
+                ids: ["workspace-01", "workspace-02"],
+                metrics: [
+                  ["Retained workspaces", "2"],
+                  ["Active frontends", "1"],
+                  ["Idle retained sessions", "1"],
+                ],
+                fields: [
+                  "Workspace ID and redacted user mapping",
+                  "Windows session identity, busy, proxy and transport",
+                  "Authorization, last connection and recovery failures",
+                ],
+                actions: [
+                  "Inspect the active frontend and authorization",
+                  "Preview transport-only disconnection",
+                  "Reauthorize and attach to the existing workspace",
+                ],
+                boundary:
+                  "Routine operations do not log off users or delete workspaces. A second frontend is still rejected as busy.",
+              },
+              maintenance: {
+                title: "Maintenance & upgrades",
+                desc: "See who requested a change, what it waits for, who is affected and how recovery works.",
+                ids: ["upgrade-01", "upgrade-02", "upgrade-03"],
+                metrics: [
+                  ["Open tasks", "2"],
+                  ["Waiting for users", "1"],
+                  ["Completed tasks", "1"],
+                ],
+                fields: [
+                  "Actor, target, window, execution phase and progress",
+                  "User impact, gates, versions and preflight results",
+                  "Failure reasons, rollback limits and cancellation points",
+                ],
+                actions: [
+                  "Inspect preflight and notification scope",
+                  "Cancel or defer only when safe",
+                  "Create a recovery task under the published policy",
+                ],
+                boundary:
+                  "Closing the browser does not cancel an executing task. HTTP 200 is not verified upgrade success.",
+              },
+            },
+          },
+        },
+      };
+      const scenarios = {
+        zh: {
+          redundant: [
+            [
+              "准备新版",
+              "旧 Relay",
+              "已有用户正常使用",
+              "服务中",
+              "新 Relay",
+              "完整包已经校验",
+              "准备就绪",
+              "旧版继续工作，新版先通过认证、转发和容量检查。",
+            ],
+            [
+              "新会话切到新版",
+              "旧 Relay",
+              "已有用户保留原连接",
+              "排空中",
+              "新 Relay",
+              "开始接收新用户",
+              "服务中",
+              "旧版不再接新会话，但允许已有会话的合法重连与子通道。",
+            ],
+            [
+              "等待已有用户离开",
+              "旧 Relay",
+              "旧会话逐渐结束",
+              "排空中",
+              "新 Relay",
+              "继续服务新会话",
+              "服务中",
+              "本步骤仅示意自然排空。长期不退出的用户需要预告后的受控重连。",
+            ],
+            [
+              "旧版退出，升级完成",
+              "旧 Relay",
+              "演示假定旧会话已归零",
+              "已退出",
+              "新 Relay",
+              "承接后续中转会话",
+              "服务中",
+              "只有确认旧会话全部结束后才退出。备用容量不会自动迁移已有连接。",
+            ],
+          ],
+          single: [
+            [
+              "提前公告维护窗口",
+              "唯一 Relay",
+              "当前用户仍在使用",
+              "服务中",
+              "客户端",
+              "收到开始时间与预计时长",
+              "已通知",
+              "升级包在维护前准备好。公告由 Console/Broker 提供，不依赖 Relay 存活。",
+            ],
+            [
+              "维护开始，停止新分配",
+              "唯一 Relay",
+              "停止接收新会话",
+              "维护准备",
+              "客户端",
+              "看到中转服务维护提示",
+              "已通知",
+              "到约定中断时点，按计划断开剩余中转连接。已有 Direct 连接不主动中断。",
+            ],
+            [
+              "升级并检查健康",
+              "唯一 Relay",
+              "重启、验证认证和转发",
+              "维护中",
+              "客户端",
+              "显示维护，等待服务恢复",
+              "等待重连",
+              "实际中转数据暂时中断。失败则回滚或更新公告，不盲目开放流量。",
+            ],
+            [
+              "恢复有效会话",
+              "新版 Relay",
+              "健康检查通过，恢复分配",
+              "服务中",
+              "客户端",
+              "重新认证，尝试恢复原会话",
+              "恢复中",
+              "仅恢复仍有效且未被主动停止的会话；云游戏实例能否保留取决于既有超时。",
+            ],
+          ],
+          node: [
+            [
+              "提前准备升级包",
+              "云端节点",
+              "用户继续运行云游戏",
+              "服务中",
+              "完整升级包",
+              "下载、签名与空间检查",
+              "准备就绪",
+              "常见 2–4 用户节点无需活动 Render 迁移，先把升级准备好。",
+            ],
+            [
+              "停止接新用户，等待空闲",
+              "云端节点",
+              "等待现有用户退出",
+              "排空中",
+              "Console 调度",
+              "不再向此节点分配新用户",
+              "入口已关闭",
+              "拖动上方用户数到 0 再继续。已有用户和合法重连保留原来的使用权。",
+            ],
+            [
+              "无人使用，执行升级",
+              "云端节点",
+              "门禁已封闭，更新运行时",
+              "维护中",
+              "升级任务",
+              "核对预约、任务和宽限已结束",
+              "执行中",
+              "示意假定空闲门禁全部通过；停止可回收运行时，不注销 RDP 工作区。",
+            ],
+            [
+              "验证成功，重新接客",
+              "新版节点",
+              "上报新版本与健康状态",
+              "服务中",
+              "Console 调度",
+              "恢复向该节点分配用户",
+              "已恢复",
+              "检查失败就安全回滚或保持维护，不能带病重新接收用户。",
+            ],
+          ],
+        },
+        en: {
+          redundant: [
+            [
+              "Prepare replacement",
+              "Old Relay",
+              "Existing users continue",
+              "Serving",
+              "New Relay",
+              "Full package verified",
+              "Ready",
+              "Keep the old instance running while validating authentication, forwarding and spare capacity.",
+            ],
+            [
+              "Route new sessions",
+              "Old Relay",
+              "Existing connections remain",
+              "Draining",
+              "New Relay",
+              "Accepts new sessions",
+              "Serving",
+              "Reject new allocations on the old Relay, but allow authorized subchannels and reconnects for existing allocations.",
+            ],
+            [
+              "Wait for sessions to end",
+              "Old Relay",
+              "Old sessions end over time",
+              "Draining",
+              "New Relay",
+              "Continues accepting new sessions",
+              "Serving",
+              "This step illustrates natural draining. Long-lived sessions need an announced, controlled reconnect.",
+            ],
+            [
+              "Retire the old instance",
+              "Old Relay",
+              "Assume old sessions reached zero",
+              "Stopped",
+              "New Relay",
+              "Handles subsequent sessions",
+              "Serving",
+              "Only stop once old sessions have ended. Spare capacity does not move existing connections automatically.",
+            ],
+          ],
+          single: [
+            [
+              "Announce maintenance",
+              "Only Relay",
+              "Existing users continue",
+              "Serving",
+              "Clients",
+              "Receive timing and impact",
+              "Notified",
+              "Prepare packages first. Console/Broker provide the announcement independently of Relay availability.",
+            ],
+            [
+              "Stop new allocations",
+              "Only Relay",
+              "No new sessions admitted",
+              "Preparing",
+              "Clients",
+              "See relay maintenance status",
+              "Notified",
+              "Interrupt remaining relay connections at the announced time. Do not proactively stop existing Direct paths.",
+            ],
+            [
+              "Upgrade and verify",
+              "Only Relay",
+              "Restart and verify forwarding",
+              "Maintenance",
+              "Clients",
+              "Wait with bounded retries",
+              "Reconnecting",
+              "Relay data is interrupted. Roll back or update the announcement on failure; do not reopen traffic prematurely.",
+            ],
+            [
+              "Recover valid sessions",
+              "New Relay",
+              "Health verified, allocations open",
+              "Serving",
+              "Clients",
+              "Reauthenticate and recover",
+              "Recovering",
+              "Only recover still-valid sessions that were not intentionally stopped. Games remain subject to runtime retention.",
+            ],
+          ],
+          node: [
+            [
+              "Prepare the package",
+              "Cloud node",
+              "Existing users keep playing",
+              "Serving",
+              "Full package",
+              "Download, signature and disk checks",
+              "Ready",
+              "Typical 2–4-user nodes can upgrade when idle without migrating active Render state.",
+            ],
+            [
+              "Stop admissions, wait",
+              "Cloud node",
+              "Waiting for users to leave",
+              "Draining",
+              "Console scheduler",
+              "No new users assigned here",
+              "Gated",
+              "Set the user count to zero to continue. Existing users and authorized reconnects retain their rights.",
+            ],
+            [
+              "Update the idle node",
+              "Cloud node",
+              "Admission sealed, runtime updating",
+              "Maintenance",
+              "Upgrade task",
+              "Grace, tasks and reservations checked",
+              "Running",
+              "This model assumes all idle gates passed. Stop eligible runtimes without logging off RDP workspaces.",
+            ],
+            [
+              "Verify and reopen",
+              "Updated node",
+              "Reports version and health",
+              "Serving",
+              "Console scheduler",
+              "Resumes assigning users",
+              "Restored",
+              "If checks fail, safely roll back or remain in maintenance rather than admit users on a broken node.",
+            ],
+          ],
+        },
+      };
+      // Example inventory only. Never connected to a management or telemetry API.
+      const opsInventory = [
+        ["console-01", "mgmt-a", "healthy", "open", "N", "c01"],
+        ["auth-01", "official-signing", "healthy", "open", "N", "a01"],
+        ["desk-01", "business-a", "healthy", "open", "N", "d01"],
+        ["broker-01", "mgmt-b", "healthy", "open", "N", "b01"],
+        ["relay-01", "relay-a", "healthy", "open", "N", "r01"],
+        ["relay-02", "relay-b", "healthy", "closed", "N-1", "r02"],
+        ["node-01", "gpu-a", "healthy", "open", "N", "n01"],
+        ["node-02", "gpu-b", "unknown", "na", "N-1", "n02"],
+        ["render-01", "node-01 / GPU 0", "healthy", "open", "N", "g01"],
+        ["render-02", "node-01 / GPU 1", "healthy", "closed", "N", "g02"],
+        ["workspace-01", "node-01", "healthy", "closed", "N", "w01"],
+        ["workspace-02", "node-01", "healthy", "open", "N", "w02"],
+        ["upgrade-01", "node-01", "waiting", "gate", "N+1", "u01"],
+        ["upgrade-02", "relay-02", "queued", "preflight", "N", "u02"],
+        ["upgrade-03", "console-01", "completed", "done", "N", "u03"],
+      ].map(([id, host, health, admission, version, load]) => ({ id, host, health, admission, version, load }));
+      const businessCatalogs = {
+        zh: {
+          title: "云应用由 Console 决策，机器与 GPU 由调度器选择",
+          intro:
+            "业务分类不等于运行模式。先确定应用、版本和资源规格，再选择可运行的机器与显卡；Broker/Relay 只负责连接。",
+          prototype: "离线调度模型 · 虚拟同规格硬件与预算，仅用于说明设计；不会探测、启动或修改真实机器。",
+          apps: {
+            game: ["云游戏", "游戏 · Game Hook", "独占 GPU；8 GiB 显存预算；验证游戏/采集/编码实际落点。"],
+            app: ["云应用", "普通应用 · Game Hook 示例", "共享 GPU；4 GiB 显存预算；同时检查机器资源和应用部署。"],
+            web: ["WebView 应用", "普通应用 · CEF WebView", "共享 GPU；2 GiB 显存预算；验证 CEF 实际 GPU 与共享进程。"],
+            rdp: ["RDP 应用", "普通应用 · RDP", "恢复 workspace-01，只回原机器；不重编码，不注销 Windows 会话。"],
+          },
+          ownership: [
+            "Console：目录、权限、规格、选机、预约和实例生命周期。",
+            "节点 Service：最终资源准入、端口、进程监督和实际 GPU 核验。",
+            "运行时：Game Hook / CEF / RDP；不自行改动全局调度策略。",
+          ],
+          scenario: "负载情景",
+          scenarios: {
+            normal: "正常负载 · 一台机器多张卡",
+            reserved: "A / GPU 1 已被新请求预约",
+            cpu: "A 的 CPU 接近预算上限",
+            drain: "A 进入维护排空",
+            stale: "全部遥测过期",
+            full: "全部机器内存不足",
+          },
+          machine: "候选机器限制",
+          auto: "自动选择所有合格机器",
+          role: "操作角色",
+          operator: "管理员",
+          viewer: "只读观察员",
+          result: "本次推荐落点",
+          none: "没有满足条件的落点",
+          noneDetail: "查看下面的拒绝原因。真实平台可返回资源不足或进入有界队列，不抢占已有用户。",
+          score: "预计峰值压力",
+          formula: "排序：放入本请求后的最大资源压力越低越优；同分再比平均压力。独占/能力/维护等硬门禁不参与加权抵消。",
+          reserve: "模拟原子预约",
+          reset: "重置本地预约",
+          pending: "本页新增预约",
+          reserved: "上次模拟预约",
+          notLaunched: "这里只占用模型预算，没有启动进程。再点一次代表另一个请求；真实重复 request_id 必须幂等。",
+          readonly: "只读角色不能预约；正式接口必须校验同样权限。",
+          table: "机器 / GPU 候选明细",
+          scroll: "表格可横向滚动；预算包含已有占用和未启动预约，Unknown 不等于零。",
+          columns: [
+            "候选落点",
+            "机器压力 + 本请求",
+            "GPU 压力 + 本请求",
+            "显存 / 编码预算",
+            "已有 / 预约实例",
+            "决策与理由",
+          ],
+          hostUsage: "CPU / 内存 / 出口",
+          gpuUsage: "图形预算",
+          vram: "显存",
+          enc: "编码会话预算",
+          slots: "运行 / 待启动",
+          eligible: "可候选",
+          chosen: "推荐",
+          rejected: "不接收",
+          unknown: "未知",
+          osGpu: "OS 管理的会话图形",
+          workspace: "固定 owner：machine-b · Windows 会话保留；此处只预约重连运行时资源。",
+          reasons: {
+            stale: "遥测过期",
+            drain: "维护排空",
+            deployment: "该应用版本未部署",
+            cpu: "CPU 预算不足",
+            ram: "内存不足",
+            net: "出口预算不足",
+            gpu: "GPU 压力超限",
+            vram: "单卡显存不足",
+            enc: "编码预算不足",
+            exclusive: "GPU 已占用或被独占预约",
+            slots: "共享实例上限",
+            affinity: "不是工作区 owner",
+            busy: "工作区已有前端预约",
+          },
+          fieldsTitle: "业务后台需要提供",
+          fields: [
+            "应用目录：分类、模式、ACL、发布版本和规格。",
+            "部署与容量：每台机器的安装状态、每张 GPU 的绑定验证和可分配预算。",
+            "实例与工作区：用户、机器/GPU、实际运行身份、Session、数据保留策略。",
+            "调度记录：候选排名、拒绝原因、request/reservation ID、租约与失败对账。",
+          ],
+          safetyTitle: "真实执行不能省略",
+          safety: [
+            "先过滤，再排序；Console 原子预约机器和 GPU，节点二次准入。",
+            "GPU 0/1 仅为展示名，使用稳定 gpu_id 和当前设备代际核验实际落点。",
+            "选编码卡不等于游戏/CEF 用了同一张卡；未验证组合不开放多卡独立容量。",
+            "失联、超时或预约过期不能直接释放可能已经启动的实例。",
+            "RDP 固定原工作区；运行中游戏不因其他机器更空而自动迁移。",
+          ],
+          units: "示例预算：CPU/图形/出口为同规格归一化单位，内存/显存为 GiB；非生产阈值。显存不跨卡相加。",
+        },
+        en: {
+          title: "Console owns the application. The scheduler selects its machine and GPU.",
+          intro:
+            "Business category and runtime mode are separate. Resolve the app, revision and resource profile before selecting a qualified placement. Broker and Relay only connect it.",
+          prototype:
+            "Offline scheduling model · Invented equal-class hardware and budgets. No probing, launching or changes to real machines.",
+          apps: {
+            game: [
+              "Cloud game",
+              "Game · Game Hook",
+              "Exclusive GPU; 8 GiB VRAM budget. Verify actual game, capture and encoder adapters.",
+            ],
+            app: [
+              "Cloud application",
+              "Application · Game Hook example",
+              "Shared GPU; 4 GiB VRAM budget. Check host resources and deployed revision.",
+            ],
+            web: [
+              "WebView application",
+              "Application · CEF WebView",
+              "Shared GPU; 2 GiB VRAM budget. Verify CEF adapters and shared GPU processes.",
+            ],
+            rdp: [
+              "RDP application",
+              "Application · RDP",
+              "Resume workspace-01 on its owner. No re-encoding or Windows session logoff.",
+            ],
+          },
+          ownership: [
+            "Console: catalog, permissions, profiles, placement, reservations and instance lifecycle.",
+            "Node Service: final admission, ports, supervision and actual GPU verification.",
+            "Runtime: Game Hook / CEF / RDP; never independently changes global scheduling policy.",
+          ],
+          scenario: "Load scenario",
+          scenarios: {
+            normal: "Normal load · Multiple GPUs per host",
+            reserved: "A / GPU 1 already reserved",
+            cpu: "A is near its CPU budget",
+            drain: "A is draining for maintenance",
+            stale: "All telemetry is stale",
+            full: "All hosts lack memory",
+          },
+          machine: "Candidate host constraint",
+          auto: "Automatically select eligible hosts",
+          role: "Role",
+          operator: "Administrator",
+          viewer: "Read-only observer",
+          result: "Recommended placement",
+          none: "No eligible placement",
+          noneDetail:
+            "Review rejection reasons below. Production may reject or use a bounded queue, never preempt existing users.",
+          score: "Projected peak pressure",
+          formula:
+            "Rank by the lowest maximum resource pressure after admission, then average pressure. Hard gates cannot be offset by a weighted score.",
+          reserve: "Simulate atomic reservation",
+          reset: "Reset local reservations",
+          pending: "New reservations on this page",
+          reserved: "Last simulated reservation",
+          notLaunched:
+            "This only reserves model budgets, not processes. Another click is a new request; repeated real request_id values must be idempotent.",
+          readonly: "Read-only roles cannot reserve. Real APIs must enforce the same permission.",
+          table: "Machine / GPU candidates",
+          scroll:
+            "Scroll the table horizontally. Budgets include existing occupancy and pending reservations. Unknown is not zero.",
+          columns: [
+            "Placement",
+            "Host pressure + request",
+            "GPU pressure + request",
+            "VRAM / encoder budgets",
+            "Running / reserved",
+            "Decision and reasons",
+          ],
+          hostUsage: "CPU / RAM / egress",
+          gpuUsage: "Graphics budget",
+          vram: "VRAM",
+          enc: "Encoder session budget",
+          slots: "Running / pending",
+          eligible: "Eligible",
+          chosen: "Recommended",
+          rejected: "Rejected",
+          unknown: "Unknown",
+          osGpu: "OS-managed session graphics",
+          workspace:
+            "Pinned owner: machine-b. Windows session retained; only reconnect runtime resources are reserved here.",
+          reasons: {
+            stale: "Stale telemetry",
+            drain: "Maintenance drain",
+            deployment: "App revision not deployed",
+            cpu: "CPU budget exhausted",
+            ram: "Insufficient RAM",
+            net: "Egress budget exhausted",
+            gpu: "GPU pressure exceeded",
+            vram: "Insufficient per-GPU VRAM",
+            enc: "Encoder budget exhausted",
+            exclusive: "GPU occupied or exclusively reserved",
+            slots: "Shared instance limit",
+            affinity: "Not the workspace owner",
+            busy: "Workspace already reserved by a frontend",
+          },
+          fieldsTitle: "Business administration pages",
+          fields: [
+            "Catalog: category, mode, ACL, published revision and profiles.",
+            "Deployment and capacity: installed revisions, per-GPU binding validation and allocatable budgets.",
+            "Instances and workspaces: user, host/GPU, actual identity, Session and data retention.",
+            "Scheduling history: ranking, rejection reasons, request/reservation IDs, leases and reconciliation.",
+          ],
+          safetyTitle: "Required for real execution",
+          safety: [
+            "Filter, then rank; Console atomically reserves host and GPU budgets, followed by node admission.",
+            "GPU 0/1 are display labels. Use stable GPU IDs and current device generations to verify placement.",
+            "Selecting an encoder does not bind a game or CEF. Unverified combinations cannot advertise independent GPU slots.",
+            "Disconnection, timeout or lease expiry must not release an instance that may have started.",
+            "RDP resumes its original workspace. Running games are not migrated to a less loaded host.",
+          ],
+          units:
+            "Illustrative budgets: CPU/graphics/egress use normalized equal-class units; RAM/VRAM use GiB. Not production thresholds. VRAM is not pooled across GPUs.",
+        },
+      };
+      catalogs.zh.business = businessCatalogs.zh;
+      catalogs.en.business = businessCatalogs.en;
+      const businessProfiles = {
+        game: { cpu: 16, ram: 8, net: 35, gpu: 40, vram: 8, enc: 1, exclusive: true },
+        app: { cpu: 8, ram: 4, net: 15, gpu: 18, vram: 4, enc: 1, exclusive: false },
+        web: { cpu: 6, ram: 3, net: 8, gpu: 12, vram: 2, enc: 1, exclusive: false },
+        rdp: { cpu: 2, ram: 1, net: 10, gpu: 0, vram: 0, enc: 0, exclusive: false },
+      };
+      // Entirely fictional allocatable budgets, after system reserve; no telemetry API.
+      const businessHosts = [
+        {
+          id: "machine-a",
+          cpu: 24,
+          ram: 12,
+          net: 15,
+          fresh: true,
+          apps: ["game", "app", "web"],
+          gpus: [
+            { id: "a-g0", label: "GPU 0", gpu: 65, vram: 12, enc: 1, slots: 1 },
+            { id: "a-g1", label: "GPU 1", gpu: 10, vram: 2, enc: 0, slots: 0 },
+          ],
+        },
+        {
+          id: "machine-b",
+          cpu: 48,
+          ram: 20,
+          net: 20,
+          fresh: true,
+          apps: ["game", "app", "web"],
+          gpus: [
+            { id: "b-g0", label: "GPU 0", gpu: 18, vram: 3, enc: 0, slots: 0 },
+            { id: "b-g1", label: "GPU 1", gpu: 35, vram: 8, enc: 1, slots: 1 },
+          ],
+        },
+        {
+          id: "machine-c",
+          cpu: 12,
+          ram: 8,
+          net: 5,
+          fresh: true,
+          apps: ["app", "web"],
+          gpus: [{ id: "c-g0", label: "GPU 0", gpu: 5, vram: 1, enc: 0, slots: 0 }],
+        },
+        {
+          id: "machine-d",
+          cpu: 5,
+          ram: 4,
+          net: 2,
+          fresh: false,
+          apps: ["game", "app", "web"],
+          gpus: [{ id: "d-g0", label: "GPU 0", gpu: 2, vram: 1, enc: 0, slots: 0 }],
+        },
+      ];
+      const state = {
+        lang: "zh",
+        view: ["overview", "connection", "upgrade", "operations", "business"].includes(location.hash.slice(1))
+          ? location.hash.slice(1)
+          : "overview",
+        deploy: "official",
+        path: "direct",
+        selected: "console",
+        step: 0,
+        scenario: "redundant",
+        simStep: 0,
+        users: 2,
+        opsPage: "overview",
+        opsRole: "operator",
+        opsStale: false,
+        opsFilter: false,
+        opsSelected: "console-01",
+        opsPreview: false,
+        businessApp: "game",
+        businessScenario: "normal",
+        businessMachine: "auto",
+        businessRole: "operator",
+        businessReservations: [],
+        businessLast: "",
+      };
+      const $ = (id) => document.getElementById(id);
+      const t = (key) => {
+        const value = catalogs[state.lang][key];
+        if (value === undefined) throw new Error("Missing localization key: " + key);
+        return value;
+      };
+      const icon = (name) => `<svg class="icon" aria-hidden="true"><use href="#${name}"/></svg>`;
+      const escapeHtml = (value) =>
+        String(value).replace(
+          /[&<>"']/g,
+          (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char],
+        );
+      const text = (value) => escapeHtml(value);
+      function activate(selector, attribute, value) {
+        document.querySelectorAll(selector).forEach((button) => {
+          const active = button.dataset[attribute] === value;
+          button.classList.toggle("active", active);
+          button.setAttribute("aria-pressed", String(active));
+        });
+      }
+      function facts(target, key) {
+        $(target).innerHTML = t(key)
+          .map(
+            ([title, body], i) =>
+              `<article class="panel fact"><span class="index">0${i + 1}</span><h3>${text(title)}</h3><p>${text(body)}</p></article>`,
+          )
+          .join("");
+      }
+      function nodeLabel(node) {
+        if (node === "client") return t(state.deploy === "official" ? "officialClient" : "privateClient");
+        if (node === "render" && state.path === "rdp") return t("rdpRender");
+        return t(node);
+      }
+      function renderNodes() {
+        ["client", "console", "broker", "relay", "service", "render"].forEach((node) => {
+          const card = $("node-" + node),
+            isRdp = node === "render" && state.path === "rdp";
+          const short = isRdp ? t("rdpShort") : t(node + "Short");
+          const badge =
+            node === "client"
+              ? state.deploy === "official"
+                ? "OFFICIAL"
+                : "CUSTOMER"
+              : node === "relay"
+                ? t(state.path === "relay" ? "relayUsed" : "relayUnused")
+                : "";
+          card.innerHTML = `<div class="node-title">${icon(node === "client" ? "monitor" : node === "service" ? "server" : node)}<strong>${text(nodeLabel(node))}</strong></div><p>${text(short)}</p>${badge ? `<span class="badge">${text(badge)}</span>` : ""}`;
+          card.classList.toggle("selected", state.view === "overview" && node === state.selected);
+          const involved = [
+            ["client", "console"],
+            ["console", "service", "render"],
+            state.path === "rdp"
+              ? ["console", "render"]
+              : ["client", "broker", "render", ...(state.path === "relay" ? ["relay"] : [])],
+            ["client", "render", ...(state.path === "relay" ? ["relay"] : [])],
+          ];
+          card.classList.toggle("flow-on", state.view === "connection" && involved[state.step].includes(node));
+          card.classList.toggle("in-use", node === "relay" && state.path === "relay");
+          card.setAttribute("aria-pressed", String(state.selected === node && state.view === "overview"));
+        });
+      }
+      function renderInspector() {
+        if (state.view === "connection") {
+          const steps = t("steps");
+          $("inspector").innerHTML =
+            `<span class="eyebrow">${text(t("stepLabel"))}</span><h2>${String(state.step + 1).padStart(2, "0")} / 04</h2><p>${text(t("flowActive"))}</p><ol class="steps">${steps.map(([title, body], i) => `<li><button class="step-button ${state.step === i ? "active" : ""}" data-step="${i}" aria-current="${state.step === i ? "step" : "false"}"><span class="step-count">${i + 1}</span><span>${text(title)}<small>${text(i === 2 && state.path === "rdp" ? t("rdpStep") : body)}</small></span></button></li>`).join("")}</ol><div class="button-row"><button class="primary" id="flowNext">${text(t(state.step === 3 ? "restart" : "next"))}${icon("arrow")}</button></div><div class="boundary"><strong>${text(t("boundaryLabel"))}</strong>${text(t("route" + (state.path === "relay" ? "Relay" : state.path === "rdp" ? "Rdp" : "Direct")))}</div>`;
+        } else {
+          const node = state.selected,
+            key = node === "render" && state.path === "rdp" ? "rdp" : node;
+          $("inspector").innerHTML =
+            `<span class="eyebrow">${text(t("roleLabel"))}</span><div class="big-icon">${icon(node === "client" ? "monitor" : node === "service" ? "server" : node)}</div><h2>${text(nodeLabel(node))}</h2><p>${text(t(key + "Desc"))}</p><ul class="detail-list">${t(
+              key + "Items",
+            )
+              .map((item) => `<li>${icon("check")}<span>${text(item)}</span></li>`)
+              .join(
+                "",
+              )}</ul><div class="boundary"><strong>${text(t("boundaryLabel"))}</strong>${text(t(key + "Boundary"))}</div>`;
+        }
+      }
+      function drawConnections() {
+        if (!["overview", "connection"].includes(state.view) || window.innerWidth <= 540) return;
+        const map = $("map"),
+          bounds = map.getBoundingClientRect();
+        const box = (id) => {
+          const r = $("node-" + id).getBoundingClientRect();
+          return { x: r.x - bounds.x, y: r.y - bounds.y, w: r.width, h: r.height };
+        };
+        const c = box("client"),
+          co = box("console"),
+          b = box("broker"),
+          r = box("relay"),
+          s = box("service"),
+          v = box("render");
+        const left = (n) => [n.x, n.y + n.h / 2],
+          right = (n) => [n.x + n.w, n.y + n.h / 2],
+          top = (n) => [n.x + n.w / 2, n.y],
+          bottom = (n) => [n.x + n.w / 2, n.y + n.h];
+        const curve = (a, z) => `M${a} C${(a[0] + z[0]) / 2},${a[1]} ${(a[0] + z[0]) / 2},${z[1]} ${z}`;
+        const vert = (a, z) => `M${a} L${z}`;
+        const paths = [];
+        const control = (d, stage) =>
+          paths.push(
+            `<path class="wire${state.view === "connection" && state.step === stage ? " active" : ""}" d="${d}"/>`,
+          );
+        control(curve(right(c), left(co)), 0);
+        control(curve(right(co), left(s)), 1);
+        control(vert(bottom(s), top(v)), 1);
+        if (state.path !== "rdp") {
+          control(curve(right(c), left(b)), 2);
+          control(curve(right(b), left(v)), 2);
+          if (state.path === "relay") control(vert(bottom(b), top(r)), 2);
+        }
+        const isDataActive = state.view === "connection" && state.step === 3;
+        const data = (d) => paths.push(`<path class="wire data${isDataActive ? " active" : ""}" d="${d}"/>`);
+        if (state.path === "relay") {
+          data(curve(right(c), left(r)));
+          data(curve(right(r), left(v)));
+        } else {
+          const a = bottom(c),
+            z = bottom(v),
+            y = bounds.height - 45;
+          data(
+            `M${a} L${a[0]},${y - 12} Q${a[0]},${y} ${a[0] + 12},${y} L${z[0] - 12},${y} Q${z[0]},${y} ${z[0]},${y - 12} L${z}`,
+          );
+        }
+        $("connections").setAttribute("viewBox", `0 0 ${bounds.width} ${bounds.height}`);
+        $("connections").innerHTML = paths.join("");
+      }
+      function renderSimulation() {
+        const rows = scenarios[state.lang][state.scenario],
+          row = rows[state.simStep];
+        $("userControl").hidden = state.scenario !== "node";
+        $("users").value = String(state.users);
+        $("users").disabled = state.simStep >= 2;
+        $("userCount").textContent = `${state.users} / 4`;
+        $("simIndex").textContent = `${t("simulationStep")} ${state.simStep + 1} / ${rows.length}`;
+        ["A", "B"].forEach((side, i) => {
+          const offset = i === 0 ? 1 : 4;
+          const card = $("server" + side);
+          card.innerHTML = `${icon(i === 0 ? "server" : state.scenario === "single" ? "monitor" : state.scenario === "node" ? "console" : "relay")}<h3>${text(row[offset])}</h3><p>${text(row[offset + 1])}</p><span class="server-status">${text(row[offset + 2])}</span>`;
+          card.className = "server";
+          if (
+            (state.scenario === "single" && state.simStep === 2) ||
+            (state.scenario === "node" && state.simStep === 2)
+          )
+            card.classList.add("amber");
+          else if ((i === 1 && state.scenario === "redundant" && state.simStep >= 1) || state.simStep === 3)
+            card.classList.add("green");
+        });
+        $("simNotice").textContent = row[7];
+        $("simNotice").classList.toggle(
+          "warning",
+          state.scenario === "single" || (state.scenario === "node" && state.simStep === 1 && state.users > 0),
+        );
+        $("progress").innerHTML = rows
+          .map((_, i) => `<span class="${i <= state.simStep ? "done" : ""}"></span>`)
+          .join("");
+        $("simCaption").textContent = row[0];
+        const blocked = state.scenario === "node" && state.simStep === 1 && state.users > 0;
+        $("simNext").disabled = blocked || state.simStep === 3;
+        $("simNext").textContent = t(state.simStep === 3 ? "finish" : blocked ? "waiting" : "continue");
+        const key = state.scenario;
+        $("upgradeAside").innerHTML =
+          `<p class="eyebrow">${text(t("simulationOnly"))}</p><h3>${text(t("coreRule"))}</h3><p>${text(t(key + "Rule"))}</p><h3>${text(t("userImpact"))}</h3><p>${text(t(key + "Impact"))}</p><div class="boundary"><strong>${text(t("scope"))}</strong>${text(t(key + "Scope"))}</div>${key === "single" || key === "node" ? `<div class="boundary">${text(t(key === "single" ? "graceNote" : "nodeGate"))}</div>` : ""}`;
+      }
+      function businessCandidates() {
+        const profile = businessProfiles[state.businessApp];
+        const pending = [...state.businessReservations];
+        if (state.businessScenario === "reserved")
+          pending.push({ host: "machine-a", gpu: "a-g1", app: "game", profile: businessProfiles.game });
+        const result = [];
+        for (const host of businessHosts) {
+          if (state.businessMachine !== "auto" && host.id !== state.businessMachine) continue;
+          const hostPending = pending.filter((item) => item.host === host.id);
+          const sum = (items, key) => items.reduce((total, item) => total + item.profile[key], 0);
+          const fresh = host.fresh && state.businessScenario !== "stale";
+          const baseCpu = state.businessScenario === "cpu" && host.id === "machine-a" ? 76 : host.cpu;
+          const baseRam = state.businessScenario === "full" ? 64 : host.ram;
+          const cpu = baseCpu + sum(hostPending, "cpu") + profile.cpu;
+          const ram = baseRam + sum(hostPending, "ram") + profile.ram;
+          const net = host.net + sum(hostPending, "net") + profile.net;
+          const hostReasons = [];
+          if (!fresh) hostReasons.push("stale");
+          if (state.businessScenario === "drain" && host.id === "machine-a") hostReasons.push("drain");
+          if (cpu > 80) hostReasons.push("cpu");
+          if (ram > 64) hostReasons.push("ram");
+          if (net > 100) hostReasons.push("net");
+          if (state.businessApp === "rdp") {
+            if (host.id !== "machine-b") hostReasons.push("affinity");
+            if (pending.some((item) => item.app === "rdp")) hostReasons.push("busy");
+          } else if (!host.apps.includes(state.businessApp)) hostReasons.push("deployment");
+          const gpus =
+            state.businessApp === "rdp"
+              ? [{ id: "workspace-01", label: "", gpu: 0, vram: 0, enc: 0, slots: 0 }]
+              : host.gpus;
+          for (const gpu of gpus) {
+            const gpuPending = hostPending.filter((item) => item.gpu === gpu.id);
+            const graphics = gpu.gpu + sum(gpuPending, "gpu") + profile.gpu;
+            const vram = gpu.vram + sum(gpuPending, "vram") + profile.vram;
+            const enc = gpu.enc + sum(gpuPending, "enc") + profile.enc;
+            const reasons = [...hostReasons];
+            if (state.businessApp !== "rdp") {
+              if (graphics > 85) reasons.push("gpu");
+              if (vram > 20) reasons.push("vram");
+              if (enc > 2) reasons.push("enc");
+              if (
+                (profile.exclusive && gpu.slots + gpuPending.length > 0) ||
+                gpuPending.some((item) => item.profile.exclusive)
+              )
+                reasons.push("exclusive");
+              if (gpu.slots + gpuPending.length + 1 > 3) reasons.push("slots");
+            }
+            const ratios = [
+              cpu / 80,
+              ram / 64,
+              net / 100,
+              ...(state.businessApp === "rdp" ? [] : [graphics / 85, vram / 20, enc / 2]),
+            ];
+            result.push({
+              host: host.id,
+              gpu: gpu.id,
+              label: gpu.label,
+              fresh,
+              cpu,
+              ram,
+              net,
+              graphics,
+              vram,
+              enc,
+              running: gpu.slots,
+              pending: gpuPending.length,
+              reasons,
+              score: Math.max(...ratios),
+              average: ratios.reduce((a, b) => a + b, 0) / ratios.length,
+            });
+          }
+        }
+        return result.sort(
+          (a, b) =>
+            Number(a.reasons.length > 0) - Number(b.reasons.length > 0) ||
+            a.score - b.score ||
+            a.average - b.average ||
+            a.gpu.localeCompare(b.gpu),
+        );
+      }
+      function renderBusiness() {
+        const copy = t("business");
+        const candidates = businessCandidates();
+        const best = candidates.find((row) => !row.reasons.length);
+        const isRdp = state.businessApp === "rdp";
+        const option = (value, label, current) =>
+          `<option value="${value}" ${value === current ? "selected" : ""}>${text(label)}</option>`;
+        const list = (items) => `<ul>${items.map((item) => `<li>${text(item)}</li>`).join("")}</ul>`;
+        const number = (row, value) => (row.fresh ? text(value) : text(copy.unknown));
+        $("business").innerHTML = `
+          <div class="platform-note">${text(copy.prototype)}</div>
+          <h2>${text(copy.title)}</h2><p>${text(copy.intro)}</p>
+          <div class="business-grid">${Object.entries(copy.apps)
+            .map(
+              ([key, app]) =>
+                `<button class="panel business-card ${key === state.businessApp ? "active" : ""}" data-business-app="${key}" aria-pressed="${key === state.businessApp}"><strong>${text(app[0])}</strong><small>${text(app[1])}</small><small>${text(app[2])}</small></button>`,
+            )
+            .join("")}</div>
+          <div class="panel business-result">${list(copy.ownership)}</div>
+          <div class="business-controls">
+            <label>${text(copy.scenario)}<select id="businessScenario">${Object.entries(copy.scenarios)
+              .map(([key, value]) => option(key, value, state.businessScenario))
+              .join("")}</select></label>
+            <label>${text(copy.machine)}<select id="businessMachine">${option("auto", copy.auto, state.businessMachine)}${businessHosts.map((host) => option(host.id, host.id, state.businessMachine)).join("")}</select></label>
+            <label>${text(copy.role)}<select id="businessRole">${["operator", "viewer"].map((role) => option(role, copy[role], state.businessRole)).join("")}</select></label>
+          </div>
+          <div class="panel business-result" id="businessResult" aria-live="polite">
+            <small>${text(copy.result)}</small><h3 id="businessRecommendation">${best ? `${text(best.host)} / ${text(isRdp ? "workspace-01" : best.label)}` : text(copy.none)}</h3>
+            <p>${best ? (isRdp ? text(copy.workspace) : `${text(copy.score)}: ${Math.round(best.score * 100)}% · ${text(copy.formula)}`) : text(copy.noneDetail)}</p>
+            <button class="primary" id="businessReserve" ${!best || state.businessRole === "viewer" ? "disabled" : ""}>${text(copy.reserve)}</button>
+            <button class="secondary" id="businessReset">${text(copy.reset)}</button>
+            <p>${text(copy.pending)}: <strong id="businessReservationCount">${state.businessReservations.length}</strong>${state.businessLast ? ` · ${text(copy.reserved)}: ${text(state.businessLast)}` : ""}</p>
+            <p>${text(state.businessRole === "viewer" ? copy.readonly : copy.notLaunched)}</p>
+          </div>
+          <h3>${text(copy.table)}</h3><p>${text(copy.scroll)}</p>
+          <div class="panel ops-scroll"><table class="ops-table business-table" aria-label="${text(copy.table)}"><thead><tr>${copy.columns.map((col) => `<th scope="col">${text(col)}</th>`).join("")}</tr></thead><tbody>${candidates
+            .map(
+              (
+                row,
+              ) => `<tr data-candidate="${row.host}/${row.gpu}" data-eligible="${row.reasons.length === 0}" class="${row === best ? "selected" : ""}">
+            <td><strong>${text(row.host)}</strong><small>${text(isRdp ? copy.osGpu : row.label)}</small><small>${text(row.gpu)}</small></td>
+            <td>${number(row, `${row.cpu}/80 · ${row.ram}/64 · ${row.net}/100`)}<small>${text(copy.hostUsage)}</small></td>
+            <td>${isRdp ? "—" : number(row, `${row.graphics}/85`)}<small>${text(isRdp ? copy.osGpu : copy.gpuUsage)}</small></td>
+            <td>${isRdp ? "—" : number(row, `${row.vram}/20 GiB · ${row.enc}/2`)}<small>${text(copy.vram)} / ${text(copy.enc)}</small></td>
+            <td>${isRdp ? "—" : number(row, `${row.running} / ${row.pending}`)}<small>${text(copy.slots)}</small></td>
+            <td><span class="ops-badge ${row.reasons.length ? "unknown" : ""}">${text(row === best ? copy.chosen : row.reasons.length ? copy.rejected : copy.eligible)}</span><small>${row.reasons.length ? row.reasons.map((reason) => text(copy.reasons[reason])).join(" · ") : `${text(copy.score)} ${Math.round(row.score * 100)}%`}</small></td>
+          </tr>`,
+            )
+            .join("")}</tbody></table></div><p>${text(copy.units)}</p>
+          <div class="business-details"><div class="panel"><h3>${text(copy.fieldsTitle)}</h3>${list(copy.fields)}</div><div class="panel"><h3>${text(copy.safetyTitle)}</h3>${list(copy.safety)}</div></div>`;
+      }
+      function renderOperations() {
+        if (state.deploy === "private" && state.opsPage === "auth") {
+          state.opsPage = "overview";
+          state.opsPreview = false;
+        }
+        const copy = t("ops"),
+          page = copy.pages[state.opsPage];
+        const navIcons = {
+          overview: "console",
+          console: "console",
+          auth: "lock",
+          desk: "console",
+          broker: "broker",
+          relay: "relay",
+          node: "server",
+          render: "render",
+          rdp: "monitor",
+          maintenance: "lock",
+        };
+        $("opsPrototype").textContent = copy.prototype;
+        $("opsNav").setAttribute("aria-label", copy.navigation);
+        $("opsNav").innerHTML = `<div class="ops-nav-label">${text(copy.navigation)}</div>${Object.entries(copy.pages)
+          .filter(([id]) => id !== "auth" || state.deploy === "official")
+          .map(
+            ([id, p]) =>
+              `<button data-ops-page="${id}" class="${state.opsPage === id ? "active" : ""}" aria-pressed="${state.opsPage === id}">${icon(navIcons[id])}<span>${text(p.title)}</span></button>`,
+          )
+          .join("")}`;
+        $("opsEyebrow").textContent = copy.eyebrow;
+        $("opsTitle").textContent = page.title;
+        $("opsSubtitle").textContent = page.desc;
+        $("opsMode").textContent = copy.mode;
+        document.querySelectorAll("[data-role]").forEach((button) => {
+          button.textContent = copy[button.dataset.role];
+        });
+        activate("[data-role]", "role", state.opsRole);
+        $("opsStale").textContent = copy.staleToggle;
+        $("opsStale").setAttribute("aria-pressed", String(state.opsStale));
+        $("opsFreshness").textContent = state.opsStale ? copy.stale : copy.fresh;
+        $("opsMetrics").innerHTML = [...page.metrics, [copy.freshLabel, state.opsStale ? "15 min" : "2 s"]]
+          .map(
+            ([label, value], i) =>
+              `<div class="panel ops-metric"><small>${text(label)}</small><strong>${text(state.opsStale && i < 3 ? "—" : value)}</strong></div>`,
+          )
+          .join("");
+        $("opsListTitle").textContent = state.opsPage === "maintenance" ? copy.tasks : copy.list;
+        $("opsFilterLabel").textContent = copy.filter;
+        $("opsFilter").checked = state.opsFilter;
+        const rows = opsInventory
+          .filter((row) => page.ids.includes(row.id))
+          .filter(
+            (row) =>
+              !state.opsFilter ||
+              state.opsStale ||
+              !["healthy", "completed"].includes(row.health) ||
+              row.admission === "closed",
+          );
+        if (!rows.some((row) => row.id === state.opsSelected)) state.opsSelected = rows[0]?.id ?? "";
+        const selected = rows.find((row) => row.id === state.opsSelected);
+        const badge = (row) => {
+          const status = state.opsStale ? "unknown" : row.health;
+          return `<span class="ops-badge ${status === "unknown" ? "unknown" : !["healthy", "completed"].includes(status) ? "amber" : ""}">${text(copy.states[status])}</span>`;
+        };
+        const admission = (row) =>
+          state.opsStale || row.health === "unknown" ? copy.unknown : copy.modes[row.admission];
+        const columns = state.opsPage === "maintenance" ? copy.taskColumns : copy.columns;
+        $("opsTable").innerHTML = rows.length
+          ? `<table class="ops-table" aria-label="${text(page.title)}"><thead><tr>${columns.map((c) => `<th scope="col">${text(c)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr class="${row.id === state.opsSelected ? "selected" : ""}"><td><button class="ops-row-button" data-ops-row="${row.id}" aria-pressed="${row.id === state.opsSelected}">${text(row.id)}</button></td><td>${text(row.host)}</td><td>${badge(row)}</td><td>${text(admission(row))}</td><td>${text(row.version)}</td><td>${state.opsStale ? "—" : text(copy.loads[row.load])}</td></tr>`).join("")}</tbody></table>`
+          : `<div class="ops-empty">${text(copy.empty)}</div>`;
+        const fields = page.fields.map((field) => `<li>${text(field)}</li>`).join("");
+        $("opsDetail").innerHTML =
+          `<h3>${text(copy.detail)}</h3>${selected ? `<dl class="ops-kv"><dt>${text(copy.object)}</dt><dd>${text(selected.id)}</dd><dt>${text(copy.host)}</dt><dd>${text(selected.host)}</dd><dt>${text(copy.health)}</dt><dd>${badge(selected)}</dd><dt>${text(copy.admission)}</dt><dd>${text(admission(selected))}</dd><dt>${text(state.opsStale || selected.health === "unknown" ? copy.lastKnown : copy.load)}</dt><dd>${text(copy.loads[selected.load])}</dd></dl>` : `<p>${text(copy.choose)}</p>`}<div class="boundary"><strong>${text(copy.fields)}</strong><ul>${fields}</ul></div>`;
+        const blocked = state.opsStale || state.opsRole === "viewer" || !selected || selected.health === "unknown";
+        const note =
+          state.opsRole === "viewer"
+            ? copy.readonly
+            : state.opsStale || selected?.health === "unknown"
+              ? copy.blocked
+              : !selected
+                ? copy.choose
+                : copy.available;
+        $("opsActions").innerHTML =
+          `<h3>${text(copy.actions)}</h3><ul>${page.actions.map((action) => `<li>${text(action)}</li>`).join("")}</ul><div class="boundary"><strong>${text(t("boundaryLabel"))}</strong>${text(page.boundary)}</div><p class="ops-action-note">${text(note)}</p><button class="primary" id="opsPreviewButton" ${blocked ? "disabled" : ""}>${text(copy.preview)}</button>`;
+        if (blocked) state.opsPreview = false;
+        $("opsPreflight").hidden = !state.opsPreview;
+        $("opsPreflight").innerHTML =
+          `<strong>${text(copy.preflightTitle)}</strong><p>${text(copy.selected)}: ${text(state.opsSelected)}</p><ol>${copy.preflight.map((line) => `<li>${text(line)}</li>`).join("")}</ol>`;
+        $("opsCaption").textContent = copy.caption;
+      }
+      function revealActiveTab() {
+        const nav = document.querySelector(".tabs");
+        const active = nav.querySelector('[aria-pressed="true"]');
+        if (!active) return;
+        const item = active.getBoundingClientRect();
+        const viewport = nav.getBoundingClientRect();
+        if (item.right > viewport.right) nav.scrollLeft += item.right - viewport.right;
+        else if (item.left < viewport.left) nav.scrollLeft -= viewport.left - item.left;
+      }
+      function render() {
+        document.documentElement.lang = state.lang === "zh" ? "zh-CN" : "en";
+        document.querySelectorAll("[data-t]").forEach((el) => {
+          el.textContent = t(el.dataset.t);
+        });
+        document.querySelectorAll("[data-label]").forEach((el) => {
+          el.setAttribute("aria-label", t(el.dataset.label));
+        });
+        $("language").textContent = state.lang === "zh" ? "EN" : "中文";
+        $("architecture").hidden = !["overview", "connection"].includes(state.view);
+        $("upgrades").hidden = state.view !== "upgrade";
+        $("operations").hidden = state.view !== "operations";
+        $("business").hidden = state.view !== "business";
+        $("flowControls").hidden = state.view !== "connection";
+        activate("[data-view]", "view", state.view);
+        activate("[data-deploy]", "deploy", state.deploy);
+        activate("[data-path]", "path", state.path);
+        activate("[data-scenario]", "scenario", state.scenario);
+        $("platformNote").textContent = t(state.deploy === "official" ? "officialNote" : "privateNote");
+        const route = t("route" + (state.path === "relay" ? "Relay" : state.path === "rdp" ? "Rdp" : "Direct"));
+        $("routeCaption").textContent = route;
+        $("mobileRoute").textContent = route;
+        renderNodes();
+        renderInspector();
+        facts("facts", "facts");
+        facts("upgradeFacts", "upgradeFacts");
+        renderSimulation();
+        renderOperations();
+        renderBusiness();
+        requestAnimationFrame(drawConnections);
+        requestAnimationFrame(revealActiveTab);
+      }
+      document.addEventListener("click", (event) => {
+        const button = event.target.closest("button");
+        if (!button || button.disabled) return;
+        if (button.dataset.view) {
+          state.view = button.dataset.view;
+          if (state.view === "overview") state.path = "direct";
+        } else if (button.dataset.deploy) state.deploy = button.dataset.deploy;
+        else if (button.dataset.path) {
+          state.path = button.dataset.path;
+          state.step = 0;
+        } else if (button.dataset.node) {
+          state.selected = button.dataset.node;
+          state.view = "overview";
+        } else if (button.dataset.step !== undefined) state.step = Number(button.dataset.step);
+        else if (button.dataset.scenario) {
+          state.scenario = button.dataset.scenario;
+          state.simStep = 0;
+          state.users = 2;
+        } else if (button.dataset.businessApp) {
+          state.businessApp = button.dataset.businessApp;
+        } else if (button.id === "businessReserve") {
+          const best = businessCandidates().find((row) => !row.reasons.length);
+          if (best && state.businessRole === "operator") {
+            state.businessReservations.push({
+              host: best.host,
+              gpu: best.gpu,
+              app: state.businessApp,
+              profile: { ...businessProfiles[state.businessApp] },
+            });
+            state.businessLast = `${best.host} / ${best.gpu}`;
+          }
+        } else if (button.id === "businessReset") {
+          state.businessReservations = [];
+          state.businessLast = "";
+        } else if (button.dataset.opsPage) {
+          state.opsPage = button.dataset.opsPage;
+          state.opsSelected = "";
+          state.opsPreview = false;
+        } else if (button.dataset.opsRow) {
+          state.opsSelected = button.dataset.opsRow;
+          state.opsPreview = false;
+        } else if (button.dataset.role) {
+          state.opsRole = button.dataset.role;
+          state.opsPreview = false;
+        } else if (button.id === "opsStale") {
+          state.opsStale = !state.opsStale;
+          state.opsPreview = false;
+        } else if (button.id === "opsPreviewButton") {
+          if (state.opsRole === "operator" && !state.opsStale) state.opsPreview = !state.opsPreview;
+        } else if (button.id === "flowNext") state.step = (state.step + 1) % 4;
+        else if (button.id === "language") state.lang = state.lang === "zh" ? "en" : "zh";
+        else if (button.id === "theme") {
+          document.documentElement.dataset.theme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+          try {
+            localStorage.setItem("pixels-architecture-theme", document.documentElement.dataset.theme);
+          } catch {}
+        } else if (button.id === "simNext") {
+          if (!(state.scenario === "node" && state.simStep === 1 && state.users > 0))
+            state.simStep = Math.min(3, state.simStep + 1);
+        } else if (button.id === "simReset") {
+          state.simStep = 0;
+          state.users = 2;
+        } else return;
+        render();
+        if (button.id === "flowNext") $("flowNext").focus();
+        if (button.dataset.opsPage) document.querySelector(`[data-ops-page="${button.dataset.opsPage}"]`).focus();
+        if (button.dataset.opsRow) document.querySelector(`[data-ops-row="${button.dataset.opsRow}"]`)?.focus();
+        if (button.id === "opsPreviewButton") $("opsPreviewButton").focus();
+        if (button.dataset.businessApp)
+          document.querySelector(`[data-business-app="${button.dataset.businessApp}"]`).focus();
+        if (button.id === "businessReserve" || button.id === "businessReset") $(button.id).focus();
+      });
+      document.addEventListener("change", (event) => {
+        const fields = {
+          businessScenario: "businessScenario",
+          businessMachine: "businessMachine",
+          businessRole: "businessRole",
+        };
+        const field = fields[event.target.id];
+        if (!field) return;
+        state[field] = event.target.value;
+        if (field === "businessScenario") {
+          state.businessReservations = [];
+          state.businessLast = "";
+        }
+        renderBusiness();
+        $(event.target.id).focus();
+      });
+      $("opsFilter").addEventListener("change", (event) => {
+        state.opsFilter = event.target.checked;
+        state.opsPreview = false;
+        renderOperations();
+      });
+      $("users").addEventListener("input", (event) => {
+        state.users = Number(event.target.value);
+        renderSimulation();
+      });
+      try {
+        const saved = localStorage.getItem("pixels-architecture-theme");
+        if (saved === "dark" || saved === "light") document.documentElement.dataset.theme = saved;
+      } catch {}
+      new ResizeObserver(() => requestAnimationFrame(drawConnections)).observe($("map"));
+      new ResizeObserver(() => requestAnimationFrame(revealActiveTab)).observe(document.querySelector(".tabs"));
+      render();
+    </script>
+  </body>
+</html>
