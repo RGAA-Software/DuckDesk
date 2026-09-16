@@ -1,9 +1,7 @@
 [workspace]
 members = [
     "px_desk_server",
-    "px_updater",
     "px_auth_server",
-    "px_stat_server",
     "px_console_server",
     "builder",
 ]
