@@ -52,14 +52,9 @@ target_link_libraries(pixels_rdp_sdk INTERFACE pixels_px_rdp_client pixels_px_rd
 
 function(pixels_stage_rdp_client target)
     file(READ "${_rdp_manifest_path}" _rdp_manifest)
-    add_custom_command(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target}>/rdp/licenses")
-    foreach(_license FreeRDP-LICENSE openssl-LICENSE libusb-LICENSE zlib-LICENSE cjson-LICENSE openh264-LICENSE)
-        if(NOT EXISTS "${PIXELS_RDP_SDK_ROOT}/licenses/${_license}")
-            message(FATAL_ERROR "Missing RDP runtime license: ${_license}")
-        endif()
-        add_custom_command(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${PIXELS_RDP_SDK_ROOT}/licenses/${_license}" "$<TARGET_FILE_DIR:${target}>/rdp/licenses/${_license}")
-    endforeach()
+    add_custom_command(TARGET ${target} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target}>/rdp"
+        COMMAND ${CMAKE_COMMAND} -E remove_directory "$<TARGET_FILE_DIR:${target}>/rdp/licenses")
     add_custom_command(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${_rdp_manifest_path}" "$<TARGET_FILE_DIR:${target}>/rdp/px_rdp_sdk.json")
     foreach(_name px_rdp_client.dll px_rdp_core.dll px_rdp_winpr.dll libusb-1.0.dll libssl-3-x64.dll libcrypto-3-x64.dll zlib1.dll cjson.dll legacy.dll openh264-6.dll)

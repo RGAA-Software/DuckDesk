@@ -714,7 +714,7 @@ mod tests {
 
     #[test]
     fn product_controller_path_is_adjacent_to_driver_directory() {
-        let backend = WindowsParsecVddBackend::new(PathBuf::from(r"C:\Pixels\parsec_vdd"));
+        let backend = WindowsParsecVddBackend::new(PathBuf::from(r"C:\Pixels\vdd"));
         assert_eq!(
             backend.controller_exe,
             PathBuf::from(r"C:\Pixels\px_display.exe")

@@ -86,13 +86,6 @@ destination = "rdp/px_rdp_sdk.json"
 
 [[groups.desktop_client]]
 root = "rdp_sdk"
-source = "licenses"
-destination = "rdp/licenses"
-kind = "tree"
-include = ["*-LICENSE"]
-
-[[groups.desktop_client]]
-root = "rdp_sdk"
 source = "bin"
 destination = "."
 kind = "tree"
@@ -121,14 +114,6 @@ owned_pe = true
 root = "rdp_sdk"
 source = "px_rdp_sdk.json"
 destination = "rdp/px_rdp_sdk.json"
-replace = true
-
-[[groups.rdp_host]]
-root = "rdp_sdk"
-source = "licenses"
-destination = "rdp/licenses"
-kind = "tree"
-include = ["*-LICENSE"]
 replace = true
 
 [[groups.host_common]]
@@ -168,32 +153,32 @@ owned_pe = true
 [[groups.host_common]]
 root = "source"
 source = "third_party/parsec_vdd/nefconw.exe"
-destination = "parsec_vdd/nefconw.exe"
+destination = "vdd/nefconw.exe"
 
 [[groups.host_common]]
 root = "source"
 source = "third_party/parsec_vdd/SOURCE.md"
-destination = "parsec_vdd/SOURCE.md"
+destination = "vdd/SOURCE.md"
 
 [[groups.host_common]]
 root = "source"
 source = "third_party/parsec_vdd/SHA256SUMS.txt"
-destination = "parsec_vdd/SHA256SUMS.txt"
+destination = "vdd/SHA256SUMS.txt"
 
 [[groups.host_common]]
 root = "source"
 source = "third_party/parsec_vdd/driver/mm.cat"
-destination = "parsec_vdd/driver/mm.cat"
+destination = "vdd/driver/mm.cat"
 
 [[groups.host_common]]
 root = "source"
 source = "third_party/parsec_vdd/driver/mm.dll"
-destination = "parsec_vdd/driver/mm.dll"
+destination = "vdd/driver/mm.dll"
 
 [[groups.host_common]]
 root = "source"
 source = "third_party/parsec_vdd/driver/mm.inf"
-destination = "parsec_vdd/driver/mm.inf"
+destination = "vdd/driver/mm.inf"
 
 [[groups.render_common]]
 root = "build"

@@ -483,6 +483,9 @@ endif()
 function(pixels_add_product_packaging target product)
     add_custom_command(TARGET ${target} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/setup" "${CMAKE_BINARY_DIR}/setup"
+        COMMAND ${CMAKE_COMMAND} -E rm -f
+                "${CMAKE_BINARY_DIR}/setup/image/logo.ico"
+                "${CMAKE_BINARY_DIR}/setup/image/uninstall.ico"
         COMMAND python "${CMAKE_SOURCE_DIR}/scripts/collect_dist.py"
                 --build-dir "${CMAKE_BINARY_DIR}"
                 --source-dir "${CMAKE_SOURCE_DIR}"

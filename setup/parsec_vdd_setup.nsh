@@ -1,15 +1,15 @@
 ; Parsec VDD install and ownership-aware uninstall helpers.
 
 Function InstallParsecVddDriver
-    IfFileExists "$INSTDIR\parsec_vdd\nefconw.exe" +2 0
+    IfFileExists "$INSTDIR\vdd\nefconw.exe" +2 0
         Goto parsec_vdd_install_failed
-    IfFileExists "$INSTDIR\parsec_vdd\driver\mm.inf" +2 0
+    IfFileExists "$INSTDIR\vdd\driver\mm.inf" +2 0
         Goto parsec_vdd_install_failed
 
     SetOutPath "$PLUGINSDIR"
     File /oname=verify_parsec_vdd_package.ps1 "verify_parsec_vdd_package.ps1"
     ${DisableX64FSRedirection}
-    nsExec::ExecToStack '"$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\verify_parsec_vdd_package.ps1" -PackageRoot "$INSTDIR\parsec_vdd"'
+    nsExec::ExecToStack '"$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\verify_parsec_vdd_package.ps1" -PackageRoot "$INSTDIR\vdd"'
     ${EnableX64FSRedirection}
     Pop $R3
     Pop $R4
@@ -24,9 +24,9 @@ parsec_vdd_package_verified:
     StrCmp $R3 "0" parsec_vdd_install_already_present
 
     DetailPrint "Installing Microsoft-signed Parsec VDD 0.45..."
-    SetOutPath "$INSTDIR\parsec_vdd"
-    nsExec::ExecToLog '"$INSTDIR\parsec_vdd\nefconw.exe" --create-device-node --class-name Display --class-guid "4D36E968-E325-11CE-BFC1-08002BE10318" --hardware-id Root\Parsec\VDA'
-    nsExec::ExecToStack '"$INSTDIR\parsec_vdd\nefconw.exe" --install-driver --inf-path "$INSTDIR\parsec_vdd\driver\mm.inf"'
+    SetOutPath "$INSTDIR\vdd"
+    nsExec::ExecToLog '"$INSTDIR\vdd\nefconw.exe" --create-device-node --class-name Display --class-guid "4D36E968-E325-11CE-BFC1-08002BE10318" --hardware-id Root\Parsec\VDA'
+    nsExec::ExecToStack '"$INSTDIR\vdd\nefconw.exe" --install-driver --inf-path "$INSTDIR\vdd\driver\mm.inf"'
     Pop $R0
     Pop $R1
     DetailPrint "Parsec VDD installer exit code: $R0"
@@ -88,13 +88,13 @@ Function un.UninstallParsecVddDriver
 
 parsec_vdd_uninstall_owned:
 
-    IfFileExists "$INSTDIR\parsec_vdd\nefconw.exe" +2 0
+    IfFileExists "$INSTDIR\vdd\nefconw.exe" +2 0
         Goto parsec_vdd_uninstall_failed
     DetailPrint "Removing Pixels-owned Parsec VDD..."
     nsExec::ExecToLog 'taskkill /F /T /IM px_display.exe'
-    SetOutPath "$INSTDIR\parsec_vdd"
-    nsExec::ExecToLog '"$INSTDIR\parsec_vdd\nefconw.exe" --remove-device-node --hardware-id Root\Parsec\VDA --class-guid "4D36E968-E325-11CE-BFC1-08002BE10318"'
-    nsExec::ExecToStack '"$INSTDIR\parsec_vdd\nefconw.exe" --uninstall-driver --inf-path "$INSTDIR\parsec_vdd\driver\mm.inf"'
+    SetOutPath "$INSTDIR\vdd"
+    nsExec::ExecToLog '"$INSTDIR\vdd\nefconw.exe" --remove-device-node --hardware-id Root\Parsec\VDA --class-guid "4D36E968-E325-11CE-BFC1-08002BE10318"'
+    nsExec::ExecToStack '"$INSTDIR\vdd\nefconw.exe" --uninstall-driver --inf-path "$INSTDIR\vdd\driver\mm.inf"'
     Pop $R1
     Pop $R2
     DetailPrint "$R2"

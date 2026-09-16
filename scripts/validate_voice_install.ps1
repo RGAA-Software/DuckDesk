@@ -33,10 +33,10 @@ $requiredFiles = @(
     "px_voice_apm.dll",
     "px_render_rtc.dll",
     "web_client\index.html",
-    "parsec_vdd\nefconw.exe",
-    "parsec_vdd\driver\mm.cat",
-    "parsec_vdd\driver\mm.dll",
-    "parsec_vdd\driver\mm.inf",
+    "vdd\nefconw.exe",
+    "vdd\driver\mm.cat",
+    "vdd\driver\mm.dll",
+    "vdd\driver\mm.inf",
     "Uninstall.exe"
 )
 

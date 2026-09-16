@@ -1,8 +1,8 @@
 product = "client"
 edition = "CLIENT"
 company = "Pixels"
-product_version = "3.3.69"
-product_version_code = 30369
+product_version = "3.3.71"
+product_version_code = 30371
 package_groups = ["desktop_client"]
 
 capabilities = [

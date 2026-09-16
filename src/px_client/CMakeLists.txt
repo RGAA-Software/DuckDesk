@@ -3,7 +3,7 @@ project(px_client)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/icon.ico ${CMAKE_CURRENT_BINARY_DIR}/icon.ico COPYONLY)
+configure_file(${CMAKE_SOURCE_DIR}/src/px_panel/icon.ico ${CMAKE_CURRENT_BINARY_DIR}/icon.ico COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/icon.rc.in ${CMAKE_CURRENT_BINARY_DIR}/icon.rc @ONLY)
 
 add_subdirectory(anti_hooking)

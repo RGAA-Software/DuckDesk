@@ -83,8 +83,8 @@ VIAddVersionKey /LANG=1033 "FileDescription" "${PRODUCT_NAME} Setup"
 VIAddVersionKey /LANG=1033 "LegalCopyright" "Copyright (C) ${COMPANY}"
 
 ;--------------------------------
-!define MUI_ICON "image\logo.ico"
-!define MUI_UNICON "image\uninstall.ico"
+!define MUI_ICON "..\src\px_panel\icon.ico"
+!define MUI_UNICON "..\src\px_panel\icon.ico"
 
 !define MUI_HEADERIMAGE
 !define MUI_HEADERIMAGE_BITMAP "image\header.bmp"

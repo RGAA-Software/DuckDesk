@@ -112,8 +112,8 @@ impl ServiceRuntime {
         let node_auth_store = NodeAuthStore::new(config.data_root.clone());
         let driver_dir = std::env::current_exe()
             .ok()
-            .and_then(|path| path.parent().map(|parent| parent.join("parsec_vdd")))
-            .unwrap_or_else(|| std::path::PathBuf::from("parsec_vdd"));
+            .and_then(|path| path.parent().map(|parent| parent.join("vdd")))
+            .unwrap_or_else(|| std::path::PathBuf::from("vdd"));
         #[cfg(not(test))]
         let manager_result = VirtualDisplayManager::new_windows_session_aware(
             config.data_root.clone(),

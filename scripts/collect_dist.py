@@ -176,12 +176,59 @@ def publish_staging_directory(staging_dir: Path, final_dir: Path) -> None:
             os.replace(final_dir, backup_dir)
             previous_moved = True
         os.replace(staging_dir, final_dir)
+    except PermissionError:
+        if previous_moved and not final_dir.exists() and backup_dir.is_dir():
+            os.replace(backup_dir, final_dir)
+            raise
+        if not final_dir.is_dir():
+            raise
+        print(f"  ! {final_dir} is in use; synchronizing changed files in place")
+        publish_staging_contents(staging_dir, final_dir)
+        return
     except Exception:
         if previous_moved and not final_dir.exists() and backup_dir.is_dir():
             os.replace(backup_dir, final_dir)
         raise
     if previous_moved:
         shutil.rmtree(backup_dir)
+
+
+def publish_staging_contents(staging_dir: Path, final_dir: Path) -> None:
+    desired_files = {
+        path.relative_to(staging_dir)
+        for path in staging_dir.rglob("*")
+        if path.is_file()
+    }
+    existing_files = {
+        path.relative_to(final_dir)
+        for path in final_dir.rglob("*")
+        if path.is_file()
+    }
+    for relative_path in sorted(desired_files):
+        source = staging_dir / relative_path
+        destination = final_dir / relative_path
+        if destination.is_file() and sha256(source) == sha256(destination):
+            continue
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        temporary = destination.with_name(f".{destination.name}.publish-{uuid.uuid4().hex}.tmp")
+        try:
+            shutil.copy2(source, temporary)
+            if sha256(source) != sha256(temporary):
+                raise RuntimeError(f"in-place publish hash mismatch: {source} -> {temporary}")
+            os.replace(temporary, destination)
+        finally:
+            temporary.unlink(missing_ok=True)
+    for relative_path in sorted(existing_files - desired_files, key=lambda path: len(path.parts), reverse=True):
+        (final_dir / relative_path).unlink()
+    existing_directories = sorted(
+        (path for path in final_dir.rglob("*") if path.is_dir()),
+        key=lambda path: len(path.parts),
+        reverse=True,
+    )
+    for directory in existing_directories:
+        if not any(directory.iterdir()):
+            directory.rmdir()
+    shutil.rmtree(staging_dir)
 
 
 def parse_args() -> argparse.Namespace:
