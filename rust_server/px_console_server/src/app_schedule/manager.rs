@@ -24,7 +24,7 @@ const DEFAULT_NATIVE_SESSION_FPS: i32 = 60;
 fn now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
+        .map(|duration| duration.as_millis() as i64)
         .unwrap_or(0)
 }
 
@@ -242,13 +242,13 @@ pub fn split_game_path(game_path: &str) -> Result<(String, String), String> {
     }
     let file = path
         .file_name()
-        .and_then(|s| s.to_str())
-        .filter(|s| !s.is_empty())
+        .and_then(|file_name| file_name.to_str())
+        .filter(|file_name| !file_name.is_empty())
         .ok_or_else(|| "程序路径无效".to_string())?;
     let parent = path
         .parent()
-        .and_then(|p| p.to_str())
-        .filter(|s| !s.is_empty())
+        .and_then(|parent_path| parent_path.to_str())
+        .filter(|parent_path| !parent_path.is_empty())
         .ok_or_else(|| "程序路径缺少目录".to_string())?;
     Ok((parent.to_string(), file.to_string()))
 }
@@ -452,8 +452,11 @@ impl AppScheduleManager {
     }
 
     fn next_id(&self, prefix: &str) -> String {
-        let n = self.seq.fetch_add(1, Ordering::Relaxed);
-        format!("{prefix}-{n}-{}", &Uuid::new_v4().to_string()[..8])
+        let sequence_number = self.seq.fetch_add(1, Ordering::Relaxed);
+        format!(
+            "{prefix}-{sequence_number}-{}",
+            &Uuid::new_v4().to_string()[..8]
+        )
     }
 
     pub async fn create_application(
@@ -506,11 +509,11 @@ impl AppScheduleManager {
             version: 1,
         };
         {
-            let mut g = self.inner.lock().await;
-            g.apps.insert(app.app_id.clone(), app.clone());
+            let mut state = self.inner.lock().await;
+            state.apps.insert(app.app_id.clone(), app.clone());
         }
-        if let Err(e) = crate::app_schedule::store::upsert_application(&app).await {
-            tracing::warn!("persist application failed: {e}");
+        if let Err(persist_error) = crate::app_schedule::store::upsert_application(&app).await {
+            tracing::warn!("persist application failed: {persist_error}");
         }
         Ok(app)
     }
@@ -547,34 +550,35 @@ impl AppScheduleManager {
     }
 
     pub async fn list_app_rows(&self) -> Vec<AppRowVo> {
-        let g = self.inner.lock().await;
+        let state = self.inner.lock().await;
         let mut rows = Vec::new();
-        for app in g.apps.values() {
+        for app in state.apps.values() {
             let game_path = if !app.game_path.trim().is_empty() {
                 app.game_path.clone()
             } else {
                 // 没有绝对路径时借第一个节的 install_root 展示
-                let root = g
+                let root = state
                     .nodes
                     .values()
-                    .find(|n| n.app_id == app.app_id)
-                    .map(|n| n.install_root.clone())
+                    .find(|node| node.app_id == app.app_id)
+                    .map(|node| node.install_root.clone())
                     .or_else(|| {
-                        g.placements
+                        state
+                            .placements
                             .values()
-                            .find(|p| p.app_id == app.app_id)
-                            .map(|p| p.install_root.clone())
+                            .find(|placement| placement.app_id == app.app_id)
+                            .map(|placement| placement.install_root.clone())
                     })
                     .unwrap_or_default();
                 join_game_path(&root, &app.game_exe_rel)
             };
-            let mut nodes: Vec<AppNode> = g
+            let mut nodes: Vec<AppNode> = state
                 .nodes
                 .values()
-                .filter(|n| n.app_id == app.app_id)
+                .filter(|node| node.app_id == app.app_id)
                 .cloned()
                 .collect();
-            nodes.sort_by_key(|n| n.seq_no);
+            nodes.sort_by_key(|node| node.seq_no);
             rows.push(AppRowVo {
                 app_id: app.app_id.clone(),
                 name: app.name.clone(),
@@ -592,7 +596,7 @@ impl AppScheduleManager {
                 nodes,
             });
         }
-        rows.sort_by(|a, b| a.name.cmp(&b.name));
+        rows.sort_by(|left_app, right_app| left_app.name.cmp(&right_app.name));
         rows
     }
 
@@ -602,7 +606,7 @@ impl AppScheduleManager {
     }
 
     fn ensure_node_port_available_locked(
-        g: &Inner,
+        state: &Inner,
         device_id: &str,
         port: i32,
         exclude_node_id: Option<&str>,
@@ -613,7 +617,7 @@ impl AppScheduleManager {
         if !(1..=65535).contains(&port) {
             return Err("端口必须在 1-65535 之间，或填 0 由目标机器自动分配".into());
         }
-        for node in g.nodes.values() {
+        for node in state.nodes.values() {
             if exclude_node_id.is_some_and(|id| id == node.node_id) {
                 continue;
             }
@@ -621,7 +625,7 @@ impl AppScheduleManager {
                 return Err(format!("端口 {port} 已被节点「{}」占用", node.name));
             }
         }
-        for inst in g.instances.values() {
+        for inst in state.instances.values() {
             if inst.device_id == device_id
                 && matches!(
                     inst.state,
@@ -644,16 +648,17 @@ impl AppScheduleManager {
         let editing_id = req
             .app_id
             .as_ref()
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty());
+            .map(|app_id| app_id.trim().to_string())
+            .filter(|app_id| !app_id.is_empty());
         let app_id = editing_id.clone().unwrap_or_else(|| self.next_id("app"));
 
         let app = {
-            let mut g = self.inner.lock().await;
+            let mut state = self.inner.lock().await;
             let existing = editing_id
                 .as_ref()
                 .map(|id| {
-                    g.apps
+                    state
+                        .apps
                         .get(id)
                         .cloned()
                         .ok_or_else(|| format!("应用不存在: {id}"))
@@ -667,10 +672,14 @@ impl AppScheduleManager {
             let app_type = req
                 .app_type
                 .clone()
-                .or_else(|| existing.as_ref().map(|e| e.app_type.clone()))
+                .or_else(|| {
+                    existing
+                        .as_ref()
+                        .map(|existing_app| existing_app.app_type.clone())
+                })
                 .unwrap_or_default();
             if let Some(existing) = existing.as_ref() {
-                let has_active_instance = g.instances.values().any(|instance| {
+                let has_active_instance = state.instances.values().any(|instance| {
                     instance.app_id == existing.app_id
                         && matches!(
                             instance.state,
@@ -702,7 +711,7 @@ impl AppScheduleManager {
                         req.default_game_args.unwrap_or_else(|| {
                             existing
                                 .as_ref()
-                                .map(|e| e.default_game_args.clone())
+                                .map(|existing_app| existing_app.default_game_args.clone())
                                 .unwrap_or_default()
                         }),
                     )
@@ -717,35 +726,50 @@ impl AppScheduleManager {
                 default_game_args,
                 // Do not persist a server-side frame-rate limit. Client session controls adjust it after connection.
                 encoder_fps: DEFAULT_NATIVE_SESSION_FPS,
-                encoder_bitrate: req
-                    .encoder_bitrate
-                    .unwrap_or_else(|| existing.as_ref().map(|e| e.encoder_bitrate).unwrap_or(20)),
+                encoder_bitrate: req.encoder_bitrate.unwrap_or_else(|| {
+                    existing
+                        .as_ref()
+                        .map(|existing_app| existing_app.encoder_bitrate)
+                        .unwrap_or(20)
+                }),
                 encoder_format: req.encoder_format.unwrap_or_else(|| {
                     existing
                         .as_ref()
-                        .map(|e| e.encoder_format.clone())
+                        .map(|existing_app| existing_app.encoder_format.clone())
                         .unwrap_or_else(|| "h264".to_string())
                 }),
                 webrtc_enabled: app_type != ApplicationType::Rdp,
                 websocket_enabled: true,
-                listen_port: existing.as_ref().map(|e| e.listen_port).unwrap_or(0),
+                listen_port: existing
+                    .as_ref()
+                    .map(|existing_app| existing_app.listen_port)
+                    .unwrap_or(0),
                 access_mode: req.access_mode.unwrap_or_else(|| {
                     existing
                         .as_ref()
-                        .map(|e| e.access_mode.clone())
+                        .map(|existing_app| existing_app.access_mode.clone())
                         .unwrap_or_default()
                 }),
                 allow_observer: app_type != ApplicationType::Rdp
                     && req.allow_observer.unwrap_or_else(|| {
-                        existing.as_ref().map(|e| e.allow_observer).unwrap_or(true)
+                        existing
+                            .as_ref()
+                            .map(|existing_app| existing_app.allow_observer)
+                            .unwrap_or(true)
                     }),
                 allow_takeover: app_type != ApplicationType::Rdp
                     && req.allow_takeover.unwrap_or_else(|| {
-                        existing.as_ref().map(|e| e.allow_takeover).unwrap_or(true)
+                        existing
+                            .as_ref()
+                            .map(|existing_app| existing_app.allow_takeover)
+                            .unwrap_or(true)
                     }),
-                version: existing.as_ref().map(|e| e.version + 1).unwrap_or(1),
+                version: existing
+                    .as_ref()
+                    .map(|existing_app| existing_app.version + 1)
+                    .unwrap_or(1),
             };
-            g.apps.insert(app.app_id.clone(), app.clone());
+            state.apps.insert(app.app_id.clone(), app.clone());
             app
         };
         let _ = crate::app_schedule::store::upsert_application(&app).await;
@@ -765,14 +789,14 @@ impl AppScheduleManager {
             version: app.version,
             nodes: Vec::new(),
         };
-        let g = self.inner.lock().await;
-        row.nodes = g
+        let state = self.inner.lock().await;
+        row.nodes = state
             .nodes
             .values()
-            .filter(|n| n.app_id == row.app_id)
+            .filter(|node| node.app_id == row.app_id)
             .cloned()
             .collect();
-        row.nodes.sort_by_key(|n| n.seq_no);
+        row.nodes.sort_by_key(|node| node.seq_no);
         Ok(row)
     }
 
@@ -785,12 +809,12 @@ impl AppScheduleManager {
         let editing_id = req
             .node_id
             .as_ref()
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty());
+            .map(|node_id| node_id.trim().to_string())
+            .filter(|node_id| !node_id.is_empty());
 
         let node = {
-            let mut g = self.inner.lock().await;
-            let app = g
+            let mut state = self.inner.lock().await;
+            let app = state
                 .apps
                 .get(&req.app_id)
                 .cloned()
@@ -798,7 +822,8 @@ impl AppScheduleManager {
             let existing = editing_id
                 .as_ref()
                 .map(|id| {
-                    g.nodes
+                    state
+                        .nodes
                         .get(id)
                         .cloned()
                         .ok_or_else(|| format!("节点不存在: {id}"))
@@ -812,10 +837,10 @@ impl AppScheduleManager {
                         "RDP 工作区固定绑定机器；迁移需要独立的数据和账号迁移流程".to_string()
                     );
                 }
-                let has_active = g.instances.values().any(|i| {
-                    i.node_id == old.node_id
+                let has_active = state.instances.values().any(|instance| {
+                    instance.node_id == old.node_id
                         && matches!(
-                            i.state,
+                            instance.state,
                             InstanceState::Starting
                                 | InstanceState::Running
                                 | InstanceState::Stopping
@@ -830,17 +855,23 @@ impl AppScheduleManager {
             }
 
             let listen_port = match req.listen_port {
-                Some(p) => {
+                Some(requested_port) => {
                     Self::ensure_node_port_available_locked(
-                        &g,
+                        &state,
                         &device_id,
-                        p,
+                        requested_port,
                         editing_id.as_deref(),
                     )?;
-                    p
+                    requested_port
                 }
-                _ if existing.as_ref().map(|e| e.listen_port).unwrap_or(0) > 0
-                    && existing.as_ref().is_some_and(|e| e.device_id == device_id) =>
+                _ if existing
+                    .as_ref()
+                    .map(|existing_node| existing_node.listen_port)
+                    .unwrap_or(0)
+                    > 0
+                    && existing
+                        .as_ref()
+                        .is_some_and(|existing_node| existing_node.device_id == device_id) =>
                 {
                     // 编辑且未指定端口:保留原端口(已校验过)
                     existing.as_ref().unwrap().listen_port
@@ -848,12 +879,12 @@ impl AppScheduleManager {
                 _ => 0,
             };
 
-            let install_root = match req.install_root.as_ref().map(|s| s.trim()) {
-                Some(s) if !s.is_empty() => s.to_string(),
+            let install_root = match req.install_root.as_ref().map(|path| path.trim()) {
+                Some(path) if !path.is_empty() => path.to_string(),
                 _ => existing
                     .as_ref()
-                    .map(|e| e.install_root.clone())
-                    .filter(|s| !s.is_empty())
+                    .map(|existing_node| existing_node.install_root.clone())
+                    .filter(|path| !path.is_empty())
                     .or_else(|| split_game_path(&app.game_path).ok().map(|(root, _)| root))
                     .or_else(|| {
                         matches!(
@@ -868,24 +899,32 @@ impl AppScheduleManager {
             let node = AppNode {
                 node_id: editing_id.clone().unwrap_or_else(|| self.next_id("node")),
                 app_id: app.app_id.clone(),
-                name: match req.name.as_ref().map(|s| s.trim()) {
-                    Some(s) if !s.is_empty() => s.to_string(),
+                name: match req.name.as_ref().map(|name| name.trim()) {
+                    Some(name) if !name.is_empty() => name.to_string(),
                     _ => {
                         // 默认名:节点N(按该应用现有节点数)
-                        let n = g.nodes.values().filter(|x| x.app_id == app.app_id).count() + 1;
-                        format!("节点{n}")
+                        let node_number = state
+                            .nodes
+                            .values()
+                            .filter(|candidate_node| candidate_node.app_id == app.app_id)
+                            .count()
+                            + 1;
+                        format!("节点{node_number}")
                     }
                 },
                 device_id,
                 install_root,
                 listen_port,
-                last_run_at: existing.as_ref().map(|e| e.last_run_at).unwrap_or(0),
+                last_run_at: existing
+                    .as_ref()
+                    .map(|existing_node| existing_node.last_run_at)
+                    .unwrap_or(0),
                 seq_no: existing
                     .as_ref()
-                    .map(|e| e.seq_no)
+                    .map(|existing_node| existing_node.seq_no)
                     .unwrap_or_else(|| self.seq.fetch_add(1, Ordering::Relaxed)),
             };
-            g.nodes.insert(node.node_id.clone(), node.clone());
+            state.nodes.insert(node.node_id.clone(), node.clone());
             node
         };
         let _ = crate::app_schedule::store::upsert_node(&node).await;
@@ -894,11 +933,11 @@ impl AppScheduleManager {
 
     pub async fn delete_node(&self, node_id: &str) -> Result<(), String> {
         {
-            let mut g = self.inner.lock().await;
-            if !g.nodes.contains_key(node_id) {
+            let mut state = self.inner.lock().await;
+            if !state.nodes.contains_key(node_id) {
                 return Err(format!("节点不存在: {node_id}"));
             }
-            for inst in g.instances.values() {
+            for inst in state.instances.values() {
                 if inst.node_id == node_id
                     && matches!(
                         inst.state,
@@ -908,17 +947,17 @@ impl AppScheduleManager {
                     return Err("节点运行中，请先停止再删除".to_string());
                 }
             }
-            g.nodes.remove(node_id);
+            state.nodes.remove(node_id);
             // 清掉该节已终结的实例记录,避免重启后重新载入
-            let inst_ids: Vec<String> = g
+            let inst_ids: Vec<String> = state
                 .instances
                 .values()
-                .filter(|i| i.node_id == node_id)
-                .map(|i| i.instance_id.clone())
+                .filter(|instance| instance.node_id == node_id)
+                .map(|instance| instance.instance_id.clone())
                 .collect();
             for iid in inst_ids {
-                if let Some(i) = g.instances.remove(&iid) {
-                    g.request_index.remove(&i.request_id);
+                if let Some(instance) = state.instances.remove(&iid) {
+                    state.request_index.remove(&instance.request_id);
                 }
             }
         }
@@ -928,21 +967,21 @@ impl AppScheduleManager {
     }
 
     pub async fn list_nodes(&self, app_id: Option<&str>) -> Vec<AppNode> {
-        let g = self.inner.lock().await;
-        let mut nodes: Vec<AppNode> = g
+        let state = self.inner.lock().await;
+        let mut nodes: Vec<AppNode> = state
             .nodes
             .values()
-            .filter(|n| app_id.is_none_or(|id| n.app_id == id))
+            .filter(|node| app_id.is_none_or(|id| node.app_id == id))
             .cloned()
             .collect();
-        nodes.sort_by_key(|n| n.seq_no);
+        nodes.sort_by_key(|node| node.seq_no);
         nodes
     }
 
     pub async fn delete_app(&self, app_id: &str) -> Result<(), String> {
         {
-            let mut g = self.inner.lock().await;
-            for inst in g.instances.values() {
+            let mut state = self.inner.lock().await;
+            for inst in state.instances.values() {
                 if inst.app_id == app_id
                     && matches!(
                         inst.state,
@@ -952,33 +991,35 @@ impl AppScheduleManager {
                     return Err("应用下有正在运行的实例，请先停止再删除".to_string());
                 }
             }
-            if !g.apps.contains_key(app_id) {
+            if !state.apps.contains_key(app_id) {
                 return Err(format!("应用不存在: {app_id}"));
             }
-            g.apps.remove(app_id);
-            g.nodes.retain(|_, n| n.app_id != app_id);
+            state.apps.remove(app_id);
+            state.nodes.retain(|_, n| n.app_id != app_id);
             // 遗留 placement 一并清
-            let plc_ids: Vec<String> = g
+            let plc_ids: Vec<String> = state
                 .placements
                 .values()
-                .filter(|p| p.app_id == app_id)
-                .map(|p| p.placement_id.clone())
+                .filter(|placement| placement.app_id == app_id)
+                .map(|placement| placement.placement_id.clone())
                 .collect();
             for pid in &plc_ids {
-                if let Some(p) = g.placements.remove(pid) {
-                    g.placement_by_app_device.remove(&(p.app_id, p.device_id));
+                if let Some(placement) = state.placements.remove(pid) {
+                    state
+                        .placement_by_app_device
+                        .remove(&(placement.app_id, placement.device_id));
                 }
             }
             // Drop stopped instances of this app from memory.
-            let inst_ids: Vec<String> = g
+            let inst_ids: Vec<String> = state
                 .instances
                 .values()
-                .filter(|i| i.app_id == app_id)
-                .map(|i| i.instance_id.clone())
+                .filter(|instance| instance.app_id == app_id)
+                .map(|instance| instance.instance_id.clone())
                 .collect();
             for iid in inst_ids {
-                if let Some(i) = g.instances.remove(&iid) {
-                    g.request_index.remove(&i.request_id);
+                if let Some(instance) = state.instances.remove(&iid) {
+                    state.request_index.remove(&instance.request_id);
                 }
             }
         }
@@ -994,30 +1035,32 @@ impl AppScheduleManager {
         if req.install_root.trim().is_empty() {
             return Err("install_root required".to_string());
         }
-        let mut g = self.inner.lock().await;
-        if !g.apps.contains_key(&req.app_id) {
+        let mut state = self.inner.lock().await;
+        if !state.apps.contains_key(&req.app_id) {
             return Err(format!("unknown app_id {}", req.app_id));
         }
         let key = (req.app_id.clone(), req.device_id.clone());
-        if let Some(existing) = g.placement_by_app_device.get(&key) {
+        if let Some(existing) = state.placement_by_app_device.get(&key) {
             return Err(format!("placement already exists: {existing}"));
         }
-        let p = AppPlacement {
+        let placement = AppPlacement {
             placement_id: format!("plc-{}", &Uuid::new_v4().to_string()[..8]),
             app_id: req.app_id,
             device_id: req.device_id,
             install_root: req.install_root.trim().to_string(),
         };
-        g.placement_by_app_device.insert(
-            (p.app_id.clone(), p.device_id.clone()),
-            p.placement_id.clone(),
+        state.placement_by_app_device.insert(
+            (placement.app_id.clone(), placement.device_id.clone()),
+            placement.placement_id.clone(),
         );
-        g.placements.insert(p.placement_id.clone(), p.clone());
-        drop(g);
-        if let Err(e) = crate::app_schedule::store::upsert_placement(&p).await {
-            tracing::warn!("persist placement failed: {e}");
+        state
+            .placements
+            .insert(placement.placement_id.clone(), placement.clone());
+        drop(state);
+        if let Err(persist_error) = crate::app_schedule::store::upsert_placement(&placement).await {
+            tracing::warn!("persist placement failed: {persist_error}");
         }
-        Ok(p)
+        Ok(placement)
     }
 
     pub async fn list_placements(&self) -> Vec<AppPlacement> {
@@ -1087,21 +1130,26 @@ impl AppScheduleManager {
         owner_session_id: &str,
         client_nonce: &str,
     ) -> Result<AppInstance, String> {
-        if let Some(key) = req.client_key.as_deref().filter(|k| !k.is_empty()) {
+        if let Some(key) = req
+            .client_key
+            .as_deref()
+            .filter(|client_key| !client_key.is_empty())
+        {
             let dup = {
-                let g = self.inner.lock().await;
-                g.instances
+                let state = self.inner.lock().await;
+                state
+                    .instances
                     .values()
-                    .find(|i| {
-                        i.app_id == req.app_id
-                            && i.client_key == key
-                            && i.owner_type == owner_type
-                            && i.owner_id == owner_id
-                            && i.owner_session_id == owner_session_id
-                            && (i.state == InstanceState::Starting
-                                || (i.state == InstanceState::Running
+                    .find(|instance| {
+                        instance.app_id == req.app_id
+                            && instance.client_key == key
+                            && instance.owner_type == owner_type
+                            && instance.owner_id == owner_id
+                            && instance.owner_session_id == owner_session_id
+                            && (instance.state == InstanceState::Starting
+                                || (instance.state == InstanceState::Running
                                     && (req.client_key_permanent
-                                        || now_ms() - i.created_at_ms < 60_000)))
+                                        || now_ms() - instance.created_at_ms < 60_000)))
                     })
                     .cloned()
             };
@@ -1131,37 +1179,37 @@ impl AppScheduleManager {
         loop {
             // 锁内:选节 + 预占。预占后其他并发请求即视为 busy,不会重选。
             let picked = {
-                let mut g = self.inner.lock().await;
-                if !g.apps.contains_key(&req.app_id) {
+                let mut state = self.inner.lock().await;
+                if !state.apps.contains_key(&req.app_id) {
                     return Err(format!("unknown app_id {}", req.app_id));
                 }
-                let app = g.apps.get(&req.app_id).cloned().unwrap();
-                let mut nodes: Vec<AppNode> = g
+                let app = state.apps.get(&req.app_id).cloned().unwrap();
+                let mut nodes: Vec<AppNode> = state
                     .nodes
                     .values()
-                    .filter(|n| n.app_id == req.app_id && !tried.contains(&n.node_id))
+                    .filter(|node| node.app_id == req.app_id && !tried.contains(&node.node_id))
                     .cloned()
                     .collect();
                 if nodes.is_empty() && tried.is_empty() {
                     return Err("应用还没有节点，请先「新建节点」".to_string());
                 }
-                nodes.sort_by_key(|n| (n.last_run_at, n.seq_no));
-                let candidate = nodes.into_iter().find(|n| {
-                    let node_busy = g.instances.values().any(|i| {
-                        i.node_id == n.node_id
+                nodes.sort_by_key(|node| (node.last_run_at, node.seq_no));
+                let candidate = nodes.into_iter().find(|node| {
+                    let node_busy = state.instances.values().any(|instance| {
+                        instance.node_id == node.node_id
                             && matches!(
-                                i.state,
+                                instance.state,
                                 InstanceState::Starting
                                     | InstanceState::Running
                                     | InstanceState::Stopping
                             )
                     });
-                    let port_busy = g.instances.values().any(|i| {
-                        i.device_id == n.device_id
-                            && n.listen_port > 0
-                            && i.listen_port == n.listen_port
+                    let port_busy = state.instances.values().any(|instance| {
+                        instance.device_id == node.device_id
+                            && node.listen_port > 0
+                            && instance.listen_port == node.listen_port
                             && matches!(
-                                i.state,
+                                instance.state,
                                 InstanceState::Starting
                                     | InstanceState::Running
                                     | InstanceState::Stopping
@@ -1172,10 +1220,10 @@ impl AppScheduleManager {
                 match candidate {
                     None => None,
                     Some(node) => match resolve_start_launch_fields(&app, &node) {
-                        Err(e) => return Err(e),
+                        Err(launch_error) => return Err(launch_error),
                         Ok((install_root, game_exe_rel)) => {
                             let inst = self.pre_occupy_instance_locked(
-                                &mut g,
+                                &mut state,
                                 &node,
                                 &app,
                                 &client_key,
@@ -1201,8 +1249,10 @@ impl AppScheduleManager {
                 .await
             {
                 Ok(conn) => {
-                    if let Err(e) = crate::app_schedule::store::upsert_instance(&inst).await {
-                        tracing::warn!("persist instance failed: {e}");
+                    if let Err(persist_error) =
+                        crate::app_schedule::store::upsert_instance(&inst).await
+                    {
+                        tracing::warn!("persist instance failed: {persist_error}");
                     }
                     return self
                         .dispatch_start(conn, &app, inst, install_root, game_exe_rel)
@@ -1213,13 +1263,13 @@ impl AppScheduleManager {
                     offline.push(format!("{}({})", node.name, node.device_id));
                     tried.push(node.node_id.clone());
                     let snapshot = {
-                        let mut g = self.inner.lock().await;
-                        g.request_index.remove(&inst.request_id);
-                        if let Some(i) = g.instances.get_mut(&inst.instance_id) {
-                            i.state = InstanceState::Failed;
-                            i.version += 1;
-                            i.error = format!("service offline: {}", node.device_id);
-                            Some(i.clone())
+                        let mut state = self.inner.lock().await;
+                        state.request_index.remove(&inst.request_id);
+                        if let Some(instance) = state.instances.get_mut(&inst.instance_id) {
+                            instance.state = InstanceState::Failed;
+                            instance.version += 1;
+                            instance.error = format!("service offline: {}", node.device_id);
+                            Some(instance.clone())
                         } else {
                             None
                         }
@@ -1241,8 +1291,8 @@ impl AppScheduleManager {
         for _ in 0..secs {
             tokio::time::sleep(Duration::from_secs(1)).await;
             let cur = {
-                let g = self.inner.lock().await;
-                g.instances.get(instance_id).cloned()
+                let state = self.inner.lock().await;
+                state.instances.get(instance_id).cloned()
             };
             match cur {
                 Some(inst) if inst.state != InstanceState::Starting => return Some(inst),
@@ -1250,8 +1300,8 @@ impl AppScheduleManager {
                 _ => {}
             }
         }
-        let g = self.inner.lock().await;
-        g.instances.get(instance_id).cloned()
+        let state = self.inner.lock().await;
+        state.instances.get(instance_id).cloned()
     }
 
     /// Resolve a missing start receipt using the latest state already learned
@@ -1259,13 +1309,13 @@ impl AppScheduleManager {
     /// compensated; a heartbeat-confirmed Running process is a successful
     /// recovery and must never be killed merely because the receipt was lost.
     fn resolve_start_timeout_locked(
-        g: &mut Inner,
+        state: &mut Inner,
         request_id: &str,
         instance_id: &str,
     ) -> (Option<AppInstance>, bool) {
-        g.start_waiters.remove(request_id);
-        g.request_index.remove(request_id);
-        let Some(instance) = g.instances.get_mut(instance_id) else {
+        state.start_waiters.remove(request_id);
+        state.request_index.remove(request_id);
+        let Some(instance) = state.instances.get_mut(instance_id) else {
             return (None, false);
         };
         let should_compensate = instance.state == InstanceState::Starting;
@@ -1282,7 +1332,7 @@ impl AppScheduleManager {
     /// 调用方必须已持有 inner 锁;持久化在锁外由调用方负责。
     fn pre_occupy_instance_locked(
         &self,
-        g: &mut Inner,
+        state: &mut Inner,
         node: &AppNode,
         app: &Application,
         client_key: &str,
@@ -1321,22 +1371,23 @@ impl AppScheduleManager {
             version: 1,
             last_heartbeat_at_ms: 0,
         };
-        g.request_index
+        state
+            .request_index
             .insert(request_id.clone(), instance_id.clone());
-        g.instances.insert(instance_id.clone(), inst.clone());
+        state.instances.insert(instance_id.clone(), inst.clone());
         inst
     }
 
     /// 节级启动:在指定节上直接起实例。检查与预占同锁原子完成,并发安全。
     pub async fn start_node(&self, node_id: &str) -> Result<AppInstance, String> {
         let (node, app, inst, install_root, game_exe_rel) = {
-            let mut g = self.inner.lock().await;
-            let node = g
+            let mut state = self.inner.lock().await;
+            let node = state
                 .nodes
                 .get(node_id)
                 .cloned()
                 .ok_or_else(|| format!("节点不存在: {node_id}"))?;
-            for inst in g.instances.values() {
+            for inst in state.instances.values() {
                 if inst.node_id == node_id
                     && matches!(
                         inst.state,
@@ -1347,38 +1398,38 @@ impl AppScheduleManager {
                 }
             }
             Self::ensure_node_port_available_locked(
-                &g,
+                &state,
                 &node.device_id,
                 node.listen_port,
                 Some(node_id),
             )?;
-            let app = g
+            let app = state
                 .apps
                 .get(&node.app_id)
                 .cloned()
                 .ok_or_else(|| format!("unknown app_id {}", node.app_id))?;
             let (install_root, game_exe_rel) = resolve_start_launch_fields(&app, &node)?;
             let inst =
-                self.pre_occupy_instance_locked(&mut g, &node, &app, "", "admin", "", "", "");
+                self.pre_occupy_instance_locked(&mut state, &node, &app, "", "admin", "", "", "");
             (node, app, inst, install_root, game_exe_rel)
         };
-        if let Err(e) = crate::app_schedule::store::upsert_instance(&inst).await {
-            tracing::warn!("persist instance failed: {e}");
+        if let Err(persist_error) = crate::app_schedule::store::upsert_instance(&inst).await {
+            tracing::warn!("persist instance failed: {persist_error}");
         }
         let conn = match gConsoleServiceConnMgr
             .get_conn(node.device_id.clone())
             .await
         {
-            Ok(c) => c,
+            Ok(connection) => connection,
             Err(_) => {
                 let snapshot = {
-                    let mut g = self.inner.lock().await;
-                    g.request_index.remove(&inst.request_id);
-                    if let Some(i) = g.instances.get_mut(&inst.instance_id) {
-                        i.state = InstanceState::Failed;
-                        i.version += 1;
-                        i.error = format!("service offline: {}", node.device_id);
-                        Some(i.clone())
+                    let mut state = self.inner.lock().await;
+                    state.request_index.remove(&inst.request_id);
+                    if let Some(instance) = state.instances.get_mut(&inst.instance_id) {
+                        instance.state = InstanceState::Failed;
+                        instance.version += 1;
+                        instance.error = format!("service offline: {}", node.device_id);
+                        Some(instance.clone())
                     } else {
                         None
                     }
@@ -1548,21 +1599,21 @@ impl AppScheduleManager {
 
         let (wait_tx, wait_rx) = oneshot::channel();
         {
-            let mut g = self.inner.lock().await;
-            g.start_waiters.insert(request_id.clone(), wait_tx);
+            let mut state = self.inner.lock().await;
+            state.start_waiters.insert(request_id.clone(), wait_tx);
         }
 
         let ok = conn.lock().await.send_start_app_instance(start).await;
         if !ok {
             let snapshot = {
-                let mut g = self.inner.lock().await;
-                g.start_waiters.remove(&request_id);
-                g.request_index.remove(&request_id);
-                if let Some(i) = g.instances.get_mut(&instance_id) {
-                    i.state = InstanceState::Failed;
-                    i.version += 1;
-                    i.error = "下发到 Service 失败".to_string();
-                    Some(i.clone())
+                let mut state = self.inner.lock().await;
+                state.start_waiters.remove(&request_id);
+                state.request_index.remove(&request_id);
+                if let Some(instance) = state.instances.get_mut(&instance_id) {
+                    instance.state = InstanceState::Failed;
+                    instance.version += 1;
+                    instance.error = "下发到 Service 失败".to_string();
+                    Some(instance.clone())
                 } else {
                     None
                 }
@@ -1590,8 +1641,8 @@ impl AppScheduleManager {
             Ok(Err(_)) => Err("启动结果通道已关闭".to_string()),
             Err(_) => {
                 let (snapshot, should_compensate) = {
-                    let mut g = self.inner.lock().await;
-                    Self::resolve_start_timeout_locked(&mut g, &request_id, &instance_id)
+                    let mut state = self.inner.lock().await;
+                    Self::resolve_start_timeout_locked(&mut state, &request_id, &instance_id)
                 };
                 if let Some(current) = snapshot {
                     let _ = crate::app_schedule::store::upsert_instance(&current).await;
@@ -1626,8 +1677,8 @@ impl AppScheduleManager {
     pub async fn stop_instance(&self, instance_id: &str) -> Result<AppInstance, String> {
         let request_id = self.next_id("req");
         let (device_id, stopping) = {
-            let mut g = self.inner.lock().await;
-            let inst = g
+            let mut state = self.inner.lock().await;
+            let inst = state
                 .instances
                 .get_mut(instance_id)
                 .ok_or_else(|| format!("unknown instance {instance_id}"))?;
@@ -1642,32 +1693,33 @@ impl AppScheduleManager {
             inst.request_id = request_id.clone();
             let device_id = inst.device_id.clone();
             let snapshot = inst.clone();
-            g.request_index
+            state
+                .request_index
                 .insert(request_id.clone(), instance_id.to_string());
             (device_id, snapshot)
         };
         let _ = crate::app_schedule::store::upsert_instance(&stopping).await;
 
         let conn = match gConsoleServiceConnMgr.get_conn(device_id.clone()).await {
-            Ok(c) => c,
+            Ok(connection) => connection,
             Err(_) => {
                 // Service gone: nothing left to stop — clear sticky Stopping.
                 let snapshot = {
-                    let mut g = self.inner.lock().await;
-                    g.request_index.remove(&request_id);
-                    if let Some(i) = g.instances.get_mut(instance_id) {
-                        i.state = InstanceState::Stopped;
-                        i.version += 1;
-                        i.stopped_at_ms = now_ms();
-                        i.pid = 0;
-                        i.error.clear();
-                        Some(i.clone())
+                    let mut state = self.inner.lock().await;
+                    state.request_index.remove(&request_id);
+                    if let Some(instance) = state.instances.get_mut(instance_id) {
+                        instance.state = InstanceState::Stopped;
+                        instance.version += 1;
+                        instance.stopped_at_ms = now_ms();
+                        instance.pid = 0;
+                        instance.error.clear();
+                        Some(instance.clone())
                     } else {
                         None
                     }
                 };
-                if let Some(s) = snapshot {
-                    let _ = crate::app_schedule::store::upsert_instance(&s).await;
+                if let Some(stopped_instance) = snapshot {
+                    let _ = crate::app_schedule::store::upsert_instance(&stopped_instance).await;
                 }
                 return Err(format!("service offline: {device_id}（已标记为停止）"));
             }
@@ -1685,22 +1737,22 @@ impl AppScheduleManager {
         let ok = conn.lock().await.send_stop_app_instance(stop).await;
         if !ok {
             let snapshot = {
-                let mut g = self.inner.lock().await;
-                let g = &mut *g;
-                g.stop_waiters.remove(&request_id);
-                if let Some(i) = g.instances.get_mut(instance_id) {
-                    i.state = InstanceState::Failed;
-                    i.version += 1;
-                    i.stopped_at_ms = now_ms();
-                    i.error = "下发停止失败".to_string();
-                    g.request_index.remove(&i.request_id);
-                    Some(i.clone())
+                let mut state = self.inner.lock().await;
+                let state = &mut *state;
+                state.stop_waiters.remove(&request_id);
+                if let Some(instance) = state.instances.get_mut(instance_id) {
+                    instance.state = InstanceState::Failed;
+                    instance.version += 1;
+                    instance.stopped_at_ms = now_ms();
+                    instance.error = "下发停止失败".to_string();
+                    state.request_index.remove(&instance.request_id);
+                    Some(instance.clone())
                 } else {
                     None
                 }
             };
-            if let Some(s) = snapshot {
-                let _ = crate::app_schedule::store::upsert_instance(&s).await;
+            if let Some(failed_instance) = snapshot {
+                let _ = crate::app_schedule::store::upsert_instance(&failed_instance).await;
             }
             return Err("下发停止失败".to_string());
         }
@@ -1716,10 +1768,10 @@ impl AppScheduleManager {
             Ok(Err(_)) => Err("停止结果通道已关闭".to_string()),
             Err(_) => {
                 let snapshot = {
-                    let mut g = self.inner.lock().await;
-                    g.stop_waiters.remove(&request_id);
-                    g.request_index.remove(&request_id);
-                    if let Some(instance) = g.instances.get_mut(instance_id) {
+                    let mut state = self.inner.lock().await;
+                    state.stop_waiters.remove(&request_id);
+                    state.request_index.remove(&request_id);
+                    if let Some(instance) = state.instances.get_mut(instance_id) {
                         if instance.state == InstanceState::Stopping
                             && instance.request_id == request_id
                         {
@@ -1747,8 +1799,8 @@ impl AppScheduleManager {
         result: ConsoleServiceStartAppInstanceResult,
     ) {
         let mut guard = self.inner.lock().await;
-        let g = &mut *guard;
-        let Some(instance_id) = g.request_index.get(&result.request_id).cloned() else {
+        let state = &mut *guard;
+        let Some(instance_id) = state.request_index.get(&result.request_id).cloned() else {
             tracing::warn!(
                 "start result unknown request_id {} from {}",
                 result.request_id,
@@ -1756,9 +1808,9 @@ impl AppScheduleManager {
             );
             return;
         };
-        let waiter = g.start_waiters.remove(&result.request_id);
+        let waiter = state.start_waiters.remove(&result.request_id);
         let mut touched_node: Option<AppNode> = None;
-        let snapshot = if let Some(inst) = g.instances.get_mut(&instance_id) {
+        let snapshot = if let Some(inst) = state.instances.get_mut(&instance_id) {
             if inst.device_id != device_id {
                 tracing::warn!(
                     "start result device mismatch: receipt from {} but instance {} belongs to {} — ignored",
@@ -1794,7 +1846,7 @@ impl AppScheduleManager {
                     );
                     // 记录节最近运行时间(应用级启动选"最久未运行"的节)
                     if !inst.node_id.is_empty() {
-                        if let Some(node) = g.nodes.get_mut(&inst.node_id) {
+                        if let Some(node) = state.nodes.get_mut(&inst.node_id) {
                             node.last_run_at = now_ms();
                             touched_node = Some(node.clone());
                         }
@@ -1802,14 +1854,14 @@ impl AppScheduleManager {
                     // request_index only correlates an in-flight command.
                     // Keeping successful starts here leaks one entry per
                     // launch and lets duplicate late receipts touch old rows.
-                    g.request_index.remove(&result.request_id);
+                    state.request_index.remove(&result.request_id);
                 } else {
                     inst.state = InstanceState::Failed;
                     inst.version += 1;
                     inst.stopped_at_ms = now_ms();
                     inst.error = result.error;
                     // Terminal state: drop the request mapping.
-                    g.request_index.remove(&result.request_id);
+                    state.request_index.remove(&result.request_id);
                 }
                 Some(inst.clone())
             }
@@ -1838,11 +1890,11 @@ impl AppScheduleManager {
                 || result.error.contains("unknown instance"));
         let treat_stopped = result.ok || already_gone;
         let mut guard = self.inner.lock().await;
-        let g = &mut *guard;
-        let waiter = g.stop_waiters.remove(&result.request_id);
-        let Some(instance_id) = g.request_index.get(&result.request_id).cloned() else {
+        let state = &mut *guard;
+        let waiter = state.stop_waiters.remove(&result.request_id);
+        let Some(instance_id) = state.request_index.get(&result.request_id).cloned() else {
             // Also match by instance_id directly
-            if let Some(inst) = g.instances.get_mut(&result.instance_id) {
+            if let Some(inst) = state.instances.get_mut(&result.instance_id) {
                 if inst.device_id != device_id {
                     tracing::warn!(
                         "stop result device mismatch: receipt from {} but instance {} belongs to {} — ignored",
@@ -1872,7 +1924,7 @@ impl AppScheduleManager {
                     inst.stopped_at_ms = now_ms();
                     inst.error = result.error;
                 }
-                g.request_index.remove(&inst.request_id);
+                state.request_index.remove(&inst.request_id);
                 let snap = inst.clone();
                 drop(guard);
                 let _ = crate::app_schedule::store::upsert_instance(&snap).await;
@@ -1888,7 +1940,7 @@ impl AppScheduleManager {
             }
             return;
         };
-        let snapshot = if let Some(inst) = g.instances.get_mut(&instance_id) {
+        let snapshot = if let Some(inst) = state.instances.get_mut(&instance_id) {
             if inst.device_id != device_id {
                 tracing::warn!(
                     "stop result device mismatch: receipt from {} but instance {} belongs to {} — ignored",
@@ -1918,7 +1970,7 @@ impl AppScheduleManager {
                     inst.error = result.error;
                 }
                 // Terminal state: drop the request mapping.
-                g.request_index.remove(&result.request_id);
+                state.request_index.remove(&result.request_id);
                 Some(inst.clone())
             }
         } else {
@@ -1937,8 +1989,8 @@ impl AppScheduleManager {
     /// lost. A reconnecting Service clears these markers with its heartbeat.
     pub async fn mark_device_suspect(&self, device_id: &str) {
         let now = now_ms();
-        let mut g = self.inner.lock().await;
-        let ids: Vec<String> = g
+        let mut state = self.inner.lock().await;
+        let ids: Vec<String> = state
             .instances
             .values()
             .filter(|instance| {
@@ -1951,7 +2003,7 @@ impl AppScheduleManager {
             .map(|instance| instance.instance_id.clone())
             .collect();
         for instance_id in ids {
-            g.suspect_since.entry(instance_id).or_insert(now);
+            state.suspect_since.entry(instance_id).or_insert(now);
         }
     }
 
@@ -1981,14 +2033,14 @@ impl AppScheduleManager {
             Vec::new()
         } else {
             match serde_json::from_str(instances_json) {
-                Ok(v) => v,
-                Err(e) => {
+                Ok(reported_instances) => reported_instances,
+                Err(parse_error) => {
                     // A malformed packet is not "no instances" — skip this
                     // round instead of wiping every Running instance.
                     tracing::warn!(
                         "reconcile: bad instances_json from device {}: {} — reconcile skipped",
                         device_id,
-                        e
+                        parse_error
                     );
                     return;
                 }
@@ -2004,14 +2056,14 @@ impl AppScheduleManager {
 
         let now = now_ms();
         let (snapshots, known_ids) = {
-            let mut g = self.inner.lock().await;
-            let g = &mut *g;
+            let mut state = self.inner.lock().await;
+            let state = &mut *state;
             let Inner {
                 instances,
                 suspect_since,
                 request_index,
                 ..
-            } = g;
+            } = state;
             let mut out = Vec::new();
             for inst in instances.values_mut() {
                 if inst.device_id != device_id {
@@ -2192,16 +2244,16 @@ impl AppScheduleManager {
             }
             let known: std::collections::HashSet<String> = instances
                 .values()
-                .filter(|i| i.device_id == device_id)
-                .map(|i| i.instance_id.clone())
+                .filter(|instance| instance.device_id == device_id)
+                .map(|instance| instance.instance_id.clone())
                 .collect();
             (out, known)
         };
-        for r in &reported {
-            if !known_ids.contains(&r.instance_id) {
+        for reported_instance in &reported {
+            if !known_ids.contains(&reported_instance.instance_id) {
                 tracing::debug!(
                     "reconcile: service HB reports unknown instance {} on device {}",
-                    r.instance_id,
+                    reported_instance.instance_id,
                     device_id
                 );
             }
@@ -2226,21 +2278,23 @@ impl AppScheduleManager {
         match crate::app_schedule::store::load_all().await {
             Ok((apps, placements, nodes, instances)) => {
                 let (healed, migrated, suspect_devices) = {
-                    let mut g = self.inner.lock().await;
+                    let mut state = self.inner.lock().await;
                     for app in apps {
-                        g.apps.insert(app.app_id.clone(), app);
+                        state.apps.insert(app.app_id.clone(), app);
                     }
-                    for p in placements {
-                        g.placement_by_app_device.insert(
-                            (p.app_id.clone(), p.device_id.clone()),
-                            p.placement_id.clone(),
+                    for placement in placements {
+                        state.placement_by_app_device.insert(
+                            (placement.app_id.clone(), placement.device_id.clone()),
+                            placement.placement_id.clone(),
                         );
-                        g.placements.insert(p.placement_id.clone(), p);
+                        state
+                            .placements
+                            .insert(placement.placement_id.clone(), placement);
                     }
                     let mut max_seq = 0u64;
-                    for n in nodes {
-                        max_seq = max_seq.max(n.seq_no);
-                        g.nodes.insert(n.node_id.clone(), n);
+                    for node in nodes {
+                        max_seq = max_seq.max(node.seq_no);
+                        state.nodes.insert(node.node_id.clone(), node);
                     }
                     // seq 计数器抬高到已持久化的最大 seq_no,避免重启后序号回退
                     let cur = self.seq.load(Ordering::Relaxed);
@@ -2249,47 +2303,52 @@ impl AppScheduleManager {
                     }
                     let mut healed = Vec::new();
                     let mut suspect_devices = std::collections::HashSet::new();
-                    for mut i in instances {
-                        if Self::heal_instance_after_restart(&mut i) {
+                    for mut instance in instances {
+                        if Self::heal_instance_after_restart(&mut instance) {
                             tracing::info!(
                                 "load: heal stale transitional instance {} -> {:?} (Console restarted)",
-                                i.instance_id,
-                                i.state
+                                instance.instance_id,
+                                instance.state
                             );
-                            healed.push(i.clone());
+                            healed.push(instance.clone());
                         } else {
-                            g.request_index
-                                .insert(i.request_id.clone(), i.instance_id.clone());
+                            state
+                                .request_index
+                                .insert(instance.request_id.clone(), instance.instance_id.clone());
                         }
                         if matches!(
-                            i.state,
+                            instance.state,
                             InstanceState::Starting
                                 | InstanceState::Running
                                 | InstanceState::Stopping
                         ) {
-                            g.suspect_since.insert(i.instance_id.clone(), now_ms());
-                            suspect_devices.insert(i.device_id.clone());
+                            state
+                                .suspect_since
+                                .insert(instance.instance_id.clone(), now_ms());
+                            suspect_devices.insert(instance.device_id.clone());
                         }
-                        g.instances.insert(i.instance_id.clone(), i);
+                        state
+                            .instances
+                            .insert(instance.instance_id.clone(), instance);
                     }
                     // 节点结构迁移:没有节的旧应用,按遗留 placement + app.listen_port
                     // 生成默认节。node_id 取确定性值,重启幂等不重复建。
-                    let migrated = self.migrate_legacy_nodes_locked(&mut g);
+                    let migrated = self.migrate_legacy_nodes_locked(&mut state);
                     tracing::info!(
                         "app schedule loaded from mongo: apps={} nodes={} instances={} healed={} migrated={}",
-                        g.apps.len(),
-                        g.nodes.len(),
-                        g.instances.len(),
+                        state.apps.len(),
+                        state.nodes.len(),
+                        state.instances.len(),
                         healed.len(),
                         migrated.len()
                     );
                     (healed, migrated, suspect_devices)
                 };
-                for i in healed {
-                    let _ = crate::app_schedule::store::upsert_instance(&i).await;
+                for instance in healed {
+                    let _ = crate::app_schedule::store::upsert_instance(&instance).await;
                 }
-                for n in migrated {
-                    let _ = crate::app_schedule::store::upsert_node(&n).await;
+                for node in migrated {
+                    let _ = crate::app_schedule::store::upsert_node(&node).await;
                 }
                 // If a Service never reconnects there will be no heartbeat to
                 // trigger reconciliation, so close the startup grace window
@@ -2304,30 +2363,36 @@ impl AppScheduleManager {
                     });
                 }
             }
-            Err(e) => tracing::warn!("load app schedule from mongo failed: {e}"),
+            Err(load_error) => {
+                tracing::warn!("load app schedule from mongo failed: {load_error}")
+            }
         }
     }
 
     /// 节点结构迁移(可从 load_from_db 与单测调用):没有节的旧应用,按遗留
     /// placement + app.listen_port 生成默认节。node_id 取确定性值,幂等。
-    fn migrate_legacy_nodes_locked(&self, g: &mut Inner) -> Vec<AppNode> {
+    fn migrate_legacy_nodes_locked(&self, state: &mut Inner) -> Vec<AppNode> {
         let mut migrated = Vec::new();
-        let app_ids: Vec<String> = g.apps.keys().cloned().collect();
+        let app_ids: Vec<String> = state.apps.keys().cloned().collect();
         for app_id in app_ids {
-            if g.nodes.values().any(|n| n.app_id == app_id) {
+            if state.nodes.values().any(|node| node.app_id == app_id) {
                 continue;
             }
-            let app = g.apps.get(&app_id).cloned().unwrap();
-            let legacy_plc = g.placements.values().find(|p| p.app_id == app_id).cloned();
+            let app = state.apps.get(&app_id).cloned().unwrap();
+            let legacy_plc = state
+                .placements
+                .values()
+                .find(|placement| placement.app_id == app_id)
+                .cloned();
             let install_root = legacy_plc
                 .as_ref()
-                .map(|p| p.install_root.clone())
-                .filter(|s| !s.is_empty())
+                .map(|placement| placement.install_root.clone())
+                .filter(|install_root| !install_root.is_empty())
                 .or_else(|| split_game_path(&app.game_path).ok().map(|(root, _)| root))
                 .unwrap_or_default();
             let device_id = legacy_plc
                 .as_ref()
-                .map(|p| p.device_id.clone())
+                .map(|placement| placement.device_id.clone())
                 .unwrap_or_default();
             if device_id.is_empty()
                 || (app.app_type == ApplicationType::GameHook && install_root.is_empty())
@@ -2366,7 +2431,7 @@ impl AppScheduleManager {
                 node.node_id,
                 node.listen_port
             );
-            g.nodes.insert(node.node_id.clone(), node.clone());
+            state.nodes.insert(node.node_id.clone(), node.clone());
             migrated.push(node);
         }
         migrated
@@ -2380,17 +2445,19 @@ impl AppScheduleManager {
         placement: AppPlacement,
         inst: AppInstance,
     ) {
-        let mut g = self.inner.lock().await;
-        g.placement_by_app_device.insert(
+        let mut state = self.inner.lock().await;
+        state.placement_by_app_device.insert(
             (placement.app_id.clone(), placement.device_id.clone()),
             placement.placement_id.clone(),
         );
-        g.apps.insert(app.app_id.clone(), app);
-        g.placements
+        state.apps.insert(app.app_id.clone(), app);
+        state
+            .placements
             .insert(placement.placement_id.clone(), placement);
-        g.request_index
+        state
+            .request_index
             .insert(inst.request_id.clone(), inst.instance_id.clone());
-        g.instances.insert(inst.instance_id.clone(), inst);
+        state.instances.insert(inst.instance_id.clone(), inst);
     }
 }
 
@@ -2645,9 +2712,9 @@ mod tests {
             },
         )
         .await;
-        let i = &mgr.list_instances().await[0];
-        assert_eq!(i.state, InstanceState::Failed);
-        assert_eq!(i.error, "exe not found");
+        let instance = &mgr.list_instances().await[0];
+        assert_eq!(instance.state, InstanceState::Failed);
+        assert_eq!(instance.error, "exe not found");
     }
 
     #[tokio::test]
@@ -2702,9 +2769,9 @@ mod tests {
             },
         )
         .await;
-        let i = &mgr.list_instances().await[0];
-        assert_eq!(i.state, InstanceState::Stopped);
-        assert!(i.error.is_empty());
+        let instance = &mgr.list_instances().await[0];
+        assert_eq!(instance.state, InstanceState::Stopped);
+        assert!(instance.error.is_empty());
     }
 
     #[tokio::test]
@@ -2758,9 +2825,9 @@ mod tests {
             .suspect_since
             .insert("ghost".into(), now_ms() - PROCESS_LOST_GRACE_MS);
         mgr.reconcile_from_service_hb("dev-1".into(), "[]").await;
-        let i = &mgr.list_instances().await[0];
-        assert_eq!(i.state, InstanceState::Stopped);
-        assert_eq!(i.pid, 0);
+        let instance = &mgr.list_instances().await[0];
+        assert_eq!(instance.state, InstanceState::Stopped);
+        assert_eq!(instance.pid, 0);
     }
 
     #[tokio::test]
@@ -2816,8 +2883,8 @@ mod tests {
             r#"[{"instance_id":"ghost","state":"stopped"}]"#,
         )
         .await;
-        let i = &mgr.list_instances().await[0];
-        assert_eq!(i.state, InstanceState::Stopped);
+        let instance = &mgr.list_instances().await[0];
+        assert_eq!(instance.state, InstanceState::Stopped);
     }
 
     #[tokio::test]
@@ -3034,9 +3101,13 @@ mod tests {
         let mgr = AppScheduleManager::new();
         assert_eq!(mgr.suggest_next_port("m1").await.unwrap(), 0);
         {
-            let mut g = mgr.inner.lock().await;
-            g.nodes.insert("n1".into(), node_with_port("a", "m1", 4613));
-            g.nodes.insert("n2".into(), node_with_port("a", "m1", 4614));
+            let mut state = mgr.inner.lock().await;
+            state
+                .nodes
+                .insert("n1".into(), node_with_port("a", "m1", 4613));
+            state
+                .nodes
+                .insert("n2".into(), node_with_port("a", "m1", 4614));
         }
         assert_eq!(mgr.suggest_next_port("m1").await.unwrap(), 0);
         // 另一台机器不受影响
@@ -3047,25 +3118,30 @@ mod tests {
     async fn explicit_ports_are_not_limited_to_node_default_pool() {
         let mgr = AppScheduleManager::new();
         {
-            let mut g = mgr.inner.lock().await;
-            g.nodes.insert("n1".into(), node_with_port("a", "m1", 4998));
+            let mut state = mgr.inner.lock().await;
+            state
+                .nodes
+                .insert("n1".into(), node_with_port("a", "m1", 4998));
         }
         assert_eq!(mgr.suggest_next_port("m1").await.unwrap(), 0);
         {
-            let mut g = mgr.inner.lock().await;
-            g.nodes.insert("n2".into(), node_with_port("a", "m1", 4613));
+            let mut state = mgr.inner.lock().await;
+            state
+                .nodes
+                .insert("n2".into(), node_with_port("a", "m1", 4613));
         }
-        let g = mgr.inner.lock().await;
+        let state = mgr.inner.lock().await;
         for port in [0, 4615, 40000, 65535] {
-            assert!(
-                AppScheduleManager::ensure_node_port_available_locked(&g, "m1", port, None).is_ok()
-            );
+            assert!(AppScheduleManager::ensure_node_port_available_locked(
+                &state, "m1", port, None
+            )
+            .is_ok());
         }
         for port in [-1, 65536, 4613, 4998] {
-            assert!(
-                AppScheduleManager::ensure_node_port_available_locked(&g, "m1", port, None)
-                    .is_err()
-            );
+            assert!(AppScheduleManager::ensure_node_port_available_locked(
+                &state, "m1", port, None
+            )
+            .is_err());
         }
     }
 
@@ -3073,10 +3149,10 @@ mod tests {
     async fn node_default_pool_full_does_not_prevent_node_allocation() {
         let mgr = AppScheduleManager::new();
         {
-            let mut g = mgr.inner.lock().await;
+            let mut state = mgr.inner.lock().await;
             for port in 4613..=4998 {
-                let n = node_with_port("a", "m1", port);
-                g.nodes.insert(n.node_id.clone(), n);
+                let node = node_with_port("a", "m1", port);
+                state.nodes.insert(node.node_id.clone(), node);
             }
         }
         assert_eq!(mgr.suggest_next_port("m1").await.unwrap(), 0);
@@ -3145,11 +3221,11 @@ mod tests {
             r#"[{"instance_id":"i","state":"running","pid":777,"listen_port":4623}]"#,
         )
         .await;
-        let i = &mgr.list_instances().await[0];
-        assert_eq!(i.state, InstanceState::Running);
-        assert_eq!(i.pid, 777);
-        assert_eq!(i.listen_port, 4623);
-        assert!(i.error.is_empty());
+        let instance = &mgr.list_instances().await[0];
+        assert_eq!(instance.state, InstanceState::Running);
+        assert_eq!(instance.pid, 777);
+        assert_eq!(instance.listen_port, 4623);
+        assert!(instance.error.is_empty());
 
         // Failed instances are revived too.
         let mgr2 = AppScheduleManager::new();
@@ -3416,8 +3492,8 @@ mod tests {
             .unwrap();
         // 注入该节的活跃实例
         {
-            let mut g = mgr.inner.lock().await;
-            g.instances.insert(
+            let mut state = mgr.inner.lock().await;
+            state.instances.insert(
                 "i-1".into(),
                 AppInstance {
                     instance_id: "i-1".into(),
@@ -3527,8 +3603,8 @@ mod tests {
             .await
             .unwrap();
         {
-            let mut g = mgr.inner.lock().await;
-            g.nodes.get_mut(&n1.node_id).unwrap().last_run_at = now_ms();
+            let mut state = mgr.inner.lock().await;
+            state.nodes.get_mut(&n1.node_id).unwrap().last_run_at = now_ms();
         }
         // 无在线 Service:错误信息按选节顺序列出候选(节2 在前)
         let err = mgr
@@ -3580,9 +3656,9 @@ mod tests {
             .unwrap();
         assert_eq!(node.last_run_at, 0);
         {
-            let mut g = mgr.inner.lock().await;
-            g.request_index.insert("r-9".into(), "i-9".into());
-            g.instances.insert(
+            let mut state = mgr.inner.lock().await;
+            state.request_index.insert("r-9".into(), "i-9".into());
+            state.instances.insert(
                 "i-9".into(),
                 AppInstance {
                     instance_id: "i-9".into(),
@@ -3668,9 +3744,9 @@ mod tests {
             .unwrap();
         {
             // 节2 被并发请求预占(Starting)
-            let mut g = mgr.inner.lock().await;
-            g.request_index.insert("r-c".into(), "i-c".into());
-            g.instances.insert(
+            let mut state = mgr.inner.lock().await;
+            state.request_index.insert("r-c".into(), "i-c".into());
+            state.instances.insert(
                 "i-c".into(),
                 AppInstance {
                     instance_id: "i-c".into(),
@@ -3705,7 +3781,10 @@ mod tests {
         assert!(!err.contains(&n2.name), "busy node2 must be skipped: {err}");
         // 离线失败后预占实例被标记 Failed 释放,不残留 Starting
         let insts = mgr.list_instances().await;
-        let pre = insts.iter().find(|i| i.node_id == n1.node_id).unwrap();
+        let pre = insts
+            .iter()
+            .find(|instance| instance.node_id == n1.node_id)
+            .unwrap();
         assert!(matches!(pre.state, InstanceState::Failed));
         assert!(pre.error.contains("offline"), "{}", pre.error);
     }
@@ -3746,9 +3825,9 @@ mod tests {
             .unwrap();
         {
             // 在途实例:同 app、client_key="ip1",Starting
-            let mut g = mgr.inner.lock().await;
-            g.request_index.insert("r-d".into(), "i-d".into());
-            g.instances.insert(
+            let mut state = mgr.inner.lock().await;
+            state.request_index.insert("r-d".into(), "i-d".into());
+            state.instances.insert(
                 "i-d".into(),
                 AppInstance {
                     instance_id: "i-d".into(),
@@ -3773,9 +3852,9 @@ mod tests {
         let m2 = mgr.clone();
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_millis(200)).await;
-            let mut g = m2.inner.lock().await;
-            if let Some(i) = g.instances.get_mut("i-d") {
-                i.state = InstanceState::Running;
+            let mut state = m2.inner.lock().await;
+            if let Some(instance) = state.instances.get_mut("i-d") {
+                instance.state = InstanceState::Running;
             }
         });
         // 同 key:命中去重,等到 Running 并返回在途实例,不开新实例
@@ -3874,9 +3953,9 @@ mod tests {
             .unwrap();
         {
             // 1 小时前启动的 Running 实例(早已超出 60s 窗口)
-            let mut g = mgr.inner.lock().await;
-            g.request_index.insert("r-e".into(), "i-e".into());
-            g.instances.insert(
+            let mut state = mgr.inner.lock().await;
+            state.request_index.insert("r-e".into(), "i-e".into());
+            state.instances.insert(
                 "i-e".into(),
                 AppInstance {
                     instance_id: "i-e".into(),
@@ -3956,19 +4035,19 @@ mod tests {
         )
         .await;
         let migrated = {
-            let mut g = mgr.inner.lock().await;
-            mgr.migrate_legacy_nodes_locked(&mut g)
+            let mut state = mgr.inner.lock().await;
+            mgr.migrate_legacy_nodes_locked(&mut state)
         };
         assert_eq!(migrated.len(), 1);
-        let n = &migrated[0];
-        assert_eq!(n.device_id, "d");
-        assert_eq!(n.install_root, r"D:\x");
-        assert_eq!(n.listen_port, 4668);
-        assert_eq!(n.name, "节点1");
+        let node = &migrated[0];
+        assert_eq!(node.device_id, "d");
+        assert_eq!(node.install_root, r"D:\x");
+        assert_eq!(node.listen_port, 4668);
+        assert_eq!(node.name, "节点1");
         // 幂等:再跑一次不重复建
         let again = {
-            let mut g = mgr.inner.lock().await;
-            mgr.migrate_legacy_nodes_locked(&mut g)
+            let mut state = mgr.inner.lock().await;
+            mgr.migrate_legacy_nodes_locked(&mut state)
         };
         assert!(again.is_empty());
         assert_eq!(mgr.list_nodes(None).await.len(), 1);
