@@ -308,6 +308,7 @@ fn real_three_database_archives_restore_from_offsite_after_source_loss_and_detec
     let plan = BackupPlan {
         deployment_id,
         kind: RecoverySetKind::Independent,
+        write_barrier_proof_file: None,
         retention: BTreeSet::from([RetentionClass::Hourly]),
         previous_recovery_set_id: None,
         targets: vec![

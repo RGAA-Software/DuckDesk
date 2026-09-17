@@ -413,6 +413,9 @@ fn backup_failure_code(error: BackupError) -> &'static str {
     match error {
         BackupError::InvalidPlan => "INVALID_PLAN",
         BackupError::BarrierRequired => "BARRIER_REQUIRED",
+        BackupError::BarrierInvalid => "BARRIER_INVALID",
+        BackupError::BarrierInactive => "BARRIER_INACTIVE",
+        BackupError::BarrierChanged => "BARRIER_CHANGED",
         BackupError::Repository => "REPOSITORY_FAILURE",
         BackupError::ToolIdentity => "TOOL_IDENTITY_FAILURE",
         BackupError::Credential => "CREDENTIAL_FAILURE",
@@ -691,6 +694,7 @@ mod tests {
                 plan: BackupPlan {
                     deployment_id,
                     kind: RecoverySetKind::Independent,
+                    write_barrier_proof_file: None,
                     retention: BTreeSet::from([RetentionClass::Hourly]),
                     previous_recovery_set_id: None,
                     targets: vec![

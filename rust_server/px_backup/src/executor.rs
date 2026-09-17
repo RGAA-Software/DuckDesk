@@ -28,6 +28,12 @@ pub enum BackupError {
     InvalidPlan,
     #[error("coordinated write-barrier proof is required")]
     BarrierRequired,
+    #[error("coordinated write-barrier proof is invalid")]
+    BarrierInvalid,
+    #[error("coordinated write-barrier lease is not active")]
+    BarrierInactive,
+    #[error("coordinated write-barrier proof changed during backup")]
+    BarrierChanged,
     #[error("backup repository rejected the operation")]
     Repository,
     #[error("pinned PostgreSQL tool is unavailable or changed")]
@@ -105,6 +111,7 @@ impl BackupTarget {
 pub struct BackupPlan {
     pub deployment_id: Uuid,
     pub kind: RecoverySetKind,
+    pub write_barrier_proof_file: Option<PathBuf>,
     pub retention: BTreeSet<RetentionClass>,
     pub previous_recovery_set_id: Option<Uuid>,
     pub targets: Vec<BackupTarget>,
@@ -112,15 +119,20 @@ pub struct BackupPlan {
 
 impl BackupPlan {
     pub(crate) fn validate(&self) -> Result<(), BackupError> {
-        if self.deployment_id.is_nil()
-            || self.retention.is_empty()
-            || self.kind != RecoverySetKind::Independent
-        {
-            return if self.kind == RecoverySetKind::Independent {
-                Err(BackupError::InvalidPlan)
-            } else {
-                Err(BackupError::BarrierRequired)
-            };
+        if self.deployment_id.is_nil() || self.retention.is_empty() {
+            return Err(BackupError::InvalidPlan);
+        }
+        match self.kind {
+            RecoverySetKind::Independent if self.write_barrier_proof_file.is_none() => {}
+            RecoverySetKind::WriteBarrier
+                if self
+                    .write_barrier_proof_file
+                    .as_ref()
+                    .is_some_and(|path| path.is_absolute()) => {}
+            RecoverySetKind::WriteBarrier => return Err(BackupError::BarrierRequired),
+            RecoverySetKind::Independent | RecoverySetKind::Physical => {
+                return Err(BackupError::InvalidPlan);
+            }
         }
         let services = self
             .targets
@@ -151,6 +163,141 @@ impl BackupPlan {
             }
         }
         Ok(())
+    }
+}
+
+pub const WRITE_BARRIER_PROOF_SCHEMA_VERSION: u32 = 1;
+const MAX_WRITE_BARRIER_PROOF_BYTES: usize = 4 * 1024;
+const MAX_WRITE_BARRIER_SECONDS: u64 = 60 * 60;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WriteBarrierServiceAttestation {
+    pub service: BackupService,
+    pub drained_at_unix: u64,
+    pub lease_expires_at_unix: u64,
+    pub write_gate_token_sha256: String,
+    pub security_sequence: u64,
+    pub security_state_sha256: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WriteBarrierProof {
+    pub schema_version: u32,
+    pub deployment_id: Uuid,
+    pub consistency_proof_id: Uuid,
+    pub acquired_at_unix: u64,
+    pub expires_at_unix: u64,
+    pub external_key_ids: BTreeSet<String>,
+    pub attestations: Vec<WriteBarrierServiceAttestation>,
+}
+
+impl WriteBarrierProof {
+    fn load_private(path: &Path) -> Result<(Self, String), BackupError> {
+        let proof_bytes = px_private_files::private::read_private(path)
+            .map_err(|_| BackupError::BarrierInvalid)?;
+        if proof_bytes.is_empty() || proof_bytes.len() > MAX_WRITE_BARRIER_PROOF_BYTES {
+            return Err(BackupError::BarrierInvalid);
+        }
+        let proof = serde_json::from_slice::<Self>(&proof_bytes)
+            .map_err(|_| BackupError::BarrierInvalid)?;
+        let proof_sha256 = format!("{:x}", Sha256::digest(&proof_bytes));
+        Ok((proof, proof_sha256))
+    }
+
+    fn validate_for(&self, plan: &BackupPlan, current_time: u64) -> Result<(), BackupError> {
+        let required_services = plan
+            .targets
+            .iter()
+            .filter_map(|target| match target {
+                BackupTarget::Required { database } => Some(database.service),
+                BackupTarget::NotApplicable { .. } => None,
+            })
+            .collect::<BTreeSet<_>>();
+        let attested_services = self
+            .attestations
+            .iter()
+            .map(|attestation| attestation.service)
+            .collect::<BTreeSet<_>>();
+        if self.schema_version != WRITE_BARRIER_PROOF_SCHEMA_VERSION
+            || self.deployment_id != plan.deployment_id
+            || self.consistency_proof_id.is_nil()
+            || self.acquired_at_unix == 0
+            || self.expires_at_unix <= self.acquired_at_unix
+            || self.expires_at_unix - self.acquired_at_unix > MAX_WRITE_BARRIER_SECONDS
+            || self.external_key_ids.len() > 128
+            || self
+                .external_key_ids
+                .iter()
+                .any(|key_id| !valid_sha256(key_id))
+            || self.attestations.len() != required_services.len()
+            || attested_services != required_services
+            || self.attestations.iter().any(|attestation| {
+                attestation.drained_at_unix < self.acquired_at_unix
+                    || attestation.drained_at_unix >= self.expires_at_unix
+                    || attestation.lease_expires_at_unix != self.expires_at_unix
+                    || attestation.security_sequence == 0
+                    || !valid_sha256(&attestation.write_gate_token_sha256)
+                    || !valid_sha256(&attestation.security_state_sha256)
+            })
+        {
+            return Err(BackupError::BarrierInvalid);
+        }
+        if current_time < self.acquired_at_unix || current_time >= self.expires_at_unix {
+            return Err(BackupError::BarrierInactive);
+        }
+        Ok(())
+    }
+
+    fn security_evidence(&self) -> RecoverySecurityEvidence {
+        RecoverySecurityEvidence::Captured {
+            consistency_proof_id: self.consistency_proof_id,
+            external_key_ids: self.external_key_ids.clone(),
+            watermarks: self
+                .attestations
+                .iter()
+                .map(|attestation| crate::ServiceSecurityWatermark {
+                    service: attestation.service,
+                    security_sequence: attestation.security_sequence,
+                    security_state_sha256: attestation.security_state_sha256.clone(),
+                })
+                .collect(),
+        }
+    }
+}
+
+struct ActiveWriteBarrier {
+    path: PathBuf,
+    proof: WriteBarrierProof,
+    proof_sha256: String,
+}
+
+impl ActiveWriteBarrier {
+    fn acquire(plan: &BackupPlan) -> Result<Option<Self>, BackupError> {
+        if plan.kind == RecoverySetKind::Independent {
+            return Ok(None);
+        }
+        let proof_path = plan
+            .write_barrier_proof_file
+            .as_ref()
+            .ok_or(BackupError::BarrierRequired)?;
+        let (proof, proof_sha256) = WriteBarrierProof::load_private(proof_path)?;
+        proof.validate_for(plan, now_unix()?)?;
+        Ok(Some(Self {
+            path: proof_path.clone(),
+            proof,
+            proof_sha256,
+        }))
+    }
+
+    fn verify_active(&self, plan: &BackupPlan) -> Result<(), BackupError> {
+        let (current_proof, current_sha256) =
+            WriteBarrierProof::load_private(&self.path).map_err(|_| BackupError::BarrierChanged)?;
+        if current_sha256 != self.proof_sha256 || current_proof != self.proof {
+            return Err(BackupError::BarrierChanged);
+        }
+        current_proof.validate_for(plan, now_unix()?)
     }
 }
 
@@ -192,17 +339,24 @@ impl<T: LogicalBackupTool> BackupRunner<T> {
         if repository.deployment_id() != plan.deployment_id {
             return Err(BackupError::InvalidPlan);
         }
+        let active_write_barrier = ActiveWriteBarrier::acquire(plan)?;
         let recovery_set_id = Uuid::new_v4();
         let created_at = now_unix()?;
         let staged = repository.begin_set(recovery_set_id)?;
         let mut members = Vec::with_capacity(3);
         for target in &plan.targets {
+            if let Some(write_barrier) = &active_write_barrier {
+                write_barrier.verify_active(plan)?;
+            }
             match target {
                 BackupTarget::Required { database } => {
                     let started_at = now_unix()?;
                     let archive = staged.prepare_archive(database.service)?;
                     self.tool.dump(database, &archive)?;
                     self.tool.verify(&archive)?;
+                    if let Some(write_barrier) = &active_write_barrier {
+                        write_barrier.verify_active(plan)?;
+                    }
                     let completed_at = now_unix()?;
                     members.push(BackupMember {
                         service: database.service,
@@ -230,6 +384,15 @@ impl<T: LogicalBackupTool> BackupRunner<T> {
                 }
             }
         }
+        if let Some(write_barrier) = &active_write_barrier {
+            write_barrier.verify_active(plan)?;
+        }
+        let security_evidence = active_write_barrier.map_or_else(
+            || RecoverySecurityEvidence::Unavailable {
+                reason: RecoveryEvidenceUnavailableReason::IndependentBackup,
+            },
+            |write_barrier| write_barrier.proof.security_evidence(),
+        );
         let manifest = RecoverySetManifest {
             schema_version: MANIFEST_SCHEMA_VERSION,
             recovery_set_id,
@@ -243,9 +406,7 @@ impl<T: LogicalBackupTool> BackupRunner<T> {
             retention: plan.retention.clone(),
             previous_recovery_set_id: plan.previous_recovery_set_id,
             members,
-            security_evidence: RecoverySecurityEvidence::Unavailable {
-                reason: RecoveryEvidenceUnavailableReason::IndependentBackup,
-            },
+            security_evidence,
             failure_code: None,
         };
         staged.publish(&manifest)?;
@@ -537,6 +698,7 @@ mod tests {
         BackupPlan {
             deployment_id: fixture.deployment_id,
             kind: RecoverySetKind::Independent,
+            write_barrier_proof_file: None,
             retention: BTreeSet::from([RetentionClass::Hourly]),
             previous_recovery_set_id: None,
             targets: vec![
@@ -607,7 +769,7 @@ mod tests {
     }
 
     #[test]
-    fn plan_never_claims_a_barrier_or_accepts_duplicate_services_and_console_na() {
+    fn plan_requires_a_private_barrier_proof_and_rejects_duplicate_services_and_console_na() {
         let fixture = Fixture::new();
         let mut value = plan(&fixture);
         value.kind = RecoverySetKind::WriteBarrier;
@@ -620,6 +782,95 @@ mod tests {
             reason: "not installed".into(),
         };
         assert_eq!(value.validate(), Err(BackupError::InvalidPlan));
+    }
+
+    fn write_barrier_proof(fixture: &Fixture, current_time: u64) -> WriteBarrierProof {
+        WriteBarrierProof {
+            schema_version: WRITE_BARRIER_PROOF_SCHEMA_VERSION,
+            deployment_id: fixture.deployment_id,
+            consistency_proof_id: Uuid::new_v4(),
+            acquired_at_unix: current_time - 1,
+            expires_at_unix: current_time + 60,
+            external_key_ids: BTreeSet::from(["d".repeat(64)]),
+            attestations: [BackupService::Console, BackupService::Auth]
+                .into_iter()
+                .map(|service| WriteBarrierServiceAttestation {
+                    service,
+                    drained_at_unix: current_time,
+                    lease_expires_at_unix: current_time + 60,
+                    write_gate_token_sha256: "e".repeat(64),
+                    security_sequence: 31,
+                    security_state_sha256: "f".repeat(64),
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn coordinated_backup_rechecks_private_live_proof_and_publishes_security_evidence() {
+        let fixture = Fixture::new();
+        let repository = BackupRepository::open(&fixture.root, fixture.deployment_id).unwrap();
+        let proof_path = fixture._base.path().join("write-barrier-proof.json");
+        let proof = write_barrier_proof(&fixture, now_unix().unwrap());
+        px_private_files::private::create_private(
+            &proof_path,
+            &serde_json::to_vec(&proof).unwrap(),
+        )
+        .unwrap();
+        let mut coordinated_plan = plan(&fixture);
+        coordinated_plan.kind = RecoverySetKind::WriteBarrier;
+        coordinated_plan.write_barrier_proof_file = Some(proof_path);
+        let manifest = BackupRunner::new(FakeTool {
+            fail_verify: AtomicBool::new(false),
+        })
+        .run(&repository, &coordinated_plan)
+        .unwrap();
+        assert_eq!(manifest.kind, RecoverySetKind::WriteBarrier);
+        assert_eq!(manifest.security_evidence, proof.security_evidence());
+    }
+
+    struct BarrierChangingTool {
+        proof_path: PathBuf,
+        changed: AtomicBool,
+    }
+
+    impl LogicalBackupTool for BarrierChangingTool {
+        fn dump(&self, target: &DatabaseTarget, destination: &Path) -> Result<(), BackupError> {
+            fs::write(destination, format!("archive:{:?}", target.service))
+                .map_err(|_| BackupError::ArchiveFailed)?;
+            if !self.changed.swap(true, Ordering::Relaxed) {
+                fs::write(&self.proof_path, b"released").map_err(|_| BackupError::ArchiveFailed)?;
+            }
+            Ok(())
+        }
+
+        fn verify(&self, _archive: &Path) -> Result<(), BackupError> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn coordinated_backup_fails_when_barrier_is_released_during_export() {
+        let fixture = Fixture::new();
+        let repository = BackupRepository::open(&fixture.root, fixture.deployment_id).unwrap();
+        let proof_path = fixture._base.path().join("write-barrier-proof.json");
+        let proof = write_barrier_proof(&fixture, now_unix().unwrap());
+        px_private_files::private::create_private(
+            &proof_path,
+            &serde_json::to_vec(&proof).unwrap(),
+        )
+        .unwrap();
+        let mut coordinated_plan = plan(&fixture);
+        coordinated_plan.kind = RecoverySetKind::WriteBarrier;
+        coordinated_plan.write_barrier_proof_file = Some(proof_path.clone());
+        let result = BackupRunner::new(BarrierChangingTool {
+            proof_path,
+            changed: AtomicBool::new(false),
+        })
+        .run(&repository, &coordinated_plan);
+        assert_eq!(result, Err(BackupError::BarrierChanged));
+        assert_eq!(repository.manifests(), Err(RepositoryError::Corrupt));
+        assert_eq!(repository.discard_incomplete_sets().unwrap().len(), 1);
     }
 
     #[test]

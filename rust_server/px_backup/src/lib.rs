@@ -13,7 +13,8 @@ mod scheduler;
 
 pub use executor::{
     BackupCancellation, BackupError, BackupPlan, BackupRunner, BackupTarget, DatabaseTarget,
-    LogicalBackupTool, PinnedPgTools,
+    LogicalBackupTool, PinnedPgTools, WriteBarrierProof, WriteBarrierServiceAttestation,
+    WRITE_BARRIER_PROOF_SCHEMA_VERSION,
 };
 pub use manifest::{
     BackupMember, BackupMemberState, BackupService, RecoveryEvidenceUnavailableReason,
