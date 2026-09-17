@@ -25,6 +25,7 @@ cargo test --offline --locked --manifest-path "$manifest" -p px_node_protocol --
 cargo test --offline --locked --manifest-path "$manifest" -p px_console_runtime --features pg-integration --test identity_api --target-dir "$target" -- --test-threads=1
 cargo test --offline --locked --manifest-path "$manifest" -p px_console_runtime --features pg-integration --test directory_api --target-dir "$target" -- --test-threads=1
 cargo test --offline --locked --manifest-path "$manifest" -p px_console_runtime --features pg-integration --test node_control --target-dir "$target" -- --test-threads=1
+cargo test --offline --locked --manifest-path "$manifest" -p px_console_runtime --features pg-integration --test process --target-dir "$target" -- --test-threads=1
 cargo test --offline --locked --manifest-path "$manifest" -p px_console_store --features pg-integration --test control --target-dir "$target" -- --test-threads=1
 cargo test --offline --locked --manifest-path "$manifest" -p px_console_store --features pg-integration --test devices --target-dir "$target" -- --test-threads=1
 cargo test --offline --locked --manifest-path "$manifest" -p px_console_store --features pg-integration --test applications --target-dir "$target" -- --test-threads=1

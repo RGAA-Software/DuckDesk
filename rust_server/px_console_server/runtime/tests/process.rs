@@ -1,0 +1,225 @@
+use px_console_store::{initialize_administrator, PasswordDigest, Username};
+use px_pg::{DatabaseConfig, Transport};
+use std::{
+    env,
+    io::{Read, Write},
+    net::{SocketAddr, TcpListener, TcpStream},
+    path::Path,
+    process::{Child, Command, Stdio},
+    thread,
+    time::{Duration, Instant},
+};
+use uuid::Uuid;
+use zeroize::Zeroizing;
+
+struct ChildProcess {
+    process: Option<Child>,
+}
+
+impl ChildProcess {
+    fn process(&mut self) -> &mut Child {
+        self.process.as_mut().unwrap()
+    }
+
+    fn take(&mut self) -> Child {
+        self.process.take().unwrap()
+    }
+}
+
+impl Drop for ChildProcess {
+    fn drop(&mut self) {
+        if let Some(process) = &mut self.process {
+            let _ = process.kill();
+            let _ = process.wait();
+        }
+    }
+}
+
+fn database_url(role: &str) -> String {
+    assert_eq!(env::var("PIXELS_PG_ISOLATED_TEST").as_deref(), Ok("1"));
+    let mut url =
+        url::Url::parse(&env::var(format!("PIXELS_TEST_CONSOLE_{role}_URL")).unwrap()).unwrap();
+    let platform = if cfg!(windows) { "windows" } else { "linux" };
+    url.set_path(&format!("/pixels_console_process_{platform}"));
+    url.to_string()
+}
+
+fn unused_loopback_address() -> SocketAddr {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.local_addr().unwrap()
+}
+
+fn restrict_private_directory(path: &Path) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700)).unwrap();
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let current_identity = Command::new("whoami")
+            .creation_flags(0x08000000)
+            .output()
+            .unwrap();
+        assert!(current_identity.status.success());
+        let identity_access = format!(
+            "{}:(OI)(CI)F",
+            String::from_utf8(current_identity.stdout).unwrap().trim()
+        );
+        let access_result = Command::new("icacls")
+            .arg(path)
+            .args([
+                "/inheritance:r",
+                "/grant:r",
+                &identity_access,
+                "*S-1-5-18:(OI)(CI)F",
+            ])
+            .creation_flags(0x08000000)
+            .output()
+            .unwrap();
+        assert!(access_result.status.success());
+    }
+}
+
+fn ready(address: SocketAddr) -> bool {
+    let Ok(mut stream) = TcpStream::connect_timeout(&address, Duration::from_millis(250)) else {
+        return false;
+    };
+    stream
+        .set_read_timeout(Some(Duration::from_secs(2)))
+        .unwrap();
+    write!(
+        stream,
+        "GET /health/ready HTTP/1.1\r\nHost: {address}\r\nOrigin: http://{address}\r\nX-Pixels-Client-Type: admin_web\r\nConnection: close\r\n\r\n"
+    )
+    .unwrap();
+    let mut response = String::new();
+    stream.read_to_string(&mut response).unwrap();
+    response.starts_with("HTTP/1.1 204")
+}
+
+fn wait_until_ready(process: &mut ChildProcess, address: SocketAddr) {
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while Instant::now() < deadline {
+        assert!(process.process().try_wait().unwrap().is_none());
+        if ready(address) {
+            return;
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+    panic!("Console process did not become ready");
+}
+
+fn wait_for_exit(process: &mut ChildProcess) {
+    let deadline = Instant::now() + Duration::from_secs(15);
+    while Instant::now() < deadline {
+        if process.process().try_wait().unwrap().is_some() {
+            return;
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+    panic!("Console process did not exit after losing database authority");
+}
+
+#[tokio::test]
+async fn native_process_starts_serves_and_exits_after_database_authority_loss() {
+    let deployment = env::var("PIXELS_DEPLOYMENT_ID")
+        .unwrap()
+        .parse::<Uuid>()
+        .unwrap();
+    let owner_url = database_url("OWNER");
+    let owner_config = DatabaseConfig::parse(&owner_url, Transport::LocalDevelopment).unwrap();
+    let password = Zeroizing::new("synthetic-console-process-password".to_string());
+    let password_hash = px_credentials::hash(&password).unwrap();
+    initialize_administrator(
+        &owner_config,
+        deployment,
+        &Username::parse("process-admin").unwrap(),
+        &PasswordDigest::parse(password_hash.to_string()).unwrap(),
+    )
+    .await
+    .unwrap();
+
+    let private_directory = tempfile::tempdir().unwrap();
+    restrict_private_directory(private_directory.path());
+    let guest_key_path = private_directory.path().join("guest-source.key");
+    let workspace_key_path = private_directory.path().join("workspace.key");
+    px_private_files::private::create_private(&guest_key_path, &[41; 32]).unwrap();
+    px_private_files::private::create_private(&workspace_key_path, &[42; 32]).unwrap();
+    let workspace_key_id = Uuid::new_v4();
+    let address = unused_loopback_address();
+    let workspace_keys = serde_json::json!([{
+        "id": workspace_key_id,
+        "path": workspace_key_path,
+    }]);
+
+    let mut command = Command::new(env!("CARGO_BIN_EXE_px_console_pg"));
+    command
+        .env("PIXELS_CONSOLE_LOCAL_DEVELOPMENT", "1")
+        .env("PIXELS_DEPLOYMENT_ID", deployment.to_string())
+        .env("PIXELS_CONSOLE_DATABASE_URL", database_url("RUNTIME"))
+        .env("PIXELS_CONSOLE_LISTEN", address.to_string())
+        .env("PIXELS_CONSOLE_PUBLIC_ORIGIN", format!("http://{address}"))
+        .env("PIXELS_CONSOLE_REGISTRATION", "1")
+        .env("PIXELS_CONSOLE_GUESTS", "1")
+        .env("PIXELS_CONSOLE_SESSION_LIFETIME_SECONDS", "3600")
+        .env("PIXELS_CONSOLE_GUEST_LIFETIME_SECONDS", "3600")
+        .env("PIXELS_CONSOLE_GUEST_SOURCE_KEY", &guest_key_path)
+        .env(
+            "PIXELS_CONSOLE_WORKSPACE_ACTIVE_KEY",
+            workspace_key_id.to_string(),
+        )
+        .env("PIXELS_CONSOLE_WORKSPACE_KEYS", workspace_keys.to_string())
+        .env_remove("PIXELS_CONSOLE_TLS_CERT")
+        .env_remove("PIXELS_CONSOLE_TLS_KEY")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+    let mut process = ChildProcess {
+        process: Some(command.spawn().unwrap()),
+    };
+    wait_until_ready(&mut process, address);
+
+    let container = env::var("PIXELS_TEST_CONTAINER").unwrap();
+    assert!(
+        container.len() >= 12
+            && container.len() <= 64
+            && container
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    );
+    let database = format!(
+        "pixels_console_process_{}",
+        if cfg!(windows) { "windows" } else { "linux" }
+    );
+    let terminated = Command::new("docker")
+        .args([
+            "exec",
+            &container,
+            "psql",
+            "-X",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-U",
+            "pixels_admin",
+            "-d",
+            "postgres",
+            "-c",
+            &format!(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='{database}' AND usename='pixels_console_runtime'"
+            ),
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap();
+    assert!(terminated.success());
+    wait_for_exit(&mut process);
+    let output = process.take().wait_with_output().unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("database authority was lost"));
+    assert!(!stderr.contains(password.as_str()));
+}

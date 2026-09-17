@@ -7,7 +7,7 @@ param(
     [ValidateRange(0,65535)]
     [int]$Port = 0,
     [switch]$Linux,
-    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'backup-pg', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'catalog', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'node-control')]
+    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'backup-pg', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'catalog', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'node-control', 'console-process')]
     [string]$Suite = ''
 )
 
@@ -254,7 +254,7 @@ try {
     Set-LocalEnv 'PIXELS_TEST_CONTAINER' $container
     # Dedicated empty fixture databases keep bootstrap/last-administrator assertions platform-independent.
     foreach ($service in @('auth','console')) {
-        $fixtureKinds = if ($service -eq 'auth') { @('bootstrap') } else { @('control','bootstrap','api','directory','node_control') }
+        $fixtureKinds = if ($service -eq 'auth') { @('bootstrap') } else { @('control','bootstrap','api','directory','node_control','process') }
         foreach ($fixtureKind in $fixtureKinds) {
         foreach ($platform in @('windows','linux')) {
             $fixtureDb = "pixels_${service}_${fixtureKind}_$platform"
@@ -291,13 +291,14 @@ try {
         $suiteCounts['console-api'] = 5
         $suiteCounts['directory-api'] = 5
         $suiteCounts['node-control'] = 1
+        $suiteCounts['console-process'] = 1
         $suiteCounts['schema_gate'] = 4
         $suiteCounts['auth'] = 7
         $suiteCounts['auth-api'] = 9
         Set-LocalEnv 'SQLX_OFFLINE' 'true'
         Set-LocalEnv 'SQLX_OFFLINE_DIR' (Join-Path $repo 'rust_server/px_console_server/storage/.sqlx')
-        if ($Suite -in @('console-api','directory-api','node-control')) {
-            $apiTest = if($Suite -eq 'console-api'){'identity_api'}elseif($Suite -eq 'directory-api'){'directory_api'}else{'node_control'}
+        if ($Suite -in @('console-api','directory-api','node-control','console-process')) {
+            $apiTest = if($Suite -eq 'console-api'){'identity_api'}elseif($Suite -eq 'directory-api'){'directory_api'}elseif($Suite -eq 'node-control'){'node_control'}else{'process'}
             $suiteArgs = @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--features','pg-integration','--test',$apiTest,'--target-dir',$targetDir)
         } elseif ($Suite -eq 'files') {
             $suiteArgs = @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_private_files','--features','integration-probe','--test','cache_files','--target-dir',$targetDir)
@@ -403,6 +404,10 @@ try {
     $nodeControl = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--features','pg-integration','--test','node_control','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $nodeControl
     Add-TestCases $nodeControl 'native/console-node-control' 1
+    $consoleProcess = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--features','pg-integration','--test','process','--target-dir',$targetDir,'--','--test-threads=1')
+    Write-Host $consoleProcess
+    Add-TestCases $consoleProcess 'native/console-process' 1
+    Add-Step 'CONSOLE-PROCESS: real listener readiness and terminal database-authority loss'
     $controlIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--test','control','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $controlIntegration
     Add-TestCases $controlIntegration 'native/control' 8

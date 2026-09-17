@@ -176,6 +176,9 @@ impl ConsoleRuntime {
     pub async fn cancelled(&self) {
         self.state.cancellation.cancelled().await;
     }
+    pub fn cancellation_token(&self) -> CancellationToken {
+        self.state.cancellation.clone()
+    }
     /// Caller closes listeners and joins in-flight requests before closing the shared pool.
     pub async fn shutdown(mut self) {
         self.state.cancellation.cancel();
