@@ -1,12 +1,190 @@
 #[path = "support/runtime_fixture.rs"]
 mod fixture;
 use axum::http::StatusCode;
-use fixture::{call, config, deployment, login, policy, register, request, start, vault, PASSWORD};
+use fixture::{
+    binary_call, call, config, deployment, login, policy, register, request, start, vault, PASSWORD,
+};
 use px_console_runtime::ConsoleRuntime;
 use serde_json::{json, Value};
 use std::time::Duration;
 use uuid::Uuid;
 const FIXTURE_KIND: &str = "api";
+
+#[tokio::test]
+async fn self_profile_and_avatar_are_revision_bound_typed_and_transactional() {
+    let runtime = start().await;
+    let router = runtime.router();
+    let original_name = register(&router).await;
+    let token = login(&router, &original_name, PASSWORD, "android").await;
+    let (_, initial) = call(
+        &router,
+        "GET",
+        "/api/console/profile",
+        "android",
+        Some(&token),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(initial["revision"], 1);
+    assert!(initial["avatar_url"].is_null());
+    let changed_name = Uuid::new_v4().to_string();
+    let (changed_status, changed) = call(
+        &router,
+        "PATCH",
+        "/api/console/profile",
+        "android",
+        Some(&token),
+        json!({"revision":1,"username":changed_name}),
+    )
+    .await;
+    assert_eq!(changed_status, StatusCode::OK, "{changed}");
+    assert_eq!(changed["revision"], 2);
+    assert_eq!(changed["username"], changed_name);
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            "/api/console/profile",
+            "panel",
+            Some(&token),
+            Value::Null,
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    let png = hex::decode("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415408d763f8cfc0f01f00050001ff89993d1d0000000049454e44ae426082").unwrap();
+    assert_eq!(
+        binary_call(
+            &router,
+            "PUT",
+            "/api/console/profile/avatar?revision=2",
+            "android",
+            &token,
+            "image/jpeg",
+            png.clone(),
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    let (avatar_status, _, avatar_profile) = binary_call(
+        &router,
+        "PUT",
+        "/api/console/profile/avatar?revision=2",
+        "android",
+        &token,
+        "image/png",
+        png.clone(),
+    )
+    .await;
+    assert_eq!(avatar_status, StatusCode::OK);
+    let avatar_profile: Value = serde_json::from_slice(&avatar_profile).unwrap();
+    assert_eq!(avatar_profile["revision"], 3);
+    assert_eq!(avatar_profile["avatar_url"], "/api/console/profile/avatar");
+    let (read_status, read_headers, read_body) = binary_call(
+        &router,
+        "GET",
+        "/api/console/profile/avatar",
+        "android",
+        &token,
+        "application/octet-stream",
+        Vec::new(),
+    )
+    .await;
+    assert_eq!(read_status, StatusCode::OK);
+    assert_eq!(read_headers["content-type"], "image/png");
+    assert_eq!(read_headers["x-content-type-options"], "nosniff");
+    assert_eq!(read_body, png);
+    assert_eq!(
+        call(
+            &router,
+            "DELETE",
+            "/api/console/profile/avatar?revision=2",
+            "android",
+            Some(&token),
+            Value::Null,
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    let (delete_status, deleted) = call(
+        &router,
+        "DELETE",
+        "/api/console/profile/avatar?revision=3",
+        "android",
+        Some(&token),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(delete_status, StatusCode::OK, "{deleted}");
+    assert_eq!(deleted["revision"], 4);
+    assert!(deleted["avatar_url"].is_null());
+    assert_eq!(
+        binary_call(
+            &router,
+            "GET",
+            "/api/console/profile/avatar",
+            "android",
+            &token,
+            "application/octet-stream",
+            Vec::new(),
+        )
+        .await
+        .0,
+        StatusCode::NOT_FOUND
+    );
+    let oversized_avatar = vec![0_u8; px_console_store::MAX_AVATAR_BYTES + 1];
+    assert_eq!(
+        binary_call(
+            &router,
+            "PUT",
+            "/api/console/profile/avatar?revision=4",
+            "android",
+            &token,
+            "image/png",
+            oversized_avatar,
+        )
+        .await
+        .0,
+        StatusCode::PAYLOAD_TOO_LARGE
+    );
+    let owner = config("OWNER").connect().await.unwrap();
+    sqlx::query("REVOKE INSERT ON pixels.profile_events FROM pixels_console_runtime")
+        .execute(&owner)
+        .await
+        .unwrap();
+    let rejected_name = Uuid::new_v4().to_string();
+    let failed_change = call(
+        &router,
+        "PATCH",
+        "/api/console/profile",
+        "android",
+        Some(&token),
+        json!({"revision":4,"username":rejected_name}),
+    )
+    .await;
+    sqlx::query("GRANT INSERT ON pixels.profile_events TO pixels_console_runtime")
+        .execute(&owner)
+        .await
+        .unwrap();
+    owner.close().await;
+    assert_eq!(failed_change.0, StatusCode::SERVICE_UNAVAILABLE);
+    let (_, after_failure) = call(
+        &router,
+        "GET",
+        "/api/console/profile",
+        "android",
+        Some(&token),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(after_failure["username"], changed_name);
+    assert_eq!(after_failure["revision"], 4);
+    login(&router, &changed_name, PASSWORD, "android").await;
+    runtime.shutdown().await;
+}
 #[tokio::test]
 async fn native_registration_login_password_logout_and_restart_use_exact_identity() {
     let runtime = start().await;

@@ -2,7 +2,7 @@
 use axum::{
     body::{to_bytes, Body},
     extract::ConnectInfo,
-    http::{Request, StatusCode},
+    http::{HeaderMap, Request, StatusCode},
     Router,
 };
 use px_console_runtime::{ConsoleRuntime, GuestAdmission, IngressPolicy};
@@ -104,6 +104,39 @@ pub async fn call(
     )
     .await
 }
+
+pub async fn binary_call(
+    router: &Router,
+    method: &str,
+    path: &str,
+    client: &str,
+    token: &str,
+    media_type: &str,
+    body: Vec<u8>,
+) -> (StatusCode, HeaderMap, Vec<u8>) {
+    let mut request = Request::builder()
+        .method(method)
+        .uri(path)
+        .header("content-type", media_type)
+        .header("origin", ORIGIN)
+        .header("x-pixels-client-type", client)
+        .header("authorization", format!("Bearer {token}"))
+        .body(Body::from(body))
+        .unwrap();
+    request.extensions_mut().insert(ConnectInfo(
+        "127.0.0.3:14000".parse::<SocketAddr>().unwrap(),
+    ));
+    let response = router.clone().oneshot(request).await.unwrap();
+    let status = response.status();
+    let headers = response.headers().clone();
+    let bytes = to_bytes(response.into_body(), MAX_AVATAR_RESPONSE_BYTES)
+        .await
+        .unwrap()
+        .to_vec();
+    (status, headers, bytes)
+}
+
+const MAX_AVATAR_RESPONSE_BYTES: usize = 2 * 1024 * 1024 + 1024;
 #[allow(clippy::too_many_arguments)]
 pub async fn request(
     router: &Router,

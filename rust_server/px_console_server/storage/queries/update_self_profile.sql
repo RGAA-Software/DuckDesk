@@ -1,2 +1,4 @@
-INSERT INTO pixels.users(id,username,username_normalized,password_hash,role) VALUES($1,$2,$3,$4,$5)
+UPDATE pixels.users
+SET username=$2,username_normalized=$3,revision=revision+1,updated_at=clock_timestamp()
+WHERE id=$1
 RETURNING id,username,role,disabled,deleted_at,authorization_revision,revision,(avatar_data IS NOT NULL) AS "has_avatar!",created_at

@@ -28,6 +28,7 @@ pub struct ManagedUser {
     pub deleted_at: Option<DateTime<Utc>>,
     pub authorization_revision: i64,
     pub revision: i64,
+    pub has_avatar: bool,
     pub created_at: DateTime<Utc>,
 }
 #[derive(Clone)]

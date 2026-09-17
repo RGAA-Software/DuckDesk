@@ -86,8 +86,8 @@ pub use instance_model::{
 };
 pub use instances::InstanceStore;
 pub use model::{
-    AuthenticatedSession, ClientType, Credential, PasswordDigest, StoreError, TokenDigest,
-    UserProfile, Username,
+    AuthenticatedSession, AvatarContent, ClientType, Credential, PasswordDigest, StoreError,
+    TokenDigest, UserAvatar, UserProfile, Username, MAX_AVATAR_BYTES,
 };
 pub use node_model::{
     NodeConfiguration, NodeConnection, NodeProduct, NodeProfile, NodeReport, RuntimeEpoch,

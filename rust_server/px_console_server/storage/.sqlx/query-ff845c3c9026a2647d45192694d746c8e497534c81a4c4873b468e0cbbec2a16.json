@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO pixels.users(id,username,username_normalized,password_hash,role) VALUES($1,$2,$3,$4,$5)\nRETURNING id,username,role,disabled,deleted_at,authorization_revision,revision,created_at\n",
+  "query": "UPDATE pixels.users\nSET username=$2,username_normalized=$3,revision=revision+1,updated_at=clock_timestamp()\nWHERE id=$1\nRETURNING id,username,role,disabled,deleted_at,authorization_revision,revision,(avatar_data IS NOT NULL) AS \"has_avatar!\",created_at\n",
   "describe": {
     "columns": [
       {
@@ -40,6 +40,11 @@
       },
       {
         "ordinal": 7,
+        "name": "has_avatar!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
         "name": "created_at",
         "type_info": "Timestamptz"
       }
@@ -47,8 +52,6 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Text",
-        "Text",
         "Text",
         "Text"
       ]
@@ -61,8 +64,9 @@
       true,
       false,
       false,
+      null,
       false
     ]
   },
-  "hash": "82c45eaee5ef2bada2dcd9fd889bcc97842b23793e14f435d6b88c4ed7325be5"
+  "hash": "ff845c3c9026a2647d45192694d746c8e497534c81a4c4873b468e0cbbec2a16"
 }

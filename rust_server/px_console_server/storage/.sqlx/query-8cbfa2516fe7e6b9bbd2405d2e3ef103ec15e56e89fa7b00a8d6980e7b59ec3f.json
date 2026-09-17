@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id,username,role,disabled,deleted_at,authorization_revision,revision,created_at FROM pixels.users\nWHERE ($1::uuid IS NULL OR id>$1) ORDER BY id LIMIT $2\n",
+  "query": "UPDATE pixels.users SET role=$2,disabled=$3,authorization_revision=authorization_revision+1,revision=revision+1,updated_at=clock_timestamp()\nWHERE id=$1 RETURNING id,username,role,disabled,deleted_at,authorization_revision,revision,(avatar_data IS NOT NULL) AS \"has_avatar!\",created_at\n",
   "describe": {
     "columns": [
       {
@@ -40,6 +40,11 @@
       },
       {
         "ordinal": 7,
+        "name": "has_avatar!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
         "name": "created_at",
         "type_info": "Timestamptz"
       }
@@ -47,7 +52,8 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Int8"
+        "Text",
+        "Bool"
       ]
     },
     "nullable": [
@@ -58,8 +64,9 @@
       true,
       false,
       false,
+      null,
       false
     ]
   },
-  "hash": "b051b653dfe902a008a6547b40c0cd1817614419c1467276499d74e1dc5e473d"
+  "hash": "8cbfa2516fe7e6b9bbd2405d2e3ef103ec15e56e89fa7b00a8d6980e7b59ec3f"
 }

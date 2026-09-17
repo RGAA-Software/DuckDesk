@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT u.id,u.username,u.role,u.disabled,u.deleted_at,u.authorization_revision,u.revision,u.created_at\nFROM pixels.users u JOIN pixels.login_sessions s ON s.user_id=u.id\nWHERE s.token_hash=$1 AND s.client_type=$2 AND s.revoked_at IS NULL\n    AND s.expires_at>clock_timestamp() AND s.absolute_expires_at>clock_timestamp()\n    AND u.deleted_at IS NULL AND NOT u.disabled AND u.authorization_revision=s.authorization_revision\n",
+  "query": "UPDATE pixels.users\nSET avatar_media_type=$2,avatar_data=$3,avatar_sha256=$4,revision=revision+1,updated_at=clock_timestamp()\nWHERE id=$1\nRETURNING id,username,role,disabled,deleted_at,authorization_revision,revision,(avatar_data IS NOT NULL) AS \"has_avatar!\",created_at\n",
   "describe": {
     "columns": [
       {
@@ -40,14 +40,21 @@
       },
       {
         "ordinal": 7,
+        "name": "has_avatar!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
         "name": "created_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
+        "Uuid",
+        "Text",
         "Bytea",
-        "Text"
+        "Bytea"
       ]
     },
     "nullable": [
@@ -58,8 +65,9 @@
       true,
       false,
       false,
+      null,
       false
     ]
   },
-  "hash": "508f19728c3ec4c6a3b76994eebcf5ebbd2c32a4542d4b2949a3cfa6766859b7"
+  "hash": "d871966b4b4e72f95df67f15000c67b978572e2f0306482bedcc3d08402a3c43"
 }

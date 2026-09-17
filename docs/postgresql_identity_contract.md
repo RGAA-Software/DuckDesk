@@ -24,6 +24,19 @@ guests/nodes/deployments/instances/workspaces 都是同池句柄。关闭由组�
 | 用户组 / 成员 | UUID group、名称/规范化名称、备注、revision、创建/更新/删除时间；group/user 双外键成员关系 | 活跃组名部分唯一；成员复合主键与反向用户索引 |
 | 部署边界 | 每库独立 deployment UUID 与 service；连接时身份及完整 schema 校验 | 不匹配拒绝；不会因用户名/资源 ID 同名而换库查找 |
 
+本人资料使用当前新接口，不保留旧 `/api/v1` 或 Mongo 文件路径语义：
+
+- `GET/PATCH /api/console/profile` 读取或以用户 `revision` CAS 修改用户名；规范化与唯一性继续使用本节同一规则。
+- `GET/PUT/DELETE /api/console/profile/avatar` 只操作当前 token/client_type 对应的本人头像；上传 revision 放在查询参数中，
+  二进制正文只接受 `image/png`、`image/jpeg`、`image/webp`，范围 1–2 MiB。
+- 头像正文、媒体类型和 32 字节 SHA-256 同存 Console PostgreSQL，三者全空或全有；不使用 `avatar_path`、外链 URL、共享目录扫描或
+  旧文件导入。当前选择让身份与头像随同一恢复集原子恢复；若将来用户量证明需要对象存储，必须新增内容寻址、事务 outbox、
+  跨故障域复制与恢复对账设计，不能仅把数据库字段改成可丢失路径。
+- 纯资料改变只增加用户行 `revision`，不增加 `authorization_revision`、不撤销现有会话；每次实际改变向 append-only
+  `profile_events` 写入当前 session、结果 revision 和受控事件类型。审计失败与主体修改同事务回滚。
+- 头像读取要求有效当前会话，返回内容 hash ETag、`X-Content-Type-Options: nosniff` 和 `Cache-Control: private, no-store`；
+  无头像为 404，错误 client type 或失效 token 为 403，二者不混用。
+
 用户名规则：显示值和 lowercase 后的规范化值均为 2–64 个 Unicode 标量；拒绝控制字符、首尾空白、`/`、`\`；不静默 trim。
 例如 64 个 `İ` 小写后超出上限，必须拒绝；64 个中文字符合法，不按 UTF-8 字节数误拒绝。
 规范化仅使用 Rust Unicode lowercase，不进行 NFC/NFKC、同形字折叠或旧用户名转换。

@@ -14,3 +14,14 @@ CREATE TABLE pixels.group_events(
  UNIQUE(group_id,revision)
 );
 GRANT SELECT,INSERT ON pixels.group_events TO pixels_console_runtime;
+
+CREATE TABLE pixels.profile_events(
+ id UUID PRIMARY KEY,
+ user_id UUID NOT NULL REFERENCES pixels.users(id),
+ session_id UUID NOT NULL REFERENCES pixels.login_sessions(id),
+ revision BIGINT NOT NULL CHECK(revision>0),
+ kind TEXT NOT NULL CHECK(kind IN ('username_changed','avatar_changed','avatar_deleted')),
+ created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+ UNIQUE(user_id,revision)
+);
+GRANT SELECT,INSERT ON pixels.profile_events TO pixels_console_runtime;

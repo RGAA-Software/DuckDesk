@@ -349,6 +349,7 @@ fn error_code(error: ApiError) -> &'static str {
         ApiError::Invalid => "invalid_input",
         ApiError::Unauthorized => "unauthorized",
         ApiError::Rejected => "rejected",
+        ApiError::NotFound => "not_found",
         ApiError::Conflict => "conflict",
         ApiError::RateLimited => "rate_limited",
         ApiError::Unavailable => "unavailable",

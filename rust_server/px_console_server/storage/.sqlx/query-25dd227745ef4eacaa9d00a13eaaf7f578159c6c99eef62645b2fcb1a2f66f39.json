@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id,username,role,disabled,deleted_at,authorization_revision,revision,created_at FROM pixels.users\nWHERE id=$1 FOR UPDATE\n",
+  "query": "SELECT id,username,role,disabled,deleted_at,authorization_revision,revision,(avatar_data IS NOT NULL) AS \"has_avatar!\",created_at FROM pixels.users\nWHERE id=$1 FOR UPDATE\n",
   "describe": {
     "columns": [
       {
@@ -40,6 +40,11 @@
       },
       {
         "ordinal": 7,
+        "name": "has_avatar!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
         "name": "created_at",
         "type_info": "Timestamptz"
       }
@@ -57,8 +62,9 @@
       true,
       false,
       false,
+      null,
       false
     ]
   },
-  "hash": "9c29d82d0fa986cbec84b4e6292c69b4591ff6add7d78757e5357638153013d4"
+  "hash": "25dd227745ef4eacaa9d00a13eaaf7f578159c6c99eef62645b2fcb1a2f66f39"
 }

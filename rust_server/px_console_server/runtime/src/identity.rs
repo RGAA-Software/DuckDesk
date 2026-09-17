@@ -93,7 +93,7 @@ pub async fn login(
             state.policy.session_lifetime,
         )
         .await?;
-    let profile = identity.profile(&digest, client).await?;
+    let profile = crate::profile_api::view(identity.profile(&digest, client).await?);
     Ok(Json(
         json!({"token":token.as_str(),"expires_at":session.expires_at,"client_type":client,"profile":profile}),
     ))
@@ -103,8 +103,8 @@ pub async fn profile(
     headers: HeaderMap,
 ) -> Result<Json<Value>, ApiError> {
     let (token, client) = request::context(&state, &headers)?;
-    Ok(Json(json!(
-        state.db.identity().profile(&token, client).await?
+    Ok(Json(crate::profile_api::view(
+        state.db.identity().profile(&token, client).await?,
     )))
 }
 pub async fn logout(

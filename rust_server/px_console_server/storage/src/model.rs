@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use px_pg::DatabaseError;
+use sha2::{Digest, Sha256};
 use std::fmt;
 use uuid::Uuid;
 use zeroize::Zeroizing;
@@ -10,6 +11,8 @@ pub enum StoreError {
     InvalidInput,
     #[error("access or revision rejected")]
     Rejected,
+    #[error("requested object not found")]
+    NotFound,
     #[error("no ready capacity")]
     NoCapacity,
     #[error("protected workspace requires recovery")]
@@ -116,6 +119,68 @@ pub struct UserProfile {
     pub authorization_revision: i64,
     pub revision: i64,
     pub created_at: DateTime<Utc>,
+}
+
+pub const MAX_AVATAR_BYTES: usize = 2 * 1024 * 1024;
+
+#[derive(Debug, Clone)]
+pub struct AvatarContent {
+    pub(crate) media_type: &'static str,
+    pub(crate) image_bytes: Vec<u8>,
+    pub(crate) sha256: [u8; 32],
+}
+
+impl AvatarContent {
+    pub fn new(media_type: &str, image_bytes: Vec<u8>) -> Result<Self, StoreError> {
+        if image_bytes.is_empty()
+            || image_bytes.len() > MAX_AVATAR_BYTES
+            || !valid_avatar(media_type, &image_bytes)
+        {
+            return Err(StoreError::InvalidInput);
+        }
+        let media_type = match media_type {
+            "image/png" => "image/png",
+            "image/jpeg" => "image/jpeg",
+            "image/webp" => "image/webp",
+            _ => return Err(StoreError::InvalidInput),
+        };
+        let sha256 = Sha256::digest(&image_bytes).into();
+        Ok(Self {
+            media_type,
+            image_bytes,
+            sha256,
+        })
+    }
+}
+
+fn valid_avatar(media_type: &str, image_bytes: &[u8]) -> bool {
+    match media_type {
+        "image/png" => {
+            image_bytes.len() >= 20
+                && image_bytes.starts_with(b"\x89PNG\r\n\x1a\n")
+                && image_bytes[12..16] == *b"IHDR"
+                && image_bytes.ends_with(b"IEND\xaeB\x60\x82")
+        }
+        "image/jpeg" => {
+            image_bytes.starts_with(&[0xff, 0xd8, 0xff]) && image_bytes.ends_with(&[0xff, 0xd9])
+        }
+        "image/webp" if image_bytes.len() >= 12 => {
+            let declared_size =
+                u32::from_le_bytes(image_bytes[4..8].try_into().unwrap_or_default());
+            image_bytes.starts_with(b"RIFF")
+                && &image_bytes[8..12] == b"WEBP"
+                && declared_size.checked_add(8) == u32::try_from(image_bytes.len()).ok()
+        }
+        _ => false,
+    }
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct UserAvatar {
+    pub media_type: String,
+    pub image_bytes: Vec<u8>,
+    pub sha256: Vec<u8>,
+    pub revision: i64,
 }
 
 #[derive(Debug)]

@@ -12,6 +12,7 @@ mod management;
 mod node_api;
 mod node_wire;
 mod policy;
+mod profile_api;
 mod request;
 mod resource_api;
 mod saved_connection_api;
@@ -136,6 +137,7 @@ impl ConsoleRuntime {
             .merge(guest_api::routes())
             .merge(resource_api::routes())
             .merge(saved_connection_api::routes())
+            .merge(profile_api::routes())
             .route("/health/ready", get(ready))
             .route("/api/console/accounts", post(identity::register))
             .route("/api/console/sessions", post(identity::login))

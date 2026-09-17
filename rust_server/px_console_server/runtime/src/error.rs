@@ -14,6 +14,8 @@ pub enum ApiError {
     Unauthorized,
     #[error("access rejected")]
     Rejected,
+    #[error("not found")]
+    NotFound,
     #[error("conflicting state")]
     Conflict,
     #[error("rate limited")]
@@ -29,6 +31,7 @@ impl IntoResponse for ApiError {
             Self::Invalid => (StatusCode::BAD_REQUEST, "invalid_input"),
             Self::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized"),
             Self::Rejected => (StatusCode::FORBIDDEN, "rejected"),
+            Self::NotFound => (StatusCode::NOT_FOUND, "not_found"),
             Self::Conflict => (StatusCode::CONFLICT, "conflict"),
             Self::RateLimited => (StatusCode::TOO_MANY_REQUESTS, "rate_limited"),
             Self::Unavailable => (StatusCode::SERVICE_UNAVAILABLE, "unavailable"),
@@ -50,6 +53,7 @@ impl From<StoreError> for ApiError {
         match value {
             StoreError::InvalidInput => Self::Invalid,
             StoreError::Rejected => Self::Rejected,
+            StoreError::NotFound => Self::NotFound,
             StoreError::Database(e) => e.into(),
             _ => Self::Unavailable,
         }

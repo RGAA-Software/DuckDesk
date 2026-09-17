@@ -1,10 +1,10 @@
 use crate::{
-    model::CredentialRow, AuthenticatedSession, ClientType, Credential, PasswordDigest, StoreError,
-    TokenDigest, UserProfile, Username,
+    control, model::CredentialRow, AuthenticatedSession, AvatarContent, ClientType, Credential,
+    ManagedUser, PasswordDigest, StoreError, TokenDigest, UserAvatar, UserProfile, Username,
 };
 #[cfg(feature = "pg-integration")]
 use px_pg::DatabaseConfig;
-use sqlx::PgPool;
+use sqlx::{PgConnection, PgPool};
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -88,6 +88,178 @@ impl IdentityStore {
         .fetch_optional(&self.pool)
         .await?
         .ok_or(StoreError::Rejected)
+    }
+
+    pub async fn update_profile(
+        &self,
+        token: &TokenDigest,
+        client: ClientType,
+        expected_revision: i64,
+        username: &Username,
+    ) -> Result<ManagedUser, StoreError> {
+        if expected_revision < 1 {
+            return Err(StoreError::InvalidInput);
+        }
+        let mut transaction = self.pool.begin().await?;
+        control::write_gate(&mut transaction).await?;
+        let (session, profile) =
+            Self::lock_profile(&mut transaction, token, client, expected_revision).await?;
+        if profile.username == username.display {
+            transaction.commit().await?;
+            return Ok(profile);
+        }
+        let profile = sqlx::query_file_as!(
+            ManagedUser,
+            "queries/update_self_profile.sql",
+            profile.id,
+            username.display,
+            username.normalized
+        )
+        .fetch_one(&mut *transaction)
+        .await?;
+        Self::profile_event(
+            &mut transaction,
+            profile.id,
+            session.session_id,
+            profile.revision,
+            "username_changed",
+        )
+        .await?;
+        transaction.commit().await?;
+        Ok(profile)
+    }
+
+    pub async fn set_avatar(
+        &self,
+        token: &TokenDigest,
+        client: ClientType,
+        expected_revision: i64,
+        avatar: &AvatarContent,
+    ) -> Result<ManagedUser, StoreError> {
+        if expected_revision < 1 {
+            return Err(StoreError::InvalidInput);
+        }
+        let mut transaction = self.pool.begin().await?;
+        control::write_gate(&mut transaction).await?;
+        let (session, previous) =
+            Self::lock_profile(&mut transaction, token, client, expected_revision).await?;
+        let profile = sqlx::query_file_as!(
+            ManagedUser,
+            "queries/update_self_avatar.sql",
+            previous.id,
+            avatar.media_type,
+            &avatar.image_bytes,
+            avatar.sha256.as_slice()
+        )
+        .fetch_one(&mut *transaction)
+        .await?;
+        Self::profile_event(
+            &mut transaction,
+            profile.id,
+            session.session_id,
+            profile.revision,
+            "avatar_changed",
+        )
+        .await?;
+        transaction.commit().await?;
+        Ok(profile)
+    }
+
+    pub async fn delete_avatar(
+        &self,
+        token: &TokenDigest,
+        client: ClientType,
+        expected_revision: i64,
+    ) -> Result<ManagedUser, StoreError> {
+        if expected_revision < 1 {
+            return Err(StoreError::InvalidInput);
+        }
+        let mut transaction = self.pool.begin().await?;
+        control::write_gate(&mut transaction).await?;
+        let (session, previous) =
+            Self::lock_profile(&mut transaction, token, client, expected_revision).await?;
+        if !previous.has_avatar {
+            transaction.commit().await?;
+            return Ok(previous);
+        }
+        let profile =
+            sqlx::query_file_as!(ManagedUser, "queries/delete_self_avatar.sql", previous.id)
+                .fetch_one(&mut *transaction)
+                .await?;
+        Self::profile_event(
+            &mut transaction,
+            profile.id,
+            session.session_id,
+            profile.revision,
+            "avatar_deleted",
+        )
+        .await?;
+        transaction.commit().await?;
+        Ok(profile)
+    }
+
+    pub async fn avatar(
+        &self,
+        token: &TokenDigest,
+        client: ClientType,
+    ) -> Result<UserAvatar, StoreError> {
+        sqlx::query_file_as!(
+            UserAvatar,
+            "queries/self_avatar.sql",
+            token.0.as_slice(),
+            client.name()
+        )
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or(StoreError::NotFound)
+    }
+
+    async fn lock_profile(
+        connection: &mut PgConnection,
+        token: &TokenDigest,
+        client: ClientType,
+        expected_revision: i64,
+    ) -> Result<(AuthenticatedSession, ManagedUser), StoreError> {
+        let session = sqlx::query_file_as!(
+            AuthenticatedSession,
+            "queries/authenticate.sql",
+            token.0.as_slice(),
+            client.name()
+        )
+        .fetch_optional(&mut *connection)
+        .await?
+        .ok_or(StoreError::Rejected)?;
+        let profile = sqlx::query_file_as!(
+            ManagedUser,
+            "queries/lock_managed_user.sql",
+            session.user_id
+        )
+        .fetch_one(&mut *connection)
+        .await?;
+        if profile.revision != expected_revision {
+            return Err(StoreError::Rejected);
+        }
+        Ok((session, profile))
+    }
+
+    async fn profile_event(
+        connection: &mut PgConnection,
+        user: Uuid,
+        session: Uuid,
+        revision: i64,
+        kind: &str,
+    ) -> Result<(), StoreError> {
+        sqlx::query_file!(
+            "queries/profile_event.sql",
+            Uuid::new_v4(),
+            user,
+            session,
+            revision,
+            kind
+        )
+        .execute(connection)
+        .await?;
+        Ok(())
     }
 
     /// Only call after verifying the credential. Its revision prevents password-change/login races.
