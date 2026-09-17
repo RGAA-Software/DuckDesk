@@ -135,6 +135,9 @@ Invoke-ServiceControl sidtype $serviceName unrestricted | Out-Null
 foreach ($directoryProperty in @('repository_root', 'scheduler_root', 'status_root')) {
     Protect-DirectoryForBackupService -Path ([string]$configuration.$directoryProperty)
 }
+if ($null -ne $configuration.offsite_repository_root) {
+    Protect-DirectoryForBackupService -Path ([string]$configuration.offsite_repository_root)
+}
 foreach ($backupTarget in $configuration.plan.targets) {
     if ([string]$backupTarget.state -eq 'required') {
         Protect-PrivateReadFileForBackupService -Path ([string]$backupTarget.database.password_file)

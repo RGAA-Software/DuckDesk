@@ -12,8 +12,8 @@ use std::{
 };
 use uuid::Uuid;
 
-pub const BACKUP_DAEMON_CONFIG_SCHEMA_VERSION: u32 = 1;
-pub const BACKUP_DAEMON_STATUS_SCHEMA_VERSION: u32 = 1;
+pub const BACKUP_DAEMON_CONFIG_SCHEMA_VERSION: u32 = 2;
+pub const BACKUP_DAEMON_STATUS_SCHEMA_VERSION: u32 = 2;
 const MAX_STATUS_BYTES: usize = 64 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -50,6 +50,7 @@ pub struct BackupDaemonConfig {
     pub schema_version: u32,
     pub deployment_id: Uuid,
     pub repository_root: PathBuf,
+    pub offsite_repository_root: Option<PathBuf>,
     pub scheduler_root: PathBuf,
     pub status_root: PathBuf,
     pub pg_dump_path: PathBuf,
@@ -60,6 +61,7 @@ pub struct BackupDaemonConfig {
     pub poll_interval_seconds: u64,
     pub schedule: BackupScheduleConfig,
     pub retention: RetentionPolicy,
+    pub offsite_retention: Option<RetentionPolicy>,
     pub plan: BackupPlan,
 }
 
@@ -83,12 +85,11 @@ impl BackupDaemonConfig {
             || self.plan.deployment_id != self.deployment_id
             || !(1..=300).contains(&self.poll_interval_seconds)
             || !(1..=24 * 60 * 60).contains(&self.command_timeout_seconds)
-            || self.retention.hourly == 0
-            || self.retention.daily == 0
-            || self.retention.weekly == 0
-            || self.retention.monthly == 0
-            || self.retention.pre_upgrade == 0
-            || self.retention.manual_days == 0
+            || !valid_retention(self.retention)
+            || self
+                .offsite_retention
+                .is_some_and(|retention| !valid_retention(retention))
+            || self.offsite_repository_root.is_some() != self.offsite_retention.is_some()
         {
             return Err(BackupDaemonError::InvalidConfig);
         }
@@ -112,8 +113,25 @@ impl BackupDaemonConfig {
         {
             return Err(BackupDaemonError::InvalidConfig);
         }
+        if self.offsite_repository_root.as_ref().is_some_and(|root| {
+            !root.is_absolute()
+                || root == &self.repository_root
+                || root == &self.scheduler_root
+                || root == &self.status_root
+        }) {
+            return Err(BackupDaemonError::InvalidConfig);
+        }
         Ok(())
     }
+}
+
+fn valid_retention(retention: RetentionPolicy) -> bool {
+    retention.hourly > 0
+        && retention.daily > 0
+        && retention.weekly > 0
+        && retention.monthly > 0
+        && retention.pre_upgrade > 0
+        && retention.manual_days > 0
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -134,6 +152,11 @@ pub struct BackupDaemonStatus {
     pub active_task: Option<BackupTask>,
     pub last_success_at_unix: Option<u64>,
     pub last_recovery_set_id: Option<Uuid>,
+    pub last_local_recovery_set_id: Option<Uuid>,
+    pub offsite_configured: bool,
+    pub offsite_repository_healthy: bool,
+    pub last_offsite_recovery_set_id: Option<Uuid>,
+    pub last_failure_code: Option<String>,
     pub consecutive_failures: u32,
     pub overdue: bool,
     pub alerts: Vec<BackupRuntimeAlert>,
@@ -142,6 +165,7 @@ pub struct BackupDaemonStatus {
 pub struct BackupDaemon<T> {
     config: BackupDaemonConfig,
     repository: BackupRepository,
+    offsite_repository: Option<BackupRepository>,
     scheduler: BackupTaskStore,
     runner: BackupRunner<T>,
     cancellation: BackupCancellation,
@@ -181,11 +205,20 @@ impl<T: LogicalBackupTool> BackupDaemon<T> {
         verify_status_entries(&config.status_root)?;
         let repository = BackupRepository::open(&config.repository_root, config.deployment_id)?;
         repository.discard_incomplete_sets()?;
+        let offsite_repository = config
+            .offsite_repository_root
+            .as_ref()
+            .map(|root| BackupRepository::open(root, config.deployment_id))
+            .transpose()?;
+        if let Some(offsite_repository) = &offsite_repository {
+            offsite_repository.discard_incomplete_sets()?;
+        }
         let mut scheduler = BackupTaskStore::open(&config.scheduler_root, config.schedule)?;
         scheduler.reconcile_after_restart(now_unix)?;
         let daemon = Self {
             config,
             repository,
+            offsite_repository,
             scheduler,
             runner: BackupRunner::new(tool),
             cancellation,
@@ -209,40 +242,80 @@ impl<T: LogicalBackupTool> BackupDaemon<T> {
             return Ok(false);
         };
         self.publish_status(now_unix)?;
-        let (outcome, discard_incomplete) =
-            match self.runner.run(&self.repository, &self.config.plan) {
-                Ok(manifest) => {
-                    self.repository.prune_after_verified(
-                        manifest.recovery_set_id,
-                        self.config.retention,
-                        now_unix,
-                    )?;
-                    (
+        let (outcome, discard_local_incomplete, discard_offsite_incomplete) = match self
+            .runner
+            .run(&self.repository, &self.config.plan)
+        {
+            Ok(manifest) => {
+                let mut failure_code = None;
+                if let (Some(offsite_repository), Some(offsite_retention)) =
+                    (&self.offsite_repository, self.config.offsite_retention)
+                {
+                    match self
+                        .repository
+                        .replicate_verified_to(offsite_repository, manifest.recovery_set_id)
+                    {
+                        Ok(_) => {
+                            if offsite_repository
+                                .prune_after_verified(
+                                    manifest.recovery_set_id,
+                                    offsite_retention,
+                                    now_unix,
+                                )
+                                .is_err()
+                            {
+                                failure_code = Some("OFFSITE_RETENTION_FAILURE");
+                            }
+                        }
+                        Err(_) => failure_code = Some("OFFSITE_REPLICATION_FAILURE"),
+                    }
+                }
+                if self
+                    .repository
+                    .prune_after_verified(manifest.recovery_set_id, self.config.retention, now_unix)
+                    .is_err()
+                {
+                    failure_code = Some("LOCAL_RETENTION_FAILURE");
+                }
+                (
+                    failure_code.map_or(
                         BackupTaskOutcome::Succeeded {
                             recovery_set_id: manifest.recovery_set_id,
                         },
-                        false,
-                    )
-                }
-                Err(error) => (
-                    BackupTaskOutcome::Failed {
-                        code: backup_failure_code(error).to_string(),
-                    },
-                    true,
-                ),
-            };
+                        |code| BackupTaskOutcome::Failed {
+                            code: code.to_string(),
+                        },
+                    ),
+                    false,
+                    failure_code == Some("OFFSITE_REPLICATION_FAILURE"),
+                )
+            }
+            Err(error) => (
+                BackupTaskOutcome::Failed {
+                    code: backup_failure_code(error).to_string(),
+                },
+                true,
+                false,
+            ),
+        };
         self.scheduler.complete(task.task_id, now_unix, outcome)?;
-        if discard_incomplete {
+        if discard_local_incomplete {
             self.repository.discard_incomplete_sets()?;
+        }
+        if discard_offsite_incomplete {
+            if let Some(offsite_repository) = &self.offsite_repository {
+                offsite_repository.discard_incomplete_sets()?;
+            }
         }
         self.publish_status(now_unix)?;
         Ok(true)
     }
 
-    pub fn status(&self, now_unix: u64) -> BackupDaemonStatus {
+    pub fn status(&self, now_unix: u64) -> Result<BackupDaemonStatus, BackupDaemonError> {
         let snapshot = self.scheduler.snapshot();
         let mut last_success_at_unix = None;
         let mut last_recovery_set_id = None;
+        let mut last_failure_code = None;
         let mut consecutive_failures = 0_u32;
         for task in snapshot.recent.iter().rev() {
             match &task.outcome {
@@ -251,7 +324,16 @@ impl<T: LogicalBackupTool> BackupDaemon<T> {
                     last_recovery_set_id = Some(*recovery_set_id);
                     break;
                 }
-                Some(BackupTaskOutcome::Failed { .. } | BackupTaskOutcome::Interrupted) => {
+                Some(BackupTaskOutcome::Failed { code }) => {
+                    if last_failure_code.is_none() {
+                        last_failure_code = Some(code.clone());
+                    }
+                    consecutive_failures = consecutive_failures.saturating_add(1);
+                }
+                Some(BackupTaskOutcome::Interrupted) => {
+                    if last_failure_code.is_none() {
+                        last_failure_code = Some("INTERRUPTED".to_string());
+                    }
                     consecutive_failures = consecutive_failures.saturating_add(1);
                 }
                 None => {}
@@ -268,7 +350,17 @@ impl<T: LogicalBackupTool> BackupDaemon<T> {
         if overdue {
             alerts.push(BackupRuntimeAlert::BackupOverdue);
         }
-        BackupDaemonStatus {
+        let last_local_recovery_set_id = newest_verified_recovery_set_id(&self.repository)?;
+        let (offsite_repository_healthy, last_offsite_recovery_set_id) =
+            if let Some(offsite_repository) = &self.offsite_repository {
+                match newest_verified_recovery_set_id(offsite_repository) {
+                    Ok(recovery_set_id) => (true, recovery_set_id),
+                    Err(_) => (false, None),
+                }
+            } else {
+                (false, None)
+            };
+        Ok(BackupDaemonStatus {
             schema_version: BACKUP_DAEMON_STATUS_SCHEMA_VERSION,
             deployment_id: self.config.deployment_id,
             service_started_at_unix: self.service_started_at_unix,
@@ -277,15 +369,37 @@ impl<T: LogicalBackupTool> BackupDaemon<T> {
             active_task: snapshot.active,
             last_success_at_unix,
             last_recovery_set_id,
+            last_local_recovery_set_id,
+            offsite_configured: self.offsite_repository.is_some(),
+            offsite_repository_healthy,
+            last_offsite_recovery_set_id,
+            last_failure_code,
             consecutive_failures,
             overdue,
             alerts,
-        }
+        })
     }
 
     fn publish_status(&self, now_unix: u64) -> Result<(), BackupDaemonError> {
-        persist_status(&self.config.status_root, &self.status(now_unix))
+        persist_status(&self.config.status_root, &self.status(now_unix)?)
     }
+}
+
+fn newest_verified_recovery_set_id(
+    repository: &BackupRepository,
+) -> Result<Option<Uuid>, BackupDaemonError> {
+    Ok(repository
+        .manifests()?
+        .into_iter()
+        .filter(|manifest| manifest.status.is_verified())
+        .max_by_key(|manifest| {
+            (
+                manifest.completed_at_unix,
+                manifest.created_at_unix,
+                manifest.recovery_set_id,
+            )
+        })
+        .map(|manifest| manifest.recovery_set_id))
 }
 
 fn backup_failure_code(error: BackupError) -> &'static str {
@@ -463,6 +577,7 @@ mod tests {
                 schema_version: BACKUP_DAEMON_CONFIG_SCHEMA_VERSION,
                 deployment_id,
                 repository_root,
+                offsite_repository_root: None,
                 scheduler_root,
                 status_root,
                 pg_dump_path: fake_dump_path,
@@ -477,6 +592,7 @@ mod tests {
                     period_seconds: 60,
                 },
                 retention: RetentionPolicy::default(),
+                offsite_retention: None,
                 plan: BackupPlan {
                     deployment_id,
                     kind: RecoverySetKind::Independent,
@@ -567,7 +683,7 @@ mod tests {
         .unwrap();
         assert!(daemon.run_due(1_000).unwrap());
         assert!(!daemon.run_due(1_001).unwrap());
-        let status = daemon.status(1_001);
+        let status = daemon.status(1_001).unwrap();
         assert_eq!(status.consecutive_failures, 0);
         assert_eq!(status.last_success_at_unix, Some(1_000));
         assert!(status.last_recovery_set_id.is_some());
@@ -597,7 +713,7 @@ mod tests {
         .unwrap();
         assert!(daemon.run_due(1_000).unwrap());
         assert!(daemon.run_due(1_060).unwrap());
-        let status = daemon.status(1_121);
+        let status = daemon.status(1_121).unwrap();
         assert_eq!(status.consecutive_failures, 2);
         assert!(status.overdue);
         assert_eq!(
@@ -606,6 +722,85 @@ mod tests {
                 BackupRuntimeAlert::ConsecutiveFailures,
                 BackupRuntimeAlert::BackupOverdue
             ]
+        );
+    }
+
+    #[test]
+    fn configured_offsite_repository_is_verified_before_task_success() {
+        let mut fixture = RuntimeFixture::new();
+        let offsite_root =
+            create_private_child(fixture._temporary_directory.path(), "offsite-repository");
+        fixture.config.offsite_repository_root = Some(offsite_root.clone());
+        fixture.config.offsite_retention = Some(RetentionPolicy::default());
+        let mut daemon = BackupDaemon::open_with_tool(
+            fixture.config.clone(),
+            TestBackupTool {
+                behavior: ToolBehavior::Succeed,
+            },
+            BackupCancellation::default(),
+            1_000,
+        )
+        .unwrap();
+        assert!(daemon.run_due(1_000).unwrap());
+        let status = daemon.status(1_001).unwrap();
+        assert!(status.offsite_configured);
+        assert!(status.offsite_repository_healthy);
+        assert_eq!(
+            status.last_offsite_recovery_set_id,
+            status.last_recovery_set_id
+        );
+        assert_eq!(
+            status.last_local_recovery_set_id,
+            status.last_recovery_set_id
+        );
+        assert_eq!(status.last_failure_code, None);
+        drop(daemon);
+        let offsite = BackupRepository::open(&offsite_root, fixture.config.deployment_id).unwrap();
+        let offsite_manifests = offsite.manifests().unwrap();
+        assert_eq!(offsite_manifests.len(), 1);
+        assert_eq!(
+            offsite_manifests[0].status,
+            crate::RecoverySetStatus::OffsiteVerified
+        );
+    }
+
+    #[test]
+    fn offsite_failure_preserves_local_verified_set_and_never_reports_success() {
+        let mut fixture = RuntimeFixture::new();
+        let offsite_root =
+            create_private_child(fixture._temporary_directory.path(), "offsite-repository");
+        fixture.config.offsite_repository_root = Some(offsite_root.clone());
+        fixture.config.offsite_retention = Some(RetentionPolicy::default());
+        let mut daemon = BackupDaemon::open_with_tool(
+            fixture.config.clone(),
+            TestBackupTool {
+                behavior: ToolBehavior::Succeed,
+            },
+            BackupCancellation::default(),
+            1_000,
+        )
+        .unwrap();
+        fs::write(offsite_root.join("unregistered"), b"do not remove").unwrap();
+        assert!(daemon.run_due(1_000).unwrap());
+        let status = daemon.status(1_001).unwrap();
+        assert_eq!(status.last_success_at_unix, None);
+        assert!(!status.offsite_repository_healthy);
+        assert_eq!(status.last_offsite_recovery_set_id, None);
+        assert!(status.last_local_recovery_set_id.is_some());
+        assert_eq!(
+            status.last_failure_code.as_deref(),
+            Some("OFFSITE_REPLICATION_FAILURE")
+        );
+        drop(daemon);
+        let local = BackupRepository::open(
+            &fixture.config.repository_root,
+            fixture.config.deployment_id,
+        )
+        .unwrap();
+        assert_eq!(local.manifests().unwrap().len(), 1);
+        assert_eq!(
+            fs::read(offsite_root.join("unregistered")).unwrap(),
+            b"do not remove"
         );
     }
 
@@ -628,7 +823,7 @@ mod tests {
         )
         .unwrap();
         assert!(daemon.run_due(1_010).unwrap());
-        let status = daemon.status(1_010);
+        let status = daemon.status(1_010).unwrap();
         assert_eq!(status.last_success_at_unix, Some(1_010));
         drop(daemon);
         let scheduler =

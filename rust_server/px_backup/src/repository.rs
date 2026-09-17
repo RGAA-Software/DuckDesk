@@ -137,6 +137,44 @@ impl BackupRepository {
         Ok(discarded)
     }
 
+    pub fn replicate_verified_to(
+        &self,
+        destination: &BackupRepository,
+        recovery_set_id: Uuid,
+    ) -> Result<RecoverySetManifest, RepositoryError> {
+        if recovery_set_id.is_nil()
+            || self.deployment_id != destination.deployment_id
+            || self.root == destination.root
+        {
+            return Err(RepositoryError::InvalidInput);
+        }
+        let source_manifests = self.manifests()?;
+        let manifests_by_id = source_manifests
+            .iter()
+            .map(|manifest| (manifest.recovery_set_id, manifest))
+            .collect::<BTreeMap<_, _>>();
+        let mut dependency_chain = Vec::new();
+        let mut next_recovery_set_id = Some(recovery_set_id);
+        while let Some(current_recovery_set_id) = next_recovery_set_id {
+            let source_manifest = manifests_by_id
+                .get(&current_recovery_set_id)
+                .copied()
+                .filter(|manifest| manifest.status.is_verified())
+                .ok_or(RepositoryError::InvalidInput)?;
+            dependency_chain.push(source_manifest);
+            next_recovery_set_id = source_manifest.previous_recovery_set_id;
+        }
+        dependency_chain.reverse();
+        for source_manifest in dependency_chain {
+            replicate_manifest(self, destination, source_manifest)?;
+        }
+        destination
+            .manifests()?
+            .into_iter()
+            .find(|manifest| manifest.recovery_set_id == recovery_set_id)
+            .ok_or(RepositoryError::Corrupt)
+    }
+
     pub fn manifests(&self) -> Result<Vec<RecoverySetManifest>, RepositoryError> {
         let mut manifests = Vec::new();
         for entry in fs::read_dir(&self.root).map_err(|_| RepositoryError::Unavailable)? {
@@ -232,6 +270,55 @@ impl BackupRepository {
     pub fn deployment_id(&self) -> Uuid {
         self.deployment_id
     }
+}
+
+fn replicate_manifest(
+    source: &BackupRepository,
+    destination: &BackupRepository,
+    source_manifest: &RecoverySetManifest,
+) -> Result<(), RepositoryError> {
+    let mut offsite_manifest = source_manifest.clone();
+    offsite_manifest.status = crate::RecoverySetStatus::OffsiteVerified;
+    if let Some(existing_manifest) = destination
+        .manifests()?
+        .into_iter()
+        .find(|manifest| manifest.recovery_set_id == source_manifest.recovery_set_id)
+    {
+        return if existing_manifest == offsite_manifest {
+            Ok(())
+        } else {
+            Err(RepositoryError::Corrupt)
+        };
+    }
+    let staged = destination.begin_set(source_manifest.recovery_set_id)?;
+    let source_directory = source
+        .root
+        .join(source_manifest.recovery_set_id.to_string());
+    for member in &source_manifest.members {
+        if let crate::BackupMemberState::Required { archive_file, .. } = &member.member {
+            let destination_archive = staged.prepare_archive(member.service)?;
+            let copied_bytes = fs::copy(source_directory.join(archive_file), &destination_archive)
+                .map_err(|_| RepositoryError::Unavailable)?;
+            if copied_bytes == 0 {
+                return Err(RepositoryError::Corrupt);
+            }
+            OpenOptions::new()
+                .write(true)
+                .open(&destination_archive)
+                .and_then(|archive| archive.sync_all())
+                .map_err(|_| RepositoryError::Unavailable)?;
+        }
+    }
+    staged.publish(&offsite_manifest)?;
+    let verified_manifest = destination
+        .manifests()?
+        .into_iter()
+        .find(|manifest| manifest.recovery_set_id == source_manifest.recovery_set_id)
+        .ok_or(RepositoryError::Corrupt)?;
+    if verified_manifest != offsite_manifest {
+        return Err(RepositoryError::Corrupt);
+    }
+    Ok(())
 }
 
 fn verify_recovery_set(
@@ -561,6 +648,10 @@ mod tests {
 
     impl Fixture {
         fn new() -> Self {
+            Self::with_deployment(Uuid::new_v4())
+        }
+
+        fn with_deployment(deployment_id: Uuid) -> Self {
             let base = tempfile::Builder::new()
                 .prefix("pixels-backup-repository-")
                 .tempdir()
@@ -572,7 +663,7 @@ mod tests {
             Self {
                 _base: base,
                 root,
-                deployment_id: Uuid::new_v4(),
+                deployment_id,
             }
         }
     }
@@ -679,6 +770,48 @@ mod tests {
             .unwrap()
             .manifests()
             .is_err());
+    }
+
+    #[test]
+    fn offsite_replication_is_idempotent_hash_verified_and_copies_dependencies_first() {
+        let deployment_id = Uuid::new_v4();
+        let source_fixture = Fixture::with_deployment(deployment_id);
+        let destination_fixture = Fixture::with_deployment(deployment_id);
+        let source = BackupRepository::open(&source_fixture.root, deployment_id).unwrap();
+        let destination = BackupRepository::open(&destination_fixture.root, deployment_id).unwrap();
+        let first = manifest(deployment_id, 70);
+        let mut second = manifest(deployment_id, 71);
+        second.previous_recovery_set_id = Some(first.recovery_set_id);
+        publish(&source, &first);
+        publish(&source, &second);
+        let replicated = source
+            .replicate_verified_to(&destination, second.recovery_set_id)
+            .unwrap();
+        assert_eq!(replicated.recovery_set_id, second.recovery_set_id);
+        assert_eq!(replicated.status, RecoverySetStatus::OffsiteVerified);
+        let offsite_manifests = destination.manifests().unwrap();
+        assert_eq!(offsite_manifests.len(), 2);
+        assert!(offsite_manifests
+            .iter()
+            .all(|manifest| manifest.status == RecoverySetStatus::OffsiteVerified));
+        assert_eq!(
+            source
+                .replicate_verified_to(&destination, second.recovery_set_id)
+                .unwrap(),
+            replicated
+        );
+        fs::write(
+            source_fixture
+                .root
+                .join(second.recovery_set_id.to_string())
+                .join("console.dump"),
+            b"tampered",
+        )
+        .unwrap();
+        assert_eq!(
+            source.replicate_verified_to(&destination, second.recovery_set_id),
+            Err(RepositoryError::Corrupt)
+        );
     }
 
     #[test]
