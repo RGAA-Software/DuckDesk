@@ -34,6 +34,10 @@ pub struct BackupRepository {
 }
 
 impl BackupRepository {
+    pub(crate) fn root(&self) -> &Path {
+        &self.root
+    }
+
     pub fn open(root: &Path, deployment_id: Uuid) -> Result<Self, RepositoryError> {
         if !root.is_absolute() || deployment_id.is_nil() {
             return Err(RepositoryError::InvalidInput);

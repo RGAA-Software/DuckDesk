@@ -5,6 +5,7 @@ mod executor;
 mod manifest;
 mod repository;
 mod restore;
+mod restore_executor;
 mod restore_store;
 mod retention;
 mod runtime;
@@ -24,6 +25,10 @@ pub use restore::{
     evaluate_restore_admission, restore_admission_evidence_sha256, ExternalRecoveryWitness,
     RestoreAdmissionBlocker, RestoreAdmissionDecision, RestoreAdmissionError,
     RestoreOperationalCheck, RECOVERY_WITNESS_SCHEMA_VERSION,
+};
+pub use restore_executor::{
+    LogicalRestoreTool, RestoreDatabaseTarget, RestoreExecutionError, RestoreExecutionPlan,
+    RestoreExecutionReport, RestoreRunner, RestoredMember, RESTORE_EXECUTION_REPORT_SCHEMA_VERSION,
 };
 pub use restore_store::{
     RestoreAdmissionApproval, RestoreAdmissionRecord, RestoreAdmissionState, RestoreAdmissionStore,
