@@ -27,8 +27,8 @@ impl UpdateInfoManager {
 
         let existing = coll.find_one(doc! { KEY_UPDATE_VERSION: &version }).await;
 
-        if let Err(e) = existing {
-            tracing::error!("db find version error: {}", e);
+        if let Err(query_error) = existing {
+            tracing::error!("db find version error: {}", query_error);
             return Err(ConsoleApiError::DatabaseError);
         }
 
@@ -38,11 +38,11 @@ impl UpdateInfoManager {
             let update_doc = doc! {
                 "$set": bson::to_document(&info).unwrap()
             };
-            let r = coll
+            let update_result = coll
                 .update_one(doc! { KEY_UPDATE_VERSION: &version }, update_doc)
                 .await;
-            if let Err(e) = r {
-                tracing::error!("update error: {}", e);
+            if let Err(update_error) = update_result {
+                tracing::error!("update error: {}", update_error);
                 return Err(ConsoleApiError::DatabaseError);
             }
             return Ok(info);
@@ -50,9 +50,9 @@ impl UpdateInfoManager {
 
         //不存在则插入
         tracing::info!("insert new version {}", version);
-        let r = coll.insert_one(info.clone()).await;
-        if let Err(e) = r {
-            tracing::error!("insert error: {}", e);
+        let insert_result = coll.insert_one(info.clone()).await;
+        if let Err(insert_error) = insert_result {
+            tracing::error!("insert error: {}", insert_error);
             return Err(ConsoleApiError::DatabaseError);
         }
         Ok(info)
@@ -92,16 +92,16 @@ impl UpdateInfoManager {
             .skip(skip as u64)
             .limit(limit)
             .await;
-        if let Err(e) = cursor {
-            tracing::error!("query users error: {}", e);
+        if let Err(query_error) = cursor {
+            tracing::error!("query users error: {}", query_error);
             return Err(ConsoleApiError::DatabaseError);
         }
         let mut cursor = cursor.unwrap();
 
         let mut streams: Vec<UpdateInfo> = Vec::new();
         while let Some(stream) = cursor.next().await {
-            if let Err(e) = stream {
-                tracing::error!("error to get stream value in cursor: {}", e);
+            if let Err(cursor_error) = stream {
+                tracing::error!("error to get stream value in cursor: {}", cursor_error);
                 break;
             } else {
                 streams.push(stream.unwrap());
@@ -117,15 +117,15 @@ impl UpdateInfoManager {
         let filter = doc! {
             KEY_UPDATE_VERSION: version,
         };
-        let r = c_update_info.lock().await.find_one(filter).await;
-        if let Err(e) = r {
-            tracing::error!("query user by uid error: {}", e);
+        let query_result = c_update_info.lock().await.find_one(filter).await;
+        if let Err(query_error) = query_result {
+            tracing::error!("query user by uid error: {}", query_error);
             return Err(ConsoleApiError::DatabaseError);
         }
-        let r = r.unwrap();
-        if r.is_none() {
+        let update_info = query_result.unwrap();
+        if update_info.is_none() {
             return Err(ConsoleApiError::VersionNotFound);
         }
-        Ok(r.unwrap())
+        Ok(update_info.unwrap())
     }
 }

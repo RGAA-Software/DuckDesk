@@ -55,13 +55,13 @@ impl ConsoleUserDeviceManager {
         }
 
         let c_user_device = gConsoleDatabase.lock().await.user_device();
-        if let Err(e) = c_user_device
+        if let Err(insert_error) = c_user_device
             .lock()
             .await
             .insert_one(user_device.clone())
             .await
         {
-            tracing::error!("Failed to insert user-device: {:?}", e);
+            tracing::error!("Failed to insert user-device: {:?}", insert_error);
             return Err(ConsoleApiError::DatabaseError);
         }
 
@@ -82,9 +82,9 @@ impl ConsoleUserDeviceManager {
 
         let user_device = self.query_by_uid_device_id(uid, device_id).await?;
 
-        let r = c_user_device.lock().await.delete_one(filter).await;
-        if let Err(e) = r {
-            tracing::error!("Failed to remove user-device: {:?}", e);
+        let delete_result = c_user_device.lock().await.delete_one(filter).await;
+        if let Err(delete_error) = delete_result {
+            tracing::error!("Failed to remove user-device: {:?}", delete_error);
             return Err(ConsoleApiError::DatabaseError);
         }
 
@@ -106,16 +106,16 @@ impl ConsoleUserDeviceManager {
             KEY_USER_ID: uid,
             KEY_DEVICE_ID: device_id
         };
-        let r = c_user_device.lock().await.find_one(filter).await;
-        if let Err(e) = r {
-            tracing::error!("Failed to find user-device: {:?}", e);
+        let query_result = c_user_device.lock().await.find_one(filter).await;
+        if let Err(query_error) = query_result {
+            tracing::error!("Failed to find user-device: {:?}", query_error);
             return Err(ConsoleApiError::DatabaseError);
         }
-        let r = r.unwrap();
-        if r.is_none() {
+        let user_device = query_result.unwrap();
+        if user_device.is_none() {
             return Err(ConsoleApiError::UserDeviceNotFound);
         }
-        Ok(self.make_user_device_adapter(r.unwrap(), user, device))
+        Ok(self.make_user_device_adapter(user_device.unwrap(), user, device))
     }
 
     pub async fn query_user_devices(
@@ -140,15 +140,15 @@ impl ConsoleUserDeviceManager {
             .skip(skip as u64)
             .limit(limit)
             .await
-            .map_err(|e| {
-                tracing::error!("failed to get cursor to query user device: {}", e);
+            .map_err(|query_error| {
+                tracing::error!("failed to get cursor to query user device: {}", query_error);
                 ConsoleApiError::DatabaseError
             })?;
 
         let mut devices: Vec<ConsoleUserDeviceAdapter> = Vec::new();
         while let Some(device) = cursor.next().await {
-            if let Err(e) = device {
-                println!("error connecting to MongoDB: {}", e);
+            if let Err(cursor_error) = device {
+                println!("error connecting to MongoDB: {}", cursor_error);
                 break;
             }
             let user_device = device.unwrap();
@@ -171,15 +171,26 @@ impl ConsoleUserDeviceManager {
         // they no longer participate in device visibility or connection routing.
         gUserManager.query_user_by_id(uid).await?;
         let c_device = gConsoleDatabase.lock().await.device();
-        let mut cursor = c_device.lock().await.find(doc! {}).await.map_err(|e| {
-            tracing::error!("failed to query registered devices for user: {}", e);
-            ConsoleApiError::DatabaseError
-        })?;
+        let mut cursor = c_device
+            .lock()
+            .await
+            .find(doc! {})
+            .await
+            .map_err(|query_error| {
+                tracing::error!(
+                    "failed to query registered devices for user: {}",
+                    query_error
+                );
+                ConsoleApiError::DatabaseError
+            })?;
 
         let mut devices = Vec::new();
         while let Some(device) = cursor.next().await {
-            let device = device.map_err(|e| {
-                tracing::error!("failed to read registered device for user: {}", e);
+            let device = device.map_err(|cursor_error| {
+                tracing::error!(
+                    "failed to read registered device for user: {}",
+                    cursor_error
+                );
                 ConsoleApiError::DatabaseError
             })?;
             let panel_online = gConsolePanelConnMgr

@@ -28,117 +28,144 @@ use tokio::sync::Mutex;
 #[allow(clippy::field_reassign_with_default)]
 pub async fn handle_insert_stream(
     State(_context): State<Arc<Mutex<ConsoleContext>>>,
-    b: Body,
+    request_body: Body,
 ) -> Result<Json<RespMessage<ConsoleStream>>, ConsoleApiError> {
-    let body = get_body(b).await?;
-    let r: Value = serde_json::from_str(body.as_str()).unwrap();
+    let body = get_body(request_body).await?;
+    let request_json: Value = serde_json::from_str(body.as_str()).unwrap();
     let mut stream = ConsoleStream::default();
-    stream.stream_id = r[KEY_STREAM_ID].as_str().unwrap_or("").to_string();
-    stream.stream_name = r[KEY_STREAM_NAME].as_str().unwrap_or("").to_string();
-    stream.audio_enabled = r[KEY_STREAM_AUDIO_ENABLED].as_bool().unwrap_or(false);
-    stream.clipboard_enabled = r[KEY_STREAM_CLIPBOARD_ENABLED].as_bool().unwrap_or(false);
-    stream.show_max_window = r[KEY_STREAM_SHOW_MAX_WINDOW].as_bool().unwrap_or(false);
-    stream.split_windows = r[KEY_STREAM_SPLIT_WINDOWS].as_bool().unwrap_or(false);
-    stream.stream_host = r[KEY_STREAM_HOST].as_str().unwrap_or("").to_string();
-    stream.stream_port = r[KEY_STREAM_PORT].as_i64().unwrap_or(0);
-    stream.bg_color = r[KEY_STREAM_BG_COLOR].as_i64().unwrap_or(0);
-    stream.network_type = r[KEY_STREAM_NETWORK_TYPE]
+    stream.stream_id = request_json[KEY_STREAM_ID]
         .as_str()
         .unwrap_or("")
         .to_string();
-    stream.connect_type = r[KEY_STREAM_CONNECT_TYPE]
+    stream.stream_name = request_json[KEY_STREAM_NAME]
         .as_str()
         .unwrap_or("")
         .to_string();
-    stream.device_id = r[KEY_STREAM_DEVICE_ID].as_str().unwrap_or("").to_string();
-    stream.device_random_pwd = r[KEY_STREAM_DEVICE_RANDOM_PWD]
+    stream.audio_enabled = request_json[KEY_STREAM_AUDIO_ENABLED]
+        .as_bool()
+        .unwrap_or(false);
+    stream.clipboard_enabled = request_json[KEY_STREAM_CLIPBOARD_ENABLED]
+        .as_bool()
+        .unwrap_or(false);
+    stream.show_max_window = request_json[KEY_STREAM_SHOW_MAX_WINDOW]
+        .as_bool()
+        .unwrap_or(false);
+    stream.split_windows = request_json[KEY_STREAM_SPLIT_WINDOWS]
+        .as_bool()
+        .unwrap_or(false);
+    stream.stream_host = request_json[KEY_STREAM_HOST]
         .as_str()
         .unwrap_or("")
         .to_string();
-    stream.device_safety_pwd = r[KEY_STREAM_DEVICE_SAFETY_PWD]
+    stream.stream_port = request_json[KEY_STREAM_PORT].as_i64().unwrap_or(0);
+    stream.bg_color = request_json[KEY_STREAM_BG_COLOR].as_i64().unwrap_or(0);
+    stream.network_type = request_json[KEY_STREAM_NETWORK_TYPE]
         .as_str()
         .unwrap_or("")
         .to_string();
-    stream.remote_device_id = r[KEY_STREAM_REMOTE_DEVICE_ID]
+    stream.connect_type = request_json[KEY_STREAM_CONNECT_TYPE]
         .as_str()
         .unwrap_or("")
         .to_string();
-    stream.remote_device_random_pwd = r[KEY_STREAM_REMOTE_DEVICE_RANDOM_PWD]
+    stream.device_id = request_json[KEY_STREAM_DEVICE_ID]
         .as_str()
         .unwrap_or("")
         .to_string();
-    stream.remote_device_safety_pwd = r[KEY_STREAM_REMOTE_DEVICE_SAFETY_PWD]
+    stream.device_random_pwd = request_json[KEY_STREAM_DEVICE_RANDOM_PWD]
         .as_str()
         .unwrap_or("")
         .to_string();
-    stream.created_timestamp = r[KEY_STREAM_CREATED_TIMESTAMP].as_i64().unwrap_or(0);
-    stream.updated_timestamp = r[KEY_STREAM_UPDATED_TIMESTAMP].as_i64().unwrap_or(0);
-    stream.desktop_name = r[KEY_STREAM_DESKTOP_NAME]
+    stream.device_safety_pwd = request_json[KEY_STREAM_DEVICE_SAFETY_PWD]
         .as_str()
         .unwrap_or("")
         .to_string();
-    stream.os_version = r[KEY_STREAM_OS_VERSION].as_str().unwrap_or("").to_string();
+    stream.remote_device_id = request_json[KEY_STREAM_REMOTE_DEVICE_ID]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+    stream.remote_device_random_pwd = request_json[KEY_STREAM_REMOTE_DEVICE_RANDOM_PWD]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+    stream.remote_device_safety_pwd = request_json[KEY_STREAM_REMOTE_DEVICE_SAFETY_PWD]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+    stream.created_timestamp = request_json[KEY_STREAM_CREATED_TIMESTAMP]
+        .as_i64()
+        .unwrap_or(0);
+    stream.updated_timestamp = request_json[KEY_STREAM_UPDATED_TIMESTAMP]
+        .as_i64()
+        .unwrap_or(0);
+    stream.desktop_name = request_json[KEY_STREAM_DESKTOP_NAME]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+    stream.os_version = request_json[KEY_STREAM_OS_VERSION]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
 
-    let r = gConsoleStreamMgr
+    let existing_stream = gConsoleStreamMgr
         .query_stream_by_id(stream.stream_id.clone())
         .await;
-    if let Err(_e) = r {
-        let s = gConsoleStreamMgr.insert_stream(stream).await?;
-        Ok(Json(ok_resp(s)))
+    if let Err(_query_error) = existing_stream {
+        let saved_stream = gConsoleStreamMgr.insert_stream(stream).await?;
+        Ok(Json(ok_resp(saved_stream)))
     } else {
-        let s = gConsoleStreamMgr.update_stream(stream).await?;
-        Ok(Json(ok_resp(s)))
+        let saved_stream = gConsoleStreamMgr.update_stream(stream).await?;
+        Ok(Json(ok_resp(saved_stream)))
     }
 }
 
 pub async fn handle_delete_stream(
     State(_context): State<Arc<Mutex<ConsoleContext>>>,
-    b: Body,
+    request_body: Body,
 ) -> Result<Json<RespMessage<ConsoleStream>>, ConsoleApiError> {
-    let body = get_body(b).await?;
-    let r: Value = serde_json::from_str(body.as_str()).unwrap();
-    let stream_id = r[KEY_STREAM_ID].as_str().unwrap();
-    let s = gConsoleStreamMgr
+    let body = get_body(request_body).await?;
+    let request_json: Value = serde_json::from_str(body.as_str()).unwrap();
+    let stream_id = request_json[KEY_STREAM_ID].as_str().unwrap();
+    let deleted_stream = gConsoleStreamMgr
         .delete_stream(stream_id.to_string())
         .await?;
-    Ok(Json(ok_resp(s)))
+    Ok(Json(ok_resp(deleted_stream)))
 }
 
 pub async fn handle_update_stream(
     State(_context): State<Arc<Mutex<ConsoleContext>>>,
-    b: Body,
+    request_body: Body,
 ) -> Result<Json<RespMessage<ConsoleStream>>, ConsoleApiError> {
-    let body = get_body(b).await?;
-    let r: Value = serde_json::from_str(body.as_str()).unwrap();
-    let stream_id = r[KEY_STREAM_ID].as_str().unwrap().to_string();
+    let body = get_body(request_body).await?;
+    let request_json: Value = serde_json::from_str(body.as_str()).unwrap();
+    let stream_id = request_json[KEY_STREAM_ID].as_str().unwrap().to_string();
     let _stream = gConsoleStreamMgr
         .query_stream_by_id(stream_id.clone())
         .await?;
     tracing::info!("found stream {:?} to update.", stream_id);
 
     let mut update_success = false;
-    if let Value::Object(map) = &r {
+    if let Value::Object(map) = &request_json {
         for (key, value) in map {
             if key == KEY_STREAM_ID {
                 continue;
             }
             match value {
-                Value::String(s) => {
-                    let value = s.clone();
+                Value::String(field_text) => {
+                    let value = field_text.clone();
                     gConsoleStreamMgr
                         .update_stream_field(stream_id.clone(), key.clone(), value)
                         .await?;
                     update_success = true;
                 }
-                Value::Number(n) => {
+                Value::Number(field_number) => {
                     gConsoleStreamMgr
-                        .update_stream_field(stream_id.clone(), key.clone(), n.as_i64())
+                        .update_stream_field(stream_id.clone(), key.clone(), field_number.as_i64())
                         .await?;
                     update_success = true;
                 }
-                Value::Bool(b) => {
+                Value::Bool(field_boolean) => {
                     gConsoleStreamMgr
-                        .update_stream_field(stream_id.clone(), key.clone(), b)
+                        .update_stream_field(stream_id.clone(), key.clone(), field_boolean)
                         .await?;
                     update_success = true;
                 }
@@ -162,8 +189,8 @@ pub async fn handle_query_stream_by_id(
     query: Query<HashMap<String, String>>,
 ) -> Result<Json<RespMessage<ConsoleStream>>, ConsoleApiError> {
     let stream_id = get_str_param(&query, KEY_STREAM_ID)?;
-    let s = gConsoleStreamMgr.query_stream_by_id(stream_id).await?;
-    Ok(Json(ok_resp(s)))
+    let stream = gConsoleStreamMgr.query_stream_by_id(stream_id).await?;
+    Ok(Json(ok_resp(stream)))
 }
 
 pub async fn handle_query_stream_by_name(
@@ -171,8 +198,8 @@ pub async fn handle_query_stream_by_name(
     query: Query<HashMap<String, String>>,
 ) -> Result<Json<RespMessage<ConsoleStream>>, ConsoleApiError> {
     let stream_name = get_str_param(&query, KEY_STREAM_NAME)?;
-    let s = gConsoleStreamMgr.query_stream_by_name(stream_name).await?;
-    Ok(Json(ok_resp(s)))
+    let stream = gConsoleStreamMgr.query_stream_by_name(stream_name).await?;
+    Ok(Json(ok_resp(stream)))
 }
 
 pub async fn handle_query_streams(

@@ -103,14 +103,15 @@ pub async fn pull_once() -> Result<PullOutcome, String> {
         os: std::env::consts::OS.to_string(),
         device_count: query_device_count().await,
     };
-    let body = serde_json::to_string(&request).map_err(|e| format!("serialize body: {e}"))?;
+    let body = serde_json::to_string(&request)
+        .map_err(|serialization_error| format!("serialize body: {serialization_error}"))?;
 
     let url = format!("{}{}", base_url.trim_end_matches('/'), PULL_PATH);
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true) // auth server 使用自签名证书
         .timeout(Duration::from_secs(PULL_TIMEOUT_SECS))
         .build()
-        .map_err(|e| format!("build http client: {e}"))?;
+        .map_err(|build_error| format!("build http client: {build_error}"))?;
 
     let mut req = client.post(&url).body(body.clone());
     // appkey/app_secret 为空时不带签名头直接发（灰度期）；
@@ -128,40 +129,40 @@ pub async fn pull_once() -> Result<PullOutcome, String> {
     let resp = req
         .send()
         .await
-        .map_err(|e| format!("POST {url} failed: {e}"))?;
+        .map_err(|request_error| format!("POST {url} failed: {request_error}"))?;
     let status = resp.status();
     let text = resp
         .text()
         .await
-        .map_err(|e| format!("read response body: {e}"))?;
+        .map_err(|read_error| format!("read response body: {read_error}"))?;
     if !status.is_success() {
         return Err(format!("POST {url} returned {status}: {text}"));
     }
-    let msg: RespMessage<DevicePullResponse> =
-        serde_json::from_str(&text).map_err(|e| format!("parse response: {e}"))?;
+    let msg: RespMessage<DevicePullResponse> = serde_json::from_str(&text)
+        .map_err(|parse_error| format!("parse response: {parse_error}"))?;
     if msg.code != 200 {
         return Err(format!(
             "auth server rejected pull: code={} msg={}",
             msg.code, msg.message
         ));
     }
-    let data = msg.data;
+    let pull_response = msg.data;
 
-    if data.revoked {
+    if pull_response.revoked {
         tracing::warn!(
             "auth pull: authorization revoked by server, auth_id='{}', clearing local authorization",
-            data.auth_id
+            pull_response.auth_id
         );
         clear_local_authorization().await;
         return Ok(PullOutcome::Revoked);
     }
 
-    let auth = apply_deploy_string(&data.deploy_str, &data.mode).await?;
+    let auth = apply_deploy_string(&pull_response.deploy_str, &pull_response.mode).await?;
     // 已使用时间直接采用服务器计算值（周期 pull 刷新；网络失败沿用上一次）。
     gAuthManager
         .lock()
         .await
-        .update_server_used_time(data.used_time_ms)
+        .update_server_used_time(pull_response.used_time_ms)
         .await;
     tracing::info!(
         "auth pull: OK, auth_id='{}' mode='{}' days={} max_streams={} registered_new={}",
@@ -169,7 +170,7 @@ pub async fn pull_once() -> Result<PullOutcome, String> {
         auth.mode,
         auth.days,
         auth.max_streams,
-        data.registered_new
+        pull_response.registered_new
     );
     Ok(PullOutcome::Active(auth))
 }
@@ -191,9 +192,12 @@ pub async fn start_pull_loop() {
     };
     tokio::spawn(async move {
         loop {
-            if let Err(e) = pull_once().await {
+            if let Err(pull_error) = pull_once().await {
                 // 失败只记日志，本地授权保持不变（沿用缓存）。
-                tracing::warn!("auth pull failed (keeping local authorization): {}", e);
+                tracing::warn!(
+                    "auth pull failed (keeping local authorization): {}",
+                    pull_error
+                );
             }
             tokio::time::sleep(Duration::from_secs(interval_secs)).await;
         }
@@ -214,11 +218,11 @@ async fn apply_deploy_string(deploy_str: &str, mode: &str) -> Result<Authorizati
     let now_ms = get_current_timestamp();
 
     let signed = SignedLicense::parse_deploy_string(deploy_str)
-        .map_err(|e| format!("parse_deploy_string failed: {e}"))?;
+        .map_err(|parse_error| format!("parse_deploy_string failed: {parse_error}"))?;
 
     let verify_result = verifier
         .verify(&signed, &machine_code, now_ms)
-        .map_err(|e| format!("verify error: {e}"))?;
+        .map_err(|verification_error| format!("verify error: {verification_error}"))?;
     if !verify_result {
         let sig_ok = verifier.verify_signature(&signed).unwrap_or(false);
         tracing::error!(
@@ -274,7 +278,11 @@ async fn ensure_license_verifier() -> Result<Arc<LicenseVerifier>, String> {
     if guard.is_none() {
         match init_license_verifier() {
             Ok(verifier) => *guard = Some(Arc::new(verifier)),
-            Err(e) => return Err(format!("license verifier init failed: {e}")),
+            Err(initialization_error) => {
+                return Err(format!(
+                    "license verifier init failed: {initialization_error}"
+                ));
+            }
         }
     }
     Ok(guard.as_ref().map(Arc::clone).unwrap())
@@ -284,12 +292,12 @@ async fn ensure_license_verifier() -> Result<Arc<LicenseVerifier>, String> {
 async fn query_device_count() -> i32 {
     let c_device = gConsoleDatabase.lock().await.c_device.clone();
     match c_device {
-        Some(c) => c
+        Some(device_collection) => device_collection
             .lock()
             .await
             .count_documents(doc! {})
             .await
-            .map(|n| n as i32)
+            .map(|device_count| device_count as i32)
             .unwrap_or(0),
         None => 0,
     }

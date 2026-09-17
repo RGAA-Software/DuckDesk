@@ -24,8 +24,8 @@ pub async fn handle_create_application(
     let app = gAppScheduleManager
         .create_application(req)
         .await
-        .map_err(|e| {
-            tracing::warn!("create application failed: {e}");
+        .map_err(|creation_error| {
+            tracing::warn!("create application failed: {creation_error}");
             ConsoleApiError::InvalidParams
         })?;
     Ok(Json(ok_resp(app)))
@@ -61,9 +61,9 @@ pub async fn handle_save_app(
             .await;
             Ok(Json(ok_resp(row)))
         }
-        Err(e) => {
-            tracing::warn!("save app failed: {e}");
-            Ok(err_msg(e))
+        Err(save_error) => {
+            tracing::warn!("save app failed: {save_error}");
+            Ok(err_msg(save_error))
         }
     }
 }
@@ -74,9 +74,9 @@ pub async fn handle_delete_app(
 ) -> Result<Json<RespMessage<String>>, ConsoleApiError> {
     match gAppScheduleManager.delete_app(&app_id).await {
         Ok(()) => Ok(Json(ok_resp("ok".to_string()))),
-        Err(e) => {
-            tracing::warn!("delete app failed: {e}");
-            Ok(err_msg(e))
+        Err(delete_error) => {
+            tracing::warn!("delete app failed: {delete_error}");
+            Ok(err_msg(delete_error))
         }
     }
 }
@@ -88,9 +88,9 @@ pub async fn handle_next_port(
     let device_id = params.get("device_id").cloned().unwrap_or_default();
     match gAppScheduleManager.suggest_next_port(&device_id).await {
         Ok(port) => Ok(Json(ok_resp(port))),
-        Err(e) => {
-            tracing::warn!("suggest next port failed: {e}");
-            Ok(err_msg(e))
+        Err(port_error) => {
+            tracing::warn!("suggest next port failed: {port_error}");
+            Ok(err_msg(port_error))
         }
     }
 }
@@ -101,9 +101,9 @@ pub async fn handle_save_node(
 ) -> Result<Json<RespMessage<AppNode>>, ConsoleApiError> {
     match gAppScheduleManager.save_node(req).await {
         Ok(node) => Ok(Json(ok_resp(node))),
-        Err(e) => {
-            tracing::warn!("save node failed: {e}");
-            Ok(err_msg(e))
+        Err(save_error) => {
+            tracing::warn!("save node failed: {save_error}");
+            Ok(err_msg(save_error))
         }
     }
 }
@@ -114,9 +114,9 @@ pub async fn handle_delete_node(
 ) -> Result<Json<RespMessage<String>>, ConsoleApiError> {
     match gAppScheduleManager.delete_node(&node_id).await {
         Ok(()) => Ok(Json(ok_resp("ok".to_string()))),
-        Err(e) => {
-            tracing::warn!("delete node failed: {e}");
-            Ok(err_msg(e))
+        Err(delete_error) => {
+            tracing::warn!("delete node failed: {delete_error}");
+            Ok(err_msg(delete_error))
         }
     }
 }
@@ -149,9 +149,9 @@ pub async fn handle_start_node(
             .await;
             Ok(Json(ok_resp(inst)))
         }
-        Err(e) => {
-            tracing::warn!("start node failed: {e}");
-            Ok(err_msg(e))
+        Err(start_error) => {
+            tracing::warn!("start node failed: {start_error}");
+            Ok(err_msg(start_error))
         }
     }
 }
@@ -160,14 +160,14 @@ pub async fn handle_create_placement(
     State(_ctx): State<Arc<Mutex<ConsoleContext>>>,
     Json(req): Json<CreatePlacementReq>,
 ) -> Result<Json<RespMessage<AppPlacement>>, ConsoleApiError> {
-    let p = gAppScheduleManager
+    let placement = gAppScheduleManager
         .create_placement(req)
         .await
-        .map_err(|e| {
-            tracing::warn!("create placement failed: {e}");
+        .map_err(|creation_error| {
+            tracing::warn!("create placement failed: {creation_error}");
             ConsoleApiError::InvalidParams
         })?;
-    Ok(Json(ok_resp(p)))
+    Ok(Json(ok_resp(placement)))
 }
 
 pub async fn handle_list_placements(
@@ -194,9 +194,9 @@ pub async fn handle_start_instance(
             .await;
             Ok(Json(ok_resp(inst)))
         }
-        Err(e) => {
-            tracing::warn!("start instance failed: {e}");
-            Ok(err_msg(e))
+        Err(start_error) => {
+            tracing::warn!("start instance failed: {start_error}");
+            Ok(err_msg(start_error))
         }
     }
 }
@@ -219,9 +219,9 @@ pub async fn handle_stop_instance(
             .await;
             Ok(Json(ok_resp(inst)))
         }
-        Err(e) => {
-            tracing::warn!("stop instance failed: {e}");
-            Ok(err_msg(e))
+        Err(stop_error) => {
+            tracing::warn!("stop instance failed: {stop_error}");
+            Ok(err_msg(stop_error))
         }
     }
 }
