@@ -252,6 +252,11 @@ DB0 交付服务身份/ACL/目录/任务协议与离线恢复设计，DB4 实现
 Linux 使用 `deploy/systemd/pixels-backup@.service` 模板承载同一个执行器，实例参数是 deployment ID；模板固定服务账号、配置与数据根，
 启用 systemd 文件系统/内核/能力边界，SIGTERM 复用同一取消语义。发行安装器仍须创建账号、目录和 ACL 后才可 enable/start，
 不得把模板文件存在等同于目标发行版真实启动验收。
+Linux 安装/注销入口分别为 `scripts/server_backup/install_linux_service.sh` 和 `uninstall_linux_service.sh`。安装器仅接受小写 deployment UUID、
+绝对二进制和私有配置路径，创建无登录 `pixels-backup` 身份、0700 数据根和 0400 配置，原子替换停止后的执行文件，再执行 daemon-reload 与
+实例 enable/start；注销只停止并 disable 指定实例，不删除配置、调度状态或恢复集。`scripts/server_validation/linux_backup_systemd.ps1`
+在 systemd 为 PID 1 的 WSL2 Linux 环境验证安装、状态发布、重启、SIGTERM、再次启动及注销后数据保留；WSL2 证据不替代目标发行版 VM 的
+软件包依赖、SELinux/AppArmor 和重启开机验收。
 
 ### 6.6 Console/Auth/Desk 整体恢复集与对账
 
