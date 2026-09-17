@@ -283,8 +283,9 @@ impl SysMonitorHostApp {
     fn refresh(&mut self) {
         self.server_status = self.server.status();
         self.machines = self.server.machines();
-        self.machines
-            .sort_by(|a, b| a.display_name.cmp(&b.display_name));
+        self.machines.sort_by(|left_machine, right_machine| {
+            left_machine.display_name.cmp(&right_machine.display_name)
+        });
 
         let selected_exists = self.selected_machine.as_ref().is_some_and(|selected| {
             self.machines

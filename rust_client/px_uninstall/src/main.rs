@@ -109,8 +109,11 @@ fn run_service_manager(args: &[&str]) {
                 );
             }
         }
-        Err(e) => {
-            eprintln!("Warning: Failed to run px_service_manager.exe: {}", e);
+        Err(launch_error) => {
+            eprintln!(
+                "Warning: Failed to run px_service_manager.exe: {}",
+                launch_error
+            );
         }
     }
 }
@@ -119,7 +122,7 @@ fn kill_service_process() {
     let mut sys = System::new_all();
     sys.refresh_all();
 
-    for (_pid, process) in sys.processes() {
+    for process in sys.processes().values() {
         if process.name() == "px_service.exe" {
             let _ = process.kill();
         }
@@ -140,7 +143,7 @@ fn kill_other_processes() {
         "px_panel.exe",
     ];
 
-    for (_pid, process) in sys.processes() {
+    for process in sys.processes().values() {
         let name = process.name();
         for target in &targets {
             if name == *target {

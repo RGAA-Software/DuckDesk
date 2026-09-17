@@ -235,9 +235,9 @@ impl SysInfoManager {
         if let Some(ref nvml) = self.nvml {
             let driver_version = nvml.sys_driver_version().unwrap_or_default();
             let device_count = nvml.device_count().unwrap_or(0);
-            for i in 0..device_count {
+            for device_index in 0..device_count {
                 let mut gpu_info = SysGpuInfo::default();
-                let device = nvml.device_by_index(i);
+                let device = nvml.device_by_index(device_index);
                 if let Ok(device) = device {
                     // ID
                     if let Ok(serial) = device.serial() {
@@ -264,13 +264,13 @@ impl SysInfoManager {
                     gpu_info.power_limit = device.enforced_power_limit().unwrap_or(0);
 
                     // Encoder
-                    if let Ok(u) = device.encoder_utilization() {
-                        gpu_info.encoder_utilization = u.utilization;
+                    if let Ok(encoder_utilization) = device.encoder_utilization() {
+                        gpu_info.encoder_utilization = encoder_utilization.utilization;
                     }
 
-                    if let Ok(u) = device.utilization_rates() {
-                        gpu_info.gpu_utilization = u.gpu;
-                        gpu_info.mem_utilization = u.memory;
+                    if let Ok(utilization_rates) = device.utilization_rates() {
+                        gpu_info.gpu_utilization = utilization_rates.gpu;
+                        gpu_info.mem_utilization = utilization_rates.memory;
                     }
 
                     gpu_info.temperature = device.temperature(TemperatureSensor::Gpu).unwrap_or(0);
@@ -318,7 +318,7 @@ impl SysInfoManager {
 
     fn load_amd_gpu_info(&self) -> Result<Vec<SysGpuInfo>, anyhow::Error> {
         let helper = match self.adlx_helper.as_ref() {
-            Some(h) => h,
+            Some(adlx_helper) => adlx_helper,
             None => return Ok(Vec::new()),
         };
         let system = helper.system();
@@ -415,16 +415,14 @@ impl SysInfoManager {
 
 #[cfg(test)]
 mod tests {
-    use crate::sys_info_mgr::{SysIpNetwork, SysNetworkInfo};
-    use adlx::{gpu::Gpu1, helper::AdlxHelper, interface::Interface, Gpu2};
-    use anyhow::Result;
-    use sysinfo::{Networks, System};
+    use adlx::helper::AdlxHelper;
+    use sysinfo::Networks;
 
     #[test]
     pub fn test_cpu_frequency() {
-        for i in 0..10 {
+        for sample_index in 0..10 {
             let cpu_frequency_in_mhz = calcmhz::mhz().unwrap();
-            println!("{} MHz", cpu_frequency_in_mhz);
+            println!("sample {sample_index}: {cpu_frequency_in_mhz} MHz");
             std::thread::sleep(std::time::Duration::from_secs(1));
         }
     }
@@ -434,9 +432,12 @@ mod tests {
         // ADLX requires the AMD driver DLL (amdadlx64.dll). Skip the test on
         // machines without AMD hardware/drivers instead of failing the suite.
         let helper = match AdlxHelper::new() {
-            Ok(h) => h,
-            Err(e) => {
-                println!("ADLX not available, skipping AMD GPU test: {}", e);
+            Ok(adlx_helper) => adlx_helper,
+            Err(initialization_error) => {
+                println!(
+                    "ADLX not available, skipping AMD GPU test: {}",
+                    initialization_error
+                );
                 return;
             }
         };
@@ -444,19 +445,19 @@ mod tests {
         let gpu_list = system.gpus().unwrap();
         let performance_monitoring_services = system.performance_monitoring_services().unwrap();
 
-        for gpu in 0..gpu_list.size() {
-            let gpu = gpu_list.at(gpu).unwrap();
-            println!("name: {}", gpu.name().unwrap());
-            println!("name: {}", gpu.device_id().unwrap());
-            println!("name: {}", gpu.driver_path().unwrap());
-            println!("name: {}", gpu.asic_family_type().unwrap());
-            println!("name: {}", gpu.total_vram().unwrap());
+        for gpu_index in 0..gpu_list.size() {
+            let gpu_device = gpu_list.at(gpu_index).unwrap();
+            println!("name: {}", gpu_device.name().unwrap());
+            println!("name: {}", gpu_device.device_id().unwrap());
+            println!("name: {}", gpu_device.driver_path().unwrap());
+            println!("name: {}", gpu_device.asic_family_type().unwrap());
+            println!("name: {}", gpu_device.total_vram().unwrap());
 
             let gpu_metrics = performance_monitoring_services
-                .current_gpu_metrics(&gpu)
+                .current_gpu_metrics(&gpu_device)
                 .unwrap();
             let supported_metrics = performance_monitoring_services
-                .supported_gpu_metrics(&gpu)
+                .supported_gpu_metrics(&gpu_device)
                 .unwrap();
 
             if supported_metrics.is_supported_gpu_usage().unwrap_or(false) {
@@ -486,32 +487,26 @@ mod tests {
             } else {
                 println!("temperature metrics not supported");
             }
-
-            // let gpu1 = gpu.cast::<Gpu1>().unwrap();
-            // let gpu2 = gpu.cast::<Gpu2>().unwrap();
-            //println!("name: {}", gpu1.name().unwrap());
-            //println!("product name: {}", gpu1.product_name().unwrap());
         }
     }
 
     #[test]
     pub fn test_networks() {
-        let system = System::new_all();
         let mut networks = Networks::new_with_refreshed_list();
         networks.refresh(true);
 
-        for (interface_name, data) in networks.iter() {
+        for (interface_name, network_interface) in networks.iter() {
             if interface_name.contains("VMware") {
                 continue;
             }
 
             println!("interface_name: {}", interface_name);
-            println!("data: {:#?}", data);
-            println!("networks: {:#?}", data.ip_networks());
-            for nt in data.ip_networks() {
-                let addr = nt.addr.to_string();
+            println!("interface: {:#?}", network_interface);
+            println!("networks: {:#?}", network_interface.ip_networks());
+            for ip_network in network_interface.ip_networks() {
+                let address = ip_network.addr.to_string();
                 // ignore IPV6
-                if addr.contains(":") || addr.contains("::") {
+                if address.contains(":") || address.contains("::") {
                     continue;
                 }
             }
@@ -560,8 +555,8 @@ mod tests {
                 println!("MTU: {:?}", interface.mtu);
                 println!("Default: {}", interface.default);
             }
-            Err(e) => {
-                println!("Error: {}", e);
+            Err(interface_error) => {
+                println!("Error: {}", interface_error);
             }
         }
     }

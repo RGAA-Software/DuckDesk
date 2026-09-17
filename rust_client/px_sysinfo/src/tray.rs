@@ -139,7 +139,7 @@ mod windows_impl {
     }
 
     unsafe fn add_tray_icon(hwnd: HWND, tooltip: &str) -> bool {
-        let mut data = NOTIFYICONDATAW {
+        let mut notification_icon = NOTIFYICONDATAW {
             cbSize: size_of::<NOTIFYICONDATAW>() as u32,
             hWnd: hwnd,
             uID: 1,
@@ -148,32 +148,32 @@ mod windows_impl {
             hIcon: load_app_icon(),
             ..Default::default()
         };
-        copy_tooltip(&mut data, tooltip);
-        Shell_NotifyIconW(NIM_ADD, &data).as_bool()
+        copy_tooltip(&mut notification_icon, tooltip);
+        Shell_NotifyIconW(NIM_ADD, &notification_icon).as_bool()
     }
 
     unsafe fn remove_tray_icon(hwnd: HWND) {
-        let data = NOTIFYICONDATAW {
+        let notification_icon = NOTIFYICONDATAW {
             cbSize: size_of::<NOTIFYICONDATAW>() as u32,
             hWnd: hwnd,
             uID: 1,
             ..Default::default()
         };
-        let _ = Shell_NotifyIconW(NIM_DELETE, &data);
+        let _ = Shell_NotifyIconW(NIM_DELETE, &notification_icon);
     }
 
     unsafe fn load_app_icon() -> HICON {
         LoadIconW(None, IDI_APPLICATION).unwrap_or_default()
     }
 
-    fn copy_tooltip(data: &mut NOTIFYICONDATAW, tooltip: &str) {
-        let wide = to_wide(tooltip);
-        for (index, value) in wide
+    fn copy_tooltip(notification_icon: &mut NOTIFYICONDATAW, tooltip: &str) {
+        let tooltip_utf16 = to_wide(tooltip);
+        for (code_unit_index, code_unit) in tooltip_utf16
             .iter()
-            .take(data.szTip.len().saturating_sub(1))
+            .take(notification_icon.szTip.len().saturating_sub(1))
             .enumerate()
         {
-            data.szTip[index] = *value;
+            notification_icon.szTip[code_unit_index] = *code_unit;
         }
     }
 
