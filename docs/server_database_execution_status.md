@@ -567,6 +567,13 @@ Console/Auth/Desk、真实三库异地恢复、浏览器流程、SQLx 目录与�
 与工作区密钥，要求显式非 nil key ID、两个不同目标路径，使用私有文件权限且不覆盖既有文件。Windows 与 WSL2 均执行两项测试；
 报告同时记录两平台 `px_console_admin` 摘要并复跑三服务、浏览器、异地恢复及源文件冻结门禁。
 
+Console 静态 Web 托管增量后的完整基线为 `pg-20260918-054941-5105a25a`：724/724 项 PASS。进程配置现在必须
+显式给出包含有效 `index.html` 的规范化静态目录；文件限制为 32 MiB，按后缀返回固定 MIME 和 `nosniff`，SPA 路径回退首页，
+但未知 `/api`、`/health` 路径保持 404，不能用 HTML 伪装接口成功。相对路径、反斜杠、Windows ADS、父目录和越界 symlink
+均拒绝。真实 Windows 进程测试读取首页、JS 资源和 SPA fallback，并验证退役 API 为 404；同一目录在 WSL2 原生执行，
+其余数据库、浏览器、备份恢复及源码 hash 门禁全部继续通过。现有 `web/px_console` 仍调用旧 API，必须先按新 API 重写并做
+真实浏览器验收，才允许正式构建/安装包切换。
+
 ## 仍未通过的阶段出口
 
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。
@@ -577,7 +584,7 @@ Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 W
 |---|---|
 | DB0 | 已补领域/权限/恢复边界及 Auth 字节/固定向量；其余 Console 字段 SQL 与完整合成基线尚未全部冻结 |
 | DB1-EXIT | Desk/Auth 产品服务已接入；Console PG 组合根已能作为独立进程启动并通过断库 fail-closed 验收，但正式 `px_console.exe` 构建/安装包仍未切换，不能用开发目标或 schema CLI 替代三服务产品验收 |
-| DB2-A | 身份/管理 HTTP、密码计算/限流/Origin、访客 HMAC/会话/公开目录、严格配置、稳定私钥加载、独立初始化 CLI 及进程生命周期已实现；本人资料/头像、正式产品二进制/静态 Web 切换及客户端全链路尚未接通 |
+| DB2-A | 身份/管理 HTTP、密码计算/限流/Origin、访客 HMAC/会话/公开目录、严格配置、稳定私钥加载、独立初始化 CLI、静态文件服务及进程生命周期已实现；本人资料/头像、新 Console Web API 改造、正式产品二进制/安装包切换及客户端全链路尚未接通 |
 | DB2-B/C/D | 设备/应用/节点/部署目录、user/guest 资源入口与 Console 节点 WS 已接；Windows Service 已切到新节点协议并实现部署准备、调和、命令 fencing 与精确 launch ACK。真实 Console→Service→Render、GPU/RDP 执行、媒体/事件投递及其余 repository 产品入口仍未完成 |
 | DB2-EXIT / DB3 | Desk/Auth 独立产品流程已验证；Console 与共享消费者仍待去 Mongo、接新签发/验证及库外水位，Auth 通知 outbox 尚未接通；不建设运行时双后端 |
 | DB4 | 恢复集/保留/私有原子发布/恢复前哈希与依赖复核/固定工具/取消超时、持久计划任务、重启补跑、受限实际清理、配置化异机复制、独立告警送达、持久恢复准入/审批、隔离恢复编排、固定工具适配器、执行命令、最小恢复账号创建/轮换、三库安全水位及写屏障生产/消费/释放、灾难恢复新 generation、数据库内旧会话/Grant/节点凭据/待发控制失效、库外单调可信见证生产/持久链、Auth 活动私钥/多公钥信任根/代际绑定/旧 key 撤回、固定版本 pgBackRest 物理备份/连续 WAL/命名点恢复和缺 WAL 拒绝、Windows 固定 PostgreSQL 客户端包/版本化安装/覆盖回滚/卸载保留数据，以及 systemd 安装/重启/停止/注销保留数据已实现；Windows SCM 与 WSL2 systemd 生命周期已真实验收，测试适配器已完成三库协调逻辑备份、异机副本路径恢复、全新库恢复、恢复封印和人工准入。仍需目标 Linux 发行版 VM、Pixels 外层安装包签名与生产密钥托管、独立主机或对象仓库的故障域部署/7 天窗口/恢复实测、目标环境 Auth keyring/见证同步轮换演练，以及真实节点与 Windows/RDP 工作区事实对账；本机 Docker/固定替身专项不能替代这些故障域验收 |

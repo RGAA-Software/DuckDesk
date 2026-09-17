@@ -15,6 +15,7 @@ mod policy;
 mod request;
 mod resource_api;
 mod secrets;
+mod static_files;
 use axum::{
     extract::{DefaultBodyLimit, State},
     http::{header, HeaderValue, StatusCode},
@@ -172,6 +173,11 @@ impl ConsoleRuntime {
             ))
             .with_state(self.state.clone())
             .route("/health/live", get(|| async { StatusCode::NO_CONTENT }))
+    }
+    pub fn product_router(&self, static_directory: std::path::PathBuf) -> Router {
+        let static_files = Arc::new(static_files::StaticFiles::new(static_directory));
+        self.router()
+            .fallback(move |method, uri| static_files::serve(static_files.clone(), method, uri))
     }
     pub async fn cancelled(&self) {
         self.state.cancellation.cancelled().await;

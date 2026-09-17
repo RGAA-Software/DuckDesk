@@ -82,21 +82,26 @@ fn restrict_private_directory(path: &Path) {
     }
 }
 
-fn ready(address: SocketAddr) -> bool {
+fn http_response(address: SocketAddr, path: &str) -> Option<String> {
     let Ok(mut stream) = TcpStream::connect_timeout(&address, Duration::from_millis(250)) else {
-        return false;
+        return None;
     };
     stream
         .set_read_timeout(Some(Duration::from_secs(2)))
         .unwrap();
     write!(
         stream,
-        "GET /health/ready HTTP/1.1\r\nHost: {address}\r\nOrigin: http://{address}\r\nX-Pixels-Client-Type: admin_web\r\nConnection: close\r\n\r\n"
+        "GET {path} HTTP/1.1\r\nHost: {address}\r\nOrigin: http://{address}\r\nX-Pixels-Client-Type: admin_web\r\nConnection: close\r\n\r\n"
     )
     .unwrap();
     let mut response = String::new();
     stream.read_to_string(&mut response).unwrap();
-    response.starts_with("HTTP/1.1 204")
+    Some(response)
+}
+
+fn ready(address: SocketAddr) -> bool {
+    http_response(address, "/health/ready")
+        .is_some_and(|response| response.starts_with("HTTP/1.1 204"))
 }
 
 fn wait_until_ready(process: &mut ChildProcess, address: SocketAddr) {
@@ -145,6 +150,14 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
     restrict_private_directory(private_directory.path());
     let guest_key_path = private_directory.path().join("guest-source.key");
     let workspace_key_path = private_directory.path().join("workspace.key");
+    let static_directory = private_directory.path().join("web");
+    std::fs::create_dir(&static_directory).unwrap();
+    std::fs::write(
+        static_directory.join("index.html"),
+        "pixels-console-process",
+    )
+    .unwrap();
+    std::fs::write(static_directory.join("app.js"), "pixels-console-script").unwrap();
     px_private_files::private::create_private(&guest_key_path, &[41; 32]).unwrap();
     px_private_files::private::create_private(&workspace_key_path, &[42; 32]).unwrap();
     let workspace_key_id = Uuid::new_v4();
@@ -160,6 +173,7 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
         .env("PIXELS_DEPLOYMENT_ID", deployment.to_string())
         .env("PIXELS_CONSOLE_DATABASE_URL", database_url("RUNTIME"))
         .env("PIXELS_CONSOLE_LISTEN", address.to_string())
+        .env("PIXELS_CONSOLE_STATIC_DIRECTORY", &static_directory)
         .env("PIXELS_CONSOLE_PUBLIC_ORIGIN", format!("http://{address}"))
         .env("PIXELS_CONSOLE_REGISTRATION", "1")
         .env("PIXELS_CONSOLE_GUESTS", "1")
@@ -180,6 +194,17 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
         process: Some(command.spawn().unwrap()),
     };
     wait_until_ready(&mut process, address);
+    let index_response = http_response(address, "/settings/profile").unwrap();
+    assert!(index_response.starts_with("HTTP/1.1 200"));
+    assert!(index_response.contains("content-type: text/html; charset=utf-8"));
+    assert!(index_response.ends_with("pixels-console-process"));
+    let asset_response = http_response(address, "/app.js").unwrap();
+    assert!(asset_response.starts_with("HTTP/1.1 200"));
+    assert!(asset_response.contains("content-type: text/javascript; charset=utf-8"));
+    assert!(asset_response.ends_with("pixels-console-script"));
+    assert!(http_response(address, "/api/retired")
+        .unwrap()
+        .starts_with("HTTP/1.1 404"));
 
     let container = env::var("PIXELS_TEST_CONTAINER").unwrap();
     assert!(

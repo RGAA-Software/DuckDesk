@@ -15,6 +15,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         database,
         deployment,
         listen,
+        static_directory,
         tls,
         policy,
         vault,
@@ -22,7 +23,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     } = ConsoleLaunchConfig::from_env()?.load().await?;
     let runtime = ConsoleRuntime::activate(&database, deployment, vault, policy, guests).await?;
     let cancellation = runtime.cancellation_token();
-    let application = runtime.router();
+    let application = runtime.product_router(static_directory);
     let listener = std::net::TcpListener::bind(listen)?;
     listener.set_nonblocking(true)?;
     let address = listener.local_addr()?;

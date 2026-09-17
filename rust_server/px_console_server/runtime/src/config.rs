@@ -21,6 +21,7 @@ pub struct ConsoleLaunchConfig {
     database: DatabaseConfig,
     deployment: Uuid,
     listen: SocketAddr,
+    static_directory: PathBuf,
     tls: Option<(PathBuf, PathBuf)>,
     policy: IngressPolicy,
     guests_enabled: bool,
@@ -34,6 +35,7 @@ pub struct ConsoleLaunch {
     pub database: DatabaseConfig,
     pub deployment: Uuid,
     pub listen: SocketAddr,
+    pub static_directory: PathBuf,
     pub tls: Option<(PathBuf, PathBuf)>,
     pub policy: IngressPolicy,
     pub vault: Arc<WorkspaceVault>,
@@ -73,6 +75,7 @@ impl ConsoleLaunchConfig {
         if listen.port() == 0 || listen.port() == 20371 || (local && !listen.ip().is_loopback()) {
             return Err(ConfigurationError);
         }
+        let static_directory = PathBuf::from(required("PIXELS_CONSOLE_STATIC_DIRECTORY")?);
         let tls = match (
             get("PIXELS_CONSOLE_TLS_CERT"),
             get("PIXELS_CONSOLE_TLS_KEY"),
@@ -118,6 +121,7 @@ impl ConsoleLaunchConfig {
             database,
             deployment,
             listen,
+            static_directory,
             tls,
             policy,
             guests_enabled,
@@ -129,6 +133,21 @@ impl ConsoleLaunchConfig {
     }
 
     pub async fn load(self) -> Result<ConsoleLaunch, ConfigurationError> {
+        let static_directory = tokio::fs::canonicalize(&self.static_directory)
+            .await
+            .map_err(|_| ConfigurationError)?;
+        let index_path = tokio::fs::canonicalize(static_directory.join("index.html"))
+            .await
+            .map_err(|_| ConfigurationError)?;
+        if !index_path.starts_with(&static_directory) {
+            return Err(ConfigurationError);
+        }
+        let index_metadata = tokio::fs::metadata(index_path)
+            .await
+            .map_err(|_| ConfigurationError)?;
+        if !index_metadata.is_file() || index_metadata.len() > crate::static_files::MAX_FILE_BYTES {
+            return Err(ConfigurationError);
+        }
         let secrets = RuntimeSecrets::load(
             self.deployment,
             self.active_workspace_key,
@@ -144,6 +163,7 @@ impl ConsoleLaunchConfig {
             database: self.database,
             deployment: self.deployment,
             listen: self.listen,
+            static_directory,
             tls: self.tls,
             policy: self.policy,
             vault,
@@ -181,6 +201,10 @@ mod tests {
                 "postgres://pixels_console_runtime:secret@127.0.0.1:5432/pixels_console".into(),
             ),
             ("PIXELS_CONSOLE_LISTEN".into(), "127.0.0.1:8443".into()),
+            (
+                "PIXELS_CONSOLE_STATIC_DIRECTORY".into(),
+                "web/px_console/dist".into(),
+            ),
             (
                 "PIXELS_CONSOLE_PUBLIC_ORIGIN".into(),
                 "http://127.0.0.1:8443".into(),

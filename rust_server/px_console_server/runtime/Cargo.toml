@@ -16,7 +16,7 @@ px_private_files = { path = "../../px_private_files" }
 axum = { version = "0.8.1", features = ["json", "ws"] }
 axum-server = { version = "0.8.0", features = ["tls-rustls-no-provider"] }
 futures-util = "0.3"
-tokio = { version = "1.43", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tokio = { version = "1.43", features = ["fs", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util = "0.7"
 rustls = { version = "0.23", features = ["ring"] }
 serde = { version = "1", features = ["derive"] }

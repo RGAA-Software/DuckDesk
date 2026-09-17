@@ -392,7 +392,7 @@ try {
     Add-Step 'ACCOUNTS: empty bootstrap, exact login binding, password/logout races and restricted identity privileges'
     $consoleUnit = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--lib','--target-dir',$targetDir)
     Write-Host $consoleUnit
-    Add-TestCases $consoleUnit 'native/console-ingress' 3
+    Add-TestCases $consoleUnit 'native/console-ingress' 5
     $nodeProtocolUnit = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_node_protocol','--lib','--target-dir',$targetDir)
     Write-Host $nodeProtocolUnit
     Add-TestCases $nodeProtocolUnit 'native/node-protocol' 1
