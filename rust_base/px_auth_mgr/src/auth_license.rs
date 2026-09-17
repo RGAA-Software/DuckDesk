@@ -40,7 +40,8 @@ impl AuthLicense {
     /// The JSON is compact and fields are emitted in declaration order, which
     /// makes the signature deterministic as long as this struct definition is stable.
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, String> {
-        serde_json::to_vec(self).map_err(|e| format!("failed to serialize license: {}", e))
+        serde_json::to_vec(self)
+            .map_err(|serialize_error| format!("failed to serialize license: {}", serialize_error))
     }
 }
 
@@ -57,16 +58,17 @@ const DEPLOY_STRING_PARTS: usize = 2;
 impl SignedLicense {
     /// Encodes the signed license as a deploy string.
     pub fn to_deploy_string(&self) -> Result<String, String> {
-        let license_json = serde_json::to_string(&self.license)
-            .map_err(|e| format!("failed to serialize license: {}", e))?;
+        let license_json = serde_json::to_string(&self.license).map_err(|serialize_error| {
+            format!("failed to serialize license: {}", serialize_error)
+        })?;
         let license_b64 = general_purpose::STANDARD.encode(license_json.as_bytes());
         let sig_b64 = general_purpose::STANDARD.encode(&self.signature);
         Ok(format!("{}.{}", license_b64, sig_b64))
     }
 
     /// Decodes a deploy string back into a signed license.
-    pub fn parse_deploy_string(s: &str) -> Result<Self, String> {
-        let parts: Vec<&str> = s.split('.').collect();
+    pub fn parse_deploy_string(deploy_string: &str) -> Result<Self, String> {
+        let parts: Vec<&str> = deploy_string.split('.').collect();
         if parts.len() != DEPLOY_STRING_PARTS {
             return Err(format!(
                 "invalid signed license format: expected {} dot-separated parts, got {}",
@@ -76,14 +78,14 @@ impl SignedLicense {
         }
         let license_bytes = general_purpose::STANDARD
             .decode(parts[0])
-            .map_err(|e| format!("failed to decode license: {}", e))?;
+            .map_err(|decode_error| format!("failed to decode license: {}", decode_error))?;
         let license_json = String::from_utf8(license_bytes)
-            .map_err(|e| format!("license is not valid utf-8: {}", e))?;
+            .map_err(|utf8_error| format!("license is not valid utf-8: {}", utf8_error))?;
         let license: AuthLicense = serde_json::from_str(&license_json)
-            .map_err(|e| format!("failed to parse license json: {}", e))?;
+            .map_err(|parse_error| format!("failed to parse license json: {}", parse_error))?;
         let signature = general_purpose::STANDARD
             .decode(parts[1])
-            .map_err(|e| format!("failed to decode signature: {}", e))?;
+            .map_err(|decode_error| format!("failed to decode signature: {}", decode_error))?;
         Ok(SignedLicense { license, signature })
     }
 }
@@ -97,7 +99,7 @@ impl LicenseSigner {
     /// Loads a signer from raw PKCS#8 v1 private key bytes.
     pub fn from_pkcs8_bytes(bytes: &[u8]) -> Result<Self, String> {
         let key_pair = Ed25519KeyPair::from_pkcs8_maybe_unchecked(bytes)
-            .map_err(|e| format!("invalid Ed25519 private key: {}", e))?;
+            .map_err(|key_error| format!("invalid Ed25519 private key: {}", key_error))?;
         Ok(Self { key_pair })
     }
 
@@ -105,11 +107,13 @@ impl LicenseSigner {
     pub fn generate_keypair() -> Result<(Vec<u8>, Vec<u8>), String> {
         let rng = SystemRandom::new();
         let pkcs8_bytes = signature::Ed25519KeyPair::generate_pkcs8(&rng)
-            .map_err(|e| format!("failed to generate key pair: {}", e))?
+            .map_err(|generation_error| {
+                format!("failed to generate key pair: {}", generation_error)
+            })?
             .as_ref()
             .to_vec();
         let key_pair = Ed25519KeyPair::from_pkcs8(&pkcs8_bytes)
-            .map_err(|e| format!("failed to parse generated key pair: {}", e))?;
+            .map_err(|key_error| format!("failed to parse generated key pair: {}", key_error))?;
         let public_key = key_pair.public_key().as_ref().to_vec();
         Ok((pkcs8_bytes, public_key))
     }

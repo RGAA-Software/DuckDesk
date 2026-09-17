@@ -50,10 +50,10 @@ pub fn verify_used_time(record: &str, auth: &Authorization) -> Result<i64, Strin
     }
     let used_time_ms = parts[0]
         .parse::<i64>()
-        .map_err(|e| format!("invalid used_time_ms: {}", e))?;
+        .map_err(|parse_error| format!("invalid used_time_ms: {}", parse_error))?;
     let expires_at_ms = parts[1]
         .parse::<i64>()
-        .map_err(|e| format!("invalid expires_at_ms: {}", e))?;
+        .map_err(|parse_error| format!("invalid expires_at_ms: {}", parse_error))?;
 
     let expected = sign_used_time(used_time_ms, expires_at_ms, auth);
     if expected != record {

@@ -13,23 +13,23 @@ pub fn aes_encrypt(plaintext: &str, key_bytes: &[u8; 32]) -> Result<String, Stri
     let nonce = Nonce::from(nonce_bytes);
     let ciphertext = cipher
         .encrypt(&nonce, plaintext.as_bytes())
-        .map_err(|e| e.to_string())?;
+        .map_err(|encrypt_error| encrypt_error.to_string())?;
 
     // base64(nonce + ciphertext)
     let mut result = nonce_bytes.to_vec();
     result.extend_from_slice(&ciphertext);
-    let r = general_purpose::STANDARD.encode(result);
-    Ok(r)
+    let encoded_result = general_purpose::STANDARD.encode(result);
+    Ok(encoded_result)
 }
 
 pub fn aes_decrypt(encoded: &str, key_bytes: &[u8; 32]) -> Result<String, String> {
     let cipher = Aes256Gcm::new_from_slice(key_bytes).unwrap();
 
-    let data = general_purpose::STANDARD
+    let encrypted_bytes = general_purpose::STANDARD
         .decode(encoded)
-        .map_err(|e| e.to_string())?;
+        .map_err(|decode_error| decode_error.to_string())?;
 
-    let (nonce_bytes, ciphertext) = data.split_at(12);
+    let (nonce_bytes, ciphertext) = encrypted_bytes.split_at(12);
     let nonce_arr: [u8; 12] = nonce_bytes
         .try_into()
         .map_err(|_| "invalid nonce length".to_string())?;
@@ -37,9 +37,9 @@ pub fn aes_decrypt(encoded: &str, key_bytes: &[u8; 32]) -> Result<String, String
 
     let plaintext = cipher
         .decrypt(&nonce, ciphertext)
-        .map_err(|e| e.to_string())?;
+        .map_err(|decrypt_error| decrypt_error.to_string())?;
 
-    String::from_utf8(plaintext).map_err(|e| e.to_string())
+    String::from_utf8(plaintext).map_err(|utf8_error| utf8_error.to_string())
 }
 
 pub fn base64_encode(input: &str) -> String {
@@ -48,8 +48,8 @@ pub fn base64_encode(input: &str) -> String {
 
 pub fn base64_decode(encoded: &str) -> Result<String, String> {
     match general_purpose::STANDARD.decode(encoded) {
-        Ok(bytes) => String::from_utf8(bytes).map_err(|e| e.to_string()),
-        Err(e) => Err(e.to_string()),
+        Ok(bytes) => String::from_utf8(bytes).map_err(|utf8_error| utf8_error.to_string()),
+        Err(decode_error) => Err(decode_error.to_string()),
     }
 }
 
@@ -89,8 +89,8 @@ mod tests {
         let encoded = "jmLPUhIWRLHF62lgOd170Zy8N/mhCy1ljniBVkgMvLIUMgRhmAwtRSoOEEXHrFrGqNeC15gNKb5WyoYzdVNHZMDPYeu5cchsWG35z28IyExkjwaHq9eZ99U63IZMYOIs5Jnp2OfAGebT3qFqJH3Z1htNXA8FC/69u34zTf056pSxdGGudpdZdWSzAJ6gtYg+5IYCRbjOJTt3y2VJSXhSdW+uH9em7dwouzOnFIV98ycoNmfp5rXA8FxEcDYt1BAiqs71vPv7pH5Y4YO5i/yET0oASPw3ORJwg3M=";
         match aes_decrypt(encoded, &key) {
             Ok(plain) => println!("decrypted access info:\n{}", plain),
-            Err(e) => {
-                println!("decrypt failed: {}", e);
+            Err(decrypt_error) => {
+                println!("decrypt failed: {}", decrypt_error);
                 panic!("decrypt failed");
             }
         }

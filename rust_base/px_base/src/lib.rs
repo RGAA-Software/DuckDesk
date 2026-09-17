@@ -51,21 +51,21 @@ where
     T: Serialize,
     T: Default,
 {
-    pub fn new_data(code: i32, message: String, data: T) -> Self {
+    pub fn new_data(code: i32, message: String, payload: T) -> Self {
         Self {
             code,
             message: message.to_string(),
             timestamp: get_current_timestamp(),
-            data,
+            data: payload,
         }
     }
 
-    pub fn new_message(code: i32, message: String, data: T) -> Self {
+    pub fn new_message(code: i32, message: String, payload: T) -> Self {
         Self {
             code,
             message,
             timestamp: get_current_timestamp(),
-            data,
+            data: payload,
         }
     }
 
@@ -126,30 +126,30 @@ pub fn resp_empty_vec_str_map(pair: RespMsgPair) -> RespVecStringMap {
     }
 }
 
-pub fn ok_resp_str(data: String) -> RespMessage<String> {
+pub fn ok_resp_str(payload: String) -> RespMessage<String> {
     RespMessage::<String> {
         code: 200,
         message: "ok".to_string(),
         timestamp: get_current_timestamp(),
-        data,
+        data: payload,
     }
 }
 
-pub fn ok_resp_str_map(data: HashMap<String, String>) -> RespStringMap {
+pub fn ok_resp_str_map(payload: HashMap<String, String>) -> RespStringMap {
     RespMessage::<StringMap> {
         code: 200,
         message: "ok".to_string(),
         timestamp: get_current_timestamp(),
-        data,
+        data: payload,
     }
 }
 
-pub fn ok_resp_vec_str_map(data: Vec<HashMap<String, String>>) -> RespVecStringMap {
+pub fn ok_resp_vec_str_map(payload: Vec<HashMap<String, String>>) -> RespVecStringMap {
     RespMessage::<Vec<StringMap>> {
         code: 0,
         message: "".to_string(),
         timestamp: get_current_timestamp(),
-        data,
+        data: payload,
     }
 }
 
@@ -198,16 +198,16 @@ pub fn current_exe_dir() -> String {
 pub fn create_dir_if_not_exists(path: &str) -> io::Result<()> {
     match fs::create_dir(path) {
         Ok(_) => Ok(()),
-        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => Ok(()),
-        Err(e) => Err(e),
+        Err(create_error) if create_error.kind() == io::ErrorKind::AlreadyExists => Ok(()),
+        Err(create_error) => Err(create_error),
     }
 }
 
 pub fn create_dir_all_if_not_exists(path: &str) -> io::Result<()> {
     match fs::create_dir_all(path) {
         Ok(_) => Ok(()),
-        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => Ok(()),
-        Err(e) => Err(e),
+        Err(create_error) if create_error.kind() == io::ErrorKind::AlreadyExists => Ok(()),
+        Err(create_error) => Err(create_error),
     }
 }
 
@@ -261,8 +261,8 @@ fn calculate_size_recursive(path: &Path) -> i64 {
     // 读取目录内容，如果出错就返回0
     let entries = match fs::read_dir(path) {
         Ok(entries) => entries,
-        Err(e) => {
-            println!("e: {}", e);
+        Err(read_error) => {
+            println!("read directory error: {}", read_error);
             return 0;
         }
     };
@@ -270,8 +270,8 @@ fn calculate_size_recursive(path: &Path) -> i64 {
     for entry in entries {
         let entry = match entry {
             Ok(entry) => entry,
-            Err(e) => {
-                println!("-> e: {}", e);
+            Err(entry_error) => {
+                println!("directory entry error: {}", entry_error);
                 continue;
             } // 跳过无法访问的条目
         };
@@ -279,8 +279,8 @@ fn calculate_size_recursive(path: &Path) -> i64 {
         let entry_path = entry.path();
         let metadata = match fs::metadata(&entry_path) {
             Ok(meta) => meta,
-            Err(e) => {
-                println!("* e: {}", e);
+            Err(metadata_error) => {
+                println!("metadata error: {}", metadata_error);
                 continue;
             } // 跳过无法获取元数据的条目
         };

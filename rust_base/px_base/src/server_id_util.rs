@@ -80,8 +80,8 @@ impl SystemInfo {
                     disks_info.push(disk_info);
                 }
             }
-            Err(e) => {
-                eprintln!("Error retrieving disk information: {}", e);
+            Err(disk_error) => {
+                eprintln!("Error retrieving disk information: {}", disk_error);
             }
         }
 

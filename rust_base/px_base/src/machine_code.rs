@@ -53,8 +53,13 @@ impl MachineFactors {
 
     /// True when at least one identifying factor was collected.
     pub fn has_any(&self) -> bool {
-        self.macs.iter().any(|m| !m.trim().is_empty())
-            || self.disk_serials.iter().any(|s| !s.trim().is_empty())
+        self.macs
+            .iter()
+            .any(|mac_address| !mac_address.trim().is_empty())
+            || self
+                .disk_serials
+                .iter()
+                .any(|serial_number| !serial_number.trim().is_empty())
             || !self.cpu_desc.trim().is_empty()
     }
 
@@ -72,9 +77,13 @@ impl MachineFactors {
     }
 }
 
-fn short_code_from_u64(n: u64) -> String {
-    let m = n % 100_000_000;
-    format!("{:04}-{:04}", m / 10_000, m % 10_000)
+fn short_code_from_u64(input_number: u64) -> String {
+    let normalized_number = input_number % 100_000_000;
+    format!(
+        "{:04}-{:04}",
+        normalized_number / 10_000,
+        normalized_number % 10_000
+    )
 }
 
 /// Generate the machine code for this machine (`xxxx-xxxx`, 8 digits).
@@ -101,7 +110,7 @@ fn normalize_id(raw: &str) -> String {
 fn normalize_mac(raw: &str) -> String {
     let hexed: String = raw
         .chars()
-        .filter(|c| c.is_ascii_hexdigit())
+        .filter(|character| character.is_ascii_hexdigit())
         .collect::<String>()
         .to_uppercase();
     if hexed.len() == 12 {
@@ -114,14 +123,14 @@ fn normalize_mac(raw: &str) -> String {
 /// Normalize a list of factors: normalize each, drop blanks and all-zero MACs,
 /// sort and dedup so collection order never affects the result.
 fn normalize_list(items: &[String], normalize: fn(&str) -> String) -> Vec<String> {
-    let mut out: Vec<String> = items
+    let mut normalized_items: Vec<String> = items
         .iter()
-        .map(|s| normalize(s))
-        .filter(|s| !s.is_empty() && s != "000000000000")
+        .map(|item| normalize(item))
+        .filter(|item| !item.is_empty() && item != "000000000000")
         .collect();
-    out.sort();
-    out.dedup();
-    out
+    normalized_items.sort();
+    normalized_items.dedup();
+    normalized_items
 }
 
 // ---------------------------------------------------------------------------
@@ -137,8 +146,8 @@ fn collect_macs() -> Vec<String> {
         {
             let macs: Vec<String> = out
                 .lines()
-                .map(|l| l.trim().to_string())
-                .filter(|l| !l.is_empty())
+                .map(|line| line.trim().to_string())
+                .filter(|line| !line.is_empty())
                 .collect();
             if !macs.is_empty() {
                 return macs;
@@ -176,7 +185,7 @@ fn sysinfo_macs() -> Vec<String> {
         .iter()
         .filter(|(name, _)| !name.to_lowercase().contains("loopback"))
         .map(|(_, data)| format!("{}", data.mac_address()))
-        .filter(|m| !m.is_empty())
+        .filter(|mac_address| !mac_address.is_empty())
         .collect()
 }
 
@@ -188,8 +197,8 @@ fn collect_disk_serials() -> Vec<String> {
         {
             let serials: Vec<String> = out
                 .lines()
-                .map(|l| l.trim().to_string())
-                .filter(|l| !l.is_empty())
+                .map(|line| line.trim().to_string())
+                .filter(|line| !line.is_empty())
                 .collect();
             if !serials.is_empty() {
                 return serials;
@@ -205,8 +214,8 @@ fn collect_disk_serials() -> Vec<String> {
             if out.status.success() {
                 let serials: Vec<String> = String::from_utf8_lossy(&out.stdout)
                     .lines()
-                    .map(|l| l.trim().to_string())
-                    .filter(|l| !l.is_empty())
+                    .map(|line| line.trim().to_string())
+                    .filter(|line| !line.is_empty())
                     .collect();
                 if !serials.is_empty() {
                     return serials;
@@ -219,7 +228,7 @@ fn collect_disk_serials() -> Vec<String> {
     sysinfo::Disks::new_with_refreshed_list()
         .list()
         .iter()
-        .map(|d| format!("{}:{}", d.name().to_string_lossy(), d.total_space()))
+        .map(|disk| format!("{}:{}", disk.name().to_string_lossy(), disk.total_space()))
         .collect()
 }
 
@@ -281,11 +290,11 @@ mod tests {
     fn assert_short_code(code: &str) {
         assert_eq!(code.len(), MACHINE_CODE_LEN, "code: {code}");
         assert!(
-            code.chars().enumerate().all(|(i, c)| {
-                if i == 4 {
-                    c == '-'
+            code.chars().enumerate().all(|(position, character)| {
+                if position == 4 {
+                    character == '-'
                 } else {
-                    c.is_ascii_digit()
+                    character.is_ascii_digit()
                 }
             }),
             "must be dddd-dddd: {code}"
@@ -309,106 +318,106 @@ mod tests {
 
     #[test]
     fn changing_macs_changes_code() {
-        let mut f = sample_factors();
-        let before = f.machine_code();
-        f.macs = vec!["DE-AD-BE-EF-00-01".into()];
-        assert_ne!(before, f.machine_code());
+        let mut factors = sample_factors();
+        let before = factors.machine_code();
+        factors.macs = vec!["DE-AD-BE-EF-00-01".into()];
+        assert_ne!(before, factors.machine_code());
     }
 
     #[test]
     fn adding_a_mac_changes_code() {
-        let mut f = sample_factors();
-        let before = f.machine_code();
-        f.macs.push("77-88-99-AA-BB-CC".into());
-        assert_ne!(before, f.machine_code());
+        let mut factors = sample_factors();
+        let before = factors.machine_code();
+        factors.macs.push("77-88-99-AA-BB-CC".into());
+        assert_ne!(before, factors.machine_code());
     }
 
     #[test]
     fn changing_disk_serials_changes_code() {
-        let mut f = sample_factors();
-        let before = f.machine_code();
-        f.disk_serials = vec!["OTHER-SERIAL-999".into()];
-        assert_ne!(before, f.machine_code());
+        let mut factors = sample_factors();
+        let before = factors.machine_code();
+        factors.disk_serials = vec!["OTHER-SERIAL-999".into()];
+        assert_ne!(before, factors.machine_code());
     }
 
     #[test]
     fn changing_cpu_desc_changes_code() {
-        let mut f = sample_factors();
-        let before = f.machine_code();
-        f.cpu_desc = "AuthenticAMD-AMD Ryzen 9 7950X-32".into();
-        assert_ne!(before, f.machine_code());
+        let mut factors = sample_factors();
+        let before = factors.machine_code();
+        factors.cpu_desc = "AuthenticAMD-AMD Ryzen 9 7950X-32".into();
+        assert_ne!(before, factors.machine_code());
     }
 
     #[test]
     fn mac_order_does_not_matter() {
-        let mut f = sample_factors();
-        let before = f.machine_code();
-        f.macs.reverse();
-        assert_eq!(before, f.machine_code());
+        let mut factors = sample_factors();
+        let before = factors.machine_code();
+        factors.macs.reverse();
+        assert_eq!(before, factors.machine_code());
     }
 
     #[test]
     fn disk_serial_order_does_not_matter() {
-        let mut f = sample_factors();
-        let before = f.machine_code();
-        f.disk_serials.reverse();
-        assert_eq!(before, f.machine_code());
+        let mut factors = sample_factors();
+        let before = factors.machine_code();
+        factors.disk_serials.reverse();
+        assert_eq!(before, factors.machine_code());
     }
 
     #[test]
     fn mac_separators_and_case_are_normalized() {
-        let a = MachineFactors {
+        let hyphenated_code = MachineFactors {
             macs: vec!["aa-bb-cc-dd-ee-ff".into()],
             ..Default::default()
         }
         .machine_code();
-        let b = MachineFactors {
+        let colon_separated_code = MachineFactors {
             macs: vec!["AA:BB:CC:DD:EE:FF".into()],
             ..Default::default()
         }
         .machine_code();
-        let c = MachineFactors {
+        let compact_code = MachineFactors {
             macs: vec!["AABBCCDDEEFF".into()],
             ..Default::default()
         }
         .machine_code();
-        assert_eq!(a, b);
-        assert_eq!(b, c);
+        assert_eq!(hyphenated_code, colon_separated_code);
+        assert_eq!(colon_separated_code, compact_code);
     }
 
     #[test]
     fn duplicate_factors_are_deduped() {
-        let mut f = sample_factors();
-        let before = f.machine_code();
-        f.macs.push("aa-bb-cc-dd-ee-ff".into()); // dup of existing, different case
-        f.disk_serials.push("s3yjnb0k123456 ".into()); // dup w/ case+space
-        assert_eq!(before, f.machine_code());
+        let mut factors = sample_factors();
+        let before = factors.machine_code();
+        factors.macs.push("aa-bb-cc-dd-ee-ff".into()); // dup of existing, different case
+        factors.disk_serials.push("s3yjnb0k123456 ".into()); // dup w/ case+space
+        assert_eq!(before, factors.machine_code());
     }
 
     #[test]
     fn blank_and_zero_factors_are_ignored() {
-        let mut f = sample_factors();
-        let before = f.machine_code();
-        f.macs.push("".into());
-        f.macs.push("   ".into());
-        f.macs.push("00:00:00:00:00:00".into());
-        f.disk_serials.push("".into());
-        assert_eq!(before, f.machine_code());
+        let mut factors = sample_factors();
+        let before = factors.machine_code();
+        factors.macs.push("".into());
+        factors.macs.push("   ".into());
+        factors.macs.push("00:00:00:00:00:00".into());
+        factors.disk_serials.push("".into());
+        assert_eq!(before, factors.machine_code());
     }
 
     #[test]
     fn disk_serial_case_and_whitespace_normalized() {
-        let a = MachineFactors {
+        let uppercase_code = MachineFactors {
             disk_serials: vec!["ABC-123".into()],
             ..Default::default()
         }
         .machine_code();
-        let b = MachineFactors {
+        let normalized_code = MachineFactors {
             disk_serials: vec!["  abc-123 ".into()],
             ..Default::default()
         }
         .machine_code();
-        assert_eq!(a, b);
+        assert_eq!(uppercase_code, normalized_code);
     }
 
     #[test]
@@ -466,17 +475,20 @@ mod tests {
 
     #[test]
     fn collect_returns_real_factors() {
-        let f = MachineFactors::collect();
-        assert!(f.has_any(), "expected at least one hardware factor");
+        let factors = MachineFactors::collect();
+        assert!(factors.has_any(), "expected at least one hardware factor");
         #[cfg(windows)]
         {
-            assert!(!f.macs.is_empty(), "expected at least one NIC MAC");
-            for mac in &f.macs {
-                let hexed: String = mac.chars().filter(|c| c.is_ascii_hexdigit()).collect();
+            assert!(!factors.macs.is_empty(), "expected at least one NIC MAC");
+            for mac in &factors.macs {
+                let hexed: String = mac
+                    .chars()
+                    .filter(|character| character.is_ascii_hexdigit())
+                    .collect();
                 assert_eq!(hexed.len(), 12, "bad MAC: {mac}");
             }
             assert!(
-                !f.disk_serials.is_empty(),
+                !factors.disk_serials.is_empty(),
                 "expected at least one disk serial"
             );
         }
@@ -484,9 +496,12 @@ mod tests {
 
     #[test]
     fn collect_is_stable_across_calls() {
-        let a = MachineFactors::collect().machine_code();
-        let b = MachineFactors::collect().machine_code();
-        assert_eq!(a, b, "machine code must be stable across collections");
+        let first_code = MachineFactors::collect().machine_code();
+        let second_code = MachineFactors::collect().machine_code();
+        assert_eq!(
+            first_code, second_code,
+            "machine code must be stable across collections"
+        );
     }
 
     #[test]

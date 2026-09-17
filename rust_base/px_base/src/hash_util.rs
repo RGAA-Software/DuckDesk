@@ -7,26 +7,26 @@ pub enum HashAlgo {
     SHA512,
 }
 
-pub fn compute_hash(algo: HashAlgo, data: &[u8]) -> String {
+pub fn compute_hash(algo: HashAlgo, input_bytes: &[u8]) -> String {
     match algo {
         HashAlgo::MD5 => {
             let mut hasher = md5::Md5::new();
-            hasher.update(data);
+            hasher.update(input_bytes);
             format!("{:x}", hasher.finalize())
         }
         HashAlgo::SHA1 => {
             let mut hasher = sha1::Sha1::new();
-            hasher.update(data);
+            hasher.update(input_bytes);
             format!("{:x}", hasher.finalize())
         }
         HashAlgo::SHA256 => {
             let mut hasher = sha2::Sha256::new();
-            hasher.update(data);
+            hasher.update(input_bytes);
             format!("{:x}", hasher.finalize())
         }
         HashAlgo::SHA512 => {
             let mut hasher = sha2::Sha512::new();
-            hasher.update(data);
+            hasher.update(input_bytes);
             format!("{:x}", hasher.finalize())
         }
     }

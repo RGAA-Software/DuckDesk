@@ -14,19 +14,26 @@ pub const HEADER_APP_KEY: &str = "x-app-key";
 pub const HEADER_APP_TIMESTAMP: &str = "x-app-timestamp";
 pub const HEADER_APP_SIGN: &str = "x-app-sign";
 
-pub fn hex_decode(s: &str) -> Option<Vec<u8>> {
-    let s = s.trim();
-    if s.len() % 2 != 0 || !s.chars().all(|c| c.is_ascii_hexdigit()) {
+pub fn hex_decode(encoded_text: &str) -> Option<Vec<u8>> {
+    let encoded_text = encoded_text.trim();
+    if encoded_text.len() % 2 != 0
+        || !encoded_text
+            .chars()
+            .all(|character| character.is_ascii_hexdigit())
+    {
         return None;
     }
-    (0..s.len())
+    (0..encoded_text.len())
         .step_by(2)
-        .map(|i| u8::from_str_radix(&s[i..i + 2], 16).ok())
+        .map(|byte_offset| u8::from_str_radix(&encoded_text[byte_offset..byte_offset + 2], 16).ok())
         .collect()
 }
 
 pub fn hex_encode(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
+    bytes
+        .iter()
+        .map(|byte_value| format!("{byte_value:02x}"))
+        .collect()
 }
 
 fn build_message(appkey: &str, timestamp_ms: i64, body: &[u8]) -> Vec<u8> {

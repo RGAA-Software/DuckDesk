@@ -371,9 +371,9 @@ mod tests {
                     );
                 }
             }
-            Err(e) => {
+            Err(interface_error) => {
                 // 在某些环境下可能无法获取网络接口信息
-                println!("无法获取网络接口信息: {}", e);
+                println!("无法获取网络接口信息: {}", interface_error);
             }
         }
     }

@@ -2,6 +2,7 @@
 [CmdletBinding()]
 param(
     [string[]]$Paths = @(
+        'rust_base',
         'rust_server/builder',
         'rust_server/px_credentials',
         'rust_server/px_node_protocol',
@@ -68,6 +69,9 @@ foreach ($relativePath in $Paths) {
 foreach ($sourceFile in $sourceFiles | Sort-Object FullName -Unique) {
     $relativeFile = [IO.Path]::GetRelativePath($repo, $sourceFile.FullName)
     $sourceText = [IO.File]::ReadAllText($sourceFile.FullName)
+    if ($sourceText.Substring(0, [Math]::Min($sourceText.Length, 512)) -match '@generated') {
+        continue
+    }
     foreach ($tupleMatch in $tupleBindingPattern.Matches($sourceText)) {
         foreach ($binding in $tupleMatch.Groups['bindings'].Value.Split(',')) {
             if ($binding -match '^\s*(?:mut\s+)?(?<name>[a-z])\s*$') {
@@ -96,6 +100,8 @@ foreach ($sourceFile in $sourceFiles | Sort-Object FullName -Unique) {
             continue
         }
         $codeLine = ($line -split '//', 2)[0]
+        $codeLine = [regex]::Replace($codeLine, 'r(#+)".*?"\1', '""')
+        $codeLine = [regex]::Replace($codeLine, '"(?:\\.|[^"\\])*"', '""')
         foreach ($pattern in $singleLetterPatterns) {
             foreach ($match in $pattern.Matches($codeLine)) {
                 $name = $match.Groups['name'].Value

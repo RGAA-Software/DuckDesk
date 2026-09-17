@@ -34,7 +34,7 @@ impl KvStorage {
             return db
                 .get(key)
                 .unwrap()
-                .map(|v: IVec| String::from_utf8(v.to_vec()).unwrap());
+                .map(|stored_value: IVec| String::from_utf8(stored_value.to_vec()).unwrap());
         }
         None
     }
