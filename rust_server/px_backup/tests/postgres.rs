@@ -1,8 +1,11 @@
 use px_backup::{
     BackupError, BackupPlan, BackupRepository, BackupRunner, BackupService, BackupTarget,
-    DatabaseTarget, LogicalBackupTool, RecoverySetKind, RecoverySetStatus, RestoreDatabaseTarget,
-    RestoreExecutionPlan, RestoreExecutionReport, RestoreOperatorProvisionPlan, RetentionClass,
+    DatabaseTarget, ExternalRecoveryWitness, LogicalBackupTool, RecoverySealPlan,
+    RecoverySealReport, RecoverySecurityEvidence, RecoverySetKind, RecoverySetStatus,
+    RestoreAdmissionRecord, RestoreAdmissionState, RestoreDatabaseTarget, RestoreExecutionPlan,
+    RestoreExecutionReport, RestoreOperationalCheck, RestoreOperatorProvisionPlan, RetentionClass,
     WriteBarrierCoordinatorPlan, WriteBarrierDatabaseTarget, WriteBarrierProof,
+    RECOVERY_WITNESS_SCHEMA_VERSION,
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -176,6 +179,38 @@ struct WriteBarrierCommandFixture {
     command_timeout_seconds: u64,
 }
 
+#[derive(Serialize)]
+struct RecoverySealCommandFixture {
+    schema_version: u32,
+    repository_root: PathBuf,
+    plan: RecoverySealPlan,
+    psql_path: PathBuf,
+    psql_sha256: String,
+    command_timeout_seconds: u64,
+}
+
+#[derive(Serialize)]
+struct RestoreAdmissionCommandFixture {
+    schema_version: u32,
+    deployment_id: Uuid,
+    recovery_set_id: Uuid,
+    target_environment_id: Uuid,
+    repository_root: PathBuf,
+    admission_root: PathBuf,
+    witness_path: PathBuf,
+    recovery_seal_report_path: PathBuf,
+    completed_checks: BTreeSet<RestoreOperationalCheck>,
+}
+
+#[derive(Serialize)]
+struct RestoreApprovalCommandFixture {
+    schema_version: u32,
+    approval_id: Uuid,
+    administrator_id: Uuid,
+    expected_revision: u64,
+    expected_evidence_sha256: String,
+}
+
 impl Fixture {
     fn new() -> Self {
         let base = tempfile::Builder::new()
@@ -304,6 +339,68 @@ fn file_sha256(path: &Path) -> String {
     format!("{:x}", Sha256::digest(fs::read(path).unwrap()))
 }
 
+fn seed_recovery_security_records(tool: &DockerPgTool) {
+    let password_salt = "A".repeat(22);
+    let password_digest = "B".repeat(42);
+    let password_hash =
+        format!("$argon2id$v=19$m=19456,t=2,p=1${password_salt}${password_digest}A");
+    assert_eq!(password_hash.len(), 97);
+    let console_seed = format!(
+        "INSERT INTO pixels.users(id,username,username_normalized,password_hash,role) VALUES('10000000-0000-0000-0000-000000000001','Recovery User','recovery user','{password_hash}','admin');\
+         INSERT INTO pixels.login_sessions(id,user_id,token_hash,client_type,authorization_revision,expires_at,absolute_expires_at) VALUES('10000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000001',decode(repeat('11',32),'hex'),'admin_web',1,clock_timestamp()+interval '1 hour',clock_timestamp()+interval '2 hours');\
+         INSERT INTO pixels.user_groups(id,name,name_normalized) VALUES('10000000-0000-0000-0000-000000000003','Recovery Group','recovery group');\
+         INSERT INTO pixels.group_members(group_id,user_id) VALUES('10000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000001');\
+         INSERT INTO pixels.devices(id,public_code,name,platform,enrollment_hash) VALUES('10000000-0000-0000-0000-000000000004','123456789012','Recovery Device','windows',decode(repeat('22',32),'hex'));\
+         INSERT INTO pixels.user_devices(user_id,device_id) VALUES('10000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000004');\
+         INSERT INTO pixels.group_device_grants(group_id,device_id) VALUES('10000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000004');\
+         INSERT INTO pixels.applications(id,name,kind,access_mode,entry_url,bitrate_kbps,codec,allow_observer,allow_takeover,disabled) VALUES('10000000-0000-0000-0000-000000000005','Recovery App','webview','acl','https://example.test',1000,'h264',false,false,false);\
+         INSERT INTO pixels.group_app_grants(group_id,application_id) VALUES('10000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000005');\
+         INSERT INTO pixels.application_events(id,application_id,actor_id,revision,access_revision,kind) VALUES('10000000-0000-0000-0000-000000000006','10000000-0000-0000-0000-000000000005','10000000-0000-0000-0000-000000000001',1,1,'created');\
+         INSERT INTO pixels.authorization_outbox(id,user_id,authorization_revision,reason) VALUES('10000000-0000-0000-0000-000000000007','10000000-0000-0000-0000-000000000001',1,'permissions_changed');\
+         INSERT INTO pixels.nodes(id,device_id,product,credential_hash,max_instances) VALUES('10000000-0000-0000-0000-000000000008','10000000-0000-0000-0000-000000000004','cloud_node',decode(repeat('33',32),'hex'),4);"
+    );
+    tool.execute(&[
+        "psql",
+        "-X",
+        "--username",
+        "pixels_admin",
+        "--dbname",
+        "pixels_console",
+        "--set=ON_ERROR_STOP=1",
+        "--command",
+        &console_seed,
+    ]);
+    let auth_seed = format!(
+        "INSERT INTO pixels.authors(id,username_normalized,password_hash,role) VALUES('20000000-0000-0000-0000-000000000001','recovery-author','{password_hash}','admin');\
+         INSERT INTO pixels.author_sessions(id,author_id,token_hash,authorization_revision,expires_at) VALUES('20000000-0000-0000-0000-000000000002','20000000-0000-0000-0000-000000000001',decode(repeat('44',32),'hex'),1,clock_timestamp()+interval '1 hour');\
+         INSERT INTO pixels.customers(id,name,name_normalized,remark) VALUES('20000000-0000-0000-0000-000000000003','Recovery Customer','recovery customer','');\
+         INSERT INTO pixels.licenses(id,customer_id,target_deployment,product,distribution,machine_sha256,revision,mode,not_before,expires_at,max_devices,max_sessions,features) VALUES('20000000-0000-0000-0000-000000000004','20000000-0000-0000-0000-000000000003','20000000-0000-0000-0000-000000000005','pixels_console','official',repeat('a',64),1,'licensed',clock_timestamp()-interval '1 hour',clock_timestamp()+interval '1 day',4,4,ARRAY['desktop']);\
+         INSERT INTO pixels.license_requests(author_id,request_id,body_sha256) VALUES('20000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000006',decode(repeat('55',32),'hex'));"
+    );
+    tool.execute(&[
+        "psql",
+        "-X",
+        "--username",
+        "pixels_admin",
+        "--dbname",
+        "pixels_auth",
+        "--set=ON_ERROR_STOP=1",
+        "--command",
+        &auth_seed,
+    ]);
+    tool.execute(&[
+        "psql",
+        "-X",
+        "--username",
+        "pixels_admin",
+        "--dbname",
+        "pixels_desk",
+        "--set=ON_ERROR_STOP=1",
+        "--command",
+        "INSERT INTO pixels.admin_sessions(id,token_hash,credential_fingerprint,expires_at) VALUES('30000000-0000-0000-0000-000000000001',decode(repeat('66',32),'hex'),decode(repeat('77',32),'hex'),clock_timestamp()+interval '1 hour')",
+    ]);
+}
+
 #[test]
 fn real_three_database_archives_restore_from_offsite_after_source_loss_and_detect_tampering() {
     assert_eq!(env::var("PIXELS_PG_ISOLATED_TEST").as_deref(), Ok("1"));
@@ -330,6 +427,7 @@ fn real_three_database_archives_restore_from_offsite_after_source_loss_and_detec
         format!("127.0.0.1:5432:*:pixels_admin:{admin_password}\n").as_bytes(),
     )
     .unwrap();
+    seed_recovery_security_records(&tool);
     let barrier_tool_directory = fixture._base.path().join("barrier-tools");
     fs::create_dir(&barrier_tool_directory).unwrap();
     make_private(&barrier_tool_directory);
@@ -722,6 +820,208 @@ fn real_three_database_archives_restore_from_offsite_after_source_loss_and_detec
         ]);
         assert_eq!(privilege_marker, "t");
     }
+
+    let seal_marker_path = fixture._base.path().join("recovery-seal-marker.json");
+    let seal_report_path = fixture._base.path().join("recovery-seal-report.json");
+    let seal_config = RecoverySealCommandFixture {
+        schema_version: 1,
+        repository_root: offsite_root.clone(),
+        plan: RecoverySealPlan {
+            deployment_id,
+            recovery_set_id: manifest.recovery_set_id,
+            target_environment_id,
+            lock_file: fixture._base.path().join("recovery-seal.lock"),
+            marker_file: seal_marker_path.clone(),
+            report_file: seal_report_path.clone(),
+            targets: targets.clone(),
+        },
+        psql_path: psql.clone(),
+        psql_sha256: file_sha256(&psql),
+        command_timeout_seconds: 30,
+    };
+    let seal_config_path = fixture._base.path().join("recovery-seal-config.json");
+    px_private_files::private::create_private(
+        &seal_config_path,
+        &serde_json::to_vec(&seal_config).unwrap(),
+    )
+    .unwrap();
+    let seal_output = Command::new(env!("CARGO_BIN_EXE_px_backup"))
+        .args(["restore-seal", seal_config_path.to_str().unwrap()])
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    if !seal_output.status.success() {
+        let proxy_log = fs::read_to_string(tool_directory.join("proxy.log"))
+            .unwrap_or_else(|_| "proxy log unavailable".to_string());
+        panic!(
+            "recovery seal failed: status={} stdout={} stderr={}\n{proxy_log}",
+            seal_output.status,
+            String::from_utf8_lossy(&seal_output.stdout),
+            String::from_utf8_lossy(&seal_output.stderr)
+        );
+    }
+    let seal_report = serde_json::from_slice::<RecoverySealReport>(
+        &px_private_files::private::read_private(&seal_report_path).unwrap(),
+    )
+    .unwrap();
+    assert!(seal_report.old_sessions_revoked);
+    assert!(seal_report.old_grants_invalidated);
+    assert!(seal_report.pending_control_invalidated);
+    assert!(seal_report.admission_required);
+    assert_eq!(seal_report.services.len(), 3);
+    let console_seal = seal_report
+        .services
+        .iter()
+        .find(|service| service.service == BackupService::Console)
+        .unwrap();
+    assert_eq!(console_seal.revoked_session_records, 1);
+    assert_eq!(console_seal.invalidated_grant_records, 3);
+    assert_eq!(console_seal.invalidated_control_records, 1);
+    let auth_seal = seal_report
+        .services
+        .iter()
+        .find(|service| service.service == BackupService::Auth)
+        .unwrap();
+    assert_eq!(auth_seal.revoked_session_records, 1);
+    assert_eq!(auth_seal.invalidated_grant_records, 1);
+    assert_eq!(auth_seal.invalidated_control_records, 1);
+    let desk_seal = seal_report
+        .services
+        .iter()
+        .find(|service| service.service == BackupService::Desk)
+        .unwrap();
+    assert_eq!(desk_seal.revoked_session_records, 1);
+    assert!(!seal_marker_path.exists());
+    for target in &targets {
+        let sealed_state = tool.output(&[
+            "psql",
+            "-X",
+            "--tuples-only",
+            "--no-align",
+            "--username",
+            "pixels_admin",
+            "--dbname",
+            &target.database,
+            "--command",
+            "SELECT recovery_generation::text || '|' || (write_barrier_id IS NULL)::text FROM pixels.recovery_security_state WHERE singleton",
+        ]);
+        assert_eq!(
+            sealed_state,
+            format!("{}|true", seal_report.recovery_generation)
+        );
+    }
+    let repeated_seal_output = Command::new(env!("CARGO_BIN_EXE_px_backup"))
+        .args(["restore-seal", seal_config_path.to_str().unwrap()])
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(repeated_seal_output.status.success());
+
+    let RecoverySecurityEvidence::Captured {
+        external_key_ids,
+        watermarks,
+        ..
+    } = &manifest.security_evidence
+    else {
+        panic!("coordinated backup must carry security evidence");
+    };
+    let witness = ExternalRecoveryWitness {
+        schema_version: RECOVERY_WITNESS_SCHEMA_VERSION,
+        deployment_id,
+        witnessed_at_unix: manifest.completed_at_unix.unwrap() + 1,
+        available_key_ids: external_key_ids.clone(),
+        watermarks: watermarks.clone(),
+    };
+    let witness_path = fixture._base.path().join("recovery-witness.json");
+    px_private_files::private::create_private(
+        &witness_path,
+        &serde_json::to_vec(&witness).unwrap(),
+    )
+    .unwrap();
+    let admission_root = fixture._base.path().join("restore-admission");
+    fs::create_dir(&admission_root).unwrap();
+    make_private(&admission_root);
+    let admission_config = RestoreAdmissionCommandFixture {
+        schema_version: 2,
+        deployment_id,
+        recovery_set_id: manifest.recovery_set_id,
+        target_environment_id,
+        repository_root: offsite_root.clone(),
+        admission_root,
+        witness_path,
+        recovery_seal_report_path: seal_report_path.clone(),
+        completed_checks: BTreeSet::from([
+            RestoreOperationalCheck::TargetNetworkIsolated,
+            RestoreOperationalCheck::SideEffectsDisabled,
+            RestoreOperationalCheck::RestoredIntoNewDatabases,
+            RestoreOperationalCheck::DeploymentIdentityMatched,
+            RestoreOperationalCheck::SchemaAndConstraintsVerified,
+            RestoreOperationalCheck::BusinessSummariesVerified,
+            RestoreOperationalCheck::PendingCommandsReconciled,
+            RestoreOperationalCheck::ApplicationArtifactsVerified,
+            RestoreOperationalCheck::NodeWorkspaceFactsReconciled,
+        ]),
+    };
+    let admission_config_path = fixture._base.path().join("restore-admission-config.json");
+    px_private_files::private::create_private(
+        &admission_config_path,
+        &serde_json::to_vec(&admission_config).unwrap(),
+    )
+    .unwrap();
+    let evaluate_output = Command::new(env!("CARGO_BIN_EXE_px_backup"))
+        .args(["restore-evaluate", admission_config_path.to_str().unwrap()])
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(
+        evaluate_output.status.success(),
+        "restore evaluation failed: {}",
+        String::from_utf8_lossy(&evaluate_output.stderr)
+    );
+    let ready_record = serde_json::from_slice::<RestoreAdmissionRecord>(
+        String::from_utf8_lossy(&evaluate_output.stdout)
+            .trim()
+            .as_bytes(),
+    )
+    .unwrap();
+    assert_eq!(
+        ready_record.state,
+        RestoreAdmissionState::ReadyForManualApproval
+    );
+    let approval_request = RestoreApprovalCommandFixture {
+        schema_version: 1,
+        approval_id: Uuid::new_v4(),
+        administrator_id: Uuid::new_v4(),
+        expected_revision: ready_record.revision,
+        expected_evidence_sha256: ready_record.evidence_sha256.unwrap(),
+    };
+    let approval_request_path = fixture._base.path().join("restore-approval.json");
+    px_private_files::private::create_private(
+        &approval_request_path,
+        &serde_json::to_vec(&approval_request).unwrap(),
+    )
+    .unwrap();
+    let approval_output = Command::new(env!("CARGO_BIN_EXE_px_backup"))
+        .args([
+            "restore-approve",
+            admission_config_path.to_str().unwrap(),
+            approval_request_path.to_str().unwrap(),
+        ])
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(
+        approval_output.status.success(),
+        "restore approval failed: {}",
+        String::from_utf8_lossy(&approval_output.stderr)
+    );
+    let admitted_record = serde_json::from_slice::<RestoreAdmissionRecord>(
+        String::from_utf8_lossy(&approval_output.stdout)
+            .trim()
+            .as_bytes(),
+    )
+    .unwrap();
+    assert_eq!(admitted_record.state, RestoreAdmissionState::Admitted);
 
     let console_archive = set_directory.join("console.dump");
     OpenOptions::new()

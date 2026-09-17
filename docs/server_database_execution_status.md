@@ -258,6 +258,22 @@ DB4 第十五纵向切片完成三库写屏障生产与进程间恢复。三库�
 重复 release 成功，随后继续完成异机副本恢复。Windows 核心 52 项报告 `pg-20260918-010348-18a6f89f` 和 WSL Linux 同源码 52 项
 通过。库外最新可信见证、灾难恢复新 generation/旧会话与旧命令作废仍未完成，不能据此宣告权限防复活总出口完成。
 
+DB4 第十六纵向切片已把灾难恢复后的权限防复活落到正式命令 `px_backup restore-seal`。命令只接受私有严格配置和固定摘要 `psql`，
+绑定已验证的 WriteBarrier 恢复集、deployment、目标环境、确定性隔离新库及仓库外 lock/marker/report；进程互斥，首库修改前持久化同一
+随机新 recovery generation，异常中断后只能沿 marker 幂等复核，不能生成另一代掩盖部分完成。每库单事务先核对 restored generation/
+sequence 的规范摘要与 manifest 完全相同，再执行 fail-closed 重置：Console 撤销登录/访客会话、清空三类设备/应用 Grant、清除未投递
+outbox、轮换设备与节点凭据摘要、禁用设备/应用/部署/节点、取消待发命令并冻结活跃实例/资源会话；Auth 撤销 author 会话和许可证并删除
+未完成签发请求；Desk 撤销管理会话。事务后固定查询全部安全不变量，三库成功才写 seal report，且报告仍为
+`admission_required=true`。恢复准入配置 schema 直接升为 2，`restore-evaluate` 和 `restore-approve` 每次都重新验证 seal report 的
+deployment/recovery-set/目标环境、源安全水位及新 generation 状态摘要；缺报告、跨环境复用或篡改均在创建审批记录前拒绝。
+Windows 与 WSL Linux 同源码的 Rust 核心 48+9 项及严格 Clippy 已通过，Windows 聚焦核心报告为
+`pg-20260918-013638-4e877153`；真实 PostgreSQL 18 专项报告
+`pg-20260918-013326-e6a789bb` 从含有效 Console 会话、三类 Grant、节点凭据/待投递事件、Auth 会话/许可证/待签发请求及 Desk 管理会话的
+三库开始，实际完成 barrier → 协调备份 → 异机副本 → 源路径移走 → 三库新库恢复 → seal → seal 幂等重试 →
+`ReadyForManualApproval` → 人工 `Admitted`，并逐项断言失效记录数、新 generation 和清空的 barrier。源码 hash 全程稳定且隔离容器/卷已清理。
+这使“历史权限不自动复活”的数据库内基本链路通过；正式生产仍需外部最新见证的独立持久生产者、Auth 签名私钥轮换/旧公钥撤回、真实
+节点与 Windows/RDP 工作区事实对账，以及安装器密钥托管后才能宣告 DB4 总出口完成。
+
 - 新 Console 运行模块已接身份/用户组 HTTP 与单活动生命周期（产品入口尚未切换）。Windows 路由专项
   `pg-20260917-092450-742a93ef` 五组通过，837 个源文件及工具 hash 复核一致；静态检查通过。
   后续审计/管理重置增量独立验收，不把本条当作这些增量、正式产品或 Linux 已通过。
@@ -496,7 +512,7 @@ Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 W
 | DB2-A | 身份/管理 HTTP、密码计算/限流/Origin、访客 HMAC/会话/公开目录、严格配置与稳定私钥加载已实现；本人资料/头像、独立初始化 CLI、产品二进制切换及客户端全链路尚未接通 |
 | DB2-B/C/D | 设备/应用/节点/部署目录、user/guest 资源入口与 Console 节点 WS 已接；Windows Service 已切到新节点协议并实现部署准备、调和、命令 fencing 与精确 launch ACK。真实 Console→Service→Render、GPU/RDP 执行、媒体/事件投递及其余 repository 产品入口仍未完成 |
 | DB2-EXIT / DB3 | Desk/Auth 独立产品流程已验证；Console 与共享消费者仍待去 Mongo、接新签发/验证及库外水位，Auth 通知 outbox 尚未接通；不建设运行时双后端 |
-| DB4 | 恢复集/保留/私有原子发布/恢复前哈希与依赖复核/固定工具/取消超时、持久计划任务、重启补跑、受限实际清理、配置化异机复制、独立告警送达、持久恢复准入/审批、隔离恢复编排、固定工具适配器、执行命令、最小恢复账号创建/轮换、三库安全水位及写屏障生产/消费/释放已实现；Windows SCM 已真实验收，测试适配器已完成三库协调逻辑备份、异机副本路径恢复和全新库恢复。仍需 Linux systemd 真实宿主、正式 PostgreSQL 客户端与发行安装器/生产密钥托管接入、独立主机故障域恢复、库外最新可信见证、恢复 generation 与权限防复活和生产 WAL/PITR；本机 Docker/固定替身专项不能替代这些故障域验收 |
+| DB4 | 恢复集/保留/私有原子发布/恢复前哈希与依赖复核/固定工具/取消超时、持久计划任务、重启补跑、受限实际清理、配置化异机复制、独立告警送达、持久恢复准入/审批、隔离恢复编排、固定工具适配器、执行命令、最小恢复账号创建/轮换、三库安全水位及写屏障生产/消费/释放、灾难恢复新 generation 与数据库内旧会话/Grant/节点凭据/待发控制失效已实现；Windows SCM 已真实验收，测试适配器已完成三库协调逻辑备份、异机副本路径恢复、全新库恢复、恢复封印和人工准入。仍需 Linux systemd 真实宿主、正式 PostgreSQL 客户端与发行安装器/生产密钥托管接入、独立主机故障域恢复、库外最新可信见证、Auth 库外签名密钥轮换/旧公钥撤回、真实节点与 Windows/RDP 工作区事实对账和生产 WAL/PITR；本机 Docker/固定替身专项不能替代这些故障域验收 |
 | DB5 | 新环境服务端—Windows—Android 功能回归及完整制品验收 |
 | DB-HA / P1–P7 | 独立主机 HA、正式发行隔离、授权/连接服务、升级、运维与真实容量/稳定性验收 |
 

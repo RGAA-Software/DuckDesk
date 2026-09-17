@@ -50,6 +50,10 @@ fn main() -> ExitCode {
                 | "write barrier tool identity rejected"
                 | "write barrier acquisition failed closed"
                 | "write barrier release requires reconciliation"
+                | "recovery seal configuration rejected"
+                | "recovery seal tool identity rejected"
+                | "recovery seal failed closed"
+                | "recovery seal evidence rejected"
                 | "external recovery witness rejected"
                 | "restore admission store rejected"
                 | "restore evidence rejected"
@@ -65,7 +69,7 @@ fn main() -> ExitCode {
 fn run() -> Result<(), &'static str> {
     let arguments = env::args_os().collect::<Vec<_>>();
     if arguments.len() < 3 {
-        return Err("usage: px_backup run|service|barrier-acquire|barrier-release|restore-provision|restore-execute|restore-evaluate|restore-approve <private-config-path> [private-approval-path]");
+        return Err("usage: px_backup run|service|barrier-acquire|barrier-release|restore-provision|restore-execute|restore-seal|restore-evaluate|restore-approve <private-config-path> [private-approval-path]");
     }
     let command = arguments[1]
         .to_str()
@@ -82,12 +86,13 @@ fn run() -> Result<(), &'static str> {
         "restore-evaluate" if arguments.len() == 3 => restore_command::evaluate(config_path),
         "restore-execute" if arguments.len() == 3 => run_restore_execute(config_path),
         "restore-provision" if arguments.len() == 3 => run_restore_provision(config_path),
+        "restore-seal" if arguments.len() == 3 => run_restore_seal(config_path),
         "barrier-acquire" if arguments.len() == 3 => run_barrier_acquire(config_path),
         "barrier-release" if arguments.len() == 3 => run_barrier_release(config_path),
         "restore-approve" if arguments.len() == 4 => {
             restore_command::approve(config_path, PathBuf::from(&arguments[3]))
         }
-        _ => Err("usage: px_backup run|service|barrier-acquire|barrier-release|restore-provision|restore-execute|restore-evaluate|restore-approve <private-config-path> [private-approval-path]"),
+        _ => Err("usage: px_backup run|service|barrier-acquire|barrier-release|restore-provision|restore-execute|restore-seal|restore-evaluate|restore-approve <private-config-path> [private-approval-path]"),
     }
 }
 
@@ -103,6 +108,13 @@ fn run_restore_provision(config_path: PathBuf) -> Result<(), &'static str> {
     let cancellation = px_backup::BackupCancellation::default();
     install_console_shutdown(stopping, cancellation.clone())?;
     restore_command::provision(config_path, cancellation)
+}
+
+fn run_restore_seal(config_path: PathBuf) -> Result<(), &'static str> {
+    let stopping = Arc::new(AtomicBool::new(false));
+    let cancellation = px_backup::BackupCancellation::default();
+    install_console_shutdown(stopping, cancellation.clone())?;
+    restore_command::seal_recovery(config_path, cancellation)
 }
 
 fn run_barrier_acquire(config_path: PathBuf) -> Result<(), &'static str> {

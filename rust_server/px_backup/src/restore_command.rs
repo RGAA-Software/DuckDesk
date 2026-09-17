@@ -1,6 +1,7 @@
 use px_backup::{
-    BackupCancellation, BackupRepository, ExternalRecoveryWitness, PinnedPgRestoreProvisioner,
-    PinnedPgRestoreTools, PinnedPgWriteBarrierCoordinator, RecoverySetManifest,
+    BackupCancellation, BackupRepository, ExternalRecoveryWitness, PinnedPgRecoverySealTool,
+    PinnedPgRestoreProvisioner, PinnedPgRestoreTools, PinnedPgWriteBarrierCoordinator,
+    RecoverySealPlan, RecoverySealReport, RecoverySealRunner, RecoverySetManifest,
     RestoreAdmissionState, RestoreAdmissionStore, RestoreExecutionPlan, RestoreOperationalCheck,
     RestoreOperatorProvisionPlan, RestoreRunner, WriteBarrierCoordinatorPlan,
 };
@@ -8,11 +9,12 @@ use serde::{Deserialize, Serialize};
 use std::{collections::BTreeSet, path::PathBuf, time::Duration};
 use uuid::Uuid;
 
-const RESTORE_COMMAND_CONFIG_SCHEMA_VERSION: u32 = 1;
+const RESTORE_COMMAND_CONFIG_SCHEMA_VERSION: u32 = 2;
 const RESTORE_APPROVAL_REQUEST_SCHEMA_VERSION: u32 = 1;
 const RESTORE_EXECUTION_COMMAND_CONFIG_SCHEMA_VERSION: u32 = 1;
 const RESTORE_PROVISION_COMMAND_CONFIG_SCHEMA_VERSION: u32 = 1;
 const WRITE_BARRIER_COMMAND_CONFIG_SCHEMA_VERSION: u32 = 1;
+const RECOVERY_SEAL_COMMAND_CONFIG_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -24,6 +26,7 @@ struct RestoreCommandConfig {
     repository_root: PathBuf,
     admission_root: PathBuf,
     witness_path: PathBuf,
+    recovery_seal_report_path: PathBuf,
     completed_checks: BTreeSet<RestoreOperationalCheck>,
 }
 
@@ -50,7 +53,12 @@ impl RestoreCommandConfig {
             && self.repository_root.is_absolute()
             && self.admission_root.is_absolute()
             && self.witness_path.is_absolute()
+            && self.recovery_seal_report_path.is_absolute()
             && self.repository_root != self.admission_root
+            && self.recovery_seal_report_path != self.witness_path
+            && !self
+                .recovery_seal_report_path
+                .starts_with(&self.repository_root)
     }
 }
 
@@ -155,6 +163,45 @@ struct WriteBarrierCommandConfig {
     command_timeout_seconds: u64,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RecoverySealCommandConfig {
+    schema_version: u32,
+    repository_root: PathBuf,
+    plan: RecoverySealPlan,
+    psql_path: PathBuf,
+    psql_sha256: String,
+    command_timeout_seconds: u64,
+}
+
+impl RecoverySealCommandConfig {
+    fn load_private(config_path: &std::path::Path) -> Result<Self, &'static str> {
+        if !config_path.is_absolute() {
+            return Err("recovery seal configuration rejected");
+        }
+        let config_bytes = px_private_files::private::read_private(config_path)
+            .map_err(|_| "recovery seal configuration rejected")?;
+        let config = serde_json::from_slice::<Self>(&config_bytes)
+            .map_err(|_| "recovery seal configuration rejected")?;
+        if !config.is_valid() {
+            return Err("recovery seal configuration rejected");
+        }
+        Ok(config)
+    }
+
+    fn is_valid(&self) -> bool {
+        self.schema_version == RECOVERY_SEAL_COMMAND_CONFIG_SCHEMA_VERSION
+            && self.repository_root.is_absolute()
+            && !self.plan.lock_file.starts_with(&self.repository_root)
+            && !self.plan.marker_file.starts_with(&self.repository_root)
+            && !self.plan.report_file.starts_with(&self.repository_root)
+            && self.plan.validate().is_ok()
+            && self.psql_path.is_absolute()
+            && valid_sha256(&self.psql_sha256)
+            && (1..=24 * 60 * 60).contains(&self.command_timeout_seconds)
+    }
+}
+
 impl WriteBarrierCommandConfig {
     fn load_private(config_path: &std::path::Path) -> Result<Self, &'static str> {
         if !config_path.is_absolute() {
@@ -207,6 +254,7 @@ pub fn evaluate(config_path: PathBuf) -> Result<(), &'static str> {
     let config = RestoreCommandConfig::load_private(&config_path)?;
     let current_time = super::now_unix()?;
     let manifest = load_verified_manifest(&config)?;
+    load_verified_recovery_seal(&config, &manifest)?;
     let witness = ExternalRecoveryWitness::load_private(&config.witness_path)
         .map_err(|_| "external recovery witness rejected")?;
     let mut admission_store = RestoreAdmissionStore::open(
@@ -233,6 +281,7 @@ pub fn approve(config_path: PathBuf, request_path: PathBuf) -> Result<(), &'stat
     let approval_request = RestoreApprovalRequest::load_private(&request_path)?;
     let current_time = super::now_unix()?;
     let manifest = load_verified_manifest(&config)?;
+    load_verified_recovery_seal(&config, &manifest)?;
     let witness = ExternalRecoveryWitness::load_private(&config.witness_path)
         .map_err(|_| "external recovery witness rejected")?;
     let mut admission_store = RestoreAdmissionStore::open(
@@ -347,6 +396,36 @@ pub fn release_write_barrier(
     Ok(())
 }
 
+pub fn seal_recovery(
+    config_path: PathBuf,
+    cancellation: BackupCancellation,
+) -> Result<(), &'static str> {
+    let config = RecoverySealCommandConfig::load_private(&config_path)?;
+    let repository = BackupRepository::open(&config.repository_root, config.plan.deployment_id)
+        .map_err(|_| "backup repository rejected restore access")?;
+    let manifest = repository
+        .manifests()
+        .map_err(|_| "backup repository rejected restore access")?
+        .into_iter()
+        .find(|manifest| manifest.recovery_set_id == config.plan.recovery_set_id)
+        .ok_or("recovery set is unavailable")?;
+    drop(repository);
+    let tool = PinnedPgRecoverySealTool::new(
+        config.psql_path,
+        config.psql_sha256,
+        Duration::from_secs(config.command_timeout_seconds),
+        cancellation,
+    )
+    .map_err(|_| "recovery seal tool identity rejected")?;
+    let report = RecoverySealRunner::new(tool)
+        .seal(&manifest, &config.plan)
+        .map_err(|_| "recovery seal failed closed")?;
+    let report_json =
+        serde_json::to_string(&report).map_err(|_| "restore result serialization failed")?;
+    println!("{report_json}");
+    Ok(())
+}
+
 fn load_verified_manifest(
     config: &RestoreCommandConfig,
 ) -> Result<RecoverySetManifest, &'static str> {
@@ -359,6 +438,18 @@ fn load_verified_manifest(
         .into_iter()
         .find(|manifest| manifest.recovery_set_id == config.recovery_set_id)
         .ok_or("recovery set is unavailable")
+}
+
+fn load_verified_recovery_seal(
+    config: &RestoreCommandConfig,
+    manifest: &RecoverySetManifest,
+) -> Result<RecoverySealReport, &'static str> {
+    let report = RecoverySealReport::load_private(&config.recovery_seal_report_path)
+        .map_err(|_| "recovery seal evidence rejected")?;
+    report
+        .validate_for_restore(manifest, config.target_environment_id)
+        .map_err(|_| "recovery seal evidence rejected")?;
+    Ok(report)
 }
 
 fn print_record(record: &px_backup::RestoreAdmissionRecord) -> Result<(), &'static str> {
@@ -379,9 +470,10 @@ fn valid_sha256(value: &str) -> bool {
 mod tests {
     use super::*;
     use px_backup::{
-        BackupMember, BackupMemberState, BackupRepository, BackupService, RecoverySecurityEvidence,
-        RecoverySetKind, RecoverySetManifest, RecoverySetStatus, RestoreDatabaseTarget,
-        RestoreExecutionReport, RetentionClass, ServiceSecurityWatermark, MANIFEST_SCHEMA_VERSION,
+        BackupMember, BackupMemberState, BackupRepository, BackupService,
+        RecoverySealServiceReport, RecoverySecurityEvidence, RecoverySetKind, RecoverySetManifest,
+        RecoverySetStatus, RestoreDatabaseTarget, RestoreExecutionReport, RetentionClass,
+        ServiceSecurityWatermark, MANIFEST_SCHEMA_VERSION, RECOVERY_SEAL_REPORT_SCHEMA_VERSION,
         RECOVERY_WITNESS_SCHEMA_VERSION,
     };
     use sha2::{Digest, Sha256};
@@ -466,7 +558,7 @@ mod tests {
                 deployment_id,
                 witnessed_at_unix: 300,
                 available_key_ids: BTreeSet::from(["b".repeat(64)]),
-                watermarks,
+                watermarks: watermarks.clone(),
             };
             let witness_path = private_root.join("witness.json");
             px_private_files::private::create_private(
@@ -474,14 +566,67 @@ mod tests {
                 &serde_json::to_vec(&witness).unwrap(),
             )
             .unwrap();
+            let target_environment_id = Uuid::new_v4();
+            let recovery_generation = Uuid::new_v4();
+            let source_security_evidence_sha256 = format!(
+                "{:x}",
+                Sha256::digest(serde_json::to_vec(&manifest.security_evidence).unwrap())
+            );
+            let recovery_seal_report = RecoverySealReport {
+                schema_version: RECOVERY_SEAL_REPORT_SCHEMA_VERSION,
+                deployment_id,
+                recovery_set_id,
+                target_environment_id,
+                recovery_generation,
+                started_at_unix: 301,
+                completed_at_unix: 302,
+                source_security_evidence_sha256,
+                services: watermarks
+                    .iter()
+                    .map(|watermark| {
+                        let sealed_security_sequence = watermark.security_sequence + 1;
+                        let state_material = format!(
+                            "{}|{}|{}|{}",
+                            deployment_id,
+                            test_service_name(watermark.service),
+                            recovery_generation,
+                            sealed_security_sequence
+                        );
+                        RecoverySealServiceReport {
+                            service: watermark.service,
+                            source_security_sequence: watermark.security_sequence,
+                            source_security_state_sha256: watermark.security_state_sha256.clone(),
+                            sealed_security_sequence,
+                            sealed_security_state_sha256: format!(
+                                "{:x}",
+                                Sha256::digest(state_material.as_bytes())
+                            ),
+                            revoked_session_records: 0,
+                            invalidated_grant_records: 0,
+                            invalidated_control_records: 0,
+                        }
+                    })
+                    .collect(),
+                old_sessions_revoked: true,
+                old_grants_invalidated: true,
+                pending_control_invalidated: true,
+                admission_required: true,
+            };
+            let recovery_seal_report_path = private_root.join("recovery-seal-report.json");
+            px_private_files::private::create_private(
+                &recovery_seal_report_path,
+                &serde_json::to_vec(&recovery_seal_report).unwrap(),
+            )
+            .unwrap();
             let config = RestoreCommandConfig {
                 schema_version: RESTORE_COMMAND_CONFIG_SCHEMA_VERSION,
                 deployment_id,
                 recovery_set_id,
-                target_environment_id: Uuid::new_v4(),
+                target_environment_id,
                 repository_root,
                 admission_root: admission_root.clone(),
                 witness_path,
+                recovery_seal_report_path,
                 completed_checks: all_operational_checks(),
             };
             let config_path = private_root.join("restore-config.json");
@@ -513,6 +658,14 @@ mod tests {
             RestoreOperationalCheck::ApplicationArtifactsVerified,
             RestoreOperationalCheck::NodeWorkspaceFactsReconciled,
         ])
+    }
+
+    fn test_service_name(service: BackupService) -> &'static str {
+        match service {
+            BackupService::Console => "console",
+            BackupService::Auth => "auth",
+            BackupService::Desk => "desk",
+        }
     }
 
     fn create_private_child(parent: &Path, directory_name: &str) -> PathBuf {
@@ -632,6 +785,7 @@ mod tests {
             repository_root: absolute_root.join("repository"),
             admission_root: absolute_root.join("admission"),
             witness_path: absolute_root.join("witness.json"),
+            recovery_seal_report_path: absolute_root.join("recovery-seal-report.json"),
             completed_checks: BTreeSet::new(),
         };
         assert!(config.is_valid());
@@ -857,6 +1011,34 @@ mod tests {
         assert_eq!(
             admitted_record.recovery_set_id,
             fixture.config.recovery_set_id
+        );
+    }
+
+    #[test]
+    fn restore_admission_requires_an_exact_command_generated_recovery_seal() {
+        let fixture = CommandFixture::new();
+        fs::remove_file(&fixture.config.recovery_seal_report_path).unwrap();
+        assert_eq!(
+            evaluate(fixture.config_path.clone()),
+            Err("recovery seal evidence rejected")
+        );
+
+        let second_fixture = CommandFixture::new();
+        let report_bytes = px_private_files::private::read_private(
+            &second_fixture.config.recovery_seal_report_path,
+        )
+        .unwrap();
+        let mut report = serde_json::from_slice::<RecoverySealReport>(&report_bytes).unwrap();
+        report.target_environment_id = Uuid::new_v4();
+        fs::remove_file(&second_fixture.config.recovery_seal_report_path).unwrap();
+        px_private_files::private::create_private(
+            &second_fixture.config.recovery_seal_report_path,
+            &serde_json::to_vec(&report).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            evaluate(second_fixture.config_path),
+            Err("recovery seal evidence rejected")
         );
     }
 

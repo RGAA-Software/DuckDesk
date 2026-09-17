@@ -4,6 +4,7 @@
 mod barrier;
 mod executor;
 mod manifest;
+mod recovery_seal;
 mod repository;
 mod restore;
 mod restore_executor;
@@ -25,6 +26,11 @@ pub use manifest::{
     BackupMember, BackupMemberState, BackupService, RecoveryEvidenceUnavailableReason,
     RecoverySecurityEvidence, RecoverySetKind, RecoverySetManifest, RecoverySetStatus,
     ServiceSecurityWatermark, MANIFEST_SCHEMA_VERSION,
+};
+pub use recovery_seal::{
+    PinnedPgRecoverySealTool, RecoverySealError, RecoverySealPlan, RecoverySealReport,
+    RecoverySealRunner, RecoverySealServiceReport, RecoverySealTargetResult, RecoverySealTool,
+    RECOVERY_SEAL_REPORT_SCHEMA_VERSION,
 };
 pub use repository::{BackupRepository, RepositoryError, StagedRecoverySet};
 pub use restore::{

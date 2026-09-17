@@ -222,6 +222,17 @@ Console 停机也可操作；普通运行/备份身份不自动拥有建库、DD
 命令会创建或轮换 `pixels_restore_operator`，重置角色级参数，撤销范围外的已知 owner 成员关系，并在结束前精确核对登录、建库、
 非超级用户、非建角色、非复制、非绕过 RLS、目标 owner 成员关系和 maintenance DB 连接权。发现任何额外角色成员关系时验证失败关闭，
 不静默扩大权限。正式发行安装器仍须接入该命令并使用生产密钥托管生成、保护和撤销私密材料；开发测试密钥不能作为生产交付证据。
+
+恢复到隔离新库后必须执行 `px_backup restore-seal <absolute-private-config-path>`，不能直接把人工填写的检查项当作“旧权限已失效”。
+严格配置绑定已验证协调恢复集、deployment、目标环境、确定性新库、仓库外 lock/marker/report、固定 `psql` 路径/摘要及私有恢复凭据；
+同一恢复操作由持久 lock 进程互斥，marker 在首库变更前创建并保存全新的随机 recovery generation 和源安全证据摘要。每库事务先核对
+恢复出的 generation/sequence 与 manifest 安全水位，再切换到同一个新 generation：Console 撤销用户/访客会话，删除设备直接关联及
+设备/应用组 Grant，清除未投递授权/应用/访客事件，轮换设备 enrollment hash 和节点 credential hash，禁用设备/应用/部署/节点，
+提升用户授权 revision，取消待发实例命令并将活跃实例/资源会话置为待对账；Auth 撤销 author 会话和许可证、删除未完成签发请求；
+Desk 撤销管理会话。每个事务最后重新查询全部安全不变量，任一非零风险计数、源水位变化、目标身份不符或工具变化都失败关闭。
+已完成目标可按 marker 中同一 generation 幂等复核，不能另起 generation 掩盖半完成现场；三库全部成功后才原子写私有 seal report，报告仍
+明确 `admission_required=true`。`restore-evaluate`/`restore-approve` 的配置 schema 直接升为 2，并在每次评估/审批时重新读取该报告，精确
+核对恢复集、目标环境、源水位和新 generation 的逐服务状态摘要；缺失、伪造、串用或被篡改的报告一律不能进入人工审批。
 DB0 交付服务身份/ACL/目录/任务协议与离线恢复设计，DB4 实现并测试 SCM 重启、断电、Console 停机、凭据失效和目录访问拒绝。
 Linux 使用 `deploy/systemd/pixels-backup@.service` 模板承载同一个执行器，实例参数是 deployment ID；模板固定服务账号、配置与数据根，
 启用 systemd 文件系统/内核/能力边界，SIGTERM 复用同一取消语义。发行安装器仍须创建账号、目录和 ACL 后才可 enable/start，
@@ -281,6 +292,8 @@ Linux 使用 `deploy/systemd/pixels-backup@.service` 模板承载同一个执行
 历史备份可能缺少之后的撤销/禁用/ACL 变更：仅强制重新登录不足以解决旧权限复活。
 默认灾难恢复生成新的、不可与历史混淆的 recovery generation，重新建立受信节点/服务控制关系并作废旧登录/Grant/待发命令。
 generation 的签发和旧环境隔离由库外受保护恢复流程完成，不能只把已回退库内计数器加一。
+当前基础档由上述 `restore-seal` 将这一默认行为落实到隔离新库，并把命令生成的逐服务证据设为恢复准入硬前置；它不会替代网络隔离、
+Auth 库外签名私钥轮换/旧公钥撤回、节点与 Windows/RDP 工作区事实核对，也不会自动开放任何服务。
 有独立可信安全变更日志时对账恢复权限；否则保持业务准入关闭，由恢复管理员审核账号/ACL 和资源归属后再启用。
 该流程不会删除账号记录、注销 Windows Session 或清理未知进程；实例/预约逐项向 Service 核实，不能自动重放备份里的 Start。
 普通主备自动切换与回退历史备份不同：未回退数据且 generation 未变时不要求所有用户重新登录，但仍检查未决事务与任务。
