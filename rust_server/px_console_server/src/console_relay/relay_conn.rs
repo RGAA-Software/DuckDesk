@@ -64,12 +64,12 @@ impl RelayConn {
         gRelayTrafficRecorder.record_download(&self.device_id, size);
     }
 
-    pub async fn on_hello(&mut self, m: RelayMessage) {
+    pub async fn on_hello(&mut self, relay_message: RelayMessage) {
         self.last_update_timestamp = px_base::get_current_timestamp();
-        self.client_net_info = m.hello.unwrap().net_info;
+        self.client_net_info = relay_message.hello.unwrap().net_info;
         tracing::info!(
             "received hello message: {}, net info: {:#?}",
-            m.from_device_id,
+            relay_message.from_device_id,
             self.client_net_info
         );
         // 回复 kRelayHello:客户端 SDK 以此触发 hello 回调,panel 的中转指示灯
@@ -85,13 +85,13 @@ impl RelayConn {
             .await;
     }
 
-    pub async fn on_heartbeat(&mut self, m: RelayMessage) {
+    pub async fn on_heartbeat(&mut self, relay_message: RelayMessage) {
         self.last_update_timestamp = px_base::get_current_timestamp();
-        if let Some(heartbeat) = m.heartbeat {
+        if let Some(heartbeat) = relay_message.heartbeat {
             self.heartbeat_index = heartbeat.index;
             self.client_net_info = heartbeat.net_info;
             gRelayRoomMgr
-                .on_heartbeat_for_my_room(m.from_device_id)
+                .on_heartbeat_for_my_room(relay_message.from_device_id)
                 .await;
             // 回执心跳(kRelayHeartBeat,携带原 index):客户端用它更新
             // relay alive 时间戳。不回的话 panel 的中转/中转文件灯永远红。
@@ -110,7 +110,7 @@ impl RelayConn {
         }
     }
 
-    pub async fn on_error(&self, _m: RelayMessage) {}
+    pub async fn on_error(&self, _relay_message: RelayMessage) {}
 
     pub async fn send_bin_message(&mut self, om: Bytes) -> bool {
         self.send_bin_message_with_index(RELAY_IGNORE_MSG_INDEX, om)
@@ -148,9 +148,9 @@ impl RelayConn {
 
         // send message
         let size = om.len();
-        let r = self.sender.lock().await.send(Message::Binary(om)).await;
-        if let Err(r) = r {
-            tracing::error!("error sending relay message: {r}");
+        let send_result = self.sender.lock().await.send(Message::Binary(om)).await;
+        if let Err(send_error) = send_result {
+            tracing::error!("error sending relay message: {send_error}");
             return false;
         }
 

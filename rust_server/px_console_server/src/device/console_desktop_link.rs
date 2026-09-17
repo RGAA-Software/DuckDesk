@@ -22,8 +22,8 @@ pub struct IpItem {
 }
 
 impl DesktopLinkRaw {
-    pub fn from(m: &str) -> serde_json::Result<Self> {
-        let r: DesktopLinkRaw = serde_json::from_str(m)?;
-        Ok(r)
+    pub fn from(serialized_link: &str) -> serde_json::Result<Self> {
+        let desktop_link: DesktopLinkRaw = serde_json::from_str(serialized_link)?;
+        Ok(desktop_link)
     }
 }

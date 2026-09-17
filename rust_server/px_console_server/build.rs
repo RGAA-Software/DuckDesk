@@ -67,8 +67,8 @@ fn main() {
         .unwrap();
 
     let dest_path = dest_folder.join("px_console.toml");
-    if let Err(e) = fs::copy(src_path, dest_path) {
-        eprintln!("copy settings failed: {}", e);
+    if let Err(copy_error) = fs::copy(src_path, dest_path) {
+        eprintln!("copy settings failed: {}", copy_error);
     }
 
     // ZLMediaKit is a fixed, prebuilt Console sidecar. Keep the complete runtime
@@ -90,14 +90,14 @@ fn main() {
 
     // cert.pem
     let cert_path = certs_folder.clone().join("cert.pem");
-    if let Err(e) = fs::copy("../../certs/cert.pem", cert_path) {
-        eprintln!("copy settings failed: {}", e);
+    if let Err(copy_error) = fs::copy("../../certs/cert.pem", cert_path) {
+        eprintln!("copy settings failed: {}", copy_error);
     }
 
     // key.pem
     let key_path = certs_folder.clone().join("key.pem");
-    if let Err(e) = fs::copy("../../certs/key.pem", key_path) {
-        eprintln!("copy settings failed: {}", e);
+    if let Err(copy_error) = fs::copy("../../certs/key.pem", key_path) {
+        eprintln!("copy settings failed: {}", copy_error);
     }
 
     // root folder in RustRover IDE
@@ -116,8 +116,8 @@ fn main() {
         .unwrap()
         .join("px_console.toml");
 
-    if let Err(e) = fs::copy(src_path, dest_path) {
-        eprintln!("copy settings failed: {}", e);
+    if let Err(copy_error) = fs::copy(src_path, dest_path) {
+        eprintln!("copy settings failed: {}", copy_error);
     }
 
     //remove web folder

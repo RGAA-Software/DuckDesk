@@ -46,8 +46,8 @@ impl IdentityManager {
             .await
             .insert_one(group.clone())
             .await
-            .map_err(|e| {
-                tracing::warn!("create group failed: {}", e);
+            .map_err(|insert_error| {
+                tracing::warn!("create group failed: {}", insert_error);
                 ConsoleApiError::InvalidParams
             })?;
         Self::group_view(group).await
@@ -434,7 +434,7 @@ impl IdentityManager {
                 });
             }
         }
-        groups.sort_by(|a, b| a.name.cmp(&b.name));
+        groups.sort_by(|left_group, right_group| left_group.name.cmp(&right_group.name));
         Ok(groups)
     }
 

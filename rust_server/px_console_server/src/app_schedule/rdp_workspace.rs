@@ -43,7 +43,7 @@ fn identifier(value: &str) -> bool {
         && value.len() <= MAX_IDENTIFIER
         && value
             .bytes()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_'))
+            .all(|name_byte| name_byte.is_ascii_alphanumeric() || matches!(name_byte, b'-' | b'_'))
 }
 
 impl RdpWorkspaceVault {

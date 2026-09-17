@@ -383,7 +383,7 @@ mod tests {
     async fn process_message_updates_state() {
         let conn = make_conn("d1", "appkey-1");
         {
-            let mut c = conn.lock().await;
+            let mut service_connection = conn.lock().await;
 
             let mut hello = protocol::console_service::ConsoleServiceMessage::default();
             hello.set_msg_type(
@@ -407,18 +407,22 @@ mod tests {
                     .collect(),
             });
             assert!(
-                c.process_message(
-                    "test".to_string(),
-                    axum::body::Bytes::from(hello.encode_to_vec())
-                )
-                .await
+                service_connection
+                    .process_message(
+                        "test".to_string(),
+                        axum::body::Bytes::from(hello.encode_to_vec())
+                    )
+                    .await
             );
-            assert_eq!(c.version, "2.0.0");
-            assert_eq!(c.product, "remote");
-            assert_eq!(c.edition, "REMOTE");
-            assert_eq!(c.product_version, "2.1.4");
-            assert!(c.hello_timestamp > 0);
-            assert_eq!(c.last_update_timestamp, c.hello_timestamp);
+            assert_eq!(service_connection.version, "2.0.0");
+            assert_eq!(service_connection.product, "remote");
+            assert_eq!(service_connection.edition, "REMOTE");
+            assert_eq!(service_connection.product_version, "2.1.4");
+            assert!(service_connection.hello_timestamp > 0);
+            assert_eq!(
+                service_connection.last_update_timestamp,
+                service_connection.hello_timestamp
+            );
 
             let mut hb = protocol::console_service::ConsoleServiceMessage::default();
             hb.set_msg_type(
@@ -434,23 +438,25 @@ mod tests {
                 logical_sessions_json: "[]".to_string(),
             });
             assert!(
-                c.process_message(
-                    "test".to_string(),
-                    axum::body::Bytes::from(hb.encode_to_vec())
-                )
-                .await
+                service_connection
+                    .process_message(
+                        "test".to_string(),
+                        axum::body::Bytes::from(hb.encode_to_vec())
+                    )
+                    .await
             );
-            assert_eq!(c.hb_index, 42);
-            assert!(!c.render_alive);
-            assert_eq!(c.auth_info_json, "{\"a\":1}");
+            assert_eq!(service_connection.hb_index, 42);
+            assert!(!service_connection.render_alive);
+            assert_eq!(service_connection.auth_info_json, "{\"a\":1}");
 
             // garbage payload -> parse error -> false
             assert!(
-                !c.process_message(
-                    "test".to_string(),
-                    axum::body::Bytes::from(vec![0xff, 0xff])
-                )
-                .await
+                !service_connection
+                    .process_message(
+                        "test".to_string(),
+                        axum::body::Bytes::from(vec![0xff, 0xff])
+                    )
+                    .await
             );
         }
     }

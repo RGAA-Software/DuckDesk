@@ -18,7 +18,7 @@ impl ConsoleEventManager {
     }
 
     pub async fn add_event(&self, warn: ConsoleEvent) -> Result<(), ConsoleApiError> {
-        let r = gConsoleDatabase
+        let insert_result = gConsoleDatabase
             .lock()
             .await
             .event()
@@ -26,7 +26,7 @@ impl ConsoleEventManager {
             .await
             .insert_one(warn)
             .await;
-        if let Err(err) = r {
+        if let Err(err) = insert_result {
             tracing::error!("failed to insert warn: {}", err);
             return Err(ConsoleApiError::DatabaseError);
         }
@@ -134,7 +134,7 @@ impl ConsoleEventManager {
     }
 
     pub async fn remove_event(&self, warn_id: String) -> Result<(), ConsoleApiError> {
-        let r = gConsoleDatabase
+        let delete_result = gConsoleDatabase
             .lock()
             .await
             .event()
@@ -142,7 +142,7 @@ impl ConsoleEventManager {
             .await
             .delete_one(doc! {KEY_EVENT_ID: warn_id.clone()})
             .await;
-        if let Err(err) = r {
+        if let Err(err) = delete_result {
             tracing::error!("failed to remove warn: {}", err);
             return Err(ConsoleApiError::DatabaseError);
         }
@@ -197,7 +197,7 @@ impl ConsoleEventManager {
             doc! {}
         };
 
-        let r = gConsoleDatabase
+        let query_result = gConsoleDatabase
             .lock()
             .await
             .event()
@@ -208,14 +208,14 @@ impl ConsoleEventManager {
             .skip(skip as u64)
             .limit(limit)
             .await;
-        if let Err(err) = r {
+        if let Err(err) = query_result {
             tracing::error!("failed to query warns: {}", err);
             return Err(ConsoleApiError::DatabaseError);
         }
 
         let total = self.count_total_events_with_filters(filter).await?;
 
-        let mut cursor = r.unwrap();
+        let mut cursor = query_result.unwrap();
         let mut events: Vec<ConsoleEvent> = Vec::new();
         while let Some(event) = cursor.next().await {
             if let Err(err) = event {

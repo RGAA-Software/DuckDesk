@@ -194,7 +194,7 @@ impl ConsoleClientConnManager {
         let skip = (page - 1) * page_size;
         let limit = page_size as i64;
 
-        let r = gConsoleDatabase
+        let query_result = gConsoleDatabase
             .lock()
             .await
             .client_conn()
@@ -206,11 +206,11 @@ impl ConsoleClientConnManager {
             .skip(skip as u64)
             .limit(limit)
             .await;
-        if let Err(err) = r {
+        if let Err(err) = query_result {
             tracing::error!("failed to query clients: {}", err);
             return Err(ConsoleApiError::DatabaseError);
         }
-        let mut cursor = r.unwrap();
+        let mut cursor = query_result.unwrap();
         let mut clients_conn: Vec<ConsoleClientConnVo> = Vec::new();
         while let Some(conn) = cursor.next().await {
             if let Err(err) = conn {
@@ -230,7 +230,7 @@ impl ConsoleClientConnManager {
         let skip = (page - 1) * page_size;
         let limit = page_size as i64;
 
-        let r = gConsoleDatabase
+        let query_result = gConsoleDatabase
             .lock()
             .await
             .client_conn()
@@ -240,11 +240,11 @@ impl ConsoleClientConnManager {
             .skip(skip as u64)
             .limit(limit)
             .await;
-        if let Err(err) = r {
+        if let Err(err) = query_result {
             tracing::error!("failed to query clients: {}", err);
             return Err(ConsoleApiError::DatabaseError);
         }
-        let mut cursor = r.unwrap();
+        let mut cursor = query_result.unwrap();
         let mut clients_conn: Vec<ConsoleClientConnVo> = Vec::new();
         while let Some(conn) = cursor.next().await {
             if let Err(err) = conn {

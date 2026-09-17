@@ -127,7 +127,7 @@ pub async fn handle_query_update_info(
             target_device_filter.clone(),
         )
         .await?;
-    let mut r = gRecordVisitManager
+    let mut visits = gRecordVisitManager
         .query_info::<String>(
             page,
             page_size,
@@ -138,10 +138,10 @@ pub async fn handle_query_update_info(
             target_device_filter,
         )
         .await?;
-    for visit in &mut r {
+    for visit in &mut visits {
         visit.total = total_size;
     }
-    Ok(Json(ok_resp(r)))
+    Ok(Json(ok_resp(visits)))
 }
 
 pub async fn handle_upload_file_transfer_info(
@@ -220,7 +220,7 @@ pub async fn handle_query_file_transfer_info(
             target_device_filter.clone(),
         )
         .await?;
-    let mut r = gRecordFileTransferManager
+    let mut file_transfers = gRecordFileTransferManager
         .query_info::<String>(
             page,
             page_size,
@@ -231,8 +231,8 @@ pub async fn handle_query_file_transfer_info(
             target_device_filter,
         )
         .await?;
-    for ft in &mut r {
-        ft.total = total_size;
+    for file_transfer in &mut file_transfers {
+        file_transfer.total = total_size;
     }
-    Ok(Json(ok_resp(r)))
+    Ok(Json(ok_resp(file_transfers)))
 }

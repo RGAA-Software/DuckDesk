@@ -38,8 +38,8 @@ impl PrIdGenerator {
                 || index == 28
                 || index == 30
             {
-                let v = (*value) % 10;
-                device_id += &v.to_string();
+                let decimal_digit = (*value) % 10;
+                device_id += &decimal_digit.to_string();
             }
         }
 

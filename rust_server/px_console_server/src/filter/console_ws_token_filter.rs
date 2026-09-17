@@ -42,13 +42,13 @@ async fn verify_and_run(mut req: Request<Body>, next: Next, check_max_streams: b
     }
     let query = req.uri().query().unwrap_or("");
     let params = match serde_urlencoded::from_str::<WsTokenQueryParams>(query) {
-        Ok(p) => p,
-        Err(e) => {
+        Ok(token_parameters) => token_parameters,
+        Err(parse_error) => {
             // The raw query contains the connection token. Keep it out of logs.
             tracing::warn!(
                 "ws filter: missing/malformed params path='{}' error='{}'",
                 path,
-                e
+                parse_error
             );
             return ConsoleApiError::InvalidAppkey.into_response();
         }
@@ -86,7 +86,7 @@ async fn verify_and_run(mut req: Request<Body>, next: Next, check_max_streams: b
 
     if check_max_streams {
         let reservation = match crate::gConsoleClientConnMgr.try_reserve_stream(auth.max_streams) {
-            Some(r) => r,
+            Some(stream_reservation) => stream_reservation,
             None => {
                 tracing::error!(
                     "max streams reached: {}/{}, rejecting client connection",

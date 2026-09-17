@@ -91,15 +91,15 @@ impl ConsoleDevice {
 
     pub fn get_ip_from_link(&self) -> String {
         match DesktopLinkRaw::from(self.desktop_link_raw.as_str()) {
-            Ok(v) => {
-                if v.ips.is_empty() {
+            Ok(desktop_link) => {
+                if desktop_link.ips.is_empty() {
                     "".to_string()
                 } else {
-                    v.ips[0].ip.to_string()
+                    desktop_link.ips[0].ip.to_string()
                 }
             }
-            Err(e) => {
-                tracing::error!("parse desktop link failed: {}", e);
+            Err(parse_error) => {
+                tracing::error!("parse desktop link failed: {}", parse_error);
                 "".to_string()
             }
         }
@@ -110,22 +110,28 @@ impl ConsoleDevice {
     /// by the wall signaling API.
     pub fn get_render_endpoints(&self) -> Vec<(String, i32)> {
         match DesktopLinkRaw::from(self.desktop_link_raw.as_str()) {
-            Ok(v) if v.rdpt > 0 && v.rdpt <= u16::MAX as i32 => v
-                .ips
-                .into_iter()
-                // Accept literal IP addresses only. Besides catching corrupt
-                // links this prevents a stored hostname from turning the Console
-                // proxy into an unrestricted DNS/HTTP forwarder.
-                .filter_map(|item| {
-                    item.ip
-                        .parse::<IpAddr>()
-                        .ok()
-                        .map(|ip| (ip.to_string(), v.rdpt))
-                })
-                .collect(),
+            Ok(desktop_link) if desktop_link.rdpt > 0 && desktop_link.rdpt <= u16::MAX as i32 => {
+                desktop_link
+                    .ips
+                    .into_iter()
+                    // Accept literal IP addresses only. Besides catching corrupt
+                    // links this prevents a stored hostname from turning the Console
+                    // proxy into an unrestricted DNS/HTTP forwarder.
+                    .filter_map(|item| {
+                        item.ip
+                            .parse::<IpAddr>()
+                            .ok()
+                            .map(|ip| (ip.to_string(), desktop_link.rdpt))
+                    })
+                    .collect()
+            }
             Ok(_) => Vec::new(),
-            Err(e) => {
-                tracing::warn!("parse render endpoint failed for {}: {}", self.device_id, e);
+            Err(parse_error) => {
+                tracing::warn!(
+                    "parse render endpoint failed for {}: {}",
+                    self.device_id,
+                    parse_error
+                );
                 Vec::new()
             }
         }

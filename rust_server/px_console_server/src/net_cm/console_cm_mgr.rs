@@ -22,9 +22,12 @@ impl ConsoleCMManager {
         self.cm_conns.lock().await.remove(id.as_str());
     }
 
-    pub async fn notify_data(&self, data: String) {
+    pub async fn notify_data(&self, notification_payload: String) {
         for conn in self.cm_conns.lock().await.values_mut() {
-            conn.lock().await.send_message(data.clone()).await;
+            conn.lock()
+                .await
+                .send_message(notification_payload.clone())
+                .await;
         }
     }
 }

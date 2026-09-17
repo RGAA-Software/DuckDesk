@@ -23,8 +23,8 @@ pub fn hmac_sha256_hex(key: &str, message: &str) -> String {
     let key = hmac::Key::new(hmac::HMAC_SHA256, key.as_bytes());
     let tag = hmac::sign(&key, message.as_bytes());
     let mut out = String::with_capacity(tag.as_ref().len() * 2);
-    for b in tag.as_ref() {
-        out.push_str(&format!("{:02x}", b));
+    for digest_byte in tag.as_ref() {
+        out.push_str(&format!("{:02x}", digest_byte));
     }
     out
 }
@@ -65,9 +65,9 @@ mod tests {
             "0123456789abcdef0123456789abcdef",
         );
         assert_eq!(tk.len(), 64);
-        assert!(tk
-            .chars()
-            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+        assert!(tk.chars().all(|hex_character| {
+            hex_character.is_ascii_hexdigit() && !hex_character.is_ascii_uppercase()
+        }));
         // deterministic
         assert_eq!(
             tk,

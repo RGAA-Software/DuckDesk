@@ -34,8 +34,8 @@ pub async fn hr_query_total_rooms(
     State(_context): State<Arc<Mutex<ConsoleContext>>>,
     ConnectInfo(_addr): ConnectInfo<SocketAddr>,
 ) -> Result<Json<RespMessage<Vec<RelayRoomAdapter>>>, RelayApiError> {
-    let r = gRelayRoomMgr.find_total_rooms().await;
-    Ok(Json(ok_resp(r)))
+    let rooms = gRelayRoomMgr.find_total_rooms().await;
+    Ok(Json(ok_resp(rooms)))
 }
 
 // handler room; query rooms
@@ -43,6 +43,6 @@ pub async fn hr_query_total_alive_rooms(
     State(_context): State<Arc<Mutex<ConsoleContext>>>,
     ConnectInfo(_addr): ConnectInfo<SocketAddr>,
 ) -> Result<Json<RespMessage<Vec<RelayRoomAdapter>>>, RelayApiError> {
-    let r = gRelayRoomMgr.find_total_alive_rooms().await;
-    Ok(Json(ok_resp(r)))
+    let alive_rooms = gRelayRoomMgr.find_total_alive_rooms().await;
+    Ok(Json(ok_resp(alive_rooms)))
 }

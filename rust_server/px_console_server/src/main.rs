@@ -233,9 +233,9 @@ fn run_as_panel(machine_code: String) {
         "Console panel authorization loaded (credentials redacted)"
     );
 
-    let r = console_panel::run(language, machine_code, auth, used_time, settings);
-    if let Err(e) = r {
-        tracing::error!("{}", e);
+    let panel_result = console_panel::run(language, machine_code, auth, used_time, settings);
+    if let Err(panel_error) = panel_result {
+        tracing::error!("{}", panel_error);
     }
 }
 
@@ -378,8 +378,11 @@ async fn run_as_server(machine_code: String) {
         Ok(verifier) => {
             *gLicenseVerifier.lock().await = Some(Arc::new(verifier));
         }
-        Err(e) => {
-            tracing::error!("license verifier initialization failed: {}", e);
+        Err(initialization_error) => {
+            tracing::error!(
+                "license verifier initialization failed: {}",
+                initialization_error
+            );
             return;
         }
     }

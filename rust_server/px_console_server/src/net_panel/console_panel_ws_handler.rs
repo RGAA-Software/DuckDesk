@@ -94,8 +94,8 @@ async fn handle_socket(
         console_rv = (&mut recv_task) => {
             match console_rv {
                 Ok(_) => {},
-                Err(e) => {
-                    tracing::error!("receive task error: {e:?}")
+                Err(receive_error) => {
+                    tracing::error!("receive task error: {receive_error:?}")
                 }
             }
             recv_task.abort();

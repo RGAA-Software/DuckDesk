@@ -45,8 +45,8 @@ pub async fn handle_pull_authorization(
                 build_auth_status(Authorization::default(), local).await,
             )))
         }
-        Err(e) => {
-            tracing::error!("pull/authorization: pull failed: {}", e);
+        Err(pull_error) => {
+            tracing::error!("pull/authorization: pull failed: {}", pull_error);
             Err(ConsoleApiError::InternalError)
         }
     }
@@ -121,13 +121,13 @@ fn constant_time_equal(left: &str, right: &str) -> bool {
 
 pub async fn handle_update_auth_password(
     State(_context): State<Arc<Mutex<ConsoleContext>>>,
-    b: Body,
+    request_body: Body,
 ) -> Result<Json<RespMessage<SanitizedAuthorization>>, ConsoleApiError> {
-    let body = get_body(b).await?;
-    let r: Value =
+    let body = get_body(request_body).await?;
+    let request_json: Value =
         serde_json::from_str(body.as_str()).map_err(|_| ConsoleApiError::InvalidParams)?;
-    let password = get_body_str(&r, KEY_PASSWORD)?;
-    let current_password = get_body_str(&r, KEY_CURRENT_PASSWORD)?;
+    let password = get_body_str(&request_json, KEY_PASSWORD)?;
+    let current_password = get_body_str(&request_json, KEY_CURRENT_PASSWORD)?;
     if password.is_empty() {
         tracing::error!("password is empty! can't modify it!");
         return Err(ConsoleApiError::InvalidParams);

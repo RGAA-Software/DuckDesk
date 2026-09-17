@@ -8,8 +8,8 @@ use serde::Serialize;
 pub struct RdpPassword(pub zeroize::Zeroizing<String>);
 
 impl std::fmt::Debug for RdpPassword {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("[REDACTED]")
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("[REDACTED]")
     }
 }
 

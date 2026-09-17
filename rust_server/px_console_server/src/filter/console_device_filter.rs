@@ -16,8 +16,9 @@ pub async fn filter(req: Request<Body>, next: Next) -> Response {
         if let Ok(params) = serde_urlencoded::from_str::<DeviceIdQueryParams>(query) {
             if !params.device_id.is_empty() {
                 // check exists
-                if let Err(e) = gDeviceManager.query_device_by_id(params.device_id).await {
-                    return e.into_response();
+                if let Err(query_error) = gDeviceManager.query_device_by_id(params.device_id).await
+                {
+                    return query_error.into_response();
                 }
                 return next.run(req).await;
             }

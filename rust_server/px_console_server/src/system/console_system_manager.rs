@@ -42,14 +42,14 @@ impl ConsoleSystemManager {
         // 1. clear all uploaded logs
         let logs_path = gConsoleSettings.lock().await.abs_upload_logs_path.clone();
 
-        if let Err(e) = px_base::clear_directory(logs_path.as_str()) {
-            tracing::error!("clear uploaded logs failed: {:?}", e);
+        if let Err(clear_error) = px_base::clear_directory(logs_path.as_str()) {
+            tracing::error!("clear uploaded logs failed: {:?}", clear_error);
         }
 
         // 2. clear logs except logging now
         let app_logs_path = "./logs";
-        if let Err(e) = self.delete_logs_except_today(app_logs_path) {
-            tracing::error!("delete logs failed: {:?}", e);
+        if let Err(delete_error) = self.delete_logs_except_today(app_logs_path) {
+            tracing::error!("delete logs failed: {:?}", delete_error);
         }
     }
 

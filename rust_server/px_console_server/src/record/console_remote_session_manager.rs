@@ -123,7 +123,7 @@ impl ConsoleRemoteSessionManager {
             .find(doc! { "device_id": &device_id, "active": true })
             .await
         {
-            Ok(v) => v,
+            Ok(active_sessions) => active_sessions,
             Err(_) => return,
         };
         use futures_util::StreamExt;

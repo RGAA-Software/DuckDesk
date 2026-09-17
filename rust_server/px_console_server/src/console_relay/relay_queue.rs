@@ -84,8 +84,8 @@ impl RelayQueue {
             }
         }
 
-        if let Err(e) = self.pkt_sender.send(pkt).await {
-            tracing::error!("error sending relay message to queue: {e}");
+        if let Err(queue_error) = self.pkt_sender.send(pkt).await {
+            tracing::error!("error sending relay message to queue: {queue_error}");
         }
     }
 

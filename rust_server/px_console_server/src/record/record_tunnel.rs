@@ -139,12 +139,12 @@ impl RecordTunnelManager {
 
     /// one-time: a successful validation consumes the token
     pub fn validate_token(&self, token: &str, device_id: &str, filename: &str) -> bool {
-        let t = self.tokens.lock().unwrap().remove(token);
-        match t {
-            Some(t) => {
-                t.device_id == device_id
-                    && t.filename == filename
-                    && t.exp_ms > px_base::get_current_timestamp()
+        let token_record = self.tokens.lock().unwrap().remove(token);
+        match token_record {
+            Some(token_record) => {
+                token_record.device_id == device_id
+                    && token_record.filename == filename
+                    && token_record.exp_ms > px_base::get_current_timestamp()
             }
             None => false,
         }
@@ -218,10 +218,10 @@ mod tests {
         let mgr = RecordTunnelManager::new();
         let rx = mgr.register_list("req-slow");
         // no completion arrives -> timeout, pending entry must be dropped
-        let r = mgr
+        let wait_result = mgr
             .wait_list_with_timeout("req-slow", rx, Duration::from_millis(50))
             .await;
-        assert_eq!(r.unwrap_err(), ConsoleApiError::RequestTimeout);
+        assert_eq!(wait_result.unwrap_err(), ConsoleApiError::RequestTimeout);
         // a late completion for the same req_id finds no waiter
         assert!(!mgr.complete_list(RecordListResp {
             req_id: "req-slow".to_string(),

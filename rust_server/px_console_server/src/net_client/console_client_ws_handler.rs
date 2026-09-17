@@ -27,8 +27,8 @@ pub(crate) async fn client_handler(
         String::from("Unknown browser")
     };
     tracing::info!("ws handshake from {}, agent: {}", addr, user_agent);
-    for k in query.keys() {
-        tracing::debug!("ws query param key: {}", k);
+    for query_key in query.keys() {
+        tracing::debug!("ws query param key: {}", query_key);
     }
     let params = query.0.clone();
     ws.on_upgrade(move |socket| {
@@ -118,8 +118,8 @@ async fn handle_socket(
         console_rv = (&mut recv_task) => {
             match console_rv {
                 Ok(_) => {},
-                Err(e) => {
-                    tracing::error!("receive task error: {e:?}")
+                Err(receive_error) => {
+                    tracing::error!("receive task error: {receive_error:?}")
                 }
             }
             recv_task.abort();

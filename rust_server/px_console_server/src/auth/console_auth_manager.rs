@@ -70,8 +70,11 @@ impl AuthManager {
                 self.update_auth(auth).await;
                 true
             }
-            Err(e) => {
-                tracing::error!("load: failed to parse/verify signed license: {}", e);
+            Err(license_error) => {
+                tracing::error!(
+                    "load: failed to parse/verify signed license: {}",
+                    license_error
+                );
                 false
             }
         }

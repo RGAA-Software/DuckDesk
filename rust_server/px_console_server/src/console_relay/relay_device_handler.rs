@@ -26,11 +26,11 @@ pub async fn hd_query_devices(
     ConnectInfo(_addr): ConnectInfo<SocketAddr>,
 ) -> Result<Json<RespVecStringMap>, RelayApiError> {
     let connections = gRelayConnMgr.get_connections().await;
-    let mut r = Vec::new();
+    let mut connection_summaries = Vec::new();
     for conn in connections {
-        r.push(conn.lock().await.as_str_map());
+        connection_summaries.push(conn.lock().await.as_str_map());
     }
-    Ok(Json(ok_resp_vec_str_map(r)))
+    Ok(Json(ok_resp_vec_str_map(connection_summaries)))
 }
 
 // handler device; query device
@@ -105,10 +105,10 @@ pub async fn hd_notify_event(
     let conn = conn.unwrap();
 
     let event = serde_json::from_str::<NotificationEvent>(&raw_body);
-    if let Err(e) = event {
+    if let Err(parse_error) = event {
         tracing::error!(
             "==> notify event parse body failed: {}, raw_body: {}",
-            e,
+            parse_error,
             raw_body
         );
         return Err(RelayApiError::InvalidParams);

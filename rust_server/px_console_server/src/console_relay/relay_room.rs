@@ -74,7 +74,12 @@ impl RelayRoom {
         hm
     }
 
-    pub async fn notify_except(&self, except_id: String, relay_msg_index: i64, m: Bytes) {
+    pub async fn notify_except(
+        &self,
+        except_id: String,
+        relay_msg_index: i64,
+        relay_payload: Bytes,
+    ) {
         let mut conns = Vec::new();
         for (key, value) in self.relay_conns.clone() {
             if key != except_id {
@@ -83,14 +88,14 @@ impl RelayRoom {
         }
 
         for conn in conns {
-            let m = m.clone();
+            let connection_payload = relay_payload.clone();
             let device_id = conn.lock().await.device_id.clone();
-            let r = conn
+            let send_succeeded = conn
                 .lock()
                 .await
-                .send_bin_message_with_index(relay_msg_index, m)
+                .send_bin_message_with_index(relay_msg_index, connection_payload)
                 .await;
-            if !r {
+            if !send_succeeded {
                 tracing::warn!("notify to this device failed: {}", device_id)
             }
         }

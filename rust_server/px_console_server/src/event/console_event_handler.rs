@@ -27,23 +27,23 @@ use tokio::sync::Mutex;
 pub async fn handle_add_event(
     State(_context): State<Arc<Mutex<ConsoleContext>>>,
     headers: HeaderMap,
-    b: Body,
+    request_body: Body,
 ) -> Result<Json<RespMessage<ConsoleEvent>>, ConsoleApiError> {
-    let body = get_body(b).await?;
-    let r: Value = serde_json::from_str(body.as_str()).map_err(|error| {
+    let body = get_body(request_body).await?;
+    let request_json: Value = serde_json::from_str(body.as_str()).map_err(|error| {
         tracing::warn!("invalid event request body: {}", error);
         ConsoleApiError::InvalidParams
     })?;
-    let event_type = get_body_str_or_empty(&r, EVENT_TYPE);
-    let device_id = get_body_str_or_empty(&r, KEY_DEVICE_ID);
-    let device_ip = get_body_str_or_empty(&r, KEY_DEVICE_IP);
-    let device_name = get_body_str_or_empty(&r, KEY_DEVICE_NAME);
-    let uid = get_body_str_or_empty(&r, KEY_USER_ID);
-    let mut username = get_body_str_or_empty(&r, KEY_USER_NAME);
+    let event_type = get_body_str_or_empty(&request_json, EVENT_TYPE);
+    let device_id = get_body_str_or_empty(&request_json, KEY_DEVICE_ID);
+    let device_ip = get_body_str_or_empty(&request_json, KEY_DEVICE_IP);
+    let device_name = get_body_str_or_empty(&request_json, KEY_DEVICE_NAME);
+    let uid = get_body_str_or_empty(&request_json, KEY_USER_ID);
+    let mut username = get_body_str_or_empty(&request_json, KEY_USER_NAME);
     // Older panel clients used `user_name` while the Console API uses `username`.
     // Accept both so telemetry does not silently lose its reporting user.
     if username.is_empty() {
-        username = get_body_str_or_empty(&r, "user_name");
+        username = get_body_str_or_empty(&request_json, "user_name");
     }
 
     if device_id.trim().is_empty() {
@@ -53,7 +53,7 @@ pub async fn handle_add_event(
 
     // cpu
     if event_type == EVENT_CPU {
-        let cpu_usage = validate_usage(get_body_int(&r, KEY_CPU_USAGE)?)?;
+        let cpu_usage = validate_usage(get_body_int(&request_json, KEY_CPU_USAGE)?)?;
         let event =
             ConsoleEvent::new_cpu(device_id, device_ip, device_name, uid, username, cpu_usage);
         let event = gConsoleEventMgr
@@ -61,7 +61,7 @@ pub async fn handle_add_event(
             .await?;
         return Ok(Json(ok_resp(event)));
     } else if event_type == EVENT_MEMORY {
-        let mem_usage = validate_usage(get_body_int(&r, KEY_MEMORY_USAGE)?)?;
+        let mem_usage = validate_usage(get_body_int(&request_json, KEY_MEMORY_USAGE)?)?;
         let event =
             ConsoleEvent::new_memory(device_id, device_ip, device_name, uid, username, mem_usage);
         let event = gConsoleEventMgr
@@ -69,8 +69,8 @@ pub async fn handle_add_event(
             .await?;
         return Ok(Json(ok_resp(event)));
     } else if event_type == EVENT_DISK {
-        let disk_usage = validate_usage(get_body_int(&r, KEY_DISK_USAGE)?)?;
-        let disk_path = get_body_str_or_empty(&r, KEY_DISK_PATH);
+        let disk_usage = validate_usage(get_body_int(&request_json, KEY_DISK_USAGE)?)?;
+        let disk_path = get_body_str_or_empty(&request_json, KEY_DISK_PATH);
         if disk_path.trim().is_empty() {
             return Err(ConsoleApiError::InvalidParams);
         }
@@ -88,9 +88,9 @@ pub async fn handle_add_event(
             .await?;
         return Ok(Json(ok_resp(event)));
     } else if event_type == EVENT_GPU {
-        let gpu_usage = validate_usage(get_body_int(&r, KEY_GPU_USAGE)?)?;
-        let gpu_id = get_body_str_or_empty(&r, KEY_GPU_ID);
-        let gpu_name = get_body_str_or_empty(&r, KEY_GPU_NAME);
+        let gpu_usage = validate_usage(get_body_int(&request_json, KEY_GPU_USAGE)?)?;
+        let gpu_id = get_body_str_or_empty(&request_json, KEY_GPU_ID);
+        let gpu_name = get_body_str_or_empty(&request_json, KEY_GPU_NAME);
         let event = ConsoleEvent::new_gpu(
             device_id,
             device_ip,
@@ -192,7 +192,7 @@ pub async fn handle_query_events(
             filters.insert(key.to_string(), Bson::String(value));
         }
     }
-    let r = gConsoleEventMgr
+    let events = gConsoleEventMgr
         .query_events(
             page,
             page_size,
@@ -202,7 +202,7 @@ pub async fn handle_query_events(
         )
         .await?;
 
-    Ok(Json(ok_resp(r)))
+    Ok(Json(ok_resp(events)))
 }
 
 pub async fn handle_count_events(
@@ -210,8 +210,8 @@ pub async fn handle_count_events(
     query: Query<HashMap<String, String>>,
 ) -> Result<Json<RespMessage<u64>>, ConsoleApiError> {
     let event_type = get_str_param_or(&query, EVENT_TYPE, "")?;
-    let r = gConsoleEventMgr.count_total_events(event_type).await?;
-    Ok(Json(ok_resp(r)))
+    let event_count = gConsoleEventMgr.count_total_events(event_type).await?;
+    Ok(Json(ok_resp(event_count)))
 }
 
 pub async fn handle_add_log(

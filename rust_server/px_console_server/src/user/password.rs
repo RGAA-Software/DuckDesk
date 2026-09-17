@@ -12,7 +12,8 @@ const MIN_PASSWORD_CHARS: usize = 8;
 const MAX_PASSWORD_CHARS: usize = 128;
 
 fn argon2() -> Result<Argon2<'static>, String> {
-    let params = Params::new(64 * 1024, 3, 1, None).map_err(|e| e.to_string())?;
+    let params = Params::new(64 * 1024, 3, 1, None)
+        .map_err(|configuration_error| configuration_error.to_string())?;
     Ok(Argon2::new(Algorithm::Argon2id, Version::V0x13, params))
 }
 
@@ -70,7 +71,7 @@ pub fn hash(password: &str) -> Result<String, String> {
     argon2()?
         .hash_password(password.as_bytes(), &salt)
         .map(|value| value.to_string())
-        .map_err(|e| e.to_string())
+        .map_err(|hash_error| hash_error.to_string())
 }
 
 pub fn verify(password: &str, password_hash: &str) -> bool {
