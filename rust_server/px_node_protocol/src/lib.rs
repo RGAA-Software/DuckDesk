@@ -164,6 +164,33 @@ pub struct DeploymentObservation {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum DeploymentPreparation {
+    GameHook {
+        install_root: String,
+        executable_relative: String,
+        gpu_key: Option<String>,
+    },
+    Webview {
+        gpu_key: Option<String>,
+    },
+    Rdp {
+        gpu_key: Option<String>,
+    },
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DeploymentAssignment {
+    pub id: Uuid,
+    pub application_id: Uuid,
+    pub deployment_revision: i64,
+    pub application_revision: i64,
+    pub disabled: bool,
+    pub preparation: DeploymentPreparation,
+}
+
+#[derive(Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum NodeRequest {
     Authenticate {
@@ -193,6 +220,11 @@ pub enum NodeRequest {
         deployment_id: Uuid,
         observation: DeploymentObservation,
     },
+    ListDeployments {
+        request_id: u64,
+        after: Option<Uuid>,
+        limit: u16,
+    },
 }
 
 impl NodeRequest {
@@ -204,7 +236,8 @@ impl NodeRequest {
             | Self::Reconcile { request_id, .. }
             | Self::PollCommand { request_id }
             | Self::AcknowledgeCommand { request_id, .. }
-            | Self::ReportDeployment { request_id, .. } => *request_id,
+            | Self::ReportDeployment { request_id, .. }
+            | Self::ListDeployments { request_id, .. } => *request_id,
         }
     }
 }
@@ -262,10 +295,30 @@ pub enum NodeResponse {
     DeploymentReported {
         request_id: u64,
     },
+    Deployments {
+        request_id: u64,
+        deployments: Vec<DeploymentAssignment>,
+    },
     Error {
         request_id: Option<u64>,
         code: String,
     },
+}
+
+impl NodeResponse {
+    pub fn request_id(&self) -> Option<u64> {
+        match self {
+            Self::Authenticated { request_id, .. }
+            | Self::Reported { request_id, .. }
+            | Self::ReconciliationStarted { request_id, .. }
+            | Self::Reconciled { request_id }
+            | Self::Command { request_id, .. }
+            | Self::CommandAcknowledged { request_id, .. }
+            | Self::DeploymentReported { request_id }
+            | Self::Deployments { request_id, .. } => Some(*request_id),
+            Self::Error { request_id, .. } => *request_id,
+        }
+    }
 }
 
 mod strict_empty {

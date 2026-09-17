@@ -4722,6 +4722,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "px_backup"
+version = "0.1.0"
+dependencies = [
+ "fs2",
+ "libc",
+ "px_private_files",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror 2.0.17",
+ "uuid",
+]
+
+[[package]]
 name = "px_base"
 version = "3.3.67"
 dependencies = [

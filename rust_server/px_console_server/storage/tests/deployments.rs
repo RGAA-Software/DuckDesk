@@ -5,9 +5,9 @@ use argon2::{
 use px_console_store::{
     ApplicationAccess, ApplicationDefinition, ApplicationLaunch, ApplicationSpec, ApplicationStore,
     ClientType, DeploymentConfiguration, DeploymentObservation, DeploymentProfile, DeploymentStore,
-    DeploymentTarget, DevicePlatform, DeviceStore, IdentityStore, NodeConnection, NodeProduct,
-    NodeReport, NodeStore, PasswordDigest, PreparationFailure, PreparationState, StoreError,
-    TokenDigest, Username, VideoCodec, VideoSpec,
+    DeploymentTarget, DevicePlatform, DeviceStore, IdentityStore, NodeConnection,
+    NodeDeploymentPreparation, NodeProduct, NodeReport, NodeStore, PasswordDigest,
+    PreparationFailure, PreparationState, StoreError, TokenDigest, Username, VideoCodec, VideoSpec,
 };
 use px_pg::{DatabaseConfig, Transport};
 use std::{env, sync::OnceLock, time::Duration};
@@ -235,7 +235,8 @@ impl Fixture {
 #[tokio::test]
 async fn all_modes_have_explicit_fields_stable_identity_and_database_constraints() {
     let f = Fixture::new().await;
-    let (node, _) = f.node().await;
+    let (node, node_key) = f.node().await;
+    let mut created = Vec::new();
     for target in [
         DeploymentTarget::GameHook {
             install_root: r"D:\游戏 根目录".into(),
@@ -244,6 +245,7 @@ async fn all_modes_have_explicit_fields_stable_identity_and_database_constraints
         DeploymentTarget::Rdp,
     ] {
         let (app, deployment) = f.deployment(node, target.clone()).await;
+        created.push(deployment.id);
         assert_eq!(deployment.observed_state, "pending");
         assert_eq!(deployment.observed_sequence, 0);
         assert_eq!(f.get(deployment.id).await, deployment);
@@ -288,6 +290,38 @@ async fn all_modes_have_explicit_fields_stable_identity_and_database_constraints
         .create(&f.admin, app.id, node, &bad)
         .await
         .is_err());
+    let epoch = f.nodes.begin_runtime().await.unwrap();
+    let connection = f
+        .nodes
+        .open_connection(epoch, &node_key, &token())
+        .await
+        .unwrap();
+    f.nodes.report(&connection, &node_report(1)).await.unwrap();
+    let first = f.deployments.list_node(&connection, None, 2).await.unwrap();
+    assert_eq!(first.len(), 2);
+    let second = f
+        .deployments
+        .list_node(&connection, first.last().map(|row| row.id), 2)
+        .await
+        .unwrap();
+    assert_eq!(second.len(), 1);
+    let mut assignments = first.into_iter().chain(second).collect::<Vec<_>>();
+    assignments.sort_by_key(|row| row.id);
+    created.sort();
+    assert_eq!(
+        assignments.iter().map(|row| row.id).collect::<Vec<_>>(),
+        created
+    );
+    assert!(assignments
+        .iter()
+        .any(|row| matches!(row.preparation, NodeDeploymentPreparation::GameHook { .. })));
+    assert!(assignments
+        .iter()
+        .any(|row| matches!(row.preparation, NodeDeploymentPreparation::Webview { .. })));
+    assert!(assignments
+        .iter()
+        .any(|row| matches!(row.preparation, NodeDeploymentPreparation::Rdp { .. })));
+    assert!(f.deployments.list_node(&connection, None, 0).await.is_err());
     f.close().await;
 }
 

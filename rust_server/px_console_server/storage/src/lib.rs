@@ -72,7 +72,7 @@ pub use control::{ControlStore, ManagedUser, Role};
 pub use database::{ConsoleDatabase, PoolStatus};
 pub use deployment_model::{
     DeploymentConfiguration, DeploymentObservation, DeploymentProfile, DeploymentTarget,
-    PreparationFailure, PreparationState,
+    NodeDeploymentAssignment, NodeDeploymentPreparation, PreparationFailure, PreparationState,
 };
 pub use deployments::DeploymentStore;
 pub use devices::{DeviceAccess, DeviceIdentity, DevicePlatform, DeviceProfile, DeviceStore};

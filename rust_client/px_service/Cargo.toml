@@ -10,12 +10,13 @@ path = "src/main.rs"
 [dependencies]
 px_base = { path = "../../rust_base/px_base" }
 px_auth_mgr = { path = "../../rust_base/px_auth_mgr" }
+px_node_protocol = { path = "../../rust_server/px_node_protocol" }
 protocol = { path = "../../rust_base/protocol" }
 service_core = { path = "./service_core" }
 prost = "0.14.1"
 rustls = "0.23"
 tokio = { version = "1.43.0", features = ["full"] }
-tokio-tungstenite = { version = "0.27.0", features = ["rustls-tls-webpki-roots", "tokio-rustls"] }
+tokio-tungstenite = { version = "0.27.0", features = ["rustls-tls-native-roots", "tokio-rustls"] }
 futures-util = "0.3.31"
 clap = { version = "4.5.47", features = ["derive"] }
 serde = { version = "1.0.218", features = ["derive"] }
@@ -49,4 +50,7 @@ tracing = "0.1.44"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 rand = "0.9"
 base64 = "0.22"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+url = "2.5"
+uuid = { version = "1", features = ["v4"] }
 zeroize = "1.8"

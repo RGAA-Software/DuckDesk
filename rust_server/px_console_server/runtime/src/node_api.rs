@@ -281,6 +281,20 @@ async fn operation(
                     .await?;
                 Ok(NodeResponse::DeploymentReported { request_id })
             }
+            NodeRequest::ListDeployments { after, limit, .. } => {
+                let deployments = state
+                    .db
+                    .deployments()
+                    .list_node(connection, after, limit)
+                    .await?
+                    .into_iter()
+                    .map(crate::node_wire::assignment)
+                    .collect();
+                Ok(NodeResponse::Deployments {
+                    request_id,
+                    deployments,
+                })
+            }
             NodeRequest::Authenticate { .. } => Err(ApiError::Invalid),
         }
     };

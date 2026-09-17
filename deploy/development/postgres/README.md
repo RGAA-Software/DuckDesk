@@ -19,6 +19,7 @@ pwsh -NoProfile -File scripts/server_validation/postgres.ps1 TestSuite -Suite tr
 pwsh -NoProfile -File scripts/server_validation/postgres.ps1 TestSuite -Suite recordings
 pwsh -NoProfile -File scripts/server_validation/postgres.ps1 TestSuite -Suite preferences
 pwsh -NoProfile -File scripts/server_validation/postgres.ps1 TestSuite -Suite files
+pwsh -NoProfile -File scripts/server_validation/postgres.ps1 TestSuite -Suite backup
 pwsh -NoProfile -File scripts/server_validation/postgres.ps1 Test
 pwsh -NoProfile -File scripts/server_validation/postgres.ps1 Test -Linux
 pwsh -NoProfile -File scripts/server_validation/postgres.ps1 PrepareQueries
@@ -36,8 +37,9 @@ pwsh -NoProfile -File scripts/server_validation/postgres.ps1 Down
 报告记录代码文件 hash、Git revision、二进制/镜像摘要、工具版本及实际测试结果。
 
 `TestSuite -Suite <名称>` 用同样的独立新库，只执行选定 Console 原生套件：unit、identity、control、devices、applications、
-guests、nodes、deployments、instances、commands、workspaces、database、sessions、transfers、recordings、preferences、files。
+guests、nodes、deployments、instances、commands、workspaces、database、sessions、transfers、recordings、preferences、files、backup。
 files 是共享私有文件/缓存实际 IO 测试，不需要业务数据库，但沿用隔离运行器与报告。
+backup 是 DB4 恢复集、保留、私有原子发布、工具身份、取消与超时内核；不把内核测试冒充真实定时任务、SCM 或恢复演练。
 专项保留逐用例状态/数量和源码 hash 门禁，报告明确标记 FOCUSED-ONLY。
 该模式不执行浏览器、恢复或全量跨平台验收，不接受 `-Linux`；专项修复先用它定位，再运行 `Test -Linux` 完成阶段回归。
 未显式指定 Suite、把 Suite 传给其他 Action 均拒绝，避免误以为执行了所选范围。

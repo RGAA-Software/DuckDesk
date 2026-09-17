@@ -16,6 +16,7 @@ pub fn create_private(path: &Path, bytes: &[u8]) -> Result<(), &'static str> {
         .parent()
         .filter(|value| !value.as_os_str().is_empty())
         .ok_or("private material requires an explicit parent directory")?;
+    verify_private_directory(parent)?;
     let mut directory_options = OpenOptions::new();
     directory_options.read(true);
     #[cfg(windows)]
@@ -31,20 +32,7 @@ pub fn create_private(path: &Path, bytes: &[u8]) -> Result<(), &'static str> {
     let directory = directory_options
         .open(parent)
         .map_err(|_| "private directory unavailable")?;
-    let metadata = directory
-        .metadata()
-        .map_err(|_| "private directory unavailable")?;
-    if !metadata.is_dir() {
-        return Err("private parent must be a directory");
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::MetadataExt;
-        if metadata.file_attributes() & 0x400 != 0 {
-            return Err("private parent reparse point refused");
-        }
-    }
-    check_permissions(&directory)?;
+    drop(directory);
     let mut options = OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(unix)]
@@ -69,6 +57,39 @@ pub fn create_private(path: &Path, bytes: &[u8]) -> Result<(), &'static str> {
         return Err("private material verification failed");
     }
     Ok(())
+}
+
+/// Verifies an existing private directory through the same handle used for type and ACL checks.
+pub fn verify_private_directory(path: &Path) -> Result<(), &'static str> {
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        options.share_mode(1).custom_flags(0x02200000);
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW | libc::O_DIRECTORY);
+    }
+    let directory = options
+        .open(path)
+        .map_err(|_| "private directory unavailable")?;
+    let metadata = directory
+        .metadata()
+        .map_err(|_| "private directory unavailable")?;
+    if !metadata.is_dir() {
+        return Err("private path must be a directory");
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        if metadata.file_attributes() & 0x400 != 0 {
+            return Err("private directory reparse point refused");
+        }
+    }
+    check_permissions(&directory)
 }
 
 pub fn read_private(path: &Path) -> Result<Zeroizing<Vec<u8>>, &'static str> {

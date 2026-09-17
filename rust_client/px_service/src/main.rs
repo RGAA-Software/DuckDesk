@@ -1,11 +1,10 @@
 #![cfg_attr(not(test), windows_subsystem = "windows")]
 
 mod app;
-mod console_client;
-mod node_auth_store;
+mod node_control_client;
+mod node_control_store;
 mod parsec_vdd;
 mod product_descriptor;
-mod rdp_authorization;
 mod service_host;
 mod service_windows;
 mod user_proxy;
@@ -41,6 +40,14 @@ struct Cli {
     #[arg(long, default_value_t = false)]
     console: bool,
 
+    /// Read a strict node-control configuration from stdin and protect it for this machine.
+    #[arg(long, default_value_t = false, conflicts_with_all = ["clear_node_control", "port", "console", "virtual_display", "virtual_display_session_worker"])]
+    configure_node_control: bool,
+
+    /// Remove this machine's protected node-control configuration.
+    #[arg(long, default_value_t = false, conflicts_with_all = ["configure_node_control", "port", "console", "virtual_display", "virtual_display_session_worker"])]
+    clear_node_control: bool,
+
     /// Local administrator diagnostics for the Service-owned virtual display.
     #[arg(long, value_enum)]
     virtual_display: Option<VirtualDisplayCliOperation>,
@@ -68,6 +75,22 @@ struct Cli {
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
+    if cli.configure_node_control {
+        if let Err(error) = node_control_store::configure_from_stdin() {
+            eprintln!("node-control configuration failed: {error}");
+            std::process::exit(2);
+        }
+        println!("node-control configuration stored; restart Pixels Service to apply it");
+        return;
+    }
+    if cli.clear_node_control {
+        if let Err(error) = node_control_store::clear_installed_configuration() {
+            eprintln!("node-control configuration removal failed: {error}");
+            std::process::exit(2);
+        }
+        println!("node-control configuration removed; restart Pixels Service to apply it");
+        return;
+    }
     if let Some(operation) = cli.virtual_display_session_worker {
         let result_file = cli
             .virtual_display_worker_result

@@ -1,6 +1,6 @@
 use crate::{
     control, DeploymentConfiguration, DeploymentObservation, DeploymentProfile, NodeConnection,
-    StoreError, TokenDigest,
+    NodeDeploymentAssignment, NodeDeploymentPreparation, StoreError, TokenDigest,
 };
 use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
@@ -8,6 +8,51 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct DeploymentStore {
     pub(crate) pool: PgPool,
+}
+
+#[derive(sqlx::FromRow)]
+struct NodeDeploymentRow {
+    id: Uuid,
+    application_id: Uuid,
+    kind: String,
+    install_root: Option<String>,
+    executable_relative: Option<String>,
+    gpu_key: Option<String>,
+    disabled: bool,
+    deployment_revision: i64,
+    application_revision: i64,
+}
+
+impl NodeDeploymentRow {
+    fn assignment(self) -> Result<NodeDeploymentAssignment, StoreError> {
+        let invalid = StoreError::Database(px_pg::DatabaseError::Operation);
+        let preparation = match self.kind.as_str() {
+            "game_hook" => NodeDeploymentPreparation::GameHook {
+                install_root: self.install_root.ok_or(invalid)?,
+                executable_relative: self.executable_relative.ok_or(invalid)?,
+                gpu_key: self.gpu_key,
+            },
+            "webview" if self.install_root.is_none() && self.executable_relative.is_none() => {
+                NodeDeploymentPreparation::Webview {
+                    gpu_key: self.gpu_key,
+                }
+            }
+            "rdp" if self.install_root.is_none() && self.executable_relative.is_none() => {
+                NodeDeploymentPreparation::Rdp {
+                    gpu_key: self.gpu_key,
+                }
+            }
+            _ => return Err(invalid),
+        };
+        Ok(NodeDeploymentAssignment {
+            id: self.id,
+            application_id: self.application_id,
+            deployment_revision: self.deployment_revision,
+            application_revision: self.application_revision,
+            disabled: self.disabled,
+            preparation,
+        })
+    }
 }
 impl DeploymentStore {
     #[cfg(feature = "pg-integration")]
@@ -76,6 +121,34 @@ impl DeploymentStore {
         .await?;
         tx.commit().await?;
         Ok(result)
+    }
+    pub async fn list_node(
+        &self,
+        connection: &NodeConnection,
+        after: Option<Uuid>,
+        limit: u16,
+    ) -> Result<Vec<NodeDeploymentAssignment>, StoreError> {
+        if !(1..=50).contains(&limit) {
+            return Err(StoreError::InvalidInput);
+        }
+        let mut tx = self.pool.begin().await?;
+        control::read_gate(&mut tx).await?;
+        let node = crate::node_lifecycle::authorize(&mut tx, connection).await?;
+        let rows = sqlx::query_file_as!(
+            NodeDeploymentRow,
+            "queries/list_node_deployments.sql",
+            node.id,
+            after,
+            i64::from(limit)
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+        let assignments = rows
+            .into_iter()
+            .map(NodeDeploymentRow::assignment)
+            .collect::<Result<Vec<_>, _>>()?;
+        tx.commit().await?;
+        Ok(assignments)
     }
     pub async fn configure(
         &self,

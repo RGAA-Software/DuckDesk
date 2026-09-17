@@ -7,7 +7,7 @@ param(
     [ValidateRange(0,65535)]
     [int]$Port = 0,
     [switch]$Linux,
-    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'catalog', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'node-control')]
+    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'catalog', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'node-control')]
     [string]$Suite = ''
 )
 
@@ -40,6 +40,7 @@ $fingerprints = @{}
 $sourceFiles = @('rust_server/Cargo.toml','rust_server/Cargo.lock')
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_credentials'),(Join-Path $repo 'rust_server/px_console_server/runtime') -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_node_protocol') -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
+$sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_backup') -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
 $sourceFiles += @('rust_server/px_auth_server/Cargo.toml','rust_server/px_auth_server/build.rs')
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_auth_server/src'),(Join-Path $repo 'rust_server/px_auth_server/tests') -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
 $sourceFiles += @('web/px_desk/package.json','web/px_desk/package-lock.json','web/px_desk/vite.config.ts','web/px_desk/index.html')
@@ -218,7 +219,7 @@ try {
         # Explicit developer command, never performed implicitly by acceptance tests.
         # PostgreSQL/SQLx generate these files; this is not evidence that runtime tests passed.
         foreach ($item in @(
-            @{Service='console';Crate='px_console_store';Path='rust_server/px_console_server/storage';Count=236},
+            @{Service='console';Crate='px_console_store';Path='rust_server/px_console_server/storage';Count=237},
             @{Service='desk';Crate='px_desk_server';Path='rust_server/px_desk_server';Count=9},
             @{Service='auth';Crate='px_auth_store';Path='rust_server/px_auth_server/storage';Count=29}
         )) {
@@ -262,7 +263,7 @@ try {
             Invoke-Checked 'docker' @('exec',$container,'psql','-X','-v','ON_ERROR_STOP=1','-U','pixels_admin','-d','pixels_desk','-c',
                 "CREATE TABLE pixels.pg_fixture(id uuid PRIMARY KEY,version text NOT NULL,created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP); ALTER TABLE pixels.pg_fixture OWNER TO pixels_desk_owner; GRANT SELECT,INSERT,UPDATE,DELETE ON pixels.pg_fixture TO pixels_desk_runtime") | Out-Null
         }
-        $suiteCounts = @{unit=19;identity=12;control=8;devices=8;applications=8;guests=9;nodes=7;deployments=6;instances=10;commands=16;workspaces=6;database=2;sessions=10;transfers=8;recordings=6;preferences=7;files=8;cache=16;activity=8;updates=7;desk=7;catalog=4;lease=6;postgres=13;accounts=9}
+        $suiteCounts = @{unit=19;identity=12;control=8;devices=8;applications=8;guests=9;nodes=7;deployments=6;instances=10;commands=16;workspaces=6;database=2;sessions=10;transfers=8;recordings=6;preferences=7;files=8;backup=13;cache=16;activity=8;updates=7;desk=7;catalog=4;lease=6;postgres=13;accounts=9}
         $suiteCounts['console-api'] = 5
         $suiteCounts['directory-api'] = 5
         $suiteCounts['node-control'] = 1
@@ -276,6 +277,8 @@ try {
             $suiteArgs = @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--features','pg-integration','--test',$apiTest,'--target-dir',$targetDir)
         } elseif ($Suite -eq 'files') {
             $suiteArgs = @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_private_files','--features','integration-probe','--test','cache_files','--target-dir',$targetDir)
+        } elseif ($Suite -eq 'backup') {
+            $suiteArgs = @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_backup','--lib','--target-dir',$targetDir)
         } elseif ($Suite -eq 'desk') {
             $suiteArgs = @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_desk_server','--features','pg-integration','--test','postgres_api','--target-dir',$targetDir)
         } elseif ($Suite -in @('auth','auth-api')) {
@@ -306,6 +309,10 @@ try {
     Write-Host $fileTests
     Add-TestCases $fileTests 'native/private-files' 8
     Add-Step 'FILES: private anchored roots, process locks, immutable hash-verified blobs and exact cleanup'
+    $backupTests = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_backup','--lib','--target-dir',$targetDir)
+    Write-Host $backupTests
+    Add-TestCases $backupTests 'native/backup-core' 13
+    Add-Step 'BACKUP-CORE: strict recovery sets, retention dependencies, private atomic publication, pinned tools, cancellation and timeouts'
     $licenseTests = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_license','--test','contract','--target-dir',$targetDir)
     Add-TestCases $licenseTests 'native/license-contract' 5
     # Infrastructure tests use their own synthetic table, not a product domain schema.
@@ -335,7 +342,7 @@ try {
     $committedMetadata = Join-Path $repo 'rust_server/px_console_server/storage/.sqlx'
     $expectedQueries = @(Get-ChildItem -LiteralPath $committedMetadata -Filter 'query-*.json' -File)
     $actualQueries = @(Get-ChildItem -LiteralPath $queryMetadata -Filter 'query-*.json' -File)
-    if ($expectedQueries.Count -ne 236 -or $actualQueries.Count -ne $expectedQueries.Count) { throw 'Missing or extra SQLx query metadata' }
+    if ($expectedQueries.Count -ne 237 -or $actualQueries.Count -ne $expectedQueries.Count) { throw 'Missing or extra SQLx query metadata' }
     foreach ($expected in $expectedQueries) {
         $actual = Join-Path $queryMetadata $expected.Name
         if (-not (Test-Path -LiteralPath $actual) -or (Get-FileHash -LiteralPath $expected.FullName).Hash -ne (Get-FileHash -LiteralPath $actual).Hash) {
@@ -344,7 +351,7 @@ try {
     }
     Set-LocalEnv 'SQLX_OFFLINE' 'true'
     Set-LocalEnv 'SQLX_OFFLINE_DIR' $committedMetadata
-    Add-Step 'QUERY: 236 Console SQLx queries compiled against fresh PG; offline metadata matches'
+    Add-Step 'QUERY: 237 Console SQLx queries compiled against fresh PG; offline metadata matches'
     $identityUnit = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--lib','--target-dir',$targetDir)
     Add-TestCases $identityUnit 'native/identity-unit' 19
     $identityIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--test','identity','--target-dir',$targetDir,'--','--test-threads=1')
@@ -548,7 +555,7 @@ try {
         foreach ($service in @('console','auth','desk')) {
             if ($linuxResult -notmatch "READY service=$service") { throw "Linux schema tool failed for $service" }
         }
-        Add-TestCases $linuxResult 'linux' 263
+        Add-TestCases $linuxResult 'linux' 276
         if ($linuxResult -notmatch '(?m)^([a-f0-9]{64})\s+[^\r\n]+/debug/px_db\s*$') { throw 'Missing Linux schema tool hash' }
         $fingerprints.linux_px_db = $Matches[1]
         if ($linuxResult -notmatch '(?m)^([a-f0-9]{64})\s+[^\r\n]+/debug/px_desk\s*$') { throw 'Missing Linux Desk binary hash' }

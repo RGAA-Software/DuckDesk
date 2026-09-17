@@ -15,7 +15,6 @@ use service_core::{
 use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use tracing::{error, info, warn};
 
-use crate::node_auth_store::NodeAuthStore;
 use crate::user_proxy;
 use crate::virtual_display_manager::VirtualDisplayManager;
 use crate::websocket_server::WebsocketService;
@@ -25,12 +24,9 @@ use crate::windows_process::{ProcessExitObserver, ProcessManager};
 pub struct ServiceRuntime {
     pub config: ServiceConfig,
     pub storage: ServiceStorage,
-    node_auth_store: NodeAuthStore,
     pub process_manager: Arc<dyn ProcessManager>,
     pub windows_actions: Arc<dyn SystemActions>,
     pub state: ServiceState,
-    approved_auth_info: Option<service_core::MsgAuthInfo>,
-    rejected_panel_appkeys: std::collections::HashSet<String>,
     pub app_registry: AppInstanceRegistry,
     app_exit_observers: std::collections::HashMap<String, (String, Arc<dyn ProcessExitObserver>)>,
     pub rdp_console_trusted: bool,
@@ -44,7 +40,6 @@ pub struct ServiceRuntime {
     /// One-shot Browser/first-frame acknowledgements for WebView starts.
     pub webview_ready_waiters:
         std::collections::HashMap<String, oneshot::Sender<Result<(), String>>>,
-    pub rdp_validation_tx: Option<mpsc::Sender<RdpValidationRequest>>,
     pub virtual_display_manager: Option<Arc<VirtualDisplayManager>>,
     pub virtual_display_init_error: Option<String>,
     pub virtual_display_results:
@@ -53,24 +48,6 @@ pub struct ServiceRuntime {
     /// It is never persisted and is only passed to child Render processes.
     pub ipc_token: String,
     stop_tx: broadcast::Sender<()>,
-}
-
-pub struct RdpValidationRequest {
-    pub request_id: String,
-    pub instance_id: String,
-    pub logical_session_id: String,
-    pub response: oneshot::Sender<RdpValidationResult>,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct RdpValidationResult {
-    pub ok: bool,
-    pub code: String,
-    pub device_id: String,
-    pub instance_id: String,
-    pub subject_type: String,
-    pub subject_id: String,
-    pub logical_session_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -109,7 +86,6 @@ impl ServiceRuntime {
         windows_actions: Arc<dyn SystemActions>,
     ) -> Self {
         let storage = ServiceStorage::new(config.storage_file());
-        let node_auth_store = NodeAuthStore::new(config.data_root.clone());
         let driver_dir = std::env::current_exe()
             .ok()
             .and_then(|path| path.parent().map(|parent| parent.join("vdd")))
@@ -139,19 +115,15 @@ impl ServiceRuntime {
         Self {
             config,
             storage,
-            node_auth_store,
             process_manager,
             windows_actions,
             state: ServiceState::default(),
-            approved_auth_info: None,
-            rejected_panel_appkeys: std::collections::HashSet::new(),
             app_registry,
             app_exit_observers: std::collections::HashMap::new(),
             render_senders: std::collections::HashMap::new(),
             render_logical_sessions: std::collections::HashMap::new(),
             webview_ready_waiters: std::collections::HashMap::new(),
             rdp_console_trusted: false,
-            rdp_validation_tx: None,
             virtual_display_manager,
             virtual_display_init_error,
             virtual_display_results: std::collections::HashMap::new(),
@@ -261,125 +233,10 @@ impl ServiceRuntime {
             warn!("persisted desktop runtime is unavailable; rebased launch to the current Pixels installation");
             self.persist_state()?;
         }
-        if let Some(auth_info) = self.node_auth_store.load()? {
-            let auth_info = self.normalize_auth_info(auth_info)?;
-            self.config
-                .node
-                .set_access_host(auth_info.node_access_host.clone())?;
-            self.approved_auth_info = Some(auth_info.clone());
-            self.state.last_auth_info = Some(auth_info);
-        }
         info!(
-            "loaded persisted state, desktop_launch_present={}, node_authorization_present={}",
-            self.state.last_desktop_launch.is_some(),
-            self.approved_auth_info.is_some()
+            "loaded persisted state, desktop_launch_present={}",
+            self.state.last_desktop_launch.is_some()
         );
-        Ok(())
-    }
-
-    fn normalize_auth_info(
-        &self,
-        auth_info: service_core::MsgAuthInfo,
-    ) -> Result<service_core::MsgAuthInfo, String> {
-        if !auth_info.console_host.is_empty()
-            && auth_info.console_host.trim() != auth_info.console_host
-        {
-            return Err("invalid Console endpoint received from Panel".into());
-        }
-        Ok(auth_info)
-    }
-
-    fn accepts_panel_auth_info(&self, auth_info: &service_core::MsgAuthInfo) -> bool {
-        !auth_info.device_id.is_empty()
-            && !auth_info.appkey.is_empty()
-            && !auth_info.console_host.is_empty()
-            && auth_info.console_port > 0
-            && auth_info.console_port <= i32::from(u16::MAX)
-            && !self.rejected_panel_appkeys.contains(&auth_info.appkey)
-    }
-
-    fn apply_panel_auth_info(
-        &mut self,
-        auth_info: service_core::MsgAuthInfo,
-    ) -> Result<bool, String> {
-        let auth_info = self.normalize_auth_info(auth_info)?;
-        if !self.accepts_panel_auth_info(&auth_info) {
-            warn!(
-                "ignored incomplete or previously rejected panel authorization, device_id_present={}, appkey_present={}",
-                !auth_info.device_id.is_empty(),
-                !auth_info.appkey.is_empty()
-            );
-            return Ok(false);
-        }
-        self.config
-            .node
-            .set_access_host(auth_info.node_access_host.clone())?;
-        let approved_endpoint_unchanged =
-            self.approved_auth_info.as_ref().is_some_and(|approved| {
-                approved.device_id == auth_info.device_id
-                    && approved.appkey == auth_info.appkey
-                    && approved.console_host == auth_info.console_host
-                    && approved.console_port == auth_info.console_port
-            });
-        if approved_endpoint_unchanged && self.approved_auth_info.as_ref() != Some(&auth_info) {
-            self.node_auth_store.save(&auth_info)?;
-            self.approved_auth_info = Some(auth_info.clone());
-        }
-        self.state.last_auth_info = Some(auth_info);
-        Ok(true)
-    }
-
-    pub fn approve_console_auth_info(
-        &mut self,
-        auth_info: service_core::MsgAuthInfo,
-    ) -> Result<(), String> {
-        let auth_info = self.normalize_auth_info(auth_info)?;
-        self.config
-            .node
-            .set_access_host(auth_info.node_access_host.clone())?;
-        self.node_auth_store.save(&auth_info)?;
-        self.rejected_panel_appkeys.remove(&auth_info.appkey);
-        self.approved_auth_info = Some(auth_info.clone());
-        self.state.last_auth_info = Some(auth_info);
-        Ok(())
-    }
-
-    pub fn reject_console_auth_info(
-        &mut self,
-        attempted: &service_core::MsgAuthInfo,
-    ) -> Result<(), String> {
-        let current_is_attempted = self.state.last_auth_info.as_ref().is_some_and(|current| {
-            current.device_id == attempted.device_id && current.appkey == attempted.appkey
-        });
-        if !current_is_attempted {
-            return Ok(());
-        }
-        if self
-            .approved_auth_info
-            .as_ref()
-            .is_some_and(|approved| approved.appkey == attempted.appkey)
-        {
-            self.node_auth_store.clear()?;
-            self.approved_auth_info = None;
-            self.state.last_auth_info = None;
-            self.config.node.set_access_host(String::new())?;
-            warn!(
-                "Console rejected the approved node authorization; awaiting new Panel authorization"
-            );
-        } else {
-            self.rejected_panel_appkeys.insert(attempted.appkey.clone());
-            self.state.last_auth_info = self.approved_auth_info.clone();
-            let access_host = self
-                .state
-                .last_auth_info
-                .as_ref()
-                .map(|auth| auth.node_access_host.clone())
-                .unwrap_or_default();
-            self.config.node.set_access_host(access_host)?;
-            warn!(
-                "Console rejected Panel authorization; restored the last Console-approved authorization"
-            );
-        }
         Ok(())
     }
 
@@ -451,7 +308,6 @@ impl ServiceRuntime {
             Command::HeartBeat {
                 index,
                 from,
-                auth_info,
                 logical_sessions_json,
             } => {
                 // Heartbeats use the monitor's snapshot. A full WMI enumeration
@@ -466,24 +322,7 @@ impl ServiceRuntime {
                         warn!(%from, %error, "ignore invalid Render logical-session snapshot");
                     }
                 }
-                if let Some(auth_info) = auth_info {
-                    self.apply_panel_auth_info(auth_info)?;
-                }
                 Ok(Some(self.state.heartbeat_response(index)))
-            }
-            Command::AuthInfo(auth_info) => {
-                let applied = self.apply_panel_auth_info(auth_info)?;
-                let Some(auth_info) = self.state.last_auth_info.as_ref() else {
-                    return Ok(None);
-                };
-                info!(
-                    "received auth info, device_id={}, appkey_configured={}, console={}:{}",
-                    auth_info.device_id,
-                    applied && !auth_info.appkey.is_empty(),
-                    auth_info.console_host,
-                    auth_info.console_port
-                );
-                Ok(None)
             }
             Command::CtrlAltDelete { .. } => {
                 self.windows_actions.send_ctrl_alt_delete()?;
@@ -1423,7 +1262,9 @@ pub async fn run_service(
     let service_task = tokio::spawn(async move { service.run_console().await });
     let monitor_task = tokio::spawn(monitor_loop(runtime.clone()));
     let control_task = tokio::spawn(control_loop(runtime.clone(), control_rx));
-    let console_task = tokio::spawn(crate::console_client::console_client_loop(runtime.clone()));
+    let node_control_task = tokio::spawn(crate::node_control_client::node_control_loop(
+        runtime.clone(),
+    ));
 
     tokio::select! {
         result = service_task => {
@@ -1444,13 +1285,12 @@ pub async fn run_service(
                 Err(err) => Err(err.to_string()),
             }
         }
-        result = console_task => {
+        result = node_control_task => {
             match result {
                 Ok(inner) => inner,
                 Err(err) => Err(err.to_string()),
             }
         }
-        result = crate::rdp_authorization::run(runtime.clone()) => result,
     }
 }
 
@@ -1805,7 +1645,6 @@ mod tests {
                 index: 3,
                 from: "panel".to_string(),
                 logical_sessions_json: String::new(),
-                auth_info: None,
             })
             .unwrap()
             .unwrap();
@@ -1826,7 +1665,6 @@ mod tests {
                     index,
                     from: "render_32014".to_string(),
                     logical_sessions_json: String::new(),
-                    auth_info: None,
                 })
                 .unwrap();
         }
@@ -1870,24 +1708,6 @@ mod tests {
         assert_eq!(manager.list_calls.load(Ordering::SeqCst), 1);
     }
 
-    fn test_auth_info() -> service_core::MsgAuthInfo {
-        service_core::MsgAuthInfo {
-            device_id: "dev-1".to_string(),
-            auth_id: "aid-1".to_string(),
-            auth_name: "license".to_string(),
-            machine_code: "mc".to_string(),
-            appkey: "ak-1".to_string(),
-            role: 1,
-            days: 365,
-            max_streams: 4,
-            end_timestamp_ms: 1_900_000_000_000,
-            console_host: "console.example.com".to_string(),
-            console_port: 8443,
-            console_ssl: true,
-            node_access_host: "203.0.113.8".to_string(),
-        }
-    }
-
     #[test]
     fn render_heartbeat_updates_hung_detection_baseline() {
         let mut runtime = test_runtime(vec![ProcessSnapshot::new(
@@ -1901,7 +1721,6 @@ mod tests {
                 index: 1,
                 from: "render_4601".to_string(),
                 logical_sessions_json: String::new(),
-                auth_info: None,
             })
             .unwrap();
         assert!(runtime.state.last_render_heartbeat.is_some());
@@ -1913,75 +1732,9 @@ mod tests {
                 index: 2,
                 from: "panel".to_string(),
                 logical_sessions_json: String::new(),
-                auth_info: None,
             })
             .unwrap();
         assert!(runtime.state.last_render_heartbeat.is_none());
-    }
-
-    #[test]
-    fn heartbeat_with_auth_info_updates_state() {
-        let mut runtime = test_runtime(Vec::new());
-        let auth_info = test_auth_info();
-        runtime
-            .handle_command(Command::HeartBeat {
-                index: 1,
-                from: "panel".to_string(),
-                logical_sessions_json: String::new(),
-                auth_info: Some(auth_info.clone()),
-            })
-            .unwrap();
-        assert_eq!(runtime.state.last_auth_info, Some(auth_info.clone()));
-
-        // A heartbeat without auth_info must not clear the recorded one.
-        runtime
-            .handle_command(Command::HeartBeat {
-                index: 2,
-                from: "panel".to_string(),
-                logical_sessions_json: String::new(),
-                auth_info: None,
-            })
-            .unwrap();
-        assert_eq!(runtime.state.last_auth_info, Some(auth_info));
-    }
-
-    #[test]
-    fn auth_info_command_updates_state() {
-        let mut runtime = test_runtime(Vec::new());
-        assert!(runtime.state.last_auth_info.is_none());
-        let auth_info = test_auth_info();
-        let response = runtime
-            .handle_command(Command::AuthInfo(auth_info.clone()))
-            .unwrap();
-        assert!(response.is_none());
-        assert_eq!(runtime.state.last_auth_info, Some(auth_info));
-    }
-
-    #[test]
-    fn rejected_panel_auth_restores_approved_auth_and_does_not_retry_it() {
-        let mut runtime = test_runtime(Vec::new());
-        let approved = test_auth_info();
-        runtime.approved_auth_info = Some(approved.clone());
-        runtime.state.last_auth_info = Some(approved.clone());
-        let mut rejected = approved.clone();
-        rejected.appkey = "obsolete-appkey".to_string();
-        assert!(runtime.apply_panel_auth_info(rejected.clone()).unwrap());
-        assert_eq!(runtime.state.last_auth_info, Some(rejected.clone()));
-        runtime.reject_console_auth_info(&rejected).unwrap();
-        assert_eq!(runtime.state.last_auth_info, Some(approved));
-        assert!(!runtime.apply_panel_auth_info(rejected).unwrap());
-    }
-
-    #[test]
-    fn incomplete_panel_auth_does_not_erase_approved_auth() {
-        let mut runtime = test_runtime(Vec::new());
-        let approved = test_auth_info();
-        runtime.approved_auth_info = Some(approved.clone());
-        runtime.state.last_auth_info = Some(approved.clone());
-        let mut incomplete = approved.clone();
-        incomplete.appkey.clear();
-        assert!(!runtime.apply_panel_auth_info(incomplete).unwrap());
-        assert_eq!(runtime.state.last_auth_info, Some(approved));
     }
 
     #[test]
@@ -2608,25 +2361,6 @@ mod tests {
             .await
             .unwrap();
         assert!(manager.kills.lock().unwrap().is_empty());
-    }
-
-    #[test]
-    fn panel_auth_updates_console_and_node_access_host() {
-        let mut runtime = test_runtime(Vec::new());
-        let expected = test_auth_info();
-        for command in [
-            Command::AuthInfo(expected.clone()),
-            Command::HeartBeat {
-                index: 1,
-                from: "panel".into(),
-                logical_sessions_json: String::new(),
-                auth_info: Some(expected.clone()),
-            },
-        ] {
-            runtime.handle_command(command).unwrap();
-            assert_eq!(runtime.state.last_auth_info, Some(expected.clone()));
-            assert_eq!(runtime.config.node.access_host, "203.0.113.8");
-        }
     }
 
     #[tokio::test]

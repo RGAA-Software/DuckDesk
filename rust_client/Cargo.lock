@@ -6338,16 +6338,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "px_node_protocol"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "px_service"
 version = "3.3.67"
 dependencies = [
  "base64 0.22.1",
+ "chrono",
  "clap",
  "futures-util",
  "prost 0.14.4",
  "protocol",
  "px_auth_mgr",
  "px_base",
+ "px_node_protocol",
  "rand 0.9.4",
  "reqwest",
  "rustls 0.23.40",
@@ -6358,6 +6369,8 @@ dependencies = [
  "tokio",
  "tokio-tungstenite",
  "tracing",
+ "url",
+ "uuid",
  "winapi",
  "windows 0.62.2",
  "wmi",
@@ -8542,6 +8555,7 @@ dependencies = [
  "futures-util",
  "log",
  "rustls 0.23.40",
+ "rustls-native-certs",
  "rustls-pki-types",
  "tokio",
  "tokio-rustls 0.26.4",

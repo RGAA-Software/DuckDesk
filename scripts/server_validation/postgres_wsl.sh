@@ -10,6 +10,7 @@ uname -sm
 export SQLX_OFFLINE=true
 cargo test --offline --locked --manifest-path "$manifest" -p px_release_catalog --lib --target-dir "$target"
 cargo test --offline --locked --manifest-path "$manifest" -p px_private_files --features integration-probe --test cache_files --target-dir "$target" -- --test-threads=1
+cargo test --offline --locked --manifest-path "$manifest" -p px_backup --lib --target-dir "$target"
 cargo test --offline --locked --manifest-path "$manifest" -p px_license --test contract --target-dir "$target"
 cargo test --offline --locked --manifest-path "$manifest" -p px_pg --lib --target-dir "$target"
 cargo test --offline --locked --manifest-path "$manifest" -p px_pg --features pg-integration --test postgres --target-dir "$target" -- --test-threads=1

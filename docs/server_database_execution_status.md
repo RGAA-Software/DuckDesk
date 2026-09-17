@@ -74,6 +74,37 @@ reconcile、Android user 预约、Start/Running、Stop/Absent、重复 request_i
 Windows/Linux 各 5 个最终工具制品 hash 已记录并复核。该报告仍不代表旧 Console 产品二进制和 Windows Service 已完成协议切换，
 也不代表自动备份执行器、真实媒体/OS 行为或 DB0–DB5 总出口完成。
 
+该完整报告后的 Windows Service 节点接入增量已移除旧 Console/Panel appkey 控制路径，并接入新的
+`/api/console/node-control` 客户端、严格单调请求、节点报告、清单对账、命令代际/租约校验、精确 launch Start/Stop 和 ACK。
+节点 endpoint/token/public host 由标准输入导入，保存在仅 SYSTEM/Administrators 可访问的目录并使用 machine-scope DPAPI；
+正式地址只允许 WSS，loopback 开发可用 WS，旧路由、query token 和退役端口没有 fallback。
+`px_service` 73 项、`service_core` 84 项本轮聚焦测试通过（另有 1 项既有真实 UE 样本测试按原规则 ignored）；
+期间发现两项测试使用的固定低端口与本机出站连接冲突，已改为在测试范围内选择连续空闲端口，不删除或停止占用进程。
+本条尚未进入 PostgreSQL 全量验收报告，也未完成真实 Console→Service→Render、RDP workspace envelope、GPU 绑定、发行部署身份校验，
+因此不能替代最新完整报告或宣布 DB0–DB5 完成。
+部署清单出口新增 1 条 Console SQLx 查询后，本批离线/在线门禁期望为 Console 237、Auth 29、Desk 9，共 275 条；
+历史报告中的 236/274 是当时制品的真实计数，不回写伪装成新结果。
+部署 repository 六项专项 `pg-20260917-140031-f24eb3a2` 及真实节点 WebSocket 专项
+`pg-20260917-140244-b450cf2e` 均通过；后者已从真实 PostgreSQL 分页读取节点部署，并验证最小准备描述不会下发 WebView URL。
+两份报告均完成源码 hash 稳定性复核并清理隔离容器/卷，仍须以随后完整跨平台报告作为本批 DB 总门禁结果。
+
+本批完整回归 `pg-20260917-140526-29a46d6e` 通过：576 项 PASS，Windows/Linux 各 263 个 Rust 用例，
+275 条 SQLx 查询在线/离线一致（Console 237、Auth 29、Desk 9）；新部署清单查询和节点 WebSocket 在两平台均执行。
+Auth/Desk 网页与真实浏览器、进程/数据库故障、WSL2 三服务 readiness、三库备份恢复和损坏归档拒绝全部通过。
+862 个登记源文件在整轮运行期间 hash 不变，Windows/Linux 工具制品 hash 已记录并复核，隔离容器与卷已清理。
+本报告证明当前数据库与节点协议增量的完整软件门禁，不替代下表所列真实 Windows OS、自动备份执行器和 DB5 产品验收。
+
+DB4 第一纵向切片新增 `px_backup`：严格恢复集清单、部署绑定私有仓库、跨进程互斥、临时集归档验证与 SHA-256 后原子发布、
+小时 24/日 7/周 4/月 6/升级前 5/手动 30 天的引用保留内核，以及锁定、恢复中、最后有效集和依赖链保护。
+执行器只允许把当前实现标记为 `Independent`；没有写屏障证明时拒绝生成 `WriteBarrier`/`Physical` 恢复集。
+固定 `pg_dump`/`pg_restore` 路径与摘要、私有 pgpass、无口令参数/输出、最长 24 小时边界及取消回收已经进入实现；
+清理接口当前只返回安全候选，不执行删除。Windows/Linux 各 13 项通过，聚焦报告 `pg-20260917-145135-b102b3f0`。
+
+加入该模块后的当前最新完整回归 `pg-20260917-145244-75f20f67` 通过：603 项 PASS，Windows/Linux 各 276 个 Rust 用例，
+275 条 SQLx 查询仍为 Console 237、Auth 29、Desk 9；Auth/Desk 浏览器与故障恢复、三服务 readiness、三库恢复均通过。
+868 个登记源文件在整轮运行期间 hash 不变，隔离容器与卷已清理。该报告覆盖备份内核，不代表真实定时任务、SCM/systemd、
+实际 `pg_dump` 恢复演练、异机仓库、告警或生产 WAL/PITR 已通过。
+
 - 新 Console 运行模块已接身份/用户组 HTTP 与单活动生命周期（产品入口尚未切换）。Windows 路由专项
   `pg-20260917-092450-742a93ef` 五组通过，837 个源文件及工具 hash 复核一致；静态检查通过。
   后续审计/管理重置增量独立验收，不把本条当作这些增量、正式产品或 Linux 已通过。
@@ -310,13 +341,14 @@ Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 W
 | DB0 | 已补领域/权限/恢复边界及 Auth 字节/固定向量；其余 Console 字段 SQL 与完整合成基线尚未全部冻结 |
 | DB1-EXIT | Desk/Auth 产品服务已接入；Console 尚未切到 PG，不能用 schema CLI 替代三服务验收 |
 | DB2-A | 身份/管理 HTTP、密码计算/限流/Origin、访客 HMAC/会话/公开目录、严格配置与稳定私钥加载已实现；本人资料/头像、独立初始化 CLI、产品二进制切换及客户端全链路尚未接通 |
-| DB2-B/C/D | 设备/应用/节点/部署目录、user/guest 资源入口与 Console 节点 WS 已接；实际 PG/WS Start/Stop/ACK 专项通过。Windows Service 消费者、真实媒体/事件投递、Service fence/OS 行为及其余 repository 的产品入口仍未完成 |
+| DB2-B/C/D | 设备/应用/节点/部署目录、user/guest 资源入口与 Console 节点 WS 已接；Windows Service 已切到新节点协议并实现部署准备、调和、命令 fencing 与精确 launch ACK。真实 Console→Service→Render、GPU/RDP 执行、媒体/事件投递及其余 repository 产品入口仍未完成 |
 | DB2-EXIT / DB3 | Desk/Auth 独立产品流程已验证；Console 与共享消费者仍待去 Mongo、接新签发/验证及库外水位，Auth 通知 outbox 尚未接通；不建设运行时双后端 |
-| DB4 | 独立定时备份执行器、Windows SCM、保留/清理、失败告警、异机仓库、恢复准入、生产 WAL/PITR；手动恢复冒烟不能替代 |
+| DB4 | 恢复集/保留/私有原子发布/固定工具/取消超时内核已实现并跨平台回归；仍需独立定时执行器、Windows SCM/Linux systemd、实际清理、失败告警、异机仓库、恢复准入和生产 WAL/PITR；手动恢复冒烟不能替代 |
 | DB5 | 新环境服务端—Windows—Android 功能回归及完整制品验收 |
 | DB-HA / P1–P7 | 独立主机 HA、正式发行隔离、授权/连接服务、升级、运维与真实容量/稳定性验收 |
 
 接续依赖顺序：Console 新 API 和统一切换（包含真实媒体工作流与已实现的更新目录）→ 同步许可证消费者 → 自动备份/恢复 → 全新部署验收。
 资源会话 repository 证据见[CloudApplication/桌面会话与描述符契约](postgresql_resource_session_contract.md)；
-专项测试入口与独立 AES 固定向量已经通过，不再列为未开始。各客户端/节点仍未切入新协议，不能将存储层通过写成产品验收通过。
+专项测试入口与独立 AES 固定向量已经通过，不再列为未开始。Service 已开始切入新节点协议，但其他客户端和真实 OS/媒体链路仍未验收，
+不能将协议、存储层或合成节点通过写成产品验收通过。
 所有后续代码继续遵守全新开发、无旧数据导入、无旧接口/配置适配、无 fallback；不为了让旧测试通过重建退役行为。

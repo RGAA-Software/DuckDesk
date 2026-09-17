@@ -1,5 +1,6 @@
 # 本文件随所有 Render 节点统一安装，只保存高级端口默认值。
-# Console 地址、节点公网地址和授权信息均由 Panel UI 配置并下发给 Service，禁止在此写入机器专属地址或凭据。
+# Console 节点控制地址、节点公网地址和独立节点 token 使用 px_service.exe
+# --configure-node-control 从标准输入写入受 ACL 和 Windows DPAPI 保护的机器配置；禁止在此写入凭据。
 # 默认：管理 4603、桌面 4601、Panel 4999、应用 4613–4998、RTC 5000–5031；发现关闭。
 # 默认内外端口相同；不同机器可复用端口，不要把节点端口映射到 Console。
 # 高级端口配置见 docs/node_connection_configuration.md。
@@ -12,7 +13,7 @@ listen_port = 4603
 desktop_port = 4601
 # TCP，Panel 本地服务及录像访问端口；公网部署按需进行同号映射。
 panel_port = 4999
-# 已知 Console 地址由 UI 下发，因此默认关闭局域网发现。
+# 节点主动连接明确配置的 Console，因此默认关闭局域网发现。
 discovery_enabled = false
 discovery_port = 4604
 

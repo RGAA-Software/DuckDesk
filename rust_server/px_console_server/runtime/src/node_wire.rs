@@ -82,6 +82,33 @@ pub fn observation(value: wire::DeploymentObservation) -> store::DeploymentObser
     }
 }
 
+pub fn assignment(value: store::NodeDeploymentAssignment) -> wire::DeploymentAssignment {
+    wire::DeploymentAssignment {
+        id: value.id,
+        application_id: value.application_id,
+        deployment_revision: value.deployment_revision,
+        application_revision: value.application_revision,
+        disabled: value.disabled,
+        preparation: match value.preparation {
+            store::NodeDeploymentPreparation::GameHook {
+                install_root,
+                executable_relative,
+                gpu_key,
+            } => wire::DeploymentPreparation::GameHook {
+                install_root,
+                executable_relative,
+                gpu_key,
+            },
+            store::NodeDeploymentPreparation::Webview { gpu_key } => {
+                wire::DeploymentPreparation::Webview { gpu_key }
+            }
+            store::NodeDeploymentPreparation::Rdp { gpu_key } => {
+                wire::DeploymentPreparation::Rdp { gpu_key }
+            }
+        },
+    }
+}
+
 pub fn challenge(value: store::ReconciliationChallenge) -> wire::ReconciliationChallenge {
     wire::ReconciliationChallenge {
         id: value.id,

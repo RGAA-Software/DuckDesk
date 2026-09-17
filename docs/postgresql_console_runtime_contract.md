@@ -110,6 +110,14 @@ Game Hook 严守本次 private Job AND 规范化完整路径；WebView 不加 Wi
 RDP 只关闭运行时/承载，保留账号/Profile/Session/应用，同一 application/node 工作区拒绝第二个前端。
 实际 Windows 执行尚未验收之前，模拟节点测试不得被记作这三项产品行为通过。
 
+Windows Service 接入增量已经删除旧 `/console/service`、`/cms/service`、query token、appkey/设备授权仓库和 Panel 覆盖节点地址的运行入口，
+改用 `px_node_protocol` JSON WebSocket。节点配置只接受精确 `/api/console/node-control`：生产必须 WSS，开发明文 WS 仅允许 loopback；
+64 字符小写十六进制 node token、endpoint 和必填公网 host 进入 SYSTEM/Administrators ACL 目录，并使用 machine-scope DPAPI 加密。
+管理员通过标准输入调用 `px_service.exe --configure-node-control`，token 不进入命令行、TOML 或日志。
+Service 已实现认证、节点/端口/能力报告、challenge 清单对账、命令轮询、generation/epoch/revision/deadline 校验、精确 launch Stop 和 ACK；
+直接模式不再用空 Relay 字段启动“启用 Relay”的 Render。新 RDP workspace envelope 和 GPU 绑定尚未进入 wire，因此 Service 明确报告
+`rdp=false`，带 GPU 或 RDP 的意外 Start 不执行；这不能记作 RDP/GPU 或实际 PG→Windows Render 端到端通过。
+
 ## 4. 现有能力核对与接入顺序
 
 当前旧产品仍包含 RTC/TURN 配置、直播/视频墙/媒体 sidecar、设备自命名和策略、用户资料/头像、日志/遥测及管理审计。

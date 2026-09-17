@@ -1,6 +1,4 @@
-use crate::proto::{
-    decode_service_message, MsgAuthInfo, ServiceMessageType, VirtualDisplayOperation,
-};
+use crate::proto::{decode_service_message, ServiceMessageType, VirtualDisplayOperation};
 use crate::state::RenderLaunchSpec;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -11,13 +9,10 @@ pub enum Command {
     HeartBeat {
         index: i64,
         from: String,
-        /// Panel piggybacks its latest authorization info on heartbeats.
-        auth_info: Option<MsgAuthInfo>,
         /// Render-owned logical session snapshot, serialized JSON. It is not
         /// interpreted by the privileged Service process.
         logical_sessions_json: String,
     },
-    AuthInfo(MsgAuthInfo),
     CtrlAltDelete {
         req_device_id: String,
         req_stream_id: String,
@@ -58,14 +53,10 @@ pub fn dispatch_message(bytes: &[u8]) -> Result<DispatchResult, String> {
             Command::HeartBeat {
                 index: heart_beat.index,
                 from: heart_beat.from,
-                auth_info: heart_beat.auth_info,
                 logical_sessions_json: heart_beat.logical_sessions_json,
             }
         }
-        ServiceMessageType::AuthInfo => {
-            let auth_info = message.auth_info.ok_or("missing auth_info payload")?;
-            Command::AuthInfo(auth_info)
-        }
+        ServiceMessageType::AuthInfo => return Err("panel node authorization is retired".into()),
         ServiceMessageType::ReqCtrlAltDelete => {
             let request = message
                 .req_ctrl_alt_delete
@@ -160,14 +151,13 @@ mod tests {
             Command::HeartBeat {
                 index: 42,
                 from: "panel".to_string(),
-                auth_info: None,
                 logical_sessions_json: String::new(),
             }
         );
     }
 
     #[test]
-    fn dispatch_heartbeat_carries_auth_info() {
+    fn dispatch_heartbeat_ignores_retired_panel_auth_info() {
         let auth_info = MsgAuthInfo {
             device_id: "dev-1".to_string(),
             appkey: "ak-1".to_string(),
@@ -191,7 +181,6 @@ mod tests {
             Command::HeartBeat {
                 index: 1,
                 from: "panel".to_string(),
-                auth_info: Some(auth_info),
                 logical_sessions_json: String::new(),
             }
         );
@@ -211,8 +200,7 @@ mod tests {
             auth_info: Some(auth_info.clone()),
             ..Default::default()
         });
-        let result = dispatch_message(&bytes).unwrap();
-        assert_eq!(result.command, Command::AuthInfo(auth_info));
+        assert!(dispatch_message(&bytes).is_err());
     }
 
     #[test]

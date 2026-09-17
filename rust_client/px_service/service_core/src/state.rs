@@ -1,6 +1,6 @@
 use crate::process::{ProcessKind, ProcessSnapshot};
 use crate::proto::{
-    MsgAuthInfo, MsgHeartBeatResp, MsgRestartServer, MsgStartServer, RenderStatus, ServiceMessage,
+    MsgHeartBeatResp, MsgRestartServer, MsgStartServer, RenderStatus, ServiceMessage,
     ServiceMessageType,
 };
 
@@ -30,9 +30,6 @@ pub struct ServiceState {
     /// Consecutive failed restart attempts (informational; the retry
     /// interval is fixed, retries never stop).
     pub consecutive_restart_failures: u32,
-    /// Latest authorization info pushed by the panel (via heartbeat or a
-    /// standalone AuthInfo message); drives the Console client connection.
-    pub last_auth_info: Option<MsgAuthInfo>,
     /// Last time an application-level heartbeat (`from = "render_*"`) was
     /// received from the desktop render. Drives hung-render detection: the
     /// process may be alive while its message loop is dead.

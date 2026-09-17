@@ -156,6 +156,31 @@ pub struct DeploymentProfile {
     pub observed_sequence: i64,
     pub observed_at: Option<DateTime<Utc>>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NodeDeploymentPreparation {
+    GameHook {
+        install_root: String,
+        executable_relative: String,
+        gpu_key: Option<String>,
+    },
+    Webview {
+        gpu_key: Option<String>,
+    },
+    Rdp {
+        gpu_key: Option<String>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NodeDeploymentAssignment {
+    pub id: Uuid,
+    pub application_id: Uuid,
+    pub deployment_revision: i64,
+    pub application_revision: i64,
+    pub disabled: bool,
+    pub preparation: NodeDeploymentPreparation,
+}
 #[cfg(test)]
 mod tests {
     use super::*;

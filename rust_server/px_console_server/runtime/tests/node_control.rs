@@ -151,11 +151,26 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     .await;
     assert_eq!(report["type"], "reported");
     assert_eq!(report["state"], "reconciling");
+    let assignments = exchange(
+        &mut socket,
+        json!({"type":"list_deployments","request_id":3,"after":null,"limit":50}),
+    )
+    .await;
+    assert_eq!(assignments["type"], "deployments");
+    assert_eq!(assignments["deployments"].as_array().unwrap().len(), 1);
+    assert_eq!(assignments["deployments"][0]["id"], deployment["id"]);
+    assert_eq!(
+        assignments["deployments"][0]["preparation"]["kind"],
+        "webview"
+    );
+    assert!(assignments["deployments"][0]["preparation"]
+        .get("entry_url")
+        .is_none());
     let deployment_report = exchange(
         &mut socket,
         json!({
             "type":"report_deployment",
-            "request_id":3,
+            "request_id":4,
             "deployment_id":deployment["id"],
             "observation":{
                 "deployment_revision":deployment["revision"],
@@ -171,7 +186,7 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
 
     let challenge = exchange(
         &mut socket,
-        json!({"type":"begin_reconciliation","request_id":4}),
+        json!({"type":"begin_reconciliation","request_id":5}),
     )
     .await;
     assert_eq!(challenge["type"], "reconciliation_started");
@@ -179,12 +194,12 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
         &mut socket,
         json!({
             "type":"reconcile",
-            "request_id":5,
+            "request_id":6,
             "inventory":{"challenge_id":challenge["challenge"]["id"],"runtimes":[]}
         }),
     )
     .await;
-    assert_eq!(reconciled, json!({"type":"reconciled","request_id":5}));
+    assert_eq!(reconciled, json!({"type":"reconciled","request_id":6}));
 
     let username = register(&router).await;
     let user = login(&router, &username, PASSWORD, "android").await;
@@ -203,14 +218,14 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     )
     .await;
     assert_eq!(status.as_u16(), 201, "{instance}");
-    let start_command = exchange(&mut socket, json!({"type":"poll_command","request_id":6})).await;
+    let start_command = exchange(&mut socket, json!({"type":"poll_command","request_id":7})).await;
     assert_eq!(start_command["type"], "command");
     assert_eq!(start_command["command"]["action"]["kind"], "start");
     let running = exchange(
         &mut socket,
         json!({
             "type":"acknowledge_command",
-            "request_id":7,
+            "request_id":8,
             "receipt":{
                 "command_id":start_command["command"]["id"],
                 "lease_id":start_command["command"]["lease_id"],
@@ -240,13 +255,13 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     )
     .await;
     assert_eq!(status.as_u16(), 200, "{stopping}");
-    let stop_command = exchange(&mut socket, json!({"type":"poll_command","request_id":8})).await;
+    let stop_command = exchange(&mut socket, json!({"type":"poll_command","request_id":9})).await;
     assert_eq!(stop_command["command"]["action"]["kind"], "stop");
     let stopped = exchange(
         &mut socket,
         json!({
             "type":"acknowledge_command",
-            "request_id":9,
+            "request_id":10,
             "receipt":{
                 "command_id":stop_command["command"]["id"],
                 "lease_id":stop_command["command"]["lease_id"],
@@ -260,10 +275,11 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     .await;
     assert_eq!(stopped["state"], "stopped");
 
-    let sequence_error = exchange(&mut socket, json!({"type":"poll_command","request_id":9})).await;
+    let sequence_error =
+        exchange(&mut socket, json!({"type":"poll_command","request_id":10})).await;
     assert_eq!(
         sequence_error,
-        json!({"type":"error","request_id":9,"code":"invalid_sequence"})
+        json!({"type":"error","request_id":10,"code":"invalid_sequence"})
     );
     let closed = tokio::time::timeout(Duration::from_secs(5), socket.next())
         .await

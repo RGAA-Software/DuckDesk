@@ -240,12 +240,8 @@ pub fn build_game_hook_launch_spec(
         format!("--encoder_format={format}"),
         format!("--network_listen_port={listen_port}"),
         format!("--device_id={}", req.device_id.trim()),
-        format!("--relay_device_id={}", req.relay_device_id.trim()),
-        format!("--relay_server_host={}", req.relay_server_host.trim()),
-        format!("--relay_server_port={}", req.relay_server_port),
-        format!("--appkey={}", req.relay_appkey.trim()),
-        "--relay_enabled=true".to_string(),
     ];
+    append_relay_arguments(&mut args, req);
     if !req.live_stream_id.trim().is_empty() {
         args.push(format!("--live_stream_id={}", req.live_stream_id.trim()));
     }
@@ -309,12 +305,8 @@ pub fn build_webview_launch_spec(
         format!("--network_listen_port={listen_port}"),
         format!("--webview_instance_id={}", req.instance_id),
         format!("--device_id={}", req.device_id.trim()),
-        format!("--relay_device_id={}", req.relay_device_id.trim()),
-        format!("--relay_server_host={}", req.relay_server_host.trim()),
-        format!("--relay_server_port={}", req.relay_server_port),
-        format!("--appkey={}", req.relay_appkey.trim()),
-        "--relay_enabled=true".to_string(),
     ];
+    append_relay_arguments(&mut args, req);
     if !req.live_stream_id.trim().is_empty() {
         args.push(format!("--live_stream_id={}", req.live_stream_id.trim()));
     }
@@ -337,6 +329,36 @@ pub fn extract_listen_port(args: &[String]) -> Option<u16> {
         }
     }
     None
+}
+
+fn validate_relay_configuration(req: &StartAppRequest) -> Result<(), String> {
+    let fields_present = [
+        !req.relay_device_id.trim().is_empty(),
+        !req.relay_server_host.trim().is_empty(),
+        req.relay_server_port > 0 && req.relay_server_port <= i32::from(u16::MAX),
+        !req.relay_appkey.trim().is_empty(),
+    ];
+    if fields_present.iter().all(|present| *present)
+        || fields_present.iter().all(|present| !*present) && req.relay_server_port == 0
+    {
+        Ok(())
+    } else {
+        Err("relay configuration must be either complete or absent".into())
+    }
+}
+
+fn append_relay_arguments(args: &mut Vec<String>, req: &StartAppRequest) {
+    if req.relay_server_port == 0 {
+        args.push("--relay_enabled=false".to_string());
+        return;
+    }
+    args.extend([
+        format!("--relay_device_id={}", req.relay_device_id.trim()),
+        format!("--relay_server_host={}", req.relay_server_host.trim()),
+        format!("--relay_server_port={}", req.relay_server_port),
+        format!("--appkey={}", req.relay_appkey.trim()),
+        "--relay_enabled=true".to_string(),
+    ]);
 }
 
 /// True if the cmdline carries an exact `--network_listen_port={port}` token.
@@ -570,6 +592,7 @@ impl AppInstanceRegistry {
         work_dir: &str,
         req: StartAppRequest,
     ) -> Result<&AppInstanceRecord, String> {
+        validate_relay_configuration(&req)?;
         if req.request_id.trim().is_empty() {
             return Err("request_id is empty".to_string());
         }
@@ -834,6 +857,16 @@ pub fn build_web_client_url(
 mod tests {
     use super::*;
 
+    fn free_port_range(count: u16) -> u16 {
+        (20_000_u16..40_000_u16)
+            .find(|start| {
+                start
+                    .checked_add(count - 1)
+                    .is_some_and(|end| (*start..=end).all(port_bindable))
+            })
+            .expect("no contiguous test port range is available")
+    }
+
     fn sample_req(instance_id: &str, port: i32) -> StartAppRequest {
         StartAppRequest {
             request_id: format!("req-{instance_id}"),
@@ -913,9 +946,13 @@ mod tests {
         req.install_root.clear();
         req.game_exe_rel.clear();
         req.rdp_node_id = "rdp-node".into();
-        req.rdp_account = Some(crate::rdp_account::RdpAccountSpec { workspace_id: "workspace".into(),
-            account_name: "prdp_testaccount".into(), password: zeroize::Zeroizing::new("aA1!01234567890123456789012345678901".into()),
-            credential_version: 1, expected_sid: None });
+        req.rdp_account = Some(crate::rdp_account::RdpAccountSpec {
+            workspace_id: "workspace".into(),
+            account_name: "prdp_testaccount".into(),
+            password: zeroize::Zeroizing::new("aA1!01234567890123456789012345678901".into()),
+            credential_version: 1,
+            expected_sid: None,
+        });
         req
     }
 
@@ -1069,6 +1106,30 @@ mod tests {
     }
 
     #[test]
+    fn relay_arguments_are_all_or_nothing() {
+        let mut direct = sample_req("direct", 4626);
+        direct.relay_device_id.clear();
+        direct.relay_server_host.clear();
+        direct.relay_server_port = 0;
+        direct.relay_appkey.clear();
+        let game = resolve_game_path(&direct.install_root, &direct.game_exe_rel).unwrap();
+        let spec = build_game_hook_launch_spec(r"D:\Pixels", &direct, 4626, &game, None);
+        assert!(spec
+            .args
+            .iter()
+            .any(|argument| argument == "--relay_enabled=false"));
+        assert!(!spec
+            .args
+            .iter()
+            .any(|argument| argument.starts_with("--appkey=")));
+
+        let mut partial = direct;
+        partial.relay_server_host = "relay.example.com".into();
+        let mut registry = AppInstanceRegistry::new();
+        assert!(registry.begin_start(r"D:\Pixels", partial).is_err());
+    }
+
+    #[test]
     fn webview_url_rejects_bad_encoding_credentials_and_non_http_schemes() {
         assert!(decode_webview_url("not_base64!").is_err());
         for url in [
@@ -1107,20 +1168,21 @@ mod tests {
 
     #[test]
     fn registry_allocates_ports_and_blocks_duplicates() {
-        let mut reg = AppInstanceRegistry::new().with_port_range(4613, 4615);
+        let start = free_port_range(3);
+        let mut reg = AppInstanceRegistry::new().with_port_range(start, start + 2);
         let r1 = reg
             .begin_start(r"D:\Pixels", sample_req("a", 0))
             .unwrap()
             .clone();
-        assert_eq!(r1.listen_port, 4613);
+        assert_eq!(r1.listen_port, start);
         let r2 = reg
             .begin_start(r"D:\Pixels", sample_req("b", 0))
             .unwrap()
             .clone();
-        assert_eq!(r2.listen_port, 4614);
+        assert_eq!(r2.listen_port, start + 1);
         // preferred conflict
         let err = reg
-            .begin_start(r"D:\Pixels", sample_req("c", 4613))
+            .begin_start(r"D:\Pixels", sample_req("c", i32::from(start)))
             .unwrap_err();
         assert!(err.contains("already in use"));
         // same instance while running
@@ -1282,16 +1344,17 @@ mod tests {
 
     #[test]
     fn summaries_only_report_active_states() {
-        let mut reg = AppInstanceRegistry::new();
-        reg.begin_start(r"D:\Pixels", sample_req("s1", 4927))
+        let start = free_port_range(3);
+        let mut reg = AppInstanceRegistry::new().with_port_range(start, start + 2);
+        reg.begin_start(r"D:\Pixels", sample_req("s1", i32::from(start)))
             .unwrap();
         reg.mark_running("s1", 10).unwrap();
         reg.begin_stop("s1").unwrap();
         reg.mark_stopped("s1").unwrap();
-        reg.begin_start(r"D:\Pixels", sample_req("f1", 4928))
+        reg.begin_start(r"D:\Pixels", sample_req("f1", i32::from(start + 1)))
             .unwrap();
         reg.mark_failed("f1", "boom").unwrap();
-        reg.begin_start(r"D:\Pixels", sample_req("r1", 4929))
+        reg.begin_start(r"D:\Pixels", sample_req("r1", i32::from(start + 2)))
             .unwrap();
         let sums = reg.summaries();
         assert_eq!(sums.len(), 1);
