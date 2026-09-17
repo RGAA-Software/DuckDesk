@@ -289,7 +289,7 @@ try {
         }
         $suiteCounts = @{unit=19;identity=12;control=8;devices=8;applications=8;guests=9;nodes=7;deployments=6;instances=10;commands=16;workspaces=6;database=2;sessions=10;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=16;activity=8;updates=7;desk=7;catalog=4;lease=6;postgres=14;accounts=9}
         $suiteCounts['console-api'] = 5
-        $suiteCounts['directory-api'] = 5
+        $suiteCounts['directory-api'] = 6
         $suiteCounts['node-control'] = 1
         $suiteCounts['console-process'] = 1
         $suiteCounts['console-admin'] = 2
@@ -401,7 +401,7 @@ try {
     Add-TestCases $consoleApi 'native/console-identity-api' 5
     $directoryApi = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--features','pg-integration','--test','directory_api','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $directoryApi
-    Add-TestCases $directoryApi 'native/console-directory-api' 5
+    Add-TestCases $directoryApi 'native/console-directory-api' 6
     $nodeControl = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--features','pg-integration','--test','node_control','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $nodeControl
     Add-TestCases $nodeControl 'native/console-node-control' 1

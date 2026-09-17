@@ -31,6 +31,149 @@ async fn create_device(router: &axum::Router, admin: &str) -> Value {
     value
 }
 
+fn saved_connection_settings(name: &str) -> Value {
+    json!({
+        "name":name,
+        "video_bitrate_bps":10_000_000,
+        "video_fps":60,
+        "audio_enabled":true,
+        "clipboard_enabled":true,
+        "view_only":false,
+        "maximize":false,
+        "split_windows":false,
+        "prefer_peer_to_peer":true,
+        "audio_capture":"system_mix",
+        "background_rgb":0
+    })
+}
+
+#[tokio::test]
+async fn saved_connections_are_user_client_acl_and_revision_bound() {
+    let runtime = start().await;
+    let router = runtime.router();
+    let admin = login(&router, "initial-admin", PASSWORD, "admin_web").await;
+    let username = Uuid::new_v4().to_string();
+    let (registration_status, registered_user) = call(
+        &router,
+        "POST",
+        "/api/console/accounts",
+        "android",
+        None,
+        json!({"username":username,"password":PASSWORD}),
+    )
+    .await;
+    assert_eq!(
+        registration_status,
+        StatusCode::CREATED,
+        "{registered_user}"
+    );
+    let device = create_device(&router, &admin).await;
+    let device_id = device["device"]["id"].as_str().unwrap();
+    assert_eq!(
+        call(
+            &router,
+            "PUT",
+            &format!("/api/console/managed/devices/{device_id}/access"),
+            "admin_web",
+            Some(&admin),
+            json!({"revision":1,"users":[registered_user["id"]],"groups":[]}),
+        )
+        .await
+        .0,
+        StatusCode::OK
+    );
+    // ACL changes invalidate sessions for every affected user. A newly issued
+    // Android session must observe the updated authorization revision.
+    let user = login(&router, &username, PASSWORD, "android").await;
+    let request_id = Uuid::new_v4();
+    let create_body = json!({
+        "request_id":request_id,
+        "target":{"kind":"desktop","device_id":device_id},
+        "settings":saved_connection_settings("工作电脑")
+    });
+    let (created_status, created) = call(
+        &router,
+        "POST",
+        "/api/console/saved-connections",
+        "android",
+        Some(&user),
+        create_body.clone(),
+    )
+    .await;
+    assert_eq!(created_status, StatusCode::CREATED, "{created}");
+    let (_, retried) = call(
+        &router,
+        "POST",
+        "/api/console/saved-connections",
+        "android",
+        Some(&user),
+        create_body,
+    )
+    .await;
+    assert_eq!(retried, created);
+    let connection_id = created["id"].as_str().unwrap();
+    let (_, listed) = call(
+        &router,
+        "GET",
+        "/api/console/saved-connections?limit=100",
+        "android",
+        Some(&user),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(listed.as_array().unwrap().len(), 1);
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            &format!("/api/console/saved-connections/{connection_id}"),
+            "panel",
+            Some(&user),
+            Value::Null,
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    let (updated_status, updated) = call(
+        &router,
+        "PATCH",
+        &format!("/api/console/saved-connections/{connection_id}"),
+        "android",
+        Some(&user),
+        json!({"revision":1,"settings":saved_connection_settings("工作电脑 2")}),
+    )
+    .await;
+    assert_eq!(updated_status, StatusCode::OK, "{updated}");
+    assert_eq!(updated["revision"], 2);
+    assert_eq!(
+        call(
+            &router,
+            "DELETE",
+            &format!("/api/console/saved-connections/{connection_id}?revision=1"),
+            "android",
+            Some(&user),
+            Value::Null,
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    let (deleted_status, deleted) = call(
+        &router,
+        "DELETE",
+        &format!("/api/console/saved-connections/{connection_id}?revision=2"),
+        "android",
+        Some(&user),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(deleted_status, StatusCode::OK, "{deleted}");
+    assert_eq!(deleted["revision"], 3);
+    assert!(!deleted["deleted_at"].is_null());
+    runtime.shutdown().await;
+}
+
 async fn issue_guest(router: &axum::Router) -> Value {
     let (status, value) = call(
         router,

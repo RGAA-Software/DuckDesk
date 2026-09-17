@@ -14,6 +14,7 @@ mod node_wire;
 mod policy;
 mod request;
 mod resource_api;
+mod saved_connection_api;
 mod secrets;
 mod static_files;
 use axum::{
@@ -134,6 +135,7 @@ impl ConsoleRuntime {
             .merge(deployment_api::routes())
             .merge(guest_api::routes())
             .merge(resource_api::routes())
+            .merge(saved_connection_api::routes())
             .route("/health/ready", get(ready))
             .route("/api/console/accounts", post(identity::register))
             .route("/api/console/sessions", post(identity::login))
