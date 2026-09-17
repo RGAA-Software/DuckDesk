@@ -20,6 +20,7 @@ pwsh -NoProfile -File scripts/server_validation/postgres.ps1 TestSuite -Suite re
 pwsh -NoProfile -File scripts/server_validation/postgres.ps1 TestSuite -Suite preferences
 pwsh -NoProfile -File scripts/server_validation/postgres.ps1 TestSuite -Suite files
 pwsh -NoProfile -File scripts/server_validation/postgres.ps1 TestSuite -Suite backup
+pwsh -NoProfile -File scripts/server_validation/postgres.ps1 TestSuite -Suite backup-pg
 pwsh -NoProfile -File scripts/server_validation/postgres.ps1 Test
 pwsh -NoProfile -File scripts/server_validation/postgres.ps1 Test -Linux
 pwsh -NoProfile -File scripts/server_validation/postgres.ps1 PrepareQueries
@@ -37,11 +38,15 @@ pwsh -NoProfile -File scripts/server_validation/postgres.ps1 Down
 报告记录代码文件 hash、Git revision、二进制/镜像摘要、工具版本及实际测试结果。
 
 `TestSuite -Suite <名称>` 用同样的独立新库，只执行选定 Console 原生套件：unit、identity、control、devices、applications、
-guests、nodes、deployments、instances、commands、workspaces、database、sessions、transfers、recordings、preferences、files、backup。
+guests、nodes、deployments、instances、commands、workspaces、database、sessions、transfers、recordings、preferences、files、backup、backup-pg。
 files 是共享私有文件/缓存实际 IO 测试，不需要业务数据库，但沿用隔离运行器与报告。
 backup 是 DB4 恢复集、保留、私有原子发布、工具身份、取消与超时内核；不把内核测试冒充真实定时任务、SCM 或恢复演练。
+backup-pg 通过测试专用 Docker 适配器，实际调用隔离 PostgreSQL 18.6 内的 `pg_dump`/`pg_restore`，将 Console/Auth/Desk 三库发布为同一恢复集，
+分别恢复到三个全新数据库并核对部署身份，同时验证发布后归档篡改会被拒绝。该适配器只属于测试，不是生产备份执行器；
+它不代替固定宿主工具、专用备份账号、定时服务、异机复制、权限回退对账或 WAL/PITR 验收。
 专项保留逐用例状态/数量和源码 hash 门禁，报告明确标记 FOCUSED-ONLY。
-该模式不执行浏览器、恢复或全量跨平台验收，不接受 `-Linux`；专项修复先用它定位，再运行 `Test -Linux` 完成阶段回归。
+该模式不执行浏览器或全量跨平台验收；只有 backup-pg 专项执行自身定义的三库恢复检查。专项模式不接受 `-Linux`；
+修复先用它定位，再运行 `Test -Linux` 完成阶段回归。
 未显式指定 Suite、把 Suite 传给其他 Action 均拒绝，避免误以为执行了所选范围。
 
 `PrepareQueries` 只用于有意修改 SQL/schema 后，针对独立全新三库生成各 crate 的 SQLx 离线元数据；不计为验收。
@@ -91,7 +96,8 @@ cargo clippy --locked --manifest-path rust_server/Cargo.toml -p px_pg --all-targ
 `-Suite activity` 验证资源会话下的连接观察、访问历史、二十路通道名额竞争、原生产者/代际和权限边界。
 
 已实现的自动用例：配置拒绝/脱敏、三服务身份、权限隔离、事务、唯一约束竞争、连接池耗尽恢复、错误密码、建表重复/锁超时、schema 篡改/缺失/未来版本拒绝。
-运行器还验证停库与恢复、重启数据保留、实际 pg_dump/pg_restore 内容核对、无效备份拒绝，并精确清理本轮测试资源。
+运行器还验证停库与恢复、重启数据保留、恢复冒烟，以及 DB4 恢复集执行链的实际三库 pg_dump/pg_restore、发布后逐档哈希复核、
+全新目标库内容核对与篡改拒绝，并精确清理本轮测试资源。
 已新增 Console 身份/用户组/管理/设备 repository，SQLx 查询在线检查/离线元数据比较、真实杀迁移子进程和两进程重试、100 轮登录/改密竞争、
 用户/组/设备变更中途失败回滚、20 路 CAS 与 outbox 租约竞争、三库数据/约束/索引/关系恢复冒烟。准确查询/用例数以运行器及最新报告为准。
 `-Linux` 在 Windows 用例后使用 Ubuntu-20.04 WSL 原生 Rust 测试程序访问同一轮隔离测试库；默认不联网取依赖，缺依赖失败而非跳过。

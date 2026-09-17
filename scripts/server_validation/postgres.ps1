@@ -7,7 +7,7 @@ param(
     [ValidateRange(0,65535)]
     [int]$Port = 0,
     [switch]$Linux,
-    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'catalog', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'node-control')]
+    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'backup-pg', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'catalog', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'node-control')]
     [string]$Suite = ''
 )
 
@@ -243,6 +243,7 @@ try {
         return
     }
     Set-LocalEnv 'PIXELS_PG_ISOLATED_TEST' '1'
+    Set-LocalEnv 'PIXELS_TEST_CONTAINER' $container
     # Dedicated empty fixture databases keep bootstrap/last-administrator assertions platform-independent.
     foreach ($service in @('auth','console')) {
         $fixtureKinds = if ($service -eq 'auth') { @('bootstrap') } else { @('control','bootstrap','api','directory','node_control') }
@@ -263,7 +264,7 @@ try {
             Invoke-Checked 'docker' @('exec',$container,'psql','-X','-v','ON_ERROR_STOP=1','-U','pixels_admin','-d','pixels_desk','-c',
                 "CREATE TABLE pixels.pg_fixture(id uuid PRIMARY KEY,version text NOT NULL,created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP); ALTER TABLE pixels.pg_fixture OWNER TO pixels_desk_owner; GRANT SELECT,INSERT,UPDATE,DELETE ON pixels.pg_fixture TO pixels_desk_runtime") | Out-Null
         }
-        $suiteCounts = @{unit=19;identity=12;control=8;devices=8;applications=8;guests=9;nodes=7;deployments=6;instances=10;commands=16;workspaces=6;database=2;sessions=10;transfers=8;recordings=6;preferences=7;files=8;backup=13;cache=16;activity=8;updates=7;desk=7;catalog=4;lease=6;postgres=13;accounts=9}
+        $suiteCounts = @{unit=19;identity=12;control=8;devices=8;applications=8;guests=9;nodes=7;deployments=6;instances=10;commands=16;workspaces=6;database=2;sessions=10;transfers=8;recordings=6;preferences=7;files=8;backup=15;'backup-pg'=1;cache=16;activity=8;updates=7;desk=7;catalog=4;lease=6;postgres=13;accounts=9}
         $suiteCounts['console-api'] = 5
         $suiteCounts['directory-api'] = 5
         $suiteCounts['node-control'] = 1
@@ -279,6 +280,8 @@ try {
             $suiteArgs = @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_private_files','--features','integration-probe','--test','cache_files','--target-dir',$targetDir)
         } elseif ($Suite -eq 'backup') {
             $suiteArgs = @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_backup','--lib','--target-dir',$targetDir)
+        } elseif ($Suite -eq 'backup-pg') {
+            $suiteArgs = @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_backup','--features','pg-integration','--test','postgres','--target-dir',$targetDir)
         } elseif ($Suite -eq 'desk') {
             $suiteArgs = @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_desk_server','--features','pg-integration','--test','postgres_api','--target-dir',$targetDir)
         } elseif ($Suite -in @('auth','auth-api')) {
@@ -311,8 +314,11 @@ try {
     Add-Step 'FILES: private anchored roots, process locks, immutable hash-verified blobs and exact cleanup'
     $backupTests = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_backup','--lib','--target-dir',$targetDir)
     Write-Host $backupTests
-    Add-TestCases $backupTests 'native/backup-core' 13
+    Add-TestCases $backupTests 'native/backup-core' 15
     Add-Step 'BACKUP-CORE: strict recovery sets, retention dependencies, private atomic publication, pinned tools, cancellation and timeouts'
+    $backupIntegration = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_backup','--features','pg-integration','--test','postgres','--target-dir',$targetDir,'--','--test-threads=1')
+    Write-Host $backupIntegration
+    Add-TestCases $backupIntegration 'native/backup-postgres' 1
     $licenseTests = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_license','--test','contract','--target-dir',$targetDir)
     Add-TestCases $licenseTests 'native/license-contract' 5
     # Infrastructure tests use their own synthetic table, not a product domain schema.
@@ -534,7 +540,7 @@ try {
         if (-not $IsWindows) { throw '-Linux uses WSL and requires the Windows harness' }
         $cargoHome = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path ([Environment]::GetFolderPath('UserProfile')) '.cargo' }
         Set-LocalEnv 'CARGO_HOME' $cargoHome
-        $forward = @('CARGO_HOME/p','SQLX_OFFLINE','SQLX_OFFLINE_DIR/p','PIXELS_PG_ISOLATED_TEST','PIXELS_DEPLOYMENT_ID','PIXELS_PG_LOCAL_DEVELOPMENT')
+        $forward = @('CARGO_HOME/p','SQLX_OFFLINE','SQLX_OFFLINE_DIR/p','PIXELS_PG_ISOLATED_TEST','PIXELS_TEST_CONTAINER','PIXELS_DEPLOYMENT_ID','PIXELS_PG_LOCAL_DEVELOPMENT')
         foreach ($service in @('CONSOLE','AUTH','DESK')) {
             foreach ($role in @('OWNER','RUNTIME')) { $forward += "PIXELS_TEST_${service}_${role}_URL" }
         }
@@ -555,7 +561,7 @@ try {
         foreach ($service in @('console','auth','desk')) {
             if ($linuxResult -notmatch "READY service=$service") { throw "Linux schema tool failed for $service" }
         }
-        Add-TestCases $linuxResult 'linux' 276
+        Add-TestCases $linuxResult 'linux' 279
         if ($linuxResult -notmatch '(?m)^([a-f0-9]{64})\s+[^\r\n]+/debug/px_db\s*$') { throw 'Missing Linux schema tool hash' }
         $fingerprints.linux_px_db = $Matches[1]
         if ($linuxResult -notmatch '(?m)^([a-f0-9]{64})\s+[^\r\n]+/debug/px_desk\s*$') { throw 'Missing Linux Desk binary hash' }

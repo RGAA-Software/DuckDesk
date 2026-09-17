@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.88"
 
+[features]
+pg-integration = []
+
 [dependencies]
 fs2 = "=0.4.3"
 px_private_files = { path = "../px_private_files" }
@@ -18,3 +21,7 @@ libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3"
+
+[[test]]
+name = "postgres"
+required-features = ["pg-integration"]

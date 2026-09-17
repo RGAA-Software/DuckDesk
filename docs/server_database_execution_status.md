@@ -98,12 +98,22 @@ DB4 第一纵向切片新增 `px_backup`：严格恢复集清单、部署绑定�
 小时 24/日 7/周 4/月 6/升级前 5/手动 30 天的引用保留内核，以及锁定、恢复中、最后有效集和依赖链保护。
 执行器只允许把当前实现标记为 `Independent`；没有写屏障证明时拒绝生成 `WriteBarrier`/`Physical` 恢复集。
 固定 `pg_dump`/`pg_restore` 路径与摘要、私有 pgpass、无口令参数/输出、最长 24 小时边界及取消回收已经进入实现；
-清理接口当前只返回安全候选，不执行删除。Windows/Linux 各 13 项通过，聚焦报告 `pg-20260917-145135-b102b3f0`。
+清理接口当前只返回安全候选，不执行删除。发布集读取会重新核对精确成员与各归档 SHA-256，并拒绝依赖缺口/环；
+Windows 单元门禁 15 项通过。测试专用 Docker 适配器已对 PostgreSQL 18.6 实际执行 Console/Auth/Desk 三库 `pg_dump`、
+`pg_restore --list`、分别恢复到全新库、部署身份核对及发布后篡改拒绝，专项报告 `pg-20260917-153411-43fa3235`。
+该专项不是生产执行器。
 
-加入该模块后的当前最新完整回归 `pg-20260917-145244-75f20f67` 通过：603 项 PASS，Windows/Linux 各 276 个 Rust 用例，
+加入该模块后的此前完整回归 `pg-20260917-145244-75f20f67` 通过：603 项 PASS，Windows/Linux 各 276 个 Rust 用例，
 275 条 SQLx 查询仍为 Console 237、Auth 29、Desk 9；Auth/Desk 浏览器与故障恢复、三服务 readiness、三库恢复均通过。
 868 个登记源文件在整轮运行期间 hash 不变，隔离容器与卷已清理。该报告覆盖备份内核，不代表真实定时任务、SCM/systemd、
 实际 `pg_dump` 恢复演练、异机仓库、告警或生产 WAL/PITR 已通过。
+
+加入真实三库备份执行链后的最新完整回归 `pg-20260917-153615-b97315c2` 通过：609 项 PASS，Windows/Linux 各 279 个 Rust 用例，
+两平台都实际执行 PostgreSQL 18.6 三库 `pg_dump`、`pg_restore --list`、全新库恢复、部署身份核对与发布后篡改拒绝；
+275 条 SQLx 查询仍为 Console 237、Auth 29、Desk 9。Auth/Desk 浏览器与故障恢复、三服务 readiness、既有三库恢复冒烟也继续通过。
+869 个登记源文件在整轮运行期间 hash 不变，Windows/Linux 工具制品 hash 已记录，隔离容器与卷已清理。
+本报告证明 DB4 逻辑备份核心和测试适配器的跨平台执行链，不代表生产定时服务、宿主 PostgreSQL 工具/最小账号、实际清理、
+异机复制、告警、整体恢复准入、权限防复活或 WAL/PITR 已交付。
 
 - 新 Console 运行模块已接身份/用户组 HTTP 与单活动生命周期（产品入口尚未切换）。Windows 路由专项
   `pg-20260917-092450-742a93ef` 五组通过，837 个源文件及工具 hash 复核一致；静态检查通过。
@@ -343,7 +353,7 @@ Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 W
 | DB2-A | 身份/管理 HTTP、密码计算/限流/Origin、访客 HMAC/会话/公开目录、严格配置与稳定私钥加载已实现；本人资料/头像、独立初始化 CLI、产品二进制切换及客户端全链路尚未接通 |
 | DB2-B/C/D | 设备/应用/节点/部署目录、user/guest 资源入口与 Console 节点 WS 已接；Windows Service 已切到新节点协议并实现部署准备、调和、命令 fencing 与精确 launch ACK。真实 Console→Service→Render、GPU/RDP 执行、媒体/事件投递及其余 repository 产品入口仍未完成 |
 | DB2-EXIT / DB3 | Desk/Auth 独立产品流程已验证；Console 与共享消费者仍待去 Mongo、接新签发/验证及库外水位，Auth 通知 outbox 尚未接通；不建设运行时双后端 |
-| DB4 | 恢复集/保留/私有原子发布/固定工具/取消超时内核已实现并跨平台回归；仍需独立定时执行器、Windows SCM/Linux systemd、实际清理、失败告警、异机仓库、恢复准入和生产 WAL/PITR；手动恢复冒烟不能替代 |
+| DB4 | 恢复集/保留/私有原子发布/恢复前哈希与依赖复核/固定工具/取消超时内核已实现；测试适配器已实际完成三库逻辑备份和全新库恢复。仍需独立定时执行器、Windows SCM/Linux systemd、生产宿主工具与最小账号、实际清理、失败告警、异机仓库、恢复准入、权限防复活和生产 WAL/PITR；Docker 专项不能替代 |
 | DB5 | 新环境服务端—Windows—Android 功能回归及完整制品验收 |
 | DB-HA / P1–P7 | 独立主机 HA、正式发行隔离、授权/连接服务、升级、运维与真实容量/稳定性验收 |
 

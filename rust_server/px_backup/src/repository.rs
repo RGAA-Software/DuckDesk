@@ -2,7 +2,7 @@ use crate::{retained_set_ids, RecoverySetManifest, RetentionPolicy};
 use fs2::FileExt;
 use sha2::{Digest, Sha256};
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fs::{self, File, OpenOptions},
     io::{Read, Write},
     path::{Path, PathBuf},
@@ -97,9 +97,11 @@ impl BackupRepository {
             if manifest.recovery_set_id != id || manifest.deployment_id != self.deployment_id {
                 return Err(RepositoryError::Corrupt);
             }
+            verify_recovery_set(&entry.path(), &manifest)?;
             manifests.push(manifest);
         }
         manifests.sort_by_key(|manifest| (manifest.created_at_unix, manifest.recovery_set_id));
+        verify_dependency_graph(&manifests)?;
         Ok(manifests)
     }
 
@@ -125,6 +127,74 @@ impl BackupRepository {
     pub fn deployment_id(&self) -> Uuid {
         self.deployment_id
     }
+}
+
+fn verify_recovery_set(
+    directory: &Path,
+    manifest: &RecoverySetManifest,
+) -> Result<(), RepositoryError> {
+    let mut expected = BTreeMap::from([("manifest.json".to_string(), None)]);
+    for member in &manifest.members {
+        if let crate::BackupMemberState::Required {
+            archive_file,
+            archive_sha256,
+            ..
+        } = &member.member
+        {
+            if expected
+                .insert(archive_file.clone(), Some(archive_sha256.as_str()))
+                .is_some()
+            {
+                return Err(RepositoryError::Corrupt);
+            }
+        }
+    }
+    for entry in fs::read_dir(directory).map_err(|_| RepositoryError::Unavailable)? {
+        let entry = entry.map_err(|_| RepositoryError::Unavailable)?;
+        let name = entry
+            .file_name()
+            .to_str()
+            .ok_or(RepositoryError::Corrupt)?
+            .to_string();
+        let expected_hash = expected.remove(&name).ok_or(RepositoryError::Corrupt)?;
+        let kind = entry
+            .file_type()
+            .map_err(|_| RepositoryError::Unavailable)?;
+        if !kind.is_file() || kind.is_symlink() {
+            return Err(RepositoryError::Corrupt);
+        }
+        if let Some(expected_hash) = expected_hash {
+            if hash_private_file(&entry.path())? != expected_hash {
+                return Err(RepositoryError::Corrupt);
+            }
+        }
+    }
+    if expected.is_empty() {
+        Ok(())
+    } else {
+        Err(RepositoryError::Corrupt)
+    }
+}
+
+fn verify_dependency_graph(manifests: &[RecoverySetManifest]) -> Result<(), RepositoryError> {
+    let dependencies = manifests
+        .iter()
+        .map(|manifest| (manifest.recovery_set_id, manifest.previous_recovery_set_id))
+        .collect::<BTreeMap<_, _>>();
+    for id in dependencies.keys() {
+        let mut visited = BTreeSet::new();
+        let mut current = Some(*id);
+        while let Some(candidate) = current {
+            if !visited.insert(candidate) {
+                return Err(RepositoryError::Corrupt);
+            }
+            current = match dependencies.get(&candidate) {
+                Some(previous) => *previous,
+                None => return Err(RepositoryError::Corrupt),
+            };
+        }
+    }
+    Ok(())
 }
 
 pub struct StagedRecoverySet<'a> {
@@ -549,5 +619,31 @@ mod tests {
             .root
             .join(format!(".partial-{}", value.recovery_set_id))
             .exists());
+    }
+
+    #[test]
+    fn published_archives_are_reverified_and_dependency_gaps_fail_closed() {
+        let fixture = Fixture::new();
+        let repository = BackupRepository::open(&fixture.root, fixture.deployment_id).unwrap();
+        let first = manifest(fixture.deployment_id, 20);
+        publish(&repository, &first);
+        assert_eq!(repository.manifests().unwrap(), vec![first.clone()]);
+        fs::write(
+            fixture
+                .root
+                .join(first.recovery_set_id.to_string())
+                .join("console.dump"),
+            b"tampered",
+        )
+        .unwrap();
+        assert_eq!(repository.manifests(), Err(RepositoryError::Corrupt));
+
+        let second_fixture = Fixture::new();
+        let second_repository =
+            BackupRepository::open(&second_fixture.root, second_fixture.deployment_id).unwrap();
+        let mut dependent = manifest(second_fixture.deployment_id, 21);
+        dependent.previous_recovery_set_id = Some(Uuid::new_v4());
+        publish(&second_repository, &dependent);
+        assert_eq!(second_repository.manifests(), Err(RepositoryError::Corrupt));
     }
 }

@@ -213,7 +213,7 @@ impl<T: LogicalBackupTool> BackupRunner<T> {
                                 .and_then(|name| name.to_str())
                                 .ok_or(BackupError::Repository)?
                                 .to_string(),
-                            archive_sha256: hash_file(&archive)?,
+                            archive_sha256: hash_file(&archive, BackupError::VerificationFailed)?,
                             started_at_unix: started_at,
                             completed_at_unix: completed_at,
                         },
@@ -290,8 +290,8 @@ impl PinnedPgTools {
     }
 
     fn verify_tools(&self) -> Result<(), BackupError> {
-        if hash_file(&self.pg_dump)? != self.pg_dump_sha256
-            || hash_file(&self.pg_restore)? != self.pg_restore_sha256
+        if hash_file(&self.pg_dump, BackupError::ToolIdentity)? != self.pg_dump_sha256
+            || hash_file(&self.pg_restore, BackupError::ToolIdentity)? != self.pg_restore_sha256
         {
             return Err(BackupError::ToolIdentity);
         }
@@ -398,7 +398,7 @@ fn now_unix() -> Result<u64, BackupError> {
         .map_err(|_| BackupError::Clock)
 }
 
-fn hash_file(path: &Path) -> Result<String, BackupError> {
+fn hash_file(path: &Path, failure: BackupError) -> Result<String, BackupError> {
     let mut options = OpenOptions::new();
     options.read(true);
     #[cfg(unix)]
@@ -406,20 +406,14 @@ fn hash_file(path: &Path) -> Result<String, BackupError> {
         use std::os::unix::fs::OpenOptionsExt;
         options.custom_flags(libc::O_NOFOLLOW);
     }
-    let mut file = options.open(path).map_err(|_| BackupError::ToolIdentity)?;
-    if !file
-        .metadata()
-        .map_err(|_| BackupError::ToolIdentity)?
-        .is_file()
-    {
-        return Err(BackupError::ToolIdentity);
+    let mut file = options.open(path).map_err(|_| failure.clone())?;
+    if !file.metadata().map_err(|_| failure.clone())?.is_file() {
+        return Err(failure);
     }
     let mut hasher = Sha256::new();
     let mut buffer = [0_u8; 64 * 1024];
     loop {
-        let read = file
-            .read(&mut buffer)
-            .map_err(|_| BackupError::ToolIdentity)?;
+        let read = file.read(&mut buffer).map_err(|_| failure.clone())?;
         if read == 0 {
             break;
         }

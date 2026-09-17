@@ -155,7 +155,12 @@ impl RecoverySetManifest {
                 }
             }
             _ => {
-                if self.completed_at_unix.is_none() || self.failure_code.is_some() {
+                if self.completed_at_unix.is_none()
+                    || self
+                        .completed_at_unix
+                        .is_some_and(|completed| completed < self.created_at_unix)
+                    || self.failure_code.is_some()
+                {
                     return Err("verified set requires completion without failure");
                 }
             }
@@ -280,5 +285,12 @@ mod tests {
         let mut value = serde_json::to_value(manifest()).unwrap();
         value["status"] = serde_json::json!("complete");
         assert!(serde_json::from_value::<RecoverySetManifest>(value).is_err());
+    }
+
+    #[test]
+    fn completion_cannot_precede_recovery_set_creation() {
+        let mut value = manifest();
+        value.completed_at_unix = Some(value.created_at_unix - 1);
+        assert!(value.validate().is_err());
     }
 }
