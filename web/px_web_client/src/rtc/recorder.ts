@@ -30,12 +30,13 @@ export class SessionRecorder {
 
   start(stream: MediaStream): void {
     if (this.recording) throw new Error('已在录制中')
-    const mime = MIME_CANDIDATES.find((m) => MediaRecorder.isTypeSupported(m)) ?? ''
+    const mime =
+      MIME_CANDIDATES.find((mimeType) => MediaRecorder.isTypeSupported(mimeType)) ?? ''
     this.chunks = []
     this.mimeType = mime
     this.recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined)
-    this.recorder.ondataavailable = (ev: BlobEvent) => {
-      if (ev.data.size > 0) this.chunks.push(ev.data)
+    this.recorder.ondataavailable = (blobEvent: BlobEvent) => {
+      if (blobEvent.data.size > 0) this.chunks.push(blobEvent.data)
     }
     this.startedAt = Date.now()
     // 1s 分段出数据,停止时能拿到完整时长
@@ -44,25 +45,26 @@ export class SessionRecorder {
 
   stop(): Promise<RecordResult> {
     return new Promise((resolve, reject) => {
-      const r = this.recorder
-      if (!r || r.state === 'inactive') {
+      const recorder = this.recorder
+      if (!recorder || recorder.state === 'inactive') {
         reject(new Error('未在录制'))
         return
       }
-      r.onstop = () => {
+      recorder.onstop = () => {
         const blob = new Blob(this.chunks, { type: this.mimeType || 'video/webm' })
         this.recorder = null
         resolve({ blob, mimeType: blob.type, seconds: (Date.now() - this.startedAt) / 1000 })
       }
-      r.onerror = (ev: Event) => reject(new Error(`录制出错: ${String(ev)}`))
-      r.stop()
+      recorder.onerror = (recordingEvent: Event) =>
+        reject(new Error(`录制出错: ${String(recordingEvent)}`))
+      recorder.stop()
     })
   }
 }
 
 // 文件名带时间戳:gr-record-20260802-012345.webm
-export function recordFileName(d = new Date()): string {
-  const p = (n: number) => String(n).padStart(2, '0')
-  const ts = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
-  return `gr-record-${ts}.webm`
+export function recordFileName(recordingDate = new Date()): string {
+  const padTimePart = (timePart: number) => String(timePart).padStart(2, '0')
+  const timestamp = `${recordingDate.getFullYear()}${padTimePart(recordingDate.getMonth() + 1)}${padTimePart(recordingDate.getDate())}-${padTimePart(recordingDate.getHours())}${padTimePart(recordingDate.getMinutes())}${padTimePart(recordingDate.getSeconds())}`
+  return `gr-record-${timestamp}.webm`
 }

@@ -89,16 +89,28 @@ export function useFileTransfer() {
       resumeStore,
       onJobsChanged: (jobs) => {
         // 作业终结时收尾:内存暂存 resolve / 浏览器降级 zip 打包
-        for (const j of jobs) {
-          const s = sinks.get(j.id)
-          if (s && (j.state === 'done' || j.state === 'error' || j.state === 'cancelled')) {
-            sinks.delete(j.id)
-            if (s.memory) {
-              if (j.state === 'done') s.memory.resolve(s.memory.files)
-              else s.memory.reject(new Error(j.error || j.state))
-            } else if (s.sink.type === 'browser' && s.zipEntries.length > 0 && j.state === 'done') {
-              saveBlob(`${s.sink.topName ?? 'download'}.zip`, buildZip(s.zipEntries))
-              log(`文件夹已打包下载: ${s.sink.topName}.zip (${s.zipEntries.length} 项)`)
+        for (const job of jobs) {
+          const transferSink = sinks.get(job.id)
+          if (
+            transferSink &&
+            (job.state === 'done' || job.state === 'error' || job.state === 'cancelled')
+          ) {
+            sinks.delete(job.id)
+            if (transferSink.memory) {
+              if (job.state === 'done') transferSink.memory.resolve(transferSink.memory.files)
+              else transferSink.memory.reject(new Error(job.error || job.state))
+            } else if (
+              transferSink.sink.type === 'browser' &&
+              transferSink.zipEntries.length > 0 &&
+              job.state === 'done'
+            ) {
+              saveBlob(
+                `${transferSink.sink.topName ?? 'download'}.zip`,
+                buildZip(transferSink.zipEntries),
+              )
+              log(
+                `文件夹已打包下载: ${transferSink.sink.topName}.zip (${transferSink.zipEntries.length} 项)`,
+              )
             }
           }
         }
@@ -230,14 +242,22 @@ export function useFileTransfer() {
       // 空目录还原:readEmptyDirs 回包后在作业完成时补建(失败不阻断主流程)
       void ftClient
         .readEmptyDirs(item.path)
-        .then((dirs) => {
-          const s = sinks.get(job.id)
-          if (!s) return
-          for (const p of dirs) s.zipEntries.push({ name: `${normalizeEmptyDir(item, p)}/`, data: new Uint8Array(0) })
-          if (s.sink.type === 'fs' && s.sink.root) {
-            const root = s.sink.root
-            for (const p of dirs) {
-              void ensureDir(root, [item.name, ...normalizeEmptyDir(item, p).split('/')])
+        .then((directories) => {
+          const transferSink = sinks.get(job.id)
+          if (!transferSink) return
+          for (const directoryPath of directories) {
+            transferSink.zipEntries.push({
+              name: `${normalizeEmptyDir(item, directoryPath)}/`,
+              data: new Uint8Array(0),
+            })
+          }
+          if (transferSink.sink.type === 'fs' && transferSink.sink.root) {
+            const root = transferSink.sink.root
+            for (const directoryPath of directories) {
+              void ensureDir(root, [
+                item.name,
+                ...normalizeEmptyDir(item, directoryPath).split('/'),
+              ])
             }
           }
         })
@@ -247,9 +267,9 @@ export function useFileTransfer() {
   }
 
   // readEmptyDirs 回包:嵌套空目录是相对路径,顶层自身为空时是全路径 —— 统一为相对顶层的名
-  function normalizeEmptyDir(item: RemoteFileInfo, p: string): string {
+  function normalizeEmptyDir(item: RemoteFileInfo, directoryPath: string): string {
     const base = item.path.replace(/[\\/]+$/, '').replace(/\\/g, '/')
-    const rel = p.replace(/\\/g, '/')
+    const rel = directoryPath.replace(/\\/g, '/')
     if (rel.toLowerCase().startsWith(base.toLowerCase() + '/')) return rel.slice(base.length + 1)
     if (rel.toLowerCase() === base.toLowerCase()) return ''
     return rel
@@ -260,20 +280,27 @@ export function useFileTransfer() {
     jobId: number,
     file: { name: string; data: Uint8Array; size: number; modifiedTime: number },
   ) {
-    const s = sinks.get(jobId)
-    if (!s) return
-    const localName = s.sink.topName ? `${s.sink.topName}/${file.name}` : file.name
-    if (s.memory) {
-      s.memory.files.push({ name: file.name, data: file.data, size: file.size, modifiedTime: file.modifiedTime })
+    const transferSink = sinks.get(jobId)
+    if (!transferSink) return
+    const localName = transferSink.sink.topName
+      ? `${transferSink.sink.topName}/${file.name}`
+      : file.name
+    if (transferSink.memory) {
+      transferSink.memory.files.push({
+        name: file.name,
+        data: file.data,
+        size: file.size,
+        modifiedTime: file.modifiedTime,
+      })
       return
     }
-    if (s.sink.type === 'fs' && s.sink.root) {
+    if (transferSink.sink.type === 'fs' && transferSink.sink.root) {
       const segs = localName.split('/')
-      const dir = await ensureDir(s.sink.root, segs.slice(0, -1))
+      const dir = await ensureDir(transferSink.sink.root, segs.slice(0, -1))
       await writeFile(dir, segs[segs.length - 1], file.data)
-    } else if (s.sink.topName) {
+    } else if (transferSink.sink.topName) {
       // 目录下载:攒起来作业完成后打包 zip
-      s.zipEntries.push({ name: localName, data: file.data })
+      transferSink.zipEntries.push({ name: localName, data: file.data })
     } else {
       // 单文件:直接浏览器保存
       saveBlob(file.name, file.data)
@@ -282,29 +309,31 @@ export function useFileTransfer() {
 
   // 本地同名探测(FS Access 模式做 identical/覆盖决策;浏览器降级模式无本地视图,返回 null)
   async function probeLocal(jobId: number, name: string): Promise<{ size: number; mtime: number } | null> {
-    const s = sinks.get(jobId)
-    if (!s || s.sink.type !== 'fs' || !s.sink.root) return null
+    const transferSink = sinks.get(jobId)
+    if (!transferSink || transferSink.sink.type !== 'fs' || !transferSink.sink.root) return null
     try {
-      const localName = s.sink.topName ? `${s.sink.topName}/${name}` : name
+      const localName = transferSink.sink.topName
+        ? `${transferSink.sink.topName}/${name}`
+        : name
       const segs = localName.split('/')
-      let dir = s.sink.root
+      let dir = transferSink.sink.root
       for (const seg of segs.slice(0, -1)) {
         dir = await dir.getDirectoryHandle(seg)
       }
-      const fh = await dir.getFileHandle(segs[segs.length - 1])
-      const f = await fh.getFile()
-      return { size: f.size, mtime: Math.floor(f.lastModified / 1000) }
+      const fileHandle = await dir.getFileHandle(segs[segs.length - 1])
+      const localFile = await fileHandle.getFile()
+      return { size: localFile.size, mtime: Math.floor(localFile.lastModified / 1000) }
     } catch {
       return null
     }
   }
 
-  function saveBlob(name: string, data: Uint8Array) {
-    const url = URL.createObjectURL(new Blob([data.slice().buffer]))
-    const a = document.createElement('a')
-    a.href = url
-    a.download = name
-    a.click()
+  function saveBlob(name: string, payloadBytes: Uint8Array) {
+    const url = URL.createObjectURL(new Blob([payloadBytes.slice().buffer]))
+    const downloadLink = document.createElement('a')
+    downloadLink.href = url
+    downloadLink.download = name
+    downloadLink.click()
     URL.revokeObjectURL(url)
   }
 

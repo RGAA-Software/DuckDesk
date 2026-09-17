@@ -32,13 +32,13 @@ export const fsAccessSupported =
 
 // 弹系统目录选择器;用户取消返回 null
 export async function pickDirectory(): Promise<FsDirHandle | null> {
-  const w = window as unknown as {
+  const browserWindow = window as unknown as {
     showDirectoryPicker?: (opts?: { mode?: string }) => Promise<FsDirHandle>
   }
-  if (!w.showDirectoryPicker) return null
+  if (!browserWindow.showDirectoryPicker) return null
   try {
     // readwrite:下载落盘需要在目录里创建文件
-    return await w.showDirectoryPicker({ mode: 'readwrite' })
+    return await browserWindow.showDirectoryPicker({ mode: 'readwrite' })
   } catch {
     return null // 用户取消 / 权限被拒
   }
@@ -58,21 +58,21 @@ export async function listDir(dir: FsDirHandle): Promise<FsEntry[]> {
     }
     entries.push({ name: handle.name, kind: handle.kind, size, handle })
   }
-  entries.sort((a, b) => {
-    if (a.kind !== b.kind) return a.kind === 'directory' ? -1 : 1
-    return a.name.localeCompare(b.name)
+  entries.sort((leftEntry, rightEntry) => {
+    if (leftEntry.kind !== rightEntry.kind) return leftEntry.kind === 'directory' ? -1 : 1
+    return leftEntry.name.localeCompare(rightEntry.name)
   })
   return entries
 }
 
 // 把数据写入目录下的指定文件(已存在则截断覆盖)
 export async function writeFile(dir: FsDirHandle, name: string, data: Uint8Array): Promise<void> {
-  const fh = await dir.getFileHandle(name, { create: true })
-  const w = await fh.createWritable()
+  const fileHandle = await dir.getFileHandle(name, { create: true })
+  const writableStream = await fileHandle.createWritable()
   try {
-    await w.write(data)
+    await writableStream.write(data)
   } finally {
-    await w.close()
+    await writableStream.close()
   }
 }
 

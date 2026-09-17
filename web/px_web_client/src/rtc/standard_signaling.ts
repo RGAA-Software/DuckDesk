@@ -34,7 +34,11 @@ function relayClientId(): string {
   }
   const bytes = new Uint8Array(16)
   if (globalThis.crypto?.getRandomValues) globalThis.crypto.getRandomValues(bytes)
-  else for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256)
+  else {
+    for (let byteIndex = 0; byteIndex < bytes.length; byteIndex += 1) {
+      bytes[byteIndex] = Math.floor(Math.random() * 256)
+    }
+  }
   return `web_${Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('')}`
 }
 

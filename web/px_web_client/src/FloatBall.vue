@@ -328,12 +328,12 @@ const subSubPanelStyle = computed(() => {
 // 点面板外收起(全局 pointerdown)
 function onGlobalPointerDown(ev: PointerEvent) {
   if (!panelOpen.value) return
-  const t = ev.target as Node
-  if (ballRef.value?.contains(t)) return
-  if (panelRef.value?.contains(t)) return
-  if (subPanelRef.value?.contains(t)) return
+  const targetNode = ev.target as Node
+  if (ballRef.value?.contains(targetNode)) return
+  if (panelRef.value?.contains(targetNode)) return
+  if (subPanelRef.value?.contains(targetNode)) return
   // 三级面板也必须排除,否则 pointerdown 先收起面板、click 永远到不了按钮
-  if (subSubPanelRef.value?.contains(t)) return
+  if (subSubPanelRef.value?.contains(targetNode)) return
   closePanel()
 }
 
@@ -390,9 +390,9 @@ function onFullscreenChange() {
 const pipActive = ref(false)
 
 async function togglePip(): Promise<boolean> {
-  const v = props.getVideo()
-  if (!v) return false
-  if (!('requestPictureInPicture' in v) || !document.pictureInPictureEnabled) {
+  const videoElement = props.getVideo()
+  if (!videoElement) return false
+  if (!('requestPictureInPicture' in videoElement) || !document.pictureInPictureEnabled) {
     ElMessage.warning(t('float.pipUnsupported'))
     return false
   }
@@ -405,7 +405,7 @@ async function togglePip(): Promise<boolean> {
         await document.exitFullscreen()
         props.log(t('float.pipExitFullscreen'))
       }
-      await v.requestPictureInPicture()
+      await videoElement.requestPictureInPicture()
     }
     pipActive.value = !!document.pictureInPictureElement
     return pipActive.value
@@ -426,9 +426,9 @@ const recordSeconds = ref(0)
 let recordTimer: number | null = null
 
 const recordTimeText = computed(() => {
-  const m = Math.floor(recordSeconds.value / 60)
-  const s = recordSeconds.value % 60
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  const minutes = Math.floor(recordSeconds.value / 60)
+  const seconds = recordSeconds.value % 60
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 })
 
 function startRecord(): boolean {
@@ -464,24 +464,24 @@ async function stopRecord(download = true): Promise<{ size: number; mimeType: st
     recordTimer = null
   }
   try {
-    const r = await recorder.stop()
+    const recordingResult = await recorder.stop()
     recording.value = false
     if (download) {
-      const url = URL.createObjectURL(r.blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = recordFileName()
-      a.click()
+      const url = URL.createObjectURL(recordingResult.blob)
+      const downloadLink = document.createElement('a')
+      downloadLink.href = url
+      downloadLink.download = recordFileName()
+      downloadLink.click()
       URL.revokeObjectURL(url)
     }
     props.log(
       t('float.recordDone', {
-        size: (r.blob.size / 1024).toFixed(1),
-        seconds: r.seconds.toFixed(1),
-        mime: r.mimeType,
+        size: (recordingResult.blob.size / 1024).toFixed(1),
+        seconds: recordingResult.seconds.toFixed(1),
+        mime: recordingResult.mimeType,
       }),
     )
-    return { size: r.blob.size, mimeType: r.mimeType }
+    return { size: recordingResult.blob.size, mimeType: recordingResult.mimeType }
   } catch (err) {
     recording.value = false
     ElMessage.warning(t('float.recordStopFail', { err: err instanceof Error ? err.message : String(err) }))
@@ -499,14 +499,14 @@ function toggleRecord() {
 
 // ---------- 指针锁定(相对鼠标模式)----------
 async function togglePointerLock() {
-  const v = props.getVideo()
-  if (!v) return
+  const videoElement = props.getVideo()
+  if (!videoElement) return
   if (document.pointerLockElement) {
     document.exitPointerLock()
     return
   }
   try {
-    await v.requestPointerLock()
+    await videoElement.requestPointerLock()
   } catch (err) {
     ElMessage.warning(t('float.lockMouseFail', { err: err instanceof Error ? err.message : String(err) }))
   }
@@ -558,8 +558,8 @@ const FPS_OPTIONS = [15, 30, 60, 90, 120, 144]
 // 仅在 remoteFps 变化(收到新配置)时同步。
 watch(
   () => props.remoteFps,
-  (r) => {
-    if (r > 0) fps.value = r
+  (remoteFps) => {
+    if (remoteFps > 0) fps.value = remoteFps
   },
   { immediate: true },
 )
@@ -581,15 +581,15 @@ const FALLBACK_RESOLUTIONS = [
 
 // 当前采集显示器(取不到时退化为列表第一个)
 const currentMonitor = computed(
-  () => props.monitors.find((m) => m.name === props.capturingMonitor) ?? props.monitors[0] ?? null,
+  () => props.monitors.find((monitor) => monitor.name === props.capturingMonitor) ?? props.monitors[0] ?? null,
 )
 const resolutionOptions = computed(() =>
   currentMonitor.value?.resolutions.length ? currentMonitor.value.resolutions : FALLBACK_RESOLUTIONS,
 )
 // 当前分辨率:优先 config 里的 current_width/height,退化用性能面板的视频分辨率
 const currentResolution = computed(() => {
-  const m = currentMonitor.value
-  if (m && m.currentWidth > 0) return { width: m.currentWidth, height: m.currentHeight }
+  const monitor = currentMonitor.value
+  if (monitor && monitor.currentWidth > 0) return { width: monitor.currentWidth, height: monitor.currentHeight }
   if (props.perf.width > 0) return { width: props.perf.width, height: props.perf.height }
   return null
 })
@@ -661,16 +661,16 @@ function onDisconnect() {
 
 // 无头/CDP 调试用:window.__pip / window.__rec
 function exposePipRecDebug() {
-  const w = window as unknown as { __pip?: unknown; __rec?: unknown }
-  w.__pip = {
+  const browserWindow = window as unknown as { __pip?: unknown; __rec?: unknown }
+  browserWindow.__pip = {
     toggle: () => togglePip(),
     active: () => !!document.pictureInPictureElement,
     supported: () => {
-      const v = props.getVideo()
-      return !!v && 'requestPictureInPicture' in v && document.pictureInPictureEnabled
+      const videoElement = props.getVideo()
+      return !!videoElement && 'requestPictureInPicture' in videoElement && document.pictureInPictureEnabled
     },
   }
-  w.__rec = {
+  browserWindow.__rec = {
     recording: () => recording.value,
     seconds: () => recordSeconds.value,
     start: () => startRecord(),
@@ -976,13 +976,13 @@ onBeforeUnmount(() => {
   >
     <div class="menu">
       <button
-        v-for="f in FPS_OPTIONS"
-        :key="f"
+        v-for="frameRate in FPS_OPTIONS"
+        :key="frameRate"
         class="menu-item"
-        @click="modifyFps(f)"
+        @click="modifyFps(frameRate)"
       >
-        <span class="menu-icon check-icon"><IconCheck v-if="fps === f" :size="16" /></span>
-        <span class="menu-text" :class="{ current: fps === f }">{{ t('float.fpsUnit', { n: f }) }}</span>
+        <span class="menu-icon check-icon"><IconCheck v-if="fps === frameRate" :size="16" /></span>
+        <span class="menu-text" :class="{ current: fps === frameRate }">{{ t('float.fpsUnit', { n: frameRate }) }}</span>
       </button>
     </div>
   </div>
@@ -996,16 +996,16 @@ onBeforeUnmount(() => {
   >
     <div class="menu">
       <button
-        v-for="r in resolutionOptions"
-        :key="`${r.width}x${r.height}`"
+        v-for="resolution in resolutionOptions"
+        :key="`${resolution.width}x${resolution.height}`"
         class="menu-item"
-        @click="changeResolution(r.width, r.height)"
+        @click="changeResolution(resolution.width, resolution.height)"
       >
         <span class="menu-icon check-icon">
-          <IconCheck v-if="isCurrentResolution(r.width, r.height)" :size="16" />
+          <IconCheck v-if="isCurrentResolution(resolution.width, resolution.height)" :size="16" />
         </span>
-        <span class="menu-text" :class="{ current: isCurrentResolution(r.width, r.height) }">
-          {{ r.width }} × {{ r.height }}
+        <span class="menu-text" :class="{ current: isCurrentResolution(resolution.width, resolution.height) }">
+          {{ resolution.width }} × {{ resolution.height }}
         </span>
       </button>
       <div v-if="!currentMonitor?.resolutions.length" class="panel-note">
@@ -1023,19 +1023,19 @@ onBeforeUnmount(() => {
   >
     <div class="menu">
       <button
-        v-for="m in monitors"
-        :key="m.name"
+        v-for="monitor in monitors"
+        :key="monitor.name"
         class="menu-item"
-        :disabled="m.name === capturingMonitor"
-        @click="sendSwitchMonitor(m.name)"
+        :disabled="monitor.name === capturingMonitor"
+        @click="sendSwitchMonitor(monitor.name)"
       >
         <span class="menu-icon check-icon">
-          <IconCheck v-if="m.name === capturingMonitor" :size="16" />
+          <IconCheck v-if="monitor.name === capturingMonitor" :size="16" />
         </span>
-        <span class="menu-text" :class="{ current: m.name === capturingMonitor }" :title="m.name">
-          {{ m.name }}
-          <template v-if="m.currentWidth > 0"> ({{ m.currentWidth }}×{{ m.currentHeight }})</template>
-          <template v-if="m.primary"> · {{ t('float.primary') }}</template>
+        <span class="menu-text" :class="{ current: monitor.name === capturingMonitor }" :title="monitor.name">
+          {{ monitor.name }}
+          <template v-if="monitor.currentWidth > 0"> ({{ monitor.currentWidth }}×{{ monitor.currentHeight }})</template>
+          <template v-if="monitor.primary"> · {{ t('float.primary') }}</template>
         </span>
       </button>
       <div v-if="!monitors.length" class="panel-note">{{ t('float.noMonitorList') }}</div>

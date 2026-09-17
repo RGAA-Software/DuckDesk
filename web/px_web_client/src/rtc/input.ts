@@ -153,30 +153,30 @@ export class InputController {
   attach() {
     if (this.attached) return
     this.attached = true
-    const v = this.opts.video
+    const videoElement = this.opts.video
     // video 默认可聚焦,否则点画面后焦点仍停在侧栏 INPUT,WASD 会被 isFormTarget 丢掉
-    if (v.tabIndex < 0) v.tabIndex = 0
+    if (videoElement.tabIndex < 0) videoElement.tabIndex = 0
     // mousemove/mouseup 挂 window:按住拖出 video 外仍能带上 client delta(避免 video+window 双挂导致重复)
-    v.addEventListener('mousedown', this.onMouseDown)
+    videoElement.addEventListener('mousedown', this.onMouseDown)
     window.addEventListener('mousemove', this.onMouseMove)
     window.addEventListener('mouseup', this.onMouseUp)
-    v.addEventListener('wheel', this.onWheel, { passive: false })
-    v.addEventListener('contextmenu', this.onContextMenu)
+    videoElement.addEventListener('wheel', this.onWheel, { passive: false })
+    videoElement.addEventListener('contextmenu', this.onContextMenu)
     // 触屏手势:单指拖动=移动 / 单指tap=左键 / 单指长按=右键 / 双指拖动=滚轮 / 双指tap=中键
-    v.addEventListener('touchstart', this.onTouchStart, { passive: false })
-    v.addEventListener('touchmove', this.onTouchMove, { passive: false })
-    v.addEventListener('touchend', this.onTouchEnd, { passive: false })
-    v.addEventListener('touchcancel', this.onTouchCancel, { passive: false })
+    videoElement.addEventListener('touchstart', this.onTouchStart, { passive: false })
+    videoElement.addEventListener('touchmove', this.onTouchMove, { passive: false })
+    videoElement.addEventListener('touchend', this.onTouchEnd, { passive: false })
+    videoElement.addEventListener('touchcancel', this.onTouchCancel, { passive: false })
     window.addEventListener('keydown', this.onKeyDown)
     window.addEventListener('keyup', this.onKeyUp)
     // 页面失焦时补发修饰键 release,防止远端按键卡死
     window.addEventListener('blur', this.onBlur)
     this.createTextSink()
-    v.addEventListener('resize', this.invalidateGeometry)
+    videoElement.addEventListener('resize', this.invalidateGeometry)
     window.addEventListener('resize', this.invalidateGeometry)
     if (typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(() => this.invalidateGeometry())
-      this.resizeObserver.observe(v)
+      this.resizeObserver.observe(videoElement)
     }
     this.refreshGeometry()
   }
@@ -185,20 +185,20 @@ export class InputController {
     if (!this.attached) return
     this.releaseHeldInput()
     this.attached = false
-    const v = this.opts.video
-    v.removeEventListener('mousedown', this.onMouseDown)
+    const videoElement = this.opts.video
+    videoElement.removeEventListener('mousedown', this.onMouseDown)
     window.removeEventListener('mousemove', this.onMouseMove)
     window.removeEventListener('mouseup', this.onMouseUp)
-    v.removeEventListener('wheel', this.onWheel)
-    v.removeEventListener('contextmenu', this.onContextMenu)
-    v.removeEventListener('touchstart', this.onTouchStart)
-    v.removeEventListener('touchmove', this.onTouchMove)
-    v.removeEventListener('touchend', this.onTouchEnd)
-    v.removeEventListener('touchcancel', this.onTouchCancel)
+    videoElement.removeEventListener('wheel', this.onWheel)
+    videoElement.removeEventListener('contextmenu', this.onContextMenu)
+    videoElement.removeEventListener('touchstart', this.onTouchStart)
+    videoElement.removeEventListener('touchmove', this.onTouchMove)
+    videoElement.removeEventListener('touchend', this.onTouchEnd)
+    videoElement.removeEventListener('touchcancel', this.onTouchCancel)
     window.removeEventListener('keydown', this.onKeyDown)
     window.removeEventListener('keyup', this.onKeyUp)
     window.removeEventListener('blur', this.onBlur)
-    v.removeEventListener('resize', this.invalidateGeometry)
+    videoElement.removeEventListener('resize', this.invalidateGeometry)
     window.removeEventListener('resize', this.invalidateGeometry)
     this.resizeObserver?.disconnect()
     this.resizeObserver = null
@@ -277,18 +277,18 @@ export class InputController {
   }
 
   private refreshGeometry(): boolean {
-    const v = this.opts.video
-    const rect = v.getBoundingClientRect()
-    const vw = v.videoWidth
-    const vh = v.videoHeight
-    if (rect.width <= 0 || rect.height <= 0 || vw <= 0 || vh <= 0) {
+    const videoElement = this.opts.video
+    const rect = videoElement.getBoundingClientRect()
+    const videoWidth = videoElement.videoWidth
+    const videoHeight = videoElement.videoHeight
+    if (rect.width <= 0 || rect.height <= 0 || videoWidth <= 0 || videoHeight <= 0) {
       this.geoValid = false
       return false
     }
-    const scale = Math.min(rect.width / vw, rect.height / vh)
+    const scale = Math.min(rect.width / videoWidth, rect.height / videoHeight)
     this.cachedRect = rect
-    this.cachedDispW = vw * scale
-    this.cachedDispH = vh * scale
+    this.cachedDispW = videoWidth * scale
+    this.cachedDispH = videoHeight * scale
     this.cachedOffX = (rect.width - this.cachedDispW) / 2
     this.cachedOffY = (rect.height - this.cachedDispH) / 2
     this.geoValid = true
@@ -300,8 +300,8 @@ export class InputController {
   }
 
   private send(fields: Record<string, unknown>) {
-    const dc = this.opts.dc
-    if (dc.readyState !== 'open') return
+    const dataChannel = this.opts.dc
+    if (dataChannel.readyState !== 'open') return
     // 仅 protobuf 编码 + TLV 打包;无 await/日志/DOM
     const payload = encodeMessage({
       deviceId: this.opts.deviceId,
@@ -309,19 +309,19 @@ export class InputController {
       inputGeneration: this.inputGeneration,
       ...fields,
     })
-    dc.send(packTlv(payload, this.pktIndex++))
+    dataChannel.send(packTlv(payload, this.pktIndex++))
     this.sentMessages++
   }
 
   // video 为 object-fit: contain,需剔除上下/左右黑边后归一化到 0~1;黑边内返回 null
-  private toRatio(e: MouseEvent | WheelEvent): { x: number; y: number } | null {
-    return this.toRatioPoint(e.clientX, e.clientY)
+  private toRatio(event: MouseEvent | WheelEvent): { x: number; y: number } | null {
+    return this.toRatioPoint(event.clientX, event.clientY)
   }
 
   // 相对模式下的当前坐标:虚拟光标位置;绝对模式下取事件实际坐标
-  private eventPos(e: MouseEvent | WheelEvent): { x: number; y: number } | null {
+  private eventPos(event: MouseEvent | WheelEvent): { x: number; y: number } | null {
     if (this.relativeMode) return { x: this.virtX, y: this.virtY }
-    return this.toRatio(e)
+    return this.toRatio(event)
   }
 
   private displaySize(): { dispW: number; dispH: number } | null {
@@ -435,20 +435,20 @@ export class InputController {
 
   private flushPendingMoveNow() {
     if (!this.pendingMove) return
-    const p = this.pendingMove
+    const pendingMove = this.pendingMove
     this.pendingMove = null
-    this.flushMove(p)
+    this.flushMove(pendingMove)
   }
 
-  private onMouseMove = (e: MouseEvent) => {
+  private onMouseMove = (event: MouseEvent) => {
     this.domMoveEvents++
     if (this.viewOnly) return
     // 未按键时仅处理落在 video 上的移动
-    if (this.buttonsHeld.size === 0 && e.target !== this.opts.video && !this.opts.video.contains(e.target as Node)) {
+    if (this.buttonsHeld.size === 0 && event.target !== this.opts.video && !this.opts.video.contains(event.target as Node)) {
       return
     }
-    const dx = e.movementX
-    const dy = e.movementY
+    const dx = event.movementX
+    const dy = event.movementY
     if (dx === 0 && dy === 0) return
 
     if (this.relativeMode) {
@@ -460,7 +460,7 @@ export class InputController {
       this.sendMoveCoalesced({ x: this.virtX, y: this.virtY })
       return
     }
-    const pos = this.toRatio(e)
+    const pos = this.toRatio(event)
     if (!pos) {
       if (this.buttonsHeld.size === 0 || this.lastSentPxX === null || this.lastSentPxY === null) return
       if (!this.ensureGeometry()) return
@@ -480,9 +480,9 @@ export class InputController {
     this.pendingMove = { x: pos.x, y: pos.y }
     if (!this.moveSentThisFrame) {
       this.moveSentThisFrame = true
-      const p = this.pendingMove
+      const pendingMove = this.pendingMove
       this.pendingMove = null
-      this.flushMove(p)
+      this.flushMove(pendingMove)
     }
     if (!this.rafPending) {
       this.rafPending = true
@@ -496,94 +496,94 @@ export class InputController {
             this.pendingMove = null
             return
           }
-          const p = this.pendingMove
+          const pendingMove = this.pendingMove
           this.pendingMove = null
-          this.flushMove(p)
+          this.flushMove(pendingMove)
         }
       })
     }
   }
 
-  private onMouseDown = (e: MouseEvent) => {
+  private onMouseDown = (event: MouseEvent) => {
     if (this.viewOnly) {
-      this.opts.onLog?.(`[InputSend] drop mousedown button=${e.button}, viewOnly`)
+      this.opts.onLog?.(`[InputSend] drop mousedown button=${event.button}, viewOnly`)
       return
     }
-    const flag = DOWN_FLAGS[e.button]
-    if (!flag) {
-      this.opts.onLog?.(`[InputSend] drop mousedown unmapped button=${e.button}`)
+    const mouseButtonFlag = DOWN_FLAGS[event.button]
+    if (!mouseButtonFlag) {
+      this.opts.onLog?.(`[InputSend] drop mousedown unmapped button=${event.button}`)
       return
     }
-    const pos = this.eventPos(e)
-    if (!pos) {
-      this.opts.onLog?.(`[InputSend] drop mousedown button=${e.button}, outside video content area`)
+    const pointerPosition = this.eventPos(event)
+    if (!pointerPosition) {
+      this.opts.onLog?.(`[InputSend] drop mousedown button=${event.button}, outside video content area`)
       return
     }
-    e.preventDefault()
+    event.preventDefault()
     // 隐藏 textarea 必须保持焦点，Chrome 才会产生 input/composition 事件。
     // 之前先 focus textarea、随后又 focus video，导致文字与输入法通道始终失焦；
     // 物理键仍由 window 的 keydown/keyup 监听器转发。
     this.focusTextSink()
     this.flushPendingMoveNow()
-    this.buttonsHeld.add(e.button)
-    this.markSentPos(pos)
-    this.sendMouse(flag, pos, { pressed: true })
+    this.buttonsHeld.add(event.button)
+    this.markSentPos(pointerPosition)
+    this.sendMouse(mouseButtonFlag, pointerPosition, { pressed: true })
   }
 
-  private onMouseUp = (e: MouseEvent) => {
+  private onMouseUp = (event: MouseEvent) => {
     if (this.viewOnly) {
-      this.opts.onLog?.(`[InputSend] drop mouseup button=${e.button}, viewOnly`)
+      this.opts.onLog?.(`[InputSend] drop mouseup button=${event.button}, viewOnly`)
       return
     }
-    const flag = UP_FLAGS[e.button]
-    if (!flag) {
-      this.opts.onLog?.(`[InputSend] drop mouseup unmapped button=${e.button}`)
+    const mouseButtonFlag = UP_FLAGS[event.button]
+    if (!mouseButtonFlag) {
+      this.opts.onLog?.(`[InputSend] drop mouseup unmapped button=${event.button}`)
       return
     }
-    if (!this.buttonsHeld.has(e.button)) return
-    const pos = this.eventPos(e) ?? (this.lastSentPxX !== null && this.lastSentPxY !== null && this.ensureGeometry()
+    if (!this.buttonsHeld.has(event.button)) return
+    const pointerPosition = this.eventPos(event) ?? (this.lastSentPxX !== null && this.lastSentPxY !== null && this.ensureGeometry()
       ? { x: this.lastSentPxX / this.cachedDispW, y: this.lastSentPxY / this.cachedDispH }
       : null)
-    if (!pos) {
-      this.opts.onLog?.(`[InputSend] drop mouseup button=${e.button}, outside video content area`)
-      this.buttonsHeld.delete(e.button)
+    if (!pointerPosition) {
+      this.opts.onLog?.(`[InputSend] drop mouseup button=${event.button}, outside video content area`)
+      this.buttonsHeld.delete(event.button)
       return
     }
-    e.preventDefault()
+    event.preventDefault()
     this.flushPendingMoveNow()
     // 抬起前补发最新 ratio MOVE,供 server 换算相对位移
     if (this.lastSentPxX !== null && this.lastSentPxY !== null && this.ensureGeometry()) {
       const lastX = this.lastSentPxX / this.cachedDispW
       const lastY = this.lastSentPxY / this.cachedDispH
-      if (Math.abs(pos.x - lastX) > 1e-6 || Math.abs(pos.y - lastY) > 1e-6) {
-        this.opts.onLog?.(`[InputSend] pre-release move ratio=(${pos.x.toFixed(4)},${pos.y.toFixed(4)})`)
-        this.sendMouse(BTN_MOUSE_MOVE, pos)
+      if (Math.abs(pointerPosition.x - lastX) > 1e-6 || Math.abs(pointerPosition.y - lastY) > 1e-6) {
+        this.opts.onLog?.(`[InputSend] pre-release move ratio=(${pointerPosition.x.toFixed(4)},${pointerPosition.y.toFixed(4)})`)
+        this.sendMouse(BTN_MOUSE_MOVE, pointerPosition)
       }
     }
-    this.buttonsHeld.delete(e.button)
-    this.sendMouse(flag, pos, { released: true })
+    this.buttonsHeld.delete(event.button)
+    this.sendMouse(mouseButtonFlag, pointerPosition, { released: true })
   }
 
-  private onWheel = (e: WheelEvent) => {
-    e.preventDefault()
+  private onWheel = (event: WheelEvent) => {
+    event.preventDefault()
     if (this.viewOnly) return
-    const pos = this.eventPos(e)
-    if (!pos) return
+    const pointerPosition = this.eventPos(event)
+    if (!pointerPosition) return
     // deltaMode: 0=像素 1=行;Windows 滚轮 1 notch=120=3 行,浏览器 1 行≈40px
-    const unit = e.deltaMode === 1 ? 40 : 1
-    const delta = e.deltaY !== 0 ? e.deltaY : e.deltaX
+    const unit = event.deltaMode === 1 ? 40 : 1
+    const delta = event.deltaY !== 0 ? event.deltaY : event.deltaX
     // 方向取反:浏览器 deltaY>0 向下滚,Windows WHEEL_DELTA>0 向上滚
     this.wheelAcc += -delta * unit
     const whole = Math.trunc(this.wheelAcc)
     this.wheelAcc -= whole
     if (whole !== 0) {
-      this.sendMouse(BTN_WHEEL, pos, { data: whole })
+      this.sendMouse(BTN_WHEEL, pointerPosition, { data: whole })
     }
   }
 
-  private onContextMenu = (e: MouseEvent) => {
+  private onContextMenu = (event: MouseEvent) => {
     // 右键交给远端,本地不弹菜单
-    e.preventDefault()
+    event.preventDefault()
   }
 
   // ---------- 触屏手势 ----------
@@ -612,23 +612,23 @@ export class InputController {
     this.sendMouse(upFlag, pos, { released: true })
   }
 
-  private twoFingerMid(t: TouchList): { x: number; y: number } {
+  private twoFingerMid(touches: TouchList): { x: number; y: number } {
     return {
-      x: (t[0].clientX + t[1].clientX) / 2,
-      y: (t[0].clientY + t[1].clientY) / 2,
+      x: (touches[0].clientX + touches[1].clientX) / 2,
+      y: (touches[0].clientY + touches[1].clientY) / 2,
     }
   }
 
-  private onTouchStart = (e: TouchEvent) => {
-    e.preventDefault()
+  private onTouchStart = (event: TouchEvent) => {
+    event.preventDefault()
     if (this.viewOnly) return
-    if (e.touches.length === 1 && (this.touchMode === 'none' || this.touchMode === 'rest')) {
-      const t = e.touches[0]
+    if (event.touches.length === 1 && (this.touchMode === 'none' || this.touchMode === 'rest')) {
+      const touch = event.touches[0]
       this.touchMode = 'single'
-      this.touchStartX = t.clientX
-      this.touchStartY = t.clientY
-      this.lastTouchClientX = t.clientX
-      this.lastTouchClientY = t.clientY
+      this.touchStartX = touch.clientX
+      this.touchStartY = touch.clientY
+      this.lastTouchClientX = touch.clientX
+      this.lastTouchClientY = touch.clientY
       this.touchMoved = false
       this.longPressFired = false
       // 单指长按 -> 右键
@@ -639,7 +639,7 @@ export class InputController {
         this.tapClick(this.touchStartX, this.touchStartY, BTN_RIGHT_DOWN, BTN_RIGHT_UP)
       }, TOUCH_LONG_PRESS_MS)
     } else if (
-      e.touches.length === 2 &&
+      event.touches.length === 2 &&
       (this.touchMode === 'single' || this.touchMode === 'none' || this.touchMode === 'rest')
     ) {
       // 第二指落下(或双指同时落下,CDP 注入场景):取消单指 tap/长按,进入双指手势
@@ -651,24 +651,24 @@ export class InputController {
       this.twoStartAt = Date.now()
       this.twoMoved = false
       this.twoWheelAcc = 0
-      const mid = this.twoFingerMid(e.touches)
-      this.twoLastMidX = mid.x
-      this.twoLastMidY = mid.y
-    } else if (e.touches.length >= 3) {
+      const midpoint = this.twoFingerMid(event.touches)
+      this.twoLastMidX = midpoint.x
+      this.twoLastMidY = midpoint.y
+    } else if (event.touches.length >= 3) {
       // 三指及以上:忽略本次手势直到全部抬起
       this.resetTouchState()
       this.touchMode = 'rest'
     }
   }
 
-  private onTouchMove = (e: TouchEvent) => {
-    e.preventDefault()
+  private onTouchMove = (event: TouchEvent) => {
+    event.preventDefault()
     if (this.viewOnly) return
-    if (this.touchMode === 'single' && e.touches.length === 1) {
-      const t = e.touches[0]
+    if (this.touchMode === 'single' && event.touches.length === 1) {
+      const touch = event.touches[0]
       if (!this.touchMoved) {
-        const dx = t.clientX - this.touchStartX
-        const dy = t.clientY - this.touchStartY
+        const dx = touch.clientX - this.touchStartX
+        const dy = touch.clientY - this.touchStartY
         if (Math.hypot(dx, dy) <= TOUCH_TAP_MAX_MOVE_PX) return
         // 超过阈值:转为拖动,取消 tap/长按
         this.touchMoved = true
@@ -678,58 +678,58 @@ export class InputController {
         }
       }
       if (this.longPressFired) return // 长按已触发右键,后续位移不再移动鼠标
-      const pos = this.toRatioPoint(t.clientX, t.clientY)
+      const pos = this.toRatioPoint(touch.clientX, touch.clientY)
       if (!pos) return
       if (this.lastTouchClientX !== null && this.lastTouchClientY !== null
-        && t.clientX === this.lastTouchClientX && t.clientY === this.lastTouchClientY) {
+        && touch.clientX === this.lastTouchClientX && touch.clientY === this.lastTouchClientY) {
         return
       }
-      this.lastTouchClientX = t.clientX
-      this.lastTouchClientY = t.clientY
+      this.lastTouchClientX = touch.clientX
+      this.lastTouchClientY = touch.clientY
       this.sendMoveCoalesced({ x: pos.x, y: pos.y })
-    } else if (this.touchMode === 'two' && e.touches.length >= 2) {
+    } else if (this.touchMode === 'two' && event.touches.length >= 2) {
       // 双指拖动 -> 滚轮:跟踪两指中点纵向位移
-      const mid = this.twoFingerMid(e.touches)
-      const dy = mid.y - this.twoLastMidY
+      const midpoint = this.twoFingerMid(event.touches)
+      const dy = midpoint.y - this.twoLastMidY
       if (
-        Math.abs(mid.x - this.twoLastMidX) > TOUCH_TAP_MAX_MOVE_PX ||
-        Math.abs(mid.y - this.twoLastMidY) > TOUCH_TAP_MAX_MOVE_PX
+        Math.abs(midpoint.x - this.twoLastMidX) > TOUCH_TAP_MAX_MOVE_PX ||
+        Math.abs(midpoint.y - this.twoLastMidY) > TOUCH_TAP_MAX_MOVE_PX
       ) {
         this.twoMoved = true
       }
-      this.twoLastMidX = mid.x
-      this.twoLastMidY = mid.y
+      this.twoLastMidX = midpoint.x
+      this.twoLastMidY = midpoint.y
       // 方向对齐 onWheel:浏览器向下滚 deltaY>0 -> data 取反(手指下拖=向下滚)
       this.twoWheelAcc += -dy
       const whole = Math.trunc(this.twoWheelAcc)
       this.twoWheelAcc -= whole
       if (whole !== 0) {
-        const pos = this.toRatioPoint(mid.x, mid.y)
+        const pos = this.toRatioPoint(midpoint.x, midpoint.y)
         if (pos) this.sendMouse(BTN_WHEEL, pos, { data: whole })
       }
     }
   }
 
-  private onTouchEnd = (e: TouchEvent) => {
-    e.preventDefault()
-    if (this.touchMode === 'single' && e.touches.length === 0) {
+  private onTouchEnd = (event: TouchEvent) => {
+    event.preventDefault()
+    if (this.touchMode === 'single' && event.touches.length === 0) {
       if (this.longPressTimer !== null) {
         window.clearTimeout(this.longPressTimer)
         this.longPressTimer = null
       }
       // 单指 tap(未拖动、未触发长按)-> 左键
       if (!this.viewOnly && !this.touchMoved && !this.longPressFired) {
-        const t = e.changedTouches[0]
-        this.tapClick(t.clientX, t.clientY, BTN_LEFT_DOWN, BTN_LEFT_UP)
+        const touch = event.changedTouches[0]
+        this.tapClick(touch.clientX, touch.clientY, BTN_LEFT_DOWN, BTN_LEFT_UP)
       }
       this.resetTouchState()
     } else if (this.touchMode === 'two' || this.touchMode === 'two-ending') {
-      if (e.touches.length === 0) {
+      if (event.touches.length === 0) {
         // 双指 tap(两指均未明显位移且持续时间短)-> 中键
         // 真实设备/CDP 都是先抬一指再抬第二指,经 two-ending 到达这里
         if (!this.viewOnly && !this.twoMoved && Date.now() - this.twoStartAt <= TOUCH_TWO_FINGER_TAP_MAX_MS) {
-          const t = e.changedTouches[0]
-          this.tapClick(t.clientX, t.clientY, BTN_MIDDLE_DOWN, BTN_MIDDLE_UP)
+          const touch = event.changedTouches[0]
+          this.tapClick(touch.clientX, touch.clientY, BTN_MIDDLE_DOWN, BTN_MIDDLE_UP)
         }
         this.resetTouchState()
       } else {
@@ -740,14 +740,14 @@ export class InputController {
         }
         this.touchMode = 'two-ending'
       }
-    } else if (this.touchMode === 'rest' && e.touches.length === 0) {
+    } else if (this.touchMode === 'rest' && event.touches.length === 0) {
       this.resetTouchState()
     }
   }
 
-  private onTouchCancel = (e: TouchEvent) => {
-    e.preventDefault()
-    if (e.touches.length === 0) {
+  private onTouchCancel = (event: TouchEvent) => {
+    event.preventDefault()
+    if (event.touches.length === 0) {
       this.resetTouchState()
     } else {
       this.resetTouchState()
@@ -755,31 +755,31 @@ export class InputController {
     }
   }
 
-  private sendKey(e: KeyboardEvent, down: boolean) {
-    const vk = VK_MAP[e.code]
-    if (vk === undefined) {
-      this.opts.onLog?.(`[InputSend] drop key unmapped code=${e.code} down=${down}`)
+  private sendKey(event: KeyboardEvent, down: boolean) {
+    const virtualKeyCode = VK_MAP[event.code]
+    if (virtualKeyCode === undefined) {
+      this.opts.onLog?.(`[InputSend] drop key unmapped code=${event.code} down=${down}`)
       return
     }
-    if (down) this.keysHeld.add(vk)
-    else this.keysHeld.delete(vk)
+    if (down) this.keysHeld.add(virtualKeyCode)
+    else this.keysHeld.delete(virtualKeyCode)
     let numLockStatus = -1
     let capsLockStatus = -1
     let statusCheck = LOCK_KEY_DONT_CARE
-    if (isNumLockRelated(vk)) {
-      numLockStatus = e.getModifierState('NumLock') ? 1 : 0
+    if (isNumLockRelated(virtualKeyCode)) {
+      numLockStatus = event.getModifierState('NumLock') ? 1 : 0
       statusCheck = LOCK_KEY_CHECK_NUM_LOCK
-    } else if (isCapsLockRelated(vk)) {
-      capsLockStatus = e.getModifierState('CapsLock') ? 1 : 0
+    } else if (isCapsLockRelated(virtualKeyCode)) {
+      capsLockStatus = event.getModifierState('CapsLock') ? 1 : 0
       statusCheck = LOCK_KEY_CHECK_CAPS_LOCK
     }
     this.opts.onLog?.(
-      `[InputSend] key code=${e.code} vk=0x${vk.toString(16)} down=${down} dc=${this.opts.dc.readyState}`,
+      `[InputSend] key code=${event.code} vk=0x${virtualKeyCode.toString(16)} down=${down} dc=${this.opts.dc.readyState}`,
     )
     this.send({
       type: MSG_TYPE_KEY_EVENT,
       keyEvent: {
-        keyCode: vk,
+        keyCode: virtualKeyCode,
         down,
         numLockStatus,
         capsLockStatus,
@@ -789,32 +789,32 @@ export class InputController {
     })
   }
 
-  private isFormTarget(e: KeyboardEvent): boolean {
+  private isFormTarget(event: KeyboardEvent): boolean {
     // 用 activeElement: key 事件的 target 常是焦点元素;侧栏表单抢焦点时必须丢掉,避免误注入
-    const t = (document.activeElement as HTMLElement | null) || (e.target as HTMLElement | null)
-    if (!t) return false
-    if (t === this.opts.video || this.opts.video.contains(t) || t === this.textSink) return false
-    return t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable || t.tagName === 'SELECT'
+    const targetElement = (document.activeElement as HTMLElement | null) || (event.target as HTMLElement | null)
+    if (!targetElement) return false
+    if (targetElement === this.opts.video || this.opts.video.contains(targetElement) || targetElement === this.textSink) return false
+    return targetElement.tagName === 'INPUT' || targetElement.tagName === 'TEXTAREA' || targetElement.isContentEditable || targetElement.tagName === 'SELECT'
   }
 
-  private onKeyDown = (e: KeyboardEvent) => {
+  private onKeyDown = (event: KeyboardEvent) => {
     if (this.viewOnly) return
-    if (e.isComposing || e.keyCode === 229) return
-    if (this.isFormTarget(e)) {
-      this.opts.onLog?.(`[InputSend] drop key ${e.code}: focus on form, click video first`)
+    if (event.isComposing || event.keyCode === 229) return
+    if (this.isFormTarget(event)) {
+      this.opts.onLog?.(`[InputSend] drop key ${event.code}: focus on form, click video first`)
       return
     }
-    const textCommit = e.target === this.textSink &&
-      (e.isComposing || (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey))
-    if (!textCommit) e.preventDefault()
-    this.sendKey(e, true)
+    const textCommit = event.target === this.textSink &&
+      (event.isComposing || (event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey))
+    if (!textCommit) event.preventDefault()
+    this.sendKey(event, true)
   }
 
-  private onKeyUp = (e: KeyboardEvent) => {
+  private onKeyUp = (event: KeyboardEvent) => {
     if (this.viewOnly) return
-    if (this.isFormTarget(e) && !this.keysHeld.has(VK_MAP[e.code])) return
-    e.preventDefault()
-    this.sendKey(e, false)
+    if (this.isFormTarget(event) && !this.keysHeld.has(VK_MAP[event.code])) return
+    event.preventDefault()
+    this.sendKey(event, false)
   }
 
   private onBlur = () => {

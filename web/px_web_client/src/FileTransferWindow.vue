@@ -45,7 +45,7 @@ const localEntries = ref<FsEntry[]>([])
 const localLoading = ref(false)
 const selected = ref<Set<string>>(new Set())
 
-const localPathText = computed(() => localStack.value.map((h) => h.name).join(' / '))
+const localPathText = computed(() => localStack.value.map((directoryHandle) => directoryHandle.name).join(' / '))
 const selectedCount = computed(() => selected.value.size)
 const currentLocalDir = computed(() => localStack.value[localStack.value.length - 1] ?? null)
 
@@ -55,8 +55,8 @@ async function refreshLocal() {
   localLoading.value = true
   try {
     localEntries.value = await listDir(cur)
-    const names = new Set(localEntries.value.map((e) => e.name))
-    selected.value = new Set([...selected.value].filter((n) => names.has(n)))
+    const names = new Set(localEntries.value.map((entry) => entry.name))
+    selected.value = new Set([...selected.value].filter((name) => names.has(name)))
   } catch (err) {
     ElMessage.error(t('ft.readLocalFail', { err: err instanceof Error ? err.message : String(err) }))
   } finally {
@@ -86,10 +86,10 @@ function localUp() {
 }
 
 function toggleSelect(name: string, checked: boolean) {
-  const s = new Set(selected.value)
-  if (checked) s.add(name)
-  else s.delete(name)
-  selected.value = s
+  const nextSelection = new Set(selected.value)
+  if (checked) nextSelection.add(name)
+  else nextSelection.delete(name)
+  selected.value = nextSelection
 }
 
 // ---------- 上传 ----------
@@ -112,9 +112,9 @@ async function uploadSelected() {
   for (const entry of localEntries.value) {
     if (!selected.value.has(entry.name)) continue
     if (await uploadEntry(entry)) {
-      const s = new Set(selected.value)
-      s.delete(entry.name)
-      selected.value = s
+      const nextSelection = new Set(selected.value)
+      nextSelection.delete(entry.name)
+      selected.value = nextSelection
     }
   }
 }
@@ -125,21 +125,21 @@ interface OsEntry {
   isFile: boolean
   isDirectory: boolean
   name: string
-  file(cb: (f: File) => void, err?: (e: unknown) => void): void
+  file(onFile: (file: File) => void, onError?: (error: unknown) => void): void
   createReader(): OsEntryReader
 }
 
 interface OsEntryReader {
-  readEntries(cb: (es: OsEntry[]) => void, err?: (e: unknown) => void): void
+  readEntries(onEntries: (entries: OsEntry[]) => void, onError?: (error: unknown) => void): void
 }
 
 async function readAllEntries(reader: OsEntryReader): Promise<OsEntry[]> {
   // readEntries 每次最多 100 项,需循环读到空
-  const out: OsEntry[] = []
+  const allEntries: OsEntry[] = []
   for (;;) {
     const batch = await new Promise<OsEntry[]>((resolve, reject) => reader.readEntries(resolve, reject))
-    if (!batch.length) return out
-    out.push(...batch)
+    if (!batch.length) return allEntries
+    allEntries.push(...batch)
   }
 }
 
@@ -156,7 +156,7 @@ async function traverseOsEntry(
   } else if (entry.isDirectory) {
     const children = await readAllEntries(entry.createReader())
     if (!children.length) emptyDirs.push(rel)
-    for (const c of children) await traverseOsEntry(c, rel, items, emptyDirs)
+    for (const child of children) await traverseOsEntry(child, rel, items, emptyDirs)
   }
 }
 
@@ -164,34 +164,34 @@ async function traverseOsEntry(
 async function uploadOsItems(dt: DataTransfer) {
   const entries: OsEntry[] = []
   for (const item of Array.from(dt.items)) {
-    const e = item.webkitGetAsEntry?.() as unknown as OsEntry | null
-    if (e) entries.push(e)
+    const entry = item.webkitGetAsEntry?.() as unknown as OsEntry | null
+    if (entry) entries.push(entry)
   }
   if (!entries.length) {
-    for (const f of Array.from(dt.files)) props.ft.uploadFile(f)
+    for (const file of Array.from(dt.files)) props.ft.uploadFile(file)
     return
   }
-  for (const e of entries) {
+  for (const entry of entries) {
     try {
-      if (e.isFile) {
-        const file = await new Promise<File>((resolve, reject) => e.file(resolve, reject))
+      if (entry.isFile) {
+        const file = await new Promise<File>((resolve, reject) => entry.file(resolve, reject))
         props.ft.uploadFile(file)
       } else {
         const items: Array<{ name: string; file: File; size: number; modifiedTime: number }> = []
         const emptyDirs: string[] = []
-        const children = await readAllEntries(e.createReader())
+        const children = await readAllEntries(entry.createReader())
         if (!children.length) emptyDirs.push('')
-        for (const c of children) await traverseOsEntry(c, '', items, emptyDirs)
+        for (const child of children) await traverseOsEntry(child, '', items, emptyDirs)
         const client = props.ft.client()
         if (!client) throw new Error('ft not ready')
-        const remoteTo = joinRemote(props.ft.ftPath.value, e.name)
+        const remoteTo = joinRemote(props.ft.ftPath.value, entry.name)
         for (const rel of emptyDirs) {
           await client.createDir(rel ? joinRemote(remoteTo, rel) : remoteTo)
         }
-        client.upload(items, remoteTo, e.name)
+        client.upload(items, remoteTo, entry.name)
       }
     } catch (err) {
-      ElMessage.error(t('ft.uploadFail', { name: e.name, err: err instanceof Error ? err.message : String(err) }))
+      ElMessage.error(t('ft.uploadFail', { name: entry.name, err: err instanceof Error ? err.message : String(err) }))
     }
   }
 }
@@ -211,9 +211,9 @@ function pickFiles() {
 }
 
 function addFiles(files: Iterable<File>) {
-  for (const f of files) {
-    if (staging.value.some((s) => s.file.name === f.name && s.file.size === f.size)) continue
-    staging.value.push({ id: ++stagingSeq, file: f })
+  for (const file of files) {
+    if (staging.value.some((stagedItem) => stagedItem.file.name === file.name && stagedItem.file.size === file.size)) continue
+    staging.value.push({ id: ++stagingSeq, file })
   }
 }
 
@@ -224,7 +224,7 @@ function onFilesChosen(ev: Event) {
 }
 
 function removeStaging(id: number) {
-  staging.value = staging.value.filter((s) => s.id !== id)
+  staging.value = staging.value.filter((stagedItem) => stagedItem.id !== id)
 }
 
 function uploadAll() {
@@ -271,13 +271,13 @@ function onRowDblClick(row: RemoteFileInfo) {
 async function onCreateFolder() {
   let name = ''
   try {
-    const r = await ElMessageBox.prompt(t('ft.newFolderPrompt'), t('ft.createFolder'), {
+    const promptResult = await ElMessageBox.prompt(t('ft.newFolderPrompt'), t('ft.createFolder'), {
       inputValue: t('ft.newFolderDefault'),
-      inputValidator: (v) => (!!v && !/[/\\]/.test(v)) || t('ft.renameInvalid'),
+      inputValidator: (value) => (!!value && !/[/\\]/.test(value)) || t('ft.renameInvalid'),
       confirmButtonText: t('common.ok'),
       cancelButtonText: t('common.cancel'),
     })
-    name = r.value
+    name = promptResult.value
   } catch {
     return
   }
@@ -292,13 +292,13 @@ async function onCreateFolder() {
 async function onRename(item: RemoteFileInfo) {
   let newName = ''
   try {
-    const r = await ElMessageBox.prompt(t('ft.renamePrompt'), t('ft.renameTitle', { name: item.name }), {
+    const promptResult = await ElMessageBox.prompt(t('ft.renamePrompt'), t('ft.renameTitle', { name: item.name }), {
       inputValue: item.name,
-      inputValidator: (v) => (!!v && !/[/\\]/.test(v)) || t('ft.renameInvalid'),
+      inputValidator: (value) => (!!value && !/[/\\]/.test(value)) || t('ft.renameInvalid'),
       confirmButtonText: t('ft.rename'),
       cancelButtonText: t('common.cancel'),
     })
-    newName = r.value
+    newName = promptResult.value
   } catch {
     return
   }
@@ -381,12 +381,12 @@ function onLocalDrop(ev: DragEvent) {
 const overwriteVisible = ref(false)
 const overwriteReq = ref<OverwriteRequest | null>(null)
 const overwriteApplyAll = ref(false)
-let overwriteResolve: ((d: OverwriteDecision) => void) | null = null
+let overwriteResolve: ((decision: OverwriteDecision) => void) | null = null
 
 props.ft.setOverwriteHandler(
-  (req) =>
+  (request) =>
     new Promise<OverwriteDecision>((resolve) => {
-      overwriteReq.value = req
+      overwriteReq.value = request
       overwriteApplyAll.value = false
       overwriteVisible.value = true
       overwriteResolve = resolve
@@ -394,12 +394,12 @@ props.ft.setOverwriteHandler(
 )
 onBeforeUnmount(() => props.ft.setOverwriteHandler(null))
 
-function decideOverwrite(d: OverwriteDecision) {
+function decideOverwrite(decision: OverwriteDecision) {
   overwriteVisible.value = false
   if (overwriteApplyAll.value && overwriteReq.value) {
-    props.ft.setOverwriteStrategy(overwriteReq.value.isUpload ? 'upload' : 'download', d)
+    props.ft.setOverwriteStrategy(overwriteReq.value.isUpload ? 'upload' : 'download', decision)
   }
-  overwriteResolve?.(d)
+  overwriteResolve?.(decision)
   overwriteResolve = null
   overwriteReq.value = null
 }
@@ -407,21 +407,21 @@ function decideOverwrite(d: OverwriteDecision) {
 // ---------- 传输队列 ----------
 const jobs = computed(() => props.ft.ftJobs.value)
 const statTotal = computed(() => jobs.value.length)
-const statDone = computed(() => jobs.value.filter((j) => j.state === 'done').length)
-const statFailed = computed(() => jobs.value.filter((j) => j.state === 'error' || j.state === 'cancelled').length)
+const statDone = computed(() => jobs.value.filter((job) => job.state === 'done').length)
+const statFailed = computed(() => jobs.value.filter((job) => job.state === 'error' || job.state === 'cancelled').length)
 const upSpeed = computed(() =>
-  jobs.value.filter((j) => j.state === 'running' && j.direction === 'upload').reduce((s, j) => s + j.speedBps, 0),
+  jobs.value.filter((job) => job.state === 'running' && job.direction === 'upload').reduce((totalSpeed, job) => totalSpeed + job.speedBps, 0),
 )
 const downSpeed = computed(() =>
-  jobs.value.filter((j) => j.state === 'running' && j.direction === 'download').reduce((s, j) => s + j.speedBps, 0),
+  jobs.value.filter((job) => job.state === 'running' && job.direction === 'download').reduce((totalSpeed, job) => totalSpeed + job.speedBps, 0),
 )
 
-function jobPercent(j: FtJob): number {
-  return j.totalSize > 0 ? Math.min(100, Math.floor((j.finishedSize / j.totalSize) * 100)) : j.state === 'done' ? 100 : 0
+function jobPercent(job: FtJob): number {
+  return job.totalSize > 0 ? Math.min(100, Math.floor((job.finishedSize / job.totalSize) * 100)) : job.state === 'done' ? 100 : 0
 }
 
-function jobStateText(j: FtJob): string {
-  switch (j.state) {
+function jobStateText(job: FtJob): string {
+  switch (job.state) {
     case 'pending':
       return t('ft.statePending')
     case 'running':
@@ -436,9 +436,9 @@ function jobStateText(j: FtJob): string {
 }
 
 // 速度统一用 MB/s 小数表示(低于 1MB/s 也是 0.xx MB/s)
-function fmtSpeed(bps: number): string {
-  if (bps <= 0) return '-'
-  return `${(bps / 1024 / 1024).toFixed(2)} MB/s`
+function fmtSpeed(bytesPerSecond: number): string {
+  if (bytesPerSecond <= 0) return '-'
+  return `${(bytesPerSecond / 1024 / 1024).toFixed(2)} MB/s`
 }
 </script>
 
@@ -488,33 +488,33 @@ function fmtSpeed(bps: number): string {
             <div v-if="!localRoot" class="ftw-local-empty">{{ t('ft.localEmpty') }}</div>
             <div v-else v-loading="localLoading" class="ftw-local-list">
               <div
-                v-for="e in localEntries"
-                :key="e.name"
+                v-for="localEntry in localEntries"
+                :key="localEntry.name"
                 class="ftw-local-item"
                 draggable="true"
-                @dragstart="onLocalDragStart(e)"
+                @dragstart="onLocalDragStart(localEntry)"
                 @dragend="onLocalDragEnd"
-                @dblclick="localEnter(e)"
+                @dblclick="localEnter(localEntry)"
               >
                 <el-checkbox
-                  :model-value="selected.has(e.name)"
+                  :model-value="selected.has(localEntry.name)"
                   class="ftw-local-check"
-                  @change="(v: string | number | boolean) => toggleSelect(e.name, !!v)"
+                  @change="(checkedValue: string | number | boolean) => toggleSelect(localEntry.name, !!checkedValue)"
                   @dblclick.stop
                 />
                 <el-icon class="ftw-entry-icon">
-                  <IconFolder v-if="e.kind === 'directory'" />
+                  <IconFolder v-if="localEntry.kind === 'directory'" />
                   <IconFile v-else />
                 </el-icon>
-                <span class="ftw-staging-name" :title="e.name">{{ e.name }}</span>
-                <span class="ftw-staging-size">{{ e.kind === 'file' ? ft.fmtSize(e.size) : '-' }}</span>
+                <span class="ftw-staging-name" :title="localEntry.name">{{ localEntry.name }}</span>
+                <span class="ftw-staging-size">{{ localEntry.kind === 'file' ? ft.fmtSize(localEntry.size) : '-' }}</span>
                 <el-button
                   size="small"
                   link
                   type="primary"
                   :disabled="!ft.ftReady.value"
-                  :title="e.kind === 'file' ? t('ft.uploadFileTip') : t('ft.uploadFolderTip')"
-                  @click="uploadEntry(e)"
+                  :title="localEntry.kind === 'file' ? t('ft.uploadFileTip') : t('ft.uploadFolderTip')"
+                  @click="uploadEntry(localEntry)"
                 >
                   <el-icon><IconUpload /></el-icon>
                 </el-button>
@@ -534,11 +534,11 @@ function fmtSpeed(bps: number): string {
             </div>
             <div class="ftw-drop">
               <div v-if="!staging.length" class="ftw-drop-hint">{{ t('ft.dropHint') }}</div>
-              <div v-for="s in staging" :key="s.id" class="ftw-staging-item">
+              <div v-for="stagedItem in staging" :key="stagedItem.id" class="ftw-staging-item">
                 <el-icon class="ftw-entry-icon"><IconFile /></el-icon>
-                <span class="ftw-staging-name" :title="s.file.name">{{ s.file.name }}</span>
-                <span class="ftw-staging-size">{{ ft.fmtSize(s.file.size) }}</span>
-                <el-button size="small" link type="danger" @click="removeStaging(s.id)">
+                <span class="ftw-staging-name" :title="stagedItem.file.name">{{ stagedItem.file.name }}</span>
+                <span class="ftw-staging-size">{{ ft.fmtSize(stagedItem.file.size) }}</span>
+                <el-button size="small" link type="danger" @click="removeStaging(stagedItem.id)">
                   <el-icon><IconCircleX /></el-icon>
                 </el-button>
               </div>
@@ -578,29 +578,29 @@ function fmtSpeed(bps: number): string {
           <el-alert v-if="ft.ftError.value" :title="ft.ftError.value" type="error" :closable="false" class="ftw-error" />
           <div v-loading="ft.ftLoading.value" class="ftw-local-list">
             <div
-              v-for="f in ft.ftFiles.value"
-              :key="f.name"
+              v-for="remoteFile in ft.ftFiles.value"
+              :key="remoteFile.name"
               class="ftw-local-item"
               draggable="true"
-              @dragstart="onRemoteDragStart(f)"
+              @dragstart="onRemoteDragStart(remoteFile)"
               @dragend="onRemoteDragEnd"
-              @dblclick="onRowDblClick(f)"
+              @dblclick="onRowDblClick(remoteFile)"
             >
               <el-icon class="ftw-entry-icon">
-                <IconDeviceDesktop v-if="f.type === FT_TYPE_DRIVE" />
-                <IconFolder v-else-if="isRemoteDir(f.type)" />
+                <IconDeviceDesktop v-if="remoteFile.type === FT_TYPE_DRIVE" />
+                <IconFolder v-else-if="isRemoteDir(remoteFile.type)" />
                 <IconFile v-else />
               </el-icon>
-              <span class="ftw-staging-name" :title="f.path">{{ f.name }}</span>
-              <span class="ftw-staging-size">{{ isRemoteFile(f.type) ? ft.fmtSize(f.size) : '-' }}</span>
-              <span class="ftw-staging-date">{{ fmtDate(f.modifiedTime) }}</span>
-              <el-button size="small" link type="primary" :title="t('ft.download')" @click="onDownload(f)">
+              <span class="ftw-staging-name" :title="remoteFile.path">{{ remoteFile.name }}</span>
+              <span class="ftw-staging-size">{{ isRemoteFile(remoteFile.type) ? ft.fmtSize(remoteFile.size) : '-' }}</span>
+              <span class="ftw-staging-date">{{ fmtDate(remoteFile.modifiedTime) }}</span>
+              <el-button size="small" link type="primary" :title="t('ft.download')" @click="onDownload(remoteFile)">
                 <el-icon><IconDownload /></el-icon>
               </el-button>
-              <el-button size="small" link type="primary" :title="t('ft.rename')" @click="onRename(f)">
+              <el-button size="small" link type="primary" :title="t('ft.rename')" @click="onRename(remoteFile)">
                 <el-icon><IconEdit /></el-icon>
               </el-button>
-              <el-button size="small" link type="danger" :title="t('ft.delete')" @click="onDelete(f)">
+              <el-button size="small" link type="danger" :title="t('ft.delete')" @click="onDelete(remoteFile)">
                 <el-icon><IconTrash /></el-icon>
               </el-button>
             </div>

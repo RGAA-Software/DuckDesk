@@ -115,15 +115,15 @@ function ensureClientNonce(urlNonce: string) {
     return
   }
   try {
-    let n = localStorage.getItem(LS_CLIENT_NONCE) ?? ''
-    if (!n) {
-      n =
+    let storedNonce = localStorage.getItem(LS_CLIENT_NONCE) ?? ''
+    if (!storedNonce) {
+      storedNonce =
         typeof crypto.randomUUID === 'function'
           ? crypto.randomUUID()
           : `${Date.now()}${Math.random().toString(16).slice(2)}`
-      localStorage.setItem(LS_CLIENT_NONCE, n)
+      localStorage.setItem(LS_CLIENT_NONCE, storedNonce)
     }
-    clientNonce.value = n
+    clientNonce.value = storedNonce
   } catch {
     /* localStorage 不可用时每次随机,退化为不带标识(占用仍弹确认) */
     clientNonce.value = `${Date.now()}${Math.random().toString(16).slice(2)}`
@@ -138,10 +138,10 @@ function startConnWatchdog() {
   stopConnWatchdog()
   connWatchdog = window.setInterval(() => {
     if (!pc) return
-    const s = pc.connectionState
-    if (s === 'closed' || s === 'failed') {
-      addLog(`看门狗发现连接异常: ${s}`)
-      scheduleReconnect(s)
+    const connectionState = pc.connectionState
+    if (connectionState === 'closed' || connectionState === 'failed') {
+      addLog(`看门狗发现连接异常: ${connectionState}`)
+      scheduleReconnect(connectionState)
     }
   }, 2000)
 }
@@ -647,8 +647,8 @@ const perfVisible = ref(new URLSearchParams(window.location.search).get('debug')
 let lastInputSampleAt = 0
 let lastDomMoves = 0
 let lastInputSent = 0
-const perfCollector = new PerfCollector((s) => {
-  perf.value = s
+const perfCollector = new PerfCollector((sample) => {
+  perf.value = sample
   // 每个采样周期(2s)写一条紧凑诊断到日志面板,用户可直接复制发回;
   // 附加输入通道指标:datachannel RTT、DOM 鼠标事件速率、实际发送速率、发送缓冲
   const now = Date.now()
@@ -667,7 +667,7 @@ const perfCollector = new PerfCollector((s) => {
     lastDomMoves = input.domMoveEvents
     lastInputSent = input.sentMessages
   }
-  addLog(perfSummaryLine(s) + extra)
+  addLog(perfSummaryLine(sample) + extra)
 })
 
 // 性能面板显示值(码率单位为 kbps,>=1000 转 Mbps)
@@ -754,15 +754,15 @@ function requestVirtualDisplay(operation: 'create' | 'remove'): boolean {
 // (px.Message type=kVideoFrame(30)/kAudioFrame(40), ~20KB×60fps),web 端不认识,
 // 但逐帧 proto 解码会淹掉主线程。wire 级窥探 type 字段直接丢弃并计数。
 let dcMediaDrops = 0
-function isMediaFramePayload(p: Uint8Array): boolean {
-  if (p.length < 2 || p[0] !== 0x08) return false // field 1 (type), varint
+function isMediaFramePayload(payload: Uint8Array): boolean {
+  if (payload.length < 2 || payload[0] !== 0x08) return false // field 1 (type), varint
   let type: number = MessageType.Hello
   let shift = 0
-  let i = 1
-  while (i < p.length && i < 11) {
-    const b = p[i++]
-    type |= (b & 0x7f) << shift
-    if (!(b & 0x80)) break
+  let byteIndex = 1
+  while (byteIndex < payload.length && byteIndex < 11) {
+    const byteValue = payload[byteIndex++]
+    type |= (byteValue & 0x7f) << shift
+    if (!(byteValue & 0x80)) break
     shift += 7
   }
   return type === MessageType.VideoFrame || type === MessageType.AudioFrame
@@ -798,12 +798,12 @@ function handleDcBinary(buf: ArrayBuffer) {
       }
     } else if (msg.type === MSG_TYPE_SERVER_CONFIGURATION && msg.config) {
       const cfg = msg.config
-      remoteMonitors.value = (cfg.monitorsInfo ?? []).map((m) => ({
-        name: m.name,
-        resolutions: (m.resolutions ?? []).map((r) => ({ width: r.width, height: r.height })),
-        currentWidth: m.currentWidth,
-        currentHeight: m.currentHeight,
-        primary: m.primary,
+      remoteMonitors.value = (cfg.monitorsInfo ?? []).map((monitor) => ({
+        name: monitor.name,
+        resolutions: (monitor.resolutions ?? []).map((resolution) => ({ width: resolution.width, height: resolution.height })),
+        currentWidth: monitor.currentWidth,
+        currentHeight: monitor.currentHeight,
+        primary: monitor.primary,
       }))
       capturingMonitor.value = cfg.capturingMonitorName ?? ''
       if (typeof cfg.fps === 'number' && cfg.fps > 0) {
@@ -840,28 +840,28 @@ function handleDcBinary(buf: ArrayBuffer) {
       input?.setMonitorName(name)
       addLog(`采集显示器已切换 -> ${name}`)
     } else if (msg.type === MSG_TYPE_CHANGE_MONITOR_RESOLUTION_RESULT && msg.changeMonitorResolutionResult) {
-      const r = msg.changeMonitorResolutionResult
-      if (r.result) {
-        ElMessage.success(`分辨率已切换 (${r.monitorName})`)
+      const resolutionResult = msg.changeMonitorResolutionResult
+      if (resolutionResult.result) {
+        ElMessage.success(`分辨率已切换 (${resolutionResult.monitorName})`)
       } else {
-        ElMessage.error(`分辨率切换失败 (${r.monitorName})`)
+        ElMessage.error(`分辨率切换失败 (${resolutionResult.monitorName})`)
       }
-      addLog(`分辨率切换结果: ${r.monitorName} -> ${r.result ? '成功' : '失败'}`)
+      addLog(`分辨率切换结果: ${resolutionResult.monitorName} -> ${resolutionResult.result ? '成功' : '失败'}`)
     } else if (msg.type === MSG_TYPE_VIRTUAL_DISPLAY_RESPONSE && msg.virtualDisplayResponse) {
-      const r = msg.virtualDisplayResponse
+      const virtualDisplayResponse = msg.virtualDisplayResponse
       virtualDisplayPending.value = false
-      if (!r.accepted || r.state === VirtualDisplayState.Failed) {
-        const detail = `${r.errorCode || 'VIRTUAL_DISPLAY_FAILED'}: ${r.errorMessage || 'unknown error'}`
+      if (!virtualDisplayResponse.accepted || virtualDisplayResponse.state === VirtualDisplayState.Failed) {
+        const detail = `${virtualDisplayResponse.errorCode || 'VIRTUAL_DISPLAY_FAILED'}: ${virtualDisplayResponse.errorMessage || 'unknown error'}`
         addLog(`虚拟显示器请求失败: ${detail}`)
         ElMessage.error(detail)
       } else {
         // A failed response carries protobuf defaults for count/generation.
         // Preserve the last confirmed topology so the UI and E2E gate cannot
         // mistake a partial driver failure for a successful removal.
-        virtualDisplayOwnedCount.value = r.ownedDisplayCount
-        virtualDisplayGeneration.value = String(r.topologyGeneration ?? 0)
-        addLog(`虚拟显示器请求完成: owned=${r.ownedDisplayCount}, state=${r.state}, generation=${virtualDisplayGeneration.value}`)
-        if (r.state === VirtualDisplayState.NeedReconnect) {
+        virtualDisplayOwnedCount.value = virtualDisplayResponse.ownedDisplayCount
+        virtualDisplayGeneration.value = String(virtualDisplayResponse.topologyGeneration ?? 0)
+        addLog(`虚拟显示器请求完成: owned=${virtualDisplayResponse.ownedDisplayCount}, state=${virtualDisplayResponse.state}, generation=${virtualDisplayGeneration.value}`)
+        if (virtualDisplayResponse.state === VirtualDisplayState.NeedReconnect) {
           scheduleTopologyReconnect(virtualDisplayGeneration.value)
         }
       }
@@ -882,10 +882,10 @@ function handleDcBinary(buf: ArrayBuffer) {
         ElMessage.error('被控端语音媒体参数不兼容')
       }
     } else if (msg.type === MSG_TYPE_VIDEO_CODEC_CHANGED && msg.videoCodecChanged) {
-      const c = msg.videoCodecChanged
+      const codecChange = msg.videoCodecChanged
       // VideoType: kNetH264=0, kNetHevc=1
-      if (c.videoType === VideoCodec.Hevc) {
-        const reason = c.fullColor ? '全彩模式' : '编码设置'
+      if (codecChange.videoType === VideoCodec.Hevc) {
+        const reason = codecChange.fullColor ? '全彩模式' : '编码设置'
         addLog(`远端编码已切换为 H.265/HEVC (${reason})`)
         ElMessageBox.alert(
           `远端已切换为 H.265/HEVC 编码（${reason}）。\n\n当前浏览器 WebRTC 仅支持 H.264，画面可能无法显示。\n请关闭全彩模式，或改用 Windows 客户端（支持 H.265）。`,
@@ -917,9 +917,9 @@ function handleDcBinary(buf: ArrayBuffer) {
       ).catch(() => {})
     } else if (msg.type === MSG_TYPE_GAME_STATUS_CHANGED && msg.gameStatusChanged) {
       // game-hook 游戏状态:0=运行/恢复, 2=死亡后看门狗重启中
-      const g = msg.gameStatusChanged
-      if (g.status === GameStatus.Restarting) {
-        addLog(`游戏异常退出,正在自动重启 (${g.detail || '-'})`)
+      const gameStatus = msg.gameStatusChanged
+      if (gameStatus.status === GameStatus.Restarting) {
+        addLog(`游戏异常退出,正在自动重启 (${gameStatus.detail || '-'})`)
         ElNotification.closeAll()
         ElNotification({
           title: '游戏重启中',
@@ -927,8 +927,8 @@ function handleDcBinary(buf: ArrayBuffer) {
           type: 'warning',
           duration: 0,
         })
-      } else if (g.status === GameStatus.Running) {
-        addLog(`游戏已恢复 (${g.detail || '-'})`)
+      } else if (gameStatus.status === GameStatus.Running) {
+        addLog(`游戏已恢复 (${gameStatus.detail || '-'})`)
         ElNotification.closeAll()
         ElNotification({
           title: '游戏已恢复',
@@ -983,15 +983,15 @@ async function copyRemoteToLocal(): Promise<boolean> {
 
 // 无头/CDP 调试用:window.__clipboard / window.__perf
 function exposeClipboardPerfDebug() {
-  const w = window as unknown as { __clipboard?: unknown; __perf?: unknown; __mic?: unknown }
-  w.__clipboard = {
+  const browserWindow = window as unknown as { __clipboard?: unknown; __perf?: unknown; __mic?: unknown }
+  browserWindow.__clipboard = {
     sendText: (text: string) => hasGrantedPermission('clipboard')
       && sendClipboardText(dc, form.deviceId, form.streamId, text),
     lastRemote: () => remoteClipboard.value,
     lastAck: () => lastClipboardAck.value,
   }
-  w.__perf = () => ({ ...perf.value })
-  w.__mic = {
+  browserWindow.__perf = () => ({ ...perf.value })
+  browserWindow.__mic = {
     toggle: () => toggleVoiceCall(),
     on: () => micOn.value,
     phase: () => voiceCallPhase.value,
@@ -1038,8 +1038,8 @@ const ftSupported = computed(() => ftProtocolVersion.value === 2)
 
 // 无头/CDP 调试用:window.__ft
 function exposeFtDebug() {
-  const w = window as unknown as { __ft?: unknown }
-  w.__ft = {
+  const browserWindow = window as unknown as { __ft?: unknown }
+  browserWindow.__ft = {
     ready: () => ft.ftReady.value,
     supported: () => ftSupported.value,
     listDir: (path: string) => ft.client()?.listDir(path),
@@ -1066,9 +1066,9 @@ function exposeFtDebug() {
     },
     download: async (path: string) => {
       const files = await ft.downloadToMemory(path)
-      const f = files[0]
-      if (!f) throw new Error('no file received')
-      return { name: f.name, size: f.size, sha256: await sha256Hex(f.data) }
+      const downloadedFile = files[0]
+      if (!downloadedFile) throw new Error('no file received')
+      return { name: downloadedFile.name, size: downloadedFile.size, sha256: await sha256Hex(downloadedFile.data) }
     },
     removeFile: (path: string) => {
       const client = ft.client()
@@ -1096,9 +1096,9 @@ let lowLatencyTimer: number | null = null
 function applyLowLatencyPlayout(receiver: RTCRtpReceiver, track?: MediaStreamTrack) {
   const apply = () => {
     try {
-      const r = receiver as LowLatencyReceiver
-      r.playoutDelayHint = 0
-      r.jitterBufferTarget = 0
+      const lowLatencyReceiver = receiver as LowLatencyReceiver
+      lowLatencyReceiver.playoutDelayHint = 0
+      lowLatencyReceiver.jitterBufferTarget = 0
       if (track && 'contentHint' in track) {
         // motion: 优先低延迟,允许更多压缩伪影
         ;(track as MediaStreamTrack & { contentHint?: string }).contentHint = 'motion'
@@ -1139,7 +1139,7 @@ function stopLowLatencyKeepalive() {
 // 先从 render 拉取当前采集显示器名,event_replayer 按它定位回放坐标系。
 // 显示器名来自编码帧回调,首帧编码完成前接口返回空,故轮询等待
 async function fetchMonitorName(): Promise<string> {
-  for (let i = 0; i < 15; i++) {
+  for (let attemptNumber = 0; attemptNumber < 15; attemptNumber++) {
     try {
       const resp = await fetch('/get/render/configuration')
       const result = (await resp.json()) as { code?: number; data?: { monitor_name?: string } }
@@ -1148,7 +1148,7 @@ async function fetchMonitorName(): Promise<string> {
     } catch (err) {
       addLog(`获取 render 配置失败: ${String(err)}`)
     }
-    await new Promise((r) => setTimeout(r, 1000))
+    await new Promise((resolve) => setTimeout(resolve, 1000))
   }
   return ''
 }
@@ -1178,17 +1178,17 @@ async function initInput() {
   addLog(`输入回传已启用, monitor: ${monitorName || '(未知)'}`)
 }
 
-watch(viewOnly, (v) => {
-  if (!v && !hasGrantedPermission('input')) {
+watch(viewOnly, (isViewOnly) => {
+  if (!isViewOnly && !hasGrantedPermission('input')) {
     viewOnly.value = true
     return
   }
-  if (input) input.viewOnly = v
-  if (v && textVisible.value) closeTextInput()
+  if (input) input.viewOnly = isViewOnly
+  if (isViewOnly && textVisible.value) closeTextInput()
 })
 
-watch(pointerLocked, (v) => {
-  input?.setRelativeMode(v)
+watch(pointerLocked, (isPointerLocked) => {
+  input?.setRelativeMode(isPointerLocked)
 })
 
 const logBodyRef = ref<HTMLElement | null>(null)
@@ -1254,20 +1254,20 @@ const connectStepIndex = computed(() => CONNECT_FLOW_STEPS.indexOf(connectStep.v
 function stepItemState(step: ConnectStep): 'done' | 'active' | 'pending' {
   if (connectStep.value === 'failed') {
     const failAt = connectStepIndex.value
-    const i = CONNECT_FLOW_STEPS.indexOf(step)
+    const stepIndex = CONNECT_FLOW_STEPS.indexOf(step)
     if (failAt < 0) return 'pending'
-    if (i < failAt) return 'done'
-    if (i === failAt) return 'active'
+    if (stepIndex < failAt) return 'done'
+    if (stepIndex === failAt) return 'active'
     return 'pending'
   }
   if (connectStep.value === 'done' || (status.value === 'connected' && hasVideo.value)) {
     return 'done'
   }
-  const cur = connectStepIndex.value
-  const i = CONNECT_FLOW_STEPS.indexOf(step)
-  if (cur < 0) return 'pending'
-  if (i < cur) return 'done'
-  if (i === cur) return 'active'
+  const currentStepIndex = connectStepIndex.value
+  const stepIndex = CONNECT_FLOW_STEPS.indexOf(step)
+  if (currentStepIndex < 0) return 'pending'
+  if (stepIndex < currentStepIndex) return 'done'
+  if (stepIndex === currentStepIndex) return 'active'
   return 'pending'
 }
 
@@ -1327,9 +1327,9 @@ const autoConnectFromUrl = ref(false)
 const signalDeviceId = ref('')
 
 function loadQueryParams() {
-  const q = new URLSearchParams(window.location.search)
+  const queryParameters = new URLSearchParams(window.location.search)
   const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ''))
-  const token = q.get('c')
+  const token = queryParameters.get('c')
   if (token) {
     const decoded = decodeConnectToken(token)
     if (decoded) {
@@ -1343,15 +1343,15 @@ function loadQueryParams() {
     }
   }
   // 明文 query 可覆盖/补齐(调试用);token 已填时不再被空明文冲掉
-  if (!form.deviceId) form.deviceId = q.get('deviceId') ?? ''
-  if (!form.password) form.password = q.get('password') ?? ''
-  if (!pwdMd5Override.value) pwdMd5Override.value = q.get('pwd_md5') ?? ''
-  const launchStreamId = q.get('stream_id') ?? ''
+  if (!form.deviceId) form.deviceId = queryParameters.get('deviceId') ?? ''
+  if (!form.password) form.password = queryParameters.get('password') ?? ''
+  if (!pwdMd5Override.value) pwdMd5Override.value = queryParameters.get('pwd_md5') ?? ''
+  const launchStreamId = queryParameters.get('stream_id') ?? ''
   if (launchStreamId) {
     launchStreamIdOverride = launchStreamId
     form.streamId = launchStreamIdOverride
   }
-  requestedConnectionType.value = q.get('connType') === 'rtc' ? 'rtc' : 'rtc_direct'
+  requestedConnectionType.value = queryParameters.get('connType') === 'rtc' ? 'rtc' : 'rtc_direct'
   relayHost.value = fragment.get('relay_host') ?? ''
   relayPort.value = Number(fragment.get('relay_port') ?? 0)
   signalDeviceId.value = fragment.get('signal_device_id') ?? form.deviceId
@@ -1368,13 +1368,13 @@ function loadQueryParams() {
   if (grantedPermissions.value.length > 0 && !grantedPermissions.value.includes('input')) {
     viewOnly.value = true
   }
-  const instanceId = fragment.get('instance') ?? q.get('instanceId') ?? ''
+  const instanceId = fragment.get('instance') ?? queryParameters.get('instanceId') ?? ''
   connectionInstanceId.value = instanceId
   if (instanceId) {
     addLog(`[connect] instanceId=${instanceId}`)
   }
-  ensureClientNonce(fragment.get('nonce') ?? q.get('nonce') ?? '')
-  if (q.get('deviceId') || q.get('c')) {
+  ensureClientNonce(fragment.get('nonce') ?? queryParameters.get('nonce') ?? '')
+  if (queryParameters.get('deviceId') || queryParameters.get('c')) {
     autoConnectFromUrl.value = !!form.deviceId
   }
   // URL 未带设备 ID 时用上次成功连接的设备 ID 预填(不存密码,不自动连)
@@ -1442,7 +1442,7 @@ function cleanup() {
   remoteFps.value = 0
   virtualDisplayPending.value = false
   clearVoiceTimeout()
-  micStream?.getTracks().forEach((t) => t.stop())
+  micStream?.getTracks().forEach((track) => track.stop())
   micStream = null
   micOn.value = false
   voiceMicMuted.value = false
@@ -1456,8 +1456,8 @@ function cleanup() {
   ++voiceStartGeneration
   voiceCallSupported.value = false
   micTransceiver = null
-  const w = window as unknown as { __pc?: RTCPeerConnection | null }
-  w.__pc = null
+  const browserWindow = window as unknown as { __pc?: RTCPeerConnection | null }
+  browserWindow.__pc = null
   if (ftDc) {
     ft.resetFt('连接已断开')
     ftProtocolVersion.value = null
@@ -1603,49 +1603,49 @@ async function connect() {
     pc.addTransceiver('audio', { direction: 'recvonly' })
     micTransceiver = pc.addTransceiver('audio', { direction: 'sendrecv' })
 
-    pc.ontrack = (ev: RTCTrackEvent) => {
-      applyLowLatencyPlayout(ev.receiver, ev.track)
-      const isVoiceTrack = ev.track.kind === 'audio' && (
-        ev.track.id === 'voice_call_audio'
-        || ev.streams.some((stream) => stream.id === 'pixels_voice_call')
+    pc.ontrack = (trackEvent: RTCTrackEvent) => {
+      applyLowLatencyPlayout(trackEvent.receiver, trackEvent.track)
+      const isVoiceTrack = trackEvent.track.kind === 'audio' && (
+        trackEvent.track.id === 'voice_call_audio'
+        || trackEvent.streams.some((stream) => stream.id === 'pixels_voice_call')
       )
       if (isVoiceTrack) {
         if (voiceAudioRef.value) {
-          voiceAudioRef.value.srcObject = new MediaStream([ev.track])
+          voiceAudioRef.value.srcObject = new MediaStream([trackEvent.track])
           voiceAudioRef.value.muted = voiceSpeakerMuted.value
         }
-        addLog(`ontrack: independent voice call track ${ev.track.id}`)
+        addLog(`ontrack: independent voice call track ${trackEvent.track.id}`)
         return
       }
-      const el = videoRef.value
-      if (!el) {
-        addLog(`ontrack: kind=${ev.track.kind} (no video element yet)`)
+      const videoElement = videoRef.value
+      if (!videoElement) {
+        addLog(`ontrack: kind=${trackEvent.track.kind} (no video element yet)`)
         return
       }
       // render 端 video/audio 可能落在不同 MediaStream id 上;直接 srcObject=streams[0]
       // 会互相覆盖(后到的轨把先到的踢掉)——典型症状:有画面但始终无声。
       // 统一汇入同一个 MediaStream,保证 video+audio 同挂在 <video> 上。
-      let ms = el.srcObject as MediaStream | null
-      if (!ms) {
-        ms = new MediaStream()
-        el.srcObject = ms
+      let mediaStream = videoElement.srcObject as MediaStream | null
+      if (!mediaStream) {
+        mediaStream = new MediaStream()
+        videoElement.srcObject = mediaStream
       }
-      if (!ms.getTrackById(ev.track.id)) {
-        ms.addTrack(ev.track)
+      if (!mediaStream.getTrackById(trackEvent.track.id)) {
+        mediaStream.addTrack(trackEvent.track)
       }
-      if (ev.track.kind === 'video') {
+      if (trackEvent.track.kind === 'video') {
         hasVideo.value = true
-        setConnectStep('done', `video track ${ev.track.id}`)
+        setConnectStep('done', `video track ${trackEvent.track.id}`)
       } else if (!hasVideo.value) {
-        setConnectStep('video', `收到 ${ev.track.kind} 轨,仍等待视频`)
+        setConnectStep('video', `收到 ${trackEvent.track.kind} 轨,仍等待视频`)
       }
-      const kinds = ms.getTracks().map((t) => `${t.kind}:${t.readyState}`).join(',')
+      const trackStates = mediaStream.getTracks().map((track) => `${track.kind}:${track.readyState}`).join(',')
       addLog(
-        `ontrack: kind=${ev.track.kind} muted=${ev.track.muted} enabled=${ev.track.enabled} ` +
-          `streamIds=${ev.streams.map((s) => s.id).join('|') || '-'} el=[${kinds}] pageMuted=${muted.value}`,
+        `ontrack: kind=${trackEvent.track.kind} muted=${trackEvent.track.muted} enabled=${trackEvent.track.enabled} ` +
+          `streamIds=${trackEvent.streams.map((stream) => stream.id).join('|') || '-'} el=[${trackStates}] pageMuted=${muted.value}`,
       )
       // 有声轨时提醒:默认静音是为了过 autoplay 策略,需点悬浮球取消静音
-      if (ev.track.kind === 'audio' && muted.value) {
+      if (trackEvent.track.kind === 'audio' && muted.value) {
         addLog('已收到远端音频轨;页面默认静音,请点悬浮球扬声器图标取消静音')
       }
     }
@@ -1784,8 +1784,8 @@ async function connect() {
       }
       void (async () => {
         // fetchMonitorName 依赖 media 通道回推配置,先等它就绪
-        for (let i = 0; i < 50 && dc?.readyState !== 'open'; i++) {
-          await new Promise((r) => setTimeout(r, 100))
+        for (let attemptNumber = 0; attemptNumber < 50 && dc?.readyState !== 'open'; attemptNumber++) {
+          await new Promise((resolve) => setTimeout(resolve, 100))
         }
         void initInput()
       })()
@@ -1829,8 +1829,8 @@ async function connect() {
     await pc.setLocalDescription(offer)
     // 诊断:SDP 里的帧率上限会压死 webrtc 输入侧推帧(VideoSinkWants.max_framerate)
     const scanFr = (tag: string, sdp: string) => {
-      const lines = sdp.split('\n').filter((l) => /framerate|max-fr/i.test(l))
-      addLog(lines.length ? `${tag} 帧率相关: ${lines.map((l) => l.trim()).join(' | ')}` : `${tag} 无帧率上限行`)
+      const lines = sdp.split('\n').filter((line) => /framerate|max-fr/i.test(line))
+      addLog(lines.length ? `${tag} 帧率相关: ${lines.map((line) => line.trim()).join(' | ')}` : `${tag} 无帧率上限行`)
     }
     scanFr('offer', offer.sdp ?? '')
 
@@ -1983,13 +1983,13 @@ function disconnect() {
 
 // 无头/CDP 调试用:window.__input / window.__conn / window.__gamepad
 function exposeInputConnDebug() {
-  const w = window as unknown as {
+  const browserWindow = window as unknown as {
     __input?: unknown
     __conn?: unknown
     __gamepad?: unknown
     __virtualDisplay?: unknown
   }
-  w.__input = {
+  browserWindow.__input = {
     lastMouse: () => input?.lastMouse ?? null,
     relative: () => input?.relativeMode ?? false,
     virtualPos: () => input?.virtualPos() ?? null,
@@ -1997,7 +1997,7 @@ function exposeInputConnDebug() {
     testSend: (opts?: { x?: number; y?: number; keyCode?: string }) =>
       input?.testSend(opts) ?? { ok: false, reason: 'input not ready' },
   }
-  w.__conn = {
+  browserWindow.__conn = {
     status: () => status.value,
     reconnectCount: () => reconnectCount.value,
     pointerLocked: () => pointerLocked.value,
@@ -2010,18 +2010,18 @@ function exposeInputConnDebug() {
       rttMs: perf.value.rttMs,
     }),
   }
-  w.__virtualDisplay = {
+  browserWindow.__virtualDisplay = {
     state: () => ({
       enabled: virtualDisplayEnabled.value,
       owned: virtualDisplayOwnedCount.value,
       maximum: virtualDisplayMaxCount.value,
       generation: virtualDisplayGeneration.value,
       pending: virtualDisplayPending.value,
-      monitors: remoteMonitors.value.map((m) => ({
-        name: m.name,
-        width: m.currentWidth,
-        height: m.currentHeight,
-        primary: m.primary,
+      monitors: remoteMonitors.value.map((monitor) => ({
+        name: monitor.name,
+        width: monitor.currentWidth,
+        height: monitor.currentHeight,
+        primary: monitor.primary,
       })),
       capturingMonitor: capturingMonitor.value,
       connection: status.value,
@@ -2032,12 +2032,12 @@ function exposeInputConnDebug() {
       sendControl({ type: MessageType.SwitchMonitor, switchMonitor: { name } }),
   }
   // 手柄调试:enable/testSend 可在无头 Chrome(无物理手柄)下验证打包与 render 回放链路
-  w.__gamepad = {
+  browserWindow.__gamepad = {
     toggle: () => toggleGamepad(),
     on: () => gamepadOn.value,
     status: () => gamepadStatus.value,
     poll: () => gamepad?.poll(),
-    testSend: (s: GamepadSnapshot) => getGamepad().sendState(s, true),
+    testSend: (snapshot: GamepadSnapshot) => getGamepad().sendState(snapshot, true),
   }
 }
 
@@ -2264,7 +2264,7 @@ onBeforeUnmount(() => {
         </div>
         <div ref="logBodyRef" class="log-body">
           <div v-if="!logs.length" class="log-empty">{{ t('logPanel.empty') }}</div>
-          <div v-for="(line, i) in logs" :key="i" class="log-line">{{ line }}</div>
+          <div v-for="(line, logIndex) in logs" :key="logIndex" class="log-line">{{ line }}</div>
         </div>
       </div>
     </div>

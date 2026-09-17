@@ -19,18 +19,22 @@ function bytesToUtf8(bytes: Uint8Array): string {
 }
 
 function bytesToBase64Url(bytes: Uint8Array): string {
-  let bin = ''
-  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]!)
-  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+  let binaryText = ''
+  for (let byteIndex = 0; byteIndex < bytes.length; byteIndex++) {
+    binaryText += String.fromCharCode(bytes[byteIndex]!)
+  }
+  return btoa(binaryText).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
 }
 
 function base64UrlToBytes(token: string): Uint8Array {
   const b64 = token.replace(/-/g, '+').replace(/_/g, '/')
   const pad = b64.length % 4 === 0 ? '' : '='.repeat(4 - (b64.length % 4))
   const bin = atob(b64 + pad)
-  const out = new Uint8Array(bin.length)
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
-  return out
+  const decodedBytes = new Uint8Array(bin.length)
+  for (let byteIndex = 0; byteIndex < bin.length; byteIndex++) {
+    decodedBytes[byteIndex] = bin.charCodeAt(byteIndex)
+  }
+  return decodedBytes
 }
 
 /** 编码连接参数为 ?c= token */

@@ -98,11 +98,11 @@ export interface FileTransferOptions {
   dc: RTCDataChannel
   deviceId: string
   streamId: string
-  onLog?: (msg: string) => void
+  onLog?: (message: string) => void
   onJobsChanged?: (jobs: FtJob[]) => void
   // 覆盖冲突决策(下载=本地已有同名不同内容文件;上传=对端报回冲突,当前 render 引擎
   // 对上传冲突直接自动 skip,此回调主要为下载方向与未来引擎升级预留)
-  onOverwriteRequest?: (req: OverwriteRequest) => Promise<OverwriteDecision>
+  onOverwriteRequest?: (request: OverwriteRequest) => Promise<OverwriteDecision>
   // 下载文件收齐回调(逐文件,写盘/打包由上层决定)
   onFileDownloaded?: (jobId: number, file: DownloadedFile) => Promise<void>
   // 下载决策用:探测本地目标文件(FS Access 模式);返回 null 表示不存在
@@ -112,15 +112,15 @@ export interface FileTransferOptions {
 }
 
 interface PendingReq {
-  resolve: (v: never) => void
-  reject: (e: Error) => void
+  resolve: (value: never) => void
+  reject: (error: Error) => void
   timer: number
 }
 
 interface ReadDirPending {
   path: string
-  resolve: (r: { path: string; files: RemoteFileInfo[] }) => void
-  reject: (e: Error) => void
+  resolve: (result: { path: string; files: RemoteFileInfo[] }) => void
+  reject: (error: Error) => void
   timer: number
 }
 
@@ -131,8 +131,8 @@ interface UploadJobState {
   // 当前文件的确认等待(发完 digest 等 send_confirm)
   confirmWait: {
     fileNum: number
-    resolve: (r: { skip: boolean; offset: number }) => void
-    reject: (e: Error) => void
+    resolve: (result: { skip: boolean; offset: number }) => void
+    reject: (error: Error) => void
     timer: number
   } | null
   cancelled: boolean
@@ -143,19 +143,19 @@ interface DownloadJobState {
   remoteFrom: string
   files: Array<{ name: string; size: number; mtime: number }>
   gotDir: boolean
-  dirWait: { resolve: () => void; reject: (e: Error) => void; timer: number } | null
-  curFileNum: number // 正在接收的文件序号;-1 = 未开始
-  curChunks: Uint8Array[]
-  curReceived: number // 当前文件已收(解压后)字节
-  curSkipped: boolean
+  dirWait: { resolve: () => void; reject: (error: Error) => void; timer: number } | null
+  currentFileNumber: number // 正在接收的文件序号;-1 = 未开始
+  currentChunks: Uint8Array[]
+  currentReceivedBytes: number // 当前文件已收(解压后)字节
+  currentFileSkipped: boolean
   activated: boolean
   cancelled: boolean
 }
 
-function toNum(v: unknown): number {
-  if (typeof v === 'number') return v
-  if (v && typeof (v as { toString(): string }).toString === 'function') {
-    return Number((v as { toString(): string }).toString())
+function toNum(value: unknown): number {
+  if (typeof value === 'number') return value
+  if (value && typeof (value as { toString(): string }).toString === 'function') {
+    return Number((value as { toString(): string }).toString())
   }
   return 0
 }
@@ -163,8 +163,8 @@ function toNum(v: unknown): number {
 // 已压缩格式后缀跳过压缩(ft_compress.cpp IsCompressedFile,fs.rs:454)
 const COMPRESSED_EXTS = new Set(['xz', 'gz', 'zip', '7z', 'rar', 'bz2', 'tgz', 'png', 'jpg'])
 function isCompressedName(name: string): boolean {
-  const i = name.lastIndexOf('.')
-  return i >= 0 && COMPRESSED_EXTS.has(name.slice(i + 1).toLowerCase())
+  const extensionSeparatorIndex = name.lastIndexOf('.')
+  return extensionSeparatorIndex >= 0 && COMPRESSED_EXTS.has(name.slice(extensionSeparatorIndex + 1).toLowerCase())
 }
 
 // 远端路径拼接(统一 '/' 分隔;处理盘符根 "C:" 与 "/")
@@ -174,13 +174,13 @@ export function joinRemote(dir: string, name: string): string {
 }
 
 export function parentRemote(path: string): string {
-  const p = path.replace(/[\\/]+$/, '')
-  if (!p || p === '/') return '/'
-  const idx = p.lastIndexOf('/')
+  const normalizedPath = path.replace(/[\\/]+$/, '')
+  if (!normalizedPath || normalizedPath === '/') return '/'
+  const separatorIndex = normalizedPath.lastIndexOf('/')
   // "C:/x" 上一级是 "C:/";"C:" 的上一级是盘符列表 "/"
-  if (idx <= 0) return '/'
-  if (idx === 2 && p[1] === ':') return p.slice(0, 3)
-  return p.slice(0, idx)
+  if (separatorIndex <= 0) return '/'
+  if (separatorIndex === 2 && normalizedPath[1] === ':') return normalizedPath.slice(0, 3)
+  return normalizedPath.slice(0, separatorIndex)
 }
 
 export function sha256HexSoftware(data: Uint8Array): string {
@@ -201,15 +201,15 @@ export async function sha256Hex(data: Uint8Array): Promise<string> {
   }
   const digest = await crypto.subtle.digest('SHA-256', data.slice().buffer)
   return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, '0'))
+    .map((byteValue) => byteValue.toString(16).padStart(2, '0'))
     .join('')
 }
 
 export class FileTransferClient {
-  private opts: FileTransferOptions
+  private options: FileTransferOptions
   private reassembler = new TlvReassembler()
-  private pktIndex = 0n
-  private idSeq = 0
+  private packetIndex = 0n
+  private idSequence = 0
 
   private jobs = new Map<number, FtJob>()
   private uploadJobs = new Map<number, UploadJobState>()
@@ -226,19 +226,19 @@ export class FileTransferClient {
   private speedTimer = 0
   private dead = false // failAll 后置位:不再激活新作业、不再发送
 
-  constructor(opts: FileTransferOptions) {
-    this.opts = opts
-    this.resumeStore = opts.resumeStore ?? new Map()
+  constructor(options: FileTransferOptions) {
+    this.options = options
+    this.resumeStore = options.resumeStore ?? new Map()
     // 速度:1s 差值法(io_loop.rs:1048 update_jobs_status)
     this.speedTimer = window.setInterval(() => this.updateSpeeds(), 1000)
   }
 
-  private log(msg: string) {
-    this.opts.onLog?.(`[ft] ${msg}`)
+  private log(message: string) {
+    this.options.onLog?.(`[ft] ${message}`)
   }
 
   private nextId(): number {
-    return ++this.idSeq
+    return ++this.idSequence
   }
 
   // ---------- 收发基础 ----------
@@ -254,34 +254,34 @@ export class FileTransferClient {
   private sendMessage(fields: Record<string, unknown>) {
     if (this.dead) throw new Error('文件传输通道已关闭')
     const payload = encodeMessage({
-      deviceId: this.opts.deviceId,
-      streamId: this.opts.streamId,
+      deviceId: this.options.deviceId,
+      streamId: this.options.streamId,
       ...fields,
     })
     // ft 通道 pkt_index 严格递增(render 按它排序投递)
-    this.opts.dc.send(packTlv(payload, this.pktIndex++))
+    this.options.dc.send(packTlv(payload, this.packetIndex++))
   }
 
   // App.vue 把 ft_data_channel 的 onmessage 直接接到这里
   handleChannelMessage(buf: ArrayBuffer) {
     for (const payload of this.reassembler.feed(buf)) {
-      let msg: ReturnType<typeof decodeMessage>
+      let message: ReturnType<typeof decodeMessage>
       try {
-        msg = decodeMessage(payload)
+        message = decodeMessage(payload)
       } catch (err) {
         this.log(`消息解码失败: ${String(err)}`)
         continue
       }
       try {
-        this.dispatch(msg)
+        this.dispatch(message)
       } catch (err) {
-        this.log(`消息处理失败(type=${msg.type}): ${String(err)}`)
+        this.log(`消息处理失败(type=${message.type}): ${String(err)}`)
       }
     }
   }
 
-  private dispatch(msg: ReturnType<typeof decodeMessage>) {
-    const m = msg as unknown as {
+  private dispatch(message: ReturnType<typeof decodeMessage>) {
+    const transferMessage = message as unknown as {
       type: number
       fileAction?: { sendConfirm?: { id: number; fileNum: number; skip?: boolean; offsetBlk?: number } }
       fileResponse?: {
@@ -302,19 +302,19 @@ export class FileTransferClient {
         emptyDirs?: { path: string; emptyDirs?: Array<{ path: string }> }
       }
     }
-    if (m.type === MSG_TYPE_FILE_ACTION) {
+    if (transferMessage.type === MSG_TYPE_FILE_ACTION) {
       // 被控写侧对上传 digest 的自动决策回包(IsSame/NoSuchFile/skip)
-      if (m.fileAction?.sendConfirm) this.onSendConfirm(m.fileAction.sendConfirm)
+      if (transferMessage.fileAction?.sendConfirm) this.onSendConfirm(transferMessage.fileAction.sendConfirm)
       return
     }
-    if (m.type !== MSG_TYPE_FILE_RESPONSE || !m.fileResponse) return
-    const r = m.fileResponse
-    if (r.dir) this.onDir(r.dir)
-    else if (r.block) this.onBlock(r.block)
-    else if (r.error) this.onError(r.error)
-    else if (r.done) this.onDone(r.done)
-    else if (r.digest) void this.onDigest(r.digest)
-    else if (r.emptyDirs) this.onEmptyDirs(r.emptyDirs)
+    if (transferMessage.type !== MSG_TYPE_FILE_RESPONSE || !transferMessage.fileResponse) return
+    const fileResponse = transferMessage.fileResponse
+    if (fileResponse.dir) this.onDir(fileResponse.dir)
+    else if (fileResponse.block) this.onBlock(fileResponse.block)
+    else if (fileResponse.error) this.onError(fileResponse.error)
+    else if (fileResponse.done) this.onDone(fileResponse.done)
+    else if (fileResponse.digest) void this.onDigest(fileResponse.digest)
+    else if (fileResponse.emptyDirs) this.onEmptyDirs(fileResponse.emptyDirs)
   }
 
   // ---------- 作业状态 / 通知 ----------
@@ -322,8 +322,8 @@ export class FileTransferClient {
   private touchJob(job: FtJob) {
     // 保留 speedBps:它由 updateSpeeds 写在 map 内的副本上,避免被作业侧旧对象覆盖;
     // 非 running 终态时以作业侧显式置 0 为准
-    const prev = this.jobs.get(job.id)
-    const speedBps = job.state === 'running' ? (prev?.speedBps ?? job.speedBps) : job.speedBps
+    const previousJob = this.jobs.get(job.id)
+    const speedBps = job.state === 'running' ? (previousJob?.speedBps ?? job.speedBps) : job.speedBps
     this.jobs.set(job.id, { ...job, speedBps })
     this.markJobsDirty()
   }
@@ -333,12 +333,12 @@ export class FileTransferClient {
     this.jobsDirty = true
     queueMicrotask(() => {
       this.jobsDirty = false
-      this.opts.onJobsChanged?.(Array.from(this.jobs.values()))
+      this.options.onJobsChanged?.(Array.from(this.jobs.values()))
     })
   }
 
   private emitJobs() {
-    this.opts.onJobsChanged?.(Array.from(this.jobs.values()))
+    this.options.onJobsChanged?.(Array.from(this.jobs.values()))
   }
 
   getJobs(): FtJob[] {
@@ -356,9 +356,9 @@ export class FileTransferClient {
         }
         continue
       }
-      const prev = this.speedSamples.get(job.id)
-      if (prev && now > prev.time) {
-        job.speedBps = Math.max(0, Math.round(((job.finishedSize - prev.bytes) * 1000) / (now - prev.time)))
+      const previousSample = this.speedSamples.get(job.id)
+      if (previousSample && now > previousSample.time) {
+        job.speedBps = Math.max(0, Math.round(((job.finishedSize - previousSample.bytes) * 1000) / (now - previousSample.time)))
         changed = true
       }
       this.speedSamples.set(job.id, { time: now, bytes: job.finishedSize })
@@ -369,8 +369,8 @@ export class FileTransferClient {
   private speedSamples = new Map<number, { time: number; bytes: number }>()
 
   clearFinishedJobs() {
-    for (const [id, j] of this.jobs) {
-      if (j.state !== 'running' && j.state !== 'pending') {
+    for (const [id, job] of this.jobs) {
+      if (job.state !== 'running' && job.state !== 'pending') {
         this.jobs.delete(id)
         this.speedSamples.delete(id)
       }
@@ -384,7 +384,7 @@ export class FileTransferClient {
   listDir(path: string, includeHidden = false): Promise<{ path: string; files: RemoteFileInfo[] }> {
     return new Promise((resolve, reject) => {
       const timer = window.setTimeout(() => {
-        this.readDirQueue = this.readDirQueue.filter((p) => p.path !== path || p.timer !== timer)
+        this.readDirQueue = this.readDirQueue.filter((pendingRequest) => pendingRequest.path !== path || pendingRequest.timer !== timer)
         reject(new Error(`列目录超时: ${path}`))
       }, RESP_TIMEOUT_MS)
       this.readDirQueue.push({ path, resolve, reject, timer })
@@ -441,30 +441,30 @@ export class FileTransferClient {
 
   createDir(path: string): Promise<void> {
     const id = this.nextId()
-    const p = this.waitOp(id, `新建文件夹超时: ${path}`)
+    const operationPromise = this.waitOp(id, `新建文件夹超时: ${path}`)
     this.sendAction({ create: { id, path } })
-    return p
+    return operationPromise
   }
 
   removeDir(path: string, recursive: boolean): Promise<void> {
     const id = this.nextId()
-    const p = this.waitOp(id, `删除目录超时: ${path}`)
+    const operationPromise = this.waitOp(id, `删除目录超时: ${path}`)
     this.sendAction({ removeDir: { id, path, recursive } })
-    return p
+    return operationPromise
   }
 
   removeFile(path: string): Promise<void> {
     const id = this.nextId()
-    const p = this.waitOp(id, `删除文件超时: ${path}`)
+    const operationPromise = this.waitOp(id, `删除文件超时: ${path}`)
     this.sendAction({ removeFile: { id, path, fileNum: 0 } })
-    return p
+    return operationPromise
   }
 
   rename(path: string, newName: string): Promise<void> {
     const id = this.nextId()
-    const p = this.waitOp(id, `重命名超时: ${path}`)
+    const operationPromise = this.waitOp(id, `重命名超时: ${path}`)
     this.sendAction({ rename: { id, path, newName } })
-    return p
+    return operationPromise
   }
 
   // ---------- 上传(主控读侧) ----------
@@ -480,7 +480,7 @@ export class FileTransferClient {
       state: 'pending',
       fileCount: items.length,
       fileNum: 0,
-      totalSize: items.reduce((s, it) => s + it.size, 0),
+      totalSize: items.reduce((totalSize, item) => totalSize + item.size, 0),
       finishedSize: 0,
       transferred: 0,
       speedBps: 0,
@@ -501,22 +501,22 @@ export class FileTransferClient {
   }
 
   private activateUpload(id: number) {
-    const st = this.uploadJobs.get(id)
+    const uploadState = this.uploadJobs.get(id)
     const job = this.jobs.get(id)
-    if (!st || !job) return
-    st.activated = true
+    if (!uploadState || !job) return
+    uploadState.activated = true
     job.state = 'running'
     this.touchJob(job)
     // FileAction.receive:对端建写作业(fs.rs new_write)
     this.sendAction({
       receive: {
         id,
-        path: st.remoteTo,
-        files: st.items.map((it) => ({
+        path: uploadState.remoteTo,
+        files: uploadState.items.map((item) => ({
           entryType: FT_TYPE_FILE,
-          name: it.name,
-          size: it.size,
-          modifiedTime: it.modifiedTime,
+          name: item.name,
+          size: item.size,
+          modifiedTime: item.modifiedTime,
         })),
         fileNum: 0,
         totalSize: job.totalSize,
@@ -528,47 +528,47 @@ export class FileTransferClient {
   }
 
   private async runUpload(id: number) {
-    const st = this.uploadJobs.get(id)
+    const uploadState = this.uploadJobs.get(id)
     const job = this.jobs.get(id)
-    if (!st || !job) return
+    if (!uploadState || !job) return
 
-    for (let i = 0; i < st.items.length; i++) {
-      if (st.cancelled) return
-      const item = st.items[i]
-      job.fileNum = i
+    for (let itemIndex = 0; itemIndex < uploadState.items.length; itemIndex++) {
+      if (uploadState.cancelled) return
+      const item = uploadState.items[itemIndex]
+      job.fileNum = itemIndex
       this.touchJob(job)
 
       // 逐文件 digest 握手(覆盖检测):必须先挂起确认等待再发送。
       // RTC 本机/局域网回包可以在 send() 返回前同步触发 onmessage；
       // 如果先发后挂 await，send_confirm 会成为丢失唤醒，作业永久停在 0 字节。
-      const confirm = await new Promise<{ skip: boolean; offset: number }>((resolve, reject) => {
+      const confirmation = await new Promise<{ skip: boolean; offset: number }>((resolve, reject) => {
         const timer = window.setTimeout(() => {
-          if (st.confirmWait?.fileNum === i) {
-            st.confirmWait = null
+          if (uploadState.confirmWait?.fileNum === itemIndex) {
+            uploadState.confirmWait = null
           }
-          reject(new Error(`等待远端文件确认超时: ${item.name || st.remoteTo}`))
+          reject(new Error(`等待远端文件确认超时: ${item.name || uploadState.remoteTo}`))
         }, RESP_TIMEOUT_MS)
-        const waiter = { fileNum: i, resolve, reject, timer }
-        st.confirmWait = waiter
+        const pendingConfirmation = { fileNum: itemIndex, resolve, reject, timer }
+        uploadState.confirmWait = pendingConfirmation
         try {
           this.sendResponse({
             digest: {
               id,
-              fileNum: i,
+              fileNum: itemIndex,
               lastModified: item.modifiedTime,
               fileSize: item.size,
-              isResume: st.isResume,
+              isResume: uploadState.isResume,
             },
           })
         } catch (err) {
           window.clearTimeout(timer)
-          if (st.confirmWait === waiter) st.confirmWait = null
+          if (uploadState.confirmWait === pendingConfirmation) uploadState.confirmWait = null
           reject(err instanceof Error ? err : new Error(String(err)))
         }
       })
-      st.confirmWait = null
-      if (st.cancelled) return
-      if (confirm.skip) {
+      uploadState.confirmWait = null
+      if (uploadState.cancelled) return
+      if (confirmation.skip) {
         job.skippedCount++
         job.finishedSize += item.size
         this.touchJob(job)
@@ -576,41 +576,41 @@ export class FileTransferClient {
       }
 
       // 读侧按字节偏移定位(续传;offset_blk 名为块号实为字节偏移,plan §5.1)
-      let pos = confirm.offset
-      if (pos > 0) {
-        job.finishedSize += pos
-        job.transferred += pos
+      let readOffset = confirmation.offset
+      if (readOffset > 0) {
+        job.finishedSize += readOffset
+        job.transferred += readOffset
       }
-      while (pos < item.size) {
-        if (st.cancelled) return
+      while (readOffset < item.size) {
+        if (uploadState.cancelled) return
         await this.waitSendBuffer()
-        if (st.cancelled) return
-        const end = Math.min(pos + FT_BLOCK_SIZE, item.size)
-        const raw = new Uint8Array(await item.file.slice(pos, end).arrayBuffer())
+        if (uploadState.cancelled) return
+        const blockEnd = Math.min(readOffset + FT_BLOCK_SIZE, item.size)
+        const rawBytes = new Uint8Array(await item.file.slice(readOffset, blockEnd).arrayBuffer())
         // 发送侧压缩:zlib deflate(与对端 miniz mz_compress2 格式一致);
         // 已压缩后缀或不划算时发原始块
-        let data = raw
+        let data = rawBytes
         let compressed = false
         if (!isCompressedName(item.name)) {
-          const c = zlibSync(raw, { level: 6 })
-          if (c.length > 0 && c.length < raw.length) {
-            data = c
+          const compressedBytes = zlibSync(rawBytes, { level: 6 })
+          if (compressedBytes.length > 0 && compressedBytes.length < rawBytes.length) {
+            data = compressedBytes
             compressed = true
           }
         }
-        this.sendResponse({ block: { id, fileNum: i, data, compressed } })
-        job.finishedSize += raw.length
+        this.sendResponse({ block: { id, fileNum: itemIndex, data, compressed } })
+        job.finishedSize += rawBytes.length
         job.transferred += data.length
         this.markJobsDirty()
-        pos = end
+        readOffset = blockEnd
       }
       // EOF:发空数据块(旧 file_num),写侧靠后续块的新 file_num 推进(fs.rs:1001)
-      this.sendResponse({ block: { id, fileNum: i, data: new Uint8Array(0), compressed: false } })
+      this.sendResponse({ block: { id, fileNum: itemIndex, data: new Uint8Array(0), compressed: false } })
     }
     // 全部文件读完:作业完成(fs.rs handle_read_jobs -> new_done)
-    this.sendResponse({ done: { id, fileNum: st.items.length } })
+    this.sendResponse({ done: { id, fileNum: uploadState.items.length } })
     job.state = 'done'
-    job.fileNum = st.items.length
+    job.fileNum = uploadState.items.length
     job.speedBps = 0
     this.touchJob(job)
     this.log(`上传完成: ${job.displayName} (${job.finishedSize} bytes, 跳过 ${job.skippedCount})`)
@@ -642,10 +642,10 @@ export class FileTransferClient {
       files: [],
       gotDir: false,
       dirWait: null,
-      curFileNum: -1,
-      curChunks: [],
-      curReceived: 0,
-      curSkipped: false,
+      currentFileNumber: -1,
+      currentChunks: [],
+      currentReceivedBytes: 0,
+      currentFileSkipped: false,
       activated: false,
       cancelled: false,
     })
@@ -655,54 +655,54 @@ export class FileTransferClient {
   }
 
   private activateDownload(id: number) {
-    const st = this.downloadJobs.get(id)
+    const downloadState = this.downloadJobs.get(id)
     const job = this.jobs.get(id)
-    if (!st || !job) return
-    st.activated = true
+    if (!downloadState || !job) return
+    downloadState.activated = true
     job.state = 'running'
     this.touchJob(job)
     // FileAction.send:请对端发送文件(对端建读作业,先回 dir 文件清单)
     this.sendAction({
-      send: { id, path: st.remoteFrom, includeHidden: false, fileNum: 0, fileType: 0 },
+      send: { id, path: downloadState.remoteFrom, includeHidden: false, fileNum: 0, fileType: 0 },
     })
   }
 
   // 下载文件清单到达(FileResponse.dir,connection.rs:5295 语义)
-  private onDir(fd: { id: number; path: string; entries?: Array<Record<string, unknown>> }) {
+  private onDir(directoryResponse: { id: number; path: string; entries?: Array<Record<string, unknown>> }) {
     // 优先配对下载作业(对端回的作业文件列表)
-    const st = this.downloadJobs.get(fd.id)
-    if (st && !st.gotDir) {
-      st.gotDir = true
-      st.files = (fd.entries ?? []).map((e) => ({
-        name: String(e.name ?? ''),
-        size: toNum(e.size),
-        mtime: toNum(e.modifiedTime),
+    const downloadState = this.downloadJobs.get(directoryResponse.id)
+    if (downloadState && !downloadState.gotDir) {
+      downloadState.gotDir = true
+      downloadState.files = (directoryResponse.entries ?? []).map((entry) => ({
+        name: String(entry.name ?? ''),
+        size: toNum(entry.size),
+        mtime: toNum(entry.modifiedTime),
       }))
-      const job = this.jobs.get(fd.id)
+      const job = this.jobs.get(directoryResponse.id)
       if (job) {
-        job.fileCount = st.files.length
-        job.totalSize = st.files.reduce((s, f) => s + f.size, 0)
+        job.fileCount = downloadState.files.length
+        job.totalSize = downloadState.files.reduce((totalSize, file) => totalSize + file.size, 0)
         this.touchJob(job)
       }
-      if (st.dirWait) {
-        window.clearTimeout(st.dirWait.timer)
-        st.dirWait.resolve()
-        st.dirWait = null
+      if (downloadState.dirWait) {
+        window.clearTimeout(downloadState.dirWait.timer)
+        downloadState.dirWait.resolve()
+        downloadState.dirWait = null
       }
       return
     }
     // ReadAllFiles 配对
-    const pendingAll = this.pendingAllFiles.get(fd.id)
+    const pendingAll = this.pendingAllFiles.get(directoryResponse.id)
     if (pendingAll) {
-      this.pendingAllFiles.delete(fd.id)
+      this.pendingAllFiles.delete(directoryResponse.id)
       window.clearTimeout(pendingAll.timer)
-      const files = (fd.entries ?? []).map((e) => ({
-        type: toNum(e.entryType),
-        name: String(e.name ?? ''),
-        path: joinRemote(fd.path, String(e.name ?? '')),
-        size: toNum(e.size),
-        modifiedTime: toNum(e.modifiedTime),
-        isHidden: !!e.isHidden,
+      const files = (directoryResponse.entries ?? []).map((entry) => ({
+        type: toNum(entry.entryType),
+        name: String(entry.name ?? ''),
+        path: joinRemote(directoryResponse.path, String(entry.name ?? '')),
+        size: toNum(entry.size),
+        modifiedTime: toNum(entry.modifiedTime),
+        isHidden: !!entry.isHidden,
       }))
       pendingAll.resolve(files as never)
       return
@@ -712,23 +712,23 @@ export class FileTransferClient {
     if (pending) {
       window.clearTimeout(pending.timer)
       pending.resolve({
-        path: fd.path || pending.path,
-        files: (fd.entries ?? []).map((e) => ({
-          type: toNum(e.entryType),
-          name: String(e.name ?? ''),
-          path: joinRemote(fd.path, String(e.name ?? '')),
-          size: toNum(e.size),
-          modifiedTime: toNum(e.modifiedTime),
-          isHidden: !!e.isHidden,
+        path: directoryResponse.path || pending.path,
+        files: (directoryResponse.entries ?? []).map((entry) => ({
+          type: toNum(entry.entryType),
+          name: String(entry.name ?? ''),
+          path: joinRemote(directoryResponse.path, String(entry.name ?? '')),
+          size: toNum(entry.size),
+          modifiedTime: toNum(entry.modifiedTime),
+          isHidden: !!entry.isHidden,
         })),
       })
       return
     }
-    this.log(`收到无对应请求的 dir 响应 id=${fd.id} path=${fd.path}`)
+    this.log(`收到无对应请求的 dir 响应 id=${directoryResponse.id} path=${directoryResponse.path}`)
   }
 
   // digest 到达:下载方向(写侧决策)与上传方向(读侧被报回冲突)两种
-  private async onDigest(d: {
+  private async onDigest(digestResponse: {
     id: number
     fileNum: number
     lastModified: unknown
@@ -738,29 +738,29 @@ export class FileTransferClient {
     transferredSize: unknown
     isResume?: boolean
   }) {
-    if (d.isUpload) {
+    if (digestResponse.isUpload) {
       // 上传方向:对端(写侧)报回它本地的同名文件情况(ui_cm_interface.rs:1116 语义;
       // 当前 render 引擎对冲突自动 skip 不走此分支,此处为完整性与未来升级实现)
-      const st = this.uploadJobs.get(d.id)
-      const job = this.jobs.get(d.id)
-      if (!st || !job || !st.confirmWait || st.confirmWait.fileNum !== d.fileNum) return
-      const item = st.items[d.fileNum]
-      const resumeBytes = d.isIdentical && d.isResume ? toNum(d.transferredSize) : 0
+      const uploadState = this.uploadJobs.get(digestResponse.id)
+      const job = this.jobs.get(digestResponse.id)
+      if (!uploadState || !job || !uploadState.confirmWait || uploadState.confirmWait.fileNum !== digestResponse.fileNum) return
+      const item = uploadState.items[digestResponse.fileNum]
+      const resumeBytes = digestResponse.isIdentical && digestResponse.isResume ? toNum(digestResponse.transferredSize) : 0
       let decision: OverwriteDecision
       const strategy = this.uploadStrategy
       if (resumeBytes > 0 && strategy !== 'skip') {
         decision = 'resume'
       } else if (strategy) {
         decision = strategy
-      } else if (this.opts.onOverwriteRequest) {
-        decision = await this.opts.onOverwriteRequest({
-          jobId: d.id,
-          fileNum: d.fileNum,
-          path: joinRemote(st.remoteTo, item?.name ?? ''),
+      } else if (this.options.onOverwriteRequest) {
+        decision = await this.options.onOverwriteRequest({
+          jobId: digestResponse.id,
+          fileNum: digestResponse.fileNum,
+          path: joinRemote(uploadState.remoteTo, item?.name ?? ''),
           isUpload: true,
-          isIdentical: !!d.isIdentical,
-          remoteSize: toNum(d.fileSize),
-          remoteMtime: toNum(d.lastModified),
+          isIdentical: !!digestResponse.isIdentical,
+          remoteSize: toNum(digestResponse.fileSize),
+          remoteMtime: toNum(digestResponse.lastModified),
           localSize: item?.size ?? -1,
           resumableBytes: resumeBytes,
         })
@@ -769,46 +769,46 @@ export class FileTransferClient {
       }
       const offset = decision === 'resume' ? resumeBytes : 0
       const skip = decision === 'skip'
-      this.sendAction({ sendConfirm: { id: d.id, fileNum: d.fileNum, ...(skip ? { skip: true } : { offsetBlk: offset }) } })
-      window.clearTimeout(st.confirmWait.timer)
-      st.confirmWait.resolve({ skip, offset })
+      this.sendAction({ sendConfirm: { id: digestResponse.id, fileNum: digestResponse.fileNum, ...(skip ? { skip: true } : { offsetBlk: offset }) } })
+      window.clearTimeout(uploadState.confirmWait.timer)
+      uploadState.confirmWait.resolve({ skip, offset })
       return
     }
 
     // 下载方向:对端(读侧)报源文件 digest,本地做覆盖/续传决策(ft_engine.cpp:418)
-    const st = this.downloadJobs.get(d.id)
-    const job = this.jobs.get(d.id)
-    if (!st || !job) return
-    const entry = st.files[d.fileNum]
+    const downloadState = this.downloadJobs.get(digestResponse.id)
+    const job = this.jobs.get(digestResponse.id)
+    if (!downloadState || !job) return
+    const entry = downloadState.files[digestResponse.fileNum]
     if (!entry) return
-    const fileSize = toNum(d.fileSize)
-    const lastModified = toNum(d.lastModified)
+    const fileSize = toNum(digestResponse.fileSize)
+    const lastModified = toNum(digestResponse.lastModified)
     const displayName = entry.name || job.displayName
 
     // 新文件的 digest 到达意味着上一文件已全部收完(通道有序),先收尾
-    if (st.curFileNum >= 0 && st.curFileNum !== d.fileNum) {
-      await this.finalizeCurrentFile(d.id)
-      if (st.cancelled || !this.downloadJobs.has(d.id)) return
+    if (downloadState.currentFileNumber >= 0 && downloadState.currentFileNumber !== digestResponse.fileNum) {
+      await this.finalizeCurrentFile(digestResponse.id)
+      if (downloadState.cancelled || !this.downloadJobs.has(digestResponse.id)) return
     }
 
     // 会话内续传:内存里有同名同 size/mtime 的部分数据 -> 直接 offset 续传
-    const resumeKey = `${st.remoteFrom}\n${entry.name}`
+    const resumeKey = `${downloadState.remoteFrom}\n${entry.name}`
     const cached = this.resumeStore.get(resumeKey)
     let offset = 0
     let skip = false
     if (cached && cached.size === fileSize && cached.mtime === lastModified && cached.data.length > 0 && cached.data.length < fileSize) {
       offset = cached.data.length
-      st.curChunks = [cached.data]
-      st.curReceived = cached.data.length
+      downloadState.currentChunks = [cached.data]
+      downloadState.currentReceivedBytes = cached.data.length
       this.resumeStore.delete(resumeKey)
       this.log(`续传: ${displayName} 从 ${offset} 字节继续`)
     } else {
       if (cached) this.resumeStore.delete(resumeKey) // 内容已变,丢弃旧缓存
-      st.curChunks = []
-      st.curReceived = 0
+      downloadState.currentChunks = []
+      downloadState.currentReceivedBytes = 0
       // 本地已有文件探测(FS Access 模式):identical -> skip;不同 -> 弹框
-      const probe = this.opts.localFileProbe
-        ? await this.opts.localFileProbe(d.id, displayName)
+      const probe = this.options.localFileProbe
+        ? await this.options.localFileProbe(digestResponse.id, displayName)
         : null
       if (probe && probe.size === fileSize && probe.mtime === lastModified) {
         skip = true
@@ -816,10 +816,10 @@ export class FileTransferClient {
         let decision: OverwriteDecision
         if (this.downloadStrategy) {
           decision = this.downloadStrategy
-        } else if (this.opts.onOverwriteRequest) {
-          decision = await this.opts.onOverwriteRequest({
-            jobId: d.id,
-            fileNum: d.fileNum,
+        } else if (this.options.onOverwriteRequest) {
+          decision = await this.options.onOverwriteRequest({
+            jobId: digestResponse.id,
+            fileNum: digestResponse.fileNum,
             path: displayName,
             isUpload: false,
             isIdentical: false,
@@ -834,10 +834,10 @@ export class FileTransferClient {
         skip = decision === 'skip'
       }
     }
-    if (st.cancelled) return
-    st.curFileNum = d.fileNum
-    st.curSkipped = skip
-    job.fileNum = d.fileNum
+    if (downloadState.cancelled) return
+    downloadState.currentFileNumber = digestResponse.fileNum
+    downloadState.currentFileSkipped = skip
+    job.fileNum = digestResponse.fileNum
     if (skip) {
       job.skippedCount++
       job.finishedSize += fileSize
@@ -848,48 +848,48 @@ export class FileTransferClient {
     this.touchJob(job)
     // FileAction.send_confirm:回给对端读作业(kSendConfirm -> read_jobs Confirm)
     this.sendAction({
-      sendConfirm: { id: d.id, fileNum: d.fileNum, ...(skip ? { skip: true } : { offsetBlk: offset }) },
+      sendConfirm: { id: digestResponse.id, fileNum: digestResponse.fileNum, ...(skip ? { skip: true } : { offsetBlk: offset }) },
     })
   }
 
   // 上传读侧收到对端写侧的确认(FileAction.send_confirm;render 自动决策或主控 UI 决策的回包)
-  private onSendConfirm(c: { id: number; fileNum: number; skip?: boolean; offsetBlk?: number }) {
-    const st = this.uploadJobs.get(c.id)
-    if (!st || !st.confirmWait) return
-    if (st.confirmWait.fileNum !== c.fileNum) return // 非当前文件的 confirm 忽略(fs.rs:1157)
-    window.clearTimeout(st.confirmWait.timer)
-    const skip = c.skip === true
-    const offset = skip ? 0 : toNum(c.offsetBlk)
-    st.confirmWait.resolve({ skip, offset })
+  private onSendConfirm(confirmation: { id: number; fileNum: number; skip?: boolean; offsetBlk?: number }) {
+    const uploadState = this.uploadJobs.get(confirmation.id)
+    if (!uploadState || !uploadState.confirmWait) return
+    if (uploadState.confirmWait.fileNum !== confirmation.fileNum) return // 非当前文件的 confirm 忽略(fs.rs:1157)
+    window.clearTimeout(uploadState.confirmWait.timer)
+    const skip = confirmation.skip === true
+    const offset = skip ? 0 : toNum(confirmation.offsetBlk)
+    uploadState.confirmWait.resolve({ skip, offset })
   }
 
-  private onBlock(b: { id: number; fileNum: number; data?: Uint8Array; compressed?: boolean }) {
-    const st = this.downloadJobs.get(b.id)
-    const job = this.jobs.get(b.id)
-    if (!st || !job || st.cancelled) return
+  private onBlock(block: { id: number; fileNum: number; data?: Uint8Array; compressed?: boolean }) {
+    const downloadState = this.downloadJobs.get(block.id)
+    const job = this.jobs.get(block.id)
+    if (!downloadState || !job || downloadState.cancelled) return
     // 块切到新文件:收尾上一文件(fs.rs:760 write 内 modify_time 语义)。
     // 正常流程在 onDigest 里已收尾,这里是防御性兜底(如对端跳过 digest 直发块)
-    if (st.curFileNum >= 0 && b.fileNum !== st.curFileNum) {
-      void this.finalizeCurrentFile(b.id)
-      st.curFileNum = b.fileNum
-      job.fileNum = b.fileNum
+    if (downloadState.currentFileNumber >= 0 && block.fileNum !== downloadState.currentFileNumber) {
+      void this.finalizeCurrentFile(block.id)
+      downloadState.currentFileNumber = block.fileNum
+      job.fileNum = block.fileNum
     }
-    const data = b.data
+    const data = block.data
     if (!data || data.length === 0) return // EOF 空块
     let chunk: Uint8Array
-    if (b.compressed) {
+    if (block.compressed) {
       try {
         chunk = unzlibSync(data)
       } catch (err) {
-        this.failJob(b.id, `解压失败: ${err instanceof Error ? err.message : String(err)}`)
+        this.failJob(block.id, `解压失败: ${err instanceof Error ? err.message : String(err)}`)
         return
       }
     } else {
       chunk = data
     }
-    if (st.curSkipped) return // 防御:skip 的文件不应有块
-    st.curChunks.push(chunk)
-    st.curReceived += chunk.length
+    if (downloadState.currentFileSkipped) return // 防御:skip 的文件不应有块
+    downloadState.currentChunks.push(chunk)
+    downloadState.currentReceivedBytes += chunk.length
     job.finishedSize += chunk.length
     job.transferred += data.length
     this.markJobsDirty()
@@ -897,19 +897,19 @@ export class FileTransferClient {
 
   // 当前文件收齐:快照缓冲区后交付上层落盘;失败中断作业
   private async finalizeCurrentFile(id: number) {
-    const st = this.downloadJobs.get(id)
+    const downloadState = this.downloadJobs.get(id)
     const job = this.jobs.get(id)
-    if (!st || !job || st.curFileNum < 0) return
-    const fileNum = st.curFileNum
-    const skipped = st.curSkipped
-    const chunks = st.curChunks
-    const received = st.curReceived
-    st.curFileNum = -1
-    st.curChunks = []
-    st.curReceived = 0
-    st.curSkipped = false
+    if (!downloadState || !job || downloadState.currentFileNumber < 0) return
+    const fileNum = downloadState.currentFileNumber
+    const skipped = downloadState.currentFileSkipped
+    const chunks = downloadState.currentChunks
+    const received = downloadState.currentReceivedBytes
+    downloadState.currentFileNumber = -1
+    downloadState.currentChunks = []
+    downloadState.currentReceivedBytes = 0
+    downloadState.currentFileSkipped = false
     if (skipped) return
-    const entry = st.files[fileNum]
+    const entry = downloadState.files[fileNum]
     const name = entry?.name ?? ''
     const data = concatChunks(chunks, received)
     if (entry && entry.size > 0 && data.length !== entry.size) {
@@ -917,7 +917,7 @@ export class FileTransferClient {
       return
     }
     try {
-      await this.opts.onFileDownloaded?.(id, {
+      await this.options.onFileDownloaded?.(id, {
         name: name || job.displayName,
         data,
         size: data.length,
@@ -928,62 +928,62 @@ export class FileTransferClient {
     }
   }
 
-  private onDone(d: { id: number; fileNum: number }) {
+  private onDone(completion: { id: number; fileNum: number }) {
     // 目录操作(create/remove/rename)的完成回包
-    const op = this.pendingOps.get(d.id)
-    if (op) {
-      this.pendingOps.delete(d.id)
-      window.clearTimeout(op.timer)
-      op.resolve(undefined as never)
+    const pendingOperation = this.pendingOps.get(completion.id)
+    if (pendingOperation) {
+      this.pendingOps.delete(completion.id)
+      window.clearTimeout(pendingOperation.timer)
+      pendingOperation.resolve(undefined as never)
       return
     }
     // 下载作业完成
-    const st = this.downloadJobs.get(d.id)
-    const job = this.jobs.get(d.id)
-    if (!st || !job) return
+    const downloadState = this.downloadJobs.get(completion.id)
+    const job = this.jobs.get(completion.id)
+    if (!downloadState || !job) return
     void (async () => {
-      if (st.curFileNum >= 0 && !st.cancelled) {
-        await this.finalizeCurrentFile(d.id)
+      if (downloadState.currentFileNumber >= 0 && !downloadState.cancelled) {
+        await this.finalizeCurrentFile(completion.id)
       }
       // finalize 可能已把作业置为 error(落盘失败)
-      const cur = this.jobs.get(d.id)
-      if (!cur || cur.state !== 'running') return
-      cur.state = 'done'
-      cur.speedBps = 0
-      this.touchJob(cur)
-      this.log(`下载完成: ${cur.displayName} (${cur.finishedSize} bytes, 跳过 ${cur.skippedCount})`)
-      this.finishJob(d.id)
+      const currentJob = this.jobs.get(completion.id)
+      if (!currentJob || currentJob.state !== 'running') return
+      currentJob.state = 'done'
+      currentJob.speedBps = 0
+      this.touchJob(currentJob)
+      this.log(`下载完成: ${currentJob.displayName} (${currentJob.finishedSize} bytes, 跳过 ${currentJob.skippedCount})`)
+      this.finishJob(completion.id)
     })()
   }
 
-  private onError(e: { id: number; error: string; fileNum: number }) {
-    const op = this.pendingOps.get(e.id)
-    if (op) {
-      this.pendingOps.delete(e.id)
-      window.clearTimeout(op.timer)
-      op.reject(new Error(e.error))
+  private onError(errorResponse: { id: number; error: string; fileNum: number }) {
+    const pendingOperation = this.pendingOps.get(errorResponse.id)
+    if (pendingOperation) {
+      this.pendingOps.delete(errorResponse.id)
+      window.clearTimeout(pendingOperation.timer)
+      pendingOperation.reject(new Error(errorResponse.error))
       return
     }
-    const pendingAll = this.pendingAllFiles.get(e.id)
+    const pendingAll = this.pendingAllFiles.get(errorResponse.id)
     if (pendingAll) {
-      this.pendingAllFiles.delete(e.id)
+      this.pendingAllFiles.delete(errorResponse.id)
       window.clearTimeout(pendingAll.timer)
-      pendingAll.reject(new Error(e.error))
+      pendingAll.reject(new Error(errorResponse.error))
       return
     }
-    if (this.jobs.has(e.id)) {
-      this.failJob(e.id, e.error)
+    if (this.jobs.has(errorResponse.id)) {
+      this.failJob(errorResponse.id, errorResponse.error)
       return
     }
-    this.log(`对端错误: id=${e.id} ${e.error}`)
+    this.log(`对端错误: id=${errorResponse.id} ${errorResponse.error}`)
   }
 
-  private onEmptyDirs(r: { path: string; emptyDirs?: Array<{ path: string }> }) {
-    const pending = this.pendingEmptyDirs.get(r.path)
+  private onEmptyDirs(response: { path: string; emptyDirs?: Array<{ path: string }> }) {
+    const pending = this.pendingEmptyDirs.get(response.path)
     if (!pending) return
-    this.pendingEmptyDirs.delete(r.path)
+    this.pendingEmptyDirs.delete(response.path)
     window.clearTimeout(pending.timer)
-    pending.resolve((r.emptyDirs ?? []).map((d) => d.path) as never)
+    pending.resolve((response.emptyDirs ?? []).map((directory) => directory.path) as never)
   }
 
   // ---------- 作业调度(is_last_job 语义:单活动作业,其余排队) ----------
@@ -1019,25 +1019,25 @@ export class FileTransferClient {
     job.error = error
     job.speedBps = 0
     // 解开所有等待,让异步循环自行退出
-    const up = this.uploadJobs.get(id)
-    if (up) {
-      up.cancelled = true
-      if (up.confirmWait) window.clearTimeout(up.confirmWait.timer)
-      up.confirmWait?.resolve({ skip: true, offset: 0 })
-      up.confirmWait = null
+    const uploadState = this.uploadJobs.get(id)
+    if (uploadState) {
+      uploadState.cancelled = true
+      if (uploadState.confirmWait) window.clearTimeout(uploadState.confirmWait.timer)
+      uploadState.confirmWait?.resolve({ skip: true, offset: 0 })
+      uploadState.confirmWait = null
     }
     this.touchJob(job)
     this.log(`作业失败: ${job.displayName}: ${error}`)
     // 下载中断:保留已收部分进续传缓存(显式取消不清——那是 cancel 的路径)
-    const st = this.downloadJobs.get(id)
-    if (st) {
-      st.dirWait?.reject(new Error(error))
-      st.dirWait = null
-      if (st.curFileNum >= 0 && !st.curSkipped && st.curReceived > 0) {
-        const entry = st.files[st.curFileNum]
+    const downloadState = this.downloadJobs.get(id)
+    if (downloadState) {
+      downloadState.dirWait?.reject(new Error(error))
+      downloadState.dirWait = null
+      if (downloadState.currentFileNumber >= 0 && !downloadState.currentFileSkipped && downloadState.currentReceivedBytes > 0) {
+        const entry = downloadState.files[downloadState.currentFileNumber]
         if (entry) {
-          this.putResumeCache(`${st.remoteFrom}\n${entry.name}`, {
-            data: concatChunks(st.curChunks, st.curReceived),
+          this.putResumeCache(`${downloadState.remoteFrom}\n${entry.name}`, {
+            data: concatChunks(downloadState.currentChunks, downloadState.currentReceivedBytes),
             size: entry.size,
             mtime: entry.mtime,
           })
@@ -1051,18 +1051,18 @@ export class FileTransferClient {
   cancel(id: number) {
     const job = this.jobs.get(id)
     if (!job || (job.state !== 'running' && job.state !== 'pending')) return
-    const up = this.uploadJobs.get(id)
-    const down = this.downloadJobs.get(id)
-    const activated = up?.activated || down?.activated
-    if (up) {
-      up.cancelled = true
-      if (up.confirmWait) window.clearTimeout(up.confirmWait.timer)
-      up.confirmWait?.resolve({ skip: true, offset: 0 }) // 解开等待,runUpload 自行退出
-      up.confirmWait = null
+    const uploadState = this.uploadJobs.get(id)
+    const downloadState = this.downloadJobs.get(id)
+    const activated = uploadState?.activated || downloadState?.activated
+    if (uploadState) {
+      uploadState.cancelled = true
+      if (uploadState.confirmWait) window.clearTimeout(uploadState.confirmWait.timer)
+      uploadState.confirmWait?.resolve({ skip: true, offset: 0 }) // 解开等待,runUpload 自行退出
+      uploadState.confirmWait = null
     }
-    if (down) {
-      down.cancelled = true
-      down.dirWait?.reject(new Error('已取消'))
+    if (downloadState) {
+      downloadState.cancelled = true
+      downloadState.dirWait?.reject(new Error('已取消'))
     }
     job.state = 'cancelled'
     job.speedBps = 0
@@ -1071,9 +1071,9 @@ export class FileTransferClient {
       this.sendAction({ cancel: { id } })
     }
     // 显式取消:清除该作业的续传缓存(对齐写侧 RemoveDownloadFile 语义)
-    if (down) {
-      for (const f of down.files) {
-        this.resumeStore.delete(`${down.remoteFrom}\n${f.name}`)
+    if (downloadState) {
+      for (const file of downloadState.files) {
+        this.resumeStore.delete(`${downloadState.remoteFrom}\n${file.name}`)
       }
     }
     this.log(`已取消: ${job.displayName}`)
@@ -1083,47 +1083,47 @@ export class FileTransferClient {
   // "应用到全部"覆盖策略(UI 勾选后设置,后续冲突不再弹框)
   uploadStrategy: OverwriteDecision | null = null
   downloadStrategy: OverwriteDecision | null = null
-  setOverwriteStrategy(direction: 'upload' | 'download', s: OverwriteDecision | null) {
-    if (direction === 'upload') this.uploadStrategy = s
-    else this.downloadStrategy = s
+  setOverwriteStrategy(direction: 'upload' | 'download', strategy: OverwriteDecision | null) {
+    if (direction === 'upload') this.uploadStrategy = strategy
+    else this.downloadStrategy = strategy
   }
 
   // ---------- 反压 ----------
 
   // datachannel 发送缓冲高水位等待(块级无 ack,这是唯一的流控)
   private waitSendBuffer(): Promise<void> {
-    const dc = this.opts.dc
-    if (dc.readyState !== 'open') return Promise.reject(new Error('通道已断开'))
-    if (dc.bufferedAmount <= MAX_BUFFERED_BYTES) return Promise.resolve()
+    const dataChannel = this.options.dc
+    if (dataChannel.readyState !== 'open') return Promise.reject(new Error('通道已断开'))
+    if (dataChannel.bufferedAmount <= MAX_BUFFERED_BYTES) return Promise.resolve()
     return new Promise((resolve, reject) => {
-      dc.bufferedAmountLowThreshold = MAX_BUFFERED_BYTES / 2
+      dataChannel.bufferedAmountLowThreshold = MAX_BUFFERED_BYTES / 2
       const onLow = () => {
-        dc.removeEventListener('bufferedamountlow', onLow)
-        dc.removeEventListener('close', onClose)
+        dataChannel.removeEventListener('bufferedamountlow', onLow)
+        dataChannel.removeEventListener('close', onClose)
         resolve()
       }
       const onClose = () => {
-        dc.removeEventListener('bufferedamountlow', onLow)
+        dataChannel.removeEventListener('bufferedamountlow', onLow)
         reject(new Error('通道已断开'))
       }
-      dc.addEventListener('bufferedamountlow', onLow)
-      dc.addEventListener('close', onClose, { once: true })
+      dataChannel.addEventListener('bufferedamountlow', onLow)
+      dataChannel.addEventListener('close', onClose, { once: true })
     })
   }
 
   // ---------- 续传缓存 ----------
 
-  private putResumeCache(key: string, v: { data: Uint8Array; size: number; mtime: number }) {
+  private putResumeCache(key: string, cacheEntry: { data: Uint8Array; size: number; mtime: number }) {
     let total = 0
-    for (const it of this.resumeStore.values()) total += it.data.length
+    for (const storedEntry of this.resumeStore.values()) total += storedEntry.data.length
     // 超限:清最旧的(Map 迭代序 = 插入序)
-    while (total + v.data.length > RESUME_CACHE_MAX_BYTES && this.resumeStore.size > 0) {
+    while (total + cacheEntry.data.length > RESUME_CACHE_MAX_BYTES && this.resumeStore.size > 0) {
       const oldest = this.resumeStore.keys().next().value
       if (oldest === undefined) break
       total -= this.resumeStore.get(oldest)?.data.length ?? 0
       this.resumeStore.delete(oldest)
     }
-    if (v.data.length <= RESUME_CACHE_MAX_BYTES) this.resumeStore.set(key, v)
+    if (cacheEntry.data.length <= RESUME_CACHE_MAX_BYTES) this.resumeStore.set(key, cacheEntry)
   }
 
   // ---------- 清理 ----------
@@ -1132,40 +1132,40 @@ export class FileTransferClient {
   failAll(reason: string) {
     this.dead = true
     this.activeJobId = 0 // 先阻止 failJob -> finishJob 激活排队作业
-    for (const p of this.readDirQueue) {
-      window.clearTimeout(p.timer)
-      p.reject(new Error(reason))
+    for (const pendingRequest of this.readDirQueue) {
+      window.clearTimeout(pendingRequest.timer)
+      pendingRequest.reject(new Error(reason))
     }
     this.readDirQueue = []
-    for (const [id, p] of this.pendingOps) {
-      window.clearTimeout(p.timer)
-      p.reject(new Error(reason))
+    for (const [id, pendingOperation] of this.pendingOps) {
+      window.clearTimeout(pendingOperation.timer)
+      pendingOperation.reject(new Error(reason))
       this.pendingOps.delete(id)
     }
-    for (const [id, p] of this.pendingAllFiles) {
-      window.clearTimeout(p.timer)
-      p.reject(new Error(reason))
+    for (const [id, pendingRequest] of this.pendingAllFiles) {
+      window.clearTimeout(pendingRequest.timer)
+      pendingRequest.reject(new Error(reason))
       this.pendingAllFiles.delete(id)
     }
-    for (const [k, p] of this.pendingEmptyDirs) {
-      window.clearTimeout(p.timer)
-      p.reject(new Error(reason))
-      this.pendingEmptyDirs.delete(k)
+    for (const [path, pendingRequest] of this.pendingEmptyDirs) {
+      window.clearTimeout(pendingRequest.timer)
+      pendingRequest.reject(new Error(reason))
+      this.pendingEmptyDirs.delete(path)
     }
     for (const id of Array.from(this.jobs.keys())) {
       const job = this.jobs.get(id)
       if (job && (job.state === 'running' || job.state === 'pending')) {
-        const up = this.uploadJobs.get(id)
-        if (up) {
-          up.cancelled = true
-          if (up.confirmWait) window.clearTimeout(up.confirmWait.timer)
-          up.confirmWait?.resolve({ skip: true, offset: 0 })
-          up.confirmWait = null
+        const uploadState = this.uploadJobs.get(id)
+        if (uploadState) {
+          uploadState.cancelled = true
+          if (uploadState.confirmWait) window.clearTimeout(uploadState.confirmWait.timer)
+          uploadState.confirmWait?.resolve({ skip: true, offset: 0 })
+          uploadState.confirmWait = null
         }
-        const down = this.downloadJobs.get(id)
-        if (down) {
-          down.cancelled = true
-          down.dirWait?.reject(new Error(reason))
+        const downloadState = this.downloadJobs.get(id)
+        if (downloadState) {
+          downloadState.cancelled = true
+          downloadState.dirWait?.reject(new Error(reason))
         }
         this.failJob(id, reason)
       }
@@ -1179,11 +1179,11 @@ export class FileTransferClient {
 
 function concatChunks(chunks: Uint8Array[], total: number): Uint8Array {
   if (chunks.length === 1) return chunks[0]
-  const out = new Uint8Array(total)
-  let off = 0
-  for (const c of chunks) {
-    out.set(c, off)
-    off += c.length
+  const combinedBytes = new Uint8Array(total)
+  let writeOffset = 0
+  for (const chunk of chunks) {
+    combinedBytes.set(chunk, writeOffset)
+    writeOffset += chunk.length
   }
-  return out
+  return combinedBytes
 }

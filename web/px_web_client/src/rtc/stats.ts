@@ -69,16 +69,16 @@ export const EMPTY_PERF: PerfStats = {
 }
 
 // 一行紧凑摘要,用于周期性写入日志面板(用户可直接复制发回)
-export function perfSummaryLine(s: PerfStats): string {
-  const res = s.width > 0 ? `${s.width}x${s.height}` : '-'
+export function perfSummaryLine(stats: PerfStats): string {
+  const resolution = stats.width > 0 ? `${stats.width}x${stats.height}` : '-'
   return (
-    `[perf] recv=${s.fps.toFixed(0)}fps dec=${s.decFps.toFixed(0)}fps drop=${s.dropFps.toFixed(1)}fps ` +
-    `jbTarget=${s.jbTargetMs.toFixed(0)}ms jbDelay=${s.jbDelayMs.toFixed(0)}ms ` +
-    `decode=${s.decodeMs.toFixed(1)}ms proc=${s.procMs.toFixed(1)}ms dec_impl=${s.decoder || '-'} ` +
-    `keys=${s.keyDecoded} freezes=${s.freezes}(${s.freezeMs.toFixed(0)}ms) ` +
-    `br=${(s.videoBitrateKbps / 1000).toFixed(1)}Mbps rtt=${s.rttMs.toFixed(1)}ms ` +
-    `loss=${(s.lossRate * 100).toFixed(1)}% jitter=${s.jitterMs.toFixed(1)}ms res=${res} ` +
-    `path=${s.localCand || '?'} <-> ${s.remoteCand || '?'}`
+    `[perf] recv=${stats.fps.toFixed(0)}fps dec=${stats.decFps.toFixed(0)}fps drop=${stats.dropFps.toFixed(1)}fps ` +
+    `jbTarget=${stats.jbTargetMs.toFixed(0)}ms jbDelay=${stats.jbDelayMs.toFixed(0)}ms ` +
+    `decode=${stats.decodeMs.toFixed(1)}ms proc=${stats.procMs.toFixed(1)}ms dec_impl=${stats.decoder || '-'} ` +
+    `keys=${stats.keyDecoded} freezes=${stats.freezes}(${stats.freezeMs.toFixed(0)}ms) ` +
+    `br=${(stats.videoBitrateKbps / 1000).toFixed(1)}Mbps rtt=${stats.rttMs.toFixed(1)}ms ` +
+    `loss=${(stats.lossRate * 100).toFixed(1)}% jitter=${stats.jitterMs.toFixed(1)}ms res=${resolution} ` +
+    `path=${stats.localCand || '?'} <-> ${stats.remoteCand || '?'}`
   )
 }
 
@@ -140,7 +140,7 @@ export class PerfCollector {
   private lastFreezeDur = -1
   private lastAt = 0
 
-  constructor(private onUpdate: (s: PerfStats) => void) {}
+  constructor(private onUpdate: (stats: PerfStats) => void) {}
 
   start(pc: RTCPeerConnection) {
     this.stop()
@@ -183,7 +183,7 @@ export class PerfCollector {
     // 采样期间连接被断开
     if (this.pc !== pc) return
 
-    const out: PerfStats = { ...EMPTY_PERF }
+    const performanceStats: PerfStats = { ...EMPTY_PERF }
     let bytes = -1
     let lost = -1
     let received = -1
@@ -204,69 +204,69 @@ export class PerfCollector {
     let pairRemoteId = ''
 
     stats.forEach((report) => {
-      const r = report as unknown as LooseStats & { type: string }
-      if (r.type === 'inbound-rtp' && r.kind === 'video') {
-        bytes = r.bytesReceived ?? 0
-        lost = r.packetsLost ?? 0
-        received = r.packetsReceived ?? 0
-        decoded = r.framesDecoded ?? 0
-        dropped = r.framesDropped ?? 0
-        decodeTime = r.totalDecodeTime ?? 0
-        procDelay = r.totalProcessingDelay ?? 0
-        keyDecoded = r.keyFramesDecoded ?? 0
-        freezes = r.freezeCount ?? 0
-        freezeDur = r.totalFreezesDuration ?? 0
-        jbDelay = r.jitterBufferDelay ?? 0
-        jbTarget = r.jitterBufferTargetDelay ?? 0
-        jbEmitted = r.jitterBufferEmittedCount ?? 0
-        out.fps = r.framesPerSecond ?? 0
-        out.jitterMs = (r.jitter ?? 0) * 1000
-        out.width = r.frameWidth ?? 0
-        out.height = r.frameHeight ?? 0
-        out.decoder = r.decoderImplementation ?? ''
-      } else if (r.type === 'candidate-pair' && r.nominated) {
-        out.rttMs = (r.currentRoundTripTime ?? 0) * 1000
-        pairLocalId = r.localCandidateId ?? ''
-        pairRemoteId = r.remoteCandidateId ?? ''
-      } else if (r.type === 'local-candidate' || r.type === 'remote-candidate') {
-        if (r.id) candidates.set(r.id, r)
+      const statsReport = report as unknown as LooseStats & { type: string }
+      if (statsReport.type === 'inbound-rtp' && statsReport.kind === 'video') {
+        bytes = statsReport.bytesReceived ?? 0
+        lost = statsReport.packetsLost ?? 0
+        received = statsReport.packetsReceived ?? 0
+        decoded = statsReport.framesDecoded ?? 0
+        dropped = statsReport.framesDropped ?? 0
+        decodeTime = statsReport.totalDecodeTime ?? 0
+        procDelay = statsReport.totalProcessingDelay ?? 0
+        keyDecoded = statsReport.keyFramesDecoded ?? 0
+        freezes = statsReport.freezeCount ?? 0
+        freezeDur = statsReport.totalFreezesDuration ?? 0
+        jbDelay = statsReport.jitterBufferDelay ?? 0
+        jbTarget = statsReport.jitterBufferTargetDelay ?? 0
+        jbEmitted = statsReport.jitterBufferEmittedCount ?? 0
+        performanceStats.fps = statsReport.framesPerSecond ?? 0
+        performanceStats.jitterMs = (statsReport.jitter ?? 0) * 1000
+        performanceStats.width = statsReport.frameWidth ?? 0
+        performanceStats.height = statsReport.frameHeight ?? 0
+        performanceStats.decoder = statsReport.decoderImplementation ?? ''
+      } else if (statsReport.type === 'candidate-pair' && statsReport.nominated) {
+        performanceStats.rttMs = (statsReport.currentRoundTripTime ?? 0) * 1000
+        pairLocalId = statsReport.localCandidateId ?? ''
+        pairRemoteId = statsReport.remoteCandidateId ?? ''
+      } else if (statsReport.type === 'local-candidate' || statsReport.type === 'remote-candidate') {
+        if (statsReport.id) candidates.set(statsReport.id, statsReport)
       }
     })
 
-    const fmtCand = (c?: LooseStats): string => {
-      if (!c) return '?'
-      const ip = c.ip ?? c.address ?? '?'
-      const turnTransport = c.candidateType === 'relay' && c.relayProtocol
-        ? ` via turn:${c.relayProtocol}`
+    const formatCandidate = (candidate?: LooseStats): string => {
+      if (!candidate) return '?'
+      const address = candidate.ip ?? candidate.address ?? '?'
+      const turnTransport = candidate.candidateType === 'relay' && candidate.relayProtocol
+        ? ` via turn:${candidate.relayProtocol}`
         : ''
-      return `${c.candidateType ?? '?'} ${ip}:${c.port ?? '?'}/${c.protocol ?? '?'}${turnTransport}`
+      return `${candidate.candidateType ?? '?'} ${address}:${candidate.port ?? '?'}/${candidate.protocol ?? '?'}${turnTransport}`
     }
-    out.localCand = fmtCand(candidates.get(pairLocalId))
-    out.remoteCand = fmtCand(candidates.get(pairRemoteId))
+    performanceStats.localCand = formatCandidate(candidates.get(pairLocalId))
+    performanceStats.remoteCand = formatCandidate(candidates.get(pairRemoteId))
 
     const now = Date.now()
     if (bytes >= 0 && this.lastBytes >= 0 && now > this.lastAt) {
       const dtSec = (now - this.lastAt) / 1000
-      out.videoBitrateKbps = Math.max(0, ((bytes - this.lastBytes) * 8) / dtSec / 1000)
+      performanceStats.videoBitrateKbps = Math.max(0, ((bytes - this.lastBytes) * 8) / dtSec / 1000)
       const dLost = lost - this.lastLost
       const dRecv = received - this.lastReceived
-      out.lossRate = dLost + dRecv > 0 ? Math.max(0, dLost) / (dLost + dRecv) : 0
-      out.decFps = Math.max(0, (decoded - this.lastDecoded) / dtSec)
-      out.dropFps = Math.max(0, (dropped - this.lastDropped) / dtSec)
-      out.keyDecoded = Math.max(0, keyDecoded - this.lastKeyDecoded)
-      out.freezes = Math.max(0, freezes - this.lastFreezes)
-      out.freezeMs = Math.max(0, (freezeDur - this.lastFreezeDur) * 1000)
+      performanceStats.lossRate = dLost + dRecv > 0 ? Math.max(0, dLost) / (dLost + dRecv) : 0
+      performanceStats.decFps = Math.max(0, (decoded - this.lastDecoded) / dtSec)
+      performanceStats.dropFps = Math.max(0, (dropped - this.lastDropped) / dtSec)
+      performanceStats.keyDecoded = Math.max(0, keyDecoded - this.lastKeyDecoded)
+      performanceStats.freezes = Math.max(0, freezes - this.lastFreezes)
+      performanceStats.freezeMs = Math.max(0, (freezeDur - this.lastFreezeDur) * 1000)
       const dDecoded = decoded - this.lastDecoded
       if (dDecoded > 0) {
-        out.decodeMs = Math.max(0, ((decodeTime - this.lastDecodeTime) / dDecoded) * 1000)
-        out.procMs = Math.max(0, ((procDelay - this.lastProcDelay) / dDecoded) * 1000)
+        performanceStats.decodeMs = Math.max(0, ((decodeTime - this.lastDecodeTime) / dDecoded) * 1000)
+        performanceStats.procMs = Math.max(0, ((procDelay - this.lastProcDelay) / dDecoded) * 1000)
       }
       // JB 累计秒/累计帧 = lifetime 均值:会话早期曾 ~1s 时,UI 会长期显示偏高。
       // 与 decode/proc 一样用采样窗口增量,才反映当前播放余量。
       const dEmitted = jbEmitted - this.lastJbEmitted
       if (dEmitted > 0 && this.lastJbEmitted >= 0) {
-        out.jbDelayMs = Math.max(0, ((jbDelay - this.lastJbDelay) / dEmitted) * 1000)
-        out.jbTargetMs = Math.max(0, ((jbTarget - this.lastJbTarget) / dEmitted) * 1000)
+        performanceStats.jbDelayMs = Math.max(0, ((jbDelay - this.lastJbDelay) / dEmitted) * 1000)
+        performanceStats.jbTargetMs = Math.max(0, ((jbTarget - this.lastJbTarget) / dEmitted) * 1000)
       }
     }
     if (bytes >= 0) {
@@ -285,6 +285,6 @@ export class PerfCollector {
       this.lastFreezeDur = freezeDur
       this.lastAt = now
     }
-    this.onUpdate(out)
+    this.onUpdate(performanceStats)
   }
 }

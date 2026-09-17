@@ -235,7 +235,7 @@ export class GamepadController {
       }
     }
     if (!pad) {
-      pad = pads.find((p) => p && p.connected) ?? null
+      pad = pads.find((candidatePad) => candidatePad && candidatePad.connected) ?? null
       this.padIndex = pad ? pad.index : null
     }
     if (!pad) {
@@ -243,8 +243,8 @@ export class GamepadController {
       return
     }
     this.setStatus(pad.id || `Gamepad #${pad.index}`)
-    const s = snapshotFrom(pad)
-    if (s) this.sendState(s)
+    const snapshot = snapshotFrom(pad)
+    if (snapshot) this.sendState(snapshot)
   }
 
   private onGamepadConnected = (ev: GamepadEvent) => {
