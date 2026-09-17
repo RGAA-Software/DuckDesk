@@ -98,13 +98,15 @@ namespace px
         return true;
     }
 
-    bool NvencEncoderModule::HasEncoderForMonitor(const std::string& monitor_name) const {
+    bool NvencEncoderModule::HasEncoderForMonitor(
+        const std::string& monitor_name) const {
         const std::lock_guard lock(encoders_mutex_);
 #if 0
         LOGW("HasEncoderForMonitor monitor_name: {}", monitor_name);
 
         for (const auto& video_encoder_entry : video_encoders_) {
-            LOGW("HasEncoderForMonitor item: {}", video_encoder_entry.first);
+            LOGW("HasEncoderForMonitor encoder monitor: {}",
+                 video_encoder_entry.first);
         }
 #endif
         return video_encoders_.find(monitor_name) != video_encoders_.end();

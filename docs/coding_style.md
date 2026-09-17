@@ -11,8 +11,10 @@
 只有确属该领域公认术语且在当前公式中无歧义时才允许短名，例如几何公式中的 `x`/`y` 坐标；“作用域很小”“循环惯例”不构成例外。
 修改既有代码时同步修复所触及范围的不可读命名。生成代码、只读第三方源码和 `backup/` 归档不做机械重命名。
 本规则不是建议项：`scripts/check_readable_names.ps1` 是当前 DB0–DB5、Console/Auth/Desk PostgreSQL 代码和 Windows Service
-改造范围的自动门禁，并由 `scripts/server_validation/postgres.ps1` 在创建测试数据库前执行。新纳入维护范围的源码必须同步扩展
-门禁路径；不得用排除文件、例外清单或缩短扫描范围来绕过命名问题。
+改造范围的 Rust 全量自动门禁，并由 `scripts/server_validation/postgres.ps1` 在创建测试数据库前执行。
+`scripts/check_cpp_readable_names.ps1` 检查相对合并基线的全部 C/C++ 变更以及暂存区、工作区变更；CI 可以通过
+`CPP_NAMING_BASE_REVISION` 或 `-BaseRevision` 明确评审基线。它拒绝新增的单字母和脱离上下文命名，并单独列出 `x`/`y`
+供人工确认确属几何坐标。新纳入维护范围的源码必须同步扩展门禁路径；不得用排除文件、例外清单或缩短扫描范围来绕过命名问题。
 此规范替代旧的 C++ LLVM / 4 空格 / 150 列规则；不替代项目所有权、初始化、异步安全、架构分层、国际化和主题要求。
 
 ## C++：Google Style

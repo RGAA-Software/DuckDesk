@@ -46,20 +46,21 @@ struct MediaQueueSnapshot final {
 // Threading:
 // - Multiple producers and one consumer are supported.
 // - No mutex is held after Submit/TryPop/Close returns.
-template<typename T>
+template <typename T>
 class BoundedMediaQueue final {
 public:
     BoundedMediaQueue(const std::size_t capacity,
                       const QueueOverflowPolicy overflow_policy)
         : capacity_(capacity), overflow_policy_(overflow_policy) {
         if (capacity_ == 0) {
-            throw std::invalid_argument("media queue capacity must be positive");
+            throw std::invalid_argument(
+                "media queue capacity must be positive");
         }
     }
 
-    QueueSubmitResult Submit(std::shared_ptr<const T> item) {
-        if (!item) {
-            throw std::invalid_argument("media queue item must be owned");
+    QueueSubmitResult Submit(std::shared_ptr<const T> media_entry) {
+        if (!media_entry) {
+            throw std::invalid_argument("media queue entry must be owned");
         }
         const std::lock_guard lock(mutex_);
         if (closed_) {
@@ -72,11 +73,11 @@ public:
                 return QueueSubmitResult::kDroppedNewest;
             }
             items_.pop_front();
-            items_.push_back(std::move(item));
+            items_.push_back(std::move(media_entry));
             ++accepted_;
             return QueueSubmitResult::kAcceptedAfterDroppingOldest;
         }
-        items_.push_back(std::move(item));
+        items_.push_back(std::move(media_entry));
         ++accepted_;
         high_watermark_ = std::max(high_watermark_, items_.size());
         return QueueSubmitResult::kAccepted;

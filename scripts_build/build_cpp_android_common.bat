@@ -6,6 +6,8 @@ rem Run Gradle's native model generation once if the .cxx build tree is absent.
 rem Usage: build_cpp_android_common.bat [target ...]
 
 cd /d "%~dp0.." || exit /b 1
+pwsh.exe -NoProfile -File "scripts\check_cpp_readable_names.ps1"
+if errorlevel 1 exit /b %errorlevel%
 set "ANDROID_NATIVE_DIR="
 set "ANDROID_TARGETS=%*"
 if not defined ANDROID_TARGETS set "ANDROID_TARGETS=px_common"

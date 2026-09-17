@@ -22,6 +22,8 @@ if /I not "%CPP_PRODUCT%"=="cloud_node" if /I not "%CPP_PRODUCT%"=="client" if /
     echo ERROR: CPP_PRODUCT must be cloud_node, client, or remote.
     exit /b 2
 )
+pwsh.exe -NoProfile -File "%~dp0check_cpp_readable_names.ps1"
+if errorlevel 1 exit /b %errorlevel%
 set "EXPECTED_BUILD_DIR=build_official\%CPP_PRODUCT%\cmake"
 set "BUILD_DIR=%CPP_BUILD_DIR%"
 if not defined BUILD_DIR set "BUILD_DIR=%EXPECTED_BUILD_DIR%"

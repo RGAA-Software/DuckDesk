@@ -441,47 +441,39 @@ namespace px
         return 0;
     }
 
-    enum AVPixelFormat FFmpegDecoder::ffGetFormat(AVCodecContext* context, const enum AVPixelFormat* pixFmts) {
-        auto decoder = (FFmpegDecoder*)context->opaque;
-        const AVPixelFormat *p;
-        AVPixelFormat desiredFmt;
-
-        if (decoder && decoder->hw_decode_config) {
-            desiredFmt = decoder->hw_decode_config->pix_fmt;
+    enum AVPixelFormat FFmpegDecoder::ffGetFormat(
+        AVCodecContext* context,  // NOLINT(pixels-raw-pointer-boundary)
+        const enum AVPixelFormat*
+            pixel_formats) {  // NOLINT(pixels-raw-pointer-boundary)
+        if (!context || !context->opaque || !pixel_formats) {
+            return AV_PIX_FMT_NONE;
         }
-        // else if (decoder->m_RequiredPixelFormat != AV_PIX_FMT_NONE) {
-        //     desiredFmt = decoder->m_RequiredPixelFormat;
-        // }
-        // else {
-        //     desiredFmt = decoder->m_FrontendRenderer->getPreferredPixelFormat(decoder->m_VideoFormat);
-        // }
+        auto& decoder = *static_cast<FFmpegDecoder*>(context->opaque);
+        if (!decoder.hw_decode_config) {
+            return AV_PIX_FMT_NONE;
+        }
+        const auto desired_pixel_format = decoder.hw_decode_config->pix_fmt;
 
-        for (p = pixFmts; *p != AV_PIX_FMT_NONE; p++) {
+        for (std::size_t pixel_format_index = 0;
+             pixel_formats[pixel_format_index] != AV_PIX_FMT_NONE;
+             ++pixel_format_index) {
+            const auto candidate_pixel_format =
+                pixel_formats[pixel_format_index];
             // Only match our hardware decoding codec or preferred SW pixel
             // format (if not using hardware decoding). It's crucial
             // to override the default get_format() which will try
             // to gracefully fall back to software decode and break us.
-            if (*p == desiredFmt/* && decoder->m_BackendRenderer->prepareDecoderContextInGetFormat(context, *p)*/) {
-                context->hw_frames_ctx = av_buffer_ref(decoder->hw_frames_context_.get());
-                return *p;
+            if (candidate_pixel_format == desired_pixel_format) {
+                context->hw_frames_ctx =
+                    av_buffer_ref(decoder.hw_frames_context_.get());
+                return candidate_pixel_format;
             }
         }
-
-        // Failed to match the preferred pixel formats. Try non-preferred pixel format options
-        // for non-hwaccel decoders if we didn't have a required pixel format to use.
-        // if (decoder->hw_decode_config == nullptr && decoder->m_RequiredPixelFormat == AV_PIX_FMT_NONE) {
-        //     for (p = pixFmts; *p != AV_PIX_FMT_NONE; p++) {
-        //         if (decoder->m_FrontendRenderer->isPixelFormatSupported(decoder->m_VideoFormat, *p) &&
-        //             decoder->m_BackendRenderer->prepareDecoderContextInGetFormat(context, *p)) {
-        //             return *p;
-        //         }
-        //     }
-        // }
-
         return AV_PIX_FMT_NONE;
     }
 
-    Result<std::shared_ptr<RawImage>, int> FFmpegDecoder::Decode(std::span<const std::uint8_t> encoded) {
+    Result<std::shared_ptr<RawImage>, int> FFmpegDecoder::Decode(
+        std::span<const std::uint8_t> encoded) {
         if (!decoder_context_ || !av_frame_ || stop_) {
             return TRError(-1);
         }

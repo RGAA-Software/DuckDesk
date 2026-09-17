@@ -39,16 +39,21 @@ namespace px
         FFmpegDecoder(const std::shared_ptr<ThunderSdk>& sdk, std::shared_ptr<const WindowsVideoResources> resources);
         ~FFmpegDecoder() override;
 
-        int Init(const std::string& mon_name, VideoType codec_type, int width, int height, const std::string& frame, EImageFormat img_format,
+        int Init(const std::string& mon_name, VideoType codec_type, int width,
+                 int height, const std::string& frame, EImageFormat img_format,
                  bool ignore_hw) override;
-        Result<std::shared_ptr<RawImage>, int> Decode(std::span<const std::uint8_t> encoded) override;
+        Result<std::shared_ptr<RawImage>, int> Decode(
+            std::span<const std::uint8_t> encoded) override;
         void Release() override;
         bool Ready() override;
 
-        static enum AVPixelFormat ffGetFormat(AVCodecContext* context, const enum AVPixelFormat* pixFmts);
+        static enum AVPixelFormat ffGetFormat(
+            AVCodecContext* context,  // NOLINT(pixels-raw-pointer-boundary)
+            const enum AVPixelFormat*
+                pixel_formats);  // NOLINT(pixels-raw-pointer-boundary)
 
     private:
-        int GetAVCodecCapabilities(const AVCodec *codec);
+        int GetAVCodecCapabilities(const AVCodec* codec);
         bool IsHardwareAccelerated();
 
     private:

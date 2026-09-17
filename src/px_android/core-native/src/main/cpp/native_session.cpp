@@ -745,9 +745,9 @@ bool NativeSession::Initialize() {
 
     clipboard_ = NativeClipboard::Create(
         client_signal_device_id_, config_.stream_id,
-        [weak_self](std::shared_ptr<px::Data> data) {
+        [weak_self](std::shared_ptr<px::Data> clipboard_message) {
             const auto self = weak_self.lock();
-            if (!self || !data || self->stopped_.load()) {
+            if (!self || !clipboard_message || self->stopped_.load()) {
                 return false;
             }
             std::shared_ptr<px::ThunderSdk> sdk;
@@ -758,12 +758,12 @@ bool NativeSession::Initialize() {
             if (!sdk) {
                 return false;
             }
-            sdk->PostMediaMessage(std::move(data));
+            sdk->PostMediaMessage(std::move(clipboard_message));
             return true;
         },
-        [weak_self](std::shared_ptr<px::Data> data) {
+        [weak_self](std::shared_ptr<px::Data> file_transfer_message) {
             const auto self = weak_self.lock();
-            if (!self || !data || self->stopped_.load()) {
+            if (!self || !file_transfer_message || self->stopped_.load()) {
                 return false;
             }
             std::shared_ptr<px::ThunderSdk> sdk;
@@ -771,7 +771,9 @@ bool NativeSession::Initialize() {
                 std::lock_guard lock(self->lifecycle_mutex_);
                 sdk = self->sdk_;
             }
-            return sdk && sdk->PostFileTransferMessage(std::move(data)).accepted();
+            return sdk && sdk->PostFileTransferMessage(
+                                 std::move(file_transfer_message))
+                              .accepted();
         },
         [weak_self](std::function<void()> task) {
             const auto self = weak_self.lock();
@@ -794,7 +796,9 @@ bool NativeSession::Initialize() {
                 self->callback_->ClipboardFiles(self->config_.session_id, files);
             }
         },
-        [weak_self](const std::string& generation, const std::vector<std::string>& paths, const std::string& error) {
+        [weak_self](const std::string& generation,
+                    const std::vector<std::string>& paths,
+                    const std::string& error) {
             if (const auto self = weak_self.lock(); self && !self->stopped_.load()) {
                 self->callback_->ClipboardFilesReady(self->config_.session_id, generation, paths, error);
             }
