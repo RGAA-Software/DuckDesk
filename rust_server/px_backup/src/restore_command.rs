@@ -1,7 +1,8 @@
 use px_backup::{
     BackupCancellation, BackupRepository, ExternalRecoveryWitness, PinnedPgRestoreProvisioner,
-    PinnedPgRestoreTools, RecoverySetManifest, RestoreAdmissionState, RestoreAdmissionStore,
-    RestoreExecutionPlan, RestoreOperationalCheck, RestoreOperatorProvisionPlan, RestoreRunner,
+    PinnedPgRestoreTools, PinnedPgWriteBarrierCoordinator, RecoverySetManifest,
+    RestoreAdmissionState, RestoreAdmissionStore, RestoreExecutionPlan, RestoreOperationalCheck,
+    RestoreOperatorProvisionPlan, RestoreRunner, WriteBarrierCoordinatorPlan,
 };
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeSet, path::PathBuf, time::Duration};
@@ -11,6 +12,7 @@ const RESTORE_COMMAND_CONFIG_SCHEMA_VERSION: u32 = 1;
 const RESTORE_APPROVAL_REQUEST_SCHEMA_VERSION: u32 = 1;
 const RESTORE_EXECUTION_COMMAND_CONFIG_SCHEMA_VERSION: u32 = 1;
 const RESTORE_PROVISION_COMMAND_CONFIG_SCHEMA_VERSION: u32 = 1;
+const WRITE_BARRIER_COMMAND_CONFIG_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -143,6 +145,40 @@ impl RestoreProvisionCommandConfig {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WriteBarrierCommandConfig {
+    schema_version: u32,
+    plan: WriteBarrierCoordinatorPlan,
+    psql_path: PathBuf,
+    psql_sha256: String,
+    command_timeout_seconds: u64,
+}
+
+impl WriteBarrierCommandConfig {
+    fn load_private(config_path: &std::path::Path) -> Result<Self, &'static str> {
+        if !config_path.is_absolute() {
+            return Err("write barrier configuration rejected");
+        }
+        let config_bytes = px_private_files::private::read_private(config_path)
+            .map_err(|_| "write barrier configuration rejected")?;
+        let config = serde_json::from_slice::<Self>(&config_bytes)
+            .map_err(|_| "write barrier configuration rejected")?;
+        if !config.is_valid() {
+            return Err("write barrier configuration rejected");
+        }
+        Ok(config)
+    }
+
+    fn is_valid(&self) -> bool {
+        self.schema_version == WRITE_BARRIER_COMMAND_CONFIG_SCHEMA_VERSION
+            && self.plan.validate().is_ok()
+            && self.psql_path.is_absolute()
+            && valid_sha256(&self.psql_sha256)
+            && (1..=24 * 60 * 60).contains(&self.command_timeout_seconds)
+    }
+}
+
 impl RestoreApprovalRequest {
     fn load_private(request_path: &std::path::Path) -> Result<Self, &'static str> {
         if !request_path.is_absolute() {
@@ -267,6 +303,47 @@ pub fn provision(
         .provision(&config.plan)
         .map_err(|_| "restore operator provisioning failed closed")?;
     println!("restore operator provisioned and verified");
+    Ok(())
+}
+
+pub fn acquire_write_barrier(
+    config_path: PathBuf,
+    cancellation: BackupCancellation,
+) -> Result<(), &'static str> {
+    let config = WriteBarrierCommandConfig::load_private(&config_path)?;
+    let coordinator = PinnedPgWriteBarrierCoordinator::new(
+        config.psql_path,
+        config.psql_sha256,
+        Duration::from_secs(config.command_timeout_seconds),
+        cancellation,
+    )
+    .map_err(|_| "write barrier tool identity rejected")?;
+    let proof = coordinator
+        .acquire(&config.plan)
+        .map_err(|_| "write barrier acquisition failed closed")?;
+    println!(
+        "write barrier acquired proof_id={} expires_at_unix={}",
+        proof.consistency_proof_id, proof.expires_at_unix
+    );
+    Ok(())
+}
+
+pub fn release_write_barrier(
+    config_path: PathBuf,
+    cancellation: BackupCancellation,
+) -> Result<(), &'static str> {
+    let config = WriteBarrierCommandConfig::load_private(&config_path)?;
+    let coordinator = PinnedPgWriteBarrierCoordinator::new(
+        config.psql_path,
+        config.psql_sha256,
+        Duration::from_secs(config.command_timeout_seconds),
+        cancellation,
+    )
+    .map_err(|_| "write barrier tool identity rejected")?;
+    coordinator
+        .release(&config.plan)
+        .map_err(|_| "write barrier release requires reconciliation")?;
+    println!("write barrier released");
     Ok(())
 }
 
@@ -638,6 +715,39 @@ mod tests {
         assert!(!config.is_valid());
         config.plan.services = BTreeSet::from([BackupService::Console]);
         config.psql_sha256 = "A".repeat(64);
+        assert!(!config.is_valid());
+    }
+
+    #[test]
+    fn write_barrier_configuration_requires_distinct_private_state_and_console_target() {
+        let absolute_root = std::env::current_dir().unwrap();
+        let target = px_backup::WriteBarrierDatabaseTarget {
+            service: BackupService::Console,
+            host: "127.0.0.1".to_string(),
+            port: 5432,
+            database: "pixels_console".to_string(),
+            admin_username: "pixels_admin".to_string(),
+            admin_password_file: absolute_root.join("admin.pgpass"),
+        };
+        let mut config = WriteBarrierCommandConfig {
+            schema_version: WRITE_BARRIER_COMMAND_CONFIG_SCHEMA_VERSION,
+            plan: WriteBarrierCoordinatorPlan {
+                deployment_id: Uuid::new_v4(),
+                proof_file: absolute_root.join("write-barrier-proof.json"),
+                marker_file: absolute_root.join("write-barrier-marker.json"),
+                lease_seconds: 120,
+                external_key_ids: BTreeSet::new(),
+                targets: vec![target],
+            },
+            psql_path: absolute_root.join("tools").join("psql.exe"),
+            psql_sha256: "a".repeat(64),
+            command_timeout_seconds: 60,
+        };
+        assert!(config.is_valid());
+        config.plan.marker_file = config.plan.proof_file.clone();
+        assert!(!config.is_valid());
+        config.plan.marker_file = absolute_root.join("write-barrier-marker.json");
+        config.plan.targets[0].service = BackupService::Auth;
         assert!(!config.is_valid());
     }
 

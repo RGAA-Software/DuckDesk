@@ -1,6 +1,7 @@
 //! Recovery-set manifests and retention decisions shared by the Windows and Linux backup executors.
 //! This crate does not execute database tools or accept arbitrary commands.
 
+mod barrier;
 mod executor;
 mod manifest;
 mod repository;
@@ -11,6 +12,10 @@ mod retention;
 mod runtime;
 mod scheduler;
 
+pub use barrier::{
+    PinnedPgWriteBarrierCoordinator, WriteBarrierCoordinatorPlan, WriteBarrierDatabaseTarget,
+    WriteBarrierError,
+};
 pub use executor::{
     BackupCancellation, BackupError, BackupPlan, BackupRunner, BackupTarget, DatabaseTarget,
     LogicalBackupTool, PinnedPgTools, WriteBarrierProof, WriteBarrierServiceAttestation,

@@ -9,6 +9,8 @@ pub enum DatabaseError {
     Permission,
     #[error("PostgreSQL data constraint conflict")]
     Conflict,
+    #[error("PostgreSQL writes are paused for a coordinated backup")]
+    WriteBarrier,
     #[error("PostgreSQL deployment or service identity mismatch")]
     Identity,
     #[error("PostgreSQL schema missing, dirty, changed or unsupported")]
@@ -27,6 +29,7 @@ impl From<sqlx::Error> for DatabaseError {
             sqlx::Error::Database(db) => match db.code().as_deref() {
                 Some("42501" | "28P01" | "28000") => Self::Permission,
                 Some("23505" | "23503" | "23502" | "23514") => Self::Conflict,
+                Some("25006") => Self::WriteBarrier,
                 Some("57014" | "55P03" | "57P01" | "57P02" | "57P03") => Self::Unavailable,
                 Some("42P01" | "3F000") => Self::Schema,
                 _ => Self::Operation,

@@ -150,6 +150,37 @@ async fn recovery_security_watermarks_advance_for_every_business_table_and_are_r
             Service::Auth => "UPDATE pixels.customers SET name=name WHERE FALSE",
             Service::Desk => "UPDATE pixels.feedback SET title=title WHERE FALSE",
         };
+        let write_barrier_id = Uuid::new_v4();
+        sqlx::query(
+            "UPDATE pixels.recovery_security_state SET write_barrier_id=$1,write_barrier_expires_at=CURRENT_TIMESTAMP+INTERVAL '1 minute',write_gate_token_sha256=$2 WHERE singleton",
+        )
+        .bind(write_barrier_id)
+        .bind("a".repeat(64))
+        .execute(&owner)
+        .await
+        .unwrap();
+        let blocked_write = sqlx::query(business_statement)
+            .execute(&owner)
+            .await
+            .unwrap_err();
+        assert_eq!(
+            DatabaseError::from(blocked_write),
+            DatabaseError::WriteBarrier
+        );
+        let sequence_while_blocked: i64 = sqlx::query_scalar(
+            "SELECT security_sequence FROM pixels.recovery_security_state WHERE singleton",
+        )
+        .fetch_one(&runtime)
+        .await
+        .unwrap();
+        assert_eq!(sequence_while_blocked, sequence_before);
+        sqlx::query(
+            "UPDATE pixels.recovery_security_state SET write_barrier_id=NULL,write_barrier_expires_at=NULL,write_gate_token_sha256=NULL WHERE singleton AND write_barrier_id=$1",
+        )
+        .bind(write_barrier_id)
+        .execute(&owner)
+        .await
+        .unwrap();
         sqlx::query(business_statement)
             .execute(&owner)
             .await

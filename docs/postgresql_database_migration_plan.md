@@ -238,7 +238,11 @@ Linux 使用 `deploy/systemd/pixels-backup@.service` 模板承载同一个执行
    备份执行器只接受绝对路径的私有写屏障证明；证明必须绑定 deployment 和非空 consistency proof ID，以最多 1 小时的统一租约精确覆盖
    本次所有 Required 服务，并为每个服务携带排空时间、写门令牌摘要、安全序列/状态摘要及所需外部密钥摘要。执行器在建集前、每库导出
    前后和发布前重读同一文件并核对内容摘要与租约；证明缺失、过期、改变或服务集合不一致均失败关闭且不能发布恢复集。该消费者门禁不能
-   代替服务侧停写：只有 Console/Auth/Desk 的 writer 已实际执行门禁、排空并维护证明生命周期后，才允许配置 `WriteBarrier` 计划。
+   代替服务侧停写。基础档通过 `px_backup barrier-acquire` 先在每库水位行写入相同 proof ID、到期时间和服务令牌摘要；水位行更新会等待
+   已进入触发器的写事务结束，之后所有业务表触发器以 SQLSTATE `25006` 拒绝新写。协调器再撤销对应 runtime 角色的数据库 CONNECT、
+   终止旧 runtime 后端并核对零连接，最后才原子创建 marker/proof。`barrier-release` 只按 marker 中相同 proof ID 逆序清除三库屏障、恢复
+   CONNECT 并删除私有证明；重复 release 幂等，重复 acquire 和孤立 proof 均拒绝。异常中断保留 marker 供下一进程对账，不猜测解锁。
+   租约过期后触发器允许下一次业务写并清理过期库内标记，防止无限停写；但 CONNECT 仍需显式 release 恢复。
 2. 同一 PG cluster 的物理备份可以提供同一数据库恢复时间点，仍须对账数据库外节点/签发/制品副作用。
    分离 cluster 没有跨库原子快照；记录各自边界，使用上述业务屏障或经验证的事件水位重放方案，否则禁止自动整体开放。
 3. 隔离恢复全部适用库，禁用签发、通知、发布、节点派发和自动 outbox 重放。先核验 Auth 签名/撤销记录与库外防回滚水位，

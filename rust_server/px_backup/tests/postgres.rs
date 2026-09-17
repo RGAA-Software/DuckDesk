@@ -2,6 +2,7 @@ use px_backup::{
     BackupError, BackupPlan, BackupRepository, BackupRunner, BackupService, BackupTarget,
     DatabaseTarget, LogicalBackupTool, RecoverySetKind, RecoverySetStatus, RestoreDatabaseTarget,
     RestoreExecutionPlan, RestoreExecutionReport, RestoreOperatorProvisionPlan, RetentionClass,
+    WriteBarrierCoordinatorPlan, WriteBarrierDatabaseTarget, WriteBarrierProof,
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -166,6 +167,15 @@ struct RestoreProvisionCommandFixture {
     command_timeout_seconds: u64,
 }
 
+#[derive(Serialize)]
+struct WriteBarrierCommandFixture {
+    schema_version: u32,
+    plan: WriteBarrierCoordinatorPlan,
+    psql_path: PathBuf,
+    psql_sha256: String,
+    command_timeout_seconds: u64,
+}
+
 impl Fixture {
     fn new() -> Self {
         let base = tempfile::Builder::new()
@@ -305,10 +315,104 @@ fn real_three_database_archives_restore_from_offsite_after_source_loss_and_detec
     let fixture = Fixture::new();
     let repository = BackupRepository::open(&fixture.root, deployment_id).unwrap();
     let tool = DockerPgTool::new(container.clone());
+    let admin_password = env::var("PIXELS_TEST_PG_ADMIN_PASSWORD").unwrap();
+    assert_eq!(admin_password.len(), 64);
+    assert!(admin_password
+        .bytes()
+        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)));
+    let admin_container_password_command = format!(
+        "umask 077; printf '%s\\n' '127.0.0.1:5432:*:pixels_admin:{admin_password}' > /tmp/pixels-admin.pgpass"
+    );
+    tool.execute(&["sh", "-c", &admin_container_password_command]);
+    let admin_password_file = fixture._base.path().join("admin.pgpass");
+    px_private_files::private::create_private(
+        &admin_password_file,
+        format!("127.0.0.1:5432:*:pixels_admin:{admin_password}\n").as_bytes(),
+    )
+    .unwrap();
+    let barrier_tool_directory = fixture._base.path().join("barrier-tools");
+    fs::create_dir(&barrier_tool_directory).unwrap();
+    make_private(&barrier_tool_directory);
+    let barrier_psql = create_docker_tool_proxy(
+        &barrier_tool_directory,
+        &container,
+        "psql",
+        "/tmp/pixels-admin.pgpass",
+    );
+    let barrier_proof_file = fixture._base.path().join("write-barrier-proof.json");
+    let barrier_marker_file = fixture._base.path().join("write-barrier-marker.json");
+    let barrier_config = WriteBarrierCommandFixture {
+        schema_version: 1,
+        plan: WriteBarrierCoordinatorPlan {
+            deployment_id,
+            proof_file: barrier_proof_file.clone(),
+            marker_file: barrier_marker_file.clone(),
+            lease_seconds: 120,
+            external_key_ids: BTreeSet::new(),
+            targets: [
+                BackupService::Console,
+                BackupService::Auth,
+                BackupService::Desk,
+            ]
+            .into_iter()
+            .map(|service| WriteBarrierDatabaseTarget {
+                service,
+                host: "127.0.0.1".to_string(),
+                port: 5432,
+                database: format!("pixels_{}", service_name(service)),
+                admin_username: "pixels_admin".to_string(),
+                admin_password_file: admin_password_file.clone(),
+            })
+            .collect(),
+        },
+        psql_path: barrier_psql.clone(),
+        psql_sha256: file_sha256(&barrier_psql),
+        command_timeout_seconds: 30,
+    };
+    let barrier_config_path = fixture._base.path().join("write-barrier-config.json");
+    px_private_files::private::create_private(
+        &barrier_config_path,
+        &serde_json::to_vec(&barrier_config).unwrap(),
+    )
+    .unwrap();
+    let barrier_acquire_output = Command::new(env!("CARGO_BIN_EXE_px_backup"))
+        .args(["barrier-acquire", barrier_config_path.to_str().unwrap()])
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(
+        barrier_acquire_output.status.success(),
+        "write barrier acquisition failed: {}",
+        String::from_utf8_lossy(&barrier_acquire_output.stderr)
+    );
+    let duplicate_barrier_acquire = Command::new(env!("CARGO_BIN_EXE_px_backup"))
+        .args(["barrier-acquire", barrier_config_path.to_str().unwrap()])
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(!duplicate_barrier_acquire.status.success());
+    let barrier_proof = serde_json::from_slice::<WriteBarrierProof>(
+        &px_private_files::private::read_private(&barrier_proof_file).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(barrier_proof.attestations.len(), 3);
+    let console_connect_during_barrier = tool.output(&[
+        "psql",
+        "-X",
+        "--tuples-only",
+        "--no-align",
+        "--username",
+        "pixels_admin",
+        "--dbname",
+        "postgres",
+        "--command",
+        "SELECT has_database_privilege('pixels_console_runtime','pixels_console','CONNECT')",
+    ]);
+    assert_eq!(console_connect_during_barrier, "f");
     let plan = BackupPlan {
         deployment_id,
-        kind: RecoverySetKind::Independent,
-        write_barrier_proof_file: None,
+        kind: RecoverySetKind::WriteBarrier,
+        write_barrier_proof_file: Some(barrier_proof_file.clone()),
         retention: BTreeSet::from([RetentionClass::Hourly]),
         previous_recovery_set_id: None,
         targets: vec![
@@ -321,6 +425,38 @@ fn real_three_database_archives_restore_from_offsite_after_source_loss_and_detec
     let manifest = BackupRunner::new(tool.clone())
         .run(&repository, &plan)
         .unwrap();
+    assert_eq!(manifest.kind, RecoverySetKind::WriteBarrier);
+    let barrier_release_output = Command::new(env!("CARGO_BIN_EXE_px_backup"))
+        .args(["barrier-release", barrier_config_path.to_str().unwrap()])
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(
+        barrier_release_output.status.success(),
+        "write barrier release failed: {}",
+        String::from_utf8_lossy(&barrier_release_output.stderr)
+    );
+    assert!(!barrier_proof_file.exists());
+    assert!(!barrier_marker_file.exists());
+    let repeated_barrier_release = Command::new(env!("CARGO_BIN_EXE_px_backup"))
+        .args(["barrier-release", barrier_config_path.to_str().unwrap()])
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(repeated_barrier_release.status.success());
+    let console_connect_after_release = tool.output(&[
+        "psql",
+        "-X",
+        "--tuples-only",
+        "--no-align",
+        "--username",
+        "pixels_admin",
+        "--dbname",
+        "postgres",
+        "--command",
+        "SELECT has_database_privilege('pixels_console_runtime','pixels_console','CONNECT')",
+    ]);
+    assert_eq!(console_connect_after_release, "t");
     assert_eq!(repository.manifests().unwrap(), vec![manifest.clone()]);
     let offsite_root = fixture._base.path().join("offsite-sets");
     fs::create_dir(&offsite_root).unwrap();
@@ -340,26 +476,11 @@ fn real_three_database_archives_restore_from_offsite_after_source_loss_and_detec
     fs::rename(&fixture.root, &unavailable_source_root).unwrap();
     assert!(!fixture.root.exists());
     let set_directory = offsite_root.join(manifest.recovery_set_id.to_string());
-    let admin_password = env::var("PIXELS_TEST_PG_ADMIN_PASSWORD").unwrap();
-    assert_eq!(admin_password.len(), 64);
-    assert!(admin_password
-        .bytes()
-        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)));
     let mut restore_password = "restore_Test-Password_0123456789abcdef";
-    let admin_container_password_command = format!(
-        "umask 077; printf '%s\\n' '127.0.0.1:5432:*:pixels_admin:{admin_password}' > /tmp/pixels-admin.pgpass"
-    );
-    tool.execute(&["sh", "-c", &admin_container_password_command]);
     let restore_container_password_command = format!(
         "umask 077; printf '%s\\n' '127.0.0.1:5432:*:pixels_restore_operator:{restore_password}' > /tmp/pixels-restore.pgpass"
     );
     tool.execute(&["sh", "-c", &restore_container_password_command]);
-    let admin_password_file = fixture._base.path().join("admin.pgpass");
-    px_private_files::private::create_private(
-        &admin_password_file,
-        format!("127.0.0.1:5432:*:pixels_admin:{admin_password}\n").as_bytes(),
-    )
-    .unwrap();
     let restore_password_file = fixture._base.path().join("restore-password.secret");
     px_private_files::private::create_private(&restore_password_file, restore_password.as_bytes())
         .unwrap();
