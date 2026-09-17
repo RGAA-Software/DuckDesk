@@ -43,10 +43,10 @@ $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_no
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_backup') -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
 $sourceFiles += @('rust_server/px_auth_server/Cargo.toml','rust_server/px_auth_server/build.rs')
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_auth_server/src'),(Join-Path $repo 'rust_server/px_auth_server/tests') -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
-$sourceFiles += @('web/px_desk/package.json','web/px_desk/package-lock.json','web/px_desk/vite.config.ts','web/px_desk/index.html')
+$sourceFiles += @('web/px_pixels/package.json','web/px_pixels/package-lock.json','web/px_pixels/vite.config.ts','web/px_pixels/index.html')
 $sourceFiles += @('web/px_auth/package.json','web/px_auth/package-lock.json','web/px_auth/vite.config.ts','web/px_auth/vitest.config.ts','web/px_auth/index.html')
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'web/px_auth/src') -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
-$sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'web/px_desk/src') -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
+$sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'web/px_pixels/src') -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_auth_server/license') -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_auth_server/storage') -File -Recurse -Force | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_pg'),(Join-Path $repo 'rust_server/px_private_files'),(Join-Path $repo 'rust_server/px_release_catalog'),(Join-Path $repo 'deploy/development/postgres'),$PSScriptRoot -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
@@ -267,6 +267,21 @@ try {
         }
         }
     }
+    if ($Action -eq 'Test') {
+        # Infrastructure tests use their own synthetic table, not a product domain schema.
+        # Create it before taking the Linux baseline so both platform runs start identically.
+        Invoke-Checked 'docker' @('exec',$container,'psql','-X','-v','ON_ERROR_STOP=1','-U','pixels_admin','-d','pixels_desk','-c',
+            "CREATE TABLE pixels.pg_fixture(id uuid PRIMARY KEY,version text NOT NULL,created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP); ALTER TABLE pixels.pg_fixture OWNER TO pixels_desk_owner; GRANT SELECT,INSERT,UPDATE,DELETE ON pixels.pg_fixture TO pixels_desk_runtime") | Out-Null
+    }
+    if ($Action -eq 'Test' -and $Linux) {
+        foreach ($service in @('console','auth','desk')) {
+            $baselineDb = "pixels_${service}_linux_baseline"
+            Invoke-Checked 'docker' @('exec',$container,'createdb','-U','pixels_admin','-O',"pixels_${service}_owner",'-T',"pixels_$service",$baselineDb) | Out-Null
+            Invoke-Checked 'docker' @('exec',$container,'psql','-X','-v','ON_ERROR_STOP=1','-U','pixels_admin','-d',$baselineDb,'-c',
+                "REVOKE ALL ON DATABASE $baselineDb FROM PUBLIC; GRANT CONNECT ON DATABASE $baselineDb TO pixels_${service}_owner,pixels_${service}_runtime; REVOKE CREATE ON SCHEMA public FROM PUBLIC") | Out-Null
+        }
+        Add-Step 'LINUX-BASELINE: pristine three-database snapshot isolated before Windows tests'
+    }
     if ($Action -eq 'TestSuite') {
         if ($Suite -eq 'postgres') {
             Invoke-Checked 'docker' @('exec',$container,'psql','-X','-v','ON_ERROR_STOP=1','-U','pixels_admin','-d','pixels_desk','-c',
@@ -322,22 +337,19 @@ try {
     Add-Step 'FILES: private anchored roots, process locks, immutable hash-verified blobs and exact cleanup'
     $backupTests = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_backup','--all-targets','--target-dir',$targetDir)
     Write-Host $backupTests
-    Add-TestCases $backupTests 'native/backup-core' 57
+    Add-TestCases $backupTests 'native/backup-core' 61
     Add-Step 'BACKUP-DAEMON: recovery sets, retention, persistent scheduling, private status/alerts, pinned tools and Windows SCM target compile'
     $backupIntegration = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_backup','--features','pg-integration','--test','postgres','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $backupIntegration
     Add-TestCases $backupIntegration 'native/backup-postgres' 1
     $licenseTests = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_license','--test','contract','--target-dir',$targetDir)
     Add-TestCases $licenseTests 'native/license-contract' 7
-    # Infrastructure tests use their own synthetic table, not a product domain schema.
-    Invoke-Checked 'docker' @('exec',$container,'psql','-X','-v','ON_ERROR_STOP=1','-U','pixels_admin','-d','pixels_desk','-c',
-        "CREATE TABLE pixels.pg_fixture(id uuid PRIMARY KEY,version text NOT NULL,created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP); ALTER TABLE pixels.pg_fixture OWNER TO pixels_desk_owner; GRANT SELECT,INSERT,UPDATE,DELETE ON pixels.pg_fixture TO pixels_desk_runtime") | Out-Null
     $unit = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_pg','--lib','--target-dir',$targetDir)
     Add-TestCases $unit 'native/pg-unit' 2
     Add-Step 'CONFIG: redaction and transport rejection'
     $integration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_pg','--features','pg-integration','--test','postgres','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $integration
-    Add-TestCases $integration 'native/pg-integration' 13
+    Add-TestCases $integration 'native/pg-integration' 14
     $leaseTests = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_pg','--features','pg-integration','--test','lease','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $leaseTests
     Add-TestCases $leaseTests 'native/pg-lease' 6
@@ -346,7 +358,7 @@ try {
     Add-TestCases $schemaGateTests 'native/schema-gate' 4
     Add-Step 'SCHEMA-GATE: every pooled backend pins schema; real migrator/startup/reconnect/process death/cancellation races'
     Add-Step 'LEASE: dedicated process lock, takeover quiet interval, terminal expiry, backend loss and OS-process death'
-    Add-Step 'PG: thirteen database integration cases, including runtime role gates, OS process kill and two-process migration retry'
+    Add-Step 'PG: fourteen database integration cases, including recovery watermarks, runtime role gates, OS process kill and two-process migration retry'
     Use-Service 'console' 'runtime'
     Set-LocalEnv 'DATABASE_URL' $env:PIXELS_DATABASE_URL
     Set-LocalEnv 'SQLX_OFFLINE' 'false'
@@ -513,8 +525,8 @@ try {
     $fingerprints.px_auth_admin = (Get-FileHash -LiteralPath (Join-Path $targetDir 'debug/px_auth_admin.exe')).Hash
     $deskTool = Join-Path $targetDir 'debug/px_desk.exe'
     $fingerprints.px_desk = (Get-FileHash -LiteralPath $deskTool -Algorithm SHA256).Hash
-    Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_desk'),'run','build') | Out-Null
-    $webUnit = Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_desk'),'run','test:unit','--','--run','src/submission.spec.ts')
+    Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_pixels'),'run','build') | Out-Null
+    $webUnit = Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_pixels'),'run','test:unit','--','--run','src/submission.spec.ts')
     if ($webUnit -notmatch '1 passed') { throw 'Desk submission identity unit test missing' }
     Add-Step 'DESK/form-identity: unchanged retry reuses ID; edit and confirmed new submission use new ID'
     Set-LocalEnv 'PIXELS_TEST_CONTAINER' $container
@@ -536,16 +548,24 @@ try {
     }
     $browserResult = Invoke-Checked 'node' @((Join-Path $PSScriptRoot 'desk_browser.cjs'),$deskTool)
     Write-Host $browserResult
-    foreach ($case in @('browser/consult-submit','browser/issue-submit','browser/login-mark-logout-revokes','process/restart-preserves-data-and-revocation','process/database-outage-503-and-recovery')) {
+    foreach ($case in @('browser/consult-submit','api/issue-submit-for-admin-browser','browser/login-mark-logout-revokes','process/restart-preserves-data-and-revocation','process/database-outage-503-and-recovery')) {
         if (-not $browserResult.Contains("PASS $case")) { throw "Desk functional assertion missing: $case" }
         Add-Step "DESK/$case"
     }
     $fingerprints.desk_web = @{}
-    Get-ChildItem -LiteralPath (Join-Path $repo 'web/px_desk/dist') -File -Recurse | ForEach-Object {
-        $fingerprints.desk_web[[IO.Path]::GetRelativePath((Join-Path $repo 'web/px_desk/dist'),$_.FullName)] = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
+    Get-ChildItem -LiteralPath (Join-Path $repo 'web/px_pixels/dist') -File -Recurse | ForEach-Object {
+        $fingerprints.desk_web[[IO.Path]::GetRelativePath((Join-Path $repo 'web/px_pixels/dist'),$_.FullName)] = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
     }
     if ($Linux) {
         if (-not $IsWindows) { throw '-Linux uses WSL and requires the Windows harness' }
+        foreach ($service in @('console','auth','desk')) {
+            $baselineDb = "pixels_${service}_linux_baseline"
+            Invoke-Checked 'docker' @('exec',$container,'dropdb','--force','-U','pixels_admin',"pixels_$service") | Out-Null
+            Invoke-Checked 'docker' @('exec',$container,'createdb','-U','pixels_admin','-O',"pixels_${service}_owner",'-T',$baselineDb,"pixels_$service") | Out-Null
+            Invoke-Checked 'docker' @('exec',$container,'psql','-X','-v','ON_ERROR_STOP=1','-U','pixels_admin','-d',"pixels_$service",'-c',
+                "REVOKE ALL ON DATABASE pixels_$service FROM PUBLIC; GRANT CONNECT ON DATABASE pixels_$service TO pixels_${service}_owner,pixels_${service}_runtime; REVOKE CREATE ON SCHEMA public FROM PUBLIC") | Out-Null
+        }
+        Add-Step 'LINUX-RESET: exact production database names rebuilt from pristine isolated baseline'
         $cargoHome = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path ([Environment]::GetFolderPath('UserProfile')) '.cargo' }
         Set-LocalEnv 'CARGO_HOME' $cargoHome
         $forward = @('CARGO_HOME/p','SQLX_OFFLINE','SQLX_OFFLINE_DIR/p','PIXELS_PG_ISOLATED_TEST','PIXELS_TEST_CONTAINER','PIXELS_DEPLOYMENT_ID','PIXELS_PG_LOCAL_DEVELOPMENT','PIXELS_TEST_PG_ADMIN_PASSWORD')
@@ -569,7 +589,7 @@ try {
         foreach ($service in @('console','auth','desk')) {
             if ($linuxResult -notmatch "READY service=$service") { throw "Linux schema tool failed for $service" }
         }
-        Add-TestCases $linuxResult 'linux' 317
+        Add-TestCases $linuxResult 'linux' $nativeCatalog.Count
         if ($linuxResult -notmatch '(?m)^([a-f0-9]{64})\s+[^\r\n]+/debug/px_db\s*$') { throw 'Missing Linux schema tool hash' }
         $fingerprints.linux_px_db = $Matches[1]
         if ($linuxResult -notmatch '(?m)^([a-f0-9]{64})\s+[^\r\n]+/debug/px_desk\s*$') { throw 'Missing Linux Desk binary hash' }

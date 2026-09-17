@@ -8,7 +8,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const repo = path.resolve(__dirname, '../..')
-const { chromium } = createRequire(path.join(repo, 'web/px_desk/package.json'))('@playwright/test')
+const { chromium } = createRequire(path.join(repo, 'web/px_pixels/package.json'))('@playwright/test')
 assert.equal(process.env.PIXELS_PG_ISOLATED_TEST, '1')
 assert.equal(process.platform, 'win32')
 const executable = process.argv[2], container = process.env.PIXELS_TEST_CONTAINER
@@ -196,7 +196,9 @@ run().catch(error => { console.error(error.message); process.exitCode = 1 }).fin
   if (browser) await browser.close()
   await stopServer()
   if (stopped) docker('start', container)
-  const keyPath = path.join(directory, 'signing.der')
-  if (fs.existsSync(keyPath)) fs.unlinkSync(keyPath)
+  for (const privateFileName of ['signing.der', 'trust-store.json']) {
+    const privateFilePath = path.join(directory, privateFileName)
+    if (fs.existsSync(privateFilePath)) fs.unlinkSync(privateFilePath)
+  }
   fs.rmdirSync(directory)
 })

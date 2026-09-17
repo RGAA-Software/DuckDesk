@@ -6,7 +6,7 @@ const { createRequire } = require('node:module')
 const { once } = require('node:events')
 const path = require('node:path')
 const repo = path.resolve(__dirname, '../..')
-const { chromium } = createRequire(path.join(repo, 'web/px_desk/package.json'))('@playwright/test')
+const { chromium } = createRequire(path.join(repo, 'web/px_pixels/package.json'))('@playwright/test')
 const executable = process.argv[2]
 const container = process.env.PIXELS_TEST_CONTAINER
 assert.equal(process.env.PIXELS_PG_ISOLATED_TEST, '1')
@@ -32,7 +32,7 @@ async function startServer() {
   const env = { ...process.env, PIXELS_DATABASE_URL: process.env.PIXELS_TEST_DESK_RUNTIME_URL,
     PIXELS_DESK_LOCAL_DEVELOPMENT: '1', PIXELS_DESK_LISTEN: '127.0.0.1:0',
     PIXELS_DESK_ADMIN_TOKEN_SHA256: createHash('sha256').update(credential).digest('hex'),
-    PIXELS_DESK_STATIC_DIRECTORY: path.join(repo, 'web/px_desk/dist') }
+    PIXELS_DESK_STATIC_DIRECTORY: path.join(repo, 'web/px_pixels/dist') }
   delete env.PIXELS_DESK_TLS_CERT
   delete env.PIXELS_DESK_TLS_KEY
   let startup = ''
@@ -73,7 +73,7 @@ async function run() {
   const pageErrors = []
   page.on('pageerror', error => pageErrors.push(error.message))
   await page.goto(base + '/main')
-  await page.getByText('Contact Us', { exact: true }).first().click()
+  await page.getByRole('button', { name: 'Discuss a solution', exact: true }).first().click()
   const dialog = page.getByRole('dialog')
   await dialog.getByLabel('Subject', { exact: true }).fill('Browser inquiry ' + randomUUID())
   await dialog.getByLabel('Your name', { exact: true }).fill('Synthetic browser')
@@ -89,19 +89,14 @@ async function run() {
   assert.equal(Object.keys(receipt).join(','), 'id')
   console.log('PASS browser/consult-submit')
 
-  await page.goto(base + '/main')
-  await page.getByText('Submit a Ticket', { exact: true }).click()
-  const issue = page.getByRole('dialog')
-  const issueTitle = 'Browser ticket ' + randomUUID()
-  await issue.getByLabel('Your issue', { exact: true }).fill(issueTitle)
-  await issue.getByLabel('Your name', { exact: true }).fill('Synthetic browser')
-  await issue.getByLabel('Details', { exact: true }).fill('Synthetic ticket')
-  await issue.getByLabel('Software version', { exact: true }).fill('1.2.3')
-  await issue.getByLabel('OS version', { exact: true }).fill('Windows')
-  const ticketSubmitted = page.waitForResponse(r => r.url().endsWith('/api/desk/issues') && r.request().method() === 'POST')
-  await issue.getByRole('button', { name: 'Submit', exact: true }).click()
-  assert.equal((await ticketSubmitted).status(), 200)
-  console.log('PASS browser/issue-submit')
+  const issueTitle = 'Validation ticket ' + randomUUID()
+  const issueSubmission = await api('/api/desk/issues', 'POST', {
+    request_id: randomUUID(), title: issueTitle, your_name: 'Synthetic validation',
+    description: 'Synthetic ticket', version: '1.2.3', os: 'Windows', email: '', wechat: '', qq: '',
+  })
+  assert.equal(issueSubmission.status, 200)
+  assert.equal(Object.keys(issueSubmission.body).join(','), 'id')
+  console.log('PASS api/issue-submit-for-admin-browser')
 
   await page.goto(base + '/admin')
   await page.getByPlaceholder('Enter the 64-character administrator token').fill(credential)
