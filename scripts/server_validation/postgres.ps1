@@ -54,9 +54,9 @@ $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_de
 foreach ($service in @('console','auth','desk')) {
     $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo "rust_server/px_${service}_server/migrations") -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
 }
-if ($Action -eq 'TestSuite' -and $Suite -in @('backup','backup-pg')) {
-    # Backup-focused checks do not build either web application. Excluding them also lets
-    # frontend work continue without invalidating an unrelated long-running PG restore test.
+if ($Action -eq 'TestSuite') {
+    # Focused native checks do not build either web application. Excluding them also lets
+    # frontend work continue without invalidating an unrelated long-running native test.
     $sourceFiles = @($sourceFiles | Where-Object { $_ -notmatch '^web[\\/]' })
 }
 $sourceHashes = @{}
@@ -272,7 +272,7 @@ try {
             Invoke-Checked 'docker' @('exec',$container,'psql','-X','-v','ON_ERROR_STOP=1','-U','pixels_admin','-d','pixels_desk','-c',
                 "CREATE TABLE pixels.pg_fixture(id uuid PRIMARY KEY,version text NOT NULL,created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP); ALTER TABLE pixels.pg_fixture OWNER TO pixels_desk_owner; GRANT SELECT,INSERT,UPDATE,DELETE ON pixels.pg_fixture TO pixels_desk_runtime") | Out-Null
         }
-        $suiteCounts = @{unit=19;identity=12;control=8;devices=8;applications=8;guests=9;nodes=7;deployments=6;instances=10;commands=16;workspaces=6;database=2;sessions=10;transfers=8;recordings=6;preferences=7;files=8;backup=51;'backup-pg'=1;cache=16;activity=8;updates=7;desk=7;catalog=4;lease=6;postgres=13;accounts=9}
+        $suiteCounts = @{unit=19;identity=12;control=8;devices=8;applications=8;guests=9;nodes=7;deployments=6;instances=10;commands=16;workspaces=6;database=2;sessions=10;transfers=8;recordings=6;preferences=7;files=8;backup=51;'backup-pg'=1;cache=16;activity=8;updates=7;desk=7;catalog=4;lease=6;postgres=14;accounts=9}
         $suiteCounts['console-api'] = 5
         $suiteCounts['directory-api'] = 5
         $suiteCounts['node-control'] = 1
@@ -569,7 +569,7 @@ try {
         foreach ($service in @('console','auth','desk')) {
             if ($linuxResult -notmatch "READY service=$service") { throw "Linux schema tool failed for $service" }
         }
-        Add-TestCases $linuxResult 'linux' 315
+        Add-TestCases $linuxResult 'linux' 316
         if ($linuxResult -notmatch '(?m)^([a-f0-9]{64})\s+[^\r\n]+/debug/px_db\s*$') { throw 'Missing Linux schema tool hash' }
         $fingerprints.linux_px_db = $Matches[1]
         if ($linuxResult -notmatch '(?m)^([a-f0-9]{64})\s+[^\r\n]+/debug/px_desk\s*$') { throw 'Missing Linux Desk binary hash' }

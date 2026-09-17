@@ -118,6 +118,66 @@ async fn runtime_cannot_migrate_ddl_or_modify_identity_and_ledger() {
 }
 
 #[tokio::test]
+async fn recovery_security_watermarks_advance_for_every_business_table_and_are_runtime_read_only() {
+    for service in [Service::Console, Service::Auth, Service::Desk] {
+        let owner = pool(service, true).await;
+        let runtime = pool(service, false).await;
+        let (recovery_generation, sequence_before): (Uuid, i64) = sqlx::query_as(
+            "SELECT recovery_generation,security_sequence FROM pixels.recovery_security_state WHERE singleton",
+        )
+        .fetch_one(&runtime)
+        .await
+        .unwrap();
+        assert!(!recovery_generation.is_nil());
+        assert!(sequence_before > 0);
+
+        let protected_table_count: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema='pixels' AND table_type='BASE TABLE' AND table_name NOT IN ('_sqlx_migrations','deployment_identity','recovery_security_state','pg_fixture')",
+        )
+        .fetch_one(&owner)
+        .await
+        .unwrap();
+        let trigger_count: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM pg_catalog.pg_trigger AS trigger_record JOIN pg_catalog.pg_class AS table_record ON table_record.oid=trigger_record.tgrelid JOIN pg_catalog.pg_namespace AS schema_record ON schema_record.oid=table_record.relnamespace WHERE schema_record.nspname='pixels' AND trigger_record.tgname='recovery_security_advance' AND NOT trigger_record.tgisinternal",
+        )
+        .fetch_one(&owner)
+        .await
+        .unwrap();
+        assert_eq!(trigger_count, protected_table_count);
+
+        let business_statement = match service {
+            Service::Console => "UPDATE pixels.users SET username=username WHERE FALSE",
+            Service::Auth => "UPDATE pixels.customers SET name=name WHERE FALSE",
+            Service::Desk => "UPDATE pixels.feedback SET title=title WHERE FALSE",
+        };
+        sqlx::query(business_statement)
+            .execute(&owner)
+            .await
+            .unwrap();
+        let sequence_after: i64 = sqlx::query_scalar(
+            "SELECT security_sequence FROM pixels.recovery_security_state WHERE singleton",
+        )
+        .fetch_one(&runtime)
+        .await
+        .unwrap();
+        assert_eq!(sequence_after, sequence_before + 1);
+
+        let runtime_mutation = sqlx::query(
+            "UPDATE pixels.recovery_security_state SET security_sequence=security_sequence+1 WHERE singleton",
+        )
+        .execute(&runtime)
+        .await
+        .unwrap_err();
+        assert_eq!(
+            DatabaseError::from(runtime_mutation),
+            DatabaseError::Permission
+        );
+        runtime.close().await;
+        owner.close().await;
+    }
+}
+
+#[tokio::test]
 async fn roles_cannot_connect_to_other_service_databases() {
     for source in [Service::Console, Service::Auth, Service::Desk] {
         for target in [Service::Console, Service::Auth, Service::Desk] {

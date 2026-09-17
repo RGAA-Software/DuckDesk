@@ -224,9 +224,9 @@ fn target(fixture: &Fixture, service: BackupService, database: &str) -> BackupTa
 
 fn expected_schema_version(service: BackupService) -> u32 {
     match service {
-        BackupService::Console => 22,
-        BackupService::Auth => 3,
-        BackupService::Desk => 2,
+        BackupService::Console => 23,
+        BackupService::Auth => 4,
+        BackupService::Desk => 3,
     }
 }
 

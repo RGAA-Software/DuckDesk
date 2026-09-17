@@ -246,6 +246,10 @@ Linux 使用 `deploy/systemd/pixels-backup@.service` 模板承载同一个执行
    这里是依赖校验顺序，不允许服务直接跨库读表或恢复工具擅自签发许可证。
 4. 备份后已撤销授权不得复活；已发生但 DB 未记录的签发/发布/节点执行不得重复。通过受保护外部审计水位、服务 API 和节点事实对账；
    证据不全或水位不一致时保持维护，显式处理 RecoveryRequired，不猜测“较新的库一定正确”。
+   三库各自持有 owner 管理、runtime 只读的 `pixels.recovery_security_state`，包含随机 recovery generation 和从 1 开始的单调安全序列；
+   当前 migration 为所有已有业务表安装语句级触发器，任何 INSERT/UPDATE/DELETE/TRUNCATE（即使零行匹配）都会推进序列。新增 migration
+   若创建业务表，必须在同一 migration 安装同名触发器并由 schema 门禁核对全覆盖；测试专用表不属于产品清单。备份证明记录 generation/
+   sequence 的规范摘要，库外见证持有最后可信值；runtime 账号不得更新水位表或触发器函数。
 5. 提升恢复授权/控制代际，隔离旧 owner，与 Service 对账后按依赖先恢复必要签发/验证和元数据服务，再开放 Console 新业务；
    私有离线验证不等待官方 Auth。记录差异、处理人和恢复验收，不能以三个库各自 pg_restore 成功作为整体成功。
 
