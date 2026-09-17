@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.authorization_outbox SET available_at=clock_timestamp()+make_interval(secs=>$3),last_error=$4,lease_id=NULL,lease_until=NULL\nWHERE id=$1 AND lease_id=$2 AND lease_until>clock_timestamp() AND delivered_at IS NULL\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Float8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5327f5bda500ab5a9b116712e1d51f4601a1f7be2ac0f59b828ea9eee14e5d0b"
+}

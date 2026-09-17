@@ -132,8 +132,8 @@ try {
                     [System.Collections.Generic.List[string]]::new()
             }
             $addedCodeByFile[$currentFile].Add($added)
-            if ($added.Length -gt 150) {
-                $violations.Add("${currentFile}: line exceeds the project limit of 150 characters ($($added.Length)): $added")
+            if ($added.Length -gt 80) {
+                $violations.Add("${currentFile}: line exceeds the Google Style limit of 80 characters ($($added.Length)): $added")
             }
             # Comment-only additions cannot introduce ownership or lifetime
             # behavior. Ignoring them also prevents prose such as "new path"
@@ -188,7 +188,7 @@ try {
         Write-Error ("C++ ownership check failed ({0} violation(s)):`n{1}" -f
             $violations.Count, ($violations -join "`n"))
     }
-    Write-Host "C++ quality check passed: no new raw-pointer declarations, manual ownership, Qt parent ownership transfers, [this] captures, or lines over 150 characters."
+    Write-Host "C++ quality check passed: no new raw-pointer declarations, manual ownership, Qt parent ownership transfers, [this] captures, or lines over 80 characters."
 }
 finally {
     Pop-Location

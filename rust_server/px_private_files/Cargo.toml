@@ -1,0 +1,32 @@
+[package]
+name = "px_private_files"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+
+[dependencies]
+uuid = { version = "1", features = ["v4"] }
+sha2 = "0.10"
+zeroize = "1.8"
+fs2 = "=0.4.3"
+thiserror = "2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation","Win32_Security","Win32_Security_Authorization","Win32_System_Threading","Win32_Storage_FileSystem"] }
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+tempfile = "3"
+
+[[bin]]
+name = "px_cache_probe"
+path = "src/bin/cache_probe.rs"
+required-features = ["integration-probe"]
+
+[features]
+integration-probe = []
+
+[[test]]
+name = "cache_files"
+required-features = ["integration-probe"]

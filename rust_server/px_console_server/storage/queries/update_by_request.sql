@@ -1,0 +1,1 @@
+SELECT id,request_hash,product,distribution,channel,os,architecture,build_number,version,artifact_url,sha256,size_bytes,metadata_url,metadata_sha256,state,revision,created_at,updated_at FROM pixels.update_releases WHERE registered_by=$1 AND request_id=$2

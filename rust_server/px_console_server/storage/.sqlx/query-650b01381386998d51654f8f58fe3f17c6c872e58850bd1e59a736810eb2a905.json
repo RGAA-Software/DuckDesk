@@ -1,0 +1,83 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id,application_id,deployment_id,node_id,account_name,windows_sid,state,revision,credential_revision,created_at,updated_at FROM pixels.rdp_workspaces WHERE ($1::uuid IS NULL OR id>$1) ORDER BY id LIMIT $2\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "application_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "deployment_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "node_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "account_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "windows_sid",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "credential_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "650b01381386998d51654f8f58fe3f17c6c872e58850bd1e59a736810eb2a905"
+}

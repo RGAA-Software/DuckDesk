@@ -1,5 +1,7 @@
 # px_auth Linux / CN 部署记录
 
+> 历史部署记录（2026-09-10），仅供资产/当时状态核对，不是当前部署操作手册。Auth 已改为 PostgreSQL，新配置以 [Auth 运行说明](px_auth_server_runtime_config.md) 为准；本轮尚未升级公网实例。以下旧 API/TOML/签名操作不可用于新服务。
+
 日期：2026-09-10。
 
 本服务作为统一授权节点；Console、Render 与客户端使用当前公网配置连接。

@@ -1,0 +1,45 @@
+[package]
+name = "px_pg"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+
+[features]
+pg-integration = []
+
+[dependencies]
+sqlx = { version = "=0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "migrate", "macros", "uuid"] }
+tokio = { version = "1.43.0", features = ["macros", "rt-multi-thread", "time"] }
+uuid = { version = "1.15.1", features = ["v4"] }
+url = "2.5"
+thiserror = "2.0.17"
+
+[[test]]
+name = "postgres"
+required-features = ["pg-integration"]
+
+[dev-dependencies]
+px_credentials = { path = "../px_credentials" }
+
+[[bin]]
+name = "px_pg_fault"
+path = "tests/support/fault.rs"
+required-features = ["pg-integration"]
+
+[[test]]
+name = "lease"
+required-features = ["pg-integration"]
+
+[[bin]]
+name = "px_pg_lease_probe"
+path = "tests/support/lease_probe.rs"
+required-features = ["pg-integration"]
+
+[[test]]
+name = "schema_gate"
+required-features = ["pg-integration"]
+
+[[bin]]
+name = "px_pg_schema_probe"
+path = "tests/support/schema_probe.rs"
+required-features = ["pg-integration"]

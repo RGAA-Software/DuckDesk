@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.workspace_secrets(workspace_id,schema_version,key_id,nonce,ciphertext) VALUES($1,1,$2,$3,$4)\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Bytea",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5199abed66d4977d276b86325ce1f4da28c34ed40d4cc68eebdc32e59746dd4a"
+}

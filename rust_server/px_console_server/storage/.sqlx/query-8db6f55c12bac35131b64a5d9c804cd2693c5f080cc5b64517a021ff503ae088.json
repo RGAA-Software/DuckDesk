@@ -1,0 +1,137 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.resource_sessions SET state=$2,revision=revision+1,\ndescriptor_hash=NULL,descriptor_expires_at=NULL,\nclosed_at=CASE WHEN $2='closed' THEN clock_timestamp() ELSE NULL END\nWHERE id=$1 AND closed_at IS NULL RETURNING id,target_kind,device_id,application_id,instance_id,node_id,owner_user,owner_guest,login_session_id,owner_revision,client_type,access_role,request_hash,state,revision,node_generation,control_epoch,endpoint_revision,created_at,closed_at\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "target_kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "device_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "application_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "instance_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "node_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "owner_user",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 7,
+        "name": "owner_guest",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 8,
+        "name": "login_session_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 9,
+        "name": "owner_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "client_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "access_role",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "request_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 13,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 15,
+        "name": "node_generation",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 16,
+        "name": "control_epoch",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 17,
+        "name": "endpoint_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 18,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 19,
+        "name": "closed_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "8db6f55c12bac35131b64a5d9c804cd2693c5f080cc5b64517a021ff503ae088"
+}

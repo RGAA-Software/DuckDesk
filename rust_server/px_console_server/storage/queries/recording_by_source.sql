@@ -1,0 +1,1 @@
+SELECT id,node_id,session_id,file_name,size_bytes,modified_at,codec,metadata_hash,reported_present,node_generation,control_epoch,source_sequence,revision,created_at,observed_at FROM pixels.recordings WHERE node_id=$1 AND source_id=$2 FOR UPDATE

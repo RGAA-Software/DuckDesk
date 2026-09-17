@@ -3,3 +3,13 @@ scripts_build/*.bat text eol=crlf
 backup/** -text
 # Keep the source-dependency fingerprint identical on all developer machines.
 third_party/freerdp/vcpkg.json text eol=lf
+deploy/development/postgres/*.sh text eol=lf
+deploy/development/postgres/*.yaml text eol=lf
+rust_server/px_*_server/migrations/*.sql text eol=lf
+rust_server/px_console_server/storage/queries/*.sql text eol=lf
+rust_server/px_console_server/storage/.sqlx/*.json text eol=lf
+rust_server/px_desk_server/queries/*.sql text eol=lf
+rust_server/px_desk_server/.sqlx/*.json text eol=lf
+rust_server/px_auth_server/storage/queries/*.sql text eol=lf
+rust_server/px_auth_server/storage/.sqlx/*.json text eol=lf
+scripts/server_validation/*.sh text eol=lf

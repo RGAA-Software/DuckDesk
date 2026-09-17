@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT a.id,a.role FROM pixels.authors a JOIN pixels.author_sessions s ON s.author_id=a.id\n             WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>clock_timestamp()\n             AND s.authorization_revision=a.authorization_revision FOR SHARE OF a,s\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "role",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "c4df721062f878bd2fd45e69c33ae9c160d4514fbc635db3abbdbc92ca78c774"
+}

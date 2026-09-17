@@ -1,0 +1,1 @@
+UPDATE pixels.nodes SET deleted_at=clock_timestamp(),revision=revision+1,generation=generation+1,connection_hash=NULL,state='offline',reconciliation_id=NULL,reconciliation_deadline=NULL WHERE id=$1 RETURNING revision

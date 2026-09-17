@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE(sum(size_bytes),0)::bigint AS \"reserved!\",\ncount(*) FILTER(WHERE state='fetching' AND run_id=$2 AND lease_until>clock_timestamp() AND deadline>clock_timestamp()) AS \"active!\"\nFROM pixels.cache_blobs WHERE root_id=$1 AND state<>'deleted'\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "reserved!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "active!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "df76ede5f6cdb8793d53b4e26649dab01599d3e9e9889fdafe64bfc3f16b21e1"
+}

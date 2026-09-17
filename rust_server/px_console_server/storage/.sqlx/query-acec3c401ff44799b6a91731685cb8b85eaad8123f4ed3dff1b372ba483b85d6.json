@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.instance_commands SET state='completed',lease_id=NULL,lease_until=NULL,completed_at=clock_timestamp(),outcome=$2,completed_lease_id=$3 WHERE id=$1\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "acec3c401ff44799b6a91731685cb8b85eaad8123f4ed3dff1b372ba483b85d6"
+}

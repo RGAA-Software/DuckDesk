@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.guest_blocks(guest_id,actor_id,reason) VALUES($1,$2,$3)\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fe6027b8d38aefe7bad536bd9b35a735481239aa2b380597ed303a6df0db6d39"
+}

@@ -1,0 +1,1 @@
+SELECT i.id,i.application_id,i.node_id,i.owner_user,i.owner_guest,i.client_type,i.request_hash,i.state,i.revision,i.node_generation,i.control_epoch,i.created_at,i.ended_at,i.deployment_id,i.launch_id,i.desired_state,i.application_revision,i.deployment_revision,i.endpoint_revision,i.port FROM pixels.instances i WHERE node_id=$1 AND ended_at IS NULL ORDER BY id LIMIT 129 FOR UPDATE

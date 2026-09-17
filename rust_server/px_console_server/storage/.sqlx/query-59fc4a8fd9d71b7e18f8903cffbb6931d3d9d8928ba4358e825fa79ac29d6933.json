@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS(SELECT 1 FROM pixels.resource_sessions WHERE id=$1 AND state='connected'\nAND access_role='controller' AND descriptor_expires_at>clock_timestamp()) AS \"ready!\"\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "ready!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "59fc4a8fd9d71b7e18f8903cffbb6931d3d9d8928ba4358e825fa79ac29d6933"
+}

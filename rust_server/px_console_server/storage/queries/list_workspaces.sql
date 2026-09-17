@@ -1,0 +1,1 @@
+SELECT id,application_id,deployment_id,node_id,account_name,windows_sid,state,revision,credential_revision,created_at,updated_at FROM pixels.rdp_workspaces WHERE ($1::uuid IS NULL OR id>$1) ORDER BY id LIMIT $2

@@ -1,0 +1,2 @@
+UPDATE pixels.nodes SET credential_hash=$2,revision=revision+1,generation=generation+1,connection_hash=NULL,state='offline',reconciliation_id=NULL,reconciliation_deadline=NULL WHERE id=$1
+RETURNING id,device_id,product,revision,generation,control_epoch,state,draining,disabled,max_instances,report_sequence,last_seen,product_version_code,public_host,desktop_port,application_port_start,application_port_end,game_hook,webview,rdp,endpoint_revision,false AS "fresh!"

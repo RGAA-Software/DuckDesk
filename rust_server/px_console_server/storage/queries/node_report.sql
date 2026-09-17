@@ -1,0 +1,10 @@
+UPDATE pixels.nodes n SET report_sequence=$4,last_seen=clock_timestamp(),product_version_code=$5,
+endpoint_revision=n.endpoint_revision+CASE WHEN n.public_host IS DISTINCT FROM $6 OR n.desktop_port IS DISTINCT FROM $7 OR n.application_port_start IS DISTINCT FROM $8 OR n.application_port_end IS DISTINCT FROM $9 THEN 1 ELSE 0 END,
+state=CASE WHEN n.public_host IS DISTINCT FROM $6 OR n.desktop_port IS DISTINCT FROM $7 OR n.application_port_start IS DISTINCT FROM $8 OR n.application_port_end IS DISTINCT FROM $9 OR n.game_hook<>$10 OR n.webview<>$11 OR n.rdp<>$12 OR n.last_seen<=statement_timestamp()-interval '30 seconds' THEN 'reconciling' ELSE n.state END,
+reconciliation_id=CASE WHEN n.public_host IS DISTINCT FROM $6 OR n.desktop_port IS DISTINCT FROM $7 OR n.application_port_start IS DISTINCT FROM $8 OR n.application_port_end IS DISTINCT FROM $9 OR n.game_hook<>$10 OR n.webview<>$11 OR n.rdp<>$12 OR n.last_seen<=statement_timestamp()-interval '30 seconds' THEN NULL ELSE n.reconciliation_id END,
+reconciliation_deadline=CASE WHEN n.public_host IS DISTINCT FROM $6 OR n.desktop_port IS DISTINCT FROM $7 OR n.application_port_start IS DISTINCT FROM $8 OR n.application_port_end IS DISTINCT FROM $9 OR n.game_hook<>$10 OR n.webview<>$11 OR n.rdp<>$12 OR n.last_seen<=statement_timestamp()-interval '30 seconds' THEN NULL ELSE n.reconciliation_deadline END,
+public_host=$6,desktop_port=$7,application_port_start=$8,application_port_end=$9,game_hook=$10,webview=$11,rdp=$12
+WHERE n.connection_hash=$1 AND n.generation=$2 AND n.control_epoch=$3 AND $3=(SELECT epoch FROM pixels.control_runtime)
+AND $4>n.report_sequence AND NOT n.disabled AND n.deleted_at IS NULL
+AND EXISTS(SELECT 1 FROM pixels.devices d WHERE d.id=n.device_id AND NOT d.disabled AND d.deleted_at IS NULL)
+RETURNING id,device_id,product,revision,generation,control_epoch,state,draining,disabled,max_instances,report_sequence,last_seen,product_version_code,public_host,desktop_port,application_port_start,application_port_end,game_hook,webview,rdp,endpoint_revision,true AS "fresh!"

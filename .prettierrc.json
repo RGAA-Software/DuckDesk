@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/prettierrc",
+  "overrides": [
+    {
+      "files": ["**/*.{ts,tsx,mts,cts,vue}"],
+      "options": {
+        "tabWidth": 4,
+        "useTabs": false,
+        "semi": true,
+        "singleQuote": false,
+        "arrowParens": "avoid",
+        "printWidth": 100
+      }
+    }
+  ]
+}

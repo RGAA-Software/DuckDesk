@@ -1,0 +1,1 @@
+SELECT id,name,kind,access_mode,entry_url,executable_relative,arguments,bitrate_kbps,codec,allow_observer,allow_takeover,disabled,revision,access_revision FROM pixels.applications WHERE deleted_at IS NULL AND ($1::uuid IS NULL OR id>$1) ORDER BY id LIMIT $2

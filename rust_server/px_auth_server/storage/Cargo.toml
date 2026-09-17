@@ -1,0 +1,29 @@
+[package]
+name = "px_auth_store"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+pg-integration = []
+
+[dependencies]
+px_credentials = { path = "../../px_credentials" }
+px_pg = { path = "../../px_pg" }
+px_license = { path = "../license" }
+sqlx = { version = "=0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "migrate", "macros", "uuid", "chrono"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+thiserror = "2"
+zeroize = "1.8"
+
+[dev-dependencies]
+argon2 = "0.5"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
+hex = "0.4"
+
+[[test]]
+name = "issuance"
+required-features = ["pg-integration"]

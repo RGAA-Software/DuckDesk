@@ -1,0 +1,138 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT i.id,i.application_id,i.node_id,i.owner_user,i.owner_guest,i.client_type,i.request_hash,i.state,i.revision,i.node_generation,i.control_epoch,i.created_at,i.ended_at,i.deployment_id,i.launch_id,i.desired_state,i.application_revision,i.deployment_revision,i.endpoint_revision,i.port FROM pixels.instances i WHERE i.request_id=$1 AND (i.owner_user=$2 OR i.owner_guest=$3)\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "application_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "node_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "owner_user",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "owner_guest",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "client_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "request_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 7,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "node_generation",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "control_epoch",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "ended_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "deployment_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 14,
+        "name": "launch_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 15,
+        "name": "desired_state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "application_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 17,
+        "name": "deployment_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 18,
+        "name": "endpoint_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 19,
+        "name": "port",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "08274d344022d6de0ced852f664fa64d22ad6d1ba43dcc9810920a223f0328f1"
+}

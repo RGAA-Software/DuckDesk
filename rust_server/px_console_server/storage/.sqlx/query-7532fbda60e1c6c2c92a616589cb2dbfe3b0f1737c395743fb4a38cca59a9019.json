@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM pixels.user_devices WHERE device_id=$1\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7532fbda60e1c6c2c92a616589cb2dbfe3b0f1737c395743fb4a38cca59a9019"
+}

@@ -1,5 +1,14 @@
 [workspace]
 members = [
+    "px_credentials",
+    "px_node_protocol",
+    "px_console_server/runtime",
+    "px_release_catalog",
+    "px_private_files",
+    "px_pg",
+    "px_console_server/storage",
+    "px_auth_server/license",
+    "px_auth_server/storage",
     "px_desk_server",
     "px_auth_server",
     "px_console_server",

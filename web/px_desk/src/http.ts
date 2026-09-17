@@ -1,20 +1,5 @@
-import axios from 'axios'
+import axios from "axios";
 
-// 获取基础URL：dev 环境指向本地 px_desk_server，prod 同源
-export const getBaseURL = () => {
-  const { protocol, hostname, port } = window.location
-
-  if (import.meta.env.DEV) {
-    return 'https://127.0.0.1:5001'
-  }
-
-  const basePort = port ? `:${port}` : ''
-  return `${protocol}//${hostname}${basePort}`
-}
-
-const axiosHttp = axios.create({
-  baseURL: getBaseURL(),
-  timeout: 5000,
-})
-
-export default axiosHttp
+// Both development (explicit Vite proxy) and deployed assets use the page origin.
+export const getBaseURL = () => window.location.origin;
+export default axios.create({ baseURL: getBaseURL(), timeout: 20000 });

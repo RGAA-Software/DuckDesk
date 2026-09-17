@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS(SELECT 1 FROM pixels.cache_runtime c JOIN pixels.cache_runs r ON r.id=c.run_id\nWHERE r.id=$1 AND r.root_id=$2 AND r.control_epoch=$3 AND r.control_epoch=(SELECT epoch FROM pixels.control_runtime)) AS \"current!\"\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "current!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "a340f75d8c092b6cee465f2fea85429bb6f127485f51bc615cff84bcc5075e85"
+}

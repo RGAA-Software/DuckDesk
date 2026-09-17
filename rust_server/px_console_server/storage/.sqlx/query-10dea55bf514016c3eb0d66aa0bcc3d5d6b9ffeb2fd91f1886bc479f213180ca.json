@@ -1,0 +1,59 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT g.id,g.client_type,g.created_at,g.expires_at,g.revoked_at,g.revision,\n (EXISTS(SELECT 1 FROM pixels.guest_blocks b WHERE b.guest_id=g.id)\n OR EXISTS(SELECT 1 FROM pixels.guest_source_blocks b WHERE b.source_hash=g.source_hash AND b.expires_at>clock_timestamp())) AS \"blocked!\"\nFROM pixels.guest_sessions g WHERE ($1::uuid IS NULL OR g.id>$1) ORDER BY g.id LIMIT $2\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "client_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 3,
+        "name": "expires_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "revoked_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "blocked!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      null
+    ]
+  },
+  "hash": "10dea55bf514016c3eb0d66aa0bcc3d5d6b9ffeb2fd91f1886bc479f213180ca"
+}

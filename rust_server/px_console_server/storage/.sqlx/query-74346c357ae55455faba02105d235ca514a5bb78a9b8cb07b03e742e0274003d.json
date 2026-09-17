@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.nodes SET connection_hash=NULL,state='offline',reconciliation_id=NULL,reconciliation_deadline=NULL,generation=generation+1\nWHERE device_id=$1 AND deleted_at IS NULL\nRETURNING id\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "74346c357ae55455faba02105d235ca514a5bb78a9b8cb07b03e742e0274003d"
+}

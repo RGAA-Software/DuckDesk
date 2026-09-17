@@ -1,0 +1,56 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.guest_sessions(id,token_hash,client_type,created_at,expires_at,source_hash)\nSELECT $1,$2,$3,statement_timestamp(),statement_timestamp()+make_interval(secs=>$4),$5\nWHERE NOT EXISTS(SELECT 1 FROM pixels.guest_source_blocks WHERE source_hash=$5 AND expires_at>clock_timestamp())\nRETURNING id,client_type,created_at,expires_at,revoked_at,revision\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "client_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 3,
+        "name": "expires_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "revoked_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "revision",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea",
+        "Text",
+        "Float8",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "88797d42fcbef64a5e0afdfd0c0d2ed9a566ef131b22766edd11b01d8da37cdb"
+}

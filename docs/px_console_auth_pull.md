@@ -1,5 +1,7 @@
 # GoDesk Console 网络上报授权说明
 
+> 待改造的旧 Console 实现说明，不适用于已改造 Auth。Console 仍须在 DB2/DB3 同步切到 [新许可证协议](postgresql_license_contract.md)；当前不能混合部署新 Auth 与旧 Console，也不提供协议回退。
+
 Console（px_console_server）的授权模式已从"管理员手工创建授权 → 下载 deploy string → 登录页粘贴/上传 license 文件"改为与 gopico / clientbox / goagent 一致的 **设备主动上报 + 服务器授权** 模式。手工上传 license 的后端入口（`POST /api/v1/auth/control/update/authorization`）已移除。
 
 ## 工作流程

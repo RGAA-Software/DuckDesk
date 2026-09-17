@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.nodes SET deleted_at=clock_timestamp(),revision=revision+1,generation=generation+1,connection_hash=NULL,state='offline',reconciliation_id=NULL,reconciliation_deadline=NULL WHERE id=$1 RETURNING revision\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "revision",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f4ca764cc3f1595d12e126153c26a991167ca72be33838313bbcd06e1a83a5eb"
+}

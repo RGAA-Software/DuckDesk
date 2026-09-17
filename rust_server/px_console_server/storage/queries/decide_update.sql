@@ -1,0 +1,1 @@
+UPDATE pixels.update_releases SET state=$2,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 RETURNING id,request_hash,product,distribution,channel,os,architecture,build_number,version,artifact_url,sha256,size_bytes,metadata_url,metadata_sha256,state,revision,created_at,updated_at

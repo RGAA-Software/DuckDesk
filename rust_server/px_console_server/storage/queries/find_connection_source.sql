@@ -1,0 +1,1 @@
+SELECT id,source_id,session_id,node_id,node_generation,control_epoch,kind,request_hash,state,reason,sent_bytes,received_bytes,elapsed_ms,sequence,report_hash,revision,created_at,updated_at,ended_at FROM pixels.connection_observations WHERE node_id=$1 AND source_id=$2 FOR UPDATE

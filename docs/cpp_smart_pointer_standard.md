@@ -141,11 +141,12 @@ add abstraction.
 
 ## Formatting
 
-Project-authored C++ uses the repository `.clang-format` and a hard 150-column
-limit. Keep code on one line while it fits within 150 columns; wrap when it exceeds
-that limit or when a deliberate multiline table, initializer, fluent expression,
-or algorithmic grouping is materially clearer. Do not retain legacy 80-column
-wrapping in newly written code merely for consistency with nearby code.
+The 2026-09-17 user decision adopts Google C++ Style, four-space indentation and
+an 80-column limit through the repository `.clang-format`. This supersedes the
+previous LLVM/150-column policy. Four-space indentation is the user's explicit
+override of Google's default. See [language styles](coding_style.md).
+Ownership, deterministic initialization and asynchronous safety remain stricter
+project requirements; Google examples do not waive these gates.
 
 Generated sources, vendored/read-only third-party trees, URLs, and unavoidable
 external literals are exempt. Formatting a touched file must not become a
@@ -258,14 +259,14 @@ lifecycle workflow/state machine, and RAII cleanup token where those concepts
 apply; naming a design pattern without enforcing these invariants is insufficient.
 
 Run `clang-format --style=file --dry-run --Werror` on changed project-owned C++
-files. The root configuration enforces the 150-column policy. Do not include
+files. The root configuration enforces Google Style and the 80-column policy. Do not include
 generated or read-only third-party sources in a mechanical formatting pass.
 
 Run `cmake --build build_official/<product>/cmake --target check_cpp_ownership` before native
 code review. The checker examines added lines in the working tree and rejects
 raw-pointer declarations in locals/members/parameters/results, asynchronous
 `this` captures, manual `new`/`delete`, unreviewed smart-pointer `release()` and
-project-authored lines over 150 columns. `scripts/check_cpp_ownership.ps1 -Staged`
+project-authored lines over 80 columns. `scripts/check_cpp_ownership.ps1 -Staged`
 applies the same gate to the staged patch. A required transient C/OS/Qt/third-party
 boundary must carry `NOLINT(pixels-raw-pointer-boundary)` on the declaration line
 and state its lifetime reason in adjacent code or review. `-ReportAll` inventories historical debt for incremental

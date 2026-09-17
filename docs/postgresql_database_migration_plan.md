@@ -1,6 +1,6 @@
 # PostgreSQL 数据库前置改造、备份与升级方案
 
-> 决策日期：2026-09-16。用户已确定 PostgreSQL，并要求数据库先改；本文为待实施方案，不代表已改代码、迁移数据或部署。
+> 决策日期：2026-09-16。用户已确定 PostgreSQL，并要求数据库先改；当前从全新空库开发，旧开发环境没有有效数据，不做任何 Mongo 数据迁移。
 > 本文替代旧规划中“首次迁移保留现有数据库”的决定，以及此前针对 MongoDB 的备份/副本集建议。
 > 关联：[服务改造](server_refactoring_plan.md)、[部署与升级](server_deployment_and_upgrade_plan.md)、[应用调度](cloud_application_scheduling_plan.md)、[运维后台](service_operations_console_plan.md)。
 
@@ -10,9 +10,9 @@
 2. 以 PostgreSQL 18 为首版验证主版本，实际交付锁定当时已验证的受支持补丁版、镜像 digest/安装包 hash；禁止 `latest` 和 Beta。
 3. Rust 采用 SQLx PostgreSQL 驱动、`PgPool`、显式 SQL 和版本化 SQL migrations。实施 DB0 锁定工具链匹配版本与 Cargo.lock，不在文档编造未经编译的依赖版本。
 4. 核心关系采用表、外键、唯一约束和事务；仅模式扩展配置使用有 schema version 的 JSONB。不是把每个 Mongo 文档原样塞进一列 JSONB。
-5. 数据库阶段先保持现有 HTTP/WS 业务契约和 Game Hook/WebView/RDP 行为，完成持久化正确性；不同时拆 Broker/Relay、不同时实现新 GPU 排序算法。
-6. 首版切换采用维护窗口单次迁移，不承诺 MongoDB→PostgreSQL 热切换。现有数据默认保护，未明确授权不得清库。
-7. 独立离线导入器只用于一次性数据转换，不进入产品包或后台运行链路，不属于旧运行协议兼容。新安装直接创建 PostgreSQL 空库。
+5. 按全新系统设计 HTTP/WS、配置、ID 和关系模型；不因旧开发版接口或字段而增加兼容层，必要时同步修改服务、客户端及测试。保留已确定的授权、Game Hook Job、WebView 和 RDP 生命周期等产品规则；数据库阶段不同时拆 Broker/Relay 或实现新 GPU 排序算法。
+6. 首版直接初始化全新 PostgreSQL 数据库、账号和业务数据；取消旧 Mongo 数据盘点、快照、导入、转换及旧库回退任务。
+7. 不开发离线 Mongo 导入器、双写、CDC 或运行 fallback。本文的 SQL migrations 仅指新库建表及未来正式 PostgreSQL schema 升级，不是历史数据搬迁。
 8. 基础备份恢复必须随数据库阶段交付；高可用在数据库基线之后单独验收，作为公网商业发布的门槛，不要求每个单机客户部署集群。
 
 ## 1. 为什么必须先做
@@ -28,14 +28,14 @@
 | Console | `rust_server/px_console_server/src/console_database.rs` 声明 23 个集合 | 用户/组/授权、设备、应用、实例、工作区、会话、记录、事件、版本等全部迁移 |
 | 应用调度 | `app_schedule/store.rs`、`manager.rs` | 多处 DB 未就绪返回成功或忽略持久化错误；实例选择依赖进程内锁/缓存，须改为 DB 提交后下发 |
 | 身份 | `user/session.rs`、`identity/manager.rs` | Mongo TTL、唯一/部分索引、滑动过期和撤销条件需显式 SQL 实现 |
-| RDP | `app_schedule/rdp_workspace.rs` | 密文 AAD 绑定 workspace/app/node/device/account/version；不能改 ID 后原样搬密文 |
-| Auth | `rust_server/px_auth_server/src/author_database.rs` | author、authorization、customer 三集合；许可证/签名数据不能随迁移改语义 |
-| Desk | `rust_server/px_desk_server/src/off_database.rs` | consult、issue、version 三集合；当前数据库连接还存在硬编码入口 |
+| RDP | `app_schedule/rdp_workspace.rs` | 新工作区的密文 AAD 绑定新部署、owner 和资源身份；无旧密文转换 |
+| Auth | `rust_server/px_auth_server/src/author_database.rs` | author、authorization、customer 为领域参考；新许可证协议按评审契约实现，无旧签名格式兼容 |
+| Desk | `rust_server/px_desk_server/src/store.rs` | 已改为 PG feedback/versions/admin_sessions；范围与证据见[Desk 契约](postgresql_desk_contract.md)，不代表 Auth/Console 完成 |
 | 共享依赖 | `rust_base/px_base`、`rust_base/px_auth_mgr` 的 Cargo.toml 及 `mongodb_util.rs` | 清除 driver 泄漏与不必要依赖，避免 Client 等消费者被带入 MongoDB |
 | 配置/交付/测试 | 三服务 settings、Console 本地状态 UI、`scripts/package_px_*_server.bat`、数据库集成测试 | DSN、健康检查、打包说明、隔离测试库和诊断脱敏一起调整 |
 
-集合数量来自当前源码；实际库大小、文档数量、MongoDB 拓扑、脏数据、可维护时间及磁盘预算尚未检查，DB0 必须做只读盘点。
-`px_auth_server` 与 `px_desk_server` 纳入存储迁移，但不在本阶段删除服务、改变签名协议或把官方签发服务变成私有部署依赖。
+集合数量来自当前源码，仅用于检查业务领域覆盖；DB0 直接设计新关系模型及合成测试数据，不再审计旧 Mongo 实例、拓扑、文档或脏数据。
+`px_auth_server` 与 `px_desk_server` 纳入新存储实现；签名协议变化须同步签发/验证及测试，不保留旧格式验证分支，不把官方签发服务变成私有部署依赖。
 Redis 如仍被现有业务使用，逐项确认缓存/协调用途；本任务不将它变成授权或预约权威，也不附带大规模改造它。
 
 ## 2. PostgreSQL 模型与代码边界
@@ -48,7 +48,9 @@ Redis 如仍被现有业务使用，逐项确认缓存/协调用途；本任务�
 - 共享库只放连接配置脱敏、连接池构建、通用错误分类等基础能力；领域 SQL/模型留在相应服务 repository。
 - 同步持久化结果明确返回，禁止“DB 不可用但写入成功”。连接池自带并发，不再把整个数据库客户端包在全局异步 mutex 中串行访问。
 
-### 2.2 集合到关系模型
+### 2.2 业务领域到新关系模型
+
+下表旧集合名仅用于检查功能覆盖，不构成旧字段、接口、ID 或文档格式的兼容要求。
 
 | 当前集合 | PostgreSQL 目标领域 | 关键约束/处理 |
 |---|---|---|
@@ -56,24 +58,24 @@ Redis 如仍被现有业务使用，逐项确认缓存/协调用途；本任务�
 | c_user_group / c_user_group_member | user_groups、group_members | 活跃组名部分唯一索引、成员复合唯一、引用约束 |
 | c_group_device_grant / c_group_app_grant / c_user_device | device/app grants、user_devices | 稳定主体/资源关系，授权版本原子变更；用户设备关联不与其他 ACL 混同 |
 | c_device / c_stream | devices、streams | 设备身份唯一、描述有版本，机密列隔离 |
-| c_app / c_app_placement / c_app_node | applications、application_deployments、application_slots | DB 阶段保留现有运行单元业务语义，历史 placement 仅经离线转换合并；不得丢失部署配置 |
+| c_app / c_app_placement / c_app_node | applications、application_deployments、application_slots | 按新对象模型建表，应用部署配置通过新环境创建，不导入历史 placement |
 | c_app_instance | app_instances、instance_tasks、command_outbox、idempotency_records | 活跃槽唯一、请求幂等、revision CAS、持久状态与发送意图同事务 |
-| c_rdp_workspace | rdp_workspaces、workspace_secrets | workspace 唯一、owner/账号约束，密文及 AAD 相关原始标识完整保留 |
+| c_rdp_workspace | rdp_workspaces、workspace_secrets | 新 workspace 唯一、owner/账号约束、密文 AAD 与新身份一致 |
 | c_remote_session / c_remote_session_event | remote_sessions、remote_session_events | 逻辑会话/事件 ID 唯一，按时间和目标检索 |
-| c_visit / c_file_transfer / c_records | visits、file_transfers、render_record_cache | 业务记录与可重建缓存分开，迁移清单注明丢弃/保留政策 |
-| c_event / c_client_conn | events、connection_observations | ObjectId 转独立事件 ID；在线快照不作为恢复后的真实在线状态 |
-| c_update_info | update_releases | 产品/发行/版本字段显式保存，现有下载接口行为不变 |
-| Auth 三集合 / Desk 三集合 | 各服务独立 schema 模型 | 保留许可证签名原文/字段表示、版本接口、咨询问题数据 |
+| c_visit / c_file_transfer / c_records | visits、file_transfers、render_record_cache | 新业务记录与可重建缓存分开，明确各自保留政策 |
+| c_event / c_client_conn | events、connection_observations | 新事件使用独立 ID；在线快照不作为恢复后的真实在线状态 |
+| c_update_info | update_releases | 产品/发行/版本字段显式保存，新下载接口按新协议设计 |
+| Auth 三集合 / Desk 三集合 | 各服务独立 schema 模型 | 新许可证、版本发布、咨询问题模型；不保留旧字段表示或旧接口适配 |
 
-表名作为设计基线，DB0 输出字段级映射、约束、查询索引及导入验证清单后冻结；23 个 Console 集合必须逐个标记去向。
-已存在业务 ID 保留值与大小写，必要时用受约束 TEXT；新生成 ID 优先 UUID，不强制把所有旧 ID 重算。
-RDP schema 可以新增 owner/deployment 字段，但用于解密的原始 AAD 标识必须原样保留；重新加密需单独明确转换与验证。
+表名作为设计基线，DB0 输出新字段、约束、查询索引及合成测试清单；对照当前领域检查无功能遗漏，不生成历史字段转换器。
+新生成 ID 优先 UUID；外部协议标识按其契约采用受约束 TEXT。RDP 新工作区的 owner_node/deployment 与密文 AAD 一起设计，验证新建、持久化、重启后解密和访问权限。
+RDP 沿用 `(application,node)` 持久工作区唯一键；user/guest 是访问占用的 owner，不加入工作区唯一键，不因访问者切换创建 Windows 账号。
 时间持久化为 UTC `timestamptz`，接口毫秒转换显式检查；布尔/空值/缺字段按映射处理，不能盲目套默认值。
 `u64` 字段按业务范围选择受约束 BIGINT 或 NUMERIC，禁止溢出截断；排序、大小写、分页和软删除语义需逐项回归。
 身份/权限/资源分配字段不能藏在自由 JSONB 中，模式配置 JSONB 有大小限制、校验和版本，不持有可执行任意 SQL/脚本。
 新增逐 GPU 预约表属于后续应用调度阶段，沿用本阶段的事务、任务与幂等基础，不复制另一套持久实现。
 资源遥测与安全/业务审计分开保留：高频采样批量聚合、设置容量和保留期，不把每个心跳都写入永久审计表。
-DB0 根据现有事件量测算索引、WAL 与备份增长；大表按实际查询制定分页、分区/清理和 vacuum 方案，不能靠换引擎解决无限增长。
+DB0 根据声明的测试负载测算索引、WAL 与备份增长；大表按实际查询制定分页、分区/清理和 vacuum 方案，不能靠换引擎解决无限增长。
 
 ## 3. 事务与异步执行
 
@@ -100,6 +102,13 @@ DB0 根据现有事件量测算索引、WAL 与备份增长；大表按实际查
 服务启动校验支持的 schema 范围，不支持即 NotReady，禁止静默自动建表或多个副本同时执行 DDL。
 SQLx 查询检查在 CI 的 PostgreSQL 18 干净库上执行，离线 query metadata 必须与 SQL/migration 一起更新并验证。
 
+当前首版落实为完整 migration 清单及 checksum 精确匹配，不接受缺失、未来或被修改的版本。
+业务池的每条物理连接（含重连）先取得数据库级共享 schema 锁，再验证角色/身份/schema；
+迁移 CLI 串行化后必须取得独占锁，仍有业务池开放则拒绝，不在服务运行中偷偷执行 DDL。
+Auth/Desk 可有多个同时持共享锁的实例；升级时全部停止准入、排空并关闭池，迁移成功后启动匹配的新程序。
+运行期锁与 Console 单活动锁是两个边界；单独的租约连接存活/失效不替代每条业务连接的 schema 保护。
+专项及跨平台证据以[实施状态](server_database_execution_status.md)为准；离线初始化写入、备份屏障和恢复准入仍需各自验收。
+
 首版数据库替换用维护窗口；未来滚动应用升级采用 expand → 分批 backfill → 切换 → contract，
 加列/建索引/NOT NULL 等操作有锁等待与执行超时；并发建索引等非事务操作有明确失败恢复记录。
 应用版本与 schema 版本独立演进；旧代码不支持新 schema 时禁止回滚旧二进制，不自动执行破坏性 down migration。
@@ -110,29 +119,17 @@ SQLx 查询检查在 CI 的 PostgreSQL 18 干净库上执行，离线 query meta
 - 大版本升级：独立维护任务，先在恢复副本运行 `pg_upgrade --check`、扩展/排序规则检查与功能测试；
   首版使用独立数据副本的受控 `pg_upgrade` 或逻辑导出/导入，不承诺数据库大版本热升级。
 - 新库开放写入前可退回未修改的旧库；新库开始写入后旧库已落后，不能只改连接字符串“回滚”。采用前向修复或明确数据损失的计划恢复。
-- 不在第一次 MongoDB 切换中同时更换密码算法、签名格式、客户端身份或用户数据存储路径。
+- 新库建表遵守已评审的新密码/签名和身份契约及 RDP 生命周期；无需兼容旧开发数据或接口。
 
-## 5. MongoDB 一次性切换
+## 5. 全新安装与初始化
 
-先对隔离样本和完整副本演练，最终维护窗口中冻结所有旧服务业务写入（包括后台 worker、应用定时清理及其他写入者）。
-Mongo TTL 是数据库服务端后台写入，停止 Console/Auth/Desk 不会使它停止；必须另外处理，不能把“停应用”当一致快照。
-DB0 按实际 Mongo 拓扑形成经演练的数据库原生一致快照或干净停库快照步骤，记录恢复边界；禁止直接复制仍运行的数据目录。
-离线导出使用该不可变快照的隔离副本，启动副本前落实并验证 TTL/其他写入被冻结，确认导出前后源摘要一致。
-涉及 TTL 参数、复制成员或停库操作必须按实际版本验证并列入维护手册，不凭通用脚本直接修改生产数据库参数。
+1. 创建独立部署身份、三库及分离的运行/建表账号，显式执行版本化建表入口。
+2. 初始化管理员与必要配置；通过正常业务 API 创建用户、ACL、设备、应用和测试工作区。
+3. 校验数据库约束、权限、密码验证、签名与 RDP 新密文读写；不从旧开发库读取任何业务数据。
+4. 使用新环境登记的节点和权威端点完成 Windows、随后 Android 的全链路验收。
+5. 新库有数据后按本计划备份和恢复；后续升级只覆盖正式 PostgreSQL 版本边界，不提供回到 Mongo 的产品路径。
 
-1. 记录源 revision、数据库集合/行数、schema、时间、hash、应用配置及必要密钥恢复材料，保留只读源备份。
-2. 在新的 PostgreSQL 库执行 migration；离线导入器按依赖顺序导入，每批 checkpoint、稳定键幂等，出错不跳过授权或工作区记录。
-3. 比较计数、规范化字段摘要、外键/唯一性、ACL 判定、密码哈希验证、RDP 解密和许可证签名；脏数据生成报告，不能擅自合并用户。
-4. 旧运行时状态不照搬为可调度：连接快照标记待刷新，实例与节点任务对账；无法证明终止的占用保留 Unknown。
-5. 停止全部旧写进程并禁用其自动拉起，按精确登记身份验证无旧 writer；隔离旧 Mongo 的网络和本机进程访问，
-   包括 loopback，不能仅封公网端口。有独立写凭据才撤销；Desk 当前 URI 未携带凭据，DB0 必须确认实际认证配置，
-   无认证部署以停进程和网络/OS 访问隔离为门禁，不能以不存在的“撤销凭据”代替。切换新配置后确保唯一有效命令 owner，再验收开放。
-6. Mongo 源作为受保护离线回退证据保留，建议至少 30 天且不短于验收/数据保留要求；删除需另行明确授权，不自动卸载或清库。
-
-默认不导入有效登录 token/临时 Grant 作为可继续使用的授权，维护窗口后重新登录/授权；保留用户、资源 ACL 和工作区身份。
-现有运行游戏先按维护安排结束或完成受控对账，不承诺切换无中断；RDP 不注销 Windows 会话、不删除 Profile 或账号。
-新库有业务写入后不再支持无损退回旧 Mongo；没有长期双写、CDC 或旧驱动 fallback。
-如用户之后明确选择全新环境不迁数据，可跳过导入，但不能据此删除原数据或现有 Windows 工作区。
+本决定取消所有旧数据迁移任务及其门禁。旧开发数据库是否删除属于环境清理，不是本次实施前置；不自动触碰其他服务或已有 Windows 账号/Profile/Session。
 
 ## 6. 自动备份与保留策略
 
@@ -251,17 +248,27 @@ generation 的签发和旧环境隔离由库外受保护恢复流程完成，不
 
 ## 9. 前置执行顺序与完成条件
 
+实施入口：[本机 PostgreSQL 环境与基础测试](../deploy/development/postgres/README.md)、[身份存储契约与测试映射](postgresql_identity_contract.md)、
+[DB0 领域/权限/恢复边界](postgresql_domain_contract.md)、[Desk 新服务](px_desk_web_overview.md)。
+当前实现 DB1 基础、DB2-A 身份 repository 和 DB3 Desk/Auth 独立子集；Console 及许可证消费者尚待切换，隔离测试通过不代表 DB0–DB5 或三服务整体通过。
+Console 已继续扩展设备、应用、访客、节点、部署、实例/命令与工作区 repository；具体增量和证据以后面的状态索引为准。
+已执行用例、修复缺陷、报告索引和剩余门禁集中记录在[实施与验收状态](server_database_execution_status.md)。
+
+每步的测试环境、输入/预期、故障注入和留证规则见[逐步开发与测试门禁](server_incremental_validation_plan.md)。其中第 4 节细化必要 P0/DB0/DB1 的八个小步，第 5–7 节定义 DB2–DB5 的出口；缺环境、跳过或未运行均不能算通过。
+
 | 阶段 | 工作 | 出口 |
 |---|---|---|
-| DB0 盘点与契约 | 实际库只读盘点、23+3+3 集合映射、工具链/版本固定、密钥清单、功能基线；Mongo 服务端 TTL 快照步骤、无认证旧 writer 隔离、三库恢复集/对账、Windows SCM 执行器契约 | 四项专项契约/演练方案齐备，映射无遗漏，数据保留/回退限制明确，未进行破坏操作 |
+| DB0 模型与契约 | 新关系模型、约束/索引、工具链版本、密钥边界、合成功能基线；未来三库恢复集/对账、Windows SCM 执行器契约 | 业务覆盖完整，合成用例和备份契约可评审；不依赖旧源库 |
 | DB1 PostgreSQL 基础 | 连接池、权限、SQL migrations、干净库安装、SQLx 查询检查、跨平台配置与脱敏 | DB 不可用/版本不符正确 NotReady，重复迁移及并发迁移安全 |
 | DB2 Console 完整持久化 | 身份/权限/设备/应用/工作区/记录全覆盖；任务/outbox/事务；清理静默写入成功与内存权威 | 登录注册、ACL、应用各模式、并发启动、断库/重启/晚到回执通过 |
-| DB3 Auth/Desk 与共享依赖 | 迁移相应数据层、保持签名和公开行为、去掉产品路径 Mongo 驱动及旧设置/健康探针 | 三个服务均不依赖 Mongo；共享库/消费者编译及许可证/版本接口通过 |
+| DB3 Auth/Desk 与共享依赖 | 新数据层与新契约、同步签发/验证和 API 消费端、去掉 Mongo 驱动及旧设置/健康探针 | 三服务均不依赖 Mongo；新许可证/版本接口通过，无兼容分支 |
 | DB4 备份恢复与引擎升级基线 | 基础/生产档执行器、保留/清理、异机上传、恢复工具、最小后台、schema 升级流程 | 定时任务、过期链保护、失败告警、干净环境恢复、历史权限防复活通过 |
-| DB5 一次性切换与总体验收 | 离线导入演练、维护切换、Service 对账、Windows 后 Android 回归 | 源数据受保护，所有现有功能通过，新数据库基线可交付；之后进入 P1/P2/P3 |
+| DB5 全新部署与总体验收 | 空库安装、初始化、节点登记、业务创建、备份恢复、Windows 后 Android 回归 | 新环境全部功能通过，无旧库/旧协议依赖；之后进入 P1/P2/P3 |
 | DB-HA 高可用专项 | Patroni/etcd/入口、同步策略、隔离与切换演练 | 公网及私有 HA 发布前必过；可与后续 P 阶段推进，不阻塞单机数据库基线 |
 
 执行优先级：必要的 P0 数据/安全契约 → DB0–DB5 → 后续发行/业务/连接服务改造。
+产品启动根只创建一个经过部署/schema/runtime-role 检查的连接池，各领域拿同池的能力句柄，不能每个 repository 单独建立默认池。
+业务服务必须拒绝 owner/超级用户/扩权的 runtime 角色启动；离线建表与空库管理员初始化继续使用独立 owner 工具，不由业务启动代办。
 P0 非数据库协议可以继续设计，但不得以“数据库未定”为由先扩建 Mongo 上的新调度/集群。无需等 DB-HA 完成才启动后续单机开发。
 例行验证使用相关 Rust workspace 的 check/test、隔离 PostgreSQL 集成测试和前端专项检查；文档编辑不触发构建。
 完整发布构建与部署仅在用户明确要求对应交付时执行，不能在日常修改中调用 release-only 全量脚本。
@@ -271,9 +278,9 @@ P0 非数据库协议可以继续设计，但不得以“数据库未定”为�
 - 两个隔离测试进程抢最后一个运行单元、同 request_id 重试、提交成功响应丢失，不重复创建实例或执行副作用；该并发压力测试不是 DB 阶段多活部署承诺。
 - DB 暂不可用、池耗尽、磁盘满、故障切主时不返回假成功；已运行实例/工作区不被误删。
 - username 规范化、软删除、空值、TTL、毫秒/时区、u64 边界、分页、token 撤销全部保持正确。
-- RDP 密文迁移后可解密、workspace owner 不变、二次前端 busy、普通停止不注销；Game Hook Job 所有权不变。
+- RDP 新密文持久化及重启后可解密、workspace owner 不变、二次前端 busy、普通停止不注销；Game Hook Job 所有权不变。
 - Auth 签名材料/验证结果、Desk 咨询/问题/版本接口以及 Windows/Android 登录连接功能回归。
-- 源数据重复/孤儿引用阻止切换；导入中断可重跑；无隐式清库、双写或 Mongo fallback。
+- 新库重复/孤儿引用被约束拒绝；初始化中断可安全恢复；无隐式清库、双写、导入器或 Mongo fallback。
 - 备份时持续写入、任务重叠、上传失败、校验失败、保留边界、锁定、跨月/时区和依赖链清理均正确。
 - pg_restore 恢复、生产 PITR 到误操作前、缺 WAL 拒绝、密钥缺失阻止开放、外部旧主/旧命令被隔离。
 - schema 迁移被杀进程、锁超时、checksum 改动、不支持版本启动和大版本演练均安全失败。
@@ -281,7 +288,6 @@ P0 非数据库协议可以继续设计，但不得以“数据库未定”为�
 
 ## 10. 官方机制依据
 
-- [MongoDB TTL 索引](https://www.mongodb.com/docs/manual/core/index-ttl/)：到期删除由数据库后台任务执行，停业务服务不能等同停止 TTL。
 - [PostgreSQL 支持与版本升级政策](https://www.postgresql.org/support/versioning/)：锁定受支持主版本与验证过的补丁制品。
 - [SQLx](https://github.com/transact-rs/sqlx)：PostgreSQL 异步访问、SQL 检查和 migration 工具。
 - [pg_dump](https://www.postgresql.org/docs/18/app-pgdump.html)：单库一致性逻辑导出及全局对象边界。

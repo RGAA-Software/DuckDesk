@@ -1,0 +1,59 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH pending AS (SELECT id FROM pixels.authorization_outbox\nWHERE delivered_at IS NULL AND available_at<=clock_timestamp() AND (lease_until IS NULL OR lease_until<=clock_timestamp())\nORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT $1)\nUPDATE pixels.authorization_outbox e SET lease_id=$2,lease_until=clock_timestamp()+interval '30 seconds',attempts=attempts+1\nFROM pending p WHERE e.id=p.id\nRETURNING e.id,e.user_id,e.session_id,e.authorization_revision,e.reason,e.lease_id AS \"lease_id!\",e.attempts\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "session_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "authorization_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "lease_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "attempts",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "7000831b37a33969d284ab58e1acd5908b940cb8590b817661429eea985fa587"
+}

@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.update_release_events(id,release_id,actor,revision,state) VALUES($1,$2,$3,$4,$5)\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c90abe8d447f63a91b6e88f5e1501bec8e5c0f550aeaad09d92ab907e0bc9838"
+}

@@ -1,0 +1,46 @@
+[package]
+name = "px_console_runtime"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+
+[features]
+pg-integration = ["px_pg/pg-integration", "px_console_store/pg-integration"]
+
+[dependencies]
+px_console_store = { path = "../storage" }
+px_credentials = { path = "../../px_credentials" }
+px_pg = { path = "../../px_pg" }
+px_node_protocol = { path = "../../px_node_protocol" }
+px_private_files = { path = "../../px_private_files" }
+axum = { version = "0.8.1", features = ["json", "ws"] }
+futures-util = "0.3"
+tokio = { version = "1.43", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio-util = "0.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+zeroize = "1.8"
+sha2 = "0.10"
+ring = "0.17"
+rand = "0.9"
+hex = "0.4"
+url = "2"
+thiserror = "2"
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+tokio-tungstenite = "0.28"
+sqlx = { version = "=0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "uuid"] }
+
+[[test]]
+name = "identity_api"
+required-features = ["pg-integration"]
+
+[[test]]
+name = "directory_api"
+required-features = ["pg-integration"]
+
+[[test]]
+name = "node_control"
+required-features = ["pg-integration"]

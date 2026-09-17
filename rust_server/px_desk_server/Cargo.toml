@@ -3,27 +3,37 @@ name = "px_desk_server"
 version = "3.2.9"
 edition = "2021"
 
-[dependencies]
-px_base = {path = "../../rust_base/px_base"}
+[features]
+pg-integration = []
 
+[dependencies]
+px_release_catalog = { path = "../px_release_catalog" }
+px_pg = { path = "../px_pg" }
+sqlx = { version = "=0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "migrate", "macros", "uuid", "chrono"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "std", "tls12"] }
-axum = { version = "0.8.1", features = ["ws", "multipart"] }
+axum = { version = "0.8.1", features = ["json"] }
 axum-server = { version = "0.8.0", features = ["tls-rustls-no-provider"] }
-tower-http = { version = "0.6.2", features = ["full"] }
+tower-http = { version = "0.6.2", features = ["fs", "set-header"] }
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-tracing = "0.1.44"
-tokio = { version = "1.43.0", features = ["full"] }
-lazy_static = "1.5.0"
-futures-util = "0.3.31"
-clap = { version = "4.5.47", features = ["derive"] }
-clap_derive = "4.5.47"
-mongodb = "=3.2.1"
-thiserror = "2.0.17"
-serde = { version = "1.0.228", features = ["derive"] }
-tokio-stream = "0.1.17"
-toml = "0.9.5"
-serde_urlencoded = "0.7.1"
+tokio = { version = "1.43.0", features = ["macros", "rt-multi-thread", "net", "signal", "sync"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+sha2 = "0.10"
+hex = "0.4"
+rand = "0.9"
+subtle = "2.6"
+zeroize = "1.8"
+thiserror = "2"
+url = "2"
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
 
 [[bin]]
 name = "px_desk"
 path = "src/main.rs"
+
+[[test]]
+name = "postgres_api"
+required-features = ["pg-integration"]

@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT authorization_revision FROM pixels.users\nWHERE id = $1 AND deleted_at IS NULL AND NOT disabled\nFOR UPDATE\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "authorization_revision",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4726e61c48bb1a96a50e9febd67ed928be5794c9fd87ad8d7eb4ebcec09a6baa"
+}

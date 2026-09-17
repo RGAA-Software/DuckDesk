@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.admin_sessions(id,token_hash,credential_fingerprint,expires_at)\n         VALUES($1,$2,$3,clock_timestamp()+interval '8 hours') RETURNING expires_at\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "expires_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "54b9cf03661381148af6d56c80af34a136a7dba9d70ea83101eab23cfea21265"
+}

@@ -1,0 +1,55 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT a.id,a.name,a.kind,a.access_mode,a.revision,a.access_revision FROM pixels.applications a\nWHERE NOT a.disabled AND a.deleted_at IS NULL AND ($2::uuid IS NULL OR a.id>$2) AND ($4::uuid IS NULL OR a.id=$4)\nAND (a.access_mode='public' OR ($1::uuid IS NOT NULL AND EXISTS(\n SELECT 1 FROM pixels.group_app_grants ga JOIN pixels.user_groups g ON g.id=ga.group_id JOIN pixels.group_members gm ON gm.group_id=g.id\n WHERE ga.application_id=a.id AND gm.user_id=$1 AND g.deleted_at IS NULL)))\nORDER BY a.id LIMIT $3\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "access_mode",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "access_revision",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "ed3c29c77180d3990e4e7233e8d0fc6fe523a98d004dea2ab8c8767b5bde6610"
+}

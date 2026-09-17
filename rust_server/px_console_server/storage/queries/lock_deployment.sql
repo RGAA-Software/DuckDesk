@@ -1,0 +1,1 @@
+SELECT d.id,d.application_id,d.node_id,d.kind,d.install_root,d.gpu_key,d.capacity,d.disabled,d.revision,d.application_revision,d.observed_state,d.observed_reason,d.observed_generation,d.observed_epoch,d.observed_endpoint_revision,d.observed_sequence,d.observed_at FROM pixels.application_deployments d WHERE d.id=$1 FOR UPDATE

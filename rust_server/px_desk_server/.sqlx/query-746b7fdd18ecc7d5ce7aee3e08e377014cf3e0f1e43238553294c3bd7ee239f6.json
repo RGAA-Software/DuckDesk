@@ -1,0 +1,112 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.versions(id,product,distribution,channel,build_number,version,artifact_url,sha256,\n    os,architecture,size_bytes,metadata_url,metadata_sha256)\nVALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)\nRETURNING id,product,distribution,channel,os,architecture,build_number,version,artifact_url,sha256,\n    size_bytes,metadata_url,metadata_sha256,created_at\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "product",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "distribution",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "channel",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "os",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "architecture",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "build_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "version",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "artifact_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "sha256",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "size_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "metadata_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "metadata_sha256",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Int8",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int8",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "746b7fdd18ecc7d5ce7aee3e08e377014cf3e0f1e43238553294c3bd7ee239f6"
+}

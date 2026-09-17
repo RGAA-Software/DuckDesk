@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id FROM pixels.user_groups WHERE id=ANY($1) AND deleted_at IS NULL ORDER BY id FOR UPDATE\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "854ecc5506cbf3db567eaab21f47f614ac614d007b2f7709d2351496be5088e6"
+}

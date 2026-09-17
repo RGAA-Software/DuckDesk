@@ -1,0 +1,23 @@
+:root {
+ color-scheme:light; --surface:#ffffff; --background:#f3f5fa; --text:#182337; --muted:#536279;
+ --line:#d7dfeb; --accent:#075bb7; --accent-text:#ffffff; --danger:#b42132; --focus:#2787e8;
+}
+:root[data-theme="dark"] {
+ color-scheme:dark; --surface:#142033; --background:#0b1321; --text:#edf3fc; --muted:#a7b6cc;
+ --line:#34445b; --accent:#69baff; --accent-text:#071426; --danger:#ff8994; --focus:#9dd3ff;
+}
+*{box-sizing:border-box}body{margin:0;background:var(--background);color:var(--text);font:15px/1.6 system-ui,"Microsoft YaHei",sans-serif}
+button,input,select,textarea{font:inherit;color:inherit}button,input,select,textarea{border:1px solid var(--line);border-radius:7px;padding:8px 12px;background:var(--surface)}
+button{cursor:pointer}button.primary{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}button.danger{color:var(--danger)}
+button:disabled{opacity:.5;cursor:not-allowed}button:hover:not(:disabled){border-color:var(--accent)}:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+header,.toolbar,nav,.actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}header{justify-content:space-between;margin-bottom:24px}
+main{max-width:1440px;margin:auto;padding:28px}h1{font-size:24px;margin:0}h2{font-size:20px}p.hint,small{color:var(--muted)}
+section,.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:24px;margin-top:18px}
+form{display:grid;gap:14px}.form-grid{display:grid;gap:14px;grid-template-columns:repeat(2,minmax(0,1fr))}label{display:grid;gap:5px}
+fieldset{border:1px solid var(--line);border-radius:7px}fieldset label{display:inline-flex;align-items:center;margin-right:16px}
+input[type="checkbox"]{width:auto}input,select,textarea{max-width:100%;min-width:0;width:100%}textarea{min-height:70px}
+.table-scroll{overflow:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:12px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-weight:500}
+.mono{font-family:ui-monospace,monospace;font-size:12px;overflow-wrap:anywhere}.error{color:var(--danger)}.login{max-width:440px;margin:80px auto}
+dialog{color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:12px;width:min(820px,95vw);max-height:90vh;overflow:auto;padding:24px}
+dialog::backdrop{background:#0008}nav button[aria-current="page"]{border-color:var(--accent);color:var(--accent)}
+@media(max-width:680px){main{padding:16px}.form-grid{grid-template-columns:1fr}section{padding:14px}.login{margin:24px auto}}

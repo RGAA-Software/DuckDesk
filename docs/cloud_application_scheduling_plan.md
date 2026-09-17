@@ -40,13 +40,15 @@ RDP 保留原生编码，客户端解码；不能按普通 Render 二次编码�
 | GpuDevice | node_id 下稳定 gpu_id、当前枚举代际、运行期适配器映射、能力及单卡预算 |
 | PlacementReservation | request_id、node/gpu/deployment、资源向量、调度 epoch、租约及执行状态 |
 | AppInstance | 预约关联、实际运行身份、请求/实际 GPU、资源消耗、端点及状态 |
-| Workspace | RDP 持久工作区、所属用户、固定 owner 机器、Windows Session 身份与 busy 状态 |
+| Workspace | RDP 持久工作区、所属 Windows 账号、固定 owner 机器、Windows Session 身份与 busy 状态；(application,node) 唯一，不按访问者创建账号 |
 | CloudApplicationSession | deployment_id、session_id、owner_user_id、initiator_identity、client_type、target_kind、app_id、instance_id、实例代际、类型化 connection descriptor；关联 Grant/预约，不以设备账号代替业务目标 |
 
 ### 2.1 Android 云应用身份与会话目标
 
 Android 使用独立顶层“云应用”入口，并以 `client_type=android` 认证，不冒充 Panel。
 `owner_user_id` 是所属部署内的业务用户，来自服务端认证上下文；Workspace 的 owner 机器另用 `owner_node_id`，不得混用。
+业务 owner 绑定本次实例/会话占用，不改变 RDP 持久工作区 `(application,node)` 的唯一键；公开应用的 guest 也有独立主体/占用，
+不能因匿名访问或访问者变化另建 Windows 账号。准入与秘密交付沿用 [RDP §0.0](rdp_application_mode_design.md)。
 启动请求绑定 deployment、app_id、认证主体和 request_id；预约/实例/Session 的 owner 与应用关联由服务端连续校验，
 不能信任客户端提交的其他用户 ID。恢复只能返回同一部署、用户有权访问且未终止的实例。
 

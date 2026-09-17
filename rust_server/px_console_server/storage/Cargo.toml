@@ -1,0 +1,112 @@
+[package]
+name = "px_console_store"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+
+[features]
+pg-integration = ["dep:tokio", "dep:serde_json"]
+
+[dependencies]
+px_credentials = { path = "../../px_credentials" }
+px_release_catalog = { path = "../../px_release_catalog" }
+px_private_files = { path = "../../px_private_files" }
+px_pg = { path = "../../px_pg" }
+sqlx = { version = "=0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "migrate", "macros", "uuid", "chrono"] }
+uuid = { version = "1.15.1", features = ["v4", "serde"] }
+chrono = { version = "0.4.42", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+thiserror = "2.0.17"
+zeroize = "1.8"
+url = "2.5"
+sha2 = "0.10"
+ring = "=0.17.14"
+tokio = { version = "1.43.0", features = ["macros", "rt-multi-thread"], optional = true }
+serde_json = { version = "1", optional = true }
+
+[[bin]]
+name = "px_instance_contender"
+path = "src/bin/instance_contender.rs"
+required-features = ["pg-integration"]
+
+[dev-dependencies]
+argon2 = "0.5.3"
+serde_json = "1"
+tempfile = "3"
+tokio = { version = "1.43.0", features = ["macros", "rt-multi-thread", "sync", "time"] }
+
+[[test]]
+name = "identity"
+required-features = ["pg-integration"]
+
+[[test]]
+name = "control"
+required-features = ["pg-integration"]
+
+[[test]]
+name = "devices"
+required-features = ["pg-integration"]
+
+[[test]]
+name = "applications"
+required-features = ["pg-integration"]
+
+[[test]]
+name = "guests"
+required-features = ["pg-integration"]
+
+[[test]]
+name = "nodes"
+required-features = ["pg-integration"]
+
+[[test]]
+name = "deployments"
+required-features = ["pg-integration"]
+
+[[test]]
+name = "instances"
+required-features = ["pg-integration"]
+
+[[test]]
+name = "commands"
+required-features = ["pg-integration"]
+
+[[test]]
+name = "workspaces"
+required-features = ["pg-integration"]
+
+[[test]]
+name = "database"
+required-features = ["pg-integration"]
+
+[[test]]
+name = "sessions"
+required-features = ["pg-integration"]
+
+[[test]]
+name = "transfers"
+required-features = ["pg-integration"]
+
+[[test]]
+name = "recordings"
+required-features = ["pg-integration"]
+
+[[test]]
+name = "preferences"
+required-features = ["pg-integration"]
+
+[[test]]
+name = "cache"
+required-features = ["pg-integration"]
+
+[[test]]
+name = "activity"
+required-features = ["pg-integration"]
+
+[[test]]
+name = "updates"
+required-features = ["pg-integration"]
+
+[[test]]
+name = "accounts"
+required-features = ["pg-integration"]

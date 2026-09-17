@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.author_sessions(id,author_id,token_hash,authorization_revision,expires_at)\n             VALUES($1,$2,$3,$4,clock_timestamp()+interval '8 hours') RETURNING expires_at\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "expires_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Bytea",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "98404cdb0ed04316a89cde7656f1dda8dab39e57dc71d081934395e2fa0958e2"
+}

@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.recording_events(id,recording_id,revision,node_generation,control_epoch,source_sequence,reported_present)\nVALUES($1,$2,$3,$4,$5,$6,$7)\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7fdf2a3d8d53cc70e524386f2bc2fcd7370843d010997212bb15dc0134145606"
+}

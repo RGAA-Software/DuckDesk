@@ -1,0 +1,103 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id,title,your_name,description,email,wechat,qq,consult_type,version,os,processed,revision,created_at,updated_at\n         FROM pixels.feedback WHERE kind=$1 AND ($2::boolean IS NULL OR processed=$2)\n         ORDER BY created_at DESC,id DESC LIMIT $3 OFFSET $4\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "your_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "wechat",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "qq",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "consult_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "version",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "os",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "processed",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 11,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Bool",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "f91c19db5c566bf13cd55162e2442cccf538b7e162a1036486cc0d4bf94e0f94"
+}

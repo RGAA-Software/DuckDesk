@@ -1,0 +1,131 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id,session_id,node_id,node_generation,control_epoch,request_hash,expected_sha256,report_hash,direction,file_name,total_bytes,transferred_bytes,state,reason,sequence,revision,created_at,updated_at,ended_at FROM pixels.file_transfers WHERE node_id=$1 AND request_id=$2\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "session_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "node_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "node_generation",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "control_epoch",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "request_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 6,
+        "name": "expected_sha256",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 7,
+        "name": "report_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 8,
+        "name": "direction",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "file_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "total_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "transferred_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "sequence",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 15,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 16,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 17,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 18,
+        "name": "ended_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "1e492e2d7d4928e7fb6e91d3d16719a327bd33d02d1facef91a1013c46e8d10f"
+}

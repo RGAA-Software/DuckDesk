@@ -1,0 +1,127 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.application_deployments d SET observed_state=$9,observed_reason=$10,\nobserved_generation=n.generation,observed_epoch=n.control_epoch,observed_endpoint_revision=n.endpoint_revision,\nobserved_sequence=$8,observed_at=clock_timestamp()\nFROM pixels.nodes n,pixels.applications a,pixels.devices v\nWHERE d.id=$1 AND d.node_id=n.id AND a.id=d.application_id AND v.id=n.device_id\nAND n.connection_hash=$2 AND n.generation=$3 AND n.control_epoch=$4 AND $4=(SELECT epoch FROM pixels.control_runtime)\nAND n.endpoint_revision=$5 AND n.last_seen>clock_timestamp()-interval '30 seconds' AND n.report_sequence>0\nAND NOT n.disabled AND n.deleted_at IS NULL AND NOT v.disabled AND v.deleted_at IS NULL\nAND d.revision=$6 AND d.application_revision=$7 AND a.revision=$7 AND a.deleted_at IS NULL\nAND (d.observed_generation IS DISTINCT FROM $3 OR d.observed_epoch IS DISTINCT FROM $4 OR d.observed_sequence<$8)\nRETURNING d.id,d.application_id,d.node_id,d.kind,d.install_root,d.gpu_key,d.capacity,d.disabled,d.revision,d.application_revision,d.observed_state,d.observed_reason,d.observed_generation,d.observed_epoch,d.observed_endpoint_revision,d.observed_sequence,d.observed_at\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "application_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "node_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "install_root",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "gpu_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "capacity",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "disabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "application_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "observed_state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "observed_reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "observed_generation",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 13,
+        "name": "observed_epoch",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 14,
+        "name": "observed_endpoint_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 15,
+        "name": "observed_sequence",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 16,
+        "name": "observed_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "3cfbb9b14d92c265458463a17181468201e35370f45d048bf16163b7de140c9e"
+}

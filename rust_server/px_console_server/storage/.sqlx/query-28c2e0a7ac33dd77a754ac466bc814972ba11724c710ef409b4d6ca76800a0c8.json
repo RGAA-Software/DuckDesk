@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS(SELECT 1 FROM pixels.users WHERE role='admin' AND NOT disabled AND deleted_at IS NULL) AS \"initialized!\"\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "initialized!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "28c2e0a7ac33dd77a754ac466bc814972ba11724c710ef409b4d6ca76800a0c8"
+}

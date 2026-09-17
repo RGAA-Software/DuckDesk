@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.resource_session_events(id,session_id,revision,kind) VALUES($1,$2,$3,$4)\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7c93fa836704f663727937288dccdaa46f0cd181371472761b7d7755b7dc0bdb"
+}

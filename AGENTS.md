@@ -14,6 +14,13 @@
 
 # Project-wide modern C++ ownership and asynchronous safety
 
+- Greenfield server decision (2026-09-16): the existing environment contains development data only. Build the new PostgreSQL/server/client
+  contracts directly, with no Mongo data migration/import, legacy protocol/configuration/schema compatibility, adapter facade, dual write,
+  or runtime fallback. Old API shapes, IDs, package/config formats and test expectations do not constrain the new design; update affected
+  producers, consumers and tests together. Existing product invariants (authorization, Job ownership, RDP preservation, Android target
+  identity) still apply. Versioned fresh-schema initialization and future upgrades between formal releases remain required; they do not
+  authorize support for the retired development baseline. This does not authorize deleting unrelated databases or Windows workspaces.
+
 - Network port decision (2026-09-14): port 20371 is fully retired and must not appear as a runtime default, fallback, probe target,
   test endpoint or deployment assumption. Consume the authoritative endpoint reported through current node configuration and Console
   connection descriptors. Current package defaults use desktop Render 4601 and dynamically allocate application Render ports from
@@ -76,6 +83,14 @@
 
 # Project-wide C++ initialization, design, and formatting rules
 
+- Coding-style decision (2026-09-17): project-owned C++ follows the Google C++ Style Guide; Rust follows the official Rust Style Guide
+  and rustfmt; TypeScript follows Microsoft's TypeScript Coding Guidelines for general application code. See `docs/coding_style.md`.
+  This supersedes the previous C++ LLVM/150-column formatting rule: use Google/4-space/80-column formatting.
+  The user's explicit four-space indentation override applies to normal and continuation indentation; use spaces, never tabs.
+  Existing project ownership, deterministic initialization, async safety, localization/theme and protected ABI rules remain mandatory;
+  adopting a style guide does not permit raw pointers, unrelated third-party changes or a repository-wide mechanical rewrite.
+  New code and logically modified blocks must use the new style. Generated code, archives and read-only external references are excluded.
+
 - Every Pixels-owned C++ object, data member, scalar, enum, atomic, handle, and local variable must be deterministically initialized before
   first use. Prefer in-class member initializers and value initialization (`{}`); constructors must establish a complete valid state and
   must not expose or schedule work against a partially initialized object.
@@ -103,8 +118,8 @@
   typed, capability-specific, and backed by a real extension boundary.
 - Resource acquisition, subscriptions, registrations, locks, threads, timers, library handles, and cancellation ownership must all be
   represented by RAII types. Cleanup order must be the reverse of dependency construction and repeated stop/destroy must be safe.
-- Project-authored C++ uses a 150-column limit. Keep a statement on one line when it fits within 150 columns; wrap only when it exceeds the
-  limit or when a deliberate multiline layout materially improves readability. Generated code, vendored third-party code, URLs, and
+- Project-authored C++ uses Google's 80-column limit with the user's 4-space indentation override. Keep a statement on one line when it fits within 80 columns;
+  wrap when required or when a deliberate multiline layout materially improves readability. Generated code, vendored third-party code, URLs, and
   unavoidable external literals are excluded.
 - The repository `.clang-format` is the formatting authority for project-authored C++. Do not mechanically reformat unrelated legacy files
   or read-only third-party trees.

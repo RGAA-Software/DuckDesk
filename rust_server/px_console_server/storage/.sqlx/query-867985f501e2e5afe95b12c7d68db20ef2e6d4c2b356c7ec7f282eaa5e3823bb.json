@@ -1,0 +1,128 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id,request_hash,product,distribution,channel,os,architecture,build_number,version,artifact_url,sha256,size_bytes,metadata_url,metadata_sha256,state,revision,created_at,updated_at FROM pixels.update_releases WHERE product=$1 AND distribution=$2 AND channel=$3 AND os=$4 AND architecture=$5 ORDER BY build_number DESC LIMIT 1\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "request_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 2,
+        "name": "product",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "distribution",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "channel",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "os",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "architecture",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "build_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "version",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "artifact_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "sha256",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "size_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "metadata_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "metadata_sha256",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 16,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 17,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "867985f501e2e5afe95b12c7d68db20ef2e6d4c2b356c7ec7f282eaa5e3823bb"
+}

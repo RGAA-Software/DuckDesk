@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.connection_observation_events(id,connection_id,revision,sequence,state,sent_bytes,received_bytes,elapsed_ms) VALUES($1,$2,$3,$4,$5,$6,$7,$8)\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Int8",
+        "Text",
+        "Int8",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9b45b2f792c17c679876f6b67d9211dbdfeeae2fbc44aadc98fa34372c201a7c"
+}

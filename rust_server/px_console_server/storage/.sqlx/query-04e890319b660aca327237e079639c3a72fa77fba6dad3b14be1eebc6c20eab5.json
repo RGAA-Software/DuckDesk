@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "LOCK TABLE pixels.users IN SHARE ROW EXCLUSIVE MODE\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "04e890319b660aca327237e079639c3a72fa77fba6dad3b14be1eebc6c20eab5"
+}

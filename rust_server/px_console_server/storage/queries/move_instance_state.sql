@@ -1,0 +1,3 @@
+UPDATE pixels.instances i SET state=$2,desired_state=$3,revision=i.revision+1,node_generation=$4,control_epoch=$5,endpoint_revision=$6,
+started_at=CASE WHEN $2='running' THEN COALESCE(i.started_at,clock_timestamp()) ELSE i.started_at END,
+ended_at=CASE WHEN $2 IN ('stopped','failed') THEN clock_timestamp() ELSE NULL END WHERE i.id=$1 RETURNING i.id,i.application_id,i.node_id,i.owner_user,i.owner_guest,i.client_type,i.request_hash,i.state,i.revision,i.node_generation,i.control_epoch,i.created_at,i.ended_at,i.deployment_id,i.launch_id,i.desired_state,i.application_revision,i.deployment_revision,i.endpoint_revision,i.port

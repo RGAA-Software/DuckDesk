@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT s.id AS session_id, s.user_id, s.client_type, s.authorization_revision, s.expires_at, s.absolute_expires_at\nFROM pixels.login_sessions s\nJOIN pixels.users u ON u.id = s.user_id\nWHERE s.token_hash = $1 AND s.client_type = $2 AND s.revoked_at IS NULL\n    AND s.expires_at > clock_timestamp() AND s.absolute_expires_at > clock_timestamp()\n    AND u.deleted_at IS NULL AND NOT u.disabled\n    AND s.authorization_revision = u.authorization_revision\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "session_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "client_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "authorization_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "expires_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "absolute_expires_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "acfac8a40ff5cf664deac5e9ef17d91e933ddd784eb88666c8593eafd0214d4b"
+}

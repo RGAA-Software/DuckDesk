@@ -1,0 +1,1 @@
+SELECT w.id,w.application_id,w.deployment_id,w.node_id,w.account_name,w.windows_sid,w.revision,w.credential_revision,s.schema_version,s.key_id,s.nonce,s.ciphertext FROM pixels.rdp_workspaces w JOIN pixels.workspace_secrets s ON s.workspace_id=w.id WHERE w.id=$1 FOR UPDATE OF w,s

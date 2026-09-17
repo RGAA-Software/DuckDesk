@@ -1,0 +1,1 @@
+SELECT id,session_id,node_id,node_generation,control_epoch,request_hash,expected_sha256,report_hash,direction,file_name,total_bytes,transferred_bytes,state,reason,sequence,revision,created_at,updated_at,ended_at FROM pixels.file_transfers WHERE id=$1 FOR UPDATE

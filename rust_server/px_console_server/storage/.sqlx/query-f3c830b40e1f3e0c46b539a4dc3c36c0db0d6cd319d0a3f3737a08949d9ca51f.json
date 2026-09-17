@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.cache_blobs SET pinned=$2,updated_at=clock_timestamp()\nWHERE recording_id=$1 AND (NOT $2 OR (id=$3 AND state='published'))\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bool",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f3c830b40e1f3e0c46b539a4dc3c36c0db0d6cd319d0a3f3737a08949d9ca51f"
+}

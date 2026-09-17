@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.cache_blobs SET state='abandoned',verified_run=NULL,updated_at=clock_timestamp() WHERE id=$1\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c16b6587ca46b32ece08677e97b5f30d82abe4578ae05ffdd1684ee8ee216789"
+}

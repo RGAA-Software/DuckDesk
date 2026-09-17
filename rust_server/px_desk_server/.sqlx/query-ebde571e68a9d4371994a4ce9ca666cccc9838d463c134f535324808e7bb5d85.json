@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.admin_sessions SET revoked_at=clock_timestamp() WHERE id=$1 AND revoked_at IS NULL\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ebde571e68a9d4371994a4ce9ca666cccc9838d463c134f535324808e7bb5d85"
+}

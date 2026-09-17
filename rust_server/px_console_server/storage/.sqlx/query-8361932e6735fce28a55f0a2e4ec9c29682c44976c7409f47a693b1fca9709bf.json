@@ -1,0 +1,100 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id,name,kind,access_mode,entry_url,executable_relative,arguments,bitrate_kbps,codec,allow_observer,allow_takeover,disabled,revision,access_revision FROM pixels.applications WHERE id=$1 AND deleted_at IS NULL FOR UPDATE\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "access_mode",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "entry_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "executable_relative",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "arguments",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "bitrate_kbps",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "codec",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "allow_observer",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 10,
+        "name": "allow_takeover",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 11,
+        "name": "disabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 12,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 13,
+        "name": "access_revision",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "8361932e6735fce28a55f0a2e4ec9c29682c44976c7409f47a693b1fca9709bf"
+}

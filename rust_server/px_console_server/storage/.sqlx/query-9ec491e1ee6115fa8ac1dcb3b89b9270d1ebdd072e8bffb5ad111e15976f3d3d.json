@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT i.application_id,i.deployment_id,i.node_id\nFROM pixels.instance_commands c JOIN pixels.instances i ON i.id=c.instance_id\nWHERE c.id=$1 AND c.lease_id=$2 AND c.node_id=$3 AND c.node_generation=$4 AND c.control_epoch=$5\nAND c.kind='start' AND c.state='claimed' AND c.deadline>clock_timestamp() AND c.lease_until>clock_timestamp()\nAND c.instance_revision=i.revision AND i.state='starting' AND i.desired_state='running' AND i.ended_at IS NULL AND i.kind='rdp'\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "application_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "deployment_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "node_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "9ec491e1ee6115fa8ac1dcb3b89b9270d1ebdd072e8bffb5ad111e15976f3d3d"
+}

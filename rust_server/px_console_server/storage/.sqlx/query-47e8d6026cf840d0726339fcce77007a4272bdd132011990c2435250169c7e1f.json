@@ -1,0 +1,130 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id,source_id,session_id,node_id,node_generation,control_epoch,kind,request_hash,state,reason,sent_bytes,received_bytes,elapsed_ms,sequence,report_hash,revision,created_at,updated_at,ended_at FROM pixels.connection_observations WHERE id=$1 FOR UPDATE\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "source_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "session_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "node_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "node_generation",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "control_epoch",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "request_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 8,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "sent_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "received_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "elapsed_ms",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 13,
+        "name": "sequence",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 14,
+        "name": "report_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 15,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 16,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 17,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 18,
+        "name": "ended_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "47e8d6026cf840d0726339fcce77007a4272bdd132011990c2435250169c7e1f"
+}

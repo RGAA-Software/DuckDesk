@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.license_audit(id,author_id,license_id,action,revision) VALUES($1,$2,$3,'revoked',$4)\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "07ffab3af767e14c9208ed6492867f242bd88f9fbebe885ab136fa5445a2047b"
+}

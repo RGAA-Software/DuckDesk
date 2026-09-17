@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id FROM pixels.admin_sessions WHERE token_hash=$1 AND credential_fingerprint=$2\n         AND revoked_at IS NULL AND expires_at>clock_timestamp()\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0415e00a45594f9971e2b97b7125bcd2dd042587a1cdbf93460e9d6800e93968"
+}

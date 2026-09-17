@@ -1,70 +1,45 @@
-mod consult;
-mod filter;
-mod issue;
-mod off_admin_handle;
-mod off_api_error;
-mod off_api_keys;
-mod off_context;
-mod off_database;
-mod off_http_utils;
-mod off_server;
-mod off_settings;
-mod version;
-
-use crate::consult::off_consult_manager::OffConsultManager;
-use crate::issue::off_issue_manager::OffIssueManager;
-use crate::off_context::OffContext;
-use crate::off_database::OffDatabase;
-use crate::off_server::OffServer;
-use crate::off_settings::OffSettings;
-use crate::version::off_version_manager::OffVersionManager;
-use clap::Parser as ClapParser;
-use clap_derive::Parser;
-use px_base::log_util;
-use std::sync::Arc;
-use tokio::sync::Mutex;
-
-lazy_static::lazy_static! {
-    pub static ref gOffDatabase: Arc<Mutex<OffDatabase>> = OffDatabase::new();
-    pub static ref gOffConsultManager: Arc<Mutex<OffConsultManager>> = OffConsultManager::new();
-    pub static ref gOffIssueManager: Arc<Mutex<OffIssueManager>> = OffIssueManager::new();
-    pub static ref gOffVersionManager: Arc<Mutex<OffVersionManager>> = OffVersionManager::new();
-    pub static ref gOffSettings: OffSettings = OffSettings::load_or_create();
-}
-
-#[derive(Parser)]
-#[command(name = "myapp", version, about, long_about = None)]
-struct Cli {
-    #[arg(short, long)]
-    port: Option<i32>,
-}
+use px_desk_server::{config::Settings, router, AppState};
+use std::{sync::Arc, time::Duration};
 
 #[tokio::main]
 async fn main() {
-    let args = Cli::parse();
-    let _port = args.port.unwrap_or(20369);
-
-    let _ = px_base::create_dir_if_not_exists("./static");
-
-    // log
-    let _guard = log_util::init_log("logs/px_desk/".to_string(), "log_off".to_string());
-
-    // settings（exe 旁 px_desk.toml，含管理密码；缺失则自动生成）
-    lazy_static::initialize(&gOffSettings);
-
-    // database
-    if !gOffDatabase.lock().await.init().await {
-        tracing::error!("failed to initialize database");
-        return;
+    if let Err(error) = run().await {
+        eprintln!("Desk startup/runtime failed: {error}");
+        std::process::exit(1);
     }
+}
 
-    // context
-    let context = Arc::new(Mutex::new(OffContext::new()));
-
-    // tls
-    rustls::crypto::ring::default_provider()
-        .install_default()
-        .expect("Failed to install rustls crypto provider");
-
-    OffServer::new().start(context).await;
+async fn run() -> Result<(), Box<dyn std::error::Error>> {
+    let settings = Settings::from_env()?;
+    let state = Arc::new(AppState::connect(&settings).await?);
+    let app = router(state.clone(), &settings.static_directory);
+    let listener = std::net::TcpListener::bind(settings.listen)?;
+    listener.set_nonblocking(true)?;
+    let address = listener.local_addr()?;
+    if let Some((cert, key)) = &settings.tls {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let tls = axum_server::tls_rustls::RustlsConfig::from_pem_file(cert, key).await?;
+        let handle = axum_server::Handle::new();
+        let shutdown = handle.clone();
+        let signal_task = tokio::spawn(async move {
+            let _ = tokio::signal::ctrl_c().await;
+            shutdown.graceful_shutdown(Some(Duration::from_secs(10)));
+        });
+        println!("Desk listening https://{address}");
+        let result = axum_server::from_tcp_rustls(listener, tls)?
+            .handle(handle)
+            .serve(app.into_make_service())
+            .await;
+        signal_task.abort();
+        result?;
+    } else {
+        println!("Desk listening http://{address} (explicit loopback development)");
+        axum::serve(tokio::net::TcpListener::from_std(listener)?, app)
+            .with_graceful_shutdown(async {
+                let _ = tokio::signal::ctrl_c().await;
+            })
+            .await?;
+    }
+    state.close().await;
+    Ok(())
 }

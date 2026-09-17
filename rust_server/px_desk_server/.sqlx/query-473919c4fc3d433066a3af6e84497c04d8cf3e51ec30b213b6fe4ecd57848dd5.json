@@ -1,0 +1,103 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.feedback SET processed=$1,revision=revision+1,updated_at=clock_timestamp()\n         WHERE id=$2 AND kind=$3 AND revision=$4\n         RETURNING id,title,your_name,description,email,wechat,qq,consult_type,version,os,processed,revision,created_at,updated_at\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "your_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "wechat",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "qq",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "consult_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "version",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "os",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "processed",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 11,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bool",
+        "Uuid",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "473919c4fc3d433066a3af6e84497c04d8cf3e51ec30b213b6fe4ecd57848dd5"
+}

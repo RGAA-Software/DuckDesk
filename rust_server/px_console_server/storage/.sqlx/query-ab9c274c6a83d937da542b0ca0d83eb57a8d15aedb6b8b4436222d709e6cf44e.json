@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.nodes SET connection_hash=NULL,state='offline',reconciliation_id=NULL,reconciliation_deadline=NULL,generation=generation+1,report_sequence=0,last_seen=NULL\nWHERE connection_hash IS NOT NULL\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "ab9c274c6a83d937da542b0ca0d83eb57a8d15aedb6b8b4436222d709e6cf44e"
+}

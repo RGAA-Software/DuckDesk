@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT i.license_id,i.revision,i.wire FROM pixels.license_issuances i JOIN pixels.licenses l ON l.id=i.license_id\n                 WHERE i.id=$1 AND i.revision=l.revision AND l.revoked_at IS NULL AND l.expires_at>clock_timestamp() FOR SHARE OF l\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "license_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "wire",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "4cee7206703980b48dc24a58b0e29a2c6033f0593c8104ff46f573c469ba73f4"
+}

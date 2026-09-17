@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.license_issuances(id,license_id,revision,key_id,payload,wire) VALUES($1,$2,$3,$4,$5,$6)\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Text",
+        "Bytea",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "34b8c4cba98211bb34811e0bbb34bfdae41cb3e37b577f470a4814e4c32970c7"
+}

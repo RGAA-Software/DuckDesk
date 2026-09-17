@@ -1,0 +1,159 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.nodes n SET report_sequence=$4,last_seen=clock_timestamp(),product_version_code=$5,\nendpoint_revision=n.endpoint_revision+CASE WHEN n.public_host IS DISTINCT FROM $6 OR n.desktop_port IS DISTINCT FROM $7 OR n.application_port_start IS DISTINCT FROM $8 OR n.application_port_end IS DISTINCT FROM $9 THEN 1 ELSE 0 END,\nstate=CASE WHEN n.public_host IS DISTINCT FROM $6 OR n.desktop_port IS DISTINCT FROM $7 OR n.application_port_start IS DISTINCT FROM $8 OR n.application_port_end IS DISTINCT FROM $9 OR n.game_hook<>$10 OR n.webview<>$11 OR n.rdp<>$12 OR n.last_seen<=statement_timestamp()-interval '30 seconds' THEN 'reconciling' ELSE n.state END,\nreconciliation_id=CASE WHEN n.public_host IS DISTINCT FROM $6 OR n.desktop_port IS DISTINCT FROM $7 OR n.application_port_start IS DISTINCT FROM $8 OR n.application_port_end IS DISTINCT FROM $9 OR n.game_hook<>$10 OR n.webview<>$11 OR n.rdp<>$12 OR n.last_seen<=statement_timestamp()-interval '30 seconds' THEN NULL ELSE n.reconciliation_id END,\nreconciliation_deadline=CASE WHEN n.public_host IS DISTINCT FROM $6 OR n.desktop_port IS DISTINCT FROM $7 OR n.application_port_start IS DISTINCT FROM $8 OR n.application_port_end IS DISTINCT FROM $9 OR n.game_hook<>$10 OR n.webview<>$11 OR n.rdp<>$12 OR n.last_seen<=statement_timestamp()-interval '30 seconds' THEN NULL ELSE n.reconciliation_deadline END,\npublic_host=$6,desktop_port=$7,application_port_start=$8,application_port_end=$9,game_hook=$10,webview=$11,rdp=$12\nWHERE n.connection_hash=$1 AND n.generation=$2 AND n.control_epoch=$3 AND $3=(SELECT epoch FROM pixels.control_runtime)\nAND $4>n.report_sequence AND NOT n.disabled AND n.deleted_at IS NULL\nAND EXISTS(SELECT 1 FROM pixels.devices d WHERE d.id=n.device_id AND NOT d.disabled AND d.deleted_at IS NULL)\nRETURNING id,device_id,product,revision,generation,control_epoch,state,draining,disabled,max_instances,report_sequence,last_seen,product_version_code,public_host,desktop_port,application_port_start,application_port_end,game_hook,webview,rdp,endpoint_revision,true AS \"fresh!\"\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "device_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "product",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "generation",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "control_epoch",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "draining",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "disabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "max_instances",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "report_sequence",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "last_seen",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "product_version_code",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 13,
+        "name": "public_host",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "desktop_port",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 15,
+        "name": "application_port_start",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 16,
+        "name": "application_port_end",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 17,
+        "name": "game_hook",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 18,
+        "name": "webview",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 19,
+        "name": "rdp",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 20,
+        "name": "endpoint_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 21,
+        "name": "fresh!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Text",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Bool",
+        "Bool",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "633ac76907412ff84ad443be1f0ee33afa62a4538c39a1190ca347a5df4c7bc1"
+}

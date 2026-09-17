@@ -1,5 +1,7 @@
 # px_auth_server 接入凭据（appkey/app_secret）身份鉴权
 
+> 退役协议研究记录。当前 Auth 不再接受此 HMAC/appkey 协议，也不再提供 app_credential_gen。旧 Console 消费端仍待 DB2/DB3 切换；不得为保持它可用而恢复 Auth 兼容分支。新协议见 [许可证契约](postgresql_license_contract.md)。
+
 > 状态：已完成（灰度中，`require_app_credential = false`）
 > 范围：`rust_server/px_auth_server`（服务端）+ GoPhone 仓库的 gopico-pc / box-client / goagent（三端客户端）
 > 目标：给无登录体系的开放接口加"接入方身份"验证，杜绝"知道设备码即可拉取授权 / 覆写遥测"的滥用。

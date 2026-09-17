@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.nodes SET state='reconciling' WHERE id=$1 AND connection_hash IS NOT NULL\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "dca881c17c0eea6bcc9686cd40a2af3bf81212abf9fe7a2fd3d9c30cb492b891"
+}

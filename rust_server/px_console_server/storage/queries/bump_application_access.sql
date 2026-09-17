@@ -1,0 +1,1 @@
+UPDATE pixels.applications SET revision=revision+1,access_revision=access_revision+1,updated_at=clock_timestamp() WHERE id=$1 RETURNING id,name,kind,access_mode,entry_url,executable_relative,arguments,bitrate_kbps,codec,allow_observer,allow_takeover,disabled,revision,access_revision

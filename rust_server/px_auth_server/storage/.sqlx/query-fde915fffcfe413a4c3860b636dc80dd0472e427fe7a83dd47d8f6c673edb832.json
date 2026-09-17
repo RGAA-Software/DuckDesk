@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.authors SET password_hash=$1,authorization_revision=authorization_revision+1\n             WHERE id=$2 AND authorization_revision=$3\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fde915fffcfe413a4c3860b636dc80dd0472e427fe7a83dd47d8f6c673edb832"
+}

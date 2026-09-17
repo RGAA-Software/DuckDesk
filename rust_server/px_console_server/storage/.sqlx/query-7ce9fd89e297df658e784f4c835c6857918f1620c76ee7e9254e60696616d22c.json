@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.cache_roots(singleton,id,deployment_id) VALUES(true,$1,$2) ON CONFLICT(singleton) DO NOTHING\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7ce9fd89e297df658e784f4c835c6857918f1620c76ee7e9254e60696616d22c"
+}

@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+    # Constraint failures must not print complete contact/password/ciphertext rows.
+    command: ["postgres", "-c", "log_error_verbosity=terse", "-c", "log_parameter_max_length_on_error=0"]
+    environment:
+      POSTGRES_USER: pixels_admin
+      POSTGRES_PASSWORD: ${PG_ADMIN_PASSWORD:?Generate local configuration first}
+      POSTGRES_DB: postgres
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+      PIXELS_DEPLOYMENT_ID: ${PIXELS_DEPLOYMENT_ID:?Required}
+      CONSOLE_OWNER_PASSWORD: ${CONSOLE_OWNER_PASSWORD:?Required}
+      CONSOLE_RUNTIME_PASSWORD: ${CONSOLE_RUNTIME_PASSWORD:?Required}
+      AUTH_OWNER_PASSWORD: ${AUTH_OWNER_PASSWORD:?Required}
+      AUTH_RUNTIME_PASSWORD: ${AUTH_RUNTIME_PASSWORD:?Required}
+      DESK_OWNER_PASSWORD: ${DESK_OWNER_PASSWORD:?Required}
+      DESK_RUNTIME_PASSWORD: ${DESK_RUNTIME_PASSWORD:?Required}
+    ports:
+      - "127.0.0.1:${PG_PORT:?Required}:5432"
+    volumes:
+      - data:/var/lib/postgresql
+      - ./init.sh:/docker-entrypoint-initdb.d/10-pixels.sh:ro
+    healthcheck:
+      # The entrypoint's temporary bootstrap server listens only on a Unix socket.
+      # Do not mark it healthy before init scripts finish and the final TCP server starts.
+      test: [CMD-SHELL, "pg_isready -h 127.0.0.1 -U pixels_admin -d postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    labels:
+      pixels.environment: development
+volumes:
+  data:

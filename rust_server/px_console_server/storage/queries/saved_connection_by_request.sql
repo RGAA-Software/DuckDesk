@@ -1,0 +1,1 @@
+SELECT id,owner_id,client_type,request_id,request_hash,name,device_id,application_id,video_bitrate_bps,video_fps,audio_enabled,clipboard_enabled,view_only,maximize,split_windows,prefer_peer_to_peer,audio_capture,background_rgb,revision,created_at,updated_at,deleted_at FROM pixels.saved_connections WHERE owner_id=$1 AND client_type=$2 AND request_id=$3 FOR UPDATE
