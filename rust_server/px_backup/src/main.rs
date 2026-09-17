@@ -1,3 +1,4 @@
+mod restore_command;
 #[cfg(windows)]
 mod windows_service;
 
@@ -35,6 +36,15 @@ fn main() -> ExitCode {
                 "Windows service dispatcher rejected startup" => 11,
                 "service configuration already initialized"
                 | "service identity already initialized" => 12,
+                "restore remains RecoveryRequired" => 20,
+                "restore approval rejected" | "restore approval request rejected" => 21,
+                "restore configuration rejected"
+                | "external recovery witness rejected"
+                | "restore admission store rejected"
+                | "restore evidence rejected"
+                | "backup repository rejected restore access"
+                | "recovery set is unavailable"
+                | "restore result serialization failed" => 22,
                 _ => 1,
             })
         }
@@ -43,20 +53,26 @@ fn main() -> ExitCode {
 
 fn run() -> Result<(), &'static str> {
     let arguments = env::args_os().collect::<Vec<_>>();
-    if arguments.len() != 3 {
-        return Err("usage: px_backup run|service <absolute-private-config-path>");
+    if arguments.len() < 3 {
+        return Err("usage: px_backup run|service|restore-evaluate|restore-approve <private-config-path> [private-approval-path]");
     }
     let command = arguments[1]
         .to_str()
         .ok_or("backup daemon command is invalid")?;
     let config_path = PathBuf::from(&arguments[2]);
     match command {
-        "run" => run_interactive(config_path),
+        "run" if arguments.len() == 3 => run_interactive(config_path),
         #[cfg(windows)]
-        "service" => windows_service::dispatch(config_path),
+        "service" if arguments.len() == 3 => windows_service::dispatch(config_path),
         #[cfg(not(windows))]
-        "service" => Err("service mode is available only through Windows SCM"),
-        _ => Err("usage: px_backup run|service <absolute-private-config-path>"),
+        "service" if arguments.len() == 3 => {
+            Err("service mode is available only through Windows SCM")
+        }
+        "restore-evaluate" if arguments.len() == 3 => restore_command::evaluate(config_path),
+        "restore-approve" if arguments.len() == 4 => {
+            restore_command::approve(config_path, PathBuf::from(&arguments[3]))
+        }
+        _ => Err("usage: px_backup run|service|restore-evaluate|restore-approve <private-config-path> [private-approval-path]"),
     }
 }
 

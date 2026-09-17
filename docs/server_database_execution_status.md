@@ -184,6 +184,14 @@ DB4 第七纵向切片把恢复审批做成独立持久状态机：每个 deploy
 Rust 文件；Windows 聚焦报告 `pg-20260917-190829-ce35f11a` 保持源码 hash 稳定并完成隔离清理。状态机尚未接入产品恢复 CLI，真实
 WriteBarrier 水位仍未生成，因此本条不把准入/防复活出口提前标为完成。
 
+DB4 第八纵向切片把状态机接入 `px_backup restore-evaluate` / `restore-approve`：命令只接受绝对路径的私有严格配置，恢复集从 deployment
+绑定仓库重新读取并逐归档校验，witness 在每次评估/审批前重新读取；审批请求必须是私有严格文件并匹配当前 revision/evidence hash。
+仓库被备份服务占用时恢复命令直接拒绝，不提供任意 shell、SQL 或归档路径参数。`restore-evaluate` 在存在 blocker 时输出脱敏状态并以专用
+`RecoveryRequired` 退出码失败；`restore-approve` 再次评估后才持久化审批。Windows/WSL Linux 各 41 项和严格 Clippy 已通过，其中包含
+真实私有文件、仓库重新校验、Ready 记录与审批持久化的命令级测试；命名门禁覆盖 185 个 Rust 文件，Windows 聚焦报告
+`pg-20260917-191533-49c2245d`。这些命令目前只完成准入和审批，不执行 `createdb/pg_restore`、不开放服务；真正恢复执行、写屏障水位和
+解除产品维护模式仍保持未完成。
+
 - 新 Console 运行模块已接身份/用户组 HTTP 与单活动生命周期（产品入口尚未切换）。Windows 路由专项
   `pg-20260917-092450-742a93ef` 五组通过，837 个源文件及工具 hash 复核一致；静态检查通过。
   后续审计/管理重置增量独立验收，不把本条当作这些增量、正式产品或 Linux 已通过。
@@ -422,7 +430,7 @@ Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 W
 | DB2-A | 身份/管理 HTTP、密码计算/限流/Origin、访客 HMAC/会话/公开目录、严格配置与稳定私钥加载已实现；本人资料/头像、独立初始化 CLI、产品二进制切换及客户端全链路尚未接通 |
 | DB2-B/C/D | 设备/应用/节点/部署目录、user/guest 资源入口与 Console 节点 WS 已接；Windows Service 已切到新节点协议并实现部署准备、调和、命令 fencing 与精确 launch ACK。真实 Console→Service→Render、GPU/RDP 执行、媒体/事件投递及其余 repository 产品入口仍未完成 |
 | DB2-EXIT / DB3 | Desk/Auth 独立产品流程已验证；Console 与共享消费者仍待去 Mongo、接新签发/验证及库外水位，Auth 通知 outbox 尚未接通；不建设运行时双后端 |
-| DB4 | 恢复集/保留/私有原子发布/恢复前哈希与依赖复核/固定工具/取消超时、持久计划任务、重启补跑、受限实际清理、配置化异机复制及独立 Prometheus/Alertmanager 告警送达已实现；Windows SCM 已真实验收，测试适配器已完成三库逻辑备份和全新库恢复。仍需 Linux systemd 真实宿主、生产宿主工具与最小账号、源主机下线后的异机恢复、恢复准入、权限防复活和生产 WAL/PITR；本机 Docker 专项不能替代这些故障域验收 |
+| DB4 | 恢复集/保留/私有原子发布/恢复前哈希与依赖复核/固定工具/取消超时、持久计划任务、重启补跑、受限实际清理、配置化异机复制、独立告警送达及持久恢复准入/审批命令已实现；Windows SCM 已真实验收，测试适配器已完成三库逻辑备份和全新库恢复。仍需 Linux systemd 真实宿主、生产宿主工具与最小账号、源主机下线后的异机恢复、真实恢复执行/写屏障水位/权限防复活和生产 WAL/PITR；本机 Docker 专项不能替代这些故障域验收 |
 | DB5 | 新环境服务端—Windows—Android 功能回归及完整制品验收 |
 | DB-HA / P1–P7 | 独立主机 HA、正式发行隔离、授权/连接服务、升级、运维与真实容量/稳定性验收 |
 
