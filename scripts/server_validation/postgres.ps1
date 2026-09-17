@@ -7,7 +7,7 @@ param(
     [ValidateRange(0,65535)]
     [int]$Port = 0,
     [switch]$Linux,
-    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'backup-pg', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'catalog', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'node-control', 'console-process')]
+    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'backup-pg', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'catalog', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'node-control', 'console-process', 'console-admin')]
     [string]$Suite = ''
 )
 
@@ -254,7 +254,7 @@ try {
     Set-LocalEnv 'PIXELS_TEST_CONTAINER' $container
     # Dedicated empty fixture databases keep bootstrap/last-administrator assertions platform-independent.
     foreach ($service in @('auth','console')) {
-        $fixtureKinds = if ($service -eq 'auth') { @('bootstrap') } else { @('control','bootstrap','api','directory','node_control','process') }
+        $fixtureKinds = if ($service -eq 'auth') { @('bootstrap') } else { @('control','bootstrap','api','directory','node_control','process','admin') }
         foreach ($fixtureKind in $fixtureKinds) {
         foreach ($platform in @('windows','linux')) {
             $fixtureDb = "pixels_${service}_${fixtureKind}_$platform"
@@ -292,13 +292,14 @@ try {
         $suiteCounts['directory-api'] = 5
         $suiteCounts['node-control'] = 1
         $suiteCounts['console-process'] = 1
+        $suiteCounts['console-admin'] = 2
         $suiteCounts['schema_gate'] = 4
         $suiteCounts['auth'] = 7
         $suiteCounts['auth-api'] = 9
         Set-LocalEnv 'SQLX_OFFLINE' 'true'
         Set-LocalEnv 'SQLX_OFFLINE_DIR' (Join-Path $repo 'rust_server/px_console_server/storage/.sqlx')
-        if ($Suite -in @('console-api','directory-api','node-control','console-process')) {
-            $apiTest = if($Suite -eq 'console-api'){'identity_api'}elseif($Suite -eq 'directory-api'){'directory_api'}elseif($Suite -eq 'node-control'){'node_control'}else{'process'}
+        if ($Suite -in @('console-api','directory-api','node-control','console-process','console-admin')) {
+            $apiTest = if($Suite -eq 'console-api'){'identity_api'}elseif($Suite -eq 'directory-api'){'directory_api'}elseif($Suite -eq 'node-control'){'node_control'}elseif($Suite -eq 'console-process'){'process'}else{'admin'}
             $suiteArgs = @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--features','pg-integration','--test',$apiTest,'--target-dir',$targetDir)
         } elseif ($Suite -eq 'files') {
             $suiteArgs = @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_private_files','--features','integration-probe','--test','cache_files','--target-dir',$targetDir)
@@ -408,6 +409,10 @@ try {
     Write-Host $consoleProcess
     Add-TestCases $consoleProcess 'native/console-process' 1
     Add-Step 'CONSOLE-PROCESS: real listener readiness and terminal database-authority loss'
+    $consoleAdmin = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--features','pg-integration','--test','admin','--target-dir',$targetDir,'--','--test-threads=1')
+    Write-Host $consoleAdmin
+    Add-TestCases $consoleAdmin 'native/console-admin' 2
+    Add-Step 'CONSOLE-ADMIN: explicit private secret generation and owner-only empty-database bootstrap'
     $controlIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--test','control','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $controlIntegration
     Add-TestCases $controlIntegration 'native/control' 8
@@ -528,6 +533,7 @@ try {
     Add-Step 'AUTH-API: native startup, private file ACL, bootstrap races, login, roles, signing and revocation'
     $fingerprints.px_auth = (Get-FileHash -LiteralPath (Join-Path $targetDir 'debug/px_auth.exe')).Hash
     $fingerprints.px_auth_admin = (Get-FileHash -LiteralPath (Join-Path $targetDir 'debug/px_auth_admin.exe')).Hash
+    $fingerprints.px_console_admin = (Get-FileHash -LiteralPath (Join-Path $targetDir 'debug/px_console_admin.exe')).Hash
     $deskTool = Join-Path $targetDir 'debug/px_desk.exe'
     $fingerprints.px_desk = (Get-FileHash -LiteralPath $deskTool -Algorithm SHA256).Hash
     Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_pixels'),'run','build') | Out-Null
@@ -599,7 +605,7 @@ try {
         $fingerprints.linux_px_db = $Matches[1]
         if ($linuxResult -notmatch '(?m)^([a-f0-9]{64})\s+[^\r\n]+/debug/px_desk\s*$') { throw 'Missing Linux Desk binary hash' }
         $fingerprints.linux_px_desk = $Matches[1]
-        foreach ($tool in @('px_auth','px_auth_admin','px_cache_probe')) {
+        foreach ($tool in @('px_auth','px_auth_admin','px_console_admin','px_cache_probe')) {
             if ($linuxResult -notmatch "(?m)^([a-f0-9]{64})\s+[^\r\n]+/debug/$tool\s*$") { throw "Missing Linux tool hash: $tool" }
             $fingerprints["linux_$tool"] = $Matches[1]
         }
