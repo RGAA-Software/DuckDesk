@@ -64,16 +64,19 @@ impl ConsoleUserManager {
         plain_password: String,
     ) -> Result<ConsoleUser, ConsoleApiError> {
         let (username, username_normalized) = validated_username(&username)?;
-        let r = self.query_user_by_username(username.clone()).await;
-        if let Ok(_user) = r {
+        let existing_user_result = self.query_user_by_username(username.clone()).await;
+        if let Ok(_existing_user) = existing_user_result {
             tracing::warn!("the user: {} already exists", username);
             return Err(ConsoleApiError::UserAlreadyExists);
         }
 
         let object_id = ObjectId::new();
         let uid = px_base::md5_hex(&object_id.to_string());
-        let password_hash = password::hash(&plain_password).map_err(|e| {
-            tracing::warn!("invalid password while registering user: {}", e);
+        let password_hash = password::hash(&plain_password).map_err(|password_error| {
+            tracing::warn!(
+                "invalid password while registering user: {}",
+                password_error
+            );
             ConsoleApiError::InvalidParams
         })?;
         let password_ciphertext = encrypt_password_for_admin(&plain_password).await?;
@@ -95,9 +98,9 @@ impl ConsoleUserManager {
             total: 0,
         };
 
-        let c_user = gConsoleDatabase.lock().await.user();
-        if let Err(e) = c_user.lock().await.insert_one(user).await {
-            tracing::error!("insert console user failed: {}", e);
+        let user_collection = gConsoleDatabase.lock().await.user();
+        if let Err(insert_error) = user_collection.lock().await.insert_one(user).await {
+            tracing::error!("insert console user failed: {}", insert_error);
             return Err(ConsoleApiError::DatabaseError);
         }
 
@@ -308,8 +311,8 @@ impl ConsoleUserManager {
             .await
             .update_one(filter_doc, update_doc)
             .await
-            .map_err(|e| {
-                tracing::error!("update user password failed: {}", e);
+            .map_err(|update_error| {
+                tracing::error!("update user password failed: {}", update_error);
                 ConsoleApiError::DatabaseError
             })?;
         self.query_user_by_id(uid).await
@@ -343,8 +346,8 @@ impl ConsoleUserManager {
                 },
             )
             .await
-            .map_err(|e| {
-                tracing::error!("update username failed: {}", e);
+            .map_err(|update_error| {
+                tracing::error!("update username failed: {}", update_error);
                 ConsoleApiError::DatabaseError
             })?;
         self.query_user_by_id(uid).await
@@ -370,49 +373,49 @@ impl ConsoleUserManager {
                 },
             )
             .await
-            .map_err(|e| {
-                tracing::error!("update avatar path failed: {}", e);
+            .map_err(|update_error| {
+                tracing::error!("update avatar path failed: {}", update_error);
                 ConsoleApiError::DatabaseError
             })?;
         self.query_user_by_id(uid).await
     }
 
     pub async fn query_user_by_id(&self, uid: String) -> Result<ConsoleUser, ConsoleApiError> {
-        let c_user = gConsoleDatabase.lock().await.user();
+        let user_collection = gConsoleDatabase.lock().await.user();
         let filter = doc! {
             KEY_USER_ID: uid,
         };
-        let r = c_user.lock().await.find_one(filter).await;
-        if let Err(e) = r {
-            tracing::error!("query user by uid error: {}", e);
+        let query_result = user_collection.lock().await.find_one(filter).await;
+        if let Err(query_error) = query_result {
+            tracing::error!("query user by uid error: {}", query_error);
             return Err(ConsoleApiError::DatabaseError);
         }
-        let r = r.unwrap();
-        if r.is_none() {
+        let matching_user = query_result.unwrap();
+        if matching_user.is_none() {
             return Err(ConsoleApiError::UserNotFound);
         }
-        Ok(r.unwrap())
+        Ok(matching_user.unwrap())
     }
 
     pub async fn query_user_by_username(
         &self,
         username: String,
     ) -> Result<ConsoleUser, ConsoleApiError> {
-        let c_user = gConsoleDatabase.lock().await.user();
+        let user_collection = gConsoleDatabase.lock().await.user();
         let filter = doc! {
             "username_normalized": username.trim().to_lowercase(),
         };
-        let r = c_user.lock().await.find_one(filter).await;
-        if let Err(e) = r {
-            tracing::error!("query user by username error: {}", e);
+        let query_result = user_collection.lock().await.find_one(filter).await;
+        if let Err(query_error) = query_result {
+            tracing::error!("query user by username error: {}", query_error);
             return Err(ConsoleApiError::DatabaseError);
         }
-        let r = r.unwrap();
-        if r.is_none() {
+        let matching_user = query_result.unwrap();
+        if matching_user.is_none() {
             tracing::error!("user not found: {}", username);
             return Err(ConsoleApiError::UserNotFound);
         }
-        Ok(r.unwrap())
+        Ok(matching_user.unwrap())
     }
 
     pub async fn query_users(
@@ -465,19 +468,19 @@ impl ConsoleUserManager {
             .skip(skip as u64)
             .limit(limit)
             .await;
-        if let Err(e) = cursor {
-            tracing::error!("query users error: {}", e);
+        if let Err(query_error) = cursor {
+            tracing::error!("query users error: {}", query_error);
             return Err(ConsoleApiError::DatabaseError);
         }
         let mut cursor = cursor.unwrap();
 
         let mut users: Vec<ConsoleUser> = Vec::new();
-        while let Some(device) = cursor.next().await {
-            if let Err(e) = device {
-                tracing::error!("error to get value in cursor: {}", e);
+        while let Some(user_result) = cursor.next().await {
+            if let Err(cursor_error) = user_result {
+                tracing::error!("error to get user value in cursor: {}", cursor_error);
                 break;
             } else {
-                users.push(device.unwrap());
+                users.push(user_result.unwrap());
             }
         }
         Ok(users)
@@ -488,8 +491,8 @@ impl ConsoleUserManager {
     }
 
     pub async fn count_users_matching(&self, username: &str) -> Result<u32, ConsoleApiError> {
-        let c_user = gConsoleDatabase.lock().await.user();
-        let r = c_user.lock().await;
+        let user_collection = gConsoleDatabase.lock().await.user();
+        let user_collection_guard = user_collection.lock().await;
         let mut filter = doc! { "deleted": false };
         if !username.is_empty() {
             filter.insert(
@@ -497,7 +500,7 @@ impl ConsoleUserManager {
                 doc! { "$regex": regex_literal(username), "$options": "i" },
             );
         }
-        if let Ok(count) = r.count_documents(filter).await {
+        if let Ok(count) = user_collection_guard.count_documents(filter).await {
             Ok(count as u32)
         } else {
             Err(ConsoleApiError::DatabaseError)

@@ -42,8 +42,12 @@ pub fn is_valid_record_filename(name: &str) -> bool {
     if name.is_empty() || name.len() > 255 || !name.ends_with(".mp4") || name.contains("..") {
         return false;
     }
-    name.chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.' || c == '-')
+    name.chars().all(|character| {
+        character.is_ascii_alphanumeric()
+            || character == '_'
+            || character == '.'
+            || character == '-'
+    })
 }
 
 // ---------------- response types (web contract) ----------------
@@ -145,11 +149,16 @@ async fn send_fetch_req(device_id: &str, filename: &str) -> Result<(), ConsoleAp
     let token = gRecordTunnel.new_token(device_id, filename);
     let req_id = uuid::Uuid::new_v4().to_string();
     let (scheme, host, port) = {
-        let s = gConsoleSettings.lock().await;
+        let console_settings = gConsoleSettings.lock().await;
         (
-            if s.ssl_enable { "https" } else { "http" }.to_string(),
-            s.server_w3c_ip.clone(),
-            s.console_port,
+            if console_settings.ssl_enable {
+                "https"
+            } else {
+                "http"
+            }
+            .to_string(),
+            console_settings.server_w3c_ip.clone(),
+            console_settings.console_port,
         )
     };
     let upload_url = format!("{}://{}:{}/api/v1/record/upload", scheme, host, port);
@@ -182,9 +191,9 @@ async fn trigger_tunnel_fetch(device_id: &str, filename: &str) -> Result<(), Con
     gRenderRecordManager
         .upsert_fetch_start(device_id, filename)
         .await?;
-    if let Err(e) = send_fetch_req(device_id, filename).await {
+    if let Err(fetch_error) = send_fetch_req(device_id, filename).await {
         gRecordTunnel.remove_inflight(device_id, filename);
-        return Err(e);
+        return Err(fetch_error);
     }
     Ok(())
 }
@@ -289,37 +298,37 @@ pub async fn handle_record_list(
     let stored = gRenderRecordManager.query_by_device(&device_id).await?;
     let mut stored_map: HashMap<String, ConsoleRenderRecord> = stored
         .into_iter()
-        .map(|r| (r.filename.clone(), r))
+        .map(|record| (record.filename.clone(), record))
         .collect();
 
     let mut files: Vec<RecordWebItem> = Vec::new();
-    for f in resp.files {
-        if let Some(rec) = stored_map.remove(&f.name) {
-            let mut item = web_item_from_record(&rec);
+    for panel_file in resp.files {
+        if let Some(stored_record) = stored_map.remove(&panel_file.name) {
+            let mut record_item = web_item_from_record(&stored_record);
             // panel-side truth wins for identity fields
-            item.size = f.size;
-            item.mtime = f.mtime;
-            item.monitor = f.monitor;
-            item.codec = f.codec;
-            if item.state == RECORD_STATE_FETCHING {
-                item.total = f.size;
+            record_item.size = panel_file.size;
+            record_item.mtime = panel_file.mtime;
+            record_item.monitor = panel_file.monitor;
+            record_item.codec = panel_file.codec;
+            if record_item.state == RECORD_STATE_FETCHING {
+                record_item.total = panel_file.size;
             }
-            files.push(item);
+            files.push(record_item);
         } else {
             files.push(RecordWebItem {
-                name: f.name,
-                size: f.size,
-                mtime: f.mtime,
-                monitor: f.monitor,
-                codec: f.codec,
+                name: panel_file.name,
+                size: panel_file.size,
+                mtime: panel_file.mtime,
+                monitor: panel_file.monitor,
+                codec: panel_file.codec,
                 state: "none".to_string(),
                 ..Default::default()
             });
         }
     }
     // console-only copies (device file may have been rotated out) stay visible
-    for (_, rec) in stored_map {
-        files.push(web_item_from_record(&rec));
+    for (_, stored_record) in stored_map {
+        files.push(web_item_from_record(&stored_record));
     }
 
     Ok(Json(ok_resp(RecordListWebResp { device_id, files })))
@@ -439,9 +448,9 @@ pub async fn handle_record_upload(
             match field.chunk().await {
                 Ok(Some(bytes)) => {
                     received += bytes.len() as i64;
-                    if let Some(f) = o_file.as_mut() {
-                        if let Err(e) = f.write_all(&bytes).await {
-                            tracing::error!("record upload write error: {}", e);
+                    if let Some(output_file) = o_file.as_mut() {
+                        if let Err(write_error) = output_file.write_all(&bytes).await {
+                            tracing::error!("record upload write error: {}", write_error);
                             let _ = gRenderRecordManager
                                 .mark_error(&device_id, &filename, "write failed")
                                 .await;
@@ -458,8 +467,8 @@ pub async fn handle_record_upload(
                     }
                 }
                 Ok(None) => break,
-                Err(e) => {
-                    tracing::error!("record upload chunk error: {}", e);
+                Err(chunk_error) => {
+                    tracing::error!("record upload chunk error: {}", chunk_error);
                     let _ = gRenderRecordManager
                         .mark_error(&device_id, &filename, "upload interrupted")
                         .await;
@@ -553,11 +562,16 @@ pub async fn handle_record_download(
     }
 
     tokio::spawn(async move {
-        let r = download_one(device_id.clone(), filename.clone(), device).await;
-        if let Err(e) = r {
-            tracing::error!("record download failed {}/{}: {}", device_id, filename, e);
+        let download_result = download_one(device_id.clone(), filename.clone(), device).await;
+        if let Err(download_error) = download_result {
+            tracing::error!(
+                "record download failed {}/{}: {}",
+                device_id,
+                filename,
+                download_error
+            );
             let _ = gRenderRecordManager
-                .mark_error(&device_id, &filename, &e)
+                .mark_error(&device_id, &filename, &download_error)
                 .await;
             gRecordTunnel.remove_inflight(&device_id, &filename);
         }
@@ -582,16 +596,16 @@ async fn download_one(
                 gRenderRecordManager
                     .mark_ready(&device_id, &filename, size, 0)
                     .await
-                    .map_err(|e| e.to_string())?;
+                    .map_err(|database_error| database_error.to_string())?;
                 gRecordTunnel.remove_inflight(&device_id, &filename);
                 return Ok(());
             }
-            Err(e) => {
+            Err(pull_error) => {
                 tracing::warn!(
                     "direct pull from panel failed ({}/{}): {}, fallback to tunnel",
                     device_id,
                     filename,
-                    e
+                    pull_error
                 );
             }
         }
@@ -599,7 +613,7 @@ async fn download_one(
     // topology 2: tunnel fetch (in-flight already registered by the caller)
     send_fetch_req(&device_id, &filename)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|fetch_error| fetch_error.to_string())
 }
 
 /// console server pulls http://{panel_ip}:{port}/records/{file}?tk&exp directly,
@@ -616,9 +630,9 @@ async fn direct_pull_from_panel(device: &ConsoleDevice, filename: &str) -> Resul
         );
         match pull_url_to_file(&url, &device.device_id, filename).await {
             Ok(size) => return Ok(size),
-            Err(e) => {
-                tracing::warn!("direct pull {} failed: {}", url, e);
-                last_err = e;
+            Err(pull_error) => {
+                tracing::warn!("direct pull {} failed: {}", url, pull_error);
+                last_err = pull_error;
             }
         }
     }
@@ -630,25 +644,32 @@ async fn pull_url_to_file(url: &str, device_id: &str, filename: &str) -> Result<
         .connect_timeout(Duration::from_secs(5))
         .timeout(DIRECT_PULL_TIMEOUT)
         .build()
-        .map_err(|e| e.to_string())?;
-    let resp = client.get(url).send().await.map_err(|e| e.to_string())?;
+        .map_err(|client_error| client_error.to_string())?;
+    let resp = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|request_error| request_error.to_string())?;
     if !resp.status().is_success() {
         return Err(format!("http status {}", resp.status()));
     }
 
     let dir = format!("./uploads/records/{}", device_id);
-    px_base::create_dir_all_if_not_exists(&dir).map_err(|e| e.to_string())?;
+    px_base::create_dir_all_if_not_exists(&dir)
+        .map_err(|directory_error| directory_error.to_string())?;
     let target_path = record_file_path(device_id, filename);
     let mut file = tokio::fs::File::create(&target_path)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|file_error| file_error.to_string())?;
 
     let mut received: i64 = 0;
     let mut last_reported: i64 = 0;
     let mut stream = resp.bytes_stream();
     while let Some(chunk) = stream.next().await {
-        let bytes = chunk.map_err(|e| e.to_string())?;
-        file.write_all(&bytes).await.map_err(|e| e.to_string())?;
+        let bytes = chunk.map_err(|stream_error| stream_error.to_string())?;
+        file.write_all(&bytes)
+            .await
+            .map_err(|write_error| write_error.to_string())?;
         received += bytes.len() as i64;
         if received - last_reported >= PROGRESS_STEP_BYTES {
             last_reported = received;

@@ -91,7 +91,7 @@ impl ConsoleDatabase {
         client_options.server_selection_timeout = Some(std::time::Duration::from_secs(5));
 
         let client = match Client::with_options(client_options) {
-            Ok(c) => c,
+            Ok(database_client) => database_client,
             Err(_) => {
                 tracing::error!("error creating MongoDB client (details redacted)");
                 return false;
@@ -137,8 +137,8 @@ impl ConsoleDatabase {
                         .keys(doc! { "event_type": 1, "action": 1, "timestamp": -1 })
                         .build(),
                 ] {
-                    if let Err(e) = c_event.create_index(index).await {
-                        tracing::error!("create c_event telemetry index failed: {}", e);
+                    if let Err(index_error) = c_event.create_index(index).await {
+                        tracing::error!("create c_event telemetry index failed: {}", index_error);
                         return false;
                     }
                 }
@@ -150,19 +150,22 @@ impl ConsoleDatabase {
                     .keys(doc! { "uid": 1 })
                     .options(IndexOptions::builder().unique(true).build())
                     .build();
-                if let Err(e) = c_user.create_index(user_uid_index).await {
-                    tracing::error!("create c_user uid index failed: {}", e);
+                if let Err(index_error) = c_user.create_index(user_uid_index).await {
+                    tracing::error!("create c_user uid index failed: {}", index_error);
                     return false;
                 }
                 let user_name_index = IndexModel::builder()
                     .keys(doc! { "username_normalized": 1 })
                     .options(IndexOptions::builder().unique(true).build())
                     .build();
-                if let Err(e) = c_user.create_index(user_name_index).await {
-                    tracing::error!("create c_user normalized username index failed: {}", e);
+                if let Err(index_error) = c_user.create_index(user_name_index).await {
+                    tracing::error!(
+                        "create c_user normalized username index failed: {}",
+                        index_error
+                    );
                     return false;
                 }
-                if let Err(e) = c_user
+                if let Err(index_error) = c_user
                     .create_index(
                         IndexModel::builder()
                             .keys(doc! { "deleted": 1, "created_timestamp": -1 })
@@ -170,7 +173,7 @@ impl ConsoleDatabase {
                     )
                     .await
                 {
-                    tracing::error!("create c_user lifecycle index failed: {}", e);
+                    tracing::error!("create c_user lifecycle index failed: {}", index_error);
                     return false;
                 }
                 self.c_user = Some(Arc::new(Mutex::new(c_user)));
@@ -198,15 +201,15 @@ impl ConsoleDatabase {
                         .keys(doc! { "subject_type": 1, "subject_id": 1, "revoked_at": 1 })
                         .build(),
                 ] {
-                    if let Err(e) = c_user_session.create_index(index).await {
-                        tracing::error!("create c_user_session index failed: {}", e);
+                    if let Err(index_error) = c_user_session.create_index(index).await {
+                        tracing::error!("create c_user_session index failed: {}", index_error);
                         return false;
                     }
                 }
                 self.c_user_session = Some(Arc::new(Mutex::new(c_user_session)));
 
                 let c_guest_block: Collection<GuestBlock> = database.collection("c_guest_block");
-                if let Err(e) = c_guest_block
+                if let Err(index_error) = c_guest_block
                     .create_index(
                         IndexModel::builder()
                             .keys(doc! { "kind": 1, "value": 1 })
@@ -215,7 +218,7 @@ impl ConsoleDatabase {
                     )
                     .await
                 {
-                    tracing::error!("create c_guest_block index failed: {}", e);
+                    tracing::error!("create c_guest_block index failed: {}", index_error);
                     return false;
                 }
                 self.c_guest_block = Some(Arc::new(Mutex::new(c_guest_block)));
@@ -242,8 +245,8 @@ impl ConsoleDatabase {
                         )
                         .build(),
                 ] {
-                    if let Err(e) = c_user_group.create_index(index).await {
-                        tracing::error!("create c_user_group index failed: {}", e);
+                    if let Err(index_error) = c_user_group.create_index(index).await {
+                        tracing::error!("create c_user_group index failed: {}", index_error);
                         return false;
                     }
                 }
@@ -260,8 +263,8 @@ impl ConsoleDatabase {
                         .keys(doc! { "gid": 1, "uid": 1 })
                         .build(),
                 ] {
-                    if let Err(e) = c_user_group_member.create_index(index).await {
-                        tracing::error!("create c_user_group_member index failed: {}", e);
+                    if let Err(index_error) = c_user_group_member.create_index(index).await {
+                        tracing::error!("create c_user_group_member index failed: {}", index_error);
                         return false;
                     }
                 }
@@ -278,8 +281,11 @@ impl ConsoleDatabase {
                         .keys(doc! { "device_id": 1, "gid": 1 })
                         .build(),
                 ] {
-                    if let Err(e) = c_group_device_grant.create_index(index).await {
-                        tracing::error!("create c_group_device_grant index failed: {}", e);
+                    if let Err(index_error) = c_group_device_grant.create_index(index).await {
+                        tracing::error!(
+                            "create c_group_device_grant index failed: {}",
+                            index_error
+                        );
                         return false;
                     }
                 }
@@ -296,8 +302,8 @@ impl ConsoleDatabase {
                         .keys(doc! { "app_id": 1, "gid": 1 })
                         .build(),
                 ] {
-                    if let Err(e) = c_group_app_grant.create_index(index).await {
-                        tracing::error!("create c_group_app_grant index failed: {}", e);
+                    if let Err(index_error) = c_group_app_grant.create_index(index).await {
+                        tracing::error!("create c_group_app_grant index failed: {}", index_error);
                         return false;
                     }
                 }
@@ -327,8 +333,8 @@ impl ConsoleDatabase {
                         .keys(doc! { "status": 1, "created_timestamp": -1 })
                         .build(),
                 ] {
-                    if let Err(e) = c_visit.create_index(visit_index).await {
-                        tracing::error!("create visit audit index failed: {}", e);
+                    if let Err(index_error) = c_visit.create_index(visit_index).await {
+                        tracing::error!("create visit audit index failed: {}", index_error);
                         return false;
                     }
                 }
@@ -355,8 +361,8 @@ impl ConsoleDatabase {
                         .keys(doc! { "status": 1, "created_timestamp": -1 })
                         .build(),
                 ] {
-                    if let Err(e) = c_file_transfer.create_index(ft_index).await {
-                        tracing::error!("create file transfer audit index failed: {}", e);
+                    if let Err(index_error) = c_file_transfer.create_index(ft_index).await {
+                        tracing::error!("create file transfer audit index failed: {}", index_error);
                         return false;
                     }
                 }
@@ -368,8 +374,8 @@ impl ConsoleDatabase {
                     .keys(doc! { "id": 1 })
                     .options(IndexOptions::builder().unique(true).build())
                     .build();
-                if let Err(e) = c_records.create_index(rec_index).await {
-                    tracing::warn!("create c_records id index failed: {}", e);
+                if let Err(index_error) = c_records.create_index(rec_index).await {
+                    tracing::warn!("create c_records id index failed: {}", index_error);
                 }
                 self.c_records = Some(Arc::new(Mutex::new(c_records)));
 
@@ -384,8 +390,8 @@ impl ConsoleDatabase {
                         .keys(doc! { "device_id": 1, "active": 1 })
                         .build(),
                 ] {
-                    if let Err(e) = c_remote_session.create_index(index).await {
-                        tracing::error!("create remote session index failed: {}", e);
+                    if let Err(index_error) = c_remote_session.create_index(index).await {
+                        tracing::error!("create remote session index failed: {}", index_error);
                         return false;
                     }
                 }
@@ -404,8 +410,11 @@ impl ConsoleDatabase {
                         .keys(doc! { "logical_session_id": 1, "timestamp": -1 })
                         .build(),
                 ] {
-                    if let Err(e) = c_remote_session_event.create_index(index).await {
-                        tracing::error!("create remote session event index failed: {}", e);
+                    if let Err(index_error) = c_remote_session_event.create_index(index).await {
+                        tracing::error!(
+                            "create remote session event index failed: {}",
+                            index_error
+                        );
                         return false;
                     }
                 }
@@ -422,8 +431,8 @@ impl ConsoleDatabase {
                         .keys(doc! { "device_id": 1, "uid": 1 })
                         .build(),
                 ] {
-                    if let Err(e) = c_user_device.create_index(index).await {
-                        tracing::error!("create c_user_device index failed: {}", e);
+                    if let Err(index_error) = c_user_device.create_index(index).await {
+                        tracing::error!("create c_user_device index failed: {}", index_error);
                         return false;
                     }
                 }
@@ -441,11 +450,11 @@ impl ConsoleDatabase {
                     .keys(doc! { "app_id": 1 })
                     .options(IndexOptions::builder().unique(true).build())
                     .build();
-                if let Err(e) = c_app.create_index(app_index).await {
-                    tracing::error!("create c_app app_id index failed: {}", e);
+                if let Err(index_error) = c_app.create_index(app_index).await {
+                    tracing::error!("create c_app app_id index failed: {}", index_error);
                     return false;
                 }
-                if let Err(e) = c_app
+                if let Err(index_error) = c_app
                     .create_index(
                         IndexModel::builder()
                             .keys(doc! { "access_mode": 1, "name": 1 })
@@ -453,7 +462,7 @@ impl ConsoleDatabase {
                     )
                     .await
                 {
-                    tracing::error!("create c_app access index failed: {}", e);
+                    tracing::error!("create c_app access index failed: {}", index_error);
                     return false;
                 }
                 self.c_app = Some(Arc::new(Mutex::new(c_app)));
@@ -464,8 +473,8 @@ impl ConsoleDatabase {
                     .keys(doc! { "placement_id": 1 })
                     .options(IndexOptions::builder().unique(true).build())
                     .build();
-                if let Err(e) = c_app_placement.create_index(plc_index).await {
-                    tracing::warn!("create c_app_placement index failed: {}", e);
+                if let Err(index_error) = c_app_placement.create_index(plc_index).await {
+                    tracing::warn!("create c_app_placement index failed: {}", index_error);
                 }
                 self.c_app_placement = Some(Arc::new(Mutex::new(c_app_placement)));
 
@@ -474,8 +483,8 @@ impl ConsoleDatabase {
                     .keys(doc! { "node_id": 1 })
                     .options(IndexOptions::builder().unique(true).build())
                     .build();
-                if let Err(e) = c_app_node.create_index(node_index).await {
-                    tracing::warn!("create c_app_node index failed: {}", e);
+                if let Err(index_error) = c_app_node.create_index(node_index).await {
+                    tracing::warn!("create c_app_node index failed: {}", index_error);
                 }
                 self.c_app_node = Some(Arc::new(Mutex::new(c_app_node)));
 
@@ -501,8 +510,8 @@ impl ConsoleDatabase {
                         .keys(doc! { "owner_type": 1, "owner_id": 1, "state": 1 })
                         .build(),
                 ] {
-                    if let Err(e) = c_app_instance.create_index(index).await {
-                        tracing::error!("create c_app_instance index failed: {}", e);
+                    if let Err(index_error) = c_app_instance.create_index(index).await {
+                        tracing::error!("create c_app_instance index failed: {}", index_error);
                         return false;
                     }
                 }

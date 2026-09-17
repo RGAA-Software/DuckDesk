@@ -12,20 +12,20 @@ pub async fn upsert_application(app: &Application) -> Result<(), String> {
     coll.replace_one(doc! { "app_id": &app.app_id }, app.clone())
         .upsert(true)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|database_error| database_error.to_string())?;
     Ok(())
 }
 
-pub async fn upsert_node(n: &AppNode) -> Result<(), String> {
+pub async fn upsert_node(node: &AppNode) -> Result<(), String> {
     let db = gConsoleDatabase.lock().await;
     let Some(coll) = db.c_app_node.as_ref() else {
         return Ok(());
     };
     let coll = coll.lock().await;
-    coll.replace_one(doc! { "node_id": &n.node_id }, n.clone())
+    coll.replace_one(doc! { "node_id": &node.node_id }, node.clone())
         .upsert(true)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|database_error| database_error.to_string())?;
     Ok(())
 }
 
@@ -37,7 +37,7 @@ pub async fn delete_node(node_id: &str) -> Result<(), String> {
     let coll = coll.lock().await;
     coll.delete_one(doc! { "node_id": node_id })
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|database_error| database_error.to_string())?;
     Ok(())
 }
 
@@ -49,7 +49,7 @@ pub async fn delete_nodes_by_app(app_id: &str) -> Result<(), String> {
     let coll = coll.lock().await;
     coll.delete_many(doc! { "app_id": app_id })
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|database_error| database_error.to_string())?;
     Ok(())
 }
 
@@ -61,36 +61,42 @@ pub async fn delete_instances_by_node(node_id: &str) -> Result<(), String> {
     let coll = coll.lock().await;
     coll.delete_many(doc! { "node_id": node_id })
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|database_error| database_error.to_string())?;
     Ok(())
 }
 
-pub async fn upsert_placement(p: &AppPlacement) -> Result<(), String> {
+pub async fn upsert_placement(placement: &AppPlacement) -> Result<(), String> {
     let db = gConsoleDatabase.lock().await;
     let Some(coll) = db.c_app_placement.as_ref() else {
         return Ok(());
     };
     let coll = coll.lock().await;
-    coll.replace_one(doc! { "placement_id": &p.placement_id }, p.clone())
-        .upsert(true)
-        .await
-        .map_err(|e| e.to_string())?;
+    coll.replace_one(
+        doc! { "placement_id": &placement.placement_id },
+        placement.clone(),
+    )
+    .upsert(true)
+    .await
+    .map_err(|database_error| database_error.to_string())?;
     Ok(())
 }
 
-pub async fn upsert_instance(i: &AppInstance) -> Result<(), String> {
+pub async fn upsert_instance(instance: &AppInstance) -> Result<(), String> {
     let db = gConsoleDatabase.lock().await;
     let Some(coll) = db.c_app_instance.as_ref() else {
         return Ok(());
     };
     let coll = coll.lock().await;
-    if i.version <= 1 {
+    if instance.version <= 1 {
         // Initial reservation. Subsequent transitions never return to version
         // one, so allowing the insert/upsert here is safe and idempotent.
-        coll.replace_one(doc! { "instance_id": &i.instance_id }, i.clone())
-            .upsert(true)
-            .await
-            .map_err(|e| e.to_string())?;
+        coll.replace_one(
+            doc! { "instance_id": &instance.instance_id },
+            instance.clone(),
+        )
+        .upsert(true)
+        .await
+        .map_err(|database_error| database_error.to_string())?;
     } else {
         // A heartbeat can persist the current revision, while a state change
         // replaces exactly the preceding revision. Anything older is a late
@@ -98,17 +104,17 @@ pub async fn upsert_instance(i: &AppInstance) -> Result<(), String> {
         let result = coll
             .replace_one(
                 doc! {
-                    "instance_id": &i.instance_id,
-                    "version": { "$in": [i.version - 1, i.version] }
+                    "instance_id": &instance.instance_id,
+                    "version": { "$in": [instance.version - 1, instance.version] }
                 },
-                i.clone(),
+                instance.clone(),
             )
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|database_error| database_error.to_string())?;
         if result.matched_count != 1 {
             return Err(format!(
                 "stale instance transition rejected: {} version {}",
-                i.instance_id, i.version
+                instance.instance_id, instance.version
             ));
         }
     }
@@ -123,7 +129,7 @@ pub async fn delete_application(app_id: &str) -> Result<(), String> {
     let coll = coll.lock().await;
     coll.delete_one(doc! { "app_id": app_id })
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|database_error| database_error.to_string())?;
     Ok(())
 }
 
@@ -136,7 +142,7 @@ pub async fn delete_placement(placement_id: &str) -> Result<(), String> {
     let coll = coll.lock().await;
     coll.delete_one(doc! { "placement_id": placement_id })
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|database_error| database_error.to_string())?;
     Ok(())
 }
 
@@ -148,7 +154,7 @@ pub async fn delete_instances_by_app(app_id: &str) -> Result<(), String> {
     let coll = coll.lock().await;
     coll.delete_many(doc! { "app_id": app_id })
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|database_error| database_error.to_string())?;
     Ok(())
 }
 
@@ -175,33 +181,45 @@ pub async fn load_all() -> Result<
     let mut apps = Vec::new();
     {
         let coll = c_app.lock().await;
-        let mut cursor = coll.find(doc! {}).await.map_err(|e| e.to_string())?;
+        let mut cursor = coll
+            .find(doc! {})
+            .await
+            .map_err(|database_error| database_error.to_string())?;
         while let Some(item) = cursor.next().await {
-            apps.push(item.map_err(|e| e.to_string())?);
+            apps.push(item.map_err(|database_error| database_error.to_string())?);
         }
     }
     let mut placements = Vec::new();
     {
         let coll = c_plc.lock().await;
-        let mut cursor = coll.find(doc! {}).await.map_err(|e| e.to_string())?;
+        let mut cursor = coll
+            .find(doc! {})
+            .await
+            .map_err(|database_error| database_error.to_string())?;
         while let Some(item) = cursor.next().await {
-            placements.push(item.map_err(|e| e.to_string())?);
+            placements.push(item.map_err(|database_error| database_error.to_string())?);
         }
     }
     let mut nodes = Vec::new();
     {
         let coll = c_node.lock().await;
-        let mut cursor = coll.find(doc! {}).await.map_err(|e| e.to_string())?;
+        let mut cursor = coll
+            .find(doc! {})
+            .await
+            .map_err(|database_error| database_error.to_string())?;
         while let Some(item) = cursor.next().await {
-            nodes.push(item.map_err(|e| e.to_string())?);
+            nodes.push(item.map_err(|database_error| database_error.to_string())?);
         }
     }
     let mut instances = Vec::new();
     {
         let coll = c_inst.lock().await;
-        let mut cursor = coll.find(doc! {}).await.map_err(|e| e.to_string())?;
+        let mut cursor = coll
+            .find(doc! {})
+            .await
+            .map_err(|database_error| database_error.to_string())?;
         while let Some(item) = cursor.next().await {
-            instances.push(item.map_err(|e| e.to_string())?);
+            instances.push(item.map_err(|database_error| database_error.to_string())?);
         }
     }
     Ok((apps, placements, nodes, instances))
