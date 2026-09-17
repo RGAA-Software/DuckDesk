@@ -6,7 +6,7 @@ import { createGroup, deleteGroup, groupIds, listAllAdminUsers, listGroups, patc
 const groups = ref<GroupView[]>([]), users = ref<UserAdminView[]>([])
 const open = ref(false), editing = ref<GroupView>()
 const form = reactive({ name: '', remark: '', members: [] as string[] })
-async function refresh() { const [g,u] = await Promise.all([listGroups(), listAllAdminUsers()]); groups.value=g; users.value=u }
+async function refresh() { const [groupList, userList] = await Promise.all([listGroups(), listAllAdminUsers()]); groups.value=groupList; users.value=userList }
 function create() { editing.value=undefined; Object.assign(form,{name:'',remark:'',members:[]}); open.value=true }
 async function edit(group: GroupView) { editing.value=group; const members=await groupIds('members',group.gid); Object.assign(form,{name:group.name,remark:group.remark,members}); open.value=true }
 async function save() { let group = editing.value ? await patchGroup(editing.value,form.name,form.remark) : await createGroup(form.name,form.remark); group=await replaceGroupIds('members',group,form.members); open.value=false; await refresh() }
@@ -26,7 +26,7 @@ onMounted(refresh)
   </a-space>
   <a-modal v-model:open="open" :title="editing?'编辑用户组':'新建用户组'" width="680px" @ok="save">
     <a-form layout="vertical"><a-form-item label="名称"><a-input v-model:value="form.name"/></a-form-item><a-form-item label="备注"><a-textarea v-model:value="form.remark"/></a-form-item>
-      <a-form-item label="成员"><a-select v-model:value="form.members" mode="multiple" show-search option-filter-prop="label" :max-tag-count="6" :options="users.map(u=>({label:u.username,value:u.uid}))"/></a-form-item>
+      <a-form-item label="成员"><a-select v-model:value="form.members" mode="multiple" show-search option-filter-prop="label" :max-tag-count="6" :options="users.map(user=>({label:user.username,value:user.uid}))"/></a-form-item>
     </a-form>
   </a-modal>
 </template>

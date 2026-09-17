@@ -22,7 +22,7 @@ async function refresh(showLoading = false) {
 }
 function stop(item: InstanceView) { Modal.confirm({ title: `停止「${item.app_name}」？`, content: '确认后远端实例将退出。', okType: 'danger', async onOk() { try { await stopInstance(item.instance_id); await refresh() } catch { message.error('停止失败') } } }) }
 function search() { page.value = 1; void refresh(true) }
-function tableChange(p: { current?: number; pageSize?: number }) { page.value = p.current || 1; pageSize.value = p.pageSize || 10; void refresh(true) }
+function tableChange(pagination: { current?: number; pageSize?: number }) { page.value = pagination.current || 1; pageSize.value = pagination.pageSize || 10; void refresh(true) }
 function formatTime(value?: number) { return value ? new Date(value).toLocaleString() : '—' }
 onMounted(() => { void refresh(true); timer = window.setInterval(() => void refresh(), 5000) })
 onUnmounted(() => window.clearInterval(timer))
