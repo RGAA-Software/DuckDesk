@@ -73,8 +73,8 @@ impl ConsoleDeviceManager {
             .skip(skip as u64)
             .limit(limit)
             .await
-            .map_err(|e| {
-                tracing::error!("failed to get cursor to query user device: {}", e);
+            .map_err(|query_error| {
+                tracing::error!("failed to get cursor to query user device: {}", query_error);
                 ConsoleApiError::DatabaseError
             })?;
 
@@ -82,8 +82,8 @@ impl ConsoleDeviceManager {
 
         let mut devices: Vec<ConsoleDevice> = Vec::new();
         while let Some(device) = cursor.next().await {
-            if let Err(e) = device {
-                println!("error connecting to MongoDB: {}", e);
+            if let Err(cursor_error) = device {
+                println!("error connecting to MongoDB: {}", cursor_error);
                 break;
             }
             devices.push(device.unwrap());
@@ -93,9 +93,9 @@ impl ConsoleDeviceManager {
 
     pub async fn insert_device(&self, device: ConsoleDevice) -> Result<bool, ConsoleApiError> {
         let c_device = gConsoleDatabase.lock().await.device();
-        let r = c_device.lock().await.insert_one(device).await;
-        if let Err(e) = r {
-            tracing::error!("error inserting device: {}", e);
+        let insert_result = c_device.lock().await.insert_one(device).await;
+        if let Err(insert_error) = insert_result {
+            tracing::error!("error inserting device: {}", insert_error);
             return Err(ConsoleApiError::DatabaseError);
         }
         Ok(true)
@@ -111,13 +111,13 @@ impl ConsoleDeviceManager {
             "device_id": device_id.clone(),
             "seed": seed.clone(),
         };
-        let r = c_device.lock().await.find_one(filter).await;
-        if let Err(e) = r {
-            tracing::error!("error retrieving device from MongoDB: {}", e);
+        let query_result = c_device.lock().await.find_one(filter).await;
+        if let Err(query_error) = query_result {
+            tracing::error!("error retrieving device from MongoDB: {}", query_error);
             return Err(ConsoleApiError::DatabaseError);
         }
-        let r = r.unwrap();
-        if let Some(device) = r {
+        let device = query_result.unwrap();
+        if let Some(device) = device {
             Ok(device)
         } else {
             tracing::error!("device not found: {}, seed: {}", device_id, seed);
@@ -133,12 +133,12 @@ impl ConsoleDeviceManager {
         let filter = doc! {
             "device_id": device_id,
         };
-        let r = c_device.lock().await.find_one(filter).await;
-        if let Err(e) = r {
-            tracing::error!("error querying device: {}", e);
+        let query_result = c_device.lock().await.find_one(filter).await;
+        if let Err(query_error) = query_result {
+            tracing::error!("error querying device: {}", query_error);
             return Err(ConsoleApiError::DatabaseError);
         }
-        if let Some(device) = r.unwrap() {
+        if let Some(device) = query_result.unwrap() {
             Ok(device)
         } else {
             Err(ConsoleApiError::DeviceNotFound)
@@ -156,18 +156,18 @@ impl ConsoleDeviceManager {
         };
         let mut update_doc = doc! {};
         let mut sub_update_doc = doc! {};
-        for (k, v) in update_info {
-            sub_update_doc.insert(k, v);
+        for (field_name, field_value) in update_info {
+            sub_update_doc.insert(field_name, field_value);
         }
         sub_update_doc.insert("last_update_timestamp", px_base::get_current_timestamp());
         update_doc.insert("$set", sub_update_doc);
-        let r = c_device
+        let update_result = c_device
             .lock()
             .await
             .update_one(filter_doc, update_doc)
             .await;
-        if let Err(e) = r {
-            println!("error updating device: {}", e);
+        if let Err(update_error) = update_result {
+            println!("error updating device: {}", update_error);
             Err(ConsoleApiError::DatabaseError)
         } else {
             Ok(true)
@@ -178,7 +178,7 @@ impl ConsoleDeviceManager {
         &self,
         device_id: String,
         key: String,
-        val: T,
+        field_value: T,
     ) -> Result<bool, ConsoleApiError>
     where
         T: Into<Bson>,
@@ -189,18 +189,18 @@ impl ConsoleDeviceManager {
         };
         let mut update_doc = doc! {};
         let mut sub_update_doc = doc! {
-            key: val,
+            key: field_value,
         };
 
         sub_update_doc.insert("last_update_timestamp", px_base::get_current_timestamp());
         update_doc.insert("$set", sub_update_doc);
-        let r = c_device
+        let update_result = c_device
             .lock()
             .await
             .update_one(filter_doc, update_doc)
             .await;
-        if let Err(e) = r {
-            println!("error updating device: {}", e);
+        if let Err(update_error) = update_result {
+            println!("error updating device: {}", update_error);
             Err(ConsoleApiError::DatabaseError)
         } else {
             Ok(true)
@@ -218,11 +218,11 @@ impl ConsoleDeviceManager {
 
     pub async fn query_total_devices_count(&self) -> Result<u64, ConsoleApiError> {
         let c_device = gConsoleDatabase.lock().await.device();
-        let r = c_device.lock().await.count_documents(doc! {}).await;
-        if let Err(_e) = r {
+        let count_result = c_device.lock().await.count_documents(doc! {}).await;
+        if let Err(_count_error) = count_result {
             return Err(ConsoleApiError::DatabaseError);
         }
-        Ok(r.unwrap())
+        Ok(count_result.unwrap())
     }
 
     pub async fn query_total_used_time(&self) -> Result<u64, ConsoleApiError> {

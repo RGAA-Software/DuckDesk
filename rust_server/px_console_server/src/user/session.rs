@@ -324,8 +324,8 @@ impl ConsoleUserSessionManager {
             .await
             .insert_one(session.clone())
             .await
-            .map_err(|e| {
-                tracing::error!("insert user session failed: {}", e);
+            .map_err(|insert_error| {
+                tracing::error!("insert user session failed: {}", insert_error);
                 ConsoleApiError::DatabaseError
             })?;
         Ok(IssuedUserSession {
@@ -372,8 +372,8 @@ impl ConsoleUserSessionManager {
             .await
             .insert_one(session.clone())
             .await
-            .map_err(|e| {
-                tracing::error!("insert admin session failed: {}", e);
+            .map_err(|insert_error| {
+                tracing::error!("insert admin session failed: {}", insert_error);
                 ConsoleApiError::DatabaseError
             })?;
         Ok(IssuedAdminSession {
@@ -422,8 +422,8 @@ impl ConsoleUserSessionManager {
             .await
             .insert_one(session.clone())
             .await
-            .map_err(|e| {
-                tracing::error!("insert browser user session failed: {}", e);
+            .map_err(|insert_error| {
+                tracing::error!("insert browser user session failed: {}", insert_error);
                 ConsoleApiError::DatabaseError
             })?;
         Ok(IssuedWebUserSession {
@@ -508,8 +508,8 @@ impl ConsoleUserSessionManager {
                 "absolute_expires_at": { "$gt": now },
             })
             .await
-            .map_err(|e| {
-                tracing::error!("query user session failed: {}", e);
+            .map_err(|query_error| {
+                tracing::error!("query user session failed: {}", query_error);
                 ConsoleApiError::DatabaseError
             })?
             .ok_or(ConsoleApiError::AuthenticationRequired)?;
@@ -537,8 +537,8 @@ impl ConsoleUserSessionManager {
                 }},
             )
             .await
-            .map_err(|e| {
-                tracing::error!("refresh user session failed: {}", e);
+            .map_err(|refresh_error| {
+                tracing::error!("refresh user session failed: {}", refresh_error);
                 ConsoleApiError::DatabaseError
             })?;
 
@@ -572,8 +572,8 @@ impl ConsoleUserSessionManager {
                 "absolute_expires_at": { "$gt": now },
             })
             .await
-            .map_err(|e| {
-                tracing::error!("query browser user session failed: {}", e);
+            .map_err(|query_error| {
+                tracing::error!("query browser user session failed: {}", query_error);
                 ConsoleApiError::DatabaseError
             })?
             .ok_or(ConsoleApiError::AuthenticationRequired)?;
@@ -599,8 +599,8 @@ impl ConsoleUserSessionManager {
                 }},
             )
             .await
-            .map_err(|e| {
-                tracing::error!("refresh browser user session failed: {}", e);
+            .map_err(|refresh_error| {
+                tracing::error!("refresh browser user session failed: {}", refresh_error);
                 ConsoleApiError::DatabaseError
             })?;
         Ok(AuthenticatedUser {
@@ -633,8 +633,8 @@ impl ConsoleUserSessionManager {
                 "absolute_expires_at": { "$gt": now },
             })
             .await
-            .map_err(|e| {
-                tracing::error!("query admin session failed: {}", e);
+            .map_err(|query_error| {
+                tracing::error!("query admin session failed: {}", query_error);
                 ConsoleApiError::DatabaseError
             })?
             .ok_or(ConsoleApiError::AuthenticationRequired)?;
@@ -661,8 +661,8 @@ impl ConsoleUserSessionManager {
                 }},
             )
             .await
-            .map_err(|e| {
-                tracing::error!("refresh admin session failed: {}", e);
+            .map_err(|refresh_error| {
+                tracing::error!("refresh admin session failed: {}", refresh_error);
                 ConsoleApiError::DatabaseError
             })?;
         Ok(AuthenticatedAdmin {
@@ -789,8 +789,8 @@ impl ConsoleUserSessionManager {
                 doc! { "$set": { "revoked_at": px_base::get_current_timestamp() } },
             )
             .await
-            .map_err(|e| {
-                tracing::error!("revoke user session failed: {}", e);
+            .map_err(|revoke_error| {
+                tracing::error!("revoke user session failed: {}", revoke_error);
                 ConsoleApiError::DatabaseError
             })?;
         Ok(())
@@ -808,8 +808,8 @@ impl ConsoleUserSessionManager {
                 doc! { "$set": { "revoked_at": px_base::get_current_timestamp() } },
             )
             .await
-            .map_err(|e| {
-                tracing::error!("revoke all user sessions failed: {}", e);
+            .map_err(|revoke_error| {
+                tracing::error!("revoke all user sessions failed: {}", revoke_error);
                 ConsoleApiError::DatabaseError
             })?;
         Ok(())
@@ -833,8 +833,8 @@ impl ConsoleUserSessionManager {
                 doc! { "$set": { "revoked_at": px_base::get_current_timestamp() } },
             )
             .await
-            .map_err(|e| {
-                tracing::error!("revoke user session by token failed: {}", e);
+            .map_err(|revoke_error| {
+                tracing::error!("revoke user session by token failed: {}", revoke_error);
                 ConsoleApiError::DatabaseError
             })?;
         Ok(())
