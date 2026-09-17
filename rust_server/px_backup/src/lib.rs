@@ -5,6 +5,7 @@ mod executor;
 mod manifest;
 mod repository;
 mod restore;
+mod restore_store;
 mod retention;
 mod runtime;
 mod scheduler;
@@ -20,9 +21,13 @@ pub use manifest::{
 };
 pub use repository::{BackupRepository, RepositoryError, StagedRecoverySet};
 pub use restore::{
-    evaluate_restore_admission, ExternalRecoveryWitness, RestoreAdmissionBlocker,
-    RestoreAdmissionDecision, RestoreAdmissionError, RestoreOperationalCheck,
-    RECOVERY_WITNESS_SCHEMA_VERSION,
+    evaluate_restore_admission, restore_admission_evidence_sha256, ExternalRecoveryWitness,
+    RestoreAdmissionBlocker, RestoreAdmissionDecision, RestoreAdmissionError,
+    RestoreOperationalCheck, RECOVERY_WITNESS_SCHEMA_VERSION,
+};
+pub use restore_store::{
+    RestoreAdmissionApproval, RestoreAdmissionRecord, RestoreAdmissionState, RestoreAdmissionStore,
+    RestoreAdmissionStoreError, RESTORE_ADMISSION_RECORD_SCHEMA_VERSION,
 };
 pub use retention::{retained_set_ids, RetentionClass, RetentionPolicy};
 pub use runtime::{

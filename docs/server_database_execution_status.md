@@ -176,6 +176,14 @@ Windows/WSL Linux 各 33 项及严格 Clippy、覆盖 183 个 Rust 文件的可�
 下继续通过，报告 `pg-20260917-185738-4ce566c0`。该切片尚未生成真实 WriteBarrier 水位、持久化人工审批或把门禁接到产品恢复命令，
 因此权限防复活仍不能宣告完成；它先把 Independent 备份误开放的路径硬性封死。
 
+DB4 第七纵向切片把恢复审批做成独立持久状态机：每个 deployment/recovery-set/目标环境组合有私有、进程互斥、原子轮换的严格记录，
+状态只能按 `RecoveryRequired → ReadyForManualApproval → Admitted` 推进。每次评估保存完整 blocker 集和 manifest+witness+九项检查的 SHA-256；
+证据变化会撤销 Ready 并递增 revision，审批必须同时匹配当前 revision 和 evidence hash。审批记录包含不可为空的 approval/admin UUID 和时间，
+精确重试幂等，不同审批 ID 不能覆盖；Admitted 后禁止重新评估。中断在 current/previous/next 各原子阶段可确定前滚或回滚，未知文件、
+跨部署/跨恢复集复用及第二执行器同时打开均 fail-closed。Windows/WSL Linux 各 37 项和严格 Clippy 已通过，可读命名门禁覆盖 184 个
+Rust 文件；Windows 聚焦报告 `pg-20260917-190829-ce35f11a` 保持源码 hash 稳定并完成隔离清理。状态机尚未接入产品恢复 CLI，真实
+WriteBarrier 水位仍未生成，因此本条不把准入/防复活出口提前标为完成。
+
 - 新 Console 运行模块已接身份/用户组 HTTP 与单活动生命周期（产品入口尚未切换）。Windows 路由专项
   `pg-20260917-092450-742a93ef` 五组通过，837 个源文件及工具 hash 复核一致；静态检查通过。
   后续审计/管理重置增量独立验收，不把本条当作这些增量、正式产品或 Linux 已通过。

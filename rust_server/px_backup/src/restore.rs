@@ -3,6 +3,7 @@ use crate::{
     ServiceSecurityWatermark,
 };
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::Path,
@@ -87,7 +88,7 @@ pub enum RestoreOperationalCheck {
 }
 
 impl RestoreOperationalCheck {
-    fn required() -> BTreeSet<Self> {
+    pub(crate) fn required() -> BTreeSet<Self> {
         BTreeSet::from([
             Self::TargetNetworkIsolated,
             Self::SideEffectsDisabled,
@@ -168,6 +169,20 @@ pub fn evaluate_restore_admission(
     } else {
         Ok(RestoreAdmissionDecision::RecoveryRequired { blockers })
     }
+}
+
+pub fn restore_admission_evidence_sha256(
+    manifest: &RecoverySetManifest,
+    witness: &ExternalRecoveryWitness,
+    completed_checks: &BTreeSet<RestoreOperationalCheck>,
+) -> Result<String, RestoreAdmissionError> {
+    manifest
+        .validate()
+        .map_err(|_| RestoreAdmissionError::InvalidManifest)?;
+    witness.validate()?;
+    let evidence_bytes = serde_json::to_vec(&(manifest, witness, completed_checks))
+        .map_err(|_| RestoreAdmissionError::InvalidWitness)?;
+    Ok(format!("{:x}", Sha256::digest(evidence_bytes)))
 }
 
 fn compare_security_watermarks(
