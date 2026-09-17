@@ -87,9 +87,9 @@ public:
         if (items_.empty()) {
             return std::nullopt;
         }
-        auto item = std::move(items_.front());
+        auto queued_item = std::move(items_.front());
         items_.pop_front();
-        return item;
+        return queued_item;
     }
 
     void Close(const QueueCloseMode mode) {

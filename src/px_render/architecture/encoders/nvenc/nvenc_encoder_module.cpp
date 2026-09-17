@@ -103,8 +103,8 @@ namespace px
 #if 0
         LOGW("HasEncoderForMonitor monitor_name: {}", monitor_name);
 
-        for (auto item : video_encoders_) {
-            LOGW("HasEncoderForMonitor item: {}", item.first);
+        for (const auto& video_encoder_entry : video_encoders_) {
+            LOGW("HasEncoderForMonitor item: {}", video_encoder_entry.first);
         }
 #endif
         return video_encoders_.find(monitor_name) != video_encoders_.end();

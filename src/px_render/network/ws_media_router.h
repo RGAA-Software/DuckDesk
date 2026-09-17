@@ -14,20 +14,20 @@ namespace px
 
     class WsMediaRouter : public WsRouter, public std::enable_shared_from_this<WsMediaRouter> {
     public:
+     static std::shared_ptr<WsMediaRouter> Make(const WsDataPtr& ws_data) {
+         return std::make_shared<WsMediaRouter>(ws_data);
+     }
 
-        static std::shared_ptr<WsMediaRouter> Make(const WsDataPtr& data) {
-            return std::make_shared<WsMediaRouter>(data);
-        }
-
-        explicit WsMediaRouter(const WsDataPtr& data) : WsRouter(data) {}
-        void OnOpen(std::shared_ptr<asio2::http_session> &sess_ptr) override;
-        void OnClose(std::shared_ptr<asio2::http_session> &sess_ptr) override;
-        void OnMessage(std::shared_ptr<asio2::http_session> &sess_ptr, int64_t socket_fd, std::string_view data) override;
-        void OnPing(std::shared_ptr<asio2::http_session> &sess_ptr) override;
-        void OnPong(std::shared_ptr<asio2::http_session> &sess_ptr) override;
-        void PostBinaryMessage(std::shared_ptr<Data> data) override;
-        void PostBinaryMessage(const std::string &data) override;
-        void PostTextMessage(const std::string& data) override;
+     explicit WsMediaRouter(const WsDataPtr& ws_data) : WsRouter(ws_data) {}
+     void OnOpen(std::shared_ptr<asio2::http_session>& session) override;
+     void OnClose(std::shared_ptr<asio2::http_session>& session) override;
+     void OnMessage(std::shared_ptr<asio2::http_session>& session,
+                    int64_t socket_fd, std::string_view payload) override;
+     void OnPing(std::shared_ptr<asio2::http_session>& session) override;
+     void OnPong(std::shared_ptr<asio2::http_session>& session) override;
+     void PostBinaryMessage(std::shared_ptr<Data> payload) override;
+     void PostBinaryMessage(const std::string& payload) override;
+     void PostTextMessage(const std::string& message) override;
     };
 
 }

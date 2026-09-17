@@ -39,7 +39,7 @@ namespace px
         explicit EncoderThread(const std::shared_ptr<RdApplication>& app);
         ~EncoderThread();
 
-        void Encode(const CaptureVideoFrame& msg);
+        void Encode(const CaptureVideoFrame& captured_frame);
         void SetFrameRate(int fps) noexcept;
         [[nodiscard]] int FrameRate() const noexcept;
         void HandleD3DDeviceFailure(uint64_t adapter_uid);
@@ -49,8 +49,7 @@ namespace px
 
     private:
         void InitListener();
-        void EncodeOnWorker(CaptureVideoFrame cap_video_msg,
-                            const std::shared_ptr<void>& inflight_guard);
+        void EncodeOnWorker(CaptureVideoFrame captured_frame);
         void PostEncTask(std::function<void()>&& task);
         void PrintEncoderConfig(const px::EncoderConfig& config);
         void ObserveRawFrame(const std::string& monitor_name,

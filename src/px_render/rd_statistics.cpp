@@ -35,8 +35,8 @@ namespace px
 
     std::vector<int32_t> MsgWorkingCaptureInfo::GetCopyTextureDurations() {
         std::vector<int32_t> result;
-        for (const auto& v : copy_texture_durations_) {
-            result.push_back(v);
+        for (const auto& duration_ms : copy_texture_durations_) {
+            result.push_back(duration_ms);
         }
         return result;
     }
@@ -50,8 +50,8 @@ namespace px
 
     std::vector<int32_t> MsgWorkingCaptureInfo::GetMapCvtTextureDurations() {
         std::vector<int32_t> result;
-        for (const auto& v : map_cvt_texture_durations_) {
-            result.push_back(v);
+        for (const auto& duration_ms : map_cvt_texture_durations_) {
+            result.push_back(duration_ms);
         }
         return result;
     }
@@ -102,11 +102,12 @@ namespace px
         audio_frame_gaps_.PushBack(time);
     }
 
-    void RdStatistics::CopyLeftSpectrum(const std::vector<double>& sp, int cpy_size) {
-        if (left_spectrum_.Size() < cpy_size) {
-            left_spectrum_.Resize(cpy_size);
+    void RdStatistics::CopyLeftSpectrum(const std::vector<double>& spectrum,
+                                        int sample_count) {
+        if (left_spectrum_.Size() < sample_count) {
+            left_spectrum_.Resize(sample_count);
         }
-        left_spectrum_.CopyMemPartialFrom(sp, cpy_size);
+        left_spectrum_.CopyMemPartialFrom(spectrum, sample_count);
     }
 
     std::vector<double> RdStatistics::GetLeftSpectrum() {
@@ -115,11 +116,12 @@ namespace px
         return out;
     }
 
-    void RdStatistics::CopyRightSpectrum(const std::vector<double>& sp, int cpy_size) {
-        if (right_spectrum_.Size() < cpy_size) {
-            right_spectrum_.Resize(cpy_size);
+    void RdStatistics::CopyRightSpectrum(const std::vector<double>& spectrum,
+                                         int sample_count) {
+        if (right_spectrum_.Size() < sample_count) {
+            right_spectrum_.Resize(sample_count);
         }
-        right_spectrum_.CopyMemPartialFrom(sp, cpy_size);
+        right_spectrum_.CopyMemPartialFrom(spectrum, sample_count);
     }
 
     std::vector<double> RdStatistics::GetRightSpectrum() {
@@ -129,22 +131,22 @@ namespace px
     }
 
     std::shared_ptr<Data> RdStatistics::AsProtoMessage() {
-        pxrp::RpMessage msg;
-        msg.set_type(pxrp::RpMessageType::kRpCaptureStatistics);
+        pxrp::RpMessage message;
+        message.set_type(pxrp::RpMessageType::kRpCaptureStatistics);
 
-        auto cst = msg.mutable_capture_statistics();
-        audio_frame_gaps_.Visit([&](auto& v) {
-            cst->mutable_audio_frame_gaps()->Add(v);
+        auto capture_statistics = message.mutable_capture_statistics();
+        audio_frame_gaps_.Visit([&](auto& frame_gap_ms) {
+            capture_statistics->mutable_audio_frame_gaps()->Add(frame_gap_ms);
         });
 
         // from inner server
-        cst->set_app_running_time(running_time_);
+        capture_statistics->set_app_running_time(running_time_);
         // from inner server
-        cst->set_server_send_media_data(send_media_bytes_);
+        capture_statistics->set_server_send_media_data(send_media_bytes_);
         //
         const auto app = app_.lock();
         if (!app) {
-            return RpProtoAsData(&msg);
+            return RpProtoAsData(&message);
         }
         auto video_capture_source = app->GetWorkingMonitorCaptureSource();
         auto video_encoders = app->GetWorkingVideoEncoders();
@@ -153,50 +155,69 @@ namespace px
             // encoder info
 
             auto captures_info = video_capture_source->WorkingCaptures();
-            for (const auto& [name, info] : captures_info) {
-                auto cp_info = cst->mutable_working_captures_info();
-                auto item = cp_info->Add();
-                item->set_target_name(info->target_name_);
-                item->set_capturing_fps(info->fps_);
-                item->set_capture_type(info->capture_type_);
-                auto video_capture_gaps = item->mutable_video_capture_gaps();
-                for (const auto& v : info->capture_gaps_) {
-                    video_capture_gaps->Add(v);
+            for (const auto& [monitor_name, capture_info] : captures_info) {
+                auto capture_entries =
+                    capture_statistics->mutable_working_captures_info();
+                auto capture_entry = capture_entries->Add();
+                capture_entry->set_target_name(capture_info->target_name_);
+                capture_entry->set_capturing_fps(capture_info->fps_);
+                capture_entry->set_capture_type(capture_info->capture_type_);
+                auto video_capture_gaps =
+                    capture_entry->mutable_video_capture_gaps();
+                for (const auto& capture_gap_ms : capture_info->capture_gaps_) {
+                    video_capture_gaps->Add(capture_gap_ms);
                 }
 
                 // encoder
-                if (video_encoders.contains(info->target_name_)) {
-                    auto video_encoder = video_encoders[info->target_name_];
+                if (video_encoders.contains(capture_info->target_name_)) {
+                    auto video_encoder =
+                        video_encoders[capture_info->target_name_];
                     auto video_encoders_info = video_encoder->WorkingCaptures();
-                    if (video_encoders_info.contains(info->target_name_)) {
-                        auto encoder_info = video_encoders_info[info->target_name_];
-                        item->set_encoder_name(encoder_info->encoder_name_);
-                        item->set_encoding_fps(encoder_info->fps_);
+                    if (video_encoders_info.contains(
+                            capture_info->target_name_)) {
+                        auto encoder_info =
+                            video_encoders_info[capture_info->target_name_];
+                        capture_entry->set_encoder_name(
+                            encoder_info->encoder_name_);
+                        capture_entry->set_encoding_fps(encoder_info->fps_);
 
-                        auto encode_durations = item->mutable_encode_durations();
-                        for (const auto& v : encoder_info->encode_durations_) {
-                            encode_durations->Add(v);
+                        auto encode_durations =
+                            capture_entry->mutable_encode_durations();
+                        for (const auto& duration_ms :
+                             encoder_info->encode_durations_) {
+                            encode_durations->Add(duration_ms);
                         }
                     }
                 }
-                item->set_capture_frame_width(info->capture_frame_width_);
-                item->set_capture_frame_height(info->capture_frame_height_);
+                capture_entry->set_capture_frame_width(
+                    capture_info->capture_frame_width_);
+                capture_entry->set_capture_frame_height(
+                    capture_info->capture_frame_height_);
 
                 // capture info
                 //LOGI("Target name: {}", info->target_name_);
-                if (auto app_cp_info = app_captures_info_.TryGet(info->target_name_); app_cp_info.has_value() && app_cp_info.value()) {
+                if (auto application_capture_info =
+                        app_captures_info_.TryGet(capture_info->target_name_);
+                    application_capture_info.has_value() &&
+                    application_capture_info.value()) {
                     //LOGI("copy texture durations: {}", app_cp_info->copy_texture_durations_.size());
                     //LOGI("map&cvt texture durations: {}", app_cp_info->map_cvt_texture_durations_.size());
                     {
-                        auto durations = item->mutable_copy_texture_durations();
-                        for (const auto &v: app_cp_info.value()->copy_texture_durations_) {
-                            durations->Add(v);
+                        auto durations =
+                            capture_entry->mutable_copy_texture_durations();
+                        for (const auto& duration_ms :
+                             application_capture_info.value()
+                                 ->copy_texture_durations_) {
+                            durations->Add(duration_ms);
                         }
                     }
                     {
-                        auto durations = item->mutable_map_cvt_texture_durations();
-                        for (const auto& v : app_cp_info.value()->map_cvt_texture_durations_) {
-                            durations->Add(v);
+                        auto durations =
+                            capture_entry->mutable_map_cvt_texture_durations();
+                        for (const auto& duration_ms :
+                             application_capture_info.value()
+                                 ->map_cvt_texture_durations_) {
+                            durations->Add(duration_ms);
                         }
                     }
                 }
@@ -204,17 +225,17 @@ namespace px
                 // resize info
                 bool is_gdi_capture = module_registry_->IsGdiCapture(app->GetWorkingMonitorCaptureSource());
                 if (settings_->encoder_.encode_res_type_ == Encoder::EncodeResolutionType::kOrigin || is_gdi_capture) {
-                    item->set_resize_frame_width(0);
-                    item->set_resize_frame_height(0);
+                    capture_entry->set_resize_frame_width(0);
+                    capture_entry->set_resize_frame_height(0);
                 }
                 else {
                     if (frame_resizer) {
                         const auto resize_info =
-                            frame_resizer->Snapshot(info->target_name_);
+                            frame_resizer->Snapshot(capture_info->target_name_);
                         if (resize_info) {
-                            item->set_resize_frame_width(
+                            capture_entry->set_resize_frame_width(
                                 resize_info->target_width);
-                            item->set_resize_frame_height(
+                            capture_entry->set_resize_frame_height(
                                 resize_info->target_height);
                         }
                     }
@@ -230,30 +251,35 @@ namespace px
             std::chrono::system_clock::now().time_since_epoch()).count();
         const auto sessions = registry ? registry->SnapshotActive(now_ms)
                                        : std::vector<LogicalSessionSnapshot>{};
-        cst->set_connected_clients_count(static_cast<int32_t>(sessions.size()));
+        capture_statistics->set_connected_clients_count(
+            static_cast<int32_t>(sessions.size()));
         for (const auto& session : sessions) {
-            auto cc = cst->mutable_connected_clients()->Add();
-            cc->set_device_id(session.subject_id);
-            cc->set_stream_id(session.stream_id);
-            cc->set_room_id(session.logical_session_id);
-            cc->set_device_name(session.role == LogicalSessionRole::kController
-                ? "Controller" : "Observer");
+            auto connected_client =
+                capture_statistics->mutable_connected_clients()->Add();
+            connected_client->set_device_id(session.subject_id);
+            connected_client->set_stream_id(session.stream_id);
+            connected_client->set_room_id(session.logical_session_id);
+            connected_client->set_device_name(
+                session.role == LogicalSessionRole::kController ? "Controller"
+                                                                : "Observer");
         }
 
-        cst->set_relay_connected(module_registry_->IsRelayConnected());
+        capture_statistics->set_relay_connected(
+            module_registry_->IsRelayConnected());
 
         // audio capture
-        cst->set_audio_capture_type("WASAPI");
+        capture_statistics->set_audio_capture_type("WASAPI");
 
         //
-        cst->set_video_encode_type(video_encoder_format_ == Encoder::EncoderFormat::kHEVC
-            ? pxrp::VideoType::kNetHevc
-            : pxrp::VideoType::kNetH264);
+        capture_statistics->set_video_encode_type(
+            video_encoder_format_ == Encoder::EncoderFormat::kHEVC
+                ? pxrp::VideoType::kNetHevc
+                : pxrp::VideoType::kNetH264);
 
-        cst->set_audio_encode_type(pxrp::AudioEncodeType::kNetOpus);
+        capture_statistics->set_audio_encode_type(
+            pxrp::AudioEncodeType::kNetOpus);
 
-        auto buffer = RpProtoAsData(&msg);
-        return buffer;
+        return RpProtoAsData(&message);
     }
 
     void RdStatistics::IncreaseDDAFailedCount() {

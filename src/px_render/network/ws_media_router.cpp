@@ -10,72 +10,74 @@
 namespace px
 {
 
-    void WsMediaRouter::OnOpen(std::shared_ptr<asio2::http_session> &sess_ptr) {
-        WsRouter::OnOpen(sess_ptr);
-    }
+void WsMediaRouter::OnOpen(std::shared_ptr<asio2::http_session>& session) {
+    WsRouter::OnOpen(session);
+}
 
-    void WsMediaRouter::OnClose(std::shared_ptr<asio2::http_session> &sess_ptr) {
-        WsRouter::OnClose(sess_ptr);
-    }
+void WsMediaRouter::OnClose(std::shared_ptr<asio2::http_session>& session) {
+    WsRouter::OnClose(session);
+}
 
-    void WsMediaRouter::OnMessage(std::shared_ptr<asio2::http_session> &sess_ptr, int64_t socket_fd, std::string_view data) {
-        WsRouter::OnMessage(sess_ptr, socket_fd, data);
-        //Get<std::shared_ptr<MessageProcessor>>("proc")->HandleMessage(shared_from_this(), data);
-    }
+void WsMediaRouter::OnMessage(std::shared_ptr<asio2::http_session>& session,
+                              int64_t socket_fd, std::string_view payload) {
+    WsRouter::OnMessage(session, socket_fd, payload);
+    // Get<std::shared_ptr<MessageProcessor>>("proc")->HandleMessage(shared_from_this(),
+    // data);
+}
 
-    void WsMediaRouter::OnPing(std::shared_ptr<asio2::http_session> &sess_ptr) {
-        WsRouter::OnPing(sess_ptr);
-    }
+void WsMediaRouter::OnPing(std::shared_ptr<asio2::http_session>& session) {
+    WsRouter::OnPing(session);
+}
 
-    void WsMediaRouter::OnPong(std::shared_ptr<asio2::http_session> &sess_ptr) {
-        WsRouter::OnPong(sess_ptr);
-    }
+void WsMediaRouter::OnPong(std::shared_ptr<asio2::http_session>& session) {
+    WsRouter::OnPong(session);
+}
 
-    void WsMediaRouter::PostBinaryMessage(std::shared_ptr<Data> data) {
-        this->PostBinaryMessage(data->AsString());
-    }
+void WsMediaRouter::PostBinaryMessage(std::shared_ptr<Data> payload) {
+    this->PostBinaryMessage(payload->AsString());
+}
 
-    void WsMediaRouter::PostBinaryMessage(const std::string &data) {
-        if (session_ && session_->is_started()) {
-            auto weak_self = weak_from_this();
-            session_->post_queued_event([weak_self, data]() {
+void WsMediaRouter::PostBinaryMessage(const std::string& payload) {
+    if (session_ && session_->is_started()) {
+        auto weak_self = weak_from_this();
+        session_->post_queued_event([weak_self, payload]() {
+            auto self = weak_self.lock();
+            if (!self || !self->session_ || !self->session_->is_started()) {
+                return;
+            }
+            self->session_->ws_stream().binary(true);
+            self->queuing_message_count_++;
+            self->session_->async_send(payload, [weak_self](size_t bytes_sent) {
                 auto self = weak_self.lock();
-                if (!self || !self->session_ || !self->session_->is_started()) {
+                if (!self) {
                     return;
                 }
-                self->session_->ws_stream().binary(true);
-                self->queuing_message_count_++;
-                self->session_->async_send(data, [weak_self](size_t byte_sent) {
-                    auto self = weak_self.lock();
-                    if (!self) {
-                        return;
-                    }
-                    RdStatistics::Instance()->AppendMediaBytes(byte_sent);
-                    self->queuing_message_count_--;
-                });
+                RdStatistics::Instance()->AppendMediaBytes(bytes_sent);
+                self->queuing_message_count_--;
             });
-        }
+        });
     }
+}
 
-    void WsMediaRouter::PostTextMessage(const std::string& data) {
-        if (session_ && session_->is_started()) {
-            auto weak_self = weak_from_this();
-            session_->post_queued_event([weak_self, data]() {
+void WsMediaRouter::PostTextMessage(const std::string& message) {
+    if (session_ && session_->is_started()) {
+        auto weak_self = weak_from_this();
+        session_->post_queued_event([weak_self, message]() {
+            auto self = weak_self.lock();
+            if (!self || !self->session_ || !self->session_->is_started()) {
+                return;
+            }
+            self->session_->ws_stream().text(true);
+            self->queuing_message_count_++;
+            self->session_->async_send(message, [weak_self](size_t bytes_sent) {
                 auto self = weak_self.lock();
-                if (!self || !self->session_ || !self->session_->is_started()) {
+                if (!self) {
                     return;
                 }
-                self->session_->ws_stream().text(true);
-                self->queuing_message_count_++;
-                self->session_->async_send(data, [weak_self](size_t byte_sent) {
-                    auto self = weak_self.lock();
-                    if (!self) {
-                        return;
-                    }
-                    RdStatistics::Instance()->AppendMediaBytes(byte_sent);
-                    self->queuing_message_count_--;
-                });
+                RdStatistics::Instance()->AppendMediaBytes(bytes_sent);
+                self->queuing_message_count_--;
             });
-        }
+        });
     }
+}
 }

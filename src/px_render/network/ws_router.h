@@ -26,37 +26,26 @@ namespace px
             connection_id_ = MD5::Hex(GetUUID());
         }
 
-        virtual void OnOpen(std::shared_ptr<asio2::http_session>& sess_ptr) {
-            session_ = sess_ptr;
+        virtual void OnOpen(std::shared_ptr<asio2::http_session>& session) {
+            session_ = session;
         }
 
-        virtual void OnClose(std::shared_ptr<asio2::http_session>& sess_ptr) {
+        virtual void OnClose(std::shared_ptr<asio2::http_session>& session) {
             session_ = nullptr;
         }
 
-        virtual void OnMessage(std::shared_ptr<asio2::http_session>& sess_ptr, int64_t socket_fd, std::string_view data) {
+        virtual void OnMessage(std::shared_ptr<asio2::http_session>& session,
+                               int64_t socket_fd, std::string_view payload) {}
 
-        }
+        virtual void OnPing(std::shared_ptr<asio2::http_session>& session) {}
 
-        virtual void OnPing(std::shared_ptr<asio2::http_session>& sess_ptr) {
+        virtual void OnPong(std::shared_ptr<asio2::http_session>& session) {}
 
-        }
+        virtual void PostBinaryMessage(std::shared_ptr<Data> payload) {}
 
-        virtual void OnPong(std::shared_ptr<asio2::http_session>& sess_ptr) {
+        virtual void PostBinaryMessage(const std::string& payload) {}
 
-        }
-
-        virtual void PostBinaryMessage(std::shared_ptr<Data> data) {
-
-        }
-
-        virtual void PostBinaryMessage(const std::string& data) {
-
-        }
-
-        virtual void PostTextMessage(const std::string& data) {
-
-        }
+        virtual void PostTextMessage(const std::string& message) {}
 
         virtual int64_t GetQueuingMsgCount() {
             if (!session_) {

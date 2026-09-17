@@ -237,10 +237,10 @@ PxAwaitable<void> FrameDebuggerObserver::ConsumeLoop(std::weak_ptr<FrameDebugger
                                                      std::shared_ptr<BoundedMediaQueue<FrameDebuggerEvent>> queue,
                                                      std::shared_ptr<PxAsyncOneShot<void>> completion, asio::any_io_executor executor) {
     for (;;) {
-        const auto item = queue->TryPop();
-        if (item) {
+        const auto queued_event = queue->TryPop();
+        if (queued_event) {
             if (const auto owner = weak_owner.lock()) {
-                owner->ProcessEvent(**item);
+                owner->ProcessEvent(**queued_event);
             }
             continue;
         }

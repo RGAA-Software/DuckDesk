@@ -57,9 +57,11 @@ namespace px
         void AppendMediaBytes(int bytes);
         void AppendAudioFrameGap(uint32_t time);
         void IncreaseDDAFailedCount();
-        void CopyLeftSpectrum(const std::vector<double>& sp, int size);
+        void CopyLeftSpectrum(const std::vector<double>& spectrum,
+                              int sample_count);
         std::vector<double> GetLeftSpectrum();
-        void CopyRightSpectrum(const std::vector<double>& sp, int size);
+        void CopyRightSpectrum(const std::vector<double>& spectrum,
+                               int sample_count);
         std::vector<double> GetRightSpectrum();
 
         template<typename Collection>
