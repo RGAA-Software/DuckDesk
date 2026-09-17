@@ -691,11 +691,11 @@ bool NativeSession::Initialize() {
             std::lock_guard lock(self->lifecycle_mutex_);
             sdk = self->sdk_;
         }
-        const auto data = px::ProtoAsData(message);
-        if (!sdk || !data) {
+        const auto serialized_message = px::ProtoAsData(message);
+        if (!sdk || !serialized_message) {
             return false;
         }
-        sdk->PostMediaMessage(data);
+        sdk->PostMediaMessage(serialized_message);
         return true;
     };
     px::VoiceCallDependencies voice_dependencies{
@@ -1286,10 +1286,9 @@ bool NativeSession::SendClipboardText(const std::string& text) {
     message.set_stream_id(config_.stream_id);
     message.mutable_clipboard_info()->set_type(px::kClipboardText);
     message.mutable_clipboard_info()->set_msg(text);
-    const auto data = px::ProtoAsData(&message);
-    if (!data)
-        return false;
-    sdk->PostMediaMessage(data);
+    const auto serialized_message = px::ProtoAsData(&message);
+    if (!serialized_message) return false;
+    sdk->PostMediaMessage(serialized_message);
     return true;
 }
 
@@ -1371,10 +1370,9 @@ bool NativeSession::SetFrameRate(const std::int32_t frame_rate) {
     message->set_device_id(client_signal_device_id_);
     message->set_stream_id(config_.stream_id);
     message->mutable_modify_fps()->set_fps(frame_rate);
-    const auto data = px::ProtoAsData(message);
-    if (!data)
-        return false;
-    sdk->PostMediaMessage(data);
+    const auto serialized_message = px::ProtoAsData(message);
+    if (!serialized_message) return false;
+    sdk->PostMediaMessage(serialized_message);
     return true;
 }
 
