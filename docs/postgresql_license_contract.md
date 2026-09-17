@@ -34,10 +34,15 @@ features, key_id
 
 ## 验证与信任状态
 
-验证方必须同时提供固定信任公钥、deployment、product、distribution、机器指纹、当前时间、
+验证方必须同时提供受控信任根中的公钥集合、deployment、product、distribution、机器指纹、当前时间、
 minimum_revision 和 last_trusted_time。签名正确但任一绑定不符、not_before 未到、
 expires_at 已到、revision 过旧或时间回拨均拒绝。
 minimum_revision >=1，last_trusted_time >=0；不能用缺失状态绕过回滚检查。
+
+信任根以 `key_id` 精确选择公钥；不得逐 key 猜测，也不得信任 wire/下载响应携带的 key。Auth 信任根还绑定
+服务 deployment 与数据库 `recovery_generation`，活动私钥必须与 `active_key_id` 一致。轮换时可在有界集合内同时保留
+新旧公钥，但只有活动私钥签发；从下一份信任根删除旧 key 后，以旧 key 签发的 wire 必须失败。
+信任根严格规范编码、拒绝未知字段/重复 key/key-id 替换和宽松权限文件；灾难恢复后的新代际不得继续信任旧 key。
 
 这两个水位必须独立保留或在恢复准入对账中重建；普通进程内数字不能证明备份恢复后防复活。
 在线 Auth 还须查 license revoked_at/当前 revision；离线 Customer 不联系官方也可验签，
@@ -49,9 +54,9 @@ minimum_revision >=1，last_trusted_time >=0；不能用缺失状态绕过回滚
 Rust ring 签发必须逐字节生成相同 wire，验证器必须接受该向量。
 公开测试 seed 不是部署凭据，服务不自动加载测试材料。
 
-五组测试：固定向量；部署/产品/发行/机器/时间/版本/回拨边界；有效签名下的非规范/未知字段；
-损坏 wire/篡改/错误可信根；签发额度/功能/密钥输入拒绝。
-零单元测试不算通过，执行入口明确选择 `--test contract`，要求 5 个用例实际通过。
+七组测试：固定向量；部署/产品/发行/机器/时间/版本/回拨边界；有效签名下的非规范/未知字段；
+损坏 wire/篡改/错误可信根；签发额度/功能/密钥输入拒绝；轮换期新旧 key 验签及撤回；
+重复/替换/非规范信任根拒绝。零单元测试不算通过，执行入口明确选择 `--test contract`，要求 7 个用例实际通过。
 
 ```powershell
 cargo test --locked --manifest-path rust_server/Cargo.toml -p px_license --test contract --target-dir .cache/pg-cargo

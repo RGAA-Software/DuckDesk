@@ -11,7 +11,7 @@ use axum::{
     Router,
 };
 use px_auth_store::{LicenseStore, OperatorStore};
-use px_license::{LicenseSigner, LicenseVerifier};
+use px_license::{LicenseSigner, LicenseTrustStore, LicenseVerifierSet};
 use std::{path::Path, sync::Arc};
 use tokio::sync::Semaphore;
 use tower_http::{
@@ -24,7 +24,7 @@ use zeroize::Zeroizing;
 pub struct AppState {
     store: LicenseStore,
     operators: OperatorStore,
-    verifier: LicenseVerifier,
+    verifier: LicenseVerifierSet,
     deployment: Uuid,
     login_slots: Arc<Semaphore>,
     limits: credentials::LoginLimits,
@@ -34,17 +34,40 @@ impl AppState {
     pub async fn connect(settings: &config::Settings) -> Result<Self, Box<dyn std::error::Error>> {
         let material = key_file::read_private(&settings.signing_key)?;
         let signer = Arc::new(LicenseSigner::from_pkcs8(&material)?);
-        if signer.key_id() != settings.signing_key_id {
-            return Err("signing key identity mismatch".into());
+        let trust_store_bytes = key_file::read_private(&settings.trust_store)?;
+        let trust_store = LicenseTrustStore::from_canonical_bytes(&trust_store_bytes)?;
+        if trust_store.authority_deployment_id != settings.deployment {
+            return Err("license trust store deployment mismatch".into());
         }
-        Self::from_signer(&settings.database, settings.deployment, signer).await
+        trust_store.verify_active_signer(&signer)?;
+        let state = Self::from_signer_and_verifier(
+            &settings.database,
+            settings.deployment,
+            signer,
+            trust_store.verifier_set()?,
+        )
+        .await?;
+        if state.store.recovery_generation().await? != trust_store.recovery_generation {
+            state.close().await;
+            return Err("license trust store recovery generation mismatch".into());
+        }
+        Ok(state)
     }
     pub async fn from_signer(
         database: &px_pg::DatabaseConfig,
         deployment: Uuid,
         signer: Arc<LicenseSigner>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let verifier = LicenseVerifier::new(signer.public_key().try_into()?)?;
+        let verifier = LicenseVerifierSet::new([signer.public_key().try_into()?])?;
+        Self::from_signer_and_verifier(database, deployment, signer, verifier).await
+    }
+
+    async fn from_signer_and_verifier(
+        database: &px_pg::DatabaseConfig,
+        deployment: Uuid,
+        signer: Arc<LicenseSigner>,
+        verifier: LicenseVerifierSet,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         let dummy_password =
             tokio::task::spawn_blocking(|| credentials::hash(&Uuid::new_v4().to_string()))
                 .await??;

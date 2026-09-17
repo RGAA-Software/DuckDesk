@@ -2,6 +2,7 @@ use crate::{payload::hash_text, Distribution, LicenseError, LicensePayload, Prod
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use ring::signature::{Ed25519KeyPair, KeyPair, UnparsedPublicKey, ED25519};
 use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
 use uuid::Uuid;
 
 const PREFIX: &str = "PXLIC1";
@@ -57,16 +58,28 @@ pub struct VerifyContext<'a> {
     pub minimum_revision: i64,
     pub last_trusted_time: i64,
 }
-pub struct LicenseVerifier {
-    public_key: [u8; 32],
+pub struct LicenseVerifierSet {
+    public_keys: BTreeMap<String, [u8; 32]>,
 }
-impl LicenseVerifier {
-    /// Public key comes from the configured trust root, never from the license/download response.
-    pub fn new(public_key: [u8; 32]) -> Result<Self, LicenseError> {
-        if public_key == [0; 32] {
+impl LicenseVerifierSet {
+    /// Public keys come from the configured trust root, never from a license/download response.
+    pub fn new(public_keys: impl IntoIterator<Item = [u8; 32]>) -> Result<Self, LicenseError> {
+        let mut indexed_keys = BTreeMap::new();
+        for public_key in public_keys {
+            if public_key == [0; 32] {
+                return Err(LicenseError::Key);
+            }
+            let public_key_id = key_id(&public_key);
+            if indexed_keys.insert(public_key_id, public_key).is_some() {
+                return Err(LicenseError::Key);
+            }
+        }
+        if indexed_keys.is_empty() {
             return Err(LicenseError::Key);
         }
-        Ok(Self { public_key })
+        Ok(Self {
+            public_keys: indexed_keys,
+        })
     }
     pub fn verify(
         &self,
@@ -94,33 +107,34 @@ impl LicenseVerifier {
         if signature.len() != 64 {
             return Err(LicenseError::Invalid);
         }
-        UnparsedPublicKey::new(&ED25519, self.public_key)
+        let untrusted_payload: LicensePayload =
+            serde_json::from_slice(&bytes).map_err(|_| LicenseError::Invalid)?;
+        let public_key = self
+            .public_keys
+            .get(&untrusted_payload.key_id)
+            .ok_or(LicenseError::Key)?;
+        UnparsedPublicKey::new(&ED25519, public_key)
             .verify(&message(&bytes), &signature)
             .map_err(|_| LicenseError::Signature)?;
-        let payload: LicensePayload =
-            serde_json::from_slice(&bytes).map_err(|_| LicenseError::Invalid)?;
         // Reject whitespace, reordered/duplicate/unknown keys, alternative numbers/UUID spelling.
-        if payload.canonical_bytes()? != bytes {
+        if untrusted_payload.canonical_bytes()? != bytes {
             return Err(LicenseError::Invalid);
-        }
-        if payload.key_id != key_id(&self.public_key) {
-            return Err(LicenseError::Key);
         }
         if context.minimum_revision < 1
             || context.last_trusted_time < 0
             || context.now < context.last_trusted_time
             || context.deployment_id.is_nil()
             || !hash_text(context.machine_sha256)
-            || payload.deployment_id != context.deployment_id
-            || payload.product != context.product
-            || payload.distribution != context.distribution
-            || payload.machine_sha256 != context.machine_sha256
-            || payload.revision < context.minimum_revision
-            || payload.not_before > context.now
-            || payload.expires_at <= context.now
+            || untrusted_payload.deployment_id != context.deployment_id
+            || untrusted_payload.product != context.product
+            || untrusted_payload.distribution != context.distribution
+            || untrusted_payload.machine_sha256 != context.machine_sha256
+            || untrusted_payload.revision < context.minimum_revision
+            || untrusted_payload.not_before > context.now
+            || untrusted_payload.expires_at <= context.now
         {
             return Err(LicenseError::Rejected);
         }
-        Ok(payload)
+        Ok(untrusted_payload)
     }
 }

@@ -229,7 +229,7 @@ try {
         foreach ($item in @(
             @{Service='console';Crate='px_console_store';Path='rust_server/px_console_server/storage';Count=237},
             @{Service='desk';Crate='px_desk_server';Path='rust_server/px_desk_server';Count=9},
-            @{Service='auth';Crate='px_auth_store';Path='rust_server/px_auth_server/storage';Count=29}
+            @{Service='auth';Crate='px_auth_store';Path='rust_server/px_auth_server/storage';Count=30}
         )) {
             Use-Service $item.Service 'runtime'
             Set-LocalEnv 'DATABASE_URL' $env:PIXELS_DATABASE_URL
@@ -278,7 +278,7 @@ try {
         $suiteCounts['node-control'] = 1
         $suiteCounts['schema_gate'] = 4
         $suiteCounts['auth'] = 7
-        $suiteCounts['auth-api'] = 8
+        $suiteCounts['auth-api'] = 9
         Set-LocalEnv 'SQLX_OFFLINE' 'true'
         Set-LocalEnv 'SQLX_OFFLINE_DIR' (Join-Path $repo 'rust_server/px_console_server/storage/.sqlx')
         if ($Suite -in @('console-api','directory-api','node-control')) {
@@ -328,7 +328,7 @@ try {
     Write-Host $backupIntegration
     Add-TestCases $backupIntegration 'native/backup-postgres' 1
     $licenseTests = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_license','--test','contract','--target-dir',$targetDir)
-    Add-TestCases $licenseTests 'native/license-contract' 5
+    Add-TestCases $licenseTests 'native/license-contract' 7
     # Infrastructure tests use their own synthetic table, not a product domain schema.
     Invoke-Checked 'docker' @('exec',$container,'psql','-X','-v','ON_ERROR_STOP=1','-U','pixels_admin','-d','pixels_desk','-c',
         "CREATE TABLE pixels.pg_fixture(id uuid PRIMARY KEY,version text NOT NULL,created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP); ALTER TABLE pixels.pg_fixture OWNER TO pixels_desk_owner; GRANT SELECT,INSERT,UPDATE,DELETE ON pixels.pg_fixture TO pixels_desk_runtime") | Out-Null
@@ -489,7 +489,7 @@ try {
     $authCommitted = Join-Path $repo 'rust_server/px_auth_server/storage/.sqlx'
     $authExpected = @(Get-ChildItem -LiteralPath $authCommitted -Filter 'query-*.json' -File)
     $authActual = @(Get-ChildItem -LiteralPath $authMetadata -Filter 'query-*.json' -File)
-    if ($authExpected.Count -ne 29 -or $authActual.Count -ne 29) { throw 'Auth SQLx metadata must contain exactly 29 queries' }
+    if ($authExpected.Count -ne 30 -or $authActual.Count -ne 30) { throw 'Auth SQLx metadata must contain exactly 30 queries' }
     foreach ($expected in $authExpected) {
         $actual = Join-Path $authMetadata $expected.Name
         if (-not (Test-Path -LiteralPath $actual) -or (Get-FileHash -LiteralPath $expected.FullName).Hash -ne (Get-FileHash -LiteralPath $actual).Hash) {
@@ -498,7 +498,7 @@ try {
     }
     Set-LocalEnv 'SQLX_OFFLINE' 'true'
     Set-LocalEnv 'SQLX_OFFLINE_DIR' ''
-    Add-Step 'QUERY: 29 Auth queries compiled online; offline metadata matches'
+    Add-Step 'QUERY: 30 Auth queries compiled online; offline metadata matches'
     $authIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_auth_store','--features','pg-integration','--test','issuance','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $authIntegration
     Add-TestCases $authIntegration 'native/auth-issuance' 7
@@ -507,7 +507,7 @@ try {
     Add-TestCases $authUnit 'native/auth-security' 2
     $authApi = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_auth_server','--features','pg-integration','--test','postgres_api','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $authApi
-    Add-TestCases $authApi 'native/auth-api' 8
+    Add-TestCases $authApi 'native/auth-api' 9
     Add-Step 'AUTH-API: native startup, private file ACL, bootstrap races, login, roles, signing and revocation'
     $fingerprints.px_auth = (Get-FileHash -LiteralPath (Join-Path $targetDir 'debug/px_auth.exe')).Hash
     $fingerprints.px_auth_admin = (Get-FileHash -LiteralPath (Join-Path $targetDir 'debug/px_auth_admin.exe')).Hash

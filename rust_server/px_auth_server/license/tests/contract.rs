@@ -1,7 +1,7 @@
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use px_license::{
-    Distribution, LicenseError, LicensePayload, LicenseSigner, LicenseVerifier, Product,
-    VerifyContext,
+    Distribution, LicenseError, LicensePayload, LicenseSigner, LicenseTrustStore,
+    LicenseVerifierSet, Product, VerifyContext,
 };
 use ring::signature::{Ed25519KeyPair, KeyPair};
 use serde::Deserialize;
@@ -27,6 +27,14 @@ fn signer() -> LicenseSigner {
     let key = pair();
     let mut pkcs8=hex::decode("3053020101300506032b6570042204209d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60a123032100").unwrap();
     pkcs8.extend_from_slice(key.public_key().as_ref());
+    LicenseSigner::from_pkcs8(&pkcs8).unwrap()
+}
+fn signer_from_seed(seed: [u8; 32]) -> LicenseSigner {
+    let key_pair = Ed25519KeyPair::from_seed_unchecked(&seed).unwrap();
+    let mut pkcs8 = hex::decode("3053020101300506032b657004220420").unwrap();
+    pkcs8.extend_from_slice(&seed);
+    pkcs8.extend_from_slice(&hex::decode("a123032100").unwrap());
+    pkcs8.extend_from_slice(key_pair.public_key().as_ref());
     LicenseSigner::from_pkcs8(&pkcs8).unwrap()
 }
 fn context(payload: &LicensePayload) -> VerifyContext<'_> {
@@ -56,7 +64,7 @@ fn fixed_openssl_vector_matches_signer_and_verifier() {
         .unwrap()
         .try_into()
         .unwrap();
-    let verifier = LicenseVerifier::new(public).unwrap();
+    let verifier = LicenseVerifierSet::new([public]).unwrap();
     assert_eq!(signer().public_key(), public);
     assert_eq!(
         signer().sign(&contract_vector.payload).unwrap(),
@@ -78,12 +86,10 @@ fn fixed_openssl_vector_matches_signer_and_verifier() {
 #[test]
 fn target_time_revision_and_rollback_boundaries_reject() {
     let contract_vector = vector();
-    let verifier = LicenseVerifier::new(
-        hex::decode(&contract_vector.public_key)
-            .unwrap()
-            .try_into()
-            .unwrap(),
-    )
+    let verifier = LicenseVerifierSet::new([hex::decode(&contract_vector.public_key)
+        .unwrap()
+        .try_into()
+        .unwrap()])
     .unwrap();
     let base = context(&contract_vector.payload);
     let mutations = [
@@ -152,12 +158,10 @@ fn target_time_revision_and_rollback_boundaries_reject() {
 #[test]
 fn valid_signature_does_not_authorize_unknown_or_noncanonical_payloads() {
     let contract_vector = vector();
-    let verifier = LicenseVerifier::new(
-        hex::decode(&contract_vector.public_key)
-            .unwrap()
-            .try_into()
-            .unwrap(),
-    )
+    let verifier = LicenseVerifierSet::new([hex::decode(&contract_vector.public_key)
+        .unwrap()
+        .try_into()
+        .unwrap()])
     .unwrap();
     let canonical = String::from_utf8(contract_vector.payload.canonical_bytes().unwrap()).unwrap();
     let extra = canonical.replacen("{", "{\"unexpected\":true,", 1);
@@ -187,12 +191,10 @@ fn valid_signature_does_not_authorize_unknown_or_noncanonical_payloads() {
 #[test]
 fn malformed_wire_tampering_and_wrong_trust_root_reject() {
     let contract_vector = vector();
-    let verifier = LicenseVerifier::new(
-        hex::decode(&contract_vector.public_key)
-            .unwrap()
-            .try_into()
-            .unwrap(),
-    )
+    let verifier = LicenseVerifierSet::new([hex::decode(&contract_vector.public_key)
+        .unwrap()
+        .try_into()
+        .unwrap()])
     .unwrap();
     for wire in [
         "".into(),
@@ -214,11 +216,11 @@ fn malformed_wire_tampering_and_wrong_trust_root_reject() {
             &context(&contract_vector.payload)
         )
         .is_err());
-    assert!(LicenseVerifier::new([42; 32])
+    assert!(LicenseVerifierSet::new([[42; 32]])
         .unwrap()
         .verify(&contract_vector.wire, &context(&contract_vector.payload))
         .is_err());
-    assert!(LicenseVerifier::new([0; 32]).is_err());
+    assert!(LicenseVerifierSet::new([[0; 32]]).is_err());
     assert!(LicenseSigner::from_pkcs8(b"not a private key").is_err());
 }
 #[test]
@@ -280,4 +282,95 @@ fn issuance_rejects_invalid_limits_features_and_keys() {
     ] {
         assert!(signer().sign(&invalid).is_err());
     }
+}
+
+#[test]
+fn trust_store_rotation_verifies_retained_key_and_withdrawal_rejects_it() {
+    let previous_signer = signer();
+    let active_signer = signer_from_seed([7; 32]);
+    let authority_deployment_id = Uuid::new_v4();
+    let recovery_generation = Uuid::new_v4();
+    let rotating_store = LicenseTrustStore::new(
+        authority_deployment_id,
+        recovery_generation,
+        active_signer.public_key().try_into().unwrap(),
+        [previous_signer.public_key().try_into().unwrap()],
+    )
+    .unwrap();
+    rotating_store.verify_active_signer(&active_signer).unwrap();
+    assert!(rotating_store
+        .verify_active_signer(&previous_signer)
+        .is_err());
+    let canonical_bytes = rotating_store.canonical_bytes().unwrap();
+    assert_eq!(
+        LicenseTrustStore::from_canonical_bytes(&canonical_bytes).unwrap(),
+        rotating_store
+    );
+
+    let contract_vector = vector();
+    rotating_store
+        .verifier_set()
+        .unwrap()
+        .verify(&contract_vector.wire, &context(&contract_vector.payload))
+        .unwrap();
+
+    let mut active_payload = contract_vector.payload.clone();
+    active_payload.key_id = active_signer.key_id();
+    let active_wire = active_signer.sign(&active_payload).unwrap();
+    rotating_store
+        .verifier_set()
+        .unwrap()
+        .verify(&active_wire, &context(&active_payload))
+        .unwrap();
+
+    let withdrawn_store = LicenseTrustStore::new(
+        authority_deployment_id,
+        Uuid::new_v4(),
+        active_signer.public_key().try_into().unwrap(),
+        [],
+    )
+    .unwrap();
+    assert_eq!(
+        withdrawn_store
+            .verifier_set()
+            .unwrap()
+            .verify(&contract_vector.wire, &context(&contract_vector.payload)),
+        Err(LicenseError::Key)
+    );
+    withdrawn_store
+        .verifier_set()
+        .unwrap()
+        .verify(&active_wire, &context(&active_payload))
+        .unwrap();
+}
+
+#[test]
+fn trust_store_rejects_duplicate_substituted_and_noncanonical_roots() {
+    let active_signer = signer_from_seed([7; 32]);
+    let public_key: [u8; 32] = active_signer.public_key().try_into().unwrap();
+    assert!(
+        LicenseTrustStore::new(Uuid::new_v4(), Uuid::new_v4(), public_key, [public_key]).is_err()
+    );
+    assert!(LicenseVerifierSet::new([public_key, public_key]).is_err());
+
+    let trust_store =
+        LicenseTrustStore::new(Uuid::new_v4(), Uuid::new_v4(), public_key, []).unwrap();
+    let canonical_bytes = trust_store.canonical_bytes().unwrap();
+    let mut substituted = serde_json::to_value(&trust_store).unwrap();
+    substituted["trusted_keys"][0]["public_key_hex"] = serde_json::json!("11".repeat(32));
+    assert!(
+        LicenseTrustStore::from_canonical_bytes(&serde_json::to_vec(&substituted).unwrap())
+            .is_err()
+    );
+
+    let mut unknown_field = serde_json::to_value(&trust_store).unwrap();
+    unknown_field["legacy_key"] = serde_json::json!(true);
+    assert!(
+        LicenseTrustStore::from_canonical_bytes(&serde_json::to_vec(&unknown_field).unwrap())
+            .is_err()
+    );
+
+    let mut noncanonical_bytes = canonical_bytes.clone();
+    noncanonical_bytes.push(b'\n');
+    assert!(LicenseTrustStore::from_canonical_bytes(&noncanonical_bytes).is_err());
 }

@@ -6,7 +6,7 @@ use axum::{
 };
 use px_auth_server::{router, AppState};
 use px_credentials as credentials;
-use px_license::LicenseSigner;
+use px_license::{LicenseSigner, LicenseTrustStore};
 use px_pg::{DatabaseConfig, Transport};
 use serde_json::{json, Value};
 use std::{env, net::SocketAddr, path::PathBuf, sync::Arc};
@@ -31,7 +31,28 @@ fn native_process_starts_serves_and_rejects_unsafe_configuration() {
     };
     assert_eq!(env::var("PIXELS_PG_ISOLATED_TEST").as_deref(), Ok("1"));
     let files = PrivateFiles::new();
-    let signer = LicenseSigner::from_pkcs8(&hex::decode(TEST_KEY).unwrap()).unwrap();
+    let owner_config = DatabaseConfig::parse(
+        &env::var("PIXELS_TEST_AUTH_OWNER_URL").unwrap(),
+        Transport::LocalDevelopment,
+    )
+    .unwrap();
+    let recovery_generation = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(async {
+            let owner = owner_config.connect().await.unwrap();
+            let generation = sqlx::query_scalar::<_, Uuid>(
+                "SELECT recovery_generation FROM pixels.recovery_security_state WHERE singleton",
+            )
+            .fetch_one(&owner)
+            .await
+            .unwrap();
+            owner.close().await;
+            generation
+        });
+    files.write_trust_store("trust-store.json", recovery_generation);
+    files.write_trust_store("wrong-generation-trust-store.json", Uuid::new_v4());
     let command = || {
         let mut command = Command::new(env!("CARGO_BIN_EXE_px_auth"));
         command
@@ -41,7 +62,10 @@ fn native_process_starts_serves_and_rejects_unsafe_configuration() {
             )
             .env("PIXELS_AUTH_LOCAL_DEVELOPMENT", "1")
             .env("PIXELS_AUTH_LISTEN", "127.0.0.1:0")
-            .env("PIXELS_AUTH_SIGNING_KEY_ID", signer.key_id())
+            .env(
+                "PIXELS_AUTH_TRUST_STORE",
+                files.path.join("trust-store.json"),
+            )
             .env(
                 "PIXELS_AUTH_STATIC_DIRECTORY",
                 PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/static"),
@@ -105,17 +129,28 @@ fn native_process_starts_serves_and_rejects_unsafe_configuration() {
     // Refuse unsafe configuration or an owner DSN before binding; kill/reap if not.
     let owner_dsn = env::var("PIXELS_TEST_AUTH_OWNER_URL").unwrap();
     for (key, value) in [
-        ("PIXELS_AUTH_LISTEN", "0.0.0.0:0"),
-        ("PIXELS_AUTH_SIGNING_KEY_ID", "invalid"),
-        ("PIXELS_AUTH_SIGNING_KEY", "nonexistent-signing-key"),
-        ("PIXELS_AUTH_LOCAL_DEVELOPMENT", "0"),
-        ("PIXELS_DATABASE_URL", owner_dsn.as_str()),
+        ("PIXELS_AUTH_LISTEN", "0.0.0.0:0".to_owned()),
+        ("PIXELS_AUTH_TRUST_STORE", "invalid".to_owned()),
+        (
+            "PIXELS_AUTH_TRUST_STORE",
+            files
+                .path
+                .join("wrong-generation-trust-store.json")
+                .to_string_lossy()
+                .into_owned(),
+        ),
+        (
+            "PIXELS_AUTH_SIGNING_KEY",
+            "nonexistent-signing-key".to_owned(),
+        ),
+        ("PIXELS_AUTH_LOCAL_DEVELOPMENT", "0".to_owned()),
+        ("PIXELS_DATABASE_URL", owner_dsn),
         (
             "PIXELS_DEPLOYMENT_ID",
-            "00000000-0000-0000-0000-000000000000",
+            "00000000-0000-0000-0000-000000000000".to_owned(),
         ),
     ] {
-        let mut invalid = ServerProcess(command().env(key, value).spawn().unwrap());
+        let mut invalid = ServerProcess(command().env(key, &value).spawn().unwrap());
         let deadline = std::time::Instant::now() + Duration::from_secs(10);
         loop {
             if let Some(status) = invalid.0.try_wait().unwrap() {
@@ -179,10 +214,42 @@ impl PrivateFiles {
         }
         files
     }
+
+    fn write_trust_store(&self, file_name: &str, recovery_generation: Uuid) {
+        let signer = LicenseSigner::from_pkcs8(&hex::decode(TEST_KEY).unwrap()).unwrap();
+        let trust_store = LicenseTrustStore::new(
+            env::var("PIXELS_DEPLOYMENT_ID").unwrap().parse().unwrap(),
+            recovery_generation,
+            signer.public_key().try_into().unwrap(),
+            [],
+        )
+        .unwrap();
+        std::fs::write(
+            self.path.join(file_name),
+            trust_store.canonical_bytes().unwrap(),
+        )
+        .unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(
+                self.path.join(file_name),
+                std::fs::Permissions::from_mode(0o600),
+            )
+            .unwrap();
+        }
+    }
 }
 impl Drop for PrivateFiles {
     fn drop(&mut self) {
-        for name in ["signing.der", "password.txt", "generated.der"] {
+        for name in [
+            "signing.der",
+            "trust-store.json",
+            "wrong-generation-trust-store.json",
+            "password.txt",
+            "generated.der",
+            "generated-trust-store.json",
+        ] {
             let _ = std::fs::remove_file(self.path.join(name));
         }
         let _ = std::fs::remove_dir(&self.path);
@@ -231,6 +298,62 @@ fn explicit_key_generation_is_private_and_never_overwrites() {
             .unwrap()
             .as_slice(),
         bytes.as_slice()
+    );
+}
+#[test]
+fn explicit_trust_store_creation_supports_rotation_and_never_overwrites() {
+    use std::process::{Command, Stdio};
+    let files = PrivateFiles::new();
+    let destination = files.path.join("generated-trust-store.json");
+    let recovery_generation = Uuid::new_v4();
+    let additional_public_key = "2a".repeat(32);
+    let command = || {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_px_auth_admin"));
+        command
+            .arg("create-trust-store")
+            .env("PIXELS_AUTH_SIGNING_KEY", files.path.join("signing.der"))
+            .env("PIXELS_AUTH_TRUST_STORE", &destination)
+            .env(
+                "PIXELS_RECOVERY_GENERATION",
+                recovery_generation.to_string(),
+            )
+            .env("PIXELS_AUTH_ADDITIONAL_PUBLIC_KEYS", &additional_public_key)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            command.creation_flags(0x08000000);
+        }
+        command
+    };
+    let created = command().output().unwrap();
+    assert!(
+        created.status.success(),
+        "explicit trust-store provisioning failed: {}",
+        String::from_utf8_lossy(&created.stderr)
+    );
+    let trust_store = LicenseTrustStore::from_canonical_bytes(
+        &px_private_files::private::read_private(&destination).unwrap(),
+    )
+    .unwrap();
+    let signer = LicenseSigner::from_pkcs8(
+        &px_private_files::private::read_private(&files.path.join("signing.der")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(trust_store.recovery_generation, recovery_generation);
+    assert_eq!(trust_store.trusted_keys.len(), 2);
+    trust_store.verify_active_signer(&signer).unwrap();
+    let output = String::from_utf8(created.stdout).unwrap();
+    assert!(output.contains(&format!("active_key_id={}", signer.key_id())));
+    assert!(output.contains("trusted_key_count=2"));
+    assert!(!command().output().unwrap().status.success());
+    assert_eq!(
+        LicenseTrustStore::from_canonical_bytes(
+            &px_private_files::private::read_private(&destination).unwrap()
+        )
+        .unwrap(),
+        trust_store
     );
 }
 #[test]

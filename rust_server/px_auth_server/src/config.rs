@@ -10,7 +10,7 @@ pub struct Settings {
     pub static_directory: PathBuf,
     pub tls: Option<(PathBuf, PathBuf)>,
     pub signing_key: PathBuf,
-    pub signing_key_id: String,
+    pub trust_store: PathBuf,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -47,14 +47,7 @@ impl Settings {
             return Err(ConfigurationError);
         }
         let signing_key = PathBuf::from(required("PIXELS_AUTH_SIGNING_KEY")?);
-        let signing_key_id = required("PIXELS_AUTH_SIGNING_KEY_ID")?;
-        if signing_key_id.len() != 64
-            || !signing_key_id
-                .bytes()
-                .all(|key_byte| key_byte.is_ascii_digit() || (b'a'..=b'f').contains(&key_byte))
-        {
-            return Err(ConfigurationError);
-        }
+        let trust_store = PathBuf::from(required("PIXELS_AUTH_TRUST_STORE")?);
         let tls = match (
             env::var_os("PIXELS_AUTH_TLS_CERT"),
             env::var_os("PIXELS_AUTH_TLS_KEY"),
@@ -74,7 +67,7 @@ impl Settings {
             static_directory,
             tls,
             signing_key,
-            signing_key_id,
+            trust_store,
         })
     }
 }

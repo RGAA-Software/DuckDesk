@@ -1,6 +1,6 @@
 use px_auth_store::{Activation, AuthError, IssueRequest, LicenseStore, LicenseTerms};
 use px_license::{
-    Distribution, Feature, LicenseSigner, LicenseVerifier, Mode, Product, VerifyContext,
+    Distribution, Feature, LicenseSigner, LicenseVerifierSet, Mode, Product, VerifyContext,
 };
 use px_pg::{DatabaseConfig, Transport};
 use sha2::{Digest, Sha256};
@@ -174,7 +174,7 @@ async fn committed_issuance_verifies_and_identical_retry_returns_exact_wire() {
         .unwrap();
     assert_eq!(issued.wire, duplicate.wire);
     assert_eq!(issued.license_id, duplicate.license_id);
-    let verifier = LicenseVerifier::new(signer().public_key().try_into().unwrap()).unwrap();
+    let verifier = LicenseVerifierSet::new([signer().public_key().try_into().unwrap()]).unwrap();
     let context = VerifyContext {
         deployment_id: terms.deployment_id,
         product: terms.product,

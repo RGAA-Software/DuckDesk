@@ -34,7 +34,7 @@ async function startServer() {
     PIXELS_DATABASE_URL: process.env.PIXELS_TEST_AUTH_RUNTIME_URL.replace(/\/pixels_auth$/, '/pixels_auth_bootstrap_windows'),
     PIXELS_AUTH_LOCAL_DEVELOPMENT: '1', PIXELS_AUTH_LISTEN: '127.0.0.1:0',
     PIXELS_AUTH_SIGNING_KEY: path.join(directory, 'signing.der'),
-    PIXELS_AUTH_SIGNING_KEY_ID: createHash('sha256').update(publicKey).digest('hex'),
+    PIXELS_AUTH_TRUST_STORE: path.join(directory, 'trust-store.json'),
     PIXELS_AUTH_STATIC_DIRECTORY: path.join(repo, 'web/px_auth/dist') }
   delete env.PIXELS_AUTH_TLS_CERT; delete env.PIXELS_AUTH_TLS_KEY
   let startup = ''
@@ -59,6 +59,17 @@ async function run() {
   const identity = execFileSync('whoami', [], { encoding: 'utf8', windowsHide: true }).trim()
   execFileSync('icacls', [directory, '/inheritance:r', '/grant:r', identity + ':(OI)(CI)F', '*S-1-5-18:(OI)(CI)F'], { windowsHide: true })
   fs.writeFileSync(path.join(directory, 'signing.der'), key, { flag: 'wx' })
+  const keyId = createHash('sha256').update(publicKey).digest('hex')
+  const recoveryGeneration = docker('exec', container, 'psql', '-X', '-A', '-t', '-U', 'pixels_admin',
+    '-d', 'pixels_auth_bootstrap_windows', '-c', 'SELECT recovery_generation FROM pixels.recovery_security_state WHERE singleton').trim()
+  assert.match(recoveryGeneration, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+  fs.writeFileSync(path.join(directory, 'trust-store.json'), JSON.stringify({
+    schema_version: 1,
+    authority_deployment_id: process.env.PIXELS_DEPLOYMENT_ID,
+    recovery_generation: recoveryGeneration,
+    active_key_id: keyId,
+    trusted_keys: [{ key_id: keyId, public_key_hex: publicKey.toString('hex') }]
+  }), { flag: 'wx' })
   await startServer()
   browser = await chromium.launch({ headless: true })
   const context = await browser.newContext()

@@ -12,21 +12,28 @@
 | PIXELS_AUTH_LISTEN | 显式监听地址；无隐式默认端口 |
 | PIXELS_AUTH_STATIC_DIRECTORY | 本次构建的 web/px_auth/dist 或发行包 static，必须有 index.html |
 | PIXELS_AUTH_SIGNING_KEY | ACL 保护的 PKCS#8 v2 二进制 Ed25519 私钥文件 |
-| PIXELS_AUTH_SIGNING_KEY_ID | 对应原始 32 字节公钥 SHA-256，小写 hex64，防止加载错误密钥 |
+| PIXELS_AUTH_TRUST_STORE | ACL 保护、规范 JSON 的签名信任根；声明 Auth deployment、恢复代际、唯一活动 key 与最多 16 个受信公钥 |
 | PIXELS_AUTH_TLS_CERT / PIXELS_AUTH_TLS_KEY | 正式环境两者必填；受信证书/私钥，不接受跳过证书验证的客户端方案 |
 | PIXELS_AUTH_LOCAL_DEVELOPMENT=1 | 仅显式本机开发：监听及 PG 连接均限 loopback，才允许无 TLS |
 
 私钥不存数据库、不随包分发、不从旧 Base64 文件导入，不因缺失自动生成。
 Windows 文件及所有权只允许当前服务身份、SYSTEM、Administrators，其他主体的允许 ACE 拒绝；
 Unix 私钥拒绝 group/other 权限。文件类型/权限与读取在同一打开的句柄上检查，拒绝链接/重解析点。
-密钥文件缺失、错误指纹、PG/部署/schema 不匹配均启动失败并退出非零；运行时故障 ready=503，live=204。
+密钥或信任根缺失、活动私钥不匹配、信任根 deployment/恢复代际与 PG 不匹配、PG/schema 不匹配均在监听前失败并退出非零；
+恢复旧数据库但继续使用新信任根、或恢复旧信任根但连接新代际数据库都不能启动。运行时故障 ready=503，live=204。
 业务入口和 ready 只接受最小权限 pixels_auth_runtime，拒绝 owner/超级用户或被授予建表等额外权限的 runtime。
 首次管理员初始化是独立 owner 工具，不改变业务启动的账号边界。
 
 首次配置可显式执行 px_auth_admin generate-key：先创建仅服务身份/SYSTEM/Administrators 可访问的目录
 （Unix 0700），设置 PIXELS_AUTH_SIGNING_KEY 为其中尚不存在的文件路径。工具检查目录权限、以 create-new
 创建并验证 PKCS#8 v2 文件，只输出公钥 hex 与 key_id；已有文件绝不覆盖，写入失败保留半成品供管理员检查。
-将 key_id 写入上述启动配置，公钥交付给受控验证方。密钥备份独立管理；不要使用仓库的公开测试 seed。
+首次部署和每次轮换使用当前数据库 `pixels.recovery_security_state.recovery_generation`，设置
+`PIXELS_AUTH_TRUST_STORE` 为一个尚不存在的版本化文件，随后执行 `px_auth_admin create-trust-store`。
+该命令从活动私钥派生 `active_key_id`；轮换宽限期可通过 `PIXELS_AUTH_ADDITIONAL_PUBLIC_KEYS`
+传入逗号分隔的旧公钥 hex，使已有未过期许可证继续验签。确认消费者已取得新根后，再生成一个不含旧公钥的新文件并切换配置，
+旧 key 立即撤回；命令始终 create-new，不覆盖当前根。私钥、信任根及恢复代际必须纳入恢复封印审批，
+信任根中的全部 key_id 同步写入备份外部见证的 `available_key_ids`。灾难恢复提升数据库代际后必须生成新私钥和只含新公钥的新信任根，
+不得把旧私钥或旧公钥带入新代际。密钥备份独立管理；不要使用仓库的公开测试 seed。
 
 ## 初始管理员
 

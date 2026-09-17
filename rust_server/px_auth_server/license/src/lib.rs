@@ -2,9 +2,11 @@
 //! No HTTP/database dependency, legacy parser, product alias or embedded administrator secret.
 mod payload;
 mod signature;
+mod trust_store;
 
 pub use payload::{Distribution, Feature, LicensePayload, Mode, Product};
-pub use signature::{LicenseSigner, LicenseVerifier, VerifyContext};
+pub use signature::{LicenseSigner, LicenseVerifierSet, VerifyContext};
+pub use trust_store::{LicenseTrustStore, TrustedPublicKey};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum LicenseError {

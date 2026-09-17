@@ -47,6 +47,11 @@ impl LicenseStore {
             .await?
             .timestamp())
     }
+    pub async fn recovery_generation(&self) -> Result<Uuid, AuthError> {
+        Ok(sqlx::query_file_scalar!("queries/recovery_generation.sql")
+            .fetch_one(&self.pool)
+            .await?)
+    }
     pub async fn list_licenses(
         &self,
         token: &[u8; 32],

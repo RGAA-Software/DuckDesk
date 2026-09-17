@@ -27,9 +27,41 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         );
         return Ok(());
     }
+    if arguments == ["create-trust-store"] {
+        let signing_key_path = PathBuf::from(env::var("PIXELS_AUTH_SIGNING_KEY")?);
+        let trust_store_path = PathBuf::from(env::var("PIXELS_AUTH_TRUST_STORE")?);
+        let authority_deployment_id = env::var("PIXELS_DEPLOYMENT_ID")?.parse()?;
+        let recovery_generation = env::var("PIXELS_RECOVERY_GENERATION")?.parse()?;
+        let signing_key_material = key_file::read_private(&signing_key_path)?;
+        let signer = px_license::LicenseSigner::from_pkcs8(&signing_key_material)?;
+        let additional_public_keys = env::var("PIXELS_AUTH_ADDITIONAL_PUBLIC_KEYS")
+            .unwrap_or_default()
+            .split(',')
+            .filter(|value| !value.is_empty())
+            .map(|public_key_hex| {
+                hex::decode(public_key_hex)?
+                    .try_into()
+                    .map_err(|_| "invalid additional public key".into())
+            })
+            .collect::<Result<Vec<[u8; 32]>, Box<dyn std::error::Error>>>()?;
+        let trust_store = px_license::LicenseTrustStore::new(
+            authority_deployment_id,
+            recovery_generation,
+            signer.public_key().try_into()?,
+            additional_public_keys,
+        )?;
+        key_file::create_private(&trust_store_path, &trust_store.canonical_bytes()?)?;
+        println!(
+            "active_key_id={} recovery_generation={} trusted_key_count={}",
+            trust_store.active_key_id,
+            trust_store.recovery_generation,
+            trust_store.trusted_keys.len()
+        );
+        return Ok(());
+    }
     if arguments != ["bootstrap"] {
         return Err(
-            "usage: px_auth_admin <bootstrap|generate-key>; explicit provisioning only; configuration via environment"
+            "usage: px_auth_admin <bootstrap|generate-key|create-trust-store>; explicit provisioning only; configuration via environment"
                 .into(),
         );
     }
