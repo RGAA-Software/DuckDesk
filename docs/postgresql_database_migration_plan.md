@@ -208,6 +208,15 @@ Stop/Shutdown 取消，安装/覆盖与卸载入口分别为 `scripts/server_bac
 本地 OS 管理员通过受 ACL 限制的恢复 CLI/本机 IPC 执行预检和恢复，仍需核对目标库/路径、授权与审计，
 Console 停机也可操作；普通运行/备份身份不自动拥有建库、DDL 或覆盖恢复权限。
 任务持久化，重启先对账，跨周期互斥、漏跑补一次；断电产生的半成品不标记成功。恢复优先新库，清理只操作清单登记的备份集。
+隔离逻辑恢复使用 `px_backup restore-execute <absolute-private-config-path>`。严格配置只接受 deployment/recovery set/目标环境绑定的
+类型化计划、仓库根、仓库外私有报告路径、固定绝对路径及 SHA-256 的 `createdb`/`pg_restore`/`psql`、1 秒至 24 小时的命令上限；
+目标库名、owner 和 `pixels_restore_operator` 不能由命令行任意覆盖。归档通过 stdin 交给 `pg_restore`，密码只经私有 `PGPASSFILE`，
+不接受任意 shell、SQL 或归档参数。每库恢复后固定核对 service、deployment、目标库名、owner、成功 migration 数量；任一步失败保留
+新库现场并停止，不自动删除。成功只写入私有执行报告且 `admission_required=true`，之后仍须完成 `restore-evaluate`、人工
+`restore-approve` 和维护切换；执行命令自身不能开放服务。
+恢复账号不是超级用户：它只需 `LOGIN + CREATEDB`、连接固定 maintenance DB，以及对本次范围内目标 owner 角色的受控 `SET ROLE`；
+不得授予 `CREATEROLE`、复制或绕过行级安全等能力。正式安装器仍须单独创建/轮换/撤销该账号并保护 pgpass，测试容器临时账号不能
+当作生产账号交付证据。
 DB0 交付服务身份/ACL/目录/任务协议与离线恢复设计，DB4 实现并测试 SCM 重启、断电、Console 停机、凭据失效和目录访问拒绝。
 Linux 使用 `deploy/systemd/pixels-backup@.service` 模板承载同一个执行器，实例参数是 deployment ID；模板固定服务账号、配置与数据根，
 启用 systemd 文件系统/内核/能力边界，SIGTERM 复用同一取消语义。发行安装器仍须创建账号、目录和 ACL 后才可 enable/start，

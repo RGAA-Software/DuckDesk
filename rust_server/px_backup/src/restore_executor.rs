@@ -1,15 +1,25 @@
-use crate::{BackupMemberState, BackupRepository, BackupService, RepositoryError};
+use crate::{
+    executor::{hash_file, valid_sha256, valid_tool_path},
+    BackupCancellation, BackupError, BackupMemberState, BackupRepository, BackupService,
+    RepositoryError,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
+    env,
+    fs::OpenOptions,
+    io::Read,
     net::IpAddr,
     path::{Path, PathBuf},
+    process::{Child, Command, Stdio},
+    thread,
+    time::{Duration, Instant},
 };
 use uuid::Uuid;
 
 pub const RESTORE_EXECUTION_REPORT_SCHEMA_VERSION: u32 = 1;
 
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum RestoreExecutionError {
     #[error("restore execution plan is invalid")]
     InvalidPlan,
@@ -23,6 +33,14 @@ pub enum RestoreExecutionError {
     RestoreFailed,
     #[error("restored database identity or schema verification failed")]
     VerificationFailed,
+    #[error("pinned PostgreSQL restore tool is unavailable or changed")]
+    ToolIdentity,
+    #[error("database restore credential file is unavailable")]
+    Credential,
+    #[error("database restore command timed out")]
+    ToolTimeout,
+    #[error("database restore operation cancelled")]
+    Cancelled,
     #[error("system clock is unavailable")]
     Clock,
 }
@@ -72,7 +90,7 @@ pub struct RestoreExecutionPlan {
 }
 
 impl RestoreExecutionPlan {
-    fn validate(&self) -> Result<(), RestoreExecutionError> {
+    pub fn validate(&self) -> Result<(), RestoreExecutionError> {
         if self.deployment_id.is_nil()
             || self.recovery_set_id.is_nil()
             || self.target_environment_id.is_nil()
@@ -110,6 +128,206 @@ pub trait LogicalRestoreTool {
         expected_deployment_id: Uuid,
         expected_schema_version: u32,
     ) -> Result<(), RestoreExecutionError>;
+}
+
+#[derive(Debug, Clone)]
+pub struct PinnedPgRestoreTools {
+    createdb: PathBuf,
+    createdb_sha256: String,
+    pg_restore: PathBuf,
+    pg_restore_sha256: String,
+    psql: PathBuf,
+    psql_sha256: String,
+    command_timeout: Duration,
+    cancellation: BackupCancellation,
+}
+
+impl PinnedPgRestoreTools {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        createdb: PathBuf,
+        createdb_sha256: String,
+        pg_restore: PathBuf,
+        pg_restore_sha256: String,
+        psql: PathBuf,
+        psql_sha256: String,
+        command_timeout: Duration,
+        cancellation: BackupCancellation,
+    ) -> Result<Self, RestoreExecutionError> {
+        if !valid_tool_path(&createdb, "createdb")
+            || !valid_tool_path(&pg_restore, "pg_restore")
+            || !valid_tool_path(&psql, "psql")
+            || !valid_sha256(&createdb_sha256)
+            || !valid_sha256(&pg_restore_sha256)
+            || !valid_sha256(&psql_sha256)
+            || command_timeout < Duration::from_secs(1)
+            || command_timeout > Duration::from_secs(24 * 60 * 60)
+        {
+            return Err(RestoreExecutionError::ToolIdentity);
+        }
+        let tools = Self {
+            createdb,
+            createdb_sha256,
+            pg_restore,
+            pg_restore_sha256,
+            psql,
+            psql_sha256,
+            command_timeout,
+            cancellation,
+        };
+        tools.verify_tools()?;
+        Ok(tools)
+    }
+
+    fn verify_tools(&self) -> Result<(), RestoreExecutionError> {
+        if hash_restore_tool(&self.createdb)? != self.createdb_sha256
+            || hash_restore_tool(&self.pg_restore)? != self.pg_restore_sha256
+            || hash_restore_tool(&self.psql)? != self.psql_sha256
+        {
+            return Err(RestoreExecutionError::ToolIdentity);
+        }
+        Ok(())
+    }
+
+    fn prepare_command(&self, executable: &Path, target: &RestoreDatabaseTarget) -> Command {
+        let mut command = Command::new(executable);
+        for (environment_name, _) in env::vars_os() {
+            let normalized_name = environment_name.to_string_lossy().to_ascii_uppercase();
+            if normalized_name.starts_with("PG") || normalized_name == "DATABASE_URL" {
+                command.env_remove(environment_name);
+            }
+        }
+        command
+            .env("PGPASSFILE", &target.password_file)
+            .stdin(Stdio::null())
+            .stderr(Stdio::null());
+        command
+    }
+
+    fn validate_target(&self, target: &RestoreDatabaseTarget) -> Result<(), RestoreExecutionError> {
+        self.verify_tools()?;
+        drop(
+            px_private_files::private::read_private(&target.password_file)
+                .map_err(|_| RestoreExecutionError::Credential)?,
+        );
+        Ok(())
+    }
+}
+
+impl LogicalRestoreTool for PinnedPgRestoreTools {
+    fn create_fresh_database(
+        &self,
+        target: &RestoreDatabaseTarget,
+    ) -> Result<(), RestoreExecutionError> {
+        self.validate_target(target)?;
+        let mut command = self.prepare_command(&self.createdb, target);
+        command
+            .args([
+                "--no-password",
+                "--template=template0",
+                "--maintenance-db=postgres",
+            ])
+            .arg("--host")
+            .arg(&target.host)
+            .arg("--port")
+            .arg(target.port.to_string())
+            .arg("--username")
+            .arg(&target.username)
+            .arg("--owner")
+            .arg(&target.owner)
+            .arg(&target.database)
+            .stdout(Stdio::null());
+        run_restore_command(
+            &mut command,
+            self.command_timeout,
+            &self.cancellation,
+            RestoreExecutionError::TargetCreationFailed,
+            false,
+        )?;
+        Ok(())
+    }
+
+    fn restore_archive(
+        &self,
+        target: &RestoreDatabaseTarget,
+        archive_path: &Path,
+    ) -> Result<(), RestoreExecutionError> {
+        self.validate_target(target)?;
+        let archive = open_restore_archive(archive_path)?;
+        let mut command = self.prepare_command(&self.pg_restore, target);
+        command
+            .args(["--exit-on-error", "--no-password", "--no-owner"])
+            .arg("--host")
+            .arg(&target.host)
+            .arg("--port")
+            .arg(target.port.to_string())
+            .arg("--username")
+            .arg(&target.username)
+            .arg("--role")
+            .arg(&target.owner)
+            .arg("--dbname")
+            .arg(&target.database)
+            .stdin(Stdio::from(archive))
+            .stdout(Stdio::null());
+        run_restore_command(
+            &mut command,
+            self.command_timeout,
+            &self.cancellation,
+            RestoreExecutionError::RestoreFailed,
+            false,
+        )?;
+        Ok(())
+    }
+
+    fn verify_restored_database(
+        &self,
+        target: &RestoreDatabaseTarget,
+        expected_deployment_id: Uuid,
+        expected_schema_version: u32,
+    ) -> Result<(), RestoreExecutionError> {
+        self.validate_target(target)?;
+        let verification_query = "SELECT identity.service || '|' || identity.deployment_id::text || '|' || current_database() || '|' || pg_catalog.pg_get_userbyid(database_record.datdba) || '|' || COUNT(migration.version)::text || '|' || COALESCE(BOOL_AND(migration.success), FALSE)::text FROM pixels.deployment_identity AS identity CROSS JOIN pg_catalog.pg_database AS database_record LEFT JOIN pixels._sqlx_migrations AS migration ON TRUE WHERE database_record.datname = current_database() GROUP BY identity.service, identity.deployment_id, database_record.datdba";
+        let mut command = self.prepare_command(&self.psql, target);
+        command
+            .args([
+                "-X",
+                "--tuples-only",
+                "--no-align",
+                "--no-password",
+                "--set=ON_ERROR_STOP=1",
+            ])
+            .arg("--host")
+            .arg(&target.host)
+            .arg("--port")
+            .arg(target.port.to_string())
+            .arg("--username")
+            .arg(&target.username)
+            .arg("--dbname")
+            .arg(&target.database)
+            .arg("--command")
+            .arg(verification_query)
+            .stdout(Stdio::piped());
+        let output = run_restore_command(
+            &mut command,
+            self.command_timeout,
+            &self.cancellation,
+            RestoreExecutionError::VerificationFailed,
+            true,
+        )?
+        .ok_or(RestoreExecutionError::VerificationFailed)?;
+        let expected_output = format!(
+            "{}|{}|{}|{}|{}|true",
+            service_name(target.service),
+            expected_deployment_id,
+            target.database,
+            target.owner,
+            expected_schema_version
+        );
+        if output.trim() != expected_output {
+            return Err(RestoreExecutionError::VerificationFailed);
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -279,6 +497,80 @@ fn current_unix_time() -> Result<u64, RestoreExecutionError> {
         .map_err(|_| RestoreExecutionError::Clock)
 }
 
+fn hash_restore_tool(path: &Path) -> Result<String, RestoreExecutionError> {
+    hash_file(path, BackupError::ToolIdentity).map_err(|_| RestoreExecutionError::ToolIdentity)
+}
+
+fn open_restore_archive(path: &Path) -> Result<std::fs::File, RestoreExecutionError> {
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW);
+    }
+    let archive = options
+        .open(path)
+        .map_err(|_| RestoreExecutionError::RestoreFailed)?;
+    if !archive
+        .metadata()
+        .map_err(|_| RestoreExecutionError::RestoreFailed)?
+        .is_file()
+    {
+        return Err(RestoreExecutionError::RestoreFailed);
+    }
+    Ok(archive)
+}
+
+fn run_restore_command(
+    command: &mut Command,
+    timeout: Duration,
+    cancellation: &BackupCancellation,
+    failure: RestoreExecutionError,
+    capture_stdout: bool,
+) -> Result<Option<String>, RestoreExecutionError> {
+    if cancellation.is_cancelled() {
+        return Err(RestoreExecutionError::Cancelled);
+    }
+    let mut child = command.spawn().map_err(|_| failure)?;
+    let started = Instant::now();
+    loop {
+        if cancellation.is_cancelled() {
+            stop_restore_child(&mut child);
+            return Err(RestoreExecutionError::Cancelled);
+        }
+        if started.elapsed() >= timeout {
+            stop_restore_child(&mut child);
+            return Err(RestoreExecutionError::ToolTimeout);
+        }
+        match child.try_wait() {
+            Ok(Some(status)) if status.success() => {
+                if !capture_stdout {
+                    return Ok(None);
+                }
+                let mut stdout = child.stdout.take().ok_or(failure)?;
+                let mut output = String::new();
+                stdout.read_to_string(&mut output).map_err(|_| failure)?;
+                if output.len() > 4096 {
+                    return Err(failure);
+                }
+                return Ok(Some(output));
+            }
+            Ok(Some(_)) => return Err(failure),
+            Ok(None) => thread::sleep(Duration::from_millis(100)),
+            Err(_) => {
+                stop_restore_child(&mut child);
+                return Err(failure);
+            }
+        }
+    }
+}
+
+fn stop_restore_child(child: &mut Child) {
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -287,7 +579,7 @@ mod tests {
         RecoverySetManifest, RecoverySetStatus, RetentionClass, MANIFEST_SCHEMA_VERSION,
     };
     use sha2::{Digest, Sha256};
-    use std::{fs, sync::Mutex};
+    use std::{fs, sync::Mutex, time::Duration};
 
     struct RestoreToolProbe {
         operations: Mutex<Vec<String>>,
@@ -467,6 +759,41 @@ mod tests {
         }
     }
 
+    fn create_fake_tool(
+        directory: &Path,
+        tool_name: &str,
+        log_path: &Path,
+        output: Option<&str>,
+    ) -> PathBuf {
+        #[cfg(windows)]
+        let tool_path = directory.join(format!("{tool_name}.cmd"));
+        #[cfg(unix)]
+        let tool_path = directory.join(tool_name);
+        #[cfg(windows)]
+        let script = format!(
+            "@echo off\r\necho %*>>\"{}\"\r\n{}exit /b 0\r\n",
+            log_path.display(),
+            output
+                .map(|line| format!("echo {}\r\n", line.replace('|', "^|")))
+                .unwrap_or_default()
+        );
+        #[cfg(unix)]
+        let script = format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\n{}exit 0\n",
+            log_path.display(),
+            output
+                .map(|line| format!("printf '%s\\n' '{line}'\n"))
+                .unwrap_or_default()
+        );
+        fs::write(&tool_path, script).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&tool_path, fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        tool_path
+    }
+
     #[test]
     fn isolated_restore_uses_exact_derived_targets_and_remains_unadmitted() {
         let fixture = RestoreFixture::new();
@@ -528,5 +855,67 @@ mod tests {
             Err(RestoreExecutionError::InvalidPlan)
         );
         assert!(runner.tool.operations.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn pinned_restore_tools_execute_fixed_commands_and_reject_post_start_tampering() {
+        let temporary_directory = tempfile::tempdir().unwrap();
+        make_private_directory(temporary_directory.path());
+        let password_file = temporary_directory.path().join("restore.pgpass");
+        px_private_files::private::create_private(&password_file, b"credential\n").unwrap();
+        let log_path = temporary_directory.path().join("commands.log");
+        let target_environment_id = Uuid::new_v4();
+        let deployment_id = Uuid::new_v4();
+        let target = RestoreDatabaseTarget {
+            service: BackupService::Console,
+            host: "127.0.0.1".to_string(),
+            port: 5432,
+            database: isolated_database_name(target_environment_id, BackupService::Console),
+            owner: "pixels_console_owner".to_string(),
+            username: "pixels_restore_operator".to_string(),
+            password_file,
+        };
+        let verification_output = format!(
+            "console|{}|{}|pixels_console_owner|22|true",
+            deployment_id, target.database
+        );
+        let createdb = create_fake_tool(temporary_directory.path(), "createdb", &log_path, None);
+        let pg_restore =
+            create_fake_tool(temporary_directory.path(), "pg_restore", &log_path, None);
+        let psql = create_fake_tool(
+            temporary_directory.path(),
+            "psql",
+            &log_path,
+            Some(&verification_output),
+        );
+        let tools = PinnedPgRestoreTools::new(
+            createdb.clone(),
+            hash_restore_tool(&createdb).unwrap(),
+            pg_restore.clone(),
+            hash_restore_tool(&pg_restore).unwrap(),
+            psql.clone(),
+            hash_restore_tool(&psql).unwrap(),
+            Duration::from_secs(5),
+            BackupCancellation::default(),
+        )
+        .unwrap();
+        let archive_path = temporary_directory.path().join("console.dump");
+        fs::write(&archive_path, b"archive").unwrap();
+        tools.create_fresh_database(&target).unwrap();
+        tools.restore_archive(&target, &archive_path).unwrap();
+        tools
+            .verify_restored_database(&target, deployment_id, 22)
+            .unwrap();
+        let command_log = fs::read_to_string(&log_path).unwrap();
+        assert!(command_log.contains("--template=template0"));
+        assert!(command_log.contains("--role pixels_console_owner"));
+        assert!(command_log.contains("--set=ON_ERROR_STOP=1"));
+        assert!(!command_log.contains("credential"));
+
+        fs::write(&psql, b"tampered").unwrap();
+        assert_eq!(
+            tools.verify_restored_database(&target, deployment_id, 22),
+            Err(RestoreExecutionError::ToolIdentity)
+        );
     }
 }

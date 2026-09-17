@@ -1,13 +1,15 @@
 use px_backup::{
-    ExternalRecoveryWitness, RecoverySetManifest, RestoreAdmissionState, RestoreAdmissionStore,
-    RestoreOperationalCheck,
+    BackupCancellation, BackupRepository, ExternalRecoveryWitness, PinnedPgRestoreTools,
+    RecoverySetManifest, RestoreAdmissionState, RestoreAdmissionStore, RestoreExecutionPlan,
+    RestoreOperationalCheck, RestoreRunner,
 };
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeSet, path::PathBuf};
+use std::{collections::BTreeSet, path::PathBuf, time::Duration};
 use uuid::Uuid;
 
 const RESTORE_COMMAND_CONFIG_SCHEMA_VERSION: u32 = 1;
 const RESTORE_APPROVAL_REQUEST_SCHEMA_VERSION: u32 = 1;
+const RESTORE_EXECUTION_COMMAND_CONFIG_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -57,6 +59,53 @@ struct RestoreApprovalRequest {
     administrator_id: Uuid,
     expected_revision: u64,
     expected_evidence_sha256: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RestoreExecutionCommandConfig {
+    schema_version: u32,
+    repository_root: PathBuf,
+    report_path: PathBuf,
+    plan: RestoreExecutionPlan,
+    createdb_path: PathBuf,
+    createdb_sha256: String,
+    pg_restore_path: PathBuf,
+    pg_restore_sha256: String,
+    psql_path: PathBuf,
+    psql_sha256: String,
+    command_timeout_seconds: u64,
+}
+
+impl RestoreExecutionCommandConfig {
+    fn load_private(config_path: &std::path::Path) -> Result<Self, &'static str> {
+        if !config_path.is_absolute() {
+            return Err("restore execution configuration rejected");
+        }
+        let config_bytes = px_private_files::private::read_private(config_path)
+            .map_err(|_| "restore execution configuration rejected")?;
+        let config = serde_json::from_slice::<Self>(&config_bytes)
+            .map_err(|_| "restore execution configuration rejected")?;
+        if !config.is_valid() {
+            return Err("restore execution configuration rejected");
+        }
+        Ok(config)
+    }
+
+    fn is_valid(&self) -> bool {
+        self.schema_version == RESTORE_EXECUTION_COMMAND_CONFIG_SCHEMA_VERSION
+            && self.repository_root.is_absolute()
+            && self.report_path.is_absolute()
+            && !self.report_path.starts_with(&self.repository_root)
+            && self.createdb_path.is_absolute()
+            && self.pg_restore_path.is_absolute()
+            && self.psql_path.is_absolute()
+            && valid_sha256(&self.createdb_sha256)
+            && valid_sha256(&self.pg_restore_sha256)
+            && valid_sha256(&self.psql_sha256)
+            && (1..=24 * 60 * 60).contains(&self.command_timeout_seconds)
+            && self.plan.validate().is_ok()
+    }
 }
 
 impl RestoreApprovalRequest {
@@ -138,6 +187,35 @@ pub fn approve(config_path: PathBuf, request_path: PathBuf) -> Result<(), &'stat
     print_record(admission_store.record())
 }
 
+pub fn execute(config_path: PathBuf, cancellation: BackupCancellation) -> Result<(), &'static str> {
+    let config = RestoreExecutionCommandConfig::load_private(&config_path)?;
+    let tools = PinnedPgRestoreTools::new(
+        config.createdb_path.clone(),
+        config.createdb_sha256.clone(),
+        config.pg_restore_path.clone(),
+        config.pg_restore_sha256.clone(),
+        config.psql_path.clone(),
+        config.psql_sha256.clone(),
+        Duration::from_secs(config.command_timeout_seconds),
+        cancellation,
+    )
+    .map_err(|_| "restore execution tool identity rejected")?;
+    let repository = BackupRepository::open(&config.repository_root, config.plan.deployment_id)
+        .map_err(|_| "backup repository rejected restore execution")?;
+    let report = RestoreRunner::new(tools)
+        .run(&repository, &config.plan)
+        .map_err(|_| "restore execution failed closed")?;
+    let report_json =
+        serde_json::to_vec(&report).map_err(|_| "restore result serialization failed")?;
+    px_private_files::private::create_private(&config.report_path, &report_json)
+        .map_err(|_| "restore execution report rejected")?;
+    println!(
+        "{}",
+        String::from_utf8(report_json).map_err(|_| "restore result serialization failed")?
+    );
+    Ok(())
+}
+
 fn load_verified_manifest(
     config: &RestoreCommandConfig,
 ) -> Result<RecoverySetManifest, &'static str> {
@@ -171,8 +249,9 @@ mod tests {
     use super::*;
     use px_backup::{
         BackupMember, BackupMemberState, BackupRepository, BackupService, RecoverySecurityEvidence,
-        RecoverySetKind, RecoverySetManifest, RecoverySetStatus, RetentionClass,
-        ServiceSecurityWatermark, MANIFEST_SCHEMA_VERSION, RECOVERY_WITNESS_SCHEMA_VERSION,
+        RecoverySetKind, RecoverySetManifest, RecoverySetStatus, RestoreDatabaseTarget,
+        RestoreExecutionReport, RetentionClass, ServiceSecurityWatermark, MANIFEST_SCHEMA_VERSION,
+        RECOVERY_WITNESS_SCHEMA_VERSION,
     };
     use sha2::{Digest, Sha256};
     use std::{fs, path::Path};
@@ -182,6 +261,7 @@ mod tests {
         config_path: PathBuf,
         approval_path: PathBuf,
         admission_root: PathBuf,
+        private_root: PathBuf,
         config: RestoreCommandConfig,
     }
 
@@ -284,6 +364,7 @@ mod tests {
                 config_path,
                 approval_path: private_root.join("restore-approval.json"),
                 admission_root,
+                private_root,
                 config,
             }
         }
@@ -343,6 +424,64 @@ mod tests {
         }
     }
 
+    fn isolated_database_name(target_environment_id: Uuid, service: BackupService) -> String {
+        let environment_text = target_environment_id.simple().to_string();
+        format!(
+            "pixels_restore_{}_{}",
+            &environment_text[..12],
+            format!("{service:?}").to_ascii_lowercase()
+        )
+    }
+
+    fn create_restore_tool(
+        directory: &Path,
+        tool_name: &str,
+        verification_rows: &[(String, String)],
+    ) -> PathBuf {
+        #[cfg(windows)]
+        let tool_path = directory.join(format!("{tool_name}.cmd"));
+        #[cfg(unix)]
+        let tool_path = directory.join(tool_name);
+        #[cfg(windows)]
+        let script = if tool_name == "psql" {
+            let cases = verification_rows
+                .iter()
+                .map(|(database, row)| {
+                    format!(
+                        "echo %*| findstr /c:\"{database}\" >nul && (echo {}& exit /b 0)\r\n",
+                        row.replace('|', "^|")
+                    )
+                })
+                .collect::<String>();
+            format!("@echo off\r\n{cases}exit /b 1\r\n")
+        } else {
+            "@echo off\r\nexit /b 0\r\n".to_string()
+        };
+        #[cfg(unix)]
+        let script = if tool_name == "psql" {
+            let cases = verification_rows
+                .iter()
+                .map(|(database, row)| {
+                    format!("  *{database}*) printf '%s\\n' '{row}'; exit 0;;\n")
+                })
+                .collect::<String>();
+            format!("#!/bin/sh\ncase \"$*\" in\n{cases}esac\nexit 1\n")
+        } else {
+            "#!/bin/sh\nexit 0\n".to_string()
+        };
+        fs::write(&tool_path, script).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&tool_path, fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        tool_path
+    }
+
+    fn file_sha256(path: &Path) -> String {
+        format!("{:x}", Sha256::digest(fs::read(path).unwrap()))
+    }
+
     #[test]
     fn sha256_validation_rejects_uppercase_short_and_non_hex_values() {
         assert!(valid_sha256(&"a".repeat(64)));
@@ -389,6 +528,116 @@ mod tests {
         request.expected_revision = 2;
         request.expected_evidence_sha256 = "A".repeat(64);
         assert!(!request.is_valid());
+    }
+
+    #[test]
+    fn restore_execution_configuration_requires_private_fixed_inputs_and_external_report() {
+        let absolute_root = std::env::current_dir().unwrap();
+        let mut config = RestoreExecutionCommandConfig {
+            schema_version: RESTORE_EXECUTION_COMMAND_CONFIG_SCHEMA_VERSION,
+            repository_root: absolute_root.join("repository"),
+            report_path: absolute_root.join("private").join("restore-report.json"),
+            plan: RestoreExecutionPlan {
+                deployment_id: Uuid::new_v4(),
+                recovery_set_id: Uuid::new_v4(),
+                target_environment_id: Uuid::new_v4(),
+                targets: Vec::new(),
+            },
+            createdb_path: absolute_root.join("tools").join("createdb.exe"),
+            createdb_sha256: "a".repeat(64),
+            pg_restore_path: absolute_root.join("tools").join("pg_restore.exe"),
+            pg_restore_sha256: "b".repeat(64),
+            psql_path: absolute_root.join("tools").join("psql.exe"),
+            psql_sha256: "c".repeat(64),
+            command_timeout_seconds: 60,
+        };
+        assert!(config.is_valid());
+        config.report_path = config.repository_root.join("report.json");
+        assert!(!config.is_valid());
+        config.report_path = absolute_root.join("private").join("restore-report.json");
+        config.createdb_sha256 = "A".repeat(64);
+        assert!(!config.is_valid());
+        config.createdb_sha256 = "a".repeat(64);
+        config.plan.target_environment_id = Uuid::nil();
+        assert!(!config.is_valid());
+    }
+
+    #[test]
+    fn restore_execute_runs_pinned_plan_and_persists_unadmitted_report() {
+        let fixture = CommandFixture::new();
+        let target_environment_id = fixture.config.target_environment_id;
+        let password_file = fixture.private_root.join("restore.pgpass");
+        px_private_files::private::create_private(&password_file, b"credential\n").unwrap();
+        let targets = [
+            BackupService::Console,
+            BackupService::Auth,
+            BackupService::Desk,
+        ]
+        .into_iter()
+        .map(|service| {
+            let service_name = format!("{service:?}").to_ascii_lowercase();
+            RestoreDatabaseTarget {
+                service,
+                host: "127.0.0.1".to_string(),
+                port: 5432,
+                database: isolated_database_name(target_environment_id, service),
+                owner: format!("pixels_{service_name}_owner"),
+                username: "pixels_restore_operator".to_string(),
+                password_file: password_file.clone(),
+            }
+        })
+        .collect::<Vec<_>>();
+        let verification_rows = targets
+            .iter()
+            .map(|target| {
+                let service_name = format!("{:?}", target.service).to_ascii_lowercase();
+                (
+                    target.database.clone(),
+                    format!(
+                        "{}|{}|{}|{}|1|true",
+                        service_name, fixture.config.deployment_id, target.database, target.owner
+                    ),
+                )
+            })
+            .collect::<Vec<_>>();
+        let createdb = create_restore_tool(&fixture.private_root, "createdb", &verification_rows);
+        let pg_restore =
+            create_restore_tool(&fixture.private_root, "pg_restore", &verification_rows);
+        let psql = create_restore_tool(&fixture.private_root, "psql", &verification_rows);
+        let report_path = fixture.private_root.join("restore-execution-report.json");
+        let execution_config = RestoreExecutionCommandConfig {
+            schema_version: RESTORE_EXECUTION_COMMAND_CONFIG_SCHEMA_VERSION,
+            repository_root: fixture.config.repository_root.clone(),
+            report_path: report_path.clone(),
+            plan: RestoreExecutionPlan {
+                deployment_id: fixture.config.deployment_id,
+                recovery_set_id: fixture.config.recovery_set_id,
+                target_environment_id,
+                targets,
+            },
+            createdb_path: createdb.clone(),
+            createdb_sha256: file_sha256(&createdb),
+            pg_restore_path: pg_restore.clone(),
+            pg_restore_sha256: file_sha256(&pg_restore),
+            psql_path: psql.clone(),
+            psql_sha256: file_sha256(&psql),
+            command_timeout_seconds: 5,
+        };
+        let execution_config_path = fixture.private_root.join("restore-execution-config.json");
+        px_private_files::private::create_private(
+            &execution_config_path,
+            &serde_json::to_vec(&execution_config).unwrap(),
+        )
+        .unwrap();
+
+        execute(execution_config_path, BackupCancellation::default()).unwrap();
+        let report_bytes = px_private_files::private::read_private(&report_path).unwrap();
+        let report = serde_json::from_slice::<RestoreExecutionReport>(&report_bytes).unwrap();
+        assert_eq!(report.deployment_id, fixture.config.deployment_id);
+        assert_eq!(report.recovery_set_id, fixture.config.recovery_set_id);
+        assert_eq!(report.target_environment_id, target_environment_id);
+        assert_eq!(report.members.len(), 3);
+        assert!(report.admission_required);
     }
 
     #[test]

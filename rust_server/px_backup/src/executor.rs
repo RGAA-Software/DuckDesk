@@ -402,7 +402,7 @@ fn now_unix() -> Result<u64, BackupError> {
         .map_err(|_| BackupError::Clock)
 }
 
-fn hash_file(path: &Path, failure: BackupError) -> Result<String, BackupError> {
+pub(crate) fn hash_file(path: &Path, failure: BackupError) -> Result<String, BackupError> {
     let mut options = OpenOptions::new();
     options.read(true);
     #[cfg(unix)]
@@ -445,14 +445,14 @@ fn valid_identifier(value: &str) -> bool {
             .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
 }
 
-fn valid_sha256(value: &str) -> bool {
+pub(crate) fn valid_sha256(value: &str) -> bool {
     value.len() == 64
         && value
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
-fn valid_tool_path(path: &Path, expected_stem: &str) -> bool {
+pub(crate) fn valid_tool_path(path: &Path, expected_stem: &str) -> bool {
     path.is_absolute()
         && path
             .file_stem()

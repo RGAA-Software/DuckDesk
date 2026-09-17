@@ -27,8 +27,9 @@ pub use restore::{
     RestoreOperationalCheck, RECOVERY_WITNESS_SCHEMA_VERSION,
 };
 pub use restore_executor::{
-    LogicalRestoreTool, RestoreDatabaseTarget, RestoreExecutionError, RestoreExecutionPlan,
-    RestoreExecutionReport, RestoreRunner, RestoredMember, RESTORE_EXECUTION_REPORT_SCHEMA_VERSION,
+    LogicalRestoreTool, PinnedPgRestoreTools, RestoreDatabaseTarget, RestoreExecutionError,
+    RestoreExecutionPlan, RestoreExecutionReport, RestoreRunner, RestoredMember,
+    RESTORE_EXECUTION_REPORT_SCHEMA_VERSION,
 };
 pub use restore_store::{
     RestoreAdmissionApproval, RestoreAdmissionRecord, RestoreAdmissionState, RestoreAdmissionStore,

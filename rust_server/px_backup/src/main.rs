@@ -39,6 +39,10 @@ fn main() -> ExitCode {
                 "restore remains RecoveryRequired" => 20,
                 "restore approval rejected" | "restore approval request rejected" => 21,
                 "restore configuration rejected"
+                | "restore execution configuration rejected"
+                | "restore execution tool identity rejected"
+                | "restore execution failed closed"
+                | "restore execution report rejected"
                 | "external recovery witness rejected"
                 | "restore admission store rejected"
                 | "restore evidence rejected"
@@ -54,7 +58,7 @@ fn main() -> ExitCode {
 fn run() -> Result<(), &'static str> {
     let arguments = env::args_os().collect::<Vec<_>>();
     if arguments.len() < 3 {
-        return Err("usage: px_backup run|service|restore-evaluate|restore-approve <private-config-path> [private-approval-path]");
+        return Err("usage: px_backup run|service|restore-execute|restore-evaluate|restore-approve <private-config-path> [private-approval-path]");
     }
     let command = arguments[1]
         .to_str()
@@ -69,11 +73,19 @@ fn run() -> Result<(), &'static str> {
             Err("service mode is available only through Windows SCM")
         }
         "restore-evaluate" if arguments.len() == 3 => restore_command::evaluate(config_path),
+        "restore-execute" if arguments.len() == 3 => run_restore_execute(config_path),
         "restore-approve" if arguments.len() == 4 => {
             restore_command::approve(config_path, PathBuf::from(&arguments[3]))
         }
-        _ => Err("usage: px_backup run|service|restore-evaluate|restore-approve <private-config-path> [private-approval-path]"),
+        _ => Err("usage: px_backup run|service|restore-execute|restore-evaluate|restore-approve <private-config-path> [private-approval-path]"),
     }
+}
+
+fn run_restore_execute(config_path: PathBuf) -> Result<(), &'static str> {
+    let stopping = Arc::new(AtomicBool::new(false));
+    let cancellation = px_backup::BackupCancellation::default();
+    install_console_shutdown(stopping, cancellation.clone())?;
+    restore_command::execute(config_path, cancellation)
 }
 
 fn run_interactive(config_path: PathBuf) -> Result<(), &'static str> {

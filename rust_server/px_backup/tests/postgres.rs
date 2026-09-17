@@ -1,7 +1,10 @@
 use px_backup::{
     BackupError, BackupPlan, BackupRepository, BackupRunner, BackupService, BackupTarget,
-    DatabaseTarget, LogicalBackupTool, RecoverySetKind, RetentionClass,
+    DatabaseTarget, LogicalBackupTool, RecoverySetKind, RestoreDatabaseTarget,
+    RestoreExecutionPlan, RestoreExecutionReport, RetentionClass,
 };
+use serde::Serialize;
+use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeSet,
     env,
@@ -29,20 +32,11 @@ impl DockerPgTool {
         command
     }
 
-    fn restore(&self, archive: &Path, database: &str) {
-        let input = File::open(archive).unwrap();
+    fn execute(&self, arguments: &[&str]) {
         let status = self
             .docker()
-            .args([
-                "pg_restore",
-                "--exit-on-error",
-                "--no-password",
-                "--username",
-                "pixels_admin",
-                "--dbname",
-                database,
-            ])
-            .stdin(Stdio::from(input))
+            .args(arguments)
+            .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status()
@@ -123,24 +117,7 @@ impl<'a> RestoredDatabases<'a> {
         }
     }
 
-    fn create(&mut self, name: String) {
-        let status = self
-            .tool
-            .docker()
-            .args([
-                "createdb",
-                "--username",
-                "pixels_admin",
-                "--template",
-                "template0",
-                &name,
-            ])
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .unwrap();
-        assert!(status.success());
+    fn register(&mut self, name: String) {
         self.names.push(name);
     }
 }
@@ -163,6 +140,21 @@ impl Drop for RestoredDatabases<'_> {
 struct Fixture {
     _base: tempfile::TempDir,
     root: PathBuf,
+}
+
+#[derive(Serialize)]
+struct RestoreExecutionCommandFixture {
+    schema_version: u32,
+    repository_root: PathBuf,
+    report_path: PathBuf,
+    plan: RestoreExecutionPlan,
+    createdb_path: PathBuf,
+    createdb_sha256: String,
+    pg_restore_path: PathBuf,
+    pg_restore_sha256: String,
+    psql_path: PathBuf,
+    psql_sha256: String,
+    command_timeout_seconds: u64,
 }
 
 impl Fixture {
@@ -216,8 +208,16 @@ fn target(fixture: &Fixture, service: BackupService, database: &str) -> BackupTa
             database: database.into(),
             username: "pixels_admin".into(),
             password_file: fixture.root.join("unused-test-adapter.pgpass"),
-            schema_version: 1,
+            schema_version: expected_schema_version(service),
         },
+    }
+}
+
+fn expected_schema_version(service: BackupService) -> u32 {
+    match service {
+        BackupService::Console => 22,
+        BackupService::Auth => 3,
+        BackupService::Desk => 2,
     }
 }
 
@@ -226,6 +226,73 @@ fn valid_container_id(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn service_name(service: BackupService) -> &'static str {
+    match service {
+        BackupService::Console => "console",
+        BackupService::Auth => "auth",
+        BackupService::Desk => "desk",
+    }
+}
+
+fn isolated_database_name(target_environment_id: Uuid, service: BackupService) -> String {
+    let environment_text = target_environment_id.simple().to_string();
+    format!(
+        "pixels_restore_{}_{}",
+        &environment_text[..12],
+        service_name(service)
+    )
+}
+
+fn create_docker_tool_proxy(directory: &Path, container: &str, tool_name: &str) -> PathBuf {
+    #[cfg(windows)]
+    let proxy_path = directory.join(format!("{tool_name}.cmd"));
+    #[cfg(unix)]
+    let proxy_path = directory.join(tool_name);
+    #[cfg(windows)]
+    let proxy_script = format!(
+        "@echo off\r\necho {tool_name} %*>>\"{}\"\r\ndocker exec -i -e PGPASSFILE=/tmp/pixels-restore.pgpass {container} {tool_name} %* 2>>\"{}\"\r\nexit /b %ERRORLEVEL%\r\n",
+        directory.join("proxy.log").display(),
+        directory.join("proxy.log").display()
+    );
+    #[cfg(unix)]
+    let proxy_script = format!(
+        "#!/bin/sh\nprintf '%s\\n' \"{tool_name} $*\" >> '{}'\nexec docker exec -i -e PGPASSFILE=/tmp/pixels-restore.pgpass {container} {tool_name} \"$@\" 2>> '{}'\n",
+        directory.join("proxy.log").display(),
+        directory.join("proxy.log").display()
+    );
+    fs::write(&proxy_path, proxy_script).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&proxy_path, fs::Permissions::from_mode(0o700)).unwrap();
+    }
+    proxy_path
+}
+
+fn file_sha256(path: &Path) -> String {
+    format!("{:x}", Sha256::digest(fs::read(path).unwrap()))
+}
+
+fn provision_restore_operator(tool: &DockerPgTool) {
+    tool.execute(&[
+        "psql",
+        "-X",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "--username",
+        "pixels_admin",
+        "--dbname",
+        "postgres",
+        "--command",
+        "CREATE ROLE pixels_restore_operator LOGIN PASSWORD 'pixels-restore-test-password' CREATEDB NOSUPERUSER NOCREATEROLE NOREPLICATION; GRANT pixels_console_owner,pixels_auth_owner,pixels_desk_owner TO pixels_restore_operator; GRANT CONNECT ON DATABASE postgres TO pixels_restore_operator",
+    ]);
+    tool.execute(&[
+        "sh",
+        "-c",
+        "umask 077; printf '%s\\n' '127.0.0.1:5432:*:pixels_restore_operator:pixels-restore-test-password' > /tmp/pixels-restore.pgpass",
+    ]);
 }
 
 #[test]
@@ -238,7 +305,7 @@ fn real_three_database_archives_publish_restore_and_detect_tampering() {
         .unwrap();
     let fixture = Fixture::new();
     let repository = BackupRepository::open(&fixture.root, deployment_id).unwrap();
-    let tool = DockerPgTool::new(container);
+    let tool = DockerPgTool::new(container.clone());
     let plan = BackupPlan {
         deployment_id,
         kind: RecoverySetKind::Independent,
@@ -256,17 +323,76 @@ fn real_three_database_archives_publish_restore_and_detect_tampering() {
         .unwrap();
     assert_eq!(repository.manifests().unwrap(), vec![manifest.clone()]);
     let set_directory = fixture.root.join(manifest.recovery_set_id.to_string());
-    let suffix = Uuid::new_v4().simple().to_string();
+    provision_restore_operator(&tool);
+    let tool_directory = fixture._base.path().join("restore-tools");
+    fs::create_dir(&tool_directory).unwrap();
+    make_private(&tool_directory);
+    let createdb = create_docker_tool_proxy(&tool_directory, &container, "createdb");
+    let pg_restore = create_docker_tool_proxy(&tool_directory, &container, "pg_restore");
+    let psql = create_docker_tool_proxy(&tool_directory, &container, "psql");
+    let password_file = fixture._base.path().join("restore.pgpass");
+    px_private_files::private::create_private(
+        &password_file,
+        b"127.0.0.1:5432:*:pixels_restore_operator:pixels-restore-test-password\n",
+    )
+    .unwrap();
+    let target_environment_id = Uuid::new_v4();
+    let targets = [
+        BackupService::Console,
+        BackupService::Auth,
+        BackupService::Desk,
+    ]
+    .into_iter()
+    .map(|service| RestoreDatabaseTarget {
+        service,
+        host: "127.0.0.1".to_string(),
+        port: 5432,
+        database: isolated_database_name(target_environment_id, service),
+        owner: format!("pixels_{}_owner", service_name(service)),
+        username: "pixels_restore_operator".to_string(),
+        password_file: password_file.clone(),
+    })
+    .collect::<Vec<_>>();
     let mut restored = RestoredDatabases::new(&tool);
-    for (service, archive) in [
-        ("console", "console.dump"),
-        ("auth", "auth.dump"),
-        ("desk", "desk.dump"),
-    ] {
-        let database = format!("pixels_restore_{service}_{suffix}");
-        restored.create(database.clone());
-        tool.restore(&set_directory.join(archive), &database);
-        let marker = tool.output(&[
+    for target in &targets {
+        restored.register(target.database.clone());
+    }
+    let report_path = fixture._base.path().join("restore-report.json");
+    let restore_config = RestoreExecutionCommandFixture {
+        schema_version: 1,
+        repository_root: fixture.root.clone(),
+        report_path: report_path.clone(),
+        plan: RestoreExecutionPlan {
+            deployment_id,
+            recovery_set_id: manifest.recovery_set_id,
+            target_environment_id,
+            targets: targets.clone(),
+        },
+        createdb_path: createdb.clone(),
+        createdb_sha256: file_sha256(&createdb),
+        pg_restore_path: pg_restore.clone(),
+        pg_restore_sha256: file_sha256(&pg_restore),
+        psql_path: psql.clone(),
+        psql_sha256: file_sha256(&psql),
+        command_timeout_seconds: 30,
+    };
+    let restore_config_path = fixture._base.path().join("restore-config.json");
+    px_private_files::private::create_private(
+        &restore_config_path,
+        &serde_json::to_vec(&restore_config).unwrap(),
+    )
+    .unwrap();
+    drop(repository);
+    let restore_output = Command::new(env!("CARGO_BIN_EXE_px_backup"))
+        .args(["restore-execute", restore_config_path.to_str().unwrap()])
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    if !restore_output.status.success() {
+        let proxy_log = fs::read_to_string(tool_directory.join("proxy.log"))
+            .unwrap_or_else(|_| "proxy log unavailable".to_string());
+        let failed_target = &targets[0];
+        let database_marker = tool.output(&[
             "psql",
             "-X",
             "--tuples-only",
@@ -274,11 +400,37 @@ fn real_three_database_archives_publish_restore_and_detect_tampering() {
             "--username",
             "pixels_admin",
             "--dbname",
-            &database,
+            &failed_target.database,
             "--command",
-            "SELECT service || ':' || deployment_id::text FROM pixels.deployment_identity",
+            "SELECT identity.service || '|' || identity.deployment_id::text || '|' || current_database() || '|' || pg_catalog.pg_get_userbyid(database_record.datdba) || '|' || COUNT(migration.version)::text || '|' || COALESCE(BOOL_AND(migration.success), FALSE)::text FROM pixels.deployment_identity AS identity CROSS JOIN pg_catalog.pg_database AS database_record LEFT JOIN pixels._sqlx_migrations AS migration ON TRUE WHERE database_record.datname = current_database() GROUP BY identity.service, identity.deployment_id, database_record.datdba",
         ]);
-        assert_eq!(marker, format!("{service}:{deployment_id}"));
+        panic!(
+            "production restore command failed: status={} stderr={} marker={database_marker}\n{proxy_log}",
+            restore_output.status,
+            String::from_utf8_lossy(&restore_output.stderr)
+        );
+    }
+    let restore_report = serde_json::from_slice::<RestoreExecutionReport>(
+        &px_private_files::private::read_private(&report_path).unwrap(),
+    )
+    .unwrap();
+    assert!(restore_report.admission_required);
+    assert_eq!(restore_report.members.len(), 3);
+    for target in &targets {
+        let runtime_role = format!("pixels_{}_runtime", service_name(target.service));
+        let privilege_marker = tool.output(&[
+            "psql",
+            "-X",
+            "--tuples-only",
+            "--no-align",
+            "--username",
+            "pixels_admin",
+            "--dbname",
+            &target.database,
+            "--command",
+            &format!("SELECT has_schema_privilege('{runtime_role}','pixels','USAGE')"),
+        ]);
+        assert_eq!(privilege_marker, "t");
     }
 
     let console_archive = set_directory.join("console.dump");
@@ -288,5 +440,6 @@ fn real_three_database_archives_publish_restore_and_detect_tampering() {
         .unwrap()
         .write_all(b"tampered")
         .unwrap();
+    let repository = BackupRepository::open(&fixture.root, deployment_id).unwrap();
     assert!(repository.manifests().is_err());
 }
