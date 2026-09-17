@@ -308,6 +308,16 @@ Windows 7 项密码学契约、9 项真实 Auth 进程/PG 专项及严格 Clippy
 `pg-20260918-024335-d028f2ff`，隔离容器与卷已清理。正式安装器的密钥托管、独立见证 key 集同步和
 目标部署轮换演练仍属于 DB4 总出口，不以开发机文件替代生产验收。
 
+DB4 第二十一纵向切片完成 Windows `px_backup` 正式客户端包与发行生命周期。固定输入清单绑定 EDB PostgreSQL `18.6-3` Windows x64
+归档 SHA-256 和最小 `pg_dump`/`pg_restore`/`psql`/`createdb`、DLL、许可证逐文件摘要；构建器只提取白名单闭包，安装器再次拒绝额外、
+缺失、重解析或摘要不符文件，并要求外部传入经审核的 package manifest SHA-256。安装按 package ID 使用版本目录，SCM 使用 deployment
+专属虚拟服务 SID；配置/凭据只读，仓库/调度/状态目录可写，封闭 ACL 只保留服务 SID、SYSTEM、Administrators，避免增量 `icacls`
+遗留开发用户导致服务拒绝私密目录。覆盖启动失败恢复原 ImagePath、配置字节和运行状态，卸载只删除服务且保留恢复材料。
+报告 `windows-backup-20260917-190956-a6e90af5` 使用真实固定 Windows 客户端和摘要固定 PostgreSQL 18.6 容器，完成 dump/list/createdb/
+restore/query 往返、注入额外 DLL 拒绝、SCM 首装、同包覆盖、坏配置回滚和卸载保留数据七项，测试服务、容器、卷和临时目录均已清理。
+这关闭“正式 Windows PostgreSQL 客户端与 px_backup 包装/安装器”代码及本机真实生命周期门禁，不等于 Pixels 外层代码签名、生产密钥托管、
+独立故障域或目标客户 Windows 版本验收。
+
 - 新 Console 运行模块已接身份/用户组 HTTP 与单活动生命周期（产品入口尚未切换）。Windows 路由专项
   `pg-20260917-092450-742a93ef` 五组通过，837 个源文件及工具 hash 复核一致；静态检查通过。
   后续审计/管理重置增量独立验收，不把本条当作这些增量、正式产品或 Linux 已通过。
@@ -347,7 +357,7 @@ Windows 7 项密码学契约、9 项真实 Auth 进程/PG 专项及严格 Clippy
   真实浏览器提交/登录/处理/退出、真实服务重启与 PG 停机恢复通过。
 - DB0 新增[领域/权限/恢复边界](postgresql_domain_contract.md)，覆盖 CloudApplication owner/target、
   Auth 无密钥泄漏的签发边界、三库写屏障恢复集与 Windows SCM 执行器契约；尚不能代替各领域实现和阶段出口。
-- Auth 产品已切到 PG：29 条 SQLx 查询、新许可证字节契约及独立 OpenSSL 固定向量、提交后返回/精确幂等、续期 CAS/撤销审计，
+- Auth 产品已切到 PG：30 条 SQLx 查询、新许可证字节契约及独立 OpenSSL 固定向量、提交后返回/精确幂等、续期 CAS/撤销审计，
   管理会话/改密失效、初始管理员工具、显式不覆盖密钥生成、Windows ACL/Unix 文件权限校验、新接口与中英/明暗管理网页。
   Auth 的 Mongo/px_base/旧签名管理依赖和退役模块已移除；旧 Console 消费者尚待切换，不能混合部署。
 
@@ -546,7 +556,7 @@ Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 W
 | DB2-A | 身份/管理 HTTP、密码计算/限流/Origin、访客 HMAC/会话/公开目录、严格配置与稳定私钥加载已实现；本人资料/头像、独立初始化 CLI、产品二进制切换及客户端全链路尚未接通 |
 | DB2-B/C/D | 设备/应用/节点/部署目录、user/guest 资源入口与 Console 节点 WS 已接；Windows Service 已切到新节点协议并实现部署准备、调和、命令 fencing 与精确 launch ACK。真实 Console→Service→Render、GPU/RDP 执行、媒体/事件投递及其余 repository 产品入口仍未完成 |
 | DB2-EXIT / DB3 | Desk/Auth 独立产品流程已验证；Console 与共享消费者仍待去 Mongo、接新签发/验证及库外水位，Auth 通知 outbox 尚未接通；不建设运行时双后端 |
-| DB4 | 恢复集/保留/私有原子发布/恢复前哈希与依赖复核/固定工具/取消超时、持久计划任务、重启补跑、受限实际清理、配置化异机复制、独立告警送达、持久恢复准入/审批、隔离恢复编排、固定工具适配器、执行命令、最小恢复账号创建/轮换、三库安全水位及写屏障生产/消费/释放、灾难恢复新 generation、数据库内旧会话/Grant/节点凭据/待发控制失效、库外单调可信见证生产/持久链、Auth 活动私钥/多公钥信任根/代际绑定/旧 key 撤回、固定版本 pgBackRest 物理备份/连续 WAL/命名点恢复和缺 WAL 拒绝，以及 systemd 安装/重启/停止/注销保留数据已实现；Windows SCM 与 WSL2 systemd 生命周期已真实验收，测试适配器已完成三库协调逻辑备份、异机副本路径恢复、全新库恢复、恢复封印和人工准入。仍需目标 Linux 发行版 VM、正式 PostgreSQL 客户端与发行安装器/生产密钥托管接入、独立主机或对象仓库的故障域部署/7 天窗口/恢复实测、目标环境 Auth keyring/见证同步轮换演练，以及真实节点与 Windows/RDP 工作区事实对账；本机 Docker/固定替身专项不能替代这些故障域验收 |
+| DB4 | 恢复集/保留/私有原子发布/恢复前哈希与依赖复核/固定工具/取消超时、持久计划任务、重启补跑、受限实际清理、配置化异机复制、独立告警送达、持久恢复准入/审批、隔离恢复编排、固定工具适配器、执行命令、最小恢复账号创建/轮换、三库安全水位及写屏障生产/消费/释放、灾难恢复新 generation、数据库内旧会话/Grant/节点凭据/待发控制失效、库外单调可信见证生产/持久链、Auth 活动私钥/多公钥信任根/代际绑定/旧 key 撤回、固定版本 pgBackRest 物理备份/连续 WAL/命名点恢复和缺 WAL 拒绝、Windows 固定 PostgreSQL 客户端包/版本化安装/覆盖回滚/卸载保留数据，以及 systemd 安装/重启/停止/注销保留数据已实现；Windows SCM 与 WSL2 systemd 生命周期已真实验收，测试适配器已完成三库协调逻辑备份、异机副本路径恢复、全新库恢复、恢复封印和人工准入。仍需目标 Linux 发行版 VM、Pixels 外层安装包签名与生产密钥托管、独立主机或对象仓库的故障域部署/7 天窗口/恢复实测、目标环境 Auth keyring/见证同步轮换演练，以及真实节点与 Windows/RDP 工作区事实对账；本机 Docker/固定替身专项不能替代这些故障域验收 |
 | DB5 | 新环境服务端—Windows—Android 功能回归及完整制品验收 |
 | DB-HA / P1–P7 | 独立主机 HA、正式发行隔离、授权/连接服务、升级、运维与真实容量/稳定性验收 |
 

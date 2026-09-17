@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "product": "postgresql-client-windows-x64",
+  "postgresql_version": "18.6",
+  "archive_revision": 3,
+  "source_page": "https://www.enterprisedb.com/download-postgresql-binaries",
+  "download_url": "https://get.enterprisedb.com/postgresql/postgresql-18.6-3-windows-x64-binaries.zip",
+  "archive_sha256": "59f8ce701c63c2ed623c665a5e51b3ef6f2e37ccf837b68ffeed0742d0ae6abd",
+  "files": [
+    { "path": "bin/createdb.exe", "size": 135680, "sha256": "c100e26c09b4c87a83fa3673149457a505c33ff936fbc224111d6592b44117ec" },
+    { "path": "bin/libcrypto-3-x64.dll", "size": 5714432, "sha256": "2049826335e37848b25a9668b6e4e46030569f00e1a8bcc300c1c2fdedc4445f" },
+    { "path": "bin/libiconv-2.dll", "size": 1441525, "sha256": "6095b3fad19fff040aeae05865c28fdeb455526fca109c3216f6ca737af60249" },
+    { "path": "bin/libintl-9.dll", "size": 475769, "sha256": "1125ac8dc0c4f5c3ed4712e0d8ad29474099fcb55bb0e563a352ce9d03ef1d78" },
+    { "path": "bin/liblz4.dll", "size": 128000, "sha256": "096af775241b3bd4b1c3d79c83b103bb8f02da54ec4cd76c5d49eef61a68ad01" },
+    { "path": "bin/libpq.dll", "size": 384512, "sha256": "d7700d903dbd40e6e6cb8fddbd24f5777b30c93bcafab75970e46b7f773b0311" },
+    { "path": "bin/libssl-3-x64.dll", "size": 1313280, "sha256": "f5a703416d879b082556787733383bae2cef18e8e55c0415cc873e623f898956" },
+    { "path": "bin/libwinpthread-1.dll", "size": 52736, "sha256": "ffe2d56375bb4e8bdee9037df6befc5016ddd8871d0d85027314dd5792f8fdc9" },
+    { "path": "bin/libzstd.dll", "size": 727040, "sha256": "287e7e474961e8886a3d961e2c07da647a7ac8d60d97023545f3a3ecf604daba" },
+    { "path": "bin/pg_dump.exe", "size": 633344, "sha256": "6316f6c6b8651277de87e190146b668aa7b17be6f8c420e85c6209c961f303c5" },
+    { "path": "bin/pg_restore.exe", "size": 379904, "sha256": "a4c17eea648a713009208e4ad82e34e5840e2ea9d66908f0818f7ca9b173e703" },
+    { "path": "bin/psql.exe", "size": 653824, "sha256": "945eb0bbf8475a7fb0c863d85e36f2e15cf6b2d9fadb4d617be4e59d4bb17bb0" },
+    { "path": "commandlinetools_3rd_party_licenses.txt", "size": 44971, "sha256": "ee3c778b2c5202a8f4733c57afacc3e025d1e0bb6be3ebe0b06f36c2f9eb202c" },
+    { "path": "server_license.txt", "size": 1388, "sha256": "39294f3f5b41533b307e118ee37c356f32cbc7746fc97e8b91f1b49a9068a24e" }
+  ]
+}

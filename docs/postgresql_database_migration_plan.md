@@ -202,10 +202,17 @@ Auth/Desk 可有多个同时持共享锁的实例；升级时全部停止准入�
 
 Windows 基础档采用独立 SCM 服务 `Pixels.Backup.<deployment_short_id>`，不依赖 Console 进程/浏览器存活；
 固定支持的 pg_dump/pg_restore 工具版本和摘要，任务参数类型化，不开放任意 shell/SQL 或公网管理端口。
+正式 Windows 包装入口为 `scripts/server_backup/build_windows_package.ps1`，其输入契约位于
+`deploy/production/windows-backup/postgresql-client-18.6.json`：EDB PostgreSQL 18.6 x64 二进制归档、归档摘要及最小工具/DLL/许可证
+逐文件大小和 SHA-256 均固定，只提取 `pg_dump`、`pg_restore`、`psql`、`createdb` 及其实际依赖闭包。构建、安装均拒绝缺失、额外、
+重解析或摘要不符的文件；安装必须显式提供经发布审核的 `package-manifest.json` SHA-256，不扫描目录猜测最新版。完整使用与验收方法见
+`deploy/production/windows-backup/README.md`。
 每个部署使用 `NT SERVICE\Pixels.Backup.<deployment_short_id>` 虚拟服务账号，不共用 LocalService；安装器只给该服务 SID、SYSTEM 和
-Administrators 配置/凭据读取权及仓库、调度、状态目录写权，并清除开发期遗留的 LocalService ACE。服务二进制支持原生 SCM
+Administrators 配置/凭据读取权及仓库、调度、状态目录写权；ACL 由封闭规则整体替换，不能用增量授权遗留任意开发账号 ACE。服务二进制支持原生 SCM
 Stop/Shutdown 取消，安装/覆盖与卸载入口分别为 `scripts/server_backup/install_windows_service.ps1` 和
 `scripts/server_backup/uninstall_windows_service.ps1`；卸载服务不删除恢复集、调度或状态数据。
+安装路径按 package ID 版本化，覆盖升级在新镜像、配置和固定工具全部核验后启动；启动失败恢复旧 ImagePath、原配置字节及原运行状态。
+包清单摘要是本地发布准入，不代替 Pixels 外层安装包签名；生产凭据仍必须由部署密钥托管创建和撤销，不能打入发布包。
 部署登记唯一服务名，使用专用最小权限账户；配置、队列、执行日志和恢复清单位于受 ACL 保护的
 `ProgramData/Pixels/<deployment_id>/backup`，与安装版本目录分离，凭据/解密材料不写普通日志或页面。
 本地 OS 管理员通过受 ACL 限制的恢复 CLI/本机 IPC 执行预检和恢复，仍需核对目标库/路径、授权与审计，
