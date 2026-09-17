@@ -193,12 +193,19 @@ Auth/Desk 可有多个同时持共享锁的实例；升级时全部停止准入�
 
 Windows 基础档采用独立 SCM 服务 `Pixels.Backup.<deployment_short_id>`，不依赖 Console 进程/浏览器存活；
 固定支持的 pg_dump/pg_restore 工具版本和摘要，任务参数类型化，不开放任意 shell/SQL 或公网管理端口。
+每个部署使用 `NT SERVICE\Pixels.Backup.<deployment_short_id>` 虚拟服务账号，不共用 LocalService；安装器只给该服务 SID、SYSTEM 和
+Administrators 配置/凭据读取权及仓库、调度、状态目录写权，并清除开发期遗留的 LocalService ACE。服务二进制支持原生 SCM
+Stop/Shutdown 取消，安装/覆盖与卸载入口分别为 `scripts/server_backup/install_windows_service.ps1` 和
+`scripts/server_backup/uninstall_windows_service.ps1`；卸载服务不删除恢复集、调度或状态数据。
 部署登记唯一服务名，使用专用最小权限账户；配置、队列、执行日志和恢复清单位于受 ACL 保护的
 `ProgramData/Pixels/<deployment_id>/backup`，与安装版本目录分离，凭据/解密材料不写普通日志或页面。
 本地 OS 管理员通过受 ACL 限制的恢复 CLI/本机 IPC 执行预检和恢复，仍需核对目标库/路径、授权与审计，
 Console 停机也可操作；普通运行/备份身份不自动拥有建库、DDL 或覆盖恢复权限。
 任务持久化，重启先对账，跨周期互斥、漏跑补一次；断电产生的半成品不标记成功。恢复优先新库，清理只操作清单登记的备份集。
 DB0 交付服务身份/ACL/目录/任务协议与离线恢复设计，DB4 实现并测试 SCM 重启、断电、Console 停机、凭据失效和目录访问拒绝。
+Linux 使用 `deploy/systemd/pixels-backup@.service` 模板承载同一个执行器，实例参数是 deployment ID；模板固定服务账号、配置与数据根，
+启用 systemd 文件系统/内核/能力边界，SIGTERM 复用同一取消语义。发行安装器仍须创建账号、目录和 ACL 后才可 enable/start，
+不得把模板文件存在等同于目标发行版真实启动验收。
 
 ### 6.6 Console/Auth/Desk 整体恢复集与对账
 

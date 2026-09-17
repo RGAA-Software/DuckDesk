@@ -30,7 +30,7 @@ if /I not "%BUILD_DIR%"=="%EXPECTED_BUILD_DIR%" (
     exit /b 2
 )
 set "BUILD_JOBS=%CPP_BUILD_JOBS%"
-if not defined BUILD_JOBS set "BUILD_JOBS=8"
+if not defined BUILD_JOBS set "BUILD_JOBS=18"
 
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 set "VS_INSTALL_DIR="

@@ -110,7 +110,7 @@ pub struct BackupPlan {
 }
 
 impl BackupPlan {
-    fn validate(&self) -> Result<(), BackupError> {
+    pub(crate) fn validate(&self) -> Result<(), BackupError> {
         if self.deployment_id.is_nil()
             || self.retention.is_empty()
             || self.kind != RecoverySetKind::Independent
@@ -583,7 +583,7 @@ mod tests {
     }
 
     #[test]
-    fn runner_failure_leaves_reconciliation_marker_and_never_publishes() {
+    fn runner_failure_leaves_discardable_reconciliation_marker_and_never_publishes() {
         let fixture = Fixture::new();
         let repository = BackupRepository::open(&fixture.root, fixture.deployment_id).unwrap();
         let runner = BackupRunner::new(FakeTool {
@@ -598,6 +598,8 @@ mod tests {
             .unwrap()
             .filter_map(Result::ok)
             .any(|entry| entry.file_name().to_string_lossy().starts_with(".partial-")));
+        assert_eq!(repository.discard_incomplete_sets().unwrap().len(), 1);
+        assert!(repository.manifests().unwrap().is_empty());
     }
 
     #[test]

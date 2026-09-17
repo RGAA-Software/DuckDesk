@@ -5,6 +5,7 @@ mod executor;
 mod manifest;
 mod repository;
 mod retention;
+mod runtime;
 mod scheduler;
 
 pub use executor::{
@@ -17,6 +18,10 @@ pub use manifest::{
 };
 pub use repository::{BackupRepository, RepositoryError, StagedRecoverySet};
 pub use retention::{retained_set_ids, RetentionClass, RetentionPolicy};
+pub use runtime::{
+    BackupDaemon, BackupDaemonConfig, BackupDaemonError, BackupDaemonStatus, BackupRuntimeAlert,
+    BACKUP_DAEMON_CONFIG_SCHEMA_VERSION, BACKUP_DAEMON_STATUS_SCHEMA_VERSION,
+};
 pub use scheduler::{
     BackupScheduleConfig, BackupTask, BackupTaskOutcome, BackupTaskSnapshot, BackupTaskStore,
     SchedulerError,

@@ -131,6 +131,25 @@ DB4 第二纵向切片新增独立持久任务内核：计划时间生成稳定 
 SHA-256 不变，Windows/Linux 工具制品 hash 已记录，隔离容器与卷已精确清理。该报告补齐本切片的跨平台软件门禁，仍不把任务内核
 冒充已注册运行的 SCM/systemd 服务，也不代表异机复制、告警、恢复准入、权限防复活、WAL/PITR 或 DB0–DB5 总出口完成。
 
+DB4 第三纵向切片已把内核接成独立 `px_backup` 常驻进程：私有严格配置绑定 deployment、仓库/调度/状态三根目录、固定摘要的
+`pg_dump`/`pg_restore` 与三库计划；启动先丢弃仅含登记文件的未发布 `.partial-<recovery_set_id>`，未知内容继续 fail-closed。
+每轮任务原子发布脱敏状态，连续两次失败和超过两个周期无成功结果分别产生独立告警码；成功验证后才触发保留清理。
+Windows/Linux 各 25 项单元测试及严格 Clippy 已通过，可读命名门禁覆盖 182 个活动 Rust 文件。
+
+Windows SCM 已做真实安装、启动、状态发布、Stop、再次 Start 和卸载验收：服务名
+`Pixels.Backup.<deployment_short_id>`，账号为每部署独立虚拟账号 `NT SERVICE\<service_name>`，卸载保留数据。
+首轮共享 LocalService/受限 SID 的 ACL 失败按失败保留并修正为服务 SID 精确授权；SCM 启动失败会返回可定位的 service-specific code，
+而不是笼统退出。Linux systemd 加入同一进程的加固模板，但尚未在真实 systemd 主机完成 enable/start/TERM/重启验收。
+本切片也尚未把状态告警送到独立 Alertmanager/通知端，未实现异机仓库、恢复准入、权限防复活与生产 pgBackRest/WAL/PITR；
+因此仍不声明 DB4 或 DB0–DB5 总出口完成。下一份完整 PostgreSQL 报告须覆盖新增 25 项及 Windows 二进制目标编译后才可成为新总基线。
+
+该完整总门禁现已完成：`pg-20260917-175325-e1781fbc` 共 630/630 项 PASS，Windows/Linux 各 289 个 Rust 用例，
+`px_backup` 的库、常驻二进制目标及 Linux 信号退出路径均在各自平台编译执行；275 条 SQLx 查询仍为 Console 237、Auth 29、Desk 9。
+两平台的 PostgreSQL 18.6 三库逻辑备份、`pg_restore --list`、全新库恢复、部署身份和篡改拒绝，Auth/Desk 浏览器与进程故障、
+Console 节点 WebSocket、断库恢复和恢复冒烟全部通过。873 个登记源文件在整轮中 SHA-256 稳定，最终工具摘要已记录，
+隔离容器和卷已精确清理。该报告是本切片新的软件总基线；真实 SCM 生命周期证据来自同批独立 OS 验收，Linux systemd 真实宿主、
+独立告警送达、异机副本、恢复准入与生产 WAL/PITR 仍按上一段保持未完成。
+
 - 新 Console 运行模块已接身份/用户组 HTTP 与单活动生命周期（产品入口尚未切换）。Windows 路由专项
   `pg-20260917-092450-742a93ef` 五组通过，837 个源文件及工具 hash 复核一致；静态检查通过。
   后续审计/管理重置增量独立验收，不把本条当作这些增量、正式产品或 Linux 已通过。

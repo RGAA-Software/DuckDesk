@@ -75,6 +75,68 @@ impl BackupRepository {
         })
     }
 
+    pub fn discard_incomplete_sets(&self) -> Result<BTreeSet<Uuid>, RepositoryError> {
+        let mut incomplete_sets = Vec::new();
+        for directory_entry in fs::read_dir(&self.root).map_err(|_| RepositoryError::Unavailable)? {
+            let directory_entry = directory_entry.map_err(|_| RepositoryError::Unavailable)?;
+            let file_name = directory_entry.file_name();
+            let file_name = file_name.to_str().ok_or(RepositoryError::Corrupt)?;
+            let Some(recovery_set_text) = file_name.strip_prefix(".partial-") else {
+                continue;
+            };
+            let recovery_set_id =
+                Uuid::parse_str(recovery_set_text).map_err(|_| RepositoryError::Corrupt)?;
+            let file_type = directory_entry
+                .file_type()
+                .map_err(|_| RepositoryError::Unavailable)?;
+            if !file_type.is_dir() || file_type.is_symlink() {
+                return Err(RepositoryError::Corrupt);
+            }
+            px_private_files::private::verify_private_directory(&directory_entry.path())
+                .map_err(|_| RepositoryError::Permission)?;
+            let mut files = Vec::new();
+            for partial_entry in
+                fs::read_dir(directory_entry.path()).map_err(|_| RepositoryError::Unavailable)?
+            {
+                let partial_entry = partial_entry.map_err(|_| RepositoryError::Unavailable)?;
+                let partial_name = partial_entry
+                    .file_name()
+                    .to_str()
+                    .ok_or(RepositoryError::Corrupt)?
+                    .to_string();
+                if !matches!(
+                    partial_name.as_str(),
+                    "console.dump" | "auth.dump" | "desk.dump" | "manifest.json"
+                ) {
+                    return Err(RepositoryError::Corrupt);
+                }
+                let partial_type = partial_entry
+                    .file_type()
+                    .map_err(|_| RepositoryError::Unavailable)?;
+                if !partial_type.is_file() || partial_type.is_symlink() {
+                    return Err(RepositoryError::Corrupt);
+                }
+                verify_regular_private_file(
+                    &File::open(partial_entry.path()).map_err(|_| RepositoryError::Unavailable)?,
+                )?;
+                files.push(partial_entry.path());
+            }
+            incomplete_sets.push((recovery_set_id, directory_entry.path(), files));
+        }
+        let mut discarded = BTreeSet::new();
+        for (recovery_set_id, directory, files) in incomplete_sets {
+            for file in files {
+                fs::remove_file(file).map_err(|_| RepositoryError::Unavailable)?;
+            }
+            fs::remove_dir(directory).map_err(|_| RepositoryError::Unavailable)?;
+            discarded.insert(recovery_set_id);
+        }
+        if !discarded.is_empty() {
+            sync_directory(&self.root)?;
+        }
+        Ok(discarded)
+    }
+
     pub fn manifests(&self) -> Result<Vec<RecoverySetManifest>, RepositoryError> {
         let mut manifests = Vec::new();
         for entry in fs::read_dir(&self.root).map_err(|_| RepositoryError::Unavailable)? {

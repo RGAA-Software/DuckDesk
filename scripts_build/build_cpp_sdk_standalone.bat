@@ -13,7 +13,7 @@ if not "%SDK_MODE%"=="full" if not "%SDK_MODE%"=="core" exit /b 2
 set "SDK_CORE_ONLY=OFF"
 if "%SDK_MODE%"=="core" set "SDK_CORE_ONLY=ON"
 if not defined VCPKG_ROOT set "VCPKG_ROOT=C:/source/vcpkg"
-if not defined CPP_BUILD_JOBS set "CPP_BUILD_JOBS=8"
+if not defined CPP_BUILD_JOBS set "CPP_BUILD_JOBS=18"
 set "SDK_BUILD_DIR=build_sdk_%SDK_PLATFORM%_%SDK_MODE%"
 set "SDK_SOURCE=src/px_client_sdk/examples/lifecycle"
 set "SDK_TARGETS=%CPP_SDK_TARGETS%"

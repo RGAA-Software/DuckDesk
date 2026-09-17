@@ -37,7 +37,7 @@ pub struct BackupScheduleConfig {
 }
 
 impl BackupScheduleConfig {
-    fn validate(self) -> Result<(), SchedulerError> {
+    pub(crate) fn validate(self) -> Result<(), SchedulerError> {
         if self.deployment_id.is_nil()
             || self.anchor_unix == 0
             || !(60..=31 * 24 * 60 * 60).contains(&self.period_seconds)
