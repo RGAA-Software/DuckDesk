@@ -4,6 +4,7 @@
 mod executor;
 mod manifest;
 mod repository;
+mod restore;
 mod retention;
 mod runtime;
 mod scheduler;
@@ -13,10 +14,16 @@ pub use executor::{
     LogicalBackupTool, PinnedPgTools,
 };
 pub use manifest::{
-    BackupMember, BackupMemberState, BackupService, RecoverySetKind, RecoverySetManifest,
-    RecoverySetStatus, MANIFEST_SCHEMA_VERSION,
+    BackupMember, BackupMemberState, BackupService, RecoveryEvidenceUnavailableReason,
+    RecoverySecurityEvidence, RecoverySetKind, RecoverySetManifest, RecoverySetStatus,
+    ServiceSecurityWatermark, MANIFEST_SCHEMA_VERSION,
 };
 pub use repository::{BackupRepository, RepositoryError, StagedRecoverySet};
+pub use restore::{
+    evaluate_restore_admission, ExternalRecoveryWitness, RestoreAdmissionBlocker,
+    RestoreAdmissionDecision, RestoreAdmissionError, RestoreOperationalCheck,
+    RECOVERY_WITNESS_SCHEMA_VERSION,
+};
 pub use retention::{retained_set_ids, RetentionClass, RetentionPolicy};
 pub use runtime::{
     BackupDaemon, BackupDaemonConfig, BackupDaemonError, BackupDaemonStatus, BackupRuntimeAlert,

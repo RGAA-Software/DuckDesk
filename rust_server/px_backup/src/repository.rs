@@ -702,7 +702,7 @@ mod tests {
             schema_version: MANIFEST_SCHEMA_VERSION,
             recovery_set_id: Uuid::from_u128(index as u128 + 1),
             deployment_id,
-            kind: RecoverySetKind::WriteBarrier,
+            kind: RecoverySetKind::Independent,
             status: RecoverySetStatus::Verified,
             created_at_unix: index + 1,
             completed_at_unix: Some(index + 2),
@@ -728,6 +728,9 @@ mod tests {
                 },
             })
             .collect(),
+            security_evidence: crate::RecoverySecurityEvidence::Unavailable {
+                reason: crate::RecoveryEvidenceUnavailableReason::IndependentBackup,
+            },
             failure_code: None,
         }
     }

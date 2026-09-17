@@ -165,6 +165,17 @@ DB4 第五纵向切片已把备份状态导出为原子替换的 Prometheus text
 本机容器验收只证明指标 → Prometheus → Alertmanager → receiver 的软件链路，不证明监控位于独立主机故障域，也不替代客户最终
 邮件/短信/IM 接收器配置。Linux systemd 真实宿主、源主机下线后的异机恢复、整体恢复准入、权限防复活和生产 WAL/PITR 仍未完成。
 
+DB4 第六纵向切片开始落实恢复准入：manifest schema 直接升为 2，不读取旧 schema。每个恢复集必须明确携带
+`security_evidence`；当前可执行的 Independent 逻辑备份只能登记 `independent_backup` 不可用原因，绝不伪造写屏障或安全水位。
+WriteBarrier/Physical 清单只有在 consistency proof、所有 Required 服务的单调安全序列/状态摘要及外部 key ID 引用完整时才合法。
+独立私有 witness 采用严格 schema、deployment 绑定、受限大小和私有文件 ACL；恢复准入逐服务比较水位，witness 比备份新、比备份旧、
+同序列不同摘要、缺服务或缺 key 均保持 `RecoveryRequired`。此外必须完成网络隔离、禁用外部副作用、恢复到新库、部署身份、schema/约束、
+业务摘要、未决命令、应用制品及节点/RDP 工作区事实九项检查；全部通过也只到 `ReadyForManualApproval`，不会自动开放服务。
+Windows/WSL Linux 各 33 项及严格 Clippy、覆盖 183 个 Rust 文件的可读命名门禁已通过；Windows 聚焦报告为
+`pg-20260917-185649-b6a44e6f`。真实 PostgreSQL 18.6 三库归档、分别恢复到全新库、deployment 核对及篡改拒绝在 manifest schema 2
+下继续通过，报告 `pg-20260917-185738-4ce566c0`。该切片尚未生成真实 WriteBarrier 水位、持久化人工审批或把门禁接到产品恢复命令，
+因此权限防复活仍不能宣告完成；它先把 Independent 备份误开放的路径硬性封死。
+
 - 新 Console 运行模块已接身份/用户组 HTTP 与单活动生命周期（产品入口尚未切换）。Windows 路由专项
   `pg-20260917-092450-742a93ef` 五组通过，837 个源文件及工具 hash 复核一致；静态检查通过。
   后续审计/管理重置增量独立验收，不把本条当作这些增量、正式产品或 Linux 已通过。

@@ -1,5 +1,6 @@
 use crate::{
-    BackupMember, BackupMemberState, BackupRepository, BackupService, RecoverySetKind,
+    BackupMember, BackupMemberState, BackupRepository, BackupService,
+    RecoveryEvidenceUnavailableReason, RecoverySecurityEvidence, RecoverySetKind,
     RecoverySetManifest, RecoverySetStatus, RepositoryError, RetentionClass,
     MANIFEST_SCHEMA_VERSION,
 };
@@ -242,6 +243,9 @@ impl<T: LogicalBackupTool> BackupRunner<T> {
             retention: plan.retention.clone(),
             previous_recovery_set_id: plan.previous_recovery_set_id,
             members,
+            security_evidence: RecoverySecurityEvidence::Unavailable {
+                reason: RecoveryEvidenceUnavailableReason::IndependentBackup,
+            },
             failure_code: None,
         };
         staged.publish(&manifest)?;

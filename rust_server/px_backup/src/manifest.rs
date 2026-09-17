@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use uuid::Uuid;
 
-pub const MANIFEST_SCHEMA_VERSION: u32 = 1;
+pub const MANIFEST_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -28,6 +28,33 @@ pub enum RecoverySetStatus {
     OffsiteVerified,
     RestoreTested,
     Failed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecoveryEvidenceUnavailableReason {
+    IndependentBackup,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ServiceSecurityWatermark {
+    pub service: BackupService,
+    pub security_sequence: u64,
+    pub security_state_sha256: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "state", rename_all = "snake_case", deny_unknown_fields)]
+pub enum RecoverySecurityEvidence {
+    Unavailable {
+        reason: RecoveryEvidenceUnavailableReason,
+    },
+    Captured {
+        consistency_proof_id: Uuid,
+        external_key_ids: BTreeSet<String>,
+        watermarks: Vec<ServiceSecurityWatermark>,
+    },
 }
 
 impl RecoverySetStatus {
@@ -77,6 +104,7 @@ pub struct RecoverySetManifest {
     pub retention: BTreeSet<crate::RetentionClass>,
     pub previous_recovery_set_id: Option<Uuid>,
     pub members: Vec<BackupMember>,
+    pub security_evidence: RecoverySecurityEvidence,
     pub failure_code: Option<String>,
 }
 
@@ -136,6 +164,47 @@ impl RecoverySetManifest {
                     }
                 }
             }
+        }
+        let required_services = self
+            .members
+            .iter()
+            .filter_map(|member| match member.member {
+                BackupMemberState::Required { .. } => Some(member.service),
+                BackupMemberState::NotApplicable { .. } => None,
+            })
+            .collect::<BTreeSet<_>>();
+        match (&self.kind, &self.security_evidence) {
+            (
+                RecoverySetKind::Independent,
+                RecoverySecurityEvidence::Unavailable {
+                    reason: RecoveryEvidenceUnavailableReason::IndependentBackup,
+                },
+            ) => {}
+            (
+                RecoverySetKind::WriteBarrier | RecoverySetKind::Physical,
+                RecoverySecurityEvidence::Captured {
+                    consistency_proof_id,
+                    external_key_ids,
+                    watermarks,
+                },
+            ) => {
+                let watermark_services = watermarks
+                    .iter()
+                    .map(|watermark| watermark.service)
+                    .collect::<BTreeSet<_>>();
+                if consistency_proof_id.is_nil()
+                    || watermark_services != required_services
+                    || watermarks.len() != required_services.len()
+                    || external_key_ids.iter().any(|key_id| !valid_sha256(key_id))
+                    || watermarks.iter().any(|watermark| {
+                        watermark.security_sequence == 0
+                            || !valid_sha256(&watermark.security_state_sha256)
+                    })
+                {
+                    return Err("invalid coordinated recovery security evidence");
+                }
+            }
+            _ => return Err("recovery-set kind and security evidence disagree"),
         }
         match self.status {
             RecoverySetStatus::Created => {
@@ -233,6 +302,22 @@ mod tests {
                 },
             })
             .collect(),
+            security_evidence: RecoverySecurityEvidence::Captured {
+                consistency_proof_id: Uuid::new_v4(),
+                external_key_ids: BTreeSet::new(),
+                watermarks: [
+                    BackupService::Console,
+                    BackupService::Auth,
+                    BackupService::Desk,
+                ]
+                .into_iter()
+                .map(|service| ServiceSecurityWatermark {
+                    service,
+                    security_sequence: 7,
+                    security_state_sha256: "b".repeat(64),
+                })
+                .collect(),
+            },
             failure_code: None,
         }
     }
@@ -292,5 +377,25 @@ mod tests {
         let mut value = manifest();
         value.completed_at_unix = Some(value.created_at_unix - 1);
         assert!(value.validate().is_err());
+    }
+
+    #[test]
+    fn independent_and_coordinated_sets_require_explicit_security_evidence() {
+        let mut independent_manifest = manifest();
+        independent_manifest.kind = RecoverySetKind::Independent;
+        assert!(independent_manifest.validate().is_err());
+        independent_manifest.security_evidence = RecoverySecurityEvidence::Unavailable {
+            reason: RecoveryEvidenceUnavailableReason::IndependentBackup,
+        };
+        assert_eq!(independent_manifest.validate(), Ok(()));
+
+        let mut coordinated_manifest = manifest();
+        let RecoverySecurityEvidence::Captured { watermarks, .. } =
+            &mut coordinated_manifest.security_evidence
+        else {
+            panic!("coordinated test manifest must carry captured evidence");
+        };
+        watermarks.pop();
+        assert!(coordinated_manifest.validate().is_err());
     }
 }
