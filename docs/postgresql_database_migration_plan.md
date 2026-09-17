@@ -233,6 +233,19 @@ Desk 撤销管理会话。每个事务最后重新查询全部安全不变量，
 已完成目标可按 marker 中同一 generation 幂等复核，不能另起 generation 掩盖半完成现场；三库全部成功后才原子写私有 seal report，报告仍
 明确 `admission_required=true`。`restore-evaluate`/`restore-approve` 的配置 schema 直接升为 2，并在每次评估/审批时重新读取该报告，精确
 核对恢复集、目标环境、源水位和新 generation 的逐服务状态摘要；缺失、伪造、串用或被篡改的报告一律不能进入人工审批。
+
+每个协调恢复集在异机复制验证后执行 `px_backup witness-record <absolute-private-config-path>`。命令配置 schema 2 绑定 deployment、
+recovery set、只读备份仓库和仓库外见证根；见证根必须部署在独立受保护故障域，不能放在同一备份仓库子目录。见证存储按 deployment
+固定身份并独占加锁，为每个恢复集保存 schema 2 外部见证，同时维护追加式 SHA-256 链和原子 current 指针；序列回退、同序列不同状态、
+服务集合变化、未知文件、链断裂或内容篡改均失败关闭。备份 manifest schema 3 和写屏障 proof schema 2 均逐服务记录
+`recovery_generation`，因此不同代际的相同 sequence 不能被误判为同一安全状态。中断发生在 witness、journal 或 current 任一步时，只回收
+可证明为未入链的孤儿见证，或从已验证完整 journal 重建 current，不猜测接受半条记录。
+
+灾难恢复会合法切换 generation，不能通过放宽普通单调检查绕过。恢复后第一份新代际备份必须在同一命令配置中提供源恢复集、schema 2
+seal report 和已 `Admitted` 的恢复记录；工具核对三者 deployment/recovery set/目标环境、人工 approval、新 generation 及各服务封存后
+最小 sequence，并把 seal report 与 admission record 摘要写入见证链。缺任一证据、源代际不是当前见证代际或直接随机换 generation 都拒绝。
+开发机目录和同机 Docker 只验证代码行为，不构成“独立故障域”生产验收。
+
 DB0 交付服务身份/ACL/目录/任务协议与离线恢复设计，DB4 实现并测试 SCM 重启、断电、Console 停机、凭据失效和目录访问拒绝。
 Linux 使用 `deploy/systemd/pixels-backup@.service` 模板承载同一个执行器，实例参数是 deployment ID；模板固定服务账号、配置与数据根，
 启用 systemd 文件系统/内核/能力边界，SIGTERM 复用同一取消语义。发行安装器仍须创建账号、目录和 ACL 后才可 enable/start，

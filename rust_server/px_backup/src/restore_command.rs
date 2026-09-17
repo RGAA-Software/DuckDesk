@@ -2,8 +2,9 @@ use px_backup::{
     BackupCancellation, BackupRepository, ExternalRecoveryWitness, PinnedPgRecoverySealTool,
     PinnedPgRestoreProvisioner, PinnedPgRestoreTools, PinnedPgWriteBarrierCoordinator,
     RecoverySealPlan, RecoverySealReport, RecoverySealRunner, RecoverySetManifest,
-    RestoreAdmissionState, RestoreAdmissionStore, RestoreExecutionPlan, RestoreOperationalCheck,
-    RestoreOperatorProvisionPlan, RestoreRunner, WriteBarrierCoordinatorPlan,
+    RecoveryWitnessStore, RestoreAdmissionState, RestoreAdmissionStore, RestoreExecutionPlan,
+    RestoreOperationalCheck, RestoreOperatorProvisionPlan, RestoreRunner,
+    WriteBarrierCoordinatorPlan,
 };
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeSet, path::PathBuf, time::Duration};
@@ -15,6 +16,7 @@ const RESTORE_EXECUTION_COMMAND_CONFIG_SCHEMA_VERSION: u32 = 1;
 const RESTORE_PROVISION_COMMAND_CONFIG_SCHEMA_VERSION: u32 = 1;
 const WRITE_BARRIER_COMMAND_CONFIG_SCHEMA_VERSION: u32 = 1;
 const RECOVERY_SEAL_COMMAND_CONFIG_SCHEMA_VERSION: u32 = 1;
+const WITNESS_RECORD_COMMAND_CONFIG_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -172,6 +174,64 @@ struct RecoverySealCommandConfig {
     psql_path: PathBuf,
     psql_sha256: String,
     command_timeout_seconds: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WitnessRecordCommandConfig {
+    schema_version: u32,
+    deployment_id: Uuid,
+    recovery_set_id: Uuid,
+    repository_root: PathBuf,
+    witness_root: PathBuf,
+    generation_transition: Option<WitnessGenerationTransitionConfig>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WitnessGenerationTransitionConfig {
+    source_recovery_set_id: Uuid,
+    recovery_seal_report_path: PathBuf,
+    admission_root: PathBuf,
+}
+
+impl WitnessRecordCommandConfig {
+    fn load_private(config_path: &std::path::Path) -> Result<Self, &'static str> {
+        if !config_path.is_absolute() {
+            return Err("recovery witness configuration rejected");
+        }
+        let config_bytes = px_private_files::private::read_private(config_path)
+            .map_err(|_| "recovery witness configuration rejected")?;
+        let config = serde_json::from_slice::<Self>(&config_bytes)
+            .map_err(|_| "recovery witness configuration rejected")?;
+        if !config.is_valid() {
+            return Err("recovery witness configuration rejected");
+        }
+        Ok(config)
+    }
+
+    fn is_valid(&self) -> bool {
+        self.schema_version == WITNESS_RECORD_COMMAND_CONFIG_SCHEMA_VERSION
+            && !self.deployment_id.is_nil()
+            && !self.recovery_set_id.is_nil()
+            && self.repository_root.is_absolute()
+            && self.witness_root.is_absolute()
+            && self.repository_root != self.witness_root
+            && !self.witness_root.starts_with(&self.repository_root)
+            && self
+                .generation_transition
+                .as_ref()
+                .is_none_or(|transition| {
+                    !transition.source_recovery_set_id.is_nil()
+                        && transition.source_recovery_set_id != self.recovery_set_id
+                        && transition.recovery_seal_report_path.is_absolute()
+                        && transition.admission_root.is_absolute()
+                        && !transition
+                            .recovery_seal_report_path
+                            .starts_with(&self.repository_root)
+                        && !transition.admission_root.starts_with(&self.repository_root)
+                })
+    }
 }
 
 impl RecoverySealCommandConfig {
@@ -426,6 +486,52 @@ pub fn seal_recovery(
     Ok(())
 }
 
+pub fn record_recovery_witness(config_path: PathBuf) -> Result<(), &'static str> {
+    let config = WitnessRecordCommandConfig::load_private(&config_path)?;
+    let repository = BackupRepository::open(&config.repository_root, config.deployment_id)
+        .map_err(|_| "backup repository rejected restore access")?;
+    let manifests = repository
+        .manifests()
+        .map_err(|_| "backup repository rejected restore access")?;
+    let manifest = manifests
+        .iter()
+        .find(|manifest| manifest.recovery_set_id == config.recovery_set_id)
+        .ok_or("recovery set is unavailable")?;
+    let store = RecoveryWitnessStore::open(&config.witness_root, config.deployment_id)
+        .map_err(|_| "recovery witness store rejected")?;
+    let recorded = if let Some(transition) = &config.generation_transition {
+        let source_manifest = manifests
+            .iter()
+            .find(|candidate| candidate.recovery_set_id == transition.source_recovery_set_id)
+            .ok_or("recovery source set is unavailable")?;
+        let recovery_seal_report =
+            RecoverySealReport::load_private(&transition.recovery_seal_report_path)
+                .map_err(|_| "recovery seal evidence rejected")?;
+        let admission_store = RestoreAdmissionStore::open(
+            &transition.admission_root,
+            config.deployment_id,
+            transition.source_recovery_set_id,
+            recovery_seal_report.target_environment_id,
+            super::now_unix()?,
+        )
+        .map_err(|_| "restore admission store rejected")?;
+        store.record_manifest_after_recovery(
+            manifest,
+            source_manifest,
+            &recovery_seal_report,
+            admission_store.record(),
+        )
+    } else {
+        store.record_manifest(manifest)
+    }
+    .map_err(|_| "recovery witness recording failed closed")?;
+    println!(
+        "recovery witness recorded recovery_set_id={} ordinal={} record_sha256={}",
+        recorded.recovery_set_id, recorded.ordinal, recorded.record_sha256
+    );
+    Ok(())
+}
+
 fn load_verified_manifest(
     config: &RestoreCommandConfig,
 ) -> Result<RecoverySetManifest, &'static str> {
@@ -506,6 +612,7 @@ mod tests {
                 .into_iter()
                 .map(|service| ServiceSecurityWatermark {
                     service,
+                    recovery_generation: Uuid::new_v4(),
                     security_sequence: 23,
                     security_state_sha256: "c".repeat(64),
                 })
@@ -594,6 +701,7 @@ mod tests {
                         );
                         RecoverySealServiceReport {
                             service: watermark.service,
+                            source_recovery_generation: watermark.recovery_generation,
                             source_security_sequence: watermark.security_sequence,
                             source_security_state_sha256: watermark.security_state_sha256.clone(),
                             sealed_security_sequence,
@@ -796,6 +904,35 @@ mod tests {
         config.admission_root = absolute_root.join("admission");
         config.schema_version += 1;
         assert!(!config.is_valid());
+    }
+
+    #[test]
+    fn witness_configuration_requires_external_store_and_explicit_generation_transition() {
+        let absolute_root = std::env::current_dir().unwrap();
+        let mut config = WitnessRecordCommandConfig {
+            schema_version: WITNESS_RECORD_COMMAND_CONFIG_SCHEMA_VERSION,
+            deployment_id: Uuid::new_v4(),
+            recovery_set_id: Uuid::new_v4(),
+            repository_root: absolute_root.join("repository"),
+            witness_root: absolute_root.join("witness"),
+            generation_transition: None,
+        };
+        assert!(config.is_valid());
+        config.witness_root = config.repository_root.join("witness");
+        assert!(!config.is_valid());
+        config.witness_root = absolute_root.join("witness");
+        config.generation_transition = Some(WitnessGenerationTransitionConfig {
+            source_recovery_set_id: config.recovery_set_id,
+            recovery_seal_report_path: absolute_root.join("recovery-seal-report.json"),
+            admission_root: absolute_root.join("admission"),
+        });
+        assert!(!config.is_valid());
+        config
+            .generation_transition
+            .as_mut()
+            .unwrap()
+            .source_recovery_set_id = Uuid::new_v4();
+        assert!(config.is_valid());
     }
 
     #[test]

@@ -18,7 +18,7 @@ use std::{
 };
 use uuid::Uuid;
 
-pub const RECOVERY_SEAL_REPORT_SCHEMA_VERSION: u32 = 1;
+pub const RECOVERY_SEAL_REPORT_SCHEMA_VERSION: u32 = 2;
 const RECOVERY_SEAL_MARKER_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -131,6 +131,7 @@ impl RecoverySealMarker {
 #[serde(deny_unknown_fields)]
 pub struct RecoverySealServiceReport {
     pub service: BackupService,
+    pub source_recovery_generation: Uuid,
     pub source_security_sequence: u64,
     pub source_security_state_sha256: String,
     pub sealed_security_sequence: u64,
@@ -225,6 +226,7 @@ impl RecoverySealReport {
                 service_report.sealed_security_sequence,
             );
             if service_report.source_security_sequence != source_watermark.security_sequence
+                || service_report.source_recovery_generation != source_watermark.recovery_generation
                 || service_report.source_security_state_sha256
                     != source_watermark.security_state_sha256
                 || service_report.sealed_security_sequence
@@ -263,7 +265,8 @@ impl RecoverySealReport {
             || report_services != expected_services
             || report_services.len() != self.services.len()
             || self.services.iter().any(|service| {
-                service.source_security_sequence == 0
+                service.source_recovery_generation.is_nil()
+                    || service.source_security_sequence == 0
                     || service.sealed_security_sequence <= service.source_security_sequence
                     || !valid_sha256(&service.source_security_state_sha256)
                     || !valid_sha256(&service.sealed_security_state_sha256)
@@ -295,6 +298,7 @@ pub trait RecoverySealTool {
         &self,
         target: &RestoreDatabaseTarget,
         deployment_id: Uuid,
+        expected_source_generation: Uuid,
         expected_source_sequence: u64,
         expected_source_state_sha256: &str,
         recovery_generation: Uuid,
@@ -378,6 +382,7 @@ impl<T: RecoverySealTool> RecoverySealRunner<T> {
             let result = self.tool.seal_target(
                 target,
                 plan.deployment_id,
+                source_watermark.recovery_generation,
                 source_watermark.security_sequence,
                 &source_watermark.security_state_sha256,
                 marker.recovery_generation,
@@ -390,6 +395,7 @@ impl<T: RecoverySealTool> RecoverySealRunner<T> {
             }
             services.push(RecoverySealServiceReport {
                 service: target.service,
+                source_recovery_generation: source_watermark.recovery_generation,
                 source_security_sequence: result.source_security_sequence,
                 source_security_state_sha256: result.source_security_state_sha256,
                 sealed_security_sequence: result.sealed_security_sequence,
@@ -577,12 +583,14 @@ impl RecoverySealTool for PinnedPgRecoverySealTool {
         &self,
         target: &RestoreDatabaseTarget,
         deployment_id: Uuid,
+        expected_source_generation: Uuid,
         expected_source_sequence: u64,
         expected_source_state_sha256: &str,
         recovery_generation: Uuid,
     ) -> Result<RecoverySealTargetResult, RecoverySealError> {
         self.verify_tool()?;
-        if recovery_generation.is_nil()
+        if expected_source_generation.is_nil()
+            || recovery_generation.is_nil()
             || expected_source_sequence == 0
             || !valid_sha256(expected_source_state_sha256)
         {
@@ -594,7 +602,8 @@ impl RecoverySealTool for PinnedPgRecoverySealTool {
         }
         let source_state_sha256 = source_state.sha256();
         if source_state.recovery_generation != recovery_generation
-            && source_state_sha256 != expected_source_state_sha256
+            && (source_state.recovery_generation != expected_source_generation
+                || source_state_sha256 != expected_source_state_sha256)
         {
             return Err(RecoverySealError::InvalidEvidence);
         }
@@ -977,6 +986,7 @@ mod tests {
             &self,
             target: &RestoreDatabaseTarget,
             _deployment_id: Uuid,
+            expected_source_generation: Uuid,
             expected_source_sequence: u64,
             expected_source_state_sha256: &str,
             _recovery_generation: Uuid,
@@ -994,6 +1004,7 @@ mod tests {
                 watermark.security_state_sha256
             );
             assert_eq!(expected_source_sequence, watermark.security_sequence);
+            assert_eq!(expected_source_generation, watermark.recovery_generation);
             Ok(RecoverySealTargetResult {
                 source_security_sequence: watermark.security_sequence,
                 source_security_state_sha256: watermark.security_state_sha256.clone(),
@@ -1043,6 +1054,7 @@ mod tests {
                 .enumerate()
                 .map(|(index, service)| ServiceSecurityWatermark {
                     service: *service,
+                    recovery_generation: Uuid::new_v4(),
                     security_sequence: index as u64 + 5,
                     security_state_sha256: format!("{:064x}", index + 1),
                 })

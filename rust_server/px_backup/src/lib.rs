@@ -12,6 +12,7 @@ mod restore_store;
 mod retention;
 mod runtime;
 mod scheduler;
+mod witness_store;
 
 pub use barrier::{
     PinnedPgWriteBarrierCoordinator, WriteBarrierCoordinatorPlan, WriteBarrierDatabaseTarget,
@@ -57,3 +58,4 @@ pub use scheduler::{
     BackupScheduleConfig, BackupTask, BackupTaskOutcome, BackupTaskSnapshot, BackupTaskStore,
     SchedulerError,
 };
+pub use witness_store::{RecordedRecoveryWitness, RecoveryWitnessStore, WitnessStoreError};

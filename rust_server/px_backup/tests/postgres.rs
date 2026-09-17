@@ -211,6 +211,16 @@ struct RestoreApprovalCommandFixture {
     expected_evidence_sha256: String,
 }
 
+#[derive(Serialize)]
+struct WitnessRecordCommandFixture {
+    schema_version: u32,
+    deployment_id: Uuid,
+    recovery_set_id: Uuid,
+    repository_root: PathBuf,
+    witness_root: PathBuf,
+    generation_transition: Option<serde_json::Value>,
+}
+
 impl Fixture {
     fn new() -> Self {
         let base = tempfile::Builder::new()
@@ -569,6 +579,39 @@ fn real_three_database_archives_restore_from_offsite_after_source_loss_and_detec
         vec![offsite_manifest]
     );
     drop(offsite_repository);
+    let witness_root = fixture._base.path().join("recovery-witness-store");
+    fs::create_dir(&witness_root).unwrap();
+    make_private(&witness_root);
+    let witness_config = WitnessRecordCommandFixture {
+        schema_version: 2,
+        deployment_id,
+        recovery_set_id: manifest.recovery_set_id,
+        repository_root: offsite_root.clone(),
+        witness_root: witness_root.clone(),
+        generation_transition: None,
+    };
+    let witness_config_path = fixture._base.path().join("recovery-witness-config.json");
+    px_private_files::private::create_private(
+        &witness_config_path,
+        &serde_json::to_vec(&witness_config).unwrap(),
+    )
+    .unwrap();
+    for _ in 0..2 {
+        let witness_output = Command::new(env!("CARGO_BIN_EXE_px_backup"))
+            .args(["witness-record", witness_config_path.to_str().unwrap()])
+            .stdin(Stdio::null())
+            .output()
+            .unwrap();
+        assert!(
+            witness_output.status.success(),
+            "recovery witness recording failed: {}",
+            String::from_utf8_lossy(&witness_output.stderr)
+        );
+    }
+    let witness_path = witness_root
+        .join("witnesses")
+        .join(format!("{}.json", manifest.recovery_set_id));
+    assert!(witness_path.is_file());
     drop(repository);
     let unavailable_source_root = fixture._base.path().join("source-host-unavailable");
     fs::rename(&fixture.root, &unavailable_source_root).unwrap();
@@ -917,27 +960,12 @@ fn real_three_database_archives_restore_from_offsite_after_source_loss_and_detec
         .unwrap();
     assert!(repeated_seal_output.status.success());
 
-    let RecoverySecurityEvidence::Captured {
-        external_key_ids,
-        watermarks,
-        ..
-    } = &manifest.security_evidence
-    else {
+    let witness = ExternalRecoveryWitness::load_private(&witness_path).unwrap();
+    assert_eq!(witness.schema_version, RECOVERY_WITNESS_SCHEMA_VERSION);
+    let RecoverySecurityEvidence::Captured { watermarks, .. } = &manifest.security_evidence else {
         panic!("coordinated backup must carry security evidence");
     };
-    let witness = ExternalRecoveryWitness {
-        schema_version: RECOVERY_WITNESS_SCHEMA_VERSION,
-        deployment_id,
-        witnessed_at_unix: manifest.completed_at_unix.unwrap() + 1,
-        available_key_ids: external_key_ids.clone(),
-        watermarks: watermarks.clone(),
-    };
-    let witness_path = fixture._base.path().join("recovery-witness.json");
-    px_private_files::private::create_private(
-        &witness_path,
-        &serde_json::to_vec(&witness).unwrap(),
-    )
-    .unwrap();
+    assert_eq!(witness.watermarks, *watermarks);
     let admission_root = fixture._base.path().join("restore-admission");
     fs::create_dir(&admission_root).unwrap();
     make_private(&admission_root);

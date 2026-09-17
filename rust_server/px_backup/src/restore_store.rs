@@ -72,7 +72,7 @@ pub struct RestoreAdmissionRecord {
 }
 
 impl RestoreAdmissionRecord {
-    fn validate(&self) -> Result<(), RestoreAdmissionStoreError> {
+    pub(crate) fn validate(&self) -> Result<(), RestoreAdmissionStoreError> {
         if self.schema_version != RESTORE_ADMISSION_RECORD_SCHEMA_VERSION
             || self.deployment_id.is_nil()
             || self.recovery_set_id.is_nil()
@@ -509,6 +509,7 @@ mod tests {
                 .into_iter()
                 .map(|service| ServiceSecurityWatermark {
                     service,
+                    recovery_generation: Uuid::new_v4(),
                     security_sequence: 19,
                     security_state_sha256: "c".repeat(64),
                 })

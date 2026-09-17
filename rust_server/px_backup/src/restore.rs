@@ -10,7 +10,7 @@ use std::{
 };
 use uuid::Uuid;
 
-pub const RECOVERY_WITNESS_SCHEMA_VERSION: u32 = 1;
+pub const RECOVERY_WITNESS_SCHEMA_VERSION: u32 = 2;
 const MAX_RECOVERY_WITNESS_BYTES: usize = 64 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -49,7 +49,7 @@ impl ExternalRecoveryWitness {
         Ok(witness)
     }
 
-    fn validate(&self) -> Result<(), RestoreAdmissionError> {
+    pub(crate) fn validate(&self) -> Result<(), RestoreAdmissionError> {
         let service_set = self
             .watermarks
             .iter()
@@ -64,7 +64,9 @@ impl ExternalRecoveryWitness {
                 .iter()
                 .any(|key_id| !valid_sha256(key_id))
             || self.watermarks.iter().any(|watermark| {
-                watermark.security_sequence == 0 || !valid_sha256(&watermark.security_state_sha256)
+                watermark.recovery_generation.is_nil()
+                    || watermark.security_sequence == 0
+                    || !valid_sha256(&watermark.security_state_sha256)
             })
         {
             return Err(RestoreAdmissionError::InvalidWitness);
@@ -110,6 +112,7 @@ pub enum RestoreAdmissionBlocker {
     SecurityEvidenceUnavailable,
     WitnessDeploymentMismatch,
     WitnessMissingService { service: BackupService },
+    WitnessGenerationMismatch { service: BackupService },
     WitnessBehindBackup { service: BackupService },
     WitnessAheadOfBackup { service: BackupService },
     WitnessStateMismatch { service: BackupService },
@@ -202,7 +205,11 @@ fn compare_security_watermarks(
             });
             continue;
         };
-        if witness_watermark.security_sequence < backup_watermark.security_sequence {
+        if witness_watermark.recovery_generation != backup_watermark.recovery_generation {
+            blockers.insert(RestoreAdmissionBlocker::WitnessGenerationMismatch {
+                service: backup_watermark.service,
+            });
+        } else if witness_watermark.security_sequence < backup_watermark.security_sequence {
             blockers.insert(RestoreAdmissionBlocker::WitnessBehindBackup {
                 service: backup_watermark.service,
             });
@@ -306,6 +313,7 @@ mod tests {
                     .into_iter()
                     .map(|service| ServiceSecurityWatermark {
                         service,
+                        recovery_generation: Uuid::new_v4(),
                         security_sequence: 17,
                         security_state_sha256: "c".repeat(64),
                     })

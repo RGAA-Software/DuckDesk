@@ -166,7 +166,7 @@ impl BackupPlan {
     }
 }
 
-pub const WRITE_BARRIER_PROOF_SCHEMA_VERSION: u32 = 1;
+pub const WRITE_BARRIER_PROOF_SCHEMA_VERSION: u32 = 2;
 const MAX_WRITE_BARRIER_PROOF_BYTES: usize = 4 * 1024;
 const MAX_WRITE_BARRIER_SECONDS: u64 = 60 * 60;
 
@@ -174,6 +174,7 @@ const MAX_WRITE_BARRIER_SECONDS: u64 = 60 * 60;
 #[serde(deny_unknown_fields)]
 pub struct WriteBarrierServiceAttestation {
     pub service: BackupService,
+    pub recovery_generation: Uuid,
     pub drained_at_unix: u64,
     pub lease_expires_at_unix: u64,
     pub write_gate_token_sha256: String,
@@ -237,6 +238,7 @@ impl WriteBarrierProof {
                 attestation.drained_at_unix < self.acquired_at_unix
                     || attestation.drained_at_unix >= self.expires_at_unix
                     || attestation.lease_expires_at_unix != self.expires_at_unix
+                    || attestation.recovery_generation.is_nil()
                     || attestation.security_sequence == 0
                     || !valid_sha256(&attestation.write_gate_token_sha256)
                     || !valid_sha256(&attestation.security_state_sha256)
@@ -259,6 +261,7 @@ impl WriteBarrierProof {
                 .iter()
                 .map(|attestation| crate::ServiceSecurityWatermark {
                     service: attestation.service,
+                    recovery_generation: attestation.recovery_generation,
                     security_sequence: attestation.security_sequence,
                     security_state_sha256: attestation.security_state_sha256.clone(),
                 })
@@ -796,6 +799,7 @@ mod tests {
                 .into_iter()
                 .map(|service| WriteBarrierServiceAttestation {
                     service,
+                    recovery_generation: Uuid::new_v4(),
                     drained_at_unix: current_time,
                     lease_expires_at_unix: current_time + 60,
                     write_gate_token_sha256: "e".repeat(64),

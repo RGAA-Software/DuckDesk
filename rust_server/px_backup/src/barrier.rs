@@ -351,6 +351,7 @@ SELECT (NOT pg_catalog.has_database_privilege('{runtime_role}','{database}','CON
         );
         Ok(WriteBarrierServiceAttestation {
             service: target.service,
+            recovery_generation,
             drained_at_unix,
             lease_expires_at_unix: marker.expires_at_unix,
             write_gate_token_sha256: marker_target.write_gate_token_sha256.clone(),

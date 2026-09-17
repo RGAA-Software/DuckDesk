@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use uuid::Uuid;
 
-pub const MANIFEST_SCHEMA_VERSION: u32 = 2;
+pub const MANIFEST_SCHEMA_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -40,6 +40,7 @@ pub enum RecoveryEvidenceUnavailableReason {
 #[serde(deny_unknown_fields)]
 pub struct ServiceSecurityWatermark {
     pub service: BackupService,
+    pub recovery_generation: Uuid,
     pub security_sequence: u64,
     pub security_state_sha256: String,
 }
@@ -197,7 +198,8 @@ impl RecoverySetManifest {
                     || watermarks.len() != required_services.len()
                     || external_key_ids.iter().any(|key_id| !valid_sha256(key_id))
                     || watermarks.iter().any(|watermark| {
-                        watermark.security_sequence == 0
+                        watermark.recovery_generation.is_nil()
+                            || watermark.security_sequence == 0
                             || !valid_sha256(&watermark.security_state_sha256)
                     })
                 {
@@ -313,6 +315,7 @@ mod tests {
                 .into_iter()
                 .map(|service| ServiceSecurityWatermark {
                     service,
+                    recovery_generation: Uuid::new_v4(),
                     security_sequence: 7,
                     security_state_sha256: "b".repeat(64),
                 })
