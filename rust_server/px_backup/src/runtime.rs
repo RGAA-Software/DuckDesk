@@ -15,6 +15,7 @@ use uuid::Uuid;
 pub const BACKUP_DAEMON_CONFIG_SCHEMA_VERSION: u32 = 2;
 pub const BACKUP_DAEMON_STATUS_SCHEMA_VERSION: u32 = 2;
 const MAX_STATUS_BYTES: usize = 64 * 1024;
+const MAX_METRICS_BYTES: usize = 16 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum BackupDaemonError {
@@ -381,7 +382,13 @@ impl<T: LogicalBackupTool> BackupDaemon<T> {
     }
 
     fn publish_status(&self, now_unix: u64) -> Result<(), BackupDaemonError> {
-        persist_status(&self.config.status_root, &self.status(now_unix)?)
+        let status = self.status(now_unix)?;
+        persist_status(&self.config.status_root, &status)?;
+        persist_metrics(
+            &self.config.status_root,
+            &status,
+            self.config.poll_interval_seconds,
+        )
     }
 }
 
@@ -427,7 +434,12 @@ fn verify_status_entries(root: &Path) -> Result<(), BackupDaemonError> {
             .to_string();
         if !matches!(
             file_name.as_str(),
-            "status.json" | "status.previous" | "status.next"
+            "status.json"
+                | "status.previous"
+                | "status.next"
+                | "metrics.prom"
+                | "metrics.previous"
+                | "metrics.next"
         ) {
             return Err(BackupDaemonError::Status);
         }
@@ -442,19 +454,102 @@ fn verify_status_entries(root: &Path) -> Result<(), BackupDaemonError> {
 }
 
 fn persist_status(root: &Path, status: &BackupDaemonStatus) -> Result<(), BackupDaemonError> {
-    let current_path = root.join("status.json");
-    let previous_path = root.join("status.previous");
-    let next_path = root.join("status.next");
+    let bytes = serde_json::to_vec_pretty(status).map_err(|_| BackupDaemonError::Status)?;
+    persist_atomic_file(
+        root,
+        "status.json",
+        "status.previous",
+        "status.next",
+        &bytes,
+        MAX_STATUS_BYTES,
+    )
+}
+
+fn persist_metrics(
+    root: &Path,
+    status: &BackupDaemonStatus,
+    poll_interval_seconds: u64,
+) -> Result<(), BackupDaemonError> {
+    let consecutive_failure_alert = u8::from(
+        status
+            .alerts
+            .contains(&BackupRuntimeAlert::ConsecutiveFailures),
+    );
+    let overdue_alert = u8::from(status.alerts.contains(&BackupRuntimeAlert::BackupOverdue));
+    let metrics = format!(
+        concat!(
+            "# HELP pixels_backup_status_timestamp_seconds Unix timestamp of the latest backup daemon status publication.\n",
+            "# TYPE pixels_backup_status_timestamp_seconds gauge\n",
+            "pixels_backup_status_timestamp_seconds{{deployment_id=\"{}\"}} {}\n",
+            "# HELP pixels_backup_poll_interval_seconds Configured backup daemon status polling interval.\n",
+            "# TYPE pixels_backup_poll_interval_seconds gauge\n",
+            "pixels_backup_poll_interval_seconds{{deployment_id=\"{}\"}} {}\n",
+            "# HELP pixels_backup_last_success_timestamp_seconds Unix timestamp of the latest verified backup task.\n",
+            "# TYPE pixels_backup_last_success_timestamp_seconds gauge\n",
+            "pixels_backup_last_success_timestamp_seconds{{deployment_id=\"{}\"}} {}\n",
+            "# HELP pixels_backup_consecutive_failures Number of consecutive failed or interrupted backup tasks.\n",
+            "# TYPE pixels_backup_consecutive_failures gauge\n",
+            "pixels_backup_consecutive_failures{{deployment_id=\"{}\"}} {}\n",
+            "# HELP pixels_backup_alert_consecutive_failures Whether the consecutive-failure alert condition is active.\n",
+            "# TYPE pixels_backup_alert_consecutive_failures gauge\n",
+            "pixels_backup_alert_consecutive_failures{{deployment_id=\"{}\"}} {}\n",
+            "# HELP pixels_backup_alert_overdue Whether the verified-backup overdue alert condition is active.\n",
+            "# TYPE pixels_backup_alert_overdue gauge\n",
+            "pixels_backup_alert_overdue{{deployment_id=\"{}\"}} {}\n",
+            "# HELP pixels_backup_offsite_configured Whether an offsite repository is required by this deployment.\n",
+            "# TYPE pixels_backup_offsite_configured gauge\n",
+            "pixels_backup_offsite_configured{{deployment_id=\"{}\"}} {}\n",
+            "# HELP pixels_backup_offsite_repository_healthy Whether the configured offsite repository can be verified.\n",
+            "# TYPE pixels_backup_offsite_repository_healthy gauge\n",
+            "pixels_backup_offsite_repository_healthy{{deployment_id=\"{}\"}} {}\n"
+        ),
+        status.deployment_id,
+        status.updated_at_unix,
+        status.deployment_id,
+        poll_interval_seconds,
+        status.deployment_id,
+        status.last_success_at_unix.unwrap_or(0),
+        status.deployment_id,
+        status.consecutive_failures,
+        status.deployment_id,
+        consecutive_failure_alert,
+        status.deployment_id,
+        overdue_alert,
+        status.deployment_id,
+        u8::from(status.offsite_configured),
+        status.deployment_id,
+        u8::from(status.offsite_repository_healthy),
+    );
+    persist_atomic_file(
+        root,
+        "metrics.prom",
+        "metrics.previous",
+        "metrics.next",
+        metrics.as_bytes(),
+        MAX_METRICS_BYTES,
+    )
+}
+
+fn persist_atomic_file(
+    root: &Path,
+    current_name: &str,
+    previous_name: &str,
+    next_name: &str,
+    bytes: &[u8],
+    maximum_bytes: usize,
+) -> Result<(), BackupDaemonError> {
+    let current_path = root.join(current_name);
+    let previous_path = root.join(previous_name);
+    let next_path = root.join(next_name);
     if previous_path.exists() || next_path.exists() {
         return Err(BackupDaemonError::Status);
     }
-    let bytes = serde_json::to_vec_pretty(status).map_err(|_| BackupDaemonError::Status)?;
-    if bytes.is_empty() || bytes.len() > MAX_STATUS_BYTES {
+    if bytes.is_empty() || bytes.len() > maximum_bytes {
         return Err(BackupDaemonError::Status);
     }
     let mut next_file = private_new_file(&next_path)?;
     next_file
-        .write_all(&bytes)
+        .write_all(bytes)
         .map_err(|_| BackupDaemonError::Status)?;
     next_file
         .sync_all()
@@ -668,6 +763,10 @@ mod tests {
         }
     }
 
+    fn read_published_metrics(status_root: &Path) -> String {
+        fs::read_to_string(status_root.join("metrics.prom")).unwrap()
+    }
+
     #[test]
     fn successful_due_task_publishes_verified_set_and_status() {
         let fixture = RuntimeFixture::new();
@@ -690,6 +789,14 @@ mod tests {
         assert!(!status.overdue);
         assert!(status.alerts.is_empty());
         assert!(fixture.config.status_root.join("status.json").is_file());
+        let published_metrics = read_published_metrics(&fixture.config.status_root);
+        let deployment_label = format!("deployment_id=\"{}\"", fixture.config.deployment_id);
+        assert!(published_metrics.contains(&deployment_label));
+        assert!(published_metrics.contains("pixels_backup_last_success_timestamp_seconds"));
+        assert!(published_metrics.contains("} 1000\n"));
+        assert!(published_metrics.contains("pixels_backup_alert_consecutive_failures"));
+        assert!(published_metrics.contains("pixels_backup_alert_overdue"));
+        assert!(!published_metrics.contains("secret"));
         drop(daemon);
         let repository = BackupRepository::open(
             &fixture.config.repository_root,
@@ -723,6 +830,18 @@ mod tests {
                 BackupRuntimeAlert::BackupOverdue
             ]
         );
+        daemon.publish_status(1_121).unwrap();
+        let published_metrics = read_published_metrics(&fixture.config.status_root);
+        let deployment_label = format!("deployment_id=\"{}\"", fixture.config.deployment_id);
+        assert!(published_metrics.contains(&format!(
+            "pixels_backup_alert_consecutive_failures{{{deployment_label}}} 1"
+        )));
+        assert!(published_metrics.contains(&format!(
+            "pixels_backup_alert_overdue{{{deployment_label}}} 1"
+        )));
+        assert!(published_metrics.contains("pixels_backup_consecutive_failures"));
+        assert!(published_metrics.contains("} 2\n"));
+        assert!(!published_metrics.contains("ARCHIVE_FAILURE"));
     }
 
     #[test]

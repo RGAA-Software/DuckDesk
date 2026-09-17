@@ -182,6 +182,9 @@ Auth/Desk 可有多个同时持共享锁的实例；升级时全部停止准入�
 
 - 完成状态区分 Created、Verified、OffsiteVerified、RestoreTested；校验和成功不等于已验证能恢复。
 - 连续两次失败，或超过两个备份周期没有成功结果告警；WAL 归档失败、复制延迟、磁盘/仓库不足另设即时告警。
+- 基础档由 `px_backup` 在私有状态目录原子发布 Prometheus textfile 指标；固定规则见
+  [`deploy/prometheus/pixels-backup.rules.yml`](../deploy/prometheus/pixels-backup.rules.yml)。采集器只读状态目录，不读取备份仓库、
+  私有配置或数据库凭据。Prometheus/Alertmanager 与 Console 分开运行，客户接收器地址和密钥只进入部署秘密存储。
 - 清理仅在新备份验证后进行，不能删除最后有效恢复链或正在恢复/迁移依赖的集；空间不足不能自行突破锁定/保留规则。
 - 备份加密、传输认证、凭据脱敏，私有平台默认不上传官方仓库。恢复密钥受独立访问控制，不能只存在待恢复数据库中。
 - 基础档可配置一个由部署方挂载并授权的异机文件仓库（Windows UNC/受控网络卷或 Linux 远端挂载）；执行器按完整恢复集及

@@ -1,0 +1,57 @@
+groups:
+  - name: pixels-backup
+    interval: 30s
+    rules:
+      - alert: PixelsBackupStatusMissing
+        expr: absent(pixels_backup_status_timestamp_seconds)
+        for: 10m
+        labels:
+          severity: critical
+          component: backup
+        annotations:
+          summary: No Pixels backup daemon status is being collected
+          description: Prometheus has no backup status series. Check the backup service and the textfile collector path.
+
+      - alert: PixelsBackupStatusStale
+        expr: >-
+          time() - pixels_backup_status_timestamp_seconds
+          > on(deployment_id) (pixels_backup_poll_interval_seconds * 3)
+        for: 2m
+        labels:
+          severity: critical
+          component: backup
+        annotations:
+          summary: Pixels backup daemon status is stale
+          description: Deployment {{ $labels.deployment_id }} has stopped publishing status within three configured poll intervals.
+
+      - alert: PixelsBackupRepeatedFailures
+        expr: pixels_backup_alert_consecutive_failures == 1
+        for: 1m
+        labels:
+          severity: critical
+          component: backup
+        annotations:
+          summary: Pixels backup tasks are repeatedly failing
+          description: Deployment {{ $labels.deployment_id }} has at least two consecutive failed or interrupted backup tasks.
+
+      - alert: PixelsBackupOverdue
+        expr: pixels_backup_alert_overdue == 1
+        for: 1m
+        labels:
+          severity: critical
+          component: backup
+        annotations:
+          summary: Pixels verified backup is overdue
+          description: Deployment {{ $labels.deployment_id }} has no verified backup within two configured backup periods.
+
+      - alert: PixelsBackupOffsiteRepositoryUnhealthy
+        expr: >-
+          pixels_backup_offsite_configured == 1
+          and on(deployment_id) pixels_backup_offsite_repository_healthy == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: backup
+        annotations:
+          summary: Pixels offsite backup repository is unhealthy
+          description: Deployment {{ $labels.deployment_id }} requires an offsite repository, but its verified recovery set cannot be read.

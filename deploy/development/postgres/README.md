@@ -47,6 +47,15 @@ backup-pg 通过测试专用 Docker 适配器，实际调用隔离 PostgreSQL 18
 它不代替固定宿主工具、专用备份账号、定时服务、异机复制、权限回退对账或 WAL/PITR 验收。
 专项保留逐用例状态/数量和源码 hash 门禁，报告明确标记 FOCUSED-ONLY。
 该模式不执行浏览器或全量跨平台验收；只有 backup-pg 专项执行自身定义的三库恢复检查。专项模式不接受 `-Linux`；
+
+备份告警链可独立执行：
+
+```powershell
+pwsh -NoProfile -File scripts/server_validation/backup_alert_delivery.ps1
+```
+
+该脚本使用唯一命名的临时 Docker 网络和容器，验证 Prometheus → Alertmanager → webhook 的真实 firing 通知并在结束后精确清理；
+结果保存在 `test-results/backup-alert-<run-id>/`。它不修改开发 PostgreSQL 容器，也不代表独立主机故障域已经验收。
 修复先用它定位，再运行 `Test -Linux` 完成阶段回归。
 未显式指定 Suite、把 Suite 传给其他 Action 均拒绝，避免误以为执行了所选范围。
 
