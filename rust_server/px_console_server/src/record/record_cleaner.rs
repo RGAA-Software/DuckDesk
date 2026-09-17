@@ -24,7 +24,7 @@ pub fn select_ttl_expired(
 ) -> Vec<ConsoleRenderRecord> {
     records
         .iter()
-        .filter(|r| !r.keep && now_ms - r.updated_timestamp > ttl_ms)
+        .filter(|record| !record.keep && now_ms - record.updated_timestamp > ttl_ms)
         .cloned()
         .collect()
 }
@@ -43,12 +43,12 @@ pub fn select_threshold_devices(
     }
     // group keep==false records by device, preserving oldest-first order
     let mut groups: BTreeMap<String, (i64, i64)> = BTreeMap::new(); // device -> (oldest_ts, bytes)
-    for r in records_oldest_first.iter().filter(|r| !r.keep) {
-        let g = groups
-            .entry(r.device_id.clone())
-            .or_insert((r.updated_timestamp, 0));
-        g.0 = g.0.min(r.updated_timestamp);
-        g.1 += r.size.max(r.progress);
+    for record in records_oldest_first.iter().filter(|record| !record.keep) {
+        let device_group = groups
+            .entry(record.device_id.clone())
+            .or_insert((record.updated_timestamp, 0));
+        device_group.0 = device_group.0.min(record.updated_timestamp);
+        device_group.1 += record.size.max(record.progress);
     }
     let mut ordered: Vec<(String, i64, i64)> = groups
         .into_iter()
@@ -75,9 +75,9 @@ pub fn record_file_path(device_id: &str, filename: &str) -> String {
 /// delete the disk file (and the device dir when empty); returns file size freed
 pub async fn delete_record_file(rec: &ConsoleRenderRecord) {
     let path = record_file_path(&rec.device_id, &rec.filename);
-    if let Err(e) = tokio::fs::remove_file(&path).await {
-        if e.kind() != std::io::ErrorKind::NotFound {
-            tracing::warn!("delete record file {} failed: {}", path, e);
+    if let Err(delete_error) = tokio::fs::remove_file(&path).await {
+        if delete_error.kind() != std::io::ErrorKind::NotFound {
+            tracing::warn!("delete record file {} failed: {}", path, delete_error);
         }
     }
     // remove the device dir when empty
@@ -90,8 +90,8 @@ pub fn start_cleanup_task(mgr: Arc<ConsoleRenderRecordManager>, tunnel: Arc<Reco
         let _ = px_base::create_dir_all_if_not_exists(RECORDS_DIR);
         loop {
             tokio::time::sleep(CLEAN_INTERVAL).await;
-            if let Err(e) = run_cleanup_once(&mgr, &tunnel).await {
-                tracing::error!("record cleanup round failed: {:?}", e);
+            if let Err(cleanup_error) = run_cleanup_once(&mgr, &tunnel).await {
+                tracing::error!("record cleanup round failed: {:?}", cleanup_error);
             }
         }
     });
@@ -121,7 +121,7 @@ pub async fn run_cleanup_once(
         for device_id in select_threshold_devices(&records, total, RECORD_DIR_THRESHOLD_BYTES) {
             tracing::info!("record cleanup threshold: device {}", device_id);
             let dev_records = mgr.query_by_device(&device_id).await?;
-            for rec in dev_records.into_iter().filter(|r| !r.keep) {
+            for rec in dev_records.into_iter().filter(|record| !record.keep) {
                 if mgr.remove(&rec.id).await?.is_some() {
                     delete_record_file(&rec).await;
                 }

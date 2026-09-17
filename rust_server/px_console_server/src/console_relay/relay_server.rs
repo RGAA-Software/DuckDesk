@@ -194,8 +194,8 @@ impl RelayServer {
 
             // www host
             let addr = who.clone().to_string();
-            let mut t = addr.splitn(2, ':');
-            let client_w3c_host = t.next().unwrap_or("").to_string();
+            let mut address_parts = addr.splitn(2, ':');
+            let client_w3c_host = address_parts.next().unwrap_or("").to_string();
 
             tracing::info!(
                 "connected device id: {}, client w3c host: {}, device name: {}, stream id: {}",
@@ -266,8 +266,8 @@ impl RelayServer {
             rv_a = (&mut recv_task) => {
                 match rv_a {
                     Ok(_) => {},
-                    Err(e) => {
-                        tracing::error!("receive task error: {e:?}")
+                    Err(receive_error) => {
+                        tracing::error!("receive task error: {receive_error:?}")
                     }
                 }
                 recv_task.abort();
@@ -297,39 +297,42 @@ impl RelayServer {
                     .lock()
                     .await
                     .append_upload_data_size(data.len() as i64);
-                let m = RelayMessage::decode(data.clone());
-                if let Err(e) = m {
-                    tracing::error!("decode relay message failed: {}", e);
+                let decoded_message = RelayMessage::decode(data.clone());
+                if let Err(decode_error) = decoded_message {
+                    tracing::error!("decode relay message failed: {}", decode_error);
                     return ControlFlow::Break(());
                 }
-                let m = m.unwrap();
-                let m_type = m.r#type;
+                let decoded_message = decoded_message.unwrap();
+                let message_type = decoded_message.r#type;
                 //tracing::info!("from: {} message type: {}", m.from_device_id, m_type);
 
-                if m_type == RelayMessageType::KRelayHello {
-                    relay_conn.lock().await.on_hello(m).await;
+                if message_type == RelayMessageType::KRelayHello {
+                    relay_conn.lock().await.on_hello(decoded_message).await;
 
                     // send back
                     let data_cpy = data.clone();
                     tokio::spawn(async move {
                         relay_conn.lock().await.send_bin_message(data_cpy).await;
                     });
-                } else if m_type == RelayMessageType::KRelayHeartBeat {
-                    relay_conn.lock().await.on_heartbeat(m).await;
+                } else if message_type == RelayMessageType::KRelayHeartBeat {
+                    relay_conn.lock().await.on_heartbeat(decoded_message).await;
 
                     // send back
                     let data_cpy = data.clone();
                     tokio::spawn(async move {
                         relay_conn.lock().await.send_bin_message(data_cpy).await;
                     });
-                } else if m_type == RelayMessageType::KRelayError {
-                    relay_conn.lock().await.on_error(m).await
-                } else if m_type == RelayMessageType::KRelayTargetMessage {
-                    gRelayRoomMgr.on_relay(m, data).await;
-                } else if m_type == RelayMessageType::KRelayCreateRoom {
+                } else if message_type == RelayMessageType::KRelayError {
+                    relay_conn.lock().await.on_error(decoded_message).await
+                } else if message_type == RelayMessageType::KRelayTargetMessage {
+                    gRelayRoomMgr.on_relay(decoded_message, data).await;
+                } else if message_type == RelayMessageType::KRelayCreateRoom {
                     let allowed = {
                         let conn = relay_conn.lock().await;
-                        match (&conn.authorized_remote_device_id, m.create_room.as_ref()) {
+                        match (
+                            &conn.authorized_remote_device_id,
+                            decoded_message.create_room.as_ref(),
+                        ) {
                             (Some(expected), Some(room)) => {
                                 room.device_id == conn.device_id
                                     && room.remote_device_id == *expected
@@ -342,9 +345,9 @@ impl RelayServer {
                         tracing::warn!("reject Relay room outside the declared remote target");
                         return ControlFlow::Break(());
                     }
-                    gRelayRoomMgr.on_create_room(m, data).await;
-                } else if m_type == RelayMessageType::KRelayRequestControl {
-                    let request = m;
+                    gRelayRoomMgr.on_create_room(decoded_message, data).await;
+                } else if message_type == RelayMessageType::KRelayRequestControl {
+                    let request = decoded_message;
                     let authorized = {
                         let conn = relay_conn.lock().await;
                         match request.request_control.as_ref() {
@@ -364,12 +367,16 @@ impl RelayServer {
                     }
                     let encoded = Bytes::from(request.encode_to_vec());
                     gRelayRoomMgr.on_request_control(request, encoded).await;
-                } else if m_type == RelayMessageType::KRelayRequestControlResp {
-                    gRelayRoomMgr.on_request_control_resp(m, data).await;
-                } else if m_type == RelayMessageType::KRelayRequestPausedStream
-                    || m_type == RelayMessageType::KRelayRequestResumeStream
+                } else if message_type == RelayMessageType::KRelayRequestControlResp {
+                    gRelayRoomMgr
+                        .on_request_control_resp(decoded_message, data)
+                        .await;
+                } else if message_type == RelayMessageType::KRelayRequestPausedStream
+                    || message_type == RelayMessageType::KRelayRequestResumeStream
                 {
-                    gRelayRoomMgr.on_request_resume_pause_stream(m, data).await;
+                    gRelayRoomMgr
+                        .on_request_resume_pause_stream(decoded_message, data)
+                        .await;
                 }
                 return ControlFlow::Continue(());
             }

@@ -52,15 +52,15 @@ impl ConsoleCmConn {
                     continue;
                 }
 
-                let r = gConsolePanelConnMgr
+                let connection_result = gConsolePanelConnMgr
                     .get_conn(target_device_id.clone())
                     .await;
-                if let Err(_err) = r {
+                if let Err(_connection_error) = connection_result {
                     //tracing::error!("error getting conn: {}", err);
                     fn_delay_1s.await;
                     continue;
                 } else {
-                    let conn = r.unwrap();
+                    let conn = connection_result.unwrap();
                     if !conn.lock().await.sys_info_array.is_empty() {
                         let sys_info = conn.lock().await.sys_info_array.last().unwrap().clone();
                         let resp = StreamHardwarePieceResp {
@@ -84,8 +84,8 @@ impl ConsoleCmConn {
         });
     }
 
-    pub async fn process_message(&mut self, _who: String, data: String) -> bool {
-        match serde_json::from_str(data.as_str()).unwrap_or(CmMessage::Unknown) {
+    pub async fn process_message(&mut self, _who: String, message_text: String) -> bool {
+        match serde_json::from_str(message_text.as_str()).unwrap_or(CmMessage::Unknown) {
             CmMessage::Ping => {
                 tracing::info!("received ping");
             }
@@ -96,20 +96,20 @@ impl ConsoleCmConn {
 
             CmMessage::StreamHardwareInfo { device_id } => {
                 tracing::info!("stream hardware info device_id: {}", device_id);
-                let r = gConsolePanelConnMgr.get_conn(device_id.clone()).await;
-                if let Err(err) = r {
+                let connection_result = gConsolePanelConnMgr.get_conn(device_id.clone()).await;
+                if let Err(err) = connection_result {
                     tracing::error!("error getting conn: {}", err);
                     // back
                 } else {
-                    let conn = r.unwrap();
+                    let conn = connection_result.unwrap();
                     let sys_info_array = conn.lock().await.sys_info_array.clone();
                     let resp = serde_json::to_string(&StreamHardwareInfoResp {
                         msg_type: "stream_hardware_info_resp".to_string(),
                         device_id: device_id.clone(),
                         sys_info_array,
                     });
-                    if let Err(e) = resp {
-                        tracing::error!("error serializing stream info: {}", e);
+                    if let Err(serialization_error) = resp {
+                        tracing::error!("error serializing stream info: {}", serialization_error);
                     } else {
                         self.send_message(resp.unwrap()).await;
                     }
@@ -121,7 +121,7 @@ impl ConsoleCmConn {
             CmMessage::StreamRunningStat { device_id: _ } => {}
 
             CmMessage::Unknown => {
-                tracing::warn!("received unknown message: {}", data);
+                tracing::warn!("received unknown message: {}", message_text);
             }
         }
         true

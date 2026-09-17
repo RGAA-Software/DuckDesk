@@ -22,9 +22,9 @@ pub struct ConsoleGrpcRelayClient {
 
 async fn echo_requests_iter() -> impl Stream<Item = RelayStreamRequest> {
     let server_id = "".to_string();
-    tokio_stream::iter(1..usize::MAX).map(move |i| RelayStreamRequest {
+    tokio_stream::iter(1..usize::MAX).map(move |message_index| RelayStreamRequest {
         server_id: server_id.clone(),
-        message: format!("msg {:02}", i),
+        message: format!("msg {:02}", message_index),
     })
 }
 
@@ -44,8 +44,8 @@ impl ConsoleGrpcRelayClient {
         let addr = format!("http://{}:{}", grpc_ip, grpc_port);
         tracing::info!("relay grpc is connecting to {}", addr);
         let conn = GrpcRelayClient::connect(addr).await;
-        if let Err(e) = conn {
-            tracing::error!("connect grpc remote error: {}", e);
+        if let Err(connection_error) = conn {
+            tracing::error!("connect grpc remote error: {}", connection_error);
             return false;
         }
         let conn = conn.unwrap();
@@ -56,14 +56,14 @@ impl ConsoleGrpcRelayClient {
     pub async fn heartbeat(&mut self) -> bool {
         let server_id = "".to_string();
         if let Some(mut client) = self.client.lock().await.clone() {
-            let r = client
+            let heartbeat_result = client
                 .heart_beat(tonic::Request::new(HeartBeatRequest {
                     server_id,
                     hb_index: self.hb_index,
                 }))
                 .await;
 
-            if let Ok(_r) = r {
+            if let Ok(_response) = heartbeat_result {
                 self.hb_index += 1;
                 return true;
             }
@@ -74,11 +74,11 @@ impl ConsoleGrpcRelayClient {
 
     pub async fn query_alive_rooms_count(&mut self) -> Result<u32, ()> {
         if let Some(mut client) = self.client.lock().await.clone() {
-            let r = client
+            let query_result = client
                 .query_relay_rooms_count(tonic::Request::new(RelayRoomsCountRequest {}))
                 .await;
 
-            if let Ok(resp) = r {
+            if let Ok(resp) = query_result {
                 let reply = resp.into_inner();
                 return Ok(reply.count);
             }
@@ -110,8 +110,8 @@ impl ConsoleGrpcRelayClient {
 
         if let Some(client) = &mut *self.client.lock().await {
             let response = client.stream_request(in_stream).await;
-            if let Err(e) = response {
-                tracing::error!("streaming request error: {}", e);
+            if let Err(stream_error) = response {
+                tracing::error!("streaming request error: {}", stream_error);
                 return;
             }
             let response = response.unwrap();

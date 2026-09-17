@@ -92,15 +92,15 @@ impl ConsolePanelConn {
         }
     }
 
-    pub async fn process_message(&mut self, _who: String, data: Bytes) -> bool {
-        let m = ConsolePanelMessage::decode(data);
-        if let Err(e) = m {
-            tracing::error!("parse error: {:?}", e);
+    pub async fn process_message(&mut self, _who: String, message_bytes: Bytes) -> bool {
+        let decoded_message = ConsolePanelMessage::decode(message_bytes);
+        if let Err(decode_error) = decoded_message {
+            tracing::error!("parse error: {:?}", decode_error);
             return false;
         }
-        let m = m.unwrap();
-        if m.msg_type == ConsolePanelMessageType::KConsolePanelHello {
-            let sub = m.hello.unwrap();
+        let decoded_message = decoded_message.unwrap();
+        if decoded_message.msg_type == ConsolePanelMessageType::KConsolePanelHello {
+            let sub = decoded_message.hello.unwrap();
             self.hello_timestamp = px_base::get_current_timestamp();
             self.last_update_timestamp = self.hello_timestamp;
             let device_id = sub.device_id;
@@ -115,14 +115,18 @@ impl ConsolePanelConn {
                 let ips = sub.panel_lan_ips;
                 let port = sub.panel_http_port as i64;
                 tokio::spawn(async move {
-                    if let Err(e) = crate::gDeviceManager
+                    if let Err(update_error) = crate::gDeviceManager
                         .update_device_field(device_id.clone(), "panel_lan_ips".to_string(), ips)
                         .await
                     {
-                        tracing::warn!("persist panel_lan_ips for {} failed: {:?}", device_id, e);
+                        tracing::warn!(
+                            "persist panel_lan_ips for {} failed: {:?}",
+                            device_id,
+                            update_error
+                        );
                     }
                     if port > 0 {
-                        if let Err(e) = crate::gDeviceManager
+                        if let Err(update_error) = crate::gDeviceManager
                             .update_device_field(
                                 device_id.clone(),
                                 "panel_http_port".to_string(),
@@ -133,15 +137,15 @@ impl ConsolePanelConn {
                             tracing::warn!(
                                 "persist panel_http_port for {} failed: {:?}",
                                 device_id,
-                                e
+                                update_error
                             );
                         }
                     }
                 });
             }
             self.send_hello(device_id, self.user_id.clone()).await;
-        } else if m.msg_type == ConsolePanelMessageType::KConsolePanelHeartBeat {
-            let sub = m.heartbeat.unwrap();
+        } else if decoded_message.msg_type == ConsolePanelMessageType::KConsolePanelHeartBeat {
+            let sub = decoded_message.heartbeat.unwrap();
             self.last_update_timestamp = px_base::get_current_timestamp();
             let hb_index = sub.hb_index;
             self.hb_index = hb_index;
@@ -171,15 +175,15 @@ impl ConsolePanelConn {
             }
             self.send_heartbeat(hb_index, self.device_id.clone(), self.user_id.clone())
                 .await;
-        } else if m.msg_type == ConsolePanelMessageType::KRecordListResp {
+        } else if decoded_message.msg_type == ConsolePanelMessageType::KRecordListResp {
             // record tunnel family (design doc 6.2)
-            if let Some(resp) = m.record_list_resp {
+            if let Some(resp) = decoded_message.record_list_resp {
                 if !crate::gRecordTunnel.complete_list(resp) {
                     tracing::warn!("record list resp with unknown req_id, dropped");
                 }
             }
-        } else if m.msg_type == ConsolePanelMessageType::KRecordFetchDone {
-            if let Some(done) = m.record_fetch_done {
+        } else if decoded_message.msg_type == ConsolePanelMessageType::KRecordFetchDone {
+            if let Some(done) = decoded_message.record_fetch_done {
                 if done.ok {
                     tracing::info!("record fetch done: {}/{}", done.device_id, done.filename);
                 } else {
@@ -229,8 +233,9 @@ impl ConsolePanelConn {
         self.send_bin_message_vec(pl_msg.encode_to_vec()).await;
     }
 
-    pub async fn send_bin_message_vec(&mut self, data: Vec<u8>) {
-        self.send_bin_message_bytes(Bytes::from(data)).await;
+    pub async fn send_bin_message_vec(&mut self, message_bytes: Vec<u8>) {
+        self.send_bin_message_bytes(Bytes::from(message_bytes))
+            .await;
     }
 
     pub async fn send_rtc_ice_config_changed(&mut self, revision: u64, changed_at: i64) -> bool {
@@ -248,9 +253,9 @@ impl ConsolePanelConn {
     pub async fn send_bin_message_bytes(&mut self, om: Bytes) -> bool {
         // send message
         let _size = om.len();
-        let r = self.sender.lock().await.send(Message::Binary(om)).await;
-        if let Err(r) = r {
-            tracing::error!("error sending relay message: {r}");
+        let send_result = self.sender.lock().await.send(Message::Binary(om)).await;
+        if let Err(send_error) = send_result {
+            tracing::error!("error sending relay message: {send_error}");
             return false;
         }
         true

@@ -15,7 +15,9 @@ pub fn init_license_verifier() -> Result<LicenseVerifier, String> {
     if let Ok(encoded) = std::env::var(PUBLIC_KEY_ENV) {
         let bytes = general_purpose::STANDARD
             .decode(encoded.trim())
-            .map_err(|e| format!("failed to decode {}: {}", PUBLIC_KEY_ENV, e))?;
+            .map_err(|decode_error| {
+                format!("failed to decode {}: {}", PUBLIC_KEY_ENV, decode_error)
+            })?;
         let verifier = LicenseVerifier::from_public_key_bytes(&extract_raw_public_key(&bytes)?)?;
         tracing::info!("loaded license public key from {}", PUBLIC_KEY_ENV);
         return Ok(verifier);
@@ -23,10 +25,12 @@ pub fn init_license_verifier() -> Result<LicenseVerifier, String> {
 
     if Path::new(PUBLIC_KEY_FILE).exists() {
         let encoded = std::fs::read_to_string(PUBLIC_KEY_FILE)
-            .map_err(|e| format!("failed to read {}: {}", PUBLIC_KEY_FILE, e))?;
+            .map_err(|read_error| format!("failed to read {}: {}", PUBLIC_KEY_FILE, read_error))?;
         let bytes = general_purpose::STANDARD
             .decode(encoded.trim())
-            .map_err(|e| format!("failed to decode {}: {}", PUBLIC_KEY_FILE, e))?;
+            .map_err(|decode_error| {
+                format!("failed to decode {}: {}", PUBLIC_KEY_FILE, decode_error)
+            })?;
         let verifier = LicenseVerifier::from_public_key_bytes(&extract_raw_public_key(&bytes)?)?;
         tracing::info!("loaded license public key from {}", PUBLIC_KEY_FILE);
         return Ok(verifier);
@@ -68,7 +72,9 @@ pub fn license_to_authorization(
         auth_id: license.auth_id.clone(),
         auth_name: license.auth_name.clone(),
         machine_code: license.machine_code.clone(),
-        description: existing.map(|a| a.description.clone()).unwrap_or_default(),
+        description: existing
+            .map(|authorization| authorization.description.clone())
+            .unwrap_or_default(),
         max_streams: license.max_streams,
         appkey: license.appkey.clone(),
         app_secret: license.app_secret.clone(),
@@ -79,14 +85,18 @@ pub fn license_to_authorization(
         last_modify_timestamp: px_base::get_current_timestamp(),
         days: license.days,
         verify_server: existing
-            .map(|a| a.verify_server.clone())
+            .map(|authorization| authorization.verify_server.clone())
             .unwrap_or_default(),
         deploy_str,
         role: license.role,
         used_time_ms: 0,
         product: license.product.clone(),
-        revoked: existing.map(|a| a.revoked).unwrap_or(false),
-        revoked_at_ms: existing.map(|a| a.revoked_at_ms).unwrap_or(0),
+        revoked: existing
+            .map(|authorization| authorization.revoked)
+            .unwrap_or(false),
+        revoked_at_ms: existing
+            .map(|authorization| authorization.revoked_at_ms)
+            .unwrap_or(0),
         ..Default::default()
     }
 }

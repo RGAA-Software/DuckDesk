@@ -33,10 +33,11 @@ impl ConsoleContext {
     pub async fn get_encrypt_access_info(&self) -> Result<String, String> {
         let info = self.gen_access_info().await;
         //tracing::info!("raw access info: {:#?}", info);
-        if let Ok(v) = serde_json::to_string(&info) {
-            let v = aes_encrypt(v.as_str(), &AES_DEPLOY_AUTH);
-            return if let Ok(v) = v {
-                Ok(format!("console://access##{}", v))
+        if let Ok(serialized_access_info) = serde_json::to_string(&info) {
+            let encrypted_access_info =
+                aes_encrypt(serialized_access_info.as_str(), &AES_DEPLOY_AUTH);
+            return if let Ok(encrypted_access_info) = encrypted_access_info {
+                Ok(format!("console://access##{}", encrypted_access_info))
             } else {
                 Err("Failed to encrypt console.".to_string())
             };
@@ -48,8 +49,8 @@ impl ConsoleContext {
         tokio::spawn(async move {
             // 创建UDP socket
             let socket = UdpSocket::bind("0.0.0.0:0").await;
-            if let Err(e) = socket {
-                tracing::error!("Failed to bind socket: {:?}", e);
+            if let Err(bind_error) = socket {
+                tracing::error!("Failed to bind socket: {:?}", bind_error);
                 return;
             }
             let socket = socket.unwrap();
@@ -65,16 +66,18 @@ impl ConsoleContext {
                 }
                 let msg = msg.unwrap();
                 let bytes_sent = socket.send_to(msg.as_bytes(), &broadcast_addr).await;
-                if let Err(e) = bytes_sent {
-                    tracing::error!("Failed to send message: {:?}", e);
+                if let Err(send_error) = bytes_sent {
+                    tracing::error!("Failed to send message: {:?}", send_error);
                     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
                     continue;
                 }
                 // Older Panels only recognize the pre-Console URI scheme.
                 // The encrypted JSON contains both canonical and legacy keys.
                 let legacy_msg = msg.replacen("console://access##", "cms://access##", 1);
-                if let Err(e) = socket.send_to(legacy_msg.as_bytes(), &broadcast_addr).await {
-                    tracing::warn!("Failed to send legacy access broadcast: {:?}", e);
+                if let Err(send_error) =
+                    socket.send_to(legacy_msg.as_bytes(), &broadcast_addr).await
+                {
+                    tracing::warn!("Failed to send legacy access broadcast: {:?}", send_error);
                 }
                 tokio::time::sleep(std::time::Duration::from_secs(2)).await;
             }
@@ -86,8 +89,12 @@ impl ConsoleContext {
             let socket = UdpSocket::bind(format!("0.0.0.0:{}", port)).await.unwrap();
             let mut buf = [0u8; 4096];
             loop {
-                let (n, addr) = socket.recv_from(&mut buf).await.unwrap();
-                println!("recv from {}: {}", addr, String::from_utf8_lossy(&buf[..n]));
+                let (received_length, remote_address) = socket.recv_from(&mut buf).await.unwrap();
+                println!(
+                    "recv from {}: {}",
+                    remote_address,
+                    String::from_utf8_lossy(&buf[..received_length])
+                );
             }
         });
     }

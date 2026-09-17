@@ -106,17 +106,17 @@ impl ConsoleClientConn {
         }
     }
 
-    pub async fn process_message(&mut self, _who: String, data: Bytes) -> bool {
-        let m = ConsoleClientMessage::decode(data);
-        if let Err(e) = m {
-            tracing::error!("console client parse error: {:?}", e);
+    pub async fn process_message(&mut self, _who: String, message_bytes: Bytes) -> bool {
+        let decoded_message = ConsoleClientMessage::decode(message_bytes);
+        if let Err(decode_error) = decoded_message {
+            tracing::error!("console client parse error: {:?}", decode_error);
             return false;
         }
-        let m = m.unwrap();
-        let _device_id = m.device_id;
-        let msg_type = m.msg_type;
+        let decoded_message = decoded_message.unwrap();
+        let _device_id = decoded_message.device_id;
+        let msg_type = decoded_message.msg_type;
         if msg_type == ConsoleClientMessageType::KConsoleClientHello {
-            let _m_hello = m.hello.unwrap();
+            let _hello_message = decoded_message.hello.unwrap();
             // update time
             self.hello_timestamp = px_base::get_current_timestamp();
             self.connection_alive = true;
@@ -124,10 +124,10 @@ impl ConsoleClientConn {
             // insert to db
             gConsoleClientConnMgr.insert_conn(self.as_vo()).await;
         } else if msg_type == ConsoleClientMessageType::KConsoleClientHeartBeat {
-            let m_heartbeat = m.heartbeat.unwrap();
-            self.hb_index = m_heartbeat.hb_index;
+            let heartbeat_message = decoded_message.heartbeat.unwrap();
+            self.hb_index = heartbeat_message.hb_index;
             self.last_update_timestamp = px_base::get_current_timestamp();
-            self.connection_alive = m_heartbeat.connection_alive;
+            self.connection_alive = heartbeat_message.connection_alive;
 
             // update database
             if self.hb_index % 5 == 0 {

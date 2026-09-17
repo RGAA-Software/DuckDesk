@@ -173,18 +173,18 @@ impl ConsoleServiceConn {
         }
     }
 
-    pub async fn process_message(&mut self, _who: String, data: Bytes) -> bool {
-        let m = ConsoleServiceMessage::decode(data);
-        if let Err(e) = m {
-            tracing::error!("parse error: {:?}", e);
+    pub async fn process_message(&mut self, _who: String, message_bytes: Bytes) -> bool {
+        let decoded_message = ConsoleServiceMessage::decode(message_bytes);
+        if let Err(decode_error) = decoded_message {
+            tracing::error!("parse error: {:?}", decode_error);
             return false;
         }
-        let m = m.unwrap();
-        if !m.device_id.is_empty() && m.device_id != self.device_id {
+        let decoded_message = decoded_message.unwrap();
+        if !decoded_message.device_id.is_empty() && decoded_message.device_id != self.device_id {
             return false;
         }
-        if m.msg_type == ConsoleServiceMessageType::KConsoleServiceHello {
-            let Some(sub) = m.hello else {
+        if decoded_message.msg_type == ConsoleServiceMessageType::KConsoleServiceHello {
+            let Some(sub) = decoded_message.hello else {
                 tracing::warn!("service hello message without hello body!");
                 return true;
             };
@@ -220,8 +220,8 @@ impl ConsoleServiceConn {
                     .bytes()
                     .all(|byte| byte.is_ascii_hexdigit());
             self.send_hello(device_id).await;
-        } else if m.msg_type == ConsoleServiceMessageType::KConsoleServiceHeartBeat {
-            let Some(sub) = m.heartbeat else {
+        } else if decoded_message.msg_type == ConsoleServiceMessageType::KConsoleServiceHeartBeat {
+            let Some(sub) = decoded_message.heartbeat else {
                 tracing::warn!("service heartbeat message without heartbeat body!");
                 return true;
             };
@@ -262,24 +262,32 @@ impl ConsoleServiceConn {
                 .reconcile_from_service_hb(self.device_id.clone(), &self.instances_json)
                 .await;
             self.send_heartbeat(hb_index, self.device_id.clone()).await;
-        } else if m.msg_type == ConsoleServiceMessageType::KConsoleServiceStartAppInstanceResult {
-            if let Some(sub) = m.start_app_instance_result {
+        } else if decoded_message.msg_type
+            == ConsoleServiceMessageType::KConsoleServiceStartAppInstanceResult
+        {
+            if let Some(sub) = decoded_message.start_app_instance_result {
                 crate::app_schedule::gAppScheduleManager
                     .on_start_result(self.device_id.clone(), sub)
                     .await;
             }
-        } else if m.msg_type == ConsoleServiceMessageType::KConsoleServiceStopAppInstanceResult {
-            if let Some(sub) = m.stop_app_instance_result {
+        } else if decoded_message.msg_type
+            == ConsoleServiceMessageType::KConsoleServiceStopAppInstanceResult
+        {
+            if let Some(sub) = decoded_message.stop_app_instance_result {
                 crate::app_schedule::gAppScheduleManager
                     .on_stop_result(self.device_id.clone(), sub)
                     .await;
             }
-        } else if m.msg_type == ConsoleServiceMessageType::KConsoleServiceCreateWallSessionResult {
-            if let Some(sub) = m.create_wall_session_result {
+        } else if decoded_message.msg_type
+            == ConsoleServiceMessageType::KConsoleServiceCreateWallSessionResult
+        {
+            if let Some(sub) = decoded_message.create_wall_session_result {
                 crate::wall::console_wall_handler::on_wall_session_result(sub).await;
             }
-        } else if m.msg_type == ConsoleServiceMessageType::KConsoleServiceValidateRdpSession {
-            let Some(request) = m.validate_rdp_session else {
+        } else if decoded_message.msg_type
+            == ConsoleServiceMessageType::KConsoleServiceValidateRdpSession
+        {
+            let Some(request) = decoded_message.validate_rdp_session else {
                 tracing::warn!("RDP session validation message without request body");
                 return true;
             };
@@ -420,8 +428,9 @@ impl ConsoleServiceConn {
             .await
     }
 
-    pub async fn send_bin_message_vec(&mut self, data: Vec<u8>) {
-        self.send_bin_message_bytes(Bytes::from(data)).await;
+    pub async fn send_bin_message_vec(&mut self, message_bytes: Vec<u8>) {
+        self.send_bin_message_bytes(Bytes::from(message_bytes))
+            .await;
     }
 
     pub async fn send_rtc_ice_config_changed(&mut self, revision: u64, changed_at: i64) -> bool {
@@ -442,9 +451,9 @@ impl ConsoleServiceConn {
             return false;
         };
         let _size = om.len();
-        let r = sender.lock().await.send(Message::Binary(om)).await;
-        if let Err(r) = r {
-            tracing::error!("error sending service message: {r}");
+        let send_result = sender.lock().await.send(Message::Binary(om)).await;
+        if let Err(send_error) = send_result {
+            tracing::error!("error sending service message: {send_error}");
             return false;
         }
         true

@@ -31,12 +31,12 @@ impl ConsoleVisitManager {
         let filter = doc! { "conn_id": &info.conn_id };
         let insert_doc =
             mongodb::bson::to_document(&info).map_err(|_| ConsoleApiError::InvalidParams)?;
-        let r = coll
+        let upsert_result = coll
             .update_one(filter.clone(), doc! { "$setOnInsert": insert_doc })
             .upsert(true)
             .await;
-        if let Err(e) = r {
-            tracing::error!("insert/replace error: {}", e);
+        if let Err(upsert_error) = upsert_result {
+            tracing::error!("insert/replace error: {}", upsert_error);
             return Err(ConsoleApiError::DatabaseError);
         }
         coll.find_one(filter)
@@ -127,8 +127,8 @@ impl ConsoleVisitManager {
         {
             Ok(Some(doc)) => Ok(doc),
             Ok(None) => Err(ConsoleApiError::VisitNotFound),
-            Err(e) => {
-                tracing::error!("update visit error: {}", e);
+            Err(update_error) => {
+                tracing::error!("update visit error: {}", update_error);
                 Err(ConsoleApiError::DatabaseError)
             }
         }
@@ -167,16 +167,16 @@ impl ConsoleVisitManager {
             .skip(((page - 1) * page_size) as u64)
             .limit(limit)
             .await;
-        if let Err(e) = cursor {
-            tracing::error!("query visit error: {}", e);
+        if let Err(query_error) = cursor {
+            tracing::error!("query visit error: {}", query_error);
             return Err(ConsoleApiError::DatabaseError);
         }
         let mut cursor = cursor.unwrap();
 
         let mut streams: Vec<ConsoleVisit> = Vec::new();
         while let Some(stream) = cursor.next().await {
-            if let Err(e) = stream {
-                tracing::error!("error to get stream value in cursor: {}", e);
+            if let Err(cursor_error) = stream {
+                tracing::error!("error to get stream value in cursor: {}", cursor_error);
                 break;
             } else {
                 streams.push(stream.unwrap());
@@ -196,11 +196,11 @@ impl ConsoleVisitManager {
     {
         let c_visit_info = gConsoleDatabase.lock().await.visit();
         let filter = Self::build_filter(filters, visit_device_id, target_device_id);
-        let r = c_visit_info.lock().await.count_documents(filter).await;
-        if let Err(_e) = r {
+        let count_result = c_visit_info.lock().await.count_documents(filter).await;
+        if let Err(_count_error) = count_result {
             return Err(ConsoleApiError::DatabaseError);
         }
-        Ok(r.unwrap() as i64)
+        Ok(count_result.unwrap() as i64)
     }
 
     fn build_filter<T>(
@@ -216,24 +216,24 @@ impl ConsoleVisitManager {
             filter.insert(key, value.into());
         }
 
-        if let Some(v) = visit_device_id {
-            if !v.is_empty() {
+        if let Some(visitor_device_id) = visit_device_id {
+            if !visitor_device_id.is_empty() {
                 filter.insert(
                     "visitor_device",
                     doc! {
-                        "$regex": v,
+                        "$regex": visitor_device_id,
                         "$options": "i" // 不区分大小写（可选）
                     },
                 );
             }
         }
 
-        if let Some(v) = target_device_id {
-            if !v.is_empty() {
+        if let Some(target_device_id) = target_device_id {
+            if !target_device_id.is_empty() {
                 filter.insert(
                     "target_device",
                     doc! {
-                        "$regex": v,
+                        "$regex": target_device_id,
                         "$options": "i"
                     },
                 );

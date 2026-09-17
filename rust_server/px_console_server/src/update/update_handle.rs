@@ -108,7 +108,7 @@ pub async fn handle_query_update_info(
     let page = get_int_param(&query, "page")?;
     let page_size = get_int_param(&query, "page_size")?;
     let sort_time = get_int_param_or(&query, "sort_time", -1)?;
-    let r = gUpdateInfoManager
+    let update_entries = gUpdateInfoManager
         .query_info::<String>(
             page,
             page_size,
@@ -117,7 +117,7 @@ pub async fn handle_query_update_info(
             Some(sort_time),
         )
         .await?;
-    Ok(Json(ok_resp(r)))
+    Ok(Json(ok_resp(update_entries)))
 }
 
 pub async fn handle_download_install_package(
@@ -125,7 +125,7 @@ pub async fn handle_download_install_package(
     query: Query<HashMap<String, String>>,
 ) -> impl IntoResponse {
     let filename = match query.get("down_file") {
-        Some(v) => v.clone(),
+        Some(download_file) => download_file.clone(),
         None => return (axum::http::StatusCode::BAD_REQUEST, "missing down_file").into_response(),
     };
 
@@ -134,12 +134,12 @@ pub async fn handle_download_install_package(
     tracing::info!("download file path: {}", filepath);
 
     let file = match File::open(&filepath).await {
-        Ok(f) => f,
+        Ok(package_file) => package_file,
         Err(_) => return (axum::http::StatusCode::NOT_FOUND, "File Not Found").into_response(),
     };
 
     let metadata = match file.metadata().await {
-        Ok(m) => m,
+        Ok(package_metadata) => package_metadata,
         Err(_) => {
             return (
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,

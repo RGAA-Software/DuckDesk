@@ -53,8 +53,8 @@ pub async fn handle_create_new_device(
             .await;
         let device_found: bool;
         let mut device: Option<ConsoleDevice> = None;
-        if let Err(e) = exist_device {
-            if e == ConsoleApiError::DatabaseError {
+        if let Err(query_error) = exist_device {
+            if query_error == ConsoleApiError::DatabaseError {
                 tracing::error!("database error, can't query device when creating device.");
                 break None;
             } else {
@@ -257,10 +257,10 @@ pub async fn append_used_time(
     let device = gDeviceManager.query_device_by_id(device_id.clone()).await?;
     let target_used_time = device.used_time + period as i64;
 
-    let r = gDeviceManager
+    let update_succeeded = gDeviceManager
         .update_device_field(device_id.clone(), "used_time".to_string(), target_used_time)
         .await?;
-    if r {
+    if update_succeeded {
         Ok(Json(ok_resp(device_id)))
     } else {
         Err(ConsoleApiError::DatabaseError)
@@ -271,9 +271,9 @@ pub async fn handle_query_total_used_time(
     State(_ctx): State<Arc<Mutex<ConsoleContext>>>,
 ) -> Result<Json<RespMessage<u64>>, ConsoleApiError> {
     let beg = px_base::get_current_timestamp();
-    let r = gDeviceManager.query_total_used_time().await?;
+    let total_used_time = gDeviceManager.query_total_used_time().await?;
     tracing::info!("used: {}ms", (px_base::get_current_timestamp() - beg));
-    Ok(Json(ok_resp(r)))
+    Ok(Json(ok_resp(total_used_time)))
 }
 
 pub async fn verify_device_info(
@@ -327,10 +327,10 @@ pub async fn update_random_password(
         (String::from("gen_random_pwd"), new_random_pwd.clone()),
     ]);
 
-    let r = gDeviceManager
+    let update_succeeded = gDeviceManager
         .update_device(device_id.clone(), update_info)
         .await?;
-    if !r {
+    if !update_succeeded {
         tracing::error!("update device failed: {}", device_id);
         return Err(ConsoleApiError::DeviceNotFound);
     }
@@ -368,13 +368,13 @@ pub async fn update_safety_password(
 
 pub async fn update_desktop_link(
     State(_context): State<Arc<Mutex<ConsoleContext>>>,
-    b: Body,
+    request_body: Body,
 ) -> Result<Json<RespMessage<ConsoleDevice>>, ConsoleApiError> {
-    let body = get_body(b).await?;
-    let r: Value = serde_json::from_str(body.as_str()).unwrap();
-    let device_id = get_body_str(&r, KEY_DEVICE_ID)?;
-    let desktop_link = get_body_str(&r, KEY_DEVICE_DESKTOP_LINK)?;
-    let desktop_link_raw = get_body_str(&r, KEY_DEVICE_DESKTOP_LINK_RAW)?;
+    let body = get_body(request_body).await?;
+    let request_json: Value = serde_json::from_str(body.as_str()).unwrap();
+    let device_id = get_body_str(&request_json, KEY_DEVICE_ID)?;
+    let desktop_link = get_body_str(&request_json, KEY_DEVICE_DESKTOP_LINK)?;
+    let desktop_link_raw = get_body_str(&request_json, KEY_DEVICE_DESKTOP_LINK_RAW)?;
 
     let _ = gDeviceManager
         .update_device_field(
@@ -398,12 +398,12 @@ pub async fn update_desktop_link(
 
 pub async fn update_device_name(
     State(_context): State<Arc<Mutex<ConsoleContext>>>,
-    b: Body,
+    request_body: Body,
 ) -> Result<Json<RespMessage<ConsoleDevice>>, ConsoleApiError> {
-    let body = get_body(b).await?;
-    let r: Value = serde_json::from_str(body.as_str()).unwrap();
-    let device_id = get_body_str(&r, KEY_DEVICE_ID)?;
-    let device_name = get_body_str(&r, KEY_DEVICE_NAME)?;
+    let body = get_body(request_body).await?;
+    let request_json: Value = serde_json::from_str(body.as_str()).unwrap();
+    let device_id = get_body_str(&request_json, KEY_DEVICE_ID)?;
+    let device_name = get_body_str(&request_json, KEY_DEVICE_NAME)?;
 
     let _ = gDeviceManager
         .update_device_field(device_id.clone(), KEY_DEVICE_NAME.to_string(), device_name)
@@ -439,12 +439,12 @@ pub async fn update_own_device_name(
 
 pub async fn update_device_active(
     State(_context): State<Arc<Mutex<ConsoleContext>>>,
-    b: Body,
+    request_body: Body,
 ) -> Result<Json<RespMessage<ConsoleDevice>>, ConsoleApiError> {
-    let body = get_body(b).await?;
-    let r: Value = serde_json::from_str(body.as_str()).unwrap();
-    let device_id = get_body_str(&r, KEY_DEVICE_ID)?;
-    let active = get_body_bool(&r, KEY_ACTIVE)?;
+    let body = get_body(request_body).await?;
+    let request_json: Value = serde_json::from_str(body.as_str()).unwrap();
+    let device_id = get_body_str(&request_json, KEY_DEVICE_ID)?;
+    let active = get_body_bool(&request_json, KEY_ACTIVE)?;
 
     let _ = gDeviceManager
         .update_device_field(device_id.clone(), KEY_ACTIVE.to_string(), active)
@@ -456,14 +456,14 @@ pub async fn update_device_active(
 
 pub async fn update_remote_session_policy(
     State(_context): State<Arc<Mutex<ConsoleContext>>>,
-    b: Body,
+    request_body: Body,
 ) -> Result<Json<RespMessage<ConsoleDevice>>, ConsoleApiError> {
-    let body = get_body(b).await?;
-    let r: Value =
+    let body = get_body(request_body).await?;
+    let request_json: Value =
         serde_json::from_str(body.as_str()).map_err(|_| ConsoleApiError::InvalidParams)?;
-    let device_id = get_body_str(&r, KEY_DEVICE_ID)?;
-    let allow_observer = get_body_bool(&r, KEY_ALLOW_OBSERVER)?;
-    let allow_takeover = get_body_bool(&r, KEY_ALLOW_TAKEOVER)?;
+    let device_id = get_body_str(&request_json, KEY_DEVICE_ID)?;
+    let allow_observer = get_body_bool(&request_json, KEY_ALLOW_OBSERVER)?;
+    let allow_takeover = get_body_bool(&request_json, KEY_ALLOW_TAKEOVER)?;
     gDeviceManager
         .update_device_field(
             device_id.clone(),
