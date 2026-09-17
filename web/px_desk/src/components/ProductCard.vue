@@ -22,7 +22,7 @@ defineProps<{
     </div>
 
     <ul class="mt-5 flex flex-col gap-2.5">
-      <li v-for="(point, i) in points" :key="i" class="flex items-center gap-2.5 text-sm text-cyber-muted">
+      <li v-for="(point, pointIndex) in points" :key="pointIndex" class="flex items-center gap-2.5 text-sm text-cyber-muted">
         <span class="card-dot"></span>
         <span>{{ point }}</span>
       </li>

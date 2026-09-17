@@ -8,27 +8,27 @@ const props = withDefaults(
 )
 
 const cells = computed(() => {
-  const out: { x: number; y: number }[] = []
+  const filledCells: { x: number; y: number }[] = []
   props.art.forEach((row, y) => {
     for (let x = 0; x < row.length; x++) {
-      if (row[x] === 'x') out.push({ x, y })
+      if (row[x] === 'x') filledCells.push({ x, y })
     }
   })
-  return out
+  return filledCells
 })
 
-const w = computed(() => Math.max(...props.art.map((r) => r.length)))
-const h = computed(() => props.art.length)
+const iconWidth = computed(() => Math.max(...props.art.map((row) => row.length)))
+const iconHeight = computed(() => props.art.length)
 </script>
 
 <template>
   <svg
     :width="size"
     :height="size"
-    :viewBox="`0 0 ${w} ${h}`"
+    :viewBox="`0 0 ${iconWidth} ${iconHeight}`"
     shape-rendering="crispEdges"
     aria-hidden="true"
   >
-    <rect v-for="(c, i) in cells" :key="i" :x="c.x" :y="c.y" width="1" height="1" fill="currentColor" />
+    <rect v-for="(cell, cellIndex) in cells" :key="cellIndex" :x="cell.x" :y="cell.y" width="1" height="1" fill="currentColor" />
   </svg>
 </template>

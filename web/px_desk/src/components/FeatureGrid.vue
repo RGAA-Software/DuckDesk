@@ -12,7 +12,12 @@ defineProps<{
 
 <template>
   <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-    <div v-for="(item, i) in items" :key="i" v-reveal="(i % 4) * 80" class="feature-card cyber-panel p-5">
+    <div
+      v-for="(item, itemIndex) in items"
+      :key="itemIndex"
+      v-reveal="(itemIndex % 4) * 80"
+      class="feature-card cyber-panel p-5"
+    >
       <span class="feature-dot"></span>
       <h3 class="mt-3 font-tech text-sm font-bold tracking-wider text-cyber-text">{{ item.title }}</h3>
       <p class="mt-2 text-xs leading-relaxed text-cyber-muted">{{ item.desc }}</p>

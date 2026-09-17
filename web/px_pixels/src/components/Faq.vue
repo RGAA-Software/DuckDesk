@@ -18,8 +18,8 @@ const activeKey = ref<string[]>(['0'])
       />
 
       <a-collapse v-model:activeKey="activeKey" accordion :bordered="false" class="faq-collapse">
-        <a-collapse-panel v-for="(f, i) in faqs" :key="f.key" :header="t(`faq.items.${f.key}.q`)">
-          <p class="faq-answer">{{ t(`faq.items.${f.key}.a`) }}</p>
+        <a-collapse-panel v-for="faq in faqs" :key="faq.key" :header="t(`faq.items.${faq.key}.q`)">
+          <p class="faq-answer">{{ t(`faq.items.${faq.key}.a`) }}</p>
         </a-collapse-panel>
       </a-collapse>
     </div>

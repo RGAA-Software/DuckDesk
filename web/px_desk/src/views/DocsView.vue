@@ -125,13 +125,17 @@ const goContactUs = () => {
       <h2 class="cyber-title justify-center text-xl md:text-2xl font-bold text-cyber-text">{{ t('docs.platforms') }}</h2>
 
       <div class="mx-auto mt-8 grid max-w-4xl gap-6 sm:grid-cols-3">
-        <div v-for="(group, i) in goxrPlatforms" :key="i" class="cyber-panel p-6">
-          <div class="cyber-label mb-2">// 0{{ i + 1 }}</div>
+        <div v-for="(group, groupIndex) in goxrPlatforms" :key="groupIndex" class="cyber-panel p-6">
+          <div class="cyber-label mb-2">// 0{{ groupIndex + 1 }}</div>
           <h3 class="font-tech text-base font-bold tracking-wider text-cyber-text">{{ group.name }}</h3>
           <div class="mt-4 flex flex-col gap-3">
-            <div v-for="(sys, si) in group.systems" :key="si" class="flex items-center gap-2 text-sm text-cyber-muted">
+            <div
+              v-for="(systemName, systemIndex) in group.systems"
+              :key="systemIndex"
+              class="flex items-center gap-2 text-sm text-cyber-muted"
+            >
               <span class="cyber-dot"></span>
-              <span>{{ sys }}</span>
+              <span>{{ systemName }}</span>
             </div>
           </div>
         </div>
@@ -145,13 +149,17 @@ const goContactUs = () => {
       <h2 class="cyber-title justify-center text-xl md:text-2xl font-bold text-cyber-text">{{ t('docs.platforms') }}</h2>
 
       <div class="mx-auto mt-8 grid max-w-2xl gap-6 sm:grid-cols-2">
-        <div v-for="(group, i) in cmonPlatforms" :key="i" class="cyber-panel p-6">
-          <div class="cyber-label mb-2">// 0{{ i + 1 }}</div>
+        <div v-for="(group, groupIndex) in cmonPlatforms" :key="groupIndex" class="cyber-panel p-6">
+          <div class="cyber-label mb-2">// 0{{ groupIndex + 1 }}</div>
           <h3 class="font-tech text-base font-bold tracking-wider text-cyber-text">{{ group.name }}</h3>
           <div class="mt-4 flex flex-col gap-3">
-            <div v-for="(sys, si) in group.systems" :key="si" class="flex items-center gap-2 text-sm text-cyber-muted">
+            <div
+              v-for="(systemName, systemIndex) in group.systems"
+              :key="systemIndex"
+              class="flex items-center gap-2 text-sm text-cyber-muted"
+            >
               <span class="cyber-dot"></span>
-              <span>{{ sys }}</span>
+              <span>{{ systemName }}</span>
             </div>
           </div>
         </div>

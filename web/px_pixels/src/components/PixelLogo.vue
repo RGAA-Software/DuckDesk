@@ -5,13 +5,13 @@
 withDefaults(defineProps<{ size?: number }>(), { size: 30 })
 
 /* 内容区域：x 82..942, y 91..671 → 居中裁剪 viewBox（上下/左右边距对称，保证视觉居中） */
-const W = 880
-const H = 600
+const LOGO_WIDTH = 880
+const LOGO_HEIGHT = 600
 </script>
 
 <template>
   <svg
-    :width="size * (W / H)"
+    :width="size * (LOGO_WIDTH / LOGO_HEIGHT)"
     :height="size"
     viewBox="72 81 880 600"
     role="img"

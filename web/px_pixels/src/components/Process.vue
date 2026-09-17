@@ -16,8 +16,8 @@ const { t } = useI18n()
       />
 
       <div class="process-row">
-        <div v-for="(step, i) in processSteps" :key="step.key" class="process-step">
-          <span class="step-num px-mono">0{{ i + 1 }}</span>
+        <div v-for="(step, stepIndex) in processSteps" :key="step.key" class="process-step">
+          <span class="step-num px-mono">0{{ stepIndex + 1 }}</span>
           <h3>{{ t(`process.steps.${step.key}.title`) }}</h3>
           <p>{{ t(`process.steps.${step.key}.desc`) }}</p>
         </div>

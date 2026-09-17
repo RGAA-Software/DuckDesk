@@ -24,7 +24,7 @@ const { t } = useI18n()
         <div>
           <h4>{{ t('footer.quickNav') }}</h4>
           <div class="footer-links">
-            <a v-for="n in navItems" :key="n.key" :href="n.href">{{ t(`nav.${n.key}`) }}</a>
+            <a v-for="navItem in navItems" :key="navItem.key" :href="navItem.href">{{ t(`nav.${navItem.key}`) }}</a>
             <a href="#contact">{{ t('nav.contact') }}</a>
           </div>
         </div>

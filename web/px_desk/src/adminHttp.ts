@@ -4,7 +4,7 @@ import { getBaseURL } from "@/http.ts";
 const TOKEN_KEY = "pixels_desk_session";
 
 export const getAdminToken = () => sessionStorage.getItem(TOKEN_KEY) || "";
-export const setAdminToken = (t: string) => sessionStorage.setItem(TOKEN_KEY, t);
+export const setAdminToken = (token: string) => sessionStorage.setItem(TOKEN_KEY, token);
 export const clearAdminToken = () => sessionStorage.removeItem(TOKEN_KEY);
 
 const adminHttp = axios.create({

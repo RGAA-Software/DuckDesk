@@ -17,14 +17,14 @@ const { t } = useI18n()
       />
 
       <div class="coop-grid">
-        <article v-for="c in cooperation" :key="c.key" class="px-card coop-card">
-          <span v-if="c.featured" class="px-badge">{{ t('cooperation.badge') }}</span>
+        <article v-for="cooperationOption in cooperation" :key="cooperationOption.key" class="px-card coop-card">
+          <span v-if="cooperationOption.featured" class="px-badge">{{ t('cooperation.badge') }}</span>
           <div class="coop-icon">
-            <PxIcon :art="c.icon" :size="36" />
+            <PxIcon :art="cooperationOption.icon" :size="36" />
           </div>
-          <h3>{{ t(`cooperation.items.${c.key}.title`) }}</h3>
-          <p class="coop-desc">{{ t(`cooperation.items.${c.key}.desc`) }}</p>
-          <p class="coop-suited">{{ t(`cooperation.items.${c.key}.suited`) }}</p>
+          <h3>{{ t(`cooperation.items.${cooperationOption.key}.title`) }}</h3>
+          <p class="coop-desc">{{ t(`cooperation.items.${cooperationOption.key}.desc`) }}</p>
+          <p class="coop-suited">{{ t(`cooperation.items.${cooperationOption.key}.suited`) }}</p>
         </article>
       </div>
     </div>

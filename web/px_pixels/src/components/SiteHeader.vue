@@ -43,8 +43,8 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
       </a>
 
       <nav class="nav" aria-label="主导航">
-        <a v-for="n in navItems" :key="n.key" class="nav-link" :href="n.href">
-          {{ t(`nav.${n.key}`) }}
+        <a v-for="navItem in navItems" :key="navItem.key" class="nav-link" :href="navItem.href">
+          {{ t(`nav.${navItem.key}`) }}
         </a>
       </nav>
 
@@ -93,13 +93,13 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
       </div>
       <div class="drawer-nav">
         <a
-          v-for="n in navItems"
-          :key="n.key"
+          v-for="navItem in navItems"
+          :key="navItem.key"
           class="drawer-link"
-          :href="n.href"
+          :href="navItem.href"
           @click="drawerOpen = false"
         >
-          {{ t(`nav.${n.key}`) }}
+          {{ t(`nav.${navItem.key}`) }}
         </a>
         <a-button
           type="primary"

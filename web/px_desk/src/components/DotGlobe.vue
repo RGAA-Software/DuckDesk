@@ -44,73 +44,73 @@ const CITY_COORDS: Array<[number, number]> = [
   [55.8, 37.6], // 莫斯科
 ]
 
-let ctx: CanvasRenderingContext2D | null = null
+let drawingContext: CanvasRenderingContext2D | null = null
 let dots: Dot[] = []
 let markers: Marker[] = []
 let arcs: Arc[] = []
-let rafId = 0
-let phi = 0
+let animationFrameId = 0
+let rotationAngle = 0
 let dragging = false
 let lastPointerX = 0
 let canvasSize = 0
 let resizeObserver: ResizeObserver | null = null
-let startTime = 0
+let animationStartTime = 0
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 /** 斐波那契球面均匀采样 */
 function fibonacciSphere(count: number): Dot[] {
   const result: Dot[] = []
   const golden = Math.PI * (3 - Math.sqrt(5))
-  for (let i = 0; i < count; i++) {
-    const y = 1 - (i / (count - 1)) * 2
+  for (let pointIndex = 0; pointIndex < count; pointIndex++) {
+    const y = 1 - (pointIndex / (count - 1)) * 2
     const radius = Math.sqrt(1 - y * y)
-    const theta = golden * i
+    const theta = golden * pointIndex
     result.push({ x: Math.cos(theta) * radius, y, z: Math.sin(theta) * radius })
   }
   return result
 }
 
-function latLonToXYZ(lat: number, lon: number): Dot {
-  const la = (lat * Math.PI) / 180
-  const lo = (lon * Math.PI) / 180
+function latLonToXYZ(latitude: number, longitude: number): Dot {
+  const latitudeRadians = (latitude * Math.PI) / 180
+  const longitudeRadians = (longitude * Math.PI) / 180
   return {
-    x: Math.cos(la) * Math.cos(lo),
-    y: Math.sin(la),
-    z: Math.cos(la) * Math.sin(lo),
+    x: Math.cos(latitudeRadians) * Math.cos(longitudeRadians),
+    y: Math.sin(latitudeRadians),
+    z: Math.cos(latitudeRadians) * Math.sin(longitudeRadians),
   }
 }
 
 /** 用陆地贴图过滤球面点 */
 function loadLandDots(): Promise<Dot[]> {
   return new Promise((resolve) => {
-    const img = new Image()
-    img.onload = () => {
-      const c = document.createElement('canvas')
-      c.width = img.width
-      c.height = img.height
-      const c2d = c.getContext('2d')!
-      c2d.drawImage(img, 0, 0)
-      const data = c2d.getImageData(0, 0, img.width, img.height).data
+    const mapImage = new Image()
+    mapImage.onload = () => {
+      const samplingCanvas = document.createElement('canvas')
+      samplingCanvas.width = mapImage.width
+      samplingCanvas.height = mapImage.height
+      const samplingContext = samplingCanvas.getContext('2d')!
+      samplingContext.drawImage(mapImage, 0, 0)
+      const pixelData = samplingContext.getImageData(0, 0, mapImage.width, mapImage.height).data
 
-      const land = fibonacciSphere(DOT_COUNT).filter((p) => {
-        const lat = (Math.asin(p.y) * 180) / Math.PI
-        const lon = (Math.atan2(p.z, p.x) * 180) / Math.PI
-        const u = Math.min(img.width - 1, Math.max(0, Math.round(((lon + 180) / 360) * img.width)))
-        const v = Math.min(img.height - 1, Math.max(0, Math.round(((90 - lat) / 180) * img.height)))
-        return data[(v * img.width + u) * 4] > 100
+      const land = fibonacciSphere(DOT_COUNT).filter((point) => {
+        const latitude = (Math.asin(point.y) * 180) / Math.PI
+        const longitude = (Math.atan2(point.z, point.x) * 180) / Math.PI
+        const pixelX = Math.min(mapImage.width - 1, Math.max(0, Math.round(((longitude + 180) / 360) * mapImage.width)))
+        const pixelY = Math.min(mapImage.height - 1, Math.max(0, Math.round(((90 - latitude) / 180) * mapImage.height)))
+        return pixelData[(pixelY * mapImage.width + pixelX) * 4] > 100
       })
       resolve(land)
     }
-    img.onerror = () => resolve(fibonacciSphere(DOT_COUNT)) // 兜底：全球点阵
-    img.src = EARTH_MAP_URI
+    mapImage.onerror = () => resolve(fibonacciSphere(DOT_COUNT)) // 兜底：全球点阵
+    mapImage.src = EARTH_MAP_URI
   })
 }
 
 function buildScene(landDots: Dot[]) {
   dots = landDots
-  markers = CITY_COORDS.map(([lat, lon], i) => ({
-    ...latLonToXYZ(lat, lon),
-    phase: i * 0.7,
+  markers = CITY_COORDS.map(([latitude, longitude], cityIndex) => ({
+    ...latLonToXYZ(latitude, longitude),
+    phase: cityIndex * 0.7,
   }))
   // 标记点之间随机连几条飞线
   const pairs: Array<[number, number]> = [
@@ -122,155 +122,163 @@ function buildScene(landDots: Dot[]) {
     [6, 7],
     [0, 9],
   ]
-  arcs = pairs.map(([from, to], i) => ({
+  arcs = pairs.map(([from, to], arcIndex) => ({
     from,
     to,
-    phase: i * 0.9,
-    speed: 0.35 + (i % 3) * 0.12,
+    phase: arcIndex * 0.9,
+    speed: 0.35 + (arcIndex % 3) * 0.12,
   }))
 }
 
 /** 绕 Y 轴旋转并投影 */
-function project(p: Dot, radius: number, cx: number, cy: number) {
-  const cos = Math.cos(phi)
-  const sin = Math.sin(phi)
-  const x = p.x * cos - p.z * sin
-  const z = p.x * sin + p.z * cos
-  return { sx: cx + x * radius, sy: cy - p.y * radius, z }
+function project(point: Dot, radius: number, centerX: number, centerY: number) {
+  const cos = Math.cos(rotationAngle)
+  const sin = Math.sin(rotationAngle)
+  const x = point.x * cos - point.z * sin
+  const z = point.x * sin + point.z * cos
+  return { screenX: centerX + x * radius, screenY: centerY - point.y * radius, z }
 }
 
 /** 球面插值（用于飞线） */
-function slerp(a: Dot, b: Dot, t: number): Dot {
-  const dot = Math.max(-1, Math.min(1, a.x * b.x + a.y * b.y + a.z * b.z))
+function slerp(startPoint: Dot, endPoint: Dot, interpolationRatio: number): Dot {
+  const dot = Math.max(-1, Math.min(1, startPoint.x * endPoint.x + startPoint.y * endPoint.y + startPoint.z * endPoint.z))
   const omega = Math.acos(dot)
-  if (omega < 1e-5) return { ...a }
-  const so = Math.sin(omega)
-  const k0 = Math.sin((1 - t) * omega) / so
-  const k1 = Math.sin(t * omega) / so
+  if (omega < 1e-5) return { ...startPoint }
+  const omegaSine = Math.sin(omega)
+  const startWeight = Math.sin((1 - interpolationRatio) * omega) / omegaSine
+  const endWeight = Math.sin(interpolationRatio * omega) / omegaSine
   return {
-    x: a.x * k0 + b.x * k1,
-    y: a.y * k0 + b.y * k1,
-    z: a.z * k0 + b.z * k1,
+    x: startPoint.x * startWeight + endPoint.x * endWeight,
+    y: startPoint.y * startWeight + endPoint.y * endWeight,
+    z: startPoint.z * startWeight + endPoint.z * endWeight,
   }
 }
 
 function draw(now: number) {
-  if (!ctx || canvasSize === 0) return
-  const dpr = window.devicePixelRatio || 1
-  const w = canvasSize
-  ctx.clearRect(0, 0, w * dpr, w * dpr)
+  if (!drawingContext || canvasSize === 0) return
+  const devicePixelRatio = window.devicePixelRatio || 1
+  const canvasWidth = canvasSize
+  drawingContext.clearRect(0, 0, canvasWidth * devicePixelRatio, canvasWidth * devicePixelRatio)
 
-  const cx = (w * dpr) / 2
-  const cy = (w * dpr) / 2
-  const radius = w * dpr * 0.42
-  const elapsed = (now - startTime) / 1000
+  const centerX = (canvasWidth * devicePixelRatio) / 2
+  const centerY = (canvasWidth * devicePixelRatio) / 2
+  const radius = canvasWidth * devicePixelRatio * 0.42
+  const elapsed = (now - animationStartTime) / 1000
 
   // 陆地采样点
-  for (const p of dots) {
-    const { sx, sy, z } = project(p, radius, cx, cy)
+  for (const point of dots) {
+    const { screenX, screenY, z } = project(point, radius, centerX, centerY)
     const front = z > 0
     const alpha = front ? 0.25 + z * 0.65 : 0.06
-    const size = (front ? 1.1 + z * 0.9 : 0.8) * dpr
-    ctx.beginPath()
-    ctx.fillStyle = `rgba(47, 143, 255, ${alpha.toFixed(3)})`
-    ctx.arc(sx, sy, size, 0, Math.PI * 2)
-    ctx.fill()
+    const size = (front ? 1.1 + z * 0.9 : 0.8) * devicePixelRatio
+    drawingContext.beginPath()
+    drawingContext.fillStyle = `rgba(47, 143, 255, ${alpha.toFixed(3)})`
+    drawingContext.arc(screenX, screenY, size, 0, Math.PI * 2)
+    drawingContext.fill()
   }
 
   // 飞线弧光
   for (const arc of arcs) {
-    const a = markers[arc.from]
-    const b = markers[arc.to]
+    const startMarker = markers[arc.from]
+    const endMarker = markers[arc.to]
     const segments = 42
     const progress = reducedMotion ? 0.5 : ((elapsed * arc.speed + arc.phase) % 1.4) / 1.4
 
-    ctx.beginPath()
+    drawingContext.beginPath()
     let started = false
-    for (let i = 0; i <= segments; i++) {
-      const t = i / segments
-      const point = slerp(a, b, t)
+    for (let segmentIndex = 0; segmentIndex <= segments; segmentIndex++) {
+      const interpolationRatio = segmentIndex / segments
+      const point = slerp(startMarker, endMarker, interpolationRatio)
       // 弧顶抬高
-      const lift = 1 + Math.sin(t * Math.PI) * 0.22
-      const { sx, sy, z } = project(
+      const lift = 1 + Math.sin(interpolationRatio * Math.PI) * 0.22
+      const { screenX, screenY, z } = project(
         { x: point.x * lift, y: point.y * lift, z: point.z * lift },
         radius,
-        cx,
-        cy,
+        centerX,
+        centerY,
       )
       if (z < -0.15) {
         started = false
         continue
       }
       if (!started) {
-        ctx.moveTo(sx, sy)
+        drawingContext.moveTo(screenX, screenY)
         started = true
-      } else {
-        ctx.lineTo(sx, sy)
+      }
+      else {
+        drawingContext.lineTo(screenX, screenY)
       }
     }
-    ctx.strokeStyle = 'rgba(47, 143, 255, 0.22)'
-    ctx.lineWidth = 1.2 * dpr
-    ctx.stroke()
+    drawingContext.strokeStyle = 'rgba(47, 143, 255, 0.22)'
+    drawingContext.lineWidth = 1.2 * devicePixelRatio
+    drawingContext.stroke()
 
     // 飞线上的移动亮点
     if (progress <= 1) {
-      const head = slerp(a, b, progress)
+      const head = slerp(startMarker, endMarker, progress)
       const lift = 1 + Math.sin(progress * Math.PI) * 0.22
-      const { sx, sy, z } = project(
+      const { screenX, screenY, z } = project(
         { x: head.x * lift, y: head.y * lift, z: head.z * lift },
         radius,
-        cx,
-        cy,
+        centerX,
+        centerY,
       )
       if (z > -0.15) {
-        const gradient = ctx.createRadialGradient(sx, sy, 0, sx, sy, 6 * dpr)
+        const gradient = drawingContext.createRadialGradient(
+          screenX,
+          screenY,
+          0,
+          screenX,
+          screenY,
+          6 * devicePixelRatio,
+        )
         gradient.addColorStop(0, 'rgba(109, 179, 255, 0.9)')
         gradient.addColorStop(1, 'rgba(109, 179, 255, 0)')
-        ctx.beginPath()
-        ctx.fillStyle = gradient
-        ctx.arc(sx, sy, 6 * dpr, 0, Math.PI * 2)
-        ctx.fill()
+        drawingContext.beginPath()
+        drawingContext.fillStyle = gradient
+        drawingContext.arc(screenX, screenY, 6 * devicePixelRatio, 0, Math.PI * 2)
+        drawingContext.fill()
       }
     }
   }
 
   // 城市标记 + 脉冲
-  for (const m of markers) {
-    const { sx, sy, z } = project(m, radius, cx, cy)
+  for (const marker of markers) {
+    const { screenX, screenY, z } = project(marker, radius, centerX, centerY)
     if (z < 0) continue
 
-    ctx.beginPath()
-    ctx.fillStyle = `rgba(109, 179, 255, ${(0.5 + z * 0.5).toFixed(3)})`
-    ctx.arc(sx, sy, 2.4 * dpr, 0, Math.PI * 2)
-    ctx.fill()
+    drawingContext.beginPath()
+    drawingContext.fillStyle = `rgba(109, 179, 255, ${(0.5 + z * 0.5).toFixed(3)})`
+    drawingContext.arc(screenX, screenY, 2.4 * devicePixelRatio, 0, Math.PI * 2)
+    drawingContext.fill()
 
-    const pulse = reducedMotion ? 0.5 : (elapsed * 0.6 + m.phase) % 1
-    ctx.beginPath()
-    ctx.strokeStyle = `rgba(109, 179, 255, ${((1 - pulse) * 0.5 * z).toFixed(3)})`
-    ctx.lineWidth = 1 * dpr
-    ctx.arc(sx, sy, (2.4 + pulse * 10) * dpr, 0, Math.PI * 2)
-    ctx.stroke()
+    const pulse = reducedMotion ? 0.5 : (elapsed * 0.6 + marker.phase) % 1
+    drawingContext.beginPath()
+    drawingContext.strokeStyle = `rgba(109, 179, 255, ${((1 - pulse) * 0.5 * z).toFixed(3)})`
+    drawingContext.lineWidth = 1 * devicePixelRatio
+    drawingContext.arc(screenX, screenY, (2.4 + pulse * 10) * devicePixelRatio, 0, Math.PI * 2)
+    drawingContext.stroke()
   }
 }
 
 function animate(now: number) {
   if (!dragging) {
-    phi += 0.004
+    rotationAngle += 0.004
   }
   draw(now)
-  rafId = requestAnimationFrame(animate)
+  animationFrameId = requestAnimationFrame(animate)
 }
 
-function onPointerDown(e: PointerEvent) {
+function onPointerDown(event: PointerEvent) {
   dragging = true
-  lastPointerX = e.clientX
-  canvasRef.value?.setPointerCapture(e.pointerId)
+  lastPointerX = event.clientX
+  canvasRef.value?.setPointerCapture(event.pointerId)
 }
 
-function onPointerMove(e: PointerEvent) {
+function onPointerMove(event: PointerEvent) {
   if (!dragging) return
-  phi += (e.clientX - lastPointerX) * 0.005
-  lastPointerX = e.clientX
+  rotationAngle += (event.clientX - lastPointerX) * 0.005
+  lastPointerX = event.clientX
 }
 
 function onPointerUp() {
@@ -280,16 +288,16 @@ function onPointerUp() {
 function onResize() {
   const canvas = canvasRef.value
   if (!canvas) return
-  const dpr = window.devicePixelRatio || 1
+  const devicePixelRatio = window.devicePixelRatio || 1
   canvasSize = canvas.offsetWidth
-  canvas.width = canvasSize * dpr
-  canvas.height = canvasSize * dpr
+  canvas.width = canvasSize * devicePixelRatio
+  canvas.height = canvasSize * devicePixelRatio
 }
 
 onMounted(async () => {
   const canvas = canvasRef.value
   if (!canvas) return
-  ctx = canvas.getContext('2d')
+  drawingContext = canvas.getContext('2d')
 
   resizeObserver = new ResizeObserver(onResize)
   resizeObserver.observe(canvas)
@@ -298,17 +306,18 @@ onMounted(async () => {
   buildScene(await loadLandDots())
 
   if (reducedMotion) {
-    phi = 0.8
+    rotationAngle = 0.8
     draw(performance.now())
-  } else {
-    startTime = performance.now()
-    rafId = requestAnimationFrame(animate)
+  }
+  else {
+    animationStartTime = performance.now()
+    animationFrameId = requestAnimationFrame(animate)
   }
   canvas.style.opacity = '1'
 })
 
 onBeforeUnmount(() => {
-  cancelAnimationFrame(rafId)
+  cancelAnimationFrame(animationFrameId)
   resizeObserver?.disconnect()
 })
 </script>

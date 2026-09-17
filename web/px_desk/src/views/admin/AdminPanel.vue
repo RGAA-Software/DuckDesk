@@ -204,14 +204,14 @@ onMounted(() => {
 
                 <div class="flex gap-2">
                     <button
-                        v-for="f in filters"
-                        :key="f.key"
+                        v-for="filter in filters"
+                        :key="filter.key"
                         :disabled="loading"
                         class="cyber-tab !h-8 !px-4 !text-[11px]"
-                        :class="{ 'cyber-tab-active': activeFilter === f.key }"
-                        @click="switchFilter(f.key)"
+                        :class="{ 'cyber-tab-active': activeFilter === filter.key }"
+                        @click="switchFilter(filter.key)"
                     >
-                        {{ f.label }}
+                        {{ filter.label }}
                     </button>
                 </div>
             </div>

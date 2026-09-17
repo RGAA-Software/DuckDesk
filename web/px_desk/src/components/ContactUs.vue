@@ -50,7 +50,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-    (e: "update:modelValue", value: boolean): void;
+    (eventName: "update:modelValue", value: boolean): void;
 }>();
 
 // 内部代理状态（关键）

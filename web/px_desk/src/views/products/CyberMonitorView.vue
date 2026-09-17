@@ -19,7 +19,7 @@ interface KV {
 }
 
 const features = computed(() =>
-  (tm('products.cybermonitor.features') as KV[]).map((f) => ({ title: f.title ?? '', desc: f.desc })),
+  (tm('products.cybermonitor.features') as KV[]).map((feature) => ({ title: feature.title ?? '', desc: feature.desc })),
 )
 const chClient = computed(() => tm('products.cybermonitor.chClient') as KV)
 const chHost = computed(() => tm('products.cybermonitor.chHost') as KV)
@@ -78,7 +78,12 @@ const scenes = computed(() => tm('products.cybermonitor.scenes') as string[])
     <!-- 适用场景 -->
     <ProductSection index="04" :title="t('products.common.scenes')">
       <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <div v-for="(scene, i) in scenes" :key="i" v-reveal="i * 80" class="scene-card cyber-panel p-5 text-center">
+        <div
+          v-for="(scene, sceneIndex) in scenes"
+          :key="sceneIndex"
+          v-reveal="sceneIndex * 80"
+          class="scene-card cyber-panel p-5 text-center"
+        >
           <span class="font-tech text-sm font-bold tracking-wider text-cyber-text">{{ scene }}</span>
         </div>
       </div>

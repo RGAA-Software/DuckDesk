@@ -189,12 +189,12 @@ async function confirmIssue() {
                     <template #dropdown>
                         <el-dropdown-menu>
                             <el-dropdown-item
-                                v-for="p in productItems"
-                                :key="p.path"
-                                :command="p.path"
+                                v-for="product in productItems"
+                                :key="product.path"
+                                :command="product.path"
                             >
-                                <img :src="p.logo" :alt="p.label" />
-                                <span>{{ p.label }}</span>
+                                <img :src="product.logo" :alt="product.label" />
+                                <span>{{ product.label }}</span>
                             </el-dropdown-item>
                         </el-dropdown-menu>
                     </template>
@@ -251,14 +251,14 @@ async function confirmIssue() {
 
             <div class="cyber-label px-4 pt-2">{{ t("nav.products") }}</div>
             <button
-                v-for="p in productItems"
-                :key="p.path"
+                v-for="product in productItems"
+                :key="product.path"
                 class="nav-item font-tech text-left !px-4 !py-3 flex items-center gap-2.5"
-                :class="isActive(p.path) ? 'nav-item-active' : ''"
-                @click="goProduct(p.path)"
+                :class="isActive(product.path) ? 'nav-item-active' : ''"
+                @click="goProduct(product.path)"
             >
-                <img :src="p.logo" :alt="p.label" class="h-4.5 w-4.5" />
-                {{ p.label }}
+                <img :src="product.logo" :alt="product.label" class="h-4.5 w-4.5" />
+                {{ product.label }}
             </button>
 
             <button

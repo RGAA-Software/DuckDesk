@@ -17,15 +17,15 @@ const { t } = useI18n()
       />
 
       <div class="services-grid">
-        <article v-for="s in services" :key="s.key" class="px-card service-card">
+        <article v-for="service in services" :key="service.key" class="px-card service-card">
           <div class="service-icon">
-            <PxIcon :art="s.icon" />
+            <PxIcon :art="service.icon" />
           </div>
-          <h3>{{ t(`services.items.${s.key}.title`) }}</h3>
-          <p class="service-lead">{{ t(`services.items.${s.key}.lead`) }}</p>
+          <h3>{{ t(`services.items.${service.key}.title`) }}</h3>
+          <p class="service-lead">{{ t(`services.items.${service.key}.lead`) }}</p>
           <ul class="service-points">
-            <li v-for="i in servicePointCount" :key="i">
-              {{ t(`services.items.${s.key}.points.${i - 1}`) }}
+            <li v-for="pointNumber in servicePointCount" :key="pointNumber">
+              {{ t(`services.items.${service.key}.points.${pointNumber - 1}`) }}
             </li>
           </ul>
         </article>

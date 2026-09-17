@@ -11,10 +11,10 @@ function detect(): boolean {
 
 const isDark = ref(detect())
 
-watch(isDark, (v) => {
-  document.documentElement.dataset.theme = v ? 'dark' : 'light'
+watch(isDark, (darkThemeEnabled) => {
+  document.documentElement.dataset.theme = darkThemeEnabled ? 'dark' : 'light'
   try {
-    localStorage.setItem(STORAGE_KEY, v ? 'dark' : 'light')
+    localStorage.setItem(STORAGE_KEY, darkThemeEnabled ? 'dark' : 'light')
   } catch {
     /* 隐私模式下忽略 */
   }

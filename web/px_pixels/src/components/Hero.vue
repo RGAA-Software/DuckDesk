@@ -7,12 +7,12 @@ const { t } = useI18n()
 
 /* Hero 像素插画数据：云朵（24px 方块）× 6 行 */
 const cloudBlocks = [
-  { x: 112, y: 0, w: 96, h: 24 },
-  { x: 64, y: 24, w: 192, h: 24 },
-  { x: 40, y: 48, w: 240, h: 24 },
-  { x: 16, y: 72, w: 288, h: 24 },
-  { x: 16, y: 96, w: 288, h: 24 },
-  { x: 40, y: 120, w: 240, h: 24 },
+  { x: 112, y: 0, width: 96, height: 24 },
+  { x: 64, y: 24, width: 192, height: 24 },
+  { x: 40, y: 48, width: 240, height: 24 },
+  { x: 16, y: 72, width: 288, height: 24 },
+  { x: 16, y: 96, width: 288, height: 24 },
+  { x: 40, y: 120, width: 240, height: 24 },
 ]
 
 /* ---------- 终端动态打字机 ---------- */
@@ -20,7 +20,7 @@ const cloudBlocks = [
    文案保持简短（≤ 21 字符），避免超出终端宽度 */
 interface TermLine {
   text: string
-  out?: boolean
+  isOutput?: boolean
 }
 
 const terminalScripts: { input: string; output: string }[] = [
@@ -36,16 +36,16 @@ const displayLines = computed(() => termLines.value.slice(-3))
 
 let timers: number[] = []
 
-function schedule(fn: () => void, ms: number) {
-  timers.push(window.setTimeout(fn, ms))
+function schedule(callback: () => void, delayMilliseconds: number) {
+  timers.push(window.setTimeout(callback, delayMilliseconds))
 }
 
-function typeLine(line: string, index: number, done: () => void) {
+function typeLine(line: string, index: number, onComplete: () => void) {
   termTyping.value = line.slice(0, index)
   if (index < line.length) {
-    schedule(() => typeLine(line, index + 1, done), 80)
+    schedule(() => typeLine(line, index + 1, onComplete), 80)
   } else {
-    schedule(done, 300)
+    schedule(onComplete, 300)
   }
 }
 
@@ -59,19 +59,19 @@ function runTerminal(step: number) {
     }, 900)
     return
   }
-  const s = terminalScripts[step]
-  typeLine(s.input, 1, () => {
-    termLines.value = [...termLines.value, { text: s.input }]
+  const terminalScript = terminalScripts[step]
+  typeLine(terminalScript.input, 1, () => {
+    termLines.value = [...termLines.value, { text: terminalScript.input }]
     termTyping.value = ''
     schedule(() => {
-      termLines.value = [...termLines.value, { text: s.output, out: true }]
+      termLines.value = [...termLines.value, { text: terminalScript.output, isOutput: true }]
       schedule(() => runTerminal(step + 1), 1000)
     }, 400)
   })
 }
 
 onMounted(() => runTerminal(0))
-onBeforeUnmount(() => timers.forEach((id) => window.clearTimeout(id)))
+onBeforeUnmount(() => timers.forEach((timeoutId) => window.clearTimeout(timeoutId)))
 </script>
 
 <template>
@@ -89,9 +89,9 @@ onBeforeUnmount(() => timers.forEach((id) => window.clearTimeout(id)))
           <a-button size="large" class="hero-btn-ghost" href="#contact">{{ t('hero.btnContact') }}</a-button>
         </div>
         <div class="hero-stats">
-          <div v-for="s in stats" :key="s.labelKey" class="stat">
-            <b class="px-mono">{{ s.value }}</b>
-            <span>{{ t(`stats.${s.labelKey}`) }}</span>
+          <div v-for="stat in stats" :key="stat.labelKey" class="stat">
+            <b class="px-mono">{{ stat.value }}</b>
+            <span>{{ t(`stats.${stat.labelKey}`) }}</span>
           </div>
         </div>
       </div>
@@ -100,7 +100,14 @@ onBeforeUnmount(() => timers.forEach((id) => window.clearTimeout(id)))
         <svg viewBox="0 0 320 340" role="img" aria-label="PIXELS 渲染插画">
           <!-- 像素云朵 -->
           <g fill="#00b96b">
-            <rect v-for="(b, i) in cloudBlocks" :key="i" :x="b.x" :y="b.y" :width="b.w" :height="b.h" />
+            <rect
+              v-for="(cloudBlock, blockIndex) in cloudBlocks"
+              :key="blockIndex"
+              :x="cloudBlock.x"
+              :y="cloudBlock.y"
+              :width="cloudBlock.width"
+              :height="cloudBlock.height"
+            />
           </g>
           <rect x="40" y="120" width="240" height="24" fill="#00a05c" />
 
@@ -130,15 +137,15 @@ onBeforeUnmount(() => timers.forEach((id) => window.clearTimeout(id)))
           </text>
           <!-- 终端动态输出（打字机效果） -->
           <text
-            v-for="(l, i) in displayLines"
-            :key="`${i}-${l.text}`"
+            v-for="(terminalLine, lineIndex) in displayLines"
+            :key="`${lineIndex}-${terminalLine.text}`"
             x="40"
-            :y="220 + i * 22"
+            :y="220 + lineIndex * 22"
             font-family="'SFMono-Regular', Consolas, monospace"
             font-size="13"
-            :fill="l.out ? '#8cf0be' : '#eafcf2'"
+            :fill="terminalLine.isOutput ? '#8cf0be' : '#eafcf2'"
           >
-            {{ l.text }}
+            {{ terminalLine.text }}
           </text>
           <text
             x="40"
@@ -161,7 +168,7 @@ onBeforeUnmount(() => timers.forEach((id) => window.clearTimeout(id)))
     </div>
 
     <div class="container">
-      <div class="px-stairs"><i v-for="n in 7" :key="n"></i></div>
+      <div class="px-stairs"><i v-for="stepNumber in 7" :key="stepNumber"></i></div>
     </div>
   </section>
 </template>

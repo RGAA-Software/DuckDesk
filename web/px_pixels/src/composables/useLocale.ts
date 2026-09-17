@@ -9,11 +9,11 @@ export function useLocale() {
 
   const isZh = computed(() => locale.value === 'zh-CN')
 
-  function setLocale(l: Locale) {
-    locale.value = l
-    document.documentElement.lang = l
+  function setLocale(selectedLocale: Locale) {
+    locale.value = selectedLocale
+    document.documentElement.lang = selectedLocale
     try {
-      localStorage.setItem(STORAGE_KEY, l)
+      localStorage.setItem(STORAGE_KEY, selectedLocale)
     } catch {
       /* 隐私模式下忽略 */
     }

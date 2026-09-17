@@ -84,7 +84,7 @@ const kpis = computed(() => tm('hero.kpis') as Array<{ num: string; label: strin
 
 const industryItems = computed(() => {
   const names = tm('industries.items') as string[]
-  return names.map((name, i) => ({ name, image: industryImages[i] }))
+  return names.map((name, industryIndex) => ({ name, image: industryImages[industryIndex] }))
 })
 
 function downloadKuaKe() {
@@ -157,9 +157,9 @@ const goContactUs = () => {
       <div class="cyber-label mb-4 text-center">// FEATURES</div>
       <div class="grid items-stretch gap-5 sm:grid-cols-2 lg:grid-cols-3">
         <div
-          v-for="(section, si) in sections"
+          v-for="(section, sectionIndex) in sections"
           :key="section.key"
-          v-reveal="(si % 3) * 100"
+          v-reveal="(sectionIndex % 3) * 100"
           class="feature-card cyber-panel flex flex-col p-6"
         >
           <div class="flex items-center gap-4">
@@ -170,7 +170,7 @@ const goContactUs = () => {
           </div>
 
           <ul class="mt-5 flex flex-col gap-4">
-            <li v-for="(item, i) in featureItems(`features.${section.key}.items`)" :key="i">
+            <li v-for="(item, itemIndex) in featureItems(`features.${section.key}.items`)" :key="itemIndex">
               <div class="flex items-center gap-2.5">
                 <span class="cyber-dot"></span>
                 <span class="font-tech text-sm font-bold tracking-wider text-cyber-text">{{ item.title }}</span>

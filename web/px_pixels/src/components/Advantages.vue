@@ -17,13 +17,13 @@ const { t } = useI18n()
       />
 
       <div class="adv-grid">
-        <article v-for="a in advantages" :key="a.key" class="px-card adv-card">
+        <article v-for="advantage in advantages" :key="advantage.key" class="px-card adv-card">
           <div class="adv-icon">
-            <PxIcon :art="a.icon" :size="34" />
+            <PxIcon :art="advantage.icon" :size="34" />
           </div>
           <div>
-            <h3>{{ t(`advantages.items.${a.key}.title`) }}</h3>
-            <p>{{ t(`advantages.items.${a.key}.desc`) }}</p>
+            <h3>{{ t(`advantages.items.${advantage.key}.title`) }}</h3>
+            <p>{{ t(`advantages.items.${advantage.key}.desc`) }}</p>
           </div>
         </article>
       </div>

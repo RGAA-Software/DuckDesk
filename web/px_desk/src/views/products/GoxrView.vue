@@ -21,7 +21,7 @@ interface KV {
 
 const pillars = computed(() => tm('products.goxr.pillars') as KV[])
 const features = computed(() =>
-  (tm('products.goxr.features') as KV[]).map((f) => ({ title: f.title ?? '', desc: f.desc })),
+  (tm('products.goxr.features') as KV[]).map((feature) => ({ title: feature.title ?? '', desc: feature.desc })),
 )
 const diffs = computed(() => tm('products.goxr.diffs') as KV[])
 const scenes = computed(() => tm('products.goxr.scenes') as string[])
@@ -51,9 +51,14 @@ const goContactUs = () => {
     <!-- 三端架构 -->
     <ProductSection index="01" :title="t('products.goxr.archTitle')">
       <div class="grid gap-4 md:grid-cols-3">
-        <div v-for="(pillar, i) in pillars" :key="i" v-reveal="i * 120" class="pillar-card cyber-panel p-6">
+        <div
+          v-for="(pillar, pillarIndex) in pillars"
+          :key="pillarIndex"
+          v-reveal="pillarIndex * 120"
+          class="pillar-card cyber-panel p-6"
+        >
           <div class="flex items-center gap-3">
-            <span class="pillar-num font-tech">0{{ i + 1 }}</span>
+            <span class="pillar-num font-tech">0{{ pillarIndex + 1 }}</span>
             <h3 class="font-tech text-base font-bold tracking-wider text-cyber-text">{{ pillar.name }}</h3>
           </div>
           <p class="mt-3 text-sm leading-relaxed text-cyber-muted">{{ pillar.desc }}</p>
@@ -70,9 +75,9 @@ const goContactUs = () => {
     <ProductSection index="03" :title="t('products.goxr.diffTitle')">
       <div class="flex flex-col gap-4">
         <div
-          v-for="(diff, i) in diffs"
-          :key="i"
-          v-reveal="i * 100"
+          v-for="(diff, differenceIndex) in diffs"
+          :key="differenceIndex"
+          v-reveal="differenceIndex * 100"
           class="cyber-panel flex flex-col gap-2 p-5 md:flex-row md:items-center md:gap-6"
         >
           <h3 class="diff-title shrink-0 font-tech text-sm font-bold tracking-wider md:w-64">{{ diff.title }}</h3>
@@ -96,7 +101,12 @@ const goContactUs = () => {
     <!-- 适用场景 -->
     <ProductSection index="05" :title="t('products.common.scenes')">
       <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <div v-for="(scene, i) in scenes" :key="i" v-reveal="i * 80" class="scene-card cyber-panel p-5 text-center">
+        <div
+          v-for="(scene, sceneIndex) in scenes"
+          :key="sceneIndex"
+          v-reveal="sceneIndex * 80"
+          class="scene-card cyber-panel p-5 text-center"
+        >
           <span class="font-tech text-sm font-bold tracking-wider text-cyber-text">{{ scene }}</span>
         </div>
       </div>

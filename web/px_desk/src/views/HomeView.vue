@@ -30,10 +30,10 @@ const PRODUCT_META: Record<string, { logo: string; accent: string; path: string;
 }
 
 const cards = computed(() =>
-  (tm('portal.cards') as PortalCard[]).map((c) => ({
-    ...c,
-    name: t(`productNames.${c.key}`),
-    ...PRODUCT_META[c.key],
+  (tm('portal.cards') as PortalCard[]).map((card) => ({
+    ...card,
+    name: t(`productNames.${card.key}`),
+    ...PRODUCT_META[card.key],
   })),
 )
 
@@ -94,9 +94,9 @@ const goContactUs = () => {
 
     <div class="mt-8 grid gap-5 md:grid-cols-3">
       <ProductCard
-        v-for="(card, i) in cards"
+        v-for="(card, cardIndex) in cards"
         :key="card.key"
-        v-reveal="i * 120"
+        v-reveal="cardIndex * 120"
         :logo="card.logo"
         :name="card.name"
         :tagline="card.tagline"
@@ -117,21 +117,25 @@ const goContactUs = () => {
 
     <div class="mt-10 flex flex-col gap-14 md:gap-20">
       <div
-        v-for="(card, i) in cards"
+        v-for="(card, cardIndex) in cards"
         :key="card.key"
         v-reveal
         class="flex flex-col items-center gap-8 md:gap-14"
-        :class="i % 2 === 1 ? 'md:flex-row-reverse' : 'md:flex-row'"
+        :class="cardIndex % 2 === 1 ? 'md:flex-row-reverse' : 'md:flex-row'"
         :style="{ '--pa': card.accent }"
       >
         <!-- 文案 -->
         <div class="w-full md:w-2/5">
-          <div class="cyber-label mb-3">// 0{{ i + 1 }}</div>
+          <div class="cyber-label mb-3">// 0{{ cardIndex + 1 }}</div>
           <h3 class="font-tech text-2xl font-bold tracking-[0.1em] text-cyber-text uppercase">{{ card.name }}</h3>
           <p class="mt-3 text-sm leading-relaxed text-cyber-muted">{{ card.tagline }}</p>
 
           <ul class="mt-5 flex flex-col gap-2.5">
-            <li v-for="(point, pi) in card.points" :key="pi" class="flex items-center gap-2.5 text-sm text-cyber-muted">
+            <li
+              v-for="(point, pointIndex) in card.points"
+              :key="pointIndex"
+              class="flex items-center gap-2.5 text-sm text-cyber-muted"
+            >
               <span class="inline-block h-1.5 w-1.5" :style="{ background: card.accent }"></span>
               <span>{{ point }}</span>
             </li>

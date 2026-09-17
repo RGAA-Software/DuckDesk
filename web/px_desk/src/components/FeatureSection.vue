@@ -33,7 +33,7 @@ const props = withDefaults(
         <h2 class="cyber-title text-2xl md:text-3xl font-bold text-cyber-text">{{ props.title }}</h2>
 
         <ul class="mt-7 flex flex-col gap-5">
-          <li v-for="(item, i) in props.items" :key="i">
+          <li v-for="(item, itemIndex) in props.items" :key="itemIndex">
             <div class="flex items-center gap-3">
               <span class="cyber-dot"></span>
               <span class="font-tech text-base font-bold tracking-wider text-cyber-text">{{ item.title }}</span>
