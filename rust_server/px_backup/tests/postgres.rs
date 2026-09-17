@@ -1,6 +1,6 @@
 use px_backup::{
     BackupError, BackupPlan, BackupRepository, BackupRunner, BackupService, BackupTarget,
-    DatabaseTarget, LogicalBackupTool, RecoverySetKind, RestoreDatabaseTarget,
+    DatabaseTarget, LogicalBackupTool, RecoverySetKind, RecoverySetStatus, RestoreDatabaseTarget,
     RestoreExecutionPlan, RestoreExecutionReport, RestoreOperatorProvisionPlan, RetentionClass,
 };
 use serde::Serialize;
@@ -295,7 +295,7 @@ fn file_sha256(path: &Path) -> String {
 }
 
 #[test]
-fn real_three_database_archives_publish_restore_and_detect_tampering() {
+fn real_three_database_archives_restore_from_offsite_after_source_loss_and_detect_tampering() {
     assert_eq!(env::var("PIXELS_PG_ISOLATED_TEST").as_deref(), Ok("1"));
     let container = env::var("PIXELS_TEST_CONTAINER").unwrap();
     let deployment_id = env::var("PIXELS_DEPLOYMENT_ID")
@@ -321,7 +321,24 @@ fn real_three_database_archives_publish_restore_and_detect_tampering() {
         .run(&repository, &plan)
         .unwrap();
     assert_eq!(repository.manifests().unwrap(), vec![manifest.clone()]);
-    let set_directory = fixture.root.join(manifest.recovery_set_id.to_string());
+    let offsite_root = fixture._base.path().join("offsite-sets");
+    fs::create_dir(&offsite_root).unwrap();
+    make_private(&offsite_root);
+    let offsite_repository = BackupRepository::open(&offsite_root, deployment_id).unwrap();
+    let offsite_manifest = repository
+        .replicate_verified_to(&offsite_repository, manifest.recovery_set_id)
+        .unwrap();
+    assert_eq!(offsite_manifest.status, RecoverySetStatus::OffsiteVerified);
+    assert_eq!(
+        offsite_repository.manifests().unwrap(),
+        vec![offsite_manifest]
+    );
+    drop(offsite_repository);
+    drop(repository);
+    let unavailable_source_root = fixture._base.path().join("source-host-unavailable");
+    fs::rename(&fixture.root, &unavailable_source_root).unwrap();
+    assert!(!fixture.root.exists());
+    let set_directory = offsite_root.join(manifest.recovery_set_id.to_string());
     let admin_password = env::var("PIXELS_TEST_PG_ADMIN_PASSWORD").unwrap();
     assert_eq!(admin_password.len(), 64);
     assert!(admin_password
@@ -512,7 +529,7 @@ fn real_three_database_archives_publish_restore_and_detect_tampering() {
     let report_path = fixture._base.path().join("restore-report.json");
     let restore_config = RestoreExecutionCommandFixture {
         schema_version: 1,
-        repository_root: fixture.root.clone(),
+        repository_root: offsite_root.clone(),
         report_path: report_path.clone(),
         plan: RestoreExecutionPlan {
             deployment_id,
@@ -534,7 +551,6 @@ fn real_three_database_archives_publish_restore_and_detect_tampering() {
         &serde_json::to_vec(&restore_config).unwrap(),
     )
     .unwrap();
-    drop(repository);
     let restore_output = Command::new(env!("CARGO_BIN_EXE_px_backup"))
         .args(["restore-execute", restore_config_path.to_str().unwrap()])
         .stdin(Stdio::null())
@@ -592,6 +608,7 @@ fn real_three_database_archives_publish_restore_and_detect_tampering() {
         .unwrap()
         .write_all(b"tampered")
         .unwrap();
-    let repository = BackupRepository::open(&fixture.root, deployment_id).unwrap();
+    assert!(!fixture.root.exists());
+    let repository = BackupRepository::open(&offsite_root, deployment_id).unwrap();
     assert!(repository.manifests().is_err());
 }
