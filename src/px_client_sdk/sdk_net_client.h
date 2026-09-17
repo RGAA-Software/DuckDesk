@@ -49,25 +49,28 @@ class NetClient : public std::enable_shared_from_this<NetClient> {
     void Start();
     void Exit();
 
-    void PostMediaMessage(std::shared_ptr<Data> msg);
-    [[nodiscard]] bool PostReliableControlMessage(std::shared_ptr<Data> msg);
-    void PostRdpMessage(std::shared_ptr<Data> msg, std::function<void(bool)> completion);
+    void PostMediaMessage(std::shared_ptr<Data> payload);
+    [[nodiscard]] bool PostReliableControlMessage(
+        std::shared_ptr<Data> payload);
+    void PostRdpMessage(std::shared_ptr<Data> payload,
+                        std::function<void(bool)> completion);
     // Configure before Start. Runtime receive dispatch snapshots this callback under its own mutex.
     void SetOnRdpMessageCallback(std::function<void(std::shared_ptr<Data>)> callback);
     [[nodiscard]] bool PostVoiceAudioMessage(const std::shared_ptr<Message>& message);
-    [[nodiscard]] FileTransferSendResult PostFileTransferMessage(std::shared_ptr<Data> msg);
+    [[nodiscard]] FileTransferSendResult PostFileTransferMessage(
+        std::shared_ptr<Data> payload);
 
-    void SetOnVideoFrameMsgCallback(OnVideoFrameMsgCallback&& cbk);
-    void SetOnAudioFrameMsgCallback(OnAudioFrameMsgCallback&& cbk);
-    void SetOnCursorInfoSyncMsgCallback(OnCursorInfoSyncMsgCallback&& cbk);
-    void SetOnAudioSpectrumCallback(OnAudioSpectrumCallback&& cbk);
-    void SetOnConnectCallback(OnConnectedCallback&& cbk);
-    void SetOnDisconnectedCallback(OnDisconnectedCallback&& cbk);
-    void SetOnHeartBeatCallback(OnHeartBeatInfoCallback&& cbk);
-    void SetOnClipboardCallback(OnClipboardInfoCallback&& cbk);
-    void SetOnServerConfigurationCallback(OnConfigCallback&& cbk);
-    void SetOnMonitorSwitchedCallback(OnMonitorSwitchedCallback&& cbk);
-    void SetOnRawMessageCallback(OnRawMessageCallback&& cbk);
+    void SetOnVideoFrameMsgCallback(OnVideoFrameMsgCallback&& callback);
+    void SetOnAudioFrameMsgCallback(OnAudioFrameMsgCallback&& callback);
+    void SetOnCursorInfoSyncMsgCallback(OnCursorInfoSyncMsgCallback&& callback);
+    void SetOnAudioSpectrumCallback(OnAudioSpectrumCallback&& callback);
+    void SetOnConnectCallback(OnConnectedCallback&& callback);
+    void SetOnDisconnectedCallback(OnDisconnectedCallback&& callback);
+    void SetOnHeartBeatCallback(OnHeartBeatInfoCallback&& callback);
+    void SetOnClipboardCallback(OnClipboardInfoCallback&& callback);
+    void SetOnServerConfigurationCallback(OnConfigCallback&& callback);
+    void SetOnMonitorSwitchedCallback(OnMonitorSwitchedCallback&& callback);
+    void SetOnRawMessageCallback(OnRawMessageCallback&& callback);
 
     int64_t GetQueuingMediaMsgCount();
     int64_t GetQueuingFtMsgCount();
@@ -75,21 +78,27 @@ class NetClient : public std::enable_shared_from_this<NetClient> {
     void On16msTimeout();
 
   private:
-    std::shared_ptr<px::Message> ParseMessage(std::shared_ptr<Data> msg);
-    void HeartBeat();
-    void CheckUdpMediaProbeTimeout();
-    void OnUdpMediaReady();
-    void ReportUdpMediaUnavailable();
-    void StartUdpDirectMedia();
-    void StartFileTransferConnection();
-    [[nodiscard]] std::string MakeAuthenticatedWebSocketPath(std::string path) const;
-    std::shared_ptr<Connection> MakeDirectWebSocketMediaConnection() const;
-    void StartManagedUdpMediaConnection(const std::shared_ptr<Connection>& connection, uint64_t generation);
-    [[nodiscard]] bool IsCurrentManagedMediaConnection(uint64_t generation) const;
-    [[nodiscard]] std::shared_ptr<Connection> CurrentMediaConnection() const;
-    void ReplaceMediaConnection(std::shared_ptr<Connection> connection);
-    [[nodiscard]] std::shared_ptr<UdpDirectConnection> CurrentUdpDirectConnection() const;
-    void ReplaceUdpDirectConnection(std::shared_ptr<UdpDirectConnection> connection);
+   std::shared_ptr<px::Message> ParseMessage(
+       std::shared_ptr<Data> serialized_message);
+   void HeartBeat();
+   void CheckUdpMediaProbeTimeout();
+   void OnUdpMediaReady();
+   void ReportUdpMediaUnavailable();
+   void StartUdpDirectMedia();
+   void StartFileTransferConnection();
+   [[nodiscard]] std::string MakeAuthenticatedWebSocketPath(
+       std::string path) const;
+   std::shared_ptr<Connection> MakeDirectWebSocketMediaConnection() const;
+   void StartManagedUdpMediaConnection(
+       const std::shared_ptr<Connection>& connection, uint64_t generation);
+   [[nodiscard]] bool IsCurrentManagedMediaConnection(
+       uint64_t generation) const;
+   [[nodiscard]] std::shared_ptr<Connection> CurrentMediaConnection() const;
+   void ReplaceMediaConnection(std::shared_ptr<Connection> connection);
+   [[nodiscard]] std::shared_ptr<UdpDirectConnection>
+   CurrentUdpDirectConnection() const;
+   void ReplaceUdpDirectConnection(
+       std::shared_ptr<UdpDirectConnection> connection);
 
   private:
     mutable std::mutex media_connection_mutex_;

@@ -42,9 +42,9 @@ std::vector<Packet> AudioPacketizer::Push(std::span<const std::uint8_t> opus, st
     std::ranges::fill(shard, 0);
     wire::Put(shard, 0, opus.size(), 2);
     std::ranges::copy(opus, shard.begin() + 2);
-    auto data = MakeRtp(kAudioPayloadType, sequence_, timestamp_);
-    data.insert(data.end(), shard.begin(), shard.end());
-    output.push_back(WrapMedia(MediaKind::kAudio, 0, data));
+    auto rtp_packet = MakeRtp(kAudioPayloadType, sequence_, timestamp_);
+    rtp_packet.insert(rtp_packet.end(), shard.begin(), shard.end());
+    output.push_back(WrapMedia(MediaKind::kAudio, 0, rtp_packet));
     if (sequence_ % 4 == 3 && NanorsCodec::Encode(shards_, 4, FecProfile::kAudio4Plus2)) {
         for (std::size_t index{}; index < 2; ++index) {
             auto parity = MakeRtp(kFecPayloadType, static_cast<std::uint16_t>(sequence_ + index + 1), 0);
@@ -95,14 +95,14 @@ AudioQueueOutput AudioReceiveQueue::Feed(std::span<const std::uint8_t> rtp, std:
         output.rejected = true;
         return output;
     }
-    const bool data = rtp[1] == kAudioPayloadType;
+    const bool is_data_packet = rtp[1] == kAudioPayloadType;
     const auto sequence = static_cast<std::uint16_t>(wire::Get(rtp, 2, 2));
     auto base = static_cast<std::uint16_t>(sequence / 4 * 4);
     auto timestamp = static_cast<std::uint32_t>(wire::Get(rtp, 4, 4) - (sequence - base) * kAudioPacketDurationMs);
     auto ssrc = static_cast<std::uint32_t>(wire::Get(rtp, 8, 4));
     std::size_t index = sequence % 4;
     std::size_t offset = kAudioRtpHeader;
-    if (!data) {
+    if (!is_data_packet) {
         if (rtp.size() <= kAudioRtpHeader + kAudioFecHeader || rtp[12] >= 2 || rtp[13] != kAudioPayloadType || wire::Get(rtp, 14, 2) % 4 != 0) {
             output.rejected = true;
             return output;
@@ -118,10 +118,10 @@ AudioQueueOutput AudioReceiveQueue::Feed(std::span<const std::uint8_t> rtp, std:
         next_ = *oldest_;
         return output; // Like Moonlight, start on the next group rather than declare losses from a partial initial group.
     }
-    if (data && !synchronizing_ && Before(sequence, *oldest_)) {
+    if (is_data_packet && !synchronizing_ && Before(sequence, *oldest_)) {
         last_oos_ = sequence;
         received_oos_ = true;
-    } else if (data && received_oos_ && Before(*oldest_, last_oos_)) {
+    } else if (is_data_packet && received_oos_ && Before(*oldest_, last_oos_)) {
         received_oos_ = false;
     }
     if (Before(base, *oldest_))
@@ -150,7 +150,7 @@ AudioQueueOutput AudioReceiveQueue::Feed(std::span<const std::uint8_t> rtp, std:
     block.shards[index].assign(rtp.begin() + offset, rtp.end());
     block.missing[index] = 0;
     ++block.received;
-    if (data) {
+    if (is_data_packet) {
         ++block.data_received;
         if (sequence == next_) {
             output.packets.push_back({sequence, block.shards[index]});

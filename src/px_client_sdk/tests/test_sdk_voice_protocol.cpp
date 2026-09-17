@@ -51,11 +51,11 @@ TEST(SdkVoiceProtocol, VoiceFrameIsNotDesktopAudioFrame) {
 
 TEST(SdkVoiceProtocol, NativeRequestIdsAreNeverZeroAndAreUnique) {
     VoiceCallRequestSequence sequence{};
-    const auto a = sequence.Next();
-    const auto b = sequence.Next();
-    EXPECT_NE(a, 0u);
-    EXPECT_NE(b, 0u);
-    EXPECT_NE(a, b);
+    const auto first_request_id = sequence.Next();
+    const auto second_request_id = sequence.Next();
+    EXPECT_NE(first_request_id, 0u);
+    EXPECT_NE(second_request_id, 0u);
+    EXPECT_NE(first_request_id, second_request_id);
 }
 
 TEST(SdkVoiceProtocol, RejectionPreservesRequestIdentityAndReason) {

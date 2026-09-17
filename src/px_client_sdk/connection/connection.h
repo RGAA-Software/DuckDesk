@@ -5,11 +5,13 @@
 #ifndef PIXELSPC_CONNECTION_H
 #define PIXELSPC_CONNECTION_H
 
-#include <string>
-#include <functional>
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <mutex>
+#include <string>
+#include <utility>
+
 #include "px_common/file_transfer_send_result.h"
 
 namespace px
@@ -28,28 +30,30 @@ namespace px
 
         virtual ~Connection();
 
-        void RegisterOnConnectedCallback(OnConnectedCallback&& cbk) {
-            conn_cbk_ = cbk;
+        void RegisterOnConnectedCallback(OnConnectedCallback&& callback) {
+            conn_cbk_ = std::move(callback);
         }
 
-        void RegisterOnDisConnectedCallback(OnDisConnectedCallback&& cbk) {
-            dis_conn_cbk_ = cbk;
+        void RegisterOnDisConnectedCallback(OnDisConnectedCallback&& callback) {
+            dis_conn_cbk_ = std::move(callback);
         }
 
-        void RegisterOnMessageCallback(OnMessageCallback&& cbk) {
-            msg_cbk_ = cbk;
+        void RegisterOnMessageCallback(OnMessageCallback&& callback) {
+            msg_cbk_ = std::move(callback);
         }
 
         virtual void Start();
         virtual void Stop();
-        virtual void PostBinaryMessage(std::shared_ptr<Data> msg) = 0;
+        virtual void PostBinaryMessage(std::shared_ptr<Data> payload) = 0;
         // Reliable protocol streams require a real write completion. Unsupported transports fail explicitly.
         virtual void PostReliableBinaryMessage(std::shared_ptr<Data>, std::function<void(bool)> completion) {
             if (completion) {
                 completion(false);
             }
         }
-        virtual void PostTextMessage(const std::string& msg) {}
+        virtual void PostTextMessage(const std::string& message) {
+            static_cast<void>(message);
+        }
         virtual int64_t GetQueuingMsgCount();
         virtual void RequestPauseStream() {}
         virtual void RequestResumeStream() {}

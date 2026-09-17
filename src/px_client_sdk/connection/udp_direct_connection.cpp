@@ -42,9 +42,9 @@ void UdpDirectConnection::OnAudioFrame(const media::AudioDelivery& frame) {
     }
     if (stopped_)
         return;
-    auto msg = std::make_shared<px::Message>();
-    msg->set_type(px::kAudioFrame);
-    auto& audio = *msg->mutable_audio_frame();
+    auto audio_message = std::make_shared<px::Message>();
+    audio_message->set_type(px::kAudioFrame);
+    auto& audio = *audio_message->mutable_audio_frame();
     audio.set_samples(48000);
     audio.set_channels(2);
     audio.set_bits(16);
@@ -52,7 +52,7 @@ void UdpDirectConnection::OnAudioFrame(const media::AudioDelivery& frame) {
     if (payload)
         audio.set_data(payload->data(), payload->size());
     audio.set_extra(lost ? "udp_lost" : "udp_synth");
-    audio_msg_cbk_(msg);
+    audio_msg_cbk_(audio_message);
 }
 
 void UdpDirectConnection::Start(const std::string& host, int udp_port, const std::string& stream_id, const std::string& association_code) {
@@ -183,9 +183,9 @@ void UdpDirectConnection::Start(const std::string& host, int udp_port, const std
                 self->dis_conn_cbk_();
             }
         })
-        .bind_recv([weak_self](std::string_view data) {
+        .bind_recv([weak_self](std::string_view packet) {
             if (const auto self = weak_self.lock())
-                self->OnUdpPacket(std::span<const char>{data});
+                self->OnUdpPacket(std::span<const char>{packet});
         });
 
     udp_client_->async_start(host_, udp_port_);
@@ -204,14 +204,15 @@ void UdpDirectConnection::Stop() {
     }
 }
 
-void UdpDirectConnection::PostBinaryMessage(std::shared_ptr<Data> msg) {
+void UdpDirectConnection::PostBinaryMessage(std::shared_ptr<Data> payload) {
     if (!stopped_ && udp_client_ && udp_client_->is_started()) {
         queuing_message_count_++;
         const auto weak_self = weak_from_this();
-        udp_client_->async_send(msg->Bytes().data(), msg->Size(), [weak_self, msg]() {
-            if (const auto self = weak_self.lock())
-                self->queuing_message_count_--;
-        });
+        udp_client_->async_send(payload->Bytes().data(), payload->Size(),
+                                [weak_self, payload]() {
+                                    if (const auto self = weak_self.lock())
+                                        self->queuing_message_count_--;
+                                });
     }
 }
 
@@ -241,7 +242,7 @@ bool UdpDirectConnection::PostVoiceFrame(const std::string& call_id, std::uint32
     return true;
 }
 
-void UdpDirectConnection::OnUdpPacket(std::span<const char> data) {
+void UdpDirectConnection::OnUdpPacket(std::span<const char> packet) {
     if (stopped_) {
         return;
     }
@@ -250,9 +251,10 @@ void UdpDirectConnection::OnUdpPacket(std::span<const char> data) {
         std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
     if (!media_window_.start_us)
         media_window_.start_us = now_us;
-    auto total = ++recv_pkt_count_;
-    auto pkt_type = PxUdpProtocol::ParseCommon(data);
-    const auto datagram = media::ParseMedia(std::span<const std::uint8_t>{reinterpret_cast<const std::uint8_t*>(data.data()), data.size()});
+    const auto total_packet_count = ++recv_pkt_count_;
+    const auto packet_type = PxUdpProtocol::ParseCommon(packet);
+    const auto datagram = media::ParseMedia(std::span<const std::uint8_t>{
+        reinterpret_cast<const std::uint8_t*>(packet.data()), packet.size()});
     if (datagram && datagram->kind == media::MediaKind::kVideo) {
         RestoreReachability();
         const auto identity = media::InspectVideoPacket(*datagram);
@@ -265,27 +267,27 @@ void UdpDirectConnection::OnUdpPacket(std::span<const char> data) {
         }
         received_media_packet_ = true;
         recv_video_pkt_count_++;
-        auto result = video_receiver_.Feed(*datagram, now_us);
-        if (result.statistics)
-            receive_statistics_[datagram->stream] = *result.statistics;
-        media_window_.recovered_shards += result.recovered;
-        media_window_.losses += result.losses.size();
-        if (result.rejected) {
+        auto receive_result = video_receiver_.Feed(*datagram, now_us);
+        if (receive_result.statistics)
+            receive_statistics_[datagram->stream] = *receive_result.statistics;
+        media_window_.recovered_shards += receive_result.recovered;
+        media_window_.losses += receive_result.losses.size();
+        if (receive_result.rejected) {
             malformed_video_pkt_count_++;
         }
-        if (result.needs_idr) {
+        if (receive_result.needs_idr) {
             const auto now_ms = TimeUtil::GetCurrentTimestamp();
             if (now_ms - last_idr_request_ms_.load() >= kIdrThrottleMs) {
                 last_idr_request_ms_ = now_ms;
                 ++media_window_.idr_requests;
                 RequestIdr("");
             }
-        } else if (result.invalid_reference_frame) {
+        } else if (receive_result.invalid_reference_frame) {
             // Invalidate after the last delivered encoder timestamp, never using the independent RTP frame number.
-            RequestRfi(*result.invalid_reference_frame, "");
+            RequestRfi(*receive_result.invalid_reference_frame, "");
             ++media_window_.rfi_requests;
         }
-        if (result.frame) {
+        if (receive_result.frame) {
             ++media_window_.frames;
             if (last_delivered_us_) {
                 const auto gap = now_us - last_delivered_us_;
@@ -293,44 +295,61 @@ void UdpDirectConnection::OnUdpPacket(std::span<const char> data) {
                 if (gap > 100000) {
                     ++media_window_.gaps_over_100ms;
                     if (identity) {
-                        LOGW("UDP timing frame_gap: steady_us={}, gap_us={}, stream={}, trigger={}/{}/{}, encoder_frame={}, recovered={}", now_us,
-                             gap, identity->stream, identity->frame, identity->block, identity->shard, result.frame->frame_index, result.recovered);
+                        LOGW(
+                            "UDP timing frame_gap: steady_us={}, gap_us={}, "
+                            "stream={}, trigger={}/{}/{}, encoder_frame={}, "
+                            "recovered={}",
+                            now_us, gap, identity->stream, identity->frame,
+                            identity->block, identity->shard,
+                            receive_result.frame->frame_index,
+                            receive_result.recovered);
                     }
                 }
             }
             last_delivered_us_ = now_us;
-            PostBinaryMessage(PxUdpProtocol::BuildFrameStatus(static_cast<std::uint32_t>(result.frame->frame_index), 1,
-                                                              static_cast<std::uint16_t>(result.recovered)));
-            OnCompleteFrame(*result.frame);
+            PostBinaryMessage(PxUdpProtocol::BuildFrameStatus(
+                static_cast<std::uint32_t>(receive_result.frame->frame_index),
+                1, static_cast<std::uint16_t>(receive_result.recovered)));
+            OnCompleteFrame(*receive_result.frame);
         }
         const auto elapsed_us = media::MediaSteadyMicros() - now_us;
         if (elapsed_us > 5000 && identity) {
-            LOGW("UDP timing receive_work: steady_us={}, elapsed_us={}, stream={}, trigger={}/{}/{}, delivered={}, rejected={}", now_us, elapsed_us,
-                 identity->stream, identity->frame, identity->block, identity->shard, result.frame.has_value(), result.rejected);
+            LOGW(
+                "UDP timing receive_work: steady_us={}, elapsed_us={}, "
+                "stream={}, trigger={}/{}/{}, delivered={}, rejected={}",
+                now_us, elapsed_us, identity->stream, identity->frame,
+                identity->block, identity->shard,
+                receive_result.frame.has_value(), receive_result.rejected);
         }
     } else if (datagram && datagram->kind == media::MediaKind::kAudio) {
         RestoreReachability();
         received_media_packet_ = true;
-        auto result = audio_receiver_.Feed(datagram->payload, now_us);
-        for (const auto& frame : result.packets) {
+        auto receive_result = audio_receiver_.Feed(datagram->payload, now_us);
+        for (const auto& frame : receive_result.packets) {
             OnAudioFrame(frame);
         }
-    } else if (pkt_type == PxUdpProtocol::kPktVoice) {
-        auto frame = UdpVoiceProtocol::Parse(data);
-        if (frame && frame->association_code == association_code_ && voice_frame_cbk_) {
+    } else if (packet_type == PxUdpProtocol::kPktVoice) {
+        auto voice_frame = UdpVoiceProtocol::Parse(packet);
+        if (voice_frame && voice_frame->association_code == association_code_ &&
+            voice_frame_cbk_) {
             RestoreReachability();
             received_media_packet_ = true;
-            voice_frame_cbk_(std::move(*frame));
+            voice_frame_cbk_(std::move(*voice_frame));
         }
-    } else if (pkt_type == PxUdpProtocol::kPktCtrl) {
-        std::string s1, s2;
-        auto subtype = PxUdpProtocol::ParseCtrl(data, s1, s2);
-        if (subtype == PxUdpProtocol::kCtrlKick) {
-            LOGW("Udp direct kicked by render, reason: {}", s1);
+    } else if (packet_type == PxUdpProtocol::kPktCtrl) {
+        std::string control_primary_argument;
+        std::string control_secondary_argument;
+        const auto control_subtype = PxUdpProtocol::ParseCtrl(
+            packet, control_primary_argument, control_secondary_argument);
+        static_cast<void>(control_secondary_argument);
+        if (control_subtype == PxUdpProtocol::kCtrlKick) {
+            LOGW("Udp direct kicked by render, reason: {}",
+                 control_primary_argument);
             if (on_kick_cbk_) {
-                on_kick_cbk_(s1);
+                on_kick_cbk_(control_primary_argument);
             }
-        } else if (subtype == PxUdpProtocol::kCtrlHeartbeat && s1 == association_code_) {
+        } else if (control_subtype == PxUdpProtocol::kCtrlHeartbeat &&
+                   control_primary_argument == association_code_) {
             RestoreReachability();
         }
     }
@@ -342,16 +361,25 @@ void UdpDirectConnection::OnUdpPacket(std::span<const char> data) {
              window.recovered_shards, window.losses, window.idr_requests, window.rfi_requests, window.audio_plc);
         media_window_ = {};
         media_window_.start_us = now_us;
-        for (const auto& [stream, stats] : receive_statistics_) {
-            LOGI("UDP video totals: stream={}, data={}, parity={}, duplicates={}, late={}, reordered={}, recovered={}, complete={}, "
-                 "predicted={}, corrected={}, final_loss_events={}, unrecoverable={}, malformed={}",
-                 stream, stats.data_packets, stats.parity_packets, stats.duplicates, stats.late_packets, stats.reordered_packets,
-                 stats.recovered_data, stats.completed_frames, stats.predicted_losses, stats.prediction_corrections, stats.final_loss_events,
-                 stats.unrecoverable_frames, stats.malformed_packets);
+        for (const auto& [stream, statistics] : receive_statistics_) {
+            LOGI(
+                "UDP video totals: stream={}, data={}, parity={}, "
+                "duplicates={}, late={}, reordered={}, recovered={}, "
+                "complete={}, "
+                "predicted={}, corrected={}, final_loss_events={}, "
+                "unrecoverable={}, malformed={}",
+                stream, statistics.data_packets, statistics.parity_packets,
+                statistics.duplicates, statistics.late_packets,
+                statistics.reordered_packets, statistics.recovered_data,
+                statistics.completed_frames, statistics.predicted_losses,
+                statistics.prediction_corrections, statistics.final_loss_events,
+                statistics.unrecoverable_frames, statistics.malformed_packets);
         }
     }
-    if (total == 1 || total % 500 == 0) {
-        LOGI("udp recv pkt total={}, video={}, malformed_video={}", total, recv_video_pkt_count_.load(), malformed_video_pkt_count_.load());
+    if (total_packet_count == 1 || total_packet_count % 500 == 0) {
+        LOGI("udp recv pkt total={}, video={}, malformed_video={}",
+             total_packet_count, recv_video_pkt_count_.load(),
+             malformed_video_pkt_count_.load());
     }
 }
 
@@ -373,9 +401,9 @@ void UdpDirectConnection::OnCompleteFrame(const media::VideoFrame& frame) {
 
     // 合成与 relay/ws 路径完全一致的标准 kVideoFrame proto,
     // 让 sdk 的按屏解码链原样接上(reassembler 保证首帧必为 IDR)
-    auto msg = std::make_shared<px::Message>();
-    msg->set_type(px::kVideoFrame);
-    auto& video = *msg->mutable_video_frame();
+    auto video_message = std::make_shared<px::Message>();
+    video_message->set_type(px::kVideoFrame);
+    auto& video = *video_message->mutable_video_frame();
     video.set_type(frame.codec == media::VideoCodec::kH265 ? px::kNetHevc : px::kNetH264);
     video.set_data(frame.encoded.data(), frame.encoded.size());
     video.set_frame_index(frame.frame_index);
@@ -387,43 +415,53 @@ void UdpDirectConnection::OnCompleteFrame(const media::VideoFrame& frame) {
     // debug 标记:区分 UDP 合成帧与其它 kVideoFrame 来源(参照 webrtc_local 的 rtc_synth)
     video.set_extra("udp_synth");
 
-    video_msg_cbk_(msg);
+    video_msg_cbk_(video_message);
 }
 
-void UdpDirectConnection::RequestIdr(const std::string& mon_name) {
-    this->PostBinaryMessage(PxUdpProtocol::BuildIdrRequest(mon_name));
+void UdpDirectConnection::RequestIdr(const std::string& monitor_name) {
+    this->PostBinaryMessage(PxUdpProtocol::BuildIdrRequest(monitor_name));
 }
 
-void UdpDirectConnection::RequestIdrKeepalive(const std::string& mon_name) {
-    this->PostBinaryMessage(PxUdpProtocol::BuildIdrKeepalive(mon_name));
+void UdpDirectConnection::RequestIdrKeepalive(const std::string& monitor_name) {
+    this->PostBinaryMessage(PxUdpProtocol::BuildIdrKeepalive(monitor_name));
 }
 
-void UdpDirectConnection::RequestRfi(uint64_t invalid_frame_index, const std::string& mon_name) {
-    this->PostBinaryMessage(PxUdpProtocol::BuildRfi(invalid_frame_index, mon_name));
+void UdpDirectConnection::RequestRfi(uint64_t invalid_frame_index,
+                                     const std::string& monitor_name) {
+    this->PostBinaryMessage(
+        PxUdpProtocol::BuildRfi(invalid_frame_index, monitor_name));
 }
 
 void UdpDirectConnection::CheckNeedIdr() {
     if (stopped_ || !connected_) {
         return;
     }
-    auto now = TimeUtil::GetCurrentTimestamp();
-    auto last_frame = last_video_frame_ms_.load();
+    const auto current_time_ms = TimeUtil::GetCurrentTimestamp();
+    const auto last_frame_time_ms = last_video_frame_ms_.load();
 
     // Retry the initial key frame quickly; after playback starts, tolerate a longer transient gap.
-    const auto timeout = last_frame == 0 ? kInitialFrameTimeoutMs : kNoFrameTimeoutMs;
-    if (last_frame != 0 && now - last_frame < timeout) {
+    const auto timeout_ms =
+        last_frame_time_ms == 0 ? kInitialFrameTimeoutMs : kNoFrameTimeoutMs;
+    if (last_frame_time_ms != 0 &&
+        current_time_ms - last_frame_time_ms < timeout_ms) {
         return;
     }
     // 1s 节流,防止关键帧风暴
-    auto last_idr = last_idr_request_ms_.load();
-    if (now - last_idr < kIdrThrottleMs) {
+    const auto last_idr_request_time_ms = last_idr_request_ms_.load();
+    if (current_time_ms - last_idr_request_time_ms < kIdrThrottleMs) {
         return;
     }
-    last_idr_request_ms_ = now;
-    if (last_frame == 0) {
-        LOGW("Udp direct has no initial complete video frame for >{}ms; request IDR. now={}", timeout, now);
+    last_idr_request_ms_ = current_time_ms;
+    if (last_frame_time_ms == 0) {
+        LOGW(
+            "Udp direct has no initial complete video frame for >{}ms; request "
+            "IDR. now={}",
+            timeout_ms, current_time_ms);
     } else {
-        LOGI("Udp direct static/recovery refresh after {}ms without a new complete frame.", timeout);
+        LOGI(
+            "Udp direct static/recovery refresh after {}ms without a new "
+            "complete frame.",
+            timeout_ms);
     }
     this->RequestIdrKeepalive("");
 }
@@ -432,9 +470,13 @@ void UdpDirectConnection::CheckWatchdog() {
     if (stopped_ || !connected_) {
         return;
     }
-    auto idle = TimeUtil::GetCurrentTimestamp() - last_recv_ms_.load();
-    if (idle > kWatchdogTimeoutMs) {
-        LOGW("Udp direct watchdog timeout, no udp packet for {}ms, report disconnected.", idle);
+    const auto idle_time_ms =
+        TimeUtil::GetCurrentTimestamp() - last_recv_ms_.load();
+    if (idle_time_ms > kWatchdogTimeoutMs) {
+        LOGW(
+            "Udp direct watchdog timeout, no udp packet for {}ms, report "
+            "disconnected.",
+            idle_time_ms);
         connected_ = false;
         media_ready_reported_ = false;
         if (!disconn_reported_.exchange(true) && dis_conn_cbk_) {
@@ -457,20 +499,24 @@ void UdpDirectConnection::RestoreReachability() {
     }
 }
 
-void UdpDirectConnection::SetOnVideoMessageCallback(const std::function<void(std::shared_ptr<px::Message>)>& cbk) {
-    video_msg_cbk_ = cbk;
+void UdpDirectConnection::SetOnVideoMessageCallback(
+    const std::function<void(std::shared_ptr<px::Message>)>& callback) {
+    video_msg_cbk_ = callback;
 }
 
-void UdpDirectConnection::SetOnAudioMessageCallback(const std::function<void(std::shared_ptr<px::Message>)>& cbk) {
-    audio_msg_cbk_ = cbk;
+void UdpDirectConnection::SetOnAudioMessageCallback(
+    const std::function<void(std::shared_ptr<px::Message>)>& callback) {
+    audio_msg_cbk_ = callback;
 }
 
-void UdpDirectConnection::SetOnKickCallback(std::function<void(const std::string& reason)> cbk) {
-    on_kick_cbk_ = std::move(cbk);
+void UdpDirectConnection::SetOnKickCallback(
+    std::function<void(const std::string& reason)> callback) {
+    on_kick_cbk_ = std::move(callback);
 }
 
-void UdpDirectConnection::SetOnMediaReadyCallback(std::function<void()> cbk) {
-    media_ready_cbk_ = std::move(cbk);
+void UdpDirectConnection::SetOnMediaReadyCallback(
+    std::function<void()> callback) {
+    media_ready_cbk_ = std::move(callback);
 }
 
 bool UdpDirectConnection::IsAlive() {

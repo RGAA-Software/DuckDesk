@@ -24,11 +24,13 @@ namespace px
     }
 
     std::map<std::string, std::vector<float>> SdkStatistics::GetDecodeDurations() {
-        std::map<std::string, std::vector<float>> dss;
-        decode_durations_.ApplyAll([&](const std::string& k, const std::vector<float>& ds) {
-            dss.insert({k, ds});
+        std::map<std::string, std::vector<float>> decode_durations;
+        decode_durations_.ApplyAll([&](const std::string& monitor_name,
+                                       const std::vector<float>&
+                                           monitor_decode_durations) {
+            decode_durations.insert({monitor_name, monitor_decode_durations});
         });
-        return dss;
+        return decode_durations;
     }
 
     void SdkStatistics::AppendVideoRecvGap(const std::string& monitor_name, int32_t time) {
@@ -42,9 +44,11 @@ namespace px
 
     std::map<std::string, std::vector<float>> SdkStatistics::GetVideoRecvGaps() {
         std::map<std::string, std::vector<float>> gaps;
-        video_recv_gaps_.ApplyAll([&](const std::string& k, const std::vector<float>& ds) {
-            gaps.insert({k, ds});
-        });
+        video_recv_gaps_.ApplyAll(
+            [&](const std::string& monitor_name,
+                const std::vector<float>& monitor_receive_gaps) {
+                gaps.insert({monitor_name, monitor_receive_gaps});
+            });
         return gaps;
     }
 
@@ -89,28 +93,33 @@ namespace px
     }
 
     std::map<std::string, SdkStatFrameSize> SdkStatistics::GetFramesSize() {
-        std::map<std::string, SdkStatFrameSize> r;
-        frames_size_.VisitAll([&](auto k, auto& v) {
-            r.insert({k, v});
-        });
-        return r;
+        std::map<std::string, SdkStatFrameSize> frame_sizes;
+        frames_size_.VisitAll(
+            [&](const auto& monitor_name, const auto& frame_size) {
+                frame_sizes.insert({monitor_name, frame_size});
+            });
+        return frame_sizes;
     }
 
     void SdkStatistics::CalculateDataSpeed() {
         if (recv_data_size_ >= last_recv_data_size_) {
-            auto diff = (recv_data_size_ - last_recv_data_size_)*1.0;
-            diff /= (1024*1024);
+            auto received_megabytes =
+                (recv_data_size_ - last_recv_data_size_) * 1.0;
+            received_megabytes /= (1024 * 1024);
             last_recv_data_size_ = recv_data_size_.load();
-            recv_data_speeds_.PushBack(NumFormatter::Round2DecimalPlaces((float)diff));
+            recv_data_speeds_.PushBack(NumFormatter::Round2DecimalPlaces(
+                static_cast<float>(received_megabytes)));
             if (recv_data_speeds_.Size() > kMaxStatCounts) {
                 recv_data_speeds_.RemoveFirst();
             }
         }
         if (send_data_size_ >= last_send_data_size_) {
-            auto diff = (send_data_size_ - last_send_data_size_)*1.0;
-            diff /= (1024*1024);
+            auto sent_megabytes =
+                (send_data_size_ - last_send_data_size_) * 1.0;
+            sent_megabytes /= (1024 * 1024);
             last_send_data_size_ = send_data_size_.load();
-            send_data_speeds_.PushBack(NumFormatter::Round2DecimalPlaces((float)diff));
+            send_data_speeds_.PushBack(NumFormatter::Round2DecimalPlaces(
+                static_cast<float>(sent_megabytes)));
             if (send_data_speeds_.Size() > kMaxStatCounts) {
                 send_data_speeds_.RemoveFirst();
             }
@@ -118,28 +127,33 @@ namespace px
     }
 
     void SdkStatistics::CalculateVideoFrameFps() {
-        std::map<std::string, int> monitor_fps;
-        fps_video_recv_.VisitAll([&](auto mon_name, auto& fps_stat) {
-            auto value = fps_stat->value();
-            monitor_fps.insert({mon_name, value});
-        });
+        std::map<std::string, int> frames_per_second_by_monitor;
+        fps_video_recv_.VisitAll(
+            [&](const auto& monitor_name, const auto& fps_statistics) {
+                const auto frames_per_second = fps_statistics->value();
+                frames_per_second_by_monitor.insert(
+                    {monitor_name, frames_per_second});
+            });
 
-        for (const auto& [mon_name, value] : monitor_fps) {
-            auto fps = video_recv_fps_.TryGet(mon_name).value_or(std::vector<float>{});
-            fps.push_back((float)value);
-            if (fps.size() > kMaxStatCounts) {
-                fps.erase(fps.begin());
+        for (const auto& [monitor_name, frames_per_second] :
+             frames_per_second_by_monitor) {
+            auto fps_history = video_recv_fps_.TryGet(monitor_name)
+                                   .value_or(std::vector<float>{});
+            fps_history.push_back(static_cast<float>(frames_per_second));
+            if (fps_history.size() > kMaxStatCounts) {
+                fps_history.erase(fps_history.begin());
             }
-            video_recv_fps_.Replace(mon_name, fps);
+            video_recv_fps_.Replace(monitor_name, fps_history);
         }
     }
 
     std::map<std::string, std::vector<float>> SdkStatistics::GetVideoRecvFps() {
-        std::map<std::string, std::vector<float>> r;
-        video_recv_fps_.VisitAll([&](auto k, auto& v) {
-            r.insert({k, v});
-        });
-        return r;
+        std::map<std::string, std::vector<float>> video_receive_fps;
+        video_recv_fps_.VisitAll(
+            [&](const auto& monitor_name, const auto& fps_history) {
+                video_receive_fps.insert({monitor_name, fps_history});
+            });
+        return video_receive_fps;
     }
 
     std::vector<float> SdkStatistics::GetRecvDataSpeeds() {
@@ -167,15 +181,18 @@ namespace px
     }
 
     std::map<std::string, IsolatedMonitorStatisticsInfoInRender> SdkStatistics::GetRenderMonitorsStat() {
-        std::map<std::string, IsolatedMonitorStatisticsInfoInRender> stats;
-        render_monitor_stat_.VisitAll([&](auto k, auto& v) {
-            stats.insert({k, v});
-        });
-        return stats;
+        std::map<std::string, IsolatedMonitorStatisticsInfoInRender>
+            monitor_statistics;
+        render_monitor_stat_.VisitAll(
+            [&](const auto& monitor_name, const auto& statistics) {
+                monitor_statistics.insert({monitor_name, statistics});
+            });
+        return monitor_statistics;
     }
 
-    void SdkStatistics::UpdateIsolatedMonitorStatisticsInfoInRender(const std::string& mon_name, const IsolatedMonitorStatisticsInfoInRender& info) {
-        render_monitor_stat_.Replace(mon_name, info);
+    void SdkStatistics::UpdateIsolatedMonitorStatisticsInfoInRender(
+        const std::string& monitor_name,
+        const IsolatedMonitorStatisticsInfoInRender& statistics) {
+        render_monitor_stat_.Replace(monitor_name, statistics);
     }
-
 }

@@ -87,7 +87,8 @@ void WsConnection::Start() {
                         current->ws_stream().set_option(websocket::stream_base::decorator(
                             [](websocket::request_type& request) { request.set(http::field::authorization, "websocket-client-authorization"); }));
                     })
-                    .bind_connect([weak_self, weak_client, supervisor, generation]() {
+                    .bind_connect([weak_self, weak_client, supervisor,
+                                   generation]() {
                         const auto self = weak_self.lock();
                         const auto current = weak_client.lock();
                         if (!self || !current || self->exiting_.load(std::memory_order_acquire)) {
@@ -119,13 +120,14 @@ void WsConnection::Start() {
                             static_cast<void>(supervisor->MarkReady(generation));
                         }
                     })
-                    .bind_recv([weak_self, supervisor, generation](std::string_view data) {
+                    .bind_recv([weak_self, supervisor,
+                                generation](std::string_view payload) {
                         const auto self = weak_self.lock();
                         if (!self || self->exiting_.load(std::memory_order_acquire) || self->terminal_rejection_.load(std::memory_order_acquire) ||
                             !CanDeliverSdkWebSocketMessage(supervisor, generation)) {
                             return;
                         }
-                        const auto rejection = ParseWsControlRejection(data);
+                        const auto rejection = ParseWsControlRejection(payload);
                         if (rejection != WsControlRejection::kNone) {
                             self->terminal_rejection_.store(true, std::memory_order_release);
                             LOGW("event=transport.connection_rejected component=sdk_ws code=SDK_WEBSOCKET_SESSION_REJECTED "
@@ -138,7 +140,7 @@ void WsConnection::Start() {
                             return;
                         }
                         if (self->msg_cbk_) {
-                            self->msg_cbk_(Data::From(std::string(data)));
+                            self->msg_cbk_(Data::From(std::string(payload)));
                         }
                     });
                 adapter_slot->Replace(client);
@@ -261,8 +263,8 @@ void WsConnection::Stop() {
     FinishStop();
 }
 
-void WsConnection::PostBinaryMessage(std::shared_ptr<Data> msg) {
-    if (!msg) {
+void WsConnection::PostBinaryMessage(std::shared_ptr<Data> payload) {
+    if (!payload) {
         LOGW("event=transport.message_rejected component=sdk_ws code=INVALID_PAYLOAD "
              "operation=send_binary outcome=rejected recoverable=false");
         return;
@@ -278,7 +280,7 @@ void WsConnection::PostBinaryMessage(std::shared_ptr<Data> msg) {
         client->ws_stream().binary(true);
         ++queuing_message_count_;
         const auto weak_self = weak_from_this();
-        client->async_send(msg->AsString(), [weak_self]() {
+        client->async_send(payload->AsString(), [weak_self]() {
             if (const auto self = weak_self.lock()) {
                 const auto remaining = --self->queuing_message_count_;
                 if (remaining <= kFileTransferQueueLowWatermark) {
@@ -289,7 +291,8 @@ void WsConnection::PostBinaryMessage(std::shared_ptr<Data> msg) {
     }
 }
 
-void WsConnection::PostReliableBinaryMessage(std::shared_ptr<Data> msg, std::function<void(bool)> completion) {
+void WsConnection::PostReliableBinaryMessage(
+    std::shared_ptr<Data> payload, std::function<void(bool)> completion) {
     auto client = std::shared_ptr<asio2::ws_client>{};
     std::uint64_t generation{0};
     {
@@ -298,7 +301,9 @@ void WsConnection::PostReliableBinaryMessage(std::shared_ptr<Data> msg, std::fun
         generation = reconnect_supervisor_ ? reconnect_supervisor_->Generation() : 0;
     }
     PostReliableWebSocketWrite(
-        client, std::move(msg), std::move(completion), [weak = weak_from_this(), weak_client = std::weak_ptr<asio2::ws_client>(client), generation] {
+        client, std::move(payload), std::move(completion),
+        [weak = weak_from_this(),
+         weak_client = std::weak_ptr<asio2::ws_client>(client), generation] {
             const auto self = weak.lock();
             if (!self || self->exiting_.load() || self->terminal_rejection_.load()) {
                 return false;
@@ -309,7 +314,7 @@ void WsConnection::PostReliableBinaryMessage(std::shared_ptr<Data> msg, std::fun
         });
 }
 
-void WsConnection::PostTextMessage(const std::string& msg) {
+void WsConnection::PostTextMessage(const std::string& message) {
     std::shared_ptr<asio2::ws_client> client;
     std::shared_ptr<PxReconnectSupervisor> supervisor;
     {
@@ -321,7 +326,7 @@ void WsConnection::PostTextMessage(const std::string& msg) {
         client->ws_stream().text(true);
         ++queuing_message_count_;
         const auto weak_self = weak_from_this();
-        client->async_send(msg, [weak_self]() {
+        client->async_send(message, [weak_self]() {
             if (const auto self = weak_self.lock()) {
                 const auto remaining = --self->queuing_message_count_;
                 if (remaining <= kFileTransferQueueLowWatermark) {

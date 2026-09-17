@@ -58,34 +58,42 @@ class ThunderSdk : public std::enable_shared_from_this<ThunderSdk> {
     void Start();
     void Exit();
 
-    void SetOnVideoFrameDecodedCallback(OnVideoFrameDecodedCallback&& cbk) {
-        this->video_frame_cbk_ = std::move(cbk);
+    void SetOnVideoFrameDecodedCallback(
+        OnVideoFrameDecodedCallback&& callback) {
+        this->video_frame_cbk_ = std::move(callback);
     }
-    void SetOnAudioFrameDecodedCallback(OnAudioFrameDecodedCallback&& cbk) {
-        this->audio_frame_cbk_ = std::move(cbk);
+    void SetOnAudioFrameDecodedCallback(
+        OnAudioFrameDecodedCallback&& callback) {
+        this->audio_frame_cbk_ = std::move(callback);
     }
-    void SetOnEncodedVideoFrameCallback(OnSdkEncodedVideoFrameCallback&& cbk) {
-        encoded_video_frame_cbk_ = std::move(cbk);
+    void SetOnEncodedVideoFrameCallback(
+        OnSdkEncodedVideoFrameCallback&& callback) {
+        encoded_video_frame_cbk_ = std::move(callback);
     }
-    void SetOnEncodedAudioFrameCallback(OnEncodedAudioFrameCallback&& cbk) {
-        encoded_audio_frame_cbk_ = std::move(cbk);
+    void SetOnEncodedAudioFrameCallback(
+        OnEncodedAudioFrameCallback&& callback) {
+        encoded_audio_frame_cbk_ = std::move(callback);
     }
-    void SetOnAudioSpectrumCallback(OnAudioSpectrumCallback&& cbk);
-    void SetOnCursorInfoCallback(OnCursorInfoSyncMsgCallback&& cbk);
-    void SetOnHeartBeatCallback(OnHeartBeatInfoCallback&& cbk);
-    void SetOnClipboardCallback(OnClipboardInfoCallback&& cbk);
-    void SetOnServerConfigurationCallback(OnConfigCallback&& cbk);
-    void SetOnMonitorSwitchedCallback(OnMonitorSwitchedCallback&& cbk);
-    void SetOnRawMessageCallback(OnRawMessageCallback&& cbk);
-    void SetOnVideoFrameDecodeThreadDiscardedCallback(OnVideoFrameDecodeThreadDiscardedCallback&& cbk);
-    void SetOnVideoDecoderFailureCallback(OnVideoDecoderFailureCallback&& cbk) {
-        video_decoder_failure_cbk_ = std::move(cbk);
+    void SetOnAudioSpectrumCallback(OnAudioSpectrumCallback&& callback);
+    void SetOnCursorInfoCallback(OnCursorInfoSyncMsgCallback&& callback);
+    void SetOnHeartBeatCallback(OnHeartBeatInfoCallback&& callback);
+    void SetOnClipboardCallback(OnClipboardInfoCallback&& callback);
+    void SetOnServerConfigurationCallback(OnConfigCallback&& callback);
+    void SetOnMonitorSwitchedCallback(OnMonitorSwitchedCallback&& callback);
+    void SetOnRawMessageCallback(OnRawMessageCallback&& callback);
+    void SetOnVideoFrameDecodeThreadDiscardedCallback(
+        OnVideoFrameDecodeThreadDiscardedCallback&& callback);
+    void SetOnVideoDecoderFailureCallback(
+        OnVideoDecoderFailureCallback&& callback) {
+        video_decoder_failure_cbk_ = std::move(callback);
     }
 
-    void PostMediaMessage(std::shared_ptr<Data> msg);
-    [[nodiscard]] bool PostReliableControlMessage(std::shared_ptr<Data> msg);
+    void PostMediaMessage(std::shared_ptr<Data> payload);
+    [[nodiscard]] bool PostReliableControlMessage(
+        std::shared_ptr<Data> payload);
     [[nodiscard]] bool PostVoiceAudioMessage(const std::shared_ptr<Message>& message);
-    [[nodiscard]] FileTransferSendResult PostFileTransferMessage(std::shared_ptr<Data> msg);
+    [[nodiscard]] FileTransferSendResult PostFileTransferMessage(
+        std::shared_ptr<Data> payload);
     void PostVideoTask(std::function<void()>&& task, int64_t frame_index, const std::string& monitor_name);
     void PostAudioTask(std::function<void()>&& task);
     void PostMiscTask(std::function<void()>&& task);
@@ -103,17 +111,18 @@ class ThunderSdk : public std::enable_shared_from_this<ThunderSdk> {
     uint64_t GetLastHeartbeatTimestamp();
 
   private:
-    void SendFirstFrameMessage(std::shared_ptr<RawImage> image, const SdkCaptureMonitorInfo& info);
-    void RegisterEventListeners();
-    void SendHelloMessage();
-    void RequestIFrame();
-    void ClearFirstFrameState();
-    void IncreaseDecodeFailedCount(const std::string& mon_name);
-    int GetDecodeFailedCount(const std::string& mon_name);
-    void ResetDecodeFailedCount(const std::string& mon_name);
-    void DisableHardwareDecoder(const std::string& mon_name);
-    bool IsDisabledHardwareDecoder(const std::string& mon_name);
-    void NotifyDecoderUnavailable();
+   void SendFirstFrameMessage(std::shared_ptr<RawImage> image,
+                              const SdkCaptureMonitorInfo& monitor_info);
+   void RegisterEventListeners();
+   void SendHelloMessage();
+   void RequestIFrame();
+   void ClearFirstFrameState();
+   void IncreaseDecodeFailedCount(const std::string& monitor_name);
+   int GetDecodeFailedCount(const std::string& monitor_name);
+   void ResetDecodeFailedCount(const std::string& monitor_name);
+   void DisableHardwareDecoder(const std::string& monitor_name);
+   bool IsDisabledHardwareDecoder(const std::string& monitor_name);
+   void NotifyDecoderUnavailable();
 
   private:
     std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;

@@ -50,7 +50,9 @@ namespace px
         // By one second
         void CalculateDataSpeed();
         void CalculateVideoFrameFps();
-        void UpdateIsolatedMonitorStatisticsInfoInRender(const std::string& mon_name, const IsolatedMonitorStatisticsInfoInRender& info);
+        void UpdateIsolatedMonitorStatisticsInfoInRender(
+            const std::string& monitor_name,
+            const IsolatedMonitorStatisticsInfoInRender& statistics);
 
         // Get
         std::vector<float> GetRecvDataSpeeds();

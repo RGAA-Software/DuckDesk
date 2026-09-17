@@ -63,11 +63,6 @@ namespace px
 
         // ListCodecs();
 
-        auto format_num = [](int val) -> int {
-            auto t = val % 2;
-            return val + t;
-        };
-
         this->codec_type_ = codec_type;
         this->frame_width_ = width;//format_num(width);
         this->frame_height_ = height;//format_num(height);

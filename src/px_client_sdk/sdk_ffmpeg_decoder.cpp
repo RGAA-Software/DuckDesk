@@ -148,14 +148,17 @@ namespace px
 
                 if (false) {
                     LOGI("============================0");
-                    for (int i = 0;; i++) {
-                        const AVCodecHWConfig *config = avcodec_get_hw_config(decoder, i);
-                        if (!config) {
+                    for (int configuration_index = 0;; configuration_index++) {
+                        // NOLINT(pixels-raw-pointer-boundary): borrowed FFmpeg
+                        // descriptor consumed synchronously.
+                        const auto configuration =
+                            avcodec_get_hw_config(decoder, configuration_index);
+                        if (!configuration) {
                             break;
                         }
-                        LOGI(" ==> HW device type: {}, pix format: {}", (int) config->device_type,
-                             (int) config->pix_fmt);
-
+                        LOGI(" ==> HW device type: {}, pix format: {}",
+                             (int)configuration->device_type,
+                             (int)configuration->pix_fmt);
                     }
                     LOGI("============================1");
                 }
@@ -177,26 +180,38 @@ namespace px
                     // AV_CODEC_ID_AV1
                 }
 
-                for (int i = 0; ; i++) {
-                    const AVCodecHWConfig *config = avcodec_get_hw_config(decoder, i);
-                    if (!config) {
+                for (int configuration_index = 0;; configuration_index++) {
+                    // NOLINT(pixels-raw-pointer-boundary): borrowed FFmpeg
+                    // descriptor consumed synchronously.
+                    const auto configuration =
+                        avcodec_get_hw_config(decoder, configuration_index);
+                    if (!configuration) {
                         break;
                     }
 
 #ifdef WIN32
-                    LOGI(" ==> HW device type: {}, pix format: {}", (int) config->device_type, (int) config->pix_fmt);
-                    if (config->device_type == AV_HWDEVICE_TYPE_D3D11VA) {
+                    LOGI(" ==> HW device type: {}, pix format: {}",
+                         (int)configuration->device_type,
+                         (int)configuration->pix_fmt);
+                    if (configuration->device_type ==
+                        AV_HWDEVICE_TYPE_D3D11VA) {
                         LOGI("Found the D3D11VA, Codec name: {}", decoder->name);
-                        if ((img_format == EImageFormat::kI420 && config->pix_fmt == AV_PIX_FMT_D3D11)) {
+                        if ((img_format == EImageFormat::kI420 &&
+                             configuration->pix_fmt == AV_PIX_FMT_D3D11)) {
                             found_target_codec = true;
                                 decoder_ = const_cast<AVCodec*>(decoder);
-                                hw_decode_config = const_cast<AVCodecHWConfig*>(config);
-                            LOGI("D3D11VA support image format: {}",
-                                 (img_format == EImageFormat::kI420 ? "YUV420" : "YUV444"));
-                            break;
+                                hw_decode_config =
+                                    const_cast<AVCodecHWConfig*>(configuration);
+                                LOGI("D3D11VA support image format: {}",
+                                     (img_format == EImageFormat::kI420
+                                          ? "YUV420"
+                                          : "YUV444"));
+                                break;
                         } else {
-                            LOGW("D3D11VA doesn't support image format: {}",
-                                 (img_format == EImageFormat::kI420 ? "YUV420" : "YUV444"));
+                                LOGW("D3D11VA doesn't support image format: {}",
+                                     (img_format == EImageFormat::kI420
+                                          ? "YUV420"
+                                          : "YUV444"));
                         }
                     }
 #endif

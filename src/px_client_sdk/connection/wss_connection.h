@@ -32,9 +32,11 @@ namespace px
         ~WssConnection() override;
         void Start() override;
         void Stop() override;
-        void PostBinaryMessage(std::shared_ptr<Data> msg) override;
-        void PostReliableBinaryMessage(std::shared_ptr<Data> msg, std::function<void(bool)> completion) override;
-        void PostTextMessage(const std::string& msg) override;
+        void PostBinaryMessage(std::shared_ptr<Data> payload) override;
+        void PostReliableBinaryMessage(
+            std::shared_ptr<Data> payload,
+            std::function<void(bool)> completion) override;
+        void PostTextMessage(const std::string& message) override;
         bool IsAlive() override;
         [[nodiscard]] std::uint64_t ConnectionGeneration() const;
 

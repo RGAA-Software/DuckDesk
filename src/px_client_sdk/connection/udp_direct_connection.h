@@ -46,38 +46,42 @@ class UdpDirectConnection : public Connection, public std::enable_shared_from_th
     void Stop() override;
 
     // 仅用于上行 UDP 控制包(hello/heartbeat/IDR),proto 媒体消息不走这里
-    void PostBinaryMessage(std::shared_ptr<Data> msg) override;
+    void PostBinaryMessage(std::shared_ptr<Data> payload) override;
     [[nodiscard]] bool PostVoiceFrame(const std::string& call_id, std::uint32_t sequence, std::uint64_t capture_time_ms,
                                       std::span<const std::uint8_t> opus);
     // Install before Start; callbacks receive owning frames only from this connection's current association.
     void SetOnVoiceFrameCallback(std::function<void(UdpVoiceFrame)> callback);
 
     // 组帧完成后合成的 kVideoFrame proto,回调语义与 WebRtcLocalConnection::SetOnVideoMessageCallback 一致
-    void SetOnVideoMessageCallback(const std::function<void(std::shared_ptr<px::Message>)>& cbk);
+    void SetOnVideoMessageCallback(
+        const std::function<void(std::shared_ptr<px::Message>)>& callback);
 
     // jitter buffer 按序交付后合成的 kAudioFrame proto;
     // 丢帧信号同样是 kAudioFrame,但 data 为空(解码层据此走 Opus PLC 补 20ms)
-    void SetOnAudioMessageCallback(const std::function<void(std::shared_ptr<px::Message>)>& cbk);
+    void SetOnAudioMessageCallback(
+        const std::function<void(std::shared_ptr<px::Message>)>& callback);
 
     // render 通过 UDP 控制包踢人(kCtrlKick),reason 原样上报
-    void SetOnKickCallback(std::function<void(const std::string& reason)> cbk);
+    void SetOnKickCallback(
+        std::function<void(const std::string& reason)> callback);
 
     // UDP connect() 不表示对端可达。第一个可交付的音频/视频媒体帧会触发它，
     // 供 NetClient 结束首媒体探测并避免误回退。
-    void SetOnMediaReadyCallback(std::function<void()> cbk);
+    void SetOnMediaReadyCallback(std::function<void()> callback);
 
     bool IsAlive() override;
 
   private:
-    void OnUdpPacket(std::span<const char> data);
-    void OnCompleteFrame(const media::VideoFrame& frame);
-    void OnAudioFrame(const media::AudioDelivery& frame);
-    void RequestIdr(const std::string& mon_name);
-    void RequestIdrKeepalive(const std::string& mon_name);
-    void RequestRfi(uint64_t invalid_frame_index, const std::string& mon_name);
-    void CheckNeedIdr();
-    void CheckWatchdog();
-    void RestoreReachability();
+   void OnUdpPacket(std::span<const char> packet);
+   void OnCompleteFrame(const media::VideoFrame& frame);
+   void OnAudioFrame(const media::AudioDelivery& frame);
+   void RequestIdr(const std::string& monitor_name);
+   void RequestIdrKeepalive(const std::string& monitor_name);
+   void RequestRfi(uint64_t invalid_frame_index,
+                   const std::string& monitor_name);
+   void CheckNeedIdr();
+   void CheckWatchdog();
+   void RestoreReachability();
 
   private:
     static constexpr int kTimerHeartbeat = 1;
