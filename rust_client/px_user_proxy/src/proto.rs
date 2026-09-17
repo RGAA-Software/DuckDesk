@@ -1,9 +1,11 @@
 use prost::Message as ProstMessage;
 
+#[allow(clippy::empty_docs)]
 pub mod pxrp {
     include!(concat!(env!("OUT_DIR"), "/pxrp.rs"));
 }
 
+#[allow(clippy::empty_docs)]
 pub mod px {
     include!(concat!(env!("OUT_DIR"), "/px.rs"));
 }

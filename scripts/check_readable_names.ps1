@@ -2,6 +2,7 @@
 [CmdletBinding()]
 param(
     [string[]]$Paths = @(
+        'rust_server/builder',
         'rust_server/px_credentials',
         'rust_server/px_node_protocol',
         'rust_server/px_pg',
@@ -11,11 +12,15 @@ param(
         'rust_server/px_console_server/runtime',
         'rust_server/px_console_server/storage',
         'rust_server/px_auth_server/license',
+        'rust_server/px_auth_server/src/config.rs',
         'rust_server/px_auth_server/storage',
         'rust_server/px_auth_server/tests',
         'rust_server/px_desk_server',
         'rust_client/px_service/service_core/src',
-        'rust_client/px_service/src'
+        'rust_client/px_service/src',
+        'rust_client/px_sysinfo',
+        'rust_client/px_uninstall',
+        'rust_client/px_user_proxy'
     )
 )
 
@@ -25,12 +30,15 @@ $singleLetterPatterns = @(
     [regex]'\b(?:let|for)\s+(?:mut\s+)?(?<name>[a-z])\b',
     [regex]'\b(?:if\s+|while\s+)?let\s+(?:Some|Ok|Err)\(\s*(?<name>[a-z])\s*\)',
     [regex]'\b(?:Some|Ok|Err)\(\s*(?<name>[a-z])\s*\)\s*(?:=>|=)',
-    [regex]'\|\s*(?:&\s*)?(?:mut\s+)?(?<name>[a-z])\s*(?:[:,|])',
-    [regex]'(?:^|[(,])\s*(?<name>[a-z])\s*:'
+    [regex]'\|\s*(?:&\s*)?(?:mut\s+)?(?<name>[a-z])\s*(?:[:,|])'
 )
 $genericNamePattern = [regex]'\b(?:let|for)\s+(?:mut\s+)?(?<name>tmp|data|obj|item|thing|foo|bar)\b'
 $tupleBindingPattern = [regex]::new(
     '\blet\s*\((?<bindings>[^)]{1,500})\)\s*=',
+    [Text.RegularExpressions.RegexOptions]::Singleline
+)
+$functionParameterPattern = [regex]::new(
+    '\bfn\s+[A-Za-z_][A-Za-z0-9_]*(?:\s*<[^>{}]*>)?\s*\((?<parameters>[^)]{0,2000})\)',
     [Text.RegularExpressions.RegexOptions]::Singleline
 )
 $violations = [Collections.Generic.List[string]]::new()
@@ -68,6 +76,16 @@ foreach ($sourceFile in $sourceFiles | Sort-Object FullName -Unique) {
             }
             if ($binding -match '^\s*(?:mut\s+)?(?<name>tmp|data|obj|item|thing|foo|bar)\s*$') {
                 $violations.Add("${relativeFile}: tuple binding uses context-free identifier '$($Matches['name'])'")
+            }
+        }
+    }
+    foreach ($functionMatch in $functionParameterPattern.Matches($sourceText)) {
+        foreach ($parameter in $functionMatch.Groups['parameters'].Value.Split(',')) {
+            if ($parameter -match '^\s*(?:&\s*)?(?:mut\s+)?(?<name>[a-z])\s*:') {
+                $violations.Add("${relativeFile}: function parameter uses single-letter identifier '$($Matches['name'])'")
+            }
+            if ($parameter -match '^\s*(?:&\s*)?(?:mut\s+)?(?<name>tmp|data|obj|item|thing|foo|bar)\s*:') {
+                $violations.Add("${relativeFile}: function parameter uses context-free identifier '$($Matches['name'])'")
             }
         }
     }

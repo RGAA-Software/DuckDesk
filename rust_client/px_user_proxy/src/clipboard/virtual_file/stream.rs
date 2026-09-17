@@ -204,14 +204,14 @@ mod tests {
         }
     }
 
-    fn sample_resp(index: i64, data: &[u8]) -> RespBufferData {
+    fn sample_resp(index: i64, response_bytes: &[u8]) -> RespBufferData {
         RespBufferData {
             full_name: "C:/remote/doc.txt".to_string(),
             req_index: index,
             req_start: 0,
-            req_size: data.len() as i64,
-            read_size: data.len() as i64,
-            buffer: data.to_vec(),
+            req_size: response_bytes.len() as i64,
+            read_size: response_bytes.len() as i64,
+            buffer: response_bytes.to_vec(),
         }
     }
 
@@ -231,8 +231,8 @@ mod tests {
         let req = core.begin_read(5).expect("begin");
         assert!(core.on_resp_buffer(sample_resp(req.req_index, b"hello")));
         let mut buf = [0u8; 8];
-        let n = core.complete_read(&mut buf).expect("read");
-        assert_eq!(n, 5);
+        let bytes_read = core.complete_read(&mut buf).expect("read");
+        assert_eq!(bytes_read, 5);
         assert_eq!(&buf[..5], b"hello");
         assert_eq!(core.current_position(), 5);
         assert_eq!(core.req_index(), 1);
@@ -248,8 +248,8 @@ mod tests {
             assert!(worker.on_resp_buffer(sample_resp(req.req_index, b"abcd")));
         });
         let mut buf = [0u8; 4];
-        let n = core.complete_read(&mut buf).expect("read");
-        assert_eq!(n, 4);
+        let bytes_read = core.complete_read(&mut buf).expect("read");
+        assert_eq!(bytes_read, 4);
         handle.join().expect("join");
     }
 
@@ -260,9 +260,9 @@ mod tests {
             let req = core.begin_read(64).expect("begin");
             assert!(core.on_resp_buffer(sample_resp(req.req_index, chunk)));
             let mut buf = [0u8; 8];
-            let n = core.complete_read(&mut buf).expect("read");
-            assert_eq!(n, expected);
-            assert_eq!(&buf[..n], chunk);
+            let bytes_read = core.complete_read(&mut buf).expect("read");
+            assert_eq!(bytes_read, expected);
+            assert_eq!(&buf[..bytes_read], chunk);
         }
         assert!(core.is_transfer_complete());
     }

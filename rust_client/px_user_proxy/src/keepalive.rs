@@ -42,8 +42,10 @@ impl ProcessLister for ToolhelpProcessLister {
         }
 
         let mut entries = Vec::new();
-        let mut process_entry = PROCESSENTRY32W::default();
-        process_entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+        let mut process_entry = PROCESSENTRY32W {
+            dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
+            ..Default::default()
+        };
 
         let first = unsafe { Process32FirstW(snapshot, &mut process_entry) };
         if let Err(err) = first {
@@ -323,8 +325,8 @@ mod tests {
 
     #[test]
     fn utf16z_to_string_stops_at_zero_terminator() {
-        let data = ['G' as u16, 'R' as u16, 0, 'X' as u16];
-        assert_eq!(utf16z_to_string(&data), "GR");
+        let terminated_text = ['G' as u16, 'R' as u16, 0, 'X' as u16];
+        assert_eq!(utf16z_to_string(&terminated_text), "GR");
     }
 
     #[test]
@@ -448,7 +450,7 @@ mod tests {
             .lock()
             .expect("lock")
             .iter()
-            .filter(|p| p.ends_with(PANEL_EXE_NAME))
+            .filter(|executable_path| executable_path.ends_with(PANEL_EXE_NAME))
             .count();
         assert_eq!(panel_spawns, 1, "panel must be started only once");
     }
@@ -473,7 +475,7 @@ mod tests {
             .lock()
             .expect("lock")
             .iter()
-            .filter(|p| p.ends_with(SYSINFO_EXE_NAME))
+            .filter(|executable_path| executable_path.ends_with(SYSINFO_EXE_NAME))
             .count();
         assert_eq!(sysinfo_spawns, 1, "sysinfo must be started only once");
     }

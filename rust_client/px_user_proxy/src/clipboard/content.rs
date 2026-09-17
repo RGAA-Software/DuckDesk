@@ -288,17 +288,22 @@ mod tests {
     fn build_file_entries_multiple_files_same_folder() {
         let root = temp_dir("multi");
         fs::create_dir_all(root.join("sub")).expect("mkdir");
-        let a = root.join("a.txt");
-        let b = root.join("sub").join("b.txt");
-        fs::write(&a, b"a").expect("write");
-        fs::write(&b, b"b").expect("write");
+        let root_file = root.join("a.txt");
+        let nested_file = root.join("sub").join("b.txt");
+        fs::write(&root_file, b"a").expect("write");
+        fs::write(&nested_file, b"b").expect("write");
 
-        let entries =
-            build_file_entries_from_paths(&[a.display().to_string(), b.display().to_string()]);
+        let entries = build_file_entries_from_paths(&[
+            root_file.display().to_string(),
+            nested_file.display().to_string(),
+        ]);
         assert_eq!(entries.len(), 2);
-        let refs: Vec<_> = entries.iter().map(|e| e.ref_path.as_str()).collect();
-        assert!(refs.contains(&"a.txt"));
-        assert!(refs.contains(&"sub/b.txt"));
+        let reference_paths: Vec<_> = entries
+            .iter()
+            .map(|file_entry| file_entry.ref_path.as_str())
+            .collect();
+        assert!(reference_paths.contains(&"a.txt"));
+        assert!(reference_paths.contains(&"sub/b.txt"));
     }
 
     #[test]

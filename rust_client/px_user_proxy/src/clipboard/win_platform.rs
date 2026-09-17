@@ -146,6 +146,12 @@ fn release_ole_clipboard_owner() {
     }
 }
 
+impl Default for WinClipboardPlatform {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WinClipboardPlatform {
     pub fn new() -> Self {
         unsafe {
@@ -184,7 +190,7 @@ impl WinClipboardPlatform {
     pub fn read_content(&self) -> anyhow::Result<ClipboardContent> {
         for attempt in 0..20 {
             match Self::try_read_content() {
-                Ok(v) => return Ok(v),
+                Ok(clipboard_content) => return Ok(clipboard_content),
                 Err(err) => {
                     // 剪贴板被其他进程/OLE 虚拟文件占用时读不到,视为"暂无变化",
                     // 下次轮询再读,不依赖易卡死的全局标志位。
@@ -219,7 +225,11 @@ impl WinClipboardPlatform {
             tracing::info!(
                 "clipboard read: cf_hdrop_available={}, text_len={}",
                 hdrop.is_ok(),
-                content.text.as_ref().map(|t| t.len()).unwrap_or(0)
+                content
+                    .text
+                    .as_ref()
+                    .map(|clipboard_text| clipboard_text.len())
+                    .unwrap_or(0)
             );
             if let Ok(handle) = hdrop {
                 let paths = Self::read_hdrop_paths(HDROP(handle.0 as *mut _));
@@ -348,13 +358,13 @@ impl WinClipboardPlatform {
     }
 
     fn try_write_file_paths(paths: &[String]) -> anyhow::Result<()> {
-        let path_refs: Vec<&str> = paths.iter().map(|p| p.as_str()).collect();
+        let path_references: Vec<&str> = paths.iter().map(|file_path| file_path.as_str()).collect();
 
         release_ole_clipboard_owner();
         let _guard = OpenClipboardGuard::open()?;
         unsafe {
             let _ = EmptyClipboard();
-            let mem = build_hdrop_global(&path_refs)?;
+            let mem = build_hdrop_global(&path_references)?;
             if let Err(err) = SetClipboardData(CF_HDROP, Some(HANDLE(mem.0))) {
                 let _ = GlobalFree(Some(mem));
                 anyhow::bail!("SetClipboardData files failed: {err}");

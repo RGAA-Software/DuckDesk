@@ -84,7 +84,7 @@ fn render_metric_card<V>(
 fn render_chart<V, T: Clone + 'static>(
     id: &str,
     title: &str,
-    data: Vec<T>,
+    series_points: Vec<T>,
     x_fn: impl Fn(&T) -> String + 'static,
     y_fn: impl Fn(&T) -> f64 + 'static,
     color: Hsla,
@@ -93,15 +93,15 @@ fn render_chart<V, T: Clone + 'static>(
     y_max: Option<f64>,
     cx: &Context<V>,
 ) -> impl IntoElement {
-    let current_value = data.last().map(&y_fn).unwrap_or(0.0);
-    let max_value = data
+    let current_value = series_points.last().map(&y_fn).unwrap_or(0.0);
+    let max_value = series_points
         .iter()
         .map(&y_fn)
         .fold(0.0_f64, f64::max)
         .max(y_max.unwrap_or(0.0))
         .max(1.0);
     let tick_values = chart_ticks(max_value);
-    let mut chart = AreaChart::new(data)
+    let mut chart = AreaChart::new(series_points)
         .x(x_fn)
         .y(y_fn)
         .linear()

@@ -78,9 +78,7 @@ impl ClipboardBackend for InMemoryClipboard {
     }
 
     fn write_file_paths(&self, paths: &[String]) -> anyhow::Result<()> {
-        let entries = super::content::build_file_entries_from_paths(
-            &paths.iter().cloned().collect::<Vec<_>>(),
-        );
+        let entries = super::content::build_file_entries_from_paths(paths);
         let mut guard = self.content.lock().expect("lock");
         guard.text = None;
         guard.files = entries;

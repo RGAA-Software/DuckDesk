@@ -17,7 +17,7 @@ impl EchoFilter {
     pub fn get_remote_echo(&self) -> String {
         self.remote_echo
             .lock()
-            .map(|v| v.clone())
+            .map(|remote_echo| remote_echo.clone())
             .unwrap_or_default()
     }
 

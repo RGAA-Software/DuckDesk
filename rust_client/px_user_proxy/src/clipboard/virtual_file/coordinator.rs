@@ -222,8 +222,8 @@ mod tests {
         }));
 
         let mut buf = [0u8; 3];
-        let n = stream.complete_read(&mut buf).expect("read");
-        assert_eq!(n, 3);
+        let bytes_read = stream.complete_read(&mut buf).expect("read");
+        assert_eq!(bytes_read, 3);
         assert_eq!(&buf, b"abc");
     }
 }

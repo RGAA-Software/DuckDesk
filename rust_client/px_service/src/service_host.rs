@@ -1394,8 +1394,12 @@ mod tests {
 
     use service_core::process::ProcessSnapshot;
 
-    fn test_config(port: u16, data: std::path::PathBuf, logs: std::path::PathBuf) -> ServiceConfig {
-        let mut config = ServiceConfig::new(port, data, logs);
+    fn test_config(
+        port: u16,
+        data_directory: std::path::PathBuf,
+        log_directory: std::path::PathBuf,
+    ) -> ServiceConfig {
+        let mut config = ServiceConfig::new(port, data_directory, log_directory);
         config.node.applications = service_core::node_config::PortRange {
             port_start: 4613,
             port_end: 4998,

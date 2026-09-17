@@ -196,7 +196,7 @@ pub fn handle_inbound_rp(
     client: Arc<RenderClient>,
 ) {
     let msg = match parse_rp_message(bytes) {
-        Ok(v) => v,
+        Ok(render_proxy_message) => render_proxy_message,
         Err(err) => {
             error!(
                 "parse RpMessage failed: {err}, len={}, preview={:02x?}",
@@ -233,7 +233,7 @@ fn handle_inbound_data_channel(
     client: Arc<RenderClient>,
 ) {
     let px_msg = match parse_px_message(&sub.msg) {
-        Ok(v) => v,
+        Ok(client_message) => client_message,
         Err(err) => {
             error!(
                 "parse data_channel px::Message failed: {err}, stream_id={}, len={}",
@@ -270,7 +270,7 @@ fn dispatch_req_buffer(
                 .seek(SeekFrom::Start(start))
                 .and_then(|_| file.take(size as u64).read_to_end(&mut buffer))
             {
-                Ok(n) => n as i64,
+                Ok(bytes_read) => bytes_read as i64,
                 Err(err) => {
                     warn!(
                         "clipboard req buffer read failed: {} ({err:#})",
@@ -319,7 +319,10 @@ fn dispatch_resp_buffer(
         info!(
             "ignored data_channel px type: {:?}, stream_id={}",
             msg.r#type,
-            route.as_ref().map(|r| r.stream_id.as_str()).unwrap_or("")
+            route
+                .as_ref()
+                .map(|stream_route| stream_route.stream_id.as_str())
+                .unwrap_or("")
         );
         return;
     }
@@ -336,7 +339,7 @@ fn dispatch_resp_buffer(
             "virtual file resp buffer applied, stream_id={}",
             route
                 .as_ref()
-                .map(|r| r.stream_id.as_str())
+                .map(|stream_route| stream_route.stream_id.as_str())
                 .unwrap_or(&msg.stream_id)
         );
     }

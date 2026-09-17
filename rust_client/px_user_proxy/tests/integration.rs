@@ -321,8 +321,8 @@ async fn integration_virtual_file_req_buffer_roundtrip() {
 
     tokio::time::sleep(Duration::from_millis(300)).await;
     let mut buf = [0u8; 5];
-    let n = stream.complete_read(&mut buf).expect("read");
-    assert_eq!(n, 5);
+    let bytes_read = stream.complete_read(&mut buf).expect("read");
+    assert_eq!(bytes_read, 5);
     assert_eq!(&buf, b"hello");
 }
 
@@ -358,8 +358,8 @@ async fn integration_virtual_file_full_stream_via_coordinator() {
             }
         ));
         let mut buf = [0u8; 4];
-        let n = stream.complete_read(&mut buf).expect("read");
-        output.extend_from_slice(&buf[..n]);
+        let bytes_read = stream.complete_read(&mut buf).expect("read");
+        output.extend_from_slice(&buf[..bytes_read]);
     }
     assert_eq!(output, b"abcdefgh");
     assert!(stream.is_transfer_complete());
@@ -414,8 +414,8 @@ async fn integration_data_channel_resp_buffer_dispatch() {
 
     tokio::time::sleep(Duration::from_millis(300)).await;
     let mut buf = [0u8; 3];
-    let n = stream.complete_read(&mut buf).expect("read");
-    assert_eq!(n, 3);
+    let bytes_read = stream.complete_read(&mut buf).expect("read");
+    assert_eq!(bytes_read, 3);
     assert_eq!(&buf, b"xyz");
 }
 

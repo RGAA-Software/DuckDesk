@@ -168,8 +168,8 @@ impl VirtualFileStream {
             return S_FALSE;
         }
 
-        let mut dest = unsafe { std::slice::from_raw_parts_mut(pv as *mut u8, cb as usize) };
-        let read_size = match self.core.complete_read(&mut dest) {
+        let destination = unsafe { std::slice::from_raw_parts_mut(pv as *mut u8, cb as usize) };
+        let read_size = match self.core.complete_read(destination) {
             Ok(size) => size,
             Err(err) => {
                 warn!("virtual file IStream::Read failed: {err:?}");
@@ -274,7 +274,7 @@ struct VirtualFileDataObject {
 }
 
 impl VirtualFileDataObject {
-    fn new(coordinator: Arc<VirtualFileCoordinator>) -> anyhow::Result<IDataObject> {
+    fn create(coordinator: Arc<VirtualFileCoordinator>) -> anyhow::Result<IDataObject> {
         let formats = ClipboardFormats::register()?;
         let files = coordinator
             .session_files()
@@ -415,21 +415,21 @@ impl IDataObject_Impl for VirtualFileDataObject_Impl {
             FORMATETC {
                 cfFormat: self.formats.file_desc,
                 ptd: std::ptr::null_mut(),
-                dwAspect: DVASPECT_CONTENT.0 as u32,
+                dwAspect: DVASPECT_CONTENT.0,
                 lindex: -1,
                 tymed: TYMED_HGLOBAL.0 as u32,
             },
             FORMATETC {
                 cfFormat: self.formats.file_content,
                 ptd: std::ptr::null_mut(),
-                dwAspect: DVASPECT_CONTENT.0 as u32,
+                dwAspect: DVASPECT_CONTENT.0,
                 lindex: -1,
                 tymed: TYMED_ISTREAM.0 as u32,
             },
             FORMATETC {
                 cfFormat: self.formats.preferred_drop_effect,
                 ptd: std::ptr::null_mut(),
-                dwAspect: DVASPECT_CONTENT.0 as u32,
+                dwAspect: DVASPECT_CONTENT.0,
                 lindex: -1,
                 tymed: TYMED_HGLOBAL.0 as u32,
             },
@@ -516,13 +516,13 @@ impl IDataObjectAsyncCapability_Impl for VirtualFileDataObject_Impl {
             let full_name = self
                 .coordinator
                 .active_stream()
-                .map(|s| s.file().full_path.clone())
+                .map(|active_stream| active_stream.file().full_path.clone())
                 .unwrap_or_default();
             let success = hresult.is_ok()
                 && self
                     .coordinator
                     .active_stream()
-                    .map(|s| s.is_transfer_complete())
+                    .map(|active_stream| active_stream.is_transfer_complete())
                     .unwrap_or(false);
             if !full_name.is_empty() {
                 let _ = self.coordinator.send_req_at_end(&full_name, success);
@@ -545,7 +545,7 @@ pub fn install_virtual_file_clipboard(
         .map_err(|err| anyhow::anyhow!("clear clipboard before virtual file set: {err:#}"))?;
     std::thread::sleep(std::time::Duration::from_millis(CLIPBOARD_SET_RETRY_MS));
 
-    let data_object = VirtualFileDataObject::new(coordinator)?;
+    let data_object = VirtualFileDataObject::create(coordinator)?;
     let mut set_ok = false;
     for attempt in 0..CLIPBOARD_SET_MAX_RETRIES {
         unsafe {
@@ -592,7 +592,7 @@ mod tests {
             let ptr = GlobalLock(mem);
             assert!(!ptr.is_null());
             let group = ptr as *const FILEGROUPDESCRIPTORW;
-            let items = unsafe { std::ptr::read_unaligned(std::ptr::addr_of!((*group).cItems)) };
+            let items = std::ptr::read_unaligned(std::ptr::addr_of!((*group).cItems));
             assert_eq!(items, 1);
             let _ = GlobalUnlock(mem);
         }
