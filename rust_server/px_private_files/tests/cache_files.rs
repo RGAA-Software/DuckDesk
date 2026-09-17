@@ -75,43 +75,43 @@ fn content(bytes: &[u8]) -> ContentIdentity {
 }
 #[test]
 fn provisioning_is_explicit_empty_private_and_deployment_bound() {
-    let f = Fixture::new();
-    assert!(CacheRoot::open(&f.root, f.deployment).is_err());
-    assert!(CacheRoot::initialize(Path::new("relative-root"), f.deployment).is_err());
-    assert!(CacheRoot::initialize(&f.root, Uuid::nil()).is_err());
-    f.write_private("do-not-delete", b"unrelated");
+    let fixture = Fixture::new();
+    assert!(CacheRoot::open(&fixture.root, fixture.deployment).is_err());
+    assert!(CacheRoot::initialize(Path::new("relative-root"), fixture.deployment).is_err());
+    assert!(CacheRoot::initialize(&fixture.root, Uuid::nil()).is_err());
+    fixture.write_private("do-not-delete", b"unrelated");
     assert!(matches!(
-        CacheRoot::initialize(&f.root, f.deployment),
+        CacheRoot::initialize(&fixture.root, fixture.deployment),
         Err(FileError::Exists)
     ));
     assert_eq!(
-        fs::read(f.root.join("do-not-delete")).unwrap(),
+        fs::read(fixture.root.join("do-not-delete")).unwrap(),
         b"unrelated"
     );
-    fs::remove_file(f.root.join("do-not-delete")).unwrap();
-    let root = f.initialize();
+    fs::remove_file(fixture.root.join("do-not-delete")).unwrap();
+    let root = fixture.initialize();
     let id = root.id();
-    assert_eq!(root.deployment(), f.deployment);
+    assert_eq!(root.deployment(), fixture.deployment);
     assert!(matches!(
-        CacheRoot::open(&f.root, f.deployment),
+        CacheRoot::open(&fixture.root, fixture.deployment),
         Err(FileError::Busy)
     ));
-    assert!(CacheRoot::initialize(&f.root, f.deployment).is_err());
+    assert!(CacheRoot::initialize(&fixture.root, fixture.deployment).is_err());
     drop(root);
-    assert!(CacheRoot::open(&f.root, Uuid::new_v4()).is_err());
-    let reopened = CacheRoot::open(&f.root, f.deployment).unwrap();
+    assert!(CacheRoot::open(&fixture.root, Uuid::new_v4()).is_err());
+    let reopened = CacheRoot::open(&fixture.root, fixture.deployment).unwrap();
     assert_eq!(id, reopened.id());
     drop(reopened);
-    f.write_private("root.identity", b"broken");
+    fixture.write_private("root.identity", b"broken");
     assert!(matches!(
-        CacheRoot::open(&f.root, f.deployment),
+        CacheRoot::open(&fixture.root, fixture.deployment),
         Err(FileError::Corrupt)
     ));
 }
 #[test]
 fn complete_hash_verified_publication_and_shared_reads_hold_exclusive_cleanup_out() {
-    let f = Fixture::new();
-    let root = f.initialize();
+    let fixture = Fixture::new();
+    let root = fixture.initialize();
     let id = Uuid::new_v4();
     let bytes = b"synthetic MP4 payload";
     let mut writer = root
@@ -126,7 +126,7 @@ fn complete_hash_verified_publication_and_shared_reads_hold_exclusive_cleanup_ou
     assert_eq!(published.id(), id);
     assert_eq!(published.root_id(), root.id());
     assert_eq!(published.content(), content(bytes));
-    assert!(!f.root.join(format!("{id}.part")).exists());
+    assert!(!fixture.root.join(format!("{id}.part")).exists());
     assert!(matches!(
         root.try_read(id, content(bytes)),
         Err(FileError::Busy)
@@ -146,16 +146,16 @@ fn complete_hash_verified_publication_and_shared_reads_hold_exclusive_cleanup_ou
     assert_eq!(received, &bytes[10..]);
     drop(root);
     assert!(matches!(
-        CacheRoot::open(&f.root, f.deployment),
+        CacheRoot::open(&fixture.root, fixture.deployment),
         Err(FileError::Busy)
     ));
     drop(first);
     drop(second);
-    let root = CacheRoot::open(&f.root, f.deployment).unwrap();
+    let root = CacheRoot::open(&fixture.root, fixture.deployment).unwrap();
     let guard = root.try_lock_blob(id).unwrap();
     assert!(guard.remove_data().unwrap());
     assert!(!guard.remove_data().unwrap());
-    assert!(f.root.join(format!("{id}.lock")).exists());
+    assert!(fixture.root.join(format!("{id}.lock")).exists());
     assert!(matches!(
         guard.begin_write(content(bytes)),
         Err(FileError::Exists)
@@ -163,10 +163,10 @@ fn complete_hash_verified_publication_and_shared_reads_hold_exclusive_cleanup_ou
 }
 #[test]
 fn cancelled_oversized_short_or_wrong_hash_writes_never_publish_and_cleanup_is_exact() {
-    let f = Fixture::new();
-    let root = f.initialize();
+    let fixture = Fixture::new();
+    let root = fixture.initialize();
     let bytes = b"12345";
-    f.write_private("untracked.mp4", b"keep");
+    fixture.write_private("untracked.mp4", b"keep");
     for scenario in 0..5 {
         let id = Uuid::new_v4();
         let mut writer = root
@@ -197,7 +197,7 @@ fn cancelled_oversized_short_or_wrong_hash_writes_never_publish_and_cleanup_is_e
                 assert!(writer.finish().is_err());
             }
         }
-        assert!(!f.root.join(format!("{id}.blob")).exists());
+        assert!(!fixture.root.join(format!("{id}.blob")).exists());
         let guard = root.try_lock_blob(id).unwrap();
         assert!(guard.remove_data().unwrap());
         assert!(matches!(
@@ -205,17 +205,20 @@ fn cancelled_oversized_short_or_wrong_hash_writes_never_publish_and_cleanup_is_e
             Err(FileError::Exists)
         ));
     }
-    assert_eq!(fs::read(f.root.join("untracked.mp4")).unwrap(), b"keep");
+    assert_eq!(
+        fs::read(fixture.root.join("untracked.mp4")).unwrap(),
+        b"keep"
+    );
     assert!(ContentIdentity::new(0, [0; 32]).is_err());
     assert!(ContentIdentity::new(u64::MAX, [0; 32]).is_err());
     assert!(root.try_lock_blob(Uuid::nil()).is_err());
 }
 #[test]
 fn existing_destination_is_never_overwritten_even_without_a_known_attempt_tombstone() {
-    let f = Fixture::new();
-    let root = f.initialize();
+    let fixture = Fixture::new();
+    let root = fixture.initialize();
     let id = Uuid::new_v4();
-    f.write_private(&format!("{id}.blob"), b"original");
+    fixture.write_private(&format!("{id}.blob"), b"original");
     let bytes = b"replacement";
     let mut writer = root
         .try_lock_blob(id)
@@ -225,7 +228,7 @@ fn existing_destination_is_never_overwritten_even_without_a_known_attempt_tombst
     writer.append(bytes).unwrap();
     assert!(writer.finish().is_err());
     assert_eq!(
-        fs::read(f.root.join(format!("{id}.blob"))).unwrap(),
+        fs::read(fixture.root.join(format!("{id}.blob"))).unwrap(),
         b"original"
     );
     let guard = root.try_lock_blob(id).unwrap();
@@ -234,14 +237,14 @@ fn existing_destination_is_never_overwritten_even_without_a_known_attempt_tombst
 }
 #[test]
 fn symlinks_hardlinks_and_reparse_roots_cannot_escape_the_private_root() {
-    let f = Fixture::new();
-    let root = f.initialize();
+    let fixture = Fixture::new();
+    let root = fixture.initialize();
     let id = Uuid::new_v4();
-    let outside = f.base.path().join("outside.bin");
+    let outside = fixture.base.path().join("outside.bin");
     fs::write(&outside, b"outside").unwrap();
     #[cfg(unix)]
     private(&outside);
-    let blob = f.root.join(format!("{id}.blob"));
+    let blob = fixture.root.join(format!("{id}.blob"));
     fs::hard_link(&outside, &blob).unwrap();
     assert!(root.try_read(id, content(b"outside")).is_err());
     assert!(root.try_lock_blob(id).unwrap().remove_data().is_err());
@@ -253,12 +256,12 @@ fn symlinks_hardlinks_and_reparse_roots_cannot_escape_the_private_root() {
     assert!(root.try_read(id, content(b"outside")).is_err());
     assert!(root.try_lock_blob(id).unwrap().remove_data().is_err());
     assert_eq!(fs::read(&outside).unwrap(), b"outside");
-    let alias = f.base.path().join("alias");
+    let alias = fixture.base.path().join("alias");
     #[cfg(unix)]
-    std::os::unix::fs::symlink(&f.root, &alias).unwrap();
+    std::os::unix::fs::symlink(&fixture.root, &alias).unwrap();
     #[cfg(windows)]
-    std::os::windows::fs::symlink_dir(&f.root, &alias).unwrap();
-    assert!(CacheRoot::open(&alias, f.deployment).is_err());
+    std::os::windows::fs::symlink_dir(&fixture.root, &alias).unwrap();
+    assert!(CacheRoot::open(&alias, fixture.deployment).is_err());
     drop(root);
 }
 struct Process(Child);
@@ -270,12 +273,12 @@ impl Drop for Process {
 }
 #[test]
 fn independent_process_owner_is_exclusive_and_forced_exit_releases_without_manual_unlock() {
-    let f = Fixture::new();
-    drop(f.initialize());
+    let fixture = Fixture::new();
+    drop(fixture.initialize());
     let mut command = Command::new(env!("CARGO_BIN_EXE_px_cache_probe"));
     command
-        .arg(&f.root)
-        .arg(f.deployment.to_string())
+        .arg(&fixture.root)
+        .arg(fixture.deployment.to_string())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -299,14 +302,14 @@ fn independent_process_owner_is_exclusive_and_forced_exit_releases_without_manua
     reader.join().unwrap();
     assert_eq!(ready.unwrap().unwrap().unwrap(), "READY");
     assert!(matches!(
-        CacheRoot::open(&f.root, f.deployment),
+        CacheRoot::open(&fixture.root, fixture.deployment),
         Err(FileError::Busy)
     ));
     child.0.kill().unwrap();
     child.0.wait().unwrap();
     let deadline = std::time::Instant::now() + Duration::from_secs(5);
     let root = loop {
-        match CacheRoot::open(&f.root, f.deployment) {
+        match CacheRoot::open(&fixture.root, fixture.deployment) {
             Ok(root) => break root,
             Err(FileError::Busy) if std::time::Instant::now() < deadline => {
                 std::thread::sleep(Duration::from_millis(10))
@@ -322,16 +325,16 @@ fn independent_process_owner_is_exclusive_and_forced_exit_releases_without_manua
         .unwrap();
     drop(root);
     assert!(matches!(
-        CacheRoot::open(&f.root, f.deployment),
+        CacheRoot::open(&fixture.root, fixture.deployment),
         Err(FileError::Busy)
     ));
     drop(writer);
-    assert!(CacheRoot::open(&f.root, f.deployment).is_ok());
+    assert!(CacheRoot::open(&fixture.root, fixture.deployment).is_ok());
 }
 #[test]
 fn restored_metadata_or_correct_size_does_not_substitute_for_actual_content_hash() {
-    let f = Fixture::new();
-    let root = f.initialize();
+    let fixture = Fixture::new();
+    let root = fixture.initialize();
     let id = Uuid::new_v4();
     let bytes = b"original";
     let mut writer = root
@@ -343,30 +346,30 @@ fn restored_metadata_or_correct_size_does_not_substitute_for_actual_content_hash
     drop(writer.finish().unwrap());
     drop(root);
     for damaged in [&b"modified"[..], &b"short"[..], &b"extra bytes"[..]] {
-        f.write_private(&format!("{id}.blob"), damaged);
-        let root = CacheRoot::open(&f.root, f.deployment).unwrap();
+        fixture.write_private(&format!("{id}.blob"), damaged);
+        let root = CacheRoot::open(&fixture.root, fixture.deployment).unwrap();
         assert!(matches!(
             root.try_read(id, content(bytes)),
             Err(FileError::Corrupt)
         ));
     }
-    fs::remove_file(f.root.join(format!("{id}.blob"))).unwrap();
-    let root = CacheRoot::open(&f.root, f.deployment).unwrap();
+    fs::remove_file(fixture.root.join(format!("{id}.blob"))).unwrap();
+    let root = CacheRoot::open(&fixture.root, fixture.deployment).unwrap();
     assert!(root.try_read(id, content(bytes)).is_err());
 }
 #[test]
 fn untrusted_permissions_are_rejected_and_rename_cannot_redirect_live_directory_operations() {
-    let f = Fixture::new();
+    let fixture = Fixture::new();
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&f.root, fs::Permissions::from_mode(0o755)).unwrap();
+        fs::set_permissions(&fixture.root, fs::Permissions::from_mode(0o755)).unwrap();
     }
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         let output = Command::new("icacls")
-            .arg(&f.root)
+            .arg(&fixture.root)
             .args(["/grant", "*S-1-1-0:(OI)(CI)R"])
             .creation_flags(0x08000000)
             .output()
@@ -374,14 +377,14 @@ fn untrusted_permissions_are_rejected_and_rename_cannot_redirect_live_directory_
         assert!(output.status.success());
     }
     assert!(matches!(
-        CacheRoot::initialize(&f.root, f.deployment),
+        CacheRoot::initialize(&fixture.root, fixture.deployment),
         Err(FileError::Permission)
     ));
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         assert!(Command::new("icacls")
-            .arg(&f.root)
+            .arg(&fixture.root)
             .args(["/remove:g", "*S-1-1-0"])
             .creation_flags(0x08000000)
             .output()
@@ -389,8 +392,8 @@ fn untrusted_permissions_are_rejected_and_rename_cannot_redirect_live_directory_
             .status
             .success());
     }
-    private(&f.root);
-    let root = f.initialize();
+    private(&fixture.root);
+    let root = fixture.initialize();
     let id = Uuid::new_v4();
     let bytes = b"anchored";
     let mut writer = root
@@ -398,24 +401,24 @@ fn untrusted_permissions_are_rejected_and_rename_cannot_redirect_live_directory_
         .unwrap()
         .begin_write(content(bytes))
         .unwrap();
-    let moved = f.base.path().join("moved-cache");
+    let moved = fixture.base.path().join("moved-cache");
     #[cfg(unix)]
     {
-        fs::rename(&f.root, &moved).unwrap();
-        fs::create_dir(&f.root).unwrap();
-        private(&f.root);
+        fs::rename(&fixture.root, &moved).unwrap();
+        fs::create_dir(&fixture.root).unwrap();
+        private(&fixture.root);
     }
     #[cfg(windows)]
-    assert!(fs::rename(&f.root, &moved).is_err());
+    assert!(fs::rename(&fixture.root, &moved).is_err());
     writer.append(bytes).unwrap();
     drop(writer.finish().unwrap());
     let mut reader = root.try_read(id, content(bytes)).unwrap();
-    let mut data = Vec::new();
-    reader.read_to_end(&mut data).unwrap();
-    assert_eq!(data, bytes);
+    let mut payload_bytes = Vec::new();
+    reader.read_to_end(&mut payload_bytes).unwrap();
+    assert_eq!(payload_bytes, bytes);
     #[cfg(unix)]
     {
         assert!(moved.join(format!("{id}.blob")).exists());
-        assert!(!f.root.join(format!("{id}.blob")).exists());
+        assert!(!fixture.root.join(format!("{id}.blob")).exists());
     }
 }

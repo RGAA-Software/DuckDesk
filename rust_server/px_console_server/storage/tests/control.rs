@@ -132,88 +132,104 @@ impl Fixture {
 }
 #[tokio::test]
 async fn a_last_admin_and_two_competing_self_demotions_preserve_an_administrator() {
-    let f = Fixture::new().await;
-    assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM pixels.users WHERE role='admin' AND NOT disabled AND deleted_at IS NULL").fetch_one(&f.owner).await.unwrap(),1,"requires the dedicated fresh control fixture database");
+    let fixture = Fixture::new().await;
+    assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM pixels.users WHERE role='admin' AND NOT disabled AND deleted_at IS NULL").fetch_one(&fixture.owner).await.unwrap(),1,"requires the dedicated fresh control fixture database");
     assert_eq!(
-        f.control
-            .update_user(&f.admin, f.id, 1, Role::User, false)
+        fixture
+            .control
+            .update_user(&fixture.admin, fixture.id, 1, Role::User, false)
             .await
             .unwrap_err(),
         StoreError::Rejected
     );
-    assert!(f.control.delete_user(&f.admin, f.id, 1).await.is_err());
-    let other = f
+    assert!(fixture
         .control
-        .create_user(&f.admin, &name(), &password(), Role::Admin)
+        .delete_user(&fixture.admin, fixture.id, 1)
+        .await
+        .is_err());
+    let other = fixture
+        .control
+        .create_user(&fixture.admin, &name(), &password(), Role::Admin)
         .await
         .unwrap();
-    let other_token = f.session(other.id, 1, ClientType::AdminWeb).await;
+    let other_token = fixture.session(other.id, 1, ClientType::AdminWeb).await;
     let (one, two) = tokio::join!(
-        f.control.update_user(&f.admin, f.id, 1, Role::User, false),
-        f.control
+        fixture
+            .control
+            .update_user(&fixture.admin, fixture.id, 1, Role::User, false),
+        fixture
+            .control
             .update_user(&other_token, other.id, 1, Role::User, false)
     );
     assert_ne!(one.is_ok(), two.is_ok());
-    assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM pixels.users WHERE role='admin' AND NOT disabled AND deleted_at IS NULL").fetch_one(&f.owner).await.unwrap(),1);
-    f.close().await;
+    assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM pixels.users WHERE role='admin' AND NOT disabled AND deleted_at IS NULL").fetch_one(&fixture.owner).await.unwrap(),1);
+    fixture.close().await;
 }
 #[tokio::test]
 async fn roles_and_client_types_never_manufacture_management_privilege() {
-    let f = Fixture::new().await;
-    let user = f.identity.register(&name(), &password()).await.unwrap();
+    let fixture = Fixture::new().await;
+    let user = fixture
+        .identity
+        .register(&name(), &password())
+        .await
+        .unwrap();
     assert_eq!(
         sqlx::query_scalar::<_, String>("SELECT role FROM pixels.users WHERE id=$1")
             .bind(user.id)
-            .fetch_one(&f.owner)
+            .fetch_one(&fixture.owner)
             .await
             .unwrap(),
         "user"
     );
-    let disguised = f.session(user.id, 1, ClientType::AdminWeb).await;
-    assert!(f.control.list_users(&disguised, None, 100).await.is_err());
-    assert!(f
+    let disguised = fixture.session(user.id, 1, ClientType::AdminWeb).await;
+    assert!(fixture
+        .control
+        .list_users(&disguised, None, 100)
+        .await
+        .is_err());
+    assert!(fixture
         .groups
         .create(&disguised, "must-not-create", "")
         .await
         .is_err());
-    let panel = f.session(f.id, 1, ClientType::Panel).await;
-    assert!(f.control.list_users(&panel, None, 100).await.is_err());
-    let viewer = f
+    let panel = fixture.session(fixture.id, 1, ClientType::Panel).await;
+    assert!(fixture.control.list_users(&panel, None, 100).await.is_err());
+    let viewer = fixture
         .control
-        .create_user(&f.admin, &name(), &password(), Role::Viewer)
+        .create_user(&fixture.admin, &name(), &password(), Role::Viewer)
         .await
         .unwrap();
-    let viewer = f.session(viewer.id, 1, ClientType::AdminWeb).await;
-    assert!(!f
+    let viewer = fixture.session(viewer.id, 1, ClientType::AdminWeb).await;
+    assert!(!fixture
         .control
         .list_users(&viewer, None, 100)
         .await
         .unwrap()
         .is_empty());
-    assert!(f
+    assert!(fixture
         .control
         .update_user(&viewer, user.id, 1, Role::Admin, false)
         .await
         .is_err());
-    assert!(f
+    assert!(fixture
         .groups
         .create(&viewer, "viewer-must-not-create", "")
         .await
         .is_err());
-    let group = f
+    let group = fixture
         .groups
-        .create(&f.admin, &Uuid::new_v4().to_string(), "")
+        .create(&fixture.admin, &Uuid::new_v4().to_string(), "")
         .await
         .unwrap();
-    assert!(f.groups.get(&viewer, group.id).await.is_ok());
-    assert!(f
+    assert!(fixture.groups.get(&viewer, group.id).await.is_ok());
+    assert!(fixture
         .groups
         .replace_members(&viewer, group.id, 1, &[user.id])
         .await
         .is_err());
-    assert!(f
+    assert!(fixture
         .groups
-        .members(&f.admin, group.id)
+        .members(&fixture.admin, group.id)
         .await
         .unwrap()
         .is_empty());
@@ -222,23 +238,27 @@ async fn roles_and_client_types_never_manufacture_management_privilege() {
             "SELECT count(*) FROM pixels.authorization_outbox WHERE user_id=$1"
         )
         .bind(user.id)
-        .fetch_one(&f.owner)
+        .fetch_one(&fixture.owner)
         .await
         .unwrap(),
         0
     );
-    f.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn concurrent_user_cas_has_one_winner_and_one_durable_revocation() {
-    let f = Fixture::new().await;
-    let user = f.identity.register(&name(), &password()).await.unwrap();
-    let old = f.session(user.id, 1, ClientType::Android).await;
+    let fixture = Fixture::new().await;
+    let user = fixture
+        .identity
+        .register(&name(), &password())
+        .await
+        .unwrap();
+    let old = fixture.session(user.id, 1, ClientType::Android).await;
     let barrier = Arc::new(tokio::sync::Barrier::new(20));
     let mut tasks = Vec::new();
     for _ in 0..20 {
-        let control = f.control.clone();
-        let admin = f.admin.clone();
+        let control = fixture.control.clone();
+        let admin = fixture.admin.clone();
         let barrier = barrier.clone();
         tasks.push(tokio::spawn(async move {
             barrier.wait().await;
@@ -258,7 +278,7 @@ async fn concurrent_user_cas_has_one_winner_and_one_durable_revocation() {
         }
     }
     assert_eq!(winners, 1);
-    assert!(f
+    assert!(fixture
         .identity
         .authenticate(&old, ClientType::Android)
         .await
@@ -268,7 +288,7 @@ async fn concurrent_user_cas_has_one_winner_and_one_durable_revocation() {
             "SELECT count(*) FROM pixels.authorization_outbox WHERE user_id=$1"
         )
         .bind(user.id)
-        .fetch_one(&f.owner)
+        .fetch_one(&fixture.owner)
         .await
         .unwrap(),
         1
@@ -278,24 +298,28 @@ async fn concurrent_user_cas_has_one_winner_and_one_durable_revocation() {
             "SELECT count(*) FROM pixels.authorization_audit WHERE subject_id=$1"
         )
         .bind(user.id)
-        .fetch_one(&f.owner)
+        .fetch_one(&fixture.owner)
         .await
         .unwrap(),
         1
     );
-    let enabled = f
+    let enabled = fixture
         .control
-        .update_user(&f.admin, user.id, 2, Role::User, false)
+        .update_user(&fixture.admin, user.id, 2, Role::User, false)
         .await
         .unwrap();
     assert_eq!(enabled.authorization_revision, 3);
-    assert!(f
+    assert!(fixture
         .identity
         .authenticate(&old, ClientType::Android)
         .await
         .is_err());
-    f.control.delete_user(&f.admin, user.id, 3).await.unwrap();
-    assert!(f
+    fixture
+        .control
+        .delete_user(&fixture.admin, user.id, 3)
+        .await
+        .unwrap();
+    assert!(fixture
         .identity
         .issue_session(
             user.id,
@@ -310,25 +334,29 @@ async fn concurrent_user_cas_has_one_winner_and_one_durable_revocation() {
         "SELECT deleted_at IS NOT NULL FROM pixels.users WHERE id=$1"
     )
     .bind(user.id)
-    .fetch_one(&f.owner)
+    .fetch_one(&fixture.owner)
     .await
     .unwrap());
-    f.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn failed_outbox_insert_rolls_back_role_revision_and_audit() {
-    let f = Fixture::new().await;
-    let user = f.identity.register(&name(), &password()).await.unwrap();
-    sqlx::query("REVOKE INSERT ON pixels.authorization_outbox FROM pixels_console_runtime")
-        .execute(&f.owner)
+    let fixture = Fixture::new().await;
+    let user = fixture
+        .identity
+        .register(&name(), &password())
         .await
         .unwrap();
-    let failed = f
+    sqlx::query("REVOKE INSERT ON pixels.authorization_outbox FROM pixels_console_runtime")
+        .execute(&fixture.owner)
+        .await
+        .unwrap();
+    let failed = fixture
         .control
-        .update_user(&f.admin, user.id, 1, Role::Viewer, true)
+        .update_user(&fixture.admin, user.id, 1, Role::Viewer, true)
         .await;
     sqlx::query("GRANT INSERT ON pixels.authorization_outbox TO pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
     assert_eq!(
@@ -339,7 +367,7 @@ async fn failed_outbox_insert_rolls_back_role_revision_and_audit() {
         "SELECT role,disabled,revision,authorization_revision FROM pixels.users WHERE id=$1",
     )
     .bind(user.id)
-    .fetch_one(&f.owner)
+    .fetch_one(&fixture.owner)
     .await
     .unwrap();
     assert_eq!(state, ("user".into(), false, 1, 1));
@@ -348,53 +376,75 @@ async fn failed_outbox_insert_rolls_back_role_revision_and_audit() {
             "SELECT count(*) FROM pixels.authorization_audit WHERE subject_id=$1"
         )
         .bind(user.id)
-        .fetch_one(&f.owner)
+        .fetch_one(&fixture.owner)
         .await
         .unwrap(),
         0
     );
-    f.control
-        .update_user(&f.admin, user.id, 1, Role::Viewer, true)
+    fixture
+        .control
+        .update_user(&fixture.admin, user.id, 1, Role::Viewer, true)
         .await
         .unwrap();
-    f.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn group_change_and_its_notification_audit_commit_or_rollback_together() {
-    let f = Fixture::new().await;
-    let a = f.identity.register(&name(), &password()).await.unwrap();
-    let b = f.identity.register(&name(), &password()).await.unwrap();
-    let group = f
-        .groups
-        .create(&f.admin, &Uuid::new_v4().to_string(), "")
+    let fixture = Fixture::new().await;
+    let first_user = fixture
+        .identity
+        .register(&name(), &password())
         .await
         .unwrap();
-    f.groups
-        .replace_members(&f.admin, group.id, 1, &[a.id])
+    let second_user = fixture
+        .identity
+        .register(&name(), &password())
+        .await
+        .unwrap();
+    let group = fixture
+        .groups
+        .create(&fixture.admin, &Uuid::new_v4().to_string(), "")
+        .await
+        .unwrap();
+    fixture
+        .groups
+        .replace_members(&fixture.admin, group.id, 1, &[first_user.id])
         .await
         .unwrap();
     sqlx::query("REVOKE INSERT ON pixels.authorization_outbox FROM pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
-    let failed = f
+    let failed = fixture
         .groups
-        .replace_members(&f.admin, group.id, 2, &[b.id])
+        .replace_members(&fixture.admin, group.id, 2, &[second_user.id])
         .await;
     sqlx::query("GRANT INSERT ON pixels.authorization_outbox TO pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
     assert!(failed.is_err());
     assert_eq!(
-        f.groups.members(&f.admin, group.id).await.unwrap(),
-        vec![a.id]
+        fixture
+            .groups
+            .members(&fixture.admin, group.id)
+            .await
+            .unwrap(),
+        vec![first_user.id]
     );
-    assert_eq!(f.groups.get(&f.admin, group.id).await.unwrap().revision, 2);
+    assert_eq!(
+        fixture
+            .groups
+            .get(&fixture.admin, group.id)
+            .await
+            .unwrap()
+            .revision,
+        2
+    );
     assert_eq!(
         sqlx::query_scalar::<_, i64>("SELECT authorization_revision FROM pixels.users WHERE id=$1")
-            .bind(b.id)
-            .fetch_one(&f.owner)
+            .bind(second_user.id)
+            .fetch_one(&fixture.owner)
             .await
             .unwrap(),
         1
@@ -404,81 +454,98 @@ async fn group_change_and_its_notification_audit_commit_or_rollback_together() {
             "SELECT count(*) FROM pixels.authorization_audit WHERE group_id=$1"
         )
         .bind(group.id)
-        .fetch_one(&f.owner)
+        .fetch_one(&fixture.owner)
         .await
         .unwrap(),
         1
     );
-    f.groups
-        .replace_members(&f.admin, group.id, 2, &[b.id])
+    fixture
+        .groups
+        .replace_members(&fixture.admin, group.id, 2, &[second_user.id])
         .await
         .unwrap();
-    f.groups.delete(&f.admin, group.id, 3).await.unwrap();
-    assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM pixels.authorization_audit WHERE group_id=$1 AND action='group_deleted'").bind(group.id).fetch_one(&f.owner).await.unwrap(),1);
-    f.close().await;
+    fixture
+        .groups
+        .delete(&fixture.admin, group.id, 3)
+        .await
+        .unwrap();
+    assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM pixels.authorization_audit WHERE group_id=$1 AND action='group_deleted'").bind(group.id).fetch_one(&fixture.owner).await.unwrap(),1);
+    fixture.close().await;
 }
 #[tokio::test]
 async fn logout_is_idempotent_without_revoking_other_sessions_and_password_changes_enqueue() {
-    let f = Fixture::new().await;
-    let user = f.identity.register(&name(), &password()).await.unwrap();
-    let one = f.session(user.id, 1, ClientType::Android).await;
-    let two = f.session(user.id, 1, ClientType::Panel).await;
-    let session = f
+    let fixture = Fixture::new().await;
+    let user = fixture
+        .identity
+        .register(&name(), &password())
+        .await
+        .unwrap();
+    let one = fixture.session(user.id, 1, ClientType::Android).await;
+    let two = fixture.session(user.id, 1, ClientType::Panel).await;
+    let session = fixture
         .identity
         .authenticate(&one, ClientType::Android)
         .await
         .unwrap();
-    assert!(f
+    assert!(fixture
         .identity
-        .revoke_session(f.id, session.session_id)
+        .revoke_session(fixture.id, session.session_id)
         .await
         .is_err());
-    f.identity
+    fixture
+        .identity
         .revoke_session(user.id, session.session_id)
         .await
         .unwrap();
-    f.identity
+    fixture
+        .identity
         .revoke_session(user.id, session.session_id)
         .await
         .unwrap();
-    assert!(f
+    assert!(fixture
         .identity
         .authenticate(&one, ClientType::Android)
         .await
         .is_err());
-    assert!(f
+    assert!(fixture
         .identity
         .authenticate(&two, ClientType::Panel)
         .await
         .is_ok());
-    assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM pixels.authorization_outbox WHERE user_id=$1 AND reason='session_revoked'").bind(user.id).fetch_one(&f.owner).await.unwrap(),1);
-    f.identity
+    assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM pixels.authorization_outbox WHERE user_id=$1 AND reason='session_revoked'").bind(user.id).fetch_one(&fixture.owner).await.unwrap(),1);
+    fixture
+        .identity
         .change_password(&two, ClientType::Panel, 1, &password())
         .await
         .unwrap();
-    assert!(f
+    assert!(fixture
         .identity
         .authenticate(&two, ClientType::Panel)
         .await
         .is_err());
-    assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM pixels.authorization_outbox WHERE user_id=$1 AND reason='password_changed'").bind(user.id).fetch_one(&f.owner).await.unwrap(),1);
-    f.close().await;
+    assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM pixels.authorization_outbox WHERE user_id=$1 AND reason='password_changed'").bind(user.id).fetch_one(&fixture.owner).await.unwrap(),1);
+    fixture.close().await;
 }
 #[tokio::test]
 async fn outbox_concurrent_claims_retry_and_stale_acks_do_not_lose_events() {
-    let f = Fixture::new().await;
-    f.drain().await;
+    let fixture = Fixture::new().await;
+    fixture.drain().await;
     for _ in 0..20 {
-        let user = f.identity.register(&name(), &password()).await.unwrap();
-        f.control
-            .update_user(&f.admin, user.id, 1, Role::User, true)
+        let user = fixture
+            .identity
+            .register(&name(), &password())
+            .await
+            .unwrap();
+        fixture
+            .control
+            .update_user(&fixture.admin, user.id, 1, Role::User, true)
             .await
             .unwrap();
     }
     let barrier = Arc::new(tokio::sync::Barrier::new(20));
     let mut tasks = Vec::new();
     for _ in 0..20 {
-        let control = f.control.clone();
+        let control = fixture.control.clone();
         let barrier = barrier.clone();
         tasks.push(tokio::spawn(async move {
             barrier.wait().await;
@@ -498,30 +565,32 @@ async fn outbox_concurrent_claims_retry_and_stale_acks_do_not_lose_events() {
             .len(),
         20
     );
-    assert!(f.control.claim_events(100).await.unwrap().is_empty());
+    assert!(fixture.control.claim_events(100).await.unwrap().is_empty());
     let first = events.remove(0);
     for event in events {
-        f.control
+        fixture
+            .control
             .complete_event(event.id, event.lease_id)
             .await
             .unwrap();
     }
-    sqlx::query("UPDATE pixels.authorization_outbox SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1").bind(first.id).execute(&f.owner).await.unwrap();
-    assert!(f
+    sqlx::query("UPDATE pixels.authorization_outbox SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1").bind(first.id).execute(&fixture.owner).await.unwrap();
+    assert!(fixture
         .control
         .complete_event(first.id, first.lease_id)
         .await
         .is_err());
-    let renewed = f.control.claim_events(1).await.unwrap().remove(0);
+    let renewed = fixture.control.claim_events(1).await.unwrap().remove(0);
     assert_eq!(renewed.id, first.id);
     assert_ne!(renewed.lease_id, first.lease_id);
     assert_eq!(renewed.attempts, 2);
-    assert!(f
+    assert!(fixture
         .control
         .complete_event(first.id, first.lease_id)
         .await
         .is_err());
-    f.control
+    fixture
+        .control
         .retry_event(
             renewed.id,
             renewed.lease_id,
@@ -530,29 +599,34 @@ async fn outbox_concurrent_claims_retry_and_stale_acks_do_not_lose_events() {
         )
         .await
         .unwrap();
-    assert!(f.control.claim_events(100).await.unwrap().is_empty());
-    sqlx::query("UPDATE pixels.authorization_outbox SET available_at=clock_timestamp()-interval '1 second' WHERE id=$1").bind(first.id).execute(&f.owner).await.unwrap();
-    let retry = f.control.claim_events(1).await.unwrap().remove(0);
+    assert!(fixture.control.claim_events(100).await.unwrap().is_empty());
+    sqlx::query("UPDATE pixels.authorization_outbox SET available_at=clock_timestamp()-interval '1 second' WHERE id=$1").bind(first.id).execute(&fixture.owner).await.unwrap();
+    let retry = fixture.control.claim_events(1).await.unwrap().remove(0);
     assert_eq!(retry.attempts, 3);
-    f.control
+    fixture
+        .control
         .complete_event(retry.id, retry.lease_id)
         .await
         .unwrap();
-    assert!(f.control.claim_events(100).await.unwrap().is_empty());
-    assert!(f.control.claim_events(0).await.is_err());
-    f.close().await;
+    assert!(fixture.control.claim_events(100).await.unwrap().is_empty());
+    assert!(fixture.control.claim_events(0).await.is_err());
+    fixture.close().await;
 }
 #[tokio::test]
 async fn shared_admission_gate_serializes_revocation_and_lock_failure_is_bounded() {
-    let f = Fixture::new().await;
-    let user = f.identity.register(&name(), &password()).await.unwrap();
-    let mut held = f.owner.begin().await.unwrap();
+    let fixture = Fixture::new().await;
+    let user = fixture
+        .identity
+        .register(&name(), &password())
+        .await
+        .unwrap();
+    let mut held = fixture.owner.begin().await.unwrap();
     sqlx::query("SELECT pg_advisory_xact_lock_shared(22091401)")
         .execute(&mut *held)
         .await
         .unwrap();
-    let control = f.control.clone();
-    let admin = f.admin.clone();
+    let control = fixture.control.clone();
+    let admin = fixture.admin.clone();
     let mut task = tokio::spawn(async move {
         control
             .update_user(&admin, user.id, 1, Role::User, true)
@@ -563,14 +637,14 @@ async fn shared_admission_gate_serializes_revocation_and_lock_failure_is_bounded
         .is_err());
     held.commit().await.unwrap();
     task.await.unwrap().unwrap();
-    let mut held = f.owner.begin().await.unwrap();
+    let mut held = fixture.owner.begin().await.unwrap();
     sqlx::query("SELECT pg_advisory_xact_lock_shared(22091401)")
         .execute(&mut *held)
         .await
         .unwrap();
-    let result = f
+    let result = fixture
         .control
-        .update_user(&f.admin, user.id, 2, Role::User, false)
+        .update_user(&fixture.admin, user.id, 2, Role::User, false)
         .await;
     held.rollback().await.unwrap();
     assert_eq!(
@@ -580,13 +654,14 @@ async fn shared_admission_gate_serializes_revocation_and_lock_failure_is_bounded
     assert!(
         sqlx::query_scalar::<_, bool>("SELECT disabled FROM pixels.users WHERE id=$1")
             .bind(user.id)
-            .fetch_one(&f.owner)
+            .fetch_one(&fixture.owner)
             .await
             .unwrap()
     );
-    f.control
-        .update_user(&f.admin, user.id, 2, Role::User, false)
+    fixture
+        .control
+        .update_user(&fixture.admin, user.id, 2, Role::User, false)
         .await
         .unwrap();
-    f.close().await;
+    fixture.close().await;
 }

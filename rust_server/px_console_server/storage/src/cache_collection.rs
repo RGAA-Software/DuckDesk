@@ -4,17 +4,17 @@ use sqlx::PgConnection;
 use uuid::Uuid;
 impl RecordingCacheStore {
     async fn collect_locked(
-        c: &mut PgConnection,
+        connection: &mut PgConnection,
         run: &CacheRuntime,
         guard: &BlobGuard,
         explicit: Option<(Uuid, i64)>,
     ) -> Result<(), StoreError> {
-        Self::current(c, run).await?;
+        Self::current(connection, run).await?;
         if guard.root_id() != run.root.id() {
             return Err(StoreError::Rejected);
         }
-        let blob = Self::blob(c, guard.id()).await?;
-        let entry = Self::entry(c, blob.recording_id)
+        let blob = Self::blob(connection, guard.id()).await?;
+        let entry = Self::entry(connection, blob.recording_id)
             .await?
             .ok_or(StoreError::Rejected)?;
         if blob.root_id != run.root.id() {
@@ -35,7 +35,7 @@ impl RecordingCacheStore {
             run.options.ttl_seconds as f64,
             explicit.is_some()
         )
-        .fetch_one(&mut *c)
+        .fetch_one(&mut *connection)
         .await?;
         let readers = sqlx::query_file_scalar!(
             "queries/cache_live_reads.sql",
@@ -43,7 +43,7 @@ impl RecordingCacheStore {
             Some(blob.id),
             None::<Uuid>
         )
-        .fetch_one(&mut *c)
+        .fetch_one(&mut *connection)
         .await?;
         if !eligible || readers != 0 {
             return Err(StoreError::Rejected);
@@ -52,16 +52,16 @@ impl RecordingCacheStore {
             return Ok(());
         }
         sqlx::query_file!("queries/mark_cache_deleting.sql", blob.id)
-            .execute(&mut *c)
+            .execute(&mut *connection)
             .await?;
         let next = if entry.active_blob_id == Some(blob.id) {
             None
         } else {
             entry.active_blob_id
         };
-        let changed = Self::moved(c, entry.recording_id, next).await?;
+        let changed = Self::moved(connection, entry.recording_id, next).await?;
         Self::event(
-            c,
+            connection,
             run,
             &changed,
             Some(blob.id),

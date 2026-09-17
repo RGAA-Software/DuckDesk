@@ -16,34 +16,38 @@ impl CacheFixture {
     async fn ready(&self) -> (Uuid, px_console_store::CachedFile) {
         let id = self.record(DATA.len() as u64).await;
         self.request(id).await;
-        let a = self.attempt().await;
+        let cache_attempt = self.attempt().await;
         let mut writer = self
             .run
             .root()
-            .try_lock_blob(a.id())
+            .try_lock_blob(cache_attempt.id())
             .unwrap()
-            .begin_write(a.content())
+            .begin_write(cache_attempt.content())
             .unwrap();
         writer.append(DATA).unwrap();
         let proof = writer.finish().unwrap();
         self.store
-            .publish(&self.run, &self.node, &a, &proof)
+            .publish(&self.run, &self.node, &cache_attempt, &proof)
             .await
             .unwrap();
         drop(proof);
         let file = self
             .store
-            .cached_file(&self.run, CacheCredential::Managed(&self.f.admin), id)
+            .cached_file(
+                &self.run,
+                CacheCredential::Managed(&self.base_fixture.admin),
+                id,
+            )
             .await
             .unwrap();
         (id, file)
     }
     async fn age(&self) {
-        sqlx::query("UPDATE pixels.recording_cache SET last_access_at=clock_timestamp()-interval '2 minutes'").execute(&self.f.owner).await.unwrap();
+        sqlx::query("UPDATE pixels.recording_cache SET last_access_at=clock_timestamp()-interval '2 minutes'").execute(&self.base_fixture.owner).await.unwrap();
     }
     async fn revision(&self) -> i64 {
         self.store
-            .list_managed(&self.run, &self.f.admin, None, 100)
+            .list_managed(&self.run, &self.base_fixture.admin, None, 100)
             .await
             .unwrap()[0]
             .revision
@@ -51,15 +55,25 @@ impl CacheFixture {
 }
 #[tokio::test]
 async fn read_leases_are_bounded_login_bound_revocable_and_not_blob_bearer_tokens() {
-    let c = CacheFixture::new().await;
-    let (id, file) = c.ready().await;
-    let reader = c.run.root().try_read(file.id, file.content).unwrap();
-    let viewer = c.f.session("viewer", ClientType::AdminWeb).await;
-    let android = c.f.session("user", ClientType::Android).await;
-    assert!(c
+    let cache_fixture = CacheFixture::new().await;
+    let (id, file) = cache_fixture.ready().await;
+    let reader = cache_fixture
+        .run
+        .root()
+        .try_read(file.id, file.content)
+        .unwrap();
+    let viewer = cache_fixture
+        .base_fixture
+        .session("viewer", ClientType::AdminWeb)
+        .await;
+    let android = cache_fixture
+        .base_fixture
+        .session("user", ClientType::Android)
+        .await;
+    assert!(cache_fixture
         .store
         .open_read(
-            &c.run,
+            &cache_fixture.run,
             CacheCredential::DeviceUser {
                 token: &android,
                 client: ClientType::Android
@@ -72,334 +86,573 @@ async fn read_leases_are_bounded_login_bound_revocable_and_not_blob_bearer_token
     let mut leases = Vec::new();
     for _ in 0..32 {
         leases.push(
-            c.store
-                .open_read(&c.run, CacheCredential::Managed(&viewer), id, &reader)
+            cache_fixture
+                .store
+                .open_read(
+                    &cache_fixture.run,
+                    CacheCredential::Managed(&viewer),
+                    id,
+                    &reader,
+                )
                 .await
                 .unwrap(),
         );
     }
     assert!(leases
         .iter()
-        .all(|l| l.valid_for_ms() > 0 && l.valid_for_ms() <= 30000));
-    assert!(c
+        .all(|read_lease| read_lease.valid_for_ms() > 0 && read_lease.valid_for_ms() <= 30000));
+    assert!(cache_fixture
         .store
-        .open_read(&c.run, CacheCredential::Managed(&viewer), id, &reader)
+        .open_read(
+            &cache_fixture.run,
+            CacheCredential::Managed(&viewer),
+            id,
+            &reader
+        )
         .await
         .is_err());
-    c.store.close_read(&c.run, &leases[0]).await.unwrap();
-    c.store.close_read(&c.run, &leases[0]).await.unwrap();
-    assert!(c
+    cache_fixture
         .store
-        .renew_read(&c.run, &leases[0], &reader)
-        .await
-        .is_err());
-    let fresh = c
-        .store
-        .open_read(&c.run, CacheCredential::Managed(&viewer), id, &reader)
+        .close_read(&cache_fixture.run, &leases[0])
         .await
         .unwrap();
-    c.store.renew_read(&c.run, &fresh, &reader).await.unwrap();
-    let identity =
-        c.f.identity
-            .authenticate(&viewer, ClientType::AdminWeb)
-            .await
-            .unwrap();
-    c.f.identity
+    cache_fixture
+        .store
+        .close_read(&cache_fixture.run, &leases[0])
+        .await
+        .unwrap();
+    assert!(cache_fixture
+        .store
+        .renew_read(&cache_fixture.run, &leases[0], &reader)
+        .await
+        .is_err());
+    let fresh = cache_fixture
+        .store
+        .open_read(
+            &cache_fixture.run,
+            CacheCredential::Managed(&viewer),
+            id,
+            &reader,
+        )
+        .await
+        .unwrap();
+    cache_fixture
+        .store
+        .renew_read(&cache_fixture.run, &fresh, &reader)
+        .await
+        .unwrap();
+    let identity = cache_fixture
+        .base_fixture
+        .identity
+        .authenticate(&viewer, ClientType::AdminWeb)
+        .await
+        .unwrap();
+    cache_fixture
+        .base_fixture
+        .identity
         .revoke_session(identity.user_id, identity.session_id)
         .await
         .unwrap();
-    assert!(c.store.renew_read(&c.run, &fresh, &reader).await.is_err());
-    assert!(c
+    assert!(cache_fixture
         .store
-        .open_read(&c.run, CacheCredential::Managed(&viewer), id, &reader)
+        .renew_read(&cache_fixture.run, &fresh, &reader)
+        .await
+        .is_err());
+    assert!(cache_fixture
+        .store
+        .open_read(
+            &cache_fixture.run,
+            CacheCredential::Managed(&viewer),
+            id,
+            &reader
+        )
         .await
         .is_err());
     drop(reader);
-    c.close().await;
+    cache_fixture.close().await;
 }
 #[tokio::test]
 async fn read_lease_and_physical_lock_each_independently_prevent_collection() {
-    let c = CacheFixture::new().await;
-    let (id, file) = c.ready().await;
-    let reader = c.run.root().try_read(file.id, file.content).unwrap();
-    let lease = c
+    let cache_fixture = CacheFixture::new().await;
+    let (id, file) = cache_fixture.ready().await;
+    let reader = cache_fixture
+        .run
+        .root()
+        .try_read(file.id, file.content)
+        .unwrap();
+    let lease = cache_fixture
         .store
-        .open_read(&c.run, CacheCredential::Managed(&c.f.admin), id, &reader)
+        .open_read(
+            &cache_fixture.run,
+            CacheCredential::Managed(&cache_fixture.base_fixture.admin),
+            id,
+            &reader,
+        )
         .await
         .unwrap();
-    c.age().await;
-    assert!(c
+    cache_fixture.age().await;
+    assert!(cache_fixture
         .store
-        .collection_candidates(&c.run, None, 100)
+        .collection_candidates(&cache_fixture.run, None, 100)
         .await
         .unwrap()
         .is_empty());
     drop(reader);
-    let guard = c.run.root().try_lock_blob(file.id).unwrap();
-    assert!(c.store.begin_collection(&c.run, &guard).await.is_err());
+    let guard = cache_fixture.run.root().try_lock_blob(file.id).unwrap();
+    assert!(cache_fixture
+        .store
+        .begin_collection(&cache_fixture.run, &guard)
+        .await
+        .is_err());
     drop(guard);
-    let reader = c.run.root().try_read(file.id, file.content).unwrap();
+    let reader = cache_fixture
+        .run
+        .root()
+        .try_read(file.id, file.content)
+        .unwrap();
     sqlx::query(
         "UPDATE pixels.cache_read_leases SET expires_at=clock_timestamp()-interval '1 second'",
     )
-    .execute(&c.f.owner)
+    .execute(&cache_fixture.base_fixture.owner)
     .await
     .unwrap();
-    assert!(c.store.renew_read(&c.run, &lease, &reader).await.is_err());
+    assert!(cache_fixture
+        .store
+        .renew_read(&cache_fixture.run, &lease, &reader)
+        .await
+        .is_err());
     assert_eq!(
-        c.store
-            .collection_candidates(&c.run, None, 100)
+        cache_fixture
+            .store
+            .collection_candidates(&cache_fixture.run, None, 100)
             .await
             .unwrap(),
         vec![file.id]
     );
     assert!(matches!(
-        c.run.root().try_lock_blob(file.id),
+        cache_fixture.run.root().try_lock_blob(file.id),
         Err(px_private_files::FileError::Busy)
     ));
     drop(reader);
-    let guard = c.run.root().try_lock_blob(file.id).unwrap();
-    c.store.begin_collection(&c.run, &guard).await.unwrap();
-    assert!(c
+    let guard = cache_fixture.run.root().try_lock_blob(file.id).unwrap();
+    cache_fixture
         .store
-        .cached_file(&c.run, CacheCredential::Managed(&c.f.admin), id)
+        .begin_collection(&cache_fixture.run, &guard)
+        .await
+        .unwrap();
+    assert!(cache_fixture
+        .store
+        .cached_file(
+            &cache_fixture.run,
+            CacheCredential::Managed(&cache_fixture.base_fixture.admin),
+            id
+        )
         .await
         .is_err());
     let proof = guard.delete().unwrap();
-    c.store.finish_collection(&c.run, &proof).await.unwrap();
-    c.store.finish_collection(&c.run, &proof).await.unwrap();
+    cache_fixture
+        .store
+        .finish_collection(&cache_fixture.run, &proof)
+        .await
+        .unwrap();
+    cache_fixture
+        .store
+        .finish_collection(&cache_fixture.run, &proof)
+        .await
+        .unwrap();
     drop(proof);
-    assert!(c.run.root().try_read(file.id, file.content).is_err());
-    c.close().await;
+    assert!(cache_fixture
+        .run
+        .root()
+        .try_read(file.id, file.content)
+        .is_err());
+    cache_fixture.close().await;
 }
 #[tokio::test]
 async fn retention_is_admin_cas_and_survives_ttl_offline_and_capacity_pressure() {
-    let c = CacheFixture::new().await;
-    let (id, file) = c.ready().await;
-    let viewer = c.f.session("viewer", ClientType::AdminWeb).await;
-    let revision = c.revision().await;
-    assert!(c
+    let cache_fixture = CacheFixture::new().await;
+    let (id, file) = cache_fixture.ready().await;
+    let viewer = cache_fixture
+        .base_fixture
+        .session("viewer", ClientType::AdminWeb)
+        .await;
+    let revision = cache_fixture.revision().await;
+    assert!(cache_fixture
         .store
-        .retain(&c.run, &viewer, id, revision, true)
+        .retain(&cache_fixture.run, &viewer, id, revision, true)
         .await
         .is_err());
-    let retained = c
+    let retained = cache_fixture
         .store
-        .retain(&c.run, &c.f.admin, id, revision, true)
+        .retain(
+            &cache_fixture.run,
+            &cache_fixture.base_fixture.admin,
+            id,
+            revision,
+            true,
+        )
         .await
         .unwrap();
     assert!(retained.pinned);
-    assert!(c
+    assert!(cache_fixture
         .store
-        .retain(&c.run, &c.f.admin, id, revision, false)
+        .retain(
+            &cache_fixture.run,
+            &cache_fixture.base_fixture.admin,
+            id,
+            revision,
+            false
+        )
         .await
         .is_err());
-    c.age().await;
-    assert!(c
+    cache_fixture.age().await;
+    assert!(cache_fixture
         .store
-        .collection_candidates(&c.run, None, 100)
+        .collection_candidates(&cache_fixture.run, None, 100)
         .await
         .unwrap()
         .is_empty());
-    let guard = c.run.root().try_lock_blob(file.id).unwrap();
-    assert!(c
+    let guard = cache_fixture.run.root().try_lock_blob(file.id).unwrap();
+    assert!(cache_fixture
         .store
-        .evict(&c.run, &c.f.admin, retained.revision, &guard)
+        .evict(
+            &cache_fixture.run,
+            &cache_fixture.base_fixture.admin,
+            retained.revision,
+            &guard
+        )
         .await
         .is_err());
-    let large = c.record(1_048_576).await;
-    assert!(c
+    let large = cache_fixture.record(1_048_576).await;
+    assert!(cache_fixture
         .store
-        .request(&c.run, CacheCredential::Managed(&c.f.admin), large)
+        .request(
+            &cache_fixture.run,
+            CacheCredential::Managed(&cache_fixture.base_fixture.admin),
+            large
+        )
         .await
         .is_err());
-    c.f.nodes.close_connection(&c.node).await.unwrap();
+    cache_fixture
+        .base_fixture
+        .nodes
+        .close_connection(&cache_fixture.node)
+        .await
+        .unwrap();
     assert_eq!(
-        c.store
-            .cached_file(&c.run, CacheCredential::Managed(&viewer), id)
+        cache_fixture
+            .store
+            .cached_file(&cache_fixture.run, CacheCredential::Managed(&viewer), id)
             .await
             .unwrap()
             .id,
         file.id
     );
-    let released = c
+    let released = cache_fixture
         .store
-        .retain(&c.run, &c.f.admin, id, retained.revision, false)
+        .retain(
+            &cache_fixture.run,
+            &cache_fixture.base_fixture.admin,
+            id,
+            retained.revision,
+            false,
+        )
         .await
         .unwrap();
     assert!(!released.pinned);
-    assert!(c
+    assert!(cache_fixture
         .store
-        .evict(&c.run, &viewer, released.revision, &guard)
+        .evict(&cache_fixture.run, &viewer, released.revision, &guard)
         .await
         .is_err());
-    c.store
-        .evict(&c.run, &c.f.admin, released.revision, &guard)
+    cache_fixture
+        .store
+        .evict(
+            &cache_fixture.run,
+            &cache_fixture.base_fixture.admin,
+            released.revision,
+            &guard,
+        )
         .await
         .unwrap();
-    assert!(c
+    assert!(cache_fixture
         .store
-        .retain(&c.run, &c.f.admin, id, released.revision, true)
+        .retain(
+            &cache_fixture.run,
+            &cache_fixture.base_fixture.admin,
+            id,
+            released.revision,
+            true
+        )
         .await
         .is_err());
     let proof = guard.delete().unwrap();
-    c.store.finish_collection(&c.run, &proof).await.unwrap();
+    cache_fixture
+        .store
+        .finish_collection(&cache_fixture.run, &proof)
+        .await
+        .unwrap();
     drop(proof);
-    c.close().await;
+    cache_fixture.close().await;
 }
 #[tokio::test]
 async fn collection_audit_failures_preserve_reference_then_reservation_until_actual_delete_ack() {
-    let c = CacheFixture::new().await;
-    let (id, file) = c.ready().await;
-    c.age().await;
-    let guard = c.run.root().try_lock_blob(file.id).unwrap();
+    let cache_fixture = CacheFixture::new().await;
+    let (id, file) = cache_fixture.ready().await;
+    cache_fixture.age().await;
+    let guard = cache_fixture.run.root().try_lock_blob(file.id).unwrap();
     sqlx::query("REVOKE INSERT ON pixels.cache_events FROM pixels_console_runtime")
-        .execute(&c.f.owner)
+        .execute(&cache_fixture.base_fixture.owner)
         .await
         .unwrap();
-    assert!(c.store.begin_collection(&c.run, &guard).await.is_err());
+    assert!(cache_fixture
+        .store
+        .begin_collection(&cache_fixture.run, &guard)
+        .await
+        .is_err());
     assert_eq!(
-        c.store
-            .cached_file(&c.run, CacheCredential::Managed(&c.f.admin), id)
+        cache_fixture
+            .store
+            .cached_file(
+                &cache_fixture.run,
+                CacheCredential::Managed(&cache_fixture.base_fixture.admin),
+                id
+            )
             .await
             .unwrap()
             .id,
         file.id
     );
     sqlx::query("GRANT INSERT ON pixels.cache_events TO pixels_console_runtime")
-        .execute(&c.f.owner)
+        .execute(&cache_fixture.base_fixture.owner)
         .await
         .unwrap();
-    c.store.begin_collection(&c.run, &guard).await.unwrap();
+    cache_fixture
+        .store
+        .begin_collection(&cache_fixture.run, &guard)
+        .await
+        .unwrap();
     let proof = guard.delete().unwrap();
     sqlx::query("REVOKE INSERT ON pixels.cache_events FROM pixels_console_runtime")
-        .execute(&c.f.owner)
+        .execute(&cache_fixture.base_fixture.owner)
         .await
         .unwrap();
-    assert!(c.store.finish_collection(&c.run, &proof).await.is_err());
+    assert!(cache_fixture
+        .store
+        .finish_collection(&cache_fixture.run, &proof)
+        .await
+        .is_err());
     let state: String = sqlx::query_scalar("SELECT state FROM pixels.cache_blobs WHERE id=$1")
         .bind(file.id)
-        .fetch_one(&c.f.owner)
+        .fetch_one(&cache_fixture.base_fixture.owner)
         .await
         .unwrap();
     assert_eq!(state, "deleting");
     sqlx::query("GRANT INSERT ON pixels.cache_events TO pixels_console_runtime")
-        .execute(&c.f.owner)
+        .execute(&cache_fixture.base_fixture.owner)
         .await
         .unwrap();
-    c.store.finish_collection(&c.run, &proof).await.unwrap();
+    cache_fixture
+        .store
+        .finish_collection(&cache_fixture.run, &proof)
+        .await
+        .unwrap();
     drop(proof);
-    // A response lost after commit is safe to retry with a fresh exact-object deletion proof.
-    let guard = c.run.root().try_lock_blob(file.id).unwrap();
-    c.store.begin_collection(&c.run, &guard).await.unwrap();
+    // A response lost after commit is safe to retry with cache_attempt fresh exact-object deletion proof.
+    let guard = cache_fixture.run.root().try_lock_blob(file.id).unwrap();
+    cache_fixture
+        .store
+        .begin_collection(&cache_fixture.run, &guard)
+        .await
+        .unwrap();
     let proof = guard.delete().unwrap();
-    c.store.finish_collection(&c.run, &proof).await.unwrap();
+    cache_fixture
+        .store
+        .finish_collection(&cache_fixture.run, &proof)
+        .await
+        .unwrap();
     drop(proof);
-    let large = c.record(1_048_576).await;
-    c.request(large).await;
-    c.close().await;
+    let large = cache_fixture.record(1_048_576).await;
+    cache_fixture.request(large).await;
+    cache_fixture.close().await;
 }
 #[tokio::test]
 async fn never_started_attempt_is_tombstoned_by_collection_and_stale_worker_cannot_recreate_it() {
-    let c = CacheFixture::new().await;
-    let id = c.record(DATA.len() as u64).await;
-    c.request(id).await;
-    let a = c.attempt().await;
-    let guard = c.run.root().try_lock_blob(a.id()).unwrap();
-    assert!(c.store.begin_collection(&c.run, &guard).await.is_err());
-    assert!(c
-        .store
-        .evict(&c.run, &c.f.admin, c.revision().await, &guard)
-        .await
-        .is_err());
-    c.store.abandon(&c.run, &c.node, &a).await.unwrap();
-    c.store.begin_collection(&c.run, &guard).await.unwrap();
-    let proof = guard.delete().unwrap();
-    c.store.finish_collection(&c.run, &proof).await.unwrap();
-    drop(proof);
-    assert!(c
+    let cache_fixture = CacheFixture::new().await;
+    let id = cache_fixture.record(DATA.len() as u64).await;
+    cache_fixture.request(id).await;
+    let cache_attempt = cache_fixture.attempt().await;
+    let guard = cache_fixture
         .run
         .root()
-        .try_lock_blob(a.id())
-        .unwrap()
-        .begin_write(a.content())
+        .try_lock_blob(cache_attempt.id())
+        .unwrap();
+    assert!(cache_fixture
+        .store
+        .begin_collection(&cache_fixture.run, &guard)
+        .await
         .is_err());
-    c.request(id).await;
-    assert_ne!(c.attempt().await.id(), a.id());
-    // Unknown objects are not GC candidates, even with a legitimate root's physical lock.
-    let unknown = c.run.root().try_lock_blob(Uuid::new_v4()).unwrap();
-    assert!(c.store.begin_collection(&c.run, &unknown).await.is_err());
+    assert!(cache_fixture
+        .store
+        .evict(
+            &cache_fixture.run,
+            &cache_fixture.base_fixture.admin,
+            cache_fixture.revision().await,
+            &guard
+        )
+        .await
+        .is_err());
+    cache_fixture
+        .store
+        .abandon(&cache_fixture.run, &cache_fixture.node, &cache_attempt)
+        .await
+        .unwrap();
+    cache_fixture
+        .store
+        .begin_collection(&cache_fixture.run, &guard)
+        .await
+        .unwrap();
+    let proof = guard.delete().unwrap();
+    cache_fixture
+        .store
+        .finish_collection(&cache_fixture.run, &proof)
+        .await
+        .unwrap();
+    drop(proof);
+    assert!(cache_fixture
+        .run
+        .root()
+        .try_lock_blob(cache_attempt.id())
+        .unwrap()
+        .begin_write(cache_attempt.content())
+        .is_err());
+    cache_fixture.request(id).await;
+    assert_ne!(cache_fixture.attempt().await.id(), cache_attempt.id());
+    // Unknown objects are not GC candidates, even with cache_attempt legitimate root's physical lock.
+    let unknown = cache_fixture
+        .run
+        .root()
+        .try_lock_blob(Uuid::new_v4())
+        .unwrap();
+    assert!(cache_fixture
+        .store
+        .begin_collection(&cache_fixture.run, &unknown)
+        .await
+        .is_err());
     drop(unknown);
-    c.close().await;
+    cache_fixture.close().await;
 }
 #[tokio::test]
 async fn restart_fences_media_leases_until_current_file_revalidation_and_new_authorization() {
-    let c = CacheFixture::new().await;
-    let (id, file) = c.ready().await;
-    let reader = c.run.root().try_read(file.id, file.content).unwrap();
-    let lease = c
+    let cache_fixture = CacheFixture::new().await;
+    let (id, file) = cache_fixture.ready().await;
+    let reader = cache_fixture
+        .run
+        .root()
+        .try_read(file.id, file.content)
+        .unwrap();
+    let lease = cache_fixture
         .store
-        .open_read(&c.run, CacheCredential::Managed(&c.f.admin), id, &reader)
+        .open_read(
+            &cache_fixture.run,
+            CacheCredential::Managed(&cache_fixture.base_fixture.admin),
+            id,
+            &reader,
+        )
         .await
         .unwrap();
-    let run = c
+    let run = cache_fixture
         .store
-        .begin_runtime(c.run.root().clone(), c.node.epoch(), options())
+        .begin_runtime(
+            cache_fixture.run.root().clone(),
+            cache_fixture.node.epoch(),
+            options(),
+        )
         .await
         .unwrap();
-    assert!(c.store.renew_read(&c.run, &lease, &reader).await.is_err());
-    assert!(c.store.renew_read(&run, &lease, &reader).await.is_err());
-    assert!(c
+    assert!(cache_fixture
         .store
-        .open_read(&run, CacheCredential::Managed(&c.f.admin), id, &reader)
+        .renew_read(&cache_fixture.run, &lease, &reader)
         .await
         .is_err());
-    c.store.verify_cached(&run, id, &reader).await.unwrap();
-    c.store
-        .open_read(&run, CacheCredential::Managed(&c.f.admin), id, &reader)
+    assert!(cache_fixture
+        .store
+        .renew_read(&run, &lease, &reader)
+        .await
+        .is_err());
+    assert!(cache_fixture
+        .store
+        .open_read(
+            &run,
+            CacheCredential::Managed(&cache_fixture.base_fixture.admin),
+            id,
+            &reader
+        )
+        .await
+        .is_err());
+    cache_fixture
+        .store
+        .verify_cached(&run, id, &reader)
+        .await
+        .unwrap();
+    cache_fixture
+        .store
+        .open_read(
+            &run,
+            CacheCredential::Managed(&cache_fixture.base_fixture.admin),
+            id,
+            &reader,
+        )
         .await
         .unwrap();
     drop(reader);
     drop(run);
-    c.close().await;
+    cache_fixture.close().await;
 }
 #[tokio::test]
 async fn android_media_requires_current_device_acl_not_application_or_other_client_identity() {
-    let c = CacheFixture::new().await;
-    let (id, file) = c.ready().await;
-    let android = c.f.session("user", ClientType::Android).await;
-    let identity =
-        c.f.identity
-            .authenticate(&android, ClientType::Android)
-            .await
-            .unwrap();
-    let device: Uuid = sqlx::query_scalar("SELECT device_id FROM pixels.nodes WHERE id=$1")
-        .bind(c.node.id())
-        .fetch_one(&c.f.owner)
+    let cache_fixture = CacheFixture::new().await;
+    let (id, file) = cache_fixture.ready().await;
+    let android = cache_fixture
+        .base_fixture
+        .session("user", ClientType::Android)
+        .await;
+    let identity = cache_fixture
+        .base_fixture
+        .identity
+        .authenticate(&android, ClientType::Android)
         .await
         .unwrap();
-    let access =
-        c.f.devices
-            .replace_access(
-                &c.f.admin,
-                device,
-                1,
-                &px_console_store::DeviceAccess {
-                    users: vec![identity.user_id],
-                    groups: vec![],
-                },
-            )
-            .await
-            .unwrap();
-    // Device ACL replacement revokes the previous authorization revision; issue a fresh login.
+    let device: Uuid = sqlx::query_scalar("SELECT device_id FROM pixels.nodes WHERE id=$1")
+        .bind(cache_fixture.node.id())
+        .fetch_one(&cache_fixture.base_fixture.owner)
+        .await
+        .unwrap();
+    let access = cache_fixture
+        .base_fixture
+        .devices
+        .replace_access(
+            &cache_fixture.base_fixture.admin,
+            device,
+            1,
+            &px_console_store::DeviceAccess {
+                users: vec![identity.user_id],
+                groups: vec![],
+            },
+        )
+        .await
+        .unwrap();
+    // Device ACL replacement revokes the previous authorization revision; issue cache_attempt fresh login.
     let revision: i64 =
         sqlx::query_scalar("SELECT authorization_revision FROM pixels.users WHERE id=$1")
             .bind(identity.user_id)
-            .fetch_one(&c.f.owner)
+            .fetch_one(&cache_fixture.base_fixture.owner)
             .await
             .unwrap();
     let login = token();
-    c.f.identity
+    cache_fixture
+        .base_fixture
+        .identity
         .issue_session(
             identity.user_id,
             revision,
@@ -409,11 +662,15 @@ async fn android_media_requires_current_device_acl_not_application_or_other_clie
         )
         .await
         .unwrap();
-    let reader = c.run.root().try_read(file.id, file.content).unwrap();
-    let lease = c
+    let reader = cache_fixture
+        .run
+        .root()
+        .try_read(file.id, file.content)
+        .unwrap();
+    let lease = cache_fixture
         .store
         .open_read(
-            &c.run,
+            &cache_fixture.run,
             CacheCredential::DeviceUser {
                 token: &login,
                 client: ClientType::Android,
@@ -423,10 +680,10 @@ async fn android_media_requires_current_device_acl_not_application_or_other_clie
         )
         .await
         .unwrap();
-    assert!(c
+    assert!(cache_fixture
         .store
         .open_read(
-            &c.run,
+            &cache_fixture.run,
             CacheCredential::DeviceUser {
                 token: &login,
                 client: ClientType::Panel
@@ -436,9 +693,11 @@ async fn android_media_requires_current_device_acl_not_application_or_other_clie
         )
         .await
         .is_err());
-    c.f.devices
+    cache_fixture
+        .base_fixture
+        .devices
         .replace_access(
-            &c.f.admin,
+            &cache_fixture.base_fixture.admin,
             device,
             access.revision,
             &px_console_store::DeviceAccess {
@@ -448,9 +707,13 @@ async fn android_media_requires_current_device_acl_not_application_or_other_clie
         )
         .await
         .unwrap();
-    assert!(c.store.renew_read(&c.run, &lease, &reader).await.is_err());
+    assert!(cache_fixture
+        .store
+        .renew_read(&cache_fixture.run, &lease, &reader)
+        .await
+        .is_err());
     drop(reader);
-    c.close().await;
+    cache_fixture.close().await;
 }
 
 fn options() -> CacheOptions {
@@ -463,51 +726,87 @@ fn options() -> CacheOptions {
 
 #[tokio::test]
 async fn retain_and_eviction_race_has_one_cas_winner_and_no_dangling_ready_reference() {
-    let c = CacheFixture::new().await;
+    let cache_fixture = CacheFixture::new().await;
     for _ in 0..20 {
-        let (id, file) = c.ready().await;
+        let (id, file) = cache_fixture.ready().await;
         let revision: i64 =
             sqlx::query_scalar("SELECT revision FROM pixels.recording_cache WHERE recording_id=$1")
                 .bind(id)
-                .fetch_one(&c.f.owner)
+                .fetch_one(&cache_fixture.base_fixture.owner)
                 .await
                 .unwrap();
-        let guard = c.run.root().try_lock_blob(file.id).unwrap();
+        let guard = cache_fixture.run.root().try_lock_blob(file.id).unwrap();
         let (pin, evict) = tokio::join!(
-            c.store.retain(&c.run, &c.f.admin, id, revision, true),
-            c.store.evict(&c.run, &c.f.admin, revision, &guard)
+            cache_fixture.store.retain(
+                &cache_fixture.run,
+                &cache_fixture.base_fixture.admin,
+                id,
+                revision,
+                true
+            ),
+            cache_fixture.store.evict(
+                &cache_fixture.run,
+                &cache_fixture.base_fixture.admin,
+                revision,
+                &guard
+            )
         );
         assert_ne!(pin.is_ok(), evict.is_ok());
         if let Ok(pinned) = pin {
             assert_eq!(
-                c.store
-                    .cached_file(&c.run, CacheCredential::Managed(&c.f.admin), id)
+                cache_fixture
+                    .store
+                    .cached_file(
+                        &cache_fixture.run,
+                        CacheCredential::Managed(&cache_fixture.base_fixture.admin),
+                        id
+                    )
                     .await
                     .unwrap()
                     .id,
                 file.id
             );
-            let unpinned = c
+            let unpinned = cache_fixture
                 .store
-                .retain(&c.run, &c.f.admin, id, pinned.revision, false)
+                .retain(
+                    &cache_fixture.run,
+                    &cache_fixture.base_fixture.admin,
+                    id,
+                    pinned.revision,
+                    false,
+                )
                 .await
                 .unwrap();
-            c.store
-                .evict(&c.run, &c.f.admin, unpinned.revision, &guard)
+            cache_fixture
+                .store
+                .evict(
+                    &cache_fixture.run,
+                    &cache_fixture.base_fixture.admin,
+                    unpinned.revision,
+                    &guard,
+                )
                 .await
                 .unwrap();
         } else {
-            assert!(c
+            assert!(cache_fixture
                 .store
-                .cached_file(&c.run, CacheCredential::Managed(&c.f.admin), id)
+                .cached_file(
+                    &cache_fixture.run,
+                    CacheCredential::Managed(&cache_fixture.base_fixture.admin),
+                    id
+                )
                 .await
                 .is_err());
         }
         let proof = guard.delete().unwrap();
-        c.store.finish_collection(&c.run, &proof).await.unwrap();
+        cache_fixture
+            .store
+            .finish_collection(&cache_fixture.run, &proof)
+            .await
+            .unwrap();
         drop(proof);
     }
-    c.close().await;
+    cache_fixture.close().await;
 }
 fn private(path: &std::path::Path) {
     #[cfg(unix)]
@@ -538,7 +837,7 @@ fn private(path: &std::path::Path) {
     }
 }
 struct CacheFixture {
-    f: Fixture,
+    base_fixture: Fixture,
     store: RecordingCacheStore,
     recordings: RecordingStore,
     run: CacheRuntime,
@@ -548,10 +847,10 @@ struct CacheFixture {
 }
 impl CacheFixture {
     async fn new() -> Self {
-        let f = Fixture::new().await;
+        let base_fixture = Fixture::new().await;
         // Test-only owner cleanup within the harness's disposable database. No runtime DELETE grant.
         sqlx::query("TRUNCATE pixels.cache_roots,pixels.cache_runs,pixels.cache_runtime,pixels.recording_cache,pixels.cache_blobs,pixels.cache_events CASCADE")
-   .execute(&f.owner).await.unwrap();
+   .execute(&base_fixture.owner).await.unwrap();
         let deployment = env::var("PIXELS_DEPLOYMENT_ID").unwrap().parse().unwrap();
         let store = RecordingCacheStore::connect(&config("RUNTIME"), deployment)
             .await
@@ -559,7 +858,7 @@ impl CacheFixture {
         let recordings = RecordingStore::connect(&config("RUNTIME"), deployment)
             .await
             .unwrap();
-        let (node, key) = f.connected().await;
+        let (node, key) = base_fixture.connected().await;
         let directory = tempfile::Builder::new()
             .prefix("pixels-pg-cache-")
             .tempdir()
@@ -571,7 +870,7 @@ impl CacheFixture {
             .await
             .unwrap();
         Self {
-            f,
+            base_fixture,
             store,
             recordings,
             run,
@@ -602,7 +901,11 @@ impl CacheFixture {
     }
     async fn request(&self, id: Uuid) -> px_console_store::CacheProfile {
         self.store
-            .request(&self.run, CacheCredential::Managed(&self.f.admin), id)
+            .request(
+                &self.run,
+                CacheCredential::Managed(&self.base_fixture.admin),
+                id,
+            )
             .await
             .unwrap()
     }
@@ -616,185 +919,284 @@ impl CacheFixture {
     async fn close(self) {
         self.store.close().await;
         self.recordings.close().await;
-        self.f.close().await;
+        self.base_fixture.close().await;
         drop(self.run);
         self.directory.close().unwrap();
     }
 }
 #[tokio::test]
 async fn publication_requires_real_hash_proof_and_retries_are_idempotent() {
-    let c = CacheFixture::new().await;
-    let id = c.record(DATA.len() as u64).await;
-    assert_eq!(c.request(id).await.state, "fetching");
-    let a = c.attempt().await;
-    assert!(a.valid_for_ms() > 0 && a.valid_for_ms() <= 30000);
-    let mut writer = c
+    let cache_fixture = CacheFixture::new().await;
+    let id = cache_fixture.record(DATA.len() as u64).await;
+    assert_eq!(cache_fixture.request(id).await.state, "fetching");
+    let cache_attempt = cache_fixture.attempt().await;
+    assert!(cache_attempt.valid_for_ms() > 0 && cache_attempt.valid_for_ms() <= 30000);
+    let mut writer = cache_fixture
         .run
         .root()
-        .try_lock_blob(a.id())
+        .try_lock_blob(cache_attempt.id())
         .unwrap()
-        .begin_write(a.content())
+        .begin_write(cache_attempt.content())
         .unwrap();
     writer.append(&DATA[..8]).unwrap();
-    let renewed = c.store.renew(&c.run, &c.node, &a, &writer).await.unwrap();
-    assert_eq!(renewed.id(), a.id());
-    let view = c
+    let renewed = cache_fixture
         .store
-        .list_managed(&c.run, &c.f.admin, None, 100)
+        .renew(
+            &cache_fixture.run,
+            &cache_fixture.node,
+            &cache_attempt,
+            &writer,
+        )
+        .await
+        .unwrap();
+    assert_eq!(renewed.id(), cache_attempt.id());
+    let view = cache_fixture
+        .store
+        .list_managed(
+            &cache_fixture.run,
+            &cache_fixture.base_fixture.admin,
+            None,
+            100,
+        )
         .await
         .unwrap();
     assert_eq!(view[0].received_bytes, 8);
     assert_eq!(view[0].state, "fetching");
     writer.append(&DATA[8..]).unwrap();
     let proof = writer.finish().unwrap();
-    let ready = c
+    let ready = cache_fixture
         .store
-        .publish(&c.run, &c.node, &renewed, &proof)
+        .publish(&cache_fixture.run, &cache_fixture.node, &renewed, &proof)
         .await
         .unwrap();
     assert_eq!(ready.state, "ready");
     assert_eq!(
         ready,
-        c.store
-            .publish(&c.run, &c.node, &renewed, &proof)
+        cache_fixture
+            .store
+            .publish(&cache_fixture.run, &cache_fixture.node, &renewed, &proof)
             .await
             .unwrap()
     );
-    assert!(c.store.abandon(&c.run, &c.node, &a).await.is_err());
+    assert!(cache_fixture
+        .store
+        .abandon(&cache_fixture.run, &cache_fixture.node, &cache_attempt)
+        .await
+        .is_err());
     drop(proof);
-    let reader = c.run.root().try_read(a.id(), a.content()).unwrap();
+    let reader = cache_fixture
+        .run
+        .root()
+        .try_read(cache_attempt.id(), cache_attempt.content())
+        .unwrap();
     assert_eq!(
         ready,
-        c.store.verify_cached(&c.run, id, &reader).await.unwrap()
+        cache_fixture
+            .store
+            .verify_cached(&cache_fixture.run, id, &reader)
+            .await
+            .unwrap()
     );
     drop(reader);
-    assert!(c
+    assert!(cache_fixture
         .store
-        .pending(&c.run, &c.node, None, 100)
+        .pending(&cache_fixture.run, &cache_fixture.node, None, 100)
         .await
         .unwrap()
         .is_empty());
-    c.close().await;
+    cache_fixture.close().await;
 }
 #[tokio::test]
 async fn concurrent_requests_share_one_attempt_and_reserved_capacity_is_bounded() {
-    let c = CacheFixture::new().await;
-    let id = c.record(700_000).await;
+    let cache_fixture = CacheFixture::new().await;
+    let id = cache_fixture.record(700_000).await;
     let barrier = Arc::new(Barrier::new(20));
     let mut tasks = Vec::new();
     for _ in 0..20 {
-        let (s, r, t, b) = (
-            c.store.clone(),
-            c.run.clone(),
-            c.f.admin.clone(),
+        let (cache_store, cache_runtime, admin_token, start_barrier) = (
+            cache_fixture.store.clone(),
+            cache_fixture.run.clone(),
+            cache_fixture.base_fixture.admin.clone(),
             barrier.clone(),
         );
         tasks.push(tokio::spawn(async move {
-            b.wait().await;
-            s.request(&r, CacheCredential::Managed(&t), id)
+            start_barrier.wait().await;
+            cache_store
+                .request(&cache_runtime, CacheCredential::Managed(&admin_token), id)
                 .await
                 .unwrap()
         }));
     }
     let mut revisions = Vec::new();
-    for t in tasks {
-        revisions.push(t.await.unwrap().revision);
+    for task_handle in tasks {
+        revisions.push(task_handle.await.unwrap().revision);
     }
-    assert!(revisions.iter().all(|r| *r == 2));
+    assert!(revisions.iter().all(|revision| *revision == 2));
     let count: i64 = sqlx::query_scalar("SELECT count(*) FROM pixels.cache_blobs")
-        .fetch_one(&c.f.owner)
+        .fetch_one(&cache_fixture.base_fixture.owner)
         .await
         .unwrap();
     assert_eq!(count, 1);
-    let other = c.record(700_000).await;
-    assert!(c
+    let other = cache_fixture.record(700_000).await;
+    assert!(cache_fixture
         .store
-        .request(&c.run, CacheCredential::Managed(&c.f.admin), other)
+        .request(
+            &cache_fixture.run,
+            CacheCredential::Managed(&cache_fixture.base_fixture.admin),
+            other
+        )
         .await
         .is_err());
-    let a = c.attempt().await;
-    c.store.abandon(&c.run, &c.node, &a).await.unwrap();
-    c.store.abandon(&c.run, &c.node, &a).await.unwrap();
+    let cache_attempt = cache_fixture.attempt().await;
+    cache_fixture
+        .store
+        .abandon(&cache_fixture.run, &cache_fixture.node, &cache_attempt)
+        .await
+        .unwrap();
+    cache_fixture
+        .store
+        .abandon(&cache_fixture.run, &cache_fixture.node, &cache_attempt)
+        .await
+        .unwrap();
     // Retired work may have partial files: it still consumes its full reservation.
-    assert!(c
+    assert!(cache_fixture
         .store
-        .request(&c.run, CacheCredential::Managed(&c.f.admin), id)
+        .request(
+            &cache_fixture.run,
+            CacheCredential::Managed(&cache_fixture.base_fixture.admin),
+            id
+        )
         .await
         .is_err());
-    c.close().await;
+    cache_fixture.close().await;
 }
 #[tokio::test]
 async fn timeout_rejects_late_publisher_and_new_attempt_never_reuses_old_blob() {
-    let c = CacheFixture::new().await;
-    let id = c.record(DATA.len() as u64).await;
-    c.request(id).await;
-    let a = c.attempt().await;
-    let mut writer = c
+    let cache_fixture = CacheFixture::new().await;
+    let id = cache_fixture.record(DATA.len() as u64).await;
+    cache_fixture.request(id).await;
+    let cache_attempt = cache_fixture.attempt().await;
+    let mut writer = cache_fixture
         .run
         .root()
-        .try_lock_blob(a.id())
+        .try_lock_blob(cache_attempt.id())
         .unwrap()
-        .begin_write(a.content())
+        .begin_write(cache_attempt.content())
         .unwrap();
     writer.append(DATA).unwrap();
     let proof = writer.finish().unwrap();
     sqlx::query("UPDATE pixels.cache_blobs SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1")
-  .bind(a.id()).execute(&c.f.owner).await.unwrap();
-    assert!(c.store.publish(&c.run, &c.node, &a, &proof).await.is_err());
-    assert_eq!(c.store.expire(&c.run, 100).await.unwrap(), 1);
-    assert_eq!(c.store.expire(&c.run, 100).await.unwrap(), 0);
-    c.request(id).await;
-    let next = c.attempt().await;
-    assert_ne!(a.id(), next.id());
-    assert!(c
+  .bind(cache_attempt.id()).execute(&cache_fixture.base_fixture.owner).await.unwrap();
+    assert!(cache_fixture
         .store
-        .publish(&c.run, &c.node, &next, &proof)
-        .await
-        .is_err());
-    c.store.abandon(&c.run, &c.node, &a).await.unwrap();
-    assert_eq!(c.attempt().await.id(), next.id());
-    drop(proof);
-    c.close().await;
-}
-#[tokio::test]
-async fn restart_requires_reverification_and_rejects_old_runtime_or_new_root_adoption() {
-    let c = CacheFixture::new().await;
-    let id = c.record(DATA.len() as u64).await;
-    c.request(id).await;
-    let a = c.attempt().await;
-    let mut writer = c
-        .run
-        .root()
-        .try_lock_blob(a.id())
-        .unwrap()
-        .begin_write(a.content())
-        .unwrap();
-    writer.append(DATA).unwrap();
-    let proof = writer.finish().unwrap();
-    c.store.publish(&c.run, &c.node, &a, &proof).await.unwrap();
-    drop(proof);
-    let run = c
-        .store
-        .begin_runtime(c.run.root().clone(), c.node.epoch(), options())
-        .await
-        .unwrap();
-    assert!(c
-        .store
-        .list_managed(&c.run, &c.f.admin, None, 100)
+        .publish(
+            &cache_fixture.run,
+            &cache_fixture.node,
+            &cache_attempt,
+            &proof
+        )
         .await
         .is_err());
     assert_eq!(
-        c.store
-            .list_managed(&run, &c.f.admin, None, 100)
+        cache_fixture
+            .store
+            .expire(&cache_fixture.run, 100)
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        cache_fixture
+            .store
+            .expire(&cache_fixture.run, 100)
+            .await
+            .unwrap(),
+        0
+    );
+    cache_fixture.request(id).await;
+    let next = cache_fixture.attempt().await;
+    assert_ne!(cache_attempt.id(), next.id());
+    assert!(cache_fixture
+        .store
+        .publish(&cache_fixture.run, &cache_fixture.node, &next, &proof)
+        .await
+        .is_err());
+    cache_fixture
+        .store
+        .abandon(&cache_fixture.run, &cache_fixture.node, &cache_attempt)
+        .await
+        .unwrap();
+    assert_eq!(cache_fixture.attempt().await.id(), next.id());
+    drop(proof);
+    cache_fixture.close().await;
+}
+#[tokio::test]
+async fn restart_requires_reverification_and_rejects_old_runtime_or_new_root_adoption() {
+    let cache_fixture = CacheFixture::new().await;
+    let id = cache_fixture.record(DATA.len() as u64).await;
+    cache_fixture.request(id).await;
+    let cache_attempt = cache_fixture.attempt().await;
+    let mut writer = cache_fixture
+        .run
+        .root()
+        .try_lock_blob(cache_attempt.id())
+        .unwrap()
+        .begin_write(cache_attempt.content())
+        .unwrap();
+    writer.append(DATA).unwrap();
+    let proof = writer.finish().unwrap();
+    cache_fixture
+        .store
+        .publish(
+            &cache_fixture.run,
+            &cache_fixture.node,
+            &cache_attempt,
+            &proof,
+        )
+        .await
+        .unwrap();
+    drop(proof);
+    let run = cache_fixture
+        .store
+        .begin_runtime(
+            cache_fixture.run.root().clone(),
+            cache_fixture.node.epoch(),
+            options(),
+        )
+        .await
+        .unwrap();
+    assert!(cache_fixture
+        .store
+        .list_managed(
+            &cache_fixture.run,
+            &cache_fixture.base_fixture.admin,
+            None,
+            100
+        )
+        .await
+        .is_err());
+    assert_eq!(
+        cache_fixture
+            .store
+            .list_managed(&run, &cache_fixture.base_fixture.admin, None, 100)
             .await
             .unwrap()[0]
             .state,
         "verifying"
     );
-    c.f.nodes.close_connection(&c.node).await.unwrap();
-    let reader = run.root().try_read(a.id(), a.content()).unwrap();
+    cache_fixture
+        .base_fixture
+        .nodes
+        .close_connection(&cache_fixture.node)
+        .await
+        .unwrap();
+    let reader = run
+        .root()
+        .try_read(cache_attempt.id(), cache_attempt.content())
+        .unwrap();
     assert_eq!(
-        c.store
+        cache_fixture
+            .store
             .verify_cached(&run, id, &reader)
             .await
             .unwrap()
@@ -806,112 +1208,156 @@ async fn restart_requires_reverification_and_rejects_old_runtime_or_new_root_ado
     private(other.path());
     let root = CacheRoot::initialize(other.path(), run.root().deployment()).unwrap();
     assert!(matches!(
-        c.store.begin_runtime(root, c.node.epoch(), options()).await,
+        cache_fixture
+            .store
+            .begin_runtime(root, cache_fixture.node.epoch(), options())
+            .await,
         Err(StoreError::CacheRecoveryRequired)
     ));
     other.close().unwrap();
     drop(run);
-    c.close().await;
+    cache_fixture.close().await;
 }
 #[tokio::test]
 async fn original_login_revocation_cannot_be_repaired_by_another_requester() {
-    let c = CacheFixture::new().await;
-    let id = c.record(DATA.len() as u64).await;
-    let viewer = c.f.session("viewer", ClientType::AdminWeb).await;
-    c.store
-        .request(&c.run, CacheCredential::Managed(&viewer), id)
+    let cache_fixture = CacheFixture::new().await;
+    let id = cache_fixture.record(DATA.len() as u64).await;
+    let viewer = cache_fixture
+        .base_fixture
+        .session("viewer", ClientType::AdminWeb)
+        .await;
+    cache_fixture
+        .store
+        .request(&cache_fixture.run, CacheCredential::Managed(&viewer), id)
         .await
         .unwrap();
-    let a = c.attempt().await;
-    let mut writer = c
+    let cache_attempt = cache_fixture.attempt().await;
+    let mut writer = cache_fixture
         .run
         .root()
-        .try_lock_blob(a.id())
+        .try_lock_blob(cache_attempt.id())
         .unwrap()
-        .begin_write(a.content())
+        .begin_write(cache_attempt.content())
         .unwrap();
     writer.append(DATA).unwrap();
     let proof = writer.finish().unwrap();
-    let identity =
-        c.f.identity
-            .authenticate(&viewer, ClientType::AdminWeb)
-            .await
-            .unwrap();
-    c.f.identity
+    let identity = cache_fixture
+        .base_fixture
+        .identity
+        .authenticate(&viewer, ClientType::AdminWeb)
+        .await
+        .unwrap();
+    cache_fixture
+        .base_fixture
+        .identity
         .revoke_session(identity.user_id, identity.session_id)
         .await
         .unwrap();
-    assert!(c.store.publish(&c.run, &c.node, &a, &proof).await.is_err());
-    assert!(c
+    assert!(cache_fixture
         .store
-        .pending(&c.run, &c.node, None, 100)
+        .publish(
+            &cache_fixture.run,
+            &cache_fixture.node,
+            &cache_attempt,
+            &proof
+        )
+        .await
+        .is_err());
+    assert!(cache_fixture
+        .store
+        .pending(&cache_fixture.run, &cache_fixture.node, None, 100)
         .await
         .unwrap()
         .is_empty());
-    c.request(id).await;
-    let next = c.attempt().await;
-    assert_ne!(a.id(), next.id());
-    assert!(c
+    cache_fixture.request(id).await;
+    let next = cache_fixture.attempt().await;
+    assert_ne!(cache_attempt.id(), next.id());
+    assert!(cache_fixture
         .store
-        .publish(&c.run, &c.node, &next, &proof)
+        .publish(&cache_fixture.run, &cache_fixture.node, &next, &proof)
         .await
         .is_err());
     drop(proof);
-    c.close().await;
+    cache_fixture.close().await;
 }
 #[tokio::test]
 async fn audit_failure_rolls_back_request_and_publication_without_claiming_file_atomicity() {
-    let c = CacheFixture::new().await;
-    let id = c.record(DATA.len() as u64).await;
+    let cache_fixture = CacheFixture::new().await;
+    let id = cache_fixture.record(DATA.len() as u64).await;
     sqlx::query("REVOKE INSERT ON pixels.cache_events FROM pixels_console_runtime")
-        .execute(&c.f.owner)
+        .execute(&cache_fixture.base_fixture.owner)
         .await
         .unwrap();
-    assert!(c
+    assert!(cache_fixture
         .store
-        .request(&c.run, CacheCredential::Managed(&c.f.admin), id)
+        .request(
+            &cache_fixture.run,
+            CacheCredential::Managed(&cache_fixture.base_fixture.admin),
+            id
+        )
         .await
         .is_err());
     let count: i64 = sqlx::query_scalar("SELECT count(*) FROM pixels.cache_blobs")
-        .fetch_one(&c.f.owner)
+        .fetch_one(&cache_fixture.base_fixture.owner)
         .await
         .unwrap();
     assert_eq!(count, 0);
     sqlx::query("GRANT INSERT ON pixels.cache_events TO pixels_console_runtime")
-        .execute(&c.f.owner)
+        .execute(&cache_fixture.base_fixture.owner)
         .await
         .unwrap();
-    c.request(id).await;
-    let a = c.attempt().await;
-    let mut writer = c
+    cache_fixture.request(id).await;
+    let cache_attempt = cache_fixture.attempt().await;
+    let mut writer = cache_fixture
         .run
         .root()
-        .try_lock_blob(a.id())
+        .try_lock_blob(cache_attempt.id())
         .unwrap()
-        .begin_write(a.content())
+        .begin_write(cache_attempt.content())
         .unwrap();
     writer.append(DATA).unwrap();
     let proof = writer.finish().unwrap();
     sqlx::query("REVOKE INSERT ON pixels.cache_events FROM pixels_console_runtime")
-        .execute(&c.f.owner)
+        .execute(&cache_fixture.base_fixture.owner)
         .await
         .unwrap();
-    assert!(c.store.publish(&c.run, &c.node, &a, &proof).await.is_err());
+    assert!(cache_fixture
+        .store
+        .publish(
+            &cache_fixture.run,
+            &cache_fixture.node,
+            &cache_attempt,
+            &proof
+        )
+        .await
+        .is_err());
     assert_eq!(
-        c.store
-            .list_managed(&c.run, &c.f.admin, None, 100)
+        cache_fixture
+            .store
+            .list_managed(
+                &cache_fixture.run,
+                &cache_fixture.base_fixture.admin,
+                None,
+                100
+            )
             .await
             .unwrap()[0]
             .state,
         "fetching"
     );
     sqlx::query("GRANT INSERT ON pixels.cache_events TO pixels_console_runtime")
-        .execute(&c.f.owner)
+        .execute(&cache_fixture.base_fixture.owner)
         .await
         .unwrap();
     assert_eq!(
-        c.store
-            .publish(&c.run, &c.node, &a, &proof)
+        cache_fixture
+            .store
+            .publish(
+                &cache_fixture.run,
+                &cache_fixture.node,
+                &cache_attempt,
+                &proof
+            )
             .await
             .unwrap()
             .state,
@@ -930,17 +1376,20 @@ async fn audit_failure_rolls_back_request_and_publication_without_claiming_file_
     );
     runtime.close().await;
     drop(proof);
-    c.close().await;
+    cache_fixture.close().await;
 }
 #[tokio::test]
 async fn client_acl_node_generation_and_epoch_are_independent_admission_gates() {
-    let c = CacheFixture::new().await;
-    let id = c.record(DATA.len() as u64).await;
-    let android = c.f.session("user", ClientType::Android).await;
-    assert!(c
+    let cache_fixture = CacheFixture::new().await;
+    let id = cache_fixture.record(DATA.len() as u64).await;
+    let android = cache_fixture
+        .base_fixture
+        .session("user", ClientType::Android)
+        .await;
+    assert!(cache_fixture
         .store
         .request(
-            &c.run,
+            &cache_fixture.run,
             CacheCredential::DeviceUser {
                 token: &android,
                 client: ClientType::Android
@@ -949,75 +1398,111 @@ async fn client_acl_node_generation_and_epoch_are_independent_admission_gates() 
         )
         .await
         .is_err());
-    assert!(c
+    assert!(cache_fixture
         .store
-        .request(&c.run, CacheCredential::Managed(&android), id)
+        .request(&cache_fixture.run, CacheCredential::Managed(&android), id)
         .await
         .is_err());
-    assert!(c
+    assert!(cache_fixture
         .store
         .request(
-            &c.run,
+            &cache_fixture.run,
             CacheCredential::DeviceUser {
-                token: &c.f.admin,
+                token: &cache_fixture.base_fixture.admin,
                 client: ClientType::AdminWeb
             },
             id
         )
         .await
         .is_err());
-    c.request(id).await;
-    let a = c.attempt().await;
-    let mut writer = c
+    cache_fixture.request(id).await;
+    let cache_attempt = cache_fixture.attempt().await;
+    let mut writer = cache_fixture
         .run
         .root()
-        .try_lock_blob(a.id())
+        .try_lock_blob(cache_attempt.id())
         .unwrap()
-        .begin_write(a.content())
+        .begin_write(cache_attempt.content())
         .unwrap();
     writer.append(DATA).unwrap();
     let proof = writer.finish().unwrap();
-    let current =
-        c.f.nodes
-            .open_connection(c.node.epoch(), &c.key, &token())
-            .await
-            .unwrap();
-    c.f.nodes.report(&current, &node_report(1)).await.unwrap();
-    assert!(c.store.publish(&c.run, &c.node, &a, &proof).await.is_err());
-    assert!(c.store.publish(&c.run, &current, &a, &proof).await.is_err());
-    assert!(c
-        .store
-        .request(&c.run, CacheCredential::Managed(&c.f.admin), id)
-        .await
-        .is_err());
-    let epoch = c.f.nodes.begin_runtime().await.unwrap();
-    assert!(c.store.expire(&c.run, 100).await.is_err());
-    let run = c
-        .store
-        .begin_runtime(c.run.root().clone(), epoch, options())
+    let current = cache_fixture
+        .base_fixture
+        .nodes
+        .open_connection(cache_fixture.node.epoch(), &cache_fixture.key, &token())
         .await
         .unwrap();
-    assert_eq!(c.store.expire(&run, 100).await.unwrap(), 1);
+    cache_fixture
+        .base_fixture
+        .nodes
+        .report(&current, &node_report(1))
+        .await
+        .unwrap();
+    assert!(cache_fixture
+        .store
+        .publish(
+            &cache_fixture.run,
+            &cache_fixture.node,
+            &cache_attempt,
+            &proof
+        )
+        .await
+        .is_err());
+    assert!(cache_fixture
+        .store
+        .publish(&cache_fixture.run, &current, &cache_attempt, &proof)
+        .await
+        .is_err());
+    assert!(cache_fixture
+        .store
+        .request(
+            &cache_fixture.run,
+            CacheCredential::Managed(&cache_fixture.base_fixture.admin),
+            id
+        )
+        .await
+        .is_err());
+    let epoch = cache_fixture
+        .base_fixture
+        .nodes
+        .begin_runtime()
+        .await
+        .unwrap();
+    assert!(cache_fixture
+        .store
+        .expire(&cache_fixture.run, 100)
+        .await
+        .is_err());
+    let run = cache_fixture
+        .store
+        .begin_runtime(cache_fixture.run.root().clone(), epoch, options())
+        .await
+        .unwrap();
+    assert_eq!(cache_fixture.store.expire(&run, 100).await.unwrap(), 1);
     drop(proof);
     drop(run);
-    c.close().await;
+    cache_fixture.close().await;
 }
 #[tokio::test]
 async fn download_concurrency_bounds_and_wrong_file_proofs_are_rejected() {
-    let c = CacheFixture::new().await;
-    let first = c.record(DATA.len() as u64).await;
-    c.request(first).await;
-    let second = c.record(DATA.len() as u64).await;
-    c.request(second).await;
-    let third = c.record(DATA.len() as u64).await;
-    assert!(c
+    let cache_fixture = CacheFixture::new().await;
+    let first = cache_fixture.record(DATA.len() as u64).await;
+    cache_fixture.request(first).await;
+    let second = cache_fixture.record(DATA.len() as u64).await;
+    cache_fixture.request(second).await;
+    let third = cache_fixture.record(DATA.len() as u64).await;
+    assert!(cache_fixture
         .store
-        .request(&c.run, CacheCredential::Managed(&c.f.admin), third)
+        .request(
+            &cache_fixture.run,
+            CacheCredential::Managed(&cache_fixture.base_fixture.admin),
+            third
+        )
         .await
         .is_err());
-    let a = c.attempt().await;
+    let cache_attempt = cache_fixture.attempt().await;
     let other = Uuid::new_v4();
-    let mut writer = c
+    let mut writer = cache_fixture
         .run
         .root()
         .try_lock_blob(other)
@@ -1025,24 +1510,59 @@ async fn download_concurrency_bounds_and_wrong_file_proofs_are_rejected() {
         .begin_write(ContentIdentity::new(DATA.len() as u64, Sha256::digest(DATA).into()).unwrap())
         .unwrap();
     writer.append(DATA).unwrap();
-    assert!(c.store.renew(&c.run, &c.node, &a, &writer).await.is_err());
-    let proof = writer.finish().unwrap();
-    assert!(c.store.publish(&c.run, &c.node, &a, &proof).await.is_err());
-    drop(proof);
-    let reader = c.run.root().try_read(other, a.content()).unwrap();
-    assert!(c
+    assert!(cache_fixture
         .store
-        .verify_cached(&c.run, a.recording_id(), &reader)
+        .renew(
+            &cache_fixture.run,
+            &cache_fixture.node,
+            &cache_attempt,
+            &writer
+        )
+        .await
+        .is_err());
+    let proof = writer.finish().unwrap();
+    assert!(cache_fixture
+        .store
+        .publish(
+            &cache_fixture.run,
+            &cache_fixture.node,
+            &cache_attempt,
+            &proof
+        )
+        .await
+        .is_err());
+    drop(proof);
+    let reader = cache_fixture
+        .run
+        .root()
+        .try_read(other, cache_attempt.content())
+        .unwrap();
+    assert!(cache_fixture
+        .store
+        .verify_cached(&cache_fixture.run, cache_attempt.recording_id(), &reader)
         .await
         .is_err());
     drop(reader);
-    c.store.abandon(&c.run, &c.node, &a).await.unwrap();
-    c.request(third).await;
-    assert!(c.store.pending(&c.run, &c.node, None, 0).await.is_err());
-    assert!(c
+    cache_fixture
         .store
-        .list_managed(&c.run, &c.f.admin, None, 101)
+        .abandon(&cache_fixture.run, &cache_fixture.node, &cache_attempt)
+        .await
+        .unwrap();
+    cache_fixture.request(third).await;
+    assert!(cache_fixture
+        .store
+        .pending(&cache_fixture.run, &cache_fixture.node, None, 0)
         .await
         .is_err());
-    c.close().await;
+    assert!(cache_fixture
+        .store
+        .list_managed(
+            &cache_fixture.run,
+            &cache_fixture.base_fixture.admin,
+            None,
+            101
+        )
+        .await
+        .is_err());
+    cache_fixture.close().await;
 }

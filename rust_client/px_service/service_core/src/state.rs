@@ -212,8 +212,10 @@ mod tests {
 
     #[test]
     fn heartbeat_uses_current_alive_state() {
-        let mut state = ServiceState::default();
-        state.desktop_alive = true;
+        let state = ServiceState {
+            desktop_alive: true,
+            ..ServiceState::default()
+        };
         let response = state.heartbeat_response(7);
         assert_eq!(
             response.message_type(),
@@ -261,9 +263,11 @@ mod tests {
 
     #[test]
     fn restart_backoff_never_caps_or_gives_up() {
-        let mut state = ServiceState::default();
-        state.consecutive_restart_failures = 30;
-        state.last_restart_attempt = Some(std::time::Instant::now());
+        let state = ServiceState {
+            consecutive_restart_failures: 30,
+            last_restart_attempt: Some(std::time::Instant::now()),
+            ..ServiceState::default()
+        };
         let remaining = state.restart_backoff_remaining().expect("cooldown");
         assert!(remaining <= std::time::Duration::from_secs(3));
     }

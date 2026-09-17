@@ -65,7 +65,7 @@ impl SavedConnectionStore {
         if count >= 128 {
             return Err(StoreError::NoCapacity);
         }
-        let s = &request.settings;
+        let settings = &request.settings;
         let row = sqlx::query_file_as!(
             SavedConnectionRow,
             "queries/create_saved_connection.sql",
@@ -74,19 +74,19 @@ impl SavedConnectionStore {
             client.name(),
             request.request_id,
             hash.as_slice(),
-            s.name,
+            settings.name,
             device,
             application,
-            i64::from(s.video_bitrate_bps),
-            s.video_fps as i32,
-            s.audio_enabled,
-            s.clipboard_enabled,
-            s.view_only,
-            s.maximize,
-            s.split_windows,
-            s.prefer_peer_to_peer,
-            s.audio_capture.name(),
-            s.background_rgb as i32
+            i64::from(settings.video_bitrate_bps),
+            settings.video_fps as i32,
+            settings.audio_enabled,
+            settings.clipboard_enabled,
+            settings.view_only,
+            settings.maximize,
+            settings.split_windows,
+            settings.prefer_peer_to_peer,
+            settings.audio_capture.name(),
+            settings.background_rgb as i32
         )
         .fetch_one(&mut *tx)
         .await?;
@@ -158,22 +158,21 @@ impl SavedConnectionStore {
             return Err(StoreError::Rejected);
         }
         Self::authorize_target(&mut tx, owner, &previous.target()?).await?;
-        let s = settings;
         let row = sqlx::query_file_as!(
             SavedConnectionRow,
             "queries/update_saved_connection.sql",
             id,
-            s.name,
-            i64::from(s.video_bitrate_bps),
-            s.video_fps as i32,
-            s.audio_enabled,
-            s.clipboard_enabled,
-            s.view_only,
-            s.maximize,
-            s.split_windows,
-            s.prefer_peer_to_peer,
-            s.audio_capture.name(),
-            s.background_rgb as i32
+            settings.name,
+            i64::from(settings.video_bitrate_bps),
+            settings.video_fps as i32,
+            settings.audio_enabled,
+            settings.clipboard_enabled,
+            settings.view_only,
+            settings.maximize,
+            settings.split_windows,
+            settings.prefer_peer_to_peer,
+            settings.audio_capture.name(),
+            settings.background_rgb as i32
         )
         .fetch_one(&mut *tx)
         .await?;

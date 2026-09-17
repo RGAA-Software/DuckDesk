@@ -136,10 +136,10 @@ pub fn collect_process_tree(processes: &[ProcessSnapshot], root_pid: u32) -> Vec
     let mut stack = vec![root_pid];
     let mut seen = std::collections::HashSet::from([root_pid]);
     while let Some(pid) = stack.pop() {
-        for p in processes {
-            if p.parent_pid == Some(pid) && seen.insert(p.pid) {
-                children.push(p.pid);
-                stack.push(p.pid);
+        for process in processes {
+            if process.parent_pid == Some(pid) && seen.insert(process.pid) {
+                children.push(process.pid);
+                stack.push(process.pid);
             }
         }
     }
@@ -153,8 +153,8 @@ pub fn find_pids_for_game_exe(processes: &[ProcessSnapshot], game_path: &str) ->
     let key = normalize_exe_key(game_path);
     processes
         .iter()
-        .filter(|p| normalize_exe_key(&p.exe_path) == key)
-        .map(|p| p.pid)
+        .filter(|process| normalize_exe_key(&process.exe_path) == key)
+        .map(|process| process.pid)
         .collect()
 }
 

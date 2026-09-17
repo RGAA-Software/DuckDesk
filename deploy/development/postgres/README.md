@@ -40,7 +40,8 @@ pwsh -NoProfile -File scripts/server_validation/postgres.ps1 Down
 `TestSuite -Suite <名称>` 用同样的独立新库，只执行选定 Console 原生套件：unit、identity、control、devices、applications、
 guests、nodes、deployments、instances、commands、workspaces、database、sessions、transfers、recordings、preferences、files、backup、backup-pg。
 files 是共享私有文件/缓存实际 IO 测试，不需要业务数据库，但沿用隔离运行器与报告。
-backup 是 DB4 恢复集、保留、私有原子发布、工具身份、取消与超时内核；不把内核测试冒充真实定时任务、SCM 或恢复演练。
+backup 是 DB4 恢复集、保留、私有原子发布、工具身份、取消与超时，以及持久计划任务、重启对账和受限清理内核；
+不把内核测试冒充已经安装并运行的 SCM/systemd 服务或生产恢复演练。
 backup-pg 通过测试专用 Docker 适配器，实际调用隔离 PostgreSQL 18.6 内的 `pg_dump`/`pg_restore`，将 Console/Auth/Desk 三库发布为同一恢复集，
 分别恢复到三个全新数据库并核对部署身份，同时验证发布后归档篡改会被拒绝。该适配器只属于测试，不是生产备份执行器；
 它不代替固定宿主工具、专用备份账号、定时服务、异机复制、权限回退对账或 WAL/PITR 验收。

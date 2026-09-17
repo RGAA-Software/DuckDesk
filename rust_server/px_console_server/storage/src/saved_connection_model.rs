@@ -96,22 +96,22 @@ impl CreateSavedConnection {
             }
             _ => return Err(StoreError::InvalidInput),
         }
-        let s = &self.settings;
-        hash.update(s.name.as_bytes());
+        let settings = &self.settings;
+        hash.update(settings.name.as_bytes());
         hash.update([0]);
-        hash.update(s.video_bitrate_bps.to_be_bytes());
-        hash.update(s.video_fps.to_be_bytes());
+        hash.update(settings.video_bitrate_bps.to_be_bytes());
+        hash.update(settings.video_fps.to_be_bytes());
         hash.update([
-            s.audio_enabled as u8,
-            s.clipboard_enabled as u8,
-            s.view_only as u8,
-            s.maximize as u8,
-            s.split_windows as u8,
-            s.prefer_peer_to_peer as u8,
+            settings.audio_enabled as u8,
+            settings.clipboard_enabled as u8,
+            settings.view_only as u8,
+            settings.maximize as u8,
+            settings.split_windows as u8,
+            settings.prefer_peer_to_peer as u8,
         ]);
-        hash.update(s.audio_capture.name().as_bytes());
+        hash.update(settings.audio_capture.name().as_bytes());
         hash.update([0]);
-        hash.update(s.background_rgb.to_be_bytes());
+        hash.update(settings.background_rgb.to_be_bytes());
         Ok(hash.finalize().into())
     }
 }

@@ -96,8 +96,8 @@ pub fn bearer(headers: &HeaderMap) -> Result<TokenDigest, ApiError> {
     }
     let value = headers
         .get(header::AUTHORIZATION)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.strip_prefix("Bearer "))
+        .and_then(|header_value| header_value.to_str().ok())
+        .and_then(|header_value| header_value.strip_prefix("Bearer "))
         .ok_or(ApiError::Unauthorized)?;
     secret_digest(value).ok_or(ApiError::Unauthorized)
 }
@@ -106,7 +106,7 @@ pub fn secret_digest(value: &str) -> Option<TokenDigest> {
     if value.len() != 64
         || !value
             .bytes()
-            .all(|v| v.is_ascii_digit() || (b'a'..=b'f').contains(&v))
+            .all(|byte_value| byte_value.is_ascii_digit() || (b'a'..=b'f').contains(&byte_value))
     {
         return None;
     }

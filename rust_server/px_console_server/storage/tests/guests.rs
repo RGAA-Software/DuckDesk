@@ -121,9 +121,9 @@ impl Fixture {
 
 #[tokio::test]
 async fn guest_user_and_client_types_are_disjoint_and_public_is_not_anonymous_authority() {
-    let f = Fixture::new().await;
+    let fixture = Fixture::new().await;
     let key = token();
-    let guest = f
+    let guest = fixture
         .guests
         .issue(
             &source(),
@@ -135,7 +135,8 @@ async fn guest_user_and_client_types_are_disjoint_and_public_is_not_anonymous_au
         .unwrap();
     assert_eq!(guest.client_type, "android");
     assert_eq!(
-        f.guests
+        fixture
+            .guests
             .authenticate(&key, ClientType::Android)
             .await
             .unwrap()
@@ -143,20 +144,23 @@ async fn guest_user_and_client_types_are_disjoint_and_public_is_not_anonymous_au
         guest.id
     );
     assert_eq!(
-        f.guests.authenticate(&key, ClientType::Panel).await,
+        fixture.guests.authenticate(&key, ClientType::Panel).await,
         Err(StoreError::Rejected)
     );
-    assert!(f
+    assert!(fixture
         .identity
         .authenticate(&key, ClientType::Android)
         .await
         .is_err());
     assert_eq!(
-        f.guests.authenticate(&f.admin, ClientType::AdminWeb).await,
+        fixture
+            .guests
+            .authenticate(&fixture.admin, ClientType::AdminWeb)
+            .await,
         Err(StoreError::Rejected)
     );
-    assert!(f.control.list_users(&key, None, 100).await.is_err());
-    assert!(f
+    assert!(fixture.control.list_users(&key, None, 100).await.is_err());
+    assert!(fixture
         .guests
         .issue(
             &source(),
@@ -174,48 +178,51 @@ async fn guest_user_and_client_types_are_disjoint_and_public_is_not_anonymous_au
         allow_takeover: false,
         disabled: false,
     };
-    let public = f.apps.create(&f.admin, &spec).await.unwrap();
+    let public = fixture.apps.create(&fixture.admin, &spec).await.unwrap();
     spec.access = ApplicationAccess::Acl;
-    let private = f.apps.create(&f.admin, &spec).await.unwrap();
-    let card = f
+    let private = fixture.apps.create(&fixture.admin, &spec).await.unwrap();
+    let card = fixture
         .apps
         .get_visible_guest(&key, ClientType::Android, public.id)
         .await
         .unwrap();
     assert_eq!(card.kind, "rdp");
-    assert!(f
+    assert!(fixture
         .apps
         .list_visible_guest(&key, ClientType::Android, None, 100)
         .await
         .unwrap()
         .contains(&card));
     assert_eq!(
-        f.apps
+        fixture
+            .apps
             .get_visible_guest(&key, ClientType::Android, private.id)
             .await,
         Err(StoreError::Rejected)
     );
     assert_eq!(
-        f.apps
+        fixture
+            .apps
             .get_visible_guest(&token(), ClientType::Android, public.id)
             .await,
         Err(StoreError::Rejected)
     );
     assert_eq!(
-        f.apps
+        fixture
+            .apps
             .get_visible(&key, ClientType::Android, public.id)
             .await,
         Err(StoreError::Rejected)
     );
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn expiry_logout_and_invalid_issuance_never_refresh_or_resurrect_a_guest() {
-    let f = Fixture::new().await;
+    let fixture = Fixture::new().await;
     let key = token();
     let other = token();
-    let guest = f
+    let guest = fixture
         .guests
         .issue(
             &source(),
@@ -225,7 +232,8 @@ async fn expiry_logout_and_invalid_issuance_never_refresh_or_resurrect_a_guest()
         )
         .await
         .unwrap();
-    f.guests
+    fixture
+        .guests
         .issue(
             &source(),
             &other,
@@ -240,14 +248,16 @@ async fn expiry_logout_and_invalid_issuance_never_refresh_or_resurrect_a_guest()
         Duration::from_secs(86401),
     ] {
         assert_eq!(
-            f.guests
+            fixture
+                .guests
                 .issue(&source(), &token(), ClientType::UserWeb, lifetime)
                 .await,
             Err(StoreError::InvalidInput)
         );
     }
     assert_eq!(
-        f.guests
+        fixture
+            .guests
             .issue(
                 &source(),
                 &token(),
@@ -258,22 +268,30 @@ async fn expiry_logout_and_invalid_issuance_never_refresh_or_resurrect_a_guest()
         Err(StoreError::InvalidInput)
     );
     assert_eq!(
-        f.guests.logout(&key, ClientType::Android).await,
+        fixture.guests.logout(&key, ClientType::Android).await,
         Err(StoreError::Rejected)
     );
-    f.guests.logout(&key, ClientType::UserWeb).await.unwrap();
-    f.guests.logout(&key, ClientType::UserWeb).await.unwrap();
-    assert_eq!(f.events(guest.id).await, 1);
+    fixture
+        .guests
+        .logout(&key, ClientType::UserWeb)
+        .await
+        .unwrap();
+    fixture
+        .guests
+        .logout(&key, ClientType::UserWeb)
+        .await
+        .unwrap();
+    assert_eq!(fixture.events(guest.id).await, 1);
     assert_eq!(
-        f.guests.authenticate(&key, ClientType::UserWeb).await,
+        fixture.guests.authenticate(&key, ClientType::UserWeb).await,
         Err(StoreError::Rejected)
     );
-    assert!(f
+    assert!(fixture
         .guests
         .authenticate(&other, ClientType::UserWeb)
         .await
         .is_ok());
-    assert!(f
+    assert!(fixture
         .guests
         .issue(
             &source(),
@@ -283,30 +301,34 @@ async fn expiry_logout_and_invalid_issuance_never_refresh_or_resurrect_a_guest()
         )
         .await
         .is_err());
-    let active = f
+    let active = fixture
         .guests
         .authenticate(&other, ClientType::UserWeb)
         .await
         .unwrap();
-    sqlx::query("UPDATE pixels.guest_sessions SET created_at=clock_timestamp()-interval '2 hours',expires_at=clock_timestamp()-interval '1 second' WHERE id=$1").bind(active.id).execute(&f.owner).await.unwrap();
+    sqlx::query("UPDATE pixels.guest_sessions SET created_at=clock_timestamp()-interval '2 hours',expires_at=clock_timestamp()-interval '1 second' WHERE id=$1").bind(active.id).execute(&fixture.owner).await.unwrap();
     assert_eq!(
-        f.guests.authenticate(&other, ClientType::UserWeb).await,
+        fixture
+            .guests
+            .authenticate(&other, ClientType::UserWeb)
+            .await,
         Err(StoreError::Rejected)
     );
     assert_eq!(
-        f.apps
+        fixture
+            .apps
             .list_visible_guest(&other, ClientType::UserWeb, None, 100)
             .await,
         Err(StoreError::Rejected)
     );
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn block_is_administrator_cas_and_event_failure_rolls_back_the_block() {
-    let f = Fixture::new().await;
+    let fixture = Fixture::new().await;
     let key = token();
-    let guest = f
+    let guest = fixture
         .guests
         .issue(
             &source(),
@@ -317,45 +339,48 @@ async fn block_is_administrator_cas_and_event_failure_rolls_back_the_block() {
         .await
         .unwrap();
     assert_eq!(
-        f.guests
+        fixture
+            .guests
             .block(&key, guest.id, 1, GuestBlockReason::Abuse)
             .await,
         Err(StoreError::Rejected)
     );
     assert_eq!(
-        f.guests
-            .block(&f.admin, Uuid::new_v4(), 1, GuestBlockReason::Abuse)
+        fixture
+            .guests
+            .block(&fixture.admin, Uuid::new_v4(), 1, GuestBlockReason::Abuse)
             .await,
         Err(StoreError::Rejected)
     );
     sqlx::query("REVOKE INSERT ON pixels.guest_events FROM pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
-    let blocked = f
+    let blocked = fixture
         .guests
-        .block(&f.admin, guest.id, 1, GuestBlockReason::Operator)
+        .block(&fixture.admin, guest.id, 1, GuestBlockReason::Operator)
         .await;
-    let logout = f.guests.logout(&key, ClientType::Panel).await;
+    let logout = fixture.guests.logout(&key, ClientType::Panel).await;
     sqlx::query("GRANT INSERT ON pixels.guest_events TO pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
     assert!(blocked.is_err());
     assert!(logout.is_err());
     assert_eq!(
-        f.guests
+        fixture
+            .guests
             .authenticate(&key, ClientType::Panel)
             .await
             .unwrap()
             .revision,
         1
     );
-    assert_eq!(f.events(guest.id).await, 0);
+    assert_eq!(fixture.events(guest.id).await, 0);
     let mut tasks = Vec::new();
     for _ in 0..20 {
-        let store = f.guests.clone();
-        let admin = f.admin.clone();
+        let store = fixture.guests.clone();
+        let admin = fixture.admin.clone();
         tasks.push(tokio::spawn(async move {
             store
                 .block(&admin, guest.id, 1, GuestBlockReason::Abuse)
@@ -373,21 +398,26 @@ async fn block_is_administrator_cas_and_event_failure_rolls_back_the_block() {
         }
     }
     assert_eq!(winners, 1);
-    assert_eq!(f.events(guest.id).await, 1);
+    assert_eq!(fixture.events(guest.id).await, 1);
     assert_eq!(
-        f.guests.authenticate(&key, ClientType::Panel).await,
+        fixture.guests.authenticate(&key, ClientType::Panel).await,
         Err(StoreError::Rejected)
     );
     assert_eq!(
-        f.guests
-            .block(&f.admin, guest.id, 2, GuestBlockReason::Abuse)
+        fixture
+            .guests
+            .block(&fixture.admin, guest.id, 2, GuestBlockReason::Abuse)
             .await
             .unwrap()
             .revision,
         2
     );
-    f.guests.logout(&key, ClientType::Panel).await.unwrap();
-    assert_eq!(f.events(guest.id).await, 1);
+    fixture
+        .guests
+        .logout(&key, ClientType::Panel)
+        .await
+        .unwrap();
+    assert_eq!(fixture.events(guest.id).await, 1);
     let reopened = GuestStore::connect(
         &config("RUNTIME"),
         env::var("PIXELS_DEPLOYMENT_ID").unwrap().parse().unwrap(),
@@ -399,19 +429,20 @@ async fn block_is_administrator_cas_and_event_failure_rolls_back_the_block() {
         Err(StoreError::Rejected)
     );
     reopened.close().await;
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn guest_events_have_unique_claims_stale_lease_rejection_and_durable_audit() {
-    let f = Fixture::new().await;
+    let fixture = Fixture::new().await;
     for _ in 0..20 {
-        let events = f.guests.claim_events(100).await.unwrap();
+        let events = fixture.guests.claim_events(100).await.unwrap();
         if events.is_empty() {
             break;
         }
         for event in events {
-            f.guests
+            fixture
+                .guests
                 .complete_event(event.id, event.lease_id)
                 .await
                 .unwrap();
@@ -419,7 +450,8 @@ async fn guest_events_have_unique_claims_stale_lease_rejection_and_durable_audit
     }
     for _ in 0..20 {
         let key = token();
-        f.guests
+        fixture
+            .guests
             .issue(
                 &source(),
                 &key,
@@ -428,11 +460,15 @@ async fn guest_events_have_unique_claims_stale_lease_rejection_and_durable_audit
             )
             .await
             .unwrap();
-        f.guests.logout(&key, ClientType::Android).await.unwrap();
+        fixture
+            .guests
+            .logout(&key, ClientType::Android)
+            .await
+            .unwrap();
     }
     let mut tasks = Vec::new();
     for _ in 0..20 {
-        let guests = f.guests.clone();
+        let guests = fixture.guests.clone();
         tasks.push(tokio::spawn(async move {
             guests.claim_events(1).await.unwrap()
         }));
@@ -452,31 +488,37 @@ async fn guest_events_have_unique_claims_stale_lease_rejection_and_durable_audit
     );
     let event = events.pop().unwrap();
     for completed in events {
-        f.guests
+        fixture
+            .guests
             .complete_event(completed.id, completed.lease_id)
             .await
             .unwrap();
     }
-    sqlx::query("UPDATE pixels.guest_events SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1").bind(event.id).execute(&f.owner).await.unwrap();
+    sqlx::query("UPDATE pixels.guest_events SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1").bind(event.id).execute(&fixture.owner).await.unwrap();
     assert_eq!(
-        f.guests.complete_event(event.id, event.lease_id).await,
+        fixture
+            .guests
+            .complete_event(event.id, event.lease_id)
+            .await,
         Err(StoreError::Rejected)
     );
-    let again = f.guests.claim_events(1).await.unwrap().pop().unwrap();
+    let again = fixture.guests.claim_events(1).await.unwrap().pop().unwrap();
     assert_ne!(again.lease_id, event.lease_id);
     assert_eq!(again.attempts, 2);
-    f.guests
+    fixture
+        .guests
         .retry_event(again.id, again.lease_id, 30, DeliveryFailure::Rejected)
         .await
         .unwrap();
-    assert!(f.guests.claim_events(1).await.unwrap().is_empty());
-    sqlx::query("UPDATE pixels.guest_events SET available_at=clock_timestamp()-interval '1 second' WHERE id=$1").bind(event.id).execute(&f.owner).await.unwrap();
-    let again = f.guests.claim_events(1).await.unwrap().pop().unwrap();
-    f.guests
+    assert!(fixture.guests.claim_events(1).await.unwrap().is_empty());
+    sqlx::query("UPDATE pixels.guest_events SET available_at=clock_timestamp()-interval '1 second' WHERE id=$1").bind(event.id).execute(&fixture.owner).await.unwrap();
+    let again = fixture.guests.claim_events(1).await.unwrap().pop().unwrap();
+    fixture
+        .guests
         .complete_event(again.id, again.lease_id)
         .await
         .unwrap();
-    assert_eq!(f.events(event.guest_id).await, 1);
+    assert_eq!(fixture.events(event.guest_id).await, 1);
     let runtime = config("RUNTIME").connect().await.unwrap();
     assert!(sqlx::query("DELETE FROM pixels.guest_events WHERE id=$1")
         .bind(event.id)
@@ -491,16 +533,16 @@ async fn guest_events_have_unique_claims_stale_lease_rejection_and_durable_audit
             .is_err()
     );
     runtime.close().await;
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn concurrent_duplicate_issuance_and_database_unavailability_never_fake_success() {
-    let f = Fixture::new().await;
+    let fixture = Fixture::new().await;
     let key = token();
     let mut tasks = Vec::new();
     for _ in 0..20 {
-        let store = f.guests.clone();
+        let store = fixture.guests.clone();
         let key = key.clone();
         tasks.push(tokio::spawn(async move {
             store
@@ -520,14 +562,14 @@ async fn concurrent_duplicate_issuance_and_database_unavailability_never_fake_su
         }
     }
     assert_eq!(winners, 1);
-    let guest = f
+    let guest = fixture
         .guests
         .authenticate(&key, ClientType::Android)
         .await
         .unwrap();
     assert_eq!((guest.expires_at - guest.created_at).num_seconds(), 86400);
-    f.guests.close().await;
-    assert!(f
+    fixture.guests.close().await;
+    assert!(fixture
         .guests
         .issue(
             &source(),
@@ -537,22 +579,22 @@ async fn concurrent_duplicate_issuance_and_database_unavailability_never_fake_su
         )
         .await
         .is_err());
-    assert!(f
+    assert!(fixture
         .guests
         .authenticate(&key, ClientType::Android)
         .await
         .is_err());
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn source_block_revokes_all_matching_guests_and_expiry_only_allows_new_identities() {
-    let f = Fixture::new().await;
+    let fixture = Fixture::new().await;
     let origin = source();
     let first = token();
     let second = token();
     let other = token();
-    let selected = f
+    let selected = fixture
         .guests
         .issue(
             &origin,
@@ -562,7 +604,7 @@ async fn source_block_revokes_all_matching_guests_and_expiry_only_allows_new_ide
         )
         .await
         .unwrap();
-    let sibling = f
+    let sibling = fixture
         .guests
         .issue(
             &origin,
@@ -572,7 +614,8 @@ async fn source_block_revokes_all_matching_guests_and_expiry_only_allows_new_ide
         )
         .await
         .unwrap();
-    f.guests
+    fixture
+        .guests
         .issue(
             &source(),
             &other,
@@ -582,7 +625,8 @@ async fn source_block_revokes_all_matching_guests_and_expiry_only_allows_new_ide
         .await
         .unwrap();
     assert_eq!(
-        f.guests
+        fixture
+            .guests
             .block_source(
                 &first,
                 selected.id,
@@ -593,10 +637,10 @@ async fn source_block_revokes_all_matching_guests_and_expiry_only_allows_new_ide
             .await,
         Err(StoreError::Rejected)
     );
-    let result = f
+    let result = fixture
         .guests
         .block_source(
-            &f.admin,
+            &fixture.admin,
             selected.id,
             1,
             Duration::from_secs(3600),
@@ -606,21 +650,32 @@ async fn source_block_revokes_all_matching_guests_and_expiry_only_allows_new_ide
         .unwrap();
     assert_eq!(result.revision, 2);
     assert_eq!(
-        f.guests.authenticate(&first, ClientType::Android).await,
+        fixture
+            .guests
+            .authenticate(&first, ClientType::Android)
+            .await,
         Err(StoreError::Rejected)
     );
     assert_eq!(
-        f.guests.authenticate(&second, ClientType::UserWeb).await,
+        fixture
+            .guests
+            .authenticate(&second, ClientType::UserWeb)
+            .await,
         Err(StoreError::Rejected)
     );
-    assert!(f
+    assert!(fixture
         .guests
         .authenticate(&other, ClientType::Android)
         .await
         .is_ok());
-    assert!(f.control.list_users(&f.admin, None, 1).await.is_ok());
+    assert!(fixture
+        .control
+        .list_users(&fixture.admin, None, 1)
+        .await
+        .is_ok());
     assert_eq!(
-        f.guests
+        fixture
+            .guests
             .issue(
                 &origin,
                 &token(),
@@ -630,10 +685,10 @@ async fn source_block_revokes_all_matching_guests_and_expiry_only_allows_new_ide
             .await,
         Err(StoreError::Rejected)
     );
-    assert_eq!(f.events(selected.id).await, 1);
-    assert_eq!(f.events(sibling.id).await, 1);
-    sqlx::query("UPDATE pixels.guest_source_blocks SET created_at=clock_timestamp()-interval '2 hours',expires_at=clock_timestamp()-interval '1 second' WHERE origin_guest_id=$1").bind(selected.id).execute(&f.owner).await.unwrap();
-    let fresh = f
+    assert_eq!(fixture.events(selected.id).await, 1);
+    assert_eq!(fixture.events(sibling.id).await, 1);
+    sqlx::query("UPDATE pixels.guest_source_blocks SET created_at=clock_timestamp()-interval '2 hours',expires_at=clock_timestamp()-interval '1 second' WHERE origin_guest_id=$1").bind(selected.id).execute(&fixture.owner).await.unwrap();
+    let fresh = fixture
         .guests
         .issue(
             &origin,
@@ -646,23 +701,29 @@ async fn source_block_revokes_all_matching_guests_and_expiry_only_allows_new_ide
     assert_ne!(fresh.id, selected.id);
     assert_ne!(fresh.id, sibling.id);
     assert_eq!(
-        f.guests.authenticate(&first, ClientType::Android).await,
+        fixture
+            .guests
+            .authenticate(&first, ClientType::Android)
+            .await,
         Err(StoreError::Rejected)
     );
     assert_eq!(
-        f.guests.authenticate(&second, ClientType::UserWeb).await,
+        fixture
+            .guests
+            .authenticate(&second, ClientType::UserWeb)
+            .await,
         Err(StoreError::Rejected)
     );
     assert_eq!(format!("{origin:?}"), "OriginFingerprint(<redacted>)");
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn source_block_event_failure_rolls_back_every_session_and_issuance_barrier() {
-    let f = Fixture::new().await;
+    let fixture = Fixture::new().await;
     let origin = source();
     let keys = [token(), token()];
-    let first = f
+    let first = fixture
         .guests
         .issue(
             &origin,
@@ -672,7 +733,7 @@ async fn source_block_event_failure_rolls_back_every_session_and_issuance_barrie
         )
         .await
         .unwrap();
-    let second = f
+    let second = fixture
         .guests
         .issue(
             &origin,
@@ -683,13 +744,13 @@ async fn source_block_event_failure_rolls_back_every_session_and_issuance_barrie
         .await
         .unwrap();
     sqlx::query("REVOKE INSERT ON pixels.guest_events FROM pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
-    let failed = f
+    let failed = fixture
         .guests
         .block_source(
-            &f.admin,
+            &fixture.admin,
             first.id,
             1,
             Duration::from_secs(60),
@@ -697,13 +758,14 @@ async fn source_block_event_failure_rolls_back_every_session_and_issuance_barrie
         )
         .await;
     sqlx::query("GRANT INSERT ON pixels.guest_events TO pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
     assert!(failed.is_err());
     for key in &keys {
         assert_eq!(
-            f.guests
+            fixture
+                .guests
                 .authenticate(key, ClientType::Panel)
                 .await
                 .unwrap()
@@ -711,17 +773,17 @@ async fn source_block_event_failure_rolls_back_every_session_and_issuance_barrie
             1
         );
     }
-    assert_eq!(f.events(first.id).await, 0);
-    assert_eq!(f.events(second.id).await, 0);
+    assert_eq!(fixture.events(first.id).await, 0);
+    assert_eq!(fixture.events(second.id).await, 0);
     let blocks: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM pixels.guest_source_blocks WHERE origin_guest_id=$1",
     )
     .bind(first.id)
-    .fetch_one(&f.owner)
+    .fetch_one(&fixture.owner)
     .await
     .unwrap();
     assert_eq!(blocks, 0);
-    assert!(f
+    assert!(fixture
         .guests
         .issue(
             &origin,
@@ -732,9 +794,10 @@ async fn source_block_event_failure_rolls_back_every_session_and_issuance_barrie
         .await
         .is_ok());
     assert_eq!(
-        f.guests
+        fixture
+            .guests
             .block_source(
-                &f.admin,
+                &fixture.admin,
                 first.id,
                 1,
                 Duration::from_secs(86401),
@@ -743,9 +806,10 @@ async fn source_block_event_failure_rolls_back_every_session_and_issuance_barrie
             .await,
         Err(StoreError::InvalidInput)
     );
-    f.guests
+    fixture
+        .guests
         .block_source(
-            &f.admin,
+            &fixture.admin,
             first.id,
             1,
             Duration::from_secs(60),
@@ -762,16 +826,16 @@ async fn source_block_event_failure_rolls_back_every_session_and_issuance_barrie
             .is_err()
     );
     runtime.close().await;
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn source_ban_racing_twenty_issuers_never_leaves_a_valid_pre_ban_guest() {
-    let f = Fixture::new().await;
+    let fixture = Fixture::new().await;
     for _ in 0..10 {
         let origin = source();
         let key = token();
-        let first = f
+        let first = fixture
             .guests
             .issue(
                 &origin,
@@ -787,7 +851,7 @@ async fn source_ban_racing_twenty_issuers_never_leaves_a_valid_pre_ban_guest() {
         for _ in 0..20 {
             let key = token();
             keys.push(key.clone());
-            let guests = f.guests.clone();
+            let guests = fixture.guests.clone();
             let origin = origin.clone();
             let ready = barrier.clone();
             tasks.push(tokio::spawn(async move {
@@ -803,9 +867,10 @@ async fn source_ban_racing_twenty_issuers_never_leaves_a_valid_pre_ban_guest() {
             }));
         }
         barrier.wait().await;
-        f.guests
+        fixture
+            .guests
             .block_source(
-                &f.admin,
+                &fixture.admin,
                 first.id,
                 1,
                 Duration::from_secs(60),
@@ -820,21 +885,21 @@ async fn source_ban_racing_twenty_issuers_never_leaves_a_valid_pre_ban_guest() {
         }
         for key in keys {
             assert_eq!(
-                f.guests.authenticate(&key, ClientType::Android).await,
+                fixture.guests.authenticate(&key, ClientType::Android).await,
                 Err(StoreError::Rejected)
             );
         }
-        let live: i64=sqlx::query_scalar("SELECT count(*) FROM pixels.guest_sessions g JOIN pixels.guest_source_blocks b ON b.source_hash=g.source_hash WHERE b.origin_guest_id=$1 AND g.revoked_at IS NULL AND g.expires_at>clock_timestamp()").bind(first.id).fetch_one(&f.owner).await.unwrap();
+        let live: i64=sqlx::query_scalar("SELECT count(*) FROM pixels.guest_sessions g JOIN pixels.guest_source_blocks b ON b.source_hash=g.source_hash WHERE b.origin_guest_id=$1 AND g.revoked_at IS NULL AND g.expires_at>clock_timestamp()").bind(first.id).fetch_one(&fixture.owner).await.unwrap();
         assert_eq!(live, 0);
     }
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn management_is_bounded_read_only_for_viewers_and_never_discloses_source_or_token_hashes() {
-    let f = Fixture::new().await;
+    let fixture = Fixture::new().await;
     let key = token();
-    let guest = f
+    let guest = fixture
         .guests
         .issue(
             &source(),
@@ -844,10 +909,10 @@ async fn management_is_bounded_read_only_for_viewers_and_never_discloses_source_
         )
         .await
         .unwrap();
-    let viewer = f
+    let viewer = fixture
         .control
         .create_user(
-            &f.admin,
+            &fixture.admin,
             &Username::parse(&Uuid::new_v4().to_string()).unwrap(),
             &password(),
             px_console_store::Role::Viewer,
@@ -855,7 +920,8 @@ async fn management_is_bounded_read_only_for_viewers_and_never_discloses_source_
         .await
         .unwrap();
     let view = token();
-    f.identity
+    fixture
+        .identity
         .issue_session(
             viewer.id,
             1,
@@ -866,11 +932,12 @@ async fn management_is_bounded_read_only_for_viewers_and_never_discloses_source_
         .await
         .unwrap();
     assert_eq!(
-        f.guests.list_managed(&key, None, 1).await,
+        fixture.guests.list_managed(&key, None, 1).await,
         Err(StoreError::Rejected)
     );
     assert_eq!(
-        f.guests
+        fixture
+            .guests
             .block_source(
                 &view,
                 guest.id,
@@ -882,14 +949,18 @@ async fn management_is_bounded_read_only_for_viewers_and_never_discloses_source_
         Err(StoreError::Rejected)
     );
     assert_eq!(
-        f.guests.list_managed(&view, None, 101).await,
+        fixture.guests.list_managed(&view, None, 101).await,
         Err(StoreError::InvalidInput)
     );
     let mut after = None;
     let mut seen = BTreeSet::new();
     let mut finished = false;
     for _ in 0..100 {
-        let page = f.guests.list_managed(&view, after, 100).await.unwrap();
+        let page = fixture
+            .guests
+            .list_managed(&view, after, 100)
+            .await
+            .unwrap();
         if page.is_empty() {
             finished = true;
             break;
@@ -904,9 +975,9 @@ async fn management_is_bounded_read_only_for_viewers_and_never_discloses_source_
     assert!(finished);
     assert!(seen.contains(&guest.id));
     let count: i64 = sqlx::query_scalar("SELECT count(*) FROM pixels.guest_sessions")
-        .fetch_one(&f.owner)
+        .fetch_one(&fixture.owner)
         .await
         .unwrap();
     assert_eq!(i64::try_from(seen.len()).unwrap(), count);
-    f.close().await;
+    fixture.close().await;
 }

@@ -90,7 +90,7 @@ struct Fixture {
 impl Fixture {
     async fn new() -> Self {
         let deployment = env::var("PIXELS_DEPLOYMENT_ID").unwrap().parse().unwrap();
-        let mut f = Self {
+        let mut fixture = Self {
             deployments: DeploymentStore::connect(&config("RUNTIME"), deployment)
                 .await
                 .unwrap(),
@@ -109,8 +109,8 @@ impl Fixture {
             owner: config("OWNER").connect().await.unwrap(),
             admin: token(),
         };
-        f.admin = f.session("admin", ClientType::AdminWeb).await;
-        f
+        fixture.admin = fixture.session("admin", ClientType::AdminWeb).await;
+        fixture
     }
     async fn session(&self, role: &str, client: ClientType) -> TokenDigest {
         let user = self
@@ -234,8 +234,8 @@ impl Fixture {
 
 #[tokio::test]
 async fn all_modes_have_explicit_fields_stable_identity_and_database_constraints() {
-    let f = Fixture::new().await;
-    let (node, node_key) = f.node().await;
+    let fixture = Fixture::new().await;
+    let (node, node_key) = fixture.node().await;
     let mut created = Vec::new();
     for target in [
         DeploymentTarget::GameHook {
@@ -244,39 +244,44 @@ async fn all_modes_have_explicit_fields_stable_identity_and_database_constraints
         DeploymentTarget::Webview,
         DeploymentTarget::Rdp,
     ] {
-        let (app, deployment) = f.deployment(node, target.clone()).await;
+        let (app, deployment) = fixture.deployment(node, target.clone()).await;
         created.push(deployment.id);
         assert_eq!(deployment.observed_state, "pending");
         assert_eq!(deployment.observed_sequence, 0);
-        assert_eq!(f.get(deployment.id).await, deployment);
-        assert!(f
+        assert_eq!(fixture.get(deployment.id).await, deployment);
+        assert!(fixture
             .deployments
-            .create(&f.admin, app.id, node, &settings(target.clone()))
+            .create(&fixture.admin, app.id, node, &settings(target.clone()))
             .await
             .is_err());
-        assert!(f
+        assert!(fixture
             .deployments
-            .configure(&f.admin, deployment.id, 1, &settings(target))
+            .configure(&fixture.admin, deployment.id, 1, &settings(target))
             .await
             .is_ok());
         assert!(
             sqlx::query("UPDATE pixels.application_deployments SET capacity=0 WHERE id=$1")
                 .bind(deployment.id)
-                .execute(&f.owner)
+                .execute(&fixture.owner)
                 .await
                 .is_err()
         );
     }
-    let app = f.app(&DeploymentTarget::Rdp).await;
-    assert!(f
-        .deployments
-        .create(&f.admin, app.id, node, &settings(DeploymentTarget::Webview))
-        .await
-        .is_err());
-    assert!(f
+    let app = fixture.app(&DeploymentTarget::Rdp).await;
+    assert!(fixture
         .deployments
         .create(
-            &f.admin,
+            &fixture.admin,
+            app.id,
+            node,
+            &settings(DeploymentTarget::Webview)
+        )
+        .await
+        .is_err());
+    assert!(fixture
+        .deployments
+        .create(
+            &fixture.admin,
             app.id,
             Uuid::new_v4(),
             &settings(DeploymentTarget::Rdp)
@@ -285,21 +290,29 @@ async fn all_modes_have_explicit_fields_stable_identity_and_database_constraints
         .is_err());
     let mut bad = settings(DeploymentTarget::Rdp);
     bad.capacity = 2;
-    assert!(f
+    assert!(fixture
         .deployments
-        .create(&f.admin, app.id, node, &bad)
+        .create(&fixture.admin, app.id, node, &bad)
         .await
         .is_err());
-    let epoch = f.nodes.begin_runtime().await.unwrap();
-    let connection = f
+    let epoch = fixture.nodes.begin_runtime().await.unwrap();
+    let connection = fixture
         .nodes
         .open_connection(epoch, &node_key, &token())
         .await
         .unwrap();
-    f.nodes.report(&connection, &node_report(1)).await.unwrap();
-    let first = f.deployments.list_node(&connection, None, 2).await.unwrap();
+    fixture
+        .nodes
+        .report(&connection, &node_report(1))
+        .await
+        .unwrap();
+    let first = fixture
+        .deployments
+        .list_node(&connection, None, 2)
+        .await
+        .unwrap();
     assert_eq!(first.len(), 2);
-    let second = f
+    let second = fixture
         .deployments
         .list_node(&connection, first.last().map(|row| row.id), 2)
         .await
@@ -321,39 +334,44 @@ async fn all_modes_have_explicit_fields_stable_identity_and_database_constraints
     assert!(assignments
         .iter()
         .any(|row| matches!(row.preparation, NodeDeploymentPreparation::Rdp { .. })));
-    assert!(f.deployments.list_node(&connection, None, 0).await.is_err());
-    f.close().await;
+    assert!(fixture
+        .deployments
+        .list_node(&connection, None, 0)
+        .await
+        .is_err());
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn roles_and_terminal_types_cannot_manufacture_deployment_authority() {
-    let f = Fixture::new().await;
-    let (node, key) = f.node().await;
-    let (app, deployment) = f.deployment(node, DeploymentTarget::Webview).await;
+    let fixture = Fixture::new().await;
+    let (node, key) = fixture.node().await;
+    let (app, deployment) = fixture.deployment(node, DeploymentTarget::Webview).await;
     for denied in [
-        f.session("user", ClientType::AdminWeb).await,
-        f.session("admin", ClientType::Android).await,
+        fixture.session("user", ClientType::AdminWeb).await,
+        fixture.session("admin", ClientType::Android).await,
         key,
     ] {
         assert!(matches!(
-            f.deployments.list_managed(&denied, None, 10).await,
+            fixture.deployments.list_managed(&denied, None, 10).await,
             Err(StoreError::Rejected)
         ));
         assert!(matches!(
-            f.deployments
+            fixture
+                .deployments
                 .create(&denied, app.id, node, &settings(DeploymentTarget::Webview))
                 .await,
             Err(StoreError::Rejected)
         ));
     }
-    let viewer = f.session("viewer", ClientType::AdminWeb).await;
-    assert!(!f
+    let viewer = fixture.session("viewer", ClientType::AdminWeb).await;
+    assert!(!fixture
         .deployments
         .list_managed(&viewer, None, 10)
         .await
         .unwrap()
         .is_empty());
-    assert!(f
+    assert!(fixture
         .deployments
         .configure(
             &viewer,
@@ -363,30 +381,34 @@ async fn roles_and_terminal_types_cannot_manufacture_deployment_authority() {
         )
         .await
         .is_err());
-    assert!(f.deployments.list_managed(&f.admin, None, 0).await.is_err());
+    assert!(fixture
+        .deployments
+        .list_managed(&fixture.admin, None, 0)
+        .await
+        .is_err());
     let runtime = config("RUNTIME").connect().await.unwrap();
     assert!(sqlx::query("DELETE FROM pixels.deployment_audit")
         .execute(&runtime)
         .await
         .is_err());
     runtime.close().await;
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn preparation_receipts_bind_node_generation_endpoint_and_order() {
-    let f = Fixture::new().await;
-    let (connection, key) = f.connected().await;
-    let (_, deployment) = f
+    let fixture = Fixture::new().await;
+    let (connection, key) = fixture.connected().await;
+    let (_, deployment) = fixture
         .deployment(connection.id(), DeploymentTarget::Webview)
         .await;
-    let ready = f
+    let ready = fixture
         .deployments
         .report(&connection, deployment.id, &observation(&deployment, 1))
         .await
         .unwrap();
     assert_eq!(ready.observed_state, "ready");
-    assert!(f
+    assert!(fixture
         .deployments
         .report(&connection, deployment.id, &observation(&deployment, 1))
         .await
@@ -395,7 +417,7 @@ async fn preparation_receipts_bind_node_generation_endpoint_and_order() {
     failed.status = PreparationState::Failed {
         reason: PreparationFailure::BindingUnverified,
     };
-    let result = f
+    let result = fixture
         .deployments
         .report(&connection, deployment.id, &failed)
         .await
@@ -404,18 +426,19 @@ async fn preparation_receipts_bind_node_generation_endpoint_and_order() {
         result.observed_reason.as_deref(),
         Some("binding_unverified")
     );
-    let (other, other_key) = f.node().await;
-    let other_connection = f
+    let (other, other_key) = fixture.node().await;
+    let other_connection = fixture
         .nodes
         .open_connection(connection.epoch(), &other_key, &token())
         .await
         .unwrap();
-    f.nodes
+    fixture
+        .nodes
         .report(&other_connection, &node_report(1))
         .await
         .unwrap();
     assert_ne!(other, connection.id());
-    assert!(f
+    assert!(fixture
         .deployments
         .report(
             &other_connection,
@@ -424,60 +447,65 @@ async fn preparation_receipts_bind_node_generation_endpoint_and_order() {
         )
         .await
         .is_err());
-    let current = f
+    let current = fixture
         .nodes
         .open_connection(connection.epoch(), &key, &token())
         .await
         .unwrap();
-    assert!(f
+    assert!(fixture
         .deployments
         .report(&current, deployment.id, &observation(&deployment, 1))
         .await
         .is_err()); // no endpoint report yet
-    f.nodes.report(&current, &node_report(1)).await.unwrap();
-    assert!(f
+    fixture
+        .nodes
+        .report(&current, &node_report(1))
+        .await
+        .unwrap();
+    assert!(fixture
         .deployments
         .report(&connection, deployment.id, &observation(&deployment, 3))
         .await
         .is_err());
-    assert!(f
+    assert!(fixture
         .deployments
         .report(&current, deployment.id, &observation(&deployment, 1))
         .await
         .is_ok());
     let mut endpoint = node_report(2);
     endpoint.public_host = "changed.example.test".into();
-    f.nodes.report(&current, &endpoint).await.unwrap();
-    assert!(f
+    fixture.nodes.report(&current, &endpoint).await.unwrap();
+    assert!(fixture
         .deployments
         .report(&current, deployment.id, &observation(&deployment, 2))
         .await
         .is_err());
     let mut newer = observation(&deployment, 2);
     newer.endpoint_revision = 3;
-    assert!(f
+    assert!(fixture
         .deployments
         .report(&current, deployment.id, &newer)
         .await
         .is_ok());
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn concurrent_configuration_and_application_revisions_invalidate_preparation() {
-    let f = Fixture::new().await;
-    let (connection, _) = f.connected().await;
-    let (mut app, deployment) = f
+    let fixture = Fixture::new().await;
+    let (connection, _) = fixture.connected().await;
+    let (mut app, deployment) = fixture
         .deployment(connection.id(), DeploymentTarget::Webview)
         .await;
-    f.deployments
+    fixture
+        .deployments
         .report(&connection, deployment.id, &observation(&deployment, 1))
         .await
         .unwrap();
     let mut tasks = Vec::new();
     for _ in 0..20 {
-        let store = f.deployments.clone();
-        let admin = f.admin.clone();
+        let store = fixture.deployments.clone();
+        let admin = fixture.admin.clone();
         tasks.push(tokio::spawn(async move {
             let mut change = settings(DeploymentTarget::Webview);
             change.capacity = 2;
@@ -489,83 +517,88 @@ async fn concurrent_configuration_and_application_revisions_invalidate_preparati
         successes += usize::from(task.await.unwrap().is_ok());
     }
     assert_eq!(successes, 1);
-    let pending = f.get(deployment.id).await;
+    let pending = fixture.get(deployment.id).await;
     assert_eq!(pending.revision, 2);
     assert_eq!(pending.observed_state, "pending");
-    assert!(f
+    assert!(fixture
         .deployments
         .report(&connection, deployment.id, &observation(&deployment, 2))
         .await
         .is_err());
-    f.deployments
+    fixture
+        .deployments
         .report(&connection, deployment.id, &observation(&pending, 1))
         .await
         .unwrap();
     app.spec.name = "新版本".into();
-    f.apps.update(&f.admin, app.id, 1, &app.spec).await.unwrap();
-    assert!(f
+    fixture
+        .apps
+        .update(&fixture.admin, app.id, 1, &app.spec)
+        .await
+        .unwrap();
+    assert!(fixture
         .deployments
         .report(&connection, deployment.id, &observation(&pending, 2))
         .await
         .is_err());
     let mut unchanged = settings(DeploymentTarget::Webview);
     unchanged.capacity = 2;
-    let revised = f
+    let revised = fixture
         .deployments
-        .configure(&f.admin, deployment.id, 2, &unchanged)
+        .configure(&fixture.admin, deployment.id, 2, &unchanged)
         .await
         .unwrap();
     assert_eq!(revised.application_revision, 2);
     assert_eq!(revised.revision, 3);
     assert_eq!(revised.observed_state, "pending");
-    assert!(f
+    assert!(fixture
         .deployments
         .report(&connection, deployment.id, &observation(&revised, 1))
         .await
         .is_ok());
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn audit_failure_preserves_configuration_and_restart_preserves_only_history() {
-    let f = Fixture::new().await;
-    let (connection, _) = f.connected().await;
-    let (_, deployment) = f
+    let fixture = Fixture::new().await;
+    let (connection, _) = fixture.connected().await;
+    let (_, deployment) = fixture
         .deployment(connection.id(), DeploymentTarget::Webview)
         .await;
-    let ready = f
+    let ready = fixture
         .deployments
         .report(&connection, deployment.id, &observation(&deployment, 1))
         .await
         .unwrap();
     sqlx::query("REVOKE INSERT ON pixels.deployment_audit FROM pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
     let mut changed = settings(DeploymentTarget::Webview);
     changed.disabled = true;
-    let outcome = f
+    let outcome = fixture
         .deployments
-        .configure(&f.admin, deployment.id, 1, &changed)
+        .configure(&fixture.admin, deployment.id, 1, &changed)
         .await;
     sqlx::query("GRANT INSERT ON pixels.deployment_audit TO pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
     assert!(outcome.is_err());
-    assert_eq!(f.get(deployment.id).await, ready);
-    f.nodes.begin_runtime().await.unwrap();
-    assert!(f
+    assert_eq!(fixture.get(deployment.id).await, ready);
+    fixture.nodes.begin_runtime().await.unwrap();
+    assert!(fixture
         .deployments
         .report(&connection, deployment.id, &observation(&deployment, 2))
         .await
         .is_err());
     // A historical Ready receipt is preserved, not promoted to a live admission decision.
-    assert_eq!(f.get(deployment.id).await, ready);
-    f.deployments.close().await;
-    assert!(f
+    assert_eq!(fixture.get(deployment.id).await, ready);
+    fixture.deployments.close().await;
+    assert!(fixture
         .deployments
-        .list_managed(&f.admin, None, 10)
+        .list_managed(&fixture.admin, None, 10)
         .await
         .is_err());
     let reopened = DeploymentStore::connect(
@@ -575,23 +608,25 @@ async fn audit_failure_preserves_configuration_and_restart_preserves_only_histor
     .await
     .unwrap();
     assert!(!reopened
-        .list_managed(&f.admin, None, 100)
+        .list_managed(&fixture.admin, None, 100)
         .await
         .unwrap()
         .is_empty());
     reopened.close().await;
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn expired_contact_deleted_application_and_invalid_observations_never_authorize_preparation()
 {
-    let f = Fixture::new().await;
-    let (connection, _) = f.connected().await;
-    let (app, deployment) = f.deployment(connection.id(), DeploymentTarget::Rdp).await;
+    let fixture = Fixture::new().await;
+    let (connection, _) = fixture.connected().await;
+    let (app, deployment) = fixture
+        .deployment(connection.id(), DeploymentTarget::Rdp)
+        .await;
     let mut invalid = observation(&deployment, 1);
     invalid.sequence = u64::MAX;
-    assert!(f
+    assert!(fixture
         .deployments
         .report(&connection, deployment.id, &invalid)
         .await
@@ -600,30 +635,43 @@ async fn expired_contact_deleted_application_and_invalid_observations_never_auth
         "UPDATE pixels.nodes SET last_seen=clock_timestamp()-interval '31 seconds' WHERE id=$1",
     )
     .bind(connection.id())
-    .execute(&f.owner)
+    .execute(&fixture.owner)
     .await
     .unwrap();
-    assert!(f
+    assert!(fixture
         .deployments
         .report(&connection, deployment.id, &observation(&deployment, 1))
         .await
         .is_err());
-    f.nodes.report(&connection, &node_report(2)).await.unwrap();
-    assert!(f
+    fixture
+        .nodes
+        .report(&connection, &node_report(2))
+        .await
+        .unwrap();
+    assert!(fixture
         .deployments
         .report(&connection, deployment.id, &observation(&deployment, 1))
         .await
         .is_ok());
-    f.apps.delete(&f.admin, app.id, 1).await.unwrap();
-    assert!(f
+    fixture
+        .apps
+        .delete(&fixture.admin, app.id, 1)
+        .await
+        .unwrap();
+    assert!(fixture
         .deployments
         .report(&connection, deployment.id, &observation(&deployment, 2))
         .await
         .is_err());
-    assert!(f
+    assert!(fixture
         .deployments
-        .configure(&f.admin, deployment.id, 1, &settings(DeploymentTarget::Rdp))
+        .configure(
+            &fixture.admin,
+            deployment.id,
+            1,
+            &settings(DeploymentTarget::Rdp)
+        )
         .await
         .is_err());
-    f.close().await;
+    fixture.close().await;
 }

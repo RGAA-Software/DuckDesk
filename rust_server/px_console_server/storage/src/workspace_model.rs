@@ -76,7 +76,7 @@ pub(crate) fn validate_sid(value: &str) -> bool {
             !part.is_empty()
                 && part.len() <= 10
                 && (part.len() == 1 || !part.starts_with('0'))
-                && part.bytes().all(|v| v.is_ascii_digit())
+                && part.bytes().all(|byte_value| byte_value.is_ascii_digit())
                 && part.parse::<u32>().is_ok()
         })
 }

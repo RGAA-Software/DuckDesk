@@ -73,13 +73,13 @@ fn digest_text(value: &str) -> bool {
     value.len() == 64
         && value
             .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+            .all(|byte_value| byte_value.is_ascii_digit() || (b'a'..=b'f').contains(&byte_value))
 }
 fn public_url(value: &str) -> bool {
     if value.len() > 2048
         || value
             .bytes()
-            .any(|b| b.is_ascii_whitespace() || b.is_ascii_control())
+            .any(|byte_value| byte_value.is_ascii_whitespace() || byte_value.is_ascii_control())
     {
         return false;
     }
@@ -137,19 +137,19 @@ mod tests {
     }
     #[test]
     fn every_platform_is_explicit_and_unsupported_products_have_no_aliases() {
-        let mut s = spec();
-        s.validate().unwrap();
-        s.target.os = OperatingSystem::Windows;
-        s.validate().unwrap();
-        s.target.product = Product::Android;
-        assert!(s.validate().is_err());
-        s.target.os = OperatingSystem::Android;
-        s.target.architecture = Architecture::Aarch64;
-        s.validate().unwrap();
+        let mut release_spec = spec();
+        release_spec.validate().unwrap();
+        release_spec.target.os = OperatingSystem::Windows;
+        release_spec.validate().unwrap();
+        release_spec.target.product = Product::Android;
+        assert!(release_spec.validate().is_err());
+        release_spec.target.os = OperatingSystem::Android;
+        release_spec.target.architecture = Architecture::Aarch64;
+        release_spec.validate().unwrap();
         for value in ["panel", "gammaray", "Client", ""] {
             assert!(value.parse::<Product>().is_err());
         }
-        let mut value = serde_json::to_value(&s).unwrap();
+        let mut value = serde_json::to_value(&release_spec).unwrap();
         value["target"]
             .as_object_mut()
             .unwrap()
@@ -217,29 +217,29 @@ mod tests {
             "https://example.invalid/a\n",
             "file:///tmp/a",
         ] {
-            let mut s = spec();
-            s.artifact_url = url.into();
-            assert!(s.validate().is_err());
-            s = spec();
-            s.metadata_url = url.into();
-            assert!(s.validate().is_err());
+            let mut release_spec = spec();
+            release_spec.artifact_url = url.into();
+            assert!(release_spec.validate().is_err());
+            release_spec = spec();
+            release_spec.metadata_url = url.into();
+            assert!(release_spec.validate().is_err());
         }
     }
     #[test]
     fn sizes_hashes_builds_and_unknown_fields_are_bounded_without_coercion() {
         for size in [-1, 0, (1_i64 << 40) + 1] {
-            let mut s = spec();
-            s.size_bytes = size;
-            assert!(s.validate().is_err());
+            let mut release_spec = spec();
+            release_spec.size_bytes = size;
+            assert!(release_spec.validate().is_err());
         }
         for hash in ["A".repeat(64), "a".repeat(63), "g".repeat(64)] {
-            let mut s = spec();
-            s.sha256 = hash;
-            assert!(s.validate().is_err());
+            let mut release_spec = spec();
+            release_spec.sha256 = hash;
+            assert!(release_spec.validate().is_err());
         }
-        let mut s = spec();
-        s.build_number = 0;
-        assert!(s.validate().is_err());
+        let mut release_spec = spec();
+        release_spec.build_number = 0;
+        assert!(release_spec.validate().is_err());
         let mut value = serde_json::to_value(spec()).unwrap();
         value["signed"] = serde_json::json!(true);
         assert!(serde_json::from_value::<ReleaseSpec>(value).is_err());

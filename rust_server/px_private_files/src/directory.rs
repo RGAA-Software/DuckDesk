@@ -19,9 +19,9 @@ fn valid_name(name: &str) -> Result<()> {
     if name.is_empty()
         || name.len() > 64
         || name.contains("..")
-        || !name
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-')
+        || !name.bytes().all(|byte_value| {
+            byte_value.is_ascii_alphanumeric() || byte_value == b'.' || byte_value == b'-'
+        })
     {
         return Err(FileError::InvalidInput);
     }

@@ -630,7 +630,7 @@ impl ServiceRuntime {
         // reported by its Render integration and does not have a game process.
         let game_path_str = game_path
             .as_ref()
-            .map(|p| p.to_string_lossy().to_string())
+            .map(|game_path| game_path.to_string_lossy().to_string())
             .unwrap_or_default();
         if let Some(game_path) = game_path.as_ref() {
             if !wait_game_process(&process_manager, &game_path_str, 50, 200).await {
@@ -700,23 +700,27 @@ impl ServiceRuntime {
             self.state
                 .last_desktop_launch
                 .as_ref()
-                .map(|s| s.work_dir.clone())
+                .map(|desktop_launch| desktop_launch.work_dir.clone())
                 .unwrap_or_default(),
             std::env::current_exe()
                 .ok()
-                .and_then(|p| p.parent().map(|d| d.to_string_lossy().to_string()))
+                .and_then(|executable_path| {
+                    executable_path
+                        .parent()
+                        .map(|parent_directory| parent_directory.to_string_lossy().to_string())
+                })
                 .unwrap_or_default(),
             std::env::current_dir()
                 .ok()
-                .map(|d| d.to_string_lossy().to_string())
+                .map(|current_directory| current_directory.to_string_lossy().to_string())
                 .unwrap_or_default(),
         ];
         candidate_dirs
             .into_iter()
-            .find(|d| {
-                !d.is_empty()
-                    && std::path::Path::new(d).is_dir()
-                    && std::path::Path::new(d)
+            .find(|candidate_directory| {
+                !candidate_directory.is_empty()
+                    && std::path::Path::new(candidate_directory).is_dir()
+                    && std::path::Path::new(candidate_directory)
                         .join(service_core::config::RENDER_EXE_NAME)
                         .is_file()
             })
@@ -983,7 +987,7 @@ impl ServiceRuntime {
                     && cmdline_has_listen_port(&process.cmdline, rec.listen_port));
                 if belongs {
                     Some(pid)
-                } else if processes.iter().any(|p| p.pid == pid) {
+                } else if processes.iter().any(|process| process.pid == pid) {
                     warn!(
                         "stop app instance {instance_id}: recorded pid {pid} is no longer the game-hook render/game, skipping (pid reuse?)"
                     );
@@ -1132,14 +1136,14 @@ fn find_app_render_pid_by_port(
     port: u16,
 ) -> Option<u32> {
     let processes = process_manager.list_processes().ok()?;
-    for p in processes {
-        if !p.is_app_instance_render_process() {
+    for process in processes {
+        if !process.is_app_instance_render_process() {
             continue;
         }
         // Exact token match only: substring matching would hit port 3200 on
         // "--network_listen_port=4613".
-        if cmdline_has_listen_port(&p.cmdline, port) {
-            return Some(p.pid);
+        if cmdline_has_listen_port(&process.cmdline, port) {
+            return Some(process.pid);
         }
     }
     None
@@ -1487,9 +1491,15 @@ mod tests {
                 args.join(" "),
             ));
             // 模拟 game-hook render 拉起游戏子进程,wait_game_process 才能通过。
-            if args.iter().any(|a| a == "--app_mode=game-hook") {
-                if let Some(b64) = args.iter().find_map(|a| a.strip_prefix("--app_game_path=")) {
-                    if let Ok(game_path) = px_base::crypto_util::base64_decode(b64) {
+            if args
+                .iter()
+                .any(|argument| argument == "--app_mode=game-hook")
+            {
+                if let Some(encoded_game_path) = args
+                    .iter()
+                    .find_map(|argument| argument.strip_prefix("--app_game_path="))
+                {
+                    if let Ok(game_path) = px_base::crypto_util::base64_decode(encoded_game_path) {
                         let game_pid = {
                             let mut next = self.next_pid.lock().unwrap();
                             let pid = *next;
@@ -2127,8 +2137,8 @@ mod tests {
             .lock()
             .unwrap()
             .iter()
-            .find(|p| p.exe_path_eq(&dirs.game_exe.to_string_lossy()))
-            .map(|p| p.pid)
+            .find(|process| process.exe_path_eq(&dirs.game_exe.to_string_lossy()))
+            .map(|process| process.pid)
             .expect("game child process");
 
         // desktop still listed
@@ -2136,7 +2146,7 @@ mod tests {
             .list_processes()
             .unwrap()
             .iter()
-            .any(|p| p.pid == 1 && p.cmdline.contains("desktop")));
+            .any(|process| process.pid == 1 && process.cmdline.contains("desktop")));
 
         ServiceRuntime::stop_app_instance(&runtime, "inst-1")
             .await
@@ -2146,7 +2156,11 @@ mod tests {
         assert!(kills.contains(&game_pid), "must kill game child");
         // desktop pid not killed
         assert!(!kills.contains(&1));
-        assert!(manager.list_processes().unwrap().iter().any(|p| p.pid == 1));
+        assert!(manager
+            .list_processes()
+            .unwrap()
+            .iter()
+            .any(|process| process.pid == 1));
     }
 
     #[tokio::test]
@@ -2248,7 +2262,7 @@ mod tests {
                 .lock()
                 .unwrap()
                 .iter()
-                .map(|p| p.pid)
+                .map(|process| process.pid)
                 .collect::<Vec<_>>(),
             vec![8765]
         );
@@ -2504,7 +2518,7 @@ mod tests {
         // the game process exits too.
         {
             let mut processes = manager.processes.lock().unwrap();
-            processes.retain(|p| p.pid != pid && p.parent_pid != Some(pid));
+            processes.retain(|process| process.pid != pid && process.parent_pid != Some(pid));
             processes.push(ProcessSnapshot::new(pid, "C:/Windows/notepad.exe", ""));
         }
 
@@ -2517,7 +2531,7 @@ mod tests {
             .list_processes()
             .unwrap()
             .iter()
-            .any(|p| p.pid == pid && p.exe_path.contains("notepad")));
+            .any(|process| process.pid == pid && process.exe_path.contains("notepad")));
         assert!(manager.kills.lock().unwrap().is_empty());
         // Record must not be marked stopped.
         assert_eq!(
@@ -2621,10 +2635,10 @@ mod tests {
         runtime.stop_desktop().unwrap();
         let left = runtime.process_manager.list_processes().unwrap();
         assert!(
-            left.iter().any(|p| p.pid == 2),
+            left.iter().any(|process| process.pid == 2),
             "game-hook must survive desktop stop"
         );
-        assert!(!left.iter().any(|p| p.pid == 1));
+        assert!(!left.iter().any(|process| process.pid == 1));
     }
 
     #[test]

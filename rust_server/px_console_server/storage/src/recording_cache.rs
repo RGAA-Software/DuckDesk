@@ -88,17 +88,25 @@ impl RecordingCacheStore {
         let source = Self::source(&mut tx, run, recording).await?;
         let (origin, scope) = Self::credential(&mut tx, &credential, &source).await?;
         let mut entry = match Self::entry(&mut tx, recording).await? {
-            Some(e) => e,
+            Some(cache_entry) => cache_entry,
             None => {
-                let e = sqlx::query_file_as!(
+                let cache_entry = sqlx::query_file_as!(
                     CacheEntry,
                     "queries/create_recording_cache.sql",
                     recording
                 )
                 .fetch_one(&mut *tx)
                 .await?;
-                Self::event(&mut tx, run, &e, None, Some(origin.user_id), "created").await?;
-                e
+                Self::event(
+                    &mut tx,
+                    run,
+                    &cache_entry,
+                    None,
+                    Some(origin.user_id),
+                    "created",
+                )
+                .await?;
+                cache_entry
             }
         };
         if let Some(id) = entry.active_blob_id {

@@ -310,9 +310,9 @@ async fn login_and_revocation_race_never_leave_a_valid_old_revision() {
         let token = token();
         let password = password();
         let barrier = Arc::new(tokio::sync::Barrier::new(2));
-        let a = barrier.clone();
+        let issue_barrier = barrier.clone();
         let issue = async {
-            a.wait().await;
+            issue_barrier.wait().await;
             store
                 .issue_session(
                     user.id,
@@ -460,34 +460,46 @@ async fn group_membership_changes_invalidate_only_affected_users() {
     let identities = store().await;
     let groups = GroupStore::connect(&config(), deployment()).await.unwrap();
     let admin = administrator().await;
-    let a = identities.register(&name(), &password()).await.unwrap();
-    let b = identities.register(&name(), &password()).await.unwrap();
+    let first_user = identities.register(&name(), &password()).await.unwrap();
+    let second_user = identities.register(&name(), &password()).await.unwrap();
     let group = groups
         .create(&admin, &format!("group-{}", Uuid::new_v4()), "fixture")
         .await
         .unwrap();
     let group = groups
-        .replace_members(&admin, group.id, 1, &[a.id, b.id])
+        .replace_members(&admin, group.id, 1, &[first_user.id, second_user.id])
         .await
         .unwrap();
     assert_eq!(group.revision, 2);
     let unchanged = groups
-        .replace_members(&admin, group.id, 2, &[b.id, a.id])
+        .replace_members(&admin, group.id, 2, &[second_user.id, first_user.id])
         .await
         .unwrap();
     assert_eq!(unchanged, group);
     let ta = token();
     let tb = token();
     identities
-        .issue_session(a.id, 2, &ta, ClientType::Panel, Duration::from_secs(60))
+        .issue_session(
+            first_user.id,
+            2,
+            &ta,
+            ClientType::Panel,
+            Duration::from_secs(60),
+        )
         .await
         .unwrap();
     identities
-        .issue_session(b.id, 2, &tb, ClientType::Panel, Duration::from_secs(60))
+        .issue_session(
+            second_user.id,
+            2,
+            &tb,
+            ClientType::Panel,
+            Duration::from_secs(60),
+        )
         .await
         .unwrap();
     let group = groups
-        .replace_members(&admin, group.id, 2, &[b.id])
+        .replace_members(&admin, group.id, 2, &[second_user.id])
         .await
         .unwrap();
     assert_eq!(group.revision, 3);
@@ -502,7 +514,10 @@ async fn group_membership_changes_invalidate_only_affected_users() {
         .authenticate(&tb, ClientType::Panel)
         .await
         .unwrap();
-    assert_eq!(groups.members(&admin, group.id).await.unwrap(), vec![b.id]);
+    assert_eq!(
+        groups.members(&admin, group.id).await.unwrap(),
+        vec![second_user.id]
+    );
     groups.delete(&admin, group.id, 3).await.unwrap();
     assert_eq!(
         identities
@@ -593,14 +608,14 @@ async fn failed_member_insert_rolls_back_prior_delete_and_all_revisions() {
     let identities = store().await;
     let groups = GroupStore::connect(&config(), deployment()).await.unwrap();
     let admin = administrator().await;
-    let a = identities.register(&name(), &password()).await.unwrap();
-    let b = identities.register(&name(), &password()).await.unwrap();
+    let first_user = identities.register(&name(), &password()).await.unwrap();
+    let second_user = identities.register(&name(), &password()).await.unwrap();
     let group = groups
         .create(&admin, &format!("fault-{}", Uuid::new_v4()), "fixture")
         .await
         .unwrap();
     let group = groups
-        .replace_members(&admin, group.id, 1, &[a.id])
+        .replace_members(&admin, group.id, 1, &[first_user.id])
         .await
         .unwrap();
     let owner = DatabaseConfig::parse(
@@ -613,24 +628,29 @@ async fn failed_member_insert_rolls_back_prior_delete_and_all_revisions() {
     .unwrap();
     let ddl = format!("CREATE FUNCTION pixels.test_member_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.group_id='{}'::uuid THEN RAISE EXCEPTION 'synthetic fault' USING ERRCODE='23514'; END IF; RETURN NEW; END $$; CREATE TRIGGER test_member_failure BEFORE INSERT ON pixels.group_members FOR EACH ROW EXECUTE FUNCTION pixels.test_member_failure();", group.id);
     sqlx::raw_sql(&ddl).execute(&owner).await.unwrap();
-    let result = groups.replace_members(&admin, group.id, 2, &[b.id]).await;
+    let result = groups
+        .replace_members(&admin, group.id, 2, &[second_user.id])
+        .await;
     sqlx::raw_sql("DROP TRIGGER test_member_failure ON pixels.group_members; DROP FUNCTION pixels.test_member_failure();").execute(&owner).await.unwrap();
     assert_eq!(
         result.unwrap_err(),
         StoreError::Database(DatabaseError::Conflict)
     );
     assert_eq!(groups.get(&admin, group.id).await.unwrap(), group);
-    assert_eq!(groups.members(&admin, group.id).await.unwrap(), vec![a.id]);
+    assert_eq!(
+        groups.members(&admin, group.id).await.unwrap(),
+        vec![first_user.id]
+    );
     let revisions: Vec<(Uuid, i64)> = sqlx::query_as(
         "SELECT id,authorization_revision FROM pixels.users WHERE id=ANY($1) ORDER BY id",
     )
-    .bind(vec![a.id, b.id])
+    .bind(vec![first_user.id, second_user.id])
     .fetch_all(&owner)
     .await
     .unwrap();
-    assert!(revisions.contains(&(a.id, 2)) && revisions.contains(&(b.id, 1)));
+    assert!(revisions.contains(&(first_user.id, 2)) && revisions.contains(&(second_user.id, 1)));
     groups
-        .replace_members(&admin, group.id, 2, &[b.id])
+        .replace_members(&admin, group.id, 2, &[second_user.id])
         .await
         .unwrap();
     owner.close().await;
@@ -643,8 +663,8 @@ async fn competing_membership_replacements_have_one_cas_winner() {
     let identities = store().await;
     let groups = GroupStore::connect(&config(), deployment()).await.unwrap();
     let admin = administrator().await;
-    let a = identities.register(&name(), &password()).await.unwrap();
-    let b = identities.register(&name(), &password()).await.unwrap();
+    let first_user = identities.register(&name(), &password()).await.unwrap();
+    let second_user = identities.register(&name(), &password()).await.unwrap();
     let group = groups
         .create(&admin, &format!("race-{}", Uuid::new_v4()), "fixture")
         .await
@@ -655,7 +675,11 @@ async fn competing_membership_replacements_have_one_cas_winner() {
         let groups = groups.clone();
         let admin = admin.clone();
         let barrier = barrier.clone();
-        let id = if index % 2 == 0 { a.id } else { b.id };
+        let id = if index % 2 == 0 {
+            first_user.id
+        } else {
+            second_user.id
+        };
         tasks.push(tokio::spawn(async move {
             barrier.wait().await;
             groups

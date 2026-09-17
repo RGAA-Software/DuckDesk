@@ -6,9 +6,9 @@ use std::{env, sync::Arc, time::Duration};
 use tokio::sync::Barrier;
 use uuid::Uuid;
 struct Context {
-    f: Fixture,
-    a: ActivityStore,
-    s: ResourceSessionStore,
+    fixture: Fixture,
+    activity_store: ActivityStore,
+    session_store: ResourceSessionStore,
     node: NodeConnection,
     user: TokenDigest,
     client: ClientType,
@@ -23,52 +23,58 @@ impl Context {
             ClientType::Android
         };
         let deployment = env::var("PIXELS_DEPLOYMENT_ID").unwrap().parse().unwrap();
-        let f = Fixture::new().await;
-        let a = ActivityStore::connect(&config("RUNTIME"), deployment)
+        let fixture = Fixture::new().await;
+        let activity_store = ActivityStore::connect(&config("RUNTIME"), deployment)
             .await
             .unwrap();
-        let s = ResourceSessionStore::connect(&config("RUNTIME"), deployment)
+        let session_store = ResourceSessionStore::connect(&config("RUNTIME"), deployment)
             .await
             .unwrap();
-        let (node, app, _) = f.prepared(target, 1).await;
-        let user = f.session("user", client).await;
-        let instance = f
+        let (node, application, _) = fixture.prepared(target, 1).await;
+        let user = fixture.session("user", client).await;
+        let instance = fixture
             .instances
             .reserve(
                 ResourceCredential::User(&user),
                 client,
                 node.epoch(),
-                &request(app.id),
+                &request(application.id),
             )
             .await
             .unwrap();
-        let cmd = f.instances.next_command(&node).await.unwrap().unwrap();
-        let port = match cmd.action {
+        let start_command = fixture
+            .instances
+            .next_command(&node)
+            .await
+            .unwrap()
+            .unwrap();
+        let port = match start_command.action {
             NodeCommandAction::Start { port, .. } => port,
             _ => panic!("start required"),
         };
-        f.instances
+        fixture
+            .instances
             .acknowledge_command(
                 &node,
                 &CommandReceipt {
-                    command_id: cmd.id,
-                    lease_id: cmd.lease_id,
+                    command_id: start_command.id,
+                    lease_id: start_command.lease_id,
                     instance_id: instance.id,
-                    launch_id: cmd.launch_id,
-                    instance_revision: cmd.instance_revision,
+                    launch_id: start_command.launch_id,
+                    instance_revision: start_command.instance_revision,
                     outcome: CommandOutcome::Running { port },
                 },
             )
             .await
             .unwrap();
-        let session = s
+        let session = session_store
             .open(
                 ResourceCredential::User(&user),
                 client,
                 &OpenResourceSession {
                     request_id: Uuid::new_v4(),
                     target: SessionTarget::CloudApplication {
-                        application_id: app.id,
+                        application_id: application.id,
                         instance_id: instance.id,
                     },
                     access: SessionAccess::Controller,
@@ -76,10 +82,10 @@ impl Context {
             )
             .await
             .unwrap();
-        let c = Self {
-            f,
-            a,
-            s,
+        let context = Self {
+            fixture,
+            activity_store,
+            session_store,
             node,
             user,
             client,
@@ -87,14 +93,14 @@ impl Context {
             session,
         };
         if admitted {
-            c.admit(&c.session).await;
+            context.admit(&context.session).await;
         }
-        c
+        context
     }
     async fn admit(&self, session: &ResourceSession) {
         let secret = token();
-        let d = self
-            .s
+        let descriptor = self
+            .session_store
             .descriptor(
                 ResourceCredential::User(&self.user),
                 self.client,
@@ -104,8 +110,8 @@ impl Context {
             )
             .await
             .unwrap();
-        self.s
-            .admit_frontend(&self.node, session.id, d.session.revision, &secret)
+        self.session_store
+            .admit_frontend(&self.node, session.id, descriptor.session.revision, &secret)
             .await
             .unwrap();
     }
@@ -117,183 +123,215 @@ impl Context {
         }
     }
     async fn channels(&self) -> Vec<ChannelRecord> {
-        self.a
-            .channels_managed(&self.f.admin, Some(self.session.id), None, 100)
+        self.activity_store
+            .channels_managed(&self.fixture.admin, Some(self.session.id), None, 100)
             .await
             .unwrap()
     }
     async fn visits(&self) -> Vec<VisitRecord> {
-        self.a
+        self.activity_store
             .visits_owned(ResourceCredential::User(&self.user), self.client, None, 100)
             .await
             .unwrap()
     }
     async fn close(self) {
-        self.a.close().await;
-        self.s.close().await;
-        self.f.close().await;
+        self.activity_store.close().await;
+        self.session_store.close().await;
+        self.fixture.close().await;
     }
 }
-fn progress(sequence: u64, bytes: u64) -> ChannelProgress {
+fn progress(sequence: u64, byte_count: u64) -> ChannelProgress {
     ChannelProgress {
         sequence,
-        sent_bytes: bytes,
-        received_bytes: bytes,
-        elapsed_ms: bytes,
+        sent_bytes: byte_count,
+        received_bytes: byte_count,
+        elapsed_ms: byte_count,
         outcome: ChannelOutcome::Progress,
     }
 }
-async fn permission(c: &Context, allow: bool) {
+async fn permission(context: &Context, allow: bool) {
     sqlx::query(if allow {
         "GRANT INSERT ON pixels.connection_observation_events TO pixels_console_runtime"
     } else {
         "REVOKE INSERT ON pixels.connection_observation_events FROM pixels_console_runtime"
     })
-    .execute(&c.f.owner)
+    .execute(&context.fixture.owner)
     .await
     .unwrap();
 }
 #[tokio::test]
 async fn visit_confirmation_and_multiple_channels_never_create_more_occupants_or_close_the_app() {
-    let c = Context::new(DeploymentTarget::Webview, false).await;
-    assert!(c.visits().await[0].first_connected_at.is_none());
-    assert!(c
-        .a
-        .open_channel(&c.node, &c.open(ChannelKind::Media))
+    let context = Context::new(DeploymentTarget::Webview, false).await;
+    assert!(context.visits().await[0].first_connected_at.is_none());
+    assert!(context
+        .activity_store
+        .open_channel(&context.node, &context.open(ChannelKind::Media))
         .await
         .is_err());
-    c.admit(&c.session).await;
-    let initial = c.visits().await.remove(0);
+    context.admit(&context.session).await;
+    let initial = context.visits().await.remove(0);
     assert!(initial.first_connected_at.is_some());
     assert_eq!(initial.channel_count, 0);
-    let first =
-        c.a.open_channel(&c.node, &c.open(ChannelKind::Control))
-            .await
-            .unwrap();
-    c.a.open_channel(&c.node, &c.open(ChannelKind::Audio))
+    let first = context
+        .activity_store
+        .open_channel(&context.node, &context.open(ChannelKind::Control))
+        .await
+        .unwrap();
+    context
+        .activity_store
+        .open_channel(&context.node, &context.open(ChannelKind::Audio))
         .await
         .unwrap();
     let mut closed = progress(1, 10);
     closed.outcome = ChannelOutcome::Closed {
         reason: ChannelClose::PeerClosed,
     };
-    let done =
-        c.a.report_channel(&c.node, first.id, &closed)
-            .await
-            .unwrap();
+    let done = context
+        .activity_store
+        .report_channel(&context.node, first.id, &closed)
+        .await
+        .unwrap();
     assert!(done.ended_at.is_some());
     assert_eq!(
-        c.a.report_channel(&c.node, first.id, &closed)
+        context
+            .activity_store
+            .report_channel(&context.node, first.id, &closed)
             .await
             .unwrap(),
         done
     );
-    let visit = c.visits().await.remove(0);
+    let visit = context.visits().await.remove(0);
     assert_eq!(visit.channel_count, 2);
     assert_eq!(visit.first_connected_at, initial.first_connected_at);
     assert_eq!(visit.session.state, "connected");
     assert!(visit.session.closed_at.is_none());
     let count: i64 =
         sqlx::query_scalar("SELECT count(*) FROM pixels.resource_sessions WHERE instance_id=$1")
-            .bind(c.instance.id)
-            .fetch_one(&c.f.owner)
+            .bind(context.instance.id)
+            .fetch_one(&context.fixture.owner)
             .await
             .unwrap();
     assert_eq!(count, 1);
     let state: String = sqlx::query_scalar("SELECT state FROM pixels.instances WHERE id=$1")
-        .bind(c.instance.id)
-        .fetch_one(&c.f.owner)
+        .bind(context.instance.id)
+        .fetch_one(&context.fixture.owner)
         .await
         .unwrap();
     assert_eq!(state, "running");
-    c.close().await;
+    context.close().await;
 }
 #[tokio::test]
 async fn concurrent_duplicate_channels_and_ordered_reports_have_one_identity_and_exact_body_retry()
 {
-    let c = Context::new(DeploymentTarget::Webview, true).await;
-    let req = c.open(ChannelKind::Media);
-    let b = Arc::new(Barrier::new(20));
+    let context = Context::new(DeploymentTarget::Webview, true).await;
+    let open_request = context.open(ChannelKind::Media);
+    let start_barrier = Arc::new(Barrier::new(20));
     let mut tasks = Vec::new();
     for _ in 0..20 {
-        let (a, node, r, b) = (c.a.clone(), c.node.clone(), req.clone(), b.clone());
+        let (activity_store, node, open_request, start_barrier) = (
+            context.activity_store.clone(),
+            context.node.clone(),
+            open_request.clone(),
+            start_barrier.clone(),
+        );
         tasks.push(tokio::spawn(async move {
-            b.wait().await;
-            a.open_channel(&node, &r).await.unwrap()
+            start_barrier.wait().await;
+            activity_store
+                .open_channel(&node, &open_request)
+                .await
+                .unwrap()
         }));
     }
     let mut ids = Vec::new();
-    for t in tasks {
-        ids.push(t.await.unwrap().id);
+    for task_handle in tasks {
+        ids.push(task_handle.await.unwrap().id);
     }
     assert!(ids.iter().all(|id| *id == ids[0]));
     let id = ids[0];
-    let mut changed = req.clone();
+    let mut changed = open_request.clone();
     changed.kind = ChannelKind::Control;
-    assert!(c.a.open_channel(&c.node, &changed).await.is_err());
-    let b = Arc::new(Barrier::new(20));
+    assert!(context
+        .activity_store
+        .open_channel(&context.node, &changed)
+        .await
+        .is_err());
+    let start_barrier = Arc::new(Barrier::new(20));
     let mut tasks = Vec::new();
-    for i in 0..20 {
-        let (a, node, b) = (c.a.clone(), c.node.clone(), b.clone());
+    for contender_index in 0..20 {
+        let (activity_store, node, start_barrier) = (
+            context.activity_store.clone(),
+            context.node.clone(),
+            start_barrier.clone(),
+        );
         tasks.push(tokio::spawn(async move {
-            b.wait().await;
-            a.report_channel(&node, id, &progress(1, 10 + i % 2)).await
+            start_barrier.wait().await;
+            activity_store
+                .report_channel(&node, id, &progress(1, 10 + contender_index % 2))
+                .await
         }));
     }
     let mut accepted = Vec::new();
     let mut denied = 0;
-    for t in tasks {
-        match t.await.unwrap() {
-            Ok(v) => accepted.push(v),
+    for task_handle in tasks {
+        match task_handle.await.unwrap() {
+            Ok(channel_record) => accepted.push(channel_record),
             Err(_) => denied += 1,
         }
     }
     assert_eq!(accepted.len(), 10);
     assert_eq!(denied, 10);
-    assert!(accepted.iter().all(|r| *r == accepted[0]));
-    assert!(c
-        .a
-        .report_channel(&c.node, id, &progress(2, 1))
+    assert!(accepted
+        .iter()
+        .all(|accepted_record| *accepted_record == accepted[0]));
+    assert!(context
+        .activity_store
+        .report_channel(&context.node, id, &progress(2, 1))
         .await
         .is_err());
     let mut fail = progress(2, 20);
     fail.outcome = ChannelOutcome::Failed {
         reason: ChannelFailure::TransportLost,
     };
-    let failed = c.a.report_channel(&c.node, id, &fail).await.unwrap();
+    let failed = context
+        .activity_store
+        .report_channel(&context.node, id, &fail)
+        .await
+        .unwrap();
     assert_eq!(failed.state, "failed");
-    assert!(c
-        .a
-        .report_channel(&c.node, id, &progress(3, 30))
+    assert!(context
+        .activity_store
+        .report_channel(&context.node, id, &progress(3, 30))
         .await
         .is_err());
-    c.close().await;
+    context.close().await;
 }
 #[tokio::test]
 async fn channel_limit_is_atomic_under_twenty_contenders_and_pages_do_not_leak_producer_secrets() {
-    let c = Context::new(DeploymentTarget::Webview, true).await;
+    let context = Context::new(DeploymentTarget::Webview, true).await;
     for _ in 0..15 {
-        c.a.open_channel(&c.node, &c.open(ChannelKind::Media))
+        context
+            .activity_store
+            .open_channel(&context.node, &context.open(ChannelKind::Media))
             .await
             .unwrap();
     }
-    let b = Arc::new(Barrier::new(20));
+    let start_barrier = Arc::new(Barrier::new(20));
     let mut tasks = Vec::new();
     for _ in 0..20 {
-        let (a, node, r, b) = (
-            c.a.clone(),
-            c.node.clone(),
-            c.open(ChannelKind::Media),
-            b.clone(),
+        let (activity_store, node, open_request, start_barrier) = (
+            context.activity_store.clone(),
+            context.node.clone(),
+            context.open(ChannelKind::Media),
+            start_barrier.clone(),
         );
         tasks.push(tokio::spawn(async move {
-            b.wait().await;
-            a.open_channel(&node, &r).await
+            start_barrier.wait().await;
+            activity_store.open_channel(&node, &open_request).await
         }));
     }
     let mut won = 0;
-    for t in tasks {
-        if t.await.unwrap().is_ok() {
+    for task_handle in tasks {
+        if task_handle.await.unwrap().is_ok() {
             won += 1;
         }
     }
@@ -301,22 +339,23 @@ async fn channel_limit_is_atomic_under_twenty_contenders_and_pages_do_not_leak_p
     let mut after = None;
     let mut ids = Vec::new();
     loop {
-        let rows =
-            c.a.channels_managed(&c.f.admin, Some(c.session.id), after, 3)
-                .await
-                .unwrap();
+        let rows = context
+            .activity_store
+            .channels_managed(&context.fixture.admin, Some(context.session.id), after, 3)
+            .await
+            .unwrap();
         if rows.is_empty() {
             break;
         }
         after = Some(rows.last().unwrap().id);
-        ids.extend(rows.into_iter().map(|r| r.id));
+        ids.extend(rows.into_iter().map(|channel_record| channel_record.id));
     }
     assert_eq!(ids.len(), 16);
     let mut unique = ids.clone();
     unique.sort();
     unique.dedup();
     assert_eq!(unique.len(), 16);
-    let body = serde_json::to_string(&c.channels().await).unwrap();
+    let body = serde_json::to_string(&context.channels().await).unwrap();
     for field in [
         "token",
         "request_hash",
@@ -327,93 +366,131 @@ async fn channel_limit_is_atomic_under_twenty_contenders_and_pages_do_not_leak_p
     ] {
         assert!(!body.contains(field));
     }
-    assert!(c
-        .a
-        .channels_managed(&c.f.admin, None, None, 101)
+    assert!(context
+        .activity_store
+        .channels_managed(&context.fixture.admin, None, None, 101)
         .await
         .is_err());
-    assert!(c.a.visits_managed(&c.f.admin, None, 0).await.is_err());
-    c.close().await;
+    assert!(context
+        .activity_store
+        .visits_managed(&context.fixture.admin, None, 0)
+        .await
+        .is_err());
+    context.close().await;
 }
 #[tokio::test]
 async fn node_rotation_preserves_unknown_history_and_never_adopts_old_source_identity() {
-    let c = Context::new(DeploymentTarget::Webview, true).await;
-    let req = c.open(ChannelKind::Media);
-    let row = c.a.open_channel(&c.node, &req).await.unwrap();
-    c.a.report_channel(&c.node, row.id, &progress(1, 20))
+    let context = Context::new(DeploymentTarget::Webview, true).await;
+    let open_request = context.open(ChannelKind::Media);
+    let row = context
+        .activity_store
+        .open_channel(&context.node, &open_request)
+        .await
+        .unwrap();
+    context
+        .activity_store
+        .report_channel(&context.node, row.id, &progress(1, 20))
         .await
         .unwrap();
     let key = token();
-    c.f.nodes
-        .rotate_key(&c.f.admin, c.node.id(), 2, &key)
+    context
+        .fixture
+        .nodes
+        .rotate_key(&context.fixture.admin, context.node.id(), 2, &key)
         .await
         .unwrap();
-    let current =
-        c.f.nodes
-            .open_connection(c.node.epoch(), &key, &token())
-            .await
-            .unwrap();
-    c.f.nodes.report(&current, &node_report(1)).await.unwrap();
-    let unknown = c.channels().await.remove(0);
+    let current = context
+        .fixture
+        .nodes
+        .open_connection(context.node.epoch(), &key, &token())
+        .await
+        .unwrap();
+    context
+        .fixture
+        .nodes
+        .report(&current, &node_report(1))
+        .await
+        .unwrap();
+    let unknown = context.channels().await.remove(0);
     assert_eq!(unknown.state, "unknown");
     assert!(unknown.ended_at.is_none());
     assert_eq!(unknown.sent_bytes, 20);
-    assert!(c.a.open_channel(&current, &req).await.is_err());
-    assert!(c
-        .a
+    assert!(context
+        .activity_store
+        .open_channel(&current, &open_request)
+        .await
+        .is_err());
+    assert!(context
+        .activity_store
         .report_channel(&current, row.id, &progress(2, 30))
         .await
         .is_err());
-    assert!(c
-        .a
-        .report_channel(&c.node, row.id, &progress(2, 30))
+    assert!(context
+        .activity_store
+        .report_channel(&context.node, row.id, &progress(2, 30))
         .await
         .is_err());
-    assert!(c.visits().await[0].session.closed_at.is_none());
-    c.close().await;
+    assert!(context.visits().await[0].session.closed_at.is_none());
+    context.close().await;
 }
 #[tokio::test]
 async fn audit_failures_roll_back_channel_mutations_node_invalidation_and_frontend_retirement() {
-    let c = Context::new(DeploymentTarget::Webview, true).await;
-    permission(&c, false).await;
-    let failed = c.a.open_channel(&c.node, &c.open(ChannelKind::Media)).await;
-    permission(&c, true).await;
+    let context = Context::new(DeploymentTarget::Webview, true).await;
+    permission(&context, false).await;
+    let failed = context
+        .activity_store
+        .open_channel(&context.node, &context.open(ChannelKind::Media))
+        .await;
+    permission(&context, true).await;
     assert!(failed.is_err());
-    assert!(c.channels().await.is_empty());
-    let row =
-        c.a.open_channel(&c.node, &c.open(ChannelKind::Media))
-            .await
-            .unwrap();
-    permission(&c, false).await;
-    let failed = c.a.report_channel(&c.node, row.id, &progress(1, 1)).await;
-    permission(&c, true).await;
-    assert!(failed.is_err());
-    assert_eq!(c.channels().await[0].revision, 1);
-    permission(&c, false).await;
-    let failed = c.f.nodes.close_connection(&c.node).await;
-    permission(&c, true).await;
-    assert!(failed.is_err());
-    assert_eq!(c.channels().await[0].state, "active");
-    let challenge = c.s.begin_retirement(&c.node, c.session.id).await.unwrap();
-    permission(&c, false).await;
-    let failed =
-        c.s.finish_retirement(&c.node, c.session.id, challenge.challenge_id)
-            .await;
-    permission(&c, true).await;
-    assert!(failed.is_err());
-    assert_eq!(c.channels().await[0].state, "active");
-    assert_eq!(c.visits().await[0].session.state, "closing");
-    c.s.finish_retirement(&c.node, c.session.id, challenge.challenge_id)
+    assert!(context.channels().await.is_empty());
+    let row = context
+        .activity_store
+        .open_channel(&context.node, &context.open(ChannelKind::Media))
         .await
         .unwrap();
-    c.s.finish_retirement(&c.node, c.session.id, challenge.challenge_id)
+    permission(&context, false).await;
+    let failed = context
+        .activity_store
+        .report_channel(&context.node, row.id, &progress(1, 1))
+        .await;
+    permission(&context, true).await;
+    assert!(failed.is_err());
+    assert_eq!(context.channels().await[0].revision, 1);
+    permission(&context, false).await;
+    let failed = context.fixture.nodes.close_connection(&context.node).await;
+    permission(&context, true).await;
+    assert!(failed.is_err());
+    assert_eq!(context.channels().await[0].state, "active");
+    let challenge = context
+        .session_store
+        .begin_retirement(&context.node, context.session.id)
         .await
         .unwrap();
-    let result = c.channels().await.remove(0);
+    permission(&context, false).await;
+    let failed = context
+        .session_store
+        .finish_retirement(&context.node, context.session.id, challenge.challenge_id)
+        .await;
+    permission(&context, true).await;
+    assert!(failed.is_err());
+    assert_eq!(context.channels().await[0].state, "active");
+    assert_eq!(context.visits().await[0].session.state, "closing");
+    context
+        .session_store
+        .finish_retirement(&context.node, context.session.id, challenge.challenge_id)
+        .await
+        .unwrap();
+    context
+        .session_store
+        .finish_retirement(&context.node, context.session.id, challenge.challenge_id)
+        .await
+        .unwrap();
+    let result = context.channels().await.remove(0);
     assert_eq!(result.state, "unknown");
     assert_eq!(result.revision, 2);
     assert!(result.ended_at.is_none());
-    assert!(c.visits().await[0].session.closed_at.is_some());
+    assert!(context.visits().await[0].session.closed_at.is_some());
     let runtime = config("RUNTIME").connect().await.unwrap();
     assert!(sqlx::query("DELETE FROM pixels.connection_observations")
         .execute(&runtime)
@@ -426,69 +503,84 @@ async fn audit_failures_roll_back_channel_mutations_node_invalidation_and_fronte
     .await
     .is_err());
     runtime.close().await;
-    c.close().await;
+    context.close().await;
 }
 #[tokio::test]
 async fn revoked_origin_denies_progress_but_same_producer_can_close_and_fresh_login_can_read_history(
 ) {
-    let c = Context::new(DeploymentTarget::Webview, true).await;
-    let row =
-        c.a.open_channel(&c.node, &c.open(ChannelKind::Media))
-            .await
-            .unwrap();
-    let identity = c.f.identity.authenticate(&c.user, c.client).await.unwrap();
-    c.f.identity
+    let context = Context::new(DeploymentTarget::Webview, true).await;
+    let row = context
+        .activity_store
+        .open_channel(&context.node, &context.open(ChannelKind::Media))
+        .await
+        .unwrap();
+    let identity = context
+        .fixture
+        .identity
+        .authenticate(&context.user, context.client)
+        .await
+        .unwrap();
+    context
+        .fixture
+        .identity
         .revoke_session(identity.user_id, identity.session_id)
         .await
         .unwrap();
-    assert!(c
-        .a
-        .report_channel(&c.node, row.id, &progress(1, 1))
+    assert!(context
+        .activity_store
+        .report_channel(&context.node, row.id, &progress(1, 1))
         .await
         .is_err());
-    assert!(c
-        .a
-        .open_channel(&c.node, &c.open(ChannelKind::Audio))
+    assert!(context
+        .activity_store
+        .open_channel(&context.node, &context.open(ChannelKind::Audio))
         .await
         .is_err());
     let mut closed = progress(1, 1);
     closed.outcome = ChannelOutcome::Closed {
         reason: ChannelClose::UserStopped,
     };
-    c.a.report_channel(&c.node, row.id, &closed).await.unwrap();
+    context
+        .activity_store
+        .report_channel(&context.node, row.id, &closed)
+        .await
+        .unwrap();
     let login = token();
-    c.f.identity
+    context
+        .fixture
+        .identity
         .issue_session(
             identity.user_id,
             1,
             &login,
-            c.client,
+            context.client,
             Duration::from_secs(3600),
         )
         .await
         .unwrap();
-    let history =
-        c.a.visits_owned(ResourceCredential::User(&login), c.client, None, 100)
-            .await
-            .unwrap();
+    let history = context
+        .activity_store
+        .visits_owned(ResourceCredential::User(&login), context.client, None, 100)
+        .await
+        .unwrap();
     assert_eq!(history.len(), 1);
     assert!(history[0].first_connected_at.is_some());
-    let other = c.f.session("user", c.client).await;
-    let (guest, _) = c.f.guest().await;
-    assert!(c
-        .a
+    let other = context.fixture.session("user", context.client).await;
+    let (guest, _) = context.fixture.guest().await;
+    assert!(context
+        .activity_store
         .channels_owned(
             ResourceCredential::Guest(&guest),
             ClientType::Android,
-            Some(c.session.id),
+            Some(context.session.id),
             None,
             100
         )
         .await
         .unwrap()
         .is_empty());
-    assert!(c
-        .a
+    assert!(context
+        .activity_store
         .visits_owned(
             ResourceCredential::Guest(&guest),
             ClientType::Android,
@@ -498,26 +590,26 @@ async fn revoked_origin_denies_progress_but_same_producer_can_close_and_fresh_lo
         .await
         .unwrap()
         .is_empty());
-    assert!(c
-        .a
-        .visits_owned(ResourceCredential::User(&other), c.client, None, 100)
+    assert!(context
+        .activity_store
+        .visits_owned(ResourceCredential::User(&other), context.client, None, 100)
         .await
         .unwrap()
         .is_empty());
-    assert!(c
-        .a
+    assert!(context
+        .activity_store
         .channels_owned(
             ResourceCredential::User(&other),
-            c.client,
-            Some(c.session.id),
+            context.client,
+            Some(context.session.id),
             None,
             100
         )
         .await
         .unwrap()
         .is_empty());
-    assert!(c
-        .a
+    assert!(context
+        .activity_store
         .channels_owned(
             ResourceCredential::User(&login),
             ClientType::Panel,
@@ -527,118 +619,150 @@ async fn revoked_origin_denies_progress_but_same_producer_can_close_and_fresh_lo
         )
         .await
         .is_err());
-    let viewer = c.f.session("viewer", ClientType::AdminWeb).await;
-    assert!(c
-        .a
-        .channels_managed(&viewer, Some(c.session.id), None, 100)
+    let viewer = context
+        .fixture
+        .session("viewer", ClientType::AdminWeb)
+        .await;
+    assert!(context
+        .activity_store
+        .channels_managed(&viewer, Some(context.session.id), None, 100)
         .await
         .is_ok());
-    assert!(c.a.visits_managed(&login, None, 100).await.is_err());
-    c.close().await;
+    assert!(context
+        .activity_store
+        .visits_managed(&login, None, 100)
+        .await
+        .is_err());
+    context.close().await;
 }
 #[tokio::test]
 async fn wrong_node_expired_lease_and_observer_file_channel_are_denied() {
-    let c = Context::new(DeploymentTarget::Webview, true).await;
-    let (_, key) = c.f.node().await;
-    let other =
-        c.f.nodes
-            .open_connection(c.node.epoch(), &key, &token())
-            .await
-            .unwrap();
-    c.f.nodes.report(&other, &node_report(1)).await.unwrap();
-    assert!(c
-        .a
-        .open_channel(&other, &c.open(ChannelKind::Media))
+    let context = Context::new(DeploymentTarget::Webview, true).await;
+    let (_, key) = context.fixture.node().await;
+    let other = context
+        .fixture
+        .nodes
+        .open_connection(context.node.epoch(), &key, &token())
+        .await
+        .unwrap();
+    context
+        .fixture
+        .nodes
+        .report(&other, &node_report(1))
+        .await
+        .unwrap();
+    assert!(context
+        .activity_store
+        .open_channel(&other, &context.open(ChannelKind::Media))
         .await
         .is_err());
-    assert!(c
-        .a
-        .open_channel(&c.node, &c.open(ChannelKind::Rdp))
+    assert!(context
+        .activity_store
+        .open_channel(&context.node, &context.open(ChannelKind::Rdp))
         .await
         .is_err());
-    let row =
-        c.a.open_channel(&c.node, &c.open(ChannelKind::Media))
-            .await
-            .unwrap();
-    sqlx::query("UPDATE pixels.resource_sessions SET descriptor_expires_at=clock_timestamp()-interval '1 second' WHERE id=$1").bind(c.session.id).execute(&c.f.owner).await.unwrap();
-    assert!(c
-        .a
-        .report_channel(&c.node, row.id, &progress(1, 1))
+    let row = context
+        .activity_store
+        .open_channel(&context.node, &context.open(ChannelKind::Media))
+        .await
+        .unwrap();
+    sqlx::query("UPDATE pixels.resource_sessions SET descriptor_expires_at=clock_timestamp()-interval '1 second' WHERE id=$1").bind(context.session.id).execute(&context.fixture.owner).await.unwrap();
+    assert!(context
+        .activity_store
+        .report_channel(&context.node, row.id, &progress(1, 1))
         .await
         .is_err());
-    assert!(c
-        .a
-        .open_channel(&c.node, &c.open(ChannelKind::Media))
+    assert!(context
+        .activity_store
+        .open_channel(&context.node, &context.open(ChannelKind::Media))
         .await
         .is_err());
     sqlx::query("UPDATE pixels.applications SET allow_observer=true WHERE id=$1")
-        .bind(c.instance.application_id)
-        .execute(&c.f.owner)
+        .bind(context.instance.application_id)
+        .execute(&context.fixture.owner)
         .await
         .unwrap();
-    let observer =
-        c.s.open(
-            ResourceCredential::User(&c.user),
-            c.client,
+    let observer = context
+        .session_store
+        .open(
+            ResourceCredential::User(&context.user),
+            context.client,
             &OpenResourceSession {
                 request_id: Uuid::new_v4(),
-                target: c.session.target,
+                target: context.session.target,
                 access: SessionAccess::Observer,
             },
         )
         .await
         .unwrap();
-    c.admit(&observer).await;
-    let mut request = c.open(ChannelKind::File);
+    context.admit(&observer).await;
+    let mut request = context.open(ChannelKind::File);
     request.session_id = observer.id;
-    assert!(c.a.open_channel(&c.node, &request).await.is_err());
+    assert!(context
+        .activity_store
+        .open_channel(&context.node, &request)
+        .await
+        .is_err());
     request.kind = ChannelKind::Media;
-    assert!(c.a.open_channel(&c.node, &request).await.is_ok());
-    c.close().await;
+    assert!(context
+        .activity_store
+        .open_channel(&context.node, &request)
+        .await
+        .is_ok());
+    context.close().await;
 }
 #[tokio::test]
 async fn rdp_channels_remain_one_frontend_and_never_fall_back_to_media_capture() {
-    let c = Context::new(DeploymentTarget::Rdp, true).await;
-    assert!(c
-        .a
-        .open_channel(&c.node, &c.open(ChannelKind::Media))
+    let context = Context::new(DeploymentTarget::Rdp, true).await;
+    assert!(context
+        .activity_store
+        .open_channel(&context.node, &context.open(ChannelKind::Media))
         .await
         .is_err());
-    assert!(c
-        .a
-        .open_channel(&c.node, &c.open(ChannelKind::Audio))
+    assert!(context
+        .activity_store
+        .open_channel(&context.node, &context.open(ChannelKind::Audio))
         .await
         .is_err());
-    assert!(c
-        .a
-        .open_channel(&c.node, &c.open(ChannelKind::File))
+    assert!(context
+        .activity_store
+        .open_channel(&context.node, &context.open(ChannelKind::File))
         .await
         .is_err());
-    c.a.open_channel(&c.node, &c.open(ChannelKind::Control))
+    context
+        .activity_store
+        .open_channel(&context.node, &context.open(ChannelKind::Control))
         .await
         .unwrap();
-    let rdp =
-        c.a.open_channel(&c.node, &c.open(ChannelKind::Rdp))
-            .await
-            .unwrap();
+    let rdp = context
+        .activity_store
+        .open_channel(&context.node, &context.open(ChannelKind::Rdp))
+        .await
+        .unwrap();
     let mut closed = progress(1, 100);
     closed.outcome = ChannelOutcome::Closed {
         reason: ChannelClose::PeerClosed,
     };
-    c.a.report_channel(&c.node, rdp.id, &closed).await.unwrap();
-    assert_eq!(c.visits().await[0].channel_count, 2);
+    context
+        .activity_store
+        .report_channel(&context.node, rdp.id, &closed)
+        .await
+        .unwrap();
+    assert_eq!(context.visits().await[0].channel_count, 2);
     assert!(matches!(
-        c.s.open(
-            ResourceCredential::User(&c.user),
-            c.client,
-            &OpenResourceSession {
-                request_id: Uuid::new_v4(),
-                target: c.session.target,
-                access: SessionAccess::Controller
-            }
-        )
-        .await,
+        context
+            .session_store
+            .open(
+                ResourceCredential::User(&context.user),
+                context.client,
+                &OpenResourceSession {
+                    request_id: Uuid::new_v4(),
+                    target: context.session.target,
+                    access: SessionAccess::Controller
+                }
+            )
+            .await,
         Err(StoreError::NoCapacity)
     ));
-    c.close().await;
+    context.close().await;
 }

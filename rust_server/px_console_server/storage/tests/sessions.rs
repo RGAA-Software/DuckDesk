@@ -12,10 +12,10 @@ use uuid::Uuid;
 
 #[tokio::test]
 async fn close_request_needs_node_proof_and_observer_policy_is_not_control_authority() {
-    let (f, s, node, user, instance, session) = opened().await;
+    let (fixture, session_store, node, user, instance, session) = opened().await;
     let mut observer = open_request(instance.application_id, instance.id);
     observer.access = SessionAccess::Observer;
-    assert!(s
+    assert!(session_store
         .open(
             ResourceCredential::User(&user),
             ClientType::Android,
@@ -25,10 +25,10 @@ async fn close_request_needs_node_proof_and_observer_policy_is_not_control_autho
         .is_err());
     sqlx::query("UPDATE pixels.applications SET allow_observer=true WHERE id=$1")
         .bind(instance.application_id)
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
-    let watching = s
+    let watching = session_store
         .open(
             ResourceCredential::User(&user),
             ClientType::Android,
@@ -37,7 +37,7 @@ async fn close_request_needs_node_proof_and_observer_policy_is_not_control_autho
         .await
         .unwrap();
     let ticket = token();
-    let descriptor = s
+    let descriptor = session_store
         .descriptor(
             ResourceCredential::User(&user),
             ClientType::Android,
@@ -47,12 +47,12 @@ async fn close_request_needs_node_proof_and_observer_policy_is_not_control_autho
         )
         .await
         .unwrap();
-    let grant = s
+    let grant = session_store
         .admit_frontend(&node, watching.id, descriptor.session.revision, &ticket)
         .await
         .unwrap();
     assert_eq!(grant.session.access_role, "observer");
-    let closing = s
+    let closing = session_store
         .request_close(
             ResourceCredential::User(&user),
             ClientType::Android,
@@ -64,36 +64,45 @@ async fn close_request_needs_node_proof_and_observer_policy_is_not_control_autho
     assert_eq!(closing.state, "closing");
     assert_eq!(
         closing,
-        s.request_close(
-            ResourceCredential::User(&user),
-            ClientType::Android,
-            session.id,
-            closing.revision
-        )
-        .await
-        .unwrap()
+        session_store
+            .request_close(
+                ResourceCredential::User(&user),
+                ClientType::Android,
+                session.id,
+                closing.revision
+            )
+            .await
+            .unwrap()
     );
     assert_eq!(
-        s.open(
-            ResourceCredential::User(&user),
-            ClientType::Android,
-            &open_request(instance.application_id, instance.id)
-        )
-        .await
-        .unwrap_err(),
+        session_store
+            .open(
+                ResourceCredential::User(&user),
+                ClientType::Android,
+                &open_request(instance.application_id, instance.id)
+            )
+            .await
+            .unwrap_err(),
         StoreError::NoCapacity
     );
-    let listed = s.list_node(&node).await.unwrap();
+    let listed = session_store.list_node(&node).await.unwrap();
     assert_eq!(listed.len(), 2);
-    assert!(listed
-        .iter()
-        .any(|r| r.id == session.id && r.state == "closing"));
-    let fence = s.begin_retirement(&node, session.id).await.unwrap();
-    s.finish_retirement(&node, session.id, fence.challenge_id)
+    assert!(
+        listed
+            .iter()
+            .any(|session_record| session_record.id == session.id
+                && session_record.state == "closing")
+    );
+    let fence = session_store
+        .begin_retirement(&node, session.id)
         .await
         .unwrap();
-    assert_eq!(s.list_node(&node).await.unwrap().len(), 1);
-    assert!(s
+    session_store
+        .finish_retirement(&node, session.id, fence.challenge_id)
+        .await
+        .unwrap();
+    assert_eq!(session_store.list_node(&node).await.unwrap().len(), 1);
+    assert!(session_store
         .open(
             ResourceCredential::User(&user),
             ClientType::Android,
@@ -103,21 +112,21 @@ async fn close_request_needs_node_proof_and_observer_policy_is_not_control_autho
         .is_ok());
     sqlx::query("UPDATE pixels.applications SET allow_observer=false WHERE id=$1")
         .bind(instance.application_id)
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
-    assert!(s
+    assert!(session_store
         .admit_frontend(&node, watching.id, descriptor.session.revision, &ticket)
         .await
         .is_err());
-    s.close().await;
-    f.close().await;
+    session_store.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn draining_keeps_existing_lease_but_endpoint_change_and_wrong_node_reject() {
-    let (f, s, node, user, instance, session) = opened().await;
+    let (fixture, session_store, node, user, instance, session) = opened().await;
     let ticket = token();
-    let descriptor = s
+    let descriptor = session_store
         .descriptor(
             ResourceCredential::User(&user),
             ClientType::Android,
@@ -127,23 +136,26 @@ async fn draining_keeps_existing_lease_but_endpoint_change_and_wrong_node_reject
         )
         .await
         .unwrap();
-    let (_, other_key) = f.node().await;
-    let other = f
+    let (_, other_key) = fixture.node().await;
+    let other = fixture
         .nodes
         .open_connection(node.epoch(), &other_key, &token())
         .await
         .unwrap();
-    f.nodes.report(&other, &node_report(1)).await.unwrap();
-    assert!(s
+    fixture.nodes.report(&other, &node_report(1)).await.unwrap();
+    assert!(session_store
         .admit_frontend(&other, session.id, descriptor.session.revision, &ticket)
         .await
         .is_err());
-    assert!(s.begin_retirement(&other, session.id).await.is_err());
-    assert!(s.list_node(&other).await.unwrap().is_empty());
-    let draining = f
+    assert!(session_store
+        .begin_retirement(&other, session.id)
+        .await
+        .is_err());
+    assert!(session_store.list_node(&other).await.unwrap().is_empty());
+    let draining = fixture
         .nodes
         .configure(
-            &f.admin,
+            &fixture.admin,
             node.id(),
             1,
             px_console_store::NodeConfiguration {
@@ -154,27 +166,33 @@ async fn draining_keeps_existing_lease_but_endpoint_change_and_wrong_node_reject
         )
         .await
         .unwrap();
-    assert!(s
+    assert!(session_store
         .admit_frontend(&node, session.id, descriptor.session.revision, &ticket)
         .await
         .is_ok());
-    let fence = s.begin_retirement(&node, session.id).await.unwrap();
-    s.finish_retirement(&node, session.id, fence.challenge_id)
+    let fence = session_store
+        .begin_retirement(&node, session.id)
+        .await
+        .unwrap();
+    session_store
+        .finish_retirement(&node, session.id, fence.challenge_id)
         .await
         .unwrap();
     assert_eq!(
-        s.open(
-            ResourceCredential::User(&user),
-            ClientType::Android,
-            &open_request(instance.application_id, instance.id)
-        )
-        .await
-        .unwrap_err(),
+        session_store
+            .open(
+                ResourceCredential::User(&user),
+                ClientType::Android,
+                &open_request(instance.application_id, instance.id)
+            )
+            .await
+            .unwrap_err(),
         StoreError::NoCapacity
     );
-    f.nodes
+    fixture
+        .nodes
         .configure(
-            &f.admin,
+            &fixture.admin,
             node.id(),
             draining.revision,
             px_console_store::NodeConfiguration {
@@ -185,7 +203,7 @@ async fn draining_keeps_existing_lease_but_endpoint_change_and_wrong_node_reject
         )
         .await
         .unwrap();
-    let new = s
+    let new = session_store
         .open(
             ResourceCredential::User(&user),
             ClientType::Android,
@@ -193,7 +211,7 @@ async fn draining_keeps_existing_lease_but_endpoint_change_and_wrong_node_reject
         )
         .await
         .unwrap();
-    let next = s
+    let next = session_store
         .descriptor(
             ResourceCredential::User(&user),
             ClientType::Android,
@@ -205,13 +223,13 @@ async fn draining_keeps_existing_lease_but_endpoint_change_and_wrong_node_reject
         .unwrap();
     let mut changed = node_report(2);
     changed.public_host = "changed.example.test".into();
-    f.nodes.report(&node, &changed).await.unwrap();
-    assert_eq!(row(&f, new.id).await.0, "reconcile_required");
-    assert!(s
+    fixture.nodes.report(&node, &changed).await.unwrap();
+    assert_eq!(row(&fixture, new.id).await.0, "reconcile_required");
+    assert!(session_store
         .admit_frontend(&node, new.id, next.session.revision, &ticket)
         .await
         .is_err());
-    assert!(s
+    assert!(session_store
         .descriptor(
             ResourceCredential::User(&user),
             ClientType::Android,
@@ -221,8 +239,8 @@ async fn draining_keeps_existing_lease_but_endpoint_change_and_wrong_node_reject
         )
         .await
         .is_err());
-    s.close().await;
-    f.close().await;
+    session_store.close().await;
+    fixture.close().await;
 }
 
 async fn store() -> ResourceSessionStore {
@@ -244,7 +262,7 @@ fn open_request(app: Uuid, instance: Uuid) -> OpenResourceSession {
     }
 }
 async fn running(
-    f: &Fixture,
+    fixture: &Fixture,
     node: &NodeConnection,
     app: Uuid,
     key: &TokenDigest,
@@ -256,17 +274,18 @@ async fn running(
     } else {
         ResourceCredential::User(key)
     };
-    let instance = f
+    let instance = fixture
         .instances
         .reserve(credential, client, node.epoch(), &request(app))
         .await
         .unwrap();
-    let command = f.instances.next_command(node).await.unwrap().unwrap();
+    let command = fixture.instances.next_command(node).await.unwrap().unwrap();
     let port = match command.action {
         px_console_store::NodeCommandAction::Start { port, .. } => port,
         _ => panic!("expected start command"),
     };
-    f.instances
+    fixture
+        .instances
         .acknowledge_command(
             node,
             &CommandReceipt {
@@ -281,29 +300,29 @@ async fn running(
         .await
         .unwrap()
 }
-async fn row(f: &Fixture, id: Uuid) -> (String, i64, Option<Vec<u8>>) {
+async fn row(fixture: &Fixture, id: Uuid) -> (String, i64, Option<Vec<u8>>) {
     sqlx::query_as(
         "SELECT state,revision,descriptor_hash FROM pixels.resource_sessions WHERE id=$1",
     )
     .bind(id)
-    .fetch_one(&f.owner)
+    .fetch_one(&fixture.owner)
     .await
     .unwrap()
 }
-async fn count(f: &Fixture, node: Uuid) -> i64 {
+async fn count(fixture: &Fixture, node: Uuid) -> i64 {
     sqlx::query_scalar("SELECT count(*) FROM pixels.resource_sessions WHERE node_id=$1")
         .bind(node)
-        .fetch_one(&f.owner)
+        .fetch_one(&fixture.owner)
         .await
         .unwrap()
 }
-async fn event_permission(f: &Fixture, allow: bool) {
+async fn event_permission(fixture: &Fixture, allow: bool) {
     let sql = if allow {
         "GRANT INSERT ON pixels.resource_session_events TO pixels_console_runtime"
     } else {
         "REVOKE INSERT ON pixels.resource_session_events FROM pixels_console_runtime"
     };
-    sqlx::query(sql).execute(&f.owner).await.unwrap();
+    sqlx::query(sql).execute(&fixture.owner).await.unwrap();
 }
 async fn opened() -> (
     Fixture,
@@ -313,12 +332,12 @@ async fn opened() -> (
     ApplicationInstance,
     ResourceSession,
 ) {
-    let f = Fixture::new().await;
-    let s = store().await;
-    let (node, app, _) = f.prepared(DeploymentTarget::Webview, 4).await;
-    let user = f.session("user", ClientType::Android).await;
-    let instance = running(&f, &node, app.id, &user, ClientType::Android, false).await;
-    let session = s
+    let fixture = Fixture::new().await;
+    let session_store = store().await;
+    let (node, app, _) = fixture.prepared(DeploymentTarget::Webview, 4).await;
+    let user = fixture.session("user", ClientType::Android).await;
+    let instance = running(&fixture, &node, app.id, &user, ClientType::Android, false).await;
+    let session = session_store
         .open(
             ResourceCredential::User(&user),
             ClientType::Android,
@@ -326,11 +345,11 @@ async fn opened() -> (
         )
         .await
         .unwrap();
-    (f, s, node, user, instance, session)
+    (fixture, session_store, node, user, instance, session)
 }
 #[tokio::test]
 async fn android_targets_idempotency_owner_and_guest_are_explicit() {
-    let (f, s, node, user, instance, session) = opened().await;
+    let (fixture, session_store, node, user, instance, session) = opened().await;
     assert_eq!(
         session.target,
         SessionTarget::CloudApplication {
@@ -348,13 +367,13 @@ async fn android_targets_idempotency_owner_and_guest_are_explicit() {
     ] {
         assert!(serde_json::from_str::<OpenResourceSession>(body).is_err());
     }
-    let other = f.session("user", ClientType::Android).await;
+    let other = fixture.session("user", ClientType::Android).await;
     let mut req = open_request(instance.application_id, instance.id);
-    assert!(s
+    assert!(session_store
         .open(ResourceCredential::User(&other), ClientType::Android, &req)
         .await
         .is_err());
-    assert!(s
+    assert!(session_store
         .open(ResourceCredential::User(&user), ClientType::Panel, &req)
         .await
         .is_err());
@@ -362,12 +381,12 @@ async fn android_targets_idempotency_owner_and_guest_are_explicit() {
         application_id: Uuid::new_v4(),
         instance_id: instance.id,
     };
-    assert!(s
+    assert!(session_store
         .open(ResourceCredential::User(&user), ClientType::Android, &req)
         .await
         .is_err());
-    let (guest, _) = f.guest().await;
-    assert!(s
+    let (guest, _) = fixture.guest().await;
+    assert!(session_store
         .open(
             ResourceCredential::Guest(&guest),
             ClientType::Android,
@@ -376,7 +395,7 @@ async fn android_targets_idempotency_owner_and_guest_are_explicit() {
         .await
         .is_err());
     let guest_instance = running(
-        &f,
+        &fixture,
         &node,
         instance.application_id,
         &guest,
@@ -385,19 +404,20 @@ async fn android_targets_idempotency_owner_and_guest_are_explicit() {
     )
     .await;
     let req = open_request(instance.application_id, guest_instance.id);
-    let first = s
+    let first = session_store
         .open(ResourceCredential::Guest(&guest), ClientType::Android, &req)
         .await
         .unwrap();
     assert_eq!(
         first,
-        s.open(ResourceCredential::Guest(&guest), ClientType::Android, &req)
+        session_store
+            .open(ResourceCredential::Guest(&guest), ClientType::Android, &req)
             .await
             .unwrap()
     );
     let mut changed = req.clone();
     changed.access = SessionAccess::Observer;
-    assert!(s
+    assert!(session_store
         .open(
             ResourceCredential::Guest(&guest),
             ClientType::Android,
@@ -405,36 +425,38 @@ async fn android_targets_idempotency_owner_and_guest_are_explicit() {
         )
         .await
         .is_err());
-    assert!(s
+    assert!(session_store
         .open(ResourceCredential::User(&guest), ClientType::Android, &req)
         .await
         .is_err());
-    assert_eq!(count(&f, node.id()).await, 2);
-    s.close().await;
-    f.close().await;
+    assert_eq!(count(&fixture, node.id()).await, 2);
+    session_store.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn rdp_last_frontend_is_atomic_and_never_uses_android_or_observer_fallback() {
-    let f = Fixture::new().await;
-    let s = store().await;
-    let (node, app, _) = f.prepared(DeploymentTarget::Rdp, 1).await;
-    let key = f.session("user", ClientType::Panel).await;
-    let instance = running(&f, &node, app.id, &key, ClientType::Panel, false).await;
+    let fixture = Fixture::new().await;
+    let session_store = store().await;
+    let (node, app, _) = fixture.prepared(DeploymentTarget::Rdp, 1).await;
+    let key = fixture.session("user", ClientType::Panel).await;
+    let instance = running(&fixture, &node, app.id, &key, ClientType::Panel, false).await;
     let barrier = Arc::new(Barrier::new(20));
     let mut handles = Vec::new();
     for _ in 0..20 {
-        let (s, key, b) = (s.clone(), key.clone(), barrier.clone());
+        let (session_store, key, start_barrier) =
+            (session_store.clone(), key.clone(), barrier.clone());
         let req = open_request(app.id, instance.id);
         handles.push(tokio::spawn(async move {
-            b.wait().await;
-            s.open(ResourceCredential::User(&key), ClientType::Panel, &req)
+            start_barrier.wait().await;
+            session_store
+                .open(ResourceCredential::User(&key), ClientType::Panel, &req)
                 .await
         }));
     }
     let mut winner = None;
     let mut denied = 0;
-    for h in handles {
-        match h.await.unwrap() {
+    for task_handle in handles {
+        match task_handle.await.unwrap() {
             Ok(session) => {
                 assert!(winner.is_none());
                 winner = Some(session)
@@ -447,11 +469,11 @@ async fn rdp_last_frontend_is_atomic_and_never_uses_android_or_observer_fallback
     let winner = winner.unwrap();
     let mut req = open_request(app.id, instance.id);
     req.access = SessionAccess::Observer;
-    assert!(s
+    assert!(session_store
         .open(ResourceCredential::User(&key), ClientType::Panel, &req)
         .await
         .is_err());
-    let descriptor = s
+    let descriptor = session_store
         .descriptor(
             ResourceCredential::User(&key),
             ClientType::Panel,
@@ -462,20 +484,25 @@ async fn rdp_last_frontend_is_atomic_and_never_uses_android_or_observer_fallback
         .await
         .unwrap();
     assert_eq!(descriptor.transport, "rdp");
-    let challenge = s.begin_retirement(&node, winner.id).await.unwrap();
-    let closed = s
+    let challenge = session_store
+        .begin_retirement(&node, winner.id)
+        .await
+        .unwrap();
+    let closed = session_store
         .finish_retirement(&node, winner.id, challenge.challenge_id)
         .await
         .unwrap();
     assert_eq!(closed.state, "closed");
     assert_eq!(
         closed,
-        s.finish_retirement(&node, winner.id, challenge.challenge_id)
+        session_store
+            .finish_retirement(&node, winner.id, challenge.challenge_id)
             .await
             .unwrap()
     );
     assert_eq!(
-        f.instances
+        fixture
+            .instances
             .get(
                 ResourceCredential::User(&key),
                 ClientType::Panel,
@@ -486,7 +513,7 @@ async fn rdp_last_frontend_is_atomic_and_never_uses_android_or_observer_fallback
             .state,
         "running"
     );
-    assert!(s
+    assert!(session_store
         .open(
             ResourceCredential::User(&key),
             ClientType::Panel,
@@ -495,10 +522,18 @@ async fn rdp_last_frontend_is_atomic_and_never_uses_android_or_observer_fallback
         .await
         .is_ok());
     // Explicitly provision a separate Android-origin RDP fixture; descriptor/open must still deny it.
-    let (node2, app2, _) = f.prepared(DeploymentTarget::Rdp, 1).await;
-    let android = f.session("user", ClientType::Android).await;
-    let i2 = running(&f, &node2, app2.id, &android, ClientType::Android, false).await;
-    assert!(s
+    let (node2, app2, _) = fixture.prepared(DeploymentTarget::Rdp, 1).await;
+    let android = fixture.session("user", ClientType::Android).await;
+    let i2 = running(
+        &fixture,
+        &node2,
+        app2.id,
+        &android,
+        ClientType::Android,
+        false,
+    )
+    .await;
+    assert!(session_store
         .open(
             ResourceCredential::User(&android),
             ClientType::Android,
@@ -506,14 +541,14 @@ async fn rdp_last_frontend_is_atomic_and_never_uses_android_or_observer_fallback
         )
         .await
         .is_err());
-    s.close().await;
-    f.close().await;
+    session_store.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn descriptors_cas_expire_rotate_and_node_admission_is_current_authority() {
-    let (f, s, node, user, instance, session) = opened().await;
+    let (fixture, session_store, node, user, instance, session) = opened().await;
     let ticket = token();
-    let descriptor = s
+    let descriptor = session_store
         .descriptor(
             ResourceCredential::User(&user),
             ClientType::Android,
@@ -528,7 +563,7 @@ async fn descriptors_cas_expire_rotate_and_node_admission_is_current_authority()
     assert_eq!(descriptor.transport, "native");
     let seconds = (descriptor.expires_at - chrono::Utc::now()).num_seconds();
     assert!((0..=30).contains(&seconds));
-    let first = s
+    let first = session_store
         .admit_frontend(&node, session.id, descriptor.session.revision, &ticket)
         .await
         .unwrap();
@@ -537,16 +572,17 @@ async fn descriptors_cas_expire_rotate_and_node_admission_is_current_authority()
     assert!((1..=30000).contains(&first.valid_for_ms));
     assert_eq!(
         first.session,
-        s.admit_frontend(&node, session.id, descriptor.session.revision, &ticket)
+        session_store
+            .admit_frontend(&node, session.id, descriptor.session.revision, &ticket)
             .await
             .unwrap()
             .session
     );
-    assert!(s
+    assert!(session_store
         .admit_frontend(&node, session.id, descriptor.session.revision, &token())
         .await
         .is_err());
-    assert!(s
+    assert!(session_store
         .descriptor(
             ResourceCredential::User(&user),
             ClientType::Android,
@@ -557,7 +593,7 @@ async fn descriptors_cas_expire_rotate_and_node_admission_is_current_authority()
         .await
         .is_err());
     let next_ticket = token();
-    let next = s
+    let next = session_store
         .descriptor(
             ResourceCredential::User(&user),
             ClientType::Android,
@@ -567,35 +603,36 @@ async fn descriptors_cas_expire_rotate_and_node_admission_is_current_authority()
         )
         .await
         .unwrap();
-    assert!(s
+    assert!(session_store
         .admit_frontend(&node, session.id, descriptor.session.revision, &ticket)
         .await
         .is_err());
     sqlx::query("UPDATE pixels.resource_sessions SET descriptor_expires_at=clock_timestamp()-interval '1 second' WHERE id=$1")
-        .bind(session.id).execute(&f.owner).await.unwrap();
-    assert!(s
+        .bind(session.id).execute(&fixture.owner).await.unwrap();
+    assert!(session_store
         .admit_frontend(&node, session.id, next.session.revision, &next_ticket)
         .await
         .is_err());
     // Expired tickets do not mean the frontend is gone.
     assert_eq!(
-        s.open(
-            ResourceCredential::User(&user),
-            ClientType::Android,
-            &open_request(instance.application_id, instance.id)
-        )
-        .await
-        .unwrap_err(),
+        session_store
+            .open(
+                ResourceCredential::User(&user),
+                ClientType::Android,
+                &open_request(instance.application_id, instance.id)
+            )
+            .await
+            .unwrap_err(),
         StoreError::NoCapacity
     );
-    s.close().await;
-    f.close().await;
+    session_store.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn reconnect_retirement_is_fenced_challenged_and_does_not_free_unknown_occupancy() {
-    let (f, s, node, user, instance, session) = opened().await;
+    let (fixture, session_store, node, user, instance, session) = opened().await;
     let key = token();
-    let descriptor = s
+    let descriptor = session_store
         .descriptor(
             ResourceCredential::User(&user),
             ClientType::Android,
@@ -605,14 +642,17 @@ async fn reconnect_retirement_is_fenced_challenged_and_does_not_free_unknown_occ
         )
         .await
         .unwrap();
-    let old = s.begin_retirement(&node, session.id).await.unwrap();
-    let epoch = f.nodes.begin_runtime().await.unwrap();
-    assert_eq!(row(&f, session.id).await.0, "reconcile_required");
-    assert!(s
+    let old = session_store
+        .begin_retirement(&node, session.id)
+        .await
+        .unwrap();
+    let epoch = fixture.nodes.begin_runtime().await.unwrap();
+    assert_eq!(row(&fixture, session.id).await.0, "reconcile_required");
+    assert!(session_store
         .finish_retirement(&node, session.id, old.challenge_id)
         .await
         .is_err());
-    assert!(s
+    assert!(session_store
         .admit_frontend(&node, session.id, descriptor.session.revision, &key)
         .await
         .is_err());
@@ -624,50 +664,72 @@ async fn reconnect_retirement_is_fenced_challenged_and_does_not_free_unknown_occ
     sqlx::query("UPDATE pixels.nodes SET credential_hash=$2 WHERE id=$1")
         .bind(node.id())
         .bind(enrollment_bytes.as_slice())
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
-    let current = f
+    let current = fixture
         .nodes
         .open_connection(epoch, &enrollment, &token())
         .await
         .unwrap();
-    f.nodes.report(&current, &node_report(1)).await.unwrap();
-    assert!(s
+    fixture
+        .nodes
+        .report(&current, &node_report(1))
+        .await
+        .unwrap();
+    assert!(session_store
         .finish_retirement(&current, session.id, old.challenge_id)
         .await
         .is_err());
-    let c1 = s.begin_retirement(&current, session.id).await.unwrap();
-    let c2 = s.begin_retirement(&current, session.id).await.unwrap();
-    assert!(s
-        .finish_retirement(&current, session.id, c1.challenge_id)
+    let first_retirement_challenge = session_store
+        .begin_retirement(&current, session.id)
+        .await
+        .unwrap();
+    let second_retirement_challenge = session_store
+        .begin_retirement(&current, session.id)
+        .await
+        .unwrap();
+    assert!(session_store
+        .finish_retirement(
+            &current,
+            session.id,
+            first_retirement_challenge.challenge_id
+        )
         .await
         .is_err());
     sqlx::query("UPDATE pixels.resource_session_retirements SET deadline=clock_timestamp()-interval '1 second' WHERE session_id=$1")
-        .bind(session.id).execute(&f.owner).await.unwrap();
-    assert!(s
-        .finish_retirement(&current, session.id, c2.challenge_id)
+        .bind(session.id).execute(&fixture.owner).await.unwrap();
+    assert!(session_store
+        .finish_retirement(
+            &current,
+            session.id,
+            second_retirement_challenge.challenge_id
+        )
         .await
         .is_err());
-    assert_eq!(row(&f, session.id).await.0, "closing");
-    let current_challenge = s.begin_retirement(&current, session.id).await.unwrap();
-    s.finish_retirement(&current, session.id, current_challenge.challenge_id)
+    assert_eq!(row(&fixture, session.id).await.0, "closing");
+    let current_challenge = session_store
+        .begin_retirement(&current, session.id)
+        .await
+        .unwrap();
+    session_store
+        .finish_retirement(&current, session.id, current_challenge.challenge_id)
         .await
         .unwrap();
     let state: String = sqlx::query_scalar("SELECT state FROM pixels.instances WHERE id=$1")
         .bind(instance.id)
-        .fetch_one(&f.owner)
+        .fetch_one(&fixture.owner)
         .await
         .unwrap();
     assert_eq!(state, "reconcile_required"); // No runtime stop or fabricated instance reconciliation.
-    s.close().await;
-    f.close().await;
+    session_store.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn logout_and_guest_revocation_deny_descriptors_and_new_login_cannot_rebind_origin() {
-    let (f, s, node, user, instance, session) = opened().await;
+    let (fixture, session_store, node, user, instance, session) = opened().await;
     let ticket = token();
-    let d = s
+    let session_descriptor = session_store
         .descriptor(
             ResourceCredential::User(&user),
             ClientType::Android,
@@ -677,21 +739,28 @@ async fn logout_and_guest_revocation_deny_descriptors_and_new_login_cannot_rebin
         )
         .await
         .unwrap();
-    let login = f
+    let login = fixture
         .identity
         .authenticate(&user, ClientType::Android)
         .await
         .unwrap();
-    f.identity
+    fixture
+        .identity
         .revoke_session(login.user_id, login.session_id)
         .await
         .unwrap();
-    assert!(s
-        .admit_frontend(&node, session.id, d.session.revision, &ticket)
+    assert!(session_store
+        .admit_frontend(
+            &node,
+            session.id,
+            session_descriptor.session.revision,
+            &ticket
+        )
         .await
         .is_err());
     let replacement = token();
-    f.identity
+    fixture
+        .identity
         .issue_session(
             login.user_id,
             login.authorization_revision,
@@ -701,17 +770,17 @@ async fn logout_and_guest_revocation_deny_descriptors_and_new_login_cannot_rebin
         )
         .await
         .unwrap();
-    assert!(s
+    assert!(session_store
         .descriptor(
             ResourceCredential::User(&replacement),
             ClientType::Android,
             session.id,
-            d.session.revision,
+            session_descriptor.session.revision,
             &token()
         )
         .await
         .is_err());
-    assert!(s
+    assert!(session_store
         .open(
             ResourceCredential::User(&replacement),
             ClientType::Android,
@@ -719,7 +788,7 @@ async fn logout_and_guest_revocation_deny_descriptors_and_new_login_cannot_rebin
         )
         .await
         .is_err());
-    assert!(s
+    assert!(session_store
         .get(
             ResourceCredential::User(&replacement),
             ClientType::Android,
@@ -727,9 +796,9 @@ async fn logout_and_guest_revocation_deny_descriptors_and_new_login_cannot_rebin
         )
         .await
         .is_ok());
-    let (guest, _) = f.guest().await;
-    let i = running(
-        &f,
+    let (guest, _) = fixture.guest().await;
+    let running_instance = running(
+        &fixture,
         &node,
         instance.application_id,
         &guest,
@@ -737,46 +806,55 @@ async fn logout_and_guest_revocation_deny_descriptors_and_new_login_cannot_rebin
         true,
     )
     .await;
-    let g = s
+    let guest_session = session_store
         .open(
             ResourceCredential::Guest(&guest),
             ClientType::Android,
-            &open_request(i.application_id, i.id),
+            &open_request(running_instance.application_id, running_instance.id),
         )
         .await
         .unwrap();
-    let gt = token();
-    let gd = s
+    let guest_ticket = token();
+    let guest_descriptor = session_store
         .descriptor(
             ResourceCredential::Guest(&guest),
             ClientType::Android,
-            g.id,
+            guest_session.id,
             1,
-            &gt,
+            &guest_ticket,
         )
         .await
         .unwrap();
-    f.guests.logout(&guest, ClientType::Android).await.unwrap();
-    assert!(s
-        .admit_frontend(&node, g.id, gd.session.revision, &gt)
+    fixture
+        .guests
+        .logout(&guest, ClientType::Android)
+        .await
+        .unwrap();
+    assert!(session_store
+        .admit_frontend(
+            &node,
+            guest_session.id,
+            guest_descriptor.session.revision,
+            &guest_ticket
+        )
         .await
         .is_err());
-    assert_eq!(row(&f, g.id).await.0, "pending");
-    s.close().await;
-    f.close().await;
+    assert_eq!(row(&fixture, guest_session.id).await.0, "pending");
+    session_store.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn desktop_requires_device_acl_and_never_accepts_guest_or_admin_web() {
-    let f = Fixture::new().await;
-    let s = store().await;
-    let (node, _, _) = f.prepared(DeploymentTarget::Webview, 4).await;
+    let fixture = Fixture::new().await;
+    let session_store = store().await;
+    let (node, _, _) = fixture.prepared(DeploymentTarget::Webview, 4).await;
     let device: Uuid = sqlx::query_scalar("SELECT device_id FROM pixels.nodes WHERE id=$1")
         .bind(node.id())
-        .fetch_one(&f.owner)
+        .fetch_one(&fixture.owner)
         .await
         .unwrap();
-    let user = f.session("user", ClientType::Android).await;
-    let identity = f
+    let user = fixture.session("user", ClientType::Android).await;
+    let identity = fixture
         .identity
         .authenticate(&user, ClientType::Android)
         .await
@@ -786,13 +864,14 @@ async fn desktop_requires_device_acl_and_never_accepts_guest_or_admin_web() {
         target: SessionTarget::Desktop { device_id: device },
         access: SessionAccess::Controller,
     };
-    assert!(s
+    assert!(session_store
         .open(ResourceCredential::User(&user), ClientType::Android, &req)
         .await
         .is_err());
-    f.devices
+    fixture
+        .devices
         .replace_access(
-            &f.admin,
+            &fixture.admin,
             device,
             1,
             &DeviceAccess {
@@ -806,11 +885,12 @@ async fn desktop_requires_device_acl_and_never_accepts_guest_or_admin_web() {
     let rev: i64 =
         sqlx::query_scalar("SELECT authorization_revision FROM pixels.users WHERE id=$1")
             .bind(identity.user_id)
-            .fetch_one(&f.owner)
+            .fetch_one(&fixture.owner)
             .await
             .unwrap();
     let user = token();
-    f.identity
+    fixture
+        .identity
         .issue_session(
             identity.user_id,
             rev,
@@ -820,12 +900,12 @@ async fn desktop_requires_device_acl_and_never_accepts_guest_or_admin_web() {
         )
         .await
         .unwrap();
-    let session = s
+    let session = session_store
         .open(ResourceCredential::User(&user), ClientType::Android, &req)
         .await
         .unwrap();
     let ticket = token();
-    let d = s
+    let session_descriptor = session_store
         .descriptor(
             ResourceCredential::User(&user),
             ClientType::Android,
@@ -835,23 +915,24 @@ async fn desktop_requires_device_acl_and_never_accepts_guest_or_admin_web() {
         )
         .await
         .unwrap();
-    assert_eq!(d.port, 4601);
-    let (guest, _) = f.guest().await;
-    assert!(s
+    assert_eq!(session_descriptor.port, 4601);
+    let (guest, _) = fixture.guest().await;
+    assert!(session_store
         .open(ResourceCredential::Guest(&guest), ClientType::Android, &req)
         .await
         .is_err());
-    assert!(s
+    assert!(session_store
         .open(
-            ResourceCredential::User(&f.admin),
+            ResourceCredential::User(&fixture.admin),
             ClientType::AdminWeb,
             &req
         )
         .await
         .is_err());
-    f.devices
+    fixture
+        .devices
         .replace_access(
-            &f.admin,
+            &fixture.admin,
             device,
             2,
             &DeviceAccess {
@@ -861,19 +942,24 @@ async fn desktop_requires_device_acl_and_never_accepts_guest_or_admin_web() {
         )
         .await
         .unwrap();
-    assert!(s
-        .admit_frontend(&node, session.id, d.session.revision, &ticket)
+    assert!(session_store
+        .admit_frontend(
+            &node,
+            session.id,
+            session_descriptor.session.revision,
+            &ticket
+        )
         .await
         .is_err());
-    s.close().await;
-    f.close().await;
+    session_store.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn event_failures_rollback_creation_descriptor_confirmation_and_retirement() {
-    let (f, s, node, user, instance, session) = opened().await;
+    let (fixture, session_store, node, user, instance, session) = opened().await;
     let ticket = token();
-    event_permission(&f, false).await;
-    let failed = s
+    event_permission(&fixture, false).await;
+    let failed = session_store
         .descriptor(
             ResourceCredential::User(&user),
             ClientType::Android,
@@ -882,10 +968,10 @@ async fn event_failures_rollback_creation_descriptor_confirmation_and_retirement
             &ticket,
         )
         .await;
-    event_permission(&f, true).await;
+    event_permission(&fixture, true).await;
     assert!(failed.is_err());
-    assert_eq!(row(&f, session.id).await, ("pending".into(), 1, None));
-    let d = s
+    assert_eq!(row(&fixture, session.id).await, ("pending".into(), 1, None));
+    let session_descriptor = session_store
         .descriptor(
             ResourceCredential::User(&user),
             ClientType::Android,
@@ -895,49 +981,58 @@ async fn event_failures_rollback_creation_descriptor_confirmation_and_retirement
         )
         .await
         .unwrap();
-    let before = row(&f, session.id).await;
-    event_permission(&f, false).await;
-    let failed = s
-        .admit_frontend(&node, session.id, d.session.revision, &ticket)
+    let before = row(&fixture, session.id).await;
+    event_permission(&fixture, false).await;
+    let failed = session_store
+        .admit_frontend(
+            &node,
+            session.id,
+            session_descriptor.session.revision,
+            &ticket,
+        )
         .await;
-    event_permission(&f, true).await;
+    event_permission(&fixture, true).await;
     assert!(failed.is_err());
-    assert_eq!(before, row(&f, session.id).await);
-    event_permission(&f, false).await;
-    let failed = s.begin_retirement(&node, session.id).await;
-    event_permission(&f, true).await;
+    assert_eq!(before, row(&fixture, session.id).await);
+    event_permission(&fixture, false).await;
+    let failed = session_store.begin_retirement(&node, session.id).await;
+    event_permission(&fixture, true).await;
     assert!(failed.is_err());
-    assert_eq!(before, row(&f, session.id).await);
-    let challenge = s.begin_retirement(&node, session.id).await.unwrap();
-    event_permission(&f, false).await;
-    let failed = s
+    assert_eq!(before, row(&fixture, session.id).await);
+    let challenge = session_store
+        .begin_retirement(&node, session.id)
+        .await
+        .unwrap();
+    event_permission(&fixture, false).await;
+    let failed = session_store
         .finish_retirement(&node, session.id, challenge.challenge_id)
         .await;
-    event_permission(&f, true).await;
+    event_permission(&fixture, true).await;
     assert!(failed.is_err());
-    assert_eq!(row(&f, session.id).await.0, "closing");
-    s.finish_retirement(&node, session.id, challenge.challenge_id)
+    assert_eq!(row(&fixture, session.id).await.0, "closing");
+    session_store
+        .finish_retirement(&node, session.id, challenge.challenge_id)
         .await
         .unwrap();
-    event_permission(&f, false).await;
-    let failed = s
+    event_permission(&fixture, false).await;
+    let failed = session_store
         .open(
             ResourceCredential::User(&user),
             ClientType::Android,
             &open_request(instance.application_id, instance.id),
         )
         .await;
-    event_permission(&f, true).await;
+    event_permission(&fixture, true).await;
     assert!(failed.is_err());
-    assert_eq!(count(&f, node.id()).await, 1);
-    s.close().await;
-    f.close().await;
+    assert_eq!(count(&fixture, node.id()).await, 1);
+    session_store.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn management_is_bounded_redacted_and_persistent_without_runtime_delete_privileges() {
-    let (f, s, node, user, _, session) = opened().await;
+    let (fixture, session_store, node, user, _, session) = opened().await;
     let ticket = token();
-    let d = s
+    let session_descriptor = session_store
         .descriptor(
             ResourceCredential::User(&user),
             ClientType::Android,
@@ -947,14 +1042,20 @@ async fn management_is_bounded_redacted_and_persistent_without_runtime_delete_pr
         )
         .await
         .unwrap();
-    let viewer = f.session("viewer", ClientType::AdminWeb).await;
-    assert!(s.list_managed(&viewer, None, 0).await.is_err());
-    assert!(s.list_managed(&viewer, None, 101).await.is_err());
-    assert!(s.list_managed(&user, None, 1).await.is_err());
+    let viewer = fixture.session("viewer", ClientType::AdminWeb).await;
+    assert!(session_store.list_managed(&viewer, None, 0).await.is_err());
+    assert!(session_store
+        .list_managed(&viewer, None, 101)
+        .await
+        .is_err());
+    assert!(session_store.list_managed(&user, None, 1).await.is_err());
     let mut after = None;
     let mut found = false;
     loop {
-        let page = s.list_managed(&viewer, after, 10).await.unwrap();
+        let page = session_store
+            .list_managed(&viewer, after, 10)
+            .await
+            .unwrap();
         if page.is_empty() {
             break;
         }
@@ -994,8 +1095,8 @@ async fn management_is_bounded_redacted_and_persistent_without_runtime_delete_pr
             .is_err()
     );
     runtime.close().await;
-    s.close().await;
-    assert!(s.list_managed(&viewer, None, 1).await.is_err());
+    session_store.close().await;
+    assert!(session_store.list_managed(&viewer, None, 1).await.is_err());
     let reconnected = store().await;
     assert_eq!(
         reconnected
@@ -1007,12 +1108,17 @@ async fn management_is_bounded_redacted_and_persistent_without_runtime_delete_pr
             .await
             .unwrap()
             .revision,
-        d.session.revision
+        session_descriptor.session.revision
     );
     assert!(reconnected
-        .admit_frontend(&node, session.id, d.session.revision, &ticket)
+        .admit_frontend(
+            &node,
+            session.id,
+            session_descriptor.session.revision,
+            &ticket
+        )
         .await
         .is_ok());
     reconnected.close().await;
-    f.close().await;
+    fixture.close().await;
 }

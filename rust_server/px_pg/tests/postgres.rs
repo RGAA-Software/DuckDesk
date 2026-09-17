@@ -229,12 +229,12 @@ async fn invalid_password_is_redacted() {
 
 #[tokio::test]
 async fn concurrent_migrators_are_repeatable_and_serialized() {
-    let a = config(Service::Desk, true);
-    let b = a.clone();
+    let first_config = config(Service::Desk, true);
+    let second_config = first_config.clone();
     for _ in 0..100 {
         let (result_a, result_b) = tokio::join!(
-            migrate(&a, Service::Desk, deployment()),
-            migrate(&b, Service::Desk, deployment())
+            migrate(&first_config, Service::Desk, deployment()),
+            migrate(&second_config, Service::Desk, deployment())
         );
         result_a.unwrap();
         result_b.unwrap();
@@ -356,7 +356,7 @@ async fn competing_unique_inserts_have_one_winner() {
     for task in tasks {
         match task.await.unwrap() {
             Ok(()) => successes += 1,
-            Err(e) => assert_eq!(e, DatabaseError::Conflict),
+            Err(database_error) => assert_eq!(database_error, DatabaseError::Conflict),
         }
     }
     assert_eq!(successes, 1);
@@ -528,7 +528,7 @@ async fn killed_migration_rolls_back_and_two_process_retry_executes_once() {
     let owner = pool(Service::Desk, true).await;
     let probe_version = catalog::migrations(Service::Desk)
         .iter()
-        .map(|m| m.version)
+        .map(|migration| migration.version)
         .max()
         .unwrap()
         + 1;

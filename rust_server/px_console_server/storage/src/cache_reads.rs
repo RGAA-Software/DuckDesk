@@ -174,9 +174,9 @@ impl RecordingCacheStore {
             None => None,
         };
         if retained
-            && !blob
-                .as_ref()
-                .is_some_and(|b| b.state == "published" && b.verified_run == Some(run.id))
+            && !blob.as_ref().is_some_and(|cache_blob| {
+                cache_blob.state == "published" && cache_blob.verified_run == Some(run.id)
+            })
         {
             return Err(StoreError::Rejected);
         }

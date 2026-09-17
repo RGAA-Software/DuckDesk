@@ -179,7 +179,7 @@ async fn real_migrator_blocks_startup_and_reconnect_then_old_schema_is_rejected(
     pool.close().await;
     let probe_version = catalog::migrations(service)
         .iter()
-        .map(|m| m.version)
+        .map(|migration| migration.version)
         .max()
         .unwrap()
         + 1;

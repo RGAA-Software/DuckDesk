@@ -34,11 +34,11 @@ impl OpenChannel {
         if self.source_id.is_nil() || self.session_id.is_nil() {
             return Err(StoreError::InvalidInput);
         }
-        let mut h = Sha256::new();
-        h.update(b"Pixels-Connection-v1\0");
-        h.update(self.session_id.as_bytes());
-        h.update(self.kind.name().as_bytes());
-        Ok(h.finalize().into())
+        let mut hasher = Sha256::new();
+        hasher.update(b"Pixels-Connection-v1\0");
+        hasher.update(self.session_id.as_bytes());
+        hasher.update(self.kind.name().as_bytes());
+        Ok(hasher.finalize().into())
     }
 }
 #[derive(Debug, Clone, Copy, serde::Deserialize)]
@@ -86,14 +86,14 @@ pub(crate) struct CheckedChannel {
 }
 impl ChannelProgress {
     pub(crate) fn validate(&self) -> Result<CheckedChannel, StoreError> {
-        let convert = |v| i64::try_from(v).map_err(|_| StoreError::InvalidInput);
-        let sequence = convert(self.sequence)?;
+        let checked_i64 = |value| i64::try_from(value).map_err(|_| StoreError::InvalidInput);
+        let sequence = checked_i64(self.sequence)?;
         if sequence == 0 {
             return Err(StoreError::InvalidInput);
         }
-        let sent = convert(self.sent_bytes)?;
-        let received = convert(self.received_bytes)?;
-        let elapsed = convert(self.elapsed_ms)?;
+        let sent = checked_i64(self.sent_bytes)?;
+        let received = checked_i64(self.received_bytes)?;
+        let elapsed = checked_i64(self.elapsed_ms)?;
         let (state, reason) = match self.outcome {
             ChannelOutcome::Progress => ("active", None),
             ChannelOutcome::Closed { reason } => (
@@ -112,15 +112,15 @@ impl ChannelProgress {
                 }),
             ),
         };
-        let mut h = Sha256::new();
-        h.update(b"Pixels-ChannelProgress-v1\0");
-        h.update(sequence.to_be_bytes());
-        h.update(sent.to_be_bytes());
-        h.update(received.to_be_bytes());
-        h.update(elapsed.to_be_bytes());
-        h.update(state.as_bytes());
-        h.update([0]);
-        h.update(reason.unwrap_or("").as_bytes());
+        let mut hasher = Sha256::new();
+        hasher.update(b"Pixels-ChannelProgress-v1\0");
+        hasher.update(sequence.to_be_bytes());
+        hasher.update(sent.to_be_bytes());
+        hasher.update(received.to_be_bytes());
+        hasher.update(elapsed.to_be_bytes());
+        hasher.update(state.as_bytes());
+        hasher.update([0]);
+        hasher.update(reason.unwrap_or("").as_bytes());
         Ok(CheckedChannel {
             sequence,
             sent,
@@ -128,7 +128,7 @@ impl ChannelProgress {
             elapsed,
             state,
             reason,
-            hash: h.finalize().into(),
+            hash: hasher.finalize().into(),
         })
     }
 }
@@ -272,33 +272,33 @@ mod tests {
     use super::*;
     #[test]
     fn channel_identity_progress_bounds_and_body_hash_have_no_defaults() {
-        let mut r = OpenChannel {
+        let mut open_request = OpenChannel {
             source_id: Uuid::new_v4(),
             session_id: Uuid::new_v4(),
             kind: ChannelKind::Control,
         };
-        let h = r.digest().unwrap();
-        r.kind = ChannelKind::Media;
-        assert_ne!(h, r.digest().unwrap());
-        r.session_id = Uuid::nil();
-        assert!(r.digest().is_err());
-        let mut p = ChannelProgress {
+        let control_hash = open_request.digest().unwrap();
+        open_request.kind = ChannelKind::Media;
+        assert_ne!(control_hash, open_request.digest().unwrap());
+        open_request.session_id = Uuid::nil();
+        assert!(open_request.digest().is_err());
+        let mut progress = ChannelProgress {
             sequence: 1,
             sent_bytes: 0,
             received_bytes: 1,
             elapsed_ms: 1,
             outcome: ChannelOutcome::Progress,
         };
-        let h = p.validate().unwrap().hash;
-        p.received_bytes = 2;
-        assert_ne!(h, p.validate().unwrap().hash);
-        p.elapsed_ms = u64::MAX;
-        assert!(p.validate().is_err());
-        p.elapsed_ms = 1;
-        p.sequence = 0;
-        assert!(p.validate().is_err());
-        p.sequence = 1;
-        p.sent_bytes = u64::MAX;
-        assert!(p.validate().is_err());
+        let initial_progress_hash = progress.validate().unwrap().hash;
+        progress.received_bytes = 2;
+        assert_ne!(initial_progress_hash, progress.validate().unwrap().hash);
+        progress.elapsed_ms = u64::MAX;
+        assert!(progress.validate().is_err());
+        progress.elapsed_ms = 1;
+        progress.sequence = 0;
+        assert!(progress.validate().is_err());
+        progress.sequence = 1;
+        progress.sent_bytes = u64::MAX;
+        assert!(progress.validate().is_err());
     }
 }

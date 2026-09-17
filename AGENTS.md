@@ -83,6 +83,16 @@
 
 # Project-wide C++ initialization, design, and formatting rules
 
+- Readable naming decision (2026-09-17): every project-owned identifier must communicate its domain role. This applies to production code,
+  tests, fixtures, closures, callback captures, scripts and configuration helpers in every maintained language. Do not introduce
+  context-free names such as `a`, `b`, `c`, `x`, `y`, `tmp`, `data`, `obj`, `item`, `thing`, `foo` or `bar`; do not hide meaningful
+  objects behind type-only abbreviations such as `f` for fixture, `s` for store, `r` for request/result or `b` for barrier. Prefer names
+  such as `fixture`, `activity_store`, `open_request`, `start_barrier`, `candidate_index`, `payload_bytes` or another precise business role.
+  A short name is acceptable only when it is the established domain term and remains unambiguous in that scope (for example `x`/`y`
+  coordinates in a geometry formula); convenience, conventional loop spelling and small scope are not sufficient justification.
+  Existing code touched by a change must be brought into compliance. Generated code, read-only third-party trees and repository `backup/`
+  archives remain excluded from mechanical renaming. Review and automated checks must treat human-readable naming as a delivery gate.
+
 - Coding-style decision (2026-09-17): project-owned C++ follows the Google C++ Style Guide; Rust follows the official Rust Style Guide
   and rustfmt; TypeScript follows Microsoft's TypeScript Coding Guidelines for general application code. See `docs/coding_style.md`.
   This supersedes the previous C++ LLVM/150-column formatting rule: use Google/4-space/80-column formatting.

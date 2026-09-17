@@ -96,7 +96,7 @@ struct Fixture {
 impl Fixture {
     async fn new() -> Self {
         let deployment = env::var("PIXELS_DEPLOYMENT_ID").unwrap().parse().unwrap();
-        let mut f = Self {
+        let mut fixture = Self {
             instances: InstanceStore::connect(&config("RUNTIME"), deployment)
                 .await
                 .unwrap(),
@@ -121,8 +121,8 @@ impl Fixture {
             owner: config("OWNER").connect().await.unwrap(),
             admin: token(),
         };
-        f.admin = f.session("admin", ClientType::AdminWeb).await;
-        f
+        fixture.admin = fixture.session("admin", ClientType::AdminWeb).await;
+        fixture
     }
     async fn session(&self, role: &str, client: ClientType) -> TokenDigest {
         let user = self
@@ -322,10 +322,10 @@ struct Contender(std::process::Child);
 
 #[tokio::test]
 async fn origin_login_session_and_revision_are_persisted_with_owner_foreign_keys() {
-    let f = Fixture::new().await;
-    let (connection, app, _) = f.prepared(DeploymentTarget::Webview, 4).await;
-    let user = f.session("user", ClientType::Android).await;
-    let instance = f
+    let fixture = Fixture::new().await;
+    let (connection, app, _) = fixture.prepared(DeploymentTarget::Webview, 4).await;
+    let user = fixture.session("user", ClientType::Android).await;
+    let instance = fixture
         .instances
         .reserve(
             ResourceCredential::User(&user),
@@ -339,13 +339,13 @@ async fn origin_login_session_and_revision_are_persisted_with_owner_foreign_keys
         "SELECT owner_user,login_session_id,owner_revision FROM pixels.instances WHERE id=$1",
     )
     .bind(instance.id)
-    .fetch_one(&f.owner)
+    .fetch_one(&fixture.owner)
     .await
     .unwrap();
     let session_owner: Uuid =
         sqlx::query_scalar("SELECT user_id FROM pixels.login_sessions WHERE id=$1")
             .bind(session)
-            .fetch_one(&f.owner)
+            .fetch_one(&fixture.owner)
             .await
             .unwrap();
     assert_eq!(owner, session_owner);
@@ -354,26 +354,26 @@ async fn origin_login_session_and_revision_are_persisted_with_owner_foreign_keys
         "SELECT id FROM pixels.login_sessions WHERE user_id<>$1 ORDER BY id LIMIT 1",
     )
     .bind(owner)
-    .fetch_one(&f.owner)
+    .fetch_one(&fixture.owner)
     .await
     .unwrap();
     assert!(
         sqlx::query("UPDATE pixels.instances SET login_session_id=$2 WHERE id=$1")
             .bind(instance.id)
             .bind(unrelated)
-            .execute(&f.owner)
+            .execute(&fixture.owner)
             .await
             .is_err()
     );
     assert!(
         sqlx::query("UPDATE pixels.instances SET login_session_id=NULL WHERE id=$1")
             .bind(instance.id)
-            .execute(&f.owner)
+            .execute(&fixture.owner)
             .await
             .is_err()
     );
-    let (guest, guest_id) = f.guest().await;
-    let instance = f
+    let (guest, guest_id) = fixture.guest().await;
+    let instance = fixture
         .instances
         .reserve(
             ResourceCredential::Guest(&guest),
@@ -387,19 +387,19 @@ async fn origin_login_session_and_revision_are_persisted_with_owner_foreign_keys
         "SELECT owner_guest,login_session_id,owner_revision FROM pixels.instances WHERE id=$1",
     )
     .bind(instance.id)
-    .fetch_one(&f.owner)
+    .fetch_one(&fixture.owner)
     .await
     .unwrap();
     assert_eq!(stored, (guest_id, None, 1));
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn disconnect_invalidation_is_atomic_cancels_commands_and_preserves_occupancy() {
-    let f = Fixture::new().await;
-    let (connection, app, deployment) = f.prepared(DeploymentTarget::Webview, 1).await;
-    let user = f.session("user", ClientType::Android).await;
-    let instance = f
+    let fixture = Fixture::new().await;
+    let (connection, app, deployment) = fixture.prepared(DeploymentTarget::Webview, 1).await;
+    let user = fixture.session("user", ClientType::Android).await;
+    let instance = fixture
         .instances
         .reserve(
             ResourceCredential::User(&user),
@@ -410,17 +410,18 @@ async fn disconnect_invalidation_is_atomic_cancels_commands_and_preserves_occupa
         .await
         .unwrap();
     sqlx::query("REVOKE INSERT ON pixels.instance_events FROM pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
-    let outcome = f.nodes.close_connection(&connection).await;
+    let outcome = fixture.nodes.close_connection(&connection).await;
     sqlx::query("GRANT INSERT ON pixels.instance_events TO pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
     assert!(outcome.is_err());
     assert_eq!(
-        f.instances
+        fixture
+            .instances
             .get(
                 ResourceCredential::User(&user),
                 ClientType::Android,
@@ -430,9 +431,13 @@ async fn disconnect_invalidation_is_atomic_cancels_commands_and_preserves_occupa
             .unwrap(),
         instance
     );
-    assert!(f.nodes.report(&connection, &node_report(2)).await.is_ok());
-    f.nodes.close_connection(&connection).await.unwrap();
-    let unknown = f
+    assert!(fixture
+        .nodes
+        .report(&connection, &node_report(2))
+        .await
+        .is_ok());
+    fixture.nodes.close_connection(&connection).await.unwrap();
+    let unknown = fixture
         .instances
         .get(
             ResourceCredential::User(&user),
@@ -446,31 +451,34 @@ async fn disconnect_invalidation_is_atomic_cancels_commands_and_preserves_occupa
     let key = token();
     let revision: i64 = sqlx::query_scalar("SELECT revision FROM pixels.nodes WHERE id=$1")
         .bind(connection.id())
-        .fetch_one(&f.owner)
+        .fetch_one(&fixture.owner)
         .await
         .unwrap();
-    f.nodes
-        .rotate_key(&f.admin, connection.id(), revision, &key)
+    fixture
+        .nodes
+        .rotate_key(&fixture.admin, connection.id(), revision, &key)
         .await
         .unwrap();
-    let new = f
+    let new = fixture
         .nodes
         .open_connection(connection.epoch(), &key, &token())
         .await
         .unwrap();
-    f.nodes.report(&new, &node_report(1)).await.unwrap();
-    f.deployments
+    fixture.nodes.report(&new, &node_report(1)).await.unwrap();
+    fixture
+        .deployments
         .report(&new, deployment.id, &observation(&deployment, 1))
         .await
         .unwrap();
     // Even a synthetic Ready reset cannot free the unknown reservation.
     sqlx::query("UPDATE pixels.nodes SET state='ready' WHERE id=$1")
         .bind(connection.id())
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
     assert_eq!(
-        f.instances
+        fixture
+            .instances
             .reserve(
                 ResourceCredential::User(&user),
                 ClientType::Android,
@@ -482,9 +490,9 @@ async fn disconnect_invalidation_is_atomic_cancels_commands_and_preserves_occupa
         StoreError::NoCapacity
     );
     let pending: i64 = sqlx::query_scalar("SELECT count(*) FROM pixels.instance_commands WHERE instance_id=$1 AND state IN ('pending','claimed')")
-        .bind(instance.id).fetch_one(&f.owner).await.unwrap();
+        .bind(instance.id).fetch_one(&fixture.owner).await.unwrap();
     assert_eq!(pending, 0);
-    f.close().await;
+    fixture.close().await;
 }
 impl Contender {
     fn start(key: [u8; 32], request: &StartApplication) -> Self {
@@ -534,9 +542,9 @@ impl Drop for Contender {
 
 #[tokio::test]
 async fn two_os_processes_block_on_the_same_gate_then_compete_for_the_last_slot() {
-    let f = Fixture::new().await;
-    let (connection, app, _) = f.prepared(DeploymentTarget::Webview, 1).await;
-    let user = f
+    let fixture = Fixture::new().await;
+    let (connection, app, _) = fixture.prepared(DeploymentTarget::Webview, 1).await;
+    let user = fixture
         .identity
         .register(
             &Username::parse(&Uuid::new_v4().to_string()).unwrap(),
@@ -547,7 +555,8 @@ async fn two_os_processes_block_on_the_same_gate_then_compete_for_the_last_slot(
     let mut bytes = [0; 32];
     bytes[..16].copy_from_slice(Uuid::new_v4().as_bytes());
     bytes[16..].copy_from_slice(Uuid::new_v4().as_bytes());
-    f.identity
+    fixture
+        .identity
         .issue_session(
             user.id,
             1,
@@ -557,7 +566,7 @@ async fn two_os_processes_block_on_the_same_gate_then_compete_for_the_last_slot(
         )
         .await
         .unwrap();
-    let mut barrier = f.owner.begin().await.unwrap();
+    let mut barrier = fixture.owner.begin().await.unwrap();
     sqlx::query("SELECT pg_advisory_xact_lock(22091401)")
         .execute(&mut *barrier)
         .await
@@ -568,7 +577,7 @@ async fn two_os_processes_block_on_the_same_gate_then_compete_for_the_last_slot(
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
             let waiting: i64 = sqlx::query_scalar("SELECT count(*) FROM pg_locks WHERE locktype='advisory' AND objid=22091401 AND NOT granted AND database=(SELECT oid FROM pg_database WHERE datname=current_database())")
-                .fetch_one(&f.owner).await.unwrap();
+                .fetch_one(&fixture.owner).await.unwrap();
             if waiting==2 { break; }
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
@@ -589,18 +598,18 @@ async fn two_os_processes_block_on_the_same_gate_then_compete_for_the_last_slot(
             .count(),
         1
     );
-    assert_eq!(f.count(connection.id()).await, 1);
-    f.close().await;
+    assert_eq!(fixture.count(connection.id()).await, 1);
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn twenty_competing_requests_reserve_last_slot_port_and_command_exactly_once() {
-    let f = Fixture::new().await;
-    let (connection, app, _) = f.prepared(DeploymentTarget::Webview, 1).await;
-    let user = f.session("user", ClientType::Android).await;
+    let fixture = Fixture::new().await;
+    let (connection, app, _) = fixture.prepared(DeploymentTarget::Webview, 1).await;
+    let user = fixture.session("user", ClientType::Android).await;
     let mut tasks = Vec::new();
     for _ in 0..20 {
-        let store = f.instances.clone();
+        let store = fixture.instances.clone();
         let key = user.clone();
         let epoch = connection.epoch();
         tasks.push(tokio::spawn(async move {
@@ -625,28 +634,28 @@ async fn twenty_competing_requests_reserve_last_slot_port_and_command_exactly_on
         }
     }
     assert_eq!(successes, 1);
-    assert_eq!(f.count(connection.id()).await, 1);
+    assert_eq!(fixture.count(connection.id()).await, 1);
     let counts: (i64, i64) = sqlx::query_as("SELECT (SELECT count(*) FROM pixels.instance_commands WHERE node_id=$1), (SELECT count(*) FROM pixels.instance_events e JOIN pixels.instances i ON i.id=e.instance_id WHERE i.node_id=$1)")
-        .bind(connection.id()).fetch_one(&f.owner).await.unwrap();
+        .bind(connection.id()).fetch_one(&fixture.owner).await.unwrap();
     assert_eq!(counts, (1, 1));
     let port: i32 = sqlx::query_scalar("SELECT port FROM pixels.instances WHERE node_id=$1")
         .bind(connection.id())
-        .fetch_one(&f.owner)
+        .fetch_one(&fixture.owner)
         .await
         .unwrap();
     assert_eq!(port, 4613);
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn response_loss_retry_is_owner_scoped_and_changed_body_never_reuses_result() {
-    let f = Fixture::new().await;
-    let (connection, app, deployment) = f.prepared(DeploymentTarget::Webview, 4).await;
-    let user = f.session("user", ClientType::Android).await;
+    let fixture = Fixture::new().await;
+    let (connection, app, deployment) = fixture.prepared(DeploymentTarget::Webview, 4).await;
+    let user = fixture.session("user", ClientType::Android).await;
     let initial = request(app.id);
     let mut tasks = Vec::new();
     for _ in 0..20 {
-        let store = f.instances.clone();
+        let store = fixture.instances.clone();
         let key = user.clone();
         let req = initial.clone();
         let epoch = connection.epoch();
@@ -666,11 +675,12 @@ async fn response_loss_retry_is_owner_scoped_and_changed_body_never_reuses_resul
         ids.insert(task.await.unwrap().unwrap().id);
     }
     assert_eq!(ids.len(), 1);
-    assert_eq!(f.count(connection.id()).await, 1);
+    assert_eq!(fixture.count(connection.id()).await, 1);
     let mut changed = initial.clone();
     changed.deployment_id = Some(deployment.id);
     assert_eq!(
-        f.instances
+        fixture
+            .instances
             .reserve(
                 ResourceCredential::User(&user),
                 ClientType::Android,
@@ -681,8 +691,8 @@ async fn response_loss_retry_is_owner_scoped_and_changed_body_never_reuses_resul
             .unwrap_err(),
         StoreError::Rejected
     );
-    let second = f.session("user", ClientType::Android).await;
-    let other = f
+    let second = fixture.session("user", ClientType::Android).await;
+    let other = fixture
         .instances
         .reserve(
             ResourceCredential::User(&second),
@@ -693,8 +703,8 @@ async fn response_loss_retry_is_owner_scoped_and_changed_body_never_reuses_resul
         .await
         .unwrap();
     assert!(!ids.contains(&other.id));
-    assert_eq!(f.count(connection.id()).await, 2);
-    assert!(f
+    assert_eq!(fixture.count(connection.id()).await, 2);
+    assert!(fixture
         .instances
         .get(
             ResourceCredential::User(&user),
@@ -703,16 +713,16 @@ async fn response_loss_retry_is_owner_scoped_and_changed_body_never_reuses_resul
         )
         .await
         .is_err());
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn guest_user_client_and_rdp_busy_boundaries_are_explicit() {
-    let f = Fixture::new().await;
-    let (connection, app, _) = f.prepared(DeploymentTarget::Rdp, 1).await;
-    let (guest, guest_id) = f.guest().await;
+    let fixture = Fixture::new().await;
+    let (connection, app, _) = fixture.prepared(DeploymentTarget::Rdp, 1).await;
+    let (guest, guest_id) = fixture.guest().await;
     let req = request(app.id);
-    assert!(f
+    assert!(fixture
         .instances
         .reserve(
             ResourceCredential::User(&guest),
@@ -722,7 +732,7 @@ async fn guest_user_client_and_rdp_busy_boundaries_are_explicit() {
         )
         .await
         .is_err());
-    assert!(f
+    assert!(fixture
         .instances
         .reserve(
             ResourceCredential::Guest(&guest),
@@ -732,7 +742,7 @@ async fn guest_user_client_and_rdp_busy_boundaries_are_explicit() {
         )
         .await
         .is_err());
-    let instance = f
+    let instance = fixture
         .instances
         .reserve(
             ResourceCredential::Guest(&guest),
@@ -745,9 +755,10 @@ async fn guest_user_client_and_rdp_busy_boundaries_are_explicit() {
     assert_eq!(instance.owner, ResourceOwner::Guest { guest_id });
     assert_eq!(instance.application_id, app.id);
     assert_eq!(instance.client_type, "android");
-    let user = f.session("user", ClientType::Android).await;
+    let user = fixture.session("user", ClientType::Android).await;
     assert_eq!(
-        f.instances
+        fixture
+            .instances
             .reserve(
                 ResourceCredential::User(&user),
                 ClientType::Android,
@@ -758,7 +769,7 @@ async fn guest_user_client_and_rdp_busy_boundaries_are_explicit() {
             .unwrap_err(),
         StoreError::NoCapacity
     );
-    assert!(f
+    assert!(fixture
         .instances
         .get(
             ResourceCredential::User(&user),
@@ -767,8 +778,12 @@ async fn guest_user_client_and_rdp_busy_boundaries_are_explicit() {
         )
         .await
         .is_err());
-    f.guests.logout(&guest, ClientType::Android).await.unwrap();
-    assert!(f
+    fixture
+        .guests
+        .logout(&guest, ClientType::Android)
+        .await
+        .unwrap();
+    assert!(fixture
         .instances
         .reserve(
             ResourceCredential::Guest(&guest),
@@ -778,15 +793,15 @@ async fn guest_user_client_and_rdp_busy_boundaries_are_explicit() {
         )
         .await
         .is_err());
-    assert_eq!(f.count(connection.id()).await, 1); // no transport/Windows cleanup on logout
-    f.close().await;
+    assert_eq!(fixture.count(connection.id()).await, 1); // no transport/Windows cleanup on logout
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn all_readiness_maintenance_capacity_and_acl_gates_are_checked_inside_reservation() {
-    let f = Fixture::new().await;
-    let (connection, mut app, deployment) = f.prepared(DeploymentTarget::Webview, 4).await;
-    let user = f.session("user", ClientType::Android).await;
+    let fixture = Fixture::new().await;
+    let (connection, mut app, deployment) = fixture.prepared(DeploymentTarget::Webview, 4).await;
+    let user = fixture.session("user", ClientType::Android).await;
     let req = request(app.id);
     for (deny, restore) in [
         (
@@ -808,11 +823,12 @@ async fn all_readiness_maintenance_capacity_and_acl_gates_are_checked_inside_res
     ] {
         sqlx::query(deny)
             .bind(connection.id())
-            .execute(&f.owner)
+            .execute(&fixture.owner)
             .await
             .unwrap();
         assert_eq!(
-            f.instances
+            fixture
+                .instances
                 .reserve(
                     ResourceCredential::User(&user),
                     ClientType::Android,
@@ -825,16 +841,16 @@ async fn all_readiness_maintenance_capacity_and_acl_gates_are_checked_inside_res
         );
         sqlx::query(restore)
             .bind(connection.id())
-            .execute(&f.owner)
+            .execute(&fixture.owner)
             .await
             .unwrap();
     }
     sqlx::query("UPDATE pixels.application_deployments SET disabled=true WHERE id=$1")
         .bind(deployment.id)
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
-    assert!(f
+    assert!(fixture
         .instances
         .reserve(
             ResourceCredential::User(&user),
@@ -844,8 +860,8 @@ async fn all_readiness_maintenance_capacity_and_acl_gates_are_checked_inside_res
         )
         .await
         .is_err());
-    sqlx::query("UPDATE pixels.application_deployments SET disabled=false,observed_state='pending' WHERE id=$1").bind(deployment.id).execute(&f.owner).await.unwrap();
-    assert!(f
+    sqlx::query("UPDATE pixels.application_deployments SET disabled=false,observed_state='pending' WHERE id=$1").bind(deployment.id).execute(&fixture.owner).await.unwrap();
+    assert!(fixture
         .instances
         .reserve(
             ResourceCredential::User(&user),
@@ -857,13 +873,18 @@ async fn all_readiness_maintenance_capacity_and_acl_gates_are_checked_inside_res
         .is_err());
     sqlx::query("UPDATE pixels.application_deployments SET observed_state='ready' WHERE id=$1")
         .bind(deployment.id)
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
     app.spec.access = ApplicationAccess::Acl;
-    f.apps.update(&f.admin, app.id, 1, &app.spec).await.unwrap();
+    fixture
+        .apps
+        .update(&fixture.admin, app.id, 1, &app.spec)
+        .await
+        .unwrap();
     assert_eq!(
-        f.instances
+        fixture
+            .instances
             .reserve(
                 ResourceCredential::User(&user),
                 ClientType::Android,
@@ -874,24 +895,24 @@ async fn all_readiness_maintenance_capacity_and_acl_gates_are_checked_inside_res
             .unwrap_err(),
         StoreError::Rejected
     );
-    assert_eq!(f.count(connection.id()).await, 0);
-    f.close().await;
+    assert_eq!(fixture.count(connection.id()).await, 0);
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn command_or_event_failure_rolls_back_reservation_and_does_not_consume_capacity() {
-    let f = Fixture::new().await;
-    let (connection, app, _) = f.prepared(DeploymentTarget::Webview, 1).await;
-    let user = f.session("user", ClientType::Android).await;
+    let fixture = Fixture::new().await;
+    let (connection, app, _) = fixture.prepared(DeploymentTarget::Webview, 1).await;
+    let user = fixture.session("user", ClientType::Android).await;
     let req = request(app.id);
     for table in ["instance_commands", "instance_events"] {
         sqlx::query(&format!(
             "REVOKE INSERT ON pixels.{table} FROM pixels_console_runtime"
         ))
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
-        let outcome = f
+        let outcome = fixture
             .instances
             .reserve(
                 ResourceCredential::User(&user),
@@ -903,13 +924,13 @@ async fn command_or_event_failure_rolls_back_reservation_and_does_not_consume_ca
         sqlx::query(&format!(
             "GRANT INSERT ON pixels.{table} TO pixels_console_runtime"
         ))
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
         assert!(outcome.is_err());
-        assert_eq!(f.count(connection.id()).await, 0);
+        assert_eq!(fixture.count(connection.id()).await, 0);
     }
-    let result = f
+    let result = fixture
         .instances
         .reserve(
             ResourceCredential::User(&user),
@@ -920,14 +941,14 @@ async fn command_or_event_failure_rolls_back_reservation_and_does_not_consume_ca
         .await
         .unwrap();
     assert_eq!(result.state, "reserved");
-    assert_eq!(f.count(connection.id()).await, 1);
-    f.close().await;
+    assert_eq!(fixture.count(connection.id()).await, 1);
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn launch_snapshot_and_ownership_survive_configuration_changes_and_restart() {
-    let f = Fixture::new().await;
-    let (connection, mut app, _) = f
+    let fixture = Fixture::new().await;
+    let (connection, mut app, _) = fixture
         .prepared(
             DeploymentTarget::GameHook {
                 install_root: r"D:\游戏 根目录".into(),
@@ -935,9 +956,9 @@ async fn launch_snapshot_and_ownership_survive_configuration_changes_and_restart
             1,
         )
         .await;
-    let user = f.session("user", ClientType::Android).await;
+    let user = fixture.session("user", ClientType::Android).await;
     let req = request(app.id);
-    let instance = f
+    let instance = fixture
         .instances
         .reserve(
             ResourceCredential::User(&user),
@@ -951,7 +972,7 @@ async fn launch_snapshot_and_ownership_survive_configuration_changes_and_restart
         "SELECT install_root,executable_relative,arguments FROM pixels.instances WHERE id=$1",
     )
     .bind(instance.id)
-    .fetch_one(&f.owner)
+    .fetch_one(&fixture.owner)
     .await
     .unwrap();
     assert_eq!(
@@ -965,8 +986,12 @@ async fn launch_snapshot_and_ownership_survive_configuration_changes_and_restart
     if let ApplicationLaunch::GameHook { arguments, .. } = &mut app.spec.launch {
         *arguments = "changed".into();
     }
-    f.apps.update(&f.admin, app.id, 1, &app.spec).await.unwrap();
-    let replay = f
+    fixture
+        .apps
+        .update(&fixture.admin, app.id, 1, &app.spec)
+        .await
+        .unwrap();
+    let replay = fixture
         .instances
         .reserve(
             ResourceCredential::User(&user),
@@ -977,8 +1002,8 @@ async fn launch_snapshot_and_ownership_survive_configuration_changes_and_restart
         .await
         .unwrap();
     assert_eq!(replay, instance);
-    f.nodes.begin_runtime().await.unwrap();
-    assert!(f
+    fixture.nodes.begin_runtime().await.unwrap();
+    assert!(fixture
         .instances
         .reserve(
             ResourceCredential::User(&user),
@@ -988,9 +1013,9 @@ async fn launch_snapshot_and_ownership_survive_configuration_changes_and_restart
         )
         .await
         .is_err());
-    assert_eq!(f.count(connection.id()).await, 1);
-    f.instances.close().await;
-    assert!(f
+    assert_eq!(fixture.count(connection.id()).await, 1);
+    fixture.instances.close().await;
+    assert!(fixture
         .instances
         .get(
             ResourceCredential::User(&user),
@@ -1021,26 +1046,26 @@ async fn launch_snapshot_and_ownership_survive_configuration_changes_and_restart
     let command_state: String =
         sqlx::query_scalar("SELECT state FROM pixels.instance_commands WHERE instance_id=$1")
             .bind(instance.id)
-            .fetch_one(&f.owner)
+            .fetch_one(&fixture.owner)
             .await
             .unwrap();
     assert_eq!(command_state, "cancelled");
     reopened.close().await;
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn port_budget_and_unknown_occupancy_are_not_released_by_timeout() {
-    let f = Fixture::new().await;
-    let (connection, app, _) = f.prepared(DeploymentTarget::Webview, 4).await;
+    let fixture = Fixture::new().await;
+    let (connection, app, _) = fixture.prepared(DeploymentTarget::Webview, 4).await;
     // The synthetic node advertises one application port despite four CPU/GPU capacity slots.
     sqlx::query("UPDATE pixels.nodes SET application_port_end=application_port_start WHERE id=$1")
         .bind(connection.id())
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
-    let user = f.session("user", ClientType::Android).await;
-    let first = f
+    let user = fixture.session("user", ClientType::Android).await;
+    let first = fixture
         .instances
         .reserve(
             ResourceCredential::User(&user),
@@ -1052,12 +1077,13 @@ async fn port_budget_and_unknown_occupancy_are_not_released_by_timeout() {
         .unwrap();
     sqlx::query("UPDATE pixels.instances SET state='reconcile_required' WHERE id=$1")
         .bind(first.id)
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
-    sqlx::query("UPDATE pixels.instance_commands SET deadline=clock_timestamp()-interval '1 second' WHERE instance_id=$1").bind(first.id).execute(&f.owner).await.unwrap();
+    sqlx::query("UPDATE pixels.instance_commands SET deadline=clock_timestamp()-interval '1 second' WHERE instance_id=$1").bind(first.id).execute(&fixture.owner).await.unwrap();
     assert_eq!(
-        f.instances
+        fixture
+            .instances
             .reserve(
                 ResourceCredential::User(&user),
                 ClientType::Android,
@@ -1068,6 +1094,6 @@ async fn port_budget_and_unknown_occupancy_are_not_released_by_timeout() {
             .unwrap_err(),
         StoreError::NoCapacity
     );
-    assert_eq!(f.count(connection.id()).await, 1);
-    f.close().await;
+    assert_eq!(fixture.count(connection.id()).await, 1);
+    fixture.close().await;
 }

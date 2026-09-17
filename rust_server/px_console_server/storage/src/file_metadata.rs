@@ -9,7 +9,7 @@ pub(crate) fn valid_basename(name: &str) -> Result<(), StoreError> {
         || name.ends_with('.')
         || name
             .chars()
-            .any(|c| c.is_control() || "/\\:*?\"<>|".contains(c))
+            .any(|character| character.is_control() || "/\\:*?\"<>|".contains(character))
     {
         return Err(StoreError::InvalidInput);
     }

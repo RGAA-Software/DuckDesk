@@ -51,16 +51,24 @@ fn signed_raw(bytes: &[u8]) -> String {
 
 #[test]
 fn fixed_openssl_vector_matches_signer_and_verifier() {
-    let v = vector();
-    let public: [u8; 32] = hex::decode(&v.public_key).unwrap().try_into().unwrap();
+    let contract_vector = vector();
+    let public: [u8; 32] = hex::decode(&contract_vector.public_key)
+        .unwrap()
+        .try_into()
+        .unwrap();
     let verifier = LicenseVerifier::new(public).unwrap();
     assert_eq!(signer().public_key(), public);
-    assert_eq!(signer().sign(&v.payload).unwrap(), v.wire);
     assert_eq!(
-        verifier.verify(&v.wire, &context(&v.payload)).unwrap(),
-        v.payload
+        signer().sign(&contract_vector.payload).unwrap(),
+        contract_vector.wire
     );
-    let bytes = v.payload.canonical_bytes().unwrap();
+    assert_eq!(
+        verifier
+            .verify(&contract_vector.wire, &context(&contract_vector.payload))
+            .unwrap(),
+        contract_vector.payload
+    );
+    let bytes = contract_vector.payload.canonical_bytes().unwrap();
     for name in ["password", "app_secret", "username", "token", "private_key"] {
         assert!(!std::str::from_utf8(&bytes)
             .unwrap()
@@ -69,86 +77,96 @@ fn fixed_openssl_vector_matches_signer_and_verifier() {
 }
 #[test]
 fn target_time_revision_and_rollback_boundaries_reject() {
-    let v = vector();
-    let verifier =
-        LicenseVerifier::new(hex::decode(&v.public_key).unwrap().try_into().unwrap()).unwrap();
-    let base = context(&v.payload);
+    let contract_vector = vector();
+    let verifier = LicenseVerifier::new(
+        hex::decode(&contract_vector.public_key)
+            .unwrap()
+            .try_into()
+            .unwrap(),
+    )
+    .unwrap();
+    let base = context(&contract_vector.payload);
     let mutations = [
         VerifyContext {
             deployment_id: Uuid::new_v4(),
-            ..context(&v.payload)
+            ..context(&contract_vector.payload)
         },
         VerifyContext {
             product: Product::Gopico,
-            ..context(&v.payload)
+            ..context(&contract_vector.payload)
         },
         VerifyContext {
             distribution: Distribution::Official,
-            ..context(&v.payload)
+            ..context(&contract_vector.payload)
         },
         VerifyContext {
             machine_sha256: &"b".repeat(64),
-            ..context(&v.payload)
+            ..context(&contract_vector.payload)
         },
         VerifyContext {
-            now: v.payload.not_before - 1,
-            ..context(&v.payload)
+            now: contract_vector.payload.not_before - 1,
+            ..context(&contract_vector.payload)
         },
         VerifyContext {
-            now: v.payload.expires_at,
-            ..context(&v.payload)
+            now: contract_vector.payload.expires_at,
+            ..context(&contract_vector.payload)
         },
         VerifyContext {
             minimum_revision: 8,
-            ..context(&v.payload)
+            ..context(&contract_vector.payload)
         },
         VerifyContext {
             last_trusted_time: base.now + 1,
-            ..context(&v.payload)
+            ..context(&contract_vector.payload)
         },
         VerifyContext {
             minimum_revision: 0,
-            ..context(&v.payload)
+            ..context(&contract_vector.payload)
         },
     ];
     for context in mutations {
         assert_eq!(
-            verifier.verify(&v.wire, &context),
+            verifier.verify(&contract_vector.wire, &context),
             Err(LicenseError::Rejected)
         );
     }
     assert!(verifier
         .verify(
-            &v.wire,
+            &contract_vector.wire,
             &VerifyContext {
-                now: v.payload.not_before,
-                ..context(&v.payload)
+                now: contract_vector.payload.not_before,
+                ..context(&contract_vector.payload)
             }
         )
         .is_ok());
     assert!(verifier
         .verify(
-            &v.wire,
+            &contract_vector.wire,
             &VerifyContext {
-                now: v.payload.expires_at - 1,
-                ..context(&v.payload)
+                now: contract_vector.payload.expires_at - 1,
+                ..context(&contract_vector.payload)
             }
         )
         .is_ok());
 }
 #[test]
 fn valid_signature_does_not_authorize_unknown_or_noncanonical_payloads() {
-    let v = vector();
-    let verifier =
-        LicenseVerifier::new(hex::decode(&v.public_key).unwrap().try_into().unwrap()).unwrap();
-    let canonical = String::from_utf8(v.payload.canonical_bytes().unwrap()).unwrap();
+    let contract_vector = vector();
+    let verifier = LicenseVerifier::new(
+        hex::decode(&contract_vector.public_key)
+            .unwrap()
+            .try_into()
+            .unwrap(),
+    )
+    .unwrap();
+    let canonical = String::from_utf8(contract_vector.payload.canonical_bytes().unwrap()).unwrap();
     let extra = canonical.replacen("{", "{\"unexpected\":true,", 1);
     let duplicate = canonical.replacen("{", "{\"schema\":1,", 1);
     let no_product = canonical.replace("\"product\":\"pixels_console\",", "");
     let alias = canonical.replace("\"pixels_console\"", "\"Pixels_cms\"");
     let unknown_schema = canonical.replace("\"schema\":1", "\"schema\":2");
     let extra_space = canonical.replacen("{", "{ ", 1);
-    let wrong_key = canonical.replace(&v.payload.key_id, &"b".repeat(64));
+    let wrong_key = canonical.replace(&contract_vector.payload.key_id, &"b".repeat(64));
     for value in [
         extra,
         duplicate,
@@ -159,36 +177,46 @@ fn valid_signature_does_not_authorize_unknown_or_noncanonical_payloads() {
         wrong_key,
     ] {
         assert!(verifier
-            .verify(&signed_raw(value.as_bytes()), &context(&v.payload))
+            .verify(
+                &signed_raw(value.as_bytes()),
+                &context(&contract_vector.payload)
+            )
             .is_err());
     }
 }
 #[test]
 fn malformed_wire_tampering_and_wrong_trust_root_reject() {
-    let v = vector();
-    let verifier =
-        LicenseVerifier::new(hex::decode(&v.public_key).unwrap().try_into().unwrap()).unwrap();
+    let contract_vector = vector();
+    let verifier = LicenseVerifier::new(
+        hex::decode(&contract_vector.public_key)
+            .unwrap()
+            .try_into()
+            .unwrap(),
+    )
+    .unwrap();
     for wire in [
         "".into(),
-        v.wire.replacen("PXLIC1.", "", 1),
-        format!("{}.extra", v.wire),
-        format!("{}=", v.wire),
-        v.wire.replacen("PXLIC1.", "PXLIC2.", 1),
+        contract_vector.wire.replacen("PXLIC1.", "", 1),
+        format!("{}.extra", contract_vector.wire),
+        format!("{}=", contract_vector.wire),
+        contract_vector.wire.replacen("PXLIC1.", "PXLIC2.", 1),
         "x".repeat(8193),
     ] {
-        assert!(verifier.verify(&wire, &context(&v.payload)).is_err());
+        assert!(verifier
+            .verify(&wire, &context(&contract_vector.payload))
+            .is_err());
     }
-    let mut tampered = v.wire.clone().into_bytes();
+    let mut tampered = contract_vector.wire.clone().into_bytes();
     tampered[20] = if tampered[20] == b'A' { b'B' } else { b'A' };
     assert!(verifier
         .verify(
             std::str::from_utf8(&tampered).unwrap(),
-            &context(&v.payload)
+            &context(&contract_vector.payload)
         )
         .is_err());
     assert!(LicenseVerifier::new([42; 32])
         .unwrap()
-        .verify(&v.wire, &context(&v.payload))
+        .verify(&contract_vector.wire, &context(&contract_vector.payload))
         .is_err());
     assert!(LicenseVerifier::new([0; 32]).is_err());
     assert!(LicenseSigner::from_pkcs8(b"not a private key").is_err());

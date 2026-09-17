@@ -28,12 +28,12 @@ fn deployment() -> Uuid {
 
 #[tokio::test]
 async fn all_repository_handles_share_one_bounded_pool_and_owner_shutdown() {
-    let f = Fixture::new().await;
-    let admin = f.admin.clone();
-    let user = f
+    let fixture = Fixture::new().await;
+    let admin = fixture.admin.clone();
+    let user = fixture
         .session("user", px_console_store::ClientType::Android)
         .await;
-    f.close().await;
+    fixture.close().await;
     let owner = config("OWNER").connect().await.unwrap();
     let database = Arc::new(
         ConsoleDatabase::connect(

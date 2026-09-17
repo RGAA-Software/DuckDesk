@@ -102,7 +102,10 @@ impl ApplicationLaunch {
                 ..
             } => {
                 relative_executable(executable_relative)?;
-                if arguments.len() > 8192 || arguments.chars().any(|c| c.is_control() && c != '\t')
+                if arguments.len() > 8192
+                    || arguments
+                        .chars()
+                        .any(|character| character.is_control() && character != '\t')
                 {
                     return Err(StoreError::InvalidInput);
                 }
@@ -150,9 +153,10 @@ fn relative_executable(value: &str) -> Result<(), StoreError> {
 pub(crate) fn windows_relative_components(value: &str) -> Result<(), StoreError> {
     if value.is_empty()
         || value.len() > 2048
-        || value
-            .chars()
-            .any(|c| c.is_control() || matches!(c, '/' | ':' | '"' | '<' | '>' | '|' | '?' | '*'))
+        || value.chars().any(|character| {
+            character.is_control()
+                || matches!(character, '/' | ':' | '"' | '<' | '>' | '|' | '?' | '*')
+        })
     {
         return Err(StoreError::InvalidInput);
     }

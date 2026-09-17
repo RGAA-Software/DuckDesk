@@ -426,17 +426,17 @@ async fn call(
 }
 #[tokio::test]
 async fn login_logout_password_reset_and_session_expiry_are_database_authoritative() {
-    let f = Fixture::new("admin").await;
+    let fixture = Fixture::new("admin").await;
     let rejected = call(
-        &f.app,
+        &fixture.app,
         "POST",
         "/api/auth/sessions",
         None,
-        json!({"username":f.username,"password":"incorrect-password"}),
+        json!({"username":fixture.username,"password":"incorrect-password"}),
     )
     .await;
     let unknown = call(
-        &f.app,
+        &fixture.app,
         "POST",
         "/api/auth/sessions",
         None,
@@ -445,13 +445,20 @@ async fn login_logout_password_reset_and_session_expiry_are_database_authoritati
     .await;
     assert_eq!(rejected, unknown);
     assert_eq!(rejected.0, StatusCode::UNAUTHORIZED);
-    let token = f.login().await;
-    let me = call(&f.app, "GET", "/api/auth/me", Some(&token), Value::Null).await;
-    assert_eq!(me.1["id"], f.user.to_string());
+    let token = fixture.login().await;
+    let me = call(
+        &fixture.app,
+        "GET",
+        "/api/auth/me",
+        Some(&token),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(me.1["id"], fixture.user.to_string());
     assert!(me.1.get("password_hash").is_none());
     assert_eq!(
         call(
-            &f.app,
+            &fixture.app,
             "DELETE",
             "/api/auth/session",
             Some(&token),
@@ -462,67 +469,85 @@ async fn login_logout_password_reset_and_session_expiry_are_database_authoritati
         StatusCode::NO_CONTENT
     );
     assert_eq!(
-        call(&f.app, "GET", "/api/auth/me", Some(&token), Value::Null)
-            .await
-            .0,
+        call(
+            &fixture.app,
+            "GET",
+            "/api/auth/me",
+            Some(&token),
+            Value::Null
+        )
+        .await
+        .0,
         StatusCode::UNAUTHORIZED
     );
-    let token = f.login().await;
+    let token = fixture.login().await;
     let changed = call(
-        &f.app,
+        &fixture.app,
         "PATCH",
-        &format!("/api/auth/authors/{}/password", f.user),
+        &format!("/api/auth/authors/{}/password", fixture.user),
         Some(&token),
         json!({"expected_revision":1,"password":"synthetic-new-password"}),
     )
     .await;
     assert_eq!(changed.0, StatusCode::NO_CONTENT);
     assert_eq!(
-        call(&f.app, "GET", "/api/auth/me", Some(&token), Value::Null)
-            .await
-            .0,
+        call(
+            &fixture.app,
+            "GET",
+            "/api/auth/me",
+            Some(&token),
+            Value::Null
+        )
+        .await
+        .0,
         StatusCode::UNAUTHORIZED
     );
     assert_eq!(
         call(
-            &f.app,
+            &fixture.app,
             "POST",
             "/api/auth/sessions",
             None,
-            json!({"username":f.username,"password":PASSWORD})
+            json!({"username":fixture.username,"password":PASSWORD})
         )
         .await
         .0,
         StatusCode::UNAUTHORIZED
     );
     let token = call(
-        &f.app,
+        &fixture.app,
         "POST",
         "/api/auth/sessions",
         None,
-        json!({"username":f.username,"password":"synthetic-new-password"}),
+        json!({"username":fixture.username,"password":"synthetic-new-password"}),
     )
     .await
     .1["token"]
         .as_str()
         .unwrap()
         .to_owned();
-    sqlx::query("UPDATE pixels.author_sessions SET created_at=clock_timestamp()-interval '10 hours',expires_at=clock_timestamp()-interval '2 hours' WHERE author_id=$1").bind(f.user).execute(&f.owner).await.unwrap();
+    sqlx::query("UPDATE pixels.author_sessions SET created_at=clock_timestamp()-interval '10 hours',expires_at=clock_timestamp()-interval '2 hours' WHERE author_id=$1").bind(fixture.user).execute(&fixture.owner).await.unwrap();
     assert_eq!(
-        call(&f.app, "GET", "/api/auth/me", Some(&token), Value::Null)
-            .await
-            .0,
+        call(
+            &fixture.app,
+            "GET",
+            "/api/auth/me",
+            Some(&token),
+            Value::Null
+        )
+        .await
+        .0,
         StatusCode::UNAUTHORIZED
     );
-    f.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn admin_create_list_and_visitor_denials_have_no_hidden_write() {
-    let f = Fixture::new("admin").await;
-    let token = f.login().await;
+    let fixture = Fixture::new("admin").await;
+    let token = fixture.login().await;
     let username = Uuid::new_v4().to_string();
     let created = call(
-        &f.app,
+        &fixture.app,
         "POST",
         "/api/auth/authors",
         Some(&token),
@@ -532,7 +557,7 @@ async fn admin_create_list_and_visitor_denials_have_no_hidden_write() {
     assert_eq!(created.0, StatusCode::CREATED);
     assert_eq!(created.1["authorization_revision"], 1);
     let visitor = call(
-        &f.app,
+        &fixture.app,
         "POST",
         "/api/auth/sessions",
         None,
@@ -544,12 +569,12 @@ async fn admin_create_list_and_visitor_denials_have_no_hidden_write() {
         .unwrap()
         .to_owned();
     let before: i64 = sqlx::query_scalar("SELECT count(*) FROM pixels.customers")
-        .fetch_one(&f.owner)
+        .fetch_one(&fixture.owner)
         .await
         .unwrap();
     assert_eq!(
         call(
-            &f.app,
+            &fixture.app,
             "POST",
             "/api/auth/customers",
             Some(&visitor),
@@ -561,7 +586,7 @@ async fn admin_create_list_and_visitor_denials_have_no_hidden_write() {
     );
     assert_eq!(
         call(
-            &f.app,
+            &fixture.app,
             "GET",
             "/api/auth/authors?limit=100",
             Some(&visitor),
@@ -573,7 +598,7 @@ async fn admin_create_list_and_visitor_denials_have_no_hidden_write() {
     );
     assert_eq!(
         call(
-            &f.app,
+            &fixture.app,
             "GET",
             "/api/auth/customers?limit=100",
             Some(&visitor),
@@ -585,7 +610,7 @@ async fn admin_create_list_and_visitor_denials_have_no_hidden_write() {
     );
     assert_eq!(
         call(
-            &f.app,
+            &fixture.app,
             "GET",
             "/api/auth/licenses?limit=101",
             Some(&visitor),
@@ -598,12 +623,12 @@ async fn admin_create_list_and_visitor_denials_have_no_hidden_write() {
     assert_eq!(
         before,
         sqlx::query_scalar::<_, i64>("SELECT count(*) FROM pixels.customers")
-            .fetch_one(&f.owner)
+            .fetch_one(&fixture.owner)
             .await
             .unwrap()
     );
     let rows = call(
-        &f.app,
+        &fixture.app,
         "GET",
         "/api/auth/authors?limit=100",
         Some(&token),
@@ -617,14 +642,14 @@ async fn admin_create_list_and_visitor_denials_have_no_hidden_write() {
         .iter()
         .any(|row| row["username"] == username));
     assert!(!rows.to_string().contains("password"));
-    f.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn issuance_retry_online_verification_and_revocation_are_one_new_contract() {
-    let f = Fixture::new("admin").await;
-    let token = f.login().await;
+    let fixture = Fixture::new("admin").await;
+    let token = fixture.login().await;
     let customer = call(
-        &f.app,
+        &fixture.app,
         "POST",
         "/api/auth/customers",
         Some(&token),
@@ -636,7 +661,7 @@ async fn issuance_retry_online_verification_and_revocation_are_one_new_contract(
     let terms = json!({"customer_id":customer.1["id"],"deployment_id":deployment,"product":"pixels_console","distribution":"customer","machine_sha256":"b".repeat(64),"mode":"licensed","activation":{"kind":"immediately"},"expires_at":chrono::Utc::now().timestamp()+86400,"max_devices":2,"max_sessions":4,"features":["cloud_applications","desktop","rdp"]});
     let issue = json!({"request_id":Uuid::new_v4(),"request":{"operation":"create","terms":terms}});
     let first = call(
-        &f.app,
+        &fixture.app,
         "POST",
         "/api/auth/licenses/issue",
         Some(&token),
@@ -647,7 +672,7 @@ async fn issuance_retry_online_verification_and_revocation_are_one_new_contract(
     assert_eq!(
         first,
         call(
-            &f.app,
+            &fixture.app,
             "POST",
             "/api/auth/licenses/issue",
             Some(&token),
@@ -658,7 +683,7 @@ async fn issuance_retry_online_verification_and_revocation_are_one_new_contract(
     let verify = json!({"wire":first.1["wire"],"deployment_id":deployment,"product":"pixels_console","distribution":"customer","machine_sha256":"b".repeat(64)});
     assert_eq!(
         call(
-            &f.app,
+            &fixture.app,
             "POST",
             "/api/auth/licenses/verify",
             None,
@@ -671,18 +696,24 @@ async fn issuance_retry_online_verification_and_revocation_are_one_new_contract(
     let mut wrong = verify.clone();
     wrong["deployment_id"] = json!(Uuid::new_v4());
     assert_eq!(
-        call(&f.app, "POST", "/api/auth/licenses/verify", None, wrong)
-            .await
-            .0,
+        call(
+            &fixture.app,
+            "POST",
+            "/api/auth/licenses/verify",
+            None,
+            wrong
+        )
+        .await
+        .0,
         StatusCode::UNAUTHORIZED
     );
     let id = first.1["license_id"].as_str().unwrap();
-    let renewed=call(&f.app,"POST","/api/auth/licenses/issue",Some(&token),json!({"request_id":Uuid::new_v4(),"request":{"operation":"renew","license_id":id,"expected_revision":1,"terms":terms}})).await;
+    let renewed=call(&fixture.app,"POST","/api/auth/licenses/issue",Some(&token),json!({"request_id":Uuid::new_v4(),"request":{"operation":"renew","license_id":id,"expected_revision":1,"terms":terms}})).await;
     assert_eq!(renewed.0, StatusCode::OK);
     assert_eq!(renewed.1["revision"], 2);
     assert_eq!(
         call(
-            &f.app,
+            &fixture.app,
             "POST",
             "/api/auth/licenses/verify",
             None,
@@ -696,7 +727,7 @@ async fn issuance_retry_online_verification_and_revocation_are_one_new_contract(
     verify["wire"] = renewed.1["wire"].clone();
     assert_eq!(
         call(
-            &f.app,
+            &fixture.app,
             "POST",
             "/api/auth/licenses/verify",
             None,
@@ -708,7 +739,7 @@ async fn issuance_retry_online_verification_and_revocation_are_one_new_contract(
     );
     assert_eq!(
         call(
-            &f.app,
+            &fixture.app,
             "POST",
             &format!("/api/auth/licenses/{id}/revoke"),
             Some(&token),
@@ -719,13 +750,19 @@ async fn issuance_retry_online_verification_and_revocation_are_one_new_contract(
         StatusCode::OK
     );
     assert_eq!(
-        call(&f.app, "POST", "/api/auth/licenses/verify", None, verify)
-            .await
-            .0,
+        call(
+            &fixture.app,
+            "POST",
+            "/api/auth/licenses/verify",
+            None,
+            verify
+        )
+        .await
+        .0,
         StatusCode::UNAUTHORIZED
     );
     let rows = call(
-        &f.app,
+        &fixture.app,
         "GET",
         "/api/auth/licenses?limit=100",
         Some(&token),
@@ -740,29 +777,31 @@ async fn issuance_retry_online_verification_and_revocation_are_one_new_contract(
         .any(|row| row["license_id"] == id
             && !row["revoked_at"].is_null()
             && row["revision"] == 3));
-    f.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn malformed_legacy_requests_and_database_failure_never_succeed() {
-    let f = Fixture::new("admin").await;
-    let token = f.login().await;
+    let fixture = Fixture::new("admin").await;
+    let token = fixture.login().await;
     for path in [
         "/api/v1/verify/author",
         "/api/v1/create/authorization",
         "/api/gopico/verify",
     ] {
         assert_eq!(
-            call(&f.app, "POST", path, Some(&token), json!({})).await.0,
+            call(&fixture.app, "POST", path, Some(&token), json!({}))
+                .await
+                .0,
             StatusCode::NOT_FOUND
         );
     }
     assert_eq!(
         call(
-            &f.app,
+            &fixture.app,
             "POST",
             "/api/auth/sessions",
             None,
-            json!({"username":f.username,"password":PASSWORD,"role":"admin"})
+            json!({"username":fixture.username,"password":PASSWORD,"role":"admin"})
         )
         .await
         .0,
@@ -770,38 +809,38 @@ async fn malformed_legacy_requests_and_database_failure_never_succeed() {
     );
     assert_eq!(
         call(
-            &f.app,
+            &fixture.app,
             "POST",
             "/api/auth/sessions",
             None,
-            json!({"username":f.username,"password":"a".repeat(40000)})
+            json!({"username":fixture.username,"password":"a".repeat(40000)})
         )
         .await
         .0,
         StatusCode::PAYLOAD_TOO_LARGE
     );
     assert_eq!(
-        call(&f.app, "GET", "/health/ready", None, Value::Null)
+        call(&fixture.app, "GET", "/health/ready", None, Value::Null)
             .await
             .0,
         StatusCode::NO_CONTENT
     );
-    f.state.close().await;
+    fixture.state.close().await;
     assert_eq!(
-        call(&f.app, "GET", "/health/ready", None, Value::Null)
+        call(&fixture.app, "GET", "/health/ready", None, Value::Null)
             .await
             .0,
         StatusCode::SERVICE_UNAVAILABLE
     );
     assert_eq!(
-        call(&f.app, "GET", "/health/live", None, Value::Null)
+        call(&fixture.app, "GET", "/health/live", None, Value::Null)
             .await
             .0,
         StatusCode::NO_CONTENT
     );
     assert_eq!(
         call(
-            &f.app,
+            &fixture.app,
             "POST",
             "/api/auth/customers",
             Some(&token),
@@ -811,5 +850,5 @@ async fn malformed_legacy_requests_and_database_failure_never_succeed() {
         .0,
         StatusCode::SERVICE_UNAVAILABLE
     );
-    f.close().await;
+    fixture.close().await;
 }

@@ -136,7 +136,10 @@ impl FileTransferStore {
         }
         if checked.state == "completed"
             && (checked.bytes != previous.total_bytes
-                || checked.received.as_ref().map(|h| h.as_slice())
+                || checked
+                    .received
+                    .as_ref()
+                    .map(|received_hash| received_hash.as_slice())
                     != Some(previous.expected_sha256.as_slice()))
         {
             return Err(StoreError::Rejected);
@@ -149,7 +152,10 @@ impl FileTransferStore {
             checked.bytes,
             checked.state,
             checked.reason,
-            checked.received.as_ref().map(|h| h.as_slice()),
+            checked
+                .received
+                .as_ref()
+                .map(|received_hash| received_hash.as_slice()),
             checked.hash.as_slice()
         )
         .fetch_one(&mut *tx)

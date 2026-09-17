@@ -57,8 +57,14 @@ impl Submission {
             }
             Kind::Issue => {
                 self.consult_type.is_none()
-                    && self.version.as_deref().is_some_and(|v| text(v, 1, 64))
-                    && self.os.as_deref().is_some_and(|v| text(v, 1, 64))
+                    && self
+                        .version
+                        .as_deref()
+                        .is_some_and(|field_value| text(field_value, 1, 64))
+                    && self
+                        .os
+                        .as_deref()
+                        .is_some_and(|field_value| text(field_value, 1, 64))
             }
         };
         if common && specific {

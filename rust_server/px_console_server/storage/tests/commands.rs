@@ -100,7 +100,7 @@ struct Fixture {
 impl Fixture {
     async fn new() -> Self {
         let deployment = env::var("PIXELS_DEPLOYMENT_ID").unwrap().parse().unwrap();
-        let mut f = Self {
+        let mut fixture = Self {
             instances: InstanceStore::connect(&config("RUNTIME"), deployment)
                 .await
                 .unwrap(),
@@ -125,8 +125,8 @@ impl Fixture {
             owner: config("OWNER").connect().await.unwrap(),
             admin: token(),
         };
-        f.admin = f.session("admin", ClientType::AdminWeb).await;
-        f
+        fixture.admin = fixture.session("admin", ClientType::AdminWeb).await;
+        fixture
     }
     async fn session(&self, role: &str, client: ClientType) -> TokenDigest {
         let user = self
@@ -357,32 +357,40 @@ fn request(app: Uuid) -> StartApplication {
 
 #[tokio::test]
 async fn revoke_between_claim_and_ack_atomically_adds_one_exact_stop() {
-    let f = Fixture::new().await;
-    let (connection, app, _) = f.prepared(DeploymentTarget::Webview, 1).await;
-    let (_, instance, start) = f.started(&connection, app.id).await;
+    let fixture = Fixture::new().await;
+    let (connection, app, _) = fixture.prepared(DeploymentTarget::Webview, 1).await;
+    let (_, instance, start) = fixture.started(&connection, app.id).await;
     let origin: (Uuid, Uuid) =
         sqlx::query_as("SELECT owner_user,login_session_id FROM pixels.instances WHERE id=$1")
             .bind(instance.id)
-            .fetch_one(&f.owner)
+            .fetch_one(&fixture.owner)
             .await
             .unwrap();
-    f.identity.revoke_session(origin.0, origin.1).await.unwrap();
+    fixture
+        .identity
+        .revoke_session(origin.0, origin.1)
+        .await
+        .unwrap();
     let ack = receipt(&start, CommandOutcome::Running { port: port(&start) });
     // Failure to persist the compensating Stop must also roll back the Running receipt.
     sqlx::query("REVOKE INSERT ON pixels.instance_commands FROM pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
-    let failed = f.instances.acknowledge_command(&connection, &ack).await;
+    let failed = fixture
+        .instances
+        .acknowledge_command(&connection, &ack)
+        .await;
     sqlx::query("GRANT INSERT ON pixels.instance_commands TO pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
     assert!(failed.is_err());
-    assert_eq!(state(&f, instance.id).await.0, "starting");
+    assert_eq!(state(&fixture, instance.id).await.0, "starting");
     for _ in 0..2 {
         assert_eq!(
-            f.instances
+            fixture
+                .instances
                 .acknowledge_command(&connection, &ack)
                 .await
                 .unwrap()
@@ -394,11 +402,11 @@ async fn revoke_between_claim_and_ack_atomically_adds_one_exact_stop() {
         "SELECT count(*) FROM pixels.instance_commands WHERE instance_id=$1 AND kind='stop'",
     )
     .bind(instance.id)
-    .fetch_one(&f.owner)
+    .fetch_one(&fixture.owner)
     .await
     .unwrap();
     assert_eq!(count, 1);
-    let stop = f
+    let stop = fixture
         .instances
         .next_command(&connection)
         .await
@@ -407,19 +415,20 @@ async fn revoke_between_claim_and_ack_atomically_adds_one_exact_stop() {
     assert!(matches!(stop.action, NodeCommandAction::Stop));
     assert_eq!(stop.launch_id, start.launch_id);
     assert!(stop.instance_revision > start.instance_revision);
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn config_change_or_drain_after_claim_reconciles_without_killing_existing_launch() {
-    let f = Fixture::new().await;
+    let fixture = Fixture::new().await;
     for drain in [false, true] {
-        let (connection, mut app, _) = f.prepared(DeploymentTarget::Webview, 1).await;
-        let (user, instance, start) = f.started(&connection, app.id).await;
+        let (connection, mut app, _) = fixture.prepared(DeploymentTarget::Webview, 1).await;
+        let (user, instance, start) = fixture.started(&connection, app.id).await;
         if drain {
-            f.nodes
+            fixture
+                .nodes
                 .configure(
-                    &f.admin,
+                    &fixture.admin,
                     connection.id(),
                     2,
                     NodeConfiguration {
@@ -439,23 +448,29 @@ async fn config_change_or_drain_after_claim_reconciles_without_killing_existing_
                     bitrate_kbps: 16000,
                 },
             };
-            f.apps
-                .update(&f.admin, app.id, app.revision, &app.spec)
+            fixture
+                .apps
+                .update(&fixture.admin, app.id, app.revision, &app.spec)
                 .await
                 .unwrap();
         }
         sqlx::query("UPDATE pixels.instance_commands SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1")
-            .bind(start.id).execute(&f.owner).await.unwrap();
-        assert!(f
+            .bind(start.id).execute(&fixture.owner).await.unwrap();
+        assert!(fixture
             .instances
             .next_command(&connection)
             .await
             .unwrap()
             .is_none());
-        assert_eq!(state(&f, instance.id).await.0, "reconcile_required");
-        assert!(state(&f, instance.id).await.1.is_none());
-        let challenge = f.instances.begin_reconciliation(&connection).await.unwrap();
-        f.instances
+        assert_eq!(state(&fixture, instance.id).await.0, "reconcile_required");
+        assert!(state(&fixture, instance.id).await.1.is_none());
+        let challenge = fixture
+            .instances
+            .begin_reconciliation(&connection)
+            .await
+            .unwrap();
+        fixture
+            .instances
             .reconcile(
                 &connection,
                 &RuntimeInventory {
@@ -465,12 +480,12 @@ async fn config_change_or_drain_after_claim_reconciles_without_killing_existing_
             )
             .await
             .unwrap();
-        assert_eq!(state(&f, instance.id).await.0, "running");
+        assert_eq!(state(&fixture, instance.id).await.0, "running");
         let snapshot: (i64, String) = sqlx::query_as(
             "SELECT application_revision,entry_url FROM pixels.instances WHERE id=$1",
         )
         .bind(instance.id)
-        .fetch_one(&f.owner)
+        .fetch_one(&fixture.owner)
         .await
         .unwrap();
         assert_eq!(
@@ -481,12 +496,13 @@ async fn config_change_or_drain_after_claim_reconciles_without_killing_existing_
             "SELECT count(*) FROM pixels.instance_commands WHERE instance_id=$1 AND kind='stop'",
         )
         .bind(instance.id)
-        .fetch_one(&f.owner)
+        .fetch_one(&fixture.owner)
         .await
         .unwrap();
         assert_eq!(stops, 0);
         assert_eq!(
-            f.instances
+            fixture
+                .instances
                 .reserve(
                     ResourceCredential::User(&user),
                     ClientType::Android,
@@ -498,15 +514,15 @@ async fn config_change_or_drain_after_claim_reconciles_without_killing_existing_
             StoreError::NoCapacity
         );
     }
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn revocation_during_inventory_cannot_restore_running_authorization() {
-    let f = Fixture::new().await;
-    let (connection, app, _) = f.prepared(DeploymentTarget::Webview, 1).await;
-    let (guest, _) = f.guest().await;
-    let instance = f
+    let fixture = Fixture::new().await;
+    let (connection, app, _) = fixture.prepared(DeploymentTarget::Webview, 1).await;
+    let (guest, _) = fixture.guest().await;
+    let instance = fixture
         .instances
         .reserve(
             ResourceCredential::Guest(&guest),
@@ -516,15 +532,24 @@ async fn revocation_during_inventory_cannot_restore_running_authorization() {
         )
         .await
         .unwrap();
-    let start = f
+    let start = fixture
         .instances
         .next_command(&connection)
         .await
         .unwrap()
         .unwrap();
-    let challenge = f.instances.begin_reconciliation(&connection).await.unwrap();
-    f.guests.logout(&guest, ClientType::Android).await.unwrap();
-    f.instances
+    let challenge = fixture
+        .instances
+        .begin_reconciliation(&connection)
+        .await
+        .unwrap();
+    fixture
+        .guests
+        .logout(&guest, ClientType::Android)
+        .await
+        .unwrap();
+    fixture
+        .instances
         .reconcile(
             &connection,
             &RuntimeInventory {
@@ -534,8 +559,8 @@ async fn revocation_during_inventory_cannot_restore_running_authorization() {
         )
         .await
         .unwrap();
-    assert_eq!(state(&f, instance.id).await.0, "stopping");
-    let stop = f
+    assert_eq!(state(&fixture, instance.id).await.0, "stopping");
+    let stop = fixture
         .instances
         .next_command(&connection)
         .await
@@ -544,19 +569,23 @@ async fn revocation_during_inventory_cannot_restore_running_authorization() {
     assert!(matches!(stop.action, NodeCommandAction::Stop));
     assert!(stop.instance_revision > challenge.launches[0].reject_through_revision);
     assert_eq!(stop.launch_id, start.launch_id);
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn endpoint_changes_invalidate_inventory_and_require_new_deployment_report() {
-    let f = Fixture::new().await;
-    let (connection, app, deployment) = f.prepared(DeploymentTarget::Webview, 1).await;
-    let user = f.session("user", ClientType::Android).await;
-    let old = f.instances.begin_reconciliation(&connection).await.unwrap();
+    let fixture = Fixture::new().await;
+    let (connection, app, deployment) = fixture.prepared(DeploymentTarget::Webview, 1).await;
+    let user = fixture.session("user", ClientType::Android).await;
+    let old = fixture
+        .instances
+        .begin_reconciliation(&connection)
+        .await
+        .unwrap();
     let mut report = node_report(2);
     report.public_host = "new-node.example.test".into();
-    let node = f.nodes.report(&connection, &report).await.unwrap();
-    assert!(f
+    let node = fixture.nodes.report(&connection, &report).await.unwrap();
+    assert!(fixture
         .instances
         .reconcile(
             &connection,
@@ -567,8 +596,13 @@ async fn endpoint_changes_invalidate_inventory_and_require_new_deployment_report
         )
         .await
         .is_err());
-    let current = f.instances.begin_reconciliation(&connection).await.unwrap();
-    f.instances
+    let current = fixture
+        .instances
+        .begin_reconciliation(&connection)
+        .await
+        .unwrap();
+    fixture
+        .instances
         .reconcile(
             &connection,
             &RuntimeInventory {
@@ -579,7 +613,8 @@ async fn endpoint_changes_invalidate_inventory_and_require_new_deployment_report
         .await
         .unwrap();
     assert_eq!(
-        f.instances
+        fixture
+            .instances
             .reserve(
                 ResourceCredential::User(&user),
                 ClientType::Android,
@@ -592,12 +627,14 @@ async fn endpoint_changes_invalidate_inventory_and_require_new_deployment_report
     );
     let mut prepared = observation(&deployment, 2);
     prepared.endpoint_revision = node.endpoint_revision;
-    f.deployments
+    fixture
+        .deployments
         .report(&connection, deployment.id, &prepared)
         .await
         .unwrap();
     assert_eq!(
-        f.instances
+        fixture
+            .instances
             .reserve(
                 ResourceCredential::User(&user),
                 ClientType::Android,
@@ -609,16 +646,16 @@ async fn endpoint_changes_invalidate_inventory_and_require_new_deployment_report
             .state,
         "reserved"
     );
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn unsent_stop_is_immediate_but_unknown_ack_keeps_occupancy_and_denies_other_owners() {
-    let f = Fixture::new().await;
-    let (connection, app, _) = f.prepared(DeploymentTarget::Webview, 1).await;
-    let user = f.session("user", ClientType::Android).await;
-    let other = f.session("user", ClientType::Android).await;
-    let instance = f
+    let fixture = Fixture::new().await;
+    let (connection, app, _) = fixture.prepared(DeploymentTarget::Webview, 1).await;
+    let user = fixture.session("user", ClientType::Android).await;
+    let other = fixture.session("user", ClientType::Android).await;
+    let instance = fixture
         .instances
         .reserve(
             ResourceCredential::User(&user),
@@ -628,7 +665,7 @@ async fn unsent_stop_is_immediate_but_unknown_ack_keeps_occupancy_and_denies_oth
         )
         .await
         .unwrap();
-    assert!(f
+    assert!(fixture
         .instances
         .stop(
             ResourceCredential::User(&other),
@@ -639,7 +676,7 @@ async fn unsent_stop_is_immediate_but_unknown_ack_keeps_occupancy_and_denies_oth
         )
         .await
         .is_err());
-    let stopped = f
+    let stopped = fixture
         .instances
         .stop(
             ResourceCredential::User(&user),
@@ -651,15 +688,15 @@ async fn unsent_stop_is_immediate_but_unknown_ack_keeps_occupancy_and_denies_oth
         .await
         .unwrap();
     assert_eq!(stopped.state, "stopped");
-    assert!(f
+    assert!(fixture
         .instances
         .next_command(&connection)
         .await
         .unwrap()
         .is_none());
-    let (_, uncertain, start) = f.started(&connection, app.id).await;
+    let (_, uncertain, start) = fixture.started(&connection, app.id).await;
     let ack = receipt(&start, CommandOutcome::Unknown);
-    let unknown = f
+    let unknown = fixture
         .instances
         .acknowledge_command(&connection, &ack)
         .await
@@ -667,19 +704,21 @@ async fn unsent_stop_is_immediate_but_unknown_ack_keeps_occupancy_and_denies_oth
     assert_eq!(unknown.state, "reconcile_required");
     assert!(unknown.ended_at.is_none());
     assert_eq!(
-        f.instances
+        fixture
+            .instances
             .acknowledge_command(&connection, &ack)
             .await
             .unwrap(),
         unknown
     );
-    assert!(f
+    assert!(fixture
         .instances
         .acknowledge_command(&connection, &receipt(&start, CommandOutcome::Absent))
         .await
         .is_err());
     assert_eq!(
-        f.instances
+        fixture
+            .instances
             .reserve(
                 ResourceCredential::User(&user),
                 ClientType::Android,
@@ -690,8 +729,8 @@ async fn unsent_stop_is_immediate_but_unknown_ack_keeps_occupancy_and_denies_oth
             .unwrap_err(),
         StoreError::NoCapacity
     );
-    assert!(state(&f, uncertain.id).await.1.is_none());
-    f.close().await;
+    assert!(state(&fixture, uncertain.id).await.1.is_none());
+    fixture.close().await;
 }
 fn receipt(command: &NodeCommand, outcome: CommandOutcome) -> CommandReceipt {
     CommandReceipt {
@@ -717,18 +756,18 @@ fn observed(command: &NodeCommand) -> ObservedRuntime {
         phase: ObservedRuntimePhase::Running,
     }
 }
-async fn state(f: &Fixture, id: Uuid) -> (String, Option<chrono::DateTime<chrono::Utc>>) {
+async fn state(fixture: &Fixture, id: Uuid) -> (String, Option<chrono::DateTime<chrono::Utc>>) {
     sqlx::query_as("SELECT state,ended_at FROM pixels.instances WHERE id=$1")
         .bind(id)
-        .fetch_one(&f.owner)
+        .fetch_one(&fixture.owner)
         .await
         .unwrap()
 }
 
 #[tokio::test]
 async fn start_ack_stop_and_duplicate_receipts_never_touch_reused_capacity() {
-    let f = Fixture::new().await;
-    let (connection, app, _) = f
+    let fixture = Fixture::new().await;
+    let (connection, app, _) = fixture
         .prepared(
             DeploymentTarget::GameHook {
                 install_root: r"D:\游戏 根目录".into(),
@@ -736,7 +775,7 @@ async fn start_ack_stop_and_duplicate_receipts_never_touch_reused_capacity() {
             1,
         )
         .await;
-    let (user, instance, start) = f.started(&connection, app.id).await;
+    let (user, instance, start) = fixture.started(&connection, app.id).await;
     assert!(matches!(instance.owner, ResourceOwner::User { .. }));
     assert_eq!(start.instance_revision, 2);
     match &start.action {
@@ -750,21 +789,22 @@ async fn start_ack_stop_and_duplicate_receipts_never_touch_reused_capacity() {
         }
         _ => panic!("typed game launch required"),
     }
-    assert!(f
+    assert!(fixture
         .instances
         .next_command(&connection)
         .await
         .unwrap()
         .is_none());
     let ack = receipt(&start, CommandOutcome::Running { port: port(&start) });
-    let running = f
+    let running = fixture
         .instances
         .acknowledge_command(&connection, &ack)
         .await
         .unwrap();
     assert_eq!(running.state, "running");
     assert_eq!(
-        f.instances
+        fixture
+            .instances
             .acknowledge_command(&connection, &ack)
             .await
             .unwrap(),
@@ -772,7 +812,7 @@ async fn start_ack_stop_and_duplicate_receipts_never_touch_reused_capacity() {
     );
     let mut wrong = ack.clone();
     wrong.lease_id = Uuid::new_v4();
-    assert!(f
+    assert!(fixture
         .instances
         .acknowledge_command(&connection, &wrong)
         .await
@@ -781,12 +821,12 @@ async fn start_ack_stop_and_duplicate_receipts_never_touch_reused_capacity() {
     wrong.outcome = CommandOutcome::Running {
         port: port(&start) + 1,
     };
-    assert!(f
+    assert!(fixture
         .instances
         .acknowledge_command(&connection, &wrong)
         .await
         .is_err());
-    let stopping = f
+    let stopping = fixture
         .instances
         .stop(
             ResourceCredential::User(&user),
@@ -800,13 +840,14 @@ async fn start_ack_stop_and_duplicate_receipts_never_touch_reused_capacity() {
     assert_eq!(stopping.state, "stopping");
     // A replay of an already-completed Start receipt returns current state, never Running again.
     assert_eq!(
-        f.instances
+        fixture
+            .instances
             .acknowledge_command(&connection, &ack)
             .await
             .unwrap(),
         stopping
     );
-    let stop = f
+    let stop = fixture
         .instances
         .next_command(&connection)
         .await
@@ -814,7 +855,7 @@ async fn start_ack_stop_and_duplicate_receipts_never_touch_reused_capacity() {
         .unwrap();
     assert!(matches!(stop.action, NodeCommandAction::Stop));
     let stop_ack = receipt(&stop, CommandOutcome::Absent);
-    let stopped = f
+    let stopped = fixture
         .instances
         .acknowledge_command(&connection, &stop_ack)
         .await
@@ -822,13 +863,14 @@ async fn start_ack_stop_and_duplicate_receipts_never_touch_reused_capacity() {
     assert_eq!(stopped.state, "stopped");
     assert!(stopped.ended_at.is_some());
     assert_eq!(
-        f.instances
+        fixture
+            .instances
             .acknowledge_command(&connection, &stop_ack)
             .await
             .unwrap(),
         stopped
     );
-    let new = f
+    let new = fixture
         .instances
         .reserve(
             ResourceCredential::User(&user),
@@ -839,7 +881,8 @@ async fn start_ack_stop_and_duplicate_receipts_never_touch_reused_capacity() {
         .await
         .unwrap();
     assert_eq!(
-        f.instances
+        fixture
+            .instances
             .stop(
                 ResourceCredential::User(&user),
                 ClientType::Android,
@@ -851,17 +894,18 @@ async fn start_ack_stop_and_duplicate_receipts_never_touch_reused_capacity() {
             .unwrap(),
         stopped
     );
-    assert_eq!(state(&f, new.id).await.0, "reserved");
-    assert_eq!(f.count(connection.id()).await, 2);
-    f.close().await;
+    assert_eq!(state(&fixture, new.id).await.0, "reserved");
+    assert_eq!(fixture.count(connection.id()).await, 2);
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn concurrent_claim_and_lease_reclaim_keep_command_id_and_reject_old_lease_and_node() {
-    let f = Fixture::new().await;
-    let (connection, app, _) = f.prepared(DeploymentTarget::Webview, 1).await;
-    let user = f.session("user", ClientType::Android).await;
-    f.instances
+    let fixture = Fixture::new().await;
+    let (connection, app, _) = fixture.prepared(DeploymentTarget::Webview, 1).await;
+    let user = fixture.session("user", ClientType::Android).await;
+    fixture
+        .instances
         .reserve(
             ResourceCredential::User(&user),
             ClientType::Android,
@@ -872,7 +916,7 @@ async fn concurrent_claim_and_lease_reclaim_keep_command_id_and_reject_old_lease
         .unwrap();
     let mut tasks = Vec::new();
     for _ in 0..20 {
-        let store = f.instances.clone();
+        let store = fixture.instances.clone();
         let node = connection.clone();
         tasks.push(tokio::spawn(async move { store.next_command(&node).await }));
     }
@@ -885,8 +929,8 @@ async fn concurrent_claim_and_lease_reclaim_keep_command_id_and_reject_old_lease
     assert_eq!(commands.len(), 1);
     let old = commands.remove(0);
     sqlx::query("UPDATE pixels.instance_commands SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1")
-        .bind(old.id).execute(&f.owner).await.unwrap();
-    let current = f
+        .bind(old.id).execute(&fixture.owner).await.unwrap();
+    let current = fixture
         .instances
         .next_command(&connection)
         .await
@@ -895,7 +939,7 @@ async fn concurrent_claim_and_lease_reclaim_keep_command_id_and_reject_old_lease
     assert_eq!(current.id, old.id);
     assert_eq!(current.instance_revision, old.instance_revision);
     assert_ne!(current.lease_id, old.lease_id);
-    assert!(f
+    assert!(fixture
         .instances
         .acknowledge_command(
             &connection,
@@ -903,14 +947,14 @@ async fn concurrent_claim_and_lease_reclaim_keep_command_id_and_reject_old_lease
         )
         .await
         .is_err());
-    let (_, key) = f.node().await;
-    let other = f
+    let (_, key) = fixture.node().await;
+    let other = fixture
         .nodes
         .open_connection(connection.epoch(), &key, &token())
         .await
         .unwrap();
-    f.nodes.report(&other, &node_report(1)).await.unwrap();
-    assert!(f
+    fixture.nodes.report(&other, &node_report(1)).await.unwrap();
+    assert!(fixture
         .instances
         .acknowledge_command(
             &other,
@@ -924,7 +968,8 @@ async fn concurrent_claim_and_lease_reclaim_keep_command_id_and_reject_old_lease
         .await
         .is_err());
     assert_eq!(
-        f.instances
+        fixture
+            .instances
             .acknowledge_command(
                 &connection,
                 &receipt(
@@ -939,15 +984,15 @@ async fn concurrent_claim_and_lease_reclaim_keep_command_id_and_reject_old_lease
             .state,
         "running"
     );
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn original_login_logout_before_dispatch_cancels_without_network_effect() {
-    let f = Fixture::new().await;
-    let (connection, app, _) = f.prepared(DeploymentTarget::Webview, 1).await;
-    let user = f.session("user", ClientType::Android).await;
-    let instance = f
+    let fixture = Fixture::new().await;
+    let (connection, app, _) = fixture.prepared(DeploymentTarget::Webview, 1).await;
+    let user = fixture.session("user", ClientType::Android).await;
+    let instance = fixture
         .instances
         .reserve(
             ResourceCredential::User(&user),
@@ -960,35 +1005,39 @@ async fn original_login_logout_before_dispatch_cancels_without_network_effect() 
     let origin: (Uuid, Uuid) =
         sqlx::query_as("SELECT owner_user,login_session_id FROM pixels.instances WHERE id=$1")
             .bind(instance.id)
-            .fetch_one(&f.owner)
+            .fetch_one(&fixture.owner)
             .await
             .unwrap();
-    f.identity.revoke_session(origin.0, origin.1).await.unwrap();
-    assert!(f
+    fixture
+        .identity
+        .revoke_session(origin.0, origin.1)
+        .await
+        .unwrap();
+    assert!(fixture
         .instances
         .next_command(&connection)
         .await
         .unwrap()
         .is_none());
-    let result = state(&f, instance.id).await;
+    let result = state(&fixture, instance.id).await;
     assert_eq!(result.0, "failed");
     assert!(result.1.is_some());
     let attempts: i32 =
         sqlx::query_scalar("SELECT attempts FROM pixels.instance_commands WHERE instance_id=$1")
             .bind(instance.id)
-            .fetch_one(&f.owner)
+            .fetch_one(&fixture.owner)
             .await
             .unwrap();
     assert_eq!(attempts, 0);
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn revoked_guest_after_claim_gets_higher_revision_stop_and_late_start_is_rejected() {
-    let f = Fixture::new().await;
-    let (connection, app, _) = f.prepared(DeploymentTarget::Webview, 1).await;
-    let (guest, _) = f.guest().await;
-    let instance = f
+    let fixture = Fixture::new().await;
+    let (connection, app, _) = fixture.prepared(DeploymentTarget::Webview, 1).await;
+    let (guest, _) = fixture.guest().await;
+    let instance = fixture
         .instances
         .reserve(
             ResourceCredential::Guest(&guest),
@@ -998,16 +1047,20 @@ async fn revoked_guest_after_claim_gets_higher_revision_stop_and_late_start_is_r
         )
         .await
         .unwrap();
-    let start = f
+    let start = fixture
         .instances
         .next_command(&connection)
         .await
         .unwrap()
         .unwrap();
-    f.guests.logout(&guest, ClientType::Android).await.unwrap();
+    fixture
+        .guests
+        .logout(&guest, ClientType::Android)
+        .await
+        .unwrap();
     sqlx::query("UPDATE pixels.instance_commands SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1")
-        .bind(start.id).execute(&f.owner).await.unwrap();
-    let stop = f
+        .bind(start.id).execute(&fixture.owner).await.unwrap();
+    let stop = fixture
         .instances
         .next_command(&connection)
         .await
@@ -1015,7 +1068,7 @@ async fn revoked_guest_after_claim_gets_higher_revision_stop_and_late_start_is_r
         .unwrap();
     assert!(matches!(stop.action, NodeCommandAction::Stop));
     assert!(stop.instance_revision > start.instance_revision);
-    assert!(f
+    assert!(fixture
         .instances
         .acknowledge_command(
             &connection,
@@ -1024,24 +1077,25 @@ async fn revoked_guest_after_claim_gets_higher_revision_stop_and_late_start_is_r
         .await
         .is_err());
     assert_eq!(
-        f.instances
+        fixture
+            .instances
             .acknowledge_command(&connection, &receipt(&stop, CommandOutcome::Absent))
             .await
             .unwrap()
             .state,
         "stopped"
     );
-    assert_eq!(f.count(connection.id()).await, 1);
-    assert!(state(&f, instance.id).await.1.is_some());
-    f.close().await;
+    assert_eq!(fixture.count(connection.id()).await, 1);
+    assert!(state(&fixture, instance.id).await.1.is_some());
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn claim_ack_and_administrator_audit_failures_roll_back_every_state_change() {
-    let f = Fixture::new().await;
-    let (connection, app, _) = f.prepared(DeploymentTarget::Webview, 1).await;
-    let user = f.session("user", ClientType::Android).await;
-    let instance = f
+    let fixture = Fixture::new().await;
+    let (connection, app, _) = fixture.prepared(DeploymentTarget::Webview, 1).await;
+    let user = fixture.session("user", ClientType::Android).await;
+    let instance = fixture
         .instances
         .reserve(
             ResourceCredential::User(&user),
@@ -1052,17 +1106,17 @@ async fn claim_ack_and_administrator_audit_failures_roll_back_every_state_change
         .await
         .unwrap();
     sqlx::query("REVOKE INSERT ON pixels.instance_events FROM pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
-    let claim = f.instances.next_command(&connection).await;
+    let claim = fixture.instances.next_command(&connection).await;
     sqlx::query("GRANT INSERT ON pixels.instance_events TO pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
     assert!(claim.is_err());
-    assert_eq!(state(&f, instance.id).await.0, "reserved");
-    let start = f
+    assert_eq!(state(&fixture, instance.id).await.0, "reserved");
+    let start = fixture
         .instances
         .next_command(&connection)
         .await
@@ -1070,44 +1124,57 @@ async fn claim_ack_and_administrator_audit_failures_roll_back_every_state_change
         .unwrap();
     let ack = receipt(&start, CommandOutcome::Running { port: port(&start) });
     sqlx::query("REVOKE INSERT ON pixels.instance_events FROM pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
-    let outcome = f.instances.acknowledge_command(&connection, &ack).await;
+    let outcome = fixture
+        .instances
+        .acknowledge_command(&connection, &ack)
+        .await;
     sqlx::query("GRANT INSERT ON pixels.instance_events TO pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
     assert!(outcome.is_err());
-    assert_eq!(state(&f, instance.id).await.0, "starting");
-    let running = f
+    assert_eq!(state(&fixture, instance.id).await.0, "starting");
+    let running = fixture
         .instances
         .acknowledge_command(&connection, &ack)
         .await
         .unwrap();
     sqlx::query("REVOKE INSERT ON pixels.instance_admin_actions FROM pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
-    let outcome = f
+    let outcome = fixture
         .instances
-        .stop_managed(&f.admin, connection.epoch(), instance.id, running.revision)
+        .stop_managed(
+            &fixture.admin,
+            connection.epoch(),
+            instance.id,
+            running.revision,
+        )
         .await;
     sqlx::query("GRANT INSERT ON pixels.instance_admin_actions TO pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
     assert!(outcome.is_err());
-    assert_eq!(state(&f, instance.id).await.0, "running");
-    let viewer = f.session("viewer", ClientType::AdminWeb).await;
-    assert!(f
+    assert_eq!(state(&fixture, instance.id).await.0, "running");
+    let viewer = fixture.session("viewer", ClientType::AdminWeb).await;
+    assert!(fixture
         .instances
         .stop_managed(&viewer, connection.epoch(), instance.id, running.revision)
         .await
         .is_err());
-    let stopping = f
+    let stopping = fixture
         .instances
-        .stop_managed(&f.admin, connection.epoch(), instance.id, running.revision)
+        .stop_managed(
+            &fixture.admin,
+            connection.epoch(),
+            instance.id,
+            running.revision,
+        )
         .await
         .unwrap();
     assert_eq!(stopping.state, "stopping");
@@ -1115,19 +1182,19 @@ async fn claim_ack_and_administrator_audit_failures_roll_back_every_state_change
         "SELECT count(*) FROM pixels.instance_admin_actions WHERE instance_id=$1",
     )
     .bind(instance.id)
-    .fetch_one(&f.owner)
+    .fetch_one(&fixture.owner)
     .await
     .unwrap();
     assert_eq!(audits, 1);
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn timeout_releases_only_never_claimed_work_and_keeps_uncertain_occupancy() {
-    let f = Fixture::new().await;
-    let (connection, app, _) = f.prepared(DeploymentTarget::Webview, 1).await;
-    let user = f.session("user", ClientType::Android).await;
-    let unsent = f
+    let fixture = Fixture::new().await;
+    let (connection, app, _) = fixture.prepared(DeploymentTarget::Webview, 1).await;
+    let user = fixture.session("user", ClientType::Android).await;
+    let unsent = fixture
         .instances
         .reserve(
             ResourceCredential::User(&user),
@@ -1138,27 +1205,27 @@ async fn timeout_releases_only_never_claimed_work_and_keeps_uncertain_occupancy(
         .await
         .unwrap();
     sqlx::query("UPDATE pixels.instance_commands SET deadline=clock_timestamp()-interval '1 second' WHERE instance_id=$1")
-        .bind(unsent.id).execute(&f.owner).await.unwrap();
-    assert!(f
+        .bind(unsent.id).execute(&fixture.owner).await.unwrap();
+    assert!(fixture
         .instances
         .next_command(&connection)
         .await
         .unwrap()
         .is_none());
-    assert_eq!(state(&f, unsent.id).await.0, "failed");
-    assert!(state(&f, unsent.id).await.1.is_some());
-    let (_, uncertain, start) = f.started(&connection, app.id).await;
+    assert_eq!(state(&fixture, unsent.id).await.0, "failed");
+    assert!(state(&fixture, unsent.id).await.1.is_some());
+    let (_, uncertain, start) = fixture.started(&connection, app.id).await;
     sqlx::query("UPDATE pixels.instance_commands SET deadline=clock_timestamp()-interval '1 second',lease_until=clock_timestamp()-interval '1 second' WHERE id=$1")
-        .bind(start.id).execute(&f.owner).await.unwrap();
-    assert!(f
+        .bind(start.id).execute(&fixture.owner).await.unwrap();
+    assert!(fixture
         .instances
         .next_command(&connection)
         .await
         .unwrap()
         .is_none());
-    assert_eq!(state(&f, uncertain.id).await.0, "reconcile_required");
-    assert!(state(&f, uncertain.id).await.1.is_none());
-    assert!(f
+    assert_eq!(state(&fixture, uncertain.id).await.0, "reconcile_required");
+    assert!(state(&fixture, uncertain.id).await.1.is_none());
+    assert!(fixture
         .instances
         .acknowledge_command(
             &connection,
@@ -1167,7 +1234,8 @@ async fn timeout_releases_only_never_claimed_work_and_keeps_uncertain_occupancy(
         .await
         .is_err());
     assert_eq!(
-        f.instances
+        fixture
+            .instances
             .reserve(
                 ResourceCredential::User(&user),
                 ClientType::Android,
@@ -1178,22 +1246,26 @@ async fn timeout_releases_only_never_claimed_work_and_keeps_uncertain_occupancy(
             .unwrap_err(),
         StoreError::NoCapacity
     );
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn inventory_challenges_reject_unknown_old_duplicate_expired_and_mismatched_reports() {
-    let f = Fixture::new().await;
-    let (connection, app, _) = f.prepared(DeploymentTarget::Webview, 1).await;
-    let user = f.session("user", ClientType::Android).await;
-    let old = f.instances.begin_reconciliation(&connection).await.unwrap();
+    let fixture = Fixture::new().await;
+    let (connection, app, _) = fixture.prepared(DeploymentTarget::Webview, 1).await;
+    let user = fixture.session("user", ClientType::Android).await;
+    let old = fixture
+        .instances
+        .begin_reconciliation(&connection)
+        .await
+        .unwrap();
     let unknown = ObservedRuntime {
         instance_id: Uuid::new_v4(),
         launch_id: Uuid::new_v4(),
         port: 4613,
         phase: ObservedRuntimePhase::Running,
     };
-    assert!(f
+    assert!(fixture
         .instances
         .reconcile(
             &connection,
@@ -1205,7 +1277,8 @@ async fn inventory_challenges_reject_unknown_old_duplicate_expired_and_mismatche
         .await
         .is_err());
     assert_eq!(
-        f.instances
+        fixture
+            .instances
             .reserve(
                 ResourceCredential::User(&user),
                 ClientType::Android,
@@ -1216,8 +1289,12 @@ async fn inventory_challenges_reject_unknown_old_duplicate_expired_and_mismatche
             .unwrap_err(),
         StoreError::NoCapacity
     );
-    let current = f.instances.begin_reconciliation(&connection).await.unwrap();
-    assert!(f
+    let current = fixture
+        .instances
+        .begin_reconciliation(&connection)
+        .await
+        .unwrap();
+    assert!(fixture
         .instances
         .reconcile(
             &connection,
@@ -1228,7 +1305,8 @@ async fn inventory_challenges_reject_unknown_old_duplicate_expired_and_mismatche
         )
         .await
         .is_err());
-    f.instances
+    fixture
+        .instances
         .reconcile(
             &connection,
             &RuntimeInventory {
@@ -1238,9 +1316,9 @@ async fn inventory_challenges_reject_unknown_old_duplicate_expired_and_mismatche
         )
         .await
         .unwrap();
-    let (_, instance, start) = f.started(&connection, app.id).await;
+    let (_, instance, start) = fixture.started(&connection, app.id).await;
     // A consumed empty inventory must not erase a later Start.
-    assert!(f
+    assert!(fixture
         .instances
         .reconcile(
             &connection,
@@ -1251,11 +1329,15 @@ async fn inventory_challenges_reject_unknown_old_duplicate_expired_and_mismatche
         )
         .await
         .is_err());
-    assert_eq!(state(&f, instance.id).await.0, "starting");
-    let expired = f.instances.begin_reconciliation(&connection).await.unwrap();
+    assert_eq!(state(&fixture, instance.id).await.0, "starting");
+    let expired = fixture
+        .instances
+        .begin_reconciliation(&connection)
+        .await
+        .unwrap();
     sqlx::query("UPDATE pixels.nodes SET reconciliation_deadline=clock_timestamp()-interval '1 second' WHERE id=$1")
-        .bind(connection.id()).execute(&f.owner).await.unwrap();
-    assert!(f
+        .bind(connection.id()).execute(&fixture.owner).await.unwrap();
+    assert!(fixture
         .instances
         .reconcile(
             &connection,
@@ -1266,10 +1348,14 @@ async fn inventory_challenges_reject_unknown_old_duplicate_expired_and_mismatche
         )
         .await
         .is_err());
-    let current = f.instances.begin_reconciliation(&connection).await.unwrap();
+    let current = fixture
+        .instances
+        .begin_reconciliation(&connection)
+        .await
+        .unwrap();
     let mut wrong = observed(&start);
     wrong.launch_id = Uuid::new_v4();
-    assert!(f
+    assert!(fixture
         .instances
         .reconcile(
             &connection,
@@ -1282,7 +1368,7 @@ async fn inventory_challenges_reject_unknown_old_duplicate_expired_and_mismatche
         .is_err());
     let mut wrong = observed(&start);
     wrong.port += 1;
-    assert!(f
+    assert!(fixture
         .instances
         .reconcile(
             &connection,
@@ -1293,7 +1379,7 @@ async fn inventory_challenges_reject_unknown_old_duplicate_expired_and_mismatche
         )
         .await
         .is_err());
-    assert!(f
+    assert!(fixture
         .instances
         .reconcile(
             &connection,
@@ -1305,10 +1391,10 @@ async fn inventory_challenges_reject_unknown_old_duplicate_expired_and_mismatche
         .await
         .is_err());
     sqlx::query("REVOKE INSERT ON pixels.instance_events FROM pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
-    let outcome = f
+    let outcome = fixture
         .instances
         .reconcile(
             &connection,
@@ -1319,12 +1405,13 @@ async fn inventory_challenges_reject_unknown_old_duplicate_expired_and_mismatche
         )
         .await;
     sqlx::query("GRANT INSERT ON pixels.instance_events TO pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
     assert!(outcome.is_err());
-    assert_eq!(state(&f, instance.id).await.0, "reconcile_required");
-    f.instances
+    assert_eq!(state(&fixture, instance.id).await.0, "reconcile_required");
+    fixture
+        .instances
         .reconcile(
             &connection,
             &RuntimeInventory {
@@ -1334,41 +1421,43 @@ async fn inventory_challenges_reject_unknown_old_duplicate_expired_and_mismatche
         )
         .await
         .unwrap();
-    assert_eq!(state(&f, instance.id).await.0, "running");
-    f.close().await;
+    assert_eq!(state(&fixture, instance.id).await.0, "running");
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn reconnect_reconciles_exact_rdp_runtime_without_replaying_start_or_changing_owner() {
-    let f = Fixture::new().await;
-    let (connection, app, deployment) = f.prepared(DeploymentTarget::Rdp, 1).await;
-    let (user, instance, start) = f.started(&connection, app.id).await;
-    f.nodes.close_connection(&connection).await.unwrap();
+    let fixture = Fixture::new().await;
+    let (connection, app, deployment) = fixture.prepared(DeploymentTarget::Rdp, 1).await;
+    let (user, instance, start) = fixture.started(&connection, app.id).await;
+    fixture.nodes.close_connection(&connection).await.unwrap();
     let key = token();
     let revision: i64 = sqlx::query_scalar("SELECT revision FROM pixels.nodes WHERE id=$1")
         .bind(connection.id())
-        .fetch_one(&f.owner)
+        .fetch_one(&fixture.owner)
         .await
         .unwrap();
-    f.nodes
-        .rotate_key(&f.admin, connection.id(), revision, &key)
+    fixture
+        .nodes
+        .rotate_key(&fixture.admin, connection.id(), revision, &key)
         .await
         .unwrap();
-    let new = f
+    let new = fixture
         .nodes
         .open_connection(connection.epoch(), &key, &token())
         .await
         .unwrap();
-    f.nodes.report(&new, &node_report(1)).await.unwrap();
-    f.deployments
+    fixture.nodes.report(&new, &node_report(1)).await.unwrap();
+    fixture
+        .deployments
         .report(&new, deployment.id, &observation(&deployment, 1))
         .await
         .unwrap();
-    let challenge = f.instances.begin_reconciliation(&new).await.unwrap();
+    let challenge = fixture.instances.begin_reconciliation(&new).await.unwrap();
     assert_eq!(challenge.launches.len(), 1);
     assert!(challenge.launches[0].reject_through_revision > start.instance_revision);
     assert_eq!(challenge.launches[0].launch_id, start.launch_id);
-    assert!(f
+    assert!(fixture
         .instances
         .acknowledge_command(
             &connection,
@@ -1376,7 +1465,8 @@ async fn reconnect_reconciles_exact_rdp_runtime_without_replaying_start_or_chang
         )
         .await
         .is_err());
-    f.instances
+    fixture
+        .instances
         .reconcile(
             &new,
             &RuntimeInventory {
@@ -1386,7 +1476,7 @@ async fn reconnect_reconciles_exact_rdp_runtime_without_replaying_start_or_chang
         )
         .await
         .unwrap();
-    let running = f
+    let running = fixture
         .instances
         .get(
             ResourceCredential::User(&user),
@@ -1397,40 +1487,52 @@ async fn reconnect_reconciles_exact_rdp_runtime_without_replaying_start_or_chang
         .unwrap();
     assert_eq!(running.state, "running");
     assert_eq!(running.owner, instance.owner);
-    assert!(f.instances.next_command(&new).await.unwrap().is_none());
+    assert!(fixture
+        .instances
+        .next_command(&new)
+        .await
+        .unwrap()
+        .is_none());
     let count: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM pixels.instance_commands WHERE instance_id=$1 AND kind='start'",
     )
     .bind(instance.id)
-    .fetch_one(&f.owner)
+    .fetch_one(&fixture.owner)
     .await
     .unwrap();
     assert_eq!(count, 1);
-    f.instances
-        .stop_managed(&f.admin, new.epoch(), instance.id, running.revision)
+    fixture
+        .instances
+        .stop_managed(&fixture.admin, new.epoch(), instance.id, running.revision)
         .await
         .unwrap();
-    let stop = f.instances.next_command(&new).await.unwrap().unwrap();
+    let stop = fixture.instances.next_command(&new).await.unwrap().unwrap();
     assert_eq!(stop.node_generation, new.generation());
     assert!(matches!(stop.action, NodeCommandAction::Stop));
     assert_eq!(
-        f.instances
+        fixture
+            .instances
             .acknowledge_command(&new, &receipt(&stop, CommandOutcome::Absent))
             .await
             .unwrap()
             .state,
         "stopped"
     );
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn fenced_absence_releases_resources_and_interleaved_stop_is_not_downgraded_to_failed() {
-    let f = Fixture::new().await;
-    let (connection, app, _) = f.prepared(DeploymentTarget::Webview, 1).await;
-    let (user, instance, start) = f.started(&connection, app.id).await;
-    let challenge = f.instances.begin_reconciliation(&connection).await.unwrap();
-    f.instances
+    let fixture = Fixture::new().await;
+    let (connection, app, _) = fixture.prepared(DeploymentTarget::Webview, 1).await;
+    let (user, instance, start) = fixture.started(&connection, app.id).await;
+    let challenge = fixture
+        .instances
+        .begin_reconciliation(&connection)
+        .await
+        .unwrap();
+    fixture
+        .instances
         .reconcile(
             &connection,
             &RuntimeInventory {
@@ -1440,9 +1542,9 @@ async fn fenced_absence_releases_resources_and_interleaved_stop_is_not_downgrade
         )
         .await
         .unwrap();
-    assert_eq!(state(&f, instance.id).await.0, "failed");
-    assert!(state(&f, instance.id).await.1.is_some());
-    assert!(f
+    assert_eq!(state(&fixture, instance.id).await.0, "failed");
+    assert!(state(&fixture, instance.id).await.1.is_some());
+    assert!(fixture
         .instances
         .acknowledge_command(
             &connection,
@@ -1450,7 +1552,7 @@ async fn fenced_absence_releases_resources_and_interleaved_stop_is_not_downgrade
         )
         .await
         .is_err());
-    let second = f
+    let second = fixture
         .instances
         .reserve(
             ResourceCredential::User(&user),
@@ -1460,13 +1562,18 @@ async fn fenced_absence_releases_resources_and_interleaved_stop_is_not_downgrade
         )
         .await
         .unwrap();
-    f.instances
+    fixture
+        .instances
         .next_command(&connection)
         .await
         .unwrap()
         .unwrap();
-    let challenge = f.instances.begin_reconciliation(&connection).await.unwrap();
-    let current = f
+    let challenge = fixture
+        .instances
+        .begin_reconciliation(&connection)
+        .await
+        .unwrap();
+    let current = fixture
         .instances
         .get(
             ResourceCredential::User(&user),
@@ -1475,7 +1582,8 @@ async fn fenced_absence_releases_resources_and_interleaved_stop_is_not_downgrade
         )
         .await
         .unwrap();
-    f.instances
+    fixture
+        .instances
         .stop(
             ResourceCredential::User(&user),
             ClientType::Android,
@@ -1485,7 +1593,8 @@ async fn fenced_absence_releases_resources_and_interleaved_stop_is_not_downgrade
         )
         .await
         .unwrap();
-    f.instances
+    fixture
+        .instances
         .reconcile(
             &connection,
             &RuntimeInventory {
@@ -1495,22 +1604,22 @@ async fn fenced_absence_releases_resources_and_interleaved_stop_is_not_downgrade
         )
         .await
         .unwrap();
-    assert_eq!(state(&f, second.id).await.0, "stopped");
-    assert!(f
+    assert_eq!(state(&fixture, second.id).await.0, "stopped");
+    assert!(fixture
         .instances
         .next_command(&connection)
         .await
         .unwrap()
         .is_none());
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn spec_changes_and_draining_reject_unsent_start_without_spawning() {
-    let f = Fixture::new().await;
-    let (connection, mut app, deployment) = f.prepared(DeploymentTarget::Webview, 1).await;
-    let user = f.session("user", ClientType::Android).await;
-    let first = f
+    let fixture = Fixture::new().await;
+    let (connection, mut app, deployment) = fixture.prepared(DeploymentTarget::Webview, 1).await;
+    let user = fixture.session("user", ClientType::Android).await;
+    let first = fixture
         .instances
         .reserve(
             ResourceCredential::User(&user),
@@ -1521,26 +1630,31 @@ async fn spec_changes_and_draining_reject_unsent_start_without_spawning() {
         .await
         .unwrap();
     app.spec.name = "new spec".into();
-    f.apps.update(&f.admin, app.id, 1, &app.spec).await.unwrap();
-    assert!(f
+    fixture
+        .apps
+        .update(&fixture.admin, app.id, 1, &app.spec)
+        .await
+        .unwrap();
+    assert!(fixture
         .instances
         .next_command(&connection)
         .await
         .unwrap()
         .is_none());
-    assert_eq!(state(&f, first.id).await.0, "failed");
+    assert_eq!(state(&fixture, first.id).await.0, "failed");
     let mut changed = settings(DeploymentTarget::Webview);
     changed.capacity = 1;
-    let deployment = f
+    let deployment = fixture
         .deployments
-        .configure(&f.admin, deployment.id, deployment.revision, &changed)
+        .configure(&fixture.admin, deployment.id, deployment.revision, &changed)
         .await
         .unwrap();
-    f.deployments
+    fixture
+        .deployments
         .report(&connection, deployment.id, &observation(&deployment, 1))
         .await
         .unwrap();
-    let second = f
+    let second = fixture
         .instances
         .reserve(
             ResourceCredential::User(&user),
@@ -1550,9 +1664,10 @@ async fn spec_changes_and_draining_reject_unsent_start_without_spawning() {
         )
         .await
         .unwrap();
-    f.nodes
+    fixture
+        .nodes
         .configure(
-            &f.admin,
+            &fixture.admin,
             connection.id(),
             2,
             NodeConfiguration {
@@ -1563,48 +1678,57 @@ async fn spec_changes_and_draining_reject_unsent_start_without_spawning() {
         )
         .await
         .unwrap();
-    assert!(f
+    assert!(fixture
         .instances
         .next_command(&connection)
         .await
         .unwrap()
         .is_none());
-    assert_eq!(state(&f, second.id).await.0, "failed");
+    assert_eq!(state(&fixture, second.id).await.0, "failed");
     let attempts: i64 = sqlx::query_scalar(
         "SELECT sum(attempts)::bigint FROM pixels.instance_commands WHERE node_id=$1",
     )
     .bind(connection.id())
-    .fetch_one(&f.owner)
+    .fetch_one(&fixture.owner)
     .await
     .unwrap();
     assert_eq!(attempts, 0);
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn heartbeat_after_a_stale_gap_requires_new_inventory_and_cancels_old_commands() {
-    let f = Fixture::new().await;
-    let (connection, app, _) = f.prepared(DeploymentTarget::Webview, 1).await;
-    let (_, instance, start) = f.started(&connection, app.id).await;
+    let fixture = Fixture::new().await;
+    let (connection, app, _) = fixture.prepared(DeploymentTarget::Webview, 1).await;
+    let (_, instance, start) = fixture.started(&connection, app.id).await;
     sqlx::query(
         "UPDATE pixels.nodes SET last_seen=clock_timestamp()-interval '31 seconds' WHERE id=$1",
     )
     .bind(connection.id())
-    .execute(&f.owner)
+    .execute(&fixture.owner)
     .await
     .unwrap();
-    let report = f.nodes.report(&connection, &node_report(2)).await.unwrap();
+    let report = fixture
+        .nodes
+        .report(&connection, &node_report(2))
+        .await
+        .unwrap();
     assert!(report.fresh);
     assert_eq!(report.state, "reconciling");
-    assert_eq!(state(&f, instance.id).await.0, "reconcile_required");
-    assert!(f
+    assert_eq!(state(&fixture, instance.id).await.0, "reconcile_required");
+    assert!(fixture
         .instances
         .next_command(&connection)
         .await
         .unwrap()
         .is_none());
-    let challenge = f.instances.begin_reconciliation(&connection).await.unwrap();
-    f.instances
+    let challenge = fixture
+        .instances
+        .begin_reconciliation(&connection)
+        .await
+        .unwrap();
+    fixture
+        .instances
         .reconcile(
             &connection,
             &RuntimeInventory {
@@ -1614,8 +1738,8 @@ async fn heartbeat_after_a_stale_gap_requires_new_inventory_and_cancels_old_comm
         )
         .await
         .unwrap();
-    assert_eq!(state(&f, instance.id).await.0, "running");
-    assert!(f
+    assert_eq!(state(&fixture, instance.id).await.0, "running");
+    assert!(fixture
         .instances
         .acknowledge_command(
             &connection,
@@ -1623,5 +1747,5 @@ async fn heartbeat_after_a_stale_gap_requires_new_inventory_and_cancels_old_comm
         )
         .await
         .is_err());
-    f.close().await;
+    fixture.close().await;
 }

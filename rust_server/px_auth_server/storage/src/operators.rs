@@ -149,7 +149,7 @@ fn validate_author(username: &str, hash: &str, role: &str) -> Result<(), AuthErr
         || !(2..=64).contains(&username.chars().count())
         || username
             .chars()
-            .any(|c| c.is_control() || matches!(c, '/' | '\\'))
+            .any(|character| character.is_control() || matches!(character, '/' | '\\'))
         || !matches!(role, "admin" | "visitor")
     {
         return Err(AuthError::Invalid);

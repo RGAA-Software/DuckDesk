@@ -23,8 +23,8 @@ impl OriginFingerprint {
     }
 }
 impl std::fmt::Debug for OriginFingerprint {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("OriginFingerprint(<redacted>)")
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("OriginFingerprint(<redacted>)")
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, sqlx::FromRow)]

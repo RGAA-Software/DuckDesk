@@ -68,8 +68,8 @@ impl VirtualDisplayError {
 }
 
 impl std::fmt::Display for VirtualDisplayError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {}", self.code, self.message)
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{}: {}", self.code, self.message)
     }
 }
 

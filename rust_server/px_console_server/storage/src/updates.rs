@@ -55,7 +55,7 @@ impl UpdateStore {
             tx.commit().await?;
             return Ok(result);
         }
-        let t = artifact.target;
+        let release_target = artifact.target;
         let row = sqlx::query_file_as!(
             UpdateRow,
             "queries/register_update.sql",
@@ -63,11 +63,11 @@ impl UpdateStore {
             actor,
             request_id,
             hash.as_slice(),
-            t.product.name(),
-            t.distribution.name(),
-            t.channel.name(),
-            t.os.name(),
-            t.architecture.name(),
+            release_target.product.name(),
+            release_target.distribution.name(),
+            release_target.channel.name(),
+            release_target.os.name(),
+            release_target.architecture.name(),
             artifact.build_number,
             artifact.version,
             artifact.artifact_url,

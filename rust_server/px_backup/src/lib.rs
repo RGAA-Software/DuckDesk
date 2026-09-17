@@ -5,6 +5,7 @@ mod executor;
 mod manifest;
 mod repository;
 mod retention;
+mod scheduler;
 
 pub use executor::{
     BackupCancellation, BackupError, BackupPlan, BackupRunner, BackupTarget, DatabaseTarget,
@@ -16,3 +17,7 @@ pub use manifest::{
 };
 pub use repository::{BackupRepository, RepositoryError, StagedRecoverySet};
 pub use retention::{retained_set_ids, RetentionClass, RetentionPolicy};
+pub use scheduler::{
+    BackupScheduleConfig, BackupTask, BackupTaskOutcome, BackupTaskSnapshot, BackupTaskStore,
+    SchedulerError,
+};

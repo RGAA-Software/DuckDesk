@@ -124,6 +124,49 @@ impl BackupRepository {
             .collect())
     }
 
+    pub fn prune_after_verified(
+        &self,
+        newest_recovery_set_id: Uuid,
+        policy: RetentionPolicy,
+        now_unix: u64,
+    ) -> Result<BTreeSet<Uuid>, RepositoryError> {
+        let manifests = self.manifests()?;
+        let newest = manifests
+            .iter()
+            .filter(|manifest| manifest.status.is_verified())
+            .max_by_key(|manifest| {
+                (
+                    manifest.completed_at_unix,
+                    manifest.created_at_unix,
+                    manifest.recovery_set_id,
+                )
+            })
+            .ok_or(RepositoryError::InvalidInput)?;
+        if newest.recovery_set_id != newest_recovery_set_id {
+            return Err(RepositoryError::InvalidInput);
+        }
+        let retained = retained_set_ids(&manifests, policy, now_unix);
+        let candidates = manifests
+            .iter()
+            .filter(|manifest| {
+                manifest.status.is_verified()
+                    && !manifest.locked
+                    && !manifest.restoring
+                    && !retained.contains(&manifest.recovery_set_id)
+            })
+            .map(|manifest| manifest.recovery_set_id)
+            .collect::<BTreeSet<_>>();
+        for recovery_set_id in &candidates {
+            let manifest = manifests
+                .iter()
+                .find(|manifest| manifest.recovery_set_id == *recovery_set_id)
+                .ok_or(RepositoryError::Corrupt)?;
+            delete_recovery_set(&self.root, manifest)?;
+        }
+        sync_directory(&self.root)?;
+        Ok(candidates)
+    }
+
     pub fn deployment_id(&self) -> Uuid {
         self.deployment_id
     }
@@ -195,6 +238,19 @@ fn verify_dependency_graph(manifests: &[RecoverySetManifest]) -> Result<(), Repo
         }
     }
     Ok(())
+}
+
+fn delete_recovery_set(root: &Path, manifest: &RecoverySetManifest) -> Result<(), RepositoryError> {
+    let directory = root.join(manifest.recovery_set_id.to_string());
+    verify_recovery_set(&directory, manifest)?;
+    for member in &manifest.members {
+        if let crate::BackupMemberState::Required { archive_file, .. } = &member.member {
+            fs::remove_file(directory.join(archive_file))
+                .map_err(|_| RepositoryError::Unavailable)?;
+        }
+    }
+    fs::remove_file(directory.join("manifest.json")).map_err(|_| RepositoryError::Unavailable)?;
+    fs::remove_dir(&directory).map_err(|_| RepositoryError::Unavailable)
 }
 
 pub struct StagedRecoverySet<'a> {
@@ -645,5 +701,43 @@ mod tests {
         dependent.previous_recovery_set_id = Some(Uuid::new_v4());
         publish(&second_repository, &dependent);
         assert_eq!(second_repository.manifests(), Err(RepositoryError::Corrupt));
+    }
+
+    #[test]
+    fn pruning_requires_the_newest_verified_set_and_deletes_only_registered_candidates() {
+        let fixture = Fixture::new();
+        let repository = BackupRepository::open(&fixture.root, fixture.deployment_id).unwrap();
+        let values = (1..=3)
+            .map(|index| manifest(fixture.deployment_id, index))
+            .collect::<Vec<_>>();
+        for value in &values {
+            publish(&repository, value);
+        }
+        assert_eq!(
+            repository.prune_after_verified(
+                values[1].recovery_set_id,
+                RetentionPolicy {
+                    hourly: 1,
+                    ..RetentionPolicy::default()
+                },
+                100,
+            ),
+            Err(RepositoryError::InvalidInput)
+        );
+        let deleted = repository
+            .prune_after_verified(
+                values[2].recovery_set_id,
+                RetentionPolicy {
+                    hourly: 1,
+                    ..RetentionPolicy::default()
+                },
+                100,
+            )
+            .unwrap();
+        assert_eq!(
+            deleted,
+            BTreeSet::from([values[0].recovery_set_id, values[1].recovery_set_id])
+        );
+        assert_eq!(repository.manifests().unwrap(), vec![values[2].clone()]);
     }
 }

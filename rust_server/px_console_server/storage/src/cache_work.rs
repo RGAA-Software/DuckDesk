@@ -56,19 +56,19 @@ impl RecordingCacheStore {
         Ok(result)
     }
     async fn worker(
-        c: &mut PgConnection,
+        connection: &mut PgConnection,
         run: &CacheRuntime,
         node: &NodeConnection,
         attempt: &CacheAttempt,
         require_origin: bool,
     ) -> Result<(CacheEntry, CacheSource, CacheBlob), StoreError> {
-        Self::current(c, run).await?;
-        let authority = node_lifecycle::authorize(c, node).await?;
-        let source = Self::source(c, run, attempt.recording_id).await?;
-        let entry = Self::entry(c, attempt.recording_id)
+        Self::current(connection, run).await?;
+        let authority = node_lifecycle::authorize(connection, node).await?;
+        let source = Self::source(connection, run, attempt.recording_id).await?;
+        let entry = Self::entry(connection, attempt.recording_id)
             .await?
             .ok_or(StoreError::Rejected)?;
-        let blob = Self::blob(c, attempt.id).await?;
+        let blob = Self::blob(connection, attempt.id).await?;
         if authority.id != attempt.node_id
             || authority.generation != attempt.node_generation
             || blob.node_generation != authority.generation
@@ -80,7 +80,7 @@ impl RecordingCacheStore {
             || source.source_id != attempt.source_id
             || source.content()? != attempt.content
             || blob.recording_id != attempt.recording_id
-            || (require_origin && !Self::origin(c, blob.id).await?)
+            || (require_origin && !Self::origin(connection, blob.id).await?)
         {
             return Err(StoreError::Rejected);
         }

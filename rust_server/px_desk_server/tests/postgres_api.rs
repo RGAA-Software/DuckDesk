@@ -351,20 +351,22 @@ async fn feedback_idempotency_pagination_cas_and_permissions() {
         .as_array()
         .unwrap()
         .iter()
-        .any(|r| r["id"] == id && r["revision"] == 1));
+        .any(|response_record| {
+            response_record["id"] == id && response_record["revision"] == 1
+        }));
     let path = format!("/api/desk/consults/{id}");
     let mark = json!({"expected_revision":1,"processed":true});
     assert_eq!(
         call(&app, "PATCH", &path, None, mark.clone()).await.0,
         StatusCode::UNAUTHORIZED
     );
-    let (a, b) = tokio::join!(
+    let (first_response, second_response) = tokio::join!(
         call(&app, "PATCH", &path, Some(&token), mark.clone()),
         call(&app, "PATCH", &path, Some(&token), mark)
     );
     assert!(
-        (a.0 == StatusCode::OK && b.0 == StatusCode::CONFLICT)
-            || (b.0 == StatusCode::OK && a.0 == StatusCode::CONFLICT)
+        (first_response.0 == StatusCode::OK && second_response.0 == StatusCode::CONFLICT)
+            || (second_response.0 == StatusCode::OK && first_response.0 == StatusCode::CONFLICT)
     );
     let revision: i64 = sqlx::query_scalar("SELECT revision FROM pixels.feedback WHERE id=$1")
         .bind(id.parse::<Uuid>().unwrap())
@@ -420,19 +422,19 @@ async fn invalid_feedback_has_no_side_effects_and_issue_is_distinct() {
         json!({}),
         json!({"unexpected":true}),
         {
-            let mut b = base.clone();
-            b["title"] = json!("");
-            b
+            let mut invalid_body = base.clone();
+            invalid_body["title"] = json!("");
+            invalid_body
         },
         {
-            let mut b = base.clone();
-            b["os"] = json!("Windows");
-            b
+            let mut invalid_body = base.clone();
+            invalid_body["os"] = json!("Windows");
+            invalid_body
         },
         {
-            let mut b = base.clone();
-            b["description"] = json!("x".repeat(8193));
-            b
+            let mut invalid_body = base.clone();
+            invalid_body["description"] = json!("x".repeat(8193));
+            invalid_body
         },
     ] {
         assert!(call(&app, "POST", "/api/desk/consults", None, body)
@@ -477,7 +479,7 @@ async fn invalid_feedback_has_no_side_effects_and_issue_is_distinct() {
         .as_array()
         .unwrap()
         .iter()
-        .any(|r| r["id"] == issue["request_id"]));
+        .any(|response_record| response_record["id"] == issue["request_id"]));
     state.close().await;
     owner.close().await;
 }

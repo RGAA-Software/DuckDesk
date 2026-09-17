@@ -46,9 +46,9 @@ impl DeploymentConfiguration {
         if self.gpu_key.as_ref().is_some_and(|key| {
             key.is_empty()
                 || key.len() > 128
-                || !key
-                    .bytes()
-                    .all(|c| c.is_ascii_alphanumeric() || b"_.:-".contains(&c))
+                || !key.bytes().all(|byte_value| {
+                    byte_value.is_ascii_alphanumeric() || b"_.:-".contains(&byte_value)
+                })
         }) {
             return Err(StoreError::InvalidInput);
         }

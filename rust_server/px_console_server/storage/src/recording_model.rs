@@ -145,7 +145,7 @@ mod tests {
     use super::*;
     #[test]
     fn recording_identity_is_not_filename_and_metadata_has_no_implicit_defaults() {
-        let mut r = RecordingReport {
+        let mut recording_report = RecordingReport {
             source_id: Uuid::new_v4(),
             source_sha256: [18; 32],
             session_id: None,
@@ -156,18 +156,18 @@ mod tests {
             sequence: 1,
             present: true,
         };
-        let first = r.validate().unwrap().hash;
-        r.present = false;
-        r.sequence = 2;
-        assert_eq!(first, r.validate().unwrap().hash);
-        r.source_id = Uuid::new_v4();
-        assert_ne!(first, r.validate().unwrap().hash);
-        r.size_bytes = 0;
-        assert!(r.validate().is_err());
-        r.size_bytes = u64::MAX;
-        assert!(r.validate().is_err());
-        r.size_bytes = 1;
-        r.modified_unix_ms = i64::MAX;
-        assert!(r.validate().is_err());
+        let first = recording_report.validate().unwrap().hash;
+        recording_report.present = false;
+        recording_report.sequence = 2;
+        assert_eq!(first, recording_report.validate().unwrap().hash);
+        recording_report.source_id = Uuid::new_v4();
+        assert_ne!(first, recording_report.validate().unwrap().hash);
+        recording_report.size_bytes = 0;
+        assert!(recording_report.validate().is_err());
+        recording_report.size_bytes = u64::MAX;
+        assert!(recording_report.validate().is_err());
+        recording_report.size_bytes = 1;
+        recording_report.modified_unix_ms = i64::MAX;
+        assert!(recording_report.validate().is_err());
     }
 }

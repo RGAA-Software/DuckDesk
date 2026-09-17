@@ -56,7 +56,7 @@ pub(crate) fn hash_text(value: &str) -> bool {
     value.len() == 64
         && value
             .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+            .all(|byte_value| byte_value.is_ascii_digit() || (b'a'..=b'f').contains(&byte_value))
 }
 impl LicensePayload {
     pub fn validate(&self) -> Result<(), LicenseError> {

@@ -101,7 +101,7 @@ pub struct Fixture {
 impl Fixture {
     pub async fn new() -> Self {
         let deployment = env::var("PIXELS_DEPLOYMENT_ID").unwrap().parse().unwrap();
-        let mut f = Self {
+        let mut fixture = Self {
             instances: InstanceStore::connect(&config("RUNTIME"), deployment)
                 .await
                 .unwrap(),
@@ -126,8 +126,8 @@ impl Fixture {
             owner: config("OWNER").connect().await.unwrap(),
             admin: token(),
         };
-        f.admin = f.session("admin", ClientType::AdminWeb).await;
-        f
+        fixture.admin = fixture.session("admin", ClientType::AdminWeb).await;
+        fixture
     }
     pub async fn session(&self, role: &str, client: ClientType) -> TokenDigest {
         let user = self

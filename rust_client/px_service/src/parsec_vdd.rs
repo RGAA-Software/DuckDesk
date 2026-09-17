@@ -70,8 +70,8 @@ impl ParsecVddError {
 }
 
 impl fmt::Display for ParsecVddError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.code, self.message)
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{}: {}", self.code, self.message)
     }
 }
 
@@ -430,10 +430,13 @@ impl VirtualDisplayBackend for WindowsParsecVddBackend {
                 )
             })?;
             let after = self.wait_for_monitor_count(before.len(), true)?;
-            let before_names: HashSet<_> = before.iter().map(|m| m.device_name.as_str()).collect();
+            let before_names: HashSet<_> = before
+                .iter()
+                .map(|monitor| monitor.device_name.as_str())
+                .collect();
             let mut created = after
                 .iter()
-                .find(|m| !before_names.contains(m.device_name.as_str()))
+                .find(|monitor| !before_names.contains(monitor.device_name.as_str()))
                 .cloned()
                 .or_else(|| after.last().cloned())
                 .ok_or_else(|| {
@@ -678,7 +681,9 @@ unsafe fn enumerate_parsec_vdd_monitors() -> Result<Vec<MonitorSnapshot>, Parsec
             refresh_hz: mode.dmDisplayFrequency,
         });
     }
-    result.sort_by(|a, b| a.device_name.cmp(&b.device_name));
+    result.sort_by(|left_monitor, right_monitor| {
+        left_monitor.device_name.cmp(&right_monitor.device_name)
+    });
     Ok(result)
 }
 

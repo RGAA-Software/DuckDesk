@@ -69,8 +69,8 @@ pub struct CacheAttempt {
     pub(crate) valid_for_ms: u32,
 }
 impl std::fmt::Debug for CacheAttempt {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("CacheAttempt(<redacted>)")
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("CacheAttempt(<redacted>)")
     }
 }
 impl CacheAttempt {
@@ -200,8 +200,8 @@ pub struct CacheReadLease {
     pub(crate) remaining_ms: i64,
 }
 impl std::fmt::Debug for CacheReadLease {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("CacheReadLease(<redacted>)")
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("CacheReadLease(<redacted>)")
     }
 }
 impl CacheReadLease {

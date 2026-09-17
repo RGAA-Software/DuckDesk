@@ -68,8 +68,8 @@ impl PasswordDigest {
 }
 
 impl fmt::Debug for PasswordDigest {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("PasswordDigest(<redacted>)")
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("PasswordDigest(<redacted>)")
     }
 }
 
@@ -84,8 +84,8 @@ impl TokenDigest {
 }
 
 impl fmt::Debug for TokenDigest {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("TokenDigest(<redacted>)")
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("TokenDigest(<redacted>)")
     }
 }
 

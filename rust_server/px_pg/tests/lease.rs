@@ -27,7 +27,7 @@ async fn competing_active_processes_have_one_dedicated_session_lock() {
     while let Some(result) = jobs.join_next().await {
         match result.unwrap() {
             Ok(lease) => winners.push(lease),
-            Err(e) => assert_eq!(e, DatabaseError::Conflict),
+            Err(database_error) => assert_eq!(database_error, DatabaseError::Conflict),
         }
     }
     assert_eq!(winners.len(), 1);
@@ -174,7 +174,7 @@ async fn an_independent_process_holds_the_lock_until_forced_os_exit() {
                 break;
             }
             Err(DatabaseError::Conflict) => assert!(std::time::Instant::now() < deadline),
-            Err(e) => panic!("unexpected {e:?}"),
+            Err(database_error) => panic!("unexpected {database_error:?}"),
         }
         tokio::time::sleep(Duration::from_millis(10)).await;
     }

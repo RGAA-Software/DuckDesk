@@ -31,14 +31,18 @@ pub struct RdpAccountIdentity {
 
 impl RdpAccountSpec {
     pub fn validate(&self) -> Result<(), String> {
-        if self.workspace_id.is_empty() || self.workspace_id.len() > 128
-            || !self.workspace_id.bytes().all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_'))
-            || !self.account_name.starts_with("prdp_") || self.account_name.len() > 20
+        if self.workspace_id.is_empty()
+            || self.workspace_id.len() > 128
+            || !self.workspace_id.bytes().all(|byte_value| {
+                byte_value.is_ascii_alphanumeric() || matches!(byte_value, b'-' | b'_')
+            })
+            || !self.account_name.starts_with("prdp_")
+            || self.account_name.len() > 20
             || self.account_name.len() < 8
             || !self
                 .account_name
                 .bytes()
-                .all(|c| c.is_ascii_alphanumeric() || c == b'_')
+                .all(|byte_value| byte_value.is_ascii_alphanumeric() || byte_value == b'_')
             || self.password.len() < 32
             || self.password.len() > 256
             || self.password.contains('\0')
@@ -53,7 +57,12 @@ impl RdpAccountSpec {
         Ok(())
     }
 
-    fn marker(&self) -> String { format!("Pixels RDP:{}:{}", self.workspace_id, self.credential_version) }
+    fn marker(&self) -> String {
+        format!(
+            "Pixels RDP:{}:{}",
+            self.workspace_id, self.credential_version
+        )
+    }
 }
 
 #[cfg(windows)]
@@ -112,10 +121,10 @@ mod platform {
                 &mut domain_len,
                 &mut kind,
             )
-            .map_err(|e| failure("resolve SID", e.code().0 as u32))?;
+            .map_err(|error| failure("resolve SID", error.code().0 as u32))?;
             let mut text = LocalString(PWSTR::null());
             ConvertSidToStringSidW(PSID(sid.as_mut_ptr().cast()), &mut text.0)
-                .map_err(|e| failure("format SID", e.code().0 as u32))?;
+                .map_err(|error| failure("format SID", error.code().0 as u32))?;
             let value = text
                 .0
                 .to_string()
@@ -139,7 +148,7 @@ mod platform {
                 Some(PSID(sid.as_mut_ptr().cast())),
                 &mut sid_len,
             )
-            .map_err(|e| failure("resolve group SID", e.code().0 as u32))?;
+            .map_err(|error| failure("resolve group SID", error.code().0 as u32))?;
             LookupAccountSidW(
                 PCWSTR::null(),
                 PSID(sid.as_mut_ptr().cast()),
@@ -149,7 +158,7 @@ mod platform {
                 &mut domain_len,
                 &mut use_type,
             )
-            .map_err(|e| failure("resolve group name", e.code().0 as u32))?;
+            .map_err(|error| failure("resolve group name", error.code().0 as u32))?;
         }
         name.truncate(name_len as usize);
         name.push(0);
@@ -231,9 +240,11 @@ mod platform {
             }
         } else if status == 0 && !existing.0.is_null() {
             let info = unsafe { &*existing.0.cast::<USER_INFO_1>() };
-            let marker = unsafe { info.usri1_comment.to_string() }.map_err(|_| "RDP account marker invalid".to_string())?;
+            let marker = unsafe { info.usri1_comment.to_string() }
+                .map_err(|_| "RDP account marker invalid".to_string())?;
             let pixels_prefix = format!("Pixels RDP:{}:", spec.workspace_id);
-            applied_version = marker.strip_prefix(&pixels_prefix)
+            applied_version = marker
+                .strip_prefix(&pixels_prefix)
                 .and_then(|version| version.parse::<u32>().ok())
                 .filter(|version| *version > 0 && *version <= spec.credential_version)
                 .ok_or_else(|| {
@@ -333,13 +344,27 @@ pub use platform::ensure as ensure_standard_account;
 mod tests {
     use super::*;
     fn sample() -> RdpAccountSpec {
-        RdpAccountSpec { workspace_id: "workspace-1".into(), account_name: "prdp_testaccount".into(),
-            password: Zeroizing::new("aA1!01234567890123456789012345678901".into()), credential_version: 1, expected_sid: None }
+        RdpAccountSpec {
+            workspace_id: "workspace-1".into(),
+            account_name: "prdp_testaccount".into(),
+            password: Zeroizing::new("aA1!01234567890123456789012345678901".into()),
+            credential_version: 1,
+            expected_sid: None,
+        }
     }
     #[test]
     fn never_accepts_administrator_or_unmanaged_names() {
-        for name in ["Administrator", "usbtest2", "grdp_a/b", "grdp_", "grdp_name;command", "grdp_testaccount"] {
-            let mut spec = sample(); spec.account_name = name.into(); assert!(spec.validate().is_err());
+        for name in [
+            "Administrator",
+            "usbtest2",
+            "grdp_a/b",
+            "grdp_",
+            "grdp_name;command",
+            "grdp_testaccount",
+        ] {
+            let mut spec = sample();
+            spec.account_name = name.into();
+            assert!(spec.validate().is_err());
         }
     }
     #[test]

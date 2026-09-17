@@ -20,9 +20,9 @@ pub struct WorkspaceIdentity {
 pub fn valid_identifier(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 128
-        && value
-            .bytes()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_'))
+        && value.bytes().all(|byte_value| {
+            byte_value.is_ascii_alphanumeric() || matches!(byte_value, b'-' | b'_')
+        })
 }
 
 impl WorkspaceIdentity {
@@ -273,8 +273,17 @@ impl RdpBootstrapBinding {
         {
             return Err("RDP bootstrap identity invalid".into());
         }
-        Ok(format!("Pixels.RdpBootstrap.v1|{}|{}|{}|{}|{}|{}|{}", self.workspace_id, self.instance_id,
-            self.node_id, self.device_id, self.proxy_port, self.target_certificate_sha256, self.proxy_certificate_sha256).into_bytes())
+        Ok(format!(
+            "Pixels.RdpBootstrap.v1|{}|{}|{}|{}|{}|{}|{}",
+            self.workspace_id,
+            self.instance_id,
+            self.node_id,
+            self.device_id,
+            self.proxy_port,
+            self.target_certificate_sha256,
+            self.proxy_certificate_sha256
+        )
+        .into_bytes())
     }
 }
 
@@ -550,8 +559,12 @@ mod tests {
     struct TestStore(WorkspaceStore);
     impl TestStore {
         fn new() -> Self {
-            let nonce = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
-            let root = std::env::temp_dir().join(format!("pixels-rdp-store-{}-{nonce}", std::process::id()));
+            let nonce = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let root = std::env::temp_dir()
+                .join(format!("pixels-rdp-store-{}-{nonce}", std::process::id()));
             std::fs::create_dir(&root).unwrap();
             Self(WorkspaceStore { root })
         }
@@ -562,8 +575,13 @@ mod tests {
         }
     }
     fn sample() -> RdpAccountSpec {
-        RdpAccountSpec { workspace_id: "workspace-1".into(), account_name: "prdp_testaccount".into(),
-            password: Zeroizing::new("aA1!01234567890123456789012345678901".into()), credential_version: 1, expected_sid: None }
+        RdpAccountSpec {
+            workspace_id: "workspace-1".into(),
+            account_name: "prdp_testaccount".into(),
+            password: Zeroizing::new("aA1!01234567890123456789012345678901".into()),
+            credential_version: 1,
+            expected_sid: None,
+        }
     }
     fn identity(spec: &RdpAccountSpec) -> Result<RdpAccountIdentity, String> {
         Ok(RdpAccountIdentity {

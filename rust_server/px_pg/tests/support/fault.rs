@@ -17,7 +17,12 @@ async fn main() {
     .unwrap();
     let deployment = Uuid::parse_str(&env::var("PIXELS_DEPLOYMENT_ID").unwrap()).unwrap();
     let mut migrations: Vec<_> = catalog::migrations(Service::Desk).iter().cloned().collect();
-    let probe_version = migrations.iter().map(|m| m.version).max().unwrap() + 1;
+    let probe_version = migrations
+        .iter()
+        .map(|migration| migration.version)
+        .max()
+        .unwrap()
+        + 1;
     migrations.push(Migration::new(
         probe_version, Cow::Borrowed("isolated crash probe"), MigrationType::Simple,
         Cow::Borrowed("CREATE TABLE pixels.crash_probe(id INTEGER PRIMARY KEY); SELECT pg_advisory_xact_lock(912340567); INSERT INTO pixels.crash_probe VALUES(1);"), false,

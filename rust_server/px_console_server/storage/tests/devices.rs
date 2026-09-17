@@ -147,63 +147,76 @@ impl Fixture {
 
 #[tokio::test]
 async fn directory_identity_is_separate_from_enrollment_and_no_secrets_are_returned() {
-    let f = Fixture::new().await;
+    let fixture = Fixture::new().await;
     let key = token();
-    let device = f
+    let device = fixture
         .devices
-        .create(&f.admin, "办公室 一号", DevicePlatform::Windows, &key)
+        .create(&fixture.admin, "办公室 一号", DevicePlatform::Windows, &key)
         .await
         .unwrap();
     assert_eq!(device.public_code.len(), 12);
     assert!(device.public_code.bytes().all(|byte| byte.is_ascii_digit()));
     assert_ne!(device.id.to_string(), device.public_code);
     assert_eq!(
-        f.devices.authenticate_enrollment(&key).await.unwrap().id,
+        fixture
+            .devices
+            .authenticate_enrollment(&key)
+            .await
+            .unwrap()
+            .id,
         device.id
     );
     assert_eq!(
-        f.devices.authenticate_enrollment(&f.admin).await,
+        fixture
+            .devices
+            .authenticate_enrollment(&fixture.admin)
+            .await,
         Err(StoreError::Rejected)
     );
     assert_eq!(
-        f.devices.list_managed(&key, None, 1).await,
+        fixture.devices.list_managed(&key, None, 1).await,
         Err(StoreError::Rejected)
     );
     assert!(!format!("{device:?}").contains("hash"));
-    assert!(f
+    assert!(fixture
         .devices
-        .create(&f.admin, "duplicate", DevicePlatform::Linux, &key)
+        .create(&fixture.admin, "duplicate", DevicePlatform::Linux, &key)
         .await
         .is_err());
     for value in ["", " ", "bad\nname", "trailing "] {
         assert_eq!(
-            f.devices
-                .create(&f.admin, value, DevicePlatform::Windows, &token())
+            fixture
+                .devices
+                .create(&fixture.admin, value, DevicePlatform::Windows, &token())
                 .await,
             Err(StoreError::InvalidInput)
         );
     }
-    assert_eq!(f.audits(device.id).await, 1);
-    let secret_columns: i64=sqlx::query_scalar("SELECT count(*) FROM information_schema.columns WHERE table_schema='pixels' AND table_name='devices' AND (column_name LIKE '%password%' OR column_name LIKE '%ciphertext%' OR column_name='seed')").fetch_one(&f.owner).await.unwrap();
+    assert_eq!(fixture.audits(device.id).await, 1);
+    let secret_columns: i64=sqlx::query_scalar("SELECT count(*) FROM information_schema.columns WHERE table_schema='pixels' AND table_name='devices' AND (column_name LIKE '%password%' OR column_name LIKE '%ciphertext%' OR column_name='seed')").fetch_one(&fixture.owner).await.unwrap();
     assert_eq!(secret_columns, 0);
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn role_client_type_and_resource_identity_are_not_interchangeable() {
-    let f = Fixture::new().await;
-    let device = f.device().await;
-    let viewer = f
+    let fixture = Fixture::new().await;
+    let device = fixture.device().await;
+    let viewer = fixture
         .control
-        .create_user(&f.admin, &name(), &password(), Role::Viewer)
+        .create_user(&fixture.admin, &name(), &password(), Role::Viewer)
         .await
         .unwrap();
-    let viewer_web = f.session(viewer.id, ClientType::AdminWeb).await;
-    let viewer_panel = f.session(viewer.id, ClientType::Panel).await;
-    let user = f.user().await;
-    let user_web = f.session(user, ClientType::AdminWeb).await;
-    let admin_panel = f.session(f.admin_id, ClientType::Panel).await;
-    assert!(f.devices.list_managed(&viewer_web, None, 100).await.is_ok());
+    let viewer_web = fixture.session(viewer.id, ClientType::AdminWeb).await;
+    let viewer_panel = fixture.session(viewer.id, ClientType::Panel).await;
+    let user = fixture.user().await;
+    let user_web = fixture.session(user, ClientType::AdminWeb).await;
+    let admin_panel = fixture.session(fixture.admin_id, ClientType::Panel).await;
+    assert!(fixture
+        .devices
+        .list_managed(&viewer_web, None, 100)
+        .await
+        .is_ok());
     for denied in [
         &viewer_web,
         &viewer_panel,
@@ -212,17 +225,22 @@ async fn role_client_type_and_resource_identity_are_not_interchangeable() {
         &token(),
     ] {
         assert_eq!(
-            f.devices
+            fixture
+                .devices
                 .create(denied, "no", DevicePlatform::Windows, &token())
                 .await,
             Err(StoreError::Rejected)
         );
         assert_eq!(
-            f.devices.update(denied, device.id, 1, "no", true).await,
+            fixture
+                .devices
+                .update(denied, device.id, 1, "no", true)
+                .await,
             Err(StoreError::Rejected)
         );
         assert_eq!(
-            f.devices
+            fixture
+                .devices
                 .replace_access(
                     denied,
                     device.id,
@@ -236,82 +254,91 @@ async fn role_client_type_and_resource_identity_are_not_interchangeable() {
             Err(StoreError::Rejected)
         );
         assert_eq!(
-            f.devices.delete(denied, device.id, 1).await,
+            fixture.devices.delete(denied, device.id, 1).await,
             Err(StoreError::Rejected)
         );
         assert_eq!(
-            f.devices.rotate_key(denied, device.id, 1, &token()).await,
+            fixture
+                .devices
+                .rotate_key(denied, device.id, 1, &token())
+                .await,
             Err(StoreError::Rejected)
         );
     }
     assert_eq!(
-        f.devices
+        fixture
+            .devices
             .list_visible(&viewer_panel, ClientType::Panel, None, 100)
             .await,
         Err(StoreError::Rejected)
     );
     assert_eq!(
-        f.devices
-            .list_visible(&f.admin, ClientType::AdminWeb, None, 100)
+        fixture
+            .devices
+            .list_visible(&fixture.admin, ClientType::AdminWeb, None, 100)
             .await,
         Err(StoreError::Rejected)
     );
-    assert!(f
+    assert!(fixture
         .devices
         .list_visible(&admin_panel, ClientType::Panel, None, 100)
         .await
         .unwrap()
         .is_empty());
-    assert_eq!(f.events(user).await, 0);
-    assert_eq!(f.audits(device.id).await, 1);
-    f.close().await;
+    assert_eq!(fixture.events(user).await, 0);
+    assert_eq!(fixture.audits(device.id).await, 1);
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn direct_and_group_access_share_policy_and_revoke_only_changed_effective_users() {
-    let f = Fixture::new().await;
-    let device = f.device().await;
-    let direct = f.user().await;
-    let grouped = f.user().await;
-    let outsider = f.user().await;
-    let group = f
+    let fixture = Fixture::new().await;
+    let device = fixture.device().await;
+    let direct = fixture.user().await;
+    let grouped = fixture.user().await;
+    let outsider = fixture.user().await;
+    let group = fixture
         .groups
-        .create(&f.admin, &Uuid::new_v4().to_string(), "")
+        .create(&fixture.admin, &Uuid::new_v4().to_string(), "")
         .await
         .unwrap();
-    f.groups
-        .replace_members(&f.admin, group.id, 1, &[grouped])
+    fixture
+        .groups
+        .replace_members(&fixture.admin, group.id, 1, &[grouped])
         .await
         .unwrap();
-    let direct_old = f.session(direct, ClientType::Android).await;
-    let old = f.session(grouped, ClientType::Panel).await;
-    let stranger = f.session(outsider, ClientType::Android).await;
+    let direct_old = fixture.session(direct, ClientType::Android).await;
+    let old = fixture.session(grouped, ClientType::Panel).await;
+    let stranger = fixture.session(outsider, ClientType::Android).await;
     let access = DeviceAccess {
         users: vec![direct],
         groups: vec![group.id],
     };
-    let device = f
+    let device = fixture
         .devices
-        .replace_access(&f.admin, device.id, 1, &access)
+        .replace_access(&fixture.admin, device.id, 1, &access)
         .await
         .unwrap();
     assert_eq!(device.revision, 2);
     assert_eq!(
-        f.devices
+        fixture
+            .devices
             .get_visible(&direct_old, ClientType::Android, device.id)
             .await,
         Err(StoreError::Rejected)
     );
     assert_eq!(
-        f.devices
+        fixture
+            .devices
             .get_visible(&old, ClientType::Panel, device.id)
             .await,
         Err(StoreError::Rejected)
     );
-    let direct_key = f.session(direct, ClientType::Android).await;
-    let grouped_key = f.session(grouped, ClientType::Panel).await;
+    let direct_key = fixture.session(direct, ClientType::Android).await;
+    let grouped_key = fixture.session(grouped, ClientType::Panel).await;
     assert_eq!(
-        f.devices
+        fixture
+            .devices
             .get_visible(&direct_key, ClientType::Android, device.id)
             .await
             .unwrap()
@@ -319,38 +346,42 @@ async fn direct_and_group_access_share_policy_and_revoke_only_changed_effective_
         device.id
     );
     assert_eq!(
-        f.devices
+        fixture
+            .devices
             .get_visible(&direct_key, ClientType::Panel, device.id)
             .await,
         Err(StoreError::Rejected)
     );
     assert_eq!(
-        f.devices
+        fixture
+            .devices
             .list_visible(&grouped_key, ClientType::Panel, None, 100)
             .await
             .unwrap(),
         vec![device.clone()]
     );
     assert_eq!(
-        f.devices
+        fixture
+            .devices
             .get_visible(&stranger, ClientType::Android, device.id)
             .await,
         Err(StoreError::Rejected)
     );
     assert_eq!(
-        f.devices
-            .replace_access(&f.admin, device.id, 2, &access)
+        fixture
+            .devices
+            .replace_access(&fixture.admin, device.id, 2, &access)
             .await
             .unwrap()
             .revision,
         2
     );
-    let counts = (f.events(direct).await, f.events(grouped).await);
+    let counts = (fixture.events(direct).await, fixture.events(grouped).await);
     // Changing how an unchanged effective permission is represented does not revoke that user.
-    let device = f
+    let device = fixture
         .devices
         .replace_access(
-            &f.admin,
+            &fixture.admin,
             device.id,
             2,
             &DeviceAccess {
@@ -360,15 +391,19 @@ async fn direct_and_group_access_share_policy_and_revoke_only_changed_effective_
         )
         .await
         .unwrap();
-    assert_eq!((f.events(direct).await, f.events(grouped).await), counts);
-    assert!(f
+    assert_eq!(
+        (fixture.events(direct).await, fixture.events(grouped).await),
+        counts
+    );
+    assert!(fixture
         .devices
         .get_visible(&grouped_key, ClientType::Panel, device.id)
         .await
         .is_ok());
-    f.devices
+    fixture
+        .devices
         .replace_access(
-            &f.admin,
+            &fixture.admin,
             device.id,
             device.revision,
             &DeviceAccess {
@@ -379,37 +414,38 @@ async fn direct_and_group_access_share_policy_and_revoke_only_changed_effective_
         .await
         .unwrap();
     assert_eq!(
-        f.devices
+        fixture
+            .devices
             .get_visible(&grouped_key, ClientType::Panel, device.id)
             .await,
         Err(StoreError::Rejected)
     );
-    let fresh = f.session(grouped, ClientType::Panel).await;
-    assert!(f
+    let fresh = fixture.session(grouped, ClientType::Panel).await;
+    assert!(fixture
         .devices
         .list_visible(&fresh, ClientType::Panel, None, 100)
         .await
         .unwrap()
         .is_empty());
-    assert!(f
+    assert!(fixture
         .devices
         .get_visible(&direct_key, ClientType::Android, device.id)
         .await
         .is_ok());
-    assert_eq!(f.events(outsider).await, 0);
-    f.close().await;
+    assert_eq!(fixture.events(outsider).await, 0);
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn invalid_grants_and_mid_transaction_failure_preserve_all_previous_state() {
-    let f = Fixture::new().await;
-    let device = f.device().await;
-    let user = f.user().await;
-    let next = f.user().await;
-    let device = f
+    let fixture = Fixture::new().await;
+    let device = fixture.device().await;
+    let user = fixture.user().await;
+    let next = fixture.user().await;
+    let device = fixture
         .devices
         .replace_access(
-            &f.admin,
+            &fixture.admin,
             device.id,
             1,
             &DeviceAccess {
@@ -419,8 +455,12 @@ async fn invalid_grants_and_mid_transaction_failure_preserve_all_previous_state(
         )
         .await
         .unwrap();
-    let original = f.devices.access(&f.admin, device.id).await.unwrap();
-    let before = f.events(user).await;
+    let original = fixture
+        .devices
+        .access(&fixture.admin, device.id)
+        .await
+        .unwrap();
+    let before = fixture.events(user).await;
     for access in [
         DeviceAccess {
             users: vec![next, next],
@@ -435,24 +475,28 @@ async fn invalid_grants_and_mid_transaction_failure_preserve_all_previous_state(
             groups: vec![Uuid::new_v4()],
         },
     ] {
-        assert!(f
+        assert!(fixture
             .devices
-            .replace_access(&f.admin, device.id, 2, &access)
+            .replace_access(&fixture.admin, device.id, 2, &access)
             .await
             .is_err());
         assert_eq!(
-            f.devices.access(&f.admin, device.id).await.unwrap(),
+            fixture
+                .devices
+                .access(&fixture.admin, device.id)
+                .await
+                .unwrap(),
             original
         );
     }
     sqlx::query("REVOKE INSERT ON pixels.authorization_outbox FROM pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
-    let failed = f
+    let failed = fixture
         .devices
         .replace_access(
-            &f.admin,
+            &fixture.admin,
             device.id,
             2,
             &DeviceAccess {
@@ -462,21 +506,25 @@ async fn invalid_grants_and_mid_transaction_failure_preserve_all_previous_state(
         )
         .await;
     sqlx::query("GRANT INSERT ON pixels.authorization_outbox TO pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
     assert!(failed.is_err());
     assert_eq!(
-        f.devices.access(&f.admin, device.id).await.unwrap(),
+        fixture
+            .devices
+            .access(&fixture.admin, device.id)
+            .await
+            .unwrap(),
         original
     );
-    assert_eq!(f.events(user).await, before);
-    assert_eq!(f.events(next).await, 0);
-    assert_eq!(f.audits(device.id).await, 2);
-    let result = f
+    assert_eq!(fixture.events(user).await, before);
+    assert_eq!(fixture.events(next).await, 0);
+    assert_eq!(fixture.audits(device.id).await, 2);
+    let result = fixture
         .devices
         .replace_access(
-            &f.admin,
+            &fixture.admin,
             device.id,
             2,
             &DeviceAccess {
@@ -487,19 +535,19 @@ async fn invalid_grants_and_mid_transaction_failure_preserve_all_previous_state(
         .await
         .unwrap();
     assert_eq!(result.revision, 3);
-    assert_eq!(f.events(user).await, before + 1);
-    assert_eq!(f.events(next).await, 1);
-    f.close().await;
+    assert_eq!(fixture.events(user).await, before + 1);
+    assert_eq!(fixture.events(next).await, 1);
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn twenty_competing_writes_have_one_revision_winner_and_one_audit() {
-    let f = Fixture::new().await;
-    let device = f.device().await;
+    let fixture = Fixture::new().await;
+    let device = fixture.device().await;
     let mut tasks = Vec::new();
     for index in 0..20 {
-        let store = f.devices.clone();
-        let admin = f.admin.clone();
+        let store = fixture.devices.clone();
+        let admin = fixture.admin.clone();
         tasks.push(tokio::spawn(async move {
             store
                 .update(&admin, device.id, 1, &format!("winner {index}"), false)
@@ -517,28 +565,29 @@ async fn twenty_competing_writes_have_one_revision_winner_and_one_audit() {
         }
     }
     assert_eq!(winners, 1);
-    assert_eq!(f.audits(device.id).await, 2);
+    assert_eq!(fixture.audits(device.id).await, 2);
     assert_eq!(
-        f.devices.delete(&f.admin, device.id, 1).await,
+        fixture.devices.delete(&fixture.admin, device.id, 1).await,
         Err(StoreError::Rejected)
     );
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn disable_key_rotation_and_delete_never_resurrect_credentials_or_remove_relationships() {
-    let f = Fixture::new().await;
+    let fixture = Fixture::new().await;
     let key = token();
     let next = token();
-    let device = f
+    let device = fixture
         .devices
-        .create(&f.admin, "Lifecycle", DevicePlatform::Windows, &key)
+        .create(&fixture.admin, "Lifecycle", DevicePlatform::Windows, &key)
         .await
         .unwrap();
-    let user = f.user().await;
-    f.devices
+    let user = fixture.user().await;
+    fixture
+        .devices
         .replace_access(
-            &f.admin,
+            &fixture.admin,
             device.id,
             1,
             &DeviceAccess {
@@ -548,43 +597,49 @@ async fn disable_key_rotation_and_delete_never_resurrect_credentials_or_remove_r
         )
         .await
         .unwrap();
-    let user_key = f.session(user, ClientType::Android).await;
-    f.devices
-        .update(&f.admin, device.id, 2, "Lifecycle", true)
+    let user_key = fixture.session(user, ClientType::Android).await;
+    fixture
+        .devices
+        .update(&fixture.admin, device.id, 2, "Lifecycle", true)
         .await
         .unwrap();
     assert_eq!(
-        f.devices.authenticate_enrollment(&key).await,
+        fixture.devices.authenticate_enrollment(&key).await,
         Err(StoreError::Rejected)
     );
     assert_eq!(
-        f.devices
+        fixture
+            .devices
             .get_visible(&user_key, ClientType::Android, device.id)
             .await,
         Err(StoreError::Rejected)
     );
-    f.devices
-        .update(&f.admin, device.id, 3, "Lifecycle", false)
+    fixture
+        .devices
+        .update(&fixture.admin, device.id, 3, "Lifecycle", false)
         .await
         .unwrap();
-    assert!(f.devices.authenticate_enrollment(&key).await.is_ok());
+    assert!(fixture.devices.authenticate_enrollment(&key).await.is_ok());
     assert_eq!(
-        f.devices
+        fixture
+            .devices
             .get_visible(&user_key, ClientType::Android, device.id)
             .await,
         Err(StoreError::Rejected)
     );
-    let current = f.session(user, ClientType::Android).await;
-    f.devices
-        .rotate_key(&f.admin, device.id, 4, &next)
+    let current = fixture.session(user, ClientType::Android).await;
+    fixture
+        .devices
+        .rotate_key(&fixture.admin, device.id, 4, &next)
         .await
         .unwrap();
     assert_eq!(
-        f.devices.authenticate_enrollment(&key).await,
+        fixture.devices.authenticate_enrollment(&key).await,
         Err(StoreError::Rejected)
     );
     assert_eq!(
-        f.devices
+        fixture
+            .devices
             .authenticate_enrollment(&next)
             .await
             .unwrap()
@@ -592,50 +647,58 @@ async fn disable_key_rotation_and_delete_never_resurrect_credentials_or_remove_r
         5
     );
     assert_eq!(
-        f.devices
+        fixture
+            .devices
             .get_visible(&current, ClientType::Android, device.id)
             .await,
         Err(StoreError::Rejected)
     );
-    f.devices.delete(&f.admin, device.id, 5).await.unwrap();
+    fixture
+        .devices
+        .delete(&fixture.admin, device.id, 5)
+        .await
+        .unwrap();
     assert_eq!(
-        f.devices.authenticate_enrollment(&next).await,
+        fixture.devices.authenticate_enrollment(&next).await,
         Err(StoreError::Rejected)
     );
     assert_eq!(
-        f.devices
-            .update(&f.admin, device.id, 6, "revive", false)
+        fixture
+            .devices
+            .update(&fixture.admin, device.id, 6, "revive", false)
             .await,
         Err(StoreError::Rejected)
     );
     let retained: i64 =
         sqlx::query_scalar("SELECT count(*) FROM pixels.user_devices WHERE device_id=$1")
             .bind(device.id)
-            .fetch_one(&f.owner)
+            .fetch_one(&fixture.owner)
             .await
             .unwrap();
     assert_eq!(retained, 1);
-    assert_eq!(f.audits(device.id).await, 6);
-    f.close().await;
+    assert_eq!(fixture.audits(device.id).await, 6);
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn group_deletion_revokes_device_access_even_though_resource_grants_remain_for_audit() {
-    let f = Fixture::new().await;
-    let device = f.device().await;
-    let user = f.user().await;
-    let group = f
+    let fixture = Fixture::new().await;
+    let device = fixture.device().await;
+    let user = fixture.user().await;
+    let group = fixture
         .groups
-        .create(&f.admin, &Uuid::new_v4().to_string(), "")
+        .create(&fixture.admin, &Uuid::new_v4().to_string(), "")
         .await
         .unwrap();
-    f.groups
-        .replace_members(&f.admin, group.id, 1, &[user])
+    fixture
+        .groups
+        .replace_members(&fixture.admin, group.id, 1, &[user])
         .await
         .unwrap();
-    f.devices
+    fixture
+        .devices
         .replace_access(
-            &f.admin,
+            &fixture.admin,
             device.id,
             1,
             &DeviceAccess {
@@ -645,43 +708,54 @@ async fn group_deletion_revokes_device_access_even_though_resource_grants_remain
         )
         .await
         .unwrap();
-    let current = f.session(user, ClientType::Panel).await;
-    assert!(f
+    let current = fixture.session(user, ClientType::Panel).await;
+    assert!(fixture
         .devices
         .get_visible(&current, ClientType::Panel, device.id)
         .await
         .is_ok());
-    f.groups.delete(&f.admin, group.id, 2).await.unwrap();
+    fixture
+        .groups
+        .delete(&fixture.admin, group.id, 2)
+        .await
+        .unwrap();
     assert_eq!(
-        f.devices
+        fixture
+            .devices
             .get_visible(&current, ClientType::Panel, device.id)
             .await,
         Err(StoreError::Rejected)
     );
-    let fresh = f.session(user, ClientType::Panel).await;
-    assert!(f
+    let fresh = fixture.session(user, ClientType::Panel).await;
+    assert!(fixture
         .devices
         .list_visible(&fresh, ClientType::Panel, None, 100)
         .await
         .unwrap()
         .is_empty());
     assert_eq!(
-        f.devices.access(&f.admin, device.id).await.unwrap().groups,
+        fixture
+            .devices
+            .access(&fixture.admin, device.id)
+            .await
+            .unwrap()
+            .groups,
         vec![group.id]
     );
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn pagination_expiry_and_database_outage_are_bounded_and_fail_closed() {
-    let f = Fixture::new().await;
-    let user = f.user().await;
+    let fixture = Fixture::new().await;
+    let user = fixture.user().await;
     let mut expected = BTreeSet::new();
     for _ in 0..5 {
-        let device = f.device().await;
-        f.devices
+        let device = fixture.device().await;
+        fixture
+            .devices
             .replace_access(
-                &f.admin,
+                &fixture.admin,
                 device.id,
                 1,
                 &DeviceAccess {
@@ -693,11 +767,11 @@ async fn pagination_expiry_and_database_outage_are_bounded_and_fail_closed() {
             .unwrap();
         expected.insert(device.id);
     }
-    let current = f.session(user, ClientType::Android).await;
+    let current = fixture.session(user, ClientType::Android).await;
     let mut seen = Vec::new();
     let mut after = None;
     for _ in 0..4 {
-        let page = f
+        let page = fixture
             .devices
             .list_visible(&current, ClientType::Android, after, 2)
             .await
@@ -710,24 +784,30 @@ async fn pagination_expiry_and_database_outage_are_bounded_and_fail_closed() {
     }
     assert_eq!(seen, expected.into_iter().collect::<Vec<_>>());
     assert_eq!(
-        f.devices
+        fixture
+            .devices
             .list_visible(&current, ClientType::Android, None, 101)
             .await,
         Err(StoreError::InvalidInput)
     );
-    sqlx::query("UPDATE pixels.login_sessions SET expires_at=clock_timestamp()-interval '1 second',created_at=clock_timestamp()-interval '1 hour' WHERE user_id=$1").bind(user).execute(&f.owner).await.unwrap();
+    sqlx::query("UPDATE pixels.login_sessions SET expires_at=clock_timestamp()-interval '1 second',created_at=clock_timestamp()-interval '1 hour' WHERE user_id=$1").bind(user).execute(&fixture.owner).await.unwrap();
     assert_eq!(
-        f.devices
+        fixture
+            .devices
             .list_visible(&current, ClientType::Android, None, 100)
             .await,
         Err(StoreError::Rejected)
     );
-    f.devices.close().await;
-    assert!(f.devices.list_managed(&f.admin, None, 100).await.is_err());
-    assert!(f
+    fixture.devices.close().await;
+    assert!(fixture
         .devices
-        .create(&f.admin, "offline", DevicePlatform::Windows, &token())
+        .list_managed(&fixture.admin, None, 100)
         .await
         .is_err());
-    f.close().await;
+    assert!(fixture
+        .devices
+        .create(&fixture.admin, "offline", DevicePlatform::Windows, &token())
+        .await
+        .is_err());
+    fixture.close().await;
 }

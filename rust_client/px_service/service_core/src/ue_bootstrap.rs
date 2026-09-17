@@ -49,31 +49,31 @@ unsafe fn read_resource_string(
     }
     let hglobal = unsafe { LoadResource(Some(module), hrsrc) }.ok()?;
     let size = unsafe { SizeofResource(Some(module), hrsrc) } as usize;
-    if size == 0 || size % 2 != 0 {
+    if size == 0 || !size.is_multiple_of(2) {
         return None;
     }
-    let data = unsafe { LockResource(hglobal) } as *const u16;
-    if data.is_null() {
+    let resource_data_pointer = unsafe { LockResource(hglobal) } as *const u16;
+    if resource_data_pointer.is_null() {
         return None;
     }
-    let words = size / 2;
-    let slice = unsafe { std::slice::from_raw_parts(data, words) };
+    let word_count = size / 2;
+    let resource_words = unsafe { std::slice::from_raw_parts(resource_data_pointer, word_count) };
     // Resource data is not guaranteed NUL-terminated: trim trailing NULs.
-    let end = slice
+    let content_end = resource_words
         .iter()
-        .rposition(|&c| c != 0)
-        .map(|i| i + 1)
+        .rposition(|&code_unit| code_unit != 0)
+        .map(|last_nonzero_index| last_nonzero_index + 1)
         .unwrap_or(0);
-    if end == 0 {
+    if content_end == 0 {
         return None;
     }
-    String::from_utf16(&slice[..end]).ok()
+    String::from_utf16(&resource_words[..content_end]).ok()
 }
 
 /// Strip the `\\?\` verbatim prefix `Path::canonicalize` adds on Windows.
 fn strip_verbatim_prefix(path: &Path) -> PathBuf {
-    let s = path.to_string_lossy();
-    match s.strip_prefix(r"\\?\") {
+    let path_text = path.to_string_lossy();
+    match path_text.strip_prefix(r"\\?\") {
         Some(rest) => PathBuf::from(rest),
         None => path.to_path_buf(),
     }
@@ -114,7 +114,7 @@ pub fn resolve_ue_bootstrap(exe_path: &Path) -> Option<UeViewInfo> {
         let view_path = strip_verbatim_prefix(&canonical);
         Some(UeViewInfo {
             view_path,
-            base_args: base_args.filter(|a| !a.trim().is_empty()),
+            base_args: base_args.filter(|argument| !argument.trim().is_empty()),
         })
     })();
     unsafe {

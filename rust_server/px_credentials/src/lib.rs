@@ -20,7 +20,7 @@ pub fn normalize_username(input: &str) -> Option<String> {
         && (2..=64).contains(&normalized.chars().count())
         && !normalized
             .chars()
-            .any(|c| c.is_control() || matches!(c, '/' | '\\')))
+            .any(|character| character.is_control() || matches!(character, '/' | '\\')))
     .then_some(normalized)
 }
 pub fn valid_password(input: &str) -> bool {

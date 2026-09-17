@@ -141,6 +141,8 @@ try {
         throw 'No development environment exists. Run postgres.ps1 Up first.'
     }
     New-Item -ItemType Directory -Path $reportDir -Force | Out-Null
+    Invoke-Checked 'pwsh' @('-NoProfile','-File',(Join-Path $repo 'scripts/check_readable_names.ps1')) | Out-Null
+    Add-Step 'SOURCE-NAMING: maintained DB0-DB5 and Windows Service Rust identifiers are human-readable'
     if (-not (Test-Path -LiteralPath $envFile)) {
         if ($Port -gt 0 -and $Port -lt 1024) { throw 'Explicit database port must be at least 1024' }
         $requestedPort = if ($Action -in @('Test','TestSuite','PrepareQueries')) { 0 } else { $Port }
@@ -264,7 +266,7 @@ try {
             Invoke-Checked 'docker' @('exec',$container,'psql','-X','-v','ON_ERROR_STOP=1','-U','pixels_admin','-d','pixels_desk','-c',
                 "CREATE TABLE pixels.pg_fixture(id uuid PRIMARY KEY,version text NOT NULL,created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP); ALTER TABLE pixels.pg_fixture OWNER TO pixels_desk_owner; GRANT SELECT,INSERT,UPDATE,DELETE ON pixels.pg_fixture TO pixels_desk_runtime") | Out-Null
         }
-        $suiteCounts = @{unit=19;identity=12;control=8;devices=8;applications=8;guests=9;nodes=7;deployments=6;instances=10;commands=16;workspaces=6;database=2;sessions=10;transfers=8;recordings=6;preferences=7;files=8;backup=15;'backup-pg'=1;cache=16;activity=8;updates=7;desk=7;catalog=4;lease=6;postgres=13;accounts=9}
+        $suiteCounts = @{unit=19;identity=12;control=8;devices=8;applications=8;guests=9;nodes=7;deployments=6;instances=10;commands=16;workspaces=6;database=2;sessions=10;transfers=8;recordings=6;preferences=7;files=8;backup=20;'backup-pg'=1;cache=16;activity=8;updates=7;desk=7;catalog=4;lease=6;postgres=13;accounts=9}
         $suiteCounts['console-api'] = 5
         $suiteCounts['directory-api'] = 5
         $suiteCounts['node-control'] = 1
@@ -314,7 +316,7 @@ try {
     Add-Step 'FILES: private anchored roots, process locks, immutable hash-verified blobs and exact cleanup'
     $backupTests = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_backup','--lib','--target-dir',$targetDir)
     Write-Host $backupTests
-    Add-TestCases $backupTests 'native/backup-core' 15
+    Add-TestCases $backupTests 'native/backup-core' 20
     Add-Step 'BACKUP-CORE: strict recovery sets, retention dependencies, private atomic publication, pinned tools, cancellation and timeouts'
     $backupIntegration = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_backup','--features','pg-integration','--test','postgres','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $backupIntegration
@@ -561,7 +563,7 @@ try {
         foreach ($service in @('console','auth','desk')) {
             if ($linuxResult -notmatch "READY service=$service") { throw "Linux schema tool failed for $service" }
         }
-        Add-TestCases $linuxResult 'linux' 279
+        Add-TestCases $linuxResult 'linux' 284
         if ($linuxResult -notmatch '(?m)^([a-f0-9]{64})\s+[^\r\n]+/debug/px_db\s*$') { throw 'Missing Linux schema tool hash' }
         $fingerprints.linux_px_db = $Matches[1]
         if ($linuxResult -notmatch '(?m)^([a-f0-9]{64})\s+[^\r\n]+/debug/px_desk\s*$') { throw 'Missing Linux Desk binary hash' }

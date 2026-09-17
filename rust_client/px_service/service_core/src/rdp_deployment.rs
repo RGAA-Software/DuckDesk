@@ -88,7 +88,11 @@ impl RdpDeployment {
             || !directory.is_absolute()
             || [&cert, &key, account.password.as_str()]
                 .into_iter()
-                .any(|value| value.chars().any(|c| matches!(c, '\r' | '\n' | '\0')))
+                .any(|value| {
+                    value
+                        .chars()
+                        .any(|character| matches!(character, '\r' | '\n' | '\0'))
+                })
         {
             return Err("RDP proxy configuration contains an invalid value".into());
         }

@@ -66,11 +66,11 @@ pub async fn login(
     let credential = match identity.credential(&name).await {
         Ok(row) => Some(row),
         Err(StoreError::Rejected) => None,
-        Err(e) => return Err(e.into()),
+        Err(store_error) => return Err(store_error.into()),
     };
     let encoded = credential.as_ref().map_or_else(
         || state.dummy.clone(),
-        |c| Zeroizing::new(c.password.encoded().into()),
+        |stored_credential| Zeroizing::new(stored_credential.password.encoded().into()),
     );
     let valid = tokio::task::spawn_blocking(move || {
         let _permit = permit;

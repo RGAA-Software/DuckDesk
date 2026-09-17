@@ -19,8 +19,9 @@ pub struct DatabaseConfig {
 }
 
 impl fmt::Debug for DatabaseConfig {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("DatabaseConfig")
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("DatabaseConfig")
             .field("connection", &"<redacted>")
             .field("max_connections", &self.max_connections)
             .field("acquire_timeout", &self.acquire_timeout)

@@ -30,87 +30,106 @@ fn report() -> RecordingReport {
         present: true,
     }
 }
-async fn permission(f: &Fixture, allow: bool) {
+async fn permission(fixture: &Fixture, allow: bool) {
     sqlx::query(if allow {
         "GRANT INSERT ON pixels.recording_events TO pixels_console_runtime"
     } else {
         "REVOKE INSERT ON pixels.recording_events FROM pixels_console_runtime"
     })
-    .execute(&f.owner)
+    .execute(&fixture.owner)
     .await
     .unwrap();
 }
 #[tokio::test]
 async fn autonomous_records_have_immutable_version_identity_not_filename_or_session_fallback() {
-    let f = Fixture::new().await;
-    let s = store().await;
-    let (node, _) = f.connected().await;
+    let fixture = Fixture::new().await;
+    let recording_store = store().await;
+    let (node, _) = fixture.connected().await;
     let mut request = report();
-    let first = s.report(&node, &request).await.unwrap();
+    let first = recording_store.report(&node, &request).await.unwrap();
     assert!(first.session_id.is_none());
-    assert_eq!(first, s.report(&node, &request).await.unwrap());
+    assert_eq!(
+        first,
+        recording_store.report(&node, &request).await.unwrap()
+    );
     let mut changed = request.clone();
     changed.source_sha256 = [19; 32];
-    assert!(s.report(&node, &changed).await.is_err());
+    assert!(recording_store.report(&node, &changed).await.is_err());
     changed.source_sha256 = request.source_sha256;
     changed.size_bytes += 1;
     changed.sequence += 1;
-    assert!(s.report(&node, &changed).await.is_err());
+    assert!(recording_store.report(&node, &changed).await.is_err());
     changed.source_id = Uuid::new_v4();
     changed.sequence = 1;
-    let replacement = s.report(&node, &changed).await.unwrap();
+    let replacement = recording_store.report(&node, &changed).await.unwrap();
     assert_ne!(first.id, replacement.id);
     assert_eq!(first.file_name, replacement.file_name);
     request.sequence = 2;
     request.present = false;
-    let absent = s.report(&node, &request).await.unwrap();
+    let absent = recording_store.report(&node, &request).await.unwrap();
     assert!(!absent.reported_present);
     assert_eq!(absent.revision, 2);
     let mut conflicting = request.clone();
     conflicting.present = true;
-    assert!(s.report(&node, &conflicting).await.is_err());
+    assert!(recording_store.report(&node, &conflicting).await.is_err());
     request.sequence = 1;
-    assert!(s.report(&node, &request).await.is_err());
+    assert!(recording_store.report(&node, &request).await.is_err());
     assert_eq!(
-        s.list_managed(&f.admin, Some(node.id()), None, 100)
+        recording_store
+            .list_managed(&fixture.admin, Some(node.id()), None, 100)
             .await
             .unwrap()
             .len(),
         2
     );
-    s.close().await;
-    f.close().await;
+    recording_store.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn concurrent_duplicate_observations_have_one_catalog_identity_and_ordered_events() {
-    let f = Fixture::new().await;
-    let s = store().await;
-    let (node, _) = f.connected().await;
+    let fixture = Fixture::new().await;
+    let recording_store = store().await;
+    let (node, _) = fixture.connected().await;
     let request = report();
     let barrier = Arc::new(Barrier::new(20));
     let mut tasks = Vec::new();
     for _ in 0..20 {
-        let (s, node, r, b) = (s.clone(), node.clone(), request.clone(), barrier.clone());
+        let (recording_store, node, recording_report, start_barrier) = (
+            recording_store.clone(),
+            node.clone(),
+            request.clone(),
+            barrier.clone(),
+        );
         tasks.push(tokio::spawn(async move {
-            b.wait().await;
-            s.report(&node, &r).await.unwrap()
+            start_barrier.wait().await;
+            recording_store
+                .report(&node, &recording_report)
+                .await
+                .unwrap()
         }));
     }
     let mut rows = Vec::new();
     for task in tasks {
         rows.push(task.await.unwrap());
     }
-    assert!(rows.iter().all(|r| r.id == rows[0].id && r.revision == 1));
+    assert!(rows.iter().all(|recording_record| {
+        recording_record.id == rows[0].id && recording_record.revision == 1
+    }));
     let id = rows[0].id;
     let barrier = Arc::new(Barrier::new(20));
     let mut tasks = Vec::new();
     for index in 0..20 {
-        let (s, node, mut r, b) = (s.clone(), node.clone(), request.clone(), barrier.clone());
-        r.sequence = 2;
-        r.present = index % 2 == 0;
+        let (recording_store, node, mut recording_report, start_barrier) = (
+            recording_store.clone(),
+            node.clone(),
+            request.clone(),
+            barrier.clone(),
+        );
+        recording_report.sequence = 2;
+        recording_report.present = index % 2 == 0;
         tasks.push(tokio::spawn(async move {
-            b.wait().await;
-            s.report(&node, &r).await
+            start_barrier.wait().await;
+            recording_store.report(&node, &recording_report).await
         }));
     }
     let mut successes = Vec::new();
@@ -125,59 +144,65 @@ async fn concurrent_duplicate_observations_have_one_catalog_identity_and_ordered
     assert_eq!(successes.len(), 10);
     assert!(successes
         .iter()
-        .all(|r| r.revision == 2 && r.reported_present == successes[0].reported_present));
+        .all(|recording_record| recording_record.revision == 2
+            && recording_record.reported_present == successes[0].reported_present));
     let events: i64 =
         sqlx::query_scalar("SELECT count(*) FROM pixels.recording_events WHERE recording_id=$1")
             .bind(id)
-            .fetch_one(&f.owner)
+            .fetch_one(&fixture.owner)
             .await
             .unwrap();
     assert_eq!(events, 2);
-    s.close().await;
-    f.close().await;
+    recording_store.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn reconnect_requires_current_node_and_explicit_new_generation_observation() {
-    let f = Fixture::new().await;
-    let s = store().await;
-    let (node, key) = f.connected().await;
+    let fixture = Fixture::new().await;
+    let recording_store = store().await;
+    let (node, key) = fixture.connected().await;
     let mut request = report();
     request.sequence = 50;
-    let first = s.report(&node, &request).await.unwrap();
-    f.nodes.close_connection(&node).await.unwrap();
-    let offline = s
-        .list_managed(&f.admin, Some(node.id()), None, 1)
+    let first = recording_store.report(&node, &request).await.unwrap();
+    fixture.nodes.close_connection(&node).await.unwrap();
+    let offline = recording_store
+        .list_managed(&fixture.admin, Some(node.id()), None, 1)
         .await
         .unwrap()
         .remove(0);
     assert_eq!(offline, first); // A historical presence observation, not a claim of current availability.
-    assert!(s.report(&node, &request).await.is_err());
-    let current = f
+    assert!(recording_store.report(&node, &request).await.is_err());
+    let current = fixture
         .nodes
         .open_connection(node.epoch(), &key, &token())
         .await
         .unwrap();
-    f.nodes.report(&current, &node_report(1)).await.unwrap();
+    fixture
+        .nodes
+        .report(&current, &node_report(1))
+        .await
+        .unwrap();
     request.sequence = 1;
-    let reobserved = s.report(&current, &request).await.unwrap();
+    let reobserved = recording_store.report(&current, &request).await.unwrap();
     assert_eq!(reobserved.id, first.id);
     assert_eq!(reobserved.revision, 2);
     assert!(reobserved.node_generation > first.node_generation);
-    assert!(s.report(&node, &request).await.is_err());
-    s.close().await;
-    f.close().await;
+    assert!(recording_store.report(&node, &request).await.is_err());
+    recording_store.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn optional_session_origin_is_exact_node_fk_and_cannot_authorize_cross_node_reporting() {
-    let f = Fixture::new().await;
-    let s = store().await;
-    let (node, app, _) = f.prepared(DeploymentTarget::Webview, 4).await;
-    let (user, instance, command) = f.started(&node, app.id).await;
+    let fixture = Fixture::new().await;
+    let recording_store = store().await;
+    let (node, app, _) = fixture.prepared(DeploymentTarget::Webview, 4).await;
+    let (user, instance, command) = fixture.started(&node, app.id).await;
     let port = match command.action {
         NodeCommandAction::Start { port, .. } => port,
         _ => panic!("start required"),
     };
-    f.instances
+    fixture
+        .instances
         .acknowledge_command(
             &node,
             &CommandReceipt {
@@ -212,56 +237,69 @@ async fn optional_session_origin_is_exact_node_fk_and_cannot_authorize_cross_nod
         )
         .await
         .unwrap();
-    let mut r = report();
-    r.session_id = Some(session.id);
-    let first = s.report(&node, &r).await.unwrap();
+    let mut recording_report = report();
+    recording_report.session_id = Some(session.id);
+    let first = recording_store
+        .report(&node, &recording_report)
+        .await
+        .unwrap();
     assert_eq!(first.session_id, Some(session.id));
-    let (_, key) = f.node().await;
-    let other = f
+    let (_, key) = fixture.node().await;
+    let other = fixture
         .nodes
         .open_connection(node.epoch(), &key, &token())
         .await
         .unwrap();
-    f.nodes.report(&other, &node_report(1)).await.unwrap();
-    assert!(s.report(&other, &r).await.is_err());
-    r.session_id = None;
-    let own = s.report(&other, &r).await.unwrap();
+    fixture.nodes.report(&other, &node_report(1)).await.unwrap();
+    assert!(recording_store
+        .report(&other, &recording_report)
+        .await
+        .is_err());
+    recording_report.session_id = None;
+    let own = recording_store
+        .report(&other, &recording_report)
+        .await
+        .unwrap();
     assert_ne!(first.id, own.id);
     let mut missing = report();
     missing.present = false;
-    assert!(s.report(&node, &missing).await.is_err());
+    assert!(recording_store.report(&node, &missing).await.is_err());
     missing.present = true;
     missing.session_id = Some(Uuid::new_v4());
-    assert!(s.report(&node, &missing).await.is_err());
+    assert!(recording_store.report(&node, &missing).await.is_err());
     sessions.close().await;
-    s.close().await;
-    f.close().await;
+    recording_store.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn failed_recording_audit_rolls_back_creation_observation_and_immutable_metadata() {
-    let f = Fixture::new().await;
-    let s = store().await;
-    let (node, _) = f.connected().await;
-    let mut r = report();
-    permission(&f, false).await;
-    let failed = s.report(&node, &r).await;
-    permission(&f, true).await;
+    let fixture = Fixture::new().await;
+    let recording_store = store().await;
+    let (node, _) = fixture.connected().await;
+    let mut recording_report = report();
+    permission(&fixture, false).await;
+    let failed = recording_store.report(&node, &recording_report).await;
+    permission(&fixture, true).await;
     assert!(failed.is_err());
-    assert!(s
-        .list_managed(&f.admin, Some(node.id()), None, 100)
+    assert!(recording_store
+        .list_managed(&fixture.admin, Some(node.id()), None, 100)
         .await
         .unwrap()
         .is_empty());
-    let first = s.report(&node, &r).await.unwrap();
-    r.sequence = 2;
-    r.present = false;
-    permission(&f, false).await;
-    let failed = s.report(&node, &r).await;
-    permission(&f, true).await;
+    let first = recording_store
+        .report(&node, &recording_report)
+        .await
+        .unwrap();
+    recording_report.sequence = 2;
+    recording_report.present = false;
+    permission(&fixture, false).await;
+    let failed = recording_store.report(&node, &recording_report).await;
+    permission(&fixture, true).await;
     assert!(failed.is_err());
     assert_eq!(
         first,
-        s.list_managed(&f.admin, Some(node.id()), None, 100)
+        recording_store
+            .list_managed(&fixture.admin, Some(node.id()), None, 100)
             .await
             .unwrap()[0]
     );
@@ -279,37 +317,38 @@ async fn failed_recording_audit_rolls_back_creation_observation_and_immutable_me
             .is_err()
     );
     runtime.close().await;
-    s.close().await;
-    f.close().await;
+    recording_store.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn node_library_requires_current_device_acl_and_has_bounded_secret_free_history() {
-    let f = Fixture::new().await;
-    let s = store().await;
-    let (node, _) = f.connected().await;
+    let fixture = Fixture::new().await;
+    let recording_store = store().await;
+    let (node, _) = fixture.connected().await;
     let mut ids = Vec::new();
     for _ in 0..3 {
-        ids.push(s.report(&node, &report()).await.unwrap().id);
+        ids.push(recording_store.report(&node, &report()).await.unwrap().id);
     }
     ids.sort();
-    let user = f.session("user", ClientType::Android).await;
-    assert!(s
+    let user = fixture.session("user", ClientType::Android).await;
+    assert!(recording_store
         .list_visible(&user, ClientType::Android, node.id(), None, 100)
         .await
         .is_err());
-    let identity = f
+    let identity = fixture
         .identity
         .authenticate(&user, ClientType::Android)
         .await
         .unwrap();
     let device: Uuid = sqlx::query_scalar("SELECT device_id FROM pixels.nodes WHERE id=$1")
         .bind(node.id())
-        .fetch_one(&f.owner)
+        .fetch_one(&fixture.owner)
         .await
         .unwrap();
-    f.devices
+    fixture
+        .devices
         .replace_access(
-            &f.admin,
+            &fixture.admin,
             device,
             1,
             &DeviceAccess {
@@ -322,11 +361,12 @@ async fn node_library_requires_current_device_acl_and_has_bounded_secret_free_hi
     let rev: i64 =
         sqlx::query_scalar("SELECT authorization_revision FROM pixels.users WHERE id=$1")
             .bind(identity.user_id)
-            .fetch_one(&f.owner)
+            .fetch_one(&fixture.owner)
             .await
             .unwrap();
     let user = token();
-    f.identity
+    fixture
+        .identity
         .issue_session(
             identity.user_id,
             rev,
@@ -339,7 +379,7 @@ async fn node_library_requires_current_device_acl_and_has_bounded_secret_free_hi
     let mut after = None;
     let mut found = Vec::new();
     loop {
-        let page = s
+        let page = recording_store
             .list_visible(&user, ClientType::Android, node.id(), after, 1)
             .await
             .unwrap();
@@ -355,19 +395,27 @@ async fn node_library_requires_current_device_acl_and_has_bounded_secret_free_hi
         }
     }
     assert_eq!(found, ids);
-    let viewer = f.session("viewer", ClientType::AdminWeb).await;
+    let viewer = fixture.session("viewer", ClientType::AdminWeb).await;
     assert_eq!(
-        s.list_managed(&viewer, Some(node.id()), None, 100)
+        recording_store
+            .list_managed(&viewer, Some(node.id()), None, 100)
             .await
             .unwrap()
             .len(),
         3
     );
-    assert!(s.list_managed(&viewer, None, None, 101).await.is_err());
-    assert!(s.list_managed(&user, None, None, 1).await.is_err());
-    f.devices
+    assert!(recording_store
+        .list_managed(&viewer, None, None, 101)
+        .await
+        .is_err());
+    assert!(recording_store
+        .list_managed(&user, None, None, 1)
+        .await
+        .is_err());
+    fixture
+        .devices
         .replace_access(
-            &f.admin,
+            &fixture.admin,
             device,
             2,
             &DeviceAccess {
@@ -377,12 +425,15 @@ async fn node_library_requires_current_device_acl_and_has_bounded_secret_free_hi
         )
         .await
         .unwrap();
-    assert!(s
+    assert!(recording_store
         .list_visible(&user, ClientType::Android, node.id(), None, 100)
         .await
         .is_err());
-    s.close().await;
-    assert!(s.list_managed(&viewer, None, None, 1).await.is_err());
+    recording_store.close().await;
+    assert!(recording_store
+        .list_managed(&viewer, None, None, 1)
+        .await
+        .is_err());
     let reopened = store().await;
     assert_eq!(
         reopened
@@ -393,5 +444,5 @@ async fn node_library_requires_current_device_acl_and_has_bounded_secret_free_hi
         3
     );
     reopened.close().await;
-    f.close().await;
+    fixture.close().await;
 }

@@ -20,8 +20,8 @@ async fn operator_password_change_invalidates_sessions_and_inflight_verification
         password_hash::{PasswordHasher, SaltString},
         Argon2,
     };
-    let f = Fixture::new("admin").await;
-    let operator = f.store.operators();
+    let fixture = Fixture::new("admin").await;
+    let operator = fixture.store.operators();
     let salt = SaltString::encode_b64(&[37; 16]).unwrap();
     let hash = Argon2::default()
         .hash_password(b"synthetic password", &salt)
@@ -29,12 +29,12 @@ async fn operator_password_change_invalidates_sessions_and_inflight_verification
         .to_string();
     sqlx::query("UPDATE pixels.authors SET password_hash=$1 WHERE id=$2")
         .bind(&hash)
-        .bind(f.author)
-        .execute(&f.owner)
+        .bind(fixture.author)
+        .execute(&fixture.owner)
         .await
         .unwrap();
     let before = operator
-        .credential(&f.author.to_string())
+        .credential(&fixture.author.to_string())
         .await
         .unwrap()
         .unwrap();
@@ -44,26 +44,26 @@ async fn operator_password_change_invalidates_sessions_and_inflight_verification
     assert_eq!(operator.authenticate(&token).await.unwrap().role, "admin");
     assert!(operator
         .set_password(
-            &f.token,
-            f.author,
+            &fixture.token,
+            fixture.author,
             1,
             "$argon2id$v=19$m=19456,t=2,p=1$invalid"
         )
         .await
         .is_err());
     operator
-        .set_password(&f.token, f.author, 1, &hash)
+        .set_password(&fixture.token, fixture.author, 1, &hash)
         .await
         .unwrap();
     assert!(operator.authenticate(&token).await.is_err());
-    assert!(operator.authenticate(&f.token).await.is_err());
+    assert!(operator.authenticate(&fixture.token).await.is_err());
     let replacement: [u8; 32] = Sha256::digest(Uuid::new_v4().as_bytes()).into();
     assert!(operator
         .issue_session(before.id, 1, &replacement)
         .await
         .is_err());
     let next = operator
-        .credential(&f.author.to_string())
+        .credential(&fixture.author.to_string())
         .await
         .unwrap()
         .unwrap();
@@ -74,7 +74,7 @@ async fn operator_password_change_invalidates_sessions_and_inflight_verification
     operator.revoke_session(&replacement).await.unwrap();
     operator.revoke_session(&replacement).await.unwrap();
     assert!(operator.authenticate(&replacement).await.is_err());
-    f.close().await;
+    fixture.close().await;
 }
 struct Fixture {
     store: LicenseStore,
@@ -147,13 +147,13 @@ impl Fixture {
 
 #[tokio::test]
 async fn committed_issuance_verifies_and_identical_retry_returns_exact_wire() {
-    let f = Fixture::new("admin").await;
-    let terms = f.terms().await;
+    let fixture = Fixture::new("admin").await;
+    let terms = fixture.terms().await;
     let request = Uuid::new_v4();
-    let issued = f
+    let issued = fixture
         .store
         .issue(
-            &f.token,
+            &fixture.token,
             request,
             IssueRequest::Create {
                 terms: terms.clone(),
@@ -161,10 +161,10 @@ async fn committed_issuance_verifies_and_identical_retry_returns_exact_wire() {
         )
         .await
         .unwrap();
-    let duplicate = f
+    let duplicate = fixture
         .store
         .issue(
-            &f.token,
+            &fixture.token,
             request,
             IssueRequest::Create {
                 terms: terms.clone(),
@@ -189,37 +189,47 @@ async fn committed_issuance_verifies_and_identical_retry_returns_exact_wire() {
         issued.license_id
     );
     assert_eq!(
-        f.store.current(issued.license_id, 1).await.unwrap().wire,
+        fixture
+            .store
+            .current(issued.license_id, 1)
+            .await
+            .unwrap()
+            .wire,
         issued.wire
     );
     let count: i64 =
         sqlx::query_scalar("SELECT count(*) FROM pixels.license_issuances WHERE license_id=$1")
             .bind(issued.license_id)
-            .fetch_one(&f.owner)
+            .fetch_one(&fixture.owner)
             .await
             .unwrap();
     assert_eq!(count, 1);
     let mut changed = terms;
     changed.max_devices += 1;
     assert!(matches!(
-        f.store
-            .issue(&f.token, request, IssueRequest::Create { terms: changed })
+        fixture
+            .store
+            .issue(
+                &fixture.token,
+                request,
+                IssueRequest::Create { terms: changed }
+            )
             .await,
         Err(AuthError::Conflict)
     ));
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn concurrent_same_request_has_one_signed_committed_result() {
-    let f = Fixture::new("admin").await;
-    let terms = f.terms().await;
+    let fixture = Fixture::new("admin").await;
+    let terms = fixture.terms().await;
     let request = Uuid::new_v4();
     let barrier = Arc::new(tokio::sync::Barrier::new(20));
     let mut tasks = Vec::new();
     for _ in 0..20 {
-        let store = f.store.clone();
-        let token = f.token;
+        let store = fixture.store.clone();
+        let token = fixture.token;
         let terms = terms.clone();
         let barrier = barrier.clone();
         tasks.push(tokio::spawn(async move {
@@ -238,11 +248,11 @@ async fn concurrent_same_request_has_one_signed_committed_result() {
     let count: i64 =
         sqlx::query_scalar("SELECT count(*) FROM pixels.licenses WHERE target_deployment=$1")
             .bind(terms.deployment_id)
-            .fetch_one(&f.owner)
+            .fetch_one(&fixture.owner)
             .await
             .unwrap();
     assert_eq!(count, 1);
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
@@ -296,13 +306,13 @@ async fn visitor_revoked_expired_and_stale_author_sessions_cannot_write() {
 
 #[tokio::test]
 async fn renewal_cas_preserves_identity_and_revocation_never_reissues() {
-    let f = Fixture::new("admin").await;
-    let terms = f.terms().await;
+    let fixture = Fixture::new("admin").await;
+    let terms = fixture.terms().await;
     let original_request = Uuid::new_v4();
-    let first = f
+    let first = fixture
         .store
         .issue(
-            &f.token,
+            &fixture.token,
             original_request,
             IssueRequest::Create {
                 terms: terms.clone(),
@@ -313,9 +323,10 @@ async fn renewal_cas_preserves_identity_and_revocation_never_reissues() {
     let mut changed = terms.clone();
     changed.deployment_id = Uuid::new_v4();
     assert!(matches!(
-        f.store
+        fixture
+            .store
             .issue(
-                &f.token,
+                &fixture.token,
                 Uuid::new_v4(),
                 IssueRequest::Renew {
                     license_id: first.license_id,
@@ -331,22 +342,31 @@ async fn renewal_cas_preserves_identity_and_revocation_never_reissues() {
         expected_revision: 1,
         terms: terms.clone(),
     };
-    let (a, b) = tokio::join!(
-        f.store.issue(&f.token, Uuid::new_v4(), request.clone()),
-        f.store.issue(&f.token, Uuid::new_v4(), request)
+    let (first_renewal, second_renewal) = tokio::join!(
+        fixture
+            .store
+            .issue(&fixture.token, Uuid::new_v4(), request.clone()),
+        fixture.store.issue(&fixture.token, Uuid::new_v4(), request)
     );
-    assert_eq!(usize::from(a.is_ok()) + usize::from(b.is_ok()), 1);
-    assert!(f.store.current(first.license_id, 1).await.is_err());
-    assert!(f.store.current(first.license_id, 2).await.is_ok());
     assert_eq!(
-        f.store.revoke(&f.token, first.license_id, 2).await.unwrap(),
+        usize::from(first_renewal.is_ok()) + usize::from(second_renewal.is_ok()),
+        1
+    );
+    assert!(fixture.store.current(first.license_id, 1).await.is_err());
+    assert!(fixture.store.current(first.license_id, 2).await.is_ok());
+    assert_eq!(
+        fixture
+            .store
+            .revoke(&fixture.token, first.license_id, 2)
+            .await
+            .unwrap(),
         3
     );
-    assert!(f.store.current(first.license_id, 2).await.is_err());
-    assert!(f
+    assert!(fixture.store.current(first.license_id, 2).await.is_err());
+    assert!(fixture
         .store
         .issue(
-            &f.token,
+            &fixture.token,
             original_request,
             IssueRequest::Create {
                 terms: terms.clone()
@@ -354,10 +374,10 @@ async fn renewal_cas_preserves_identity_and_revocation_never_reissues() {
         )
         .await
         .is_err());
-    assert!(f
+    assert!(fixture
         .store
         .issue(
-            &f.token,
+            &fixture.token,
             Uuid::new_v4(),
             IssueRequest::Renew {
                 license_id: first.license_id,
@@ -371,26 +391,26 @@ async fn renewal_cas_preserves_identity_and_revocation_never_reissues() {
         "SELECT revision FROM pixels.license_audit WHERE license_id=$1 ORDER BY revision",
     )
     .bind(first.license_id)
-    .fetch_all(&f.owner)
+    .fetch_all(&fixture.owner)
     .await
     .unwrap();
     assert_eq!(revisions, vec![1, 2, 3]);
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn issuance_failure_rolls_back_license_request_and_audit() {
-    let f = Fixture::new("admin").await;
-    let terms = f.terms().await;
+    let fixture = Fixture::new("admin").await;
+    let terms = fixture.terms().await;
     let request = Uuid::new_v4();
     sqlx::query("REVOKE INSERT ON pixels.license_issuances FROM pixels_auth_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
-    let result = f
+    let result = fixture
         .store
         .issue(
-            &f.token,
+            &fixture.token,
             request,
             IssueRequest::Create {
                 terms: terms.clone(),
@@ -398,46 +418,47 @@ async fn issuance_failure_rolls_back_license_request_and_audit() {
         )
         .await;
     sqlx::query("GRANT INSERT ON pixels.license_issuances TO pixels_auth_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
     assert!(result.is_err());
     let licenses: i64 =
         sqlx::query_scalar("SELECT count(*) FROM pixels.licenses WHERE target_deployment=$1")
             .bind(terms.deployment_id)
-            .fetch_one(&f.owner)
+            .fetch_one(&fixture.owner)
             .await
             .unwrap();
     let requests: i64 =
         sqlx::query_scalar("SELECT count(*) FROM pixels.license_requests WHERE author_id=$1")
-            .bind(f.author)
-            .fetch_one(&f.owner)
+            .bind(fixture.author)
+            .fetch_one(&fixture.owner)
             .await
             .unwrap();
     let audits: i64 =
         sqlx::query_scalar("SELECT count(*) FROM pixels.license_audit WHERE author_id=$1")
-            .bind(f.author)
-            .fetch_one(&f.owner)
+            .bind(fixture.author)
+            .fetch_one(&fixture.owner)
             .await
             .unwrap();
     assert_eq!((licenses, requests, audits), (0, 0, 0));
-    f.store
-        .issue(&f.token, request, IssueRequest::Create { terms })
+    fixture
+        .store
+        .issue(&fixture.token, request, IssueRequest::Create { terms })
         .await
         .unwrap();
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn invalid_foreign_keys_limits_and_closed_database_never_succeed() {
-    let f = Fixture::new("admin").await;
-    let terms = f.terms().await;
+    let fixture = Fixture::new("admin").await;
+    let terms = fixture.terms().await;
     let mut invalid = terms.clone();
     invalid.customer_id = Uuid::new_v4();
-    assert!(f
+    assert!(fixture
         .store
         .issue(
-            &f.token,
+            &fixture.token,
             Uuid::new_v4(),
             IssueRequest::Create { terms: invalid }
         )
@@ -445,19 +466,19 @@ async fn invalid_foreign_keys_limits_and_closed_database_never_succeed() {
         .is_err());
     let mut invalid = terms.clone();
     invalid.max_sessions = 0;
-    assert!(f
+    assert!(fixture
         .store
         .issue(
-            &f.token,
+            &fixture.token,
             Uuid::new_v4(),
             IssueRequest::Create { terms: invalid }
         )
         .await
         .is_err());
-    assert!(f
+    assert!(fixture
         .store
         .issue(
-            &f.token,
+            &fixture.token,
             Uuid::nil(),
             IssueRequest::Create {
                 terms: terms.clone()
@@ -467,16 +488,20 @@ async fn invalid_foreign_keys_limits_and_closed_database_never_succeed() {
         .is_err());
     let requests: i64 =
         sqlx::query_scalar("SELECT count(*) FROM pixels.license_requests WHERE author_id=$1")
-            .bind(f.author)
-            .fetch_one(&f.owner)
+            .bind(fixture.author)
+            .fetch_one(&fixture.owner)
             .await
             .unwrap();
     assert_eq!(requests, 0);
-    f.store.close().await;
-    assert!(f
+    fixture.store.close().await;
+    assert!(fixture
         .store
-        .issue(&f.token, Uuid::new_v4(), IssueRequest::Create { terms })
+        .issue(
+            &fixture.token,
+            Uuid::new_v4(),
+            IssueRequest::Create { terms }
+        )
         .await
         .is_err());
-    f.close().await;
+    fixture.close().await;
 }

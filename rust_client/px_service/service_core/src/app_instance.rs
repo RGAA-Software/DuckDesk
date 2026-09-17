@@ -192,8 +192,8 @@ fn normalize_path_display(path: &Path) -> PathBuf {
 }
 
 pub fn encode_game_path_b64(game_path: &Path) -> String {
-    let s = game_path.to_string_lossy();
-    base64_encode(&s)
+    let path_text = game_path.to_string_lossy();
+    base64_encode(&path_text)
 }
 
 /// Build px_render launch spec for a game-hook app instance.
@@ -248,10 +248,10 @@ pub fn build_game_hook_launch_spec(
     if !req.push_rtmp_url.trim().is_empty() {
         args.push(format!("--push_rtmp_url={}", req.push_rtmp_url.trim()));
     }
-    if let Some(v) = view {
+    if let Some(view_info) = view {
         args.push(format!(
             "--app_game_view_path={}",
-            encode_game_path_b64(&v.view_path)
+            encode_game_path_b64(&view_info.view_path)
         ));
     }
     if !req.game_arguments.trim().is_empty() {
@@ -322,9 +322,9 @@ pub fn build_webview_launch_spec(
 
 pub fn extract_listen_port(args: &[String]) -> Option<u16> {
     for arg in args {
-        if let Some(v) = arg.strip_prefix("--network_listen_port=") {
-            if let Ok(p) = v.parse::<u16>() {
-                return Some(p);
+        if let Some(port_text) = arg.strip_prefix("--network_listen_port=") {
+            if let Ok(parsed_port) = port_text.parse::<u16>() {
+                return Some(parsed_port);
             }
         }
     }
@@ -364,7 +364,10 @@ fn append_relay_arguments(args: &mut Vec<String>, req: &StartAppRequest) {
 /// True if the cmdline carries an exact `--network_listen_port={port}` token.
 /// Token-boundary safe: port 3200 must not match 4613 (substring pitfall).
 pub fn cmdline_has_listen_port(cmdline: &str, port: u16) -> bool {
-    let args: Vec<String> = cmdline.split_whitespace().map(|s| s.to_string()).collect();
+    let args: Vec<String> = cmdline
+        .split_whitespace()
+        .map(|argument| argument.to_string())
+        .collect();
     extract_listen_port(&args) == Some(port)
 }
 
@@ -377,23 +380,26 @@ pub fn pid_belongs_to_instance(
     game_path: &Path,
     pid: u32,
 ) -> bool {
-    let Some(p) = processes.iter().find(|p| p.pid == pid) else {
+    let Some(process) = processes.iter().find(|process| process.pid == pid) else {
         return false;
     };
-    if p.is_app_instance_render_process() {
-        return cmdline_has_listen_port(&p.cmdline, listen_port);
+    if process.is_app_instance_render_process() {
+        return cmdline_has_listen_port(&process.cmdline, listen_port);
     }
-    p.exe_path_eq(&game_path.to_string_lossy())
+    process.exe_path_eq(&game_path.to_string_lossy())
 }
 
 pub fn is_game_hook_launch(spec: &RenderLaunchSpec) -> bool {
-    spec.args
-        .iter()
-        .any(|a| a == "--app_mode=game-hook" || a == &format!("--app_mode={APP_MODE_GAME_HOOK}"))
+    spec.args.iter().any(|argument| {
+        argument == "--app_mode=game-hook"
+            || argument == &format!("--app_mode={APP_MODE_GAME_HOOK}")
+    })
 }
 
 pub fn is_webview_launch(spec: &RenderLaunchSpec) -> bool {
-    spec.args.iter().any(|a| a == "--app_mode=webview")
+    spec.args
+        .iter()
+        .any(|argument| argument == "--app_mode=webview")
 }
 
 pub fn is_rdp_launch(spec: &RenderLaunchSpec) -> bool {
@@ -441,9 +447,9 @@ pub fn build_rdp_launch_spec(
     ] {
         if identity.is_empty()
             || identity.len() > 128
-            || !identity
-                .bytes()
-                .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_'))
+            || !identity.bytes().all(|byte_value| {
+                byte_value.is_ascii_alphanumeric() || matches!(byte_value, b'-' | b'_')
+            })
         {
             return Err("RDP launch identity invalid".into());
         }
@@ -509,20 +515,23 @@ impl AppInstanceRegistry {
     pub fn summaries(&self) -> Vec<AppInstanceSummary> {
         self.instances
             .values()
-            .filter(|r| r.is_active() || r.exit_detail.is_some())
-            .map(|r| AppInstanceSummary {
-                request_id: r.request_id.clone(),
-                stop_reason: r
+            .filter(|record| record.is_active() || record.exit_detail.is_some())
+            .map(|record| AppInstanceSummary {
+                request_id: record.request_id.clone(),
+                stop_reason: record
                     .exit_detail
                     .as_ref()
                     .map(|detail| detail.reason.clone())
                     .unwrap_or_default(),
-                exit_code: r.exit_detail.as_ref().and_then(|detail| detail.exit_code),
-                instance_id: r.instance_id.clone(),
-                app_id: r.app_id.clone(),
-                listen_port: r.listen_port,
-                pid: r.pid.unwrap_or(0),
-                state: match r.state {
+                exit_code: record
+                    .exit_detail
+                    .as_ref()
+                    .and_then(|detail| detail.exit_code),
+                instance_id: record.instance_id.clone(),
+                app_id: record.app_id.clone(),
+                listen_port: record.listen_port,
+                pid: record.pid.unwrap_or(0),
+                state: match record.state {
                     AppInstanceState::Starting => "starting",
                     AppInstanceState::Running => "running",
                     AppInstanceState::Stopping => "stopping",
@@ -546,41 +555,43 @@ impl AppInstanceRegistry {
             if preferred > i32::from(u16::MAX) {
                 return Err(format!("listen_port {preferred} out of u16 range"));
             }
-            let p = preferred as u16;
-            if p < self.port_range_start || p > self.port_range_end {
+            let preferred_port = preferred as u16;
+            if preferred_port < self.port_range_start || preferred_port > self.port_range_end {
                 return Err(format!(
-                    "listen_port {p} out of range [{}-{}]",
+                    "listen_port {preferred_port} out of range [{}-{}]",
                     self.port_range_start, self.port_range_end
                 ));
             }
-            if self.used_ports.contains_key(&p) {
-                return Err(format!("listen_port {p} already in use"));
+            if self.used_ports.contains_key(&preferred_port) {
+                return Err(format!("listen_port {preferred_port} already in use"));
             }
-            if !port_bindable(p) {
-                return Err(format!("listen_port {p} is occupied on the OS"));
+            if !port_bindable(preferred_port) {
+                return Err(format!(
+                    "listen_port {preferred_port} is occupied on the OS"
+                ));
             }
-            return Ok(p);
+            return Ok(preferred_port);
         }
         let last = self.used_ports.keys().copied().max();
         let mut candidate = match last {
-            Some(p) => p.saturating_add(1).max(self.port_range_start),
+            Some(last_used_port) => last_used_port.saturating_add(1).max(self.port_range_start),
             None => self.port_range_start,
         };
         if candidate > self.port_range_end {
             candidate = self.port_range_start;
         }
-        let mut p = candidate;
+        let mut candidate_port = candidate;
         let span = (self.port_range_end - self.port_range_start) as usize + 1;
         for _ in 0..span {
             // OS probe catches orphan renders / foreign processes the registry
             // does not track (e.g. after a failed start left a live render).
-            if !self.used_ports.contains_key(&p) && port_bindable(p) {
-                return Ok(p);
+            if !self.used_ports.contains_key(&candidate_port) && port_bindable(candidate_port) {
+                return Ok(candidate_port);
             }
-            p = if p >= self.port_range_end {
+            candidate_port = if candidate_port >= self.port_range_end {
                 self.port_range_start
             } else {
-                p + 1
+                candidate_port + 1
             };
         }
         Err("no free listen_port in pool".to_string())
@@ -671,7 +682,7 @@ impl AppInstanceRegistry {
             state: AppInstanceState::Starting,
             error: String::new(),
             launch,
-            view_game_path: view.map(|v| v.view_path),
+            view_game_path: view.map(|view_info| view_info.view_path),
             finished_at: None,
         };
         self.instances.insert(req.instance_id.clone(), record);
@@ -839,7 +850,7 @@ pub fn port_bindable(port: u16) -> bool {
     }
     match std::net::TcpListener::bind(("::", port)) {
         Ok(_) => true,
-        Err(e) => e.kind() != std::io::ErrorKind::AddrInUse,
+        Err(bind_error) => bind_error.kind() != std::io::ErrorKind::AddrInUse,
     }
 }
 
@@ -897,9 +908,10 @@ mod tests {
 
     #[test]
     fn resolve_game_path_joins_relative() {
-        let p = resolve_game_path(r"D:\apps\CarGame", r"Binaries\Win64\game.exe").unwrap();
-        assert!(p.to_string_lossy().contains("CarGame"));
-        assert!(p.to_string_lossy().ends_with("game.exe"));
+        let resolved_path =
+            resolve_game_path(r"D:\apps\CarGame", r"Binaries\Win64\game.exe").unwrap();
+        assert!(resolved_path.to_string_lossy().contains("CarGame"));
+        assert!(resolved_path.to_string_lossy().ends_with("game.exe"));
     }
 
     #[test]
@@ -1020,27 +1032,39 @@ mod tests {
         let b64_arg = spec
             .args
             .iter()
-            .find(|a| a.starts_with("--app_game_path="))
+            .find(|argument| argument.starts_with("--app_game_path="))
             .unwrap();
         let b64 = b64_arg.strip_prefix("--app_game_path=").unwrap();
         let decoded = px_base::crypto_util::base64_decode(b64).unwrap();
         assert!(decoded.contains("VehicleGame"));
-        assert!(spec.args.iter().any(|a| a == "--capture_video_type=inner"));
-        assert!(spec.args.iter().any(|a| a == "--device_id=device-a"));
         assert!(spec
             .args
             .iter()
-            .any(|a| a == "--relay_device_id=device-a__instance__i1"));
+            .any(|argument| argument == "--capture_video_type=inner"));
         assert!(spec
             .args
             .iter()
-            .any(|a| a == "--relay_server_host=console.test"));
-        assert!(spec.args.iter().any(|a| a == "--relay_server_port=30502"));
-        assert!(spec.args.iter().any(|a| a == "--relay_enabled=true"));
+            .any(|argument| argument == "--device_id=device-a"));
         assert!(spec
             .args
             .iter()
-            .any(|a| a == "--live_stream_id=device-a__app__app-car"));
+            .any(|argument| argument == "--relay_device_id=device-a__instance__i1"));
+        assert!(spec
+            .args
+            .iter()
+            .any(|argument| argument == "--relay_server_host=console.test"));
+        assert!(spec
+            .args
+            .iter()
+            .any(|argument| argument == "--relay_server_port=30502"));
+        assert!(spec
+            .args
+            .iter()
+            .any(|argument| argument == "--relay_enabled=true"));
+        assert!(spec
+            .args
+            .iter()
+            .any(|argument| argument == "--live_stream_id=device-a__app__app-car"));
     }
 
     #[test]
@@ -1056,24 +1080,30 @@ mod tests {
         let view_arg = spec
             .args
             .iter()
-            .find(|a| a.starts_with("--app_game_view_path="))
+            .find(|argument| argument.starts_with("--app_game_view_path="))
             .expect("view path arg");
         let b64 = view_arg.strip_prefix("--app_game_view_path=").unwrap();
         let decoded = px_base::crypto_util::base64_decode(b64).unwrap();
         assert!(decoded.contains("VehicleGame"));
         // game args flag must match render's gflags name (app_game_args).
-        assert!(spec.args.iter().any(|a| a == "--app_game_args=-dx11"));
-        assert!(spec.args.iter().any(|a| a == "--app_instance_id=i1"));
+        assert!(spec
+            .args
+            .iter()
+            .any(|argument| argument == "--app_game_args=-dx11"));
+        assert!(spec
+            .args
+            .iter()
+            .any(|argument| argument == "--app_instance_id=i1"));
         assert!(!spec
             .args
             .iter()
-            .any(|a| a.starts_with("--app_game_arguments")));
+            .any(|argument| argument.starts_with("--app_game_arguments")));
         // Without a view, no view arg is emitted.
         let spec_no_view = build_game_hook_launch_spec(r"D:\Pixels", &req, 4623, &game, None);
         assert!(!spec_no_view
             .args
             .iter()
-            .any(|a| a.starts_with("--app_game_view_path=")));
+            .any(|argument| argument.starts_with("--app_game_view_path=")));
     }
 
     #[test]
@@ -1162,7 +1192,11 @@ mod tests {
         let mut reg = AppInstanceRegistry::new();
         let req = sample_req("ue", 4641);
         let rec = reg.begin_start(r"D:\Pixels", req).unwrap();
-        assert!(rec.launch.args.iter().any(|a| a == "--app_game_args=-dx11"));
+        assert!(rec
+            .launch
+            .args
+            .iter()
+            .any(|argument| argument == "--app_game_args=-dx11"));
         assert!(rec.view_game_path.is_none());
     }
 
@@ -1204,7 +1238,7 @@ mod tests {
         reg.mark_running("i2", 11).unwrap();
         let sums = reg.summaries();
         assert_eq!(sums.len(), 2);
-        assert!(sums.iter().all(|s| s.app_id == "app-car"));
+        assert!(sums.iter().all(|summary| summary.app_id == "app-car"));
         assert!(reg.instances_json().contains("i1"));
         assert!(reg.instances_json().contains("4714"));
     }

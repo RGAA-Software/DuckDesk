@@ -34,8 +34,8 @@ async fn store() -> UpdateStore {
 }
 #[tokio::test]
 async fn all_product_platform_flavor_channel_dimensions_are_independent() {
-    let f = Fixture::new().await;
-    let s = store().await;
+    let fixture = Fixture::new().await;
+    let update_store = store().await;
     let base = spec();
     for (product, os, architecture) in [
         (
@@ -71,48 +71,57 @@ async fn all_product_platform_flavor_channel_dimensions_are_independent() {
     ] {
         for distribution in [Distribution::Official, Distribution::Customer] {
             for channel in [Channel::Stable, Channel::Preview] {
-                let mut a = base.clone();
-                a.target = ReleaseQuery {
+                let mut release_spec = base.clone();
+                release_spec.target = ReleaseQuery {
                     product,
                     distribution,
                     channel,
                     os,
                     architecture,
                 };
-                let row = s.register(&f.admin, Uuid::new_v4(), &a).await.unwrap();
-                assert_eq!(row.state, "pending");
-                assert_eq!(row.artifact, a);
-                assert!(s
-                    .latest(&f.admin, ClientType::AdminWeb, &a.target)
-                    .await
-                    .is_err());
-                s.decide(&f.admin, row.id, 1, UpdateDecision::Approve)
+                let row = update_store
+                    .register(&fixture.admin, Uuid::new_v4(), &release_spec)
                     .await
                     .unwrap();
-                let found = s
-                    .latest(&f.admin, ClientType::AdminWeb, &a.target)
+                assert_eq!(row.state, "pending");
+                assert_eq!(row.artifact, release_spec);
+                assert!(update_store
+                    .latest(&fixture.admin, ClientType::AdminWeb, &release_spec.target)
+                    .await
+                    .is_err());
+                update_store
+                    .decide(&fixture.admin, row.id, 1, UpdateDecision::Approve)
+                    .await
+                    .unwrap();
+                let found = update_store
+                    .latest(&fixture.admin, ClientType::AdminWeb, &release_spec.target)
                     .await
                     .unwrap();
                 assert_eq!(found.id, row.id);
-                assert_eq!(found.artifact, a);
+                assert_eq!(found.artifact, release_spec);
             }
         }
     }
-    s.close().await;
-    f.close().await;
+    update_store.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn concurrent_registration_retries_bind_body_and_never_reverse_withdrawal() {
-    let f = Fixture::new().await;
-    let s = store().await;
-    let a = spec();
+    let fixture = Fixture::new().await;
+    let update_store = store().await;
+    let release_spec = spec();
     let request = Uuid::new_v4();
     let mut tasks = tokio::task::JoinSet::new();
     for _ in 0..20 {
-        let s = s.clone();
-        let token = f.admin.clone();
-        let a = a.clone();
-        tasks.spawn(async move { s.register(&token, request, &a).await.unwrap() });
+        let update_store = update_store.clone();
+        let token = fixture.admin.clone();
+        let release_spec = release_spec.clone();
+        tasks.spawn(async move {
+            update_store
+                .register(&token, request, &release_spec)
+                .await
+                .unwrap()
+        });
     }
     let mut id = None;
     while let Some(row) = tasks.join_next().await {
@@ -128,119 +137,150 @@ async fn concurrent_registration_retries_bind_body_and_never_reverse_withdrawal(
     let count: i64 =
         sqlx::query_scalar("SELECT count(*) FROM pixels.update_release_events WHERE release_id=$1")
             .bind(id)
-            .fetch_one(&f.owner)
+            .fetch_one(&fixture.owner)
             .await
             .unwrap();
     assert_eq!(count, 1);
-    let mut changed = a.clone();
+    let mut changed = release_spec.clone();
     changed.metadata_sha256 = "c".repeat(64);
-    assert!(s.register(&f.admin, request, &changed).await.is_err());
-    assert!(s.register(&f.admin, Uuid::new_v4(), &a).await.is_err());
-    s.decide(&f.admin, id, 1, UpdateDecision::Withdraw)
+    assert!(update_store
+        .register(&fixture.admin, request, &changed)
+        .await
+        .is_err());
+    assert!(update_store
+        .register(&fixture.admin, Uuid::new_v4(), &release_spec)
+        .await
+        .is_err());
+    update_store
+        .decide(&fixture.admin, id, 1, UpdateDecision::Withdraw)
         .await
         .unwrap();
-    let retry = s.register(&f.admin, request, &a).await.unwrap();
+    let retry = update_store
+        .register(&fixture.admin, request, &release_spec)
+        .await
+        .unwrap();
     assert_eq!(retry.id, id);
     assert_eq!(retry.state, "withdrawn");
     assert_eq!(retry.revision, 2);
-    s.close().await;
-    f.close().await;
+    update_store.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn concurrent_policy_cas_and_admin_identity_are_checked_on_every_write() {
-    let f = Fixture::new().await;
-    let s = store().await;
-    let a = spec();
-    let row = s.register(&f.admin, Uuid::new_v4(), &a).await.unwrap();
-    let viewer = f.session("viewer", ClientType::AdminWeb).await;
-    let panel_admin = f.session("admin", ClientType::Panel).await;
-    let user = f.session("user", ClientType::AdminWeb).await;
+    let fixture = Fixture::new().await;
+    let update_store = store().await;
+    let release_spec = spec();
+    let row = update_store
+        .register(&fixture.admin, Uuid::new_v4(), &release_spec)
+        .await
+        .unwrap();
+    let viewer = fixture.session("viewer", ClientType::AdminWeb).await;
+    let panel_admin = fixture.session("admin", ClientType::Panel).await;
+    let user = fixture.session("user", ClientType::AdminWeb).await;
     for denied in [&viewer, &panel_admin, &user, &token()] {
-        assert!(s.register(denied, Uuid::new_v4(), &spec()).await.is_err());
-        assert!(s
+        assert!(update_store
+            .register(denied, Uuid::new_v4(), &spec())
+            .await
+            .is_err());
+        assert!(update_store
             .decide(denied, row.id, 1, UpdateDecision::Approve)
             .await
             .is_err());
     }
-    s.list_managed(&viewer, None, 1).await.unwrap();
-    assert!(s.list_managed(&panel_admin, None, 1).await.is_err());
+    update_store.list_managed(&viewer, None, 1).await.unwrap();
+    assert!(update_store
+        .list_managed(&panel_admin, None, 1)
+        .await
+        .is_err());
     let mut tasks = tokio::task::JoinSet::new();
-    for n in 0..20 {
-        let s = s.clone();
-        let token = f.admin.clone();
+    for decision_index in 0..20 {
+        let update_store = update_store.clone();
+        let token = fixture.admin.clone();
         let id = row.id;
         tasks.spawn(async move {
-            s.decide(
-                &token,
-                id,
-                1,
-                if n % 2 == 0 {
-                    UpdateDecision::Approve
-                } else {
-                    UpdateDecision::Withdraw
-                },
-            )
-            .await
+            update_store
+                .decide(
+                    &token,
+                    id,
+                    1,
+                    if decision_index % 2 == 0 {
+                        UpdateDecision::Approve
+                    } else {
+                        UpdateDecision::Withdraw
+                    },
+                )
+                .await
         });
     }
     let mut wins = 0;
-    while let Some(r) = tasks.join_next().await {
-        if r.unwrap().is_ok() {
+    while let Some(task_result) = tasks.join_next().await {
+        if task_result.unwrap().is_ok() {
             wins += 1;
         }
     }
     assert_eq!(wins, 1);
-    let actor = f
+    let actor = fixture
         .identity
-        .authenticate(&f.admin, ClientType::AdminWeb)
+        .authenticate(&fixture.admin, ClientType::AdminWeb)
         .await
         .unwrap();
-    f.identity
+    fixture
+        .identity
         .revoke_session(actor.user_id, actor.session_id)
         .await
         .unwrap();
-    assert!(s
-        .decide(&f.admin, row.id, 2, UpdateDecision::Approve)
+    assert!(update_store
+        .decide(&fixture.admin, row.id, 2, UpdateDecision::Approve)
         .await
         .is_err());
-    s.close().await;
-    f.close().await;
+    update_store.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn event_failure_rolls_back_registration_and_approval_and_runtime_cannot_rewrite_content() {
-    let f = Fixture::new().await;
-    let s = store().await;
-    let a = spec();
+    let fixture = Fixture::new().await;
+    let update_store = store().await;
+    let release_spec = spec();
     let request = Uuid::new_v4();
     sqlx::query("REVOKE INSERT ON pixels.update_release_events FROM pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
-    let failed = s.register(&f.admin, request, &a).await;
+    let failed = update_store
+        .register(&fixture.admin, request, &release_spec)
+        .await;
     sqlx::query("GRANT INSERT ON pixels.update_release_events TO pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
     assert!(failed.is_err());
     let count: i64 =
         sqlx::query_scalar("SELECT count(*) FROM pixels.update_releases WHERE request_id=$1")
             .bind(request)
-            .fetch_one(&f.owner)
+            .fetch_one(&fixture.owner)
             .await
             .unwrap();
     assert_eq!(count, 0);
-    let row = s.register(&f.admin, request, &a).await.unwrap();
-    sqlx::query("REVOKE INSERT ON pixels.update_release_events FROM pixels_console_runtime")
-        .execute(&f.owner)
+    let row = update_store
+        .register(&fixture.admin, request, &release_spec)
         .await
         .unwrap();
-    let failed = s.decide(&f.admin, row.id, 1, UpdateDecision::Approve).await;
+    sqlx::query("REVOKE INSERT ON pixels.update_release_events FROM pixels_console_runtime")
+        .execute(&fixture.owner)
+        .await
+        .unwrap();
+    let failed = update_store
+        .decide(&fixture.admin, row.id, 1, UpdateDecision::Approve)
+        .await;
     sqlx::query("GRANT INSERT ON pixels.update_release_events TO pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
     assert!(failed.is_err());
-    let row = s.register(&f.admin, request, &a).await.unwrap();
+    let row = update_store
+        .register(&fixture.admin, request, &release_spec)
+        .await
+        .unwrap();
     assert_eq!(row.state, "pending");
     assert_eq!(row.revision, 1);
     let runtime = config("RUNTIME").connect().await.unwrap();
@@ -254,65 +294,86 @@ async fn event_failure_rolls_back_registration_and_approval_and_runtime_cannot_r
         assert!(sqlx::query(sql).execute(&runtime).await.is_err());
     }
     runtime.close().await;
-    s.close().await;
-    f.close().await;
+    update_store.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn newest_unapproved_or_withdrawn_build_never_falls_back_and_pages_are_bounded() {
-    let f = Fixture::new().await;
-    let s = store().await;
-    let mut a = spec();
-    let older = s.register(&f.admin, Uuid::new_v4(), &a).await.unwrap();
-    s.decide(&f.admin, older.id, 1, UpdateDecision::Approve)
+    let fixture = Fixture::new().await;
+    let update_store = store().await;
+    let mut release_spec = spec();
+    let older = update_store
+        .register(&fixture.admin, Uuid::new_v4(), &release_spec)
         .await
         .unwrap();
-    let user = f.session("user", ClientType::Android).await;
+    update_store
+        .decide(&fixture.admin, older.id, 1, UpdateDecision::Approve)
+        .await
+        .unwrap();
+    let user = fixture.session("user", ClientType::Android).await;
     assert_eq!(
-        s.latest(&user, ClientType::Android, &a.target)
+        update_store
+            .latest(&user, ClientType::Android, &release_spec.target)
             .await
             .unwrap()
             .id,
         older.id
     );
-    assert!(s.latest(&user, ClientType::Panel, &a.target).await.is_err());
-    a.build_number += 1;
-    let newer = s.register(&f.admin, Uuid::new_v4(), &a).await.unwrap();
-    assert!(s
-        .latest(&user, ClientType::Android, &a.target)
+    assert!(update_store
+        .latest(&user, ClientType::Panel, &release_spec.target)
         .await
         .is_err());
-    s.decide(&f.admin, newer.id, 1, UpdateDecision::Approve)
+    release_spec.build_number += 1;
+    let newer = update_store
+        .register(&fixture.admin, Uuid::new_v4(), &release_spec)
         .await
         .unwrap();
-    s.decide(&f.admin, newer.id, 2, UpdateDecision::Withdraw)
-        .await
-        .unwrap();
-    assert!(s
-        .latest(&user, ClientType::Android, &a.target)
+    assert!(update_store
+        .latest(&user, ClientType::Android, &release_spec.target)
         .await
         .is_err());
-    let again = s
-        .decide(&f.admin, newer.id, 3, UpdateDecision::Withdraw)
+    update_store
+        .decide(&fixture.admin, newer.id, 1, UpdateDecision::Approve)
+        .await
+        .unwrap();
+    update_store
+        .decide(&fixture.admin, newer.id, 2, UpdateDecision::Withdraw)
+        .await
+        .unwrap();
+    assert!(update_store
+        .latest(&user, ClientType::Android, &release_spec.target)
+        .await
+        .is_err());
+    let again = update_store
+        .decide(&fixture.admin, newer.id, 3, UpdateDecision::Withdraw)
         .await
         .unwrap();
     assert_eq!(again.revision, 3);
-    s.decide(&f.admin, newer.id, 3, UpdateDecision::Approve)
+    update_store
+        .decide(&fixture.admin, newer.id, 3, UpdateDecision::Approve)
         .await
         .unwrap();
     assert_eq!(
-        s.latest(&user, ClientType::Android, &a.target)
+        update_store
+            .latest(&user, ClientType::Android, &release_spec.target)
             .await
             .unwrap()
             .id,
         newer.id
     );
     for limit in [0, 101] {
-        assert!(s.list_managed(&f.admin, None, limit).await.is_err());
+        assert!(update_store
+            .list_managed(&fixture.admin, None, limit)
+            .await
+            .is_err());
     }
     let mut after = None;
     let mut ids = std::collections::HashSet::new();
     loop {
-        let page = s.list_managed(&f.admin, after, 3).await.unwrap();
+        let page = update_store
+            .list_managed(&fixture.admin, after, 3)
+            .await
+            .unwrap();
         if page.is_empty() {
             break;
         }
@@ -326,21 +387,21 @@ async fn newest_unapproved_or_withdrawn_build_never_falls_back_and_pages_are_bou
     }
     assert!(ids.contains(&newer.id));
     assert!(ids.contains(&older.id));
-    s.close().await;
-    f.close().await;
+    update_store.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn malformed_release_metadata_has_no_side_effects_and_database_enforces_platforms() {
-    let f = Fixture::new().await;
-    let s = store().await;
-    let a = spec();
+    let fixture = Fixture::new().await;
+    let update_store = store().await;
+    let release_spec = spec();
     let before: i64 = sqlx::query_scalar("SELECT count(*) FROM pixels.update_releases")
-        .fetch_one(&f.owner)
+        .fetch_one(&fixture.owner)
         .await
         .unwrap();
-    for n in 0..6 {
-        let mut bad = a.clone();
-        match n {
+    for invalid_case_index in 0..6 {
+        let mut bad = release_spec.clone();
+        match invalid_case_index {
             0 => bad.size_bytes = 0,
             1 => bad.target.os = OperatingSystem::Android,
             2 => bad.target.architecture = Architecture::Aarch64,
@@ -348,50 +409,69 @@ async fn malformed_release_metadata_has_no_side_effects_and_database_enforces_pl
             4 => bad.artifact_url = "https://example.invalid/a?secret=x".into(),
             _ => bad.build_number = 0,
         }
-        assert!(s.register(&f.admin, Uuid::new_v4(), &bad).await.is_err());
+        assert!(update_store
+            .register(&fixture.admin, Uuid::new_v4(), &bad)
+            .await
+            .is_err());
     }
-    assert!(s.register(&f.admin, Uuid::nil(), &a).await.is_err());
+    assert!(update_store
+        .register(&fixture.admin, Uuid::nil(), &release_spec)
+        .await
+        .is_err());
     let after: i64 = sqlx::query_scalar("SELECT count(*) FROM pixels.update_releases")
-        .fetch_one(&f.owner)
+        .fetch_one(&fixture.owner)
         .await
         .unwrap();
     assert_eq!(before, after);
-    let row = s.register(&f.admin, Uuid::new_v4(), &a).await.unwrap();
+    let row = update_store
+        .register(&fixture.admin, Uuid::new_v4(), &release_spec)
+        .await
+        .unwrap();
     assert!(
         sqlx::query("UPDATE pixels.update_releases SET os='android' WHERE id=$1")
             .bind(row.id)
-            .execute(&f.owner)
+            .execute(&fixture.owner)
             .await
             .is_err()
     );
     assert!(
         sqlx::query("UPDATE pixels.update_releases SET size_bytes=0 WHERE id=$1")
             .bind(row.id)
-            .execute(&f.owner)
+            .execute(&fixture.owner)
             .await
             .is_err()
     );
-    s.close().await;
-    f.close().await;
+    update_store.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn restarts_preserve_policy_and_closed_pool_never_reports_success() {
-    let f = Fixture::new().await;
-    let s = store().await;
-    let a = spec();
+    let fixture = Fixture::new().await;
+    let update_store = store().await;
+    let release_spec = spec();
     let request = Uuid::new_v4();
-    let row = s.register(&f.admin, request, &a).await.unwrap();
-    s.decide(&f.admin, row.id, 1, UpdateDecision::Approve)
+    let row = update_store
+        .register(&fixture.admin, request, &release_spec)
         .await
         .unwrap();
-    s.close().await;
-    assert!(s.register(&f.admin, request, &a).await.is_err());
-    assert!(s
-        .latest(&f.admin, ClientType::AdminWeb, &a.target)
+    update_store
+        .decide(&fixture.admin, row.id, 1, UpdateDecision::Approve)
+        .await
+        .unwrap();
+    update_store.close().await;
+    assert!(update_store
+        .register(&fixture.admin, request, &release_spec)
+        .await
+        .is_err());
+    assert!(update_store
+        .latest(&fixture.admin, ClientType::AdminWeb, &release_spec.target)
         .await
         .is_err());
     let resumed = store().await;
-    let retry = resumed.register(&f.admin, request, &a).await.unwrap();
+    let retry = resumed
+        .register(&fixture.admin, request, &release_spec)
+        .await
+        .unwrap();
     assert_eq!(retry.id, row.id);
     assert_eq!(retry.revision, 2);
     assert_eq!(retry.state, "approved");
@@ -400,5 +480,5 @@ async fn restarts_preserve_policy_and_closed_pool_never_reports_success() {
         assert!(!json.contains(secret));
     }
     resumed.close().await;
-    f.close().await;
+    fixture.close().await;
 }

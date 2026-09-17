@@ -15,7 +15,7 @@ async fn run() -> Result<(), DatabaseError> {
     let dsn = env::var("PIXELS_DATABASE_URL").map_err(|_| DatabaseError::Configuration)?;
     let deployment = env::var("PIXELS_DEPLOYMENT_ID")
         .ok()
-        .and_then(|v| Uuid::parse_str(&v).ok())
+        .and_then(|deployment_text| Uuid::parse_str(&deployment_text).ok())
         .ok_or(DatabaseError::Configuration)?;
     let transport = match env::var("PIXELS_PG_LOCAL_DEVELOPMENT").as_deref() {
         Ok("1") => Transport::LocalDevelopment,

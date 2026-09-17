@@ -179,9 +179,9 @@ impl Fixture {
 
 #[tokio::test]
 async fn all_three_modes_roundtrip_exact_launch_fields_and_only_return_safe_cards() {
-    let f = Fixture::new().await;
-    let user = f.user().await;
-    let current = f.session(user, ClientType::Android).await;
+    let fixture = Fixture::new().await;
+    let user = fixture.user().await;
+    let current = fixture.session(user, ClientType::Android).await;
     let mut game = spec();
     game.access = ApplicationAccess::Public;
     let mut web = game.clone();
@@ -197,9 +197,13 @@ async fn all_three_modes_roundtrip_exact_launch_fields_and_only_return_safe_card
     rdp.allow_observer = false;
     rdp.allow_takeover = false;
     for definition in [game, web, rdp] {
-        let app = f.apps.create(&f.admin, &definition).await.unwrap();
+        let app = fixture
+            .apps
+            .create(&fixture.admin, &definition)
+            .await
+            .unwrap();
         assert_eq!(app.spec, definition);
-        let card = f
+        let card = fixture
             .apps
             .get_visible(&current, ClientType::Android, app.id)
             .await
@@ -211,17 +215,22 @@ async fn all_three_modes_roundtrip_exact_launch_fields_and_only_return_safe_card
         assert_eq!(card.id, app.id);
         assert_eq!(card.access_revision, 1);
         assert_eq!(
-            f.apps
-                .update(&f.admin, app.id, 1, &definition)
+            fixture
+                .apps
+                .update(&fixture.admin, app.id, 1, &definition)
                 .await
                 .unwrap(),
             app
         );
-        assert_eq!(f.events(app.id).await, 1);
+        assert_eq!(fixture.events(app.id).await, 1);
         let mut after = None;
         let mut found = false;
         for _ in 0..100 {
-            let page = f.apps.list_managed(&f.admin, after, 100).await.unwrap();
+            let page = fixture
+                .apps
+                .list_managed(&fixture.admin, after, 100)
+                .await
+                .unwrap();
             if page.contains(&app) {
                 found = true;
                 break;
@@ -236,161 +245,193 @@ async fn all_three_modes_roundtrip_exact_launch_fields_and_only_return_safe_card
             "new application was absent from every management page"
         );
     }
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn acl_directory_and_direct_access_agree_and_group_revocation_cannot_be_bypassed() {
-    let f = Fixture::new().await;
-    let app = f.apps.create(&f.admin, &spec()).await.unwrap();
-    let user = f.user().await;
-    let other = f.user().await;
-    let group = f.group(user).await;
-    let old = f.session(user, ClientType::Android).await;
-    let other_key = f.session(other, ClientType::Android).await;
+    let fixture = Fixture::new().await;
+    let app = fixture.apps.create(&fixture.admin, &spec()).await.unwrap();
+    let user = fixture.user().await;
+    let other = fixture.user().await;
+    let group = fixture.group(user).await;
+    let old = fixture.session(user, ClientType::Android).await;
+    let other_key = fixture.session(other, ClientType::Android).await;
     assert_eq!(
-        f.apps.get_visible(&old, ClientType::Android, app.id).await,
+        fixture
+            .apps
+            .get_visible(&old, ClientType::Android, app.id)
+            .await,
         Err(StoreError::Rejected)
     );
-    let app = f
+    let app = fixture
         .apps
-        .replace_groups(&f.admin, app.id, 1, &[group])
+        .replace_groups(&fixture.admin, app.id, 1, &[group])
         .await
         .unwrap();
     assert_eq!(app.access_revision, 2);
     assert_eq!(
-        f.apps.get_visible(&old, ClientType::Android, app.id).await,
+        fixture
+            .apps
+            .get_visible(&old, ClientType::Android, app.id)
+            .await,
         Err(StoreError::Rejected)
     );
-    let current = f.session(user, ClientType::Android).await;
-    let card = f
+    let current = fixture.session(user, ClientType::Android).await;
+    let card = fixture
         .apps
         .get_visible(&current, ClientType::Android, app.id)
         .await
         .unwrap();
-    assert!(f
+    assert!(fixture
         .apps
         .list_visible(&current, ClientType::Android, None, 100)
         .await
         .unwrap()
         .contains(&card));
     assert_eq!(
-        f.apps
+        fixture
+            .apps
             .get_visible(&current, ClientType::Panel, app.id)
             .await,
         Err(StoreError::Rejected)
     );
     assert_eq!(
-        f.apps
+        fixture
+            .apps
             .get_visible(&other_key, ClientType::Android, app.id)
             .await,
         Err(StoreError::Rejected)
     );
     assert_eq!(
-        f.apps
-            .replace_groups(&f.admin, app.id, 2, &[group])
+        fixture
+            .apps
+            .replace_groups(&fixture.admin, app.id, 2, &[group])
             .await
             .unwrap()
             .revision,
         2
     );
-    f.groups.delete(&f.admin, group, 2).await.unwrap();
-    let new_session = f.session(user, ClientType::Android).await;
+    fixture
+        .groups
+        .delete(&fixture.admin, group, 2)
+        .await
+        .unwrap();
+    let new_session = fixture.session(user, ClientType::Android).await;
     assert_eq!(
-        f.apps
+        fixture
+            .apps
             .get_visible(&new_session, ClientType::Android, app.id)
             .await,
         Err(StoreError::Rejected)
     );
-    assert_eq!(f.apps.groups(&f.admin, app.id).await.unwrap(), vec![group]);
-    f.close().await;
+    assert_eq!(
+        fixture.apps.groups(&fixture.admin, app.id).await.unwrap(),
+        vec![group]
+    );
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn public_acl_disable_and_configuration_versions_are_distinct() {
-    let f = Fixture::new().await;
+    let fixture = Fixture::new().await;
     let mut input = spec();
     input.access = ApplicationAccess::Public;
-    let app = f.apps.create(&f.admin, &input).await.unwrap();
-    let user = f.user().await;
-    let current = f.session(user, ClientType::Panel).await;
+    let app = fixture.apps.create(&fixture.admin, &input).await.unwrap();
+    let user = fixture.user().await;
+    let current = fixture.session(user, ClientType::Panel).await;
     input.name = "renamed".into();
-    let app = f.apps.update(&f.admin, app.id, 1, &input).await.unwrap();
+    let app = fixture
+        .apps
+        .update(&fixture.admin, app.id, 1, &input)
+        .await
+        .unwrap();
     assert_eq!((app.revision, app.access_revision), (2, 1));
-    assert!(f
+    assert!(fixture
         .apps
         .get_visible(&current, ClientType::Panel, app.id)
         .await
         .is_ok());
     input.access = ApplicationAccess::Acl;
-    let app = f.apps.update(&f.admin, app.id, 2, &input).await.unwrap();
+    let app = fixture
+        .apps
+        .update(&fixture.admin, app.id, 2, &input)
+        .await
+        .unwrap();
     assert_eq!((app.revision, app.access_revision), (3, 2));
     assert_eq!(
-        f.apps
+        fixture
+            .apps
             .get_visible(&current, ClientType::Panel, app.id)
             .await,
         Err(StoreError::Rejected)
     );
     input.access = ApplicationAccess::Public;
     input.disabled = true;
-    let app = f.apps.update(&f.admin, app.id, 3, &input).await.unwrap();
+    let app = fixture
+        .apps
+        .update(&fixture.admin, app.id, 3, &input)
+        .await
+        .unwrap();
     assert_eq!(
-        f.apps
+        fixture
+            .apps
             .get_visible(&current, ClientType::Panel, app.id)
             .await,
         Err(StoreError::Rejected)
     );
     input.disabled = false;
-    let app = f
+    let app = fixture
         .apps
-        .update(&f.admin, app.id, app.revision, &input)
+        .update(&fixture.admin, app.id, app.revision, &input)
         .await
         .unwrap();
     assert_eq!(app.access_revision, 4);
-    assert!(f
+    assert!(fixture
         .apps
         .get_visible(&current, ClientType::Panel, app.id)
         .await
         .is_ok());
     // Access is rechecked against current policy; an old connection descriptor must use its
     // old access_revision and is not revalidated merely because the application reopens.
-    assert_eq!(f.events(app.id).await, 5);
-    f.close().await;
+    assert_eq!(fixture.events(app.id).await, 5);
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn roles_and_invalid_models_have_no_hidden_persistent_effect() {
-    let f = Fixture::new().await;
-    let app = f.apps.create(&f.admin, &spec()).await.unwrap();
-    let viewer = f
+    let fixture = Fixture::new().await;
+    let app = fixture.apps.create(&fixture.admin, &spec()).await.unwrap();
+    let viewer = fixture
         .control
-        .create_user(&f.admin, &name(), &password(), Role::Viewer)
+        .create_user(&fixture.admin, &name(), &password(), Role::Viewer)
         .await
         .unwrap();
-    let view = f.session(viewer.id, ClientType::AdminWeb).await;
-    let view_panel = f.session(viewer.id, ClientType::Panel).await;
-    let admin_panel = f.session(f.admin_id, ClientType::Panel).await;
-    assert!(f.apps.list_managed(&view, None, 100).await.is_ok());
+    let view = fixture.session(viewer.id, ClientType::AdminWeb).await;
+    let view_panel = fixture.session(viewer.id, ClientType::Panel).await;
+    let admin_panel = fixture.session(fixture.admin_id, ClientType::Panel).await;
+    assert!(fixture.apps.list_managed(&view, None, 100).await.is_ok());
     for denied in [&view, &admin_panel, &token()] {
         assert_eq!(
-            f.apps.create(denied, &spec()).await,
+            fixture.apps.create(denied, &spec()).await,
             Err(StoreError::Rejected)
         );
         assert_eq!(
-            f.apps.update(denied, app.id, 1, &spec()).await,
+            fixture.apps.update(denied, app.id, 1, &spec()).await,
             Err(StoreError::Rejected)
         );
         assert_eq!(
-            f.apps.replace_groups(denied, app.id, 1, &[]).await,
+            fixture.apps.replace_groups(denied, app.id, 1, &[]).await,
             Err(StoreError::Rejected)
         );
         assert_eq!(
-            f.apps.delete(denied, app.id, 1).await,
+            fixture.apps.delete(denied, app.id, 1).await,
             Err(StoreError::Rejected)
         );
     }
     assert_eq!(
-        f.apps
+        fixture
+            .apps
             .list_visible(&view_panel, ClientType::Panel, None, 100)
             .await,
         Err(StoreError::Rejected)
@@ -398,84 +439,97 @@ async fn roles_and_invalid_models_have_no_hidden_persistent_effect() {
     let mut invalid = spec();
     invalid.launch = ApplicationLaunch::Rdp;
     assert_eq!(
-        f.apps.create(&f.admin, &invalid).await,
+        fixture.apps.create(&fixture.admin, &invalid).await,
         Err(StoreError::InvalidInput)
     );
     invalid.allow_observer = false;
     invalid.allow_takeover = false;
     assert_eq!(
-        f.apps.update(&f.admin, app.id, 1, &invalid).await,
+        fixture
+            .apps
+            .update(&fixture.admin, app.id, 1, &invalid)
+            .await,
         Err(StoreError::Rejected)
     );
-    assert!(f
+    assert!(fixture
         .apps
-        .replace_groups(&f.admin, app.id, 1, &[Uuid::new_v4()])
+        .replace_groups(&fixture.admin, app.id, 1, &[Uuid::new_v4()])
         .await
         .is_err());
-    assert_eq!(f.events(app.id).await, 1);
-    let malformed=sqlx::query("INSERT INTO pixels.applications(id,name,kind,access_mode,allow_observer,allow_takeover,disabled) VALUES($1,'invalid','game_hook','acl',false,false,false)").bind(Uuid::new_v4()).execute(&f.owner).await;
+    assert_eq!(fixture.events(app.id).await, 1);
+    let malformed=sqlx::query("INSERT INTO pixels.applications(id,name,kind,access_mode,allow_observer,allow_takeover,disabled) VALUES($1,'invalid','game_hook','acl',false,false,false)").bind(Uuid::new_v4()).execute(&fixture.owner).await;
     assert!(malformed.is_err());
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn event_failure_rolls_back_application_groups_user_revisions_and_outbox() {
-    let f = Fixture::new().await;
-    let app = f.apps.create(&f.admin, &spec()).await.unwrap();
-    let user = f.user().await;
-    let group = f.group(user).await;
-    let current = f.session(user, ClientType::Android).await;
-    let before: (i64,i64)=sqlx::query_as("SELECT authorization_revision,(SELECT count(*) FROM pixels.authorization_outbox WHERE user_id=$1) FROM pixels.users WHERE id=$1").bind(user).fetch_one(&f.owner).await.unwrap();
+    let fixture = Fixture::new().await;
+    let app = fixture.apps.create(&fixture.admin, &spec()).await.unwrap();
+    let user = fixture.user().await;
+    let group = fixture.group(user).await;
+    let current = fixture.session(user, ClientType::Android).await;
+    let before: (i64,i64)=sqlx::query_as("SELECT authorization_revision,(SELECT count(*) FROM pixels.authorization_outbox WHERE user_id=$1) FROM pixels.users WHERE id=$1").bind(user).fetch_one(&fixture.owner).await.unwrap();
     sqlx::query("REVOKE INSERT ON pixels.application_events FROM pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
-    let failed = f.apps.replace_groups(&f.admin, app.id, 1, &[group]).await;
+    let failed = fixture
+        .apps
+        .replace_groups(&fixture.admin, app.id, 1, &[group])
+        .await;
     let mut input = spec();
     input.access = ApplicationAccess::Public;
-    let failed_update = f.apps.update(&f.admin, app.id, 1, &input).await;
+    let failed_update = fixture.apps.update(&fixture.admin, app.id, 1, &input).await;
     sqlx::query("GRANT INSERT ON pixels.application_events TO pixels_console_runtime")
-        .execute(&f.owner)
+        .execute(&fixture.owner)
         .await
         .unwrap();
     assert!(failed.is_err());
     assert!(failed_update.is_err());
-    assert!(f.apps.groups(&f.admin, app.id).await.unwrap().is_empty());
-    let after: (i64,i64)=sqlx::query_as("SELECT authorization_revision,(SELECT count(*) FROM pixels.authorization_outbox WHERE user_id=$1) FROM pixels.users WHERE id=$1").bind(user).fetch_one(&f.owner).await.unwrap();
+    assert!(fixture
+        .apps
+        .groups(&fixture.admin, app.id)
+        .await
+        .unwrap()
+        .is_empty());
+    let after: (i64,i64)=sqlx::query_as("SELECT authorization_revision,(SELECT count(*) FROM pixels.authorization_outbox WHERE user_id=$1) FROM pixels.users WHERE id=$1").bind(user).fetch_one(&fixture.owner).await.unwrap();
     assert_eq!(before, after);
-    assert_eq!(f.events(app.id).await, 1);
-    assert!(f
+    assert_eq!(fixture.events(app.id).await, 1);
+    assert!(fixture
         .identity
         .authenticate(&current, ClientType::Android)
         .await
         .is_ok());
     assert_eq!(
-        f.apps
+        fixture
+            .apps
             .get_visible(&current, ClientType::Android, app.id)
             .await,
         Err(StoreError::Rejected)
     );
     assert_eq!(
-        f.apps
-            .replace_groups(&f.admin, app.id, 1, &[group])
+        fixture
+            .apps
+            .replace_groups(&fixture.admin, app.id, 1, &[group])
             .await
             .unwrap()
             .revision,
         2
     );
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn concurrent_configuration_and_grant_updates_have_one_cas_winner() {
-    let f = Fixture::new().await;
-    let app = f.apps.create(&f.admin, &spec()).await.unwrap();
-    let user = f.user().await;
-    let group = f.group(user).await;
+    let fixture = Fixture::new().await;
+    let app = fixture.apps.create(&fixture.admin, &spec()).await.unwrap();
+    let user = fixture.user().await;
+    let group = fixture.group(user).await;
     let mut tasks = Vec::new();
     for index in 0..20 {
-        let apps = f.apps.clone();
-        let admin = f.admin.clone();
+        let apps = fixture.apps.clone();
+        let admin = fixture.admin.clone();
         tasks.push(tokio::spawn(async move {
             if index % 2 == 0 {
                 let mut input = spec();
@@ -497,20 +551,20 @@ async fn concurrent_configuration_and_grant_updates_have_one_cas_winner() {
         }
     }
     assert_eq!(winners, 1);
-    assert_eq!(f.events(app.id).await, 2);
-    f.close().await;
+    assert_eq!(fixture.events(app.id).await, 2);
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn application_event_claims_reject_late_ack_and_preserve_immutable_audit() {
-    let f = Fixture::new().await;
-    f.drain().await;
+    let fixture = Fixture::new().await;
+    fixture.drain().await;
     for _ in 0..20 {
-        f.apps.create(&f.admin, &spec()).await.unwrap();
+        fixture.apps.create(&fixture.admin, &spec()).await.unwrap();
     }
     let mut tasks = Vec::new();
     for _ in 0..20 {
-        let apps = f.apps.clone();
+        let apps = fixture.apps.clone();
         tasks.push(tokio::spawn(
             async move { apps.claim_events(1).await.unwrap() },
         ));
@@ -530,33 +584,36 @@ async fn application_event_claims_reject_late_ack_and_preserve_immutable_audit()
     );
     let event = events.pop().unwrap();
     for completed in events {
-        f.apps
+        fixture
+            .apps
             .complete_event(completed.id, completed.lease_id)
             .await
             .unwrap();
     }
-    sqlx::query("UPDATE pixels.application_events SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1").bind(event.id).execute(&f.owner).await.unwrap();
+    sqlx::query("UPDATE pixels.application_events SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1").bind(event.id).execute(&fixture.owner).await.unwrap();
     assert_eq!(
-        f.apps.complete_event(event.id, event.lease_id).await,
+        fixture.apps.complete_event(event.id, event.lease_id).await,
         Err(StoreError::Rejected)
     );
-    let again = f.apps.claim_events(1).await.unwrap().pop().unwrap();
+    let again = fixture.apps.claim_events(1).await.unwrap().pop().unwrap();
     assert_eq!(again.id, event.id);
     assert_ne!(again.lease_id, event.lease_id);
     assert_eq!(again.attempts, 2);
     assert_eq!(
-        f.apps.complete_event(event.id, event.lease_id).await,
+        fixture.apps.complete_event(event.id, event.lease_id).await,
         Err(StoreError::Rejected)
     );
-    f.apps
+    fixture
+        .apps
         .retry_event(again.id, again.lease_id, 30, DeliveryFailure::Unavailable)
         .await
         .unwrap();
-    assert!(f.apps.claim_events(1).await.unwrap().is_empty());
-    sqlx::query("UPDATE pixels.application_events SET available_at=clock_timestamp()-interval '1 second' WHERE id=$1").bind(event.id).execute(&f.owner).await.unwrap();
-    let final_event = f.apps.claim_events(1).await.unwrap().pop().unwrap();
+    assert!(fixture.apps.claim_events(1).await.unwrap().is_empty());
+    sqlx::query("UPDATE pixels.application_events SET available_at=clock_timestamp()-interval '1 second' WHERE id=$1").bind(event.id).execute(&fixture.owner).await.unwrap();
+    let final_event = fixture.apps.claim_events(1).await.unwrap().pop().unwrap();
     assert_eq!(final_event.attempts, 3);
-    f.apps
+    fixture
+        .apps
         .complete_event(final_event.id, final_event.lease_id)
         .await
         .unwrap();
@@ -575,30 +632,31 @@ async fn application_event_claims_reject_late_ack_and_preserve_immutable_audit()
             .await
             .is_err()
     );
-    assert_eq!(f.events(event.application_id).await, 1);
+    assert_eq!(fixture.events(event.application_id).await, 1);
     runtime.close().await;
-    f.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
 async fn deletion_is_soft_and_pagination_reconnect_and_outage_keep_database_authority() {
-    let f = Fixture::new().await;
-    let user = f.user().await;
-    let group = f.group(user).await;
+    let fixture = Fixture::new().await;
+    let user = fixture.user().await;
+    let group = fixture.group(user).await;
     let mut expected = BTreeSet::new();
     for _ in 0..5 {
-        let app = f.apps.create(&f.admin, &spec()).await.unwrap();
-        f.apps
-            .replace_groups(&f.admin, app.id, 1, &[group])
+        let app = fixture.apps.create(&fixture.admin, &spec()).await.unwrap();
+        fixture
+            .apps
+            .replace_groups(&fixture.admin, app.id, 1, &[group])
             .await
             .unwrap();
         expected.insert(app.id);
     }
-    let current = f.session(user, ClientType::Panel).await;
+    let current = fixture.session(user, ClientType::Panel).await;
     let mut after = None;
     let mut seen = BTreeSet::new();
     for _ in 0..4 {
-        let page = f
+        let page = fixture
             .apps
             .list_visible(&current, ClientType::Panel, after, 2)
             .await
@@ -616,7 +674,7 @@ async fn deletion_is_soft_and_pagination_reconnect_and_outage_keep_database_auth
     // Other tests have public applications in this shared DB. Walk the complete keyset instead of
     // assuming only this test's rows exist, and still require all private rows exactly once.
     while after.is_some() {
-        let page = f
+        let page = fixture
             .apps
             .list_visible(&current, ClientType::Panel, after, 100)
             .await
@@ -630,19 +688,22 @@ async fn deletion_is_soft_and_pagination_reconnect_and_outage_keep_database_auth
     }
     assert_eq!(seen, expected);
     let id = *expected.first().unwrap();
-    f.apps.delete(&f.admin, id, 2).await.unwrap();
+    fixture.apps.delete(&fixture.admin, id, 2).await.unwrap();
     assert_eq!(
-        f.apps.get_visible(&current, ClientType::Panel, id).await,
+        fixture
+            .apps
+            .get_visible(&current, ClientType::Panel, id)
+            .await,
         Err(StoreError::Rejected)
     );
     assert_eq!(
-        f.apps.update(&f.admin, id, 3, &spec()).await,
+        fixture.apps.update(&fixture.admin, id, 3, &spec()).await,
         Err(StoreError::Rejected)
     );
     let retained: i64 =
         sqlx::query_scalar("SELECT count(*) FROM pixels.group_app_grants WHERE application_id=$1")
             .bind(id)
-            .fetch_one(&f.owner)
+            .fetch_one(&fixture.owner)
             .await
             .unwrap();
     assert_eq!(retained, 1);
@@ -657,7 +718,7 @@ async fn deletion_is_soft_and_pagination_reconnect_and_outage_keep_database_auth
         Err(StoreError::Rejected)
     );
     reopened.close().await;
-    f.apps.close().await;
-    assert!(f.apps.create(&f.admin, &spec()).await.is_err());
-    f.close().await;
+    fixture.apps.close().await;
+    assert!(fixture.apps.create(&fixture.admin, &spec()).await.is_err());
+    fixture.close().await;
 }

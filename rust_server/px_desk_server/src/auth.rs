@@ -42,7 +42,7 @@ pub async fn login(
         || !input
             .token
             .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+            .all(|byte_value| byte_value.is_ascii_digit() || (b'a'..=b'f').contains(&byte_value))
     {
         return Err(ApiError::Unauthorized);
     }
@@ -73,13 +73,13 @@ pub async fn login(
 pub async fn authorize(state: &AppState, headers: &HeaderMap) -> Result<Uuid, ApiError> {
     let bearer = headers
         .get("authorization")
-        .and_then(|h| h.to_str().ok())
-        .and_then(|v| v.strip_prefix("Bearer "))
+        .and_then(|authorization_header| authorization_header.to_str().ok())
+        .and_then(|header_value| header_value.strip_prefix("Bearer "))
         .ok_or(ApiError::Unauthorized)?;
     if bearer.len() != 64
         || !bearer
             .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+            .all(|byte_value| byte_value.is_ascii_digit() || (b'a'..=b'f').contains(&byte_value))
     {
         return Err(ApiError::Unauthorized);
     }
