@@ -1,7 +1,7 @@
 use px_backup::{
     BackupError, BackupPlan, BackupRepository, BackupRunner, BackupService, BackupTarget,
     DatabaseTarget, LogicalBackupTool, RecoverySetKind, RestoreDatabaseTarget,
-    RestoreExecutionPlan, RestoreExecutionReport, RetentionClass,
+    RestoreExecutionPlan, RestoreExecutionReport, RestoreOperatorProvisionPlan, RetentionClass,
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -157,6 +157,15 @@ struct RestoreExecutionCommandFixture {
     command_timeout_seconds: u64,
 }
 
+#[derive(Serialize)]
+struct RestoreProvisionCommandFixture {
+    schema_version: u32,
+    plan: RestoreOperatorProvisionPlan,
+    psql_path: PathBuf,
+    psql_sha256: String,
+    command_timeout_seconds: u64,
+}
+
 impl Fixture {
     fn new() -> Self {
         let base = tempfile::Builder::new()
@@ -245,20 +254,30 @@ fn isolated_database_name(target_environment_id: Uuid, service: BackupService) -
     )
 }
 
-fn create_docker_tool_proxy(directory: &Path, container: &str, tool_name: &str) -> PathBuf {
+fn create_docker_tool_proxy(
+    directory: &Path,
+    container: &str,
+    tool_name: &str,
+    container_password_file: &str,
+) -> PathBuf {
     #[cfg(windows)]
     let proxy_path = directory.join(format!("{tool_name}.cmd"));
     #[cfg(unix)]
     let proxy_path = directory.join(tool_name);
+    let forwarded_restore_password = if container_password_file == "/tmp/pixels-admin.pgpass" {
+        "-e PIXELS_RESTORE_OPERATOR_PASSWORD"
+    } else {
+        ""
+    };
     #[cfg(windows)]
     let proxy_script = format!(
-        "@echo off\r\necho {tool_name} %*>>\"{}\"\r\ndocker exec -i -e PGPASSFILE=/tmp/pixels-restore.pgpass {container} {tool_name} %* 2>>\"{}\"\r\nexit /b %ERRORLEVEL%\r\n",
+        "@echo off\r\necho {tool_name} %*>>\"{}\"\r\ndocker exec -i -e PGPASSFILE={container_password_file} {forwarded_restore_password} {container} {tool_name} %* 2>>\"{}\"\r\nexit /b %ERRORLEVEL%\r\n",
         directory.join("proxy.log").display(),
         directory.join("proxy.log").display()
     );
     #[cfg(unix)]
     let proxy_script = format!(
-        "#!/bin/sh\nprintf '%s\\n' \"{tool_name} $*\" >> '{}'\nexec docker exec -i -e PGPASSFILE=/tmp/pixels-restore.pgpass {container} {tool_name} \"$@\" 2>> '{}'\n",
+        "#!/bin/sh\nprintf '%s\\n' \"{tool_name} $*\" >> '{}'\nexec docker exec -i -e PGPASSFILE={container_password_file} {forwarded_restore_password} {container} {tool_name} \"$@\" 2>> '{}'\n",
         directory.join("proxy.log").display(),
         directory.join("proxy.log").display()
     );
@@ -273,26 +292,6 @@ fn create_docker_tool_proxy(directory: &Path, container: &str, tool_name: &str) 
 
 fn file_sha256(path: &Path) -> String {
     format!("{:x}", Sha256::digest(fs::read(path).unwrap()))
-}
-
-fn provision_restore_operator(tool: &DockerPgTool) {
-    tool.execute(&[
-        "psql",
-        "-X",
-        "-v",
-        "ON_ERROR_STOP=1",
-        "--username",
-        "pixels_admin",
-        "--dbname",
-        "postgres",
-        "--command",
-        "CREATE ROLE pixels_restore_operator LOGIN PASSWORD 'pixels-restore-test-password' CREATEDB NOSUPERUSER NOCREATEROLE NOREPLICATION; GRANT pixels_console_owner,pixels_auth_owner,pixels_desk_owner TO pixels_restore_operator; GRANT CONNECT ON DATABASE postgres TO pixels_restore_operator",
-    ]);
-    tool.execute(&[
-        "sh",
-        "-c",
-        "umask 077; printf '%s\\n' '127.0.0.1:5432:*:pixels_restore_operator:pixels-restore-test-password' > /tmp/pixels-restore.pgpass",
-    ]);
 }
 
 #[test]
@@ -323,17 +322,170 @@ fn real_three_database_archives_publish_restore_and_detect_tampering() {
         .unwrap();
     assert_eq!(repository.manifests().unwrap(), vec![manifest.clone()]);
     let set_directory = fixture.root.join(manifest.recovery_set_id.to_string());
-    provision_restore_operator(&tool);
+    let admin_password = env::var("PIXELS_TEST_PG_ADMIN_PASSWORD").unwrap();
+    assert_eq!(admin_password.len(), 64);
+    assert!(admin_password
+        .bytes()
+        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)));
+    let mut restore_password = "restore_Test-Password_0123456789abcdef";
+    let admin_container_password_command = format!(
+        "umask 077; printf '%s\\n' '127.0.0.1:5432:*:pixels_admin:{admin_password}' > /tmp/pixels-admin.pgpass"
+    );
+    tool.execute(&["sh", "-c", &admin_container_password_command]);
+    let restore_container_password_command = format!(
+        "umask 077; printf '%s\\n' '127.0.0.1:5432:*:pixels_restore_operator:{restore_password}' > /tmp/pixels-restore.pgpass"
+    );
+    tool.execute(&["sh", "-c", &restore_container_password_command]);
+    let admin_password_file = fixture._base.path().join("admin.pgpass");
+    px_private_files::private::create_private(
+        &admin_password_file,
+        format!("127.0.0.1:5432:*:pixels_admin:{admin_password}\n").as_bytes(),
+    )
+    .unwrap();
+    let restore_password_file = fixture._base.path().join("restore-password.secret");
+    px_private_files::private::create_private(&restore_password_file, restore_password.as_bytes())
+        .unwrap();
+    let provision_tool_directory = fixture._base.path().join("provision-tools");
+    fs::create_dir(&provision_tool_directory).unwrap();
+    make_private(&provision_tool_directory);
+    let provision_psql = create_docker_tool_proxy(
+        &provision_tool_directory,
+        &container,
+        "psql",
+        "/tmp/pixels-admin.pgpass",
+    );
+    let mut provision_config = RestoreProvisionCommandFixture {
+        schema_version: 1,
+        plan: RestoreOperatorProvisionPlan {
+            host: "127.0.0.1".to_string(),
+            port: 5432,
+            admin_username: "pixels_admin".to_string(),
+            admin_password_file,
+            restore_password_file,
+            services: BTreeSet::from([
+                BackupService::Console,
+                BackupService::Auth,
+                BackupService::Desk,
+            ]),
+        },
+        psql_path: provision_psql.clone(),
+        psql_sha256: file_sha256(&provision_psql),
+        command_timeout_seconds: 30,
+    };
+    let provision_config_path = fixture._base.path().join("restore-provision-config.json");
+    px_private_files::private::create_private(
+        &provision_config_path,
+        &serde_json::to_vec(&provision_config).unwrap(),
+    )
+    .unwrap();
+    let provision_output = Command::new(env!("CARGO_BIN_EXE_px_backup"))
+        .args(["restore-provision", provision_config_path.to_str().unwrap()])
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    if !provision_output.status.success() {
+        let proxy_log = fs::read_to_string(provision_tool_directory.join("proxy.log"))
+            .unwrap_or_else(|_| "provision proxy log unavailable".to_string());
+        panic!(
+            "restore provision failed: status={} stdout={} stderr={}\n{proxy_log}",
+            provision_output.status,
+            String::from_utf8_lossy(&provision_output.stdout),
+            String::from_utf8_lossy(&provision_output.stderr)
+        );
+    }
+    tool.execute(&[
+        "sh",
+        "-c",
+        "cp /tmp/pixels-restore.pgpass /tmp/pixels-old-restore.pgpass; chmod 600 /tmp/pixels-old-restore.pgpass",
+    ]);
+    restore_password = "restore_Rotated-Password_abcdef0123456789";
+    let rotated_restore_password_file =
+        fixture._base.path().join("rotated-restore-password.secret");
+    px_private_files::private::create_private(
+        &rotated_restore_password_file,
+        restore_password.as_bytes(),
+    )
+    .unwrap();
+    provision_config.plan.restore_password_file = rotated_restore_password_file;
+    let rotated_provision_config_path = fixture
+        ._base
+        .path()
+        .join("rotated-restore-provision-config.json");
+    px_private_files::private::create_private(
+        &rotated_provision_config_path,
+        &serde_json::to_vec(&provision_config).unwrap(),
+    )
+    .unwrap();
+    let rotated_provision_output = Command::new(env!("CARGO_BIN_EXE_px_backup"))
+        .args([
+            "restore-provision",
+            rotated_provision_config_path.to_str().unwrap(),
+        ])
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(
+        rotated_provision_output.status.success(),
+        "restore password rotation failed: {}",
+        String::from_utf8_lossy(&rotated_provision_output.stderr)
+    );
+    let old_password_status = tool
+        .docker()
+        .args([
+            "exec",
+            "-i",
+            "-e",
+            "PGPASSFILE=/tmp/pixels-old-restore.pgpass",
+            &container,
+            "psql",
+            "-X",
+            "--no-password",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "5432",
+            "--username",
+            "pixels_restore_operator",
+            "--dbname",
+            "postgres",
+            "--command",
+            "SELECT 1",
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap();
+    assert!(!old_password_status.success());
+    let rotated_container_password_command = format!(
+        "umask 077; printf '%s\\n' '127.0.0.1:5432:*:pixels_restore_operator:{restore_password}' > /tmp/pixels-restore.pgpass"
+    );
+    tool.execute(&["sh", "-c", &rotated_container_password_command]);
     let tool_directory = fixture._base.path().join("restore-tools");
     fs::create_dir(&tool_directory).unwrap();
     make_private(&tool_directory);
-    let createdb = create_docker_tool_proxy(&tool_directory, &container, "createdb");
-    let pg_restore = create_docker_tool_proxy(&tool_directory, &container, "pg_restore");
-    let psql = create_docker_tool_proxy(&tool_directory, &container, "psql");
+    let createdb = create_docker_tool_proxy(
+        &tool_directory,
+        &container,
+        "createdb",
+        "/tmp/pixels-restore.pgpass",
+    );
+    let pg_restore = create_docker_tool_proxy(
+        &tool_directory,
+        &container,
+        "pg_restore",
+        "/tmp/pixels-restore.pgpass",
+    );
+    let psql = create_docker_tool_proxy(
+        &tool_directory,
+        &container,
+        "psql",
+        "/tmp/pixels-restore.pgpass",
+    );
     let password_file = fixture._base.path().join("restore.pgpass");
     px_private_files::private::create_private(
         &password_file,
-        b"127.0.0.1:5432:*:pixels_restore_operator:pixels-restore-test-password\n",
+        format!("127.0.0.1:5432:*:pixels_restore_operator:{restore_password}\n").as_bytes(),
     )
     .unwrap();
     let target_environment_id = Uuid::new_v4();

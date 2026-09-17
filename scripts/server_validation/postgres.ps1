@@ -202,6 +202,7 @@ try {
     $fingerprints.cargo_lock = (Get-FileHash -LiteralPath (Join-Path $repo 'rust_server/Cargo.lock') -Algorithm SHA256).Hash
     Set-LocalEnv 'PIXELS_DEPLOYMENT_ID' $secrets.PIXELS_DEPLOYMENT_ID
     Set-LocalEnv 'PIXELS_PG_LOCAL_DEVELOPMENT' '1'
+    Set-LocalEnv 'PIXELS_TEST_PG_ADMIN_PASSWORD' $secrets.PG_ADMIN_PASSWORD
     foreach ($service in @('console','auth','desk')) {
         Use-Service $service 'owner'
         if ($Action -eq 'Test') {
@@ -271,7 +272,7 @@ try {
             Invoke-Checked 'docker' @('exec',$container,'psql','-X','-v','ON_ERROR_STOP=1','-U','pixels_admin','-d','pixels_desk','-c',
                 "CREATE TABLE pixels.pg_fixture(id uuid PRIMARY KEY,version text NOT NULL,created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP); ALTER TABLE pixels.pg_fixture OWNER TO pixels_desk_owner; GRANT SELECT,INSERT,UPDATE,DELETE ON pixels.pg_fixture TO pixels_desk_runtime") | Out-Null
         }
-        $suiteCounts = @{unit=19;identity=12;control=8;devices=8;applications=8;guests=9;nodes=7;deployments=6;instances=10;commands=16;workspaces=6;database=2;sessions=10;transfers=8;recordings=6;preferences=7;files=8;backup=47;'backup-pg'=1;cache=16;activity=8;updates=7;desk=7;catalog=4;lease=6;postgres=13;accounts=9}
+        $suiteCounts = @{unit=19;identity=12;control=8;devices=8;applications=8;guests=9;nodes=7;deployments=6;instances=10;commands=16;workspaces=6;database=2;sessions=10;transfers=8;recordings=6;preferences=7;files=8;backup=49;'backup-pg'=1;cache=16;activity=8;updates=7;desk=7;catalog=4;lease=6;postgres=13;accounts=9}
         $suiteCounts['console-api'] = 5
         $suiteCounts['directory-api'] = 5
         $suiteCounts['node-control'] = 1
@@ -321,7 +322,7 @@ try {
     Add-Step 'FILES: private anchored roots, process locks, immutable hash-verified blobs and exact cleanup'
     $backupTests = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_backup','--all-targets','--target-dir',$targetDir)
     Write-Host $backupTests
-    Add-TestCases $backupTests 'native/backup-core' 47
+    Add-TestCases $backupTests 'native/backup-core' 49
     Add-Step 'BACKUP-DAEMON: recovery sets, retention, persistent scheduling, private status/alerts, pinned tools and Windows SCM target compile'
     $backupIntegration = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_backup','--features','pg-integration','--test','postgres','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $backupIntegration
@@ -547,7 +548,7 @@ try {
         if (-not $IsWindows) { throw '-Linux uses WSL and requires the Windows harness' }
         $cargoHome = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path ([Environment]::GetFolderPath('UserProfile')) '.cargo' }
         Set-LocalEnv 'CARGO_HOME' $cargoHome
-        $forward = @('CARGO_HOME/p','SQLX_OFFLINE','SQLX_OFFLINE_DIR/p','PIXELS_PG_ISOLATED_TEST','PIXELS_TEST_CONTAINER','PIXELS_DEPLOYMENT_ID','PIXELS_PG_LOCAL_DEVELOPMENT')
+        $forward = @('CARGO_HOME/p','SQLX_OFFLINE','SQLX_OFFLINE_DIR/p','PIXELS_PG_ISOLATED_TEST','PIXELS_TEST_CONTAINER','PIXELS_DEPLOYMENT_ID','PIXELS_PG_LOCAL_DEVELOPMENT','PIXELS_TEST_PG_ADMIN_PASSWORD')
         foreach ($service in @('CONSOLE','AUTH','DESK')) {
             foreach ($role in @('OWNER','RUNTIME')) { $forward += "PIXELS_TEST_${service}_${role}_URL" }
         }
@@ -568,7 +569,7 @@ try {
         foreach ($service in @('console','auth','desk')) {
             if ($linuxResult -notmatch "READY service=$service") { throw "Linux schema tool failed for $service" }
         }
-        Add-TestCases $linuxResult 'linux' 311
+        Add-TestCases $linuxResult 'linux' 313
         if ($linuxResult -notmatch '(?m)^([a-f0-9]{64})\s+[^\r\n]+/debug/px_db\s*$') { throw 'Missing Linux schema tool hash' }
         $fingerprints.linux_px_db = $Matches[1]
         if ($linuxResult -notmatch '(?m)^([a-f0-9]{64})\s+[^\r\n]+/debug/px_desk\s*$') { throw 'Missing Linux Desk binary hash' }

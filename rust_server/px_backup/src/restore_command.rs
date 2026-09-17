@@ -1,7 +1,7 @@
 use px_backup::{
-    BackupCancellation, BackupRepository, ExternalRecoveryWitness, PinnedPgRestoreTools,
-    RecoverySetManifest, RestoreAdmissionState, RestoreAdmissionStore, RestoreExecutionPlan,
-    RestoreOperationalCheck, RestoreRunner,
+    BackupCancellation, BackupRepository, ExternalRecoveryWitness, PinnedPgRestoreProvisioner,
+    PinnedPgRestoreTools, RecoverySetManifest, RestoreAdmissionState, RestoreAdmissionStore,
+    RestoreExecutionPlan, RestoreOperationalCheck, RestoreOperatorProvisionPlan, RestoreRunner,
 };
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeSet, path::PathBuf, time::Duration};
@@ -10,6 +10,7 @@ use uuid::Uuid;
 const RESTORE_COMMAND_CONFIG_SCHEMA_VERSION: u32 = 1;
 const RESTORE_APPROVAL_REQUEST_SCHEMA_VERSION: u32 = 1;
 const RESTORE_EXECUTION_COMMAND_CONFIG_SCHEMA_VERSION: u32 = 1;
+const RESTORE_PROVISION_COMMAND_CONFIG_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -105,6 +106,40 @@ impl RestoreExecutionCommandConfig {
             && valid_sha256(&self.psql_sha256)
             && (1..=24 * 60 * 60).contains(&self.command_timeout_seconds)
             && self.plan.validate().is_ok()
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RestoreProvisionCommandConfig {
+    schema_version: u32,
+    plan: RestoreOperatorProvisionPlan,
+    psql_path: PathBuf,
+    psql_sha256: String,
+    command_timeout_seconds: u64,
+}
+
+impl RestoreProvisionCommandConfig {
+    fn load_private(config_path: &std::path::Path) -> Result<Self, &'static str> {
+        if !config_path.is_absolute() {
+            return Err("restore provision configuration rejected");
+        }
+        let config_bytes = px_private_files::private::read_private(config_path)
+            .map_err(|_| "restore provision configuration rejected")?;
+        let config = serde_json::from_slice::<Self>(&config_bytes)
+            .map_err(|_| "restore provision configuration rejected")?;
+        if !config.is_valid() {
+            return Err("restore provision configuration rejected");
+        }
+        Ok(config)
+    }
+
+    fn is_valid(&self) -> bool {
+        self.schema_version == RESTORE_PROVISION_COMMAND_CONFIG_SCHEMA_VERSION
+            && self.plan.validate().is_ok()
+            && self.psql_path.is_absolute()
+            && valid_sha256(&self.psql_sha256)
+            && (1..=24 * 60 * 60).contains(&self.command_timeout_seconds)
     }
 }
 
@@ -213,6 +248,25 @@ pub fn execute(config_path: PathBuf, cancellation: BackupCancellation) -> Result
         "{}",
         String::from_utf8(report_json).map_err(|_| "restore result serialization failed")?
     );
+    Ok(())
+}
+
+pub fn provision(
+    config_path: PathBuf,
+    cancellation: BackupCancellation,
+) -> Result<(), &'static str> {
+    let config = RestoreProvisionCommandConfig::load_private(&config_path)?;
+    let provisioner = PinnedPgRestoreProvisioner::new(
+        config.psql_path,
+        config.psql_sha256,
+        Duration::from_secs(config.command_timeout_seconds),
+        cancellation,
+    )
+    .map_err(|_| "restore provision tool identity rejected")?;
+    provisioner
+        .provision(&config.plan)
+        .map_err(|_| "restore operator provisioning failed closed")?;
+    println!("restore operator provisioned and verified");
     Ok(())
 }
 
@@ -559,6 +613,31 @@ mod tests {
         assert!(!config.is_valid());
         config.createdb_sha256 = "a".repeat(64);
         config.plan.target_environment_id = Uuid::nil();
+        assert!(!config.is_valid());
+    }
+
+    #[test]
+    fn restore_provision_configuration_requires_console_and_pinned_psql() {
+        let absolute_root = std::env::current_dir().unwrap();
+        let mut config = RestoreProvisionCommandConfig {
+            schema_version: RESTORE_PROVISION_COMMAND_CONFIG_SCHEMA_VERSION,
+            plan: RestoreOperatorProvisionPlan {
+                host: "127.0.0.1".to_string(),
+                port: 5432,
+                admin_username: "pixels_admin".to_string(),
+                admin_password_file: absolute_root.join("admin.pgpass"),
+                restore_password_file: absolute_root.join("restore-password.secret"),
+                services: BTreeSet::from([BackupService::Console]),
+            },
+            psql_path: absolute_root.join("tools").join("psql.exe"),
+            psql_sha256: "a".repeat(64),
+            command_timeout_seconds: 60,
+        };
+        assert!(config.is_valid());
+        config.plan.services = BTreeSet::from([BackupService::Auth]);
+        assert!(!config.is_valid());
+        config.plan.services = BTreeSet::from([BackupService::Console]);
+        config.psql_sha256 = "A".repeat(64);
         assert!(!config.is_valid());
     }
 

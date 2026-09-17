@@ -8,7 +8,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     env,
     fs::OpenOptions,
-    io::Read,
+    io::{Read, Write},
     net::IpAddr,
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
@@ -130,6 +130,34 @@ pub trait LogicalRestoreTool {
     ) -> Result<(), RestoreExecutionError>;
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RestoreOperatorProvisionPlan {
+    pub host: String,
+    pub port: u16,
+    pub admin_username: String,
+    pub admin_password_file: PathBuf,
+    pub restore_password_file: PathBuf,
+    pub services: BTreeSet<BackupService>,
+}
+
+impl RestoreOperatorProvisionPlan {
+    pub fn validate(&self) -> Result<(), RestoreExecutionError> {
+        if self.port == 0
+            || !valid_host(&self.host)
+            || !valid_identifier(&self.admin_username)
+            || !self.admin_password_file.is_absolute()
+            || !self.restore_password_file.is_absolute()
+            || !self.services.contains(&BackupService::Console)
+            || self.services.is_empty()
+            || self.services.len() > 3
+        {
+            return Err(RestoreExecutionError::InvalidPlan);
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PinnedPgRestoreTools {
     createdb: PathBuf,
@@ -191,12 +219,7 @@ impl PinnedPgRestoreTools {
 
     fn prepare_command(&self, executable: &Path, target: &RestoreDatabaseTarget) -> Command {
         let mut command = Command::new(executable);
-        for (environment_name, _) in env::vars_os() {
-            let normalized_name = environment_name.to_string_lossy().to_ascii_uppercase();
-            if normalized_name.starts_with("PG") || normalized_name == "DATABASE_URL" {
-                command.env_remove(environment_name);
-            }
-        }
+        sanitize_postgres_environment(&mut command);
         command
             .env("PGPASSFILE", &target.password_file)
             .stdin(Stdio::null())
@@ -327,6 +350,127 @@ impl LogicalRestoreTool for PinnedPgRestoreTools {
             return Err(RestoreExecutionError::VerificationFailed);
         }
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PinnedPgRestoreProvisioner {
+    psql: PathBuf,
+    psql_sha256: String,
+    command_timeout: Duration,
+    cancellation: BackupCancellation,
+}
+
+impl PinnedPgRestoreProvisioner {
+    pub fn new(
+        psql: PathBuf,
+        psql_sha256: String,
+        command_timeout: Duration,
+        cancellation: BackupCancellation,
+    ) -> Result<Self, RestoreExecutionError> {
+        if !valid_tool_path(&psql, "psql")
+            || !valid_sha256(&psql_sha256)
+            || command_timeout < Duration::from_secs(1)
+            || command_timeout > Duration::from_secs(24 * 60 * 60)
+        {
+            return Err(RestoreExecutionError::ToolIdentity);
+        }
+        let provisioner = Self {
+            psql,
+            psql_sha256,
+            command_timeout,
+            cancellation,
+        };
+        provisioner.verify_tool()?;
+        Ok(provisioner)
+    }
+
+    pub fn provision(
+        &self,
+        plan: &RestoreOperatorProvisionPlan,
+    ) -> Result<(), RestoreExecutionError> {
+        plan.validate()?;
+        self.verify_tool()?;
+        drop(
+            px_private_files::private::read_private(&plan.admin_password_file)
+                .map_err(|_| RestoreExecutionError::Credential)?,
+        );
+        let restore_password = px_private_files::private::read_private(&plan.restore_password_file)
+            .map_err(|_| RestoreExecutionError::Credential)?;
+        if !valid_restore_password(&restore_password) {
+            return Err(RestoreExecutionError::Credential);
+        }
+        let restore_password_text = std::str::from_utf8(&restore_password)
+            .map_err(|_| RestoreExecutionError::Credential)?;
+        let mut provision_command = self.prepare_command(plan);
+        provision_command
+            .args(["--quiet", "--set=ON_ERROR_STOP=1", "--file=-"])
+            .env("PIXELS_RESTORE_OPERATOR_PASSWORD", restore_password_text)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null());
+        let provision_script = restore_operator_provision_script(&plan.services);
+        run_restore_command_with_input(
+            &mut provision_command,
+            self.command_timeout,
+            &self.cancellation,
+            RestoreExecutionError::RestoreFailed,
+            false,
+            Some(provision_script.as_bytes()),
+        )?;
+
+        self.verify_tool()?;
+        let mut verification_command = self.prepare_command(plan);
+        verification_command
+            .args(["--tuples-only", "--no-align", "--set=ON_ERROR_STOP=1"])
+            .arg("--command")
+            .arg(restore_operator_verification_query())
+            .stdout(Stdio::piped());
+        let verification_output = run_restore_command(
+            &mut verification_command,
+            self.command_timeout,
+            &self.cancellation,
+            RestoreExecutionError::VerificationFailed,
+            true,
+        )?
+        .ok_or(RestoreExecutionError::VerificationFailed)?;
+        let mut expected_memberships = plan
+            .services
+            .iter()
+            .map(|service| format!("pixels_{}_owner", service_name(*service)))
+            .collect::<Vec<_>>();
+        expected_memberships.sort();
+        let expected_memberships = expected_memberships.join(",");
+        let expected_output =
+            format!("true|true|false|false|false|false|{expected_memberships}|true");
+        if verification_output.trim() != expected_output {
+            return Err(RestoreExecutionError::VerificationFailed);
+        }
+        Ok(())
+    }
+
+    fn verify_tool(&self) -> Result<(), RestoreExecutionError> {
+        if hash_restore_tool(&self.psql)? != self.psql_sha256 {
+            return Err(RestoreExecutionError::ToolIdentity);
+        }
+        Ok(())
+    }
+
+    fn prepare_command(&self, plan: &RestoreOperatorProvisionPlan) -> Command {
+        let mut command = Command::new(&self.psql);
+        sanitize_postgres_environment(&mut command);
+        command
+            .args(["-X", "--no-password"])
+            .arg("--host")
+            .arg(&plan.host)
+            .arg("--port")
+            .arg(plan.port.to_string())
+            .arg("--username")
+            .arg(&plan.admin_username)
+            .args(["--dbname", "postgres"])
+            .env("PGPASSFILE", &plan.admin_password_file)
+            .stdin(Stdio::null())
+            .stderr(Stdio::null());
+        command
     }
 }
 
@@ -489,6 +633,60 @@ fn valid_host(value: &str) -> bool {
     })
 }
 
+fn valid_identifier(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 63
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
+}
+
+fn valid_restore_password(password: &[u8]) -> bool {
+    (32..=128).contains(&password.len())
+        && password
+            .iter()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.' | b'~'))
+}
+
+fn sanitize_postgres_environment(command: &mut Command) {
+    for (environment_name, _) in env::vars_os() {
+        let normalized_name = environment_name.to_string_lossy().to_ascii_uppercase();
+        if normalized_name.starts_with("PG")
+            || normalized_name == "DATABASE_URL"
+            || normalized_name == "PIXELS_RESTORE_OPERATOR_PASSWORD"
+        {
+            command.env_remove(environment_name);
+        }
+    }
+}
+
+fn restore_operator_provision_script(services: &BTreeSet<BackupService>) -> String {
+    let mut intended_roles = services
+        .iter()
+        .map(|service| format!("pixels_{}_owner", service_name(*service)))
+        .collect::<Vec<_>>();
+    intended_roles.sort();
+    let intended_role_list = intended_roles.join(",");
+    let intended_role_literals = intended_roles
+        .iter()
+        .map(|role| format!("'{role}'"))
+        .collect::<Vec<_>>()
+        .join(",");
+    format!(
+        "\\getenv restore_password PIXELS_RESTORE_OPERATOR_PASSWORD\n\
+SELECT format('CREATE ROLE pixels_restore_operator LOGIN PASSWORD %L CREATEDB NOSUPERUSER NOCREATEROLE NOREPLICATION NOBYPASSRLS', :'restore_password') WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname='pixels_restore_operator') \\gexec\n\
+SELECT format('ALTER ROLE pixels_restore_operator WITH LOGIN PASSWORD %L CREATEDB NOSUPERUSER NOCREATEROLE NOREPLICATION NOBYPASSRLS', :'restore_password') \\gexec\n\
+ALTER ROLE pixels_restore_operator RESET ALL;\n\
+SELECT format('REVOKE %I FROM pixels_restore_operator', role_record.rolname) FROM pg_catalog.pg_roles AS role_record WHERE role_record.rolname IN ('pixels_console_owner','pixels_auth_owner','pixels_desk_owner') AND role_record.rolname NOT IN ({intended_role_literals}) \\gexec\n\
+GRANT {intended_role_list} TO pixels_restore_operator;\n\
+GRANT CONNECT ON DATABASE postgres TO pixels_restore_operator;\n"
+    )
+}
+
+fn restore_operator_verification_query() -> &'static str {
+    "SELECT restore_role.rolcanlogin::text || '|' || restore_role.rolcreatedb::text || '|' || restore_role.rolsuper::text || '|' || restore_role.rolcreaterole::text || '|' || restore_role.rolreplication::text || '|' || restore_role.rolbypassrls::text || '|' || COALESCE((SELECT string_agg(parent_role.rolname, ',' ORDER BY parent_role.rolname) FROM pg_catalog.pg_auth_members AS membership JOIN pg_catalog.pg_roles AS parent_role ON parent_role.oid=membership.roleid WHERE membership.member=restore_role.oid), '') || '|' || pg_catalog.has_database_privilege(restore_role.rolname, 'postgres', 'CONNECT')::text FROM pg_catalog.pg_roles AS restore_role WHERE restore_role.rolname='pixels_restore_operator'"
+}
+
 fn current_unix_time() -> Result<u64, RestoreExecutionError> {
     use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now()
@@ -529,10 +727,39 @@ fn run_restore_command(
     failure: RestoreExecutionError,
     capture_stdout: bool,
 ) -> Result<Option<String>, RestoreExecutionError> {
+    run_restore_command_with_input(
+        command,
+        timeout,
+        cancellation,
+        failure,
+        capture_stdout,
+        None,
+    )
+}
+
+fn run_restore_command_with_input(
+    command: &mut Command,
+    timeout: Duration,
+    cancellation: &BackupCancellation,
+    failure: RestoreExecutionError,
+    capture_stdout: bool,
+    standard_input: Option<&[u8]>,
+) -> Result<Option<String>, RestoreExecutionError> {
     if cancellation.is_cancelled() {
         return Err(RestoreExecutionError::Cancelled);
     }
     let mut child = command.spawn().map_err(|_| failure)?;
+    if let Some(standard_input) = standard_input {
+        let write_result = child
+            .stdin
+            .take()
+            .ok_or(failure)
+            .and_then(|mut child_input| child_input.write_all(standard_input).map_err(|_| failure));
+        if let Err(error) = write_result {
+            stop_restore_child(&mut child);
+            return Err(error);
+        }
+    }
     let started = Instant::now();
     loop {
         if cancellation.is_cancelled() {
@@ -770,17 +997,31 @@ mod tests {
         #[cfg(unix)]
         let tool_path = directory.join(tool_name);
         #[cfg(windows)]
+        let standard_input_capture = if tool_name == "psql" {
+            format!("more >>\"{}\"\r\n", log_path.display())
+        } else {
+            String::new()
+        };
+        #[cfg(windows)]
         let script = format!(
-            "@echo off\r\necho %*>>\"{}\"\r\n{}exit /b 0\r\n",
+            "@echo off\r\necho %*>>\"{}\"\r\n{}{}exit /b 0\r\n",
             log_path.display(),
+            standard_input_capture,
             output
                 .map(|line| format!("echo {}\r\n", line.replace('|', "^|")))
                 .unwrap_or_default()
         );
         #[cfg(unix)]
+        let standard_input_capture = if tool_name == "psql" {
+            format!("cat >> '{}'\n", log_path.display())
+        } else {
+            String::new()
+        };
+        #[cfg(unix)]
         let script = format!(
-            "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\n{}exit 0\n",
+            "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\n{}{}exit 0\n",
             log_path.display(),
+            standard_input_capture,
             output
                 .map(|line| format!("printf '%s\\n' '{line}'\n"))
                 .unwrap_or_default()
@@ -916,6 +1157,62 @@ mod tests {
         assert_eq!(
             tools.verify_restored_database(&target, deployment_id, 22),
             Err(RestoreExecutionError::ToolIdentity)
+        );
+    }
+
+    #[test]
+    fn restore_operator_provisioning_is_fixed_minimal_verified_and_secret_safe() {
+        let temporary_directory = tempfile::tempdir().unwrap();
+        make_private_directory(temporary_directory.path());
+        let admin_password_file = temporary_directory.path().join("admin.pgpass");
+        px_private_files::private::create_private(&admin_password_file, b"admin credential\n")
+            .unwrap();
+        let restore_password_file = temporary_directory.path().join("restore-password.secret");
+        let restore_password = b"restore_Test-Password_0123456789abcdef";
+        px_private_files::private::create_private(&restore_password_file, restore_password)
+            .unwrap();
+        let log_path = temporary_directory.path().join("provision.log");
+        let verification_output = "true|true|false|false|false|false|pixels_auth_owner,pixels_console_owner,pixels_desk_owner|true";
+        let psql = create_fake_tool(
+            temporary_directory.path(),
+            "psql",
+            &log_path,
+            Some(verification_output),
+        );
+        let provisioner = PinnedPgRestoreProvisioner::new(
+            psql.clone(),
+            hash_restore_tool(&psql).unwrap(),
+            Duration::from_secs(5),
+            BackupCancellation::default(),
+        )
+        .unwrap();
+        let plan = RestoreOperatorProvisionPlan {
+            host: "127.0.0.1".to_string(),
+            port: 5432,
+            admin_username: "pixels_admin".to_string(),
+            admin_password_file,
+            restore_password_file,
+            services: BTreeSet::from([
+                BackupService::Console,
+                BackupService::Auth,
+                BackupService::Desk,
+            ]),
+        };
+        provisioner.provision(&plan).unwrap();
+        let provision_log = fs::read_to_string(&log_path).unwrap();
+        assert!(
+            provision_log.contains("CREATEDB NOSUPERUSER NOCREATEROLE NOREPLICATION NOBYPASSRLS")
+        );
+        assert!(provision_log
+            .contains("GRANT pixels_auth_owner,pixels_console_owner,pixels_desk_owner"));
+        assert!(provision_log.contains("ALTER ROLE pixels_restore_operator RESET ALL"));
+        assert!(!provision_log.contains(std::str::from_utf8(restore_password).unwrap()));
+
+        let mut invalid_plan = plan;
+        invalid_plan.services = BTreeSet::from([BackupService::Auth]);
+        assert_eq!(
+            provisioner.provision(&invalid_plan),
+            Err(RestoreExecutionError::InvalidPlan)
         );
     }
 }

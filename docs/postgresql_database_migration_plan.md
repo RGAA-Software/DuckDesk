@@ -215,8 +215,12 @@ Console 停机也可操作；普通运行/备份身份不自动拥有建库、DD
 新库现场并停止，不自动删除。成功只写入私有执行报告且 `admission_required=true`，之后仍须完成 `restore-evaluate`、人工
 `restore-approve` 和维护切换；执行命令自身不能开放服务。
 恢复账号不是超级用户：它只需 `LOGIN + CREATEDB`、连接固定 maintenance DB，以及对本次范围内目标 owner 角色的受控 `SET ROLE`；
-不得授予 `CREATEROLE`、复制或绕过行级安全等能力。正式安装器仍须单独创建/轮换/撤销该账号并保护 pgpass，测试容器临时账号不能
-当作生产账号交付证据。
+不得授予 `CREATEROLE`、复制或绕过行级安全等能力。账号创建和轮换使用
+`px_backup restore-provision <absolute-private-config-path>`：私有严格配置固定管理连接、服务范围、绝对 `psql` 路径及小写 SHA-256；
+管理密码只通过受保护的 `PGPASSFILE`，新恢复密码只通过子进程环境和内置 `psql \getenv` 进入固定 SQL，不进入命令行或普通日志。
+命令会创建或轮换 `pixels_restore_operator`，重置角色级参数，撤销范围外的已知 owner 成员关系，并在结束前精确核对登录、建库、
+非超级用户、非建角色、非复制、非绕过 RLS、目标 owner 成员关系和 maintenance DB 连接权。发现任何额外角色成员关系时验证失败关闭，
+不静默扩大权限。正式发行安装器仍须接入该命令并使用生产密钥托管生成、保护和撤销私密材料；开发测试密钥不能作为生产交付证据。
 DB0 交付服务身份/ACL/目录/任务协议与离线恢复设计，DB4 实现并测试 SCM 重启、断电、Console 停机、凭据失效和目录访问拒绝。
 Linux 使用 `deploy/systemd/pixels-backup@.service` 模板承载同一个执行器，实例参数是 deployment ID；模板固定服务账号、配置与数据根，
 启用 systemd 文件系统/内核/能力边界，SIGTERM 复用同一取消语义。发行安装器仍须创建账号、目录和 ACL 后才可 enable/start，

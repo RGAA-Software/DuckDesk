@@ -208,7 +208,18 @@ recovery set、目标环境、仓库外报告路径，以及绝对工具路径/�
 47 项也通过，严格 Clippy 与可读命名门禁通过。真实 PostgreSQL 18 专项报告 `pg-20260917-235905-4a87302e` 通过：测试启动实际
 `px_backup restore-execute` 二进制，以非超级用户 `pixels_restore_operator` 对三库执行真实 `createdb/pg_restore/psql`，核对
 deployment、owner、22/3/2 条 migration、恢复后的 runtime schema 权限、私有报告及归档篡改拒绝，并清理隔离库/容器/卷。宿主侧固定
-代理也受路径和摘要校验，但正式 PostgreSQL 客户端安装、生产账号创建/轮换，以及源主机下线后的异机恢复仍须独立验收。
+代理也受路径和摘要校验；该切片当时尚未提供账号创建/轮换，后续进展见下一切片。正式 PostgreSQL 客户端安装及源主机下线后的
+异机恢复仍须独立验收。
+
+DB4 第十一纵向切片新增正式代码路径 `px_backup restore-provision`：绝对私有严格配置固定管理连接、服务范围、`psql` 绝对路径、
+小写 SHA-256 和有界超时；管理密码只经私有 `PGPASSFILE`，恢复密码只经清理后的子进程环境与内置 `psql \getenv` 进入固定 SQL，
+不进入命令行和普通日志。命令创建或轮换 `pixels_restore_operator`，强制 `LOGIN + CREATEDB + NOSUPERUSER + NOCREATEROLE +
+NOREPLICATION + NOBYPASSRLS`，重置角色参数，并只保留所选 Console/Auth/Desk owner 成员关系和 maintenance DB 连接权；结束前
+精确查询全部标志、全部角色成员关系及连接权，额外成员关系也会失败关闭。真实 PostgreSQL 18 专项报告
+`pg-20260918-002028-fdc138b2` 已通过：实际 `px_backup` 二进制先创建最小角色，再轮换密码，确认旧密码拒绝、新密码可继续完成三库
+`restore-execute` 和固定核验。Windows 核心 49 项报告 `pg-20260918-002117-c6055918` 通过，WSL Linux 同源码 49 项、严格 Clippy
+也通过。账号生命周期核心和真实数据库行为已有证据；仍待发行安装器调用、生产密钥托管/撤销、正式 PostgreSQL 客户端安装，以及
+源主机下线后的异机故障域验收。
 
 - 新 Console 运行模块已接身份/用户组 HTTP 与单活动生命周期（产品入口尚未切换）。Windows 路由专项
   `pg-20260917-092450-742a93ef` 五组通过，837 个源文件及工具 hash 复核一致；静态检查通过。
@@ -448,7 +459,7 @@ Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 W
 | DB2-A | 身份/管理 HTTP、密码计算/限流/Origin、访客 HMAC/会话/公开目录、严格配置与稳定私钥加载已实现；本人资料/头像、独立初始化 CLI、产品二进制切换及客户端全链路尚未接通 |
 | DB2-B/C/D | 设备/应用/节点/部署目录、user/guest 资源入口与 Console 节点 WS 已接；Windows Service 已切到新节点协议并实现部署准备、调和、命令 fencing 与精确 launch ACK。真实 Console→Service→Render、GPU/RDP 执行、媒体/事件投递及其余 repository 产品入口仍未完成 |
 | DB2-EXIT / DB3 | Desk/Auth 独立产品流程已验证；Console 与共享消费者仍待去 Mongo、接新签发/验证及库外水位，Auth 通知 outbox 尚未接通；不建设运行时双后端 |
-| DB4 | 恢复集/保留/私有原子发布/恢复前哈希与依赖复核/固定工具/取消超时、持久计划任务、重启补跑、受限实际清理、配置化异机复制、独立告警送达、持久恢复准入/审批、隔离恢复编排、固定工具适配器及执行命令已实现；Windows SCM 已真实验收，测试适配器已完成三库逻辑备份和全新库恢复。仍需 Linux systemd 真实宿主、真实 PostgreSQL 客户端与正式最小恢复账号、源主机下线后的异机恢复、写屏障水位/权限防复活和生产 WAL/PITR；本机 Docker/固定替身专项不能替代这些故障域验收 |
+| DB4 | 恢复集/保留/私有原子发布/恢复前哈希与依赖复核/固定工具/取消超时、持久计划任务、重启补跑、受限实际清理、配置化异机复制、独立告警送达、持久恢复准入/审批、隔离恢复编排、固定工具适配器、执行命令及最小恢复账号创建/轮换已实现；Windows SCM 已真实验收，测试适配器已完成三库逻辑备份和全新库恢复。仍需 Linux systemd 真实宿主、正式 PostgreSQL 客户端与发行安装器/生产密钥托管接入、源主机下线后的异机恢复、写屏障水位/权限防复活和生产 WAL/PITR；本机 Docker/固定替身专项不能替代这些故障域验收 |
 | DB5 | 新环境服务端—Windows—Android 功能回归及完整制品验收 |
 | DB-HA / P1–P7 | 独立主机 HA、正式发行隔离、授权/连接服务、升级、运维与真实容量/稳定性验收 |
 
