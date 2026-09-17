@@ -4,7 +4,7 @@ import { TextInputWorkflow } from '../src/rtc/text_input_workflow'
 import { MessageType, TextEditability, TextOutcomeCode } from '../src/rtc/protocol_enums'
 
 const target = { instanceId: 'app-a', leaseGeneration: '9007199254740993', targetGeneration: '2' }
-function fixture() {
+function createApplicationTextFixture() {
   const workflow = new TextInputWorkflow()
   const sent: Array<Record<string, any>> = []
   const suspend = vi.fn()
@@ -33,86 +33,86 @@ describe('reliable application text adapter', () => {
   it.each([TextOutcomeCode.TargetChanged, TextOutcomeCode.TargetUnavailable, TextOutcomeCode.Busy])(
     'recovers only after explicitly closing a definitively rejected begin (%s)', outcome => {
       vi.useFakeTimers()
-      const f = fixture()
-      f.adapter.beginEditing()
-      f.workflow.edit('保留草稿')
-      f.adapter.receive({ type: MessageType.ApplicationTextBarrierResult, applicationTextBarrierResult: {
-        requestId: f.sent.at(-1)!.applicationTextBarrier.requestId, target, outcome, inputGeneration: '0', editing: false,
+      const testFixture = createApplicationTextFixture()
+      testFixture.adapter.beginEditing()
+      testFixture.workflow.edit('保留草稿')
+      testFixture.adapter.receive({ type: MessageType.ApplicationTextBarrierResult, applicationTextBarrierResult: {
+        requestId: testFixture.sent.at(-1)!.applicationTextBarrier.requestId, target, outcome, inputGeneration: '0', editing: false,
       } })
-      expect(f.workflow.draft).toBe('保留草稿')
-      expect(f.adapter.beginEditing()).toBe(false)
+      expect(testFixture.workflow.draft).toBe('保留草稿')
+      expect(testFixture.adapter.beginEditing()).toBe(false)
       const nextTarget = { ...target, targetGeneration: '3' }
-      f.adapter.receive({ type: MessageType.ApplicationTextState,
+      testFixture.adapter.receive({ type: MessageType.ApplicationTextState,
         applicationTextState: { target: nextTarget, editability: TextEditability.Unknown } })
-      expect(f.suspend).toHaveBeenLastCalledWith(true, '0')
-      const count = f.sent.length
-      expect(f.adapter.endEditing()).toBe(true)
-      expect(f.sent).toHaveLength(count)
-      expect(f.suspend).toHaveBeenLastCalledWith(false, '0')
-      expect(f.adapter.beginEditing()).toBe(true)
-      expect(f.sent.at(-1)!.applicationTextBarrier.target).toEqual(nextTarget)
-      f.adapter.dispose()
+      expect(testFixture.suspend).toHaveBeenLastCalledWith(true, '0')
+      const messageCount = testFixture.sent.length
+      expect(testFixture.adapter.endEditing()).toBe(true)
+      expect(testFixture.sent).toHaveLength(messageCount)
+      expect(testFixture.suspend).toHaveBeenLastCalledWith(false, '0')
+      expect(testFixture.adapter.beginEditing()).toBe(true)
+      expect(testFixture.sent.at(-1)!.applicationTextBarrier.target).toEqual(nextTarget)
+      testFixture.adapter.dispose()
     })
 
   it('keeps uncertain or changed-generation rejection fenced even after close', () => {
     for (const [outcome, generation] of [[TextOutcomeCode.Unknown, '0'], [TextOutcomeCode.TargetChanged, '1']] as const) {
-      const f = fixture()
-      f.adapter.beginEditing()
-      f.adapter.receive({ type: MessageType.ApplicationTextBarrierResult, applicationTextBarrierResult: {
-        requestId: f.sent.at(-1)!.applicationTextBarrier.requestId, target, outcome, inputGeneration: generation, editing: false,
+      const testFixture = createApplicationTextFixture()
+      testFixture.adapter.beginEditing()
+      testFixture.adapter.receive({ type: MessageType.ApplicationTextBarrierResult, applicationTextBarrierResult: {
+        requestId: testFixture.sent.at(-1)!.applicationTextBarrier.requestId, target, outcome, inputGeneration: generation, editing: false,
       } })
-      expect(f.adapter.endEditing()).toBe(false)
-      expect(f.suspend).toHaveBeenLastCalledWith(true, '0')
-      f.adapter.dispose()
+      expect(testFixture.adapter.endEditing()).toBe(false)
+      expect(testFixture.suspend).toHaveBeenLastCalledWith(true, '0')
+      testFixture.adapter.dispose()
     }
   })
 
   it('honors a queued close after a definitive begin rejection', () => {
-    const f = fixture()
-    f.adapter.beginEditing()
-    f.adapter.endEditing()
-    const count = f.sent.length
-    f.adapter.receive({ type: MessageType.ApplicationTextBarrierResult, applicationTextBarrierResult: {
-      requestId: f.sent.at(-1)!.applicationTextBarrier.requestId, target, outcome: TextOutcomeCode.TargetChanged,
+    const testFixture = createApplicationTextFixture()
+    testFixture.adapter.beginEditing()
+    testFixture.adapter.endEditing()
+    const messageCount = testFixture.sent.length
+    testFixture.adapter.receive({ type: MessageType.ApplicationTextBarrierResult, applicationTextBarrierResult: {
+      requestId: testFixture.sent.at(-1)!.applicationTextBarrier.requestId, target, outcome: TextOutcomeCode.TargetChanged,
       inputGeneration: '0', editing: false,
     } })
-    expect(f.sent).toHaveLength(count)
-    expect(f.suspend).toHaveBeenLastCalledWith(false, '0')
-    f.adapter.dispose()
+    expect(testFixture.sent).toHaveLength(messageCount)
+    expect(testFixture.suspend).toHaveBeenLastCalledWith(false, '0')
+    testFixture.adapter.dispose()
   })
 
   it('revokes local rejection recovery when a later lease changes', () => {
-    const f = fixture()
-    f.adapter.beginEditing()
-    f.adapter.receive({ type: MessageType.ApplicationTextBarrierResult, applicationTextBarrierResult: {
-      requestId: f.sent.at(-1)!.applicationTextBarrier.requestId, target, outcome: TextOutcomeCode.TargetChanged,
+    const testFixture = createApplicationTextFixture()
+    testFixture.adapter.beginEditing()
+    testFixture.adapter.receive({ type: MessageType.ApplicationTextBarrierResult, applicationTextBarrierResult: {
+      requestId: testFixture.sent.at(-1)!.applicationTextBarrier.requestId, target, outcome: TextOutcomeCode.TargetChanged,
       inputGeneration: '0', editing: false,
     } })
-    f.adapter.receive({ type: MessageType.ApplicationTextState,
+    testFixture.adapter.receive({ type: MessageType.ApplicationTextState,
       applicationTextState: { target: { ...target, leaseGeneration: '4' }, editability: TextEditability.Unknown } })
-    expect(f.adapter.endEditing()).toBe(false)
-    expect(f.suspend).toHaveBeenLastCalledWith(true, '0')
-    f.adapter.dispose()
+    expect(testFixture.adapter.endEditing()).toBe(false)
+    expect(testFixture.suspend).toHaveBeenLastCalledWith(true, '0')
+    testFixture.adapter.dispose()
   })
 
   it('treats unknown wire editability as unknown rather than editable', () => {
-    const f = fixture()
-    f.adapter.receive({ type: MessageType.ApplicationTextState,
+    const testFixture = createApplicationTextFixture()
+    testFixture.adapter.receive({ type: MessageType.ApplicationTextState,
       applicationTextState: { target, editability: 99 as TextEditability } })
-    expect(f.changed).toHaveBeenLastCalledWith(true, false, '')
-    f.adapter.dispose()
+    expect(testFixture.changed).toHaveBeenLastCalledWith(true, false, '')
+    testFixture.adapter.dispose()
   })
 
   it('rejects an unknown barrier outcome without enabling editing', () => {
-    const f = fixture()
-    expect(f.adapter.beginEditing()).toBe(true)
-    f.adapter.receive({ type: MessageType.ApplicationTextBarrierResult, applicationTextBarrierResult: {
-      requestId: f.sent.at(-1)!.applicationTextBarrier.requestId, target, outcome: 99 as TextOutcomeCode,
+    const testFixture = createApplicationTextFixture()
+    expect(testFixture.adapter.beginEditing()).toBe(true)
+    testFixture.adapter.receive({ type: MessageType.ApplicationTextBarrierResult, applicationTextBarrierResult: {
+      requestId: testFixture.sent.at(-1)!.applicationTextBarrier.requestId, target, outcome: 99 as TextOutcomeCode,
       inputGeneration: '1', editing: true,
     } })
-    expect(f.suspend).not.toHaveBeenCalledWith(true, '1')
-    expect(f.changed).toHaveBeenLastCalledWith(false, false, expect.any(String))
-    f.adapter.dispose()
+    expect(testFixture.suspend).not.toHaveBeenCalledWith(true, '1')
+    expect(testFixture.changed).toHaveBeenLastCalledWith(false, false, expect.any(String))
+    testFixture.adapter.dispose()
   })
 
   it('accepts only the existing fully reliable ordered control channel', () => {
@@ -126,170 +126,170 @@ describe('reliable application text adapter', () => {
   })
 
   it('suppresses control before begin and enables sending only after matching barrier', () => {
-    const f = fixture()
-    expect(f.sent[0].type).toBe(610)
-    expect(f.adapter.beginEditing()).toBe(true)
-    expect(f.suspend).toHaveBeenLastCalledWith(true, '0')
-    expect(f.workflow.open()).toBe(false)
-    expect(f.adapter.beginEditing()).toBe(false)
-    f.acknowledge(true, '1')
-    expect(f.workflow.isOpen).toBe(true)
-    f.workflow.edit('中文😀\n')
-    const submission = f.workflow.begin('request_1')!
-    f.adapter.submit(submission)
-    expect(f.sent.at(-1)!.applicationTextSubmit.text).toBe('中文😀\n')
-    expect(f.sent.at(-1)!.applicationTextSubmit.inputGeneration).toBe('1')
-    f.adapter.receive({ type: 613, applicationTextResult: { requestId: 'request_1', target, outcome: 1 } })
-    expect(f.workflow.canSend).toBe(false)
-    f.adapter.receive({ type: 613, applicationTextResult: { requestId: 'request_1', target, outcome: 2 } })
-    expect(f.workflow.draft).toBe('')
-    expect(f.adapter.endEditing()).toBe(true)
-    expect(f.suspend).toHaveBeenLastCalledWith(true, '1')
-    f.acknowledge(false, '2')
-    expect(f.suspend).toHaveBeenLastCalledWith(false, '2')
-    f.adapter.dispose()
+    const testFixture = createApplicationTextFixture()
+    expect(testFixture.sent[0].type).toBe(610)
+    expect(testFixture.adapter.beginEditing()).toBe(true)
+    expect(testFixture.suspend).toHaveBeenLastCalledWith(true, '0')
+    expect(testFixture.workflow.open()).toBe(false)
+    expect(testFixture.adapter.beginEditing()).toBe(false)
+    testFixture.acknowledge(true, '1')
+    expect(testFixture.workflow.isOpen).toBe(true)
+    testFixture.workflow.edit('中文😀\n')
+    const submission = testFixture.workflow.begin('request_1')!
+    testFixture.adapter.submit(submission)
+    expect(testFixture.sent.at(-1)!.applicationTextSubmit.text).toBe('中文😀\n')
+    expect(testFixture.sent.at(-1)!.applicationTextSubmit.inputGeneration).toBe('1')
+    testFixture.adapter.receive({ type: 613, applicationTextResult: { requestId: 'request_1', target, outcome: 1 } })
+    expect(testFixture.workflow.canSend).toBe(false)
+    testFixture.adapter.receive({ type: 613, applicationTextResult: { requestId: 'request_1', target, outcome: 2 } })
+    expect(testFixture.workflow.draft).toBe('')
+    expect(testFixture.adapter.endEditing()).toBe(true)
+    expect(testFixture.suspend).toHaveBeenLastCalledWith(true, '1')
+    testFixture.acknowledge(false, '2')
+    expect(testFixture.suspend).toHaveBeenLastCalledWith(false, '2')
+    testFixture.adapter.dispose()
   })
 
   it('closes safely while begin acknowledgement is queued', () => {
-    const f = fixture()
-    f.adapter.beginEditing()
-    f.adapter.endEditing()
-    f.acknowledge(true, '1')
-    expect(f.sent.at(-1)!.applicationTextBarrier.beginEditing).toBe(false)
-    expect(f.workflow.isOpen).toBe(false)
-    f.acknowledge(false, '2')
-    expect(f.suspend).toHaveBeenLastCalledWith(false, '2')
-    f.adapter.dispose()
+    const testFixture = createApplicationTextFixture()
+    testFixture.adapter.beginEditing()
+    testFixture.adapter.endEditing()
+    testFixture.acknowledge(true, '1')
+    expect(testFixture.sent.at(-1)!.applicationTextBarrier.beginEditing).toBe(false)
+    expect(testFixture.workflow.isOpen).toBe(false)
+    testFixture.acknowledge(false, '2')
+    expect(testFixture.suspend).toHaveBeenLastCalledWith(false, '2')
+    testFixture.adapter.dispose()
   })
 
   it('preserves early draft and composition while the begin barrier is pending', () => {
-    const f = fixture()
-    f.adapter.beginEditing()
-    f.workflow.edit('屏障之前正在输入')
-    f.workflow.setComposing(true)
-    f.acknowledge(true, '1')
-    expect(f.workflow.draft).toBe('屏障之前正在输入')
-    expect(f.workflow.isComposing).toBe(true)
-    expect(f.workflow.canSend).toBe(false)
-    f.adapter.dispose()
+    const testFixture = createApplicationTextFixture()
+    testFixture.adapter.beginEditing()
+    testFixture.workflow.edit('屏障之前正在输入')
+    testFixture.workflow.setComposing(true)
+    testFixture.acknowledge(true, '1')
+    expect(testFixture.workflow.draft).toBe('屏障之前正在输入')
+    expect(testFixture.workflow.isComposing).toBe(true)
+    expect(testFixture.workflow.canSend).toBe(false)
+    testFixture.adapter.dispose()
   })
 
   it('does not resume ordinary input while a submitted backend operation remains pending', () => {
-    const f = fixture()
-    f.adapter.beginEditing()
-    f.acknowledge(true, '1')
-    f.workflow.edit('等待结果')
-    f.adapter.submit(f.workflow.begin('request_4')!)
-    const count = f.sent.length
-    f.adapter.endEditing()
-    expect(f.sent).toHaveLength(count)
-    f.adapter.receive({ type: 613, applicationTextResult: { requestId: 'request_4', target, outcome: 2 } })
-    expect(f.sent.at(-1)!.applicationTextBarrier.beginEditing).toBe(false)
-    f.acknowledge(false, '2')
-    expect(f.suspend).toHaveBeenLastCalledWith(false, '2')
-    f.adapter.dispose()
+    const testFixture = createApplicationTextFixture()
+    testFixture.adapter.beginEditing()
+    testFixture.acknowledge(true, '1')
+    testFixture.workflow.edit('等待结果')
+    testFixture.adapter.submit(testFixture.workflow.begin('request_4')!)
+    const messageCount = testFixture.sent.length
+    testFixture.adapter.endEditing()
+    expect(testFixture.sent).toHaveLength(messageCount)
+    testFixture.adapter.receive({ type: 613, applicationTextResult: { requestId: 'request_4', target, outcome: 2 } })
+    expect(testFixture.sent.at(-1)!.applicationTextBarrier.beginEditing).toBe(false)
+    testFixture.acknowledge(false, '2')
+    expect(testFixture.suspend).toHaveBeenLastCalledWith(false, '2')
+    testFixture.adapter.dispose()
   })
 
   it('keeps generation fenced after barrier timeout and never resends', () => {
     vi.useFakeTimers()
-    const f = fixture()
-    f.adapter.beginEditing()
-    const count = f.sent.length
+    const testFixture = createApplicationTextFixture()
+    testFixture.adapter.beginEditing()
+    const messageCount = testFixture.sent.length
     vi.advanceTimersByTime(10001)
-    expect(f.suspend).toHaveBeenLastCalledWith(true, '0')
-    expect(f.changed.mock.lastCall?.[0]).toBe(false)
-    expect(f.sent).toHaveLength(count)
-    expect(f.carrier.ready).toBe(true)
-    f.adapter.dispose()
+    expect(testFixture.suspend).toHaveBeenLastCalledWith(true, '0')
+    expect(testFixture.changed.mock.lastCall?.[0]).toBe(false)
+    expect(testFixture.sent).toHaveLength(messageCount)
+    expect(testFixture.carrier.ready).toBe(true)
+    testFixture.adapter.dispose()
   })
 
   it('does not let state hints cancel an outstanding submission deadline', () => {
     vi.useFakeTimers()
-    const f = fixture()
-    f.adapter.beginEditing()
-    f.acknowledge(true, '1')
-    f.workflow.edit('不重发')
-    f.adapter.submit(f.workflow.begin('request_2')!)
+    const testFixture = createApplicationTextFixture()
+    testFixture.adapter.beginEditing()
+    testFixture.acknowledge(true, '1')
+    testFixture.workflow.edit('不重发')
+    testFixture.adapter.submit(testFixture.workflow.begin('request_2')!)
     vi.advanceTimersByTime(5000)
-    f.adapter.receive({ type: 611, applicationTextState: { target, editability: 1 } })
+    testFixture.adapter.receive({ type: 611, applicationTextState: { target, editability: 1 } })
     vi.advanceTimersByTime(5001)
-    expect(f.workflow.outcome).toBe('outcome_unknown')
-    expect(f.workflow.draft).toBe('不重发')
-    f.adapter.dispose()
+    expect(testFixture.workflow.outcome).toBe('outcome_unknown')
+    expect(testFixture.workflow.draft).toBe('不重发')
+    testFixture.adapter.dispose()
   })
 
   it('rejects crossed instance or stale lease replies and preserves the draft', () => {
-    const f = fixture()
-    f.adapter.beginEditing()
-    f.acknowledge(true, '1')
-    f.workflow.edit('保留')
-    f.adapter.submit(f.workflow.begin('request_3')!)
-    for (const bad of [{ ...target, instanceId: 'app-b' }, { ...target, leaseGeneration: '1' }]) {
-      f.adapter.receive({ type: 613, applicationTextResult: { requestId: 'request_3', target: bad, outcome: 2 } })
+    const testFixture = createApplicationTextFixture()
+    testFixture.adapter.beginEditing()
+    testFixture.acknowledge(true, '1')
+    testFixture.workflow.edit('保留')
+    testFixture.adapter.submit(testFixture.workflow.begin('request_3')!)
+    for (const invalidTarget of [{ ...target, instanceId: 'app-b' }, { ...target, leaseGeneration: '1' }]) {
+      testFixture.adapter.receive({ type: 613, applicationTextResult: { requestId: 'request_3', target: invalidTarget, outcome: 2 } })
     }
-    expect(f.workflow.draft).toBe('保留')
-    expect(f.workflow.canSend).toBe(false)
-    f.adapter.dispose()
-    expect(f.workflow.outcome).toBe('outcome_unknown')
+    expect(testFixture.workflow.draft).toBe('保留')
+    expect(testFixture.workflow.canSend).toBe(false)
+    testFixture.adapter.dispose()
+    expect(testFixture.workflow.outcome).toBe('outcome_unknown')
   })
 
   it('does not process callbacks after disposal; stop and dispose are repeatable', () => {
-    const f = fixture()
-    f.adapter.dispose()
-    const count = f.changed.mock.calls.length
-    f.adapter.receive({ type: 611, applicationTextState: { target, editability: 1 } })
-    f.adapter.dispose()
-    expect(f.changed).toHaveBeenCalledTimes(count)
-    expect(f.carrier.ready).toBe(true)
+    const testFixture = createApplicationTextFixture()
+    testFixture.adapter.dispose()
+    const callbackCount = testFixture.changed.mock.calls.length
+    testFixture.adapter.receive({ type: 611, applicationTextState: { target, editability: 1 } })
+    testFixture.adapter.dispose()
+    expect(testFixture.changed).toHaveBeenCalledTimes(callbackCount)
+    expect(testFixture.carrier.ready).toBe(true)
   })
 
   it('immediately marks an outstanding submission uncertain when the existing carrier disconnects', () => {
-    const f = fixture()
-    f.adapter.beginEditing()
-    f.acknowledge(true, '1')
-    f.workflow.edit('断线保留')
-    f.adapter.submit(f.workflow.begin('request_disconnect')!)
-    f.carrier.ready = false
-    f.adapter.disconnected()
-    expect(f.workflow.outcome).toBe('outcome_unknown')
-    expect(f.workflow.draft).toBe('断线保留')
-    expect(f.workflow.canSend).toBe(false)
-    f.adapter.dispose()
+    const testFixture = createApplicationTextFixture()
+    testFixture.adapter.beginEditing()
+    testFixture.acknowledge(true, '1')
+    testFixture.workflow.edit('断线保留')
+    testFixture.adapter.submit(testFixture.workflow.begin('request_disconnect')!)
+    testFixture.carrier.ready = false
+    testFixture.adapter.disconnected()
+    expect(testFixture.workflow.outcome).toBe('outcome_unknown')
+    expect(testFixture.workflow.draft).toBe('断线保留')
+    expect(testFixture.workflow.canSend).toBe(false)
+    testFixture.adapter.dispose()
   })
 
   it('accepts bounded opaque game target identities while preserving decimal lease/input generations', () => {
-    const f = fixture()
+    const testFixture = createApplicationTextFixture()
     const gameTarget = { ...target, targetGeneration: '1824:134020690047656780:65584:7' }
-    f.adapter.receive({ type: 611, applicationTextState: { target: gameTarget, editability: 0 } })
-    expect(f.adapter.beginEditing()).toBe(true)
-    const barrier = f.sent.at(-1)!.applicationTextBarrier
+    testFixture.adapter.receive({ type: 611, applicationTextState: { target: gameTarget, editability: 0 } })
+    expect(testFixture.adapter.beginEditing()).toBe(true)
+    const barrier = testFixture.sent.at(-1)!.applicationTextBarrier
     expect(barrier.target.targetGeneration).toBe(gameTarget.targetGeneration)
-    f.adapter.receive({ type: 615, applicationTextBarrierResult: {
+    testFixture.adapter.receive({ type: 615, applicationTextBarrierResult: {
       requestId: barrier.requestId, target: gameTarget, outcome: 2, inputGeneration: '1', editing: true,
     } })
-    f.workflow.edit('游戏中文')
-    expect(f.workflow.canSend).toBe(true)
-    expect(f.workflow.begin('game_request')!.target.targetGeneration).toBe(gameTarget.targetGeneration)
-    f.adapter.dispose()
+    testFixture.workflow.edit('游戏中文')
+    expect(testFixture.workflow.canSend).toBe(true)
+    expect(testFixture.workflow.begin('game_request')!.target.targetGeneration).toBe(gameTarget.targetGeneration)
+    testFixture.adapter.dispose()
   })
 
   it('polls lightweight hints while idle/editing but never during an outstanding barrier', () => {
     vi.useFakeTimers()
-    const f = fixture()
-    const initial = f.sent.length
+    const testFixture = createApplicationTextFixture()
+    const initialMessageCount = testFixture.sent.length
     vi.advanceTimersByTime(750)
-    expect(f.sent.length).toBe(initial + 1)
-    expect(f.sent.at(-1)!.type).toBe(610)
-    f.adapter.beginEditing()
-    const barrier = f.sent.length
+    expect(testFixture.sent.length).toBe(initialMessageCount + 1)
+    expect(testFixture.sent.at(-1)!.type).toBe(610)
+    testFixture.adapter.beginEditing()
+    const barrierMessageCount = testFixture.sent.length
     vi.advanceTimersByTime(750)
-    expect(f.sent.length).toBe(barrier)
-    f.acknowledge(true, '1')
-    const editing = f.sent.length
+    expect(testFixture.sent.length).toBe(barrierMessageCount)
+    testFixture.acknowledge(true, '1')
+    const editingMessageCount = testFixture.sent.length
     vi.advanceTimersByTime(1500)
-    expect(f.sent.length).toBe(editing + 2)
-    f.adapter.dispose()
+    expect(testFixture.sent.length).toBe(editingMessageCount + 2)
+    testFixture.adapter.dispose()
     vi.advanceTimersByTime(1500)
-    expect(f.sent.length).toBe(editing + 2)
+    expect(testFixture.sent.length).toBe(editingMessageCount + 2)
   })
 })

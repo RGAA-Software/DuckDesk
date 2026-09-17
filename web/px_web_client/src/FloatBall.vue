@@ -594,19 +594,19 @@ const currentResolution = computed(() => {
   return null
 })
 
-function isCurrentResolution(w: number, h: number): boolean {
-  return currentResolution.value?.width === w && currentResolution.value?.height === h
+function isCurrentResolution(width: number, height: number): boolean {
+  return currentResolution.value?.width === width && currentResolution.value?.height === height
 }
 
-function changeResolution(w: number, h: number) {
+function changeResolution(width: number, height: number) {
   const name = props.capturingMonitor || currentMonitor.value?.name || ''
   // 对齐 ChangeMonitorResolution{type=200,monitor_name,target_width,target_height}
   emit(
     {
       type: MSG_TYPE_CHANGE_MONITOR_RESOLUTION,
-      changeMonitorResolution: { monitorName: name, targetWidth: w, targetHeight: h },
+      changeMonitorResolution: { monitorName: name, targetWidth: width, targetHeight: height },
     },
-    t('float.modifyRes', { w, h, name: name || t('float.defaultMonitor') }),
+    t('float.modifyRes', { w: width, h: height, name: name || t('float.defaultMonitor') }),
   )
   subSubPanel.value = ''
 }

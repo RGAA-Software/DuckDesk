@@ -3,7 +3,7 @@ import { InputController } from '../src/rtc/input'
 import { TlvReassembler } from '../src/rtc/tlv'
 import { decodeMessage } from '../src/rtc/proto'
 
-function fixture() {
+function createInputFixture() {
   const windowEvents = new EventTarget()
   vi.stubGlobal('window', windowEvents)
   const video = Object.assign(new EventTarget(), {
@@ -18,11 +18,11 @@ function fixture() {
   vi.stubGlobal('document', documentState)
   const messages: Array<Record<string, any>> = []
   const reassembler = new TlvReassembler()
-  const dc = { readyState: 'open', send: (bytes: ArrayBuffer) => {
+  const dataChannel = { readyState: 'open', send: (bytes: ArrayBuffer) => {
     for (const payload of reassembler.feed(bytes)) messages.push(decodeMessage(payload))
   } }
   const controller = new InputController({
-    dc: dc as unknown as RTCDataChannel, deviceId: 'device', streamId: 'stream', monitorName: 'monitor',
+    dc: dataChannel as unknown as RTCDataChannel, deviceId: 'device', streamId: 'stream', monitorName: 'monitor',
     video: video as unknown as HTMLVideoElement,
   })
   controller.setApplicationTextEnabled(true)
@@ -41,65 +41,65 @@ afterEach(() => vi.unstubAllGlobals())
 
 describe('ordinary input fencing', () => {
   it('releases a held nonmodifier before editing and stamps acknowledged generations', () => {
-    const f = fixture()
-    f.key('keydown')
-    f.controller.setTextEditing(true)
-    expect(f.messages.map(message => message.keyEvent.down)).toEqual([true, false])
-    f.key('keydown', 'Space')
-    f.key('keyup')
-    expect(f.messages).toHaveLength(2)
-    f.controller.setInputGeneration('9007199254740999')
-    f.controller.setTextEditing(false)
-    f.key('keydown')
-    expect(f.messages.at(-1)!.inputGeneration).toBe('9007199254740999')
-    f.controller.detach()
-    expect(f.messages.at(-1)!.keyEvent.down).toBe(false)
+    const testFixture = createInputFixture()
+    testFixture.key('keydown')
+    testFixture.controller.setTextEditing(true)
+    expect(testFixture.messages.map(message => message.keyEvent.down)).toEqual([true, false])
+    testFixture.key('keydown', 'Space')
+    testFixture.key('keyup')
+    expect(testFixture.messages).toHaveLength(2)
+    testFixture.controller.setInputGeneration('9007199254740999')
+    testFixture.controller.setTextEditing(false)
+    testFixture.key('keydown')
+    expect(testFixture.messages.at(-1)!.inputGeneration).toBe('9007199254740999')
+    testFixture.controller.detach()
+    expect(testFixture.messages.at(-1)!.keyEvent.down).toBe(false)
   })
 
   it('never forwards composition keys and releases all tracked keys on real blur', () => {
-    const f = fixture()
-    f.key('keydown', 'KeyW', true)
-    expect(f.messages).toHaveLength(0)
-    f.key('keydown')
-    f.key('keydown', 'Space')
-    f.windowEvents.dispatchEvent(new Event('blur'))
-    expect(f.messages.map(message => message.keyEvent.down)).toEqual([true, true, false, false])
-    f.controller.detach()
+    const testFixture = createInputFixture()
+    testFixture.key('keydown', 'KeyW', true)
+    expect(testFixture.messages).toHaveLength(0)
+    testFixture.key('keydown')
+    testFixture.key('keydown', 'Space')
+    testFixture.windowEvents.dispatchEvent(new Event('blur'))
+    expect(testFixture.messages.map(message => message.keyEvent.down)).toEqual([true, true, false, false])
+    testFixture.controller.detach()
   })
 
   it('permission loss releases held keys and repeated detach is harmless', () => {
-    const f = fixture()
-    f.key('keydown')
-    f.controller.viewOnly = true
-    f.key('keydown')
-    expect(f.messages.map(message => message.keyEvent.down)).toEqual([true, false])
-    f.controller.detach()
-    f.controller.detach()
-    f.key('keydown')
-    expect(f.messages).toHaveLength(2)
-    f.controller.attach()
-    f.controller.viewOnly = false
-    f.key('keydown')
-    expect(f.messages).toHaveLength(3)
-    f.controller.detach()
+    const testFixture = createInputFixture()
+    testFixture.key('keydown')
+    testFixture.controller.viewOnly = true
+    testFixture.key('keydown')
+    expect(testFixture.messages.map(message => message.keyEvent.down)).toEqual([true, false])
+    testFixture.controller.detach()
+    testFixture.controller.detach()
+    testFixture.key('keydown')
+    expect(testFixture.messages).toHaveLength(2)
+    testFixture.controller.attach()
+    testFixture.controller.viewOnly = false
+    testFixture.key('keydown')
+    expect(testFixture.messages).toHaveLength(3)
+    testFixture.controller.detach()
   })
 
   it('retains ordinary text commits outside the panel without duplicate local-editor input', () => {
-    const f = fixture()
-    f.sink.value = 'ordinary English'
-    f.sink.dispatchEvent(new Event('input'))
-    expect(f.messages.at(-1)!.textInput.text).toBe('ordinary English')
-    f.controller.setTextEditing(true)
-    const count = f.messages.length
-    f.sink.value = '面板输入不得走旧通道'
-    f.sink.dispatchEvent(new Event('input'))
-    expect(f.messages).toHaveLength(count)
-    f.controller.setInputGeneration('2')
-    f.controller.setTextEditing(false)
-    f.sink.value = 'English after panel'
-    f.sink.dispatchEvent(new Event('input'))
-    expect(f.messages.at(-1)!.inputGeneration).toBe('2')
-    expect(f.messages.at(-1)!.textInput.text).toBe('English after panel')
-    f.controller.detach()
+    const testFixture = createInputFixture()
+    testFixture.sink.value = 'ordinary English'
+    testFixture.sink.dispatchEvent(new Event('input'))
+    expect(testFixture.messages.at(-1)!.textInput.text).toBe('ordinary English')
+    testFixture.controller.setTextEditing(true)
+    const messageCount = testFixture.messages.length
+    testFixture.sink.value = '面板输入不得走旧通道'
+    testFixture.sink.dispatchEvent(new Event('input'))
+    expect(testFixture.messages).toHaveLength(messageCount)
+    testFixture.controller.setInputGeneration('2')
+    testFixture.controller.setTextEditing(false)
+    testFixture.sink.value = 'English after panel'
+    testFixture.sink.dispatchEvent(new Event('input'))
+    expect(testFixture.messages.at(-1)!.inputGeneration).toBe('2')
+    expect(testFixture.messages.at(-1)!.textInput.text).toBe('English after panel')
+    testFixture.controller.detach()
   })
 })

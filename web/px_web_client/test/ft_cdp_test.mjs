@@ -27,8 +27,8 @@ const REMOTE_DIR = process.env.FT_DIR || 'C:/Users/Public'
 const UPLOAD_NAME = `ft_web_smoke_${Date.now()}.txt`
 const DIST = path.join(import.meta.dirname, '../dist')
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-const sha256 = (buf) => createHash('sha256').update(buf).digest('hex')
+const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds))
+const sha256 = (buffer) => createHash('sha256').update(buffer).digest('hex')
 
 function assert(cond, msg) {
   if (!cond) throw new Error(`断言失败: ${msg}`)
@@ -45,16 +45,16 @@ async function startLocalServer() {
       // 代理到被控 render(透传 query 与 body)
       const target = `${TARGET_BASE}${url.pathname}${url.search}`
       const chunks = []
-      req.on('data', (c) => chunks.push(c))
+      req.on('data', (chunk) => chunks.push(chunk))
       req.on('end', () => {
         fetch(target, {
           method: req.method,
           headers: { 'content-type': req.headers['content-type'] || 'application/json' },
           body: req.method === 'GET' ? undefined : Buffer.concat(chunks),
         })
-          .then(async (r) => {
-            res.writeHead(r.status, { 'content-type': r.headers.get('content-type') || 'application/json' })
-            res.end(Buffer.from(await r.arrayBuffer()))
+          .then(async (response) => {
+            res.writeHead(response.status, { 'content-type': response.headers.get('content-type') || 'application/json' })
+            res.end(Buffer.from(await response.arrayBuffer()))
           })
           .catch((err) => {
             res.writeHead(502)
@@ -64,15 +64,15 @@ async function startLocalServer() {
       return
     }
     // 静态:dist
-    let p = path.join(DIST, url.pathname === '/' ? 'index.html' : decodeURIComponent(url.pathname))
-    if (!p.startsWith(path.resolve(DIST))) {
+    let filePath = path.join(DIST, url.pathname === '/' ? 'index.html' : decodeURIComponent(url.pathname))
+    if (!filePath.startsWith(path.resolve(DIST))) {
       res.writeHead(403)
       res.end()
       return
     }
-    readFile(p)
+    readFile(filePath)
       .then((data) => {
-        res.writeHead(200, { 'content-type': MIME[path.extname(p)] || 'application/octet-stream' })
+        res.writeHead(200, { 'content-type': MIME[path.extname(filePath)] || 'application/octet-stream' })
         res.end(data)
       })
       .catch(() => {
@@ -123,7 +123,7 @@ async function waitJob(jobId, timeoutMs) {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     const jobs = await evaluate('window.__ft.jobs()')
-    const job = (jobs || []).find((j) => j.id === jobId)
+    const job = (jobs || []).find((candidateJob) => candidateJob.id === jobId)
     if (job && job.state !== 'running' && job.state !== 'pending') return job
     await sleep(500)
   }
@@ -187,7 +187,7 @@ async function main() {
   const remotePath = `${REMOTE_DIR}/${UPLOAD_NAME}`
   try {
     let version = null
-    for (let i = 0; i < 30; i++) {
+    for (let attemptNumber = 0; attemptNumber < 30; attemptNumber++) {
       try {
         version = await (await fetch(`http://127.0.0.1:${CDP_PORT}/json/version`)).json()
         break
@@ -205,9 +205,9 @@ async function main() {
     ws.onmessage = (ev) => {
       const msg = JSON.parse(ev.data)
       if (msg.id && pending.has(msg.id)) {
-        const p = pending.get(msg.id)
+        const pendingRequest = pending.get(msg.id)
         pending.delete(msg.id)
-        msg.error ? p.reject(new Error(msg.error.message)) : p.resolve(msg.result)
+        msg.error ? pendingRequest.reject(new Error(msg.error.message)) : pendingRequest.resolve(msg.result)
       }
     }
     await new Promise((resolve, reject) => {
@@ -230,7 +230,7 @@ async function main() {
 
     console.log('\n[3] 列盘符 listDir("/") ...')
     const disks = await evaluate('window.__ft.listDir("/")')
-    console.log('  盘符:', disks.files.map((f) => f.name).join(', '))
+    console.log('  盘符:', disks.files.map((file) => file.name).join(', '))
     assert(disks.files.length > 0, '盘符列表非空')
 
     console.log(`\n[4] 列目录 listDir("${REMOTE_DIR}") ...`)
@@ -241,30 +241,30 @@ async function main() {
     console.log('\n[5] 上传小文本文件 ...')
     const content = `px web_client ft smoke\n时间戳: ${new Date().toISOString()}\n随机: ${Math.random()}\n中文内容校验: 远程桌面文件传输\n`
     const expectedHash = sha256(Buffer.from(content, 'utf8'))
-    const up = await evaluate(
+    const uploadResult = await evaluate(
       `window.__ft.uploadText(${JSON.stringify(UPLOAD_NAME)}, ${JSON.stringify(REMOTE_DIR)}, ${JSON.stringify(content)})`,
     )
-    console.log('  已投递上传作业:', JSON.stringify(up))
-    assert(up.sha256 === expectedHash, `本端 sha256 一致 (${expectedHash.slice(0, 16)}...)`)
-    const upJob = await waitJob(up.jobId, 60000)
-    assert(upJob.state === 'done', `上传作业完成 (state=${upJob.state}${upJob.error ? ', ' + upJob.error : ''})`)
+    console.log('  已投递上传作业:', JSON.stringify(uploadResult))
+    assert(uploadResult.sha256 === expectedHash, `本端 sha256 一致 (${expectedHash.slice(0, 16)}...)`)
+    const uploadJob = await waitJob(uploadResult.jobId, 60000)
+    assert(uploadJob.state === 'done', `上传作业完成 (state=${uploadJob.state}${uploadJob.error ? ', ' + uploadJob.error : ''})`)
 
     console.log('\n[6] 列目录确认远端文件存在 ...')
     const dir2 = await evaluate(`window.__ft.listDir(${JSON.stringify(REMOTE_DIR)})`)
-    const found = dir2.files.find((f) => f.name === UPLOAD_NAME)
+    const found = dir2.files.find((file) => file.name === UPLOAD_NAME)
     assert(!!found, `远端目录出现 ${UPLOAD_NAME}`)
     assert(found.size === Buffer.byteLength(content, 'utf8'), `远端文件大小一致 (${found.size})`)
 
     console.log('\n[7] 下载该文件回来(内存 sink)并比对 sha256 ...')
-    const down = await evaluate(`window.__ft.download(${JSON.stringify(remotePath)})`)
-    console.log('  下载结果:', JSON.stringify({ name: down.name, size: down.size, sha256: down.sha256 }))
-    assert(down.sha256 === expectedHash, `下载 sha256 一致 (${down.sha256.slice(0, 16)}...)`)
-    assert(down.size === Buffer.byteLength(content, 'utf8'), `大小一致 (${down.size} bytes)`)
+    const downloadResult = await evaluate(`window.__ft.download(${JSON.stringify(remotePath)})`)
+    console.log('  下载结果:', JSON.stringify({ name: downloadResult.name, size: downloadResult.size, sha256: downloadResult.sha256 }))
+    assert(downloadResult.sha256 === expectedHash, `下载 sha256 一致 (${downloadResult.sha256.slice(0, 16)}...)`)
+    assert(downloadResult.size === Buffer.byteLength(content, 'utf8'), `大小一致 (${downloadResult.size} bytes)`)
 
     console.log('\n[8] 删除远端测试文件 ...')
     await evaluate(`window.__ft.removeFile(${JSON.stringify(remotePath)})`)
     const dir3 = await evaluate(`window.__ft.listDir(${JSON.stringify(REMOTE_DIR)})`)
-    assert(!dir3.files.find((f) => f.name === UPLOAD_NAME), '远端文件已删除')
+    assert(!dir3.files.find((file) => file.name === UPLOAD_NAME), '远端文件已删除')
 
     console.log('\n全部通过 ✔')
   } finally {

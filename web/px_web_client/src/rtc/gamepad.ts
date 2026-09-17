@@ -79,21 +79,21 @@ export const ZERO_SNAPSHOT: GamepadSnapshot = {
 export interface GamepadOptions {
   // 发送 px.Message 字段(App.vue 的 sendControl,内部完成 TLV 打包)
   send: (fields: Record<string, unknown>) => boolean
-  onLog?: (msg: string) => void
+  onLog?: (message: string) => void
   // 状态文本变化回调(连接的手柄名 / 未检测到)
   onStatus?: (text: string) => void
   // 轮询间隔,默认 16ms(~60Hz)
   pollIntervalMs?: number
 }
 
-function axisToThumb(v: number): number {
+function axisToThumb(value: number): number {
   // 浏览器摇杆 -1.0~1.0,Y 轴向下为正;XInput 摇杆 -32768~32767,Y 轴向上为正 -> 取反
-  const clamped = Math.abs(v) < STICK_DEADZONE ? 0 : Math.max(-1, Math.min(1, v))
+  const clamped = Math.abs(value) < STICK_DEADZONE ? 0 : Math.max(-1, Math.min(1, value))
   return Math.round(clamped * THUMB_MAX)
 }
 
-function triggerToByte(v: number): number {
-  const clamped = Math.max(0, Math.min(1, v))
+function triggerToByte(value: number): number {
+  const clamped = Math.max(0, Math.min(1, value))
   return Math.round(clamped * TRIGGER_MAX)
 }
 
@@ -101,9 +101,9 @@ function triggerToByte(v: number): number {
 export function snapshotFrom(pad: Gamepad | null): GamepadSnapshot | null {
   if (!pad) return null
   let buttons = 0
-  pad.buttons.forEach((b, i) => {
-    const mask = BUTTON_MASKS[i]
-    if (mask && b.pressed) buttons |= mask
+  pad.buttons.forEach((button, buttonIndex) => {
+    const mask = BUTTON_MASKS[buttonIndex]
+    if (mask && button.pressed) buttons |= mask
   })
   const axes = pad.axes
   return {
@@ -118,16 +118,16 @@ export function snapshotFrom(pad: Gamepad | null): GamepadSnapshot | null {
   }
 }
 
-function analogChanged(a: GamepadSnapshot, b: GamepadSnapshot): boolean {
+function analogChanged(currentSnapshot: GamepadSnapshot, previousSnapshot: GamepadSnapshot): boolean {
   const thumbDelta = ANALOG_SEND_THRESHOLD * THUMB_MAX
   const triggerDelta = ANALOG_SEND_THRESHOLD * TRIGGER_MAX
   return (
-    Math.abs(a.thumbLx - b.thumbLx) > thumbDelta ||
-    Math.abs(a.thumbLy - b.thumbLy) > thumbDelta ||
-    Math.abs(a.thumbRx - b.thumbRx) > thumbDelta ||
-    Math.abs(a.thumbRy - b.thumbRy) > thumbDelta ||
-    Math.abs(a.leftTrigger - b.leftTrigger) > triggerDelta ||
-    Math.abs(a.rightTrigger - b.rightTrigger) > triggerDelta
+    Math.abs(currentSnapshot.thumbLx - previousSnapshot.thumbLx) > thumbDelta ||
+    Math.abs(currentSnapshot.thumbLy - previousSnapshot.thumbLy) > thumbDelta ||
+    Math.abs(currentSnapshot.thumbRx - previousSnapshot.thumbRx) > thumbDelta ||
+    Math.abs(currentSnapshot.thumbRy - previousSnapshot.thumbRy) > thumbDelta ||
+    Math.abs(currentSnapshot.leftTrigger - previousSnapshot.leftTrigger) > triggerDelta ||
+    Math.abs(currentSnapshot.rightTrigger - previousSnapshot.rightTrigger) > triggerDelta
   )
 }
 
@@ -195,26 +195,26 @@ export class GamepadController {
   }
 
   // 发送一帧状态(force=false 时仅在相对上一帧有变化时发送)
-  sendState(s: GamepadSnapshot, force = false): boolean {
+  sendState(snapshot: GamepadSnapshot, force = false): boolean {
     if (!force && this.last) {
       // 按键沿:任何按键变化必发;模拟量:超过阈值才发
-      if (s.buttons === this.last.buttons && !analogChanged(s, this.last)) return true
+      if (snapshot.buttons === this.last.buttons && !analogChanged(snapshot, this.last)) return true
     }
-    const ok = this.opts.send({
+    const sentSuccessfully = this.opts.send({
       type: MSG_TYPE_GAMEPAD_STATE,
       gamepadState: {
-        buttons: s.buttons,
-        leftTrigger: s.leftTrigger,
-        rightTrigger: s.rightTrigger,
-        thumbLx: s.thumbLx,
-        thumbLy: s.thumbLy,
-        thumbRx: s.thumbRx,
-        thumbRy: s.thumbRy,
+        buttons: snapshot.buttons,
+        leftTrigger: snapshot.leftTrigger,
+        rightTrigger: snapshot.rightTrigger,
+        thumbLx: snapshot.thumbLx,
+        thumbLy: snapshot.thumbLy,
+        thumbRx: snapshot.thumbRx,
+        thumbRy: snapshot.thumbRy,
         gpType: 0, // GamepadState.GamepadType.kButtons,回放侧忽略
       },
     })
-    if (ok) this.last = { ...s }
-    return ok
+    if (sentSuccessfully) this.last = { ...snapshot }
+    return sentSuccessfully
   }
 
   // 轮询一次(默认由定时器驱动;CDP 调试可手动调用)

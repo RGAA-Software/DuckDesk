@@ -22,11 +22,11 @@ import type { FsDirHandle, FsFileHandle } from './fs_access'
 import { ensureDir, writeFile } from './fs_access'
 import { buildZip } from './zip'
 
-export function isRemoteDir(t: number): boolean {
-  return t === FT_TYPE_DIR || t === FT_TYPE_DIR_LINK || t === FT_TYPE_DRIVE
+export function isRemoteDir(fileType: number): boolean {
+  return fileType === FT_TYPE_DIR || fileType === FT_TYPE_DIR_LINK || fileType === FT_TYPE_DRIVE
 }
-export function isRemoteFile(t: number): boolean {
-  return t === FT_TYPE_FILE
+export function isRemoteFile(fileType: number): boolean {
+  return fileType === FT_TYPE_FILE
 }
 
 // 下载落点:FS Access 目录(直接写盘)、浏览器保存(降级)、内存(CDP 测试钩子)
@@ -50,13 +50,13 @@ interface SinkState {
   memory?: {
     files: MemoryFile[]
     resolve: (files: MemoryFile[]) => void
-    reject: (e: Error) => void
+    reject: (error: Error) => void
   }
 }
 
 export function useFileTransfer() {
   let ftClient: FileTransferClient | null = null
-  let logFn: (msg: string) => void = () => {}
+  let logFn: (message: string) => void = () => {}
   // 会话内下载续传缓存:跨断线重连保留(新 client 复用),刷新页面即丢(plan §2 阶段 4.3)
   const resumeStore = new Map<string, { data: Uint8Array; size: number; mtime: number }>()
   const sinks = new Map<number, SinkState>()
@@ -69,13 +69,13 @@ export function useFileTransfer() {
   const ftJobs = ref<FtJob[]>([])
 
   // 覆盖确认弹框由 Window 组件提供(赋值后即可用);未赋值时按引擎默认决策
-  let overwriteHandler: ((req: OverwriteRequest) => Promise<OverwriteDecision>) | null = null
-  function setOverwriteHandler(h: typeof overwriteHandler) {
-    overwriteHandler = h
+  let overwriteHandler: ((request: OverwriteRequest) => Promise<OverwriteDecision>) | null = null
+  function setOverwriteHandler(handler: typeof overwriteHandler) {
+    overwriteHandler = handler
   }
 
-  function log(msg: string) {
-    logFn(msg)
+  function log(message: string) {
+    logFn(message)
   }
 
   // ft_data_channel onopen 时调用
@@ -197,7 +197,9 @@ export function useFileTransfer() {
       }
     }
     if (!hasAny && prefix) out.push(prefix)
-    for (const [h, rel] of subdirs) await collectEmptyDirs(h, rel, out)
+    for (const [directoryHandle, relativePath] of subdirs) {
+      await collectEmptyDirs(directoryHandle, relativePath, out)
+    }
   }
 
   // 上传本地文件到远端目录(remoteDir 为当前远端目录;目标全路径 = remoteDir/name)

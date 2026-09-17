@@ -199,8 +199,8 @@ describe('StandardRtcSignaling lifecycle', () => {
 describe('StandardRtcSignaling negotiation', () => {
   it('flushes bounded local ICE after the offer in original order', async () => {
     const { signaling, logs } = createSignaling()
-    for (let i = 0; i < 300; i += 1) {
-      signaling.sendIce({ candidate: `candidate-${i}`, sdpMid: '0', sdpMLineIndex: 0 } as RTCIceCandidate)
+    for (let candidateIndex = 0; candidateIndex < 300; candidateIndex += 1) {
+      signaling.sendIce({ candidate: `candidate-${candidateIndex}`, sdpMid: '0', sdpMLineIndex: 0 } as RTCIceCandidate)
     }
     const socket = await connectReady(signaling)
     const answer = signaling.exchangeOffer('offer-sdp', params.safetyPwdMd5)
