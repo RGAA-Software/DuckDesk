@@ -69,8 +69,8 @@ private:
         // library name does not include a file extension and the loader
         // automatically assumes .dll.
 
-        for (int i = 0; i < ARRAYSIZE(k_BlacklistedDlls); i++) {
-            if (_wcsicmp(dllName, k_BlacklistedDlls[i]) == 0) {
+        for (int libraryIndex = 0; libraryIndex < ARRAYSIZE(k_BlacklistedDlls); libraryIndex++) {
+            if (_wcsicmp(dllName, k_BlacklistedDlls[libraryIndex]) == 0) {
                 return true;
             }
         }

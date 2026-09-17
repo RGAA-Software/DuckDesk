@@ -5,23 +5,24 @@
 #ifndef TC_APPLICATION_TCAPPLICATION_H
 #define TC_APPLICATION_TCAPPLICATION_H
 
-#include <string>
+#include <condition_variable>
 #include <memory>
-#include <unordered_map>
-#include <unordered_set>
-#include <queue>
 #include <mutex>
 #include <optional>
-#include <condition_variable>
+#include <queue>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
-#include "rd_context.h"
+
 #include "app/app_messages.h"
 #include "app_global_messages.h"
-#include "px_capture/capture_message.h"
-#include "px_common/concurrent_type.h"
-#include "px_common/concurrent_queue.h"
-#include "px_common/concurrent_hashmap.h"
 #include "architecture/pipeline/captured_media_pipeline.h"
+#include "px_capture/capture_message.h"
+#include "px_common/concurrent_hashmap.h"
+#include "px_common/concurrent_queue.h"
+#include "px_common/concurrent_type.h"
+#include "rd_context.h"
 #ifdef WIN32
 #include <d3d11.h>
 #include <wrl/client.h>
@@ -96,10 +97,10 @@ class PipelineStatisticsObserver;
 class RateLimitedLogGate;
 class RenderCompositionRoot;
 class WasAudioCaptureSource;
-} // namespace render
+}  // namespace render
 
 class RdApplication : public std::enable_shared_from_this<RdApplication> {
-  public:
+   public:
     static std::shared_ptr<RdApplication> Make(const AppParams& args);
 
     virtual ~RdApplication();
@@ -112,15 +113,11 @@ class RdApplication : public std::enable_shared_from_this<RdApplication> {
 
     void PostGlobalAppMessage(std::shared_ptr<AppMessage>&& msg);
     void PostGlobalTask(std::function<void()>&& task);
-    void PostIpcMessage(std::shared_ptr<Data>&& msg);
-    void PostIpcMessage(const std::string& msg) const;
-    void PostNetMessage(std::shared_ptr<Data> msg) const;
-    std::shared_ptr<RdContext> GetContext() {
-        return context_;
-    }
-    std::shared_ptr<AppManager> GetAppManager() {
-        return app_manager_;
-    }
+    void PostIpcMessage(std::shared_ptr<Data>&& payload);
+    void PostIpcMessage(const std::string& payload) const;
+    void PostNetMessage(std::shared_ptr<Data> payload) const;
+    std::shared_ptr<RdContext> GetContext() { return context_; }
+    std::shared_ptr<AppManager> GetAppManager() { return app_manager_; }
     void OnCapturedVideoFrame(const CaptureVideoFrame& frame) const;
     void ReplayLatestGameHookFrame() const;
     void OnCapturedAudioFrame(const CaptureAudioFrame& frame);
@@ -128,44 +125,50 @@ class RdApplication : public std::enable_shared_from_this<RdApplication> {
     void OnIpcVideoFrame(const CaptureVideoFrame& frame) const;
     // In-process hook audio from px_gh.dll via /ipc.
     void OnIpcAudioFrame(const CaptureAudioFrame& frame);
-    // Sync: write file bootstrap for injected DLL (port + DXGI offsets). Not SHM.
+    // Sync: write file bootstrap for injected DLL (port + DXGI offsets). Not
+    // SHM.
     bool PrepareGameHookBoot(uint32_t pid);
-    void ResetMonitorResolution(const std::string& name, int w, int h);
+    void ResetMonitorResolution(const std::string& monitor_name, int width,
+                                int height);
     std::shared_ptr<RenderModuleRegistry> GetRenderModuleRegistry();
     std::shared_ptr<MonitorCaptureSource> GetWorkingMonitorCaptureSource();
     void SetFrameRate(int fps);
     [[nodiscard]] int FrameRate() const noexcept;
-    std::map<std::string, std::shared_ptr<VideoEncoderModule>> GetWorkingVideoEncoders() const;
+    std::map<std::string, std::shared_ptr<VideoEncoderModule>>
+    GetWorkingVideoEncoders() const;
     bool GenerateD3DDevice(uint64_t adapter_uid);
     void ClearD3DDevice(uint64_t adapter_uid);
     void ClearModuleD3DState(uint64_t adapter_uid);
-    void HandleD3DDeviceFailure(uint64_t adapter_uid, const std::string& reason);
+    void HandleD3DDeviceFailure(uint64_t adapter_uid,
+                                const std::string& reason);
     ComPtr<ID3D11Device> GetD3DDevice(uint64_t adapter_uid);
     ComPtr<ID3D11DeviceContext> GetD3DContext(uint64_t adapter_uid);
-    std::shared_ptr<SharedPreference> GetSp() const {
-        return sp_;
-    }
+    std::shared_ptr<SharedPreference> GetSp() const { return sp_; }
     std::shared_ptr<LogicalSessionRegistry> GetLogicalSessionRegistry() const {
         return logical_session_registry_;
     }
     std::shared_ptr<render::MediaSourcePort> CreateMediaSourcePort() const;
-    void ReqCtrlAltDelete(const std::string& device_id, const std::string& stream_id) const;
-    // service 经 ws 下发 kSrvStopServer(Console 停止实例):先广播 kInstanceStopped
-    // 给所有 RTC 客户端,留出发送时间后自行退出(不等服务强杀)
+    void ReqCtrlAltDelete(const std::string& device_id,
+                          const std::string& stream_id) const;
+    // service 经 ws 下发 kSrvStopServer(Console 停止实例):先广播
+    // kInstanceStopped 给所有 RTC 客户端,留出发送时间后自行退出(不等服务强杀)
     void OnServiceRequestedStop();
     std::shared_ptr<WinDesktopManager> GetDesktopManager();
     // post to panel process
-    bool PostPanelMessage(std::shared_ptr<Data> msg);
-    void PostUserProxyMessage(std::shared_ptr<Data> msg);
+    bool PostPanelMessage(std::shared_ptr<Data> payload);
+    void PostUserProxyMessage(std::shared_ptr<Data> payload);
 
     void HandleForceGdiEvent(bool force_gdi);
     void RequestStaticDesktopFrame();
 
     // update capturing monitor
     void UpdateCapturingMonitorInfo();
-    void RequestVirtualDisplay(const std::string& request_id, int operation, uint32_t width, uint32_t height, uint32_t refresh_hz,
-                               std::function<void(const MsgVirtualDisplayServiceResult&)>&& callback);
-    void UpdateVirtualDisplayStatus(const MsgVirtualDisplayServiceResult& result);
+    void RequestVirtualDisplay(
+        const std::string& request_id, int operation, uint32_t width,
+        uint32_t height, uint32_t refresh_hz,
+        std::function<void(const MsgVirtualDisplayServiceResult&)>&& callback);
+    void UpdateVirtualDisplayStatus(
+        const MsgVirtualDisplayServiceResult& result);
     void RefreshVirtualDisplayStatus(const std::string& request_prefix);
     std::pair<uint32_t, uint64_t> GetVirtualDisplayStatusSnapshot() const;
     void SendWebViewMouseEvent(const MouseEvent& event);
@@ -176,15 +179,16 @@ class RdApplication : public std::enable_shared_from_this<RdApplication> {
     void SendWebViewFocusEvent(bool focused);
     void SetWebViewClipboardText(std::string text);
 
-  public:
-    template <typename T> void SendAppMessage(const T& m) {
-        context_->SendAppMessage(m);
+   public:
+    template <typename T>
+    void SendAppMessage(const T& message) {
+        context_->SendAppMessage(message);
     }
 
-  protected:
+   protected:
     explicit RdApplication(const AppParams& args);
 
-  private:
+   private:
     void InitAppTimer();
     void InitMessages();
     void InitAudioCapture();
@@ -198,13 +202,14 @@ class RdApplication : public std::enable_shared_from_this<RdApplication> {
     void ReportAudioSpectrum2Panel();
     // to clients
     void SendAudioSpectrumMessage() const;
-    void SendClipboardMessage(const std::string& msg) const;
+    void SendClipboardMessage(const std::string& clipboard_text) const;
     void SendConfigurationBack();
     int RunRdp();
     int RunMessageLoop();
     void InitConnectionLifecycle();
     void RequestRestartMe() const;
-    void ReportFileTransferAuditBegin(const render::FileTransferAuditBegin& audit);
+    void ReportFileTransferAuditBegin(
+        const render::FileTransferAuditBegin& audit);
     void ReportFileTransferAuditEnd(const render::FileTransferAuditEnd& audit);
 
     bool SwitchGdiCapture();
@@ -213,11 +218,13 @@ class RdApplication : public std::enable_shared_from_this<RdApplication> {
     bool IsCurrentDdaCapture();
     bool TryInitDdaCapture();
     void DeliverCapturedVideoFrame(const CaptureVideoFrame& frame) const;
-    render::MediaSubmitResult DeliverExtensionVideoFrame(const std::shared_ptr<const render::CapturedVideoFrame>& frame) const;
-    render::MediaSubmitResult DeliverCapturedAudioFrame(const std::shared_ptr<const render::CapturedAudioFrame>& frame,
-                                                        const std::shared_ptr<Data>& source_data = {});
+    render::MediaSubmitResult DeliverExtensionVideoFrame(
+        const std::shared_ptr<const render::CapturedVideoFrame>& frame) const;
+    render::MediaSubmitResult DeliverCapturedAudioFrame(
+        const std::shared_ptr<const render::CapturedAudioFrame>& frame,
+        const std::shared_ptr<Data>& source_audio_payload = {});
 
-  protected:
+   protected:
     RdSettings& settings_;
     std::shared_ptr<WsPanelClient> ws_panel_client_ = nullptr;
     std::shared_ptr<AppManager> app_manager_ = nullptr;
@@ -256,7 +263,8 @@ class RdApplication : public std::enable_shared_from_this<RdApplication> {
     std::shared_ptr<render::FileTransferService> file_transfer_service_;
     std::shared_ptr<render::NetworkTransportHub> network_transport_hub_;
     std::shared_ptr<render::VoiceCallService> voice_call_service_;
-    std::shared_ptr<render::PipelineStatisticsObserver> pipeline_statistics_observer_;
+    std::shared_ptr<render::PipelineStatisticsObserver>
+        pipeline_statistics_observer_;
     std::shared_ptr<render::RateLimitedLogGate> pipeline_error_log_gate_;
     std::mutex task_mutex_;
     std::queue<std::shared_ptr<AppMessage>> pending_tasks_;
@@ -325,7 +333,7 @@ extern std::shared_ptr<RdApplication> rdApp;
 
 // Windows
 class WinApplication : public RdApplication {
-  public:
+   public:
     ~WinApplication() override;
 
     int Run() override;
@@ -333,10 +341,10 @@ class WinApplication : public RdApplication {
     void CaptureControlC() override;
     void LoadDxAddress();
 
-  protected:
+   protected:
     explicit WinApplication(const AppParams& args);
 };
 
-} // namespace px
+}  // namespace px
 
-#endif // TC_APPLICATION_TCAPPLICATION_H
+#endif  // TC_APPLICATION_TCAPPLICATION_H

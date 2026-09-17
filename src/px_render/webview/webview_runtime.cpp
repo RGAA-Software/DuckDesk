@@ -1,10 +1,10 @@
 #include "webview_runtime.h"
-#include "application_text_validation.h"
 
 #include <Windows.h>
 #include <d3d11_1.h>
 #include <dxgi1_2.h>
 #include <wrl/client.h>
+
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -19,13 +19,14 @@
 #include <unordered_set>
 #include <vector>
 
+#include "application_text_validation.h"
 #include "include/base/cef_callback.h"
 #include "include/cef_app.h"
 #include "include/cef_audio_handler.h"
 #include "include/cef_browser.h"
 #include "include/cef_client.h"
-#include "include/cef_display_handler.h"
 #include "include/cef_dialog_handler.h"
+#include "include/cef_display_handler.h"
 #include "include/cef_download_handler.h"
 #include "include/cef_life_span_handler.h"
 #include "include/cef_load_handler.h"
@@ -35,11 +36,10 @@
 #include "include/cef_request_handler.h"
 #include "include/wrapper/cef_closure_task.h"
 #include "include/wrapper/cef_helpers.h"
-
+#include "px_common/clipboard/clipboard_platform.h"
 #include "px_common/data.h"
 #include "px_common/image.h"
 #include "px_common/log.h"
-#include "px_common/clipboard/clipboard_platform.h"
 
 namespace px {
 namespace {
@@ -49,13 +49,13 @@ using Microsoft::WRL::ComPtr;
 constexpr char kWebViewDisplayName[] = "webview";
 
 class UiClosureTask final : public CefTask {
-public:
+   public:
     explicit UiClosureTask(std::function<void()> closure)
         : closure_(std::move(closure)) {}
 
     void Execute() override { closure_(); }
 
-private:
+   private:
     std::function<void()> closure_;
     IMPLEMENT_REFCOUNTING(UiClosureTask);
 };
@@ -65,26 +65,31 @@ void PostToCefUi(std::function<void()> closure) {
 }
 
 std::string LowerAscii(std::string value) {
-    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
-    });
+    std::transform(
+        value.begin(), value.end(), value.begin(),
+        [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
     return value;
 }
 
 bool IsInternalHttpHost(const std::string& raw_host) {
     const auto host = LowerAscii(raw_host);
-    if (host == "localhost" ||
-        (host.size() > 6 && host.ends_with(".local"))) {
+    if (host == "localhost" || (host.size() > 6 && host.ends_with(".local"))) {
         return true;
     }
-    unsigned int a = 0, b = 0, c = 0, d = 0;
-    char tail = 0;
-    if (sscanf_s(host.c_str(), "%u.%u.%u.%u%c", &a, &b, &c, &d, &tail, 1) == 4 &&
-        a <= 255 && b <= 255 && c <= 255 && d <= 255) {
-        return a == 10 || a == 127 ||
-            (a == 172 && b >= 16 && b <= 31) ||
-            (a == 192 && b == 168) ||
-            (a == 169 && b == 254);
+    unsigned int first_octet = 0;
+    unsigned int second_octet = 0;
+    unsigned int third_octet = 0;
+    unsigned int fourth_octet = 0;
+    char trailing_character = 0;
+    if (sscanf_s(host.c_str(), "%u.%u.%u.%u%c", &first_octet, &second_octet,
+                 &third_octet, &fourth_octet, &trailing_character, 1) == 4 &&
+        first_octet <= 255 && second_octet <= 255 && third_octet <= 255 &&
+        fourth_octet <= 255) {
+        return first_octet == 10 || first_octet == 127 ||
+               (first_octet == 172 && second_octet >= 16 &&
+                second_octet <= 31) ||
+               (first_octet == 192 && second_octet == 168) ||
+               (first_octet == 169 && second_octet == 254);
     }
     return host == "::1" || host.starts_with("fc") || host.starts_with("fd");
 }
@@ -112,8 +117,7 @@ bool ParseAllowedUrl(const std::string& url, std::string* origin) {
 }
 
 std::string DecodeAndValidateUrl(const std::string& encoded,
-                                 std::string& origin,
-                                 std::string& error) {
+                                 std::string& origin, std::string& error) {
     if (encoded.empty()) {
         error = "webview URL is empty";
         return {};
@@ -130,64 +134,68 @@ std::string DecodeAndValidateUrl(const std::string& encoded,
         return {};
     }
     std::string url(binary->GetSize(), '\0');
-    if (binary->GetData(url.data(), url.size(), 0) != url.size()
-        || url.find('\0') != std::string::npos) {
+    if (binary->GetData(url.data(), url.size(), 0) != url.size() ||
+        url.find('\0') != std::string::npos) {
         error = "webview URL encoding is invalid";
         return {};
     }
 
     if (!ParseAllowedUrl(url, &origin)) {
-        error = "webview URL scheme, host, credentials or HTTP target are not allowed";
+        error =
+            "webview URL scheme, host, credentials or HTTP target are not "
+            "allowed";
         return {};
     }
     return url;
 }
 
-bool IsAllowedNavigation(const std::string& url, const std::string& entry_origin) {
+bool IsAllowedNavigation(const std::string& url,
+                         const std::string& entry_origin) {
     std::string target_origin;
-    return ParseAllowedUrl(url, &target_origin) && target_origin == entry_origin;
+    return ParseAllowedUrl(url, &target_origin) &&
+           target_origin == entry_origin;
 }
 
 uint32_t MapCursorType(cef_cursor_type_t type) {
     switch (type) {
-    case CT_IBEAM:
-    case CT_VERTICALTEXT:
-        return CursorInfoSync::kIdcIBeam;
-    case CT_WAIT:
-    case CT_PROGRESS:
-        return CursorInfoSync::kIdcWait;
-    case CT_CROSS:
-    case CT_CELL:
-        return CursorInfoSync::kIdcCross;
-    case CT_NORTHRESIZE:
-    case CT_SOUTHRESIZE:
-    case CT_NORTHSOUTHRESIZE:
-    case CT_ROWRESIZE:
-        return CursorInfoSync::kIdcSizeNS;
-    case CT_EASTRESIZE:
-    case CT_WESTRESIZE:
-    case CT_EASTWESTRESIZE:
-    case CT_COLUMNRESIZE:
-        return CursorInfoSync::kIdcSizeWE;
-    case CT_NORTHWESTRESIZE:
-    case CT_SOUTHEASTRESIZE:
-    case CT_NORTHWESTSOUTHEASTRESIZE:
-        return CursorInfoSync::kIdcSizeNWSE;
-    case CT_NORTHEASTRESIZE:
-    case CT_SOUTHWESTRESIZE:
-    case CT_NORTHEASTSOUTHWESTRESIZE:
-        return CursorInfoSync::kIdcSizeNESW;
-    case CT_MOVE:
-    case CT_MIDDLEPANNING:
-        return CursorInfoSync::kIdcSizeAll;
-    case CT_HAND:
-    case CT_GRAB:
-    case CT_GRABBING:
-        return CursorInfoSync::kIdcHand;
-    case CT_HELP:
-        return CursorInfoSync::kIdcHelp;
-    default:
-        return CursorInfoSync::kIdcArrow;
+        case CT_IBEAM:
+        case CT_VERTICALTEXT:
+            return CursorInfoSync::kIdcIBeam;
+        case CT_WAIT:
+        case CT_PROGRESS:
+            return CursorInfoSync::kIdcWait;
+        case CT_CROSS:
+        case CT_CELL:
+            return CursorInfoSync::kIdcCross;
+        case CT_NORTHRESIZE:
+        case CT_SOUTHRESIZE:
+        case CT_NORTHSOUTHRESIZE:
+        case CT_ROWRESIZE:
+            return CursorInfoSync::kIdcSizeNS;
+        case CT_EASTRESIZE:
+        case CT_WESTRESIZE:
+        case CT_EASTWESTRESIZE:
+        case CT_COLUMNRESIZE:
+            return CursorInfoSync::kIdcSizeWE;
+        case CT_NORTHWESTRESIZE:
+        case CT_SOUTHEASTRESIZE:
+        case CT_NORTHWESTSOUTHEASTRESIZE:
+            return CursorInfoSync::kIdcSizeNWSE;
+        case CT_NORTHEASTRESIZE:
+        case CT_SOUTHWESTRESIZE:
+        case CT_NORTHEASTSOUTHWESTRESIZE:
+            return CursorInfoSync::kIdcSizeNESW;
+        case CT_MOVE:
+        case CT_MIDDLEPANNING:
+            return CursorInfoSync::kIdcSizeAll;
+        case CT_HAND:
+        case CT_GRAB:
+        case CT_GRABBING:
+            return CursorInfoSync::kIdcHand;
+        case CT_HELP:
+            return CursorInfoSync::kIdcHelp;
+        default:
+            return CursorInfoSync::kIdcArrow;
     }
 }
 
@@ -208,32 +216,40 @@ std::wstring MakeProfilePath(const std::string& instance_id) {
 }
 
 class WebViewCefApp final : public CefApp, public CefBrowserProcessHandler {
-public:
+   public:
     CefRefPtr<CefBrowserProcessHandler> GetBrowserProcessHandler() override {
         return this;
     }
 
-    void OnBeforeCommandLineProcessing(const CefString& process_type,
-                                       CefRefPtr<CefCommandLine> command_line) override {
+    void OnBeforeCommandLineProcessing(
+        const CefString& process_type,
+        CefRefPtr<CefCommandLine> command_line) override {
         command_line->AppendSwitch("disable-extensions");
         command_line->AppendSwitch("disable-background-timer-throttling");
         command_line->AppendSwitch("disable-renderer-backgrounding");
         command_line->AppendSwitch("disable-backgrounding-occluded-windows");
-        command_line->AppendSwitchWithValue("autoplay-policy", "no-user-gesture-required");
+        command_line->AppendSwitchWithValue("autoplay-policy",
+                                            "no-user-gesture-required");
         command_line->AppendSwitchWithValue("use-angle", "d3d11");
     }
 
-    void OnBeforeChildProcessLaunch(CefRefPtr<CefCommandLine> command_line) override {
+    void OnBeforeChildProcessLaunch(
+        CefRefPtr<CefCommandLine> command_line) override {
         // Chromium normally inherits every browser-process switch. CEF
         // children need none of the application credentials or entry URL.
         constexpr const char* sensitive_switches[] = {
-            "webview_url_b64", "service_ipc_token", "device_random_pwd",
-            "device_safety_pwd", "appkey", "push_rtmp_url",
+            "webview_url_b64",
+            "service_ipc_token",
+            "device_random_pwd",
+            "device_safety_pwd",
+            "appkey",
+            "push_rtmp_url",
         };
-        for (const auto* name : sensitive_switches) command_line->RemoveSwitch(name);
+        for (const auto* name : sensitive_switches)
+            command_line->RemoveSwitch(name);
     }
 
-private:
+   private:
     IMPLEMENT_REFCOUNTING(WebViewCefApp);
 };
 
@@ -247,8 +263,9 @@ class WebViewClient final : public CefClient,
                             public CefDownloadHandler,
                             public CefDialogHandler,
                             public CefPermissionHandler {
-public:
-    WebViewClient(WebViewRuntimeConfig config, WebViewRuntimeCallbacks callbacks)
+   public:
+    WebViewClient(WebViewRuntimeConfig config,
+                  WebViewRuntimeCallbacks callbacks)
         : config_(std::move(config)), callbacks_(std::move(callbacks)) {}
 
     ~WebViewClient() override { ResetAcceleratedPaint(); }
@@ -261,7 +278,9 @@ public:
     CefRefPtr<CefRequestHandler> GetRequestHandler() override { return this; }
     CefRefPtr<CefDownloadHandler> GetDownloadHandler() override { return this; }
     CefRefPtr<CefDialogHandler> GetDialogHandler() override { return this; }
-    CefRefPtr<CefPermissionHandler> GetPermissionHandler() override { return this; }
+    CefRefPtr<CefPermissionHandler> GetPermissionHandler() override {
+        return this;
+    }
 
     bool OnCursorChange(CefRefPtr<CefBrowser>, CefCursorHandle,
                         cef_cursor_type_t type,
@@ -273,13 +292,19 @@ public:
         cursor.visible_ = type != CT_NONE;
         cursor.type_ = MapCursorType(type);
         if (type == CT_CUSTOM && custom_cursor_info.buffer &&
-            custom_cursor_info.size.width > 0 && custom_cursor_info.size.height > 0) {
-            cursor.width_ = static_cast<uint32_t>(custom_cursor_info.size.width);
-            cursor.height_ = static_cast<uint32_t>(custom_cursor_info.size.height);
+            custom_cursor_info.size.width > 0 &&
+            custom_cursor_info.size.height > 0) {
+            cursor.width_ =
+                static_cast<uint32_t>(custom_cursor_info.size.width);
+            cursor.height_ =
+                static_cast<uint32_t>(custom_cursor_info.size.height);
             cursor.hotspot_x_ = custom_cursor_info.hotspot.x;
             cursor.hotspot_y_ = custom_cursor_info.hotspot.y;
-            const auto size = static_cast<int64_t>(cursor.width_) * cursor.height_ * 4;
-            cursor.data_ = Data::Copy(std::span<const char>{static_cast<const char*>(custom_cursor_info.buffer), static_cast<std::size_t>(size)});
+            const auto size =
+                static_cast<int64_t>(cursor.width_) * cursor.height_ * 4;
+            cursor.data_ = Data::Copy(std::span<const char>{
+                static_cast<const char*>(custom_cursor_info.buffer),
+                static_cast<std::size_t>(size)});
         }
         callbacks_.on_cursor(cursor);
         return true;
@@ -289,7 +314,8 @@ public:
         rect = CefRect(0, 0, config_.width, config_.height);
     }
 
-    bool GetScreenInfo(CefRefPtr<CefBrowser>, CefScreenInfo& screen_info) override {
+    bool GetScreenInfo(CefRefPtr<CefBrowser>,
+                       CefScreenInfo& screen_info) override {
         // Constrain native <select>/autocomplete popups to the captured view.
         // Without a valid screen rectangle Chromium may place an OSR popup
         // outside the texture even though the page itself is in bounds.
@@ -322,13 +348,15 @@ public:
         if (rect.width <= 0 || rect.height <= 0) return;
         popup_original_rect_ = rect;
         popup_rect_ = AdjustPopupRect(rect);
-        LOGI("WebView popup surface: original=({},{} {}x{}) composite=({},{} {}x{})",
-             rect.x, rect.y, rect.width, rect.height,
-             popup_rect_.x, popup_rect_.y, popup_rect_.width, popup_rect_.height);
+        LOGI(
+            "WebView popup surface: original=({},{} {}x{}) composite=({},{} "
+            "{}x{})",
+            rect.x, rect.y, rect.width, rect.height, popup_rect_.x,
+            popup_rect_.y, popup_rect_.width, popup_rect_.height);
     }
 
-    void OnPaint(CefRefPtr<CefBrowser>, PaintElementType type,
-                  const RectList&, const void* buffer, int width, int height) override {
+    void OnPaint(CefRefPtr<CefBrowser>, PaintElementType type, const RectList&,
+                 const void* buffer, int width, int height) override {
         CEF_REQUIRE_UI_THREAD();
         if (!buffer || width <= 0 || height <= 0 || !active_) {
             return;
@@ -352,7 +380,8 @@ public:
     }
 
     void OnAcceleratedPaint(CefRefPtr<CefBrowser>, PaintElementType type,
-                            const RectList&, const CefAcceleratedPaintInfo& info) override {
+                            const RectList&,
+                            const CefAcceleratedPaintInfo& info) override {
         CEF_REQUIRE_UI_THREAD();
         if (!active_ || !info.shared_texture_handle) {
             return;
@@ -360,7 +389,9 @@ public:
         ComPtr<ID3D11Texture2D> source;
         if (!OpenAcceleratedTexture(info.shared_texture_handle, source)) {
             if (++accelerated_failures_ == 1) {
-                LOGE("WebView accelerated paint could not open the CEF shared texture");
+                LOGE(
+                    "WebView accelerated paint could not open the CEF shared "
+                    "texture");
             }
             return;
         }
@@ -368,7 +399,9 @@ public:
         source->GetDesc(&source_desc);
         if (type == PET_VIEW && !EnsureBridgeTextures(source_desc)) {
             if (++accelerated_failures_ == 1) {
-                LOGE("WebView accelerated paint could not create bridge textures");
+                LOGE(
+                    "WebView accelerated paint could not create bridge "
+                    "textures");
             }
             return;
         }
@@ -386,64 +419,74 @@ public:
         if (type == PET_VIEW) ObservePaintAndMaybeNotifyFirstFrame();
     }
 
-    bool GetAudioParameters(CefRefPtr<CefBrowser>, CefAudioParameters& params) override {
+    bool GetAudioParameters(CefRefPtr<CefBrowser>,
+                            CefAudioParameters& params) override {
         params.sample_rate = 48000;
         return config_.enable_audio;
     }
 
     void OnAudioStreamStarted(CefRefPtr<CefBrowser>,
-                              const CefAudioParameters& params,
-                              int channels) override {
-        audio_sample_rate_ = params.sample_rate;
-        audio_channels_ = channels;
-        LOGI("WebView CEF audio started: {} Hz, {} channels", params.sample_rate, channels);
+                              const CefAudioParameters& audio_parameters,
+                              int channel_count) override {
+        audio_sample_rate_ = audio_parameters.sample_rate;
+        audio_channels_ = channel_count;
+        LOGI("WebView CEF audio started: {} Hz, {} channels",
+             audio_parameters.sample_rate, channel_count);
     }
 
-    void OnAudioStreamPacket(CefRefPtr<CefBrowser>, const float** data,
-                             int frames, int64_t) override {
-        if (!active_ || !data || frames <= 0 || audio_channels_ <= 0
-            || !callbacks_.on_audio_frame) {
+    void OnAudioStreamPacket(CefRefPtr<CefBrowser>,
+                             const float** channel_samples, int frame_count,
+                             int64_t) override {
+        if (!active_ || !channel_samples || frame_count <= 0 ||
+            audio_channels_ <= 0 || !callbacks_.on_audio_frame) {
             return;
         }
-        const int channels = std::min(audio_channels_.load(), 8);
-        std::vector<int16_t> pcm(static_cast<size_t>(frames) * channels);
-        for (int frame = 0; frame < frames; ++frame) {
-            for (int channel = 0; channel < channels; ++channel) {
-                const auto sample = std::clamp(data[channel][frame], -1.0f, 1.0f);
-                pcm[static_cast<size_t>(frame) * channels + channel] =
+        const int channel_count = std::min(audio_channels_.load(), 8);
+        std::vector<int16_t> pcm_samples(static_cast<size_t>(frame_count) *
+                                         channel_count);
+        for (int frame_index = 0; frame_index < frame_count; ++frame_index) {
+            for (int channel_index = 0; channel_index < channel_count;
+                 ++channel_index) {
+                const auto sample = std::clamp(
+                    channel_samples[channel_index][frame_index], -1.0f, 1.0f);
+                pcm_samples[static_cast<size_t>(frame_index) * channel_count +
+                            channel_index] =
                     static_cast<int16_t>(std::lrint(sample * 32767.0f));
             }
         }
-        CaptureAudioFrame audio{};
-        audio.frame_index_ = ++audio_frame_index_;
-        audio.samples_ = audio_sample_rate_;
-        audio.channels_ = channels;
-        audio.bits_ = 16;
-        audio.full_data_ = Data::Copy(
-            std::span<const char>{reinterpret_cast<const char*>(pcm.data()), pcm.size() * sizeof(std::int16_t)});
-        callbacks_.on_audio_frame(audio);
+        CaptureAudioFrame audio_frame{};
+        audio_frame.frame_index_ = ++audio_frame_index_;
+        audio_frame.samples_ = audio_sample_rate_;
+        audio_frame.channels_ = channel_count;
+        audio_frame.bits_ = 16;
+        audio_frame.full_data_ = Data::Copy(std::span<const char>{
+            reinterpret_cast<const char*>(pcm_samples.data()),
+            pcm_samples.size() * sizeof(std::int16_t)});
+        callbacks_.on_audio_frame(audio_frame);
     }
 
     void OnAudioStreamStopped(CefRefPtr<CefBrowser>) override {
         LOGI("WebView CEF audio stopped");
     }
 
-    void OnAudioStreamError(CefRefPtr<CefBrowser>, const CefString& message) override {
+    void OnAudioStreamError(CefRefPtr<CefBrowser>,
+                            const CefString& message) override {
         LOGE("WebView CEF audio error: {}", message.ToString());
     }
 
     void OnAfterCreated(CefRefPtr<CefBrowser> browser) override {
         CEF_REQUIRE_UI_THREAD();
         browser_ = browser;
-        browser_->GetHost()->SetWindowlessFrameRate(active_ ? config_.frame_rate : 1);
+        browser_->GetHost()->SetWindowlessFrameRate(active_ ? config_.frame_rate
+                                                            : 1);
         browser_->GetHost()->SetFocus(active_);
         LOGI("WebView CEF browser created");
     }
 
     bool OnBeforePopup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame>, int,
                        const CefString& target_url, const CefString&,
-                       CefLifeSpanHandler::WindowOpenDisposition,
-                       bool, const CefPopupFeatures&, CefWindowInfo&,
+                       CefLifeSpanHandler::WindowOpenDisposition, bool,
+                       const CefPopupFeatures&, CefWindowInfo&,
                        CefRefPtr<CefClient>&, CefBrowserSettings&,
                        CefRefPtr<CefDictionaryValue>&, bool*) override {
         const auto url = target_url.ToString();
@@ -483,7 +526,8 @@ public:
     }
 
     void OnLoadError(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame> frame,
-                     ErrorCode error_code, const CefString&, const CefString&) override {
+                     ErrorCode error_code, const CefString&,
+                     const CefString&) override {
         // Subresource and iframe failures must not fail the whole scheduled
         // application. Only the entry/main document controls instance health.
         if (!frame || !frame->IsMain() || error_code == ERR_ABORTED) {
@@ -515,11 +559,13 @@ public:
     void OnLoadEnd(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame> frame,
                    int http_status_code) override {
         if (frame && frame->IsMain()) {
-            LOGI("WebView main frame load completed: http_status={}", http_status_code);
+            LOGI("WebView main frame load completed: http_status={}",
+                 http_status_code);
             if (http_status_code >= 400) {
                 main_load_failed_ = true;
                 if (callbacks_.on_failed) {
-                    callbacks_.on_failed("WebView main page returned an HTTP error");
+                    callbacks_.on_failed(
+                        "WebView main page returned an HTTP error");
                 }
             } else {
                 TryNotifyFirstFrame();
@@ -529,7 +575,8 @@ public:
 
     bool OnBeforeBrowse(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>,
                         CefRefPtr<CefRequest> request, bool, bool) override {
-        if (!request || IsAllowedNavigation(request->GetURL().ToString(), config_.entry_origin)) {
+        if (!request || IsAllowedNavigation(request->GetURL().ToString(),
+                                            config_.entry_origin)) {
             return false;
         }
         LOGW("WebView navigation blocked by URL policy");
@@ -538,18 +585,22 @@ public:
 
     bool OnOpenURLFromTab(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>,
                           const CefString& target_url,
-                          CefRequestHandler::WindowOpenDisposition, bool) override {
-        return !IsAllowedNavigation(target_url.ToString(), config_.entry_origin);
+                          CefRequestHandler::WindowOpenDisposition,
+                          bool) override {
+        return !IsAllowedNavigation(target_url.ToString(),
+                                    config_.entry_origin);
     }
 
     bool OnBeforeDownload(CefRefPtr<CefBrowser>, CefRefPtr<CefDownloadItem>,
-                          const CefString&, CefRefPtr<CefBeforeDownloadCallback>) override {
+                          const CefString&,
+                          CefRefPtr<CefBeforeDownloadCallback>) override {
         LOGW("WebView download blocked by policy");
         return true;
     }
 
-    void OnDownloadUpdated(CefRefPtr<CefBrowser>, CefRefPtr<CefDownloadItem>,
-                           CefRefPtr<CefDownloadItemCallback> callback) override {
+    void OnDownloadUpdated(
+        CefRefPtr<CefBrowser>, CefRefPtr<CefDownloadItem>,
+        CefRefPtr<CefDownloadItemCallback> callback) override {
         if (callback) {
             callback->Cancel();
         }
@@ -598,7 +649,8 @@ public:
 
     bool WaitUntilClosed(std::chrono::milliseconds timeout) {
         std::unique_lock lock(close_mutex_);
-        return close_cv_.wait_for(lock, timeout, [&closed = closed_] { return closed; });
+        return close_cv_.wait_for(lock, timeout,
+                                  [&closed = closed_] { return closed; });
     }
 
     void SetActive(bool active) {
@@ -638,7 +690,9 @@ public:
         });
     }
 
-    void OnTextSelectionChanged(CefRefPtr<CefBrowser>, const CefString& selected_text, const CefRange&) override {
+    void OnTextSelectionChanged(CefRefPtr<CefBrowser>,
+                                const CefString& selected_text,
+                                const CefRange&) override {
         CEF_REQUIRE_UI_THREAD();
         selected_text_ = selected_text.ToString();
         if (selected_text_.size() > 1024 * 1024) {
@@ -656,9 +710,12 @@ public:
         PostToCefUi([self, input] { self->SendTextOnUi(input); });
     }
 
-    void OnVirtualKeyboardRequested(CefRefPtr<CefBrowser>, TextInputMode mode) override {
+    void OnVirtualKeyboardRequested(CefRefPtr<CefBrowser>,
+                                    TextInputMode mode) override {
         CEF_REQUIRE_UI_THREAD();
-        const auto editability{mode == CEF_TEXT_INPUT_MODE_NONE ? ApplicationTextState::NOT_EDITABLE : ApplicationTextState::EDITABLE};
+        const auto editability{mode == CEF_TEXT_INPUT_MODE_NONE
+                                   ? ApplicationTextState::NOT_EDITABLE
+                                   : ApplicationTextState::EDITABLE};
         if (editability == text_editability_) {
             return;
         }
@@ -689,10 +746,14 @@ public:
         });
     }
 
-    void CommitApplicationText(std::string text, std::string expected_generation, std::function<bool()> authorize,
-                               std::function<void(ApplicationTextOutcome)> completion) {
+    void CommitApplicationText(
+        std::string text, std::string expected_generation,
+        std::function<bool()> authorize,
+        std::function<void(ApplicationTextOutcome)> completion) {
         const auto self{CefRefPtr<WebViewClient>(this)};
-        PostToCefUi([self, text = std::move(text), expected_generation = std::move(expected_generation), authorize = std::move(authorize),
+        PostToCefUi([self, text = std::move(text),
+                     expected_generation = std::move(expected_generation),
+                     authorize = std::move(authorize),
                      completion = std::move(completion)] {
             auto outcome{TEXT_PERMISSION_DENIED};
             if (authorize && authorize()) {
@@ -701,13 +762,17 @@ public:
                     outcome = TEXT_INVALID;
                 } else if (target.generation != expected_generation) {
                     outcome = TEXT_TARGET_CHANGED;
-                } else if (!target.available || target.editability == ApplicationTextState::NOT_EDITABLE) {
+                } else if (!target.available ||
+                           target.editability ==
+                               ApplicationTextState::NOT_EDITABLE) {
                     outcome = TEXT_TARGET_UNAVAILABLE;
                 } else {
-                    // CEF commits the complete UTF-16 string, including surrogate
-                    // pairs, without clipboard mutation or synthetic Enter.
-                    // An empty valid range means offset zero, not the current selection.
-                    self->browser_->GetHost()->ImeCommitText(CefString(text), CefRange::InvalidRange(), 0);
+                    // CEF commits the complete UTF-16 string, including
+                    // surrogate pairs, without clipboard mutation or synthetic
+                    // Enter. An empty valid range means offset zero, not the
+                    // current selection.
+                    self->browser_->GetHost()->ImeCommitText(
+                        CefString(text), CefRange::InvalidRange(), 0);
                     outcome = TEXT_SUBMITTED;
                 }
             }
@@ -730,10 +795,11 @@ public:
         });
     }
 
-private:
+   private:
     WebViewTextTarget TextTargetOnUi() const {
         CEF_REQUIRE_UI_THREAD();
-        const auto frame{browser_ ? browser_->GetFocusedFrame() : CefRefPtr<CefFrame>{}};
+        const auto frame{browser_ ? browser_->GetFocusedFrame()
+                                  : CefRefPtr<CefFrame>{}};
         return {.generation = std::to_string(text_generation_),
                 .editability = text_editability_,
                 .available = active_.load() && frame && frame->IsValid()};
@@ -765,8 +831,8 @@ private:
     }
 
     void ApplyPopupMouseOffset(int& x, int& y) const {
-        if (!popup_visible_ || popup_rect_.width <= 0 || popup_rect_.height <= 0 ||
-            x < popup_rect_.x || y < popup_rect_.y ||
+        if (!popup_visible_ || popup_rect_.width <= 0 ||
+            popup_rect_.height <= 0 || x < popup_rect_.x || y < popup_rect_.y ||
             x >= popup_rect_.x + popup_rect_.width ||
             y >= popup_rect_.y + popup_rect_.height) {
             return;
@@ -783,23 +849,35 @@ private:
         auto composite = software_view_;
         if (popup_visible_ && !software_popup_.empty() &&
             software_popup_width_ > 0 && software_popup_height_ > 0) {
-            const int dst_x = std::clamp(popup_rect_.x, 0, software_view_width_);
-            const int dst_y = std::clamp(popup_rect_.y, 0, software_view_height_);
-            const int copy_width = std::max(0, std::min(
-                {software_popup_width_, popup_rect_.width, software_view_width_ - dst_x}));
-            const int copy_height = std::max(0, std::min(
-                {software_popup_height_, popup_rect_.height, software_view_height_ - dst_y}));
+            const int destination_x =
+                std::clamp(popup_rect_.x, 0, software_view_width_);
+            const int destination_y =
+                std::clamp(popup_rect_.y, 0, software_view_height_);
+            const int copy_width =
+                std::max(0, std::min({software_popup_width_, popup_rect_.width,
+                                      software_view_width_ - destination_x}));
+            const int copy_height = std::max(
+                0, std::min({software_popup_height_, popup_rect_.height,
+                             software_view_height_ - destination_y}));
             for (int row = 0; row < copy_height; ++row) {
-                const auto* src = software_popup_.data() +
+                const auto* source_pixels =
+                    software_popup_.data() +
                     static_cast<size_t>(row) * software_popup_width_ * 4;
-                auto* dst = composite.data() +
-                    (static_cast<size_t>(dst_y + row) * software_view_width_ + dst_x) * 4;
-                std::memcpy(dst, src, static_cast<size_t>(copy_width) * 4);
+                auto* destination_pixels =
+                    composite.data() +
+                    (static_cast<size_t>(destination_y + row) *
+                         software_view_width_ +
+                     destination_x) *
+                        4;
+                std::memcpy(destination_pixels, source_pixels,
+                            static_cast<size_t>(copy_width) * 4);
             }
         }
 
-        auto data = Data::Copy(std::span<const char>{reinterpret_cast<const char*>(composite.data()), composite.size()});
-        auto image = Image::Make(data, software_view_width_, software_view_height_, 4);
+        auto frame_payload = Data::Copy(std::span<const char>{
+            reinterpret_cast<const char*>(composite.data()), composite.size()});
+        auto image = Image::Make(frame_payload, software_view_width_,
+                                 software_view_height_, 4);
         image->raw_img_type_ = RawImageType::kBGRA;
         CaptureVideoFrame frame{};
         frame.capture_type_ = kCaptureVideoByBitmapData;
@@ -822,7 +900,8 @@ private:
         if (texture) {
             D3D11_TEXTURE2D_DESC current{};
             texture->GetDesc(&current);
-            if (current.Width == source_desc.Width && current.Height == source_desc.Height &&
+            if (current.Width == source_desc.Width &&
+                current.Height == source_desc.Height &&
                 current.Format == source_desc.Format) {
                 return true;
             }
@@ -833,13 +912,13 @@ private:
         desc.CPUAccessFlags = 0;
         desc.MiscFlags = 0;
         desc.BindFlags = 0;
-        return SUCCEEDED(d3d_device_->CreateTexture2D(&desc, nullptr,
-                                                       texture.ReleaseAndGetAddressOf()));
+        return SUCCEEDED(d3d_device_->CreateTexture2D(
+            &desc, nullptr, texture.ReleaseAndGetAddressOf()));
     }
 
     void EmitAcceleratedComposite() {
-        if (!active_ || !d3d_context_ || !view_texture_ || !bridge_textures_[0] ||
-            !callbacks_.on_video_frame) {
+        if (!active_ || !d3d_context_ || !view_texture_ ||
+            !bridge_textures_[0] || !callbacks_.on_video_frame) {
             return;
         }
         D3D11_TEXTURE2D_DESC view_desc{};
@@ -852,24 +931,34 @@ private:
             popup_rect_.height > 0) {
             D3D11_TEXTURE2D_DESC popup_desc{};
             popup_texture_->GetDesc(&popup_desc);
-            const int dst_x = std::clamp(popup_rect_.x, 0, static_cast<int>(view_desc.Width));
-            const int dst_y = std::clamp(popup_rect_.y, 0, static_cast<int>(view_desc.Height));
-            const int copy_width = std::max(0, std::min(
-                {static_cast<int>(popup_desc.Width), popup_rect_.width,
-                 static_cast<int>(view_desc.Width) - dst_x}));
-            const int copy_height = std::max(0, std::min(
-                {static_cast<int>(popup_desc.Height), popup_rect_.height,
-                 static_cast<int>(view_desc.Height) - dst_y}));
-            if (copy_width > 0 && copy_height > 0 && popup_desc.Format == view_desc.Format) {
-                const D3D11_BOX source_box{
-                    0, 0, 0, static_cast<UINT>(copy_width),
-                    static_cast<UINT>(copy_height), 1};
+            const int dst_x =
+                std::clamp(popup_rect_.x, 0, static_cast<int>(view_desc.Width));
+            const int dst_y = std::clamp(popup_rect_.y, 0,
+                                         static_cast<int>(view_desc.Height));
+            const int copy_width = std::max(
+                0,
+                std::min({static_cast<int>(popup_desc.Width), popup_rect_.width,
+                          static_cast<int>(view_desc.Width) - dst_x}));
+            const int copy_height = std::max(
+                0, std::min({static_cast<int>(popup_desc.Height),
+                             popup_rect_.height,
+                             static_cast<int>(view_desc.Height) - dst_y}));
+            if (copy_width > 0 && copy_height > 0 &&
+                popup_desc.Format == view_desc.Format) {
+                const D3D11_BOX source_box{0,
+                                           0,
+                                           0,
+                                           static_cast<UINT>(copy_width),
+                                           static_cast<UINT>(copy_height),
+                                           1};
                 d3d_context_->CopySubresourceRegion(output, 0, dst_x, dst_y, 0,
-                                                    popup_texture_.Get(), 0, &source_box);
+                                                    popup_texture_.Get(), 0,
+                                                    &source_box);
             }
         }
         d3d_context_->Flush();
-        bridge_write_index_ = (bridge_write_index_ + 1) % bridge_textures_.size();
+        bridge_write_index_ =
+            (bridge_write_index_ + 1) % bridge_textures_.size();
 
         CaptureVideoFrame frame{};
         frame.capture_type_ = kCaptureVideoByHandle;
@@ -905,11 +994,14 @@ private:
         }
     }
 
-    bool OpenAcceleratedTexture(HANDLE handle, ComPtr<ID3D11Texture2D>& texture) {
+    bool OpenAcceleratedTexture(HANDLE handle,
+                                ComPtr<ID3D11Texture2D>& texture) {
         if (d3d_device_) {
             ComPtr<ID3D11Device1> device1;
             if (SUCCEEDED(d3d_device_.As(&device1)) &&
-                SUCCEEDED(device1->OpenSharedResource1(handle, IID_PPV_ARGS(&texture))) && texture) {
+                SUCCEEDED(device1->OpenSharedResource1(
+                    handle, IID_PPV_ARGS(&texture))) &&
+                texture) {
                 return true;
             }
             ResetAcceleratedPaint();
@@ -921,23 +1013,29 @@ private:
         }
         for (UINT index = 0;; ++index) {
             ComPtr<IDXGIAdapter1> adapter;
-            if (factory->EnumAdapters1(index, &adapter) == DXGI_ERROR_NOT_FOUND) break;
+            if (factory->EnumAdapters1(index, &adapter) == DXGI_ERROR_NOT_FOUND)
+                break;
             ComPtr<ID3D11Device> device;
             ComPtr<ID3D11DeviceContext> context;
             D3D_FEATURE_LEVEL actual{};
             constexpr D3D_FEATURE_LEVEL levels[] = {
-                D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0,
-                D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0,
+                D3D_FEATURE_LEVEL_11_1,
+                D3D_FEATURE_LEVEL_11_0,
+                D3D_FEATURE_LEVEL_10_1,
+                D3D_FEATURE_LEVEL_10_0,
             };
-            if (FAILED(D3D11CreateDevice(adapter.Get(), D3D_DRIVER_TYPE_UNKNOWN, nullptr,
-                                         D3D11_CREATE_DEVICE_BGRA_SUPPORT, levels,
-                                         static_cast<UINT>(std::size(levels)), D3D11_SDK_VERSION,
-                                         &device, &actual, &context))) {
+            if (FAILED(D3D11CreateDevice(
+                    adapter.Get(), D3D_DRIVER_TYPE_UNKNOWN, nullptr,
+                    D3D11_CREATE_DEVICE_BGRA_SUPPORT, levels,
+                    static_cast<UINT>(std::size(levels)), D3D11_SDK_VERSION,
+                    &device, &actual, &context))) {
                 continue;
             }
             ComPtr<ID3D11Device1> device1;
             if (FAILED(device.As(&device1)) ||
-                FAILED(device1->OpenSharedResource1(handle, IID_PPV_ARGS(&texture))) || !texture) {
+                FAILED(device1->OpenSharedResource1(handle,
+                                                    IID_PPV_ARGS(&texture))) ||
+                !texture) {
                 texture.Reset();
                 continue;
             }
@@ -946,18 +1044,21 @@ private:
             adapter_uid_ = static_cast<int64_t>(desc.AdapterLuid.LowPart);
             d3d_device_ = std::move(device);
             d3d_context_ = std::move(context);
-            LOGI("WebView accelerated paint opened on adapter uid={}", adapter_uid_);
+            LOGI("WebView accelerated paint opened on adapter uid={}",
+                 adapter_uid_);
             return true;
         }
         return false;
     }
 
     bool EnsureBridgeTextures(const D3D11_TEXTURE2D_DESC& source_desc) {
-        if (!d3d_device_ || source_desc.Width == 0 || source_desc.Height == 0) return false;
+        if (!d3d_device_ || source_desc.Width == 0 || source_desc.Height == 0)
+            return false;
         if (bridge_textures_[0]) {
             D3D11_TEXTURE2D_DESC current{};
             bridge_textures_[0]->GetDesc(&current);
-            if (current.Width == source_desc.Width && current.Height == source_desc.Height &&
+            if (current.Width == source_desc.Width &&
+                current.Height == source_desc.Height &&
                 current.Format == source_desc.Format) {
                 return true;
             }
@@ -972,27 +1073,28 @@ private:
         desc.SampleDesc.Count = 1;
         desc.Usage = D3D11_USAGE_DEFAULT;
         desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
-        desc.MiscFlags = D3D11_RESOURCE_MISC_SHARED | D3D11_RESOURCE_MISC_SHARED_NTHANDLE;
+        desc.MiscFlags =
+            D3D11_RESOURCE_MISC_SHARED | D3D11_RESOURCE_MISC_SHARED_NTHANDLE;
         for (size_t index = 0; index < bridge_textures_.size(); ++index) {
             if (FAILED(d3d_device_->CreateTexture2D(
-                    &desc, nullptr, bridge_textures_[index].ReleaseAndGetAddressOf()))) {
+                    &desc, nullptr,
+                    bridge_textures_[index].ReleaseAndGetAddressOf()))) {
                 ResetBridgeTextures();
                 return false;
             }
             ComPtr<IDXGIResource1> resource;
             if (FAILED(bridge_textures_[index].As(&resource)) ||
-                FAILED(resource->CreateSharedHandle(nullptr,
-                                                    DXGI_SHARED_RESOURCE_READ,
-                                                    nullptr,
-                                                    &bridge_handles_[index])) ||
+                FAILED(resource->CreateSharedHandle(
+                    nullptr, DXGI_SHARED_RESOURCE_READ, nullptr,
+                    &bridge_handles_[index])) ||
                 !bridge_handles_[index]) {
                 ResetBridgeTextures();
                 return false;
             }
         }
         bridge_write_index_ = 0;
-        LOGI("WebView accelerated bridge created: {}x{} format={}",
-             desc.Width, desc.Height, static_cast<int>(desc.Format));
+        LOGI("WebView accelerated bridge created: {}x{} format={}", desc.Width,
+             desc.Height, static_cast<int>(desc.Format));
         return true;
     }
 
@@ -1026,9 +1128,12 @@ private:
     }
 
     int ClickCount(size_t button, int x, int y, int64_t timestamp) {
-        const auto now = timestamp > 0 ? timestamp :
-            std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::steady_clock::now().time_since_epoch()).count();
+        const auto now =
+            timestamp > 0
+                ? timestamp
+                : std::chrono::duration_cast<std::chrono::milliseconds>(
+                      std::chrono::steady_clock::now().time_since_epoch())
+                      .count();
         auto& state = clicks_[button];
         if (now - state.timestamp <= GetDoubleClickTime() &&
             std::abs(x - state.x) <= GetSystemMetrics(SM_CXDOUBLECLK) / 2 &&
@@ -1047,8 +1152,10 @@ private:
         CEF_REQUIRE_UI_THREAD();
         if (!active_ || !browser_) return;
         CefMouseEvent event{};
-        event.x = std::clamp(static_cast<int>(value.x_ratio() * config_.width), 0, config_.width - 1);
-        event.y = std::clamp(static_cast<int>(value.y_ratio() * config_.height), 0, config_.height - 1);
+        event.x = std::clamp(static_cast<int>(value.x_ratio() * config_.width),
+                             0, config_.width - 1);
+        event.y = std::clamp(static_cast<int>(value.y_ratio() * config_.height),
+                             0, config_.height - 1);
         ApplyPopupMouseOffset(event.x, event.y);
         last_mouse_x_ = event.x;
         last_mouse_y_ = event.y;
@@ -1057,45 +1164,60 @@ private:
         host->SendMouseMoveEvent(event, false);
 
         const int buttons = value.button();
-        if ((buttons & ButtonFlag::kMouseEventWheel) != 0 || value.data() != 0) {
-            host->SendMouseWheelEvent(event, value.delta_x(),
-                                      value.delta_y() != 0 ? value.delta_y() : value.data());
+        if ((buttons & ButtonFlag::kMouseEventWheel) != 0 ||
+            value.data() != 0) {
+            host->SendMouseWheelEvent(
+                event, value.delta_x(),
+                value.delta_y() != 0 ? value.delta_y() : value.data());
         }
         const auto send_button = [&](size_t index, int down_flag, int up_flag,
                                      CefBrowserHost::MouseButtonType type) {
-            const bool down = (buttons & down_flag) != 0 ||
+            const bool down =
+                (buttons & down_flag) != 0 ||
                 (value.pressed() && (buttons & (down_flag | up_flag)));
-            const bool up = (buttons & up_flag) != 0 ||
+            const bool up =
+                (buttons & up_flag) != 0 ||
                 (value.released() && (buttons & (down_flag | up_flag)));
             if (down) {
                 mouse_down_[index] = true;
-                active_click_count_[index] = ClickCount(index, event.x, event.y, value.timestamp());
+                active_click_count_[index] =
+                    ClickCount(index, event.x, event.y, value.timestamp());
                 event.modifiers = KeyboardModifiers();
-                host->SendMouseClickEvent(event, type, false, active_click_count_[index]);
+                host->SendMouseClickEvent(event, type, false,
+                                          active_click_count_[index]);
             }
             if (up) {
                 mouse_down_[index] = false;
                 event.modifiers = KeyboardModifiers();
-                host->SendMouseClickEvent(event, type, true,
-                                          std::max(active_click_count_[index], 1));
+                host->SendMouseClickEvent(
+                    event, type, true, std::max(active_click_count_[index], 1));
             }
         };
-        send_button(0, ButtonFlag::kLeftMouseButtonDown, ButtonFlag::kLeftMouseButtonUp, MBT_LEFT);
-        send_button(1, ButtonFlag::kMiddleMouseButtonDown, ButtonFlag::kMiddleMouseButtonUp, MBT_MIDDLE);
-        send_button(2, ButtonFlag::kRightMouseButtonDown, ButtonFlag::kRightMouseButtonUp, MBT_RIGHT);
+        send_button(0, ButtonFlag::kLeftMouseButtonDown,
+                    ButtonFlag::kLeftMouseButtonUp, MBT_LEFT);
+        send_button(1, ButtonFlag::kMiddleMouseButtonDown,
+                    ButtonFlag::kMiddleMouseButtonUp, MBT_MIDDLE);
+        send_button(2, ButtonFlag::kRightMouseButtonDown,
+                    ButtonFlag::kRightMouseButtonUp, MBT_RIGHT);
     }
 
     void SendKeyOnUi(const KeyEvent& value) {
         CEF_REQUIRE_UI_THREAD();
         if (!active_ || !browser_) return;
         const auto vk = value.key_code();
-        if (vk == VK_CONTROL || vk == VK_LCONTROL || vk == VK_RCONTROL) control_down_ = value.down();
-        if (vk == VK_SHIFT || vk == VK_LSHIFT || vk == VK_RSHIFT) shift_down_ = value.down();
-        if (vk == VK_MENU || vk == VK_LMENU || vk == VK_RMENU) alt_down_ = value.down();
-        if (value.down()) pressed_keys_.insert(vk);
-        else pressed_keys_.erase(vk);
+        if (vk == VK_CONTROL || vk == VK_LCONTROL || vk == VK_RCONTROL)
+            control_down_ = value.down();
+        if (vk == VK_SHIFT || vk == VK_LSHIFT || vk == VK_RSHIFT)
+            shift_down_ = value.down();
+        if (vk == VK_MENU || vk == VK_LMENU || vk == VK_RMENU)
+            alt_down_ = value.down();
+        if (value.down())
+            pressed_keys_.insert(vk);
+        else
+            pressed_keys_.erase(vk);
 
-        // OSR has no native browser widget to dispatch standard editing accelerators.
+        // OSR has no native browser widget to dispatch standard editing
+        // accelerators.
         if (value.down() && control_down_ && !alt_down_ && !shift_down_) {
             if (const auto frame = browser_->GetFocusedFrame()) {
                 if (vk == 'A') {
@@ -1103,7 +1225,8 @@ private:
                     return;
                 }
                 if (vk == 'C' || vk == 'X') {
-                    if (!selected_text_.empty() && callbacks_.on_clipboard_text) {
+                    if (!selected_text_.empty() &&
+                        callbacks_.on_clipboard_text) {
                         clipboard_text_ = selected_text_;
                         callbacks_.on_clipboard_text(selected_text_);
                         if (vk == 'X') {
@@ -1113,7 +1236,8 @@ private:
                     return;
                 }
                 if (vk == 'V') {
-                    if (clipboard_text_ && clipboard_platform_->WriteText(*clipboard_text_)) {
+                    if (clipboard_text_ &&
+                        clipboard_platform_->WriteText(*clipboard_text_)) {
                         frame->Paste();
                     }
                     return;
@@ -1124,7 +1248,8 @@ private:
         CefKeyEvent event{};
         event.type = value.down() ? KEYEVENT_RAWKEYDOWN : KEYEVENT_KEYUP;
         event.windows_key_code = static_cast<int>(vk);
-        event.native_key_code = static_cast<int>(MapVirtualKeyW(vk, MAPVK_VK_TO_VSC) << 16);
+        event.native_key_code =
+            static_cast<int>(MapVirtualKeyW(vk, MAPVK_VK_TO_VSC) << 16);
         event.modifiers = KeyboardModifiers();
         event.is_system_key = alt_down_;
         browser_->GetHost()->SendKeyEvent(event);
@@ -1145,7 +1270,7 @@ private:
             // reads windows_key_code for character insertion; setting only
             // character/unmodified_character leaves text fields unchanged.
             event.windows_key_code = static_cast<int>(ch);
-            event.native_key_code = 1; // WM_CHAR repeat count.
+            event.native_key_code = 1;  // WM_CHAR repeat count.
             event.character = ch;
             event.unmodified_character = ch;
             event.modifiers = KeyboardModifiers();
@@ -1166,7 +1291,8 @@ private:
             CefKeyEvent event{};
             event.type = KEYEVENT_KEYUP;
             event.windows_key_code = static_cast<int>(vk);
-            event.native_key_code = static_cast<int>(MapVirtualKeyW(vk, MAPVK_VK_TO_VSC) << 16);
+            event.native_key_code =
+                static_cast<int>(MapVirtualKeyW(vk, MAPVK_VK_TO_VSC) << 16);
             event.modifiers = KeyboardModifiers();
             host->SendKeyEvent(event);
         }
@@ -1174,13 +1300,15 @@ private:
         CefMouseEvent event{};
         event.x = last_mouse_x_;
         event.y = last_mouse_y_;
-        constexpr CefBrowserHost::MouseButtonType types[] = {MBT_LEFT, MBT_MIDDLE, MBT_RIGHT};
+        constexpr CefBrowserHost::MouseButtonType types[] = {
+            MBT_LEFT, MBT_MIDDLE, MBT_RIGHT};
         for (size_t index = 0; index < mouse_down_.size(); ++index) {
             if (mouse_down_[index]) {
                 mouse_down_[index] = false;
                 event.modifiers = KeyboardModifiers();
-                host->SendMouseClickEvent(event, types[index], true,
-                                          std::max(active_click_count_[index], 1));
+                host->SendMouseClickEvent(
+                    event, types[index], true,
+                    std::max(active_click_count_[index], 1));
             }
         }
         control_down_ = shift_down_ = alt_down_ = false;
@@ -1223,7 +1351,12 @@ private:
     int software_view_height_ = 0;
     int software_popup_width_ = 0;
     int software_popup_height_ = 0;
-    struct ClickState { int64_t timestamp = 0; int x = 0; int y = 0; int count = 0; };
+    struct ClickState {
+        int64_t timestamp = 0;
+        int x = 0;
+        int y = 0;
+        int count = 0;
+    };
     std::array<ClickState, 3> clicks_{};
     std::array<int, 3> active_click_count_{};
     std::array<bool, 3> mouse_down_{};
@@ -1234,10 +1367,13 @@ private:
     bool shift_down_ = false;
     bool alt_down_ = false;
     std::string selected_text_{};
-    std::uint64_t text_generation_{static_cast<std::uint64_t>(std::chrono::steady_clock::now().time_since_epoch().count())};
-    ApplicationTextState::Editability text_editability_{ApplicationTextState::UNKNOWN};
+    std::uint64_t text_generation_{static_cast<std::uint64_t>(
+        std::chrono::steady_clock::now().time_since_epoch().count())};
+    ApplicationTextState::Editability text_editability_{
+        ApplicationTextState::UNKNOWN};
     std::optional<std::string> clipboard_text_{};
-    std::unique_ptr<clipboard::IPlatform> clipboard_platform_{clipboard::CreatePlatform()};
+    std::unique_ptr<clipboard::IPlatform> clipboard_platform_{
+        clipboard::CreatePlatform()};
     std::mutex close_mutex_;
     std::condition_variable close_cv_;
     bool closed_ = false;
@@ -1245,7 +1381,7 @@ private:
     IMPLEMENT_REFCOUNTING(WebViewClient);
 };
 
-} // namespace
+}  // namespace
 
 int ExecuteCefSubprocess(void* module_instance) {
     CefMainArgs args(static_cast<HINSTANCE>(module_instance));
@@ -1254,7 +1390,7 @@ int ExecuteCefSubprocess(void* module_instance) {
 }
 
 class WebViewRuntime::Impl {
-public:
+   public:
     bool Start(void* module_instance, const WebViewRuntimeConfig& config,
                WebViewRuntimeCallbacks callbacks, std::string& error) {
         if (started_) {
@@ -1306,16 +1442,20 @@ public:
         window_info.SetAsWindowless(nullptr);
         window_info.shared_texture_enabled = config.accelerated_paint;
         CefBrowserSettings browser_settings{};
-        browser_settings.windowless_frame_rate = std::clamp(config.frame_rate, 1, 120);
-        if (!CefBrowserHost::CreateBrowser(window_info, client_, url_, browser_settings,
-                                           nullptr, nullptr)) {
+        browser_settings.windowless_frame_rate =
+            std::clamp(config.frame_rate, 1, 120);
+        if (!CefBrowserHost::CreateBrowser(window_info, client_, url_,
+                                           browser_settings, nullptr,
+                                           nullptr)) {
             error = "CEF browser creation failed";
             Stop();
             return false;
         }
-        LOGI("WebView CEF initialized: viewport={}x{} fps={} audio={} accelerated={}",
-             config.width, config.height, config.frame_rate, config.enable_audio,
-             config.accelerated_paint);
+        LOGI(
+            "WebView CEF initialized: viewport={}x{} fps={} audio={} "
+            "accelerated={}",
+            config.width, config.height, config.frame_rate, config.enable_audio,
+            config.accelerated_paint);
         return true;
     }
 
@@ -1380,7 +1520,8 @@ void WebViewRuntime::SetClipboardText(std::string text) {
     if (impl_->client_) impl_->client_->SetClipboardText(std::move(text));
 }
 
-void WebViewRuntime::QueryTextTarget(std::function<void(WebViewTextTarget)> completion) {
+void WebViewRuntime::QueryTextTarget(
+    std::function<void(WebViewTextTarget)> completion) {
     if (impl_->client_) {
         impl_->client_->QueryTextTarget(std::move(completion));
     } else if (completion) {
@@ -1396,13 +1537,17 @@ void WebViewRuntime::ReleaseTextInputKeys(std::function<void()> completion) {
     }
 }
 
-void WebViewRuntime::CommitApplicationText(std::string text, std::string expected_generation, std::function<bool()> authorize,
-                                         std::function<void(ApplicationTextOutcome)> completion) {
+void WebViewRuntime::CommitApplicationText(
+    std::string text, std::string expected_generation,
+    std::function<bool()> authorize,
+    std::function<void(ApplicationTextOutcome)> completion) {
     if (impl_->client_) {
-        impl_->client_->CommitApplicationText(std::move(text), std::move(expected_generation), std::move(authorize), std::move(completion));
+        impl_->client_->CommitApplicationText(
+            std::move(text), std::move(expected_generation),
+            std::move(authorize), std::move(completion));
     } else if (completion) {
         completion(TEXT_TARGET_UNAVAILABLE);
     }
 }
 
-} // namespace px
+}  // namespace px
