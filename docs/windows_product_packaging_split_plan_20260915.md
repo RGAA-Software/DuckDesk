@@ -184,7 +184,7 @@ scripts_build/build_remote_product.bat
 
 发布级完整构建分别使用 `build_cloud_node.bat`、`build_client_product.bat` 和 `build_remote_product.bat`；每个入口先且只提升对应产品的独立版本一次，再将 CMake 配置到 `build_official/<product>/cmake/` 并只构建该产品聚合目标。旧的根构建入口不是兼容入口。日常开发仍使用 `scripts_build/build_cpp_*.bat` 定向构建，这些 focused 入口不生成完整产品包、不提升产品版本，也不得借拆包改造绕过现有增量构建规则。
 
-`px_service.exe`、`px_service_manager.exe`、`px_function.exe` 和 `px_osinfo.exe` 仍使用同一套完整源码与 feature 组合，但分别通过产品专属 `CARGO_TARGET_DIR` 构建、暂存和收集。Cloud Node 与 Remote 不维护删减版 Service；相同输入应产生相同哈希，但任何产品不得从另一产品目录取文件。`web_client` 也分别输出到 Cloud Node 和 Remote 的 `web/`，Console 前端不进入任何桌面产品。共享目录只允许保存下载包、依赖源码和工具链缓存。
+`px_service.exe`、`px_service_manager.exe`、`px_function.exe` 和 `px_osinfo.exe` 仍使用同一套完整源码与 feature 组合，但分别通过产品专属 `CARGO_TARGET_DIR` 构建、暂存和收集。Cloud Node 与 Remote 不维护删减版 Service；相同输入应产生相同哈希，但任何产品不得从另一产品目录取文件。Windows Rust 目标统一启用 MSVC `/Brepro`，避免 CodeView PDB GUID 等非运行时随机元数据令两个独立产品构建产生不同摘要；移除或绕过该参数必须有新的可复现性证据。`web_client` 也分别输出到 Cloud Node 和 Remote 的 `web/`，Console 前端不进入任何桌面产品。共享目录只允许保存下载包、依赖源码和工具链缓存。
 
 旧 `build_official.bat` 和 `build_client.bat` 语义已退役，不得恢复为根构建树或另一套 Client 产品入口。
 

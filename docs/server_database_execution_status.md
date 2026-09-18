@@ -682,15 +682,27 @@ Windows 与 WSL Linux 各 338 个 Rust 用例目录逐项一致；Console 243、
 不变，20 组工具/Web 制品摘要已记录。该报告取代 `pg-20260918-181943-2051a284` 作为软件基线；仍不替代正式产品二进制/安装包、
 节点遥测与管理实时流、录像实际字节链、视频墙/直播、私有 RTC/TURN、独立灾备故障域或公网 Windows/Android 产品出口。
 
-节点 latest 遥测第一切片已进入当前待提交 revision。Windows Service 每次节点报告前通过真实 WMI 采集 CPU、逻辑处理器、内存、
+节点 latest 遥测第一切片已提交到 revision `27afde21e00a8d4bd539b4b99338ac27c17c04a0`。Windows Service 每次节点报告前通过真实 WMI 采集 CPU、逻辑处理器、内存、
 固定磁盘及 GPU 身份/名称；本机 79/79 个 `px_service` 测试（包含真实采样）与全 target Clippy `-D warnings` 通过。节点协议要求显式
 telemetry，不接受缺字段旧报告；Console 在当前 generation/sequence 门禁内原子写入 `node_telemetry_latest` 并替换同一
 inventory revision 的 `node_gpu_latest`，管理 API 和中英文节点详情显示最新值、状态和采样时间。真实 PostgreSQL 专项
 `pg-20260918-204609-08e5c0c9` 为 nodes 8/8，`pg-20260918-204814-bc41f36c` 为 node-control 1/1；迁移/权限/恢复水位专项
 `pg-20260918-204609-ad4b5c70` 为 14/14，备份核心专项 `pg-20260918-204814-83185236` 为 61/61；SQLx 248 条元数据从迁移 0024
 的新空库重新生成，报告为 `pg-20260918-204516-c4282129`。Console Web 类型检查及 32/32 合同测试通过。WMI 当前未提供可信的
-逐 GPU 利用率、显存和编码器压力，这些字段明确为 NULL；历史趋势、阈值事件、断线补报、管理实时流、调度硬过滤、正式 Service
-制品同步及公网节点验收仍未完成，不能把 latest 快照写成 CM-EVENT、CM-REALTIME 或 P3 调度完成。完整跨平台门禁尚待本切片提交后执行。
+逐 GPU 利用率、显存和编码器压力，这些字段明确为 NULL；历史趋势、阈值事件、断线补报、管理实时流、调度硬过滤及公网节点验收
+仍未完成，不能把 latest 快照写成 CM-EVENT、CM-REALTIME 或 P3 调度完成。
+
+本切片提交后的完整跨平台门禁 `pg-20260918-205048-9fde7634` 已通过：745/745 项 PASS、0 FAIL；Windows 与 WSL Linux
+服务器测试、248 条 Console SQLx、Desk/Auth SQLx、四套 Web 生产构建、Console Web 32 项、Console/Auth/Desk 真实浏览器、
+数据库 fail-closed/恢复和三库备份恢复全部通过。1061 个登记源文件在整轮中 SHA-256 不变，20 组工具/Web 制品摘要已记录，
+隔离资源已清理。报告自身的 scope 仍明确为“完整 DB0–DB5 验收未完成”，不得借本轮通过关闭下表的阶段出口。
+
+Cloud Node 与 Remote 的产品专属 Rust release 目录已分别重编译。Windows Rust 目标通过 `/Brepro` 消除 CodeView PDB GUID 的
+随机差异后，两套独立构建的 `px_service.exe` 在 build、stage、dist 三层 SHA-256 均为
+`527A5167277741C221765CD9070AB48634BB541C371366FDA3E42D7DBA5F62F2`，两份 dist 二进制的 `--help` 冒烟均通过。
+这只证明本次 Service 聚焦制品同步正确，不会重写完整产品清单：当前 Cloud Node dist 中既有 `px_client.exe`、`px_render.exe`
+以及 Remote dist 中既有 `px_render.exe` 与各自旧清单不一致，完整 dist 校验按设计失败，故公网发布器没有绕过预检部署。
+这些既有整包不一致必须由下一次获准的正式完整产品构建从干净沙箱重新收集和签章；本次不擅自认可或覆盖无关制品。
 
 ## 仍未通过的阶段出口
 

@@ -28,6 +28,10 @@ build_official/
 
 下载缓存、依赖源码和工具链缓存可以共享；任何已编译产品文件不得跨产品目录读取。
 
+Windows Rust 使用仓库 `rust_client/.cargo/config.toml` 中的 MSVC `/Brepro`。Cloud Node 与 Remote 即使在各自独立的
+`CARGO_TARGET_DIR` 构建，共享 Service 在源码、依赖、编译参数和 revision 相同时也必须得到相同 SHA-256；构建、stage、dist
+三层必须逐文件核对。产品清单只由完整产品构建从干净沙箱生成，聚焦构建不得用“重写清单”掩盖 dist 中其他文件的漂移。
+
 ## 2. 完整编译规则
 
 完整产品构建每次执行以下行为：
