@@ -1,3 +1,4 @@
+use crate::node_gpu_telemetry::{enrich_nvidia_metrics, EnumeratedGpu};
 use chrono::Utc;
 use px_node_protocol::{NodeGpuTelemetry, NodeTelemetry, TelemetryProbeState};
 use serde::Deserialize;
@@ -88,7 +89,7 @@ fn sample_inner() -> Result<NodeTelemetry, String> {
         .filter(|(total, free)| *total > 0 && free <= total);
     let (gpu_inventory_revision, gpus, gpu_inventory_ready) = match gpu_result {
         Ok(rows) => {
-            let mut gpus = rows
+            let mut enumerated_gpus = rows
                 .into_iter()
                 .filter_map(|row| {
                     let identity = row.pnp_device_id?.trim().to_uppercase();
@@ -96,15 +97,23 @@ fn sample_inner() -> Result<NodeTelemetry, String> {
                     if identity.is_empty() || name.is_empty() || name.len() > 256 {
                         return None;
                     }
-                    Some(NodeGpuTelemetry {
-                        stable_key: stable_gpu_key(&identity),
-                        name,
-                        dedicated_memory_bytes: None,
-                        used_memory_bytes: None,
-                        utilization_per_mille: None,
-                        encoder_utilization_per_mille: None,
+                    Some(EnumeratedGpu {
+                        pnp_identity: identity.clone(),
+                        telemetry: NodeGpuTelemetry {
+                            stable_key: stable_gpu_key(&identity),
+                            name,
+                            dedicated_memory_bytes: None,
+                            used_memory_bytes: None,
+                            utilization_per_mille: None,
+                            encoder_utilization_per_mille: None,
+                        },
                     })
                 })
+                .collect::<Vec<_>>();
+            enrich_nvidia_metrics(&mut enumerated_gpus);
+            let mut gpus = enumerated_gpus
+                .into_iter()
+                .map(|gpu| gpu.telemetry)
                 .collect::<Vec<_>>();
             gpus.sort_by(|left, right| left.stable_key.cmp(&right.stable_key));
             gpus.dedup_by(|left, right| left.stable_key == right.stable_key);
@@ -214,6 +223,21 @@ mod tests {
         assert!(telemetry.disk_total_bytes.is_some());
         assert!(telemetry.disk_free_bytes <= telemetry.disk_total_bytes);
         assert!(telemetry.gpu_inventory_revision.is_some());
+    }
+
+    #[test]
+    #[ignore = "requires a physical NVIDIA adapter and NVML driver"]
+    fn nvidia_probe_reports_real_memory_gpu_and_encoder_metrics() {
+        let telemetry = sample();
+        let gpu = telemetry
+            .gpus
+            .iter()
+            .find(|gpu| gpu.name.to_ascii_lowercase().contains("nvidia"))
+            .expect("a physical NVIDIA adapter is required");
+        assert!(gpu.dedicated_memory_bytes.is_some());
+        assert!(gpu.used_memory_bytes <= gpu.dedicated_memory_bytes);
+        assert!(gpu.utilization_per_mille.is_some());
+        assert!(gpu.encoder_utilization_per_mille.is_some());
     }
 
     fn gpu(stable_key: &str, name: &str) -> NodeGpuTelemetry {

@@ -6354,6 +6354,7 @@ dependencies = [
  "chrono",
  "clap",
  "futures-util",
+ "nvml-wrapper",
  "prost 0.14.4",
  "protocol",
  "px_auth_mgr",

@@ -76,6 +76,10 @@ Android 对应现有 `RemoteSessionTarget.CloudApplication(appId, instanceId, co
 
 “一卡一游戏”可以作为 CloudGame 默认独占策略，不是硬编码硬件上限；较轻云应用可配置共享上限，仍受所有资源维度限制。
 编码器数量/吞吐取自能力探测及验证配置，不写死显卡厂商的通用并发数字；编码会话空闲也不代表显存或 3D 有余量。
+
+当前实现进度（2026-09-19）：Windows Service 已对 NVIDIA 使用 NVML，并且只有 PCI vendor/device/subsystem 与 WMI 清单双向唯一时才填充
+显存、GPU 和编码器利用率；歧义或不可用保持未知。该数据已进入 Console latest、7 天历史、页面和阈值事件，但尚未接入本章 P3 的
+硬过滤/评分。AMD/Intel provider、编码会话预算和实际 Render GPU 绑定仍是后续出口，不能用节点总实例数替代。
 CPU 百分比只在同一容量基准上比较，跨型号通过 profile/基准归一化；不同型号的 30% GPU 利用率不能直接排序。
 显存不能跨卡相加来满足单卡需求。跨卡采集/编码会消耗拷贝带宽，首版默认同卡，只允许显式验证的跨卡组合并记账。
 缺失关键能力/指标时显示 Unknown 并禁止自动新准入；显式静态保守预算模式须单独验证，不以缺失数据默认 0。

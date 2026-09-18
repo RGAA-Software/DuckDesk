@@ -40,8 +40,9 @@ JSONB 只允许版本化、限长且经过 DTO 验证的事件详情/遥测附�
 `node_gpu_history` 保存已接受的原始历史。每份机器快照绑定 node generation、
 严格递增的报告 sequence、采样/接收时间和 `ready|partial|unavailable` 探测状态；GPU 行以 `(node_id, stable_key)` 唯一，并通过
 `(node_id, inventory_revision)` 外键绑定同一次 GPU 库存。报告事务先取得当前节点代际门禁，再原子替换快照与 GPU 清单，旧连接、
-越界数值、未来/过期采样、重复 GPU key 或显存已用大于总量全部拒绝。未知值必须为 NULL；当前 Windows WMI 采集尚不能证明逐 GPU
-利用率、显存及编码器压力，故这些列保持 NULL，P3 调度不得将其解释成 0 或空闲。历史行与 latest 在同一报告事务提交，GPU 历史通过
+越界数值、未来/过期采样、重复 GPU key 或显存已用大于总量全部拒绝。未知值必须为 NULL；Windows Service 在 WMI 清单之上仅对
+PCI vendor/device/subsystem 唯一匹配的 NVIDIA NVML 设备填充逐 GPU 利用率、显存及编码器压力。无驱动、查询失败、歧义匹配及其他厂商
+继续保持 NULL，P3 调度不得将其解释成 0 或空闲。历史行与 latest 在同一报告事务提交，GPU 历史通过
 `(node_id,node_generation,report_sequence)` 外键绑定机器样本；管理查询使用接收时间、代际和序号的完整降序游标。原始样本固定保留
 7 天，Console 独立任务每分钟最多清理 5000 个过期机器样本并级联其 GPU 行，运行角色没有 UPDATE 历史的权限。趋势聚合、阈值告警、
 断线补报和逐 GPU 预约不因原始历史表存在而视为完成。
