@@ -9,3 +9,5 @@
 - [Relay 基础设施与商业化方案](relay_infrastructure_business_plan.md)：Relay 节点选型、成本模型、容量、混合部署和收费建议。
 
 服务职责、Session、P2P 和 Relay 技术边界见 [Pixels 服务端改造计划](../server_refactoring_plan.md)。
+当前Direct Host WebRTC、Relay保留范围及ZLMediaKit/Coturn退役边界见
+[Direct Host WebRTC 与中央媒体能力收缩计划](../direct_host_webrtc_scope_plan_20260919.md)。

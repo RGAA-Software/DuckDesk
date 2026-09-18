@@ -1,5 +1,9 @@
 # 节点连接配置
 
+> 2026-09-19媒体边界：节点只上报消费者可直接到达的实际Render host/port。WebRTC使用该同一端点完成Direct Host连接，不再配置
+> 独立RTC媒体池、STUN/TURN、ZLMediaKit或经Relay中转的RTC signaling；Relay其余数据能力保持。完整跨端契约见
+> [Direct Host WebRTC 与中央媒体能力收缩计划](direct_host_webrtc_scope_plan_20260919.md)。
+
 每台 Cloud Node / Remote 的 Service 使用独立节点身份主动连接 Console。节点身份不再来自 Panel、设备授权或 appkey，
 也不读取旧授权缓存。安装包只携带统一程序和端口模板，不包含任何机器 token。
 
@@ -58,13 +62,11 @@ discovery_port = 4604
 port_start = 4613
 port_end = 4998
 
-[rtc]
-port_start = 5000
-port_end = 5031
 ```
 
 桌面 4601、每个实际应用端口同时承载同号 TCP/WS 与 UDP。应用端口由当前节点自己的 4613–4998 池分配；不同节点可复用同一范围。
-管理 4603 只供同机 Panel/Render，Panel 4999 按产品需要开放，RTC 5000–5031 是浏览器媒体池。所有范围必须互不重叠。
+管理4603只供同机Panel/Render，Panel 4999按产品需要开放。不存在独立RTC 5000–5031媒体池；Direct Host WebRTC使用对应
+Render的实际同号TCP/WS与UDP端口。所有活动范围必须互不重叠。
 端口 20371 已完全退役，不是默认值、探测目标或回退端口。
 
 ## 4. 上报、对账和命令
@@ -73,7 +75,8 @@ Service 认证后上报产品版本、公开地址、桌面端口、应用端口
 后续按严格递增 request ID 轮询持久命令，执行前核对 node generation、control epoch、application/deployment/instance revision、
 lease 和 deadline。Stop 只作用于完全匹配的 instance/launch；身份不符返回 Unknown，不按 PID、端口或程序路径收编/清扫替代进程。
 
-Game Hook 和 WebView 已进入新命令转换；无 Relay 配置时明确以 direct 模式启动 Render，不生成空 Relay 参数。
+Game Hook和WebView已进入新命令转换；Direct Host始终使用实际Render端点，不生成RTC Relay参数。Relay既有非RTC数据模式按自身
+明确配置工作，不能成为Direct Host失败后的隐藏fallback。
 RDP workspace 凭据 envelope 与 GPU 绑定尚未进入新 wire，节点当前必须报告 `rdp=false`，并拒绝意外下发的 RDP/GPU Start。
 只有完成真实 Console→Service→Render 测试后，才可把对应能力改为可调度。
 

@@ -327,6 +327,11 @@ Auth 库外签名私钥轮换/旧公钥撤回、节点与 Windows/RDP 工作区�
 
 ## 9. 前置执行顺序与完成条件
 
+2026-09-19媒体范围收敛是DB0–DB5的当前输入：WebRTC只保留消费者直连实际Render host/port的Direct Host模式；Relay保留名称和
+既有非WebRTC数据转发，不再交换WebRTC SDP/ICE；ZLMediaKit与Coturn/TURN归档且不再是阶段出口。录像、文件传输、Direct Host准入、
+Relay回归和Android CloudApplication显式目标仍必须验收。跨端影响见
+[Direct Host WebRTC 与中央媒体能力收缩计划](direct_host_webrtc_scope_plan_20260919.md)。
+
 实施入口：[本机 PostgreSQL 环境与基础测试](../deploy/development/postgres/README.md)、[身份存储契约与测试映射](postgresql_identity_contract.md)、
 [DB0 领域/权限/恢复边界](postgresql_domain_contract.md)、[Desk 新服务](px_desk_web_overview.md)。
 当前实现 DB1 基础、DB2-A 身份 repository 和 DB3 Desk/Auth 独立子集；Console 及许可证消费者尚待切换，隔离测试通过不代表 DB0–DB5 或三服务整体通过。
@@ -339,10 +344,10 @@ Console 已继续扩展设备、应用、访客、节点、部署、实例/命�
 |---|---|---|
 | DB0 模型与契约 | 新关系模型、约束/索引、工具链版本、密钥边界、合成功能基线；未来三库恢复集/对账、Windows SCM 执行器契约 | 业务覆盖完整，合成用例和备份契约可评审；不依赖旧源库 |
 | DB1 PostgreSQL 基础 | 连接池、权限、SQL migrations、干净库安装、SQLx 查询检查、跨平台配置与脱敏 | DB 不可用/版本不符正确 NotReady，重复迁移及并发迁移安全 |
-| DB2 Console 完整持久化 | 身份/权限/设备/应用/工作区/记录全覆盖；任务/outbox/事务；清理静默写入成功与内存权威 | 登录注册、ACL、应用各模式、并发启动、断库/重启/晚到回执通过 |
+| DB2 Console 完整持久化 | 身份/权限/设备/应用/工作区/记录全覆盖；任务/outbox/事务；Direct Host描述符与实际端点；清理静默写入成功与内存权威 | 登录注册、ACL、应用各模式、并发启动、Direct Host准入、Relay既有数据回归、断库/重启/晚到回执通过 |
 | DB3 Auth/Desk 与共享依赖 | 新数据层与新契约、同步签发/验证和 API 消费端、去掉 Mongo 驱动及旧设置/健康探针 | 三服务均不依赖 Mongo；新许可证/版本接口通过，无兼容分支 |
 | DB4 备份恢复与引擎升级基线 | 基础/生产档执行器、保留/清理、异机上传、恢复工具、写屏障证明与最小后台、schema 升级流程 | 定时任务、过期链保护、失败告警、干净环境恢复、三服务真实停写排空、历史权限防复活通过 |
-| DB5 全新部署与总体验收 | 空库安装、初始化、节点登记、业务创建、备份恢复、Windows 后 Android 回归 | 新环境全部功能通过，无旧库/旧协议依赖；之后进入 P1/P2/P3 |
+| DB5 全新部署与总体验收 | 空库安装、初始化、节点登记、业务创建、备份恢复、Windows 后 Android 回归；Direct Host与Relay分别验收 | 新环境全部活动功能通过且不携带ZLM/Coturn，无旧库/旧协议依赖；之后进入统一长测及P1/P2/P3 |
 | DB-HA 高可用专项 | Patroni/etcd/入口、同步策略、隔离与切换演练 | 公网及私有 HA 发布前必过；可与后续 P 阶段推进，不阻塞单机数据库基线 |
 
 执行优先级：必要的 P0 数据/安全契约 → DB0–DB5 → 后续发行/业务/连接服务改造。

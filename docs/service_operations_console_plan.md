@@ -76,7 +76,7 @@ Prometheus/Alertmanager 负责监控告警，不执行部署或业务调度；Ku
 ```text
 平台总览
 服务管理
-  Console / Auth（仅官方运维域）/ Desk（部署启用时）/ Broker / Relay / Web RTC 与 TURN（部署启用时）
+  Console / Auth（仅官方运维域）/ Desk（部署启用时）/ Broker / Relay / Direct Host WebRTC端点
 节点与运行实例
   机器池与接入 / 节点 Service / GPU 与容量 / Render / RDP 工作区 / 安全退役
 会话与连接
@@ -145,7 +145,7 @@ Console 管理一个部署的多台机器，所有操作复用持久任务/权�
 | 节点 Service | CPU/内存/磁盘、GPU/显存/编码器占用、可调度槽位、版本、心跳、桌面/应用端口占用、运行模式 | GPU→实例→Render→用户；配置期望与实际；注册身份 | 禁止新调度、诊断、空闲升级、重新注册计划；不因报表用户数为零直接升级 |
 | Render 实例 | 工作负载类型、所属节点/GPU、启动/Ready 时长、PID/创建身份、实际端点、版本、控制/观看者、采集/编码 FPS、码率和错误 | Session/路径、Game Job 归属、CEF 或 RDP 状态、最后断线宽限 | 精确停止实例需权限与影响预览；有用户不后台更新；Stopped 重复停止幂等 |
 | RDP 工作区 | Workspace ID、映射用户的脱敏标识、Windows Session 身份、busy 状态、代理与传输状态、最后连接、保留策略 | 活动前端、Proxy/Render、授权与失败原因；不展示 Windows 密码 | 断开传输与销毁工作区完全分开；首版不提供普通运维一键注销/删除账号 |
-| Web RTC/TURN | 仅启用时展示，Web 会话、ICE 成败、TURN allocation、吞吐、证书与依赖 | Web 客户端关联，区分 Native Relay 的容量与协议 | 使用自己的排空/维护策略，不能套用 Native allocation 命令 |
+| Direct Host WebRTC | 按Render实际端点展示直接协商成功/失败、首帧、音频/输入状态、候选类型、证书与可达性；不展示不存在的TURN allocation | 关联Windows/Web/适用Android消费者、资源Session、节点、Render与host/port；与Relay数据路径分开 | 诊断端点、防火墙和证书；撤销资源会话；不提供ZLM/Coturn启停或WebRTC经Relay fallback |
 | 会话与路径 | 主体、目标、角色、授权版本、Session 状态、Direct/Relay/RDP、路径代际、重连轨迹、错误 | 用户→Session→Broker→Relay→节点→实例全链路 | 撤销访问/终止会话需要权限、原因与审计；断路径不默认销毁业务资源 |
 | 数据/证书/许可证 | DB 状态与迁移版本、备份时间/恢复验证、剩余空间、部署证书/许可证有效期、更新信任根 | 关联受影响服务、维护/迁移任务 | 轮换/导入/验证备份；恢复属于独立维护，不向页面暴露数据库超级用户凭据 |
 

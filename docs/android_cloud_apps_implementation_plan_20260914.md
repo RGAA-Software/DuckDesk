@@ -225,8 +225,8 @@ request ID 和错误分类，不记录 token、密码或完整连接描述。注
 
 - 实现 guest public 目录与 guest instances 合并，以及 user public + ACL 目录。
 - 实现启动幂等、轮询、进入已有实例、停止、401 单次恢复和前后台刷新。
-- IP Direct 连接映射直接消费 Console 返回的 `device_id`、`instance_id`、host 和动态 port。`signal_device_id` 作为 Relay/信令目标保留在类型化描述中，
-  但 Android 首版不启用 Relay，不得因该字段引入隐式 Relay 路径。
+- Direct连接映射直接消费Console返回的`device_id`、`instance_id`、实际Render host和动态port。2026-09-19后当前描述符不再为WebRTC
+  保留`signal_device_id`或Relay信令目标；Relay既有非WebRTC数据能力是独立路径，不得成为Direct Host失败后的隐式fallback。
 - 通过新的 `RemoteSessionTarget.CloudApplication` 串入现有 RemoteSessionService；会话结束返回云应用 Tab，而不是设备首页。
 - 添加 app type 能力门控；首版允许 `game-hook`、`webview`，拒绝 `rdp` 和未知类型。
 
@@ -251,7 +251,8 @@ request ID 和错误分类，不记录 token、密码或完整连接描述。注
 - 目录：guest 仅 public；用户 public + ACL；退出、换号和 ACL 收缩后无旧卡片残留。
 - 生命周期：启动 200/202、重复点击、轮询超时、停止中、回调晚到、ViewModel 销毁和前后台恢复。
 - 类型：game-hook/webview 可进入 Native；rdp/未知类型无法创建 RemoteSessionRequest。
-- 连接描述：实例 `device_id`、`instance_id`、host 和动态 port 原样进入 IP Direct Native 边界；`signal_device_id` 的 Relay 语义有独立契约测试，不被误用为直连设备 ID。
+- 连接描述：实例`device_id`、`instance_id`、实际Render host和动态port原样进入Direct边界；类型化CloudApplication target、资源会话、
+  role、lease和generation必须保持，描述符不携带中央WebRTC信令目标。
 - 清理：旧 Application Library、`OpenApplications`、`RemoteSessionTarget.Account` fallback、旧 session schema 和旧端口不在活动产物中。
 - UI：四 Tab、系统返回、页面旋转、深浅主题、英文/简中目录 parity、较大字体基本可用。
 

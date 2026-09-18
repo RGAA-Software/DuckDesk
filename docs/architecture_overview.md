@@ -7,16 +7,22 @@
 > 随页面替换必要的 Qt 接口，不以前置全量 Core 重构扩展范围；移动端 UI 和其他平台完整业务适配另行推进。完整阶段、边界和门禁见
 > [Panel 与 Windows Client 的 Dear ImGui 迁移计划](dear_imgui_ui_migration_plan.md)。
 > 2026-09-07 更新客户端传输产品边界，其余历史架构说明以各专题当前记录为准。本文是项目的模块关系与整体理解的单一入口。
+> 2026-09-19 的最新媒体边界覆盖本文更早的 WebRTC/Coturn/ZLMediaKit描述：保留 Relay名称和既有非 WebRTC数据转发；WebRTC只保留
+> Windows Client、Web Client及适用Android流程直接连接实际 Render host/port的 Direct Host模式。ZLMediaKit、Coturn/TURN和经
+> Relay中转的WebRTC信令退出活动产品，详见[Direct Host WebRTC 与中央媒体能力收缩计划](direct_host_webrtc_scope_plan_20260919.md)。
 
 ## 原生客户端与 Web 的传输边界（2026-09-07）
 
 > 历史决策记录：下文关于仅保留 UDP、取消 WS 媒体/Relay/通道设置的描述已被后续恢复功能的决定部分取代。
 > 本文其他旧端口、功能进度和已知缺口也需结合当前代码核实，不能据此裁剪 UI 迁移功能。UI 迁移按当前代码建立基线，保留已有行为。
 
-Windows、Android、iOS、macOS 原生客户端均取消 WebRTC，包括 host 直连；iOS 和 macOS 的平台适配列为后续工作。WebRTC 只用于 Web 客户端。原生客户端使用共享 C++ SDK 的
-UDP+FEC 媒体、WebSocket 可靠控制和独立文件通道，组成唯一的原生直连模式；取消原生 WS 视频回退、旧 UDP/KCP、Relay 与公网 P2P。
-原生公网连接留待后续 RustDesk 方案。保留 Web 所需的 Render RTC、Console 信令、ICE/TURN、鉴权与部署能力。
-双端入口已固定原生接入，Android RTC AAR、Windows 通道设置及启动回退已退役；共享 SDK 旧 RTC/Relay/KCP 连接与独立 WS 媒体分支也已归档。旧诊断与 SDK 重复 OpenGL 代码已退出活动源码，SDK 不再直接依赖 Qt；解码器/帧数据的平台分层仍待完成。
+Windows Client和Web Client保留Direct Host WebRTC；适用Android会话在DB5按同一描述符和平台适配验收。消费者直接连接节点当前
+generation回报且与实例启动ACK一致的Render host/port，在Render直接端点上完成WebRTC协商和媒体传输。原生客户端现有非WebRTC
+直连与Relay数据能力继续保持，不能因本次媒体收缩被顺带删除。
+
+不再保留Console/Relay中央RTC signaling、Coturn/STUN/TURN、ZLMediaKit推流或它们之间的fallback。公网或私有部署必须显式使
+Render实际端口可达；直连失败稳定报错。iOS和macOS的平台适配仍列为后续工作。旧诊断与SDK重复OpenGL代码已退出活动源码，SDK
+不再直接依赖Qt；解码器/帧数据的平台分层仍待完成。
 Vulkan 显示帧使用独立 FFmpeg 引用和 renderer/device lease；D3D11VA 显示帧同时持有 COM 纹理、设备及解码池源帧引用。软件解码帧以
 I420/I444/NV12 平面上传，CPU 不生成 Native 视频的 RGB 中间帧。平台解码工厂和帧资源边界已经建立，其余历史解码器内部实现仍需按触及范围持续整理。
 既有客户端 RTC 测试记录不表示它仍属于产品目标。当前可交付的产品边界、构建和验收入口以
@@ -68,8 +74,7 @@ macOS 客户端已纳入产品规划：复用同一 SDK，后续补齐桌面 UI�
    px_auth_server :30400 (HTTPS, 签发/吊销授权)
         ↑ Console 每小时拉自己的授权 (HMAC appkey 签名)
    px_console_server :4600 (HTTPS/WSS) + 托管 web/px_console 管理前端
-        ├─ 应用 Relay：标准 RTC 的 SDP / Trickle ICE 信令
-        └─ Web RTC 配套 TURN :4602 TCP/UDP；Console 托管转发媒体池 :5301-5428
+        └─ Relay：保留既有认证、房间/路由和通用数据转发；不参与 WebRTC
         ↑ WSS /console/service  ←—— px_service (每台被控机一条长连接,
         │                          3s 心跳带全量 app 实例状态, 断线固定 2s 重连)
         ↑ HTTPS /api/v1/app/control/* ←—— Console 管理 Web (游戏/实例启停)
@@ -81,8 +86,8 @@ macOS 客户端已纳入产品规划：复用同一 SDK，后续补齐桌面 UI�
         ↑ ←—— panel (推授权 AuthInfo、拉起桌面 render 的 StartServer)
 
    数据面:
-   Web 观看端 → 可直达时 net_rtc_local；不可直达时 net_rtc + ICE(host/srflx/turn relay)
-   原生观看端（目标）→ UDP+FEC 媒体 + WebSocket 控制/文件 → 可直达 render
+   Windows/Web/适用 Android 观看端 → Direct Host WebRTC → 实际 render host:port
+   原生观看端现有非 WebRTC 模式 → UDP+FEC/WS/Relay 数据路径（保持当前产品行为）
    注入的游戏 DLL → WS /ipc (仅 127.0.0.1) 推采集帧 → render
    桌面 render 默认 :4601；应用 render 由 Service 从 4613-4998 动态分配
 ```
@@ -125,8 +130,10 @@ WS + UDP 模式中，WS 在会话准入后记录短期的首次 UDP 媒体端点
 ## 7. 已知缺口（正式化前要补）
 
 1. **授权链对 panel 的硬依赖**：service 连 Console 的地址/凭据由 panel 经本机 WS 推来——panel 不运行机器就永远离线。目标模型下应改为「安装包写入凭据，service 直连 Console」，panel 降级为可选入口。
-2. **数据面零鉴权**：`/media` 只校验 stream_id 非空、`/alloc/local/rtc` 裸开——同网段知道 IP:port 就能拉流。应由 Console 签发带时效的观看 token，render 校验。
-3. **标准 RTC 的异网生产门禁尚未完成**：Console 托管 Coturn，`net_rtc` 支持动态 ICE、配置热更新/ICE restart、Direct 失败后标准 RTC 回退和候选统计。旧固定节点验收记录已经删除；仍需在当前公网环境完成真实 relay、对称 NAT、并发 allocation 和端口耗尽门禁。
+2. **Direct Host准入尚未完成产品验收**：Render必须在处理直接协商前校验当前资源会话、instance、role、lease和节点/实例代际；知道
+   IP/端口或 caller自填stream ID不能获得访问。现有裸入口不能作为完成证据。
+3. **公网Direct Host门禁尚未完成**：Console必须下发实际Render host/port，客户端直接连接；无STUN/TURN/Relay媒体fallback。
+   需要在当前公网环境短测证书、TCP/WS与UDP可达性、首帧、音频、输入、重连和撤销，最终稳定性统一长测。
 4. **本机控制面默认 :4603 无鉴权**：本机任意进程可推 AuthInfo/StartServer 让 service 拉进程，本地提权面。
 
 ## 8. 专题文档索引
@@ -135,7 +142,7 @@ WS + UDP 模式中，WS 在会话准入后记录短期的首次 UDP 媒体端点
 - 音频采集（PID loopback / 进程内 hook）：`game_hook_audio_capture.md`
 - Console 调度状态与测试：`console_app_schedule_plan.md`、`console_app_schedule_state.md`
 - 产品构建、产物、安装与使用：`product_build_and_usage.md`
-- WebRTC/Coturn 的当前行为以 Console 配置和 RTC 模块测试为准；旧专项实施计划已删除。
+- Direct Host WebRTC和中央媒体退役边界：`direct_host_webrtc_scope_plan_20260919.md`。
 - 多用户会话、控制租约与无 Console 直连产品契约：`logical_session_product_definition.md`
 - Pixels Android 最终产品、架构、删除范围和交付门禁：`android_pixels_product_plan.md`
 - Pixels Android 页面、视觉、交互、响应式布局和组件规范：`android_pixels_ui_design.md`

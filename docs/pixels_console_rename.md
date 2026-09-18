@@ -1,5 +1,10 @@
 # Pixels Console 全面改名与升级兼容
 
+> 历史改名记录，不是当前构建、兼容或部署说明。当前产品不迁移旧数据/旧配置，也不保留运行fallback。2026-09-19后Console包不再
+> 携带ZLMediaKit或Coturn；Relay保持现名和既有非WebRTC数据能力，WebRTC只保留Direct Host。当前构建入口见
+> [产品编译、产物与使用说明](product_build_and_usage.md)，媒体边界见
+> [Direct Host WebRTC 与中央媒体能力收缩计划](direct_host_webrtc_scope_plan_20260919.md)。
+
 ## 目标
 
 原产品名 **Pixels CMS** 统一改为 **Pixels Console**。新代码、新部署和用户界面只使用 Console 命名；旧名称仅保留在明确标注的升级兼容入口中，不再作为新接口使用。
@@ -50,7 +55,7 @@ Protobuf 消息的字段编号和枚举数值保持不变，因此现有二进�
 scripts\build_px_client.bat build_official 8
 ```
 
-构建并部署 Console Web、Rust 服务端、媒体服务与 TURN：
+构建并部署Console Web与Rust服务端（不包含中央媒体或TURN sidecar）：
 
 ```bat
 scripts_build\build_px_console_server.bat
@@ -68,7 +73,7 @@ scripts\package_px_console_server.bat
 scripts_build\build_console_web.bat
 ```
 
-上述服务端脚本会检查并部署 `px_media.exe`、`px_turn.exe`、`config.ini`、`turnserver.conf` 和 `COTURN_LICENSE`。
+上述服务端脚本在完成退役改造后必须拒绝重新带入`px_media.exe`、`px_turn.exe`、ZLM运行库、`turnserver.conf`或`COTURN_LICENSE`。
 
 ## 启动
 
@@ -94,8 +99,8 @@ output\px_console\px_console.exe
 3. 在 `rust_client` 运行 `cargo test --workspace` 全部通过（允许仓库中明确标记的 ignored 测试）。
 4. 在 `web/px_console` 运行 `npm run test:unit -- --run` 和 `npm run build`。
 5. 构建 `px_client`、`px_console_client` 和 `px_panel`。
-6. 检查部署目录中的 Console 程序、配置、Web、媒体与 TURN 产物。
-7. 启动服务，确认 `/ping` 返回 200，日志显示 `px_media` 与 `px_turn` ready。
+6. 检查部署目录中的Console程序、配置和Web产物，并断言不存在ZLM/Coturn退役制品。
+7. 启动服务，确认`/ping`返回200且不尝试启动`px_media`或`px_turn`。
 8. 用新 `/console/*` 路由连接；再用旧 `/cms/*` 客户端验证升级兼容。
 9. 确认已有 `cms_storage` 授权仍可加载，迁移部署使用新的 `storage` 目录。
 10. 执行残留扫描，旧名称只允许出现在本节列出的兼容代码、历史文档及第三方组件固有名称中。

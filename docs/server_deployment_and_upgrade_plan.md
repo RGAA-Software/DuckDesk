@@ -126,8 +126,10 @@ Official 内置官方 HTTPS 引导入口及官方信任策略，不提供自定�
 Customer 首次启动填写私有 HTTPS 入口，验证成功后才展示登录；设置中可修改，首版同一客户端仅激活一个私有平台。
 可以保存多个配置档案，但并非首版必需；不做多平台同时在线。
 
-普通用户仅填一个入口。Console、Broker、Relay、TURN、升级服务的实际地址由私有管理员配置、由平台下发。
-控制入口可经过 HTTPS 反向代理；Native UDP/QUIC、Relay 和 Web RTC/TURN 需要独立端口与防火墙说明，不能假定一条 HTTPS 代理承载全部流量。
+普通用户仅填一个入口。Console、Broker、Relay、升级服务及节点当前Render端点由私有管理员配置或节点上报、由平台按权限下发。
+控制入口可经过HTTPS反向代理；Relay及Direct Host WebRTC的实际Render TCP/WS与UDP端口需要独立防火墙说明，不能假定一条HTTPS
+代理承载全部流量。产品不再部署ZLMediaKit或Coturn/TURN，也不经Relay中转WebRTC协商；完整跨端约束见
+[Direct Host专项计划](direct_host_webrtc_scope_plan_20260919.md)。
 配置明确区分 listen、advertise、internal 地址，支持内网 DNS、IP SAN 和企业 CA；不将局域网地址一概禁止。
 
 ### 3.2 部署证书与发现协议

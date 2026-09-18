@@ -6,6 +6,11 @@
 
 关联设计：[console_user_group_acl_design.md](console_user_group_acl_design.md)
 
+> 2026-09-19范围更新：本文中的ZLMediaKit推流、Coturn/TURN、连接ticket和经Relay中转的WebRTC用例已被最新产品决定覆盖，不得继续
+> 作为当前验收入口。保留的身份/ACL/实例恢复目标迁入DB0–DB5短测；Direct Host、Relay回归和归档门禁见
+> [Direct Host WebRTC 与中央媒体能力收缩计划](direct_host_webrtc_scope_plan_20260919.md)及
+> [逐步开发与测试门禁](server_incremental_validation_plan.md)。本文后续旧媒体内容仅用于历史取证。
+
 ## 1. 目标
 
 本方案用于确认以下能力可以作为一个完整链路交付，而不只是单个接口可用：

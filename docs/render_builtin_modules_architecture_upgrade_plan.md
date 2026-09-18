@@ -1,5 +1,9 @@
 # Render 内置模块与单向数据管线升级计划
 
+> 2026-09-19媒体范围更新：Render保留Direct Host WebRTC和Relay既有非RTC数据能力；ZLMediaKit live pusher、Coturn/TURN及经Relay
+> 中转的WebRTC signaling退出活动产品并按归档规则保存。本计划中的通用模块/所有权结论继续有效，任何“推流”或公网Coturn验收旧项
+> 不再是当前出口。权威跨端边界见[Direct Host专项计划](direct_host_webrtc_scope_plan_20260919.md)。
+
 ## 1. 决策、目标和范围
 
 Render 当前的大多数功能都是产品固定能力，不需要独立发现、替换或卸载。此次升级保留
@@ -751,7 +755,7 @@ owned receive loop
 | L5 LAN/硬件 E2E | 多机、GPU、WebRTC、Relay、GameHook | 真实设备和服务 | 网络/媒体里程碑 | 是 |
 | L6 性能与 soak | 长时间媒体、重连、故障恢复 | 固定测试机 | 里程碑/最终验收 | 是 |
 
-L1-L3 必须能够在没有真实显示器变更、外部 Relay 或公网 Coturn 的开发机上执行。依赖真实
+L1-L3必须能够在没有真实显示器变更或外部Relay的开发机上执行。Coturn已退出活动产品。依赖真实
 硬件或网络条件的用例放入明确标签，不得让“环境缺失”表现成测试通过。
 
 ### 12.3 测试注册和执行基础设施
@@ -1056,7 +1060,7 @@ processor chain、软件 encoder 和多个 test Sink。验证：
 #### 12.8.2 Audio pipeline
 
 输入确定性 PCM pattern，经过处理和 Opus runtime，验证格式、frame duration、左右声道、
-编码顺序、录制/推流/网络 fanout，以及音频设备重启时不重复创建 worker。
+编码顺序、录像/网络fanout，以及音频设备重启时不重复创建worker；ZLMediaKit推流不再属于活动组合。
 
 #### 12.8.3 Network transport hub
 
@@ -1229,7 +1233,7 @@ WARN/ERROR。调用链不得为同一个 code 输出多条相同主错误。
 
 #### 12.14.1 30 分钟压力测试
 
-同时启用采集、编码、两种以上 transport、录制、推流和统计；周期制造 client connect/
+同时启用采集、编码、两种以上transport、录像和统计；周期制造client connect/
 disconnect、observer queue pressure 和 IDR。每 5 秒采集窗口指标，断言：
 
 - FPS 和延迟无持续恶化；

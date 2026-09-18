@@ -4,8 +4,10 @@
 > 更新日期：2026-09-16
 > 范围：`src/px_android` 及 Android 所需的项目自维护 C++ 公共模块
 
-> 最终传输决定：Windows、Android、iOS、macOS 原生客户端均不支持 WebRTC，包括 host 直连；WebRTC 只用于 Web 客户端。iOS/macOS 平台适配列为后续工作。
-> 原生端当前只有 UDP+FEC 媒体与 WebSocket 可靠控制/文件这一种直连组合；公网 P2P 和 Relay 留待后续 RustDesk 方案，本轮不实现。
+> 2026-09-19最新媒体决定覆盖更早的“全部原生端取消WebRTC”表述：Windows Client和Web Client保留Direct Host WebRTC；Android
+> 纳入同一资源会话/实际Render host+port描述符和DB5验收，具体平台适配只在其活动实现支持时启用，不得使用Console/Relay中央RTC
+> signaling、ZLMediaKit、STUN/TURN或隐藏fallback。Android现有非WebRTC直连能力继续保持。详见
+> [Direct Host WebRTC 与中央媒体能力收缩计划](direct_host_webrtc_scope_plan_20260919.md)。iOS/macOS仍为后续平台适配。
 > 归档规则更新：本次精简的旧实现完整保存到根目录 `backup/`，文中“删除/移除”表示退出活动源码和构建，不直接销毁原代码。
 > 当前产品构建和交付边界以 [产品编译、产物与使用说明](product_build_and_usage.md) 为准；本文第 13 节 RTC 实施和测试内容仅为历史记录。
 > 2026-09-12 鉴权更新：Android 已删除一次性连接票据与续期状态机。账号设备和应用入口从 Console 获取稳定 Native 端点与设备密码摘要，最终仍由 Render 直接鉴权；旧 M5 票据内容仅为历史记录。

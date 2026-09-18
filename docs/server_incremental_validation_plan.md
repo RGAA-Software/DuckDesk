@@ -87,19 +87,25 @@ SQL 集成测试使用真实 PostgreSQL，不用 SQLite 或 mock 代替 PG 约�
 
 ## 5. 数据库替换阶段门禁
 
+媒体门禁以2026-09-19的[Direct Host专项计划](direct_host_webrtc_scope_plan_20260919.md)为准：ZLMediaKit、Coturn/TURN和经Relay
+中转的WebRTC信令不再实施；Relay其余数据能力必须回归；Direct Host WebRTC必须跨Windows Client、Web Client、适用Android、
+Render、Service及Console描述符做短期功能验收。
+
 | 门禁 | 开发顺序 | 必测输入、动作与预期 |
 |---|---|---|
 | DB2-A 身份 | users → login_sessions → group/ACL | 并发注册同规范化用户名只有一条记录；空值、大小写、Unicode 按冻结规则判定；过期/撤销立即在授权查询生效，不能等定时物理删除；跨用户 ID/伪造 owner 拒绝；DB 故障无假登录成功 |
 | DB2-B 目录与设备 | devices → applications → deployments | 按 BASE 冻结的策略测试角色×资源×动作；目录不可见、直接猜 ID、启动和恢复入口一致；时间/时区、u64 边界、唯一冲突、外键、分页跨页重复遗漏均验证；重启后配置保留 |
 | DB2-C 实例与命令 | instance/task → idempotency → outbox | 最后一个槽的竞争只有一个合法占用；相同 request_id/正文返回同结果，不同正文拒绝；不同主体同 request_id 不共享结果；提交前故障无命令，提交后回执丢失可对账，重复投递仅一次实际启动；旧代际回执不覆盖新状态 |
 | DB2-D 工作区与记录 | workspace/secrets → session/events/records | 新 ID/AAD 持久化及恢复后可解密；另一前端 busy；断线/停止/恢复不注销会话或删应用；查询数据持久且权限正确；PG 备份中的在线快照恢复为待确认，未知占用不被释放 |
-| DB2-EXIT Console | 接通全部 repository 后整体切换 | 无 Mongo 运行 fallback；登录注册、ACL、Game Hook/WebView/RDP、会话和记录全链路；真实 Service 的次数/进程身份与数据库一致；相关回归全通过 |
+| DB2-EXIT Console | 接通全部 repository 后整体切换 | 无 Mongo 运行 fallback；登录注册、ACL、Game Hook/WebView/RDP、会话、记录、Direct Host描述符全链路；真实Service次数/进程身份/端点与数据库一致；Relay非RTC数据回归通过且无ZLM/Coturn活动依赖 |
 | DB3 Auth/Desk | 分别实现新存储，再检查共享依赖 | 固定合成签名向量验证；许可证撤销不复活；Desk 咨询/问题/版本接口正确；各自 DB 故障、重启、未决任务恢复；产品依赖树与部署配置无 Mongo |
 | DB4 备份/恢复 | 基础执行器 → 保留 → 恢复 → 生产 WAL | 见第 7 节；Windows SCM 与 Linux 执行器分别真实运行；Console 停机仍能备份、告警、离线恢复；基础和生产档分别出报告 |
-| DB5 全新部署 | 空库初始化 → 正常 API 创建业务 → 完整验收 | 缺字段/重复/孤儿被拒绝；初始化中断安全；新用户登录、ACL、RDP 新工作区解密与签名验证；新节点登记/对账；Windows 后 Android 回归 |
+| DB5 全新部署 | 空库初始化 → 正常 API 创建业务 → 完整验收 | 缺字段/重复/孤儿被拒绝；初始化中断安全；新用户登录、ACL、RDP新工作区解密与签名验证；新节点登记/对账；Windows/Web Direct Host与Relay分开短测，随后Android CloudApplication回归；安装包无ZLM/Coturn |
 
 DB2-A 至 DB2-D 每步均运行前面受影响用例，不能只测新增表。阶段内可开发尚未接入产品的 PG repository，最终统一接入；不建设双写或运行时双后端。
 DB5 使用新建用户、部署凭据和合成应用数据，不承接旧开发库的登录状态或工作区记录。
+开发阶段不以连续数天运行作为小步出口：保留周期用测试时钟，网络/断库/乱序用确定性故障注入，真浏览器、Windows公网节点和Android
+真机只做可重复短流程。DB5短期功能出口全部通过后再统一执行长时间稳定性、容量、Relay排空、Direct Host反复建连和自然备份周期测试。
 后续正式 PostgreSQL 升级才测试“开放写入前切回”和“开放写入后恢复/前向修复”，不建设回到 Mongo 的流程。
 
 ## 6. 并发与崩溃测试如何落地

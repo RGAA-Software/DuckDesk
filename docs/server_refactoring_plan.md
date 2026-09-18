@@ -9,6 +9,10 @@
 > 核心决定：服务端共用一套实现，不引入多租户；Official 仅接入自营官方平台，Customer 仅接入客户私有平台。远控和云业务共用连接基础设施，业务生命周期独立；不采用客户端短期一次性连接票据。
 >
 > 产品、部署、发行、安全更新、热升级边界及新的实施阶段以 [独立部署与升级实施计划](server_deployment_and_upgrade_plan.md) 为准；本文保留领域与连接架构细节。所有阶段仍为待实施，文档不是验收报告。
+>
+> 2026-09-19媒体范围已收敛：Relay保持现名和既有非WebRTC数据转发；WebRTC只保留Direct Host；ZLMediaKit、Coturn/TURN及
+> 经Relay中转的WebRTC信令退出活动产品。本文较早的P2P/TURN设想不再扩展当前范围，详见
+> [Direct Host专项计划](direct_host_webrtc_scope_plan_20260919.md)。
 
 ## 0. 文档目的
 
@@ -47,7 +51,8 @@ Pixels 当前同时发展两类业务：
 
 ### 1.2 Pixels 当前事实
 
-- `px_console_server` 当前同时承载身份、设备、应用目录、实例调度、连接描述、部分信令、Relay、RTC/TURN 管理等职责。
+- `px_console_server` 当前代码同时承载身份、设备、应用目录、实例调度、连接描述、Relay以及待归档的中央RTC/TURN与媒体sidecar；
+  目标产品保留Relay数据能力，移除ZLM/Coturn和经Relay中转的WebRTC信令。
 - 设备与云应用已经被确定为两个独立资源域；Android 也已使用独立的 `CloudApplication` 会话目标，见
   [Android 云应用实施计划](android_cloud_apps_implementation_plan_20260914.md)。
 - 云应用调度已经具备 `Application → AppNode → AppInstance` 模型，见
@@ -956,7 +961,7 @@ Linux 服务初期沿用成熟部署工具和受限执行器；Kubernetes 可在
 - 不把 SessionId、DeviceId、EndpointId 当作秘密凭证；
 - 不因拆服务而同步重写整个媒体协议；
 - 不在第一阶段拆成大量微服务；
-- 不把标准 WebRTC TURN 与 Native `px_relay` 混为一个协议；
+- 不恢复标准WebRTC STUN/TURN，也不把Direct Host WebRTC协商或媒体送入现有Relay；
 - 不恢复已退役端口或旧 Endpoint fallback；
 - 不把当前 `px_desk_server` 改造成云电脑调度器。
 - 不引入多企业租户体系；不允许 Customer 回退或接入官方业务平台。
@@ -977,6 +982,7 @@ Linux 服务初期沿用成熟部署工具和受限执行器；Kubernetes 可在
 10. **升级分级交付**：先有安全更新和恢复，再实现滚动升级/排空；协议共存、schema 迁移和回滚边界先定义再实施。
 11. **Render 首版采用整节点空闲升级**：云游戏节点按通常约 2–4 个并发用户规划，先准备完整包，停止新调度，等无用户且既有重连/任务保留结束后统一升级；不要求活动实例迁移或同节点新旧 Render 并行。
 12. **数据库先改为 PostgreSQL**：唯一业务存储基线，先完成 DB0–DB5 的现有功能、事务与备份恢复，再拆服务；不保留 Mongo 双写或运行 fallback。
+13. **媒体链路收敛**：Relay保持现名和既有数据转发；Direct Host WebRTC直接连接Render；ZLMediaKit、Coturn/TURN及中央RTC signaling归档，不提供兼容或fallback。
 
 ## 21. 调研证据索引
 
@@ -1023,8 +1029,8 @@ Linux 服务初期沿用成熟部署工具和受限执行器；Kubernetes 可在
 | `rust_server/px_console_server/src/app_schedule/manager.rs` | 已有 Application/AppNode/Instance 调度、幂等、心跳对账和重启恢复逻辑，应归入 Cloud Runtime Domain |
 | `rust_server/px_console_server/src/native_connection.rs` | 当前分别构造设备和应用实例连接描述，也暴露了字符串 signal target 与 password hash 边界问题 |
 | `rust_server/px_console_server/src/console_relay/` | 当前 Console 内嵌 Relay 连接、房间和流量记录能力，后续迁往 Broker/Relay 边界 |
-| `rust_server/px_console_server/src/rtc/` | 标准 WebRTC/TURN 管理继续服务 Web 产品，不与 Native Relay 协议合并 |
-| `rust_server/px_console_server/src/media_sidecar.rs` | 当前 Console 管理媒体/TURN sidecar；拆分时需明确其仍属于 Web RTC 部署边界 |
+| `rust_server/px_console_server/src/rtc/` | 当前含待归档的中央RTC/TURN管理；只保留Direct Host消费者确实需要且不经Relay的类型化边界 |
+| `rust_server/px_console_server/src/media_sidecar.rs` | ZLMediaKit与Coturn sidecar生命周期退出活动产品；移除前按归档规则保存完整当前实现 |
 | `rust_server/px_desk_server/src/main.rs` | 当前只服务咨询、问题、版本等网站能力，不是 Cloud Desktop 服务 |
 | `docs/android_cloud_apps_implementation_plan_20260914.md` | 已决定设备和云应用是独立资源域，客户端使用明确 CloudApplication target |
 | `docs/console_app_schedule_plan.md` | 记录现有多机应用调度和 Service 启停链路 |

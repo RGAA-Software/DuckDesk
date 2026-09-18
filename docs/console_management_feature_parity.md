@@ -2,6 +2,9 @@
 
 > 建立日期：2026-09-18。历史实现取自提交 `519be7d85`；当前新架构基线取自提交 `5233bd3ae`。
 > 本文是功能防丢门禁，不是“全部已完成”声明。
+>
+> 2026-09-19产品决定：ZLMediaKit直播、Coturn/TURN和经Relay中转的WebRTC信令明确退出本轮活动产品；Relay名称及既有数据转发
+> 保持，WebRTC只保留Direct Host。跨端边界见[专项计划](direct_host_webrtc_scope_plan_20260919.md)。
 
 ## 1. 硬规则
 
@@ -30,15 +33,15 @@
 | CM-CONNECTION | Service/Panel 连接、远程会话详情和会话事件 | 部分迁移 | managed visits/channels/transfers + `SecurityInternal` | 当前访问、通道、传输和录像历史已接；仍需节点连接代际、命令/会话事件明细、实时刷新和断线陈旧标识 |
 | CM-APPLICATION | 应用、节点、部署配置与调度状态 | 已迁移 | managed application/node/deployment API + `AppsView` | 三种模式、显式 deployment target、CAS、节点 generation、容量/维护门禁和部署准备回归持续通过；管理员页面不冒充终端用户启动入口 |
 | CM-RECORDING | 录像目录、直读/拉取、下载到本机或 Console、删除 | 待实现 | recording catalog + private cache/read-lease service + 新管理/本人录像页 | 已有不可变录像元数据、缓存预留和非 bearer 读取租约存储模型；还需真实生产者、授权字节流、拉取/下载、保留/删除 API 与 UI、断点/哈希/并发/撤销测试。旧 URL ticket 不恢复 |
-| CM-WALL | 多设备视频墙、分页、自动重连、每格媒体统计 | 待实现 | 显式 observer 资源会话 + Web Client 多画面编排 | 每个格子独立 observer session/descriptor/租约；权限撤销、容量、分页切换、弱网重连、统计和全部关闭通过，不使用 `admin_web` 直接媒体准入 |
-| CM-LIVE | 选择应用/节点/实例并观看直播流 | 待实现 | observer 资源会话 + 受授权媒体通道 | 明确与视频墙共用或独立的观察者模型；选择运行实例、建流、延迟控制、结束/撤销和并发容量测试通过，不恢复旧 `/api/v1/live` |
+| CM-WALL | 多设备视频墙、分页、自动重连、每格媒体统计 | 待实现（延期） | 多个显式 observer 资源会话 + 多条 Direct Host WebRTC | 不阻塞本轮DB0–DB5；以后恢复时每格独立descriptor/lease并直接连接对应Render，不恢复ZLM或中央媒体转发，容量按浏览器与Render编码槽明确限制 |
+| CM-LIVE | 选择应用/节点/实例并通过ZLMediaKit观看直播流 | 明确退役 | `backup/`归档；不属于本轮活动产品 | 归档ZLM/RTMP/HLS/HTTP-FLV、Render live pusher、Console播放代理和短期播放ticket，并从构建/安装/路由/UI移除；录像及未来Direct Host observer不随之退役 |
 | CM-EVENT | CPU、内存、磁盘、GPU 阈值事件查询与详情 | 部分迁移 | `TelemetryAlertStore` + `TelemetryAlerts` | 每节点策略、连续样本/回滞、去重、严重度升级、确认/恢复、180 天保留、分页筛选、详情 API 和中英文页面已接；仍需断库补报、可信真实 GPU 指标、实时推送及真实公网节点/浏览器验收 |
 | CM-REALTIME | 管理端 WebSocket 实时刷新、心跳和重连 | 待实现 | 独立只读管理事件流；节点控制仍为 `/api/console/node-control` | 管理 bearer 认证、事件序号/游标、重放边界、心跳、反压、重连、授权撤销、断库 fail-closed 和陈旧状态提示通过；不得复用节点控制身份或旧 `/console/website` |
-| CM-RTC | STUN/TURN 配置、连通性测试、Coturn 状态 | 待实现 | 服务端私有部署配置 + 运维健康页 | 密钥只在服务端密钥存储；浏览器仅写入受控引用或脱敏配置并读取健康/探测结果；轮换、审计、权限、失败回滚和实际 ICE 探测通过 |
+| CM-RTC | STUN/TURN 配置、连通性测试、Coturn 状态 | 明确退役 | `backup/`归档；Direct Host WebRTC不使用ICE服务器 | 归档Coturn制品、TURN secret/credential、端口池、状态API和页面；当前描述符不得下发`stun:`/`turn:`或Relay RTC signaling参数，直连失败不得回退 |
 | CM-LICENSE | 机器码、许可证状态、拉取/授权入口 | 部分迁移 | `px_auth_server` + Console 许可证消费者 + 运维状态 | Auth 签发/撤销已在 PostgreSQL；仍需 Console/Service 消费、当前部署绑定、到期/撤销传播、离线策略和只读管理状态。旧浏览器 stub `AuthView` 不恢复 |
 | CM-PROFILE | 当前管理员资料、角色、改密、退出 | 已迁移 | admin session API + `ProfileInfo`/`HeaderView` | 当前 bearer 精确绑定、密码 revision 撤销和退出幂等持续通过；真实浏览器已覆盖中英文、明暗主题、进程重启后的会话重验及退出撤销 |
 | CM-TRANSFER | 文件传输历史、终态与失败原因 | 部分迁移 | managed transfer history + `SecurityInternal` | 元数据、单调进度、哈希终态和 unknown 状态已接；真实文件生产/消费、取消、重试、字节校验和公网客户端展示仍需 DB5 验收 |
-| CM-OBSERVER | 管理员观看但不能控制的权限语义 | 部分迁移 | application `allow_observer` + resource session `observer` | 存储层已区分 observer/control 且 observer 不能创建文件通道；仍需统一的视频墙/直播申请 UI、媒体能力约束、审计、撤销和端到端验证 |
+| CM-OBSERVER | 管理员观看但不能控制的权限语义 | 部分迁移 | application `allow_observer` + resource session `observer` | 存储层已区分observer/control且observer不能创建文件通道；本轮继续保留权限、审计和撤销语义，未来观看只能创建Direct Host observer session，不恢复ZLM直播或中央RTC signaling |
 
 当前节点遥测已同时保存 latest 和 7 天原始历史：Windows Service 每次节点报告时重新采样，Console 以节点 generation 和报告 sequence
 在同一事务原子替换 latest 并追加机器/GPU 历史。历史管理 API 使用接收时间、代际、序号完整游标，页面显示最近 100 条；独立清理任务
@@ -58,8 +61,8 @@
 ## 4. 后续实施顺序
 
 1. **DB2 管理闭环**：CM-DASHBOARD、CM-DEVICE、CM-CONNECTION、CM-REALTIME、CM-EVENT。
-2. **DB2 媒体闭环**：CM-RECORDING、CM-OBSERVER、CM-WALL、CM-LIVE。
-3. **部署私密配置**：CM-RTC、CM-LICENSE。
+2. **DB2 媒体闭环**：Direct Host WebRTC、CM-RECORDING及CM-OBSERVER权限闭环；CM-WALL延期，CM-LIVE不再实施。
+3. **部署私密配置**：CM-LICENSE；CM-RTC不再实施。
 4. **DB5 产品验收**：CM-TRANSFER 真实文件链，以及上述能力在公网 Windows 节点和 Android 终端的完整回归。
 
 每一项状态变为“已迁移”前，至少需要：类型化服务合同测试、PostgreSQL 权限/事务/断库测试、前端合同测试、真实浏览器流程，以及涉及节点或媒体时的真实公网节点功能验收。仅有页面、mock 或 repository 单元测试不能关闭该项。
@@ -72,7 +75,7 @@
 - `model/record_api.ts`、`views/DeviceRecords.vue`：录像目录、ticket、拉取、下载和删除行为；
 - `views/VideoWall.vue`、`model/wall_rtc.ts`：视频墙和 RTC 统计；
 - `views/LiveViewer.vue`、`model/live_api.ts`：直播选择与播放；
-- `model/rtc_api.ts`、`views/RtcTurnSettings.vue`：RTC/TURN 配置与健康；
+- `model/rtc_api.ts`、`views/RtcTurnSettings.vue`：仅作为已退役RTC/TURN能力的历史取证，不恢复；
 - `stores/ws.ts`、`ConnectionMonitor.vue`、`EventView.vue`：管理实时刷新、连接详情和硬件事件。
 
 历史代码只用于行为核对，不是兼容层，也不得直接恢复旧端点或旧凭据模型。

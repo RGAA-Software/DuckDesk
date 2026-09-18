@@ -640,9 +640,9 @@ Console 用户门户的首个新 API 纵向切片已完成源码切换：`web/px
 生产构建均通过；真实 PostgreSQL HTTP 专项 `pg-20260918-152258-254e18d1` 的 7/7 项同时覆盖 `user_web` 用户/访客目录与显式主体。
 完整门禁已新增两项目的 source freeze、依赖树、构建与测试检查。管理后台后续已完成身份、用户/组、设备、应用、节点、部署、
 资源会话与活动审计的 `/api/console` 源码切换；管理员 bearer 仅保存在当前 tab，不再使用 Cookie/CSRF 或旧 `/api/v1`。旧管理
-WebSocket、设备密码/链接 DTO、旧调度器、录像下载 ticket、视频墙/直播及浏览器 RTC/TURN 配置页面已从管理路由和源码移除，
-但后三类能力没有冒充已迁移：当前只交付录像元数据，尚无新录像读取/下载链；视频墙/直播需要以显式观察者资源会话重新实现；
-TURN 密钥和部署配置应进入服务端私有配置及运维状态，不能由浏览器读取或回显。管理页面不会请求 descriptor、frontend secret
+WebSocket、设备密码/链接 DTO、旧调度器、录像下载 ticket、视频墙/直播及浏览器 RTC/TURN 配置页面已从管理路由和源码移除。
+本段记录当时的迁移判断；2026-09-19的新决定进一步将ZLMediaKit直播与Coturn/TURN明确退役，视频墙延期且未来只能使用多个
+Direct Host observer session。当前仍只交付录像元数据，尚无新录像读取/下载链。管理页面不会请求 descriptor、frontend secret
 或另行签发短期 ticket。桌面连接和
 CloudApplication 的 30 秒授权续租纵向链路已接通：PostgreSQL 仅在完整在线复核成功的事务内推进租约，Render 使用原
 frontend token 周期复核，不签发新的短期 ticket；本地硬截止、精确 RTC allocation 撤销和逻辑绑定关闭已实现。专项数据库报告
@@ -651,7 +651,8 @@ frontend token 周期复核，不签发新的短期 ticket；本地硬截止、�
 不能据此宣告 DB2-A 或 DB5 完成。
 
 管理端历史能力已建立独立的[功能守恒清单](console_management_feature_parity.md)，以稳定 ID 逐项记录 DTO、WebSocket、录像读写、
-视频墙、直播、RTC/TURN、硬件事件、许可证和文件传输的迁移状态、目标归属与验收条件。完整 PostgreSQL 门禁会检查这些 ID 全部存在；
+视频墙、直播、RTC/TURN、硬件事件、许可证和文件传输的迁移状态、目标归属与验收条件。稳定ID继续存在以记录“延期”或“明确退役”，
+不能通过删除条目隐藏决定；当前边界以[Direct Host专项计划](direct_host_webrtc_scope_plan_20260919.md)为准。完整PostgreSQL门禁会检查这些ID全部存在；
 删除页面或旧源码不能删除待办。旧实现只在提交 `519be7d85` 中作为行为取证，不构成兼容层或恢复旧 `/api/v1` 的依据。
 
 此前完整软件基线 `pg-20260918-181943-2051a284` 在 revision `bef878720` 上为 736/736 项 PASS。它包含 frontend
@@ -669,7 +670,7 @@ Console 管理端真实浏览器聚焦验收 `pg-20260918-193740-f5bcdc38` 的 7
 原持久会话与新建数据重新验证成功。该验收发现真实浏览器的同源 `GET` 通常不带 `Origin`；Ingress 现仅在唯一
 `Sec-Fetch-Site: same-origin` 且唯一 `Sec-Fetch-Mode: cors` 时接受无 `Origin` 的 Web 请求，跨站、上下文缺失、Panel/Android
 规则均未放宽。Console Web 本批单元测试增至 31/31，增加中英文目录键完全一致及全部管理导航本地化门禁。
-这是一轮未提交 revision 上的聚焦报告；它不替代上述完整跨平台基线，也不将节点遥测、录像字节链、视频墙/直播、RTC/TURN、
+这是一轮未提交 revision 上的聚焦报告；它不替代上述完整跨平台基线；其中视频墙/直播、RTC/TURN是报告生成时尚未收敛的范围，
 正式产品安装包或公网 Windows/Android 缺口标为完成。首次全量接入报告 `pg-20260918-192554-83905015` 保留为 FAIL：
 浏览器夹具误从已被前序测试写入的主 Console 库克隆，首个管理员初始化因此按设计拒绝非空库。修复没有清数据或放宽初始化门禁，
 而是在验收开始时建立专用空 schema 模板，每轮浏览器测试只从该模板派生一次性数据库；修复后的完整 `Test -Linux` 结果见下一段。
@@ -680,7 +681,7 @@ Windows 与 WSL Linux 各 338 个 Rust 用例目录逐项一致；Console 243、
 全部通过。新增七项 Console 证据覆盖登录与资源总览、用户/组创建、一次性设备注册凭据、中英文和明暗主题、进程重启后的会话与
 数据保持、数据库 authority 丢失后的 terminal fail-closed/监督者重启恢复，以及退出撤销。1050 个登记源文件在整轮中 SHA-256
 不变，20 组工具/Web 制品摘要已记录。该报告取代 `pg-20260918-181943-2051a284` 作为软件基线；仍不替代正式产品二进制/安装包、
-节点遥测与管理实时流、录像实际字节链、视频墙/直播、私有 RTC/TURN、独立灾备故障域或公网 Windows/Android 产品出口。
+节点遥测与管理实时流、录像实际字节链、当时尚未收敛的视频墙/直播与私有RTC/TURN、独立灾备故障域或公网Windows/Android产品出口。
 
 节点 latest 遥测第一切片已提交到 revision `27afde21e00a8d4bd539b4b99338ac27c17c04a0`。Windows Service 每次节点报告前通过真实 WMI 采集 CPU、逻辑处理器、内存、
 固定磁盘及 GPU 身份/名称；本机 79/79 个 `px_service` 测试（包含真实采样）与全 target Clippy `-D warnings` 通过。节点协议要求显式
@@ -754,6 +755,14 @@ SQLx、Desk/Auth SQLx、四套 Web 生产构建、Console Web 36 项、Console/A
 标注“完整 DB0–DB5 验收未完成”。本结果只把 CM-EVENT 提升为部分迁移；告警页真实浏览器流程、断库期间节点补报、可信逐 GPU 指标、
 趋势聚合、管理实时流和公网节点验证尚未完成。
 
+### 2026-09-19 媒体范围收敛（尚未实施）
+
+用户已决定保留Relay名称、协议、路由和现有非WebRTC数据转发，只移除经Relay中转的WebRTC SDP/ICE；Windows Client、Web Client
+及适用Android流程的WebRTC只允许直接连接节点当前上报并由实例ACK确认的Render host/port。ZLMediaKit、Coturn/TURN、中央推流和
+中央RTC signaling须完整归档到`backup/`后退出活动构建、安装包和运行时。此决定减少后续范围，但本页现有747/747报告发生在代码清理
+之前，不能作为归档或Direct Host跨端验收证据。完整组件矩阵和短测顺序见
+[Direct Host WebRTC 与中央媒体能力收缩计划](direct_host_webrtc_scope_plan_20260919.md)。
+
 ## 仍未通过的阶段出口
 
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。
@@ -762,16 +771,17 @@ Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 W
 
 | 阶段 | 当前未完成项 |
 |---|---|
-| DB0 | 已补领域/权限/恢复边界及 Auth 字节/固定向量；其余 Console 字段 SQL 与完整合成基线尚未全部冻结 |
+| DB0 | 已补领域/权限/恢复边界及Auth字节/固定向量；仍需按2026-09-19边界冻结Direct Host描述符、实际端点/代际、显式CloudApplication target，移除ZLM/TURN/中央RTC字段，并补齐完整合成基线 |
 | DB1-EXIT | Desk/Auth 产品服务已接入；Console PG 组合根已能作为独立进程启动并通过断库 fail-closed 验收，但正式 `px_console.exe` 构建/安装包仍未切换，不能用开发目标或 schema CLI 替代三服务产品验收 |
-| DB2-A | 身份/管理 HTTP、本人资料/头像、密码计算/限流/Origin、访客 HMAC/会话/公开目录、Saved Connections、本人实例列表、更新目录、访问/通道/传输历史及录像目录 HTTP、严格配置、稳定私钥加载、独立初始化 CLI、静态文件服务及进程生命周期已实现；Console 用户门户及管理后台的当前目录/身份/状态入口均已切新 bearer/主体 API，源码不再保留旧 `/api/v1`。录像下载、视频墙/直播观察者会话和私有 RTC/TURN 运维配置仍待新架构实现；正式产品二进制/安装包切换及客户端全链路尚未接通 |
-| DB2-B/C/D | 设备/应用/节点/部署目录、user/guest 资源入口、更新与历史元数据入口及 Console 节点 WS 已接；Windows Service 已切到新节点协议并实现部署准备、调和、命令 fencing、精确 launch ACK、Render 前端准入转发、实际媒体/RDP connected/disconnected 通道生命周期上报，以及最新 CPU/内存/固定磁盘/GPU 库存采样；Console 已按 generation/sequence 原子持久化 latest 与 7 天原始历史，并实现每节点阈值策略、连续样本/回滞、事件去重/升级/确认/恢复、180 天保留及管理 API/UI。非桌面 Render 已在建连前校验当前 CloudApplication session/instance/role/lease，并使用原 frontend token 周期续租；续租失败会按当前硬截止精确撤销 RTC allocation 和逻辑绑定，不引入短期 ticket。仍未完成真实公网首帧/输入/音频与持续续租/撤销、逐 GPU 负载/显存/编码器指标、趋势聚合/断线补报/管理实时流、告警真实浏览器与公网节点验收、GPU/RDP 执行、周期通道指标、文件/录像生产与媒体投递、无人值守更新身份/执行器及其余 repository 产品入口 |
+| DB2-A | 身份/管理HTTP、本人资料/头像、密码计算/限流/Origin、访客HMAC/会话/公开目录、Saved Connections、本人实例列表、更新目录、访问/通道/传输历史及录像目录HTTP、严格配置、稳定私钥加载、独立初始化CLI、静态文件服务及进程生命周期已实现；Console用户门户及管理后台的当前目录/身份/状态入口均已切新bearer/主体API，源码不再保留旧`/api/v1`。仍需录像下载、Direct Host观察者权限、正式产品二进制/安装包及客户端全链路；视频墙延期，ZLM直播和RTC/TURN管理明确退役，不再作为待实现项 |
+| DB2-B/C/D | 设备/应用/节点/部署目录、user/guest资源入口、更新与历史元数据入口及Console节点WS已接；Windows Service已切到新节点协议并实现部署准备、调和、命令fencing、精确launch ACK、Render前端准入转发、实际媒体/RDP通道生命周期及遥测。仍需归档并移除ZLM/Coturn/中央RTC signaling且保持Relay既有数据回归；打通Windows Client、Web Client、Render、Service、Console描述符和适用Android的Direct Host链路；完成公网首帧/输入/音频与持续续租/撤销、逐GPU指标、趋势/断线补报/管理实时流、GPU/RDP执行、周期通道指标、文件/录像生产与媒体投递、无人值守更新及其余产品入口 |
 | DB2-EXIT / DB3 | Desk/Auth 独立产品流程已验证；Console 与共享消费者仍待去 Mongo、接新签发/验证及库外水位，Auth 通知 outbox 尚未接通；不建设运行时双后端 |
-| DB4 | 恢复集/保留/私有原子发布/恢复前哈希与依赖复核/固定工具/取消超时、持久计划任务、重启补跑、受限实际清理、配置化异机复制、独立告警送达、持久恢复准入/审批、隔离恢复编排、固定工具适配器、执行命令、最小恢复账号创建/轮换、三库安全水位及写屏障生产/消费/释放、灾难恢复新 generation、数据库内旧会话/Grant/节点凭据/待发控制失效、库外单调可信见证生产/持久链、Auth 活动私钥/多公钥信任根/代际绑定/旧 key 撤回、固定版本 pgBackRest 物理备份/连续 WAL/命名点恢复和缺 WAL 拒绝、Windows 固定 PostgreSQL 客户端包/版本化安装/覆盖回滚/卸载保留数据，以及 systemd 安装/重启/停止/注销保留数据已实现；Windows SCM 与 WSL2 systemd 生命周期已真实验收，测试适配器已完成三库协调逻辑备份、异机副本路径恢复、全新库恢复、恢复封印和人工准入。仍需目标 Linux 发行版 VM、Pixels 外层安装包签名与生产密钥托管、独立主机或对象仓库的故障域部署/7 天窗口/恢复实测、目标环境 Auth keyring/见证同步轮换演练，以及真实节点与 Windows/RDP 工作区事实对账；本机 Docker/固定替身专项不能替代这些故障域验收 |
-| DB5 | 新环境服务端—Windows—Android 功能回归及完整制品验收 |
+| DB4 | 恢复集、保留、异机复制、恢复准入/执行/封印、三库写屏障/安全水位、外部见证、Auth keyring、pgBackRest/WAL/PITR、Windows SCM包及WSL2 systemd生命周期已实现。开发期仍需目标Linux发行版VM短测、Pixels外层签名/生产密钥托管、独立主机或对象仓库一次完整恢复、目标环境keyring/见证轮换及真实节点与Windows/RDP事实对账；连续7天窗口和自然周期稳定性统一放到DB5功能通过后的长测，不阻塞每个开发切片 |
+| DB5 | 全新环境服务端—Windows Client/Web Client—Render/Service—Relay—Android功能回归及完整制品验收；必须证明Direct Host与Relay分别正常且安装包不含ZLM/Coturn，先短测通过，最后统一长测 |
 | DB-HA / P1–P7 | 独立主机 HA、正式发行隔离、授权/连接服务、升级、运维与真实容量/稳定性验收 |
 
-接续依赖顺序：Console 新 API 和统一切换（包含真实媒体工作流与已实现的更新目录）→ 同步许可证消费者 → 自动备份/恢复 → 全新部署验收。
+接续依赖顺序：中央媒体归档与Relay/Direct Host双回归 → Console新API和统一切换（包含录像/文件等保留的真实媒体工作流）→
+同步许可证消费者 → 备份/恢复短测 → 全新部署短测 → 统一长测。
 资源会话 repository 证据见[CloudApplication/桌面会话与描述符契约](postgresql_resource_session_contract.md)；
 专项测试入口与独立 AES 固定向量已经通过，不再列为未开始。Service 已开始切入新节点协议，但其他客户端和真实 OS/媒体链路仍未验收，
 不能将协议、存储层或合成节点通过写成产品验收通过。

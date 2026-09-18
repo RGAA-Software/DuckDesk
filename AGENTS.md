@@ -25,6 +25,14 @@
   test endpoint or deployment assumption. Consume the authoritative endpoint reported through current node configuration and Console
   connection descriptors. Current package defaults use desktop Render 4601 and dynamically allocate application Render ports from
   4613–4998; each actual Render port carries TCP/WS and UDP on the same port number. Do not restore compatibility fallback to 20371.
+- Media transport decision (2026-09-19): keep the existing Relay name, protocol, routes and non-WebRTC data-forwarding behavior. Remove
+  only its central WebRTC SDP/ICE signaling role; do not rename Relay or add a compatibility alias. WebRTC remains supported only as
+  Direct Host WebRTC: Windows Client, Web Client and applicable Android flows connect directly to the authoritative Render host/port and
+  negotiate with Render on that direct endpoint. Do not route WebRTC signaling or media through Relay and do not add a hidden fallback.
+  ZLMediaKit push/live playback, Coturn, STUN/TURN configuration, TURN media relay and their packaged sidecars are retired from the active
+  product and must be preserved under a new repository-root `backup/` archive batch before removal. Recording and file transfer remain
+  active features. The cross-component scope and DB0-DB5 gates are authoritative in
+  `docs/direct_host_webrtc_scope_plan_20260919.md`.
 - Android Cloud Apps decision (2026-09-14): implement the independent “云应用” / “Cloud Apps” top-level tab directly on the current
   Console identity and endpoint model. Delete the old device-nested Application Library flow; do not retain a compatibility page,
   forwarding facade, dual navigation, legacy DataStore import or old endpoint fallback. Android identifies itself to Console as

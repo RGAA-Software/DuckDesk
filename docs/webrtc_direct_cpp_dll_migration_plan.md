@@ -1,7 +1,9 @@
 # WebRTC 普通 C++ DLL 迁移实施方案
 
-> 2026-09-07 范围更新：Windows、Android、iOS 原生客户端取消全部 WebRTC，包括 host 直连。本文的 Client 接入/打包要求已退役；Render 服务 Web 客户端的 RTC 实现与生命周期约束继续保留。
-> 以下 Client 迁移内容仅记录历史实现，不作为后续原生客户端目标。
+> 2026-09-19范围更新覆盖2026-09-07决定：Windows Client和Web Client保留Direct Host WebRTC，直接连接实际Render host/port；
+> 适用Android流程按同一描述符进入DB5平台验收。ZLMediaKit、Coturn/STUN/TURN及经Relay中转的WebRTC signaling退役；Relay其余
+> 数据能力保持。本文DLL所有权与生命周期结论继续有效，网络范围以
+> [Direct Host WebRTC 与中央媒体能力收缩计划](direct_host_webrtc_scope_plan_20260919.md)为准。
 
 ## 1. 产品决定
 
@@ -151,15 +153,15 @@ event=<事件> component=<组件> code=<稳定错误码> operation=<阶段> outc
 
 - DLL 缺失/版本不配套：Windows loader 明确失败，不进行目录扫描或插件 fallback。
 - runtime 创建失败、scope 已停止、重复 Start/Stop、部分启动失败、停止超时。
-- 信令超时、错误 SDP、迟到 ICE、ICE restart 失败、断网恢复和 Relay fallback。
+- Direct Render端点超时、错误SDP、迟到ICE、ICE restart失败和断网恢复；断言不会触发Relay/TURN fallback。
 - data channel 高水位、FT 堵塞、视频消费者落后、IDR 请求风暴和本地多屏热插拔。
 
 ### 8.3 最终人工与压力验收
 
 - Remote 与 Local：键鼠、剪贴板、文件传输、语音、音频、H264/H265、单屏/多屏、切屏和热插拔。
-- 远端网络：首次连接、连续断网重连、ICE restart、TURN/直连路径、Relay fallback、退出中断重连。
-- 30 分钟高码率/多屏压力测试检查 CPU、内存、线程、句柄、队列高水位和错误日志。
-- 8 小时 soak 检查内存/句柄单调增长、迟到 callback、死连接残留、周期日志限频和停止耗时。
+- 远端网络：首次Direct Host连接、短时断网重连、ICE restart、不可达时稳定失败、退出中断重连；Relay既有数据路径另行回归。
+- 开发期以短时高码率/多屏功能检查CPU、内存、线程、句柄、队列高水位和错误日志，不把固定长时运行作为切片阻塞门禁。
+- DB5短期功能全部通过后再统一soak，检查内存/句柄单调增长、迟到callback、死连接残留、周期日志限频和停止耗时。
 - 验收只使用 `build_official/<product>/dist`，并在启动前复核所有变更 EXE/DLL/资源与 build tree 的 SHA-256。
 
 ## 9. 当前实施状态与完成定义

@@ -1,5 +1,11 @@
 # Render 实时推流方案（ZLM 中央服务器 + Console Web 观看）
 
+> **已退役，不得继续实施。** 2026-09-19决定将本文描述的ZLMediaKit、RTMP/HLS/HTTP-FLV、Render live pusher及Console播放代理
+> 完整归档到新的`backup/`批次，并从活动构建、安装包和运行时移除。WebRTC只保留直接连接实际Render host/port的Direct Host模式；
+> Relay名称和既有非WebRTC数据转发保持。当前权威边界见
+> [Direct Host WebRTC 与中央媒体能力收缩计划](direct_host_webrtc_scope_plan_20260919.md)。本文后续内容仅用于归档前行为取证，
+> 不构成当前功能、依赖或验收要求。
+
 > 状态：待评审（v3，已收敛为单路 RTMP）
 > 范围：render 已有远控会话期间的主屏直播；Console Web 的 HLS 观看，以及 RTSP/RTMP 播放。
 > 非范围：WebRTC/WHIP/WHEP、无人远控会话时按观看请求拉起采集、非主屏直播、录像回放。

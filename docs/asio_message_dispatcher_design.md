@@ -45,8 +45,10 @@ Completed:
   dist SHA-256 values must match before delivery.
 
 Accordingly, implementation and current-environment delivery are complete.
-Cross-public-network TURN/NAT remains separately blocked by environment and is
-not claimed by this design acceptance.
+Cross-public-network TURN/NAT is no longer an active product target. The 2026-09-19
+scope keeps Direct Host WebRTC and existing non-WebRTC Relay data paths; it retires
+Coturn/TURN and central WebRTC signaling. This dispatcher acceptance does not claim
+the later cross-component Direct Host product gate.
 
 ## Concurrency status (2026-08-26)
 

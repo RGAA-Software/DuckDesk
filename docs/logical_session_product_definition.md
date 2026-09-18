@@ -1,6 +1,11 @@
 # 桌面远控逻辑会话、角色与直连访问产品定义
 
 > 状态：目标产品契约（2026-09-01）。本文以 `app_mode=desktop` 远程桌面为主，并定义 game-hook/WebView 可选观看的产品边界；不改变它们既有的调度、实例身份和输入终点。现有运行时尚未完全满足，改造项见第 12 节。
+>
+> 2026-09-19媒体边界覆盖本文较早的ticket、RTC Local/Remote和fallback措辞：WebRTC只保留消费者直接连接实际Render host/port的
+> Direct Host模式，不经过Relay交换SDP/ICE，不使用ZLMediaKit或Coturn/STUN/TURN；Relay其余数据能力保持且不改名。资源会话、
+> role、lease和frontend authorization继续承担准入，不新增短期连接ticket。详见
+> [Direct Host WebRTC 与中央媒体能力收缩计划](direct_host_webrtc_scope_plan_20260919.md)。
 
 ## 1. 产品收敛
 
