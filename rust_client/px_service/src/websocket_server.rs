@@ -189,6 +189,54 @@ async fn handle_connection(
                     });
                     None
                 }
+                service_core::command::Command::OpenResourceChannel {
+                    request_id,
+                    source_id,
+                    session_id,
+                    channel_kind,
+                } => {
+                    let operation_runtime = runtime.clone();
+                    let operation_tx = tx.clone();
+                    tokio::spawn(async move {
+                        let response = process_resource_channel_open(
+                            operation_runtime,
+                            request_id,
+                            source_id,
+                            session_id,
+                            channel_kind,
+                        )
+                        .await;
+                        let _ = operation_tx.send(encode_service_message(&response));
+                    });
+                    None
+                }
+                service_core::command::Command::ReportResourceChannel {
+                    request_id,
+                    channel_id,
+                    sequence,
+                    sent_bytes,
+                    received_bytes,
+                    elapsed_ms,
+                    outcome,
+                } => {
+                    let operation_runtime = runtime.clone();
+                    let operation_tx = tx.clone();
+                    tokio::spawn(async move {
+                        let response = process_resource_channel_report(
+                            operation_runtime,
+                            request_id,
+                            channel_id,
+                            sequence,
+                            sent_bytes,
+                            received_bytes,
+                            elapsed_ms,
+                            outcome,
+                        )
+                        .await;
+                        let _ = operation_tx.send(encode_service_message(&response));
+                    });
+                    None
+                }
                 command => {
                     let mut guard = runtime.lock().await;
                     match guard.handle_command(command) {
@@ -213,6 +261,177 @@ async fn handle_connection(
     drop(tx);
     let _ = writer.await;
     Ok(())
+}
+
+fn resource_channel_open_service_message(
+    result: service_core::MsgResourceChannelOpenResult,
+) -> service_core::ServiceMessage {
+    service_core::ServiceMessage {
+        r#type: service_core::ServiceMessageType::ResourceChannelOpenResult as i32,
+        resource_channel_open_result: Some(result),
+        ..Default::default()
+    }
+}
+
+async fn process_resource_channel_open(
+    runtime: Arc<Mutex<ServiceRuntime>>,
+    request_id: String,
+    source_id: String,
+    session_id: String,
+    channel_kind: service_core::ResourceChannelKind,
+) -> service_core::ServiceMessage {
+    let mut response = service_core::MsgResourceChannelOpenResult {
+        request_id,
+        ..Default::default()
+    };
+    let parsed_source_id = uuid::Uuid::parse_str(&source_id);
+    let parsed_session_id = uuid::Uuid::parse_str(&session_id);
+    let (source_id, session_id) = match (parsed_source_id, parsed_session_id) {
+        (Ok(source_id), Ok(session_id))
+            if !source_id.is_nil() && !session_id.is_nil() && !response.request_id.is_empty() =>
+        {
+            (source_id, session_id)
+        }
+        _ => {
+            response.error_code = "INVALID_REQUEST".into();
+            return resource_channel_open_service_message(response);
+        }
+    };
+    let kind = match channel_kind {
+        service_core::ResourceChannelKind::Control => px_node_protocol::ChannelKind::Control,
+        service_core::ResourceChannelKind::Media => px_node_protocol::ChannelKind::Media,
+        service_core::ResourceChannelKind::Audio => px_node_protocol::ChannelKind::Audio,
+        service_core::ResourceChannelKind::File => px_node_protocol::ChannelKind::File,
+        service_core::ResourceChannelKind::Rdp => px_node_protocol::ChannelKind::Rdp,
+    };
+    let node_control_sender = runtime.lock().await.node_control_sender.clone();
+    let (completion, result) = tokio::sync::oneshot::channel();
+    let operation = crate::node_control_client::NodeControlOperation::OpenChannel {
+        source_id,
+        session_id,
+        kind,
+        completion,
+    };
+    if node_control_sender.try_send(operation).is_err() {
+        response.error_code = "NODE_CONTROL_UNAVAILABLE".into();
+        return resource_channel_open_service_message(response);
+    }
+    let receipt = match tokio::time::timeout(std::time::Duration::from_secs(12), result).await {
+        Ok(Ok(Ok(receipt))) => receipt,
+        Ok(Ok(Err(_))) => {
+            response.error_code = "CHANNEL_REJECTED".into();
+            return resource_channel_open_service_message(response);
+        }
+        Ok(Err(_)) | Err(_) => {
+            response.error_code = "NODE_CONTROL_UNAVAILABLE".into();
+            return resource_channel_open_service_message(response);
+        }
+    };
+    response.accepted = true;
+    response.channel_id = receipt.channel_id.to_string();
+    response.state = receipt.state;
+    response.sequence = receipt.sequence;
+    response.revision = receipt.revision;
+    resource_channel_open_service_message(response)
+}
+
+fn resource_channel_report_service_message(
+    result: service_core::MsgResourceChannelReportResult,
+) -> service_core::ServiceMessage {
+    service_core::ServiceMessage {
+        r#type: service_core::ServiceMessageType::ResourceChannelReportResult as i32,
+        resource_channel_report_result: Some(result),
+        ..Default::default()
+    }
+}
+
+async fn process_resource_channel_report(
+    runtime: Arc<Mutex<ServiceRuntime>>,
+    request_id: String,
+    channel_id: String,
+    sequence: u64,
+    sent_bytes: u64,
+    received_bytes: u64,
+    elapsed_ms: u64,
+    outcome: service_core::ResourceChannelOutcome,
+) -> service_core::ServiceMessage {
+    let mut response = service_core::MsgResourceChannelReportResult {
+        request_id,
+        ..Default::default()
+    };
+    let channel_id = match uuid::Uuid::parse_str(&channel_id) {
+        Ok(channel_id)
+            if !channel_id.is_nil() && sequence > 0 && !response.request_id.is_empty() =>
+        {
+            channel_id
+        }
+        _ => {
+            response.error_code = "INVALID_REQUEST".into();
+            return resource_channel_report_service_message(response);
+        }
+    };
+    let outcome = match outcome {
+        service_core::ResourceChannelOutcome::Progress => {
+            px_node_protocol::ChannelOutcome::Progress
+        }
+        service_core::ResourceChannelOutcome::PeerClosed => {
+            px_node_protocol::ChannelOutcome::Closed {
+                reason: px_node_protocol::ChannelClose::PeerClosed,
+            }
+        }
+        service_core::ResourceChannelOutcome::UserStopped => {
+            px_node_protocol::ChannelOutcome::Closed {
+                reason: px_node_protocol::ChannelClose::UserStopped,
+            }
+        }
+        service_core::ResourceChannelOutcome::TransportLost => {
+            px_node_protocol::ChannelOutcome::Failed {
+                reason: px_node_protocol::ChannelFailure::TransportLost,
+            }
+        }
+        service_core::ResourceChannelOutcome::PolicyRevoked => {
+            px_node_protocol::ChannelOutcome::Failed {
+                reason: px_node_protocol::ChannelFailure::PolicyRevoked,
+            }
+        }
+        service_core::ResourceChannelOutcome::IoError => px_node_protocol::ChannelOutcome::Failed {
+            reason: px_node_protocol::ChannelFailure::IoError,
+        },
+    };
+    let node_control_sender = runtime.lock().await.node_control_sender.clone();
+    let (completion, result) = tokio::sync::oneshot::channel();
+    let operation = crate::node_control_client::NodeControlOperation::ReportChannel {
+        channel_id,
+        progress: px_node_protocol::ChannelProgress {
+            sequence,
+            sent_bytes,
+            received_bytes,
+            elapsed_ms,
+            outcome,
+        },
+        completion,
+    };
+    if node_control_sender.try_send(operation).is_err() {
+        response.error_code = "NODE_CONTROL_UNAVAILABLE".into();
+        return resource_channel_report_service_message(response);
+    }
+    let receipt = match tokio::time::timeout(std::time::Duration::from_secs(12), result).await {
+        Ok(Ok(Ok(receipt))) => receipt,
+        Ok(Ok(Err(_))) => {
+            response.error_code = "CHANNEL_REJECTED".into();
+            return resource_channel_report_service_message(response);
+        }
+        Ok(Err(_)) | Err(_) => {
+            response.error_code = "NODE_CONTROL_UNAVAILABLE".into();
+            return resource_channel_report_service_message(response);
+        }
+    };
+    response.accepted = true;
+    response.channel_id = receipt.channel_id.to_string();
+    response.state = receipt.state;
+    response.sequence = receipt.sequence;
+    response.revision = receipt.revision;
+    resource_channel_report_service_message(response)
 }
 
 fn frontend_admission_service_message(
@@ -483,8 +702,10 @@ mod tests {
     use service_core::process::ProcessSnapshot;
     use service_core::windows_util::{default_service_data_root, default_service_log_root};
     use service_core::{
-        encode_service_message, MsgFrontendAdmissionRequest, MsgHeartBeat, MsgStartServer,
-        RenderLaunchSpec, RenderStatus, ServiceMessage, ServiceMessageType,
+        encode_service_message, MsgFrontendAdmissionRequest, MsgHeartBeat,
+        MsgResourceChannelOpenRequest, MsgResourceChannelReportRequest, MsgStartServer,
+        RenderLaunchSpec, RenderStatus, ResourceChannelKind, ResourceChannelOutcome,
+        ServiceMessage, ServiceMessageType,
     };
     use tokio_tungstenite::{
         connect_async, tungstenite::client::IntoClientRequest, tungstenite::Message,
@@ -758,7 +979,10 @@ mod tests {
             revision,
             frontend_token,
             completion,
-        } = operation;
+        } = operation
+        else {
+            panic!("expected frontend admission operation");
+        };
         assert_eq!(actual_session_id, session_id);
         assert_eq!(revision, 7);
         assert_eq!(frontend_token.as_str(), "single-use-secret");
@@ -799,6 +1023,155 @@ mod tests {
         assert!(result.valid_for_ms > 0);
         assert!(result.valid_for_ms <= 29_000);
         assert!(result.error_code.is_empty());
+
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn websocket_service_forwards_resource_channel_lifecycle() {
+        let port_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = port_listener.local_addr().unwrap().port();
+        drop(port_listener);
+
+        let mut config = ServiceConfig::new(
+            port,
+            default_service_data_root(),
+            default_service_log_root(),
+        );
+        config.listen_host = "127.0.0.1".to_string();
+        let runtime = Arc::new(Mutex::new(ServiceRuntime::new(
+            config,
+            StdArc::new(MockProcessManager::new()),
+            StdArc::new(MockActions),
+        )));
+        let (token, mut operations) = {
+            let mut guard = runtime.lock().await;
+            (
+                guard.ipc_token.clone(),
+                guard.node_control_receiver.take().unwrap(),
+            )
+        };
+        let service = WebsocketService::new(runtime);
+        let task = tokio::spawn(async move { service.run_console().await });
+        tokio::time::sleep(Duration::from_millis(150)).await;
+
+        let mut request = format!("ws://127.0.0.1:{port}/service/message")
+            .into_client_request()
+            .unwrap();
+        request
+            .headers_mut()
+            .insert("authorization", format!("Bearer {token}").parse().unwrap());
+        let (mut websocket, _) = connect_async(request).await.unwrap();
+        let source_id = uuid::Uuid::new_v4();
+        let session_id = uuid::Uuid::new_v4();
+        websocket
+            .send(Message::Binary(
+                encode_service_message(&ServiceMessage {
+                    r#type: ServiceMessageType::ResourceChannelOpenRequest as i32,
+                    resource_channel_open_request: Some(MsgResourceChannelOpenRequest {
+                        request_id: "open-1".into(),
+                        source_id: source_id.to_string(),
+                        session_id: session_id.to_string(),
+                        channel_kind: ResourceChannelKind::Media as i32,
+                    }),
+                    ..Default::default()
+                })
+                .into(),
+            ))
+            .await
+            .unwrap();
+
+        let operation = tokio::time::timeout(Duration::from_secs(2), operations.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let crate::node_control_client::NodeControlOperation::OpenChannel {
+            source_id: actual_source_id,
+            session_id: actual_session_id,
+            kind,
+            completion,
+        } = operation
+        else {
+            panic!("expected resource channel open operation");
+        };
+        assert_eq!(actual_source_id, source_id);
+        assert_eq!(actual_session_id, session_id);
+        assert!(matches!(kind, px_node_protocol::ChannelKind::Media));
+        let channel_id = uuid::Uuid::new_v4();
+        completion
+            .send(Ok(crate::node_control_client::NodeChannelReceipt {
+                channel_id,
+                state: "active".into(),
+                sequence: 0,
+                revision: 1,
+            }))
+            .unwrap();
+        let Message::Binary(bytes) = websocket.next().await.unwrap().unwrap() else {
+            panic!("expected binary resource channel open response");
+        };
+        let response = service_core::decode_service_message(&bytes).unwrap();
+        let opened = response.resource_channel_open_result.unwrap();
+        assert!(opened.accepted);
+        assert_eq!(opened.channel_id, channel_id.to_string());
+        assert_eq!(opened.state, "active");
+
+        websocket
+            .send(Message::Binary(
+                encode_service_message(&ServiceMessage {
+                    r#type: ServiceMessageType::ResourceChannelReportRequest as i32,
+                    resource_channel_report_request: Some(MsgResourceChannelReportRequest {
+                        request_id: "report-1".into(),
+                        channel_id: channel_id.to_string(),
+                        sequence: 1,
+                        sent_bytes: 1_000,
+                        received_bytes: 250,
+                        elapsed_ms: 500,
+                        outcome: ResourceChannelOutcome::PeerClosed as i32,
+                    }),
+                    ..Default::default()
+                })
+                .into(),
+            ))
+            .await
+            .unwrap();
+        let operation = tokio::time::timeout(Duration::from_secs(2), operations.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let crate::node_control_client::NodeControlOperation::ReportChannel {
+            channel_id: actual_channel_id,
+            progress,
+            completion,
+        } = operation
+        else {
+            panic!("expected resource channel report operation");
+        };
+        assert_eq!(actual_channel_id, channel_id);
+        assert_eq!(progress.sequence, 1);
+        assert_eq!(progress.sent_bytes, 1_000);
+        assert!(matches!(
+            progress.outcome,
+            px_node_protocol::ChannelOutcome::Closed {
+                reason: px_node_protocol::ChannelClose::PeerClosed
+            }
+        ));
+        completion
+            .send(Ok(crate::node_control_client::NodeChannelReceipt {
+                channel_id,
+                state: "closed".into(),
+                sequence: 1,
+                revision: 2,
+            }))
+            .unwrap();
+        let Message::Binary(bytes) = websocket.next().await.unwrap().unwrap() else {
+            panic!("expected binary resource channel report response");
+        };
+        let response = service_core::decode_service_message(&bytes).unwrap();
+        let reported = response.resource_channel_report_result.unwrap();
+        assert!(reported.accepted);
+        assert_eq!(reported.channel_id, channel_id.to_string());
+        assert_eq!(reported.state, "closed");
+        assert_eq!(reported.sequence, 1);
 
         task.abort();
     }

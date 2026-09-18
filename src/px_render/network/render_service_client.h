@@ -59,6 +59,16 @@ public:
         std::string request_id, std::string session_id, std::int64_t revision,
         std::string frontend_token,
         std::chrono::steady_clock::time_point deadline);
+    PxAwaitable<PxResult<MsgResourceChannelServiceResult>>
+    RequestResourceChannelOpenAsync(
+        std::string request_id, std::string source_id, std::string session_id,
+        int channel_kind, std::chrono::steady_clock::time_point deadline);
+    PxAwaitable<PxResult<MsgResourceChannelServiceResult>>
+    RequestResourceChannelReportAsync(
+        std::string request_id, std::string channel_id, std::uint64_t sequence,
+        std::uint64_t sent_bytes, std::uint64_t received_bytes,
+        std::uint64_t elapsed_ms, int outcome,
+        std::chrono::steady_clock::time_point deadline);
 
 private:
     struct AsyncStateSnapshot final {

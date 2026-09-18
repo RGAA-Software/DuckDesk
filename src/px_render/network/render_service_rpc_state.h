@@ -20,6 +20,10 @@ public:
           frontend_admission_requests_(
               std::make_shared<
                   PxAsyncRequestRegistry<MsgFrontendAdmissionServiceResult>>(
+                  executor)),
+          resource_channel_requests_(
+              std::make_shared<
+                  PxAsyncRequestRegistry<MsgResourceChannelServiceResult>>(
                   std::move(executor))) {}
 
     RenderServiceRpcState(const RenderServiceRpcState&) = delete;
@@ -29,6 +33,8 @@ public:
         virtual_display_requests_;
     std::shared_ptr<PxAsyncRequestRegistry<MsgFrontendAdmissionServiceResult>>
         frontend_admission_requests_;
+    std::shared_ptr<PxAsyncRequestRegistry<MsgResourceChannelServiceResult>>
+        resource_channel_requests_;
 };
 
 }  // namespace px

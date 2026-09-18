@@ -180,5 +180,88 @@ TEST(RenderServiceRpcState,
     }
 }
 
+TEST(RenderServiceRpcState,
+     ResourceChannelResultPreservesIdentityAndRevision) {
+    const auto runtime = PxAsyncRuntime::Create();
+    ASSERT_TRUE(runtime->Start());
+    const auto scope = PxAsyncScope::Create(runtime, PxAsyncLane::kState);
+    const auto state =
+        std::make_shared<RenderServiceRpcState>(scope->Executor());
+    auto registered = state->resource_channel_requests_->Register(
+        "channel-open-request");
+    ASSERT_TRUE(registered.HasValue());
+    const auto completion = std::make_shared<
+        std::promise<PxResult<MsgResourceChannelServiceResult>>>();
+    auto future = completion->get_future();
+    const auto operation = registered.Value();
+
+    ASSERT_TRUE(scope->Spawn(
+        "resource-channel", [operation, completion]() {
+            return AwaitServiceOperation(operation, completion);
+        }));
+    MsgResourceChannelServiceResult response;
+    response.request_id_ = "channel-open-request";
+    response.accepted_ = true;
+    response.channel_id_ = "01994ddb-b930-7480-a15d-0a5176d1cc63";
+    response.state_ = "active";
+    response.sequence_ = 0;
+    response.revision_ = 1;
+    ASSERT_TRUE(state->resource_channel_requests_->Complete(
+        response.request_id_,
+        PxResult<MsgResourceChannelServiceResult>::Success(response)));
+
+    ASSERT_EQ(future.wait_for(2s), std::future_status::ready);
+    const auto result = future.get();
+    ASSERT_TRUE(result.HasValue());
+    EXPECT_TRUE(result.Value().accepted_);
+    EXPECT_EQ(result.Value().channel_id_,
+              "01994ddb-b930-7480-a15d-0a5176d1cc63");
+    EXPECT_EQ(result.Value().state_, "active");
+    EXPECT_EQ(result.Value().revision_, 1);
+    ASSERT_TRUE(scope->WaitFor(2s));
+    runtime->RequestStop();
+    runtime->Join();
+}
+
+TEST(RenderServiceRpcState,
+     DisconnectFailsResourceChannelAndLateResultIsIgnored) {
+    for (int round = 0; round < 10; ++round) {
+        const auto runtime = PxAsyncRuntime::Create();
+        ASSERT_TRUE(runtime->Start());
+        const auto scope = PxAsyncScope::Create(runtime, PxAsyncLane::kState);
+        const auto state =
+            std::make_shared<RenderServiceRpcState>(scope->Executor());
+        auto registered =
+            state->resource_channel_requests_->Register("channel");
+        ASSERT_TRUE(registered.HasValue());
+
+        const auto completion = std::make_shared<
+            std::promise<PxResult<MsgResourceChannelServiceResult>>>();
+        auto future = completion->get_future();
+        const auto operation = registered.Value();
+        ASSERT_TRUE(scope->Spawn(
+            "channel-disconnect", [operation, completion]() {
+                return AwaitServiceOperation(operation, completion);
+            }));
+
+        const auto disconnected = MakePxAsyncError(
+            PxAsyncErrorCode::kServiceNotConnected, "test_disconnect",
+            "service disconnected", true);
+        EXPECT_EQ(
+            state->resource_channel_requests_->FailAll(disconnected), 1U);
+        EXPECT_FALSE(state->resource_channel_requests_->Complete(
+            "channel",
+            PxResult<MsgResourceChannelServiceResult>::Success({})));
+
+        ASSERT_EQ(future.wait_for(2s), std::future_status::ready)
+            << "round=" << round;
+        EXPECT_EQ(future.get().Error().code,
+                  PxAsyncErrorCode::kServiceNotConnected);
+        ASSERT_TRUE(scope->WaitFor(2s));
+        runtime->RequestStop();
+        runtime->Join();
+    }
+}
+
 }  // namespace
 }  // namespace px

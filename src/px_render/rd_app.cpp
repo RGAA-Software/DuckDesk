@@ -46,6 +46,7 @@
 #include "architecture/sources/was_audio_capture_source.h"
 #include "network/net_message_maker.h"
 #include "network/render_service_client.h"
+#include "network/resource_channel_reporter.h"
 #include "network/server_cast.h"
 #include "network/ws_panel_client.h"
 #include "px_capture/capture_message.h"
@@ -786,6 +787,8 @@ int RdApplication::Run() {
     // connect to service
     LOGI("Will connect the service!");
     service_client_ = std::make_shared<RenderServiceClient>(shared_from_this());
+    resource_channel_reporter_ = ResourceChannelReporter::Create(
+        context_->GetAsyncRuntime(), service_client_);
 
     // connect panel
     LOGI("Will connect the panel!");
@@ -2828,6 +2831,31 @@ PxAwaitable<PxResult<ConsoleFrontendGrant>> RdApplication::AdmitConsoleFrontend(
     });
 }
 
+void RdApplication::OpenConsoleResourceChannel(
+    std::string connection_key, std::string logical_session_id,
+    const ConsoleResourceChannelKind channel_kind) {
+    if (!resource_channel_reporter_) {
+        return;
+    }
+    const auto protocol_kind =
+        channel_kind == ConsoleResourceChannelKind::kRdp
+            ? ResourceChannelKind::kResourceChannelRdp
+            : ResourceChannelKind::kResourceChannelMedia;
+    resource_channel_reporter_->Open(
+        std::move(connection_key), std::move(logical_session_id),
+        static_cast<int>(protocol_kind));
+}
+
+void RdApplication::CloseConsoleResourceChannel(
+    const std::string& connection_key) {
+    if (resource_channel_reporter_) {
+        resource_channel_reporter_->Close(
+            connection_key,
+            static_cast<int>(
+                ResourceChannelOutcome::kResourceChannelPeerClosed));
+    }
+}
+
 void RdApplication::UpdateVirtualDisplayStatus(
     const MsgVirtualDisplayServiceResult& result) {
     if (!result.accepted_) {
@@ -3131,6 +3159,9 @@ void RdApplication::Exit() {
         module_registry_->StopRouting();
     }
     if (ws_panel_client_ || service_client_ || module_registry_) {
+        if (resource_channel_reporter_) {
+            resource_channel_reporter_->Stop();
+        }
         LOGI(
             "event=application.shutdown component=rd_application "
             "operation=stop_network_clients outcome=started");

@@ -505,6 +505,48 @@ void RenderServiceClient::ParseMessage(const std::string& msg) {
                 "request_id={}",
                 result.request_id_);
         }
+    } else if (sm.type() ==
+               ServiceMessageType::kSrvResourceChannelOpenResult) {
+        const auto& channel = sm.resource_channel_open_result();
+        MsgResourceChannelServiceResult result;
+        result.request_id_ = channel.request_id();
+        result.accepted_ = channel.accepted();
+        result.error_code_ = channel.error_code();
+        result.channel_id_ = channel.channel_id();
+        result.state_ = channel.state();
+        result.sequence_ = channel.sequence();
+        result.revision_ = channel.revision();
+        const auto state = SnapshotAsyncState();
+        if (!state.rpc_state ||
+            !state.rpc_state->resource_channel_requests_->Complete(
+                result.request_id_,
+                PxResult<MsgResourceChannelServiceResult>::Success(result))) {
+            LOGW(
+                "Ignore late or unknown resource channel open response: "
+                "request_id={}",
+                result.request_id_);
+        }
+    } else if (sm.type() ==
+               ServiceMessageType::kSrvResourceChannelReportResult) {
+        const auto& channel = sm.resource_channel_report_result();
+        MsgResourceChannelServiceResult result;
+        result.request_id_ = channel.request_id();
+        result.accepted_ = channel.accepted();
+        result.error_code_ = channel.error_code();
+        result.channel_id_ = channel.channel_id();
+        result.state_ = channel.state();
+        result.sequence_ = channel.sequence();
+        result.revision_ = channel.revision();
+        const auto state = SnapshotAsyncState();
+        if (!state.rpc_state ||
+            !state.rpc_state->resource_channel_requests_->Complete(
+                result.request_id_,
+                PxResult<MsgResourceChannelServiceResult>::Success(result))) {
+            LOGW(
+                "Ignore late or unknown resource channel report response: "
+                "request_id={}",
+                result.request_id_);
+        }
     }
 }
 
@@ -803,11 +845,15 @@ void RenderServiceClient::FailPendingRequests(const PxAsyncError& error) {
         state.rpc_state->virtual_display_requests_->FailAll(error);
     const auto admission_count =
         state.rpc_state->frontend_admission_requests_->FailAll(error);
-    if (display_count != 0 || admission_count != 0) {
+    const auto resource_channel_count =
+        state.rpc_state->resource_channel_requests_->FailAll(error);
+    if (display_count != 0 || admission_count != 0 ||
+        resource_channel_count != 0) {
         LOGW(
             "Render Service pending requests failed: virtual_displays={}, "
-            "frontend_admissions={}, code={}",
-            display_count, admission_count, error.StableCode());
+            "frontend_admissions={}, resource_channels={}, code={}",
+            display_count, admission_count, resource_channel_count,
+            error.StableCode());
     }
 }
 
@@ -974,6 +1020,107 @@ RenderServiceClient::RequestFrontendAdmissionAsync(
     }
     co_return co_await WaitForRegisteredRequest(
         state.rpc_state->frontend_admission_requests_, request_id,
+        request_operation, deadline);
+}
+
+PxAwaitable<PxResult<MsgResourceChannelServiceResult>>
+RenderServiceClient::RequestResourceChannelOpenAsync(
+    std::string request_id, std::string source_id, std::string session_id,
+    const int channel_kind,
+    const std::chrono::steady_clock::time_point deadline) {
+    if (request_id.empty() || source_id.empty() || session_id.empty() ||
+        !ResourceChannelKind_IsValid(channel_kind)) {
+        co_return PxResult<MsgResourceChannelServiceResult>::Failure(
+            MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument,
+                             "resource_channel_open",
+                             "resource channel open request is invalid"));
+    }
+    const auto state = SnapshotAsyncState();
+    if (!IsAlive() || !websocket_upgraded_.load(std::memory_order_acquire) ||
+        !state.rpc_state) {
+        co_return PxResult<MsgResourceChannelServiceResult>::Failure(
+            MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected,
+                             "resource_channel_open",
+                             "Render is not connected to Service", true));
+    }
+    auto registered =
+        state.rpc_state->resource_channel_requests_->Register(request_id);
+    if (!registered.HasValue()) {
+        co_return PxResult<MsgResourceChannelServiceResult>::Failure(
+            registered.Error());
+    }
+    const auto request_operation = registered.Value();
+
+    px::ServiceMessage message;
+    message.set_type(ServiceMessageType::kSrvResourceChannelOpenRequest);
+    auto& request = *message.mutable_resource_channel_open_request();
+    request.set_request_id(request_id);
+    request.set_source_id(std::move(source_id));
+    request.set_session_id(std::move(session_id));
+    request.set_channel_kind(static_cast<ResourceChannelKind>(channel_kind));
+    const auto send_result = TryPostNetMessage(message.SerializeAsString());
+    if (!send_result.HasValue()) {
+        static_cast<void>(
+            state.rpc_state->resource_channel_requests_->Complete(
+                request_id,
+                PxResult<MsgResourceChannelServiceResult>::Failure(
+                    send_result.Error())));
+    }
+    co_return co_await WaitForRegisteredRequest(
+        state.rpc_state->resource_channel_requests_, request_id,
+        request_operation, deadline);
+}
+
+PxAwaitable<PxResult<MsgResourceChannelServiceResult>>
+RenderServiceClient::RequestResourceChannelReportAsync(
+    std::string request_id, std::string channel_id,
+    const std::uint64_t sequence, const std::uint64_t sent_bytes,
+    const std::uint64_t received_bytes, const std::uint64_t elapsed_ms,
+    const int outcome,
+    const std::chrono::steady_clock::time_point deadline) {
+    if (request_id.empty() || channel_id.empty() || sequence == 0 ||
+        !ResourceChannelOutcome_IsValid(outcome)) {
+        co_return PxResult<MsgResourceChannelServiceResult>::Failure(
+            MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument,
+                             "resource_channel_report",
+                             "resource channel report request is invalid"));
+    }
+    const auto state = SnapshotAsyncState();
+    if (!IsAlive() || !websocket_upgraded_.load(std::memory_order_acquire) ||
+        !state.rpc_state) {
+        co_return PxResult<MsgResourceChannelServiceResult>::Failure(
+            MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected,
+                             "resource_channel_report",
+                             "Render is not connected to Service", true));
+    }
+    auto registered =
+        state.rpc_state->resource_channel_requests_->Register(request_id);
+    if (!registered.HasValue()) {
+        co_return PxResult<MsgResourceChannelServiceResult>::Failure(
+            registered.Error());
+    }
+    const auto request_operation = registered.Value();
+
+    px::ServiceMessage message;
+    message.set_type(ServiceMessageType::kSrvResourceChannelReportRequest);
+    auto& request = *message.mutable_resource_channel_report_request();
+    request.set_request_id(request_id);
+    request.set_channel_id(std::move(channel_id));
+    request.set_sequence(sequence);
+    request.set_sent_bytes(sent_bytes);
+    request.set_received_bytes(received_bytes);
+    request.set_elapsed_ms(elapsed_ms);
+    request.set_outcome(static_cast<ResourceChannelOutcome>(outcome));
+    const auto send_result = TryPostNetMessage(message.SerializeAsString());
+    if (!send_result.HasValue()) {
+        static_cast<void>(
+            state.rpc_state->resource_channel_requests_->Complete(
+                request_id,
+                PxResult<MsgResourceChannelServiceResult>::Failure(
+                    send_result.Error())));
+    }
+    co_return co_await WaitForRegisteredRequest(
+        state.rpc_state->resource_channel_requests_, request_id,
         request_operation, deadline);
 }
 

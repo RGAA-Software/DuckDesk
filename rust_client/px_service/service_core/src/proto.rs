@@ -8,9 +8,11 @@ mod generated {
 
 pub use generated::{
     MsgAppInstanceReady, MsgAuthInfo, MsgFrontendAdmissionRequest, MsgFrontendAdmissionResult,
-    MsgHeartBeat, MsgHeartBeatResp, MsgReqCtrlAltDelete, MsgRestartServer, MsgStartServer,
-    MsgStopServer, MsgVirtualDisplayRequest, MsgVirtualDisplayResult, RenderStatus, ServiceMessage,
-    ServiceMessageType, VirtualDisplayOperation,
+    MsgHeartBeat, MsgHeartBeatResp, MsgReqCtrlAltDelete, MsgResourceChannelOpenRequest,
+    MsgResourceChannelOpenResult, MsgResourceChannelReportRequest, MsgResourceChannelReportResult,
+    MsgRestartServer, MsgStartServer, MsgStopServer, MsgVirtualDisplayRequest,
+    MsgVirtualDisplayResult, RenderStatus, ResourceChannelKind, ResourceChannelOutcome,
+    ServiceMessage, ServiceMessageType, VirtualDisplayOperation,
 };
 
 // prost only derives PartialEq; all MsgAuthInfo fields are scalar so Eq is sound
@@ -31,6 +33,29 @@ impl ServiceMessageType {
     pub const AppInstanceReady: Self = Self::KSrvAppInstanceReady;
     pub const FrontendAdmissionRequest: Self = Self::KSrvFrontendAdmissionRequest;
     pub const FrontendAdmissionResult: Self = Self::KSrvFrontendAdmissionResult;
+    pub const ResourceChannelOpenRequest: Self = Self::KSrvResourceChannelOpenRequest;
+    pub const ResourceChannelOpenResult: Self = Self::KSrvResourceChannelOpenResult;
+    pub const ResourceChannelReportRequest: Self = Self::KSrvResourceChannelReportRequest;
+    pub const ResourceChannelReportResult: Self = Self::KSrvResourceChannelReportResult;
+}
+
+#[allow(non_upper_case_globals)]
+impl ResourceChannelKind {
+    pub const Control: Self = Self::KResourceChannelControl;
+    pub const Media: Self = Self::KResourceChannelMedia;
+    pub const Audio: Self = Self::KResourceChannelAudio;
+    pub const File: Self = Self::KResourceChannelFile;
+    pub const Rdp: Self = Self::KResourceChannelRdp;
+}
+
+#[allow(non_upper_case_globals)]
+impl ResourceChannelOutcome {
+    pub const Progress: Self = Self::KResourceChannelProgress;
+    pub const PeerClosed: Self = Self::KResourceChannelPeerClosed;
+    pub const UserStopped: Self = Self::KResourceChannelUserStopped;
+    pub const TransportLost: Self = Self::KResourceChannelTransportLost;
+    pub const PolicyRevoked: Self = Self::KResourceChannelPolicyRevoked;
+    pub const IoError: Self = Self::KResourceChannelIoError;
 }
 
 #[allow(non_upper_case_globals)]
@@ -162,6 +187,42 @@ mod tests {
         assert_eq!(
             decode_service_message(&encode_service_message(&response)).unwrap(),
             response
+        );
+    }
+
+    #[test]
+    fn round_trip_resource_channel_activity() {
+        let open = ServiceMessage {
+            r#type: ServiceMessageType::ResourceChannelOpenRequest as i32,
+            resource_channel_open_request: Some(MsgResourceChannelOpenRequest {
+                request_id: "open-1".into(),
+                source_id: "01994ddb-b930-7480-a15d-0a5176d1cc61".into(),
+                session_id: "01994ddb-b930-7480-a15d-0a5176d1cc62".into(),
+                channel_kind: ResourceChannelKind::Media as i32,
+            }),
+            ..Default::default()
+        };
+        assert_eq!(
+            decode_service_message(&encode_service_message(&open)).unwrap(),
+            open
+        );
+
+        let report = ServiceMessage {
+            r#type: ServiceMessageType::ResourceChannelReportRequest as i32,
+            resource_channel_report_request: Some(MsgResourceChannelReportRequest {
+                request_id: "report-1".into(),
+                channel_id: "01994ddb-b930-7480-a15d-0a5176d1cc63".into(),
+                sequence: 1,
+                sent_bytes: 100,
+                received_bytes: 25,
+                elapsed_ms: 500,
+                outcome: ResourceChannelOutcome::PeerClosed as i32,
+            }),
+            ..Default::default()
+        };
+        assert_eq!(
+            decode_service_message(&encode_service_message(&report)).unwrap(),
+            report
         );
     }
 

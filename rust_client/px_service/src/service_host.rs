@@ -340,6 +340,9 @@ impl ServiceRuntime {
             Command::AdmitFrontend { .. } => {
                 Err("frontend admission must use the asynchronous service path".to_string())
             }
+            Command::OpenResourceChannel { .. } | Command::ReportResourceChannel { .. } => Err(
+                "resource channel operations must use the asynchronous service path".to_string(),
+            ),
         }
     }
 

@@ -614,6 +614,19 @@ frontend token，经本机 Service IPC 转发到当前受认证 Console 节点�
 Service 与 Render 均用聚焦构建入口发布到各自 `build_official/<product>/dist` 并逐件核对 SHA-256。该证据覆盖真实
 Render→Service→Console 授权转发和断线/迟到响应，不等于真实公网客户端已完成首帧、输入、音频、文件或录像功能验收。
 
+资源通道生命周期的首条真实生产链已经接通。Render 在已准入逻辑会话发生实际 WebRTC/RDP connected 后创建独立 source UUID，
+通过本机 Service IPC 和受认证 Console 节点长连接执行 `open_channel`；真实 disconnect 产生 `peer_closed` 终态。SDP/端口分配不会提前
+写入 connected 记录，非规范 session UUID 不回退设备/账号标识，disconnect-before-open 会等精确 channel ID 返回后再关闭；Service
+断线会失败所有待处理请求并拒绝迟到回执。`px_service` 77/77、`service_core` 88/88（另 1 项既有真实 UE 样本 ignored）及 Render RPC
+测试通过；Cloud Node 的 `px_service.exe` SHA-256 为 `7BEEFC2C996FC7451FCC7569194E017B19B08EAAE4E45ECCEC84B72A4AA7DCB8`，
+重新聚焦构建并同步后的 `px_render.exe` SHA-256 为 `0F643D9999CD5BE50EBFBE644D9C2C4E80954A48796A509BB58F6174B0FB92A1`，
+构建树与 `build_official/cloud_node/dist` 已逐件核对。当前仅上报媒体/RDP 生命周期和 elapsed_ms，字节计数仍为明确的 0；周期进度、
+独立音频/控制通道、文件传输与录像生产者以及公网客户端可见结果仍是后续出口，不能据此关闭 DB2 或 DB5。
+
+完整门禁 `pg-20260918-130114-3f6e003e` 的 730 个功能/构建/恢复案例全部 PASS，唯一 FAIL 是运行期间前端提交修改了
+`cloud-gaming-csgo.jpg`，源码冻结门禁按设计拒绝污染结果；这不是功能失败，也不能冒充完整绿色基线。前端提交稳定后必须产生一份新的
+完整 PASS 报告，才可替代 `pg-20260918-115903-4c2a2c7c`。
+
 前端目录切换后，完整门禁首次发现 `px_pixels` 产品预览图未随目录迁移，第二次发现 `px_auth` 锁定依赖未安装，第三次发现无条件
 `npm ci` 会尝试替换正在被 Vite 占用的原生模块；三份报告均保持 FAIL。修复只恢复四张仍被页面引用的产品截图、不恢复旧 Logo，
 并让门禁在依赖树缺失时按 lockfile 安装、存在时用 `npm ls --depth=0` 验证，不覆盖开发者正在使用的依赖目录。
@@ -634,7 +647,7 @@ Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 W
 | DB0 | 已补领域/权限/恢复边界及 Auth 字节/固定向量；其余 Console 字段 SQL 与完整合成基线尚未全部冻结 |
 | DB1-EXIT | Desk/Auth 产品服务已接入；Console PG 组合根已能作为独立进程启动并通过断库 fail-closed 验收，但正式 `px_console.exe` 构建/安装包仍未切换，不能用开发目标或 schema CLI 替代三服务产品验收 |
 | DB2-A | 身份/管理 HTTP、本人资料/头像、密码计算/限流/Origin、访客 HMAC/会话/公开目录、Saved Connections、更新目录、访问/通道/传输历史及录像目录 HTTP、严格配置、稳定私钥加载、独立初始化 CLI、静态文件服务及进程生命周期已实现；其余新 Console Web API 改造、正式产品二进制/安装包切换及客户端全链路尚未接通 |
-| DB2-B/C/D | 设备/应用/节点/部署目录、user/guest 资源入口、更新与历史元数据入口及 Console 节点 WS 已接；Windows Service 已切到新节点协议并实现部署准备、调和、命令 fencing、精确 launch ACK 和 Render 前端准入转发，非桌面 Render 已在建连前校验当前 CloudApplication session/instance/role/lease。仍未完成真实公网首帧/输入/音频、GPU/RDP 执行、Service/Render 通道/传输/录像生产、文件与录像媒体投递、无人值守更新身份/执行器及其余 repository 产品入口 |
+| DB2-B/C/D | 设备/应用/节点/部署目录、user/guest 资源入口、更新与历史元数据入口及 Console 节点 WS 已接；Windows Service 已切到新节点协议并实现部署准备、调和、命令 fencing、精确 launch ACK、Render 前端准入转发及实际媒体/RDP connected/disconnected 通道生命周期上报，非桌面 Render 已在建连前校验当前 CloudApplication session/instance/role/lease。仍未完成真实公网首帧/输入/音频、GPU/RDP 执行、周期通道指标、文件/录像生产与媒体投递、无人值守更新身份/执行器及其余 repository 产品入口 |
 | DB2-EXIT / DB3 | Desk/Auth 独立产品流程已验证；Console 与共享消费者仍待去 Mongo、接新签发/验证及库外水位，Auth 通知 outbox 尚未接通；不建设运行时双后端 |
 | DB4 | 恢复集/保留/私有原子发布/恢复前哈希与依赖复核/固定工具/取消超时、持久计划任务、重启补跑、受限实际清理、配置化异机复制、独立告警送达、持久恢复准入/审批、隔离恢复编排、固定工具适配器、执行命令、最小恢复账号创建/轮换、三库安全水位及写屏障生产/消费/释放、灾难恢复新 generation、数据库内旧会话/Grant/节点凭据/待发控制失效、库外单调可信见证生产/持久链、Auth 活动私钥/多公钥信任根/代际绑定/旧 key 撤回、固定版本 pgBackRest 物理备份/连续 WAL/命名点恢复和缺 WAL 拒绝、Windows 固定 PostgreSQL 客户端包/版本化安装/覆盖回滚/卸载保留数据，以及 systemd 安装/重启/停止/注销保留数据已实现；Windows SCM 与 WSL2 systemd 生命周期已真实验收，测试适配器已完成三库协调逻辑备份、异机副本路径恢复、全新库恢复、恢复封印和人工准入。仍需目标 Linux 发行版 VM、Pixels 外层安装包签名与生产密钥托管、独立主机或对象仓库的故障域部署/7 天窗口/恢复实测、目标环境 Auth keyring/见证同步轮换演练，以及真实节点与 Windows/RDP 工作区事实对账；本机 Docker/固定替身专项不能替代这些故障域验收 |
 | DB5 | 新环境服务端—Windows—Android 功能回归及完整制品验收 |

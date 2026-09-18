@@ -93,6 +93,31 @@ void NetworkEventIngress::SendRtcSignalingError(
 }
 
 namespace {
+
+std::optional<std::string> ResourceChannelBindingId(
+    const std::string& source_id, const std::string& stream_id) {
+    if (stream_id.empty()) {
+        return std::nullopt;
+    }
+    if (source_id == kNetWebRtcRemoteLibraryId) {
+        return std::string("rtc:") + stream_id;
+    }
+    if (source_id == kNetWebRtcLocalLibraryId) {
+        return std::string("rtc-local:") + stream_id;
+    }
+    return std::nullopt;
+}
+
+std::string ResourceChannelConnectionKey(const std::string& source_id,
+                                         const std::string& connection_id,
+                                         const std::string& stream_id) {
+    const auto& stable_connection_id =
+        connection_id.empty() ? stream_id : connection_id;
+    return stable_connection_id.empty()
+               ? std::string{}
+               : source_id + ":" + stable_connection_id;
+}
+
 int64_t CurrentSystemMilliseconds() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(
                std::chrono::system_clock::now().time_since_epoch())
@@ -414,6 +439,22 @@ void NetworkEventIngress::InitListeners() {
 void NetworkEventIngress::ProcessClientConnectedEvent(
     const std::shared_ptr<ClientConnectedEvent>& event,
     const std::string& source_id) {
+    const auto binding_id =
+        ResourceChannelBindingId(source_id, event->stream_id_);
+    const auto logical_sessions = app_->GetLogicalSessionRegistry();
+    const auto logical_session_id =
+        binding_id && logical_sessions
+            ? logical_sessions->FindLogicalSessionIdByBinding(
+                  *binding_id, CurrentSystemMilliseconds())
+            : std::nullopt;
+    const auto resource_connection_key = ResourceChannelConnectionKey(
+        source_id, event->connection_id_, event->stream_id_);
+    if (logical_session_id && !resource_connection_key.empty()) {
+        app_->OpenConsoleResourceChannel(
+            resource_connection_key, *logical_session_id,
+            settings_.IsRdpMode() ? ConsoleResourceChannelKind::kRdp
+                                  : ConsoleResourceChannelKind::kMedia);
+    }
     if (settings_.IsRdpMode()) {
         context_->SendAppMessage(MsgClientConnected{
             .connection_id_ = event->connection_id_,
@@ -510,6 +551,11 @@ void NetworkEventIngress::ProcessClientConnectedEvent(
 void NetworkEventIngress::ProcessClientDisConnectedEvent(
     const std::shared_ptr<ClientDisconnectedEvent>& event,
     const std::string& source_id) {
+    const auto resource_connection_key = ResourceChannelConnectionKey(
+        source_id, event->connection_id_, event->stream_id_);
+    if (!resource_connection_key.empty()) {
+        app_->CloseConsoleResourceChannel(resource_connection_key);
+    }
     if (const auto media_bus = context_->GetEncodedMediaBus()) {
         media_bus->PublishClientDisconnected(render::MediaClientDisconnected{
             .visitor_device_id = event->visitor_device_id_,

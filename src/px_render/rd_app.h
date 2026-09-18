@@ -56,8 +56,14 @@ class ServerCast;
 class AppSharedInfo;
 class Message;
 class CaptureVideoFrame;
+class ResourceChannelReporter;
 class VigemController;
 class VigemDriverManager;
+
+enum class ConsoleResourceChannelKind {
+    kMedia,
+    kRdp,
+};
 class RdStatistics;
 class WsPanelClient;
 class RenderModuleRegistry;
@@ -173,6 +179,10 @@ public:
     [[nodiscard]] PxAwaitable<PxResult<ConsoleFrontendGrant>>
     AdmitConsoleFrontend(ConsoleFrontendAdmissionRequest request,
                          std::chrono::steady_clock::time_point deadline);
+    void OpenConsoleResourceChannel(
+        std::string connection_key, std::string logical_session_id,
+        ConsoleResourceChannelKind channel_kind);
+    void CloseConsoleResourceChannel(const std::string& connection_key);
     void UpdateVirtualDisplayStatus(
         const MsgVirtualDisplayServiceResult& result);
     void RefreshVirtualDisplayStatus(const std::string& request_prefix);
@@ -290,6 +300,7 @@ protected:
     std::vector<double> fft_right_;
 
     std::shared_ptr<px::RenderServiceClient> service_client_ = nullptr;
+    std::shared_ptr<ResourceChannelReporter> resource_channel_reporter_{};
 
     std::shared_ptr<WinDesktopManager> desktop_mgr_ = nullptr;
     std::unique_ptr<WebViewRuntime> webview_runtime_;

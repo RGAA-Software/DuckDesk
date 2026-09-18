@@ -5,9 +5,10 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
 use px_node_protocol::{
-    ApplicationLaunch, CommandOutcome, CommandReceipt, DeploymentAssignment, DeploymentObservation,
-    DeploymentPreparation, NodeCommand, NodeCommandAction, NodeReport, NodeRequest, NodeResponse,
-    ObservedRuntime, ObservedRuntimePhase, PreparationFailure, PreparationState, RuntimeInventory,
+    ApplicationLaunch, ChannelKind, ChannelProgress, CommandOutcome, CommandReceipt,
+    DeploymentAssignment, DeploymentObservation, DeploymentPreparation, NodeCommand,
+    NodeCommandAction, NodeReport, NodeRequest, NodeResponse, ObservedRuntime,
+    ObservedRuntimePhase, OpenChannel, PreparationFailure, PreparationState, RuntimeInventory,
     VideoCodec, MAX_MESSAGE_BYTES,
 };
 use service_core::{AppInstanceState, StartAppRequest};
@@ -53,6 +54,25 @@ pub(crate) enum NodeControlOperation {
         frontend_token: zeroize::Zeroizing<String>,
         completion: oneshot::Sender<Result<px_node_protocol::FrontendGrant, String>>,
     },
+    OpenChannel {
+        source_id: Uuid,
+        session_id: Uuid,
+        kind: ChannelKind,
+        completion: oneshot::Sender<Result<NodeChannelReceipt, String>>,
+    },
+    ReportChannel {
+        channel_id: Uuid,
+        progress: ChannelProgress,
+        completion: oneshot::Sender<Result<NodeChannelReceipt, String>>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct NodeChannelReceipt {
+    pub channel_id: Uuid,
+    pub state: String,
+    pub sequence: i64,
+    pub revision: i64,
 }
 
 impl ProtocolSession {
@@ -339,6 +359,96 @@ async fn execute_operation(
             let _ = completion.send(result);
             if reset_connection {
                 return Err("node-control protocol failed during frontend admission".into());
+            }
+            Ok(())
+        }
+        NodeControlOperation::OpenChannel {
+            source_id,
+            session_id,
+            kind,
+            completion,
+        } => {
+            let request = NodeRequest::OpenChannel {
+                request_id: session.request_id()?,
+                channel: OpenChannel {
+                    source_id,
+                    session_id,
+                    kind,
+                },
+            };
+            let expected = request.request_id();
+            let (result, reset_connection) = match exchange(socket, request).await {
+                Ok(NodeResponse::ChannelOpened {
+                    request_id,
+                    channel_id,
+                    state,
+                    sequence,
+                    revision,
+                }) if request_id == expected => (
+                    Ok(NodeChannelReceipt {
+                        channel_id,
+                        state,
+                        sequence,
+                        revision,
+                    }),
+                    false,
+                ),
+                Ok(NodeResponse::Error { code, .. }) => (
+                    Err(format!("resource channel open rejected: {code}")),
+                    false,
+                ),
+                Ok(_) => (
+                    Err("unexpected resource channel open response".into()),
+                    true,
+                ),
+                Err(error) => (Err(error), true),
+            };
+            let _ = completion.send(result);
+            if reset_connection {
+                return Err("node-control protocol failed while opening resource channel".into());
+            }
+            Ok(())
+        }
+        NodeControlOperation::ReportChannel {
+            channel_id,
+            progress,
+            completion,
+        } => {
+            let request = NodeRequest::ReportChannel {
+                request_id: session.request_id()?,
+                channel_id,
+                progress,
+            };
+            let expected = request.request_id();
+            let (result, reset_connection) = match exchange(socket, request).await {
+                Ok(NodeResponse::ChannelReported {
+                    request_id,
+                    channel_id,
+                    state,
+                    sequence,
+                    revision,
+                }) if request_id == expected => (
+                    Ok(NodeChannelReceipt {
+                        channel_id,
+                        state,
+                        sequence,
+                        revision,
+                    }),
+                    false,
+                ),
+                Ok(NodeResponse::Error { code, .. }) => (
+                    Err(format!("resource channel report rejected: {code}")),
+                    false,
+                ),
+                Ok(_) => (
+                    Err("unexpected resource channel report response".into()),
+                    true,
+                ),
+                Err(error) => (Err(error), true),
+            };
+            let _ = completion.send(result);
+            if reset_connection {
+                return Err("node-control protocol failed while reporting resource channel".into());
             }
             Ok(())
         }
@@ -1148,6 +1258,132 @@ mod tests {
                 instance_id,
             } if application_id == expected_application_id && instance_id == expected_instance_id
         ));
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn resource_channel_operations_use_real_websocket_and_preserve_sequence() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let source_id = Uuid::new_v4();
+        let session_id = Uuid::new_v4();
+        let channel_id = Uuid::new_v4();
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(stream).await.unwrap();
+            let Message::Text(text) = socket.next().await.unwrap().unwrap() else {
+                panic!("expected channel open request");
+            };
+            let request: NodeRequest = serde_json::from_str(&text).unwrap();
+            let NodeRequest::OpenChannel {
+                request_id,
+                channel,
+            } = request
+            else {
+                panic!("expected channel open request");
+            };
+            assert_eq!(channel.source_id, source_id);
+            assert_eq!(channel.session_id, session_id);
+            assert!(matches!(channel.kind, ChannelKind::Media));
+            socket
+                .send(Message::Text(
+                    serde_json::to_string(&NodeResponse::ChannelOpened {
+                        request_id,
+                        channel_id,
+                        state: "active".into(),
+                        sequence: 0,
+                        revision: 1,
+                    })
+                    .unwrap()
+                    .into(),
+                ))
+                .await
+                .unwrap();
+
+            let Message::Text(text) = socket.next().await.unwrap().unwrap() else {
+                panic!("expected channel report request");
+            };
+            let request: NodeRequest = serde_json::from_str(&text).unwrap();
+            let NodeRequest::ReportChannel {
+                request_id,
+                channel_id: actual_channel_id,
+                progress,
+            } = request
+            else {
+                panic!("expected channel report request");
+            };
+            assert_eq!(actual_channel_id, channel_id);
+            assert_eq!(progress.sequence, 1);
+            assert_eq!(progress.sent_bytes, 1_000);
+            assert!(matches!(
+                progress.outcome,
+                px_node_protocol::ChannelOutcome::Closed {
+                    reason: px_node_protocol::ChannelClose::PeerClosed
+                }
+            ));
+            socket
+                .send(Message::Text(
+                    serde_json::to_string(&NodeResponse::ChannelReported {
+                        request_id,
+                        channel_id,
+                        state: "closed".into(),
+                        sequence: 1,
+                        revision: 2,
+                    })
+                    .unwrap()
+                    .into(),
+                ))
+                .await
+                .unwrap();
+        });
+
+        let endpoint = format!("ws://{address}/api/console/node-control");
+        let (mut socket, _) = tokio_tungstenite::connect_async(endpoint).await.unwrap();
+        let mut session = ProtocolSession::new();
+        let (open_completion, open_result) = oneshot::channel();
+        execute_operation(
+            &mut socket,
+            &mut session,
+            NodeControlOperation::OpenChannel {
+                source_id,
+                session_id,
+                kind: ChannelKind::Media,
+                completion: open_completion,
+            },
+        )
+        .await
+        .unwrap();
+        let opened = open_result.await.unwrap().unwrap();
+        assert_eq!(opened.channel_id, channel_id);
+        assert_eq!(opened.state, "active");
+        assert_eq!(opened.sequence, 0);
+        assert_eq!(opened.revision, 1);
+
+        let (report_completion, report_result) = oneshot::channel();
+        execute_operation(
+            &mut socket,
+            &mut session,
+            NodeControlOperation::ReportChannel {
+                channel_id,
+                progress: ChannelProgress {
+                    sequence: 1,
+                    sent_bytes: 1_000,
+                    received_bytes: 250,
+                    elapsed_ms: 500,
+                    outcome: px_node_protocol::ChannelOutcome::Closed {
+                        reason: px_node_protocol::ChannelClose::PeerClosed,
+                    },
+                },
+                completion: report_completion,
+            },
+        )
+        .await
+        .unwrap();
+        let reported = report_result.await.unwrap().unwrap();
+        assert_eq!(reported.channel_id, channel_id);
+        assert_eq!(reported.state, "closed");
+        assert_eq!(reported.sequence, 1);
+        assert_eq!(reported.revision, 2);
         server.await.unwrap();
     }
 }

@@ -30,6 +30,21 @@ pub enum Command {
         revision: i64,
         frontend_token: String,
     },
+    OpenResourceChannel {
+        request_id: String,
+        source_id: String,
+        session_id: String,
+        channel_kind: crate::proto::ResourceChannelKind,
+    },
+    ReportResourceChannel {
+        request_id: String,
+        channel_id: String,
+        sequence: u64,
+        sent_bytes: u64,
+        received_bytes: u64,
+        elapsed_ms: u64,
+        outcome: crate::proto::ResourceChannelOutcome,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -112,6 +127,39 @@ pub fn dispatch_message(bytes: &[u8]) -> Result<DispatchResult, String> {
         ServiceMessageType::FrontendAdmissionResult => {
             return Err("frontend_admission_result is outbound only".to_string())
         }
+        ServiceMessageType::ResourceChannelOpenRequest => {
+            let request = message
+                .resource_channel_open_request
+                .ok_or("missing resource_channel_open_request payload")?;
+            Command::OpenResourceChannel {
+                request_id: request.request_id,
+                source_id: request.source_id,
+                session_id: request.session_id,
+                channel_kind: crate::proto::ResourceChannelKind::try_from(request.channel_kind)
+                    .map_err(|_| "unknown resource channel kind")?,
+            }
+        }
+        ServiceMessageType::ResourceChannelOpenResult => {
+            return Err("resource_channel_open_result is outbound only".to_string())
+        }
+        ServiceMessageType::ResourceChannelReportRequest => {
+            let request = message
+                .resource_channel_report_request
+                .ok_or("missing resource_channel_report_request payload")?;
+            Command::ReportResourceChannel {
+                request_id: request.request_id,
+                channel_id: request.channel_id,
+                sequence: request.sequence,
+                sent_bytes: request.sent_bytes,
+                received_bytes: request.received_bytes,
+                elapsed_ms: request.elapsed_ms,
+                outcome: crate::proto::ResourceChannelOutcome::try_from(request.outcome)
+                    .map_err(|_| "unknown resource channel outcome")?,
+            }
+        }
+        ServiceMessageType::ResourceChannelReportResult => {
+            return Err("resource_channel_report_result is outbound only".to_string())
+        }
     };
     Ok(DispatchResult { command })
 }
@@ -121,8 +169,9 @@ mod tests {
     use super::*;
     use crate::proto::{
         encode_service_message, MsgAuthInfo, MsgFrontendAdmissionRequest, MsgHeartBeat,
-        MsgReqCtrlAltDelete, MsgRestartServer, MsgStartServer, MsgVirtualDisplayRequest,
-        ServiceMessage,
+        MsgReqCtrlAltDelete, MsgResourceChannelOpenRequest, MsgResourceChannelReportRequest,
+        MsgRestartServer, MsgStartServer, MsgVirtualDisplayRequest, ResourceChannelKind,
+        ResourceChannelOutcome, ServiceMessage,
     };
 
     #[test]
@@ -303,6 +352,55 @@ mod tests {
         assert_eq!(
             dispatch_message(&bytes).unwrap_err(),
             "frontend_admission_result is outbound only"
+        );
+    }
+
+    #[test]
+    fn dispatch_resource_channel_operations() {
+        let open = encode_service_message(&ServiceMessage {
+            r#type: ServiceMessageType::ResourceChannelOpenRequest as i32,
+            resource_channel_open_request: Some(MsgResourceChannelOpenRequest {
+                request_id: "open-1".into(),
+                source_id: "01994ddb-b930-7480-a15d-0a5176d1cc61".into(),
+                session_id: "01994ddb-b930-7480-a15d-0a5176d1cc62".into(),
+                channel_kind: ResourceChannelKind::Media as i32,
+            }),
+            ..Default::default()
+        });
+        assert_eq!(
+            dispatch_message(&open).unwrap().command,
+            Command::OpenResourceChannel {
+                request_id: "open-1".into(),
+                source_id: "01994ddb-b930-7480-a15d-0a5176d1cc61".into(),
+                session_id: "01994ddb-b930-7480-a15d-0a5176d1cc62".into(),
+                channel_kind: ResourceChannelKind::Media,
+            }
+        );
+
+        let report = encode_service_message(&ServiceMessage {
+            r#type: ServiceMessageType::ResourceChannelReportRequest as i32,
+            resource_channel_report_request: Some(MsgResourceChannelReportRequest {
+                request_id: "report-1".into(),
+                channel_id: "01994ddb-b930-7480-a15d-0a5176d1cc63".into(),
+                sequence: 2,
+                sent_bytes: 100,
+                received_bytes: 25,
+                elapsed_ms: 500,
+                outcome: ResourceChannelOutcome::TransportLost as i32,
+            }),
+            ..Default::default()
+        });
+        assert_eq!(
+            dispatch_message(&report).unwrap().command,
+            Command::ReportResourceChannel {
+                request_id: "report-1".into(),
+                channel_id: "01994ddb-b930-7480-a15d-0a5176d1cc63".into(),
+                sequence: 2,
+                sent_bytes: 100,
+                received_bytes: 25,
+                elapsed_ms: 500,
+                outcome: ResourceChannelOutcome::TransportLost,
+            }
         );
     }
 }

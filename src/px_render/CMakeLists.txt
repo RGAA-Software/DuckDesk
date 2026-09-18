@@ -45,6 +45,7 @@ set(SRCS
         network/net_message_maker.cpp
         network/server_cast.cpp
         network/render_service_client.cpp
+        network/resource_channel_reporter.cpp
         app/encoder_thread.cpp
         modules/render_module_registry.cpp
         ingress/render_event_ingress.cpp

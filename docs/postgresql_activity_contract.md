@@ -2,8 +2,8 @@
 
 2026-09-17，DB2-D 活动记录契约。文件传输 repository 已通过跨平台回归，录像目录已通过专项测试；
 具名设置已通过跨平台 repository 回归；缓存协调器已通过 Windows 专项、完整跨平台回归进行中。
-连接观察已通过 Windows 专项；Console 节点 wire 与处理器已接入通道、文件传输和录像上报，但 Windows Service/Render 的实际生产者
-仍待接入，本文不是整体验收通过声明。
+连接观察已通过 Windows 专项；Console 节点 wire 与处理器已接入通道、文件传输和录像上报。Windows Render 已把真实前端连接/断开
+事件经 Service 转发为媒体或 RDP 通道的创建与终态，文件传输、录像以及周期字节/质量进度的实际生产者仍待接入，本文不是整体验收通过声明。
 
 ## 区分业务对象
 
@@ -41,8 +41,14 @@ RDP 人数不变、原登录撤销、同主体新登录读历史、Guest/Android
 源码 hash 已核对；新十二领域共享池和完整跨平台恢复仍以接下来的完整报告为准。
 
 后续节点协议已经加入 `open_channel` / `report_channel`，并复用受认证 NodeConnection、严格递增 request_id、session/node/generation
-和 frontend lease 门禁；Console 端可持久化并回传精确 channel 状态。当前缺口在生产侧：Service/Render 尚未从真实控制、媒体、音频、
-文件或 RDP carrier 生命周期生成这些消息，因此现有 wire/handler 测试不能代替 DB5 的真实通道行为。
+和 frontend lease 门禁；Console 端可持久化并回传精确 channel 状态。Render 只在 WebRTC/RDP 实际连接事件后查找已准入的逻辑会话，
+为每次连接生成独立 source UUID，经本机 Service 的异步 IPC 转发到当前 Console 节点长连接；SDP/端口分配本身不创建观察，无法对应
+规范 session UUID 的桌面密码或本地会话也不会伪造记录。实际断开上报 `peer_closed`、固定首个终态序号与测得的 elapsed_ms；若断开发生
+在 open 回执之前，关闭意图保留到 channel UUID 返回后再提交，Render/Service 停止及迟到回执由异步 scope 和请求 registry 收敛。
+
+当前实现仅证明媒体/RDP carrier 的连接生命周期，不把零字节冒充媒体统计：终态的 sent/received 仍为 0，尚无周期 progress、音频/控制
+独立通道、文件字节流或录像文件生产者。Service 的真实 WebSocket 测试覆盖 open/report 的 ID、序号和 revision 保真，Render RPC 测试
+覆盖断线失败与迟到回执拒绝；这些证据仍不能替代 DB5 的公网首帧、输入、音频、真实流量计数及客户端可见历史验收。
 
 ## 文件传输记录实现
 

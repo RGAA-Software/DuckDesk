@@ -16,6 +16,10 @@ enum ServiceMessageType {
   kSrvAppInstanceReady = 11;
   kSrvFrontendAdmissionRequest = 12;
   kSrvFrontendAdmissionResult = 13;
+  kSrvResourceChannelOpenRequest = 14;
+  kSrvResourceChannelOpenResult = 15;
+  kSrvResourceChannelReportRequest = 16;
+  kSrvResourceChannelReportResult = 17;
 }
 
 enum VirtualDisplayOperation {
@@ -138,6 +142,60 @@ message MsgFrontendAdmissionResult {
   uint32 valid_for_ms = 12;
 }
 
+enum ResourceChannelKind {
+  kResourceChannelControl = 0;
+  kResourceChannelMedia = 1;
+  kResourceChannelAudio = 2;
+  kResourceChannelFile = 3;
+  kResourceChannelRdp = 4;
+}
+
+enum ResourceChannelOutcome {
+  kResourceChannelProgress = 0;
+  kResourceChannelPeerClosed = 1;
+  kResourceChannelUserStopped = 2;
+  kResourceChannelTransportLost = 3;
+  kResourceChannelPolicyRevoked = 4;
+  kResourceChannelIoError = 5;
+}
+
+message MsgResourceChannelOpenRequest {
+  string request_id = 1;
+  string source_id = 2;
+  string session_id = 3;
+  ResourceChannelKind channel_kind = 4;
+}
+
+message MsgResourceChannelOpenResult {
+  string request_id = 1;
+  bool accepted = 2;
+  string error_code = 3;
+  string channel_id = 4;
+  string state = 5;
+  int64 sequence = 6;
+  int64 revision = 7;
+}
+
+message MsgResourceChannelReportRequest {
+  string request_id = 1;
+  string channel_id = 2;
+  uint64 sequence = 3;
+  uint64 sent_bytes = 4;
+  uint64 received_bytes = 5;
+  uint64 elapsed_ms = 6;
+  ResourceChannelOutcome outcome = 7;
+}
+
+message MsgResourceChannelReportResult {
+  string request_id = 1;
+  bool accepted = 2;
+  string error_code = 3;
+  string channel_id = 4;
+  string state = 5;
+  int64 sequence = 6;
+  int64 revision = 7;
+}
+
 message ServiceMessage {
   ServiceMessageType type = 1;
   MsgStartServer start_server = 2;
@@ -154,4 +212,8 @@ message ServiceMessage {
   MsgAppInstanceReady app_instance_ready = 13;
   MsgFrontendAdmissionRequest frontend_admission_request = 14;
   MsgFrontendAdmissionResult frontend_admission_result = 15;
+  MsgResourceChannelOpenRequest resource_channel_open_request = 16;
+  MsgResourceChannelOpenResult resource_channel_open_result = 17;
+  MsgResourceChannelReportRequest resource_channel_report_request = 18;
+  MsgResourceChannelReportResult resource_channel_report_result = 19;
 }
