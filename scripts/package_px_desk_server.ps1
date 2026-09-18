@@ -12,8 +12,8 @@ function Invoke-Build([string]$Executable, [string[]]$Arguments) {
 Push-Location $repo
 try {
     Invoke-Build 'python' @((Join-Path $workspace 'set_server_version.py'),'px_desk_server','--bump')
-    Invoke-Build 'npm.cmd' @('--prefix',(Join-Path $repo 'web/px_desk'),'ci')
-    Invoke-Build 'npm.cmd' @('--prefix',(Join-Path $repo 'web/px_desk'),'run','build')
+    Invoke-Build 'npm.cmd' @('--prefix',(Join-Path $repo 'web/px_pixels'),'ci')
+    Invoke-Build 'npm.cmd' @('--prefix',(Join-Path $repo 'web/px_pixels'),'run','build')
     Invoke-Build 'cargo' @('build','--locked','--release','--manifest-path',(Join-Path $workspace 'Cargo.toml'),'-p','px_desk_server','-p','px_pg','--target-dir',(Join-Path $repo '.cache/desk-release'))
     # New directory only: packaging never recursively deletes an existing deployment or credentials.
     $releaseRoot = Join-Path $repo 'output/px_desk/releases'
@@ -25,7 +25,7 @@ try {
         Copy-Item -LiteralPath $source -Destination $destination
         if ((Get-FileHash -LiteralPath $source).Hash -ne (Get-FileHash -LiteralPath $destination).Hash) { throw "Artifact mismatch: $name" }
     }
-    $web = Join-Path $repo 'web/px_desk/dist'
+    $web = Join-Path $repo 'web/px_pixels/dist'
     $webTarget = Join-Path $release 'static'
     Copy-Item -LiteralPath $web -Destination $webTarget -Recurse
     foreach ($source in Get-ChildItem -LiteralPath $web -File -Recurse) {

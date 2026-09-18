@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-6 -6 39 39" role="img" aria-labelledby="title">
+  <title id="title">Pixels logo, rotated 45 degrees</title>
+  <g transform="rotate(45 13.5 13.5)" fill="#087e74">
+    <circle cx="3.5" cy="3.5" r="3.5" />
+    <circle cx="13.5" cy="3.5" r="3.5" />
+    <circle cx="23.5" cy="3.5" r="3.5" opacity=".35" />
+    <circle cx="3.5" cy="13.5" r="3.5" />
+    <circle cx="13.5" cy="13.5" r="3.5" />
+    <circle cx="23.5" cy="13.5" r="3.5" />
+    <circle cx="3.5" cy="23.5" r="3.5" />
+    <circle cx="13.5" cy="23.5" r="3.5" opacity=".35" />
+    <circle cx="23.5" cy="23.5" r="3.5" />
+  </g>
+</svg>

@@ -5,7 +5,7 @@ rem ============================================================================
 rem build_px_desk_server.bat
 rem
 rem Build and deploy px_desk_server in one step:
-rem   [1/3] Build the Vue frontend   web\px_desk         (npm run build)
+rem   [1/3] Build the Vue frontend   web\px_pixels       (npm run build)
 rem   [2/3] Build the Rust server    px_desk_server      (cargo build --release)
 rem   [3/3] Copy artifacts into      output\px_desk\
 rem           exe      -> output\px_desk\px_desk.exe
@@ -27,7 +27,7 @@ set "REPO_ROOT=%cd%"
 rem --- Per-server settings ---
 set "SERVER_NAME=px_desk_server"
 set "EXE_NAME=px_desk"
-set "WEB_SRC=%REPO_ROOT%\web\px_desk"
+set "WEB_SRC=%REPO_ROOT%\web\px_pixels"
 rem Subdirectory under output\%EXE_NAME%\ that holds the frontend files.
 set "WEB_SUBDIR=static"
 set "OUTPUT_DIR=%REPO_ROOT%\output\%EXE_NAME%"

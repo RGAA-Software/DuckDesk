@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      /* 暗色模式：首屏前应用主题，避免闪烁 */
+      ;(function () {
+        var saved = null
+        try {
+          saved = localStorage.getItem('px-theme')
+        } catch (e) {}
+        var dark =
+          saved === 'dark' ||
+          (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+      })()
+    </script>
+    <meta
+      name="description"
+      content="PIXELS —— 企业云渲染解决方案。为游戏、影视、政企等行业客户提供云游戏、云渲染、云桌面、远程桌面一体化技术服务与解决方案。"
+    />
+    <title>PIXELS · 企业云渲染解决方案</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

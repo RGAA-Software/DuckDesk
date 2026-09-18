@@ -1,0 +1,51 @@
+/* ============================================================
+   PIXELS · 设计变量（浅色 / 暗色双主题）
+   主题色：#00b96b（浅绿色）
+   ============================================================ */
+:root {
+  --px-green: #00b96b;
+  --px-green-dark: #009a59;
+  --px-green-strong: #009a59;
+  --px-green-deep: #0a2e1f;
+  --px-green-bg: #f0fff6;
+  --px-ink: #16251d;
+  --px-gray: #5d7066;
+  --px-line: #e2efe8;
+  --px-mono: 'SFMono-Regular', 'JetBrains Mono', Consolas, 'Courier New', monospace;
+  --px-shadow: 0 4px 0 rgba(0, 185, 107, 0.18);
+
+  /* 云朵三色层次（高光 / 主色 / 阴影） */
+  --px-cloud-light: #8ceec0;
+  --px-cloud-dark: #009a59;
+
+  /* 主题化表面 */
+  --px-bg: #ffffff;
+  --px-surface: #ffffff;
+  --px-section-alt: #f7fcf9;
+  --px-hero-bg: #f8fdfa;
+  --px-header-bg: rgba(255, 255, 255, 0.86);
+  --px-header-bg-solid: rgba(255, 255, 255, 0.94);
+  --px-grid-line: rgba(0, 185, 107, 0.06);
+  --px-terminal-bg: #0c2b1f;
+  --px-terminal-stroke: transparent;
+}
+
+html[data-theme='dark'] {
+  --px-green-strong: #00d97e;
+  --px-green-deep: #050d08;
+  --px-green-bg: rgba(0, 185, 107, 0.12);
+  --px-cloud-light: #2fd88f;
+  --px-cloud-dark: #00794a;
+  --px-ink: #e3efe8;
+  --px-gray: #8fa89c;
+  --px-line: #22362c;
+  --px-bg: #0c1410;
+  --px-surface: #131e18;
+  --px-section-alt: #0f1a14;
+  --px-hero-bg: #0e1913;
+  --px-header-bg: rgba(12, 20, 16, 0.82);
+  --px-header-bg-solid: rgba(12, 20, 16, 0.95);
+  --px-grid-line: rgba(0, 185, 107, 0.12);
+  --px-terminal-bg: #102a1e;
+  --px-terminal-stroke: rgba(255, 255, 255, 0.14);
+}

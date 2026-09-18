@@ -9,7 +9,7 @@ Desk 提供咨询/问题反馈、管理列表和版本元数据；不承担 Cons
 数据库字段、权限及新 API 见[Desk 契约](postgresql_desk_contract.md)。
 
 - Rust：`rust_server/px_desk_server`。入口 main 只装配配置、PG、HTTP/TLS 和退出；auth、model、store、handlers 分工。
-- Vue：`web/px_desk`。门户及产品页保留；`ContactUs.vue` 提交咨询，`MainPage.vue` 提交问题；
+- Vue：`web/px_pixels`。门户及产品页保留；`ContactUs.vue` 提交咨询，`MainPage.vue` 提交问题；
   `/admin` 换取短期会话，`/admin/panel` 分页查看及 CAS 标记、服务端撤销退出。
 - 匿名提交只返回 UUID receipt；相同请求 ID/正文重试幂等，管理会话方可读取联系方式。
 - 浏览器只保存短期会话，不保存原始管理凭据。所有 API 同源；未知 `/api` 路由 404，不转发旧 API。
@@ -43,7 +43,7 @@ Desk 提供咨询/问题反馈、管理列表和版本元数据；不承担 Cons
 
 ```powershell
 cargo build --locked --manifest-path rust_server/Cargo.toml -p px_desk_server -p px_pg --target-dir .cache/pg-cargo
-npm --prefix web/px_desk run build
+npm --prefix web/px_pixels run build
 pwsh -NoProfile -File scripts/server_validation/postgres.ps1 Test -Linux
 ```
 
@@ -51,7 +51,7 @@ pwsh -NoProfile -File scripts/server_validation/postgres.ps1 Test -Linux
 再验证真实 Desk 进程重启与 PG 停机/恢复；只清理本次随机测试容器与卷，不碰其他库。
 日志和 hash 在 `test-results/server_validation/<run_id>`；失败、缺环境、未运行不算通过。
 
-前端单独调试：将 `PIXELS_DESK_DEV_TARGET` 设为自己启动的 Desk 地址，然后 `npm --prefix web/px_desk run dev`。
+前端单独调试：将 `PIXELS_PIXELS_DEV_TARGET` 设为自己启动的 Desk 地址，然后 `npm --prefix web/px_pixels run dev`。
 不配置则不代理；不硬编码服务器，不关闭 TLS 证书校验。
 正式发布使用 `scripts/package_px_desk_server.bat`，它会完整构建 Desk 并提升其版本，输出新的 `output/px_desk/releases/<批次>`；
 含 px_desk、px_db、static 和 SHA-256 清单，不携带真实密钥，不删除既有发布目录。日常调试不运行此入口。

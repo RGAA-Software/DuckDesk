@@ -1,11 +1,28 @@
-import { createApp } from 'vue'
-import Antd from 'ant-design-vue'
-import 'ant-design-vue/dist/reset.css'
-/* 像素字体（Press Start 2P，OFL 开源许可）—— 仅打包 latin 子集，随项目构建产物部署 */
-import '@fontsource/press-start-2p/latin-400.css'
-import App from './App.vue'
-import { i18n } from './i18n'
-import './styles/variables.css'
-import './styles/base.css'
+import './assets/main.css'
 
-createApp(App).use(Antd).use(i18n).mount('#app')
+import { createApp } from 'vue'
+import { createPinia } from 'pinia'
+
+import ElementPlus from 'element-plus'
+import 'element-plus/dist/index.css'
+import 'element-plus/theme-chalk/dark/css-vars.css'
+import * as ElementPlusIconsVue from '@element-plus/icons-vue'
+
+import App from './App.vue'
+import router from './router'
+import i18n from './locales/i18n'
+import reveal from './directives/reveal'
+
+const app = createApp(App)
+
+app.directive('reveal', reveal)
+
+for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
+  app.component(key, component)
+}
+
+app.use(createPinia())
+app.use(router)
+app.use(ElementPlus, { size: 'default', zIndex: 3000 })
+app.use(i18n)
+app.mount('#app')
