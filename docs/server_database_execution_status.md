@@ -704,7 +704,7 @@ Cloud Node 与 Remote 的产品专属 Rust release 目录已分别重编译。Wi
 以及 Remote dist 中既有 `px_render.exe` 与各自旧清单不一致，完整 dist 校验按设计失败，故公网发布器没有绕过预检部署。
 这些既有整包不一致必须由下一次获准的正式完整产品构建从干净沙箱重新收集和签章；本次不擅自认可或覆盖无关制品。
 
-节点遥测第二切片已在当前待提交 revision 建立原始历史事实链。迁移 0025 新增 `node_telemetry_history` 和 `node_gpu_history`；
+节点遥测第二切片已在 revision `1a3926dca` 建立原始历史事实链。迁移 0025 新增 `node_telemetry_history` 和 `node_gpu_history`；
 每个通过 generation/sequence 门禁的报告在 latest 更新同一事务追加机器与 GPU 样本，GPU 以复合外键绑定确切报告。管理 API
 `/api/console/managed/nodes/{id}/telemetry` 使用 `received_at + node_generation + report_sequence` 完整游标，管理员节点页面显示最近
 100 条原始样本；未知值仍保持 NULL。Console 的独立保留任务每分钟最多删除 5000 条超过 7 天的机器样本并级联 GPU 历史，任务与
@@ -725,6 +725,13 @@ Cloud Node 与 Remote 的产品专属 Rust release 目录已分别重编译。Wi
 但验证器入参仍传 24，导致备份核心 51 项中 50 项通过、1 项失败。两处调用统一为 25 后必须先通过完整备份核心和真实恢复专项，
 再重跑跨平台总门禁；该失败同样保留且不作为通过证据。修正后备份核心 61/61 报告
 `pg-20260918-221553-67cbf53d` 通过，真实恢复专项继续引用同一 schema 下已经通过的 `pg-20260918-221251-08565558`。
+
+修正后的完整跨平台门禁 `pg-20260918-221714-7b1f394b` 已在 revision
+`636e9c2e6cce4793cb0855a15f82e63dc0cca130` 通过：745/745 项 PASS、0 FAIL。Windows 与 WSL Linux
+服务器测试、253 条 Console SQLx、Desk/Auth SQLx、四套 Web 生产构建、Console Web 33 项、Console/Auth/Desk 真实浏览器、
+数据库失联/恢复、三库协调备份与全新库恢复均通过；1073 个登记源文件在整轮中 SHA-256 不变，20 组工具/Web 制品摘要已记录，
+隔离测试资源已清理。报告 scope 仍明确标注“完整 DB0–DB5 验收未完成”；本结果关闭节点原始历史切片及其回归问题，不能关闭阈值事件、
+管理实时流、公网产品部署或下表其余阶段出口。
 
 ## 仍未通过的阶段出口
 
