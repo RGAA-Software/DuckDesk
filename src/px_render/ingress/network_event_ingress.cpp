@@ -346,8 +346,10 @@ void NetworkEventIngress::InitListeners() {
 void NetworkEventIngress::ProcessClientConnectedEvent(const std::shared_ptr<ClientConnectedEvent>& event, const std::string& source_id) {
     const auto binding_id = ResourceChannelBindingId(source_id, event->stream_id_);
     const auto logical_sessions = app_->GetLogicalSessionRegistry();
-    const auto logical_session_id =
-        binding_id && logical_sessions ? logical_sessions->FindLogicalSessionIdByBinding(*binding_id, CurrentSystemMilliseconds()) : std::nullopt;
+    const auto logical_session_id = !event->logical_session_id_.empty()
+        ? std::optional<std::string>(event->logical_session_id_)
+        : (binding_id && logical_sessions ? logical_sessions->FindLogicalSessionIdByBinding(*binding_id, CurrentSystemMilliseconds())
+                                          : std::nullopt);
     const auto resource_connection_key = ResourceChannelConnectionKey(source_id, event->connection_id_, event->stream_id_);
     if (logical_session_id && !resource_connection_key.empty()) {
         app_->OpenConsoleResourceChannel(resource_connection_key, *logical_session_id,
@@ -374,6 +376,7 @@ void NetworkEventIngress::ProcessClientConnectedEvent(const std::shared_ptr<Clie
     }
     if (const auto media_bus = context_->GetEncodedMediaBus()) {
         media_bus->PublishClientConnected(render::MediaClientConnected{
+            .logical_session_id = logical_session_id.value_or(std::string{}),
             .visitor_device_id = event->visitor_device_id_,
             .stream_id = event->stream_id_,
             .transport = event->connection_type_,
@@ -446,6 +449,7 @@ void NetworkEventIngress::ProcessClientDisConnectedEvent(const std::shared_ptr<C
     }
     if (const auto media_bus = context_->GetEncodedMediaBus()) {
         media_bus->PublishClientDisconnected(render::MediaClientDisconnected{
+            .logical_session_id = event->logical_session_id_,
             .visitor_device_id = event->visitor_device_id_,
             .stream_id = event->stream_id_,
             .transport = source_id,

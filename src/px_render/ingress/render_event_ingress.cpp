@@ -52,6 +52,7 @@ void RenderEventIngress::ProcessWebRtcEvent(const std::string& source_id, const 
                 owner.network_ingress_->ProcessNetEvent(network_event, source_id);
             } else if constexpr (std::is_same_v<Event, WebRtcClientConnectedEvent>) {
                 auto connected = std::make_shared<ClientConnectedEvent>();
+                connected->logical_session_id_ = value.logical_session_id;
                 connected->connection_id_ = value.connection_id;
                 connected->stream_id_ = value.stream_id;
                 connected->connection_type_ = value.connection_type;

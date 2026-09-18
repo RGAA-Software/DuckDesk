@@ -64,11 +64,15 @@ identity 的上传能力。大文件不进入控制 WebSocket，而是 PUT 到�
 `/api/console/node-recording-cache/<attempt-id>`，请求必须使用 `application/octet-stream`、精确 Content-Length 且不得携带浏览器、Origin、
 代理或查询参数身份。Console 在读取正文前重新验证当前节点权威，边收边校验大小和 SHA-256，成功 sync/rename 后才提交 ready。
 
-Windows Service 从 `C:\Users\Public\Pixels\px_render_records` 读取 Render 已完成的直接子文件；存在 `.recording` 标记、重解析点、非普通
-文件、非 MP4、空文件或超过 1 TiB 的对象不会上报/上传。Service 在自己的 `px_data` 中原子持久化 source UUID、hash、sequence 和
-present 状态，重连时重新向当前 generation 报告，文件消失时显式报告撤下。当前目录扫描得到的录像尚不具有可靠的单一
-resource-session 归属，因此只报告 `session_id=null`；管理员链路可完整使用，Cloud Application 本人录像归属必须由 Render 完成段事件
-携带 session UUID 后再关闭，不能用设备或账号猜测兜底。
+Render 只在 MP4 trailer、flush、close 和 `.recording` 标记移除全部成功后，通过带临时 bearer 的本机类型化 IPC 发送完成段事件。
+事件携带文件 basename、codec 和可证明的 resource-session UUID；同一录像段出现未知或不同会话时，该段永久降级为
+`session_id=null`，绝不使用设备、账号或当前连接猜测 owner。Service 只登记此事件明确完成的文件，不把目录中裸 MP4 自动纳入清单。
+
+Service 从 `C:\Users\Public\Pixels\px_render_records` 重新校验已登记的直接子文件；存在 `.recording` 标记、重解析点、非普通文件、
+非 MP4、空文件或超过 1 TiB 的对象不会上报/上传。Service 在自己的 `px_data` 中原子持久化 source UUID、session UUID、codec、hash、
+sequence 和 present 状态，重连时重新向当前 generation 报告，文件消失或被替换时显式报告撤下。Render 对未确认事件在当前进程内
+有界保留并在 IPC 重连后重发，Service 对相同完成元数据幂等确认；冲突元数据 fail-closed。具有唯一 Cloud Application session 的录像
+可以进入本人授权链，无法唯一归属的录像只允许管理员链使用。
 
 ## 构建与发行
 

@@ -787,12 +787,18 @@ DB2-A 录像读取增量已把部署绑定的私有缓存作为正式 Console �
 Direct Host 观察者首个逻辑会话现在只在认证权限明确包含 `input` 时允许输入；聚焦 CTest 1/1、所有权/150 列门禁通过，Cloud Node
 构建树与 dist 的 `px_render.exe` SHA-256 同为 `B334B348C84A5854B517A95E32E378D15685A520E1EAC93B57145D45790B1554`。
 节点生产增量随后新增控制面 `poll_recording_cache` 和独立 HTTP 数据面：一次性上传能力绑定当前 generation、attempt、source UUID、大小与
-SHA-256；Console 在正文前复核节点权威并有界流式落盘。Windows Service 只发现 Render 目录内已完成、非重解析点的 MP4，原子持久化
-source identity/sequence/present，跨重连重报并显式报告文件消失。真实 PG+WS+HTTP 上传+令牌重放拒绝+Range 下载专项
-`pg-20260919-043253-aa62e48a` 为 1/1，Service 单元/真实 HTTP 流测试为 81/81。Cloud Node 与 Remote 的构建树、stage 和 dist
-`px_service.exe` SHA-256 均为 `BD206D8C90B0FA0C573DBDF3CD7836DF5A92729C9AACC16A2E4053680B3C5480`。这些证据关闭通用录像
-字节生产/缓存/管理下载链；当前扫描无法证明单一 Cloud Application resource-session owner，只能上报 `session_id=null`，因此本人录像归属、
-本人客户端下载页面和公网真实录制仍未完成，不能宣称 DB2-A 客户端全链路完成。
+SHA-256；Console 在正文前复核节点权威并有界流式落盘。Windows Service 原子持久化完成事件登记的
+source identity/session/codec/sequence/present，跨重连重报并显式报告文件消失。真实 PG+WS+HTTP 上传+令牌重放拒绝+Range 下载专项
+`pg-20260919-043253-aa62e48a` 为 1/1。
+
+随后 Render 完成段链已关闭 session 归属缺口：WS、Relay 与 Direct Host ingress 都把既有逻辑 session 送入录像 sink；单 owner 段携带
+resource-session UUID，不同/未知 owner 段永久降级为 null。MP4 只有完成 trailer/flush/close 后才通过 bearer 鉴权的本机类型化 IPC 登记；
+Service 忽略目录裸文件，严格复核 basename、regular/reparse、大小、hash 和 `.recording` 标记，并对相同事件幂等、冲突事件拒绝。
+`service_core` 为 88/89 PASS（1 项真实 UE fixture 按设计 ignored），`px_service` 为 83/83 PASS，录像 CTest 为 2/2 PASS。Cloud Node 与
+Remote 的 stage/dist `px_service.exe` SHA-256 均为
+`DF0CACA9FE51040287EE1CCE608EE7499267E9A0A0583B85F2D1298A9D9F8107`；Cloud Node Render build/dist SHA-256 均为
+`6BAED2CB2A8A0106666B781DD93949A573F87274A5AF3B861C8D4754EA89F2E9`。这些证据关闭通用录像字节链和唯一会话归属链；本人客户端下载页面
+与公网真实录制仍未完成，不能宣称 DB2-A 客户端全链路完成。
 
 ## 仍未通过的阶段出口
 
@@ -804,8 +810,8 @@ Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 W
 |---|---|
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |
 | DB1-EXIT | 完成：Desk/Auth 产品服务与 PostgreSQL Console 正式 `px_console.exe` 均已接入；三者具有独立发行入口。Console 当前 3.2.21 发行、进程断库 fail-closed、真实浏览器和制品哈希已通过；后续能力缺口归 DB2–DB5，不再把旧 Mongo 组合根当产品入口 |
-| DB2-A | 身份/管理HTTP、本人资料/头像、密码计算/限流/Origin、访客HMAC/会话/公开目录、Saved Connections、本人实例列表、更新目录、访问/通道/传输历史及录像目录HTTP、严格配置、稳定私钥加载、独立初始化CLI、静态文件服务及进程生命周期已实现；Console用户门户及管理后台的当前目录/身份/状态入口均已切新bearer/主体API，源码不再保留旧`/api/v1`，正式PostgreSQL产品二进制和发行包已切换。部署绑定录像缓存、本人/管理员授权Range下载、Windows Service真实字节生产和管理页动作已接；Direct Host观察者不再默认获得输入。仍需Render完成段明确session归属、本人客户端下载界面及公网客户端全链路；视频墙延期，ZLM直播和RTC/TURN管理明确退役，不再作为待实现项 |
-| DB2-B/C/D | 设备/应用/节点/部署目录、user/guest资源入口、更新与历史元数据入口及Console节点WS已接；Windows Service已切到新节点协议并实现部署准备、调和、命令fencing、精确launch ACK、Render前端准入转发、实际媒体/RDP通道生命周期、遥测及通用录像字节上传。ZLM/Coturn/中央RTC signaling已归档移除，Windows/Web/Render/Service/Console的Direct Host活动代码和聚焦构建已接通。仍需Relay既有数据真机回归、公网首帧/输入/音频与持续续租/撤销、Android直连、逐GPU指标、趋势/断线补报/管理实时流、GPU/RDP执行、周期通道指标、文件传输字节生产、录像session归属、无人值守更新及其余产品入口 |
+| DB2-A | 身份/管理HTTP、本人资料/头像、密码计算/限流/Origin、访客HMAC/会话/公开目录、Saved Connections、本人实例列表、更新目录、访问/通道/传输历史及录像目录HTTP、严格配置、稳定私钥加载、独立初始化CLI、静态文件服务及进程生命周期已实现；Console用户门户及管理后台的当前目录/身份/状态入口均已切新bearer/主体API，源码不再保留旧`/api/v1`，正式PostgreSQL产品二进制和发行包已切换。部署绑定录像缓存、本人/管理员授权Range下载、Render完成段session归属、Windows Service真实字节生产和管理页动作已接；Direct Host观察者不再默认获得输入。仍需本人客户端下载界面及公网客户端全链路；视频墙延期，ZLM直播和RTC/TURN管理明确退役，不再作为待实现项 |
+| DB2-B/C/D | 设备/应用/节点/部署目录、user/guest资源入口、更新与历史元数据入口及Console节点WS已接；Windows Service已切到新节点协议并实现部署准备、调和、命令fencing、精确launch ACK、Render前端准入转发、实际媒体/RDP通道生命周期、遥测、录像session归属及通用录像字节上传。ZLM/Coturn/中央RTC signaling已归档移除，Windows/Web/Render/Service/Console的Direct Host活动代码和聚焦构建已接通。仍需Relay既有数据真机回归、公网首帧/输入/音频与持续续租/撤销、Android直连、逐GPU指标、趋势/断线补报/管理实时流、GPU/RDP执行、周期通道指标、文件传输字节生产、无人值守更新及其余产品入口 |
 | DB2-EXIT / DB3 | Desk/Auth 独立产品流程已验证；Console 与共享消费者仍待去 Mongo、接新签发/验证及库外水位，Auth 通知 outbox 尚未接通；不建设运行时双后端 |
 | DB4 | 恢复集、保留、异机复制、恢复准入/执行/封印、三库写屏障/安全水位、外部见证、Auth keyring、pgBackRest/WAL/PITR、Windows SCM包及WSL2 systemd生命周期已实现。开发期仍需目标Linux发行版VM短测、Pixels外层签名/生产密钥托管、独立主机或对象仓库一次完整恢复、目标环境keyring/见证轮换及真实节点与Windows/RDP事实对账；连续7天窗口和自然周期稳定性统一放到DB5功能通过后的长测，不阻塞每个开发切片 |
 | DB5 | 全新环境服务端—Windows Client/Web Client—Render/Service—Relay—Android功能回归及完整制品验收；必须证明Direct Host与Relay分别正常且安装包不含ZLM/Coturn，先短测通过，最后统一长测 |

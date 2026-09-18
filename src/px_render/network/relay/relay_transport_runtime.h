@@ -113,7 +113,8 @@ class RelayTransportRuntime final : public std::enable_shared_from_this<RelayTra
 
     void Emit(RenderEvent event, bool directly = false);
     void EmitNetMessage(std::shared_ptr<Data> message, const TransportChannel& channel, std::string connection_instance_id, bool directly);
-    void NotifyClientConnected(const std::string& connection_id, const std::string& stream_id, const std::string& visitor_device_id);
+    void NotifyClientConnected(const std::string& connection_id, const std::string& stream_id, const std::string& visitor_device_id,
+                               const std::string& logical_session_id);
     void NotifyClientDisconnected(const std::string& connection_id, const std::string& stream_id, const std::string& visitor_device_id,
                                   int64_t begin_timestamp, const std::string& logical_session_id = {});
     void ReportRelayAlive(const std::string& device_id);

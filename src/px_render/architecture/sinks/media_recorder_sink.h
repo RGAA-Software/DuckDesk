@@ -9,7 +9,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
-#include <set>
+#include <optional>
 #include <string>
 #include <thread>
 
@@ -21,12 +21,19 @@ namespace px::render {
 
 inline constexpr std::string_view kMediaRecorderModuleId = "21d1c305-e68c-4079-8a4a-d00735be609b";
 
+struct FinalizedRecordingSegment final {
+    std::string file_name;
+    std::optional<std::string> logical_session_id;
+    std::string codec;
+};
+
 struct MediaRecorderOptions final {
     std::string record_directory;
     bool auto_enabled{false};
     std::int64_t max_segment_bytes{1024LL * 1024 * 1024};
     int max_file_count{24};
     std::size_t queue_capacity{512};
+    std::function<void(const FinalizedRecordingSegment&)> on_segment_finalized;
 };
 
 struct MediaRecorderSnapshot final {
@@ -47,6 +54,7 @@ class MediaRecorderWriter {
     virtual ~MediaRecorderWriter() = default;
     virtual void OnVideo(const std::shared_ptr<const EncodedVideoFrame>& frame) = 0;
     virtual void OnAudio(const std::shared_ptr<const EncodedAudioFrame>& frame) = 0;
+    virtual void UpdateSessionOwner(const std::optional<std::string>& logical_session_id) = 0;
     virtual void Stop() = 0;
 };
 
@@ -55,7 +63,8 @@ class MediaRecorderSink final : public std::enable_shared_from_this<MediaRecorde
     using KeyframeRequester = std::function<void()>;
     using Completion = std::function<void(PxResult<void>)>;
     using WriterFactory = std::function<std::shared_ptr<MediaRecorderWriter>(const std::string& monitor_id, const MediaRecorderOptions& options,
-                                                                             const KeyframeRequester& request_keyframe)>;
+                                                                             const KeyframeRequester& request_keyframe,
+                                                                             const std::optional<std::string>& logical_session_id)>;
 
     [[nodiscard]] static std::shared_ptr<MediaRecorderSink> Create(std::shared_ptr<EncodedMediaBus> media_bus, MediaRecorderOptions options,
                                                                    KeyframeRequester request_keyframe, WriterFactory writer_factory = {});
@@ -80,12 +89,13 @@ class MediaRecorderSink final : public std::enable_shared_from_this<MediaRecorde
     [[nodiscard]] MediaRecorderSnapshot Snapshot() const;
 
   private:
-    enum class WorkType { kVideo, kAudio, kFinalize, kShutdown };
+    enum class WorkType { kVideo, kAudio, kOwnership, kFinalize, kShutdown };
 
     struct WorkItem final {
         WorkType type{WorkType::kFinalize};
         std::shared_ptr<const EncodedVideoFrame> video;
         std::shared_ptr<const EncodedAudioFrame> audio;
+        std::optional<std::string> logical_session_id;
         Completion completion;
     };
 
@@ -113,6 +123,7 @@ class MediaRecorderSink final : public std::enable_shared_from_this<MediaRecorde
         std::uint64_t video_packets_written{0};
         std::uint64_t audio_packets_written{0};
         std::uint64_t writer_failures{0};
+        std::optional<std::string> active_session_id;
     };
 
     void ActivateMediaSubscriptions();
@@ -124,6 +135,7 @@ class MediaRecorderSink final : public std::enable_shared_from_this<MediaRecorde
     void EnqueueVideo(std::shared_ptr<const EncodedVideoFrame> frame);
     void EnqueueAudio(std::shared_ptr<const EncodedAudioFrame> frame);
     void EnqueueMedia(WorkItem work);
+    void EnqueueOwnership(std::optional<std::string> logical_session_id);
     [[nodiscard]] bool RequestFinalize(Completion completion);
     [[nodiscard]] bool RequestShutdown(Completion completion);
     void JoinWorker();
@@ -151,7 +163,7 @@ class MediaRecorderSink final : public std::enable_shared_from_this<MediaRecorde
     std::shared_ptr<ScopedSubscription> audio_subscription_;
     std::shared_ptr<ScopedSubscription> client_connected_subscription_;
     std::shared_ptr<ScopedSubscription> client_disconnected_subscription_;
-    std::set<std::string> connected_clients_;
+    std::map<std::string, std::string> connected_clients_;
     std::atomic_bool running_{false};
     std::atomic_bool enabled_{true};
     std::atomic_bool recording_{false};

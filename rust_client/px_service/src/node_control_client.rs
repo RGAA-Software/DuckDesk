@@ -148,13 +148,15 @@ impl ProtocolSession {
     }
 }
 
-pub async fn node_control_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), String> {
+pub async fn node_control_loop(
+    runtime: Arc<Mutex<ServiceRuntime>>,
+    recording_inventory: Arc<std::sync::Mutex<RecordingInventory>>,
+) -> Result<(), String> {
     let product = ProductDescriptor::load_for_current_executable()?;
-    let (store, data_root, mut stop_rx, mut operations) = {
+    let (store, mut stop_rx, mut operations) = {
         let mut guard = runtime.lock().await;
         (
             NodeControlStore::new(guard.config.data_root.clone()),
-            guard.config.data_root.clone(),
             guard.subscribe_stop(),
             guard
                 .node_control_receiver
@@ -162,7 +164,6 @@ pub async fn node_control_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<()
                 .ok_or_else(|| "node-control operation receiver was already taken".to_string())?,
         )
     };
-    let recording_inventory = RecordingInventory::load(&data_root)?;
     loop {
         let configuration = loop {
             match store.load()? {
@@ -1576,6 +1577,15 @@ mod tests {
         )
         .unwrap();
         let inventory = RecordingInventory::load(&data_root).unwrap();
+        inventory
+            .lock()
+            .unwrap()
+            .register_completed(
+                "rec_mon0_20260919_04.30.00.mp4".into(),
+                Some(Uuid::new_v4()),
+                px_node_protocol::RecordingCodec::H264,
+            )
+            .unwrap();
         let report = inventory.lock().unwrap().scan().unwrap().remove(0);
         let attempt_id = Uuid::new_v4();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

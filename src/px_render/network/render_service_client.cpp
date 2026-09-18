@@ -16,7 +16,9 @@
 #include "px_common/async_scope_drain.h"
 #include "px_common/log.h"
 #include "px_common/message_notifier.h"
+#include "px_common/privacy_log.h"
 #include "px_common/reconnect_supervisor.h"
+#include "px_common/uuid.h"
 #include "px_common/virtual_display_timeouts.h"
 #include "px_common/websocket_reconnect_adapter.h"
 #include "px_service_message.pb.h"
@@ -378,6 +380,7 @@ void RenderServiceClient::Start() {
                     self && !self->exiting_.load(std::memory_order_acquire) &&
                     self->context_) {
                     self->SendPendingAppInstanceReady();
+                    self->SendPendingRecordings();
                     self->context_->SendAppMessage(
                         MsgRenderConnected2Service{});
                 }
@@ -546,6 +549,19 @@ void RenderServiceClient::ParseMessage(const std::string& msg) {
                 "Ignore late or unknown resource channel report response: "
                 "request_id={}",
                 result.request_id_);
+        }
+    } else if (sm.type() == ServiceMessageType::kSrvRecordingFinalizedResult) {
+        const auto& result = sm.recording_finalized_result();
+        bool removed = false;
+        {
+            std::lock_guard lock(recording_mutex_);
+            removed = pending_recordings_.erase(result.event_id()) != 0;
+        }
+        if (!result.accepted()) {
+            LOGE("event=record.finalized component=render_service outcome=rejected event={} code={}", PrivacyLogId(result.event_id()),
+                 result.error_code());
+        } else if (!removed) {
+            LOGW("event=record.finalized component=render_service outcome=late_ack event={}", PrivacyLogId(result.event_id()));
         }
     }
 }
@@ -869,6 +885,56 @@ void RenderServiceClient::NotifyAppInstanceReady(const std::string& instance_id,
         ready_pending_ = true;
     }
     SendPendingAppInstanceReady();
+}
+
+void RenderServiceClient::NotifyRecordingFinalized(std::string file_name, std::string logical_session_id, std::string codec) {
+    if (file_name.empty() || (codec != "h264" && codec != "h265")) {
+        return;
+    }
+    PendingRecording pending{
+        .event_id = GetUUID(),
+        .file_name = std::move(file_name),
+        .logical_session_id = std::move(logical_session_id),
+        .codec = std::move(codec),
+    };
+    {
+        std::lock_guard lock(recording_mutex_);
+        constexpr std::size_t kMaximumPendingRecordings = 256;
+        if (pending_recordings_.size() >= kMaximumPendingRecordings) {
+            LOGE("event=record.finalized component=render_service outcome=rejected code=RECORDING_QUEUE_FULL");
+            return;
+        }
+        pending_recordings_.emplace(pending.event_id, pending);
+    }
+    SendPendingRecordings();
+}
+
+void RenderServiceClient::SendPendingRecordings() {
+    if (!websocket_upgraded_.load(std::memory_order_acquire)) {
+        return;
+    }
+    std::vector<PendingRecording> pending;
+    {
+        std::lock_guard lock(recording_mutex_);
+        pending.reserve(pending_recordings_.size());
+        for (const auto& [event_id, recording] : pending_recordings_) {
+            static_cast<void>(event_id);
+            pending.push_back(recording);
+        }
+    }
+    for (const auto& recording : pending) {
+        px::ServiceMessage message;
+        message.set_type(ServiceMessageType::kSrvRecordingFinalized);
+        auto& finalized = *message.mutable_recording_finalized();
+        finalized.set_event_id(recording.event_id);
+        finalized.set_file_name(recording.file_name);
+        finalized.set_session_id(recording.logical_session_id);
+        finalized.set_codec(recording.codec);
+        const auto sent = TryPostNetMessage(message.SerializeAsString());
+        if (!sent.HasValue()) {
+            return;
+        }
+    }
 }
 
 void RenderServiceClient::SendPendingAppInstanceReady() {

@@ -8,11 +8,12 @@ mod generated {
 
 pub use generated::{
     MsgAppInstanceReady, MsgAuthInfo, MsgFrontendAdmissionRequest, MsgFrontendAdmissionResult,
-    MsgHeartBeat, MsgHeartBeatResp, MsgReqCtrlAltDelete, MsgResourceChannelOpenRequest,
-    MsgResourceChannelOpenResult, MsgResourceChannelReportRequest, MsgResourceChannelReportResult,
-    MsgRestartServer, MsgStartServer, MsgStopServer, MsgVirtualDisplayRequest,
-    MsgVirtualDisplayResult, RenderStatus, ResourceChannelKind, ResourceChannelOutcome,
-    ServiceMessage, ServiceMessageType, VirtualDisplayOperation,
+    MsgHeartBeat, MsgHeartBeatResp, MsgRecordingFinalized, MsgRecordingFinalizedResult,
+    MsgReqCtrlAltDelete, MsgResourceChannelOpenRequest, MsgResourceChannelOpenResult,
+    MsgResourceChannelReportRequest, MsgResourceChannelReportResult, MsgRestartServer,
+    MsgStartServer, MsgStopServer, MsgVirtualDisplayRequest, MsgVirtualDisplayResult, RenderStatus,
+    ResourceChannelKind, ResourceChannelOutcome, ServiceMessage, ServiceMessageType,
+    VirtualDisplayOperation,
 };
 
 // prost only derives PartialEq; all MsgAuthInfo fields are scalar so Eq is sound
@@ -37,6 +38,8 @@ impl ServiceMessageType {
     pub const ResourceChannelOpenResult: Self = Self::KSrvResourceChannelOpenResult;
     pub const ResourceChannelReportRequest: Self = Self::KSrvResourceChannelReportRequest;
     pub const ResourceChannelReportResult: Self = Self::KSrvResourceChannelReportResult;
+    pub const RecordingFinalized: Self = Self::KSrvRecordingFinalized;
+    pub const RecordingFinalizedResult: Self = Self::KSrvRecordingFinalizedResult;
 }
 
 #[allow(non_upper_case_globals)]

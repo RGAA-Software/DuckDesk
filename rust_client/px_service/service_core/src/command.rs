@@ -45,6 +45,12 @@ pub enum Command {
         elapsed_ms: u64,
         outcome: crate::proto::ResourceChannelOutcome,
     },
+    RecordingFinalized {
+        event_id: String,
+        file_name: String,
+        session_id: String,
+        codec: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -159,6 +165,20 @@ pub fn dispatch_message(bytes: &[u8]) -> Result<DispatchResult, String> {
         }
         ServiceMessageType::ResourceChannelReportResult => {
             return Err("resource_channel_report_result is outbound only".to_string())
+        }
+        ServiceMessageType::RecordingFinalized => {
+            let finalized = message
+                .recording_finalized
+                .ok_or("missing recording_finalized payload")?;
+            Command::RecordingFinalized {
+                event_id: finalized.event_id,
+                file_name: finalized.file_name,
+                session_id: finalized.session_id,
+                codec: finalized.codec,
+            }
+        }
+        ServiceMessageType::RecordingFinalizedResult => {
+            return Err("recording_finalized_result is outbound only".to_string())
         }
     };
     Ok(DispatchResult { command })

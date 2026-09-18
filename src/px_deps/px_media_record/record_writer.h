@@ -22,6 +22,11 @@ enum class RecordVideoCodec {
     kH265,
 };
 
+struct RecordCompletedSegment final {
+    std::string path;
+    RecordVideoCodec codec{RecordVideoCodec::kH264};
+};
+
 struct RecordWriterConfig {
     // 录像目录（不存在会自动创建）
     std::string dir;
@@ -39,6 +44,11 @@ struct RecordWriterConfig {
     std::function<int64_t()> clock_ms = nullptr;
     // 滚动到新段后回调，请求适配层插入关键帧（render：插件 InsertIdr；客户端可留空）
     std::function<void()> on_request_keyframe = nullptr;
+    // MP4 header 已成功写入、分段正式建立后触发。
+    std::function<void(const RecordCompletedSegment&)> on_segment_started = nullptr;
+    // 文件 trailer、flush、close 和进行中标记移除全部成功后触发。回调在调用
+    // RecordWriter 的串行线程执行；调用方只应做有界入队，不能阻塞媒体写入。
+    std::function<void(const RecordCompletedSegment&)> on_segment_completed = nullptr;
 };
 
 class RecordWriter {

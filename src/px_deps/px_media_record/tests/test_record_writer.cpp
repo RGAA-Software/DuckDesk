@@ -494,6 +494,37 @@ TEST(RecordWriter, RecordingSidecarMarker) {
     fs::remove_all(dir);
 }
 
+TEST(RecordWriter, MarkerRemovalFailureDoesNotPublishCompletedSegment) {
+    const auto directory = MakeTempDir();
+    VirtualClock clock;
+    int completed_segment_count = 0;
+    RecordWriterConfig config;
+    config.dir = directory;
+    config.clock_ms = [&clock]() { return clock.ms; };
+    config.on_segment_completed = [&completed_segment_count](const RecordCompletedSegment&) { ++completed_segment_count; };
+    const auto writer = RecordWriter::Make(config);
+
+    H264Gen video_encoder;
+    ASSERT_TRUE(OpenH264Encoder(video_encoder, 320, 240, 30, 30));
+    const auto video_packet = EncodeOneFrame(video_encoder, 0, true);
+    ASSERT_FALSE(video_packet.empty());
+    writer->OnEncodedVideo(video_packet, RecordVideoCodec::kH264, 320, 240, true);
+    const auto files = ListMp4(directory);
+    ASSERT_EQ(files.size(), 1U);
+    const auto marker = fs::path(files.front().string() + ".recording");
+    ASSERT_TRUE(fs::remove(marker));
+    ASSERT_TRUE(fs::create_directory(marker));
+    std::ofstream(marker / "blocks-removal").put('x');
+
+    writer->Stop();
+    CloseH264Encoder(video_encoder);
+
+    EXPECT_EQ(completed_segment_count, 0);
+    EXPECT_EQ(writer->Error(), "recording_marker_remove_failed");
+    EXPECT_TRUE(fs::exists(marker));
+    fs::remove_all(directory);
+}
+
 TEST(RecordWriter, EarlyStop) {
     auto dir = MakeTempDir();
     VirtualClock clk;

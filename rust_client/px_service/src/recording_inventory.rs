@@ -2,9 +2,9 @@ use px_node_protocol::{RecordingCodec, RecordingReport};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fs::{self, File, OpenOptions},
-    io::{Read, Write},
+    io::{Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::UNIX_EPOCH,
@@ -12,7 +12,7 @@ use std::{
 use uuid::Uuid;
 
 const INVENTORY_FILE: &str = "recording_inventory.json";
-const INVENTORY_SCHEMA: u32 = 1;
+const INVENTORY_SCHEMA: u32 = 2;
 const MAX_RECORDING_BYTES: u64 = 1_099_511_627_776;
 const HASH_BUFFER_BYTES: usize = 1024 * 1024;
 
@@ -24,6 +24,8 @@ struct RecordingEntry {
     size_bytes: u64,
     modified_unix_ms: i64,
     source_sha256: [u8; 32],
+    session_id: Option<Uuid>,
+    codec: RecordingCodec,
     sequence: u64,
     present: bool,
     acknowledged: bool,
@@ -81,16 +83,11 @@ impl RecordingInventory {
     }
 
     pub(crate) fn scan(&mut self) -> Result<Vec<RecordingReport>, String> {
-        let observations = scan_directory(&self.recording_root, &self.entries)?;
-        let mut seen = HashSet::with_capacity(observations.len());
-        for observation in observations {
-            seen.insert(observation.source_id);
-            self.entries.insert(observation.source_id, observation);
-        }
+        validate_recording_root(&self.recording_root)?;
         let disappeared: Vec<_> = self
             .entries
             .values()
-            .filter(|entry| entry.present && !seen.contains(&entry.source_id))
+            .filter(|entry| entry.present && !entry_is_unchanged(&self.recording_root, entry))
             .map(|entry| entry.source_id)
             .collect();
         for source_id in disappeared {
@@ -117,6 +114,73 @@ impl RecordingInventory {
             .filter(|entry| !entry.acknowledged)
             .map(report)
             .collect())
+    }
+
+    pub(crate) fn register_completed(
+        &mut self,
+        file_name: String,
+        session_id: Option<Uuid>,
+        codec: RecordingCodec,
+    ) -> Result<Uuid, String> {
+        if !is_recording_basename(&file_name)
+            || matches!(codec, RecordingCodec::Unknown | RecordingCodec::Av1)
+        {
+            return Err("recording completion metadata is invalid".into());
+        }
+        validate_recording_root(&self.recording_root)?;
+        let path = self.recording_root.join(&file_name);
+        let metadata = fs::symlink_metadata(&path)
+            .map_err(|_| "completed recording is unavailable".to_string())?;
+        if !metadata.is_file()
+            || is_reparse_point(&metadata)
+            || metadata.len() == 0
+            || metadata.len() > MAX_RECORDING_BYTES
+            || self
+                .recording_root
+                .join(format!("{file_name}.recording"))
+                .exists()
+        {
+            return Err("completed recording file is not final".into());
+        }
+        let modified_unix_ms = modified_unix_ms(&metadata)?;
+        let source_sha256 = hash_file(&path)?;
+        if !entry_metadata_matches(&path, metadata.len(), modified_unix_ms) {
+            return Err("completed recording changed during registration".into());
+        }
+        if let Some(existing) = self
+            .entries
+            .values()
+            .find(|entry| entry.file_name == file_name)
+        {
+            if existing.present
+                && existing.size_bytes == metadata.len()
+                && existing.modified_unix_ms == modified_unix_ms
+                && existing.source_sha256 == source_sha256
+                && existing.session_id == session_id
+                && same_codec(existing.codec, codec)
+            {
+                return Ok(existing.source_id);
+            }
+            return Err("recording completion conflicts with an existing identity".into());
+        }
+        let source_id = Uuid::new_v4();
+        self.entries.insert(
+            source_id,
+            RecordingEntry {
+                source_id,
+                file_name,
+                size_bytes: metadata.len(),
+                modified_unix_ms,
+                source_sha256,
+                session_id,
+                codec,
+                sequence: 1,
+                present: true,
+                acknowledged: false,
+            },
+        );
+        self.persist()?;
+        Ok(source_id)
     }
 
     pub(crate) fn begin_connection(&mut self) -> Result<(), String> {
@@ -159,10 +223,16 @@ impl RecordingInventory {
         {
             return Err("recording upload source type or size changed".into());
         }
-        OpenOptions::new()
+        let mut file = OpenOptions::new()
             .read(true)
             .open(path)
-            .map_err(|_| "recording upload source cannot be opened".to_string())
+            .map_err(|_| "recording upload source cannot be opened".to_string())?;
+        if hash_open_file(&mut file)? != entry.source_sha256 {
+            return Err("recording upload content identity changed".into());
+        }
+        file.seek(SeekFrom::Start(0))
+            .map_err(|_| "recording upload source cannot be rewound".to_string())?;
+        Ok(file)
     }
 
     fn persist(&self) -> Result<(), String> {
@@ -200,93 +270,52 @@ impl RecordingInventory {
     }
 }
 
-fn scan_directory(
-    root: &Path,
-    previous: &HashMap<Uuid, RecordingEntry>,
-) -> Result<Vec<RecordingEntry>, String> {
+fn validate_recording_root(root: &Path) -> Result<(), String> {
     if !root.exists() {
-        return Ok(Vec::new());
+        fs::create_dir_all(root)
+            .map_err(|_| "recording directory cannot be created".to_string())?;
     }
     let root_metadata =
         fs::symlink_metadata(root).map_err(|_| "recording directory is unavailable".to_string())?;
     if !root_metadata.is_dir() || is_reparse_point(&root_metadata) {
         return Err("recording directory must not be a reparse point".into());
     }
-    let mut by_name: HashMap<&str, &RecordingEntry> = HashMap::new();
-    for entry in previous.values().filter(|entry| entry.present) {
-        by_name.insert(&entry.file_name, entry);
-    }
-    let mut result = Vec::new();
-    for directory_entry in
-        fs::read_dir(root).map_err(|_| "recording directory cannot be listed".to_string())?
-    {
-        let directory_entry =
-            directory_entry.map_err(|_| "recording directory entry is invalid".to_string())?;
-        let metadata = fs::symlink_metadata(directory_entry.path())
-            .map_err(|_| "recording file metadata is unavailable".to_string())?;
-        let file_name = directory_entry
-            .file_name()
-            .into_string()
-            .map_err(|_| "recording filename is not UTF-8".to_string())?;
-        if !metadata.is_file()
-            || is_reparse_point(&metadata)
-            || !is_recording_basename(&file_name)
-            || root.join(format!("{file_name}.recording")).exists()
-            || metadata.len() == 0
-            || metadata.len() > MAX_RECORDING_BYTES
-        {
-            continue;
-        }
-        let modified_unix_ms = i64::try_from(
-            metadata
-                .modified()
-                .map_err(|_| "recording modification time is unavailable".to_string())?
-                .duration_since(UNIX_EPOCH)
-                .map_err(|_| "recording modification time predates the epoch".to_string())?
-                .as_millis(),
-        )
-        .map_err(|_| "recording modification time overflows".to_string())?;
-        if let Some(existing) = by_name.get(file_name.as_str()).filter(|entry| {
-            entry.size_bytes == metadata.len() && entry.modified_unix_ms == modified_unix_ms
-        }) {
-            result.push((*existing).clone());
-            continue;
-        }
-        let source_sha256 = hash_file(&directory_entry.path())?;
-        let verified = fs::symlink_metadata(directory_entry.path())
-            .map_err(|_| "recording file metadata changed during hashing".to_string())?;
-        let verified_modified_unix_ms = i64::try_from(
-            verified
-                .modified()
-                .map_err(|_| "recording modification time is unavailable".to_string())?
-                .duration_since(UNIX_EPOCH)
-                .map_err(|_| "recording modification time predates the epoch".to_string())?
-                .as_millis(),
-        )
-        .map_err(|_| "recording modification time overflows".to_string())?;
-        if !verified.is_file()
-            || is_reparse_point(&verified)
-            || verified.len() != metadata.len()
-            || verified_modified_unix_ms != modified_unix_ms
-        {
-            continue;
-        }
-        result.push(RecordingEntry {
-            source_id: Uuid::new_v4(),
-            file_name,
-            size_bytes: metadata.len(),
-            modified_unix_ms,
-            source_sha256,
-            sequence: 1,
-            present: true,
-            acknowledged: false,
-        });
-    }
-    Ok(result)
+    Ok(())
+}
+
+fn modified_unix_ms(metadata: &fs::Metadata) -> Result<i64, String> {
+    i64::try_from(
+        metadata
+            .modified()
+            .map_err(|_| "recording modification time is unavailable".to_string())?
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| "recording modification time predates the epoch".to_string())?
+            .as_millis(),
+    )
+    .map_err(|_| "recording modification time overflows".to_string())
+}
+
+fn entry_metadata_matches(path: &Path, expected_size: u64, expected_modified_unix_ms: i64) -> bool {
+    fs::symlink_metadata(path).ok().is_some_and(|metadata| {
+        metadata.is_file()
+            && !is_reparse_point(&metadata)
+            && metadata.len() == expected_size
+            && modified_unix_ms(&metadata).ok() == Some(expected_modified_unix_ms)
+    })
+}
+
+fn entry_is_unchanged(root: &Path, entry: &RecordingEntry) -> bool {
+    let path = root.join(&entry.file_name);
+    !root.join(format!("{}.recording", entry.file_name)).exists()
+        && entry_metadata_matches(&path, entry.size_bytes, entry.modified_unix_ms)
 }
 
 fn hash_file(path: &Path) -> Result<[u8; 32], String> {
     let mut file = File::open(path).map_err(|_| "recording file cannot be opened".to_string())?;
+    hash_open_file(&mut file)
+}
+
+fn hash_open_file(file: &mut File) -> Result<[u8; 32], String> {
     let mut digest = Sha256::new();
     let mut buffer = vec![0_u8; HASH_BUFFER_BYTES];
     loop {
@@ -305,11 +334,11 @@ fn report(entry: &RecordingEntry) -> RecordingReport {
     RecordingReport {
         source_id: entry.source_id,
         source_sha256: entry.source_sha256,
-        session_id: None,
+        session_id: entry.session_id,
         file_name: entry.file_name.clone(),
         size_bytes: entry.size_bytes,
         modified_unix_ms: entry.modified_unix_ms,
-        codec: RecordingCodec::Unknown,
+        codec: entry.codec,
         sequence: entry.sequence,
         present: entry.present,
     }
@@ -322,10 +351,18 @@ fn validate_entry(entry: &RecordingEntry) -> Result<(), String> {
         || entry.size_bytes > MAX_RECORDING_BYTES
         || entry.modified_unix_ms < 0
         || entry.sequence == 0
+        || matches!(entry.codec, RecordingCodec::Unknown | RecordingCodec::Av1)
     {
         return Err("recording inventory entry is invalid".into());
     }
     Ok(())
+}
+
+fn same_codec(left: RecordingCodec, right: RecordingCodec) -> bool {
+    matches!(
+        (left, right),
+        (RecordingCodec::H264, RecordingCodec::H264) | (RecordingCodec::H265, RecordingCodec::H265)
+    )
 }
 
 fn is_recording_basename(value: &str) -> bool {
@@ -410,8 +447,21 @@ mod tests {
         .unwrap();
         fs::write(recordings.join("ignored.txt"), b"not media").unwrap();
         let inventory = RecordingInventory::load(&data_root).unwrap();
+        assert!(inventory.lock().unwrap().scan().unwrap().is_empty());
+        let expected_session_id = Uuid::new_v4();
+        inventory
+            .lock()
+            .unwrap()
+            .register_completed(
+                "rec_mon0_20260919_04.00.00.mp4".into(),
+                Some(expected_session_id),
+                RecordingCodec::H264,
+            )
+            .unwrap();
         let first = inventory.lock().unwrap().scan().unwrap();
         assert_eq!(first.len(), 1);
+        assert_eq!(first[0].session_id, Some(expected_session_id));
+        assert!(matches!(first[0].codec, RecordingCodec::H264));
         let source_id = first[0].source_id;
         let source_size = first[0].size_bytes;
         let source_hash = first[0].source_sha256;

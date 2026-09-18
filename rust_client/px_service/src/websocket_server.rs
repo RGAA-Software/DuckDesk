@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 
 use futures_util::{SinkExt, StreamExt};
 use service_core::command::dispatch_message;
@@ -9,6 +12,7 @@ use tokio_tungstenite::accept_hdr_async;
 use tokio_tungstenite::tungstenite::handshake::server::{Request, Response};
 use tokio_tungstenite::tungstenite::Message;
 
+use crate::recording_inventory::RecordingInventory;
 use crate::service_host::ServiceRuntime;
 use crate::virtual_display_manager::{
     VirtualDisplayError, VirtualDisplayOperationResult, VirtualDisplayPhase,
@@ -16,11 +20,26 @@ use crate::virtual_display_manager::{
 
 pub struct WebsocketService {
     runtime: Arc<Mutex<ServiceRuntime>>,
+    recording_inventory: Option<Arc<std::sync::Mutex<RecordingInventory>>>,
 }
 
 impl WebsocketService {
+    #[cfg(test)]
     pub fn new(runtime: Arc<Mutex<ServiceRuntime>>) -> Self {
-        Self { runtime }
+        Self {
+            runtime,
+            recording_inventory: None,
+        }
+    }
+
+    pub fn with_recording_inventory(
+        runtime: Arc<Mutex<ServiceRuntime>>,
+        recording_inventory: Arc<std::sync::Mutex<RecordingInventory>>,
+    ) -> Self {
+        Self {
+            runtime,
+            recording_inventory: Some(recording_inventory),
+        }
     }
 
     pub async fn run_console(&self) -> Result<(), String> {
@@ -35,9 +54,11 @@ impl WebsocketService {
                 continue;
             }
             let runtime = self.runtime.clone();
+            let recording_inventory = self.recording_inventory.clone();
             let expected_path = config.ws_path.clone();
             tokio::spawn(async move {
-                let _ = handle_connection(stream, runtime, expected_path).await;
+                let _ =
+                    handle_connection(stream, runtime, recording_inventory, expected_path).await;
             });
         }
     }
@@ -50,9 +71,12 @@ impl WebsocketService {
 async fn handle_connection(
     stream: TcpStream,
     runtime: Arc<Mutex<ServiceRuntime>>,
+    recording_inventory: Option<Arc<std::sync::Mutex<RecordingInventory>>>,
     expected_path: String,
 ) -> Result<(), String> {
     let ipc_token = runtime.lock().await.ipc_token.clone();
+    let render_authenticated = Arc::new(AtomicBool::new(false));
+    let authentication_result = render_authenticated.clone();
     let ws_stream = accept_hdr_async(stream, move |req: &Request, resp: Response| {
         let render_authorized = req
             .headers()
@@ -69,6 +93,7 @@ async fn handle_connection(
                 .split('&')
                 .any(|item| item.eq_ignore_ascii_case("from=panel"))
         });
+        authentication_result.store(render_authorized, Ordering::Release);
         if req.uri().path() == expected_path && (render_authorized || panel_controller) {
             Ok(resp)
         } else {
@@ -120,6 +145,15 @@ async fn handle_connection(
                             result,
                         );
                     }
+                    continue;
+                }
+                if sm.message_type() == Some(service_core::ServiceMessageType::RecordingFinalized) {
+                    let result = process_recording_finalized(
+                        render_authenticated.load(Ordering::Acquire),
+                        recording_inventory.as_ref(),
+                        sm.recording_finalized,
+                    );
+                    let _ = tx.send(encode_service_message(&result));
                     continue;
                 }
                 if let Some(hb) = sm.heart_beat.as_ref() {
@@ -261,6 +295,53 @@ async fn handle_connection(
     drop(tx);
     let _ = writer.await;
     Ok(())
+}
+
+fn process_recording_finalized(
+    render_authenticated: bool,
+    inventory: Option<&Arc<std::sync::Mutex<RecordingInventory>>>,
+    finalized: Option<service_core::MsgRecordingFinalized>,
+) -> service_core::ServiceMessage {
+    let event_id = finalized
+        .as_ref()
+        .map(|message| message.event_id.clone())
+        .unwrap_or_default();
+    let result = (|| {
+        if !render_authenticated {
+            return Err("RENDER_AUTH_REQUIRED");
+        }
+        let event_uuid = uuid::Uuid::parse_str(&event_id).map_err(|_| "INVALID_EVENT_ID")?;
+        if event_uuid.is_nil() {
+            return Err("INVALID_EVENT_ID");
+        }
+        let finalized = finalized.ok_or("MISSING_RECORDING")?;
+        let session_id = if finalized.session_id.is_empty() {
+            None
+        } else {
+            Some(uuid::Uuid::parse_str(&finalized.session_id).map_err(|_| "INVALID_SESSION_ID")?)
+        };
+        let codec = match finalized.codec.as_str() {
+            "h264" => px_node_protocol::RecordingCodec::H264,
+            "h265" => px_node_protocol::RecordingCodec::H265,
+            _ => return Err("INVALID_CODEC"),
+        };
+        let inventory = inventory.ok_or("RECORDING_INVENTORY_UNAVAILABLE")?;
+        inventory
+            .lock()
+            .map_err(|_| "RECORDING_INVENTORY_UNAVAILABLE")?
+            .register_completed(finalized.file_name, session_id, codec)
+            .map_err(|_| "RECORDING_REGISTRATION_REJECTED")?;
+        Ok(())
+    })();
+    service_core::ServiceMessage {
+        r#type: service_core::ServiceMessageType::RecordingFinalizedResult as i32,
+        recording_finalized_result: Some(service_core::MsgRecordingFinalizedResult {
+            event_id,
+            accepted: result.is_ok(),
+            error_code: result.err().unwrap_or_default().to_string(),
+        }),
+        ..Default::default()
+    }
 }
 
 fn resource_channel_open_service_message(
@@ -706,7 +787,7 @@ mod tests {
     use service_core::process::ProcessSnapshot;
     use service_core::windows_util::{default_service_data_root, default_service_log_root};
     use service_core::{
-        encode_service_message, MsgFrontendAdmissionRequest, MsgHeartBeat,
+        encode_service_message, MsgFrontendAdmissionRequest, MsgHeartBeat, MsgRecordingFinalized,
         MsgResourceChannelOpenRequest, MsgResourceChannelReportRequest, MsgStartServer,
         RenderLaunchSpec, RenderStatus, ResourceChannelKind, ResourceChannelOutcome,
         ServiceMessage, ServiceMessageType,
@@ -718,6 +799,73 @@ mod tests {
     struct MockProcessManager {
         processes: StdMutex<Vec<ProcessSnapshot>>,
         launches: StdMutex<Vec<RenderLaunchSpec>>,
+    }
+
+    #[test]
+    fn recording_completion_requires_render_authentication_and_preserves_session_owner() {
+        let base = tempfile::tempdir().unwrap();
+        let data_root = base.path().join("px_data");
+        let recording_root = base.path().join("px_render_records");
+        std::fs::create_dir_all(&data_root).unwrap();
+        std::fs::create_dir_all(&recording_root).unwrap();
+        let file_name = "rec_monitor_20260919_05.00.00.mp4";
+        std::fs::write(recording_root.join(file_name), b"finalized-recording").unwrap();
+        let inventory = RecordingInventory::load(&data_root).unwrap();
+        let event_id = uuid::Uuid::new_v4();
+        let session_id = uuid::Uuid::new_v4();
+        let finalized = MsgRecordingFinalized {
+            event_id: event_id.to_string(),
+            file_name: file_name.into(),
+            session_id: session_id.to_string(),
+            codec: "h264".into(),
+        };
+
+        let unauthorized =
+            process_recording_finalized(false, Some(&inventory), Some(finalized.clone()));
+        let unauthorized_result = unauthorized.recording_finalized_result.unwrap();
+        assert!(!unauthorized_result.accepted);
+        assert_eq!(unauthorized_result.error_code, "RENDER_AUTH_REQUIRED");
+        assert!(inventory.lock().unwrap().scan().unwrap().is_empty());
+
+        let authorized = process_recording_finalized(true, Some(&inventory), Some(finalized));
+        let authorized_result = authorized.recording_finalized_result.unwrap();
+        assert!(authorized_result.accepted);
+        assert_eq!(authorized_result.event_id, event_id.to_string());
+        assert!(authorized_result.error_code.is_empty());
+        let reports = inventory.lock().unwrap().scan().unwrap();
+        assert_eq!(reports.len(), 1);
+        assert_eq!(reports[0].file_name, file_name);
+        assert_eq!(reports[0].session_id, Some(session_id));
+        assert!(matches!(
+            reports[0].codec,
+            px_node_protocol::RecordingCodec::H264
+        ));
+    }
+
+    #[test]
+    fn recording_completion_rejects_invalid_session_identity() {
+        let base = tempfile::tempdir().unwrap();
+        let data_root = base.path().join("px_data");
+        let recording_root = base.path().join("px_render_records");
+        std::fs::create_dir_all(&data_root).unwrap();
+        std::fs::create_dir_all(&recording_root).unwrap();
+        std::fs::write(recording_root.join("recording.mp4"), b"finalized-recording").unwrap();
+        let inventory = RecordingInventory::load(&data_root).unwrap();
+        let response = process_recording_finalized(
+            true,
+            Some(&inventory),
+            Some(MsgRecordingFinalized {
+                event_id: uuid::Uuid::new_v4().to_string(),
+                file_name: "recording.mp4".into(),
+                session_id: "device-or-account-fallback".into(),
+                codec: "h264".into(),
+            }),
+        );
+
+        let result = response.recording_finalized_result.unwrap();
+        assert!(!result.accepted);
+        assert_eq!(result.error_code, "INVALID_SESSION_ID");
+        assert!(inventory.lock().unwrap().scan().unwrap().is_empty());
     }
 
     #[test]

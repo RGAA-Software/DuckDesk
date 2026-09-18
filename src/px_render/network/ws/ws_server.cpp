@@ -1671,7 +1671,7 @@ void WsServer::FinalizeWebSocketOpen(
                 });
             stream_routers_.Insert(socket_fd, router);
             NotifyMediaClientConnected(router->connection_id_, stream_id,
-                                       visitor_device_id);
+                                       visitor_device_id, router->logical_session_id_);
             if (!started) {
                 session->stop();
             }
@@ -1716,7 +1716,7 @@ void WsServer::FinalizeWebSocketOpen(
         });
         stream_routers_.Insert(socket_fd, router);
         NotifyMediaClientConnected(router->connection_id_, router->stream_id_,
-                                   visitor_device_id);
+                                   visitor_device_id, router->logical_session_id_);
         auto mutable_session = session;
         router->OnOpen(mutable_session);
     } else if (path == kUrlFileTransfer) {
@@ -2010,8 +2010,9 @@ void WsServer::AddWebClientRouter() {
 
 void WsServer::NotifyMediaClientConnected(
     const std::string& conn_id, const std::string& stream_id,
-    const std::string& visitor_device_id) {
+    const std::string& visitor_device_id, const std::string& logical_session_id) {
     auto event = std::make_shared<ClientConnectedEvent>();
+    event->logical_session_id_ = logical_session_id;
     event->connection_id_ = conn_id;
     event->stream_id_ = stream_id;
     event->connection_type_ = "Direct";

@@ -45,6 +45,9 @@ public:
     void PostNetMessage(const std::string& msg);
     void NotifyAppInstanceReady(const std::string& instance_id, int listen_port,
                                 bool ok, const std::string& error);
+    void NotifyRecordingFinalized(std::string file_name,
+                                  std::string logical_session_id,
+                                  std::string codec);
     void RequestVirtualDisplay(
         const std::string& request_id, int operation, uint32_t width,
         uint32_t height, uint32_t refresh_hz,
@@ -71,6 +74,13 @@ public:
         std::chrono::steady_clock::time_point deadline);
 
 private:
+    struct PendingRecording final {
+        std::string event_id;
+        std::string file_name;
+        std::string logical_session_id;
+        std::string codec;
+    };
+
     struct AsyncStateSnapshot final {
         std::shared_ptr<PxAsyncScope> scope{};
         std::shared_ptr<RenderServiceRpcState> rpc_state{};
@@ -81,6 +91,7 @@ private:
     void HeartBeat();
     void ParseMessage(const std::string& msg);
     void SendPendingAppInstanceReady();
+    void SendPendingRecordings();
     PxResult<void> TryPostNetMessage(const std::string& msg);
     PxResult<void> TryPostSensitiveNetMessage(std::string msg);
     void FailPendingRequests(const PxAsyncError& error);
@@ -115,6 +126,8 @@ private:
     int ready_listen_port_{0};
     bool ready_ok_{false};
     bool ready_pending_{false};
+    std::mutex recording_mutex_;
+    std::unordered_map<std::string, PendingRecording> pending_recordings_;
     std::atomic_int64_t heartbeat_index_{0};
 };
 

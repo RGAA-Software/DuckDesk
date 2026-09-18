@@ -486,7 +486,8 @@ void RelayTransportRuntime::ConnectMedia(const RelayTransportRuntimeConfig& conf
             return;
         }
         self->NotifyClientConnected(route ? route->connection_instance_id : room->conn_id_, room->creator_stream_id_,
-                                    route ? route->visitor_device_id : ExtractClientId(prepared.device_id()));
+                                    route ? route->visitor_device_id : ExtractClientId(prepared.device_id()),
+                                    route ? route->logical_session_id : std::string{});
     });
     sdk->SetOnRoomDestroyedCallback([weak_self, generation](const std::shared_ptr<RelayMessage>& message) {
         const auto self = weak_self.lock();
@@ -894,8 +895,9 @@ void RelayTransportRuntime::EmitNetMessage(std::shared_ptr<Data> message, const 
 }
 
 void RelayTransportRuntime::NotifyClientConnected(const std::string& connection_id, const std::string& stream_id,
-                                                  const std::string& visitor_device_id) {
+                                                  const std::string& visitor_device_id, const std::string& logical_session_id) {
     const auto event = std::make_shared<ClientConnectedEvent>();
+    event->logical_session_id_ = logical_session_id;
     event->connection_id_ = connection_id;
     event->stream_id_ = stream_id;
     event->connection_type_ = "Relay";

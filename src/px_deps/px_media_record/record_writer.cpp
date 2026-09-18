@@ -244,12 +244,17 @@ struct RecordWriter::Impl {
             Fail("recording_marker_create_failed");
     }
 
-    void RemoveRecordingMarker() {
+    bool RemoveRecordingMarker() {
         if (current_path_.empty())
-            return;
+            return false;
         std::error_code ec;
-        std::filesystem::remove(current_path_ + ".recording", ec);
+        const auto removed = std::filesystem::remove(current_path_ + ".recording", ec);
+        if (!removed || ec) {
+            Fail("recording_marker_remove_failed");
+            return false;
+        }
         current_path_.clear();
+        return true;
     }
 
     // Other runs may still be writing. A stale marker also does not prove its MP4 was finalized.
@@ -570,6 +575,16 @@ struct RecordWriter::Impl {
         written_bytes_ = 0;
         ++segment_no_;
         writing_ = true;
+        if (cfg_.on_segment_started) {
+            try {
+                cfg_.on_segment_started(RecordCompletedSegment{
+                    .path = current_path_,
+                    .codec = codec_,
+                });
+            } catch (...) {
+                // Metadata observers must not invalidate an opened MP4.
+            }
+        }
         std::fprintf(stderr, "[record_writer] segment %lld opened: %s\n", (long long)segment_no_, path.c_str());
 
         // 回填等关键帧期间缓冲的音频
@@ -581,6 +596,8 @@ struct RecordWriter::Impl {
     }
 
     void CloseFile() {
+        const auto completed_path = current_path_;
+        const auto completed_codec = codec_;
         if (fmt_) {
             if (writing_ && av_write_trailer(fmt_.get()) < 0)
                 Fail("recording_trailer_write_failed");
@@ -594,8 +611,19 @@ struct RecordWriter::Impl {
             fmt_.reset();
         }
         if (writing_ && error_.empty()) {
-            ++completed_segments_;
-            RemoveRecordingMarker();
+            if (RemoveRecordingMarker()) {
+                ++completed_segments_;
+            }
+            if (error_.empty() && cfg_.on_segment_completed) {
+                try {
+                    cfg_.on_segment_completed(RecordCompletedSegment{
+                        .path = completed_path,
+                        .codec = completed_codec,
+                    });
+                } catch (...) {
+                    // Metadata observers do not own the finalized file.
+                }
+            }
         }
         video_stream_index_ = -1;
         audio_stream_index_ = -1;

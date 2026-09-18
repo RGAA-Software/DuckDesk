@@ -343,6 +343,9 @@ impl ServiceRuntime {
             Command::OpenResourceChannel { .. } | Command::ReportResourceChannel { .. } => Err(
                 "resource channel operations must use the asynchronous service path".to_string(),
             ),
+            Command::RecordingFinalized { .. } => {
+                Err("recording completion must use the authenticated recording path".to_string())
+            }
         }
     }
 
@@ -1274,12 +1277,16 @@ pub async fn run_service(
         info!("service runtime initialized");
     }
 
-    let service = WebsocketService::new(runtime.clone());
+    let data_root = runtime.lock().await.config.data_root.clone();
+    let recording_inventory = crate::recording_inventory::RecordingInventory::load(&data_root)?;
+    let service =
+        WebsocketService::with_recording_inventory(runtime.clone(), recording_inventory.clone());
     let service_task = tokio::spawn(async move { service.run_console().await });
     let monitor_task = tokio::spawn(monitor_loop(runtime.clone()));
     let control_task = tokio::spawn(control_loop(runtime.clone(), control_rx));
     let node_control_task = tokio::spawn(crate::node_control_client::node_control_loop(
         runtime.clone(),
+        recording_inventory,
     ));
 
     tokio::select! {

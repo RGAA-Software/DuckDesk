@@ -85,6 +85,7 @@ struct WebRtcNetClientEvent final {
 };
 
 struct WebRtcClientConnectedEvent final {
+    std::string logical_session_id;
     std::string connection_id;
     std::string stream_id;
     std::string connection_type;

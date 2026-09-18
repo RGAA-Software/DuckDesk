@@ -24,11 +24,12 @@ pub use process::{
 };
 pub use proto::{
     decode_service_message, encode_service_message, MsgAuthInfo, MsgFrontendAdmissionRequest,
-    MsgFrontendAdmissionResult, MsgHeartBeat, MsgHeartBeatResp, MsgReqCtrlAltDelete,
-    MsgResourceChannelOpenRequest, MsgResourceChannelOpenResult, MsgResourceChannelReportRequest,
-    MsgResourceChannelReportResult, MsgRestartServer, MsgStartServer, MsgStopServer,
-    MsgVirtualDisplayRequest, MsgVirtualDisplayResult, RenderStatus, ResourceChannelKind,
-    ResourceChannelOutcome, ServiceMessage, ServiceMessageType, VirtualDisplayOperation,
+    MsgFrontendAdmissionResult, MsgHeartBeat, MsgHeartBeatResp, MsgRecordingFinalized,
+    MsgRecordingFinalizedResult, MsgReqCtrlAltDelete, MsgResourceChannelOpenRequest,
+    MsgResourceChannelOpenResult, MsgResourceChannelReportRequest, MsgResourceChannelReportResult,
+    MsgRestartServer, MsgStartServer, MsgStopServer, MsgVirtualDisplayRequest,
+    MsgVirtualDisplayResult, RenderStatus, ResourceChannelKind, ResourceChannelOutcome,
+    ServiceMessage, ServiceMessageType, VirtualDisplayOperation,
 };
 pub use state::{RenderLaunchSpec, ServiceState, RENDER_HEARTBEAT_TIMEOUT, RENDER_STARTUP_GRACE};
 pub use storage::{PersistedServiceState, ServiceStorage};

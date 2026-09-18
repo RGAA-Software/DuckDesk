@@ -125,7 +125,8 @@ class WsServer : public std::enable_shared_from_this<WsServer> {
 
     void NotifyMediaClientConnected(const std::string& conn_id,
                                     const std::string& stream_id,
-                                    const std::string& visitor_device_id);
+                                    const std::string& visitor_device_id,
+                                    const std::string& logical_session_id);
     void NotifyMediaClientDisConnected(
         const std::string& conn_id, const std::string& stream_id,
         const std::string& visitor_device_id, int64_t begin_timestamp,

@@ -29,7 +29,15 @@ RenderError MakeRecorderError(const RenderErrorCode code, std::string operation,
 
 class RecordWriterAdapter final : public MediaRecorderWriter {
   public:
-    explicit RecordWriterAdapter(std::shared_ptr<RecordWriter> writer) : writer_(std::move(writer)) {}
+    struct OwnershipState final {
+        std::optional<std::string> active_session_id;
+        std::optional<std::string> segment_session_id;
+        bool segment_open{false};
+        bool conflicted{false};
+    };
+
+    RecordWriterAdapter(std::shared_ptr<RecordWriter> writer, std::shared_ptr<OwnershipState> ownership)
+        : writer_(std::move(writer)), ownership_(std::move(ownership)) {}
 
     void OnVideo(const std::shared_ptr<const EncodedVideoFrame>& frame) override {
         if (!writer_ || !frame || !frame->payload || frame->payload->empty()) {
@@ -47,6 +55,16 @@ class RecordWriterAdapter final : public MediaRecorderWriter {
         writer_->OnEncodedAudio(std::span<const std::uint8_t>(*frame->payload), static_cast<int>(frame->frame_size));
     }
 
+    void UpdateSessionOwner(const std::optional<std::string>& logical_session_id) override {
+        if (!ownership_) {
+            return;
+        }
+        ownership_->active_session_id = logical_session_id;
+        if (ownership_->segment_open && ownership_->segment_session_id != logical_session_id) {
+            ownership_->conflicted = true;
+        }
+    }
+
     void Stop() override {
         if (writer_) {
             writer_->Stop();
@@ -55,6 +73,7 @@ class RecordWriterAdapter final : public MediaRecorderWriter {
 
   private:
     std::shared_ptr<RecordWriter> writer_;
+    std::shared_ptr<OwnershipState> ownership_;
 };
 
 void Complete(const MediaRecorderSink::Completion& completion, PxResult<void> result) {
@@ -75,6 +94,21 @@ void Complete(const MediaRecorderSink::Completion& completion, PxResult<void> re
              "operation=invoke_completion outcome=ignored recoverable=true "
              "reason=unknown_exception");
     }
+}
+
+std::optional<std::string> UniqueSessionOwner(const std::map<std::string, std::string>& clients) {
+    std::optional<std::string> owner;
+    for (const auto& [client_key, logical_session_id] : clients) {
+        static_cast<void>(client_key);
+        if (logical_session_id.empty()) {
+            return std::nullopt;
+        }
+        if (owner && *owner != logical_session_id) {
+            return std::nullopt;
+        }
+        owner = logical_session_id;
+    }
+    return owner;
 }
 
 } // namespace
@@ -373,11 +407,14 @@ void MediaRecorderSink::OnClientConnected(const MediaClientConnected& event) {
     }
     const auto key = event.visitor_device_id.empty() ? event.stream_id : event.visitor_device_id;
     bool start = false;
+    std::optional<std::string> owner;
     {
         std::lock_guard lock(lifecycle_mutex_);
         start = connected_clients_.empty();
-        connected_clients_.insert(key);
+        connected_clients_[key] = event.logical_session_id;
+        owner = UniqueSessionOwner(connected_clients_);
     }
+    EnqueueOwnership(owner);
     if (start && !recording_.exchange(true, std::memory_order_acq_rel)) {
         ActivateMediaSubscriptions();
         keyframe_channel_->Request();
@@ -393,10 +430,12 @@ void MediaRecorderSink::OnClientDisconnected(const MediaClientDisconnected& even
     }
     const auto key = event.visitor_device_id.empty() ? event.stream_id : event.visitor_device_id;
     bool stop = false;
+    std::optional<std::string> owner;
     {
         std::lock_guard lock(lifecycle_mutex_);
         connected_clients_.erase(key);
         stop = connected_clients_.empty();
+        owner = UniqueSessionOwner(connected_clients_);
     }
     if (stop && recording_.exchange(false, std::memory_order_acq_rel)) {
         DeactivateMediaSubscriptions();
@@ -404,6 +443,8 @@ void MediaRecorderSink::OnClientDisconnected(const MediaClientDisconnected& even
         LOGI("event=record.session component=media_recorder action=auto_stop "
              "outcome=accepted transport={}",
              event.transport);
+    } else if (!stop) {
+        EnqueueOwnership(owner);
     }
 }
 
@@ -441,6 +482,24 @@ void MediaRecorderSink::EnqueueMedia(WorkItem work) {
         state->queue.push_back(std::move(work));
         ++state->accepted_media;
         state->high_watermark = std::max(state->high_watermark, state->queue.size());
+    }
+    state->condition.notify_one();
+}
+
+void MediaRecorderSink::EnqueueOwnership(std::optional<std::string> logical_session_id) {
+    const auto state = worker_state_;
+    if (!state || !running_.load(std::memory_order_acquire)) {
+        return;
+    }
+    {
+        std::lock_guard lock(state->mutex);
+        if (state->shutdown_requested) {
+            return;
+        }
+        state->queue.push_back(WorkItem{
+            .type = WorkType::kOwnership,
+            .logical_session_id = std::move(logical_session_id),
+        });
     }
     state->condition.notify_one();
 }
@@ -530,6 +589,14 @@ void MediaRecorderSink::WorkerMain(const std::shared_ptr<WorkerState>& state) {
                 ProcessVideo(state, work.video);
             } else if (work.type == WorkType::kAudio) {
                 ProcessAudio(state, work.audio);
+            } else if (work.type == WorkType::kOwnership) {
+                state->active_session_id = work.logical_session_id;
+                for (const auto& [monitor_id, writer] : state->writers) {
+                    static_cast<void>(monitor_id);
+                    if (writer) {
+                        writer->UpdateSessionOwner(state->active_session_id);
+                    }
+                }
             } else {
                 FinalizeWriters(state);
             }
@@ -568,11 +635,14 @@ void MediaRecorderSink::ProcessVideo(const std::shared_ptr<WorkerState>& state, 
     auto& writer = state->writers[frame->identity.monitor_id];
     if (!writer) {
         const std::weak_ptr<KeyframeChannel> weak_channel = state->keyframe_channel;
-        writer = state->writer_factory(frame->identity.monitor_id, state->options, [weak_channel] {
-            if (const auto channel = weak_channel.lock()) {
-                channel->Request();
-            }
-        });
+        writer = state->writer_factory(
+            frame->identity.monitor_id, state->options,
+            [weak_channel] {
+                if (const auto channel = weak_channel.lock()) {
+                    channel->Request();
+                }
+            },
+            state->active_session_id);
         LOGI("event=record.writer component=media_recorder action=create "
              "monitor={} outcome={}",
              PrivacyLogId(frame->identity.monitor_id), writer ? "success" : "failed");
@@ -611,14 +681,35 @@ void MediaRecorderSink::FinalizeWriters(const std::shared_ptr<WorkerState>& stat
 }
 
 MediaRecorderSink::WriterFactory MediaRecorderSink::DefaultWriterFactory() {
-    return [](const std::string& monitor_id, const MediaRecorderOptions& options, const KeyframeRequester& request_keyframe) {
+    return [](const std::string& monitor_id, const MediaRecorderOptions& options, const KeyframeRequester& request_keyframe,
+              const std::optional<std::string>& logical_session_id) {
+        const auto ownership = std::make_shared<RecordWriterAdapter::OwnershipState>();
+        ownership->active_session_id = logical_session_id;
         RecordWriterConfig config;
         config.dir = options.record_directory;
         config.monitor_name = monitor_id;
         config.max_segment_bytes = options.max_segment_bytes;
         config.max_file_count = options.max_file_count;
         config.on_request_keyframe = request_keyframe;
-        return std::make_shared<RecordWriterAdapter>(RecordWriter::Make(config));
+        config.on_segment_started = [ownership](const RecordCompletedSegment&) {
+            ownership->segment_session_id = ownership->active_session_id;
+            ownership->segment_open = true;
+            ownership->conflicted = false;
+        };
+        config.on_segment_completed = [ownership, completion = options.on_segment_finalized](const RecordCompletedSegment& segment) {
+            const auto file_name = std::filesystem::path(segment.path).filename().string();
+            if (completion && !file_name.empty()) {
+                completion(FinalizedRecordingSegment{
+                    .file_name = file_name,
+                    .logical_session_id = ownership->conflicted ? std::nullopt : ownership->segment_session_id,
+                    .codec = segment.codec == RecordVideoCodec::kH265 ? "h265" : "h264",
+                });
+            }
+            ownership->segment_open = false;
+            ownership->segment_session_id.reset();
+            ownership->conflicted = false;
+        };
+        return std::make_shared<RecordWriterAdapter>(RecordWriter::Make(config), ownership);
     };
 }
 

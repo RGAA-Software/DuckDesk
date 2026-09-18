@@ -284,6 +284,16 @@ int RdApplication::Run() {
                                                                  .max_segment_bytes = settings_.record_max_segment_bytes_,
                                                                  .max_file_count = settings_.record_max_file_count_,
                                                                  .queue_capacity = 512,
+                                                                 .on_segment_finalized =
+                                                                     [weak_application](const render::FinalizedRecordingSegment& segment) {
+                                                                         const auto application = weak_application.lock();
+                                                                         if (!application || !application->service_client_) {
+                                                                             return;
+                                                                         }
+                                                                         application->service_client_->NotifyRecordingFinalized(
+                                                                             segment.file_name,
+                                                                             segment.logical_session_id.value_or(std::string{}), segment.codec);
+                                                                     },
                                                              },
                                                              [weak_context] {
                                                                  if (const auto context = weak_context.lock()) {

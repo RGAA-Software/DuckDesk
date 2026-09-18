@@ -23,6 +23,9 @@ struct WriterCounters final {
     std::atomic_int video{0};
     std::atomic_int audio{0};
     std::atomic_int stopped{0};
+    std::mutex ownership_mutex;
+    std::optional<std::string> initial_session_owner;
+    std::vector<std::optional<std::string>> ownership_updates;
 };
 
 struct FactoryState final {
@@ -43,6 +46,11 @@ class FakeRecorderWriter final : public MediaRecorderWriter {
         ++counters_->audio;
     }
 
+    void UpdateSessionOwner(const std::optional<std::string>& logical_session_id) override {
+        std::lock_guard lock(counters_->ownership_mutex);
+        counters_->ownership_updates.push_back(logical_session_id);
+    }
+
     void Stop() override {
         ++counters_->stopped;
     }
@@ -52,8 +60,10 @@ class FakeRecorderWriter final : public MediaRecorderWriter {
 };
 
 MediaRecorderSink::WriterFactory MakeFactory(const std::shared_ptr<FactoryState>& state) {
-    return [state](const std::string&, const MediaRecorderOptions&, const MediaRecorderSink::KeyframeRequester& callback) {
+    return [state](const std::string&, const MediaRecorderOptions&, const MediaRecorderSink::KeyframeRequester& callback,
+                   const std::optional<std::string>& logical_session_id) {
         const auto counters = std::make_shared<WriterCounters>();
+        counters->initial_session_owner = logical_session_id;
         {
             std::lock_guard lock(state->mutex);
             state->writers.push_back(counters);
@@ -173,15 +183,30 @@ TEST(MediaRecorderSinkTest, AutoModeTracksFirstAndLastClient) {
                                           {}, MakeFactory(factory_state));
     ASSERT_TRUE(sink->Start());
 
-    media_bus->PublishClientConnected(MediaClientConnected{.visitor_device_id = "client-a", .stream_id = "stream-a"});
+    media_bus->PublishClientConnected(
+        MediaClientConnected{.logical_session_id = "session-a", .visitor_device_id = "client-a", .stream_id = "stream-a"});
     EXPECT_TRUE(sink->Snapshot().recording);
-    media_bus->PublishClientConnected(MediaClientConnected{.visitor_device_id = "client-b", .stream_id = "stream-b"});
-    media_bus->PublishClientDisconnected(MediaClientDisconnected{.visitor_device_id = "client-a", .stream_id = "stream-a"});
+    media_bus->PublishVideo(MakeVideo(0));
+    media_bus->PublishClientConnected(
+        MediaClientConnected{.logical_session_id = "session-b", .visitor_device_id = "client-b", .stream_id = "stream-b"});
+    media_bus->PublishClientDisconnected(
+        MediaClientDisconnected{.logical_session_id = "session-a", .visitor_device_id = "client-a", .stream_id = "stream-a"});
     EXPECT_TRUE(sink->Snapshot().recording);
-    media_bus->PublishClientDisconnected(MediaClientDisconnected{.visitor_device_id = "client-b", .stream_id = "stream-b"});
+    media_bus->PublishClientDisconnected(
+        MediaClientDisconnected{.logical_session_id = "session-b", .visitor_device_id = "client-b", .stream_id = "stream-b"});
     EXPECT_FALSE(sink->Snapshot().recording);
 
     EXPECT_TRUE(StopAndWait(runtime, sink));
+    {
+        std::lock_guard factory_lock(factory_state->mutex);
+        ASSERT_EQ(factory_state->writers.size(), 1U);
+        const auto& writer = factory_state->writers.front();
+        EXPECT_EQ(writer->initial_session_owner, std::optional<std::string>{"session-a"});
+        std::lock_guard ownership_lock(writer->ownership_mutex);
+        ASSERT_EQ(writer->ownership_updates.size(), 2U);
+        EXPECT_EQ(writer->ownership_updates[0], std::nullopt);
+        EXPECT_EQ(writer->ownership_updates[1], std::optional<std::string>{"session-b"});
+    }
     sink.reset();
     runtime->RequestStop();
     runtime->Join();

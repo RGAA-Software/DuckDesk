@@ -20,6 +20,8 @@ enum ServiceMessageType {
   kSrvResourceChannelOpenResult = 15;
   kSrvResourceChannelReportRequest = 16;
   kSrvResourceChannelReportResult = 17;
+  kSrvRecordingFinalized = 18;
+  kSrvRecordingFinalizedResult = 19;
 }
 
 enum VirtualDisplayOperation {
@@ -196,6 +198,19 @@ message MsgResourceChannelReportResult {
   int64 revision = 7;
 }
 
+message MsgRecordingFinalized {
+  string event_id = 1;
+  string file_name = 2;
+  string session_id = 3;
+  string codec = 4;
+}
+
+message MsgRecordingFinalizedResult {
+  string event_id = 1;
+  bool accepted = 2;
+  string error_code = 3;
+}
+
 message ServiceMessage {
   ServiceMessageType type = 1;
   MsgStartServer start_server = 2;
@@ -216,4 +231,6 @@ message ServiceMessage {
   MsgResourceChannelOpenResult resource_channel_open_result = 17;
   MsgResourceChannelReportRequest resource_channel_report_request = 18;
   MsgResourceChannelReportResult resource_channel_report_result = 19;
+  MsgRecordingFinalized recording_finalized = 20;
+  MsgRecordingFinalizedResult recording_finalized_result = 21;
 }

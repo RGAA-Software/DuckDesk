@@ -67,6 +67,7 @@ struct GameTextReplyEvent final {
 };
 
 struct ClientConnectedEvent final {
+    std::string logical_session_id_;
     std::string connection_id_;
     std::string stream_id_;
     std::string connection_type_;
