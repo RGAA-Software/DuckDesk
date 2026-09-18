@@ -13,6 +13,34 @@ pub fn report(value: wire::NodeReport) -> store::NodeReport {
         game_hook: value.game_hook,
         webview: value.webview,
         rdp: value.rdp,
+        telemetry: store::NodeTelemetry {
+            sampled_at: value.telemetry.sampled_at,
+            probe_state: match value.telemetry.probe_state {
+                wire::TelemetryProbeState::Ready => store::TelemetryProbeState::Ready,
+                wire::TelemetryProbeState::Partial => store::TelemetryProbeState::Partial,
+                wire::TelemetryProbeState::Unavailable => store::TelemetryProbeState::Unavailable,
+            },
+            logical_processors: value.telemetry.logical_processors,
+            cpu_utilization_per_mille: value.telemetry.cpu_utilization_per_mille,
+            memory_total_bytes: value.telemetry.memory_total_bytes,
+            memory_available_bytes: value.telemetry.memory_available_bytes,
+            disk_total_bytes: value.telemetry.disk_total_bytes,
+            disk_free_bytes: value.telemetry.disk_free_bytes,
+            gpu_inventory_revision: value.telemetry.gpu_inventory_revision,
+            gpus: value
+                .telemetry
+                .gpus
+                .into_iter()
+                .map(|gpu| store::NodeGpuTelemetry {
+                    stable_key: gpu.stable_key,
+                    name: gpu.name,
+                    dedicated_memory_bytes: gpu.dedicated_memory_bytes,
+                    used_memory_bytes: gpu.used_memory_bytes,
+                    utilization_per_mille: gpu.utilization_per_mille,
+                    encoder_utilization_per_mille: gpu.encoder_utilization_per_mille,
+                })
+                .collect(),
+        },
     }
 }
 

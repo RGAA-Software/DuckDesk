@@ -3,8 +3,9 @@ use argon2::{
     Argon2,
 };
 use px_console_store::{
-    ClientType, DevicePlatform, DeviceStore, IdentityStore, NodeConfiguration, NodeProduct,
-    NodeProfile, NodeReport, NodeStore, PasswordDigest, StoreError, TokenDigest, Username,
+    ClientType, DevicePlatform, DeviceStore, IdentityStore, NodeConfiguration, NodeGpuTelemetry,
+    NodeProduct, NodeProfile, NodeReport, NodeStore, NodeTelemetry, PasswordDigest, StoreError,
+    TelemetryProbeState, TokenDigest, Username,
 };
 use px_pg::{DatabaseConfig, Transport};
 use std::{env, sync::OnceLock, time::Duration};
@@ -51,6 +52,42 @@ fn report(sequence: u64) -> NodeReport {
         game_hook: true,
         webview: true,
         rdp: true,
+        telemetry: unavailable_telemetry(),
+    }
+}
+fn unavailable_telemetry() -> NodeTelemetry {
+    NodeTelemetry {
+        sampled_at: chrono::Utc::now(),
+        probe_state: TelemetryProbeState::Unavailable,
+        logical_processors: None,
+        cpu_utilization_per_mille: None,
+        memory_total_bytes: None,
+        memory_available_bytes: None,
+        disk_total_bytes: None,
+        disk_free_bytes: None,
+        gpu_inventory_revision: None,
+        gpus: Vec::new(),
+    }
+}
+fn ready_telemetry() -> NodeTelemetry {
+    NodeTelemetry {
+        sampled_at: chrono::Utc::now(),
+        probe_state: TelemetryProbeState::Ready,
+        logical_processors: Some(16),
+        cpu_utilization_per_mille: Some(375),
+        memory_total_bytes: Some(64 * 1024 * 1024 * 1024),
+        memory_available_bytes: Some(40 * 1024 * 1024 * 1024),
+        disk_total_bytes: Some(2 * 1024 * 1024 * 1024 * 1024),
+        disk_free_bytes: Some(1024 * 1024 * 1024 * 1024),
+        gpu_inventory_revision: Some(7),
+        gpus: vec![NodeGpuTelemetry {
+            stable_key: "pnp-sha256:0123456789abcdef".into(),
+            name: "Synthetic GPU".into(),
+            dedicated_memory_bytes: Some(24 * 1024 * 1024 * 1024),
+            used_memory_bytes: Some(8 * 1024 * 1024 * 1024),
+            utilization_per_mille: Some(250),
+            encoder_utilization_per_mille: Some(125),
+        }],
     }
 }
 fn settings() -> NodeConfiguration {
@@ -149,6 +186,70 @@ impl Fixture {
         self.identity.close().await;
         self.owner.close().await;
     }
+}
+
+#[tokio::test]
+async fn latest_machine_and_gpu_telemetry_is_generation_fenced_replaced_and_explicitly_unknown() {
+    let fixture = Fixture::new().await;
+    let (node, key) = fixture.node().await;
+    let epoch = fixture.nodes.begin_runtime().await.unwrap();
+    let connection = fixture
+        .nodes
+        .open_connection(epoch, &key, &token())
+        .await
+        .unwrap();
+    let mut first = report(1);
+    first.telemetry = ready_telemetry();
+    fixture.nodes.report(&connection, &first).await.unwrap();
+    let views = fixture
+        .nodes
+        .list_managed_views(&fixture.admin, None, 100)
+        .await
+        .unwrap();
+    let view = views.iter().find(|view| view.node.id == node.id).unwrap();
+    let telemetry = view.telemetry.as_ref().unwrap();
+    assert_eq!(telemetry.node_generation, connection.generation());
+    assert_eq!(telemetry.report_sequence, 1);
+    assert_eq!(telemetry.cpu_utilization_per_mille, Some(375));
+    assert_eq!(view.gpus.len(), 1);
+    assert_eq!(view.gpus[0].inventory_revision, 7);
+    assert_eq!(view.gpus[0].stable_key, "pnp-sha256:0123456789abcdef");
+
+    fixture.nodes.report(&connection, &report(2)).await.unwrap();
+    let views = fixture
+        .nodes
+        .list_managed_views(&fixture.admin, None, 100)
+        .await
+        .unwrap();
+    let view = views.iter().find(|view| view.node.id == node.id).unwrap();
+    assert_eq!(view.telemetry.as_ref().unwrap().probe_state, "unavailable");
+    assert!(view.gpus.is_empty());
+
+    let mut invalid = report(3);
+    invalid.telemetry = ready_telemetry();
+    invalid.telemetry.gpus[0].used_memory_bytes = Some(25 * 1024 * 1024 * 1024);
+    assert!(matches!(
+        fixture.nodes.report(&connection, &invalid).await,
+        Err(StoreError::InvalidInput)
+    ));
+    let views = fixture
+        .nodes
+        .list_managed_views(&fixture.admin, None, 100)
+        .await
+        .unwrap();
+    let view = views.iter().find(|view| view.node.id == node.id).unwrap();
+    assert_eq!(view.telemetry.as_ref().unwrap().report_sequence, 2);
+    assert!(view.gpus.is_empty());
+
+    let mut incomplete_memory = ready_telemetry();
+    incomplete_memory.memory_total_bytes = None;
+    let mut incomplete = report(3);
+    incomplete.telemetry = incomplete_memory;
+    assert!(matches!(
+        fixture.nodes.report(&connection, &incomplete).await,
+        Err(StoreError::InvalidInput)
+    ));
+    fixture.close().await;
 }
 
 #[tokio::test]

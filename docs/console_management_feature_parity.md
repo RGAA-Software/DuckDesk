@@ -24,8 +24,8 @@
 | 稳定 ID | 历史用户能力与入口 | 当前状态 | 新归属 | 完成/验收条件 |
 |---|---|---|---|---|
 | CM-IDENTITY | 管理员登录；用户、用户组管理 | 已迁移 | Console 管理身份 API；`LoginView`、`UserManager`、`GroupManager` | PostgreSQL 管理会话、角色/CAS、最后管理员、改密/退出和中英文 UI 合同持续通过；真实浏览器已覆盖登录及用户/组创建，不得回退 Cookie/CSRF |
-| CM-DASHBOARD | 资源总览、数量与近期状态 | 部分迁移 | `ResourcesView` + managed applications/nodes/deployments/sessions/recordings | 当前页面、登录后导航、进程重启数据保持及数据库失联 fail-closed/恢复已做真实浏览器验收；仍需明确每个指标的数据源和时间语义，并补节点实时容量、告警与趋势 |
-| CM-DEVICE | 设备目录、在线状态、访问授权、设备详情 | 部分迁移 | managed device API + `DevicesList` | 目录及创建一次性注册凭据已做真实浏览器验收，轮换、启停/删除和用户/组 ACL 已接；硬件/GPU、实时在线详情和运维动作仍需节点遥测闭环 |
+| CM-DASHBOARD | 资源总览、数量与近期状态 | 部分迁移 | `ResourcesView` + managed applications/nodes/deployments/sessions/recordings | 当前页面、登录后导航、进程重启数据保持及数据库失联 fail-closed/恢复已做真实浏览器验收；节点列表已展示 Service 最新 CPU、内存、固定磁盘与 GPU 库存快照及采样时间，但仍需历史趋势、告警、陈旧时长和实时推送 |
+| CM-DEVICE | 设备目录、在线状态、访问授权、设备详情 | 部分迁移 | managed device API + `DevicesList` | 目录及创建一次性注册凭据已做真实浏览器验收，轮换、启停/删除和用户/组 ACL 已接；节点侧真实 WMI 最新快照已落 PostgreSQL 并进入管理节点详情，GPU 负载/显存/编码器指标、历史详情和运维动作仍待闭环 |
 | CM-ONLINE | 在线连接列表、访问主体和会话状态 | 已迁移 | managed resource sessions + `OnlineConnection` | 分页、筛选、主体隔离、敏感 descriptor 不返回、真实节点连接/断开更新及浏览器展示通过 |
 | CM-CONNECTION | Service/Panel 连接、远程会话详情和会话事件 | 部分迁移 | managed visits/channels/transfers + `SecurityInternal` | 当前访问、通道、传输和录像历史已接；仍需节点连接代际、命令/会话事件明细、实时刷新和断线陈旧标识 |
 | CM-APPLICATION | 应用、节点、部署配置与调度状态 | 已迁移 | managed application/node/deployment API + `AppsView` | 三种模式、显式 deployment target、CAS、节点 generation、容量/维护门禁和部署准备回归持续通过；管理员页面不冒充终端用户启动入口 |
@@ -39,6 +39,11 @@
 | CM-PROFILE | 当前管理员资料、角色、改密、退出 | 已迁移 | admin session API + `ProfileInfo`/`HeaderView` | 当前 bearer 精确绑定、密码 revision 撤销和退出幂等持续通过；真实浏览器已覆盖中英文、明暗主题、进程重启后的会话重验及退出撤销 |
 | CM-TRANSFER | 文件传输历史、终态与失败原因 | 部分迁移 | managed transfer history + `SecurityInternal` | 元数据、单调进度、哈希终态和 unknown 状态已接；真实文件生产/消费、取消、重试、字节校验和公网客户端展示仍需 DB5 验收 |
 | CM-OBSERVER | 管理员观看但不能控制的权限语义 | 部分迁移 | application `allow_observer` + resource session `observer` | 存储层已区分 observer/control 且 observer 不能创建文件通道；仍需统一的视频墙/直播申请 UI、媒体能力约束、审计、撤销和端到端验证 |
+
+当前节点遥测切片只代表“最新观测值”：Windows Service 每次节点报告时重新采样，Console 以节点 generation 和报告 sequence
+原子替换机器快照及同一 inventory revision 的逐 GPU 清单。WMI 当前能可靠提供 CPU、逻辑处理器、内存、固定磁盘和 GPU 身份/名称；
+无法可靠得到的逐 GPU 利用率、显存和编码器压力保持 `null`，不会以 0 冒充空闲，也不能作为调度证据。尚未建立时间序列、阈值事件、
+断线补报或管理实时事件流，因此 CM-EVENT、CM-REALTIME 仍保持“待实现”。
 
 ## 3. DTO 与页面迁移边界
 

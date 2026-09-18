@@ -144,7 +144,26 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
                 "application_port_end":4998,
                 "game_hook":true,
                 "webview":true,
-                "rdp":true
+                "rdp":true,
+                "telemetry":{
+                    "sampled_at":chrono::Utc::now(),
+                    "probe_state":"ready",
+                    "logical_processors":16,
+                    "cpu_utilization_per_mille":375,
+                    "memory_total_bytes":68719476736_u64,
+                    "memory_available_bytes":42949672960_u64,
+                    "disk_total_bytes":2199023255552_u64,
+                    "disk_free_bytes":1099511627776_u64,
+                    "gpu_inventory_revision":7,
+                    "gpus":[{
+                        "stable_key":"pnp-sha256:0123456789abcdef",
+                        "name":"Synthetic GPU",
+                        "dedicated_memory_bytes":25769803776_u64,
+                        "used_memory_bytes":8589934592_u64,
+                        "utilization_per_mille":250,
+                        "encoder_utilization_per_mille":125
+                    }]
+                }
             }
         }),
     )
@@ -554,6 +573,12 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
         .find(|candidate| candidate["id"] == node["node"]["id"])
         .unwrap();
     assert_eq!(managed["state"], "offline");
+    assert_eq!(managed["telemetry"]["probe_state"], "ready");
+    assert_eq!(managed["telemetry"]["cpu_utilization_per_mille"], 375);
+    assert_eq!(
+        managed["gpus"][0]["stable_key"],
+        "pnp-sha256:0123456789abcdef"
+    );
 
     server_stop.cancel();
     server.await.unwrap().unwrap();

@@ -83,6 +83,41 @@ pub struct NodeReport {
     pub game_hook: bool,
     pub webview: bool,
     pub rdp: bool,
+    pub telemetry: NodeTelemetry,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TelemetryProbeState {
+    Ready,
+    Partial,
+    Unavailable,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NodeGpuTelemetry {
+    pub stable_key: String,
+    pub name: String,
+    pub dedicated_memory_bytes: Option<u64>,
+    pub used_memory_bytes: Option<u64>,
+    pub utilization_per_mille: Option<u16>,
+    pub encoder_utilization_per_mille: Option<u16>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NodeTelemetry {
+    pub sampled_at: DateTime<Utc>,
+    pub probe_state: TelemetryProbeState,
+    pub logical_processors: Option<u16>,
+    pub cpu_utilization_per_mille: Option<u16>,
+    pub memory_total_bytes: Option<u64>,
+    pub memory_available_bytes: Option<u64>,
+    pub disk_total_bytes: Option<u64>,
+    pub disk_free_bytes: Option<u64>,
+    pub gpu_inventory_revision: Option<u64>,
+    pub gpus: Vec<NodeGpuTelemetry>,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]

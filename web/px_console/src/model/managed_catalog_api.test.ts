@@ -6,7 +6,12 @@ import {
     type ApplicationSpec,
     type ManagedApplication,
 } from "./managed_application_api";
-import { configureManagedNode, createManagedNode, type ManagedNode } from "./managed_node_api";
+import {
+    configureManagedNode,
+    createManagedNode,
+    listManagedNodes,
+    type ManagedNode,
+} from "./managed_node_api";
 import {
     configureManagedDeployment,
     createManagedDeployment,
@@ -88,6 +93,35 @@ describe("PostgreSQL managed catalog API", () => {
         expect(axiosHttp.patch).toHaveBeenCalledWith("/api/console/managed/nodes/node-id", {
             revision: 4,
             configuration: { draining: true, disabled: false, max_instances: 4 },
+        });
+    });
+
+    it("retains explicit machine and per-GPU telemetry from the managed node view", async () => {
+        const node = {
+            id: "node-id",
+            telemetry: {
+                probe_state: "ready",
+                cpu_utilization_per_mille: 375,
+                gpu_inventory_revision: 7,
+            },
+            gpus: [
+                {
+                    stable_key: "pnp-sha256:0123456789abcdef",
+                    name: "Synthetic GPU",
+                    utilization_per_mille: null,
+                },
+            ],
+        } as ManagedNode;
+        vi.mocked(axiosHttp.get).mockResolvedValue({ data: [node] } as never);
+
+        const nodes = await listManagedNodes();
+
+        expect(nodes).toEqual([node]);
+        const returnedNode = nodes.at(0);
+        expect(returnedNode?.telemetry?.cpu_utilization_per_mille).toBe(375);
+        expect(returnedNode?.gpus.at(0)?.stable_key).toBe("pnp-sha256:0123456789abcdef");
+        expect(axiosHttp.get).toHaveBeenCalledWith("/api/console/managed/nodes", {
+            params: { after: undefined, limit: 100 },
         });
     });
 

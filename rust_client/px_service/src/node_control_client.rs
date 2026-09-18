@@ -464,6 +464,13 @@ async fn report(
     sequence: u64,
 ) -> Result<i64, String> {
     let node = runtime.lock().await.config.node.clone();
+    let telemetry = match tokio::task::spawn_blocking(crate::node_telemetry::sample).await {
+        Ok(telemetry) => telemetry,
+        Err(error) => {
+            tracing::warn!(error = %error, "node telemetry worker failed");
+            crate::node_telemetry::unavailable()
+        }
+    };
     let capability = |name: &str| product.capabilities.iter().any(|value| value == name);
     let request = NodeRequest::Report {
         request_id: session.request_id()?,
@@ -478,6 +485,7 @@ async fn report(
             webview: capability("webview_host"),
             // RDP remains unavailable until the new protocol carries a workspace envelope.
             rdp: false,
+            telemetry,
         },
     };
     let expected = request.request_id();

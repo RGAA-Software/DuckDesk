@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT node_id,stable_key,inventory_revision,name,dedicated_memory_bytes,used_memory_bytes,\n utilization_per_mille,encoder_utilization_per_mille,sampled_at,received_at\nFROM pixels.node_gpu_latest WHERE node_id=ANY($1::uuid[]) ORDER BY node_id,stable_key\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "node_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "stable_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "inventory_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "dedicated_memory_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "used_memory_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "utilization_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 7,
+        "name": "encoder_utilization_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 8,
+        "name": "sampled_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "received_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "3f27290f856d5837854c92f66be1dda9cb17df9f62f24f786279467c067ba7a4"
+}

@@ -11,10 +11,11 @@ import {
     listManagedNodes,
     rotateManagedNodeCredential,
     type ManagedNode,
+    type NodeTelemetry,
     type NodeProduct,
 } from "@/model/managed_node_api";
 
-const { t } = useI18n();
+const { locale, t } = useI18n();
 const nodes = ref<ManagedNode[]>([]);
 const devices = ref<ManagedDevice[]>([]);
 const loading = ref(false);
@@ -139,6 +140,44 @@ function deviceName(node: ManagedNode) {
     return devices.value.find(device => device.id === node.device_id)?.name || node.device_id;
 }
 
+function formatPercent(perMille: number | null): string {
+    return perMille === null ? t("nodes.unknown") : `${(perMille / 10).toFixed(1)}%`;
+}
+
+function formatBytes(bytes: number | null): string {
+    if (bytes === null) return t("nodes.unknown");
+    const units = ["B", "KiB", "MiB", "GiB", "TiB"];
+    let value = bytes;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+        value /= 1024;
+        unit += 1;
+    }
+    return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+}
+
+function formatUsage(total: number | null, available: number | null): string {
+    if (total === null || available === null) return t("nodes.unknown");
+    return `${formatBytes(Math.max(0, total - available))} / ${formatBytes(total)}`;
+}
+
+function formatConsumed(total: number | null, used: number | null): string {
+    if (total === null || used === null) return t("nodes.unknown");
+    return `${formatBytes(used)} / ${formatBytes(total)}`;
+}
+
+function formatProbeState(state: NodeTelemetry["probe_state"] | undefined): string {
+    return state ? t(`nodes.telemetryStates.${state}`) : t("nodes.unknown");
+}
+
+function formatTimestamp(timestamp: string | undefined): string {
+    if (!timestamp) return t("nodes.unknown");
+    return new Intl.DateTimeFormat(locale.value, {
+        dateStyle: "medium",
+        timeStyle: "medium",
+    }).format(new Date(timestamp));
+}
+
 onMounted(refresh);
 </script>
 
@@ -156,6 +195,66 @@ onMounted(refresh);
             style="margin-bottom: 12px"
         />
         <a-table :data-source="nodes" row-key="id" :loading="loading" :pagination="false">
+            <template #expandedRowRender="{ record }">
+                <a-descriptions bordered size="small" :column="3">
+                    <a-descriptions-item :label="t('nodes.telemetryState')">
+                        {{ formatProbeState(record.telemetry?.probe_state) }}
+                    </a-descriptions-item>
+                    <a-descriptions-item :label="t('nodes.sampledAt')">
+                        {{ formatTimestamp(record.telemetry?.sampled_at) }}
+                    </a-descriptions-item>
+                    <a-descriptions-item :label="t('nodes.cpu')">
+                        {{ formatPercent(record.telemetry?.cpu_utilization_per_mille ?? null) }} /
+                        {{ record.telemetry?.logical_processors ?? t("nodes.unknown") }}
+                        {{ t("nodes.logicalProcessors") }}
+                    </a-descriptions-item>
+                    <a-descriptions-item :label="t('nodes.memory')">
+                        {{
+                            formatUsage(
+                                record.telemetry?.memory_total_bytes ?? null,
+                                record.telemetry?.memory_available_bytes ?? null,
+                            )
+                        }}
+                    </a-descriptions-item>
+                    <a-descriptions-item :label="t('nodes.disk')">
+                        {{
+                            formatUsage(
+                                record.telemetry?.disk_total_bytes ?? null,
+                                record.telemetry?.disk_free_bytes ?? null,
+                            )
+                        }}
+                    </a-descriptions-item>
+                    <a-descriptions-item :label="t('nodes.gpuInventoryRevision')">
+                        {{ record.telemetry?.gpu_inventory_revision ?? t("nodes.unknown") }}
+                    </a-descriptions-item>
+                </a-descriptions>
+                <a-table
+                    :data-source="record.gpus"
+                    row-key="stable_key"
+                    size="small"
+                    :pagination="false"
+                    style="margin-top: 12px"
+                >
+                    <a-table-column :title="t('nodes.gpu')" data-index="name" />
+                    <a-table-column :title="t('nodes.gpuStableKey')" data-index="stable_key" />
+                    <a-table-column :title="t('nodes.gpuMemory')">
+                        <template #default="{ record: gpu }">{{
+                            formatConsumed(gpu.dedicated_memory_bytes, gpu.used_memory_bytes)
+                        }}</template>
+                    </a-table-column>
+                    <a-table-column :title="t('nodes.gpuUtilization')">
+                        <template #default="{ record: gpu }">{{
+                            formatPercent(gpu.utilization_per_mille)
+                        }}</template>
+                    </a-table-column>
+                    <a-table-column :title="t('nodes.encoderUtilization')">
+                        <template #default="{ record: gpu }">{{
+                            formatPercent(gpu.encoder_utilization_per_mille)
+                        }}</template>
+                    </a-table-column>
+                    <template #emptyText>{{ t("nodes.noGpuInventory") }}</template>
+                </a-table>
+            </template>
             <a-table-column :title="t('nodes.device')"
                 ><template #default="{ record }">{{ deviceName(record) }}</template></a-table-column
             >
@@ -173,6 +272,19 @@ onMounted(refresh);
                 ></a-table-column
             >
             <a-table-column :title="t('nodes.capacity')" data-index="max_instances" />
+            <a-table-column :title="t('nodes.cpu')">
+                <template #default="{ record }">{{
+                    formatPercent(record.telemetry?.cpu_utilization_per_mille ?? null)
+                }}</template>
+            </a-table-column>
+            <a-table-column :title="t('nodes.memory')">
+                <template #default="{ record }">{{
+                    formatUsage(
+                        record.telemetry?.memory_total_bytes ?? null,
+                        record.telemetry?.memory_available_bytes ?? null,
+                    )
+                }}</template>
+            </a-table-column>
             <a-table-column :title="t('nodes.endpoint')"
                 ><template #default="{ record }">{{
                     record.public_host ? `${record.public_host}:${record.desktop_port || "-"}` : "-"

@@ -6,8 +6,9 @@ use px_console_store::{
     ApplicationAccess, ApplicationDefinition, ApplicationLaunch, ApplicationSpec, ApplicationStore,
     ClientType, DeploymentConfiguration, DeploymentObservation, DeploymentProfile, DeploymentStore,
     DeploymentTarget, DevicePlatform, DeviceStore, IdentityStore, NodeConnection,
-    NodeDeploymentPreparation, NodeProduct, NodeReport, NodeStore, PasswordDigest,
-    PreparationFailure, PreparationState, StoreError, TokenDigest, Username, VideoCodec, VideoSpec,
+    NodeDeploymentPreparation, NodeProduct, NodeReport, NodeStore, NodeTelemetry, PasswordDigest,
+    PreparationFailure, PreparationState, StoreError, TelemetryProbeState, TokenDigest, Username,
+    VideoCodec, VideoSpec,
 };
 use px_pg::{DatabaseConfig, Transport};
 use std::{env, sync::OnceLock, time::Duration};
@@ -67,6 +68,21 @@ fn node_report(sequence: u64) -> NodeReport {
         game_hook: true,
         webview: true,
         rdp: true,
+        telemetry: unavailable_telemetry(),
+    }
+}
+fn unavailable_telemetry() -> NodeTelemetry {
+    NodeTelemetry {
+        sampled_at: chrono::Utc::now(),
+        probe_state: TelemetryProbeState::Unavailable,
+        logical_processors: None,
+        cpu_utilization_per_mille: None,
+        memory_total_bytes: None,
+        memory_available_bytes: None,
+        disk_total_bytes: None,
+        disk_free_bytes: None,
+        gpu_inventory_revision: None,
+        gpus: Vec::new(),
     }
 }
 fn observation(deployment: &DeploymentProfile, sequence: u64) -> DeploymentObservation {

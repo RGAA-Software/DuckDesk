@@ -3,6 +3,7 @@
 mod app;
 mod node_control_client;
 mod node_control_store;
+mod node_telemetry;
 mod parsec_vdd;
 mod product_descriptor;
 mod service_host;

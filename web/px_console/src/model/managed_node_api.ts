@@ -2,6 +2,35 @@ import axiosHttp from "@/http";
 
 export type NodeProduct = "cloud_node" | "remote";
 
+export interface NodeTelemetry {
+    node_id: string;
+    node_generation: number;
+    report_sequence: number;
+    probe_state: "ready" | "partial" | "unavailable";
+    sampled_at: string;
+    received_at: string;
+    logical_processors: number | null;
+    cpu_utilization_per_mille: number | null;
+    memory_total_bytes: number | null;
+    memory_available_bytes: number | null;
+    disk_total_bytes: number | null;
+    disk_free_bytes: number | null;
+    gpu_inventory_revision: number | null;
+}
+
+export interface NodeGpuTelemetry {
+    node_id: string;
+    stable_key: string;
+    inventory_revision: number;
+    name: string;
+    dedicated_memory_bytes: number | null;
+    used_memory_bytes: number | null;
+    utilization_per_mille: number | null;
+    encoder_utilization_per_mille: number | null;
+    sampled_at: string;
+    received_at: string;
+}
+
 export interface ManagedNode {
     id: string;
     device_id: string;
@@ -25,6 +54,8 @@ export interface ManagedNode {
     rdp: boolean;
     endpoint_revision: number;
     fresh: boolean;
+    telemetry: NodeTelemetry | null;
+    gpus: NodeGpuTelemetry[];
 }
 
 interface NodeCredentialResponse {

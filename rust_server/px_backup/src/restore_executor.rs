@@ -1117,7 +1117,7 @@ mod tests {
             password_file,
         };
         let verification_output = format!(
-            "console|{}|{}|pixels_console_owner|23|true",
+            "console|{}|{}|pixels_console_owner|24|true",
             deployment_id, target.database
         );
         let createdb = create_fake_tool(temporary_directory.path(), "createdb", &log_path, None);
@@ -1145,7 +1145,7 @@ mod tests {
         tools.create_fresh_database(&target).unwrap();
         tools.restore_archive(&target, &archive_path).unwrap();
         tools
-            .verify_restored_database(&target, deployment_id, 23)
+            .verify_restored_database(&target, deployment_id, 24)
             .unwrap();
         let command_log = fs::read_to_string(&log_path).unwrap();
         assert!(command_log.contains("--template=template0"));
@@ -1155,7 +1155,7 @@ mod tests {
 
         fs::write(&psql, b"tampered").unwrap();
         assert_eq!(
-            tools.verify_restored_database(&target, deployment_id, 23),
+            tools.verify_restored_database(&target, deployment_id, 24),
             Err(RestoreExecutionError::ToolIdentity)
         );
     }

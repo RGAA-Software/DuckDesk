@@ -222,8 +222,7 @@ async fn handle_connection(
                     let operation_runtime = runtime.clone();
                     let operation_tx = tx.clone();
                     tokio::spawn(async move {
-                        let response = process_resource_channel_report(
-                            operation_runtime,
+                        let report = ResourceChannelReportRequest {
                             request_id,
                             channel_id,
                             sequence,
@@ -231,8 +230,9 @@ async fn handle_connection(
                             received_bytes,
                             elapsed_ms,
                             outcome,
-                        )
-                        .await;
+                        };
+                        let response =
+                            process_resource_channel_report(operation_runtime, report).await;
                         let _ = operation_tx.send(encode_service_message(&response));
                     });
                     None
@@ -345,8 +345,7 @@ fn resource_channel_report_service_message(
     }
 }
 
-async fn process_resource_channel_report(
-    runtime: Arc<Mutex<ServiceRuntime>>,
+struct ResourceChannelReportRequest {
     request_id: String,
     channel_id: String,
     sequence: u64,
@@ -354,14 +353,19 @@ async fn process_resource_channel_report(
     received_bytes: u64,
     elapsed_ms: u64,
     outcome: service_core::ResourceChannelOutcome,
+}
+
+async fn process_resource_channel_report(
+    runtime: Arc<Mutex<ServiceRuntime>>,
+    report: ResourceChannelReportRequest,
 ) -> service_core::ServiceMessage {
     let mut response = service_core::MsgResourceChannelReportResult {
-        request_id,
+        request_id: report.request_id,
         ..Default::default()
     };
-    let channel_id = match uuid::Uuid::parse_str(&channel_id) {
+    let channel_id = match uuid::Uuid::parse_str(&report.channel_id) {
         Ok(channel_id)
-            if !channel_id.is_nil() && sequence > 0 && !response.request_id.is_empty() =>
+            if !channel_id.is_nil() && report.sequence > 0 && !response.request_id.is_empty() =>
         {
             channel_id
         }
@@ -370,7 +374,7 @@ async fn process_resource_channel_report(
             return resource_channel_report_service_message(response);
         }
     };
-    let outcome = match outcome {
+    let outcome = match report.outcome {
         service_core::ResourceChannelOutcome::Progress => {
             px_node_protocol::ChannelOutcome::Progress
         }
@@ -403,10 +407,10 @@ async fn process_resource_channel_report(
     let operation = crate::node_control_client::NodeControlOperation::ReportChannel {
         channel_id,
         progress: px_node_protocol::ChannelProgress {
-            sequence,
-            sent_bytes,
-            received_bytes,
-            elapsed_ms,
+            sequence: report.sequence,
+            sent_bytes: report.sent_bytes,
+            received_bytes: report.received_bytes,
+            elapsed_ms: report.elapsed_ms,
             outcome,
         },
         completion,

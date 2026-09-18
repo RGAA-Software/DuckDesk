@@ -1,8 +1,9 @@
 use crate::{
-    control, NodeConfiguration, NodeConnection, NodeProduct, NodeProfile, NodeReport, RuntimeEpoch,
-    StoreError, TokenDigest,
+    control, ManagedNodeProfile, NodeConfiguration, NodeConnection, NodeGpuProfile, NodeProduct,
+    NodeProfile, NodeReport, NodeTelemetryProfile, RuntimeEpoch, StoreError, TokenDigest,
 };
 use sqlx::{PgConnection, PgPool};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -95,6 +96,57 @@ impl NodeStore {
         tx.commit().await?;
         Ok(result)
     }
+    pub async fn list_managed_views(
+        &self,
+        admin: &TokenDigest,
+        after: Option<Uuid>,
+        limit: u32,
+    ) -> Result<Vec<ManagedNodeProfile>, StoreError> {
+        if !(1..=100).contains(&limit) {
+            return Err(StoreError::InvalidInput);
+        }
+        let mut tx = self.pool.begin().await?;
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+            .execute(&mut *tx)
+            .await?;
+        control::read_gate(&mut tx).await?;
+        control::authorize(&mut tx, admin, false).await?;
+        let nodes = sqlx::query_file_as!(
+            NodeProfile,
+            "queries/managed_nodes.sql",
+            after,
+            i64::from(limit)
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+        let node_ids = nodes.iter().map(|node| node.id).collect::<Vec<_>>();
+        let telemetry = sqlx::query_file_as!(
+            NodeTelemetryProfile,
+            "queries/managed_node_telemetry.sql",
+            &node_ids
+        )
+        .fetch_all(&mut *tx)
+        .await?
+        .into_iter()
+        .map(|sample| (sample.node_id, sample))
+        .collect::<HashMap<_, _>>();
+        let mut gpus = HashMap::<Uuid, Vec<NodeGpuProfile>>::new();
+        for gpu in sqlx::query_file_as!(NodeGpuProfile, "queries/managed_node_gpus.sql", &node_ids)
+            .fetch_all(&mut *tx)
+            .await?
+        {
+            gpus.entry(gpu.node_id).or_default().push(gpu);
+        }
+        tx.commit().await?;
+        Ok(nodes
+            .into_iter()
+            .map(|node| ManagedNodeProfile {
+                telemetry: telemetry.get(&node.id).cloned(),
+                gpus: gpus.remove(&node.id).unwrap_or_default(),
+                node,
+            })
+            .collect())
+    }
     pub async fn open_connection(
         &self,
         epoch: RuntimeEpoch,
@@ -127,7 +179,7 @@ impl NodeStore {
         connection: &NodeConnection,
         report: &NodeReport,
     ) -> Result<NodeProfile, StoreError> {
-        let (sequence, host) = report.validate()?;
+        let validated = report.validate()?;
         let mut tx = self.pool.begin().await?;
         control::read_gate(&mut tx).await?;
         let previous = sqlx::query_file_as!(NodeProfile, "queries/lock_node.sql", connection.id)
@@ -140,9 +192,9 @@ impl NodeStore {
             connection.key.0.as_slice(),
             connection.generation,
             connection.epoch.0,
-            sequence,
+            validated.sequence,
             i64::from(report.product_version_code),
-            host,
+            validated.host,
             i32::from(report.desktop_port),
             i32::from(report.application_port_start),
             i32::from(report.application_port_end),
@@ -153,6 +205,44 @@ impl NodeStore {
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(StoreError::Rejected)?;
+        let telemetry = validated.telemetry;
+        sqlx::query_file!("queries/delete_node_gpus.sql", node.id)
+            .execute(&mut *tx)
+            .await?;
+        let received_at = sqlx::query_file_scalar!(
+            "queries/upsert_node_telemetry.sql",
+            node.id,
+            node.generation,
+            validated.sequence,
+            telemetry.probe_state,
+            telemetry.sampled_at,
+            telemetry.logical_processors,
+            telemetry.cpu_utilization_per_mille,
+            telemetry.memory_total_bytes,
+            telemetry.memory_available_bytes,
+            telemetry.disk_total_bytes,
+            telemetry.disk_free_bytes,
+            telemetry.gpu_inventory_revision
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        for gpu in telemetry.gpus {
+            sqlx::query_file!(
+                "queries/insert_node_gpu.sql",
+                node.id,
+                gpu.stable_key,
+                telemetry.gpu_inventory_revision,
+                gpu.name,
+                gpu.dedicated_memory_bytes,
+                gpu.used_memory_bytes,
+                gpu.utilization_per_mille,
+                gpu.encoder_utilization_per_mille,
+                telemetry.sampled_at,
+                received_at
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
         if previous.state == "ready" && node.state == "reconciling" {
             crate::node_lifecycle::invalidate(&mut tx, Some(node.id)).await?;
         }

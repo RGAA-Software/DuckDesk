@@ -1,5 +1,6 @@
 use crate::{StoreError, TokenDigest};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeDelta, Utc};
+use std::collections::HashSet;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -69,9 +70,10 @@ pub struct NodeReport {
     pub game_hook: bool,
     pub webview: bool,
     pub rdp: bool,
+    pub telemetry: NodeTelemetry,
 }
 impl NodeReport {
-    pub(crate) fn validate(&self) -> Result<(i64, String), StoreError> {
+    pub(crate) fn validate(&self) -> Result<ValidatedNodeReport, StoreError> {
         let sequence = i64::try_from(self.sequence).map_err(|_| StoreError::InvalidInput)?;
         if sequence < 1
             || self.product_version_code == 0
@@ -95,8 +97,247 @@ impl NodeReport {
                 .map_err(|_| StoreError::InvalidInput)?
                 .to_string()
         };
-        Ok((sequence, host))
+        Ok(ValidatedNodeReport {
+            sequence,
+            host,
+            telemetry: self.telemetry.validate()?,
+        })
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TelemetryProbeState {
+    Ready,
+    Partial,
+    Unavailable,
+}
+impl TelemetryProbeState {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::Ready => "ready",
+            Self::Partial => "partial",
+            Self::Unavailable => "unavailable",
+        }
+    }
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NodeGpuTelemetry {
+    pub stable_key: String,
+    pub name: String,
+    pub dedicated_memory_bytes: Option<u64>,
+    pub used_memory_bytes: Option<u64>,
+    pub utilization_per_mille: Option<u16>,
+    pub encoder_utilization_per_mille: Option<u16>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NodeTelemetry {
+    pub sampled_at: DateTime<Utc>,
+    pub probe_state: TelemetryProbeState,
+    pub logical_processors: Option<u16>,
+    pub cpu_utilization_per_mille: Option<u16>,
+    pub memory_total_bytes: Option<u64>,
+    pub memory_available_bytes: Option<u64>,
+    pub disk_total_bytes: Option<u64>,
+    pub disk_free_bytes: Option<u64>,
+    pub gpu_inventory_revision: Option<u64>,
+    pub gpus: Vec<NodeGpuTelemetry>,
+}
+
+pub(crate) struct ValidatedNodeReport {
+    pub sequence: i64,
+    pub host: String,
+    pub telemetry: ValidatedNodeTelemetry,
+}
+
+pub(crate) struct ValidatedNodeTelemetry {
+    pub sampled_at: DateTime<Utc>,
+    pub probe_state: &'static str,
+    pub logical_processors: Option<i16>,
+    pub cpu_utilization_per_mille: Option<i16>,
+    pub memory_total_bytes: Option<i64>,
+    pub memory_available_bytes: Option<i64>,
+    pub disk_total_bytes: Option<i64>,
+    pub disk_free_bytes: Option<i64>,
+    pub gpu_inventory_revision: Option<i64>,
+    pub gpus: Vec<ValidatedNodeGpuTelemetry>,
+}
+
+pub(crate) struct ValidatedNodeGpuTelemetry {
+    pub stable_key: String,
+    pub name: String,
+    pub dedicated_memory_bytes: Option<i64>,
+    pub used_memory_bytes: Option<i64>,
+    pub utilization_per_mille: Option<i16>,
+    pub encoder_utilization_per_mille: Option<i16>,
+}
+
+impl NodeTelemetry {
+    fn validate(&self) -> Result<ValidatedNodeTelemetry, StoreError> {
+        let now = Utc::now();
+        if self.sampled_at > now + TimeDelta::minutes(5)
+            || self.sampled_at < now - TimeDelta::hours(1)
+            || self.gpus.len() > 16
+        {
+            return Err(StoreError::InvalidInput);
+        }
+        let logical_processors = optional_i16(self.logical_processors, 1, 1024)?;
+        let cpu_utilization_per_mille = optional_i16(self.cpu_utilization_per_mille, 0, 1000)?;
+        let memory_total_bytes = optional_i64(self.memory_total_bytes)?;
+        let memory_available_bytes = optional_i64(self.memory_available_bytes)?;
+        let disk_total_bytes = optional_i64(self.disk_total_bytes)?;
+        let disk_free_bytes = optional_i64(self.disk_free_bytes)?;
+        let gpu_inventory_revision = optional_i64(self.gpu_inventory_revision)?;
+        if memory_available_bytes
+            .zip(memory_total_bytes)
+            .is_some_and(|(available, total)| available > total)
+            || memory_available_bytes.is_some() != memory_total_bytes.is_some()
+            || disk_free_bytes
+                .zip(disk_total_bytes)
+                .is_some_and(|(free, total)| free > total)
+            || disk_free_bytes.is_some() != disk_total_bytes.is_some()
+            || (self.gpu_inventory_revision.is_none() && !self.gpus.is_empty())
+        {
+            return Err(StoreError::InvalidInput);
+        }
+        let has_machine_data = logical_processors.is_some()
+            || cpu_utilization_per_mille.is_some()
+            || memory_total_bytes.is_some()
+            || memory_available_bytes.is_some()
+            || disk_total_bytes.is_some()
+            || disk_free_bytes.is_some()
+            || gpu_inventory_revision.is_some();
+        match self.probe_state {
+            TelemetryProbeState::Ready
+                if logical_processors.is_none()
+                    || memory_total_bytes.is_none()
+                    || memory_available_bytes.is_none()
+                    || disk_total_bytes.is_none()
+                    || disk_free_bytes.is_none()
+                    || gpu_inventory_revision.is_none() =>
+            {
+                return Err(StoreError::InvalidInput);
+            }
+            TelemetryProbeState::Partial if !has_machine_data => {
+                return Err(StoreError::InvalidInput);
+            }
+            TelemetryProbeState::Unavailable if has_machine_data || !self.gpus.is_empty() => {
+                return Err(StoreError::InvalidInput);
+            }
+            _ => {}
+        }
+        let mut stable_keys = HashSet::with_capacity(self.gpus.len());
+        let mut gpus = Vec::with_capacity(self.gpus.len());
+        for gpu in &self.gpus {
+            if gpu.stable_key.is_empty()
+                || gpu.stable_key.len() > 128
+                || gpu.stable_key.chars().any(char::is_whitespace)
+                || gpu.name.is_empty()
+                || gpu.name.len() > 256
+                || gpu.name.chars().any(char::is_control)
+                || !stable_keys.insert(gpu.stable_key.as_str())
+            {
+                return Err(StoreError::InvalidInput);
+            }
+            let dedicated_memory_bytes = optional_i64(gpu.dedicated_memory_bytes)?;
+            let used_memory_bytes = optional_i64(gpu.used_memory_bytes)?;
+            if used_memory_bytes
+                .zip(dedicated_memory_bytes)
+                .is_some_and(|(used, total)| used > total)
+                || (used_memory_bytes.is_some() && dedicated_memory_bytes.is_none())
+            {
+                return Err(StoreError::InvalidInput);
+            }
+            gpus.push(ValidatedNodeGpuTelemetry {
+                stable_key: gpu.stable_key.clone(),
+                name: gpu.name.clone(),
+                dedicated_memory_bytes,
+                used_memory_bytes,
+                utilization_per_mille: optional_i16(gpu.utilization_per_mille, 0, 1000)?,
+                encoder_utilization_per_mille: optional_i16(
+                    gpu.encoder_utilization_per_mille,
+                    0,
+                    1000,
+                )?,
+            });
+        }
+        Ok(ValidatedNodeTelemetry {
+            sampled_at: self.sampled_at,
+            probe_state: self.probe_state.name(),
+            logical_processors,
+            cpu_utilization_per_mille,
+            memory_total_bytes,
+            memory_available_bytes,
+            disk_total_bytes,
+            disk_free_bytes,
+            gpu_inventory_revision,
+            gpus,
+        })
+    }
+}
+
+fn optional_i16<T>(value: Option<T>, minimum: T, maximum: T) -> Result<Option<i16>, StoreError>
+where
+    T: Copy + PartialOrd,
+    i16: TryFrom<T>,
+{
+    value
+        .map(|number| {
+            if number < minimum || number > maximum {
+                return Err(StoreError::InvalidInput);
+            }
+            i16::try_from(number).map_err(|_| StoreError::InvalidInput)
+        })
+        .transpose()
+}
+
+fn optional_i64(value: Option<u64>) -> Result<Option<i64>, StoreError> {
+    value
+        .map(|number| i64::try_from(number).map_err(|_| StoreError::InvalidInput))
+        .transpose()
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, sqlx::FromRow)]
+pub struct NodeTelemetryProfile {
+    pub node_id: Uuid,
+    pub node_generation: i64,
+    pub report_sequence: i64,
+    pub probe_state: String,
+    pub sampled_at: DateTime<Utc>,
+    pub received_at: DateTime<Utc>,
+    pub logical_processors: Option<i16>,
+    pub cpu_utilization_per_mille: Option<i16>,
+    pub memory_total_bytes: Option<i64>,
+    pub memory_available_bytes: Option<i64>,
+    pub disk_total_bytes: Option<i64>,
+    pub disk_free_bytes: Option<i64>,
+    pub gpu_inventory_revision: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, sqlx::FromRow)]
+pub struct NodeGpuProfile {
+    pub node_id: Uuid,
+    pub stable_key: String,
+    pub inventory_revision: i64,
+    pub name: String,
+    pub dedicated_memory_bytes: Option<i64>,
+    pub used_memory_bytes: Option<i64>,
+    pub utilization_per_mille: Option<i16>,
+    pub encoder_utilization_per_mille: Option<i16>,
+    pub sampled_at: DateTime<Utc>,
+    pub received_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct ManagedNodeProfile {
+    #[serde(flatten)]
+    pub node: NodeProfile,
+    pub telemetry: Option<NodeTelemetryProfile>,
+    pub gpus: Vec<NodeGpuProfile>,
 }
 /// Administrative view only. Fresh means recent authenticated contact, not reconciled capacity.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, sqlx::FromRow)]
@@ -139,6 +380,18 @@ mod tests {
             game_hook: true,
             webview: true,
             rdp: true,
+            telemetry: NodeTelemetry {
+                sampled_at: Utc::now(),
+                probe_state: TelemetryProbeState::Unavailable,
+                logical_processors: None,
+                cpu_utilization_per_mille: None,
+                memory_total_bytes: None,
+                memory_available_bytes: None,
+                disk_total_bytes: None,
+                disk_free_bytes: None,
+                gpu_inventory_revision: None,
+                gpus: Vec::new(),
+            },
         };
         assert!(report.validate().is_ok());
         for host in [

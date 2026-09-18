@@ -90,7 +90,9 @@ pub use model::{
     TokenDigest, UserAvatar, UserProfile, Username, MAX_AVATAR_BYTES,
 };
 pub use node_model::{
-    NodeConfiguration, NodeConnection, NodeProduct, NodeProfile, NodeReport, RuntimeEpoch,
+    ManagedNodeProfile, NodeConfiguration, NodeConnection, NodeGpuProfile, NodeGpuTelemetry,
+    NodeProduct, NodeProfile, NodeReport, NodeTelemetry, NodeTelemetryProfile, RuntimeEpoch,
+    TelemetryProbeState,
 };
 pub use nodes::NodeStore;
 pub use outbox::{AuthorizationEvent, DeliveryFailure};

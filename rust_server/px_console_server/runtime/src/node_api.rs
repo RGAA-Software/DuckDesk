@@ -537,7 +537,7 @@ async fn managed(
         state
             .db
             .nodes()
-            .list_managed(
+            .list_managed_views(
                 &request::administrator(&state, &headers)?,
                 page.after,
                 page.limit
