@@ -42,7 +42,7 @@ Windows 目录/API 五项专项 `pg-20260917-111216-5acb856e` 通过；其中验
 改为沿稳定 UUID 游标逐页查找并设置有界迭代；不扩大服务分页上限，也不绕过管理授权。
 
 用户新约束已登记：[编码风格](coding_style.md)，C++ Google（明确覆盖为 4 空格）、Rust 官方 rustfmt、TypeScript Microsoft。
-Google 的 80 列替代旧 150 列；智能指针/RAII、第三方只读及不做无关全仓重排的约束继续有效。
+项目按 Google 基础风格使用 4 空格和 150 列；智能指针/RAII、第三方只读及不做无关全仓重排的约束继续有效。
 
 此前完整回归 `pg-20260917-115055-ce8ce993`：570 项 PASS，Windows/Linux 各 260 个 Rust 用例，
 三服务共 274 条 SQLx 查询在线/离线一致（Console 236、Auth 29、Desk 9），Auth/Desk 网页、真实浏览器、进程故障恢复及三库恢复通过。
@@ -603,8 +603,25 @@ Render 等无人值守组件的独立服务身份，以及制品下载、签名�
 WebSocket 流程完成节点认证、部署准备、CloudApplication 实例启动和 Android 用户会话后，验证用户只能读取自己的访问记录、
 管理员能读取管理视图、Android 身份不能进入管理入口。因主工作区的 `px_pixels` 同时在编辑，本轮从字节一致的后端源码和当时
 前端工作树创建独立冻结快照；Windows、WSL2、`px_pixels` 构建、Auth/Desk 浏览器与进程、断库恢复、三库恢复冒烟及快照源码
-hash 门禁全部通过，报告已复制回本项目标准测试结果目录。该增量只提供目录和历史元数据读取；节点侧通道/传输/录像生产协议、
-真实文件字节传输、录像下载与媒体执行链仍未交付。
+hash 门禁全部通过，报告已复制回本项目标准测试结果目录。该增量只提供目录和历史元数据读取；节点协议随后已补齐通道、传输和录像
+上报 DTO/Console 处理，但 Service/Render 的实际生产者、真实文件字节传输、录像下载与媒体执行链仍未交付。
+
+Render 前端准入纵向链已经接通：非桌面 Render 在接受 `/alloc/local/rtc` 前必须携带明确的 session UUID、正数 revision 和一次性
+frontend token，经本机 Service IPC 转发到当前受认证 Console 节点长连接的 `admit_frontend`；Service 不缓存明文 token，转发和 IPC
+耗时从 Console 返回的短租约中扣除。Render 只接受绑定当前 instance、`cloud_application` 目标以及 controller/observer 角色的授权，
+节点连接异常、超时、响应错配和业务拒绝均 fail-closed，云应用模式不再退回设备密码。桌面模式的既有入口保持原行为。
+`service_core` 86 项（另 1 项既有真实 UE 样本 ignored）、`px_service` 75 项、Render RPC 状态测试及 C++ 所有权门禁通过；Cloud/Remote
+Service 与 Render 均用聚焦构建入口发布到各自 `build_official/<product>/dist` 并逐件核对 SHA-256。该证据覆盖真实
+Render→Service→Console 授权转发和断线/迟到响应，不等于真实公网客户端已完成首帧、输入、音频、文件或录像功能验收。
+
+前端目录切换后，完整门禁首次发现 `px_pixels` 产品预览图未随目录迁移，第二次发现 `px_auth` 锁定依赖未安装，第三次发现无条件
+`npm ci` 会尝试替换正在被 Vite 占用的原生模块；三份报告均保持 FAIL。修复只恢复四张仍被页面引用的产品截图、不恢复旧 Logo，
+并让门禁在依赖树缺失时按 lockfile 安装、存在时用 `npm ls --depth=0` 验证，不覆盖开发者正在使用的依赖目录。
+最新完整软件基线 `pg-20260918-115903-4c2a2c7c` 在 revision `975c46ea0` 上为 731/731 项 PASS：Windows/WSL Linux
+各 337 个 Rust 用例目录完全一致，Console 242、Desk 9、Auth 30 条 SQLx 查询在线/离线一致；`px_pixels`/`px_auth` 构建、契约测试、
+Auth/Desk 真实浏览器和断库恢复、三库协调备份/异机副本恢复/最终恢复冒烟均通过。919 个登记源文件在整轮中 SHA-256 不变，
+Windows/Linux 工具摘要已记录，隔离容器和卷已清理。Linux Desk 曾有一次子进程提前退出只呈现 `Option::unwrap()`；现在测试会保留
+退出状态和 stderr，随后 Linux 单项连续 10 次、Windows Desk/Auth 专项和本轮完整顺序均通过，不用重跑掩盖失败原因。
 
 ## 仍未通过的阶段出口
 
@@ -617,7 +634,7 @@ Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 W
 | DB0 | 已补领域/权限/恢复边界及 Auth 字节/固定向量；其余 Console 字段 SQL 与完整合成基线尚未全部冻结 |
 | DB1-EXIT | Desk/Auth 产品服务已接入；Console PG 组合根已能作为独立进程启动并通过断库 fail-closed 验收，但正式 `px_console.exe` 构建/安装包仍未切换，不能用开发目标或 schema CLI 替代三服务产品验收 |
 | DB2-A | 身份/管理 HTTP、本人资料/头像、密码计算/限流/Origin、访客 HMAC/会话/公开目录、Saved Connections、更新目录、访问/通道/传输历史及录像目录 HTTP、严格配置、稳定私钥加载、独立初始化 CLI、静态文件服务及进程生命周期已实现；其余新 Console Web API 改造、正式产品二进制/安装包切换及客户端全链路尚未接通 |
-| DB2-B/C/D | 设备/应用/节点/部署目录、user/guest 资源入口、更新与历史元数据入口及 Console 节点 WS 已接；Windows Service 已切到新节点协议并实现部署准备、调和、命令 fencing 与精确 launch ACK。真实 Console→Service→Render、GPU/RDP 执行、通道/传输/录像生产和媒体/事件投递、无人值守更新身份/执行器及其余 repository 产品入口仍未完成 |
+| DB2-B/C/D | 设备/应用/节点/部署目录、user/guest 资源入口、更新与历史元数据入口及 Console 节点 WS 已接；Windows Service 已切到新节点协议并实现部署准备、调和、命令 fencing、精确 launch ACK 和 Render 前端准入转发，非桌面 Render 已在建连前校验当前 CloudApplication session/instance/role/lease。仍未完成真实公网首帧/输入/音频、GPU/RDP 执行、Service/Render 通道/传输/录像生产、文件与录像媒体投递、无人值守更新身份/执行器及其余 repository 产品入口 |
 | DB2-EXIT / DB3 | Desk/Auth 独立产品流程已验证；Console 与共享消费者仍待去 Mongo、接新签发/验证及库外水位，Auth 通知 outbox 尚未接通；不建设运行时双后端 |
 | DB4 | 恢复集/保留/私有原子发布/恢复前哈希与依赖复核/固定工具/取消超时、持久计划任务、重启补跑、受限实际清理、配置化异机复制、独立告警送达、持久恢复准入/审批、隔离恢复编排、固定工具适配器、执行命令、最小恢复账号创建/轮换、三库安全水位及写屏障生产/消费/释放、灾难恢复新 generation、数据库内旧会话/Grant/节点凭据/待发控制失效、库外单调可信见证生产/持久链、Auth 活动私钥/多公钥信任根/代际绑定/旧 key 撤回、固定版本 pgBackRest 物理备份/连续 WAL/命名点恢复和缺 WAL 拒绝、Windows 固定 PostgreSQL 客户端包/版本化安装/覆盖回滚/卸载保留数据，以及 systemd 安装/重启/停止/注销保留数据已实现；Windows SCM 与 WSL2 systemd 生命周期已真实验收，测试适配器已完成三库协调逻辑备份、异机副本路径恢复、全新库恢复、恢复封印和人工准入。仍需目标 Linux 发行版 VM、Pixels 外层安装包签名与生产密钥托管、独立主机或对象仓库的故障域部署/7 天窗口/恢复实测、目标环境 Auth keyring/见证同步轮换演练，以及真实节点与 Windows/RDP 工作区事实对账；本机 Docker/固定替身专项不能替代这些故障域验收 |
 | DB5 | 新环境服务端—Windows—Android 功能回归及完整制品验收 |

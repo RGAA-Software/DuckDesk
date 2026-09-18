@@ -15,12 +15,12 @@
 `scripts/check_cpp_readable_names.ps1` 检查相对合并基线的全部 C/C++ 变更以及暂存区、工作区变更；CI 可以通过
 `CPP_NAMING_BASE_REVISION` 或 `-BaseRevision` 明确评审基线。它拒绝新增的单字母和脱离上下文命名，并单独列出 `x`/`y`
 供人工确认确属几何坐标。新纳入维护范围的源码必须同步扩展门禁路径；不得用排除文件、例外清单或缩短扫描范围来绕过命名问题。
-此规范替代旧的 C++ LLVM / 4 空格 / 150 列规则；不替代项目所有权、初始化、异步安全、架构分层、国际化和主题要求。
+此规范替代旧的 C++ LLVM 规则；不替代项目所有权、初始化、异步安全、架构分层、国际化和主题要求。
 
 ## C++：Google Style
 
 以 [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html) 为基础，根 `.clang-format` 使用 `BasedOnStyle: Google`。
-按用户明确覆盖，普通缩进与续行缩进均为 4 空格，不使用 Tab；其余采用 Google 的 80 列、命名与头文件组织规则。
+按用户明确覆盖，普通缩进与续行缩进均为 4 空格，不使用 Tab；项目代码行宽为 150 列，其余采用 Google 的命名与头文件组织规则。
 无法合理拆分的 URL、外部字面量等按指南例外处理。
 文件后缀不因此批量改名；既有外部 ABI、Qt 边界及 WebRTC 例外不改变。
 

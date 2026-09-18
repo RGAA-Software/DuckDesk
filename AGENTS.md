@@ -95,7 +95,7 @@
 
 - Coding-style decision (2026-09-17): project-owned C++ follows the Google C++ Style Guide; Rust follows the official Rust Style Guide
   and rustfmt; TypeScript follows Microsoft's TypeScript Coding Guidelines for general application code. See `docs/coding_style.md`.
-  This supersedes the previous C++ LLVM/150-column formatting rule: use Google/4-space/80-column formatting.
+  This supersedes the previous C++ LLVM formatting rule: use Google formatting with 4-space indentation and a 150-column project limit.
   The user's explicit four-space indentation override applies to normal and continuation indentation; use spaces, never tabs.
   Existing project ownership, deterministic initialization, async safety, localization/theme and protected ABI rules remain mandatory;
   adopting a style guide does not permit raw pointers, unrelated third-party changes or a repository-wide mechanical rewrite.
@@ -128,7 +128,7 @@
   typed, capability-specific, and backed by a real extension boundary.
 - Resource acquisition, subscriptions, registrations, locks, threads, timers, library handles, and cancellation ownership must all be
   represented by RAII types. Cleanup order must be the reverse of dependency construction and repeated stop/destroy must be safe.
-- Project-authored C++ uses Google's 80-column limit with the user's 4-space indentation override. Keep a statement on one line when it fits within 80 columns;
+- Project-authored C++ uses a 150-column project limit with the user's 4-space indentation override. Keep a statement on one line when it fits within 150 columns;
   wrap when required or when a deliberate multiline layout materially improves readability. Generated code, vendored third-party code, URLs, and
   unavoidable external literals are excluded.
 - The repository `.clang-format` is the formatting authority for project-authored C++. Do not mechanically reformat unrelated legacy files

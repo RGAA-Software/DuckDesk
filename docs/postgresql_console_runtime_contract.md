@@ -92,11 +92,13 @@ Runtime 取消会终止接收；每个升级连接持有一个生命周期 permi
 各会话先尝试关闭数据库 generation，再允许共享池关闭。
 
 wire 契约位于独立的 `px_node_protocol` crate，不依赖 Console store、HTTP 或 Service 实现；Console 通过显式转换适配存储模型，
-返回节点所需的最小确认字段而不是完整管理 profile。动作目前为 report、report_deployment、begin_reconciliation、reconcile、
-poll_command、acknowledge_command。
+返回节点所需的最小确认字段而不是完整管理 profile。动作目前为 report、report_deployment、list_deployments、
+begin_reconciliation、reconcile、poll_command、acknowledge_command、list/admit/retire frontend，以及 open/report channel、
+begin/report file transfer、report recording；所有消息共用严格 request_id 和当前认证连接上下文。
 命令由节点显式 poll，Console 不把“写入 socket”当作执行；ACK 仍由 repository 校验命令、lease、instance、launch、
 revision、generation 和 epoch。Windows 隔离 PG/真实 TCP WebSocket 专项已覆盖空清单对账和 Start/Running、Stop/Absent 闭环；
-这是合成节点客户端，不是实际 Service/Windows Job/RDP 会话验收。
+Console 协议总门禁中的全流程客户端仍是合成节点；但 Windows Service 已实际实现前端准入的节点操作桥，Render 已通过本机 IPC 调用它。
+这项真实桥接仍不是 Windows Job、首帧媒体、文件/录像生产或 RDP 会话验收。
 
 先提交命令，再发送。租约/命令 ID/instance ID/launch ID/epoch/generation/revision 全部进入节点执行边界；
 发送成功不等于执行成功，收到 ACK 也不能跳过严格状态/身份复查。节点断线不把 Unknown 自动变 Stopped。
@@ -115,6 +117,10 @@ Windows Service 接入增量已经删除旧 `/console/service`、`/cms/service`�
 64 字符小写十六进制 node token、endpoint 和必填公网 host 进入 SYSTEM/Administrators ACL 目录，并使用 machine-scope DPAPI 加密。
 管理员通过标准输入调用 `px_service.exe --configure-node-control`，token 不进入命令行、TOML 或日志。
 Service 已实现认证、节点/端口/能力报告、challenge 清单对账、命令轮询、generation/epoch/revision/deadline 校验、精确 launch Stop 和 ACK；
+Service 同时接受 Render 的类型化前端准入 IPC，只把 session/revision/一次性 token 发给当前节点控制任务，等待 Console
+`FrontendAdmitted` 后返回绑定 target/instance/role 的剩余租约；排队、IPC 和网络耗时从租约扣除，超时、断线、迟到响应及错误 request_id
+均不产生授权。非桌面 Render 在 WebSocket 分配前强制走此路径，并验证目标为 CloudApplication、instance 为本进程实例；没有设备密码
+或旧 Console 路径 fallback。通道、文件传输和录像 wire 已在 Console 协议中定义，但实际 Service/Render 生产者尚未接入。
 直接模式不再用空 Relay 字段启动“启用 Relay”的 Render。新 RDP workspace envelope 和 GPU 绑定尚未进入 wire，因此 Service 明确报告
 `rdp=false`，带 GPU 或 RDP 的意外 Start 不执行；这不能记作 RDP/GPU 或实际 PG→Windows Render 端到端通过。
 
