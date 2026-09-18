@@ -1,70 +1,74 @@
-import { describe, expect, it } from 'vitest'
-import { prepareLaunchUrl } from './api'
+import { describe, expect, it } from "vitest";
+import { prepareDescriptorLaunchUrl } from "./api";
 
-describe('prepareLaunchUrl', () => {
-  it('encodes the Render password and routing metadata without a bearer capability', () => {
-    const value = prepareLaunchUrl({
-      launch_url: 'http://device.local:4617/web/',
-      device_id: 'D-1',
-      instance_id: '',
-      stream_id: 'web-session-1',
-      password_hash: '0123456789abcdef0123456789abcdef',
-      permissions: ['view'],
-      relay_host: '',
-      relay_port: 0,
-      signal_device_id: 'server_D-1',
-    })
-    const url = new URL(value)
-    const fragment = new URLSearchParams(url.hash.slice(1))
+describe("prepareDescriptorLaunchUrl", () => {
+    it("keeps the short-lived frontend token out of the initial HTTP request target", () => {
+        const value = prepareDescriptorLaunchUrl({
+            token: "a".repeat(64),
+            descriptor: {
+                session: {
+                    id: "00000000-0000-4000-8000-000000000001",
+                    target: {
+                        kind: "cloud_application",
+                        application_id: "00000000-0000-4000-8000-000000000002",
+                        instance_id: "00000000-0000-4000-8000-000000000003",
+                    },
+                    client_type: "user_web",
+                    access_role: "controller",
+                    state: "pending",
+                    revision: 2,
+                    created_at: "2026-09-18T00:00:00Z",
+                    closed_at: null,
+                },
+                host: "render.example.test",
+                port: 4613,
+                transport: "native",
+                expires_at: "2026-09-18T00:00:30Z",
+            },
+        });
+        const url = new URL(value);
+        const fragment = new URLSearchParams(url.hash.slice(1));
 
-    expect(url.searchParams.get('c')).toBeTruthy()
-    expect(url.searchParams.get('stream_id')).toBe('web-session-1')
-    expect(fragment.get('perms')).toBe('view')
-  })
+        expect(url.origin).toBe("http://render.example.test:4613");
+        expect(url.pathname).toBe("/web/");
+        expect(url.searchParams.get("deviceId")).toBe("00000000-0000-4000-8000-000000000003");
+        expect(url.searchParams.get("instanceId")).toBe("00000000-0000-4000-8000-000000000003");
+        expect(url.searchParams.has("frontend_token")).toBe(false);
+        expect(fragment.get("session_id")).toBe("00000000-0000-4000-8000-000000000001");
+        expect(fragment.get("session_revision")).toBe("2");
+        expect(fragment.get("frontend_token")).toBe("a".repeat(64));
+        expect(fragment.get("perms")).toBe("view,input,clipboard,file,audio");
+    });
 
-  it.each([
-    [false, 'rtc'],
-    [true, 'rtc_direct'],
-  ])('encodes the managed RTC route when direct_probe_enabled=%s', (directProbe, expected) => {
-    const rtcConfig = {
-      revision: 9,
-      direct_probe_enabled: directProbe,
-      expires_at: 1_900_000_000,
-      ice_servers: [
-        { id: 'stun-primary', urls: ['stun:turn.example.test:3478'] },
-        {
-          id: 'turn-primary',
-          urls: ['turn:turn.example.test:3478?transport=udp', 'turn:turn.example.test:3478?transport=tcp'],
-          username: 'short-lived-user',
-          credential: 'short-lived-credential',
-        },
-      ],
-    }
-    const value = prepareLaunchUrl({
-      launch_url: 'https://render.example.test:4617/web/',
-      device_id: 'D-1',
-      instance_id: 'instance-1',
-      stream_id: 'web-session-1',
-      password_hash: '0123456789abcdef0123456789abcdef',
-      permissions: ['view', 'input', 'file'],
-      relay_host: 'relay.example.test',
-      relay_port: 30502,
-      rtc_ice_config: rtcConfig,
-    })
-    const url = new URL(value)
-    const fragment = new URLSearchParams(url.hash.slice(1))
+    it("formats IPv6 endpoints and observer capabilities without a password fallback", () => {
+        const value = prepareDescriptorLaunchUrl({
+            token: "b".repeat(64),
+            descriptor: {
+                session: {
+                    id: "00000000-0000-4000-8000-000000000004",
+                    target: {
+                        kind: "desktop",
+                        device_id: "00000000-0000-4000-8000-000000000005",
+                    },
+                    client_type: "user_web",
+                    access_role: "observer",
+                    state: "pending",
+                    revision: 7,
+                    created_at: "2026-09-18T00:00:00Z",
+                    closed_at: null,
+                },
+                host: "2001:db8::10",
+                port: 4601,
+                transport: "native",
+                expires_at: "2026-09-18T00:00:30Z",
+            },
+        });
+        const url = new URL(value);
+        const fragment = new URLSearchParams(url.hash.slice(1));
 
-    expect(url.searchParams.get('connType')).toBe(expected)
-    expect(fragment.get('relay_host')).toBe('relay.example.test')
-    expect(fragment.get('relay_port')).toBe('30502')
-
-    const encoded = fragment.get('ice')!
-    const padded = encoded.replace(/-/g, '+').replace(/_/g, '/')
-      + '='.repeat((4 - encoded.length % 4) % 4)
-    const decoded = JSON.parse(atob(padded))
-    expect(decoded).toEqual(rtcConfig)
-    expect(decoded.ice_servers[1].urls).toContain(
-      'turn:turn.example.test:3478?transport=tcp',
-    )
-  })
-})
+        expect(url.host).toBe("[2001:db8::10]:4601");
+        expect(url.searchParams.has("c")).toBe(false);
+        expect(url.searchParams.has("password")).toBe(false);
+        expect(fragment.get("perms")).toBe("view,audio");
+    });
+});

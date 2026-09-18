@@ -47,6 +47,19 @@ $sourceFiles += @('web/px_pixels/package.json','web/px_pixels/package-lock.json'
 $sourceFiles += @('web/px_auth/package.json','web/px_auth/package-lock.json','web/px_auth/vite.config.ts','web/px_auth/vitest.config.ts','web/px_auth/index.html')
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'web/px_auth/src') -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'web/px_pixels/src') -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
+foreach ($webProject in @('px_console','px_web_client')) {
+    $webProjectRoot = Join-Path $repo "web/$webProject"
+    foreach ($manifestName in @('package.json','package-lock.json','vite.config.ts','vitest.config.ts','index.html')) {
+        $manifestPath = Join-Path $webProjectRoot $manifestName
+        if (Test-Path -LiteralPath $manifestPath -PathType Leaf) { $sourceFiles += [IO.Path]::GetRelativePath($repo,$manifestPath) }
+    }
+    foreach ($sourceDirectory in @('src','test','e2e')) {
+        $sourcePath = Join-Path $webProjectRoot $sourceDirectory
+        if (Test-Path -LiteralPath $sourcePath -PathType Container) {
+            $sourceFiles += @(Get-ChildItem -LiteralPath $sourcePath -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
+        }
+    }
+}
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_auth_server/license') -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_auth_server/storage') -File -Recurse -Force | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_pg'),(Join-Path $repo 'rust_server/px_private_files'),(Join-Path $repo 'rust_server/px_release_catalog'),(Join-Path $repo 'deploy/development/postgres'),$PSScriptRoot -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
@@ -370,7 +383,7 @@ try {
     $committedMetadata = Join-Path $repo 'rust_server/px_console_server/storage/.sqlx'
     $expectedQueries = @(Get-ChildItem -LiteralPath $committedMetadata -Filter 'query-*.json' -File)
     $actualQueries = @(Get-ChildItem -LiteralPath $queryMetadata -Filter 'query-*.json' -File)
-    if ($expectedQueries.Count -ne 242 -or $actualQueries.Count -ne $expectedQueries.Count) { throw 'Missing or extra SQLx query metadata' }
+    if ($expectedQueries.Count -ne 243 -or $actualQueries.Count -ne $expectedQueries.Count) { throw 'Missing or extra SQLx query metadata' }
     foreach ($expected in $expectedQueries) {
         $actual = Join-Path $queryMetadata $expected.Name
         if (-not (Test-Path -LiteralPath $actual) -or (Get-FileHash -LiteralPath $expected.FullName).Hash -ne (Get-FileHash -LiteralPath $actual).Hash) {
@@ -379,7 +392,7 @@ try {
     }
     Set-LocalEnv 'SQLX_OFFLINE' 'true'
     Set-LocalEnv 'SQLX_OFFLINE_DIR' $committedMetadata
-    Add-Step 'QUERY: 242 Console SQLx queries compiled against fresh PG; offline metadata matches'
+    Add-Step 'QUERY: 243 Console SQLx queries compiled against fresh PG; offline metadata matches'
     $identityUnit = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--lib','--target-dir',$targetDir)
     Add-TestCases $identityUnit 'native/identity-unit' 19
     $identityIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--test','identity','--target-dir',$targetDir,'--','--test-threads=1')
@@ -536,14 +549,14 @@ try {
     $fingerprints.px_console_admin = (Get-FileHash -LiteralPath (Join-Path $targetDir 'debug/px_console_admin.exe')).Hash
     $deskTool = Join-Path $targetDir 'debug/px_desk.exe'
     $fingerprints.px_desk = (Get-FileHash -LiteralPath $deskTool -Algorithm SHA256).Hash
-    foreach ($webRoot in @('web/px_pixels','web/px_auth')) {
+    foreach ($webRoot in @('web/px_pixels','web/px_auth','web/px_console','web/px_web_client')) {
         $webPath = Join-Path $repo $webRoot
         if (-not (Test-Path -LiteralPath (Join-Path $webPath 'node_modules') -PathType Container)) {
             Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',$webPath,'ci','--no-audit','--no-fund') | Out-Null
         }
         Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',$webPath,'ls','--depth=0') | Out-Null
     }
-    Add-Step 'WEB-DEPS: both frontend dependency trees are complete; missing trees use npm ci'
+    Add-Step 'WEB-DEPS: all four frontend dependency trees are complete; missing trees use npm ci'
     Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_pixels'),'run','build') | Out-Null
     $webUnit = Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_pixels'),'run','test:unit','--','--run','src/submission.spec.ts')
     if ($webUnit -notmatch '1 passed') { throw 'Desk submission identity unit test missing' }
@@ -553,6 +566,16 @@ try {
     $authWebUnit = Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_auth'),'run','test:unit')
     if ($authWebUnit -notmatch 'Tests\s+5 passed') { throw 'Auth frontend contract tests missing' }
     Add-Step 'AUTH-WEB: five contract tests, catalogs, themes, bounds, retry identity and logout failures'
+    Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_console'),'run','build') | Out-Null
+    $consoleWebUnit = Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_console'),'run','test:unit','--','--run')
+    if ($consoleWebUnit -notmatch 'Tests\s+21 passed') { throw 'Console frontend contract tests missing' }
+    Add-Step 'CONSOLE-WEB: new bearer identity, explicit subject, descriptor secrecy, type-check and production bundle'
+    Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_web_client'),'run','build') | Out-Null
+    $webClientUnit = Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_web_client'),'test')
+    if ($webClientUnit -notmatch 'Tests\s+65 passed' -or $webClientUnit -notmatch 'voice_call_state: 19 assertions passed') {
+        throw 'Web Client descriptor/media contract tests missing'
+    }
+    Add-Step 'WEB-CLIENT: Console descriptor forwarding, token redaction, media/control and voice contracts'
     $authBrowser = Invoke-Checked 'node' @((Join-Path $PSScriptRoot 'auth_browser.cjs'),(Join-Path $targetDir 'debug/px_auth.exe'))
     Write-Host $authBrowser
     foreach ($case in @('auth-browser/login-create-customer','auth-browser/commit-response-loss-exact-retry','auth-browser/renew-and-revoke',

@@ -559,6 +559,7 @@ async fn resource_ingress_requires_one_explicit_principal_kind_without_token_fal
     let admin = login(&router, "initial-admin", PASSWORD, "admin_web").await;
     let name = register(&router).await;
     let user = login(&router, &name, PASSWORD, "android").await;
+    let web_user = login(&router, &name, PASSWORD, "user_web").await;
     let (status, guest) = resource_call(
         &router,
         "POST",
@@ -571,6 +572,18 @@ async fn resource_ingress_requires_one_explicit_principal_kind_without_token_fal
     .await;
     assert_eq!(status, StatusCode::CREATED, "{guest}");
     let guest_token = guest["token"].as_str().unwrap();
+    let (status, web_guest) = resource_call(
+        &router,
+        "POST",
+        "/api/console/guest-sessions",
+        "user_web",
+        None,
+        None,
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{web_guest}");
+    let web_guest_token = web_guest["token"].as_str().unwrap();
     let (_, application) = call(
         &router,
         "POST",
@@ -585,6 +598,45 @@ async fn resource_ingress_requires_one_explicit_principal_kind_without_token_fal
         "application_id": application["id"],
         "deployment_id": null
     });
+
+    for (token, subject, catalog_path) in [
+        (
+            web_user.as_str(),
+            "user",
+            "/api/console/applications?limit=100",
+        ),
+        (
+            web_guest_token,
+            "guest",
+            "/api/console/guest/applications?limit=100",
+        ),
+    ] {
+        let (catalog_status, catalog) = call(
+            &router,
+            "GET",
+            catalog_path,
+            "user_web",
+            Some(token),
+            Value::Null,
+        )
+        .await;
+        assert_eq!(catalog_status, StatusCode::OK, "{catalog}");
+        assert!(catalog
+            .as_array()
+            .is_some_and(|items| { items.iter().any(|item| item["id"] == application["id"]) }));
+        let (instances_status, instances) = resource_call(
+            &router,
+            "GET",
+            "/api/console/instances?limit=100",
+            "user_web",
+            Some(token),
+            Some(subject),
+            Value::Null,
+        )
+        .await;
+        assert_eq!(instances_status, StatusCode::OK, "{instances}");
+        assert_eq!(instances, json!([]));
+    }
 
     for (token, subject, client) in [
         (Some(user.as_str()), None, "android"),

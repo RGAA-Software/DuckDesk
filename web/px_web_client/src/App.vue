@@ -56,6 +56,7 @@ import { startControlHeartbeat } from './rtc/control_heartbeat'
 import FileTransferWindow from './FileTransferWindow.vue'
 import { useFileTransfer } from './useFileTransfer'
 import { sha256Hex } from './rtc/file_transfer'
+import { appendFrontendAuthorization, takeFrontendDescriptor } from './rtc/frontend_descriptor'
 
 const { t } = useI18n()
 
@@ -96,6 +97,8 @@ const LS_LAST_CONN = 'px_web_client.last_conn'
 const LS_CLIENT_NONCE = 'px_web_client.client_nonce'
 const clientNonce = ref('')
 const connectionInstanceId = ref('')
+let frontendDescriptor: ReturnType<typeof takeFrontendDescriptor>['descriptor'] = null
+let frontendDescriptorIncomplete = false
 const grantedPermissions = ref<string[]>([])
 const requestedConnectionType = ref<'rtc_direct' | 'rtc'>('rtc_direct')
 const relayHost = ref('')
@@ -1356,6 +1359,17 @@ function loadQueryParams() {
   relayPort.value = Number(fragment.get('relay_port') ?? 0)
   signalDeviceId.value = fragment.get('signal_device_id') ?? form.deviceId
   rtcIceConfig = decodeRtcIceConfig(fragment.get('ice') ?? '')
+  const parsedFrontendDescriptor = takeFrontendDescriptor(fragment)
+  frontendDescriptor = parsedFrontendDescriptor.descriptor
+  frontendDescriptorIncomplete = parsedFrontendDescriptor.incomplete
+  if (parsedFrontendDescriptor.incomplete) {
+    addLog('[connect] Console 会话描述符不完整，将在连接时明确报错')
+  }
+  if (parsedFrontendDescriptor.removedToken) {
+    const sanitizedUrl = new URL(window.location.href)
+    sanitizedUrl.hash = fragment.toString()
+    window.history.replaceState(null, '', sanitizedUrl)
+  }
   if (requestedConnectionType.value === 'rtc' && (!rtcIceConfig || !relayHost.value || relayPort.value <= 0)) {
     addLog('[rtc-standard] Console 启动参数不完整，将在连接时明确报错')
   } else if (rtcIceConfig) {
@@ -1880,8 +1894,8 @@ async function connect() {
       const query = new URLSearchParams({
         device_id: form.deviceId,
         stream_id: form.streamId,
-        safety_pwd_md5: effectivePwdMd5(),
       })
+      appendFrontendAuthorization(query, frontendDescriptor, effectivePwdMd5(), frontendDescriptorIncomplete)
       if (clientNonce.value) query.set('client_nonce', clientNonce.value)
       if (takeover) query.set('takeover', '1')
       setConnectStep('signal', takeover ? 'takeover=1 重新请求信令' : 'POST 信令中')

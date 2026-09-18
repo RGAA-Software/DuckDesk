@@ -1,113 +1,203 @@
-import axios from 'axios'
-import { prepareLaunchUrl, type ApplicationCard, type InstanceView, type WebConnection } from './api'
+import { prepareDescriptorLaunchUrl, type ApplicationCard, type InstanceView } from "./api";
+import { guestHttp, guestResourceHttp, hasGuestToken, publicHttp, setGuestToken } from "./http";
 
-const CSRF_KEY = 'px_guest_csrf'
-const guestHttp = axios.create({ baseURL: '', timeout: 15000, withCredentials: true })
-guestHttp.interceptors.request.use((config) => {
-  const method = (config.method || 'get').toLowerCase()
-  if (!['get', 'head', 'options'].includes(method)) {
-    const csrf = sessionStorage.getItem(CSRF_KEY)
-    if (csrf) config.headers.set('X-CSRF-Token', csrf)
-  }
-  return config
-})
+interface GuestApplicationRecord {
+    id: string;
+    name: string;
+    kind: ApplicationCard["kind"];
+    access_mode: ApplicationCard["access_mode"];
+    revision: number;
+    access_revision: number;
+}
 
-const unwrap = <T>(response: { data: { data: T } }) => response.data.data
-const nonce = (key: string) => {
-  const storageKey = `px_guest_nonce_${key}`
-  let value = sessionStorage.getItem(storageKey)
-  if (!value) {
-    value = crypto.randomUUID()
-    sessionStorage.setItem(storageKey, value)
-  }
-  return value
+interface GuestInstanceRecord {
+    id: string;
+    application_id: string;
+    state: string;
+    revision: number;
+    created_at: string;
+    ended_at: string | null;
+}
+
+interface GuestResourceSession {
+    id: string;
+    target: { kind: "cloud_application"; application_id: string; instance_id: string };
+    access_role: "controller" | "observer";
+    revision: number;
+}
+
+function requestId(storageKey: string) {
+    const existing = sessionStorage.getItem(storageKey);
+    if (existing) return existing;
+    const created = crypto.randomUUID();
+    sessionStorage.setItem(storageKey, created);
+    return created;
+}
+
+async function guestRequest<T>(request: () => Promise<T>): Promise<T> {
+    await ensureGuestSession();
+    try {
+        return await request();
+    } catch (error: any) {
+        if (error?.response?.status !== 401 && error?.response?.status !== 403) throw error;
+        await ensureGuestSession(true);
+        return request();
+    }
+}
+
+async function collectGuestPages<T extends { id: string }>(path: string): Promise<T[]> {
+    const result: T[] = [];
+    let after: string | undefined;
+    for (let page = 0; page < 100; page += 1) {
+        const response = await guestRequest(() =>
+            guestHttp.get<T[]>(path, {
+                params: { after, limit: 100 },
+            }),
+        );
+        result.push(...response.data);
+        if (response.data.length < 100) return result;
+        after = response.data.at(-1)?.id;
+    }
+    throw new Error("public application directory exceeds the supported browser page window");
+}
+
+function mapInstance(record: GuestInstanceRecord, appName = record.application_id): InstanceView {
+    return {
+        instance_id: record.id,
+        app_id: record.application_id,
+        app_name: appName,
+        state: record.state,
+        revision: record.revision,
+        created_at: record.created_at,
+        stopped_at: record.ended_at ?? undefined,
+        reconnectable: record.state === "running",
+        current_login_origin: true,
+    };
 }
 
 export async function ensureGuestSession(force = false) {
-  if (!force && sessionStorage.getItem(CSRF_KEY)) return
-  if (force) sessionStorage.removeItem(CSRF_KEY)
-  const result = unwrap<{ csrf_token: string }>(
-    await guestHttp.post('/api/v1/session/guest', { client_nonce: crypto.randomUUID() }),
-  )
-  sessionStorage.setItem(CSRF_KEY, result.csrf_token)
+    if (!force && hasGuestToken()) return;
+    if (force) setGuestToken("");
+    const response = await guestHttp.post<{ token: string }>("/api/console/guest-sessions", {});
+    setGuestToken(response.data.token);
 }
 
 export async function registerUser(username: string, password: string) {
-  await ensureGuestSession()
-  return unwrap<{ uid: string; username: string }>(
-    await guestHttp.post('/api/v1/user/register', {
-      username,
-      password,
-    }),
-  )
+    return (
+        await publicHttp.post<{ id: string; username: string }>("/api/console/accounts", {
+            username,
+            password,
+        })
+    ).data;
 }
 
-export async function getPublicApps() {
-  return unwrap<ApplicationCard[]>(await guestHttp.get('/api/v1/public/apps'))
+export async function getPublicApps(): Promise<ApplicationCard[]> {
+    const applications = await collectGuestPages<GuestApplicationRecord>(
+        "/api/console/guest/applications",
+    );
+    return applications.map(application => ({
+        app_id: application.id,
+        name: application.name,
+        kind: application.kind,
+        access_mode: application.access_mode,
+        revision: application.revision,
+        access_revision: application.access_revision,
+    }));
 }
 
 export async function startPublicApp(appId: string) {
-  await ensureGuestSession()
-  const clientNonce = nonce(`app_${appId}`)
-  const request = () => guestHttp.post(`/api/v1/public/apps/${encodeURIComponent(appId)}/start`, {
-    client_nonce: clientNonce,
-  })
-  let response
-  try {
-    response = await request()
-  } catch (error: any) {
-    if (error?.response?.status !== 401) throw error
-    // sessionStorage can outlive the server-side guest session after Console is
-    // restarted or its test database is reset. Recreate the HttpOnly cookie
-    // and CSRF pair once, then repeat the idempotent start request.
-    await ensureGuestSession(true)
-    response = await request()
-  }
-  const instance = unwrap<InstanceView>(response)
-  return { instance, clientNonce }
+    const storageKey = `pixels.guest.start.${appId}`;
+    const response = await guestRequest(() =>
+        guestResourceHttp.post<GuestInstanceRecord>("/api/console/instances", {
+            request_id: requestId(storageKey),
+            application_id: appId,
+            deployment_id: null,
+        }),
+    );
+    sessionStorage.removeItem(storageKey);
+    return { instance: mapInstance(response.data) };
 }
 
 export async function waitForGuestInstance(instanceId: string, timeoutMs = 30000) {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    const instances = unwrap<InstanceView[]>(await guestHttp.get('/api/v1/public/instances'))
-    const instance = instances.find((item) => item.instance_id === instanceId)
-    if (!instance) throw new Error('实例不存在或已回收')
-    if (instance.state === 'running') return instance
-    if (instance.state === 'failed' || instance.state === 'stopped') {
-      throw new Error(instance.error_code || '实例启动失败')
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        const response = await guestRequest(() =>
+            guestResourceHttp.get<GuestInstanceRecord>(
+                `/api/console/instances/${encodeURIComponent(instanceId)}`,
+            ),
+        );
+        const instance = mapInstance(response.data);
+        if (instance.state === "running") return instance;
+        if (instance.state === "failed" || instance.state === "stopped") {
+            throw new Error("实例启动失败");
+        }
+        await new Promise(resolve => window.setTimeout(resolve, 800));
     }
-    await new Promise((resolve) => window.setTimeout(resolve, 800))
-  }
-  throw new Error('实例启动超时')
+    throw new Error("实例启动超时");
 }
 
 export async function getGuestInstances() {
-  await ensureGuestSession()
-  try {
-    return unwrap<InstanceView[]>(await guestHttp.get('/api/v1/public/instances'))
-  } catch (error: any) {
-    if (error?.response?.status !== 401) throw error
-    await ensureGuestSession(true)
-    return unwrap<InstanceView[]>(await guestHttp.get('/api/v1/public/instances'))
-  }
+    const records = await guestRequest(async () => {
+        const result: GuestInstanceRecord[] = [];
+        let after: string | undefined;
+        for (let page = 0; page < 100; page += 1) {
+            const response = await guestResourceHttp.get<GuestInstanceRecord[]>(
+                "/api/console/instances",
+                { params: { after, limit: 100 } },
+            );
+            result.push(...response.data);
+            if (response.data.length < 100) return result;
+            after = response.data.at(-1)?.id;
+        }
+        throw new Error("guest instance directory exceeds the supported browser page window");
+    });
+    const applications = await getPublicApps();
+    const appNames = new Map(
+        applications.map(application => [application.app_id, application.name]),
+    );
+    return records.map(record => mapInstance(record, appNames.get(record.application_id)));
 }
 
-export async function openGuestInstance(instance: InstanceView, clientNonce: string, viewOnly = false) {
-  const result = unwrap<WebConnection>(
-    await guestHttp.post(
-      `/api/v1/public/instances/${encodeURIComponent(instance.instance_id)}/web-connection`,
-      { client_nonce: clientNonce, join_mode: viewOnly ? 'observe' : 'control' },
-    ),
-  )
-  window.location.assign(prepareLaunchUrl(result))
+export async function openGuestInstance(
+    instance: InstanceView,
+    _clientNonce: string,
+    viewOnly = false,
+) {
+    const access = viewOnly ? "observer" : "controller";
+    const storageKey = `pixels.guest.open.${instance.instance_id}.${access}`;
+    const sessionResponse = await guestRequest(() =>
+        guestResourceHttp.post<GuestResourceSession>("/api/console/resource-sessions", {
+            request_id: requestId(storageKey),
+            target: {
+                kind: "cloud_application",
+                application_id: instance.app_id,
+                instance_id: instance.instance_id,
+            },
+            access,
+        }),
+    );
+    const session = sessionResponse.data;
+    const descriptorResponse = await guestRequest(() =>
+        guestResourceHttp.post<Parameters<typeof prepareDescriptorLaunchUrl>[0]>(
+            `/api/console/resource-sessions/${encodeURIComponent(session.id)}/descriptor`,
+            { revision: session.revision },
+        ),
+    );
+    sessionStorage.removeItem(storageKey);
+    window.location.assign(prepareDescriptorLaunchUrl(descriptorResponse.data));
 }
 
 export async function stopGuestInstance(instanceId: string) {
-  return unwrap<InstanceView>(
-    await guestHttp.post(
-      `/api/v1/public/instances/${encodeURIComponent(instanceId)}/stop`,
-      { reason: 'guest_requested' },
-    ),
-  )
+    const current = await guestRequest(() =>
+        guestResourceHttp.get<GuestInstanceRecord>(
+            `/api/console/instances/${encodeURIComponent(instanceId)}`,
+        ),
+    );
+    const stopped = await guestRequest(() =>
+        guestResourceHttp.post<GuestInstanceRecord>(
+            `/api/console/instances/${encodeURIComponent(instanceId)}/stop`,
+            { revision: current.data.revision },
+        ),
+    );
+    return mapInstance(stopped.data);
 }

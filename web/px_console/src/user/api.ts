@@ -1,275 +1,480 @@
-import { hasUserCsrf, setUserCsrf, userHttp } from './http'
-import { encodeConnectToken } from '../../../px_web_client/src/rtc/connect_token'
+import type { AxiosInstance } from "axios";
+import { hasUserToken, publicHttp, setUserToken, userHttp, userResourceHttp } from "./http";
 
 export interface UserProfile {
-  uid: string
-  username: string
-  avatar_path: string
-  created_timestamp: number
-  must_change_password: boolean
-  groups: Array<{ gid: string; name: string }>
+    id: string;
+    username: string;
+    role: "user" | "operator" | "administrator";
+    authorization_revision: number;
+    revision: number;
+    avatar_url: string | null;
+    created_at: string;
 }
 
 export interface DeviceSummary {
-  device_id: string
-  name: string
-  online: boolean
-  capabilities: string[]
-  last_seen_at: number
+    device_id: string;
+    public_code: string;
+    name: string;
+    platform: string;
+    disabled: boolean;
+    revision: number;
+    registered_at: string;
 }
 
 export interface ApplicationCard {
-  app_id: string
-  name: string
-  access_mode: 'public' | 'acl'
-  cover_url: string
-  running_instance?: { instance_id: string; state: string; reconnectable: boolean }
-  version: number
+    app_id: string;
+    name: string;
+    kind: "game_hook" | "webview" | "rdp";
+    access_mode: "public" | "acl";
+    revision: number;
+    access_revision: number;
+    running_instance?: Pick<
+        InstanceView,
+        "instance_id" | "state" | "revision" | "reconnectable" | "current_login_origin"
+    >;
 }
 
 export interface InstanceView {
-  instance_id: string
-  app_id: string
-  app_name: string
-  state: string
-  created_at: number
-  started_at?: number
-  stopped_at?: number
-  error_code?: string
-  reconnectable: boolean
+    instance_id: string;
+    app_id: string;
+    app_name: string;
+    state: string;
+    revision: number;
+    created_at: string;
+    stopped_at?: string;
+    reconnectable: boolean;
+    current_login_origin: boolean;
 }
 
 export interface ResourceSummary {
-  device_count: number
-  application_count: number
-  active_instance_count: number
+    device_count: number;
+    application_count: number;
+    active_instance_count: number;
 }
 
 export interface ResourcePage<T> {
-  items: T[]
-  page: number
-  page_size: number
-  total: number
+    items: T[];
+    page: number;
+    page_size: number;
+    total: number;
 }
 
-export interface WebConnection {
-  launch_url: string
-  device_id: string
-  instance_id: string
-  stream_id: string
-  password_hash: string
-  permissions: string[]
-  rtc_ice_config?: {
-    revision: number
-    direct_probe_enabled: boolean
-    expires_at: number
-    ice_servers: Array<{ id: string; urls: string[]; username?: string; credential?: string }>
-  }
-  relay_host?: string
-  relay_port?: number
-  signal_device_id?: string
+interface DeviceRecord {
+    id: string;
+    public_code: string;
+    name: string;
+    platform: string;
+    disabled: boolean;
+    revision: number;
+    registered_at: string;
 }
 
-function data<T>(response: { data: { data: T } }): T {
-  return response.data.data
+interface ApplicationRecord {
+    id: string;
+    name: string;
+    kind: ApplicationCard["kind"];
+    access_mode: ApplicationCard["access_mode"];
+    revision: number;
+    access_revision: number;
 }
 
-let csrfRefreshPromise: Promise<void> | null = null
+interface InstanceRecord {
+    id: string;
+    application_id: string;
+    client_type: string;
+    state: string;
+    revision: number;
+    created_at: string;
+    ended_at: string | null;
+}
 
-async function ensureUserCsrf() {
-  if (hasUserCsrf()) return
-  if (!csrfRefreshPromise) {
-    csrfRefreshPromise = (async () => {
-      const result = data<{ csrf_token: string }>(
-        await userHttp.get('/api/v1/session/user/csrf'),
-      )
-      setUserCsrf(result.csrf_token)
-    })().finally(() => {
-      csrfRefreshPromise = null
-    })
-  }
-  await csrfRefreshPromise
+interface ResourceSession {
+    id: string;
+    target:
+        | { kind: "desktop"; device_id: string }
+        | { kind: "cloud_application"; application_id: string; instance_id: string };
+    client_type: string;
+    access_role: "controller" | "observer";
+    state: string;
+    revision: number;
+    created_at: string;
+    closed_at: string | null;
+}
+
+interface ResourceDescriptor {
+    session: ResourceSession;
+    host: string;
+    port: number;
+    transport: "native" | "rdp";
+    expires_at: string;
+}
+
+interface DescriptorResponse {
+    descriptor: ResourceDescriptor;
+    token: string;
+}
+
+const ACTIVE_INSTANCE_STATES = new Set([
+    "reserved",
+    "starting",
+    "running",
+    "stopping",
+    "reconcile_required",
+]);
+const INSTANCE_ORIGIN_PREFIX = "pixels.user.instance.";
+
+function instanceStartedByCurrentLogin(instanceId: string) {
+    return sessionStorage.getItem(`${INSTANCE_ORIGIN_PREFIX}${instanceId}`) === "1";
+}
+
+async function collectPages<T extends { id: string }>(
+    http: AxiosInstance,
+    path: string,
+): Promise<T[]> {
+    const result: T[] = [];
+    let after: string | undefined;
+    for (let page = 0; page < 100; page += 1) {
+        const response = await http.get<T[]>(path, { params: { after, limit: 100 } });
+        result.push(...response.data);
+        if (response.data.length < 100) return result;
+        after = response.data.at(-1)?.id;
+    }
+    throw new Error("resource directory exceeds the supported browser page window");
+}
+
+function pageOf<T>(items: T[], page: number, pageSize: number): ResourcePage<T> {
+    const safePage = Math.max(1, page);
+    const safePageSize = Math.max(1, pageSize);
+    const offset = (safePage - 1) * safePageSize;
+    return {
+        items: items.slice(offset, offset + safePageSize),
+        page: safePage,
+        page_size: safePageSize,
+        total: items.length,
+    };
+}
+
+function mapDevice(record: DeviceRecord): DeviceSummary {
+    return {
+        device_id: record.id,
+        public_code: record.public_code,
+        name: record.name,
+        platform: record.platform,
+        disabled: record.disabled,
+        revision: record.revision,
+        registered_at: record.registered_at,
+    };
+}
+
+function mapInstance(record: InstanceRecord, appNames: Map<string, string>): InstanceView {
+    const currentLoginOrigin = instanceStartedByCurrentLogin(record.id);
+    return {
+        instance_id: record.id,
+        app_id: record.application_id,
+        app_name: appNames.get(record.application_id) ?? record.application_id,
+        state: record.state,
+        revision: record.revision,
+        created_at: record.created_at,
+        stopped_at: record.ended_at ?? undefined,
+        reconnectable:
+            record.state === "running" && record.client_type === "user_web" && currentLoginOrigin,
+        current_login_origin: currentLoginOrigin,
+    };
+}
+
+async function rawApplications(http: AxiosInstance, path: string) {
+    return collectPages<ApplicationRecord>(http, path);
+}
+
+async function rawInstances(http: AxiosInstance) {
+    return collectPages<InstanceRecord>(http, "/api/console/instances");
+}
+
+function requestId(storageKey: string) {
+    const existing = sessionStorage.getItem(storageKey);
+    if (existing) return existing;
+    const created = crypto.randomUUID();
+    sessionStorage.setItem(storageKey, created);
+    return created;
+}
+
+function clearRequestId(storageKey: string) {
+    sessionStorage.removeItem(storageKey);
 }
 
 export async function loginUser(username: string, password: string) {
-  const result = data<{ profile: UserProfile; csrf_token: string }>(
-    await userHttp.post('/api/v1/session/user/login', {
-      username,
-      password,
-      client_type: 'user_web',
-    }),
-  )
-  setUserCsrf(result.csrf_token)
-  return result.profile
+    const response = await publicHttp.post<{ token: string; profile: UserProfile }>(
+        "/api/console/sessions",
+        { username, password },
+    );
+    setUserToken(response.data.token);
+    return response.data.profile;
 }
 
 export async function queryUser(): Promise<UserProfile | null> {
-  try {
-    const profile = data<UserProfile>(await userHttp.get('/api/v1/user/me'))
-    await ensureUserCsrf()
-    return profile
-  } catch (error: any) {
-    if (error?.response?.status === 401) return null
-    throw error
-  }
+    if (!hasUserToken()) return null;
+    try {
+        return (await userHttp.get<UserProfile>("/api/console/session")).data;
+    } catch (error: any) {
+        if (error?.response?.status === 401 || error?.response?.status === 403) {
+            setUserToken("");
+            return null;
+        }
+        throw error;
+    }
 }
 
 export async function logoutUser() {
-  await userHttp.post('/api/v1/session/user/logout', {})
-  setUserCsrf('')
-}
-
-export async function getSummary() {
-  return data<ResourceSummary>(await userHttp.get('/api/v1/user/resources/summary'))
+    try {
+        await userHttp.delete("/api/console/session");
+    } finally {
+        setUserToken("");
+    }
 }
 
 export async function getDevices() {
-  return data<DeviceSummary[]>(await userHttp.get('/api/v1/user/devices'))
+    return (await collectPages<DeviceRecord>(userHttp, "/api/console/devices")).map(mapDevice);
 }
 
-export async function getDevicesPage(page = 1, pageSize = 12, keyword = '') {
-  return data<ResourcePage<DeviceSummary>>(
-    await userHttp.get('/api/v1/user/devices/page', {
-      params: { page, page_size: pageSize, keyword },
-    }),
-  )
-}
-
-export async function getApps() {
-  return data<ApplicationCard[]>(await userHttp.get('/api/v1/user/apps'))
-}
-
-export async function getAppsPage(page = 1, pageSize = 12, keyword = '') {
-  return data<ResourcePage<ApplicationCard>>(
-    await userHttp.get('/api/v1/user/apps/page', {
-      params: { page, page_size: pageSize, keyword },
-    }),
-  )
+export async function getDevicesPage(page = 1, pageSize = 12, keyword = "") {
+    const normalized = keyword.trim().toLocaleLowerCase();
+    const devices = (await getDevices()).filter(
+        device =>
+            !normalized ||
+            device.name.toLocaleLowerCase().includes(normalized) ||
+            device.device_id.toLocaleLowerCase().includes(normalized) ||
+            device.public_code.toLocaleLowerCase().includes(normalized),
+    );
+    return pageOf(devices, page, pageSize);
 }
 
 export async function getInstances() {
-  return data<InstanceView[]>(await userHttp.get('/api/v1/user/instances'))
+    const [instances, applications] = await Promise.all([
+        rawInstances(userResourceHttp),
+        rawApplications(userHttp, "/api/console/applications"),
+    ]);
+    const appNames = new Map(applications.map(application => [application.id, application.name]));
+    return instances.map(instance => mapInstance(instance, appNames));
 }
 
-export async function getInstancesPage(page = 1, pageSize = 10, keyword = '', state = '') {
-  return data<ResourcePage<InstanceView>>(
-    await userHttp.get('/api/v1/user/instances/page', {
-      params: { page, page_size: pageSize, keyword, state },
-    }),
-  )
+export async function getApps() {
+    const [applications, instances] = await Promise.all([
+        rawApplications(userHttp, "/api/console/applications"),
+        rawInstances(userResourceHttp),
+    ]);
+    return applications.map<ApplicationCard>(application => {
+        const running = instances.find(
+            instance =>
+                instance.application_id === application.id &&
+                ACTIVE_INSTANCE_STATES.has(instance.state),
+        );
+        return {
+            app_id: application.id,
+            name: application.name,
+            kind: application.kind,
+            access_mode: application.access_mode,
+            revision: application.revision,
+            access_revision: application.access_revision,
+            running_instance: running
+                ? {
+                      instance_id: running.id,
+                      state: running.state,
+                      revision: running.revision,
+                      reconnectable:
+                          running.state === "running" &&
+                          running.client_type === "user_web" &&
+                          instanceStartedByCurrentLogin(running.id),
+                      current_login_origin: instanceStartedByCurrentLogin(running.id),
+                  }
+                : undefined,
+        };
+    });
+}
+
+export async function getAppsPage(page = 1, pageSize = 12, keyword = "") {
+    const normalized = keyword.trim().toLocaleLowerCase();
+    const applications = (await getApps()).filter(
+        application =>
+            !normalized ||
+            application.name.toLocaleLowerCase().includes(normalized) ||
+            application.app_id.toLocaleLowerCase().includes(normalized),
+    );
+    return pageOf(applications, page, pageSize);
+}
+
+export async function getInstancesPage(page = 1, pageSize = 10, keyword = "", state = "") {
+    const normalized = keyword.trim().toLocaleLowerCase();
+    const instances = (await getInstances()).filter(
+        instance =>
+            (!state || instance.state === state) &&
+            (!normalized ||
+                instance.app_name.toLocaleLowerCase().includes(normalized) ||
+                instance.instance_id.toLocaleLowerCase().includes(normalized)),
+    );
+    return pageOf(instances, page, pageSize);
+}
+
+export async function getSummary(): Promise<ResourceSummary> {
+    const [devices, applications, instances] = await Promise.all([
+        getDevices(),
+        rawApplications(userHttp, "/api/console/applications"),
+        rawInstances(userResourceHttp),
+    ]);
+    return {
+        device_count: devices.length,
+        application_count: applications.length,
+        active_instance_count: instances.filter(instance =>
+            ACTIVE_INSTANCE_STATES.has(instance.state),
+        ).length,
+    };
 }
 
 export async function waitForInstance(instanceId: string, timeoutMs = 30000) {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    const instance = (await getInstances()).find((item) => item.instance_id === instanceId)
-    if (!instance) throw new Error('实例不存在或已回收')
-    if (instance.state === 'running') return instance
-    if (instance.state === 'failed' || instance.state === 'stopped') {
-      throw new Error(instance.error_code || '实例启动失败')
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        const record = (
+            await userResourceHttp.get<InstanceRecord>(
+                `/api/console/instances/${encodeURIComponent(instanceId)}`,
+            )
+        ).data;
+        const instance = mapInstance(record, new Map());
+        if (instance.state === "running") return instance;
+        if (instance.state === "failed" || instance.state === "stopped") {
+            throw new Error("实例启动失败");
+        }
+        await new Promise(resolve => window.setTimeout(resolve, 800));
     }
-    await new Promise((resolve) => window.setTimeout(resolve, 800))
-  }
-  throw new Error('实例启动超时')
+    throw new Error("实例启动超时");
 }
 
-function nonce(key: string) {
-  const storageKey = `px_user_nonce_${key}`
-  let value = sessionStorage.getItem(storageKey)
-  if (!value) {
-    value = crypto.randomUUID()
-    sessionStorage.setItem(storageKey, value)
-  }
-  return value
+function endpointHost(host: string) {
+    return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
 }
 
-export function prepareLaunchUrl(result: WebConnection) {
-  const launch = new URL(result.launch_url, window.location.href)
-  launch.searchParams.set('c', encodeConnectToken({ deviceId: result.device_id, pwdMd5: result.password_hash }))
-  launch.searchParams.set('stream_id', result.stream_id)
-  if (result.rtc_ice_config) {
-    launch.searchParams.set(
-      'connType',
-      result.rtc_ice_config.direct_probe_enabled ? 'rtc_direct' : 'rtc',
-    )
-  }
-  const fragment = new URLSearchParams(launch.hash.replace(/^#/, ''))
-  if (result.permissions?.length) fragment.set('perms', result.permissions.join(','))
-  if (result.relay_host) fragment.set('relay_host', result.relay_host)
-  if (result.relay_port) fragment.set('relay_port', String(result.relay_port))
-  if (result.signal_device_id) fragment.set('signal_device_id', result.signal_device_id)
-  if (result.rtc_ice_config) {
-    const bytes = new TextEncoder().encode(JSON.stringify(result.rtc_ice_config))
-    let binary = ''
-    for (const byte of bytes) binary += String.fromCharCode(byte)
-    fragment.set('ice', btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, ''))
-  }
-  launch.hash = fragment.toString()
-  return launch.toString()
+export function prepareDescriptorLaunchUrl(response: DescriptorResponse) {
+    const { descriptor, token } = response;
+    const targetId =
+        descriptor.session.target.kind === "desktop"
+            ? descriptor.session.target.device_id
+            : descriptor.session.target.instance_id;
+    const launch = new URL(`http://${endpointHost(descriptor.host)}:${descriptor.port}/web/`);
+    launch.searchParams.set("deviceId", targetId);
+    launch.searchParams.set("stream_id", descriptor.session.id);
+    if (descriptor.session.target.kind === "cloud_application") {
+        launch.searchParams.set("instanceId", descriptor.session.target.instance_id);
+    }
+    const fragment = new URLSearchParams();
+    fragment.set("session_id", descriptor.session.id);
+    fragment.set("session_revision", String(descriptor.session.revision));
+    fragment.set("frontend_token", token);
+    fragment.set(
+        "perms",
+        descriptor.session.access_role === "controller"
+            ? "view,input,clipboard,file,audio"
+            : "view,audio",
+    );
+    launch.hash = fragment.toString();
+    return launch.toString();
 }
 
-function joinMode(viewOnly: boolean) {
-  return viewOnly ? 'observe' : 'control'
+async function openTarget(
+    http: AxiosInstance,
+    target: ResourceSession["target"],
+    access: ResourceSession["access_role"],
+    requestKey: string,
+) {
+    const session = (
+        await http.post<ResourceSession>("/api/console/resource-sessions", {
+            request_id: requestId(requestKey),
+            target,
+            access,
+        })
+    ).data;
+    const response = (
+        await http.post<DescriptorResponse>(
+            `/api/console/resource-sessions/${encodeURIComponent(session.id)}/descriptor`,
+            { revision: session.revision },
+        )
+    ).data;
+    clearRequestId(requestKey);
+    window.location.assign(prepareDescriptorLaunchUrl(response));
 }
 
 export async function openDevice(deviceId: string, viewOnly = false) {
-  const result = data<WebConnection>(
-    await userHttp.post(`/api/v1/user/devices/${encodeURIComponent(deviceId)}/web-connection`, {
-      client_nonce: nonce(`device_${deviceId}`),
-      join_mode: joinMode(viewOnly),
-    }),
-  )
-  window.location.assign(prepareLaunchUrl(result))
+    const access = viewOnly ? "observer" : "controller";
+    await openTarget(
+        userResourceHttp,
+        { kind: "desktop", device_id: deviceId },
+        access,
+        `pixels.user.open.desktop.${deviceId}.${access}`,
+    );
 }
 
 export async function startApp(appId: string) {
-  const clientNonce = nonce(`app_${appId}`)
-  const instance = data<InstanceView>(
-    await userHttp.post(`/api/v1/user/apps/${encodeURIComponent(appId)}/start`, {
-      client_nonce: clientNonce,
-    }),
-  )
-  return { instance, clientNonce }
+    const storageKey = `pixels.user.start.${appId}`;
+    const record = (
+        await userResourceHttp.post<InstanceRecord>("/api/console/instances", {
+            request_id: requestId(storageKey),
+            application_id: appId,
+            deployment_id: null,
+        })
+    ).data;
+    sessionStorage.setItem(`${INSTANCE_ORIGIN_PREFIX}${record.id}`, "1");
+    clearRequestId(storageKey);
+    return { instance: mapInstance(record, new Map([[appId, appId]])) };
 }
 
-export async function openInstance(instance: InstanceView, clientNonce?: string, viewOnly = false) {
-  const result = data<WebConnection>(
-    await userHttp.post(
-      `/api/v1/user/instances/${encodeURIComponent(instance.instance_id)}/web-connection`,
-      {
-        client_nonce: clientNonce || nonce(`instance_${instance.instance_id}`),
-        join_mode: joinMode(viewOnly),
-      },
-    ),
-  )
-  window.location.assign(prepareLaunchUrl(result))
+export async function openInstance(
+    instance: InstanceView,
+    _clientNonce?: string,
+    viewOnly = false,
+) {
+    const access = viewOnly ? "observer" : "controller";
+    await openTarget(
+        userResourceHttp,
+        {
+            kind: "cloud_application",
+            application_id: instance.app_id,
+            instance_id: instance.instance_id,
+        },
+        access,
+        `pixels.user.open.application.${instance.instance_id}.${access}`,
+    );
 }
 
 export async function stopInstance(instanceId: string) {
-  return data<InstanceView>(
-    await userHttp.post(`/api/v1/user/instances/${encodeURIComponent(instanceId)}/stop`, {}),
-  )
+    const current = (
+        await userResourceHttp.get<InstanceRecord>(
+            `/api/console/instances/${encodeURIComponent(instanceId)}`,
+        )
+    ).data;
+    const stopped = (
+        await userResourceHttp.post<InstanceRecord>(
+            `/api/console/instances/${encodeURIComponent(instanceId)}/stop`,
+            { revision: current.revision },
+        )
+    ).data;
+    if (stopped.ended_at) sessionStorage.removeItem(`${INSTANCE_ORIGIN_PREFIX}${instanceId}`);
+    return mapInstance(stopped, new Map());
 }
 
-export async function updateUserName(username: string) {
-  return data<UserProfile>(await userHttp.patch('/api/v1/user/me', { username }))
+export async function updateUserName(username: string, revision: number) {
+    return (await userHttp.patch<UserProfile>("/api/console/profile", { username, revision })).data;
 }
 
-export async function uploadUserAvatar(file: File) {
-  const form = new FormData()
-  form.append('file', file, file.name)
-  return data<UserProfile>(await userHttp.put('/api/v1/user/me/avatar', form))
+export async function uploadUserAvatar(file: File, revision: number) {
+    return (
+        await userHttp.put<UserProfile>("/api/console/profile/avatar", file, {
+            params: { revision },
+            headers: { "Content-Type": file.type },
+        })
+    ).data;
 }
 
-export async function logoutAllUserSessions(current_password: string) {
-  await userHttp.post('/api/v1/session/user/logout-all', { current_password })
-  setUserCsrf('')
-}
-
-export async function changeUserPassword(current_password: string, new_password: string) {
-  const result = data<{ profile: UserProfile; csrf_token: string }>(
-    await userHttp.post('/api/v1/user/me/password', { current_password, new_password }),
-  )
-  setUserCsrf(result.csrf_token)
-  return result.profile
+export async function changeUserPassword(currentPassword: string, newPassword: string) {
+    await userHttp.patch("/api/console/password", {
+        current_password: currentPassword,
+        new_password: newPassword,
+    });
+    setUserToken("");
 }
