@@ -733,6 +733,27 @@ Cloud Node 与 Remote 的产品专属 Rust release 目录已分别重编译。Wi
 隔离测试资源已清理。报告 scope 仍明确标注“完整 DB0–DB5 验收未完成”；本结果关闭节点原始历史切片及其回归问题，不能关闭阈值事件、
 管理实时流、公网产品部署或下表其余阶段出口。
 
+节点遥测第三切片已在 revision `b8d8b5243` 建立阈值事件闭环。迁移 0026 新增每节点告警策略、条件去重状态、事件、策略审计和确认审计；
+默认 CPU/内存/固定磁盘 warning/critical 为 850/950‰，GPU 为 900/980‰，连续 3 个已接受样本越线才开立事件，低于 warning 减
+50‰ 的回滞边界连续 3 个样本才恢复。事件与 latest/history 在节点报告事务中一起提交，支持 warning→critical 单向升级、active→
+acknowledged→recovered 生命周期、CAS 确认和每节点策略变更；缺失指标不会伪装为 0 或恢复。同一节点/指标/资源只允许一个未恢复事件，
+恢复事件保留 180 天后每分钟最多清理 5000 条，活动/已确认事件不会自动删除。管理 API 提供精确筛选、完整 `(updated_at,id)` 游标、
+详情、确认和策略读写；新中英文“遥测告警”页面提供筛选、详情、确认及节点策略编辑，viewer 只读、admin 写。
+
+专项证据：SQLx PrepareQueries `pg-20260918-233028-2f642822` 从迁移 0026 新空库生成 267 条 Console 元数据；节点存储
+`pg-20260918-232838-eb11cef0` 为 9/9，覆盖连续越线、严重度升级、确认、缺失值不恢复、连续恢复、策略 CAS、审计和 180 天清理；
+真实节点 WebSocket/API `pg-20260918-232613-0975e2d7` 为 1/1；PostgreSQL 权限/恢复水位
+`pg-20260918-231603-486ca545` 为 14/14，备份核心 `pg-20260918-231703-5660f61b` 为 61/61。Console Web 类型检查、
+36/36 合同测试和生产构建通过。首次完整门禁 `pg-20260918-233200-aabe4d82` 在新 36 项前端测试全部执行后，被仍固定为 33 的显式
+计数门禁正确拒绝；revision `3553d1ad4` 只把预期计数升为 36，没有降低检查，失败报告保留。
+
+修正后的完整跨平台门禁 `pg-20260918-234731-71bdfe0d` 已在 revision
+`3553d1ad491c3add3120f9c476eebae4edebad4b` 通过：747/747 项 PASS、0 FAIL。Windows 与 WSL Linux、267 条 Console
+SQLx、Desk/Auth SQLx、四套 Web 生产构建、Console Web 36 项、Console/Auth/Desk 真实浏览器、数据库失联/恢复和三库协调备份/
+全新库恢复均通过；1108 个登记源文件在整轮中 SHA-256 不变，20 组工具/Web 制品摘要已记录，隔离资源已清理。报告 scope 仍明确
+标注“完整 DB0–DB5 验收未完成”。本结果只把 CM-EVENT 提升为部分迁移；告警页真实浏览器流程、断库期间节点补报、可信逐 GPU 指标、
+趋势聚合、管理实时流和公网节点验证尚未完成。
+
 ## 仍未通过的阶段出口
 
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。
@@ -744,7 +765,7 @@ Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 W
 | DB0 | 已补领域/权限/恢复边界及 Auth 字节/固定向量；其余 Console 字段 SQL 与完整合成基线尚未全部冻结 |
 | DB1-EXIT | Desk/Auth 产品服务已接入；Console PG 组合根已能作为独立进程启动并通过断库 fail-closed 验收，但正式 `px_console.exe` 构建/安装包仍未切换，不能用开发目标或 schema CLI 替代三服务产品验收 |
 | DB2-A | 身份/管理 HTTP、本人资料/头像、密码计算/限流/Origin、访客 HMAC/会话/公开目录、Saved Connections、本人实例列表、更新目录、访问/通道/传输历史及录像目录 HTTP、严格配置、稳定私钥加载、独立初始化 CLI、静态文件服务及进程生命周期已实现；Console 用户门户及管理后台的当前目录/身份/状态入口均已切新 bearer/主体 API，源码不再保留旧 `/api/v1`。录像下载、视频墙/直播观察者会话和私有 RTC/TURN 运维配置仍待新架构实现；正式产品二进制/安装包切换及客户端全链路尚未接通 |
-| DB2-B/C/D | 设备/应用/节点/部署目录、user/guest 资源入口、更新与历史元数据入口及 Console 节点 WS 已接；Windows Service 已切到新节点协议并实现部署准备、调和、命令 fencing、精确 launch ACK、Render 前端准入转发、实际媒体/RDP connected/disconnected 通道生命周期上报，以及最新 CPU/内存/固定磁盘/GPU 库存采样；Console 已按 generation/sequence 原子持久化 latest 与 7 天原始历史，并在管理节点页展示 latest 和最近 100 条历史。非桌面 Render 已在建连前校验当前 CloudApplication session/instance/role/lease，并使用原 frontend token 周期续租；续租失败会按当前硬截止精确撤销 RTC allocation 和逻辑绑定，不引入短期 ticket。仍未完成真实公网首帧/输入/音频与持续续租/撤销、逐 GPU 负载/显存/编码器指标、趋势聚合/阈值/实时流、GPU/RDP 执行、周期通道指标、文件/录像生产与媒体投递、无人值守更新身份/执行器及其余 repository 产品入口 |
+| DB2-B/C/D | 设备/应用/节点/部署目录、user/guest 资源入口、更新与历史元数据入口及 Console 节点 WS 已接；Windows Service 已切到新节点协议并实现部署准备、调和、命令 fencing、精确 launch ACK、Render 前端准入转发、实际媒体/RDP connected/disconnected 通道生命周期上报，以及最新 CPU/内存/固定磁盘/GPU 库存采样；Console 已按 generation/sequence 原子持久化 latest 与 7 天原始历史，并实现每节点阈值策略、连续样本/回滞、事件去重/升级/确认/恢复、180 天保留及管理 API/UI。非桌面 Render 已在建连前校验当前 CloudApplication session/instance/role/lease，并使用原 frontend token 周期续租；续租失败会按当前硬截止精确撤销 RTC allocation 和逻辑绑定，不引入短期 ticket。仍未完成真实公网首帧/输入/音频与持续续租/撤销、逐 GPU 负载/显存/编码器指标、趋势聚合/断线补报/管理实时流、告警真实浏览器与公网节点验收、GPU/RDP 执行、周期通道指标、文件/录像生产与媒体投递、无人值守更新身份/执行器及其余 repository 产品入口 |
 | DB2-EXIT / DB3 | Desk/Auth 独立产品流程已验证；Console 与共享消费者仍待去 Mongo、接新签发/验证及库外水位，Auth 通知 outbox 尚未接通；不建设运行时双后端 |
 | DB4 | 恢复集/保留/私有原子发布/恢复前哈希与依赖复核/固定工具/取消超时、持久计划任务、重启补跑、受限实际清理、配置化异机复制、独立告警送达、持久恢复准入/审批、隔离恢复编排、固定工具适配器、执行命令、最小恢复账号创建/轮换、三库安全水位及写屏障生产/消费/释放、灾难恢复新 generation、数据库内旧会话/Grant/节点凭据/待发控制失效、库外单调可信见证生产/持久链、Auth 活动私钥/多公钥信任根/代际绑定/旧 key 撤回、固定版本 pgBackRest 物理备份/连续 WAL/命名点恢复和缺 WAL 拒绝、Windows 固定 PostgreSQL 客户端包/版本化安装/覆盖回滚/卸载保留数据，以及 systemd 安装/重启/停止/注销保留数据已实现；Windows SCM 与 WSL2 systemd 生命周期已真实验收，测试适配器已完成三库协调逻辑备份、异机副本路径恢复、全新库恢复、恢复封印和人工准入。仍需目标 Linux 发行版 VM、Pixels 外层安装包签名与生产密钥托管、独立主机或对象仓库的故障域部署/7 天窗口/恢复实测、目标环境 Auth keyring/见证同步轮换演练，以及真实节点与 Windows/RDP 工作区事实对账；本机 Docker/固定替身专项不能替代这些故障域验收 |
 | DB5 | 新环境服务端—Windows—Android 功能回归及完整制品验收 |
