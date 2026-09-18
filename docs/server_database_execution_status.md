@@ -806,8 +806,13 @@ resource session 所关联录像；`/user/recordings` 提供中英文列表、�
 无归属录像仍只进入管理员链。录像专项 `pg-20260919-053513-42c61f3a` 为 6/6，缓存专项
 `pg-20260919-053959-4d73a02a` 为 17/17，目录 HTTP 专项 `pg-20260919-054108-fa248d1f` 为 7/7；Console Web 类型检查及 39/39
 合同测试通过。真实 Chromium + Console 进程 + 隔离 PostgreSQL 聚焦验收 `pg-20260919-055719-489784b3` 进一步覆盖普通用户登录、
-“我的录像”导航和空 owner 目录；同时补齐测试 Console 的私有缓存初始化/启动配置。当前尚缺公网真实录像/有数据下载、保留/驱逐管理
-入口，因此 CM-RECORDING 保持“部分迁移”，DB2/DB5 不关闭。
+“我的录像”导航和空 owner 目录；同时补齐测试 Console 的私有缓存初始化/启动配置。当时尚缺公网真实录像/有数据下载及保留/驱逐管理
+入口；后者由下一增量关闭，CM-RECORDING 仍因公网有数据流程保持“部分迁移”，DB2/DB5 不关闭。
+
+管理员缓存管理闭环随后完成：管理 API/UI 可以分页查看缓存状态，以 revision CAS 保留或取消保留 Console 副本，并在取得物理独占锁后
+驱逐精确 blob；它不删除节点原录像。pinned、旧 revision、活跃读取或物理锁冲突均拒绝。真实 PG + 节点 WS + HTTP 专项
+`pg-20260919-061208-281ccc68` 为 1/1，覆盖上传、Range 下载、缓存列表、保留、pinned 拒绝、释放、驱逐、物理删除及删除后下载拒绝；
+Console Web 类型检查与 40/40 合同测试通过。CM-RECORDING 余项收敛为公网真实录像的有数据浏览器下载/管理动作，不再包含未接 API/UI。
 
 ## 仍未通过的阶段出口
 
@@ -819,7 +824,7 @@ Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 W
 |---|---|
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |
 | DB1-EXIT | 完成：Desk/Auth 产品服务与 PostgreSQL Console 正式 `px_console.exe` 均已接入；三者具有独立发行入口。Console 当前 3.2.21 发行、进程断库 fail-closed、真实浏览器和制品哈希已通过；后续能力缺口归 DB2–DB5，不再把旧 Mongo 组合根当产品入口 |
-| DB2-A | 身份/管理HTTP、本人资料/头像、密码计算/限流/Origin、访客HMAC/会话/公开目录、Saved Connections、本人实例列表、更新目录、访问/通道/传输历史及录像目录HTTP、严格配置、稳定私钥加载、独立初始化CLI、静态文件服务及进程生命周期已实现；Console用户门户及管理后台的当前目录/身份/状态入口均已切新bearer/主体API，源码不再保留旧`/api/v1`，正式PostgreSQL产品二进制和发行包已切换。部署绑定录像缓存、本人/管理员授权Range下载、Render完成段session归属、Windows Service真实字节生产、本人/管理下载页面及真实浏览器空目录流程已接；Direct Host观察者不再默认获得输入。仍需公网真实录像有数据下载及保留/驱逐管理入口；视频墙延期，ZLM直播和RTC/TURN管理明确退役，不再作为待实现项 |
+| DB2-A | 身份/管理HTTP、本人资料/头像、密码计算/限流/Origin、访客HMAC/会话/公开目录、Saved Connections、本人实例列表、更新目录、访问/通道/传输历史及录像目录HTTP、严格配置、稳定私钥加载、独立初始化CLI、静态文件服务及进程生命周期已实现；Console用户门户及管理后台的当前目录/身份/状态入口均已切新bearer/主体API，源码不再保留旧`/api/v1`，正式PostgreSQL产品二进制和发行包已切换。部署绑定录像缓存、本人/管理员授权Range下载、Render完成段session归属、Windows Service真实字节生产、本人/管理下载页面、保留/释放/驱逐 Console 副本及真实浏览器空目录流程已接；Direct Host观察者不再默认获得输入。仍需公网真实录像有数据浏览器流程；视频墙延期，ZLM直播和RTC/TURN管理明确退役，不再作为待实现项 |
 | DB2-B/C/D | 设备/应用/节点/部署目录、user/guest资源入口、更新与历史元数据入口及Console节点WS已接；Windows Service已切到新节点协议并实现部署准备、调和、命令fencing、精确launch ACK、Render前端准入转发、实际媒体/RDP通道生命周期、遥测、录像session归属及通用录像字节上传。ZLM/Coturn/中央RTC signaling已归档移除，Windows/Web/Render/Service/Console的Direct Host活动代码和聚焦构建已接通。仍需Relay既有数据真机回归、公网首帧/输入/音频与持续续租/撤销、Android直连、逐GPU指标、趋势/断线补报/管理实时流、GPU/RDP执行、周期通道指标、文件传输字节生产、无人值守更新及其余产品入口 |
 | DB2-EXIT / DB3 | Desk/Auth 独立产品流程已验证；Console 与共享消费者仍待去 Mongo、接新签发/验证及库外水位，Auth 通知 outbox 尚未接通；不建设运行时双后端 |
 | DB4 | 恢复集、保留、异机复制、恢复准入/执行/封印、三库写屏障/安全水位、外部见证、Auth keyring、pgBackRest/WAL/PITR、Windows SCM包及WSL2 systemd生命周期已实现。开发期仍需目标Linux发行版VM短测、Pixels外层签名/生产密钥托管、独立主机或对象仓库一次完整恢复、目标环境keyring/见证轮换及真实节点与Windows/RDP事实对账；连续7天窗口和自然周期稳定性统一放到DB5功能通过后的长测，不阻塞每个开发切片 |

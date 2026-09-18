@@ -5,13 +5,17 @@ import { useI18n } from "vue-i18n";
 import {
     listManagedChannels,
     listManagedFileTransfers,
+    listManagedRecordingCache,
     listManagedRecordings,
     listManagedVisits,
     downloadManagedRecording,
+    evictManagedRecordingCache,
     requestManagedRecordingCache,
+    updateManagedRecordingRetention,
     type ChannelRecord,
     type FileTransferRecord,
     type RecordingProfile,
+    type RecordingCacheProfile,
     type VisitRecord,
 } from "@/model/managed_activity_api";
 
@@ -21,17 +25,26 @@ const visits = ref<VisitRecord[]>([]);
 const channels = ref<ChannelRecord[]>([]);
 const transfers = ref<FileTransferRecord[]>([]);
 const recordings = ref<RecordingProfile[]>([]);
+const recordingCache = ref<Record<string, RecordingCacheProfile>>({});
 const recordingAction = ref("");
 
 async function refresh() {
     loading.value = true;
     try {
-        [visits.value, channels.value, transfers.value, recordings.value] = await Promise.all([
+        const [visitRows, channelRows, transferRows, recordingRows, cacheRows] = await Promise.all([
             listManagedVisits(),
             listManagedChannels(),
             listManagedFileTransfers(),
             listManagedRecordings(),
+            listManagedRecordingCache(),
         ]);
+        visits.value = visitRows;
+        channels.value = channelRows;
+        transfers.value = transferRows;
+        recordings.value = recordingRows;
+        recordingCache.value = Object.fromEntries(
+            cacheRows.map(profile => [profile.recording_id, profile]),
+        );
     } finally {
         loading.value = false;
     }
@@ -44,10 +57,15 @@ function bytes(value: number) {
     return `${value} B`;
 }
 
+function cacheFor(recording: RecordingProfile) {
+    return recordingCache.value[recording.id];
+}
+
 async function downloadRecording(recording: RecordingProfile) {
     recordingAction.value = recording.id;
     try {
         const cache = await requestManagedRecordingCache(recording.id);
+        recordingCache.value[recording.id] = cache;
         if (cache.state !== "ready") {
             message.info(t("activity.recordingPreparing"));
             return;
@@ -57,10 +75,46 @@ async function downloadRecording(recording: RecordingProfile) {
         const anchor = document.createElement("a");
         anchor.href = url;
         anchor.download = recording.file_name;
+        document.body.append(anchor);
         anchor.click();
-        URL.revokeObjectURL(url);
+        anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 0);
     } catch {
         message.error(t("activity.recordingDownloadFailed"));
+    } finally {
+        recordingAction.value = "";
+    }
+}
+
+async function setRecordingRetention(recording: RecordingProfile, retained: boolean) {
+    const current = recordingCache.value[recording.id];
+    if (!current) return;
+    recordingAction.value = recording.id;
+    try {
+        const changed = await updateManagedRecordingRetention(
+            recording.id,
+            current.revision,
+            retained,
+        );
+        recordingCache.value[recording.id] = changed;
+        message.success(t(retained ? "activity.recordingRetained" : "activity.recordingReleased"));
+    } catch {
+        message.error(t("activity.recordingCacheActionFailed"));
+    } finally {
+        recordingAction.value = "";
+    }
+}
+
+async function evictRecording(recording: RecordingProfile) {
+    const current = recordingCache.value[recording.id];
+    if (!current || current.pinned) return;
+    recordingAction.value = recording.id;
+    try {
+        await evictManagedRecordingCache(recording.id, current.revision);
+        delete recordingCache.value[recording.id];
+        message.success(t("activity.recordingEvicted"));
+    } catch {
+        message.error(t("activity.recordingCacheActionFailed"));
     } finally {
         recordingAction.value = "";
     }
@@ -186,6 +240,14 @@ onMounted(refresh);
                                 : t("activity.reportedMissing")
                         }}</template></a-table-column
                     >
+                    <a-table-column :title="t('activity.recordingCache')">
+                        <template #default="{ record }">
+                            <a-tag v-if="cacheFor(record)">
+                                {{ cacheFor(record)?.state }}
+                            </a-tag>
+                            <span v-else>{{ t("activity.recordingNotCached") }}</span>
+                        </template>
+                    </a-table-column>
                     <a-table-column :title="t('activity.observedAt')"
                         ><template #default="{ record }">{{
                             new Date(record.observed_at).toLocaleString()
@@ -193,13 +255,51 @@ onMounted(refresh);
                     >
                     <a-table-column :title="t('activity.action')">
                         <template #default="{ record }">
-                            <a-button
-                                type="link"
-                                :loading="recordingAction === record.id"
-                                @click="downloadRecording(record)"
-                            >
-                                {{ t("activity.download") }}
-                            </a-button>
+                            <a-space>
+                                <a-button
+                                    type="link"
+                                    :loading="recordingAction === record.id"
+                                    @click="downloadRecording(record)"
+                                >
+                                    {{ t("activity.download") }}
+                                </a-button>
+                                <a-button
+                                    v-if="cacheFor(record)?.state === 'ready'"
+                                    type="link"
+                                    :disabled="recordingAction === record.id"
+                                    @click="
+                                        setRecordingRetention(
+                                            record,
+                                            !(cacheFor(record)?.pinned ?? false),
+                                        )
+                                    "
+                                >
+                                    {{
+                                        t(
+                                            cacheFor(record)?.pinned
+                                                ? "activity.recordingRelease"
+                                                : "activity.recordingRetain",
+                                        )
+                                    }}
+                                </a-button>
+                                <a-popconfirm
+                                    v-if="cacheFor(record)?.state === 'ready'"
+                                    :title="t('activity.recordingEvictConfirm')"
+                                    :disabled="cacheFor(record)?.pinned === true"
+                                    @confirm="evictRecording(record)"
+                                >
+                                    <a-button
+                                        type="link"
+                                        danger
+                                        :disabled="
+                                            cacheFor(record)?.pinned === true ||
+                                            recordingAction === record.id
+                                        "
+                                    >
+                                        {{ t("activity.recordingEvict") }}
+                                    </a-button>
+                                </a-popconfirm>
+                            </a-space>
                         </template>
                     </a-table-column>
                 </a-table>

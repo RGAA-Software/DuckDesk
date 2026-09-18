@@ -658,6 +658,79 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
         download.bytes().await.unwrap().as_ref(),
         &recording_bytes[10..20]
     );
+    let (cache_list_status, cache_list) = call(
+        &router,
+        "GET",
+        "/api/console/managed/recording-cache?limit=100",
+        "admin_web",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(cache_list_status.as_u16(), 200, "{cache_list}");
+    assert_eq!(cache_list.as_array().unwrap().len(), 1);
+    assert_eq!(cache_list[0]["recording_id"], recording_id);
+    assert_eq!(cache_list[0]["state"], "ready");
+    let ready_revision = cache_list[0]["revision"].as_i64().unwrap();
+    let (retain_status, retained) = call(
+        &router,
+        "PATCH",
+        &format!("/api/console/managed/recordings/{recording_id}/cache"),
+        "admin_web",
+        Some(&admin),
+        json!({"revision":ready_revision,"retained":true}),
+    )
+    .await;
+    assert_eq!(retain_status.as_u16(), 200, "{retained}");
+    assert_eq!(retained["pinned"], true);
+    let retained_revision = retained["revision"].as_i64().unwrap();
+    let (pinned_evict_status, _) = call(
+        &router,
+        "DELETE",
+        &format!(
+            "/api/console/managed/recordings/{recording_id}/cache?revision={retained_revision}"
+        ),
+        "admin_web",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(pinned_evict_status.as_u16(), 403);
+    let (release_status, released) = call(
+        &router,
+        "PATCH",
+        &format!("/api/console/managed/recordings/{recording_id}/cache"),
+        "admin_web",
+        Some(&admin),
+        json!({"revision":retained_revision,"retained":false}),
+    )
+    .await;
+    assert_eq!(release_status.as_u16(), 200, "{released}");
+    assert_eq!(released["pinned"], false);
+    let released_revision = released["revision"].as_i64().unwrap();
+    let (evict_status, evict_body) = call(
+        &router,
+        "DELETE",
+        &format!(
+            "/api/console/managed/recordings/{recording_id}/cache?revision={released_revision}"
+        ),
+        "admin_web",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(evict_status.as_u16(), 204, "{evict_body}");
+    let evicted_download = http
+        .get(format!(
+            "http://{address}/api/console/managed/recordings/{recording_id}/download"
+        ))
+        .header("authorization", format!("Bearer {admin}"))
+        .header("x-pixels-client-type", "admin_web")
+        .header("origin", fixture::ORIGIN)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(evicted_download.status().as_u16(), 403);
 
     let (status, closing) = resource_call(
         &router,

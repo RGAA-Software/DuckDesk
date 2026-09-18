@@ -59,6 +59,11 @@ Console 只从环境读取配置；发行包不携带真实配置、证书、私
 `recording-<uuid>.mp4`，不会采用数据库或请求提供的路径。缓存清理任务每 30 秒有界处理废弃 attempt；retain/evict 和物理文件锁仍由
 数据库协调器裁决。
 
+管理员通过 `GET /api/console/managed/recording-cache` 查看缓存状态，以 `PATCH .../recordings/{id}/cache` 携带精确 revision 设置或取消
+保留，以 `DELETE .../recordings/{id}/cache?revision=<revision>` 驱逐 Console 副本。驱逐不会删除节点原录像；保留副本、旧 revision、
+活跃读取租约或无法取得物理独占锁都会 fail-closed。删除顺序固定为数据库进入不可逆 deleting、精确文件删除、删除证明回写 deleted，
+中间失败由既有对账/清理流程继续收敛，不返回假成功。
+
 节点通过已认证的控制长连接轮询待取录像；Console 返回最长 30 秒、一次使用、绑定当前 node generation/cache attempt/source
 identity 的上传能力。大文件不进入控制 WebSocket，而是 PUT 到同一 Console Origin 下的固定
 `/api/console/node-recording-cache/<attempt-id>`，请求必须使用 `application/octet-stream`、精确 Content-Length 且不得携带浏览器、Origin、

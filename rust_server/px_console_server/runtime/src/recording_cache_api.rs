@@ -1,6 +1,6 @@
 use crate::{
     error::ApiError,
-    request::{self, Route as Path},
+    request::{self, Input, Params as Query, Route as Path},
     StateData,
 };
 use axum::{
@@ -20,7 +20,8 @@ use futures_util::stream;
 use px_console_store::{
     CacheCredential, CacheProfile, CacheReadLease, CacheRuntime, ClientType, TokenDigest,
 };
-use px_private_files::BlobReader;
+use px_private_files::{BlobReader, FileError};
+use serde::Deserialize;
 use std::{
     io::{Read, Seek, SeekFrom},
     sync::Arc,
@@ -39,12 +40,38 @@ pub(crate) fn routes() -> Router<Arc<StateData>> {
         .route("/api/console/recordings/{id}/download", get(download))
         .route(
             "/api/console/managed/recordings/{id}/cache",
-            post(request_managed_cache),
+            post(request_managed_cache)
+                .patch(retain_managed_cache)
+                .delete(evict_managed_cache),
+        )
+        .route(
+            "/api/console/managed/recording-cache",
+            get(list_managed_cache),
         )
         .route(
             "/api/console/managed/recordings/{id}/download",
             get(download_managed),
         )
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CachePage {
+    after: Option<Uuid>,
+    limit: u32,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CacheRetention {
+    revision: i64,
+    retained: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CacheEviction {
+    revision: i64,
 }
 
 enum CacheAuthorization {
@@ -87,6 +114,80 @@ async fn request_managed_cache(
 ) -> Result<Json<CacheProfile>, ApiError> {
     let authorization = CacheAuthorization::Managed(request::administrator(&state, &headers)?);
     request_authorized_cache(&state, id, &authorization).await
+}
+
+async fn list_managed_cache(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    Query(page): Query<CachePage>,
+) -> Result<Json<Vec<CacheProfile>>, ApiError> {
+    let administrator = request::administrator(&state, &headers)?;
+    let cache = state
+        .recording_cache
+        .as_ref()
+        .ok_or(ApiError::Unavailable)?;
+    Ok(Json(
+        state
+            .db
+            .recording_cache()
+            .list_managed(cache, &administrator, page.after, page.limit)
+            .await?,
+    ))
+}
+
+async fn retain_managed_cache(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    Input(input): Input<CacheRetention>,
+) -> Result<Json<CacheProfile>, ApiError> {
+    let administrator = request::administrator(&state, &headers)?;
+    let cache = state
+        .recording_cache
+        .as_ref()
+        .ok_or(ApiError::Unavailable)?;
+    Ok(Json(
+        state
+            .db
+            .recording_cache()
+            .retain(cache, &administrator, id, input.revision, input.retained)
+            .await?,
+    ))
+}
+
+async fn evict_managed_cache(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    Query(input): Query<CacheEviction>,
+) -> Result<StatusCode, ApiError> {
+    let administrator = request::administrator(&state, &headers)?;
+    let cache = state
+        .recording_cache
+        .as_ref()
+        .ok_or(ApiError::Unavailable)?;
+    let store = state.db.recording_cache();
+    let cached = store
+        .cached_file(cache, CacheCredential::Managed(&administrator), id)
+        .await?;
+    let root = cache.root().clone();
+    let guard = tokio::task::spawn_blocking(move || root.try_lock_blob(cached.id))
+        .await
+        .map_err(|_| ApiError::Internal)?
+        .map_err(|error| match error {
+            FileError::Busy => ApiError::Conflict,
+            _ => ApiError::Unavailable,
+        })?;
+    store
+        .evict(cache, &administrator, input.revision, &guard)
+        .await?;
+    let proof = tokio::task::spawn_blocking(move || guard.delete())
+        .await
+        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::Unavailable)?;
+    store.finish_collection(cache, &proof).await?;
+    drop(proof);
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn request_authorized_cache(

@@ -134,6 +134,21 @@ export function listManagedRecordings(node?: string): Promise<RecordingProfile[]
     return collectPages<RecordingProfile>("/api/console/managed/recordings", { node });
 }
 
+export async function listManagedRecordingCache(): Promise<RecordingCacheProfile[]> {
+    const records: RecordingCacheProfile[] = [];
+    let after: string | undefined;
+    for (;;) {
+        const response = await axiosHttp.get<RecordingCacheProfile[]>(
+            "/api/console/managed/recording-cache",
+            { params: { after, limit: 100 } },
+        );
+        records.push(...response.data);
+        if (response.data.length < 100) return records;
+        after = response.data.at(-1)?.recording_id;
+        if (!after) throw new Error("A recording cache page did not include its cursor identity");
+    }
+}
+
 export async function requestManagedRecordingCache(
     recordingId: string,
 ): Promise<RecordingCacheProfile> {
@@ -149,4 +164,26 @@ export async function downloadManagedRecording(recordingId: string): Promise<Blo
         { responseType: "blob" },
     );
     return response.data;
+}
+
+export async function updateManagedRecordingRetention(
+    recordingId: string,
+    revision: number,
+    retained: boolean,
+): Promise<RecordingCacheProfile> {
+    const response = await axiosHttp.patch<RecordingCacheProfile>(
+        `/api/console/managed/recordings/${encodeURIComponent(recordingId)}/cache`,
+        { revision, retained },
+    );
+    return response.data;
+}
+
+export async function evictManagedRecordingCache(
+    recordingId: string,
+    revision: number,
+): Promise<void> {
+    await axiosHttp.delete(
+        `/api/console/managed/recordings/${encodeURIComponent(recordingId)}/cache`,
+        { params: { revision } },
+    );
 }

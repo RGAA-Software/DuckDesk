@@ -5,10 +5,15 @@ import {
     listManagedResourceSessions,
     listManagedVisits,
     downloadManagedRecording,
+    evictManagedRecordingCache,
+    listManagedRecordingCache,
     requestManagedRecordingCache,
+    updateManagedRecordingRetention,
 } from "./managed_activity_api";
 
-vi.mock("@/http", () => ({ default: { get: vi.fn(), post: vi.fn() } }));
+vi.mock("@/http", () => ({
+    default: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+}));
 
 describe("PostgreSQL managed activity API", () => {
     beforeEach(() => vi.clearAllMocks());
@@ -63,6 +68,49 @@ describe("PostgreSQL managed activity API", () => {
         expect(axiosHttp.get).toHaveBeenCalledWith(
             "/api/console/managed/recordings/recording%20id/download",
             { responseType: "blob" },
+        );
+    });
+
+    it("lists, retains, releases, and evicts only the managed cache copy", async () => {
+        vi.mocked(axiosHttp.get).mockResolvedValueOnce({
+            data: [
+                {
+                    recording_id: "recording id",
+                    state: "ready",
+                    pinned: false,
+                    revision: 2,
+                },
+            ],
+        });
+        vi.mocked(axiosHttp.patch)
+            .mockResolvedValueOnce({
+                data: { recording_id: "recording id", state: "ready", pinned: true, revision: 3 },
+            } as never)
+            .mockResolvedValueOnce({
+                data: { recording_id: "recording id", state: "ready", pinned: false, revision: 4 },
+            } as never);
+
+        await listManagedRecordingCache();
+        await updateManagedRecordingRetention("recording id", 2, true);
+        await updateManagedRecordingRetention("recording id", 3, false);
+        await evictManagedRecordingCache("recording id", 4);
+
+        expect(axiosHttp.get).toHaveBeenCalledWith("/api/console/managed/recording-cache", {
+            params: { after: undefined, limit: 100 },
+        });
+        expect(axiosHttp.patch).toHaveBeenNthCalledWith(
+            1,
+            "/api/console/managed/recordings/recording%20id/cache",
+            { revision: 2, retained: true },
+        );
+        expect(axiosHttp.patch).toHaveBeenNthCalledWith(
+            2,
+            "/api/console/managed/recordings/recording%20id/cache",
+            { revision: 3, retained: false },
+        );
+        expect(axiosHttp.delete).toHaveBeenCalledWith(
+            "/api/console/managed/recordings/recording%20id/cache",
+            { params: { revision: 4 } },
         );
     });
 });
