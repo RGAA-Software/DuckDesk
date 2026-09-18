@@ -87,3 +87,5 @@ frontend token，不产生额外短期 ticket；Render 按 `valid_for_ms` 建立
 精确停止对应 RTC，并关闭该逻辑绑定，不按端口或进程名清扫。专项数据库报告 `pg-20260918-164447-29ef5736` 为 10/10，
 逻辑会话测试 25/25、Render 能力注入/弱生命周期测试 5/5；`px_render.exe` 与发布目录 SHA-256 已核对。
 这些证据仍不等于公网浏览器持续 30 秒以上、撤销、断 Console 和 Android 真机端到端验收。
+完整跨平台软件门禁 `pg-20260918-164811-93a8a3ce` 又从三套空 PostgreSQL 重放 Windows/WSL、Web、断库、备份恢复和源码冻结，
+在 revision `21c6bd9bf` 上为 735/735 项 PASS；它证明本轮没有破坏软件基线，但仍不替代上述公网与真机 DB5 验收。

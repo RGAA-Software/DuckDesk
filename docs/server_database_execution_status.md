@@ -645,7 +645,8 @@ frontend token 周期复核，不签发新的短期 ticket；本地硬截止、�
 `build_official/cloud_node/dist` 哈希同步通过。公网首帧/输入/音频、持续续租、在线撤销、Console 中断及 Android 真机仍待端到端验收，
 不能据此宣告 DB2-A 或 DB5 完成。
 
-最新完整软件基线 `pg-20260918-153346-01914a54` 在 revision `541d0507f` 上为 735/735 项 PASS。它从三套空 PostgreSQL
+最新完整软件基线 `pg-20260918-164811-93a8a3ce` 在 revision `21c6bd9bf` 上为 735/735 项 PASS。它包含本轮 frontend
+授权续租、硬截止和精确 RTC 撤销实现，并从三套空 PostgreSQL
 数据库开始，覆盖 Windows 与 WSL Linux 的 Rust 单元/集成测试、Console 243/Desk 9/Auth 30 条 SQLx 在线/离线一致性、四套 Web
 项目依赖树与生产构建、Console Web 21 项和 Web Client 65 项加 19 项语音断言、Auth/Desk 真实浏览器与断库恢复、三库协调备份、
 异机副本恢复和最终恢复冒烟。1074 个登记源文件在整轮中 SHA-256 不变，Windows/Linux 工具摘要均已记录，隔离容器和卷已清理。
