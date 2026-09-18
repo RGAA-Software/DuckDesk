@@ -717,6 +717,107 @@ async fn response_loss_retry_is_owner_scoped_and_changed_body_never_reuses_resul
 }
 
 #[tokio::test]
+async fn owned_instance_listing_is_paginated_and_never_crosses_principals() {
+    let fixture = Fixture::new().await;
+    let (connection, app, _) = fixture.prepared(DeploymentTarget::Webview, 4).await;
+    let owner = fixture.session("user", ClientType::Android).await;
+    let other_user = fixture.session("user", ClientType::Android).await;
+    let (guest, _) = fixture.guest().await;
+    let mut owned_ids = Vec::new();
+    for _ in 0..2 {
+        owned_ids.push(
+            fixture
+                .instances
+                .reserve(
+                    ResourceCredential::User(&owner),
+                    ClientType::Android,
+                    connection.epoch(),
+                    &request(app.id),
+                )
+                .await
+                .unwrap()
+                .id,
+        );
+    }
+    let other_instance = fixture
+        .instances
+        .reserve(
+            ResourceCredential::User(&other_user),
+            ClientType::Android,
+            connection.epoch(),
+            &request(app.id),
+        )
+        .await
+        .unwrap();
+    let guest_instance = fixture
+        .instances
+        .reserve(
+            ResourceCredential::Guest(&guest),
+            ClientType::Android,
+            connection.epoch(),
+            &request(app.id),
+        )
+        .await
+        .unwrap();
+
+    owned_ids.sort();
+    let first_page = fixture
+        .instances
+        .list_owned(
+            ResourceCredential::User(&owner),
+            ClientType::Android,
+            None,
+            1,
+        )
+        .await
+        .unwrap();
+    assert_eq!(first_page.len(), 1);
+    assert_eq!(first_page[0].id, owned_ids[0]);
+    let second_page = fixture
+        .instances
+        .list_owned(
+            ResourceCredential::User(&owner),
+            ClientType::Android,
+            Some(first_page[0].id),
+            100,
+        )
+        .await
+        .unwrap();
+    assert_eq!(second_page.len(), 1);
+    assert_eq!(second_page[0].id, owned_ids[1]);
+    assert!(!owned_ids.contains(&other_instance.id));
+
+    let guest_rows = fixture
+        .instances
+        .list_owned(
+            ResourceCredential::Guest(&guest),
+            ClientType::Android,
+            None,
+            100,
+        )
+        .await
+        .unwrap();
+    assert_eq!(guest_rows.len(), 1);
+    assert_eq!(guest_rows[0].id, guest_instance.id);
+    for limit in [0, 101] {
+        assert_eq!(
+            fixture
+                .instances
+                .list_owned(
+                    ResourceCredential::User(&owner),
+                    ClientType::Android,
+                    None,
+                    limit,
+                )
+                .await
+                .unwrap_err(),
+            StoreError::InvalidInput
+        );
+    }
+    fixture.close().await;
+}
+
+#[tokio::test]
 async fn guest_user_client_and_rdp_busy_boundaries_are_explicit() {
     let fixture = Fixture::new().await;
     let (connection, app, _) = fixture.prepared(DeploymentTarget::Rdp, 1).await;

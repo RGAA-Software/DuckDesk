@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 pub(crate) fn routes() -> Router<Arc<StateData>> {
     Router::new()
-        .route("/api/console/instances", post(start))
+        .route("/api/console/instances", get(instances).post(start))
         .route("/api/console/instances/{id}", get(instance))
         .route("/api/console/instances/{id}/stop", post(stop))
         .route("/api/console/resource-sessions", post(open))
@@ -36,6 +36,21 @@ pub(crate) fn routes() -> Router<Arc<StateData>> {
             "/api/console/managed/instances/{id}/stop",
             post(managed_stop),
         )
+}
+
+async fn instances(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    Query(page): Query<Page>,
+) -> Result<Json<Vec<ApplicationInstance>>, ApiError> {
+    let context = request::resource_context(&state, &headers)?;
+    Ok(Json(
+        state
+            .db
+            .instances()
+            .list_owned(context.credential(), context.client, page.after, page.limit)
+            .await?,
+    ))
 }
 
 async fn start(

@@ -227,7 +227,7 @@ try {
         # Explicit developer command, never performed implicitly by acceptance tests.
         # PostgreSQL/SQLx generate these files; this is not evidence that runtime tests passed.
         foreach ($item in @(
-            @{Service='console';Crate='px_console_store';Path='rust_server/px_console_server/storage';Count=242},
+            @{Service='console';Crate='px_console_store';Path='rust_server/px_console_server/storage';Count=243},
             @{Service='desk';Crate='px_desk_server';Path='rust_server/px_desk_server';Count=9},
             @{Service='auth';Crate='px_auth_store';Path='rust_server/px_auth_server/storage';Count=30}
         )) {
@@ -287,7 +287,7 @@ try {
             Invoke-Checked 'docker' @('exec',$container,'psql','-X','-v','ON_ERROR_STOP=1','-U','pixels_admin','-d','pixels_desk','-c',
                 "CREATE TABLE pixels.pg_fixture(id uuid PRIMARY KEY,version text NOT NULL,created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP); ALTER TABLE pixels.pg_fixture OWNER TO pixels_desk_owner; GRANT SELECT,INSERT,UPDATE,DELETE ON pixels.pg_fixture TO pixels_desk_runtime") | Out-Null
         }
-        $suiteCounts = @{unit=19;identity=12;control=8;devices=8;applications=8;guests=9;nodes=7;deployments=6;instances=10;commands=16;workspaces=6;database=2;sessions=10;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=16;activity=8;updates=7;desk=7;catalog=4;lease=6;postgres=14;accounts=9}
+        $suiteCounts = @{unit=19;identity=12;control=8;devices=8;applications=8;guests=9;nodes=7;deployments=6;instances=11;commands=16;workspaces=6;database=2;sessions=10;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=16;activity=8;updates=7;desk=7;catalog=4;lease=6;postgres=14;accounts=9}
         $suiteCounts['console-api'] = 6
         $suiteCounts['directory-api'] = 7
         $suiteCounts['node-control'] = 1
@@ -439,7 +439,7 @@ try {
     Add-Step 'DEPLOYMENTS: mode contracts, unique identity, preparation revision/generation, roles, CAS and audit rollback'
     $instanceIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--test','instances','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $instanceIntegration
-    Add-TestCases $instanceIntegration 'native/instances' 10
+    Add-TestCases $instanceIntegration 'native/instances' 11
     Add-Step 'INSTANCES: two-process last-slot race, owner/client identity, exact request retry, gates and atomic command/event reservation'
     $commandIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--test','commands','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $commandIntegration

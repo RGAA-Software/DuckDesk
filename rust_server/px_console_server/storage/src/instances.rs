@@ -124,6 +124,37 @@ impl InstanceStore {
         tx.commit().await?;
         Ok(result)
     }
+    pub async fn list_owned(
+        &self,
+        credential: ResourceCredential<'_>,
+        client: ClientType,
+        after: Option<Uuid>,
+        limit: u32,
+    ) -> Result<Vec<ApplicationInstance>, StoreError> {
+        if !(1..=100).contains(&limit) {
+            return Err(StoreError::InvalidInput);
+        }
+        let mut tx = self.pool.begin().await?;
+        control::read_gate(&mut tx).await?;
+        let owner = Self::authorize(&mut tx, credential, client).await?.owner;
+        let (user, guest) = owner.columns();
+        let rows = sqlx::query_file_as!(
+            InstanceRow,
+            "queries/owned_instances.sql",
+            user,
+            guest,
+            after,
+            i64::from(limit)
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+        let result = rows
+            .iter()
+            .map(InstanceRow::view)
+            .collect::<Result<Vec<_>, _>>()?;
+        tx.commit().await?;
+        Ok(result)
+    }
     pub(crate) async fn authorize(
         connection: &mut PgConnection,
         credential: ResourceCredential<'_>,

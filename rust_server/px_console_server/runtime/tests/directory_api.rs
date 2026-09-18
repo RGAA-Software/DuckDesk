@@ -641,7 +641,33 @@ async fn resource_ingress_requires_one_explicit_principal_kind_without_token_fal
             .0,
             StatusCode::SERVICE_UNAVAILABLE
         );
+        let (status, instances) = resource_call(
+            &router,
+            "GET",
+            "/api/console/instances?limit=100",
+            "android",
+            Some(token),
+            Some(subject),
+            Value::Null,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{instances}");
+        assert_eq!(instances, json!([]));
     }
+    assert_eq!(
+        resource_call(
+            &router,
+            "GET",
+            "/api/console/instances?limit=0",
+            "android",
+            Some(&user),
+            Some("user"),
+            Value::Null,
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
     let (status, sessions) = call(
         &router,
         "GET",
