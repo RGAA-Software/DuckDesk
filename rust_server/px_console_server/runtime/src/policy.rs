@@ -63,6 +63,23 @@ impl IngressPolicy {
             _ => Err(ApiError::Rejected),
         }
     }
+
+    pub(crate) fn check_websocket(&self, headers: &axum::http::HeaderMap) -> Result<(), ApiError> {
+        if headers
+            .keys()
+            .any(|key| key.as_str() == "forwarded" || key.as_str().starts_with("x-forwarded-"))
+        {
+            return Err(ApiError::Rejected);
+        }
+        let origins = headers
+            .get_all(axum::http::header::ORIGIN)
+            .iter()
+            .collect::<Vec<_>>();
+        match origins.as_slice() {
+            [value] if value.to_str().ok() == Some(self.origin.as_str()) => Ok(()),
+            _ => Err(ApiError::Rejected),
+        }
+    }
 }
 
 fn one_header_equals(headers: &axum::http::HeaderMap, name: &str, expected: &str) -> bool {
@@ -123,5 +140,14 @@ mod tests {
         assert!(policy
             .check(&browser_headers, ClientType::AdminWeb)
             .is_err());
+
+        let mut websocket_headers = axum::http::HeaderMap::new();
+        websocket_headers.insert(
+            axum::http::header::ORIGIN,
+            "http://127.0.0.1:8123".parse().unwrap(),
+        );
+        assert!(policy.check_websocket(&websocket_headers).is_ok());
+        websocket_headers.insert("forwarded", "for=127.0.0.1".parse().unwrap());
+        assert!(policy.check_websocket(&websocket_headers).is_err());
     }
 }

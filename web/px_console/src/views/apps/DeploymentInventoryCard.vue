@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
+import { useManagementRefresh } from "@/model/management_events.ts";
 import { message } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
 import { listManagedApplications, type ManagedApplication } from "@/model/managed_application_api";
@@ -123,6 +124,7 @@ function nodeName(deployment: ManagedDeployment) {
 }
 
 onMounted(refresh);
+useManagementRefresh(["deployments"], refresh);
 </script>
 
 <template>

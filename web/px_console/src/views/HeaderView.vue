@@ -5,10 +5,12 @@ import { BulbFilled, BulbOutlined } from "@ant-design/icons-vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { useTheme } from "@/composables/useTheme";
+import { useManagementEvents } from "@/model/management_events.ts";
 
 const i18n = useI18n();
 const router = useRouter();
 const { isDark, toggleTheme } = useTheme();
+const managementEvents = useManagementEvents();
 
 const handleTranslateClick = (command: string) => {
     console.log("translate-clicked", command);
@@ -43,6 +45,13 @@ const props = withDefaults(defineProps<Props>(), {
             </span>
 
             <div class="flex justify-end w-full items-center">
+                <a-badge
+                    :status="managementEvents.status === 'connected' ? 'success' : 'warning'"
+                    :text="i18n.t(`realtime.${managementEvents.status}`)"
+                />
+
+                <div class="w-6"></div>
+
                 <span class="!text-small font-semibold text-amber-600">{{ props.authInfo }}</span>
 
                 <div class="w-6"></div>

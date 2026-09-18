@@ -305,6 +305,7 @@ try {
             Write-Host $consoleBrowser
             foreach ($case in @('console-browser/login-dashboard','console-browser/identity-create-user-group',
                 'console-browser/device-one-time-enrollment','console-browser/navigation-language-theme',
+                'console-browser/management-realtime-refresh-reconnect',
                 'console-process/restart-preserves-session-data','console-process/database-outage-fails-closed-and-recovers',
                 'console-browser/logout-revokes','console-browser/user-recordings-empty-state')) {
                 if (-not $consoleBrowser.Contains("PASS $case")) { throw "Console functional assertion missing: $case" }
@@ -609,6 +610,7 @@ try {
     Write-Host $consoleBrowser
     foreach ($case in @('console-browser/login-dashboard','console-browser/identity-create-user-group',
         'console-browser/device-one-time-enrollment','console-browser/navigation-language-theme',
+        'console-browser/management-realtime-refresh-reconnect',
         'console-process/restart-preserves-session-data','console-process/database-outage-fails-closed-and-recovers',
         'console-browser/logout-revokes','console-browser/user-recordings-empty-state')) {
         if (-not $consoleBrowser.Contains("PASS $case")) { throw "Console functional assertion missing: $case" }

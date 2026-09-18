@@ -1,4 +1,10 @@
 export default {
+    realtime: {
+        connected: "实时",
+        connecting: "连接中",
+        disconnected: "离线",
+        stale: "重连中",
+    },
     message: {
         Home: "首页",
         Price: "定价",

@@ -45,6 +45,10 @@ export function hasAdminToken(): boolean {
     return Boolean(sessionStorage.getItem(ADMIN_TOKEN_KEY));
 }
 
+export function getAdminToken(): string {
+    return sessionStorage.getItem(ADMIN_TOKEN_KEY) ?? "";
+}
+
 axiosHttp.interceptors.request.use(config => {
     config.headers.set("X-Pixels-Client-Type", "admin_web");
     const token = sessionStorage.getItem(ADMIN_TOKEN_KEY);

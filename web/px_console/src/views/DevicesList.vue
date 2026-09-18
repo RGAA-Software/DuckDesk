@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
+import { useManagementRefresh } from "@/model/management_events.ts";
 import { Modal, message } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
 import { copyText } from "@/util/clipboard";
@@ -164,6 +165,7 @@ async function copyCredential() {
 }
 
 onMounted(refresh);
+useManagementRefresh(["devices"], refresh);
 </script>
 
 <template>

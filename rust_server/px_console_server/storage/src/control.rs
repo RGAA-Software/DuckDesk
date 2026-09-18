@@ -95,6 +95,15 @@ impl ControlStore {
     pub async fn close(&self) {
         self.pool.close().await;
     }
+    /// Revalidates a read-only administrator session, including its current role,
+    /// disabled/deleted state, expiration and authorization revision.
+    pub async fn authorize_read(&self, token: &TokenDigest) -> Result<(), StoreError> {
+        let mut transaction = self.pool.begin().await?;
+        read_gate(&mut transaction).await?;
+        authorize(&mut transaction, token, false).await?;
+        transaction.commit().await?;
+        Ok(())
+    }
     pub async fn list_users(
         &self,
         token: &TokenDigest,

@@ -1,4 +1,10 @@
 export default {
+    realtime: {
+        connected: "Live",
+        connecting: "Connecting",
+        disconnected: "Offline",
+        stale: "Reconnecting",
+    },
     message: {
         Home: "Home",
         Price: "Price",

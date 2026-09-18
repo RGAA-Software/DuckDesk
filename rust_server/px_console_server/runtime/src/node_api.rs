@@ -266,6 +266,7 @@ async fn operation(
     message: NodeRequest,
 ) -> Result<NodeResponse, ApiError> {
     let request_id = message.request_id();
+    let management_event = management_event(&message, connection.id());
     let future = async {
         match message {
             NodeRequest::Report { report, .. } => {
@@ -516,9 +517,45 @@ async fn operation(
             NodeRequest::Authenticate { .. } => Err(ApiError::Invalid),
         }
     };
-    timeout(DATABASE_DEADLINE, future)
+    let response = timeout(DATABASE_DEADLINE, future)
         .await
-        .map_err(|_| ApiError::Unavailable)?
+        .map_err(|_| ApiError::Unavailable)??;
+    if let Some((category, resource_id)) = management_event {
+        state.management_events.publish(category, resource_id);
+    }
+    Ok(response)
+}
+
+fn management_event(message: &NodeRequest, node_id: Uuid) -> Option<(&'static str, Option<Uuid>)> {
+    match message {
+        NodeRequest::Report { .. } => Some(("nodes", Some(node_id))),
+        NodeRequest::Reconcile { .. } | NodeRequest::AcknowledgeCommand { .. } => {
+            Some(("instances", Some(node_id)))
+        }
+        NodeRequest::ReportDeployment { deployment_id, .. } => {
+            Some(("deployments", Some(*deployment_id)))
+        }
+        NodeRequest::AdmitFrontend { session_id, .. }
+        | NodeRequest::BeginFrontendRetirement { session_id, .. }
+        | NodeRequest::FinishFrontendRetirement { session_id, .. } => {
+            Some(("sessions", Some(*session_id)))
+        }
+        NodeRequest::OpenChannel { channel, .. } => Some(("sessions", Some(channel.session_id))),
+        NodeRequest::ReportChannel { channel_id, .. } => Some(("channels", Some(*channel_id))),
+        NodeRequest::BeginFileTransfer { .. } => Some(("file_transfers", Some(node_id))),
+        NodeRequest::ReportFileTransfer { transfer_id, .. } => {
+            Some(("file_transfers", Some(*transfer_id)))
+        }
+        NodeRequest::ReportRecording { recording, .. } => {
+            Some(("recordings", recording.session_id.or(Some(node_id))))
+        }
+        NodeRequest::Authenticate { .. }
+        | NodeRequest::BeginReconciliation { .. }
+        | NodeRequest::PollCommand { .. }
+        | NodeRequest::ListDeployments { .. }
+        | NodeRequest::ListFrontends { .. }
+        | NodeRequest::PollRecordingCache { .. } => None,
+    }
 }
 
 async fn receive(

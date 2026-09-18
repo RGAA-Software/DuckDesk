@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import { useManagementRefresh } from "@/model/management_events.ts";
 import { message } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
 import {
@@ -120,6 +121,7 @@ function stateColor(value: TelemetryAlertState) {
 }
 
 onMounted(refresh);
+useManagementRefresh(["nodes"], refresh);
 </script>
 
 <template>

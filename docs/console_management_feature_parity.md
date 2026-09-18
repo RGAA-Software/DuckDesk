@@ -27,16 +27,16 @@
 | 稳定 ID | 历史用户能力与入口 | 当前状态 | 新归属 | 完成/验收条件 |
 |---|---|---|---|---|
 | CM-IDENTITY | 管理员登录；用户、用户组管理 | 已迁移 | Console 管理身份 API；`LoginView`、`UserManager`、`GroupManager` | PostgreSQL 管理会话、角色/CAS、最后管理员、改密/退出和中英文 UI 合同持续通过；真实浏览器已覆盖登录及用户/组创建，不得回退 Cookie/CSRF |
-| CM-DASHBOARD | 资源总览、数量与近期状态 | 部分迁移 | `ResourcesView` + managed applications/nodes/deployments/sessions/recordings | 当前页面、登录后导航、进程重启数据保持及数据库失联 fail-closed/恢复已做真实浏览器验收；节点列表已展示 Service 最新快照，管理节点详情可查最近 100 条原始历史，但仍需趋势聚合/图表、告警、陈旧时长和实时推送 |
+| CM-DASHBOARD | 资源总览、数量与近期状态 | 部分迁移 | `ResourcesView` + managed applications/nodes/deployments/sessions/recordings | 当前页面、登录后导航、进程重启数据保持及数据库失联 fail-closed/恢复已做真实浏览器验收；节点列表已展示 Service 最新快照，管理节点详情可查最近 100 条原始历史，独立管理事件流会刷新资源视图；仍需趋势聚合/图表和陈旧时长 |
 | CM-DEVICE | 设备目录、在线状态、访问授权、设备详情 | 部分迁移 | managed device API + `DevicesList` | 目录及创建一次性注册凭据已做真实浏览器验收，轮换、启停/删除和用户/组 ACL 已接；真实 WMI latest 与 7 天原始历史已落 PostgreSQL 并进入管理节点详情，GPU 负载/显存/编码器指标和运维动作仍待闭环 |
 | CM-ONLINE | 在线连接列表、访问主体和会话状态 | 已迁移 | managed resource sessions + `OnlineConnection` | 分页、筛选、主体隔离、敏感 descriptor 不返回、真实节点连接/断开更新及浏览器展示通过 |
-| CM-CONNECTION | Service/Panel 连接、远程会话详情和会话事件 | 部分迁移 | managed visits/channels/transfers + `SecurityInternal` | 当前访问、通道、传输和录像历史已接；仍需节点连接代际、命令/会话事件明细、实时刷新和断线陈旧标识 |
+| CM-CONNECTION | Service/Panel 连接、远程会话详情和会话事件 | 部分迁移 | managed visits/channels/transfers + `SecurityInternal` | 当前访问、通道、传输和录像历史已接，节点上报会实时刷新对应管理视图；仍需节点连接代际、命令/会话事件明细和业务数据陈旧时长 |
 | CM-APPLICATION | 应用、节点、部署配置与调度状态 | 已迁移 | managed application/node/deployment API + `AppsView` | 三种模式、显式 deployment target、CAS、节点 generation、容量/维护门禁和部署准备回归持续通过；管理员页面不冒充终端用户启动入口 |
 | CM-RECORDING | 录像目录、直读/拉取、下载到本机或 Console、删除 | 部分迁移 | recording catalog + private cache/read-lease service + 管理/本人录像页 | Render 完成段、Service 登记/回传、Console 私有缓存、Range 下载、管理员与会话 owner 页面以及 Console 副本保留/释放/驱逐已接通；自动化覆盖 hash、并发、读取租约、撤销、CAS 和 pinned/在读拒绝。仍需真实公网录像与有数据浏览器下载/管理动作验收。旧 URL ticket 不恢复 |
 | CM-WALL | 多设备视频墙、分页、自动重连、每格媒体统计 | 待实现（延期） | 多个显式 observer 资源会话 + 多条 Direct Host WebRTC | 不阻塞本轮DB0–DB5；以后恢复时每格独立descriptor/lease并直接连接对应Render，不恢复ZLM或中央媒体转发，容量按浏览器与Render编码槽明确限制 |
 | CM-LIVE | 选择应用/节点/实例并通过ZLMediaKit观看直播流 | 明确退役 | `backup/`归档；不属于本轮活动产品 | 归档ZLM/RTMP/HLS/HTTP-FLV、Render live pusher、Console播放代理和短期播放ticket，并从构建/安装/路由/UI移除；录像及未来Direct Host observer不随之退役 |
-| CM-EVENT | CPU、内存、磁盘、GPU 阈值事件查询与详情 | 部分迁移 | `TelemetryAlertStore` + `TelemetryAlerts` | 每节点策略、连续样本/回滞、去重、严重度升级、确认/恢复、180 天保留、分页筛选、详情 API 和中英文页面已接；仍需断库补报、可信真实 GPU 指标、实时推送及真实公网节点/浏览器验收 |
-| CM-REALTIME | 管理端 WebSocket 实时刷新、心跳和重连 | 待实现 | 独立只读管理事件流；节点控制仍为 `/api/console/node-control` | 管理 bearer 认证、事件序号/游标、重放边界、心跳、反压、重连、授权撤销、断库 fail-closed 和陈旧状态提示通过；不得复用节点控制身份或旧 `/console/website` |
+| CM-EVENT | CPU、内存、磁盘、GPU 阈值事件查询与详情 | 部分迁移 | `TelemetryAlertStore` + `TelemetryAlerts` | 每节点策略、连续样本/回滞、去重、严重度升级、确认/恢复、180 天保留、分页筛选、详情 API、中英文页面和节点事件实时失效通知已接；仍需断库补报、可信真实 GPU 指标及真实公网节点验收 |
+| CM-REALTIME | 管理端 WebSocket 实时刷新、心跳和重连 | 部分迁移 | `/api/console/managed/events` 独立只读管理事件流；节点控制仍为 `/api/console/node-control` | 已实现同源握手、首帧管理 bearer、admin/viewer 逐次重验、事件序号/游标、1024 项有界重放、进程流 ID/快照边界、15 秒心跳、5 秒写超时、固定间隔重连、撤权收敛和中英文陈旧状态；真实 Chromium 已验证外部写入自动刷新与 Console 重启重连。仍需公网高频反压及数据库中断期间页面陈旧/恢复专项；不得复用节点身份或旧 `/console/website` |
 | CM-RTC | STUN/TURN 配置、连通性测试、Coturn 状态 | 明确退役 | `backup/`归档；Direct Host WebRTC不使用ICE服务器 | 归档Coturn制品、TURN secret/credential、端口池、状态API和页面；当前描述符不得下发`stun:`/`turn:`或Relay RTC signaling参数，直连失败不得回退 |
 | CM-LICENSE | 机器码、许可证状态、拉取/授权入口 | 部分迁移 | `px_auth_server` + Console 许可证消费者 + 运维状态 | Auth 签发/撤销已在 PostgreSQL；仍需 Console/Service 消费、当前部署绑定、到期/撤销传播、离线策略和只读管理状态。旧浏览器 stub `AuthView` 不恢复 |
 | CM-PROFILE | 当前管理员资料、角色、改密、退出 | 已迁移 | admin session API + `ProfileInfo`/`HeaderView` | 当前 bearer 精确绑定、密码 revision 撤销和退出幂等持续通过；真实浏览器已覆盖中英文、明暗主题、进程重启后的会话重验及退出撤销 |
@@ -48,15 +48,17 @@
 每分钟有界删除最多 5000 条过期机器样本并级联 GPU 行。WMI 当前能可靠提供 CPU、逻辑处理器、内存、固定磁盘和 GPU 身份/名称；
 无法可靠得到的逐 GPU 利用率、显存和编码器压力保持 `null`，不会以 0 冒充空闲，也不能作为调度证据。阈值事件已基于已接受报告在
 同一事务评估 CPU、内存、固定磁盘及非 NULL GPU 利用率：默认连续 3 次越线开立、50‰ 回滞、连续 3 次恢复，支持每节点 CAS 策略、
-确认审计、稳定分页筛选和恢复后 180 天有界保留；缺失指标不会伪造恢复。尚未建立趋势聚合、断线补报或管理实时事件流，真实公网 GPU
-告警和浏览器验收也未完成，因此 CM-EVENT 仅为“部分迁移”，CM-REALTIME 仍为“待实现”。
+确认审计、稳定分页筛选和恢复后 180 天有界保留；缺失指标不会伪造恢复。管理实时事件流已用独立安全域连接节点上报和成功的管理
+写操作；流内只发送类型化失效通知，不发送节点凭据或业务详情。进程重启必定更换 `stream_id` 并要求 HTTP 全量快照，不伪造跨进程
+持久重放。尚未建立趋势聚合、断线遥测补报、真实公网 GPU 告警和高频反压验收，因此 CM-EVENT 与 CM-REALTIME 均保持“部分迁移”。
 
 ## 3. DTO 与页面迁移边界
 
 - 旧 `entity/*.ts` 不是权威领域模型。当前已接能力使用 `managed_*_api.ts` 的类型化响应，并与 Rust runtime/storage DTO 对齐。
 - DTO 文件删除时，其对应能力必须先映射到本表。若新 DTO 尚不存在，该能力仍保持“待实现/部分迁移”，不能以“后端以后再做”关闭事项。
 - 当前 `OnlineConnection` 是资源会话视图，`SecurityInternal` 是访问/通道/传输/录像审计视图；它们只替代已实际展示的数据，不自动等价于旧连接监控、硬件事件或媒体观看页面。
-- 节点控制 WebSocket 与管理员实时事件流是两个安全域。前者已实现并认证节点 generation；后者尚未实现。
+- 节点控制 WebSocket 与管理员实时事件流是两个安全域。前者认证节点 generation；后者只接受同源浏览器，在升级后首帧认证
+  `admin_web` bearer，并在事件/心跳时重新核验当前管理员或只读管理员权限。两者不共用身份、消息或路径。
 
 ## 4. 后续实施顺序
 

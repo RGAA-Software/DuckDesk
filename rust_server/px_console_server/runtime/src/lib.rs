@@ -10,6 +10,7 @@ mod guest_source;
 mod history_api;
 mod identity;
 mod management;
+mod management_events;
 mod node_api;
 mod node_wire;
 mod policy;
@@ -59,6 +60,7 @@ pub(crate) struct StateData {
     epoch: RuntimeEpoch,
     recording_cache: Option<CacheRuntime>,
     uploads: Arc<recording_upload_api::UploadRegistry>,
+    management_events: Arc<management_events::ManagementEvents>,
 }
 impl StateData {
     fn active(&self) -> Result<(), ApiError> {
@@ -168,6 +170,7 @@ impl ConsoleRuntime {
             epoch,
             recording_cache,
             uploads: recording_upload_api::UploadRegistry::new(),
+            management_events: management_events::ManagementEvents::new(),
         });
         let supervisor_cancellation = cancellation.clone();
         let supervisor = tokio::spawn(async move {
@@ -251,6 +254,7 @@ impl ConsoleRuntime {
         Router::new()
             .merge(device_api::routes())
             .merge(application_api::routes())
+            .merge(management_events::routes())
             .merge(node_api::routes())
             .merge(deployment_api::routes())
             .merge(guest_api::routes())
@@ -361,6 +365,8 @@ async fn admission(
     next: Next,
 ) -> Result<Response, ApiError> {
     state.active()?;
+    let method = request.method().clone();
+    let path = request.uri().path().to_owned();
     let mut response = next.run(request).await;
     // Never return a freshly minted capability after this activation lost authority.
     state.active()?;
@@ -371,5 +377,10 @@ async fn admission(
         header::X_CONTENT_TYPE_OPTIONS,
         HeaderValue::from_static("nosniff"),
     );
+    if response.status().is_success() {
+        if let Some((category, resource_id)) = management_events::http_mutation(&method, &path) {
+            state.management_events.publish(category, resource_id);
+        }
+    }
     Ok(response)
 }

@@ -5,9 +5,11 @@ import { useRoute } from "vue-router";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useTheme } from "@/composables/useTheme";
+import { useManagementEventConnection } from "@/model/management_events.ts";
 const route = useRoute();
 const { isDark } = useTheme();
 const { t } = useI18n();
+useManagementEventConnection();
 
 const headerTitle = computed(() => {
     const titleKey = route.meta.titleKey as string | undefined;

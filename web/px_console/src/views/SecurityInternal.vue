@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { message } from "ant-design-vue";
 import { onMounted, ref } from "vue";
+import { useManagementRefresh } from "@/model/management_events.ts";
 import { useI18n } from "vue-i18n";
 import {
     listManagedChannels,
@@ -121,6 +122,7 @@ async function evictRecording(recording: RecordingProfile) {
 }
 
 onMounted(refresh);
+useManagementRefresh(["guests"], refresh);
 </script>
 
 <template>

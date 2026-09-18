@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { useManagementRefresh } from "@/model/management_events.ts";
 import { useI18n } from "vue-i18n";
 import {
     listManagedResourceSessions,
@@ -37,6 +38,10 @@ function target(session: ResourceSession) {
 }
 
 onMounted(refresh);
+useManagementRefresh(
+    ["sessions", "channels", "file_transfers", "recordings", "instances"],
+    refresh,
+);
 </script>
 
 <template>

@@ -264,6 +264,7 @@ async function run() {
     );
   }
   await page.getByText("Resource overview", { exact: true }).first().waitFor();
+  await page.getByText("Live", { exact: true }).waitFor();
   assert.equal(new URL(page.url()).pathname, "/resources");
   const administratorToken = await page.evaluate(() => sessionStorage.getItem("pixels.admin_web.token"));
   assert.match(administratorToken, /^[a-f0-9]{64}$/);
@@ -318,6 +319,16 @@ async function run() {
   await credentialDialog.getByRole("button", { name: "Close", exact: true }).click();
   await credentialDialog.waitFor({ state: "hidden" });
   await page.getByRole("cell", { name: deviceName, exact: true }).waitFor();
+
+  const realtimeDeviceName = `Realtime device ${randomUUID()}`;
+  const realtimeDevice = await api(
+    "/api/console/managed/devices",
+    "POST",
+    { name: realtimeDeviceName, platform: "windows" },
+    administratorToken,
+  );
+  assert.equal(realtimeDevice.status, 201);
+  await page.getByRole("cell", { name: realtimeDeviceName, exact: true }).waitFor();
   console.log("PASS console-browser/device-one-time-enrollment");
 
   await page.getByTitle("Switch to dark theme").click();
@@ -332,8 +343,11 @@ async function run() {
   console.log("PASS console-browser/navigation-language-theme");
 
   await stopServer();
+  await page.getByText("Reconnecting", { exact: true }).waitFor();
   await startServer();
   assert.equal((await api("/api/console/session", "GET", undefined, administratorToken)).status, 200);
+  await page.getByText("Live", { exact: true }).waitFor();
+  console.log("PASS console-browser/management-realtime-refresh-reconnect");
   const usersAfterRestart = await api("/api/console/users?limit=100", "GET", undefined, administratorToken);
   assert.equal(usersAfterRestart.status, 200);
   assert.ok(usersAfterRestart.body.some((user) => user.username === createdUsername));

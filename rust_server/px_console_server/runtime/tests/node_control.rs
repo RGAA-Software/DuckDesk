@@ -7,7 +7,10 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::{net::SocketAddr, time::Duration};
 use tokio::net::TcpListener;
-use tokio_tungstenite::{connect_async, tungstenite::Message};
+use tokio_tungstenite::{
+    connect_async,
+    tungstenite::{client::IntoClientRequest, http::HeaderValue, Message},
+};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -194,6 +197,46 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
         .unwrap_err();
     assert_eq!(query_error.to_string(), "HTTP error: 403 Forbidden");
 
+    let management_base = format!("ws://{address}/api/console/managed/events");
+    let mut management_request = management_base.into_client_request().unwrap();
+    management_request
+        .headers_mut()
+        .insert("origin", HeaderValue::from_static(fixture::ORIGIN));
+    let (mut management_socket, _) = connect_async(management_request).await.unwrap();
+    let management_ready = exchange(
+        &mut management_socket,
+        json!({"type":"authenticate","token":admin,"stream_id":null,"after":null}),
+    )
+    .await;
+    assert_eq!(management_ready["type"], "ready");
+    assert_eq!(management_ready["snapshot_required"], true);
+    let initial_management_sequence = management_ready["latest_sequence"].as_u64().unwrap();
+
+    let (realtime_device_status, realtime_device) = call(
+        &router,
+        "POST",
+        "/api/console/managed/devices",
+        "admin_web",
+        Some(&admin),
+        json!({"name":"realtime-device","platform":"windows"}),
+    )
+    .await;
+    assert_eq!(realtime_device_status.as_u16(), 201, "{realtime_device}");
+    let http_management_event =
+        tokio::time::timeout(Duration::from_secs(5), management_socket.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+    let http_management_event: Value =
+        serde_json::from_str(http_management_event.to_text().unwrap()).unwrap();
+    assert_eq!(http_management_event["type"], "event");
+    assert_eq!(http_management_event["category"], "devices");
+    assert_eq!(
+        http_management_event["sequence"],
+        initial_management_sequence + 1
+    );
+
     let (mut socket, _) = connect_async(&base).await.unwrap();
     let authenticated = exchange(
         &mut socket,
@@ -244,6 +287,63 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     .await;
     assert_eq!(report["type"], "reported");
     assert_eq!(report["state"], "reconciling");
+    let management_event = tokio::time::timeout(Duration::from_secs(5), management_socket.next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    let management_event: Value =
+        serde_json::from_str(management_event.to_text().unwrap()).unwrap();
+    assert_eq!(management_event["type"], "event");
+    assert_eq!(management_event["category"], "nodes");
+    assert_eq!(management_event["resource_id"], node["node"]["id"]);
+    assert_eq!(
+        management_event["sequence"],
+        initial_management_sequence + 2
+    );
+
+    let viewer_name = format!("viewer-{}", Uuid::new_v4());
+    let (viewer_status, viewer_profile) = call(
+        &router,
+        "POST",
+        "/api/console/users",
+        "admin_web",
+        Some(&admin),
+        json!({"username":viewer_name,"password":PASSWORD,"role":"viewer"}),
+    )
+    .await;
+    assert_eq!(viewer_status.as_u16(), 201, "{viewer_profile}");
+    let viewer_token = login(&router, &viewer_name, PASSWORD, "admin_web").await;
+    let mut viewer_request = format!("ws://{address}/api/console/managed/events")
+        .into_client_request()
+        .unwrap();
+    viewer_request
+        .headers_mut()
+        .insert("origin", HeaderValue::from_static(fixture::ORIGIN));
+    let (mut viewer_socket, _) = connect_async(viewer_request).await.unwrap();
+    let viewer_ready = exchange(
+        &mut viewer_socket,
+        json!({"type":"authenticate","token":viewer_token,"stream_id":null,"after":null}),
+    )
+    .await;
+    assert_eq!(viewer_ready["type"], "ready");
+    let (disable_status, disabled_viewer) = call(
+        &router,
+        "PATCH",
+        &format!(
+            "/api/console/users/{}",
+            viewer_profile["id"].as_str().unwrap()
+        ),
+        "admin_web",
+        Some(&admin),
+        json!({"revision":viewer_profile["revision"],"role":"viewer","disabled":true}),
+    )
+    .await;
+    assert_eq!(disable_status.as_u16(), 200, "{disabled_viewer}");
+    let revoked = tokio::time::timeout(Duration::from_secs(5), viewer_socket.next())
+        .await
+        .unwrap();
+    assert!(revoked.is_none() || revoked.is_some_and(|message| message.unwrap().is_close()));
     let (history_status, history) = call(
         &router,
         "GET",

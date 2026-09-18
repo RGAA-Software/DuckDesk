@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
+import { useManagementRefresh } from "@/model/management_events.ts";
 import { Modal, message, type FormInstance } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
 import {
@@ -229,6 +230,7 @@ function guestState(guest: GuestSessionView) {
 }
 
 onMounted(refresh);
+useManagementRefresh(["identities"], refresh);
 </script>
 
 <template>
