@@ -158,15 +158,15 @@
       <circle class="core-orbit core-orbit-inner" cx="360" cy="282" r="38" />
       <circle class="core-surface" cx="360" cy="282" r="28" />
       <g class="core-mark" transform="translate(360 282) rotate(45)">
-        <circle cx="-9" cy="-9" r="3.2" />
-        <circle cx="0" cy="-9" r="3.2" opacity=".38" />
-        <circle cx="9" cy="-9" r="3.2" />
-        <circle cx="-9" cy="0" r="3.2" opacity=".38" />
-        <circle cx="0" cy="0" r="3.2" />
-        <circle cx="9" cy="0" r="3.2" opacity=".38" />
-        <circle cx="-9" cy="9" r="3.2" />
-        <circle cx="0" cy="9" r="3.2" opacity=".38" />
-        <circle cx="9" cy="9" r="3.2" />
+        <circle cx="-9" cy="-9" r="3.2" opacity=".35" />
+        <circle cx="0" cy="-9" r="3.2" />
+        <circle cx="9" cy="-9" r="3.2" opacity=".35" />
+        <circle cx="-9" cy="0" r="3.2" />
+        <circle cx="0" cy="0" r="3.2" opacity=".35" />
+        <circle cx="9" cy="0" r="3.2" />
+        <circle cx="-9" cy="9" r="3.2" opacity=".35" />
+        <circle cx="0" cy="9" r="3.2" />
+        <circle cx="9" cy="9" r="3.2" opacity=".35" />
       </g>
     </g>
   </svg>

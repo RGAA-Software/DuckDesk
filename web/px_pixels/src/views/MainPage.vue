@@ -42,6 +42,16 @@ function navigateTo(hash = '') {
     void router.push({ path: '/main', hash })
 }
 
+function navigateToDownloads() {
+    menuVisible.value = false
+    void router.push('/downloads')
+}
+
+function navigateToDocs() {
+    menuVisible.value = false
+    void router.push('/docs')
+}
+
 function openContact() {
     menuVisible.value = false
     contactVisible.value = true
@@ -79,6 +89,12 @@ onMounted(() => {
           </button>
           <button type="button" @click="navigateTo('#platform')">
             {{ t('site.nav.platform') }}
+          </button>
+          <button type="button" @click="navigateToDownloads">
+            {{ t('site.nav.downloads') }}
+          </button>
+          <button type="button" @click="navigateToDocs">
+            {{ t('site.nav.docs') }}
           </button>
         </nav>
 
@@ -124,6 +140,12 @@ onMounted(() => {
           </button>
           <button type="button" @click="navigateTo('#platform')">
             {{ t('site.nav.platform') }}
+          </button>
+          <button type="button" @click="navigateToDownloads">
+            {{ t('site.nav.downloads') }}
+          </button>
+          <button type="button" @click="navigateToDocs">
+            {{ t('site.nav.docs') }}
           </button>
         </nav>
         <div class="mobile-tools">
@@ -171,6 +193,12 @@ onMounted(() => {
           <span>{{ t('site.footer.support') }}</span>
           <button type="button" @click="navigateTo('#platform')">
             {{ t('site.nav.platform') }}
+          </button>
+          <button type="button" @click="navigateToDownloads">
+            {{ t('site.nav.downloads') }}
+          </button>
+          <button type="button" @click="navigateToDocs">
+            {{ t('site.nav.docs') }}
           </button>
           <button type="button" @click="openContact">
             {{ t('site.nav.support') }}
@@ -413,7 +441,7 @@ onMounted(() => {
     background: #09090b;
 }
 
-@media (max-width: 820px) {
+@media (max-width: 1080px) {
     .site-shell {
         width: min(100% - 32px, 680px);
     }

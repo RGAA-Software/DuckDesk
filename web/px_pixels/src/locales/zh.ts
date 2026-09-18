@@ -3,6 +3,8 @@ export default {
         nav: {
             solutions: "解决方案",
             platform: "平台能力",
+            downloads: "下载",
+            docs: "文档",
             support: "联系咨询",
         },
         actions: {
@@ -84,6 +86,173 @@ export default {
             eyebrow: "开始使用",
             title: "从需求到云端体验，路径清晰可控",
             steps: ["规划你的用户、应用与算力资源", "部署并接入 PIXELS 节点", "从任意终端安全进入工作空间"],
+        },
+        downloads: {
+            eyebrow: "PIXELS 下载中心",
+            title: "一个下载中心",
+            titleAccent: "连接每一种工作负载",
+            description: "从客户侧基础设施到随身终端，按部署角色和操作系统获取对应组件。",
+            metrics: [
+                { value: "04", label: "覆盖基础设施、算力节点与终端" },
+                { value: "05", label: "Windows、Linux、macOS、Android、iOS" },
+                { value: "可信", label: "签名安装包与 SHA-256 校验" },
+            ],
+            releaseNotice: "公开安装包正在准备中",
+            releaseDescription: "页面结构与平台支持已就绪；正式版本发布后，将在这里提供签名安装包与校验信息。",
+            packagesEyebrow: "产品组件",
+            packagesTitle: "从基础设施到每一块屏幕",
+            packagesDescription: "四类组件各司其职，覆盖服务部署、云端算力与完整的多终端访问体验。",
+            category: {
+                infrastructure: "基础设施",
+                compute: "云端算力",
+                fullClient: "完整客户端",
+                liteClient: "轻量客户端",
+            },
+            products: {
+                server: {
+                    title: "Pixels Server",
+                    description: "部署在客户环境中的服务组件，为设备、会话与业务运行提供稳定的服务基础。",
+                },
+                cloudNode: {
+                    title: "Cloud Node",
+                    description: "面向云渲染工作负载的执行节点，将图形算力安全接入 Pixels 平台。",
+                },
+                remote: {
+                    title: "Remote",
+                    description: "功能完整的远程访问客户端，在桌面与移动设备上连接你的 Pixels 工作空间。",
+                },
+                liteClient: {
+                    title: "简易客户端",
+                    description: "专注快速连接的轻量客户端，以更少步骤进入已授权的远程会话。",
+                },
+            },
+            supportedSystems: "支持系统",
+            comingSoon: "即将开放",
+            platforms: {
+                windows: "Windows",
+                linux: "Linux",
+                macos: "macOS",
+                android: "Android",
+                ios: "iOS",
+            },
+            guide: {
+                eyebrow: "下载流程",
+                title: "清晰、安全地完成部署",
+                steps: [
+                    { number: "01", title: "选择组件", description: "按照部署角色选择服务端、云节点或终端客户端。" },
+                    { number: "02", title: "匹配系统", description: "下载与你的操作系统和设备架构匹配的安装包。" },
+                    { number: "03", title: "验证安装", description: "核对数字签名与校验值后，再进入配置和授权流程。" },
+                ],
+            },
+            security: {
+                eyebrow: "可信分发",
+                title: "每个公开版本都可验证",
+                description: "正式发布时同步提供版本说明、文件大小、数字签名与 SHA-256 校验值。",
+                signed: "签名安装包",
+                checksum: "SHA-256 校验",
+                notes: "版本说明",
+            },
+            help: {
+                eyebrow: "需要部署建议？",
+                title: "让我们帮你规划正确的组件组合",
+                description: "告诉我们终端规模、节点系统与业务场景，我们会给出合适的部署建议。",
+                action: "咨询部署方案",
+            },
+        },
+        docs: {
+            eyebrow: "PIXELS 产品文档",
+            title: "从第一次连接",
+            titleAccent: "到稳定交付",
+            description: "按远控、云游戏和云渲染三条产品线查找部署、配置、使用与排障指南。",
+            searchPlaceholder: "搜索当前产品的文档主题",
+            preparing: "文档中心正在持续完善",
+            preparingDescription: "当前先提供完整的分类与主题目录，公开技术文章将按版本逐步上线。",
+            chooseProduct: "选择产品",
+            browseTitle: "浏览产品文档",
+            browseDescription: "选择一条产品线，查看对应的快速开始、核心能力与运维主题。",
+            quickStart: "快速开始",
+            topics: "文档主题",
+            articles: "篇主题",
+            comingSoon: "即将开放",
+            noResults: "没有找到匹配的文档主题",
+            clearSearch: "清除搜索",
+            products: {
+                remote: {
+                    title: "远控",
+                    subtitle: "Remote",
+                    description: "面向个人与团队的远程桌面连接、受控访问和多端使用指南。",
+                    quickSteps: ["安装并登录 Remote 客户端", "添加或选择已授权的远程设备", "建立连接并调整画质与输入设置"],
+                    sections: [
+                        {
+                            title: "安装与连接",
+                            description: "从客户端安装到建立第一次远程会话。",
+                            articles: ["安装 Remote 客户端", "添加与授权远程设备", "发起第一次远程连接", "连接状态与基础诊断"],
+                        },
+                        {
+                            title: "会话与交互",
+                            description: "配置画面、输入和会话中的协作能力。",
+                            articles: ["画质与帧率设置", "键盘、鼠标与快捷键", "剪贴板与文件传输", "多显示器与全屏模式"],
+                        },
+                        {
+                            title: "安全与管理",
+                            description: "为团队建立可控的身份、权限与访问边界。",
+                            articles: ["设备访问权限", "临时访问与授权", "会话安全策略", "连接日志与问题排查"],
+                        },
+                    ],
+                },
+                gaming: {
+                    title: "云游戏",
+                    subtitle: "Cloud Gaming",
+                    description: "覆盖游戏上云、算力节点、会话运行和低延迟体验的产品指南。",
+                    quickSteps: ["准备游戏与 Cloud Node 运行环境", "创建游戏配置并分配图形算力", "从终端启动并验证云游戏会话"],
+                    sections: [
+                        {
+                            title: "游戏上云",
+                            description: "配置游戏内容并完成第一次发布。",
+                            articles: ["准备游戏运行环境", "创建游戏与启动配置", "发布可访问的游戏", "验证首个云游戏会话"],
+                        },
+                        {
+                            title: "节点与会话",
+                            description: "管理图形节点、运行实例和会话生命周期。",
+                            articles: ["部署 Cloud Node", "GPU 资源与节点状态", "游戏实例生命周期", "会话隔离与回收"],
+                        },
+                        {
+                            title: "体验与排障",
+                            description: "围绕网络、输入和画面质量优化体验。",
+                            articles: ["控制器与键鼠输入", "分辨率与码率策略", "网络延迟诊断", "画面卡顿与启动失败排查"],
+                        },
+                    ],
+                },
+                rendering: {
+                    title: "云渲染",
+                    subtitle: "Cloud Rendering",
+                    description: "面向专业图形工作负载的节点接入、任务调度与交付运维指南。",
+                    quickSteps: ["部署并注册 Cloud Node", "配置渲染应用与工作负载", "提交任务并验证输出结果"],
+                    sections: [
+                        {
+                            title: "节点接入",
+                            description: "将 Windows 或 Linux 图形节点接入平台。",
+                            articles: ["安装 Cloud Node", "注册与认证节点", "配置 GPU 与运行环境", "节点健康状态检查"],
+                        },
+                        {
+                            title: "任务与调度",
+                            description: "组织工作负载、队列和算力资源。",
+                            articles: ["创建渲染工作负载", "提交与取消任务", "队列与资源调度", "任务状态与失败重试"],
+                        },
+                        {
+                            title: "交付与运维",
+                            description: "管理输出结果、监控指标和运行问题。",
+                            articles: ["渲染结果与文件交付", "节点与任务监控", "日志收集与诊断", "常见渲染错误排查"],
+                        },
+                    ],
+                },
+            },
+            support: {
+                eyebrow: "没有找到答案？",
+                title: "让 Pixels 团队协助你完成部署",
+                description: "提供你的产品场景、系统环境与问题现象，我们会协助定位合适的文档或解决方案。",
+                action: "联系技术支持",
+            },
         },
         cta: {
             eyebrow: "下一步",

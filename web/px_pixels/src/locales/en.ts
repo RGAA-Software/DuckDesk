@@ -3,6 +3,8 @@ export default {
         nav: {
             solutions: "Solutions",
             platform: "Platform",
+            downloads: "Downloads",
+            docs: "Docs",
             support: "Talk to us",
         },
         actions: {
@@ -84,6 +86,173 @@ export default {
             eyebrow: "GET STARTED",
             title: "A clear path from requirements to cloud experience",
             steps: ["Plan your people, apps, and compute resources", "Deploy and connect PIXELS nodes", "Enter a workspace securely from any endpoint"],
+        },
+        downloads: {
+            eyebrow: "PIXELS DOWNLOAD CENTER",
+            title: "One download center",
+            titleAccent: "for every workload",
+            description: "Get the right component for each deployment role and operating system, from customer infrastructure to personal devices.",
+            metrics: [
+                { value: "04", label: "Infrastructure, compute nodes, and endpoints" },
+                { value: "05", label: "Windows, Linux, macOS, Android, and iOS" },
+                { value: "Trusted", label: "Signed installers and SHA-256 verification" },
+            ],
+            releaseNotice: "Public installers are being prepared",
+            releaseDescription: "Platform coverage and page structure are ready. Signed installers and verification details will appear here with the public release.",
+            packagesEyebrow: "PRODUCT PACKAGES",
+            packagesTitle: "From infrastructure to every screen",
+            packagesDescription: "Four focused components cover service deployment, cloud compute, and a complete multi-device access experience.",
+            category: {
+                infrastructure: "Infrastructure",
+                compute: "Cloud compute",
+                fullClient: "Full client",
+                liteClient: "Lightweight client",
+            },
+            products: {
+                server: {
+                    title: "Pixels Server",
+                    description: "Customer-deployed service components that provide a stable foundation for devices, sessions, and business workloads.",
+                },
+                cloudNode: {
+                    title: "Cloud Node",
+                    description: "An execution node for cloud-rendering workloads that connects graphics compute securely to the Pixels platform.",
+                },
+                remote: {
+                    title: "Remote",
+                    description: "The complete remote-access client for connecting to your Pixels workspace from desktop and mobile devices.",
+                },
+                liteClient: {
+                    title: "Lite Client",
+                    description: "A lightweight client focused on fast access, with fewer steps between you and an authorized remote session.",
+                },
+            },
+            supportedSystems: "Supported systems",
+            comingSoon: "Coming soon",
+            platforms: {
+                windows: "Windows",
+                linux: "Linux",
+                macos: "macOS",
+                android: "Android",
+                ios: "iOS",
+            },
+            guide: {
+                eyebrow: "DOWNLOAD FLOW",
+                title: "Deploy with clarity and confidence",
+                steps: [
+                    { number: "01", title: "Choose a package", description: "Select a server, cloud node, or endpoint client for the deployment role." },
+                    { number: "02", title: "Match your system", description: "Download the installer that matches your operating system and device architecture." },
+                    { number: "03", title: "Verify and install", description: "Check the signature and checksum before configuration and authorization." },
+                ],
+            },
+            security: {
+                eyebrow: "TRUSTED DELIVERY",
+                title: "Every public build will be verifiable",
+                description: "Each public release will include release notes, file size, digital signature, and a SHA-256 checksum.",
+                signed: "Signed installers",
+                checksum: "SHA-256 checksums",
+                notes: "Release notes",
+            },
+            help: {
+                eyebrow: "NEED DEPLOYMENT HELP?",
+                title: "Let us plan the right package mix with you",
+                description: "Share your endpoint scale, node systems, and workload, and we will recommend the right deployment approach.",
+                action: "Discuss deployment",
+            },
+        },
+        docs: {
+            eyebrow: "PIXELS PRODUCT DOCS",
+            title: "From first connection",
+            titleAccent: "to reliable delivery",
+            description: "Find deployment, configuration, usage, and troubleshooting guides across Remote, Cloud Gaming, and Cloud Rendering.",
+            searchPlaceholder: "Search topics in the selected product",
+            preparing: "The documentation center is growing",
+            preparingDescription: "The complete information architecture is available now. Public technical articles will be published progressively with each release.",
+            chooseProduct: "Choose a product",
+            browseTitle: "Browse product documentation",
+            browseDescription: "Select a product line to explore its quick start, core capabilities, and operations topics.",
+            quickStart: "Quick start",
+            topics: "Documentation topics",
+            articles: "topics",
+            comingSoon: "Coming soon",
+            noResults: "No matching documentation topics found",
+            clearSearch: "Clear search",
+            products: {
+                remote: {
+                    title: "Remote",
+                    subtitle: "REMOTE ACCESS",
+                    description: "Guides for remote desktop connections, controlled access, and multi-device workflows for individuals and teams.",
+                    quickSteps: ["Install and sign in to the Remote client", "Add or select an authorized remote device", "Connect and tune display and input settings"],
+                    sections: [
+                        {
+                            title: "Install and connect",
+                            description: "Go from client installation to your first remote session.",
+                            articles: ["Install the Remote client", "Add and authorize a remote device", "Start your first remote connection", "Connection status and basic diagnostics"],
+                        },
+                        {
+                            title: "Session and interaction",
+                            description: "Configure visuals, input, and in-session collaboration.",
+                            articles: ["Quality and frame-rate settings", "Keyboard, mouse, and shortcuts", "Clipboard and file transfer", "Multiple displays and full-screen mode"],
+                        },
+                        {
+                            title: "Security and administration",
+                            description: "Establish controlled identity, permission, and access boundaries.",
+                            articles: ["Device access permissions", "Temporary access and authorization", "Session security policies", "Connection logs and troubleshooting"],
+                        },
+                    ],
+                },
+                gaming: {
+                    title: "Cloud Gaming",
+                    subtitle: "INTERACTIVE STREAMING",
+                    description: "Product guides for onboarding games, compute nodes, session runtime, and low-latency experiences.",
+                    quickSteps: ["Prepare the game and Cloud Node runtime", "Create a game profile and assign graphics compute", "Launch and validate a cloud gaming session"],
+                    sections: [
+                        {
+                            title: "Onboard a game",
+                            description: "Configure game content and complete the first publication.",
+                            articles: ["Prepare the game runtime", "Create game and launch settings", "Publish an accessible game", "Validate the first cloud gaming session"],
+                        },
+                        {
+                            title: "Nodes and sessions",
+                            description: "Manage graphics nodes, runtime instances, and session lifecycles.",
+                            articles: ["Deploy Cloud Node", "GPU resources and node health", "Game instance lifecycle", "Session isolation and cleanup"],
+                        },
+                        {
+                            title: "Experience and troubleshooting",
+                            description: "Optimize network, input, and visual quality.",
+                            articles: ["Controller, keyboard, and mouse input", "Resolution and bitrate policies", "Network latency diagnostics", "Troubleshoot stutter and launch failures"],
+                        },
+                    ],
+                },
+                rendering: {
+                    title: "Cloud Rendering",
+                    subtitle: "GRAPHICS COMPUTE",
+                    description: "Guides for node onboarding, task scheduling, delivery, and operations of professional graphics workloads.",
+                    quickSteps: ["Deploy and register Cloud Node", "Configure a rendering application and workload", "Submit a task and validate its output"],
+                    sections: [
+                        {
+                            title: "Connect nodes",
+                            description: "Bring Windows or Linux graphics nodes into the platform.",
+                            articles: ["Install Cloud Node", "Register and authenticate a node", "Configure GPU and runtime dependencies", "Check node health"],
+                        },
+                        {
+                            title: "Tasks and scheduling",
+                            description: "Organize workloads, queues, and compute resources.",
+                            articles: ["Create a rendering workload", "Submit and cancel tasks", "Queue and resource scheduling", "Task states and failure retries"],
+                        },
+                        {
+                            title: "Delivery and operations",
+                            description: "Manage output, observability, and runtime issues.",
+                            articles: ["Rendering output and file delivery", "Node and task monitoring", "Collect logs and diagnostics", "Troubleshoot common rendering errors"],
+                        },
+                    ],
+                },
+            },
+            support: {
+                eyebrow: "CAN'T FIND AN ANSWER?",
+                title: "Let the Pixels team help with your deployment",
+                description: "Share your product scenario, system environment, and symptoms, and we will point you to the right documentation or solution.",
+                action: "Contact technical support",
+            },
         },
         cta: {
             eyebrow: "NEXT STEP",

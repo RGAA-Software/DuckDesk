@@ -3,7 +3,7 @@ import { ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import adminHttp, { setAdminToken } from "@/adminHttp.ts";
-import iconLogo from "@/assets/icon/ic_trans_icon_blue.png";
+import iconLogo from "@/assets/pixels-logo-45.svg";
 
 const { t } = useI18n();
 const router = useRouter();

@@ -458,15 +458,15 @@
     <circle class="pixels-mesh-core-orbit" cx="380" cy="240" r="52" />
     <circle class="pixels-mesh-core-surface" cx="380" cy="240" r="36" />
     <g class="pixels-mesh-core-mark" transform="translate(380 240) rotate(45)">
-      <circle cx="-11" cy="-11" r="3.8" opacity=".38" />
+      <circle cx="-11" cy="-11" r="3.8" opacity=".35" />
       <circle cx="0" cy="-11" r="3.8" />
-      <circle cx="11" cy="-11" r="3.8" opacity=".38" />
+      <circle cx="11" cy="-11" r="3.8" opacity=".35" />
       <circle cx="-11" cy="0" r="3.8" />
-      <circle cx="0" cy="0" r="3.8" opacity=".38" />
+      <circle cx="0" cy="0" r="3.8" opacity=".35" />
       <circle cx="11" cy="0" r="3.8" />
-      <circle cx="-11" cy="11" r="3.8" opacity=".38" />
+      <circle cx="-11" cy="11" r="3.8" opacity=".35" />
       <circle cx="0" cy="11" r="3.8" />
-      <circle cx="11" cy="11" r="3.8" opacity=".38" />
+      <circle cx="11" cy="11" r="3.8" opacity=".35" />
     </g>
   </g>
 </svg>

@@ -26,6 +26,10 @@ const router = createRouter({
           component: () => import('@/views/products/CyberMonitorView.vue'),
         },
         {
+          path: 'downloads',
+          component: () => import('@/views/DownloadsView.vue'),
+        },
+        {
           path: 'price',
           component: () => import('@/views/PriceView.vue'),
         },
