@@ -638,7 +638,12 @@ Console 用户门户的首个新 API 纵向切片已完成源码切换：`web/px
 `/alloc/local/rtc` 准入请求中发送 session ID、revision 和 token，不生成设备密码兜底。另以当前 tab 创建标记区分同账号其他登录创建的
 实例，其他登录实例可见、可停止，但 UI 不把它冒充可重连实例。Console Web 21/21、Web Client 65/65 加 19 项语音断言、两套类型检查与
 生产构建均通过；真实 PostgreSQL HTTP 专项 `pg-20260918-152258-254e18d1` 的 7/7 项同时覆盖 `user_web` 用户/访客目录与显式主体。
-完整门禁已新增两项目的 source freeze、依赖树、构建与测试检查。当前仅迁移用户门户；管理后台仍含旧 `/api/v1`，桌面连接和
+完整门禁已新增两项目的 source freeze、依赖树、构建与测试检查。管理后台后续已完成身份、用户/组、设备、应用、节点、部署、
+资源会话与活动审计的 `/api/console` 源码切换；管理员 bearer 仅保存在当前 tab，不再使用 Cookie/CSRF 或旧 `/api/v1`。旧管理
+WebSocket、设备密码/链接 DTO、旧调度器、录像下载 ticket、视频墙/直播及浏览器 RTC/TURN 配置页面已从管理路由和源码移除，
+但后三类能力没有冒充已迁移：当前只交付录像元数据，尚无新录像读取/下载链；视频墙/直播需要以显式观察者资源会话重新实现；
+TURN 密钥和部署配置应进入服务端私有配置及运维状态，不能由浏览器读取或回显。管理页面不会请求 descriptor、frontend secret
+或另行签发短期 ticket。桌面连接和
 CloudApplication 的 30 秒授权续租纵向链路已接通：PostgreSQL 仅在完整在线复核成功的事务内推进租约，Render 使用原
 frontend token 周期复核，不签发新的短期 ticket；本地硬截止、精确 RTC allocation 撤销和逻辑绑定关闭已实现。专项数据库报告
 `pg-20260918-164447-29ef5736` 为 10/10，逻辑会话测试 25/25、Render 能力注入/弱生命周期测试 5/5，增量 Render/RTC 构建及
@@ -662,7 +667,7 @@ Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 W
 |---|---|
 | DB0 | 已补领域/权限/恢复边界及 Auth 字节/固定向量；其余 Console 字段 SQL 与完整合成基线尚未全部冻结 |
 | DB1-EXIT | Desk/Auth 产品服务已接入；Console PG 组合根已能作为独立进程启动并通过断库 fail-closed 验收，但正式 `px_console.exe` 构建/安装包仍未切换，不能用开发目标或 schema CLI 替代三服务产品验收 |
-| DB2-A | 身份/管理 HTTP、本人资料/头像、密码计算/限流/Origin、访客 HMAC/会话/公开目录、Saved Connections、本人实例列表、更新目录、访问/通道/传输历史及录像目录 HTTP、严格配置、稳定私钥加载、独立初始化 CLI、静态文件服务及进程生命周期已实现；Console 用户门户已切新 bearer/主体/descriptor API，管理后台仍待完整改造；正式产品二进制/安装包切换及客户端全链路尚未接通 |
+| DB2-A | 身份/管理 HTTP、本人资料/头像、密码计算/限流/Origin、访客 HMAC/会话/公开目录、Saved Connections、本人实例列表、更新目录、访问/通道/传输历史及录像目录 HTTP、严格配置、稳定私钥加载、独立初始化 CLI、静态文件服务及进程生命周期已实现；Console 用户门户及管理后台的当前目录/身份/状态入口均已切新 bearer/主体 API，源码不再保留旧 `/api/v1`。录像下载、视频墙/直播观察者会话和私有 RTC/TURN 运维配置仍待新架构实现；正式产品二进制/安装包切换及客户端全链路尚未接通 |
 | DB2-B/C/D | 设备/应用/节点/部署目录、user/guest 资源入口、更新与历史元数据入口及 Console 节点 WS 已接；Windows Service 已切到新节点协议并实现部署准备、调和、命令 fencing、精确 launch ACK、Render 前端准入转发及实际媒体/RDP connected/disconnected 通道生命周期上报，非桌面 Render 已在建连前校验当前 CloudApplication session/instance/role/lease，并使用原 frontend token 周期续租；续租失败会按当前硬截止精确撤销 RTC allocation 和逻辑绑定，不引入短期 ticket。仍未完成真实公网首帧/输入/音频与持续续租/撤销、GPU/RDP 执行、周期通道指标、文件/录像生产与媒体投递、无人值守更新身份/执行器及其余 repository 产品入口 |
 | DB2-EXIT / DB3 | Desk/Auth 独立产品流程已验证；Console 与共享消费者仍待去 Mongo、接新签发/验证及库外水位，Auth 通知 outbox 尚未接通；不建设运行时双后端 |
 | DB4 | 恢复集/保留/私有原子发布/恢复前哈希与依赖复核/固定工具/取消超时、持久计划任务、重启补跑、受限实际清理、配置化异机复制、独立告警送达、持久恢复准入/审批、隔离恢复编排、固定工具适配器、执行命令、最小恢复账号创建/轮换、三库安全水位及写屏障生产/消费/释放、灾难恢复新 generation、数据库内旧会话/Grant/节点凭据/待发控制失效、库外单调可信见证生产/持久链、Auth 活动私钥/多公钥信任根/代际绑定/旧 key 撤回、固定版本 pgBackRest 物理备份/连续 WAL/命名点恢复和缺 WAL 拒绝、Windows 固定 PostgreSQL 客户端包/版本化安装/覆盖回滚/卸载保留数据，以及 systemd 安装/重启/停止/注销保留数据已实现；Windows SCM 与 WSL2 systemd 生命周期已真实验收，测试适配器已完成三库协调逻辑备份、异机副本路径恢复、全新库恢复、恢复封印和人工准入。仍需目标 Linux 发行版 VM、Pixels 外层安装包签名与生产密钥托管、独立主机或对象仓库的故障域部署/7 天窗口/恢复实测、目标环境 Auth keyring/见证同步轮换演练，以及真实节点与 Windows/RDP 工作区事实对账；本机 Docker/固定替身专项不能替代这些故障域验收 |
