@@ -52,14 +52,6 @@ export interface GuestSessionView {
     blocked: boolean;
 }
 
-export interface AppOption {
-    app_id: string;
-    name: string;
-    access_mode: "public" | "acl";
-    group_ids: string[];
-    version: number;
-}
-
 async function collectPages<T extends { id: string }>(path: string): Promise<T[]> {
     const result: T[] = [];
     let after: string | undefined;
@@ -212,22 +204,4 @@ export async function replaceGroupIds(
         },
     );
     return groupView(response.data, ids.length);
-}
-
-const unwrap = <T>(response: { data: { data: T } }) => response.data.data;
-export async function listAppOptions() {
-    return unwrap<AppOption[]>(await axiosHttp.get("/api/v1/admin/catalog/apps"));
-}
-export async function updateAppAccess(
-    app: AppOption,
-    accessMode: "public" | "acl",
-    groupIds: string[],
-) {
-    return unwrap<AppOption>(
-        await axiosHttp.patch(`/api/v1/admin/apps/${app.app_id}/access`, {
-            version: app.version,
-            access_mode: accessMode,
-            group_ids: groupIds,
-        }),
-    );
 }
