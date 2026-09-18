@@ -202,6 +202,7 @@ export default {
         memory: "Memory used / total",
         noGpuInventory: "No GPU inventory is available",
         noHistory: "No telemetry history is available",
+        noTrend: "At least two known samples are required to draw a trend",
         product: "Product",
         products: { cloud_node: "Cloud node", remote: "Remote node" },
         rotate: "Rotate token",
@@ -214,6 +215,16 @@ export default {
         title: "Node identities and status",
         telemetryState: "Telemetry state",
         telemetryStates: { ready: "Ready", partial: "Partial", unavailable: "Unavailable" },
+        trendDescription:
+            "Recent node CPU, memory, disk, GPU, and encoder utilization trends. Gaps represent unknown measurements.",
+        trendSeries: {
+            cpu: "CPU",
+            disk: "Disk",
+            encoder: "Encoder",
+            gpu: "GPU",
+            memory: "Memory",
+        },
+        trendTitle: "Telemetry trends",
         unknown: "Unknown",
         confirm: {
             deleteImpact:

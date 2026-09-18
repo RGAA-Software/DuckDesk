@@ -190,6 +190,7 @@ export default {
         memory: "内存已用 / 总量",
         noGpuInventory: "暂无 GPU 库存",
         noHistory: "暂无遥测历史",
+        noTrend: "至少需要两个已知采样点才能绘制趋势",
         product: "产品",
         products: { cloud_node: "云节点", remote: "远程节点" },
         rotate: "轮换令牌",
@@ -201,6 +202,15 @@ export default {
         title: "节点身份与状态",
         telemetryState: "遥测状态",
         telemetryStates: { ready: "完整", partial: "部分可用", unavailable: "不可用" },
+        trendDescription: "节点近期 CPU、内存、磁盘、GPU 和编码器利用率趋势；断点表示指标未知。",
+        trendSeries: {
+            cpu: "CPU",
+            disk: "磁盘",
+            encoder: "编码器",
+            gpu: "GPU",
+            memory: "内存",
+        },
+        trendTitle: "遥测趋势",
         unknown: "未知",
         confirm: {
             deleteImpact: "节点身份、连接和调度资格将失效。请先排空正在运行的会话。",

@@ -27,7 +27,7 @@
 | 稳定 ID | 历史用户能力与入口 | 当前状态 | 新归属 | 完成/验收条件 |
 |---|---|---|---|---|
 | CM-IDENTITY | 管理员登录；用户、用户组管理 | 已迁移 | Console 管理身份 API；`LoginView`、`UserManager`、`GroupManager` | PostgreSQL 管理会话、角色/CAS、最后管理员、改密/退出和中英文 UI 合同持续通过；真实浏览器已覆盖登录及用户/组创建，不得回退 Cookie/CSRF |
-| CM-DASHBOARD | 资源总览、数量与近期状态 | 部分迁移 | `ResourcesView` + managed applications/nodes/deployments/sessions/recordings | 当前页面、登录后导航、进程重启数据保持及数据库失联 fail-closed/恢复已做真实浏览器验收；节点列表已展示 Service 最新快照，管理节点详情可查最近 100 条原始历史，独立管理事件流会刷新资源视图；仍需趋势聚合/图表和陈旧时长 |
+| CM-DASHBOARD | 资源总览、数量与近期状态 | 部分迁移 | `ResourcesView` + managed applications/nodes/deployments/sessions/recordings | 当前页面、登录后导航、进程重启数据保持及数据库失联 fail-closed/恢复已做真实浏览器验收；节点列表已展示 Service 最新快照，管理节点详情可查最近 100 条原始历史并绘制 CPU/内存/磁盘/GPU/编码器趋势，未知值以断点呈现；独立管理事件流会刷新资源视图；仍需服务端趋势聚合和陈旧时长 |
 | CM-DEVICE | 设备目录、在线状态、访问授权、设备详情 | 部分迁移 | managed device API + `DevicesList` | 目录及创建一次性注册凭据已做真实浏览器验收，轮换、启停/删除和用户/组 ACL 已接；真实 WMI latest 与 7 天原始历史已落 PostgreSQL 并进入管理节点详情，NVIDIA NVML 的 GPU 负载/显存/编码器指标按唯一 PCI 身份接入；AMD/Intel 指标、调度硬过滤及运维动作仍待闭环 |
 | CM-ONLINE | 在线连接列表、访问主体和会话状态 | 已迁移 | managed resource sessions + `OnlineConnection` | 分页、筛选、主体隔离、敏感 descriptor 不返回、真实节点连接/断开更新及浏览器展示通过 |
 | CM-CONNECTION | Service/Panel 连接、远程会话详情和会话事件 | 部分迁移 | managed visits/channels/transfers + `SecurityInternal` | 当前访问、通道、传输和录像历史已接，节点上报会实时刷新对应管理视图；仍需节点连接代际、命令/会话事件明细和业务数据陈旧时长 |
@@ -52,7 +52,8 @@ Windows Service 现以 WMI PNP 身份为稳定清单，并用 NVML PCI vendor/de
 同一事务评估 CPU、内存、固定磁盘及非 NULL GPU 利用率：默认连续 3 次越线开立、50‰ 回滞、连续 3 次恢复，支持每节点 CAS 策略、
 确认审计、稳定分页筛选和恢复后 180 天有界保留；缺失指标不会伪造恢复。管理实时事件流已用独立安全域连接节点上报和成功的管理
 写操作；流内只发送类型化失效通知，不发送节点凭据或业务详情。进程重启必定更换 `stream_id` 并要求 HTTP 全量快照，不伪造跨进程
-持久重放。尚未建立趋势聚合、断线遥测补报、真实公网 GPU 告警和高频反压验收，因此 CM-EVENT 与 CM-REALTIME 均保持“部分迁移”。
+持久重放。管理节点详情已在浏览器侧按采样时间排序最近 100 条原始样本，计算已用内存/磁盘并绘制 CPU/GPU/编码器折线；缺失指标分段，
+不插值也不冒充零。尚未建立服务端趋势聚合、断线遥测补报、真实公网 GPU 告警和高频反压验收，因此 CM-EVENT 与 CM-REALTIME 均保持“部分迁移”。
 
 ## 3. DTO 与页面迁移边界
 

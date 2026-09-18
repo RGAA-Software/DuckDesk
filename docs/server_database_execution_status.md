@@ -829,6 +829,10 @@ NVML 不可用或单项查询失败时相应字段继续为 NULL。86 项 Servic
 验证四项实际指标均可读取。Cloud Node 与 Remote 的 build/stage/dist `px_service.exe` SHA-256 均为
 `CD0AF1A3736572FFA1C845CB8B57FBD995ABD24212FD4593509202C048C7EFB4`。该切片尚不代表 AMD/Intel 指标、P3 GPU 硬过滤评分或公网节点验收完成。
 
+管理节点原始遥测随后补齐浏览器趋势展示：最近 100 条样本按采样时间排序，CPU、已用内存、已用磁盘、GPU 与编码器利用率共用
+0–100% 坐标；未知或越界数据形成断点，不做零值或插值。Console Web 类型检查、44/44 合同测试和生产构建通过，
+`scripts_build/build_console_web.bat` 已同步 `output/px_console/dev/static` 并逐文件验证 SHA-256。该展示不替代服务端聚合、P3 调度硬过滤或公网验收。
+
 ## 仍未通过的阶段出口
 
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。

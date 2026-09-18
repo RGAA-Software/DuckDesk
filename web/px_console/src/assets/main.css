@@ -1,4 +1,20 @@
-@import "tailwindcss";
+@import 'tailwindcss';
+
+:root {
+  --telemetry-cpu: #1677ff;
+  --telemetry-memory: #389e0d;
+  --telemetry-disk: #d48806;
+  --telemetry-gpu: #722ed1;
+  --telemetry-encoder: #c41d7f;
+}
+
+html.dark {
+  --telemetry-cpu: #69b1ff;
+  --telemetry-memory: #95de64;
+  --telemetry-disk: #ffd666;
+  --telemetry-gpu: #b37feb;
+  --telemetry-encoder: #ff85c0;
+}
 
 /* ===== 暗色模式全局适配（配合 useTheme 切换 html.dark） ===== */
 html.dark body {

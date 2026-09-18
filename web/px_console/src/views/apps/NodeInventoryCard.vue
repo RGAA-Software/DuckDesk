@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { useManagementRefresh } from "@/model/management_events.ts";
+import TelemetryTrendChart from "@/views/apps/TelemetryTrendChart.vue";
 import { Modal, message } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
 import { copyText } from "@/util/clipboard";
@@ -404,6 +405,7 @@ useManagementRefresh(["nodes", "instances"], refresh);
         width="1100px"
     >
         <a-alert type="info" show-icon :message="t('nodes.historyNotice')" />
+        <TelemetryTrendChart :samples="telemetryHistory" />
         <a-table
             :data-source="telemetryHistory"
             :loading="telemetryHistoryLoading"
