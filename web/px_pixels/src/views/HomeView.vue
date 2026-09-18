@@ -21,9 +21,9 @@ import {
 } from '@tabler/icons-vue'
 import ContactUs from '@/components/ContactUs.vue'
 import DotGlobe from '@/components/DotGlobe.vue'
-import cloudGamingScene from '@/assets/showcase/cloud-gaming-csgo.jpg'
-import cloudRenderingScene from '@/assets/showcase/cloud-rendering-blender.png'
-import remoteDesktopScene from '@/assets/showcase/remote-desktop-photoshop.jpg'
+import cloudGamingScene from '@/assets/showcase/cloud-gaming-csgo.webp'
+import cloudRenderingScene from '@/assets/showcase/cloud-rendering-blender.webp'
+import remoteDesktopScene from '@/assets/showcase/remote-desktop-photoshop.webp'
 
 interface Solution {
     id: string
@@ -230,7 +230,6 @@ function scrollToSolutions() {
                     :src="cloudRenderingScene"
                     alt=""
                   >
-                  <span class="scene-scan-line" />
                 </div>
               </div>
 
@@ -1132,17 +1131,6 @@ function scrollToSolutions() {
 
 .scene-render .scene-media img {
     object-position: 62% 50%;
-}
-
-.scene-scan-line {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 18%;
-    width: 1px;
-    background: linear-gradient(transparent, rgba(140, 238, 192, 0.7), transparent);
-    box-shadow: 0 0 12px rgba(0, 154, 89, 0.7);
-    opacity: 0.6;
 }
 
 .remote-device {
