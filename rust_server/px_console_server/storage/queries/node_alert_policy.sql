@@ -1,0 +1,5 @@
+SELECT node_id,revision,cpu_warning_per_mille,cpu_critical_per_mille,memory_warning_per_mille,memory_critical_per_mille,
+ disk_warning_per_mille,disk_critical_per_mille,gpu_warning_per_mille,gpu_critical_per_mille,trigger_samples,recovery_samples,
+ recovery_hysteresis_per_mille,updated_at
+FROM pixels.node_telemetry_alert_policies
+WHERE node_id=$1

@@ -1,0 +1,138 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.node_telemetry_alert_events\nSET state='acknowledged',acknowledged_by=$3,acknowledged_at=clock_timestamp(),updated_at=clock_timestamp(),revision=revision+1\nWHERE id=$1 AND revision=$2 AND state='active'\nRETURNING id,node_id,metric,resource_key,resource_name,severity,state,threshold_per_mille,first_value_per_mille,\n latest_value_per_mille,peak_value_per_mille,occurrence_count,first_sampled_at,last_sampled_at,created_at,updated_at,\n acknowledged_by,acknowledged_at,recovered_at,revision\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "node_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "metric",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "resource_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "resource_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "severity",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "threshold_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 8,
+        "name": "first_value_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 9,
+        "name": "latest_value_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 10,
+        "name": "peak_value_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 11,
+        "name": "occurrence_count",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "first_sampled_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "last_sampled_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 14,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 15,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 16,
+        "name": "acknowledged_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 17,
+        "name": "acknowledged_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 18,
+        "name": "recovered_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 19,
+        "name": "revision",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int8",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "efbc4a476a6c76d776b58e891f8ccab9218cad6fb04a3c42b7dce4422c7beaa7"
+}

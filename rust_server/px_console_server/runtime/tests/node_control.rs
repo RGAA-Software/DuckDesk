@@ -30,6 +30,43 @@ where
     serde_json::from_str(message.to_text().unwrap()).unwrap()
 }
 
+fn telemetry_report(request_id: u64, sequence: u64, cpu_utilization_per_mille: u16) -> Value {
+    json!({
+        "type":"report",
+        "request_id":request_id,
+        "report":{
+            "sequence":sequence,
+            "product_version_code":1,
+            "public_host":"node.example.test",
+            "desktop_port":4601,
+            "application_port_start":4613,
+            "application_port_end":4998,
+            "game_hook":true,
+            "webview":true,
+            "rdp":true,
+            "telemetry":{
+                "sampled_at":chrono::Utc::now(),
+                "probe_state":"ready",
+                "logical_processors":16,
+                "cpu_utilization_per_mille":cpu_utilization_per_mille,
+                "memory_total_bytes":68719476736_u64,
+                "memory_available_bytes":42949672960_u64,
+                "disk_total_bytes":2199023255552_u64,
+                "disk_free_bytes":1099511627776_u64,
+                "gpu_inventory_revision":7,
+                "gpus":[{
+                    "stable_key":"pnp-sha256:0123456789abcdef",
+                    "name":"Synthetic GPU",
+                    "dedicated_memory_bytes":25769803776_u64,
+                    "used_memory_bytes":8589934592_u64,
+                    "utilization_per_mille":250,
+                    "encoder_utilization_per_mille":125
+                }]
+            }
+        }
+    })
+}
+
 #[tokio::test]
 async fn authenticated_node_websocket_fences_generation_and_drives_reconciliation() {
     let runtime = start().await;
@@ -60,6 +97,42 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     .await;
     assert_eq!(status.as_u16(), 201, "{node}");
     let node_token = node["node_token"].as_str().unwrap();
+    let node_id = node["node"]["id"].as_str().unwrap();
+    let (policy_status, alert_policy) = call(
+        &router,
+        "GET",
+        &format!("/api/console/managed/nodes/{node_id}/telemetry-alert-policy"),
+        "admin_web",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(policy_status.as_u16(), 200, "{alert_policy}");
+    assert_eq!(alert_policy["trigger_samples"], 3);
+    let (policy_update_status, updated_alert_policy) = call(
+        &router,
+        "PATCH",
+        &format!("/api/console/managed/nodes/{node_id}/telemetry-alert-policy"),
+        "admin_web",
+        Some(&admin),
+        json!({
+            "revision":alert_policy["revision"],
+            "cpu_warning_per_mille":850,
+            "cpu_critical_per_mille":950,
+            "memory_warning_per_mille":850,
+            "memory_critical_per_mille":950,
+            "disk_warning_per_mille":850,
+            "disk_critical_per_mille":950,
+            "gpu_warning_per_mille":900,
+            "gpu_critical_per_mille":980,
+            "trigger_samples":3,
+            "recovery_samples":3,
+            "recovery_hysteresis_per_mille":50
+        }),
+    )
+    .await;
+    assert_eq!(policy_update_status.as_u16(), 200, "{updated_alert_policy}");
+    assert_eq!(updated_alert_policy["revision"], 2);
     let (status, application) = call(
         &router,
         "POST",
@@ -170,7 +243,6 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     .await;
     assert_eq!(report["type"], "reported");
     assert_eq!(report["state"], "reconciling");
-    let node_id = node["node"]["id"].as_str().unwrap();
     let (history_status, history) = call(
         &router,
         "GET",
@@ -590,24 +662,87 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
         .unwrap();
     assert!(closed.is_none() || closed.is_some_and(|message| message.unwrap().is_close()));
 
-    let (_, nodes) = call(
+    let (mut alert_socket, _) = connect_async(&base).await.unwrap();
+    let alert_authenticated = exchange(
+        &mut alert_socket,
+        json!({"type":"authenticate","request_id":1,"node_token":node_token}),
+    )
+    .await;
+    assert_eq!(alert_authenticated["type"], "authenticated");
+    for sequence in 1..=3 {
+        let reported = exchange(
+            &mut alert_socket,
+            telemetry_report(sequence + 1, sequence, 960),
+        )
+        .await;
+        assert_eq!(reported["type"], "reported");
+    }
+    let (alert_status, alerts) = call(
         &router,
         "GET",
-        "/api/console/managed/nodes?limit=100",
+        &format!("/api/console/managed/telemetry-alerts?node_id={node_id}&metric=cpu&limit=10"),
         "admin_web",
         Some(&admin),
         Value::Null,
     )
     .await;
-    let managed = nodes
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|candidate| candidate["id"] == node["node"]["id"])
-        .unwrap();
+    assert_eq!(alert_status.as_u16(), 200, "{alerts}");
+    assert_eq!(alerts.as_array().unwrap().len(), 1);
+    assert_eq!(alerts[0]["severity"], "critical");
+    assert_eq!(alerts[0]["state"], "active");
+    let alert_id = alerts[0]["id"].as_str().unwrap();
+    let (detail_status, detail) = call(
+        &router,
+        "GET",
+        &format!("/api/console/managed/telemetry-alerts/{alert_id}"),
+        "admin_web",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(detail_status.as_u16(), 200, "{detail}");
+    let (acknowledgement_status, acknowledgement) = call(
+        &router,
+        "PATCH",
+        &format!("/api/console/managed/telemetry-alerts/{alert_id}/acknowledgement"),
+        "admin_web",
+        Some(&admin),
+        json!({"revision":detail["revision"]}),
+    )
+    .await;
+    assert_eq!(acknowledgement_status.as_u16(), 200, "{acknowledgement}");
+    assert_eq!(acknowledgement["state"], "acknowledged");
+    alert_socket.close(None).await.unwrap();
+
+    let managed = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let (_, nodes) = call(
+                &router,
+                "GET",
+                "/api/console/managed/nodes?limit=100",
+                "admin_web",
+                Some(&admin),
+                Value::Null,
+            )
+            .await;
+            let managed = nodes
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|candidate| candidate["id"] == node["node"]["id"])
+                .unwrap()
+                .clone();
+            if managed["state"] == "offline" {
+                break managed;
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+    })
+    .await
+    .unwrap();
     assert_eq!(managed["state"], "offline");
     assert_eq!(managed["telemetry"]["probe_state"], "ready");
-    assert_eq!(managed["telemetry"]["cpu_utilization_per_mille"], 375);
+    assert_eq!(managed["telemetry"]["cpu_utilization_per_mille"], 960);
     assert_eq!(
         managed["gpus"][0]["stable_key"],
         "pnp-sha256:0123456789abcdef"

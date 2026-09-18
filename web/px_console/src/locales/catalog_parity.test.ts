@@ -23,6 +23,7 @@ describe("Console localization catalogs", () => {
             "online",
             "profile",
             "security",
+            "telemetryAlerts",
             "users",
         ];
         for (const key of navigationKeys) {

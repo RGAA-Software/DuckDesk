@@ -1,0 +1,5 @@
+SELECT id,node_id,metric,resource_key,resource_name,severity,state,threshold_per_mille,first_value_per_mille,
+ latest_value_per_mille,peak_value_per_mille,occurrence_count,first_sampled_at,last_sampled_at,created_at,updated_at,
+ acknowledged_by,acknowledged_at,recovered_at,revision
+FROM pixels.node_telemetry_alert_events
+WHERE id=$1

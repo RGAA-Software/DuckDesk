@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.node_telemetry_alert_policy_audit(id,node_id,actor_id,policy_revision)\nVALUES($1,$2,$3,$4)\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3e4763e31c5de3687f9dd7978b360c44d1518b75ea85cc89dd7783cf6cdf2461"
+}

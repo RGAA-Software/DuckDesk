@@ -63,6 +63,7 @@ Auth/Desk 的多个池可同时持有共享锁，不套用 Console 的单活动�
 | 访客身份与公开应用 | GuestStore、ApplicationStore | 来源 HMAC 从受信连接地址产生；阻止后不可换 guest ID 绕过；无 user/device/account 身份兜底 |
 | 设备/节点登记与配置 | DeviceStore、NodeStore | 公开编号不是口令；随机登记凭据只返回一次；禁止其他节点代上报；管理页面不显示摘要/密钥 |
 | 节点遥测 latest/历史 | NodeStore | 当前 generation/sequence 原子落 latest 与历史；未知为 NULL；历史复合游标；7 天有界清理；runtime 不可 UPDATE 历史 |
+| 节点遥测告警 | TelemetryAlertStore | 每节点显式阈值/连续样本/回滞策略；同报告事务去重开立、升级和恢复；admin 确认并审计；稳定游标筛选；恢复后 180 天有界清理 |
 | 应用/部署/启动/停止 | ApplicationStore、DeploymentStore、InstanceStore | 三模式严格字段；owner 来自认证；幂等请求及审计；未准备、陈旧、无容量拒绝 |
 | 资源会话与描述符 | ResourceSessionStore | Desktop 与 CloudApplication 明确分型；最长 30 秒、实际 endpoint；描述符秘密不混入管理 DTO |
 | 传输/录像/连接/访问历史 | FileTransferStore、RecordingStore、ActivityStore | 原生产者/原登录/当前授权复查；去密、稳定游标；历史记录不当作当前在线事实 |

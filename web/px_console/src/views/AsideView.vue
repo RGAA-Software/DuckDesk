@@ -4,6 +4,7 @@ import iconLogo from "@/assets/ic_logo.png";
 import {
     ApiOutlined,
     AppstoreOutlined,
+    BellOutlined,
     DesktopOutlined,
     HomeOutlined,
     LockOutlined,
@@ -31,6 +32,7 @@ const activeMenu = computed(() => {
         "/online-connection",
         "/apps",
         "/security-internal",
+        "/telemetry-alerts",
         "/user-manager",
         "/group-manager",
         "/profile-info",
@@ -90,6 +92,11 @@ const handleClickLogo = async () => {
             <a-menu-item key="/security-internal">
                 <template #icon><LockOutlined /></template>
                 <span>{{ t("navigation.security") }}</span>
+            </a-menu-item>
+
+            <a-menu-item key="/telemetry-alerts">
+                <template #icon><BellOutlined /></template>
+                <span>{{ t("navigation.telemetryAlerts") }}</span>
             </a-menu-item>
 
             <a-menu-item key="/user-manager">

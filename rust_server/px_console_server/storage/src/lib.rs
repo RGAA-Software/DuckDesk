@@ -45,6 +45,8 @@ mod session_frontends;
 mod session_model;
 mod session_policy;
 mod strict_wire;
+mod telemetry_alert_model;
+mod telemetry_alerts;
 mod transfer_model;
 mod update_model;
 mod updates;
@@ -114,6 +116,11 @@ pub use session_model::{
     FrontendRetirement, OpenResourceSession, ResourceDescriptor, ResourceSession, SessionAccess,
     SessionTarget,
 };
+pub use telemetry_alert_model::{
+    TelemetryAlertCursor, TelemetryAlertEvent, TelemetryAlertFilter, TelemetryAlertMetric,
+    TelemetryAlertPolicy, TelemetryAlertPolicyProfile, TelemetryAlertSeverity, TelemetryAlertState,
+};
+pub use telemetry_alerts::TelemetryAlertStore;
 pub use transfer_model::{
     BeginFileTransfer, FileTransferRecord, TransferDirection, TransferFailure, TransferOutcome,
     TransferProgress,

@@ -9,6 +9,7 @@ import ProfileInfo from "@/views/ProfileInfo.vue";
 import OnlineConnection from "@/views/OnlineConnection.vue";
 import LoginView from "@/views/LoginView.vue";
 import AppsView from "@/views/AppsView.vue";
+import TelemetryAlerts from "@/views/TelemetryAlerts.vue";
 import { queryAdminSession } from "@/model/admin_session_api.ts";
 import UserLayout from "@/user/UserLayout.vue";
 import UserLogin from "@/user/UserLogin.vue";
@@ -71,6 +72,15 @@ const router = createRouter({
                     component: SecurityInternal,
                     meta: {
                         titleKey: "navigation.security",
+                        requiresAuth: true,
+                    },
+                },
+                {
+                    path: "/telemetry-alerts",
+                    name: "telemetry-alerts",
+                    component: TelemetryAlerts,
+                    meta: {
+                        titleKey: "navigation.telemetryAlerts",
                         requiresAuth: true,
                     },
                 },

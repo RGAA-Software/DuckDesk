@@ -19,6 +19,7 @@ mod resource_api;
 mod saved_connection_api;
 mod secrets;
 mod static_files;
+mod telemetry_alert_api;
 mod update_api;
 use axum::{
     extract::{DefaultBodyLimit, State},
@@ -142,10 +143,14 @@ impl ConsoleRuntime {
                     _=interval.tick()=>{
                         match tokio::time::timeout(
                             Duration::from_secs(10),
-                            telemetry_state.db.nodes().prune_telemetry_history(),
+                            async {
+                                let samples = telemetry_state.db.nodes().prune_telemetry_history().await?;
+                                let alerts = telemetry_state.db.telemetry_alerts().prune().await?;
+                                Ok::<_, px_console_store::StoreError>((samples, alerts))
+                            },
                         ).await {
-                            Ok(Ok(removed)) if removed > 0 => {
-                                tracing::info!(removed, "pruned expired node telemetry samples");
+                            Ok(Ok((samples, alerts))) if samples > 0 || alerts > 0 => {
+                                tracing::info!(samples, alerts, "pruned expired node telemetry data");
                             }
                             Ok(Ok(_)) => {}
                             Ok(Err(error)) => {
@@ -177,6 +182,7 @@ impl ConsoleRuntime {
             .merge(profile_api::routes())
             .merge(update_api::routes())
             .merge(history_api::routes())
+            .merge(telemetry_alert_api::routes())
             .route("/health/ready", get(ready))
             .route("/api/console/accounts", post(identity::register))
             .route("/api/console/sessions", post(identity::login))

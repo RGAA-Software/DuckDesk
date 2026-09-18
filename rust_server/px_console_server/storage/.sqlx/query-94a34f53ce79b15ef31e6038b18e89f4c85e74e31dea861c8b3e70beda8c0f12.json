@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.node_telemetry_alert_events\nSET resource_name=$2,severity=CASE WHEN severity='critical' OR $3='critical' THEN 'critical' ELSE 'warning' END,\n threshold_per_mille=CASE WHEN severity='critical' OR $3='critical' THEN $4 ELSE threshold_per_mille END,\n latest_value_per_mille=$5,peak_value_per_mille=GREATEST(peak_value_per_mille,$5),occurrence_count=occurrence_count+1,\n last_sampled_at=$6,updated_at=clock_timestamp(),revision=revision+1\nWHERE id=$1 AND state<>'recovered'\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Int2",
+        "Int2",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "94a34f53ce79b15ef31e6038b18e89f4c85e74e31dea861c8b3e70beda8c0f12"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH expired AS (\n SELECT id FROM pixels.node_telemetry_alert_events\n WHERE state='recovered' AND recovered_at<clock_timestamp()-INTERVAL '180 days'\n ORDER BY recovered_at,id\n LIMIT 5000\n)\nDELETE FROM pixels.node_telemetry_alert_events event\nUSING expired\nWHERE event.id=expired.id\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "c5c3f96bef3090e131afede16d1fb3f052f1e53bc34b267050b9c21c493a1bcb"
+}

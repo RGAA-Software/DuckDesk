@@ -5,6 +5,7 @@ use argon2::{
 use px_console_store::{
     ClientType, DevicePlatform, DeviceStore, IdentityStore, NodeConfiguration, NodeGpuTelemetry,
     NodeProduct, NodeProfile, NodeReport, NodeStore, NodeTelemetry, PasswordDigest, StoreError,
+    TelemetryAlertFilter, TelemetryAlertMetric, TelemetryAlertPolicy, TelemetryAlertStore,
     TelemetryProbeState, TokenDigest, Username,
 };
 use px_pg::{DatabaseConfig, Transport};
@@ -18,6 +19,137 @@ fn config(role: &str) -> DatabaseConfig {
         Transport::LocalDevelopment,
     )
     .unwrap()
+}
+
+#[tokio::test]
+async fn telemetry_alerts_require_consecutive_samples_and_preserve_acknowledgement_until_recovery()
+{
+    let fixture = Fixture::new().await;
+    let (node, key) = fixture.node().await;
+    let epoch = fixture.nodes.begin_runtime().await.unwrap();
+    let connection = fixture
+        .nodes
+        .open_connection(epoch, &key, &token())
+        .await
+        .unwrap();
+    for sequence in 1..=3 {
+        let mut high_cpu = report(sequence);
+        high_cpu.telemetry = ready_telemetry();
+        high_cpu.telemetry.cpu_utilization_per_mille = Some(900);
+        fixture.nodes.report(&connection, &high_cpu).await.unwrap();
+    }
+    let alerts = fixture
+        .alerts
+        .list(
+            &fixture.admin,
+            TelemetryAlertFilter {
+                node_id: Some(node.id),
+                metric: Some(TelemetryAlertMetric::Cpu),
+                ..Default::default()
+            },
+            10,
+        )
+        .await
+        .unwrap();
+    assert_eq!(alerts.len(), 1);
+    assert_eq!(alerts[0].severity, "warning");
+    assert_eq!(alerts[0].state, "active");
+    let mut critical_cpu = report(4);
+    critical_cpu.telemetry = ready_telemetry();
+    critical_cpu.telemetry.cpu_utilization_per_mille = Some(960);
+    fixture
+        .nodes
+        .report(&connection, &critical_cpu)
+        .await
+        .unwrap();
+    let escalated = fixture
+        .alerts
+        .get(&fixture.admin, alerts[0].id)
+        .await
+        .unwrap();
+    assert_eq!(escalated.severity, "critical");
+    assert_eq!(escalated.occurrence_count, 2);
+    let acknowledged = fixture
+        .alerts
+        .acknowledge(&fixture.admin, escalated.id, escalated.revision)
+        .await
+        .unwrap();
+    assert_eq!(acknowledged.state, "acknowledged");
+    for sequence in 5..=7 {
+        fixture
+            .nodes
+            .report(&connection, &report(sequence))
+            .await
+            .unwrap();
+    }
+    assert_eq!(
+        fixture
+            .alerts
+            .get(&fixture.admin, acknowledged.id)
+            .await
+            .unwrap()
+            .state,
+        "acknowledged"
+    );
+    for sequence in 8..=10 {
+        let mut recovered_cpu = report(sequence);
+        recovered_cpu.telemetry = ready_telemetry();
+        recovered_cpu.telemetry.cpu_utilization_per_mille = Some(200);
+        fixture
+            .nodes
+            .report(&connection, &recovered_cpu)
+            .await
+            .unwrap();
+    }
+    let recovered = fixture
+        .alerts
+        .get(&fixture.admin, acknowledged.id)
+        .await
+        .unwrap();
+    assert_eq!(recovered.state, "recovered");
+    assert!(recovered.recovered_at.is_some());
+    let policy = fixture
+        .alerts
+        .policy(&fixture.admin, node.id)
+        .await
+        .unwrap();
+    let updated_policy = fixture
+        .alerts
+        .configure_policy(
+            &fixture.admin,
+            node.id,
+            TelemetryAlertPolicy {
+                revision: policy.revision,
+                cpu_warning_per_mille: 800,
+                cpu_critical_per_mille: 900,
+                memory_warning_per_mille: 800,
+                memory_critical_per_mille: 900,
+                disk_warning_per_mille: 800,
+                disk_critical_per_mille: 900,
+                gpu_warning_per_mille: 850,
+                gpu_critical_per_mille: 950,
+                trigger_samples: 4,
+                recovery_samples: 2,
+                recovery_hysteresis_per_mille: 75,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(updated_policy.revision, policy.revision + 1);
+    assert_eq!(updated_policy.trigger_samples, 4);
+    sqlx::query(
+        "UPDATE pixels.node_telemetry_alert_events SET recovered_at=clock_timestamp()-INTERVAL '181 days' WHERE id=$1",
+    )
+    .bind(recovered.id)
+    .execute(&fixture.owner)
+    .await
+    .unwrap();
+    assert_eq!(fixture.alerts.prune().await.unwrap(), 1);
+    assert!(matches!(
+        fixture.alerts.get(&fixture.admin, recovered.id).await,
+        Err(StoreError::Rejected)
+    ));
+    fixture.close().await;
 }
 fn token() -> TokenDigest {
     let mut bytes = [0; 32];
@@ -98,6 +230,7 @@ fn settings() -> NodeConfiguration {
     }
 }
 struct Fixture {
+    alerts: TelemetryAlertStore,
     nodes: NodeStore,
     devices: DeviceStore,
     identity: IdentityStore,
@@ -118,6 +251,9 @@ impl Fixture {
             .unwrap();
         let owner = config("OWNER").connect().await.unwrap();
         let mut fixture = Self {
+            alerts: TelemetryAlertStore::connect(&config("RUNTIME"), deployment)
+                .await
+                .unwrap(),
             nodes,
             devices,
             identity,
@@ -181,6 +317,7 @@ impl Fixture {
         }
     }
     async fn close(self) {
+        self.alerts.close().await;
         self.nodes.close().await;
         self.devices.close().await;
         self.identity.close().await;
@@ -332,6 +469,20 @@ async fn node_credentials_and_management_roles_are_disjoint() {
         ));
         assert!(matches!(
             fixture
+                .alerts
+                .list(
+                    &session,
+                    TelemetryAlertFilter {
+                        node_id: Some(node.id),
+                        ..Default::default()
+                    },
+                    100,
+                )
+                .await,
+            Err(StoreError::Rejected)
+        ));
+        assert!(matches!(
+            fixture
                 .nodes
                 .configure(&session, node.id, 1, settings())
                 .await,
@@ -345,6 +496,7 @@ async fn node_credentials_and_management_roles_are_disjoint() {
         .await
         .unwrap()
         .is_empty());
+    assert!(fixture.alerts.policy(&viewer, node.id).await.is_ok());
     assert!(matches!(
         fixture
             .nodes

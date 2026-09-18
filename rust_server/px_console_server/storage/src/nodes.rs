@@ -70,6 +70,7 @@ impl NodeStore {
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(StoreError::Rejected)?;
+        crate::telemetry_alerts::insert_default_policy(&mut tx, node.id).await?;
         Self::audit(&mut tx, actor, node.id, node.revision, "created").await?;
         tx.commit().await?;
         Ok(node)
@@ -325,6 +326,14 @@ impl NodeStore {
             telemetry.gpu_inventory_revision
         )
         .execute(&mut *tx)
+        .await?;
+        crate::telemetry_alerts::observe(
+            &mut tx,
+            node.id,
+            node.generation,
+            validated.sequence,
+            &telemetry,
+        )
         .await?;
         for gpu in telemetry.gpus {
             sqlx::query_file!(

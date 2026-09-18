@@ -1,0 +1,36 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT breach_samples,recovery_samples,open_event_id\nFROM pixels.node_telemetry_alert_conditions\nWHERE node_id=$1 AND metric=$2 AND resource_key=$3\nFOR UPDATE\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "breach_samples",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 1,
+        "name": "recovery_samples",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 2,
+        "name": "open_event_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "f7a0657353017f4e1224927f7291f177c00eb10e03d6e24439225124f32c5654"
+}
