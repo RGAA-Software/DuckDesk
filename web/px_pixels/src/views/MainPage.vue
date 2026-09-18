@@ -224,7 +224,14 @@ onMounted(() => {
 .header-inner {
     display: flex;
     align-items: center;
+    height: 72px;
     min-height: 72px;
+}
+
+.header-inner > .brand,
+.header-inner > .desktop-nav,
+.header-inner > .header-actions {
+    align-self: stretch;
 }
 
 .brand {
@@ -244,10 +251,13 @@ onMounted(() => {
 }
 
 .brand span {
+    display: inline-flex;
+    align-items: center;
     font-family: "10 Pixel", sans-serif;
     font-size: 22px;
     font-weight: 700;
     letter-spacing: 0.08em;
+    line-height: 1;
 }
 
 .desktop-nav {
@@ -266,6 +276,13 @@ onMounted(() => {
     cursor: pointer;
     font: 500 14px var(--font-ui);
     transition: color 160ms ease;
+}
+
+.desktop-nav button {
+    display: inline-flex;
+    height: 38px;
+    align-items: center;
+    line-height: 1;
 }
 
 .desktop-nav button:hover,
@@ -305,8 +322,9 @@ onMounted(() => {
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    min-height: 38px;
     margin-left: 2px;
-    padding: 11px 16px;
+    padding: 0 16px;
     border: 0;
     border-radius: 10px !important;
     background: var(--primary);
@@ -314,6 +332,7 @@ onMounted(() => {
     color: var(--primary-foreground);
     cursor: pointer;
     font: 700 13px var(--font-ui);
+    line-height: 1;
 }
 
 .menu-button,

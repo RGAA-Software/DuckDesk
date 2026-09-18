@@ -6,21 +6,17 @@ import {
     IconArrowRight,
     IconArrowUpRight,
     IconBolt,
-    IconBox,
     IconChartHistogram,
     IconCheck,
-    IconDeviceDesktop,
-    IconDeviceGamepad2,
     IconDevices,
     IconGauge,
-    IconLink,
     IconPhotoScan,
-    IconServer2,
     IconServerCog,
     IconShieldLock,
 } from '@tabler/icons-vue'
 import ContactUs from '@/components/ContactUs.vue'
 import DotGlobe from '@/components/DotGlobe.vue'
+import HeroCloudIllustration from '@/components/HeroCloudIllustration.vue'
 import cloudGamingScene from '@/assets/showcase/cloud-gaming-csgo.webp'
 import cloudRenderingScene from '@/assets/showcase/cloud-rendering-blender.webp'
 import remoteDesktopScene from '@/assets/showcase/remote-desktop-photoshop.webp'
@@ -98,71 +94,7 @@ function scrollToSolutions() {
           </div>
         </div>
 
-        <div class="hero-console" aria-hidden="true">
-          <div class="console-window">
-            <div class="console-topbar">
-              <span class="window-controls"><i /><i /><i /></span>
-              <span>PIXELS / WORKSPACE</span>
-              <b>{{ t('site.hero.live') }}</b>
-            </div>
-            <div class="console-body">
-              <aside class="console-sidebar">
-                <span class="active" />
-                <span />
-                <span />
-                <span />
-              </aside>
-              <div class="console-content">
-                <div class="workspace-heading">
-                  <div>
-                    <small>{{ t('site.hero.workspace') }}</small>
-                    <strong>{{ t('site.solutions.remote.title') }}</strong>
-                  </div>
-                  <i><IconDeviceDesktop :size="15" :stroke-width="1.8" /></i>
-                </div>
-                <div class="workspace-screen">
-                  <span class="screen-orbit orbit-one" />
-                  <span class="screen-orbit orbit-two" />
-                  <div class="screen-copy">
-                    <small>SESSION 01</small>
-                    <strong>CONNECTED</strong>
-                  </div>
-                  <div class="screen-bars"><i /><i /><i /></div>
-                </div>
-                <div class="workload-row">
-                  <div>
-                    <span class="workload-icon game-icon">
-                      <IconDeviceGamepad2 :size="16" :stroke-width="1.8" />
-                    </span>
-                    <small>{{ t('site.solutions.game.title') }}</small>
-                    <i />
-                  </div>
-                  <div>
-                    <span class="workload-icon render-icon">
-                      <IconBox :size="16" :stroke-width="1.8" />
-                    </span>
-                    <small>{{ t('site.solutions.render.title') }}</small>
-                    <i />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="status-card status-link">
-            <span class="status-icon"><IconLink :size="17" :stroke-width="1.8" /></span>
-            <span>
-              <small>{{ t('site.hero.linkLabel') }}</small>
-              <strong>{{ t('site.hero.linkValue') }}</strong>
-            </span>
-          </div>
-          <div class="status-card status-node">
-            <span class="status-icon"><IconServer2 :size="17" :stroke-width="1.8" /></span>
-            <span>
-              <small>{{ t('site.hero.nodeLabel') }}</small>
-              <strong>{{ t('site.hero.nodeValue') }}</strong>
-            </span>
-          </div>
-        </div>
+        <HeroCloudIllustration class="hero-illustration" />
       </div>
     </section>
 
@@ -525,298 +457,12 @@ function scrollToSolutions() {
     letter-spacing: 0.12em;
 }
 
-.hero-console {
+.hero-illustration {
     position: relative;
     z-index: 2;
-    height: 460px;
-}
-
-.console-window {
-    position: absolute;
-    inset: 31px 0 38px 20px;
-    overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--primary) 23%, var(--border));
-    border-radius: 18px !important;
-    background: color-mix(in srgb, var(--card) 93%, transparent);
-    box-shadow: 0 32px 80px rgba(24, 24, 27, 0.13);
-    backdrop-filter: blur(18px);
-    transform: perspective(1200px) rotateY(-4deg) rotateX(1deg);
-}
-
-.console-topbar {
-    display: flex;
-    align-items: center;
-    height: 45px;
-    padding: 0 16px;
-    border-bottom: 1px solid var(--border);
-    color: var(--muted-foreground);
-    font: 9px var(--font-tech);
-    letter-spacing: 0.08em;
-}
-
-.window-controls {
-    display: flex;
-    gap: 5px;
-    margin-right: auto;
-}
-
-.window-controls i {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--border);
-}
-
-.window-controls i:first-child {
-    background: #ff8b72;
-}
-
-.console-topbar > b {
-    margin-left: auto;
-    color: var(--primary-bright);
-    font-weight: 700;
-}
-
-.console-body {
-    display: flex;
-    height: calc(100% - 45px);
-}
-
-.console-sidebar {
-    display: flex;
-    width: 54px;
-    align-items: center;
-    flex-direction: column;
-    gap: 21px;
-    padding-top: 24px;
-    border-right: 1px solid var(--border);
-    background: color-mix(in srgb, var(--secondary) 65%, transparent);
-}
-
-.console-sidebar span {
-    width: 15px;
-    height: 4px;
-    border-radius: 2px;
-    background: color-mix(in srgb, var(--muted-foreground) 35%, transparent);
-}
-
-.console-sidebar .active {
-    height: 15px;
-    border-radius: 4px;
-    background: var(--primary);
-}
-
-.console-content {
-    flex: 1;
-    padding: 23px;
-}
-
-.workspace-heading {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.workspace-heading small,
-.workspace-heading strong {
-    display: block;
-}
-
-.workspace-heading small {
-    color: var(--muted-foreground);
-    font-size: 9px;
-}
-
-.workspace-heading strong {
-    margin-top: 4px;
-    font-size: 14px;
-}
-
-.workspace-heading > i {
-    display: grid;
-    width: 26px;
-    height: 26px;
-    place-items: center;
-    border: 7px solid var(--accent);
-    border-radius: 50%;
-    background: var(--primary-bright);
-    color: #ffffff;
-    font-style: normal;
-}
-
-.workspace-screen {
-    position: relative;
-    height: 160px;
-    margin-top: 17px;
-    overflow: hidden;
-    border-radius: 12px !important;
-    background:
-        linear-gradient(135deg, rgba(5, 46, 34, 0.95), rgba(0, 127, 73, 0.83)),
-        var(--primary-strong);
-}
-
-.screen-orbit {
-    position: absolute;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 50%;
-}
-
-.orbit-one {
-    right: -30px;
-    bottom: -96px;
-    width: 240px;
-    height: 240px;
-    box-shadow: 0 0 0 32px rgba(255, 255, 255, 0.035);
-}
-
-.orbit-two {
-    right: 77px;
-    bottom: 37px;
-    width: 10px;
-    height: 10px;
-    background: #8ceec0;
-    box-shadow: 0 0 18px #8ceec0;
-}
-
-.screen-copy {
-    position: absolute;
-    top: 22px;
-    left: 22px;
-}
-
-.screen-copy small,
-.screen-copy strong {
-    display: block;
-    color: #ffffff;
-}
-
-.screen-copy small {
-    opacity: 0.55;
-    font: 9px var(--font-tech);
-}
-
-.screen-copy strong {
-    margin-top: 6px;
-    font: 700 13px var(--font-tech);
-    letter-spacing: 0.09em;
-}
-
-.screen-bars {
-    position: absolute;
-    bottom: 20px;
-    left: 22px;
-    display: flex;
-    align-items: flex-end;
-    gap: 4px;
-}
-
-.screen-bars i {
-    width: 5px;
-    height: 10px;
-    border-radius: 2px;
-    background: rgba(255, 255, 255, 0.45);
-}
-
-.screen-bars i:nth-child(2) {
-    height: 17px;
-}
-
-.screen-bars i:nth-child(3) {
-    height: 24px;
-    background: #8ceec0;
-}
-
-.workload-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 11px;
-    margin-top: 11px;
-}
-
-.workload-row > div {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    align-items: center;
-    gap: 9px;
-    min-height: 62px;
-    padding: 11px;
-    border: 1px solid var(--border);
-    border-radius: 10px !important;
-    background: color-mix(in srgb, var(--secondary) 60%, var(--card));
-}
-
-.workload-icon {
-    display: grid;
-    width: 29px;
-    height: 29px;
-    place-items: center;
-    border-radius: 8px;
-    background: var(--accent);
-    color: var(--primary);
-    font-size: 11px;
-}
-
-.workload-row small {
-    color: var(--secondary-foreground);
-    font-size: 9px;
-}
-
-.workload-row > div > i {
-    grid-column: 2;
-    width: 65%;
-    height: 3px;
-    margin-top: -9px;
-    border-radius: 2px;
-    background: var(--border);
-}
-
-.status-card {
-    position: absolute;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 14px;
-    border: 1px solid var(--border);
-    border-radius: 12px !important;
-    background: color-mix(in srgb, var(--card) 94%, transparent);
-    box-shadow: 0 16px 35px rgba(24, 24, 27, 0.12);
-    backdrop-filter: blur(14px);
-}
-
-.status-link {
-    bottom: 3px;
-    left: -15px;
-}
-
-.status-node {
-    top: 3px;
-    right: -13px;
-}
-
-.status-icon {
-    display: grid;
-    width: 30px;
-    height: 30px;
-    place-items: center;
-    border-radius: 9px;
-    background: var(--accent);
-    color: var(--primary);
-    font-size: 13px;
-}
-
-.status-card small,
-.status-card strong {
-    display: block;
-}
-
-.status-card small {
-    color: var(--muted-foreground);
-    font-size: 9px;
-}
-
-.status-card strong {
-    margin-top: 3px;
-    font-size: 11px;
+    width: 108%;
+    max-width: none;
+    margin-left: -4%;
 }
 
 .metrics-section {
@@ -1578,11 +1224,6 @@ function scrollToSolutions() {
         linear-gradient(180deg, #09090b, #0b1511);
 }
 
-:global(html[data-theme='dark'] .console-window),
-:global(html[data-theme='dark'] .status-card) {
-    box-shadow: 0 32px 75px rgba(0, 0, 0, 0.32);
-}
-
 :global(html[data-theme='dark'] .solution-remote .solution-visual) {
     background:
         radial-gradient(circle at 18% 18%, rgba(0, 154, 89, 0.2), transparent 31%),
@@ -1607,9 +1248,9 @@ function scrollToSolutions() {
         gap: 35px;
     }
 
-    .hero-console {
-        transform: scale(0.88);
-        transform-origin: center right;
+    .hero-illustration {
+        width: 115%;
+        margin-left: -7.5%;
     }
 
     .solution-copy {
@@ -1653,10 +1294,9 @@ function scrollToSolutions() {
         opacity: 0.56;
     }
 
-    .hero-console {
-        width: min(100%, 580px);
+    .hero-illustration {
+        width: min(100%, 620px);
         margin: 0 auto;
-        transform: none;
     }
 
     .metrics-grid {
@@ -1757,29 +1397,10 @@ function scrollToSolutions() {
         flex-wrap: wrap;
     }
 
-    .hero-console {
-        height: 365px;
-    }
-
-    .console-window {
-        inset: 22px 0 28px;
-    }
-
-    .console-content {
-        padding: 16px;
-    }
-
-    .workspace-screen {
-        height: 125px;
-    }
-
-    .status-node {
-        top: -4px;
-        right: -5px;
-    }
-
-    .status-link {
-        left: -4px;
+    .hero-illustration {
+        width: 112%;
+        max-width: none;
+        margin-left: -6%;
     }
 
     .section-heading h2 {
