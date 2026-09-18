@@ -1117,7 +1117,7 @@ mod tests {
             password_file,
         };
         let verification_output = format!(
-            "console|{}|{}|pixels_console_owner|24|true",
+            "console|{}|{}|pixels_console_owner|25|true",
             deployment_id, target.database
         );
         let createdb = create_fake_tool(temporary_directory.path(), "createdb", &log_path, None);
