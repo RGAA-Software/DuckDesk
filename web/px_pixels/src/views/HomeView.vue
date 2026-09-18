@@ -11,12 +11,12 @@ import {
     IconDevices,
     IconGauge,
     IconPhotoScan,
-    IconServerCog,
     IconShieldLock,
 } from '@tabler/icons-vue'
 import ContactUs from '@/components/ContactUs.vue'
 import DotGlobe from '@/components/DotGlobe.vue'
 import HeroCloudIllustration from '@/components/HeroCloudIllustration.vue'
+import platformManyToManySvg from '@/assets/diagram/platform-many-to-many.svg?raw'
 import cloudGamingScene from '@/assets/showcase/cloud-gaming-csgo.webp'
 import cloudRenderingScene from '@/assets/showcase/cloud-rendering-blender.webp'
 import remoteDesktopScene from '@/assets/showcase/remote-desktop-photoshop.webp'
@@ -219,26 +219,7 @@ function scrollToSolutions() {
           </div>
         </div>
 
-        <div class="platform-map" aria-hidden="true">
-          <div class="map-grid" />
-          <span class="map-path path-one" />
-          <span class="map-path path-two" />
-          <div class="map-node client-node">
-            <IconDevices class="map-node-icon" :size="25" :stroke-width="1.6" />
-            <span>{{ t('site.platform.client') }}</span>
-          </div>
-          <div class="map-node cloud-node">
-            <div class="pixel-core"><i /><i /><i /><i /><i /><i /><i /><i /><i /></div>
-            <strong>PIXELS</strong>
-            <span>CLOUD</span>
-          </div>
-          <div class="map-node workload-node">
-            <IconServerCog class="map-node-icon" :size="25" :stroke-width="1.6" />
-            <span>{{ t('site.platform.workload') }}</span>
-          </div>
-          <span class="map-pulse pulse-one" />
-          <span class="map-pulse pulse-two" />
-        </div>
+        <div class="platform-mesh" aria-hidden="true" v-html="platformManyToManySvg" />
       </div>
     </section>
 
@@ -315,8 +296,7 @@ function scrollToSolutions() {
 }
 
 .hero-grid,
-.cta-grid,
-.map-grid {
+.cta-grid {
     position: absolute;
     inset: 0;
     background-image:
@@ -956,143 +936,9 @@ function scrollToSolutions() {
     font-style: normal;
 }
 
-.platform-map {
-    position: relative;
-    min-height: 390px;
-    overflow: hidden;
-    border: 1px solid var(--border);
-    border-radius: 22px !important;
-    background: color-mix(in srgb, var(--secondary) 72%, var(--card));
-}
-
-.map-grid {
-    mask-image: radial-gradient(circle, black, transparent 76%);
-}
-
-.map-node {
-    position: absolute;
-    z-index: 2;
-    display: grid;
-    place-items: center;
-    border: 1px solid var(--border);
-    background: var(--card);
-    box-shadow: 0 13px 32px rgba(24, 24, 27, 0.09);
-}
-
-.client-node,
-.workload-node {
-    top: 151px;
-    width: 90px;
-    height: 90px;
-    border-radius: 18px !important;
-}
-
-.client-node {
-    left: 8%;
-}
-
-.workload-node {
-    right: 8%;
-}
-
-.map-node-icon {
-    color: var(--primary);
-}
-
-.map-node > span {
-    margin-top: -20px;
-    color: var(--muted-foreground);
-    font-size: 9px;
-    text-align: center;
-}
-
-.cloud-node {
-    top: 112px;
-    left: 50%;
-    width: 165px;
-    height: 165px;
-    border-color: var(--primary);
-    border-radius: 50% !important;
-    background: linear-gradient(145deg, #006b3d, #009a59);
-    color: #ffffff;
-    transform: translateX(-50%);
-}
-
-.pixel-core {
-    display: grid;
-    grid-template-columns: repeat(3, 6px);
-    gap: 4px;
-    margin-top: 16px;
-    transform: rotate(45deg);
-}
-
-.pixel-core i {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #ffffff;
-}
-
-.pixel-core i:nth-child(2),
-.pixel-core i:nth-child(4),
-.pixel-core i:nth-child(6),
-.pixel-core i:nth-child(8) {
-    opacity: 0.55;
-}
-
-.cloud-node strong {
-    margin-top: -13px;
-    font: 700 12px "10 Pixel", sans-serif;
-    letter-spacing: 0.08em;
-}
-
-.cloud-node > span {
-    margin-top: -25px;
-    color: rgba(255, 255, 255, 0.6);
-    font: 8px var(--font-tech);
-}
-
-.map-path {
-    position: absolute;
-    z-index: 1;
-    top: 195px;
-    height: 1px;
-    background: repeating-linear-gradient(
-        90deg,
-        rgba(0, 154, 89, 0.55) 0 7px,
-        transparent 7px 13px
-    );
-}
-
-.path-one {
-    right: 50%;
-    left: 16%;
-}
-
-.path-two {
-    right: 16%;
-    left: 50%;
-}
-
-.map-pulse {
-    position: absolute;
-    z-index: 3;
-    top: 191px;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #8ceec0;
-    box-shadow: 0 0 14px #009a59;
-    animation: mapTravel 3.2s linear infinite;
-}
-
-.pulse-two {
-    animation-delay: -1.6s;
-}
-
-@keyframes mapTravel {
-    from { left: 17%; }
-    to { left: 81%; }
+.platform-mesh {
+    width: 100%;
+    min-width: 0;
 }
 
 .journey-section {
@@ -1449,38 +1295,9 @@ function scrollToSolutions() {
         min-height: 190px;
     }
 
-    .platform-map {
-        min-height: 320px;
-    }
-
-    .client-node,
-    .workload-node {
-        top: 124px;
-        width: 67px;
-        height: 67px;
-    }
-
-    .client-node {
-        left: 4%;
-    }
-
-    .workload-node {
-        right: 4%;
-    }
-
-    .cloud-node {
-        top: 94px;
-        width: 126px;
-        height: 126px;
-    }
-
-    .map-path,
-    .map-pulse {
-        top: 157px;
-    }
-
-    .map-node > span {
-        font-size: 7px;
+    .platform-mesh {
+        width: 108%;
+        margin-left: -4%;
     }
 
     .final-cta {
@@ -1489,9 +1306,4 @@ function scrollToSolutions() {
     }
 }
 
-@media (prefers-reduced-motion: reduce) {
-    .map-pulse {
-        animation: none;
-    }
-}
 </style>

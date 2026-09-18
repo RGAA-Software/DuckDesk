@@ -1,0 +1,472 @@
+<svg
+  class="pixels-platform-mesh"
+  viewBox="0 0 760 480"
+  xmlns="http://www.w3.org/2000/svg"
+  role="img"
+  aria-label="Pixels multi-endpoint and multi-workload connection mesh"
+>
+  <style>
+    .pixels-platform-mesh {
+      --mesh-background: color-mix(in srgb, var(--secondary, #f4f4f5) 72%, var(--card, #ffffff));
+      --mesh-surface: color-mix(in srgb, var(--card, #ffffff) 94%, transparent);
+      --mesh-border: color-mix(in srgb, var(--primary, #007f49) 26%, var(--border, #e4e4e7));
+      --mesh-grid: color-mix(in srgb, var(--primary, #007f49) 9%, transparent);
+      --mesh-ink: var(--accent-foreground, #006b3d);
+      --mesh-primary: var(--primary, #007f49);
+      --mesh-bright: #28c982;
+      --mesh-cyan: #22d3ee;
+      --mesh-violet: #a78bfa;
+      --mesh-orange: #fb923c;
+      display: block;
+      width: 100%;
+      height: auto;
+      overflow: visible;
+    }
+
+    .pixels-mesh-background {
+      fill: var(--mesh-background);
+      stroke: var(--mesh-border);
+    }
+
+    .pixels-mesh-grid {
+      fill: url(#pixels-mesh-grid-pattern);
+      opacity: 0.78;
+    }
+
+    .pixels-mesh-aura {
+      fill: url(#pixels-mesh-aura-gradient);
+    }
+
+    .pixels-mesh-path {
+      fill: none;
+      stroke: var(--mesh-primary);
+      stroke-dasharray: 3 8;
+      stroke-linecap: round;
+      stroke-width: 1.5;
+      opacity: 0.48;
+    }
+
+    .pixels-mesh-path-client {
+      stroke: var(--mesh-cyan);
+      opacity: 0.44;
+    }
+
+    .pixels-mesh-path-game {
+      stroke: var(--mesh-violet);
+    }
+
+    .pixels-mesh-path-render {
+      stroke: var(--mesh-orange);
+    }
+
+    .pixels-mesh-packet {
+      fill: var(--mesh-bright);
+      filter: url(#pixels-mesh-glow);
+    }
+
+    .pixels-mesh-packet-client {
+      fill: var(--mesh-cyan);
+    }
+
+    .pixels-mesh-packet-game {
+      fill: var(--mesh-violet);
+    }
+
+    .pixels-mesh-packet-render {
+      fill: var(--mesh-orange);
+    }
+
+    .pixels-mesh-packet-return {
+      opacity: 0.72;
+    }
+
+    .pixels-mesh-node {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: pixels-node-float 7s ease-in-out infinite;
+    }
+
+    .pixels-mesh-node-delay-one {
+      animation-delay: -2.2s;
+    }
+
+    .pixels-mesh-node-delay-two {
+      animation-delay: -4.4s;
+    }
+
+    .pixels-mesh-node-surface {
+      fill: var(--mesh-surface);
+      stroke: var(--mesh-border);
+      stroke-width: 1.5;
+    }
+
+    .pixels-mesh-node-graphic {
+      transform-box: fill-box;
+      transform-origin: center;
+      transform: scale(0.8);
+    }
+
+    .pixels-mesh-client-ring {
+      stroke: color-mix(in srgb, var(--mesh-cyan) 55%, var(--mesh-border));
+    }
+
+    .pixels-mesh-remote-ring {
+      stroke: color-mix(in srgb, var(--mesh-bright) 58%, var(--mesh-border));
+    }
+
+    .pixels-mesh-game-ring {
+      stroke: color-mix(in srgb, var(--mesh-violet) 62%, var(--mesh-border));
+    }
+
+    .pixels-mesh-render-ring {
+      stroke: color-mix(in srgb, var(--mesh-orange) 62%, var(--mesh-border));
+    }
+
+    .pixels-mesh-client-icon,
+    .pixels-mesh-workload-icon {
+      fill: none;
+      stroke: var(--mesh-ink);
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 2.4;
+    }
+
+    .pixels-mesh-client-icon {
+      stroke: var(--mesh-cyan);
+    }
+
+    .pixels-mesh-game-icon {
+      stroke: var(--mesh-violet);
+    }
+
+    .pixels-mesh-render-icon {
+      stroke: var(--mesh-orange);
+    }
+
+    .pixels-mesh-cursor {
+      fill: #d1fae5;
+      stroke: #064e3b;
+      stroke-width: 1.4;
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: pixels-cursor-move 4.5s ease-in-out infinite;
+    }
+
+    .pixels-mesh-game-button {
+      fill: var(--mesh-violet);
+      animation: pixels-button-pulse 1.8s ease-in-out infinite;
+    }
+
+    .pixels-mesh-game-button:last-child {
+      animation-delay: -0.9s;
+    }
+
+    .pixels-mesh-render-face {
+      fill: color-mix(in srgb, var(--mesh-orange) 32%, transparent);
+      animation: pixels-render-face 3.8s ease-in-out infinite;
+    }
+
+    .pixels-mesh-render-face:last-child {
+      fill: color-mix(in srgb, var(--mesh-violet) 28%, transparent);
+      animation-delay: -1.9s;
+    }
+
+    .pixels-mesh-router-link {
+      fill: none;
+      stroke: var(--mesh-primary);
+      stroke-width: 1.4;
+      opacity: 0.35;
+    }
+
+    .pixels-mesh-router {
+      fill: var(--mesh-surface);
+      stroke: var(--mesh-bright);
+      stroke-width: 1.5;
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: pixels-router-pulse 2.8s ease-in-out infinite;
+    }
+
+    .pixels-mesh-router-two {
+      animation-delay: -0.7s;
+    }
+
+    .pixels-mesh-router-three {
+      animation-delay: -1.4s;
+    }
+
+    .pixels-mesh-router-four {
+      animation-delay: -2.1s;
+    }
+
+    .pixels-mesh-core-orbit {
+      fill: none;
+      stroke: var(--mesh-primary);
+      stroke-dasharray: 3 7;
+      stroke-width: 1.4;
+      opacity: 0.48;
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: pixels-orbit-turn 16s linear infinite;
+    }
+
+    .pixels-mesh-core-surface {
+      fill: var(--mesh-surface);
+      stroke: var(--mesh-primary);
+      stroke-width: 1.5;
+      filter: url(#pixels-mesh-shadow);
+    }
+
+    .pixels-mesh-core-mark {
+      fill: var(--mesh-primary);
+    }
+
+    @keyframes pixels-node-float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-5px); }
+    }
+
+    @keyframes pixels-cursor-move {
+      0%, 20%, 100% { transform: translate(0, 0); }
+      50%, 70% { transform: translate(7px, 5px); }
+    }
+
+    @keyframes pixels-button-pulse {
+      0%, 100% { opacity: 0.35; }
+      50% { opacity: 1; }
+    }
+
+    @keyframes pixels-render-face {
+      0%, 100% { opacity: 0.28; }
+      50% { opacity: 0.9; }
+    }
+
+    @keyframes pixels-router-pulse {
+      0%, 100% { opacity: 0.55; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1.12); }
+    }
+
+    @keyframes pixels-orbit-turn {
+      to { transform: rotate(360deg); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .pixels-platform-mesh * {
+        animation: none !important;
+        transition: none !important;
+      }
+
+      .pixels-mesh-packet {
+        display: none;
+      }
+    }
+  </style>
+
+  <defs>
+    <pattern id="pixels-mesh-grid-pattern" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="var(--mesh-grid)" stroke-width="1" />
+    </pattern>
+    <radialGradient id="pixels-mesh-aura-gradient">
+      <stop stop-color="#28C982" stop-opacity=".18" />
+      <stop offset="1" stop-color="#28C982" stop-opacity="0" />
+    </radialGradient>
+    <filter id="pixels-mesh-shadow" x="-80%" y="-80%" width="260%" height="280%">
+      <feDropShadow dx="0" dy="12" stdDeviation="13" flood-color="#052E22" flood-opacity=".18" />
+    </filter>
+    <filter id="pixels-mesh-glow" x="-180%" y="-180%" width="460%" height="460%">
+      <feGaussianBlur stdDeviation="4" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <path id="pixels-edge-endpoint-one-a" d="M130 105C216 105 246 148 326 174" />
+    <path id="pixels-edge-endpoint-one-b" d="M130 105C226 132 250 276 326 306" />
+    <path id="pixels-edge-endpoint-two-a" d="M130 240C218 240 250 195 326 174" />
+    <path id="pixels-edge-endpoint-two-b" d="M130 240C218 240 250 284 326 306" />
+    <path id="pixels-edge-endpoint-three-a" d="M130 375C226 350 250 205 326 174" />
+    <path id="pixels-edge-endpoint-three-b" d="M130 375C218 366 250 326 326 306" />
+
+    <path id="pixels-edge-workload-one-a" d="M434 174C514 148 544 105 630 105" />
+    <path id="pixels-edge-workload-one-b" d="M434 306C510 276 534 132 630 105" />
+    <path id="pixels-edge-workload-two-a" d="M434 174C510 195 542 240 630 240" />
+    <path id="pixels-edge-workload-two-b" d="M434 306C510 284 542 240 630 240" />
+    <path id="pixels-edge-workload-three-a" d="M434 174C510 205 534 350 630 375" />
+    <path id="pixels-edge-workload-three-b" d="M434 306C510 326 542 366 630 375" />
+  </defs>
+
+  <rect class="pixels-mesh-background" x="20" y="20" width="720" height="440" rx="28" />
+  <rect class="pixels-mesh-grid" x="20" y="20" width="720" height="440" rx="28" />
+  <circle class="pixels-mesh-aura" cx="380" cy="240" r="188" />
+
+  <g class="pixels-mesh-connections">
+    <path class="pixels-mesh-path pixels-mesh-path-client" d="M130 105C216 105 246 148 326 174" />
+    <path class="pixels-mesh-path pixels-mesh-path-client" d="M130 105C226 132 250 276 326 306" />
+    <path class="pixels-mesh-path pixels-mesh-path-client" d="M130 240C218 240 250 195 326 174" />
+    <path class="pixels-mesh-path pixels-mesh-path-client" d="M130 240C218 240 250 284 326 306" />
+    <path class="pixels-mesh-path pixels-mesh-path-client" d="M130 375C226 350 250 205 326 174" />
+    <path class="pixels-mesh-path pixels-mesh-path-client" d="M130 375C218 366 250 326 326 306" />
+
+    <path class="pixels-mesh-path" d="M434 174C514 148 544 105 630 105" />
+    <path class="pixels-mesh-path" d="M434 306C510 276 534 132 630 105" />
+    <path class="pixels-mesh-path pixels-mesh-path-game" d="M434 174C510 195 542 240 630 240" />
+    <path class="pixels-mesh-path pixels-mesh-path-game" d="M434 306C510 284 542 240 630 240" />
+    <path class="pixels-mesh-path pixels-mesh-path-render" d="M434 174C510 205 534 350 630 375" />
+    <path class="pixels-mesh-path pixels-mesh-path-render" d="M434 306C510 326 542 366 630 375" />
+
+    <circle class="pixels-mesh-packet pixels-mesh-packet-client" r="4">
+      <animateMotion dur="4.2s" repeatCount="indefinite">
+        <mpath href="#pixels-edge-endpoint-one-a" />
+      </animateMotion>
+    </circle>
+    <circle class="pixels-mesh-packet pixels-mesh-packet-client pixels-mesh-packet-return" r="3">
+      <animateMotion dur="4.2s" begin="-2.1s" keyPoints="1;0" keyTimes="0;1" calcMode="linear" repeatCount="indefinite">
+        <mpath href="#pixels-edge-endpoint-one-a" />
+      </animateMotion>
+    </circle>
+    <circle class="pixels-mesh-packet pixels-mesh-packet-client" r="3.5">
+      <animateMotion dur="5.1s" begin="-2.4s" repeatCount="indefinite">
+        <mpath href="#pixels-edge-endpoint-two-b" />
+      </animateMotion>
+    </circle>
+    <circle class="pixels-mesh-packet pixels-mesh-packet-client pixels-mesh-packet-return" r="3">
+      <animateMotion dur="5.1s" begin="-4.9s" keyPoints="1;0" keyTimes="0;1" calcMode="linear" repeatCount="indefinite">
+        <mpath href="#pixels-edge-endpoint-two-b" />
+      </animateMotion>
+    </circle>
+    <circle class="pixels-mesh-packet pixels-mesh-packet-client" r="4">
+      <animateMotion dur="4.7s" begin="-1.5s" repeatCount="indefinite">
+        <mpath href="#pixels-edge-endpoint-three-a" />
+      </animateMotion>
+    </circle>
+    <circle class="pixels-mesh-packet pixels-mesh-packet-client pixels-mesh-packet-return" r="3">
+      <animateMotion dur="4.7s" begin="-3.8s" keyPoints="1;0" keyTimes="0;1" calcMode="linear" repeatCount="indefinite">
+        <mpath href="#pixels-edge-endpoint-three-a" />
+      </animateMotion>
+    </circle>
+    <circle class="pixels-mesh-packet" r="4">
+      <animateMotion dur="4.3s" begin="-1s" repeatCount="indefinite">
+        <mpath href="#pixels-edge-workload-one-b" />
+      </animateMotion>
+    </circle>
+    <circle class="pixels-mesh-packet pixels-mesh-packet-return" r="3">
+      <animateMotion dur="4.3s" begin="-3.1s" keyPoints="1;0" keyTimes="0;1" calcMode="linear" repeatCount="indefinite">
+        <mpath href="#pixels-edge-workload-one-b" />
+      </animateMotion>
+    </circle>
+    <circle class="pixels-mesh-packet pixels-mesh-packet-game" r="4">
+      <animateMotion dur="3.9s" begin="-2.1s" repeatCount="indefinite">
+        <mpath href="#pixels-edge-workload-two-a" />
+      </animateMotion>
+    </circle>
+    <circle class="pixels-mesh-packet pixels-mesh-packet-game pixels-mesh-packet-return" r="3">
+      <animateMotion dur="3.9s" begin="-3.8s" keyPoints="1;0" keyTimes="0;1" calcMode="linear" repeatCount="indefinite">
+        <mpath href="#pixels-edge-workload-two-a" />
+      </animateMotion>
+    </circle>
+    <circle class="pixels-mesh-packet pixels-mesh-packet-game" r="3.5">
+      <animateMotion dur="4.8s" begin="-3.2s" repeatCount="indefinite">
+        <mpath href="#pixels-edge-workload-two-b" />
+      </animateMotion>
+    </circle>
+    <circle class="pixels-mesh-packet pixels-mesh-packet-game pixels-mesh-packet-return" r="3">
+      <animateMotion dur="4.8s" begin="-1.2s" keyPoints="1;0" keyTimes="0;1" calcMode="linear" repeatCount="indefinite">
+        <mpath href="#pixels-edge-workload-two-b" />
+      </animateMotion>
+    </circle>
+    <circle class="pixels-mesh-packet pixels-mesh-packet-render" r="4">
+      <animateMotion dur="5.2s" begin="-1.8s" repeatCount="indefinite">
+        <mpath href="#pixels-edge-workload-three-a" />
+      </animateMotion>
+    </circle>
+    <circle class="pixels-mesh-packet pixels-mesh-packet-render pixels-mesh-packet-return" r="3">
+      <animateMotion dur="5.2s" begin="-4.4s" keyPoints="1;0" keyTimes="0;1" calcMode="linear" repeatCount="indefinite">
+        <mpath href="#pixels-edge-workload-three-a" />
+      </animateMotion>
+    </circle>
+  </g>
+
+  <g class="pixels-mesh-routing-fabric">
+    <path class="pixels-mesh-router-link" d="M326 174L380 240L434 174M326 306L380 240L434 306M326 174L326 306M434 174L434 306M326 174L434 306M434 174L326 306" />
+    <circle class="pixels-mesh-router pixels-mesh-router-one" cx="326" cy="174" r="9" />
+    <circle class="pixels-mesh-router pixels-mesh-router-two" cx="434" cy="174" r="9" />
+    <circle class="pixels-mesh-router pixels-mesh-router-three" cx="326" cy="306" r="9" />
+    <circle class="pixels-mesh-router pixels-mesh-router-four" cx="434" cy="306" r="9" />
+  </g>
+
+  <g class="pixels-mesh-node pixels-mesh-endpoint-one">
+    <circle class="pixels-mesh-node-surface pixels-mesh-client-ring" cx="92" cy="105" r="38" />
+    <g class="pixels-mesh-node-graphic pixels-mesh-client-icon">
+      <rect x="70" y="89" width="44" height="28" rx="4" />
+      <path d="M92 117V126M80 127H104" />
+    </g>
+  </g>
+
+  <g class="pixels-mesh-node pixels-mesh-node-delay-one pixels-mesh-endpoint-two">
+    <circle class="pixels-mesh-node-surface pixels-mesh-client-ring" cx="92" cy="240" r="38" />
+    <g class="pixels-mesh-node-graphic pixels-mesh-client-icon">
+      <rect x="72" y="220" width="40" height="28" rx="4" />
+      <path d="M67 254H117L111 248H73L67 254Z" />
+    </g>
+  </g>
+
+  <g class="pixels-mesh-node pixels-mesh-node-delay-two pixels-mesh-endpoint-three">
+    <circle class="pixels-mesh-node-surface pixels-mesh-client-ring" cx="92" cy="375" r="38" />
+    <g class="pixels-mesh-node-graphic pixels-mesh-client-icon">
+      <rect x="79" y="349" width="26" height="50" rx="6" />
+      <path d="M87 355H97M90 392H94" />
+    </g>
+  </g>
+
+  <g class="pixels-mesh-node pixels-mesh-workload-one">
+    <circle class="pixels-mesh-node-surface pixels-mesh-remote-ring" cx="668" cy="105" r="38" />
+    <g class="pixels-mesh-node-graphic">
+      <g class="pixels-mesh-workload-icon">
+        <rect x="645" y="88" width="46" height="31" rx="5" />
+        <path d="M668 119V127M656 128H680" />
+      </g>
+      <path class="pixels-mesh-cursor" d="M656 95C653 94 651 96 652 99L655 111C656 114 659 115 661 112L664 107L670 105C673 104 674 101 671 100L656 95Z" />
+    </g>
+  </g>
+
+  <g class="pixels-mesh-node pixels-mesh-node-delay-one pixels-mesh-workload-two">
+    <circle class="pixels-mesh-node-surface pixels-mesh-game-ring" cx="668" cy="240" r="38" />
+    <g class="pixels-mesh-node-graphic">
+      <g class="pixels-mesh-workload-icon pixels-mesh-game-icon">
+        <path d="M647 238C649 228 655 224 665 224H671C681 224 687 228 689 238L693 252C695 260 686 264 681 258L674 249H662L655 258C650 264 641 260 643 252L647 238Z" />
+        <path d="M653 238H663M658 233V243" />
+      </g>
+      <circle class="pixels-mesh-game-button" cx="678" cy="237" r="2.8" />
+      <circle class="pixels-mesh-game-button" cx="685" cy="243" r="2.8" />
+    </g>
+  </g>
+
+  <g class="pixels-mesh-node pixels-mesh-node-delay-two pixels-mesh-workload-three">
+    <circle class="pixels-mesh-node-surface pixels-mesh-render-ring" cx="668" cy="375" r="38" />
+    <g class="pixels-mesh-node-graphic">
+      <g class="pixels-mesh-workload-icon pixels-mesh-render-icon">
+        <path d="M668 350L688 361V384L668 396L648 384V361L668 350Z" />
+        <path d="M648 361L668 373L688 361M668 373V396" />
+      </g>
+      <path class="pixels-mesh-render-face" d="M668 350L688 361L668 373L648 361L668 350Z" />
+      <path class="pixels-mesh-render-face" d="M668 373L688 361V384L668 396V373Z" />
+    </g>
+  </g>
+
+  <g class="pixels-mesh-core">
+    <circle class="pixels-mesh-core-orbit" cx="380" cy="240" r="52" />
+    <circle class="pixels-mesh-core-surface" cx="380" cy="240" r="36" />
+    <g class="pixels-mesh-core-mark" transform="translate(380 240) rotate(45)">
+      <circle cx="-11" cy="-11" r="3.8" opacity=".38" />
+      <circle cx="0" cy="-11" r="3.8" />
+      <circle cx="11" cy="-11" r="3.8" opacity=".38" />
+      <circle cx="-11" cy="0" r="3.8" />
+      <circle cx="0" cy="0" r="3.8" opacity=".38" />
+      <circle cx="11" cy="0" r="3.8" />
+      <circle cx="-11" cy="11" r="3.8" opacity=".38" />
+      <circle cx="0" cy="11" r="3.8" />
+      <circle cx="11" cy="11" r="3.8" opacity=".38" />
+    </g>
+  </g>
+</svg>
