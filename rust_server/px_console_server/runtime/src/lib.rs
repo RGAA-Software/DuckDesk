@@ -67,6 +67,7 @@ impl StateData {
 pub struct ConsoleRuntime {
     state: Arc<StateData>,
     supervisor: JoinHandle<()>,
+    telemetry_retention: JoinHandle<()>,
 }
 impl ConsoleRuntime {
     pub async fn activate(
@@ -116,19 +117,53 @@ impl ConsoleRuntime {
             guests,
             epoch,
         });
+        let supervisor_cancellation = cancellation.clone();
         let supervisor = tokio::spawn(async move {
-            let _failure_guard = cancellation.clone().drop_guard();
+            let _failure_guard = supervisor_cancellation.clone().drop_guard();
             let mut interval = tokio::time::interval(Duration::from_secs(1));
             interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             loop {
                 tokio::select! {
                     biased;
-                    _=cancellation.cancelled()=>break,
-                    _=interval.tick()=>if lease.renew().await.is_err(){cancellation.cancel();break},
+                    _=supervisor_cancellation.cancelled()=>break,
+                    _=interval.tick()=>if lease.renew().await.is_err(){supervisor_cancellation.cancel();break},
                 }
             }
         });
-        Ok(Self { state, supervisor })
+        let telemetry_state = state.clone();
+        let telemetry_cancellation = cancellation.clone();
+        let telemetry_retention = tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(60));
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            loop {
+                tokio::select! {
+                    biased;
+                    _=telemetry_cancellation.cancelled()=>break,
+                    _=interval.tick()=>{
+                        match tokio::time::timeout(
+                            Duration::from_secs(10),
+                            telemetry_state.db.nodes().prune_telemetry_history(),
+                        ).await {
+                            Ok(Ok(removed)) if removed > 0 => {
+                                tracing::info!(removed, "pruned expired node telemetry samples");
+                            }
+                            Ok(Ok(_)) => {}
+                            Ok(Err(error)) => {
+                                tracing::warn!(%error, "node telemetry retention failed");
+                            }
+                            Err(_) => {
+                                tracing::warn!("node telemetry retention timed out");
+                            }
+                        }
+                    },
+                }
+            }
+        });
+        Ok(Self {
+            state,
+            supervisor,
+            telemetry_retention,
+        })
     }
     pub fn router(&self) -> Router {
         Router::new()
@@ -197,7 +232,9 @@ impl ConsoleRuntime {
     pub async fn shutdown(mut self) {
         self.state.cancellation.cancel();
         self.supervisor.abort();
+        self.telemetry_retention.abort();
         let _ = (&mut self.supervisor).await;
+        let _ = (&mut self.telemetry_retention).await;
         // Every upgraded node connection owns one permit until its database generation is
         // closed. Listener shutdown must precede this call so no new upgrade can race the join.
         let _connections = self
@@ -213,6 +250,7 @@ impl Drop for ConsoleRuntime {
     fn drop(&mut self) {
         self.state.cancellation.cancel();
         self.supervisor.abort();
+        self.telemetry_retention.abort();
     }
 }
 async fn ready(State(state): State<Arc<StateData>>) -> Result<StatusCode, ApiError> {

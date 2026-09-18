@@ -240,7 +240,7 @@ try {
         # Explicit developer command, never performed implicitly by acceptance tests.
         # PostgreSQL/SQLx generate these files; this is not evidence that runtime tests passed.
         foreach ($item in @(
-            @{Service='console';Crate='px_console_store';Path='rust_server/px_console_server/storage';Count=248},
+            @{Service='console';Crate='px_console_store';Path='rust_server/px_console_server/storage';Count=253},
             @{Service='desk';Crate='px_desk_server';Path='rust_server/px_desk_server';Count=9},
             @{Service='auth';Crate='px_auth_store';Path='rust_server/px_auth_server/storage';Count=30}
         )) {
@@ -403,7 +403,7 @@ try {
     $committedMetadata = Join-Path $repo 'rust_server/px_console_server/storage/.sqlx'
     $expectedQueries = @(Get-ChildItem -LiteralPath $committedMetadata -Filter 'query-*.json' -File)
     $actualQueries = @(Get-ChildItem -LiteralPath $queryMetadata -Filter 'query-*.json' -File)
-    if ($expectedQueries.Count -ne 248 -or $actualQueries.Count -ne $expectedQueries.Count) { throw 'Missing or extra SQLx query metadata' }
+    if ($expectedQueries.Count -ne 253 -or $actualQueries.Count -ne $expectedQueries.Count) { throw 'Missing or extra SQLx query metadata' }
     foreach ($expected in $expectedQueries) {
         $actual = Join-Path $queryMetadata $expected.Name
         if (-not (Test-Path -LiteralPath $actual) -or (Get-FileHash -LiteralPath $expected.FullName).Hash -ne (Get-FileHash -LiteralPath $actual).Hash) {
@@ -412,7 +412,7 @@ try {
     }
     Set-LocalEnv 'SQLX_OFFLINE' 'true'
     Set-LocalEnv 'SQLX_OFFLINE_DIR' $committedMetadata
-    Add-Step 'QUERY: 248 Console SQLx queries compiled against fresh PG; offline metadata matches'
+    Add-Step 'QUERY: 253 Console SQLx queries compiled against fresh PG; offline metadata matches'
     $identityUnit = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--lib','--target-dir',$targetDir)
     Add-TestCases $identityUnit 'native/identity-unit' 19
     $identityIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--test','identity','--target-dir',$targetDir,'--','--test-threads=1')
@@ -591,8 +591,8 @@ try {
     Add-Step 'AUTH-WEB: five contract tests, catalogs, themes, bounds, retry identity and logout failures'
     Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_console'),'run','build') | Out-Null
     $consoleWebUnit = Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_console'),'run','test:unit','--','--run')
-    if ($consoleWebUnit -notmatch 'Tests\s+32 passed') { throw 'Console frontend contract tests missing' }
-    Add-Step 'CONSOLE-WEB: 32 bearer identity, managed directory/activity/telemetry, localization, descriptor secrecy and production bundle tests'
+    if ($consoleWebUnit -notmatch 'Tests\s+33 passed') { throw 'Console frontend contract tests missing' }
+    Add-Step 'CONSOLE-WEB: 33 bearer identity, managed directory/activity/telemetry history, localization, descriptor secrecy and production bundle tests'
     $consoleParity = Get-Content -LiteralPath (Join-Path $repo 'docs/console_management_feature_parity.md') -Raw
     $requiredConsoleCapabilities = @(
         'CM-IDENTITY', 'CM-DASHBOARD', 'CM-DEVICE', 'CM-ONLINE', 'CM-CONNECTION', 'CM-APPLICATION',

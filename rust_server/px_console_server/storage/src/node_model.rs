@@ -332,6 +332,36 @@ pub struct NodeGpuProfile {
     pub received_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, sqlx::FromRow)]
+pub struct NodeGpuHistoryProfile {
+    pub node_id: Uuid,
+    pub node_generation: i64,
+    pub report_sequence: i64,
+    pub stable_key: String,
+    pub inventory_revision: i64,
+    pub name: String,
+    pub dedicated_memory_bytes: Option<i64>,
+    pub used_memory_bytes: Option<i64>,
+    pub utilization_per_mille: Option<i16>,
+    pub encoder_utilization_per_mille: Option<i16>,
+    pub sampled_at: DateTime<Utc>,
+    pub received_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct ManagedNodeTelemetrySample {
+    #[serde(flatten)]
+    pub telemetry: NodeTelemetryProfile,
+    pub gpus: Vec<NodeGpuHistoryProfile>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct TelemetryHistoryCursor {
+    pub received_at: DateTime<Utc>,
+    pub node_generation: i64,
+    pub report_sequence: i64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ManagedNodeProfile {
     #[serde(flatten)]

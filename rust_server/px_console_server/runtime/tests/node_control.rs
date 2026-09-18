@@ -170,6 +170,39 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     .await;
     assert_eq!(report["type"], "reported");
     assert_eq!(report["state"], "reconciling");
+    let node_id = node["node"]["id"].as_str().unwrap();
+    let (history_status, history) = call(
+        &router,
+        "GET",
+        &format!("/api/console/managed/nodes/{node_id}/telemetry?limit=1"),
+        "admin_web",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(history_status.as_u16(), 200, "{history}");
+    assert_eq!(history.as_array().unwrap().len(), 1);
+    assert_eq!(history[0]["report_sequence"], 1);
+    assert_eq!(history[0]["cpu_utilization_per_mille"], 375);
+    assert_eq!(history[0]["gpus"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        history[0]["gpus"][0]["stable_key"],
+        "pnp-sha256:0123456789abcdef"
+    );
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            &format!("/api/console/managed/nodes/{node_id}/telemetry?limit=1&before_generation=1"),
+            "admin_web",
+            Some(&admin),
+            Value::Null,
+        )
+        .await
+        .0
+        .as_u16(),
+        400
+    );
     let assignments = exchange(
         &mut socket,
         json!({"type":"list_deployments","request_id":3,"after":null,"limit":50}),

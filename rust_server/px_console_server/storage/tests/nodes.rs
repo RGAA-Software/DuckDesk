@@ -201,6 +201,18 @@ async fn latest_machine_and_gpu_telemetry_is_generation_fenced_replaced_and_expl
     let mut first = report(1);
     first.telemetry = ready_telemetry();
     fixture.nodes.report(&connection, &first).await.unwrap();
+    let first_history = fixture
+        .nodes
+        .list_telemetry_history(&fixture.admin, node.id, None, 1)
+        .await
+        .unwrap();
+    assert_eq!(first_history.len(), 1);
+    assert_eq!(first_history[0].telemetry.report_sequence, 1);
+    assert_eq!(first_history[0].gpus.len(), 1);
+    assert_eq!(
+        first_history[0].gpus[0].stable_key,
+        "pnp-sha256:0123456789abcdef"
+    );
     let views = fixture
         .nodes
         .list_managed_views(&fixture.admin, None, 100)
@@ -216,6 +228,49 @@ async fn latest_machine_and_gpu_telemetry_is_generation_fenced_replaced_and_expl
     assert_eq!(view.gpus[0].stable_key, "pnp-sha256:0123456789abcdef");
 
     fixture.nodes.report(&connection, &report(2)).await.unwrap();
+    let history = fixture
+        .nodes
+        .list_telemetry_history(&fixture.admin, node.id, None, 2)
+        .await
+        .unwrap();
+    assert_eq!(
+        history
+            .iter()
+            .map(|sample| sample.telemetry.report_sequence)
+            .collect::<Vec<_>>(),
+        vec![2, 1]
+    );
+    assert!(history[0].gpus.is_empty());
+    assert_eq!(history[1].gpus.len(), 1);
+    let cursor = px_console_store::TelemetryHistoryCursor {
+        received_at: history[0].telemetry.received_at,
+        node_generation: history[0].telemetry.node_generation,
+        report_sequence: history[0].telemetry.report_sequence,
+    };
+    let previous_page = fixture
+        .nodes
+        .list_telemetry_history(&fixture.admin, node.id, Some(cursor), 1)
+        .await
+        .unwrap();
+    assert_eq!(previous_page.len(), 1);
+    assert_eq!(previous_page[0].telemetry.report_sequence, 1);
+    sqlx::query(
+        "UPDATE pixels.node_telemetry_history SET received_at=clock_timestamp()-INTERVAL '8 days' \
+         WHERE node_id=$1 AND node_generation=$2 AND report_sequence=1",
+    )
+    .bind(node.id)
+    .bind(connection.generation())
+    .execute(&fixture.owner)
+    .await
+    .unwrap();
+    assert_eq!(fixture.nodes.prune_telemetry_history().await.unwrap(), 1);
+    let retained = fixture
+        .nodes
+        .list_telemetry_history(&fixture.admin, node.id, None, 100)
+        .await
+        .unwrap();
+    assert_eq!(retained.len(), 1);
+    assert_eq!(retained[0].telemetry.report_sequence, 2);
     let views = fixture
         .nodes
         .list_managed_views(&fixture.admin, None, 100)
@@ -266,6 +321,13 @@ async fn node_credentials_and_management_roles_are_disjoint() {
     ] {
         assert!(matches!(
             fixture.nodes.list_managed(&session, None, 100).await,
+            Err(StoreError::Rejected)
+        ));
+        assert!(matches!(
+            fixture
+                .nodes
+                .list_telemetry_history(&session, node.id, None, 100)
+                .await,
             Err(StoreError::Rejected)
         ));
         assert!(matches!(

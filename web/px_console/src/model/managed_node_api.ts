@@ -31,6 +31,15 @@ export interface NodeGpuTelemetry {
     received_at: string;
 }
 
+export interface NodeGpuTelemetryHistory extends NodeGpuTelemetry {
+    node_generation: number;
+    report_sequence: number;
+}
+
+export interface NodeTelemetryHistory extends NodeTelemetry {
+    gpus: NodeGpuTelemetryHistory[];
+}
+
 export interface ManagedNode {
     id: string;
     device_id: string;
@@ -75,6 +84,25 @@ export async function listManagedNodes(): Promise<ManagedNode[]> {
         after = response.data.at(-1)?.id;
         if (!after) throw new Error("A managed node page did not include its cursor identity");
     }
+}
+
+export async function listManagedNodeTelemetry(
+    nodeId: string,
+    limit = 100,
+    before?: NodeTelemetryHistory,
+): Promise<NodeTelemetryHistory[]> {
+    const response = await axiosHttp.get<NodeTelemetryHistory[]>(
+        `/api/console/managed/nodes/${encodeURIComponent(nodeId)}/telemetry`,
+        {
+            params: {
+                limit,
+                before_received_at: before?.received_at,
+                before_generation: before?.node_generation,
+                before_sequence: before?.report_sequence,
+            },
+        },
+    );
+    return response.data;
 }
 
 export async function createManagedNode(

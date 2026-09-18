@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH expired AS (\n SELECT node_id,node_generation,report_sequence\n FROM pixels.node_telemetry_history\n WHERE received_at<clock_timestamp()-INTERVAL '7 days'\n ORDER BY received_at,node_generation,report_sequence\n LIMIT 5000\n)\nDELETE FROM pixels.node_telemetry_history AS history\nUSING expired\nWHERE history.node_id=expired.node_id\n AND history.node_generation=expired.node_generation\n AND history.report_sequence=expired.report_sequence\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "0f0e0a5b26ec34cfeb29ba7dcd759f3db8d10195a57d6affdddd478393bf3063"
+}

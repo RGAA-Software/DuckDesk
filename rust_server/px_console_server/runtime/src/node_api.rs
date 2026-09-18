@@ -14,8 +14,9 @@ use axum::{
     routing::{get, patch, post},
     Json, Router,
 };
+use chrono::{DateTime, Utc};
 use futures_util::{SinkExt, StreamExt};
-use px_console_store::{NodeConfiguration, NodeConnection, NodeProduct};
+use px_console_store::{NodeConfiguration, NodeConnection, NodeProduct, TelemetryHistoryCursor};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
@@ -36,7 +37,61 @@ pub(crate) fn routes() -> Router<Arc<StateData>> {
             "/api/console/managed/nodes/{id}",
             patch(configure).delete(remove),
         )
+        .route(
+            "/api/console/managed/nodes/{id}/telemetry",
+            get(telemetry_history),
+        )
         .route("/api/console/managed/nodes/{id}/credential", post(rotate))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TelemetryPage {
+    before_received_at: Option<DateTime<Utc>>,
+    before_generation: Option<i64>,
+    before_sequence: Option<i64>,
+    limit: u32,
+}
+
+impl TelemetryPage {
+    fn cursor(&self) -> Result<Option<TelemetryHistoryCursor>, ApiError> {
+        match (
+            self.before_received_at,
+            self.before_generation,
+            self.before_sequence,
+        ) {
+            (None, None, None) => Ok(None),
+            (Some(received_at), Some(node_generation), Some(report_sequence)) => {
+                Ok(Some(TelemetryHistoryCursor {
+                    received_at,
+                    node_generation,
+                    report_sequence,
+                }))
+            }
+            _ => Err(ApiError::Invalid),
+        }
+    }
+}
+
+async fn telemetry_history(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    Path(node_id): Path<Uuid>,
+    Query(page): Query<TelemetryPage>,
+) -> Result<Json<Value>, ApiError> {
+    let cursor = page.cursor()?;
+    Ok(Json(json!(
+        state
+            .db
+            .nodes()
+            .list_telemetry_history(
+                &request::administrator(&state, &headers)?,
+                node_id,
+                cursor,
+                page.limit,
+            )
+            .await?
+    )))
 }
 
 async fn upgrade(

@@ -8,10 +8,12 @@ import {
     configureManagedNode,
     createManagedNode,
     deleteManagedNode,
+    listManagedNodeTelemetry,
     listManagedNodes,
     rotateManagedNodeCredential,
     type ManagedNode,
     type NodeTelemetry,
+    type NodeTelemetryHistory,
     type NodeProduct,
 } from "@/model/managed_node_api";
 
@@ -31,6 +33,10 @@ const form = reactive({
 });
 const credentialOpen = ref(false);
 const nodeToken = ref("");
+const telemetryHistoryOpen = ref(false);
+const telemetryHistoryLoading = ref(false);
+const telemetryHistoryNode = ref<ManagedNode>();
+const telemetryHistory = ref<NodeTelemetryHistory[]>([]);
 
 const availableDevices = computed(() => {
     const assigned = new Set(nodes.value.map(node => node.device_id));
@@ -80,6 +86,18 @@ function edit(node: ManagedNode) {
 function showCredential(token: string) {
     nodeToken.value = token;
     credentialOpen.value = true;
+}
+
+async function showTelemetryHistory(node: ManagedNode) {
+    telemetryHistoryNode.value = node;
+    telemetryHistory.value = [];
+    telemetryHistoryOpen.value = true;
+    telemetryHistoryLoading.value = true;
+    try {
+        telemetryHistory.value = await listManagedNodeTelemetry(node.id);
+    } finally {
+        telemetryHistoryLoading.value = false;
+    }
 }
 
 async function save() {
@@ -176,6 +194,10 @@ function formatTimestamp(timestamp: string | undefined): string {
         dateStyle: "medium",
         timeStyle: "medium",
     }).format(new Date(timestamp));
+}
+
+function telemetryHistoryKey(sample: NodeTelemetryHistory): string {
+    return `${sample.node_generation}:${sample.report_sequence}`;
 }
 
 onMounted(refresh);
@@ -305,6 +327,9 @@ onMounted(refresh);
                         ><a-button size="small" @click="edit(record)">{{
                             t("identity.actions.edit")
                         }}</a-button
+                        ><a-button size="small" @click="showTelemetryHistory(record)">{{
+                            t("nodes.history")
+                        }}</a-button
                         ><a-button size="small" danger @click="rotateCredential(record)">{{
                             t("nodes.rotate")
                         }}</a-button
@@ -364,5 +389,56 @@ onMounted(refresh);
             nodeToken
         }}</a-typography-paragraph>
         <a-button type="primary" @click="copyCredential">{{ t("nodes.copyCredential") }}</a-button>
+    </a-modal>
+
+    <a-modal
+        v-model:open="telemetryHistoryOpen"
+        :title="
+            t('nodes.historyTitle', {
+                node: telemetryHistoryNode ? deviceName(telemetryHistoryNode) : '',
+            })
+        "
+        :footer="null"
+        width="1100px"
+    >
+        <a-alert type="info" show-icon :message="t('nodes.historyNotice')" />
+        <a-table
+            :data-source="telemetryHistory"
+            :loading="telemetryHistoryLoading"
+            :pagination="false"
+            :row-key="telemetryHistoryKey"
+            size="small"
+            style="margin-top: 12px"
+        >
+            <a-table-column :title="t('nodes.sampledAt')">
+                <template #default="{ record }">{{ formatTimestamp(record.sampled_at) }}</template>
+            </a-table-column>
+            <a-table-column :title="t('nodes.telemetryState')">
+                <template #default="{ record }">{{
+                    formatProbeState(record.probe_state)
+                }}</template>
+            </a-table-column>
+            <a-table-column :title="t('nodes.generation')" data-index="node_generation" />
+            <a-table-column :title="t('nodes.sequence')" data-index="report_sequence" />
+            <a-table-column :title="t('nodes.cpu')">
+                <template #default="{ record }">{{
+                    formatPercent(record.cpu_utilization_per_mille)
+                }}</template>
+            </a-table-column>
+            <a-table-column :title="t('nodes.memory')">
+                <template #default="{ record }">{{
+                    formatUsage(record.memory_total_bytes, record.memory_available_bytes)
+                }}</template>
+            </a-table-column>
+            <a-table-column :title="t('nodes.disk')">
+                <template #default="{ record }">{{
+                    formatUsage(record.disk_total_bytes, record.disk_free_bytes)
+                }}</template>
+            </a-table-column>
+            <a-table-column :title="t('nodes.gpuCount')">
+                <template #default="{ record }">{{ record.gpus.length }}</template>
+            </a-table-column>
+            <template #emptyText>{{ t("nodes.noHistory") }}</template>
+        </a-table>
     </a-modal>
 </template>

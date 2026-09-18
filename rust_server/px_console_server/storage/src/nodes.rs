@@ -1,6 +1,7 @@
 use crate::{
-    control, ManagedNodeProfile, NodeConfiguration, NodeConnection, NodeGpuProfile, NodeProduct,
-    NodeProfile, NodeReport, NodeTelemetryProfile, RuntimeEpoch, StoreError, TokenDigest,
+    control, ManagedNodeProfile, ManagedNodeTelemetrySample, NodeConfiguration, NodeConnection,
+    NodeGpuHistoryProfile, NodeGpuProfile, NodeProduct, NodeProfile, NodeReport,
+    NodeTelemetryProfile, RuntimeEpoch, StoreError, TelemetryHistoryCursor, TokenDigest,
 };
 use sqlx::{PgConnection, PgPool};
 use std::collections::HashMap;
@@ -147,6 +148,87 @@ impl NodeStore {
             })
             .collect())
     }
+    pub async fn list_telemetry_history(
+        &self,
+        admin: &TokenDigest,
+        node_id: Uuid,
+        before: Option<TelemetryHistoryCursor>,
+        limit: u32,
+    ) -> Result<Vec<ManagedNodeTelemetrySample>, StoreError> {
+        if !(1..=100).contains(&limit)
+            || before
+                .is_some_and(|cursor| cursor.node_generation <= 0 || cursor.report_sequence <= 0)
+        {
+            return Err(StoreError::InvalidInput);
+        }
+        let mut tx = self.pool.begin().await?;
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+            .execute(&mut *tx)
+            .await?;
+        control::read_gate(&mut tx).await?;
+        control::authorize(&mut tx, admin, false).await?;
+        let before_received_at = before.map(|cursor| cursor.received_at);
+        let before_generation = before.map(|cursor| cursor.node_generation);
+        let before_sequence = before.map(|cursor| cursor.report_sequence);
+        let telemetry = sqlx::query_file_as!(
+            NodeTelemetryProfile,
+            "queries/managed_node_telemetry_history.sql",
+            node_id,
+            before_received_at,
+            before_generation,
+            before_sequence,
+            i64::from(limit)
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+        let generations = telemetry
+            .iter()
+            .map(|sample| sample.node_generation)
+            .collect::<Vec<_>>();
+        let sequences = telemetry
+            .iter()
+            .map(|sample| sample.report_sequence)
+            .collect::<Vec<_>>();
+        let mut gpus = HashMap::<(i64, i64), Vec<NodeGpuHistoryProfile>>::new();
+        if !generations.is_empty() {
+            for gpu in sqlx::query_file_as!(
+                NodeGpuHistoryProfile,
+                "queries/managed_node_gpu_history.sql",
+                node_id,
+                &generations,
+                &sequences
+            )
+            .fetch_all(&mut *tx)
+            .await?
+            {
+                gpus.entry((gpu.node_generation, gpu.report_sequence))
+                    .or_default()
+                    .push(gpu);
+            }
+        }
+        tx.commit().await?;
+        Ok(telemetry
+            .into_iter()
+            .map(|sample| ManagedNodeTelemetrySample {
+                gpus: gpus
+                    .remove(&(sample.node_generation, sample.report_sequence))
+                    .unwrap_or_default(),
+                telemetry: sample,
+            })
+            .collect())
+    }
+    /// Runtime maintenance only. Each call deletes a bounded batch older than the fixed
+    /// seven-day raw-sample window; GPU rows follow through the sample foreign key.
+    pub async fn prune_telemetry_history(&self) -> Result<u64, StoreError> {
+        let mut tx = self.pool.begin().await?;
+        control::write_gate(&mut tx).await?;
+        let removed = sqlx::query_file!("queries/prune_node_telemetry_history.sql")
+            .execute(&mut *tx)
+            .await?
+            .rows_affected();
+        tx.commit().await?;
+        Ok(removed)
+    }
     pub async fn open_connection(
         &self,
         epoch: RuntimeEpoch,
@@ -226,10 +308,45 @@ impl NodeStore {
         )
         .fetch_one(&mut *tx)
         .await?;
+        sqlx::query_file!(
+            "queries/insert_node_telemetry_history.sql",
+            node.id,
+            node.generation,
+            validated.sequence,
+            telemetry.probe_state,
+            telemetry.sampled_at,
+            received_at,
+            telemetry.logical_processors,
+            telemetry.cpu_utilization_per_mille,
+            telemetry.memory_total_bytes,
+            telemetry.memory_available_bytes,
+            telemetry.disk_total_bytes,
+            telemetry.disk_free_bytes,
+            telemetry.gpu_inventory_revision
+        )
+        .execute(&mut *tx)
+        .await?;
         for gpu in telemetry.gpus {
             sqlx::query_file!(
                 "queries/insert_node_gpu.sql",
                 node.id,
+                gpu.stable_key,
+                telemetry.gpu_inventory_revision,
+                gpu.name,
+                gpu.dedicated_memory_bytes,
+                gpu.used_memory_bytes,
+                gpu.utilization_per_mille,
+                gpu.encoder_utilization_per_mille,
+                telemetry.sampled_at,
+                received_at
+            )
+            .execute(&mut *tx)
+            .await?;
+            sqlx::query_file!(
+                "queries/insert_node_gpu_history.sql",
+                node.id,
+                node.generation,
+                validated.sequence,
                 gpu.stable_key,
                 telemetry.gpu_inventory_revision,
                 gpu.name,
