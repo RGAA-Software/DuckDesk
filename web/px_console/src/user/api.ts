@@ -59,6 +59,26 @@ export interface ResourcePage<T> {
     total: number;
 }
 
+export interface RecordingView {
+    id: string;
+    node_id: string;
+    session_id: string | null;
+    file_name: string;
+    size_bytes: number;
+    modified_at: string;
+    codec: string;
+    reported_present: boolean;
+    observed_at: string;
+}
+
+export interface RecordingCacheView {
+    recording_id: string;
+    state: "missing" | "fetching" | "ready" | "verifying" | "retry_required";
+    size_bytes: number;
+    received_bytes: number;
+    updated_at: string;
+}
+
 interface DeviceRecord {
     id: string;
     public_code: string;
@@ -312,6 +332,36 @@ export async function getInstancesPage(page = 1, pageSize = 10, keyword = "", st
                 instance.instance_id.toLocaleLowerCase().includes(normalized)),
     );
     return pageOf(instances, page, pageSize);
+}
+
+export async function getRecordingsPage(page = 1, pageSize = 10, keyword = "") {
+    const normalized = keyword.trim().toLocaleLowerCase();
+    const recordings = (
+        await collectPages<RecordingView>(userResourceHttp, "/api/console/recordings")
+    ).filter(
+        recording =>
+            !normalized ||
+            recording.file_name.toLocaleLowerCase().includes(normalized) ||
+            recording.session_id?.toLocaleLowerCase().includes(normalized),
+    );
+    return pageOf(recordings, page, pageSize);
+}
+
+export async function requestRecordingCache(recordingId: string) {
+    return (
+        await userResourceHttp.post<RecordingCacheView>(
+            `/api/console/recordings/${encodeURIComponent(recordingId)}/cache`,
+        )
+    ).data;
+}
+
+export async function downloadRecording(recordingId: string) {
+    return (
+        await userResourceHttp.get<Blob>(
+            `/api/console/recordings/${encodeURIComponent(recordingId)}/download`,
+            { responseType: "blob" },
+        )
+    ).data;
 }
 
 export async function getSummary(): Promise<ResourceSummary> {

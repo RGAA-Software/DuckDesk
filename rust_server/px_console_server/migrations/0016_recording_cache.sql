@@ -37,7 +37,7 @@ CREATE TABLE pixels.cache_blobs (
  login_session_id UUID NOT NULL,
  owner_revision BIGINT NOT NULL CHECK (owner_revision>0),
  client_type TEXT NOT NULL CHECK (client_type IN ('panel','android','user_web','admin_web')),
- access_scope TEXT NOT NULL CHECK (access_scope IN ('managed','device')),
+ access_scope TEXT NOT NULL CHECK (access_scope IN ('managed','user')),
  lease_id UUID NOT NULL,
  lease_until TIMESTAMPTZ NOT NULL,
  deadline TIMESTAMPTZ NOT NULL,
@@ -53,7 +53,7 @@ CREATE TABLE pixels.cache_blobs (
  FOREIGN KEY(run_id,root_id) REFERENCES pixels.cache_runs(id,root_id),
  FOREIGN KEY(login_session_id,origin_user) REFERENCES pixels.login_sessions(id,user_id),
  CHECK (lease_until<=deadline),
- CHECK ((access_scope='managed' AND client_type='admin_web') OR (access_scope='device' AND client_type IN ('panel','android','user_web'))),
+ CHECK ((access_scope='managed' AND client_type='admin_web') OR (access_scope='user' AND client_type IN ('panel','android','user_web'))),
  CHECK (state<>'published' OR received_bytes=size_bytes),
  CHECK (verified_run IS NULL OR state='published')
 );

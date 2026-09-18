@@ -1,7 +1,7 @@
 use crate::{
     control, node_lifecycle, recording_model::RecordingRow, resource_policy::resource_user,
-    ClientType, DeviceStore, NodeConnection, RecordingProfile, RecordingReport,
-    ResourceSessionStore, StoreError, TokenDigest,
+    ClientType, NodeConnection, RecordingProfile, RecordingReport, ResourceSessionStore,
+    StoreError, TokenDigest,
 };
 use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
@@ -119,13 +119,12 @@ impl RecordingStore {
         tx.commit().await?;
         Ok(result)
     }
-    /// Node library access follows explicit current device ACL. Cloud-app access by
-    /// itself never authorizes browsing all recordings from the execution host.
-    pub async fn list_visible(
+    /// A user sees only recordings attributed to resource sessions that they own.
+    /// This never authorizes browsing unrelated recordings from the execution host.
+    pub async fn list_owned(
         &self,
         token: &TokenDigest,
         client: ClientType,
-        node: Uuid,
         after: Option<Uuid>,
         limit: u32,
     ) -> Result<Vec<RecordingProfile>, StoreError> {
@@ -133,17 +132,15 @@ impl RecordingStore {
         let mut tx = self.pool.begin().await?;
         control::read_gate(&mut tx).await?;
         let user = resource_user(&mut tx, token, client).await?;
-        let device = sqlx::query_file_scalar!("queries/recording_node_device.sql", node)
-            .fetch_optional(&mut *tx)
-            .await?
-            .ok_or(StoreError::Rejected)?;
-        if DeviceStore::visible(&mut tx, user, None, 1, Some(device))
-            .await?
-            .is_empty()
-        {
-            return Err(StoreError::Rejected);
-        }
-        let result = Self::list(&mut tx, Some(node), after, limit).await?;
+        let result = sqlx::query_file_as!(
+            RecordingProfile,
+            "queries/list_owned_recordings.sql",
+            user,
+            after,
+            i64::from(limit)
+        )
+        .fetch_all(&mut *tx)
+        .await?;
         tx.commit().await?;
         Ok(result)
     }

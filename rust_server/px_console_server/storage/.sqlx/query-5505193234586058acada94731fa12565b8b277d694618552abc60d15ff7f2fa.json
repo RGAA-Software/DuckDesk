@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT r.id AS recording_id,r.node_id,n.device_id,r.source_id,r.source_sha256,r.size_bytes,r.node_generation,\nCOALESCE(r.reported_present AND r.control_epoch=$2 AND r.node_generation=n.generation AND n.control_epoch=$2\n AND $2=(SELECT epoch FROM pixels.control_runtime) AND n.connection_hash IS NOT NULL AND n.report_sequence>0\n AND n.last_seen>clock_timestamp()-interval '30 seconds' AND NOT n.disabled AND n.deleted_at IS NULL\n AND NOT d.disabled AND d.deleted_at IS NULL,false) AS \"fetchable!\"\nFROM pixels.recordings r JOIN pixels.nodes n ON n.id=r.node_id JOIN pixels.devices d ON d.id=n.device_id WHERE r.id=$1\n",
+  "query": "SELECT r.id AS recording_id,r.node_id,n.device_id,r.session_id,r.source_id,r.source_sha256,r.size_bytes,r.node_generation,\nCOALESCE(r.reported_present AND r.control_epoch=$2 AND r.node_generation=n.generation AND n.control_epoch=$2\n AND $2=(SELECT epoch FROM pixels.control_runtime) AND n.connection_hash IS NOT NULL AND n.report_sequence>0\n AND n.last_seen>clock_timestamp()-interval '30 seconds' AND NOT n.disabled AND n.deleted_at IS NULL\n AND NOT d.disabled AND d.deleted_at IS NULL,false) AS \"fetchable!\"\nFROM pixels.recordings r JOIN pixels.nodes n ON n.id=r.node_id JOIN pixels.devices d ON d.id=n.device_id WHERE r.id=$1\n",
   "describe": {
     "columns": [
       {
@@ -20,26 +20,31 @@
       },
       {
         "ordinal": 3,
-        "name": "source_id",
+        "name": "session_id",
         "type_info": "Uuid"
       },
       {
         "ordinal": 4,
+        "name": "source_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
         "name": "source_sha256",
         "type_info": "Bytea"
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "size_bytes",
         "type_info": "Int8"
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "node_generation",
         "type_info": "Int8"
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "fetchable!",
         "type_info": "Bool"
       }
@@ -54,6 +59,7 @@
       false,
       false,
       false,
+      true,
       false,
       false,
       false,
@@ -61,5 +67,5 @@
       null
     ]
   },
-  "hash": "ca8244e2bcc81cb9d72af6a46ee312a8572b07ac561e6149ba6b58968db18b23"
+  "hash": "5505193234586058acada94731fa12565b8b277d694618552abc60d15ff7f2fa"
 }

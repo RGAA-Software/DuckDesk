@@ -240,7 +240,7 @@ try {
         # Explicit developer command, never performed implicitly by acceptance tests.
         # PostgreSQL/SQLx generate these files; this is not evidence that runtime tests passed.
         foreach ($item in @(
-            @{Service='console';Crate='px_console_store';Path='rust_server/px_console_server/storage';Count=267},
+            @{Service='console';Crate='px_console_store';Path='rust_server/px_console_server/storage';Count=268},
             @{Service='desk';Crate='px_desk_server';Path='rust_server/px_desk_server';Count=9},
             @{Service='auth';Crate='px_auth_store';Path='rust_server/px_auth_server/storage';Count=30}
         )) {
@@ -306,7 +306,7 @@ try {
             foreach ($case in @('console-browser/login-dashboard','console-browser/identity-create-user-group',
                 'console-browser/device-one-time-enrollment','console-browser/navigation-language-theme',
                 'console-process/restart-preserves-session-data','console-process/database-outage-fails-closed-and-recovers',
-                'console-browser/logout-revokes')) {
+                'console-browser/logout-revokes','console-browser/user-recordings-empty-state')) {
                 if (-not $consoleBrowser.Contains("PASS $case")) { throw "Console functional assertion missing: $case" }
                 Add-Step "CONSOLE/$case"
             }
@@ -320,7 +320,7 @@ try {
             Invoke-Checked 'docker' @('exec',$container,'psql','-X','-v','ON_ERROR_STOP=1','-U','pixels_admin','-d','pixels_desk','-c',
                 "CREATE TABLE pixels.pg_fixture(id uuid PRIMARY KEY,version text NOT NULL,created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP); ALTER TABLE pixels.pg_fixture OWNER TO pixels_desk_owner; GRANT SELECT,INSERT,UPDATE,DELETE ON pixels.pg_fixture TO pixels_desk_runtime") | Out-Null
         }
-        $suiteCounts = @{unit=19;identity=12;control=8;devices=8;applications=8;guests=9;nodes=9;deployments=6;instances=11;commands=16;workspaces=6;database=2;sessions=10;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=16;activity=8;updates=7;desk=7;catalog=4;lease=6;postgres=14;accounts=9}
+        $suiteCounts = @{unit=19;identity=12;control=8;devices=8;applications=8;guests=9;nodes=9;deployments=6;instances=11;commands=16;workspaces=6;database=2;sessions=10;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=17;activity=8;updates=7;desk=7;catalog=4;lease=6;postgres=14;accounts=9}
         $suiteCounts['console-api'] = 6
         $suiteCounts['directory-api'] = 7
         $suiteCounts['node-control'] = 1
@@ -499,7 +499,7 @@ try {
     Add-TestCases $preferenceIntegration 'native/preferences' 7
     $cacheIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--test','cache','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $cacheIntegration
-    Add-TestCases $cacheIntegration 'native/cache' 16
+    Add-TestCases $cacheIntegration 'native/cache' 17
     $activityIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--test','activity','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $activityIntegration
     Add-TestCases $activityIntegration 'native/activity' 8
@@ -507,7 +507,7 @@ try {
     Write-Host $updateIntegration
     Add-TestCases $updateIntegration 'native/updates' 7
     Add-Step 'PREFERENCES: owner/client-scoped targets, bounded settings, exact retry, CAS, quota and atomic events'
-    Add-Step 'RECORDINGS: immutable source versions, independent library, exact node/session origin, observation ordering and device ACL'
+    Add-Step 'RECORDINGS: immutable source versions, exact node/session origin, owner-scoped history and cache authorization'
     Add-Step 'TRANSFERS: original producer, ordered idempotent progress, hash completion, unknown state and atomic events'
     Add-Step 'SESSIONS: explicit targets, original owner, descriptor leases, RDP occupancy, frontend retirement and atomic events'
     Add-Step 'COMPOSITION: one bounded shared pool, repository lifecycle, wrong deployment and owner-role rejection'
@@ -591,8 +591,8 @@ try {
     Add-Step 'AUTH-WEB: five contract tests, catalogs, themes, bounds, retry identity and logout failures'
     Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_console'),'run','build') | Out-Null
     $consoleWebUnit = Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_console'),'run','test:unit','--','--run')
-    if ($consoleWebUnit -notmatch 'Tests\s+37 passed') { throw 'Console frontend contract tests missing' }
-    Add-Step 'CONSOLE-WEB: 37 bearer identity, managed directory/activity/telemetry history and alerts, authorized recording downloads, localization, descriptor secrecy and production bundle tests'
+    if ($consoleWebUnit -notmatch 'Tests\s+39 passed') { throw 'Console frontend contract tests missing' }
+    Add-Step 'CONSOLE-WEB: 39 bearer identity, managed directory/activity/telemetry history and alerts, authorized recording downloads, localization, descriptor secrecy and production bundle tests'
     $consoleParity = Get-Content -LiteralPath (Join-Path $repo 'docs/console_management_feature_parity.md') -Raw
     $requiredConsoleCapabilities = @(
         'CM-IDENTITY', 'CM-DASHBOARD', 'CM-DEVICE', 'CM-ONLINE', 'CM-CONNECTION', 'CM-APPLICATION',
@@ -610,7 +610,7 @@ try {
     foreach ($case in @('console-browser/login-dashboard','console-browser/identity-create-user-group',
         'console-browser/device-one-time-enrollment','console-browser/navigation-language-theme',
         'console-process/restart-preserves-session-data','console-process/database-outage-fails-closed-and-recovers',
-        'console-browser/logout-revokes')) {
+        'console-browser/logout-revokes','console-browser/user-recordings-empty-state')) {
         if (-not $consoleBrowser.Contains("PASS $case")) { throw "Console functional assertion missing: $case" }
         Add-Step "CONSOLE/$case"
     }

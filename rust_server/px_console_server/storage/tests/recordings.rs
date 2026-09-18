@@ -2,11 +2,11 @@
 mod fixture;
 use fixture::{config, node_report, token, Fixture};
 use px_console_store::{
-    ClientType, CommandOutcome, CommandReceipt, DeploymentTarget, DeviceAccess, NodeCommandAction,
+    ClientType, CommandOutcome, CommandReceipt, DeploymentTarget, NodeCommandAction,
     OpenResourceSession, RecordingCodec, RecordingReport, RecordingStore, ResourceCredential,
     ResourceSessionStore, SessionAccess, SessionTarget,
 };
-use std::{env, sync::Arc, time::Duration};
+use std::{env, sync::Arc};
 use tokio::sync::Barrier;
 use uuid::Uuid;
 async fn store() -> RecordingStore {
@@ -321,66 +321,76 @@ async fn failed_recording_audit_rolls_back_creation_observation_and_immutable_me
     fixture.close().await;
 }
 #[tokio::test]
-async fn node_library_requires_current_device_acl_and_has_bounded_secret_free_history() {
+async fn owned_history_is_session_scoped_bounded_and_secret_free() {
     let fixture = Fixture::new().await;
     let recording_store = store().await;
-    let (node, _) = fixture.connected().await;
-    let mut ids = Vec::new();
-    for _ in 0..3 {
-        ids.push(recording_store.report(&node, &report()).await.unwrap().id);
-    }
-    ids.sort();
-    let user = fixture.session("user", ClientType::Android).await;
-    assert!(recording_store
-        .list_visible(&user, ClientType::Android, node.id(), None, 100)
-        .await
-        .is_err());
-    let identity = fixture
-        .identity
-        .authenticate(&user, ClientType::Android)
-        .await
-        .unwrap();
-    let device: Uuid = sqlx::query_scalar("SELECT device_id FROM pixels.nodes WHERE id=$1")
-        .bind(node.id())
-        .fetch_one(&fixture.owner)
-        .await
-        .unwrap();
+    let (node, application, _) = fixture.prepared(DeploymentTarget::Webview, 4).await;
+    let (user, instance, command) = fixture.started(&node, application.id).await;
+    let port = match command.action {
+        NodeCommandAction::Start { port, .. } => port,
+        _ => panic!("start required"),
+    };
     fixture
-        .devices
-        .replace_access(
-            &fixture.admin,
-            device,
-            1,
-            &DeviceAccess {
-                users: vec![identity.user_id],
-                groups: vec![],
+        .instances
+        .acknowledge_command(
+            &node,
+            &CommandReceipt {
+                command_id: command.id,
+                lease_id: command.lease_id,
+                instance_id: instance.id,
+                launch_id: command.launch_id,
+                instance_revision: command.instance_revision,
+                outcome: CommandOutcome::Running { port },
             },
         )
         .await
         .unwrap();
-    let rev: i64 =
-        sqlx::query_scalar("SELECT authorization_revision FROM pixels.users WHERE id=$1")
-            .bind(identity.user_id)
-            .fetch_one(&fixture.owner)
-            .await
-            .unwrap();
-    let user = token();
-    fixture
-        .identity
-        .issue_session(
-            identity.user_id,
-            rev,
-            &user,
+    let sessions = ResourceSessionStore::connect(
+        &config("RUNTIME"),
+        env::var("PIXELS_DEPLOYMENT_ID").unwrap().parse().unwrap(),
+    )
+    .await
+    .unwrap();
+    let session = sessions
+        .open(
+            ResourceCredential::User(&user),
             ClientType::Android,
-            Duration::from_secs(3600),
+            &OpenResourceSession {
+                request_id: Uuid::new_v4(),
+                target: SessionTarget::CloudApplication {
+                    application_id: application.id,
+                    instance_id: instance.id,
+                },
+                access: SessionAccess::Controller,
+            },
         )
         .await
         .unwrap();
+    let mut ids = Vec::new();
+    for _ in 0..3 {
+        let mut recording_report = report();
+        recording_report.session_id = Some(session.id);
+        ids.push(
+            recording_store
+                .report(&node, &recording_report)
+                .await
+                .unwrap()
+                .id,
+        );
+    }
+    ids.sort();
+    recording_store.report(&node, &report()).await.unwrap();
+    let unrelated_user = fixture.session("user", ClientType::Android).await;
+    assert!(recording_store
+        .list_owned(&unrelated_user, ClientType::Android, None, 100)
+        .await
+        .unwrap()
+        .is_empty());
     let mut after = None;
     let mut found = Vec::new();
     loop {
         let page = recording_store
-            .list_visible(&user, ClientType::Android, node.id(), after, 1)
+            .list_owned(&user, ClientType::Android, after, 1)
             .await
             .unwrap();
         if page.is_empty() {
@@ -402,7 +412,7 @@ async fn node_library_requires_current_device_acl_and_has_bounded_secret_free_hi
             .await
             .unwrap()
             .len(),
-        3
+        4
     );
     assert!(recording_store
         .list_managed(&viewer, None, None, 101)
@@ -412,23 +422,11 @@ async fn node_library_requires_current_device_acl_and_has_bounded_secret_free_hi
         .list_managed(&user, None, None, 1)
         .await
         .is_err());
-    fixture
-        .devices
-        .replace_access(
-            &fixture.admin,
-            device,
-            2,
-            &DeviceAccess {
-                users: vec![],
-                groups: vec![],
-            },
-        )
-        .await
-        .unwrap();
     assert!(recording_store
-        .list_visible(&user, ClientType::Android, node.id(), None, 100)
+        .list_owned(&user, ClientType::Android, None, 101)
         .await
         .is_err());
+    sessions.close().await;
     recording_store.close().await;
     assert!(recording_store
         .list_managed(&viewer, None, None, 1)
@@ -441,7 +439,7 @@ async fn node_library_requires_current_device_acl_and_has_bounded_secret_free_hi
             .await
             .unwrap()
             .len(),
-        3
+        4
     );
     reopened.close().await;
     fixture.close().await;

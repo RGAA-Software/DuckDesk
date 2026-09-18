@@ -39,7 +39,7 @@ impl CacheRuntime {
 }
 pub enum CacheCredential<'a> {
     Managed(&'a TokenDigest),
-    DeviceUser {
+    User {
         token: &'a TokenDigest,
         client: ClientType,
     },
@@ -110,6 +110,7 @@ pub(crate) struct CacheSource {
     pub recording_id: Uuid,
     pub node_id: Uuid,
     pub device_id: Uuid,
+    pub session_id: Option<Uuid>,
     pub source_id: Uuid,
     pub source_sha256: Vec<u8>,
     pub size_bytes: i64,

@@ -2,8 +2,10 @@
 mod fixture;
 use fixture::{config, node_report, token, Fixture};
 use px_console_store::{
-    CacheCredential, CacheOptions, CacheRuntime, ClientType, RecordingCacheStore, RecordingCodec,
-    RecordingReport, RecordingStore, StoreError,
+    CacheCredential, CacheOptions, CacheRuntime, ClientType, CommandOutcome, CommandReceipt,
+    DeploymentTarget, NodeCommandAction, OpenResourceSession, RecordingCacheStore, RecordingCodec,
+    RecordingReport, RecordingStore, ResourceCredential, ResourceSessionStore, SessionAccess,
+    SessionTarget, StoreError,
 };
 use px_private_files::{CacheRoot, ContentIdentity};
 use sha2::{Digest, Sha256};
@@ -54,6 +56,181 @@ impl CacheFixture {
     }
 }
 #[tokio::test]
+async fn cloud_application_session_owner_can_cache_and_read_without_device_access() {
+    let cache_fixture = CacheFixture::new().await;
+    let (node, application, _) = cache_fixture
+        .base_fixture
+        .prepared(DeploymentTarget::Webview, 4)
+        .await;
+    let session_run = cache_fixture
+        .store
+        .begin_runtime(cache_fixture.run.root().clone(), node.epoch(), options())
+        .await
+        .unwrap();
+    let (session_owner, instance, command) = cache_fixture
+        .base_fixture
+        .started(&node, application.id)
+        .await;
+    let port = match command.action {
+        NodeCommandAction::Start { port, .. } => port,
+        _ => panic!("start required"),
+    };
+    cache_fixture
+        .base_fixture
+        .instances
+        .acknowledge_command(
+            &node,
+            &CommandReceipt {
+                command_id: command.id,
+                lease_id: command.lease_id,
+                instance_id: instance.id,
+                launch_id: command.launch_id,
+                instance_revision: command.instance_revision,
+                outcome: CommandOutcome::Running { port },
+            },
+        )
+        .await
+        .unwrap();
+    let deployment: Uuid = env::var("PIXELS_DEPLOYMENT_ID").unwrap().parse().unwrap();
+    let sessions = ResourceSessionStore::connect(&config("RUNTIME"), deployment)
+        .await
+        .unwrap();
+    let session = sessions
+        .open(
+            ResourceCredential::User(&session_owner),
+            ClientType::Android,
+            &OpenResourceSession {
+                request_id: Uuid::new_v4(),
+                target: SessionTarget::CloudApplication {
+                    application_id: application.id,
+                    instance_id: instance.id,
+                },
+                access: SessionAccess::Controller,
+            },
+        )
+        .await
+        .unwrap();
+    let recording = cache_fixture
+        .recordings
+        .report(
+            &node,
+            &RecordingReport {
+                source_id: Uuid::new_v4(),
+                source_sha256: Sha256::digest(DATA).into(),
+                session_id: Some(session.id),
+                file_name: "会话录像.mp4".into(),
+                size_bytes: DATA.len() as u64,
+                modified_unix_ms: 1_800_000_000_000,
+                codec: RecordingCodec::H264,
+                sequence: 1,
+                present: true,
+            },
+        )
+        .await
+        .unwrap();
+    let unrelated_user = cache_fixture
+        .base_fixture
+        .session("user", ClientType::Android)
+        .await;
+    assert!(cache_fixture
+        .store
+        .request(
+            &session_run,
+            CacheCredential::User {
+                token: &unrelated_user,
+                client: ClientType::Android,
+            },
+            recording.id,
+        )
+        .await
+        .is_err());
+    let fetching = cache_fixture
+        .store
+        .request(
+            &session_run,
+            CacheCredential::User {
+                token: &session_owner,
+                client: ClientType::Android,
+            },
+            recording.id,
+        )
+        .await
+        .unwrap();
+    assert_eq!(fetching.state, "fetching");
+    let cache_attempt = cache_fixture
+        .store
+        .pending(&session_run, &node, None, 100)
+        .await
+        .unwrap()
+        .remove(0);
+    let mut writer = cache_fixture
+        .run
+        .root()
+        .try_lock_blob(cache_attempt.id())
+        .unwrap()
+        .begin_write(cache_attempt.content())
+        .unwrap();
+    writer.append(DATA).unwrap();
+    let proof = writer.finish().unwrap();
+    cache_fixture
+        .store
+        .publish(&session_run, &node, &cache_attempt, &proof)
+        .await
+        .unwrap();
+    drop(proof);
+    let file = cache_fixture
+        .store
+        .cached_file(
+            &session_run,
+            CacheCredential::User {
+                token: &session_owner,
+                client: ClientType::Android,
+            },
+            recording.id,
+        )
+        .await
+        .unwrap();
+    let reader = cache_fixture
+        .run
+        .root()
+        .try_read(file.id, file.content)
+        .unwrap();
+    let lease = cache_fixture
+        .store
+        .open_read(
+            &session_run,
+            CacheCredential::User {
+                token: &session_owner,
+                client: ClientType::Android,
+            },
+            recording.id,
+            &reader,
+        )
+        .await
+        .unwrap();
+    cache_fixture
+        .store
+        .renew_read(&session_run, &lease, &reader)
+        .await
+        .unwrap();
+    assert!(cache_fixture
+        .store
+        .cached_file(
+            &session_run,
+            CacheCredential::User {
+                token: &unrelated_user,
+                client: ClientType::Android,
+            },
+            recording.id,
+        )
+        .await
+        .is_err());
+    drop(reader);
+    sessions.close().await;
+    drop(session_run);
+    cache_fixture.close().await;
+}
+#[tokio::test]
 async fn read_leases_are_bounded_login_bound_revocable_and_not_blob_bearer_tokens() {
     let cache_fixture = CacheFixture::new().await;
     let (id, file) = cache_fixture.ready().await;
@@ -74,7 +251,7 @@ async fn read_leases_are_bounded_login_bound_revocable_and_not_blob_bearer_token
         .store
         .open_read(
             &cache_fixture.run,
-            CacheCredential::DeviceUser {
+            CacheCredential::User {
                 token: &android,
                 client: ClientType::Android
             },
@@ -671,7 +848,7 @@ async fn android_media_requires_current_device_acl_not_application_or_other_clie
         .store
         .open_read(
             &cache_fixture.run,
-            CacheCredential::DeviceUser {
+            CacheCredential::User {
                 token: &login,
                 client: ClientType::Android,
             },
@@ -684,7 +861,7 @@ async fn android_media_requires_current_device_acl_not_application_or_other_clie
         .store
         .open_read(
             &cache_fixture.run,
-            CacheCredential::DeviceUser {
+            CacheCredential::User {
                 token: &login,
                 client: ClientType::Panel
             },
@@ -1390,7 +1567,7 @@ async fn client_acl_node_generation_and_epoch_are_independent_admission_gates() 
         .store
         .request(
             &cache_fixture.run,
-            CacheCredential::DeviceUser {
+            CacheCredential::User {
                 token: &android,
                 client: ClientType::Android
             },
@@ -1407,7 +1584,7 @@ async fn client_acl_node_generation_and_epoch_are_independent_admission_gates() 
         .store
         .request(
             &cache_fixture.run,
-            CacheCredential::DeviceUser {
+            CacheCredential::User {
                 token: &cache_fixture.base_fixture.admin,
                 client: ClientType::AdminWeb
             },

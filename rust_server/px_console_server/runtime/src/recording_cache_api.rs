@@ -49,7 +49,7 @@ pub(crate) fn routes() -> Router<Arc<StateData>> {
 
 enum CacheAuthorization {
     Managed(TokenDigest),
-    DeviceUser {
+    User {
         token: TokenDigest,
         client: ClientType,
     },
@@ -59,7 +59,7 @@ impl CacheAuthorization {
     fn credential(&self) -> CacheCredential<'_> {
         match self {
             Self::Managed(token) => CacheCredential::Managed(token),
-            Self::DeviceUser { token, client } => CacheCredential::DeviceUser {
+            Self::User { token, client } => CacheCredential::User {
                 token,
                 client: *client,
             },
@@ -73,7 +73,7 @@ async fn request_cache(
     Path(id): Path<Uuid>,
 ) -> Result<Json<CacheProfile>, ApiError> {
     let context = request::resource_context(&state, &headers)?;
-    let authorization = CacheAuthorization::DeviceUser {
+    let authorization = CacheAuthorization::User {
         token: context.user_token()?.clone(),
         client: context.client,
     };
@@ -113,7 +113,7 @@ async fn download(
     Path(id): Path<Uuid>,
 ) -> Result<Response, ApiError> {
     let context = request::resource_context(&state, &headers)?;
-    let authorization = CacheAuthorization::DeviceUser {
+    let authorization = CacheAuthorization::User {
         token: context.user_token()?.clone(),
         client: context.client,
     };

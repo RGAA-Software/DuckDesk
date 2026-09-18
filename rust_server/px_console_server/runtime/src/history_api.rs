@@ -50,14 +50,6 @@ struct ManagedTransferPage {
     limit: u32,
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct VisibleRecordingPage {
-    node: Uuid,
-    after: Option<Uuid>,
-    limit: u32,
-}
-
 async fn owned_visits(
     State(state): State<Arc<StateData>>,
     headers: HeaderMap,
@@ -112,17 +104,16 @@ async fn owned_transfers(
 async fn visible_recordings(
     State(state): State<Arc<StateData>>,
     headers: HeaderMap,
-    Query(page): Query<VisibleRecordingPage>,
+    Query(page): Query<HistoryPage>,
 ) -> Result<Json<Vec<RecordingProfile>>, ApiError> {
     let context = request::resource_context(&state, &headers)?;
     Ok(Json(
         state
             .db
             .recordings()
-            .list_visible(
+            .list_owned(
                 context.user_token()?,
                 context.client,
-                page.node,
                 page.after,
                 page.limit,
             )

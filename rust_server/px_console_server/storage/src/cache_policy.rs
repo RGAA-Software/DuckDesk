@@ -64,15 +64,30 @@ impl RecordingCacheStore {
                 control::authorize(connection, token, false).await?;
                 (*token, "managed")
             }
-            CacheCredential::DeviceUser { token, client } => {
+            CacheCredential::User { token, client } => {
                 let user = resource_user(connection, token, *client).await?;
-                if DeviceStore::visible(connection, user, None, 1, Some(source.device_id))
-                    .await?
-                    .is_empty()
-                {
-                    return Err(StoreError::Rejected);
+                let session_owned = match source.session_id {
+                    Some(session_id) => {
+                        sqlx::query_file_scalar!(
+                            "queries/recording_session_owned.sql",
+                            session_id,
+                            user
+                        )
+                        .fetch_one(&mut *connection)
+                        .await?
+                    }
+                    None => false,
+                };
+                if !session_owned {
+                    let device_visible =
+                        !DeviceStore::visible(connection, user, None, 1, Some(source.device_id))
+                            .await?
+                            .is_empty();
+                    if !device_visible {
+                        return Err(StoreError::Rejected);
+                    }
                 }
-                (*token, "device")
+                (*token, "user")
             }
         };
         let origin = sqlx::query_file_as!(

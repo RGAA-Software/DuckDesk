@@ -88,7 +88,7 @@ impl UploadRegistry {
         if state.grants.len() >= MAX_UPLOAD_GRANTS {
             return Err(ApiError::Unavailable);
         }
-        let (token, digest) = crate::request::mint();
+        let (token, _storage_token_digest) = crate::request::mint();
         let token_digest = Self::digest(&token);
         let valid_for_ms = attempt.valid_for_ms();
         if valid_for_ms == 0 {
@@ -111,7 +111,6 @@ impl UploadRegistry {
         };
         state.attempts.insert(descriptor.attempt_id, token_digest);
         state.grants.insert(token_digest, pending);
-        drop(digest);
         Ok(Some(descriptor))
     }
 

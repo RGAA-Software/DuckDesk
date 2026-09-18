@@ -33,6 +33,7 @@ const privateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "pixels-console-b
 const guestSourcePath = path.join(privateDirectory, "guest-source.key");
 const workspaceKeyPath = path.join(privateDirectory, "workspace.key");
 const passwordPath = path.join(privateDirectory, "initial-password.txt");
+const recordingCachePath = path.join(privateDirectory, "recording-cache");
 const workspaceKeyId = randomUUID();
 let child;
 let browser;
@@ -99,6 +100,7 @@ function createBrowserDatabase() {
 function provisionConsole() {
   const identity = runExecutable("whoami", [], {}).trim();
   runExecutable("icacls", [privateDirectory, "/inheritance:r", "/grant:r", `${identity}:(OI)(CI)F`, "*S-1-5-18:(OI)(CI)F"], {});
+  fs.mkdirSync(recordingCachePath);
   fs.writeFileSync(passwordPath, initialPassword, { flag: "wx" });
   runExecutable(administratorExecutable, ["generate-secrets"], {
     PIXELS_CONSOLE_GUEST_SOURCE_KEY: guestSourcePath,
@@ -111,6 +113,10 @@ function provisionConsole() {
     PIXELS_DEPLOYMENT_ID: process.env.PIXELS_DEPLOYMENT_ID,
     PIXELS_CONSOLE_INITIAL_USERNAME: initialUsername,
     PIXELS_CONSOLE_INITIAL_PASSWORD_FILE: passwordPath,
+  });
+  runExecutable(administratorExecutable, ["initialize-recording-cache"], {
+    PIXELS_DEPLOYMENT_ID: process.env.PIXELS_DEPLOYMENT_ID,
+    PIXELS_CONSOLE_RECORDING_CACHE_DIRECTORY: recordingCachePath,
   });
 }
 
@@ -163,6 +169,10 @@ async function startServer() {
     PIXELS_CONSOLE_GUEST_SOURCE_KEY: guestSourcePath,
     PIXELS_CONSOLE_WORKSPACE_ACTIVE_KEY: workspaceKeyId,
     PIXELS_CONSOLE_WORKSPACE_KEYS: JSON.stringify([{ id: workspaceKeyId, path: workspaceKeyPath }]),
+    PIXELS_CONSOLE_RECORDING_CACHE_DIRECTORY: recordingCachePath,
+    PIXELS_CONSOLE_RECORDING_CACHE_BYTES: "1048576",
+    PIXELS_CONSOLE_RECORDING_CACHE_DOWNLOADS: "2",
+    PIXELS_CONSOLE_RECORDING_CACHE_TTL_SECONDS: "60",
   };
   delete environment.PIXELS_CONSOLE_TLS_CERT;
   delete environment.PIXELS_CONSOLE_TLS_KEY;
@@ -171,7 +181,9 @@ async function startServer() {
   baseUrl = await timeLimit(
     new Promise((resolve, reject) => {
       child.once("error", reject);
-      child.once("exit", () => reject(new Error("Console exited before readiness")));
+      child.once("exit", () =>
+        reject(new Error(`Console exited before readiness: ${serverOutput.slice(-4000)}`)),
+      );
       child.stderr.on("data", (bytes) => {
         serverOutput += bytes.toString();
       });
@@ -354,6 +366,21 @@ async function run() {
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await page.waitForURL(baseUrl + "/");
   assert.equal((await api("/api/console/session", "GET", undefined, administratorToken)).status, 403);
+  await page.goto(baseUrl + "/user/login");
+  await page.locator('input[autocomplete="username"]').fill(createdUsername);
+  await page.locator('input[autocomplete="current-password"]').fill(createdUserPassword);
+  await page.locator('button[type="submit"]').click();
+  await page.waitForURL(baseUrl + "/user/home");
+  const userToken = await page.evaluate(() => sessionStorage.getItem("pixels.user_web.token"));
+  assert.match(userToken, /^[a-f0-9]{64}$/);
+  const ownedRecordingsRequested = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === "/api/console/recordings" && response.request().method() === "GET",
+  );
+  await page.locator(".ant-menu-item").filter({ hasText: "My recordings" }).click();
+  assert.equal((await ownedRecordingsRequested).status(), 200);
+  await page.getByText("My recordings", { exact: true }).first().waitFor();
+  assert.equal(new URL(page.url()).pathname, "/user/recordings");
+  console.log("PASS console-browser/user-recordings-empty-state");
   assert.deepEqual(pageErrors, []);
   assert.deepEqual(externalRequests, []);
   assert.ok(!serverOutput.includes(initialPassword) && !serverOutput.includes(createdUserPassword));
@@ -388,5 +415,6 @@ run()
     for (const file of [guestSourcePath, workspaceKeyPath, passwordPath]) {
       if (fs.existsSync(file)) fs.unlinkSync(file);
     }
+    if (fs.existsSync(recordingCachePath)) fs.rmSync(recordingCachePath, { recursive: true });
     fs.rmdirSync(privateDirectory);
   });

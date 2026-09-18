@@ -18,6 +18,7 @@ import UserDevices from "@/user/UserDevices.vue";
 import UserApps from "@/user/UserApps.vue";
 import UserActivity from "@/user/UserActivity.vue";
 import UserProfile from "@/user/UserProfile.vue";
+import UserRecordings from "@/user/UserRecordings.vue";
 import PublicApps from "@/user/PublicApps.vue";
 import { queryUser } from "@/user/api";
 
@@ -134,27 +135,32 @@ const router = createRouter({
                 {
                     path: "home",
                     component: UserHome,
-                    meta: { title: "我的资源", requiresUser: true },
+                    meta: { titleKey: "userPortal.navigation.home", requiresUser: true },
                 },
                 {
                     path: "devices",
                     component: UserDevices,
-                    meta: { title: "我的远程桌面", requiresUser: true },
+                    meta: { titleKey: "userPortal.navigation.devices", requiresUser: true },
                 },
                 {
                     path: "apps",
                     component: UserApps,
-                    meta: { title: "云端应用", requiresUser: true },
+                    meta: { titleKey: "userPortal.navigation.apps", requiresUser: true },
                 },
                 {
                     path: "activity",
                     component: UserActivity,
-                    meta: { title: "实例与活动", requiresUser: true },
+                    meta: { titleKey: "userPortal.navigation.activity", requiresUser: true },
+                },
+                {
+                    path: "recordings",
+                    component: UserRecordings,
+                    meta: { titleKey: "userPortal.navigation.recordings", requiresUser: true },
                 },
                 {
                     path: "profile",
                     component: UserProfile,
-                    meta: { title: "个人中心", requiresUser: true },
+                    meta: { titleKey: "userPortal.navigation.profile", requiresUser: true },
                 },
             ],
         },

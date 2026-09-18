@@ -1,0 +1,48 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.cache_read_leases l SET expires_at=clock_timestamp()+interval '30 seconds'\nFROM pixels.login_sessions s,pixels.users u,pixels.cache_blobs b,pixels.recordings r,pixels.nodes n,pixels.devices d\nWHERE l.id=$1 AND l.run_id=$2 AND l.blob_id=$3 AND l.closed_at IS NULL AND l.expires_at>clock_timestamp()\nAND s.id=l.login_session_id AND s.user_id=l.origin_user AND u.id=l.origin_user\nAND s.authorization_revision=l.owner_revision AND u.authorization_revision=l.owner_revision AND s.client_type=l.client_type\nAND s.revoked_at IS NULL AND s.expires_at>clock_timestamp() AND s.absolute_expires_at>clock_timestamp()\nAND NOT u.disabled AND u.deleted_at IS NULL AND b.id=l.blob_id AND r.id=b.recording_id AND n.id=r.node_id AND d.id=n.device_id\nAND b.state='published' AND b.verified_run=$2 AND EXISTS(SELECT 1 FROM pixels.recording_cache c WHERE c.active_blob_id=b.id)\nAND (\n (l.access_scope='managed' AND u.role IN ('admin','viewer') AND s.client_type='admin_web')\n OR (\n  l.access_scope='user'\n  AND u.role IN ('user','admin')\n  AND (\n   EXISTS(\n    SELECT 1 FROM pixels.resource_sessions rs\n    WHERE rs.id=r.session_id AND rs.owner_user=u.id\n   )\n   OR (\n    NOT d.disabled\n    AND d.deleted_at IS NULL\n    AND (\n     EXISTS(SELECT 1 FROM pixels.user_devices ud WHERE ud.device_id=d.id AND ud.user_id=u.id)\n     OR EXISTS(\n      SELECT 1\n      FROM pixels.group_device_grants gd\n      JOIN pixels.user_groups g ON g.id=gd.group_id\n      JOIN pixels.group_members gm ON gm.group_id=g.id\n      WHERE gd.device_id=d.id AND gm.user_id=u.id AND g.deleted_at IS NULL\n     )\n    )\n   )\n  )\n )\n)\nRETURNING l.id,l.blob_id,l.run_id,l.expires_at,\nGREATEST(0,LEAST(30000,FLOOR(EXTRACT(EPOCH FROM (l.expires_at-clock_timestamp()))*1000)))::bigint AS \"remaining_ms!\"\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "blob_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "run_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "expires_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "remaining_ms!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "42d74633810285bcc14e0c367142b9c058c1d75b2864da4d1c99b28bbef4b2f0"
+}

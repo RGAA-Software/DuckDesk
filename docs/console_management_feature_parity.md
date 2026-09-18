@@ -32,7 +32,7 @@
 | CM-ONLINE | 在线连接列表、访问主体和会话状态 | 已迁移 | managed resource sessions + `OnlineConnection` | 分页、筛选、主体隔离、敏感 descriptor 不返回、真实节点连接/断开更新及浏览器展示通过 |
 | CM-CONNECTION | Service/Panel 连接、远程会话详情和会话事件 | 部分迁移 | managed visits/channels/transfers + `SecurityInternal` | 当前访问、通道、传输和录像历史已接；仍需节点连接代际、命令/会话事件明细、实时刷新和断线陈旧标识 |
 | CM-APPLICATION | 应用、节点、部署配置与调度状态 | 已迁移 | managed application/node/deployment API + `AppsView` | 三种模式、显式 deployment target、CAS、节点 generation、容量/维护门禁和部署准备回归持续通过；管理员页面不冒充终端用户启动入口 |
-| CM-RECORDING | 录像目录、直读/拉取、下载到本机或 Console、删除 | 待实现 | recording catalog + private cache/read-lease service + 新管理/本人录像页 | 已有不可变录像元数据、缓存预留和非 bearer 读取租约存储模型；还需真实生产者、授权字节流、拉取/下载、保留/删除 API 与 UI、断点/哈希/并发/撤销测试。旧 URL ticket 不恢复 |
+| CM-RECORDING | 录像目录、直读/拉取、下载到本机或 Console、删除 | 部分迁移 | recording catalog + private cache/read-lease service + 管理/本人录像页 | Render 完成段、Service 登记/回传、Console 私有缓存、Range 下载、管理员与会话 owner 页面已接通；自动化覆盖 hash、并发、读取租约和撤销。仍需保留/驱逐管理 API/UI、真实公网录像与浏览器下载验收。旧 URL ticket 不恢复 |
 | CM-WALL | 多设备视频墙、分页、自动重连、每格媒体统计 | 待实现（延期） | 多个显式 observer 资源会话 + 多条 Direct Host WebRTC | 不阻塞本轮DB0–DB5；以后恢复时每格独立descriptor/lease并直接连接对应Render，不恢复ZLM或中央媒体转发，容量按浏览器与Render编码槽明确限制 |
 | CM-LIVE | 选择应用/节点/实例并通过ZLMediaKit观看直播流 | 明确退役 | `backup/`归档；不属于本轮活动产品 | 归档ZLM/RTMP/HLS/HTTP-FLV、Render live pusher、Console播放代理和短期播放ticket，并从构建/安装/路由/UI移除；录像及未来Direct Host observer不随之退役 |
 | CM-EVENT | CPU、内存、磁盘、GPU 阈值事件查询与详情 | 部分迁移 | `TelemetryAlertStore` + `TelemetryAlerts` | 每节点策略、连续样本/回滞、去重、严重度升级、确认/恢复、180 天保留、分页筛选、详情 API 和中英文页面已接；仍需断库补报、可信真实 GPU 指标、实时推送及真实公网节点/浏览器验收 |

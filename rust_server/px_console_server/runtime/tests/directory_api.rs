@@ -736,7 +736,7 @@ async fn resource_ingress_requires_one_explicit_principal_kind_without_token_fal
         "/api/console/activity/visits?limit=0",
         "/api/console/activity/channels?limit=100&unexpected=1",
         "/api/console/file-transfers?limit=101",
-        "/api/console/recordings?node=not-a-uuid&limit=100",
+        "/api/console/recordings?limit=100&unexpected=1",
     ] {
         assert_eq!(
             resource_call(
@@ -783,7 +783,7 @@ async fn resource_ingress_requires_one_explicit_principal_kind_without_token_fal
         resource_call(
             &router,
             "GET",
-            &format!("/api/console/recordings?node={}&limit=100", Uuid::new_v4()),
+            "/api/console/recordings?limit=100",
             "android",
             Some(guest_token),
             Some("guest"),
