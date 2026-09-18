@@ -63,11 +63,13 @@ Windows 凭据仅通过既定受保护 RDP/SSPI 准入边界交付，管理 DTO�
 - 当前描述符摘要/到期与 revision 直接保存在资源会话行，描述符签发事件追加；不另建 connection_descriptors 权威表。
   凭据由 composition adapter 用 CSPRNG 生成，只保存摘要，成功提交后才交给对应前端；管理查询不返回凭据、端点或原始登录 ID。
 - descriptor 与 admit_frontend 均重新检查原始身份、目标权限、实例 Running、节点代际/端点和 30 秒新鲜度。
-  每份授权租约最长 30 秒，续租必须在线复查；真实传输执行器必须在租约到期前续租或断开，
-  Console 不可用不得无限延长。当前仓库只证明签发/拒绝规则，执行器硬截止仍待实现。
+  每份授权租约最长 30 秒，续租必须使用原 frontend token 在线复查；成功复核在同一事务中把当前描述符租约推进 30 秒，
+  后续策略或端点检查失败会回滚该推进。Render 必须在租约到期前续租，否则停止该精确 RTC allocation 并关闭逻辑绑定；
+  Console 不可用只允许在当前租约内有界重试，不得无限延长，也不额外签发短期 ticket。
   admit_frontend 同时返回 PG 计算的剩余 valid_for_ms（1–30000）；节点以本次请求发出时的单调时钟加该值设置截止，
   不使用本机墙上时钟，不从响应到达时重新计满期限；排队/网络延迟不能延长租约。
-- 重复 admission 不延长到期时间；新 descriptor CAS 提升 revision 并使旧凭据失效。重试 open 只返回同一逻辑结果，不补签授权。
+- 同一 descriptor 的重复 admission 只有在完整在线授权复核成功后才续租；它不创建第二个逻辑前端，也不补签或替换 frontend token。
+  新 descriptor CAS 提升 revision 并使旧凭据失效。重试 open 只返回同一逻辑结果。
 - request_close 只转 Closing、失效凭据并保留占用。节点 begin_retirement 获得 30 秒 challenge 与包含式 revision fence；
   必须先持久化该前端 fence、排空正在处理的准入、关闭该前端的全部通道，再 finish_retirement。
   旧 challenge、旧节点、过期或变化的 revision 拒绝；确认重复提交幂等，不停止应用、不注销 Windows 会话。
@@ -78,3 +80,10 @@ Windows 凭据仅通过既定受保护 RDP/SSPI 准入边界交付，管理 DTO�
 
 完整报告 pg-20260917-054053-9eb21b04 的 Windows/Linux 各 10 组资源会话用例、单元、共享池及三库恢复通过，
 源码/工具 hash 已核对。仍未覆盖真实节点单前端/单调时钟硬截止、产品协议和客户端。
+
+2026-09-18 续租纵向切片已接通 PostgreSQL、Console 节点准入、Render 逻辑会话和本地 RTC：首次准入及周期续租都使用原
+frontend token，不产生额外短期 ticket；Render 按 `valid_for_ms` 建立单调时钟截止，约三分之一租期发起复核。可重试故障只在
+当前租约内有界重试，请求 deadline 不得越过租约截止；永久拒绝、身份/目标/revision 漂移或本地租约更新失败会按 allocation ID
+精确停止对应 RTC，并关闭该逻辑绑定，不按端口或进程名清扫。专项数据库报告 `pg-20260918-164447-29ef5736` 为 10/10，
+逻辑会话测试 25/25、Render 能力注入/弱生命周期测试 5/5；`px_render.exe` 与发布目录 SHA-256 已核对。
+这些证据仍不等于公网浏览器持续 30 秒以上、撤销、断 Console 和 Android 真机端到端验收。

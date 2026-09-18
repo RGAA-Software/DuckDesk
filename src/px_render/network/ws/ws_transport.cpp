@@ -275,16 +275,24 @@ void WsTransport::HandleAppEvent(const std::shared_ptr<AppBaseEvent>& event) {
     }
 }
 
-void WsTransport::ConfigureNetworkServices(
-    NetworkBroadcaster network_broadcaster,
-    FileTransferBroadcaster file_transfer_broadcaster,
-    LocalRtcAllocator local_rtc_allocator,
-    UdpAssociationUpdater udp_association_updater) {
+void WsTransport::ConfigureNetworkServices(NetworkBroadcaster network_broadcaster, FileTransferBroadcaster file_transfer_broadcaster,
+                                           LocalRtcAllocator local_rtc_allocator, LocalRtcRevoker local_rtc_revoker,
+                                           UdpAssociationUpdater udp_association_updater) {
     std::scoped_lock lock(network_services_mutex_);
     network_broadcaster_ = std::move(network_broadcaster);
     file_transfer_broadcaster_ = std::move(file_transfer_broadcaster);
     local_rtc_allocator_ = std::move(local_rtc_allocator);
+    local_rtc_revoker_ = std::move(local_rtc_revoker);
     udp_association_updater_ = std::move(udp_association_updater);
+}
+
+bool WsTransport::RevokeLocalRtcInstance(const std::string& device_id, const std::string& stream_id, const std::string& allocation_id) const {
+    LocalRtcRevoker revoker;
+    {
+        std::scoped_lock lock(network_services_mutex_);
+        revoker = local_rtc_revoker_;
+    }
+    return revoker && revoker(device_id, stream_id, allocation_id);
 }
 
 void WsTransport::BroadcastNetworkMessage(const std::shared_ptr<Data>& message,
@@ -370,6 +378,11 @@ void WsTransport::ConfigureFrontendAuthorizer(FrontendAuthorizer authorizer) {
     frontend_authorizer_ = std::move(authorizer);
 }
 
+void WsTransport::ConfigureLogicalLeaseRenewer(LogicalLeaseRenewer renewer) {
+    std::scoped_lock lock(network_services_mutex_);
+    logical_lease_renewer_ = std::move(renewer);
+}
+
 PxAwaitable<PxResult<ConsoleFrontendGrant>> WsTransport::AdmitFrontend(
     ConsoleFrontendAdmissionRequest request,
     const std::chrono::steady_clock::time_point deadline) const {
@@ -390,6 +403,15 @@ PxAwaitable<PxResult<ConsoleFrontendGrant>> WsTransport::AdmitFrontend(
 
 bool WsTransport::RequiresConsoleFrontendAdmission() const noexcept {
     return console_frontend_admission_required_;
+}
+
+bool WsTransport::RenewLogicalSessionLease(const LogicalSessionGrant& grant, const std::int64_t now_ms) const {
+    LogicalLeaseRenewer renewer;
+    {
+        std::scoped_lock lock(network_services_mutex_);
+        renewer = logical_lease_renewer_;
+    }
+    return renewer && renewer(grant, now_ms);
 }
 
 void WsTransport::SubmitIpcVideoFrame(const CaptureVideoFrame& frame) const {

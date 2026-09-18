@@ -44,6 +44,8 @@ impl ResourceSessionStore {
         Ok(rows)
     }
     /// Online node admission and periodic renewal share exactly the same current-policy check.
+    /// A successful check advances the hard lease by thirty seconds in the same transaction;
+    /// any subsequent policy or endpoint rejection rolls that renewal back.
     /// A node must not infer a grant merely from a descriptor's host/port.
     pub async fn admit_frontend(
         &self,

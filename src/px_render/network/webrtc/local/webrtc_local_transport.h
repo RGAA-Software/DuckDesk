@@ -100,6 +100,7 @@ class PX_NET_RTC_LOCAL_API WebRtcLocalTransport final : public std::enable_share
     bool HasEnoughBufferForQueuingFtMessages();
     PxLocalRtcAllocResult AllocNewLocalRtcInstance(const std::shared_ptr<PxLocalRtcRequestInfo>& info,
                                                    std::function<void(const std::shared_ptr<PxLocalRtcReplyInfo>&)>&& callback);
+    [[nodiscard]] bool RevokeLocalRtcInstance(const std::string& device_id, const std::string& stream_id, const std::string& allocation_id);
 
     // data: encode video frame, h264/h265/...
     void OnEncodedVideoFrame(const std::string& mon_name, WebRtcEncodedVideoType video_type, const std::shared_ptr<Data>& data, uint64_t frame_index,

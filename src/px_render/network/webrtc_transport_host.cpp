@@ -270,6 +270,11 @@ PxLocalRtcAllocResult WebRtcTransportHandle::AllocateLocalInstance(const std::sh
                                            });
 }
 
+bool WebRtcTransportHandle::RevokeLocalInstance(const std::string& device_id, const std::string& stream_id, const std::string& allocation_id) {
+    const auto local = state_->Local();
+    return local && state_->IsAccepting() && local->RevokeLocalRtcInstance(device_id, stream_id, allocation_id);
+}
+
 bool WebRtcTransportHandle::SetVoiceAuthorization(const std::string& stream_id, const std::string& call_id, const bool authorized) {
     const auto local = state_->Local();
     return local && state_->IsAccepting() && local->SetVoiceCallAuthorization(stream_id, call_id, authorized);

@@ -4,10 +4,15 @@
 #include "http_handler.h"
 
 #include <algorithm>
+#include <atomic>
 #include <charconv>
 #include <chrono>
+#include <mutex>
+#include <optional>
+#include <unordered_map>
 #include <vector>
 
+#include "px_common/async_delay.h"
 #include "px_common/async_operation.h"
 #include "px_common/async_result.h"
 #include "px_common/data.h"
@@ -56,9 +61,168 @@ struct DeferredHttpReply {
     http::status status_ = http::status::ok;
 };
 
-HttpHandler::HttpHandler(std::weak_ptr<WsTransport> transport,
-                         std::shared_ptr<PxAsyncScope> async_scope)
-    : transport_(std::move(transport)), async_scope_(std::move(async_scope)) {}
+class SecureFrontendToken final {
+public:
+    explicit SecureFrontendToken(std::string value) : value_(std::move(value)) {}
+
+    ~SecureFrontendToken() { std::fill(value_.begin(), value_.end(), '\0'); }
+
+    SecureFrontendToken(const SecureFrontendToken&) = delete;
+    SecureFrontendToken& operator=(const SecureFrontendToken&) = delete;
+
+    [[nodiscard]] std::string Copy() const { return value_; }
+
+private:
+    std::string value_;
+};
+
+struct FrontendLeaseIdentity final {
+    ConsoleFrontendGrant expected_grant;
+    LogicalSessionGrant logical_grant;
+    std::string descriptor_session_id;
+    std::int64_t descriptor_revision{0};
+    std::string device_id;
+    std::string stream_id;
+    std::string allocation_id;
+    std::string binding_id;
+};
+
+struct FrontendLeaseControl final {
+    std::atomic_bool current{true};
+};
+
+[[nodiscard]] bool MatchesExpectedGrant(const ConsoleFrontendGrant& expected, const ConsoleFrontendGrant& renewed) {
+    return renewed.valid_for_ms > 0 && renewed.session_id == expected.session_id && renewed.revision == expected.revision &&
+           renewed.target_kind == expected.target_kind && renewed.device_id == expected.device_id &&
+           renewed.application_id == expected.application_id && renewed.instance_id == expected.instance_id &&
+           renewed.client_type == expected.client_type && renewed.access_role == expected.access_role;
+}
+
+[[nodiscard]] std::chrono::milliseconds RenewalDelay(const std::uint32_t valid_for_ms) {
+    const auto third = std::chrono::milliseconds(valid_for_ms / 3);
+    return std::clamp(third, std::chrono::milliseconds(1000), std::chrono::milliseconds(10000));
+}
+
+class FrontendLeaseRenewalCoordinator final : public std::enable_shared_from_this<FrontendLeaseRenewalCoordinator> {
+public:
+    FrontendLeaseRenewalCoordinator(std::weak_ptr<WsTransport> transport, std::shared_ptr<PxAsyncScope> async_scope)
+        : transport_(std::move(transport)), async_scope_(std::move(async_scope)) {}
+
+    void Start(FrontendLeaseIdentity identity, std::shared_ptr<SecureFrontendToken> token, const std::uint32_t initial_valid_for_ms) {
+        if (!token || !async_scope_ || !async_scope_->IsAccepting() || initial_valid_for_ms == 0) {
+            return;
+        }
+        const auto control = std::make_shared<FrontendLeaseControl>();
+        {
+            std::scoped_lock lock(controls_mutex_);
+            const auto existing = controls_.find(identity.binding_id);
+            if (existing != controls_.end()) {
+                existing->second->current.store(false, std::memory_order_release);
+            }
+            controls_.insert_or_assign(identity.binding_id, control);
+        }
+        const auto weak_owner = weak_from_this();
+        const bool spawned = async_scope_->Spawn("console-frontend-lease-renewal", [weak_owner, control, identity = std::move(identity),
+                                                                                    token = std::move(token), initial_valid_for_ms]() mutable {
+            return Run(std::move(weak_owner), std::move(control), std::move(identity), std::move(token), initial_valid_for_ms);
+        });
+        if (!spawned) {
+            control->current.store(false, std::memory_order_release);
+            RemoveCurrent(control);
+        }
+    }
+
+private:
+    static PxAwaitable<void> Run(std::weak_ptr<FrontendLeaseRenewalCoordinator> weak_owner, std::shared_ptr<FrontendLeaseControl> control,
+                                 FrontendLeaseIdentity identity, std::shared_ptr<SecureFrontendToken> token, std::uint32_t valid_for_ms) {
+        auto lease_deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(valid_for_ms);
+        auto delay = RenewalDelay(valid_for_ms);
+        for (;;) {
+            const auto waited = co_await WaitForAsyncDelay(delay, "frontend_lease_delay");
+            const auto owner = weak_owner.lock();
+            if (!waited || !owner || !control->current.load(std::memory_order_acquire)) {
+                co_return;
+            }
+            const auto transport = owner->transport_.lock();
+            if (!transport) {
+                co_return;
+            }
+            const auto request_started_at = std::chrono::steady_clock::now();
+            const auto request_deadline = std::min(request_started_at + std::chrono::seconds(12), lease_deadline);
+            auto renewed = co_await transport->AdmitFrontend(
+                ConsoleFrontendAdmissionRequest{
+                    .request_id = GetUUID(),
+                    .session_id = identity.descriptor_session_id,
+                    .revision = identity.descriptor_revision,
+                    .frontend_token = token->Copy(),
+                },
+                request_deadline);
+            if (!control->current.load(std::memory_order_acquire)) {
+                co_return;
+            }
+            if (!renewed.HasValue()) {
+                const auto now = std::chrono::steady_clock::now();
+                if (renewed.Error().retryable && now < lease_deadline) {
+                    delay = std::min(std::chrono::milliseconds(2000), std::chrono::duration_cast<std::chrono::milliseconds>(lease_deadline - now));
+                    continue;
+                }
+                owner->TerminateCurrent(identity, control, renewed.Error().StableCode());
+                co_return;
+            }
+            const auto grant = renewed.TakeValue();
+            if (!MatchesExpectedGrant(identity.expected_grant, grant)) {
+                owner->TerminateCurrent(identity, control, "FRONTEND_LEASE_IDENTITY_CHANGED");
+                co_return;
+            }
+            auto renewed_logical_grant = identity.logical_grant;
+            renewed_logical_grant.expires_at_ms = CurrentSystemMilliseconds() + static_cast<std::int64_t>(grant.valid_for_ms);
+            if (!transport->RenewLogicalSessionLease(renewed_logical_grant, CurrentSystemMilliseconds())) {
+                owner->TerminateCurrent(identity, control, "LOGICAL_LEASE_RENEWAL_REJECTED");
+                co_return;
+            }
+            lease_deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(grant.valid_for_ms);
+            delay = RenewalDelay(grant.valid_for_ms);
+        }
+    }
+
+    void TerminateCurrent(const FrontendLeaseIdentity& identity, const std::shared_ptr<FrontendLeaseControl>& control, const std::string& reason) {
+        if (!control->current.exchange(false, std::memory_order_acq_rel)) {
+            return;
+        }
+        if (const auto transport = transport_.lock()) {
+            static_cast<void>(transport->RevokeLocalRtcInstance(identity.device_id, identity.stream_id, identity.allocation_id));
+            const auto close = std::make_shared<CloseLogicalSessionBindingEvent>();
+            close->logical_session_id_ = identity.logical_grant.logical_session_id;
+            close->binding_id_ = identity.binding_id;
+            close->preserve_reconnect_grace_ = false;
+            transport->EmitEvent(close);
+        }
+        LOGW("event=session.lease component=net_ws operation=renew outcome=revoked session={} reason={}",
+             PrivacyLogId(identity.logical_grant.logical_session_id), reason);
+        RemoveCurrent(control);
+    }
+
+    void RemoveCurrent(const std::shared_ptr<FrontendLeaseControl>& expected_control) {
+        std::scoped_lock lock(controls_mutex_);
+        for (auto iterator = controls_.begin(); iterator != controls_.end();) {
+            if (iterator->second == expected_control) {
+                iterator = controls_.erase(iterator);
+            } else {
+                ++iterator;
+            }
+        }
+    }
+
+    std::weak_ptr<WsTransport> transport_;
+    std::shared_ptr<PxAsyncScope> async_scope_;
+    std::mutex controls_mutex_;
+    std::unordered_map<std::string, std::shared_ptr<FrontendLeaseControl>> controls_;
+};
+
+HttpHandler::HttpHandler(std::weak_ptr<WsTransport> transport, std::shared_ptr<PxAsyncScope> async_scope)
+    : transport_(std::move(transport)),
+      async_scope_(std::move(async_scope)),
+      frontend_lease_renewals_(std::make_shared<FrontendLeaseRenewalCoordinator>(transport_, async_scope_)) {}
 
 std::string HttpHandler::GetErrorMessage(int code) {
     if (code == kHandlerErrVerifySafetyPasswordFailed) {
@@ -293,6 +457,10 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(
     const auto requested_stream_id =
         self->GetParam(params, "stream_id").value_or(std::string{});
     RtcPasswordAdmission authentication;
+    std::shared_ptr<SecureFrontendToken> frontend_token;
+    std::optional<ConsoleFrontendGrant> console_frontend_grant;
+    std::string descriptor_session_id;
+    std::int64_t descriptor_revision{0};
     if (transport->RequiresConsoleFrontendAdmission()) {
         const auto session_id =
             self->GetParam(params, "session_id").value_or(std::string{});
@@ -311,14 +479,14 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(
             complete(make_reply(kHandlerErrParams, http::status::bad_request));
             co_return;
         }
-        auto frontend_token = std::move(token_entry->second);
+        frontend_token = std::make_shared<SecureFrontendToken>(std::move(token_entry->second));
         params.erase(token_entry);
         auto admitted = co_await transport->AdmitFrontend(
             ConsoleFrontendAdmissionRequest{
                 .request_id = GetUUID(),
                 .session_id = session_id,
                 .revision = revision,
-                .frontend_token = std::move(frontend_token),
+                .frontend_token = frontend_token->Copy(),
             },
             std::chrono::steady_clock::now() + std::chrono::seconds(12));
         if (!admitted.HasValue()) {
@@ -344,6 +512,9 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(
                                 http::status::forbidden));
             co_return;
         }
+        descriptor_session_id = session_id;
+        descriptor_revision = revision;
+        console_frontend_grant = grant;
         const auto stream_id = requested_stream_id.empty()
                                    ? grant.session_id
                                    : requested_stream_id;
@@ -404,6 +575,7 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(
     }();
     const auto admitted_binding_id =
         std::string("rtc-local:") + authentication.stream_id_;
+    const auto rtc_allocation_id = GetUUID();
     const auto admission_grant = LogicalSessionGrant{
         .logical_session_id = authentication.logical_session_id_,
         .stream_id = authentication.stream_id_,
@@ -461,6 +633,7 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(
     const auto rtc_request = std::make_shared<PxLocalRtcRequestInfo>();
     rtc_request->device_id_ = device_id;
     rtc_request->stream_id_ = authentication.stream_id_;
+    rtc_request->allocation_id_ = rtc_allocation_id;
     rtc_request->req_ip_ = remote_address;
     rtc_request->sdp_ = sdp;
     rtc_request->content_type_ =
@@ -541,6 +714,20 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(
     }
 
     const auto reply_info = rtc_reply.TakeValue();
+    if (console_frontend_grant && frontend_token && self->frontend_lease_renewals_) {
+        self->frontend_lease_renewals_->Start(
+            FrontendLeaseIdentity{
+                .expected_grant = *console_frontend_grant,
+                .logical_grant = admission_grant,
+                .descriptor_session_id = std::move(descriptor_session_id),
+                .descriptor_revision = descriptor_revision,
+                .device_id = device_id,
+                .stream_id = authentication.stream_id_,
+                .allocation_id = rtc_allocation_id,
+                .binding_id = admitted_binding_id,
+            },
+            std::move(frontend_token), console_frontend_grant->valid_for_ms);
+    }
     nlohmann::json result;
     result["answer_sdp"] = reply_info->answer_sdp_;
     auto monitors = nlohmann::json::array();

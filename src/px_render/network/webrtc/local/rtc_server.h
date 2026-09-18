@@ -82,6 +82,8 @@ class RtcServer : public std::enable_shared_from_this<RtcServer> {
     const std::string& GetStreamId() const {
         return stream_id_;
     }
+    void SetAllocationId(std::string allocation_id) { allocation_id_ = std::move(allocation_id); }
+    const std::string& GetAllocationId() const { return allocation_id_; }
     // client_nonce: web client 的浏览器标识(launch 页 nonce)。
     // 新连接 nonce 与现存活跃连接相同 = 同一浏览器,信令直接自动接管,
     // 不再回 704 让用户确认;不同 nonce 维持占用确认流程
@@ -212,6 +214,7 @@ class RtcServer : public std::enable_shared_from_this<RtcServer> {
     // Exit 幂等标记:ICE 终态回调/插件 Sweep/takeover 替换都可能触发 Exit
     std::atomic<bool> cleaned_up_ = false;
     std::string connection_id_;
+    std::string allocation_id_;
     std::string client_nonce_;
     std::vector<std::string> permissions_;
     bool capability_enforced_ = false;

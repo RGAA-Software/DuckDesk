@@ -164,6 +164,10 @@ void RenderModuleRegistry::StartModules() {
                         .reconnect_grace = availability.reconnect_grace,
                         .retry_after_ms = availability.retry_after_ms};
                 });
+            transport->ConfigureLogicalLeaseRenewer([weak_sessions](const LogicalSessionGrant& grant, const std::int64_t now_ms) {
+                const auto sessions = weak_sessions.lock();
+                return sessions && sessions->RenewLease(grant, now_ms);
+            });
         };
     const std::weak_ptr<RdApplication> weak_application = app_;
     const auto configure_frontend_authorizer =
@@ -284,6 +288,7 @@ void RenderModuleRegistry::StartModules() {
     }
 
     WsTransport::LocalRtcAllocator local_rtc_allocator;
+    WsTransport::LocalRtcRevoker local_rtc_revoker;
     if (rtc_local_transport_) {
         local_rtc_allocator =
             [weak_registry](
@@ -295,6 +300,12 @@ void RenderModuleRegistry::StartModules() {
                 }
                 return PxLocalRtcAllocResult::kFailed;
             };
+        local_rtc_revoker = [weak_registry](const std::string& device_id, const std::string& stream_id, const std::string& allocation_id) {
+            if (const auto registry = weak_registry.lock()) {
+                return registry->RevokeRtcLocalInstance(device_id, stream_id, allocation_id);
+            }
+            return false;
+        };
     }
     WsTransport::UdpAssociationUpdater udp_association_updater;
     if (udp_transport_) {
@@ -308,21 +319,18 @@ void RenderModuleRegistry::StartModules() {
     }
 
     ws_transport->ConfigureNetworkServices(
-        [weak_registry](const std::shared_ptr<Data>& message,
-                        const bool run_through) {
+        [weak_registry](const std::shared_ptr<Data>& message, const bool run_through) {
             if (const auto registry = weak_registry.lock()) {
                 registry->BroadcastNetworkMessage(message, run_through);
             }
         },
-        [weak_registry](const std::string& stream_id,
-                        const std::shared_ptr<Data>& message,
-                        const bool run_through) {
+        [weak_registry](const std::string& stream_id, const std::shared_ptr<Data>& message, const bool run_through) {
             if (const auto registry = weak_registry.lock()) {
                 registry->BroadcastFileTransferMessage(stream_id, message,
                                                        run_through);
             }
         },
-        std::move(local_rtc_allocator), std::move(udp_association_updater));
+        std::move(local_rtc_allocator), std::move(local_rtc_revoker), std::move(udp_association_updater));
     ws_transport->ConfigureIpcMediaIngress(
         [weak_application](const CaptureVideoFrame& frame) {
             if (const auto application = weak_application.lock()) {
@@ -697,6 +705,15 @@ PxLocalRtcAllocResult RenderModuleRegistry::AllocateRtcLocalInstance(
     return rtc_local ? rtc_local->AllocateLocalInstance(request,
                                                         std::move(completion))
                      : PxLocalRtcAllocResult::kFailed;
+}
+
+bool RenderModuleRegistry::RevokeRtcLocalInstance(const std::string& device_id, const std::string& stream_id, const std::string& allocation_id) {
+    std::shared_ptr<WebRtcTransportHandle> rtc_local;
+    {
+        std::shared_lock lock(modules_mtx_);
+        rtc_local = rtc_local_transport_;
+    }
+    return rtc_local && rtc_local->RevokeLocalInstance(device_id, stream_id, allocation_id);
 }
 
 bool RenderModuleRegistry::UpdateUdpMediaAssociation(

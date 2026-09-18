@@ -86,6 +86,7 @@ class WebRtcTransportHandle final {
     void ApplyRemoteIce(const MsgRtcRemoteIce& message);
     [[nodiscard]] PxLocalRtcAllocResult AllocateLocalInstance(const std::shared_ptr<PxLocalRtcRequestInfo>& request,
                                                               std::function<void(const std::shared_ptr<PxLocalRtcReplyInfo>&)> completion);
+    [[nodiscard]] bool RevokeLocalInstance(const std::string& device_id, const std::string& stream_id, const std::string& allocation_id);
     [[nodiscard]] bool SetVoiceAuthorization(const std::string& stream_id, const std::string& call_id, bool authorized);
     [[nodiscard]] bool SubmitVoicePcm(const std::string& stream_id, const std::string& call_id,
                                       const std::shared_ptr<const std::vector<std::int16_t>>& samples, int sample_rate, int channels);

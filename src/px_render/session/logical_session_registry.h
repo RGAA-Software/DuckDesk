@@ -103,6 +103,7 @@ class LogicalSessionRegistry final {
 
     LogicalSessionAdmission Bind(const LogicalSessionGrant& grant, LogicalSessionTransport transport, const std::string& binding_id, bool takeover,
                                  int64_t now_ms);
+    [[nodiscard]] bool RenewLease(const LogicalSessionGrant& grant, int64_t now_ms);
 
     LogicalSessionBindingClosed CloseBinding(const std::string& logical_session_id, const std::string& binding_id, int64_t now_ms);
     LogicalSessionBindingClosed CloseBindingById(const std::string& binding_id, int64_t now_ms);

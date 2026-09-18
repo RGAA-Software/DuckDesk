@@ -59,6 +59,7 @@ class PxLocalRtcRequestInfo {
 public:
     std::string device_id_;
     std::string stream_id_;
+    std::string allocation_id_;
     std::string req_ip_;
     std::string sdp_;
     PxLocalRtcContentType content_type_{PxLocalRtcContentType::kDesktop};

@@ -109,6 +109,7 @@ public:
         const std::shared_ptr<PxLocalRtcRequestInfo>& request,
         std::function<void(const std::shared_ptr<PxLocalRtcReplyInfo>&)>&&
             completion);
+    [[nodiscard]] bool RevokeRtcLocalInstance(const std::string& device_id, const std::string& stream_id, const std::string& allocation_id);
     [[nodiscard]] bool UpdateUdpMediaAssociation(
         const UdpMediaAssociation& association);
     void BroadcastNetworkMessage(const std::shared_ptr<Data>& message,

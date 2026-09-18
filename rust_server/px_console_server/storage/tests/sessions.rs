@@ -568,8 +568,19 @@ async fn descriptors_cas_expire_rotate_and_node_admission_is_current_authority()
         .await
         .unwrap();
     assert_eq!(first.session.state, "connected");
-    assert_eq!(first.expires_at, descriptor.expires_at);
+    assert!(first.expires_at >= descriptor.expires_at);
     assert!((1..=30000).contains(&first.valid_for_ms));
+    sqlx::query("UPDATE pixels.resource_sessions SET descriptor_expires_at=clock_timestamp()+interval '2 seconds' WHERE id=$1")
+        .bind(session.id)
+        .execute(&fixture.owner)
+        .await
+        .unwrap();
+    let renewed = session_store
+        .admit_frontend(&node, session.id, descriptor.session.revision, &ticket)
+        .await
+        .unwrap();
+    assert!(renewed.expires_at > chrono::Utc::now() + chrono::Duration::seconds(20));
+    assert!((20_000..=30_000).contains(&renewed.valid_for_ms));
     assert_eq!(
         first.session,
         session_store

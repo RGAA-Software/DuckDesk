@@ -70,8 +70,10 @@ struct NetworkServiceProbe final {
     int network_broadcasts = 0;
     int file_transfer_broadcasts = 0;
     int rtc_allocations = 0;
+    int rtc_revocations = 0;
     int udp_updates = 0;
     int availability_queries = 0;
+    int lease_renewals = 0;
 };
 
 TEST(RenderBuiltinLinkageTest, WsUsesExplicitNetworkCapabilitiesWithWeakLifetime) {
@@ -98,6 +100,13 @@ TEST(RenderBuiltinLinkageTest, WsUsesExplicitNetworkCapabilitiesWithWeakLifetime
             }
             return PxLocalRtcAllocResult::kFailed;
         },
+        [weak_probe](const std::string&, const std::string&, const std::string&) {
+            if (const auto state = weak_probe.lock()) {
+                ++state->rtc_revocations;
+                return true;
+            }
+            return false;
+        },
         [weak_probe](const UdpMediaAssociation&) {
             if (const auto state = weak_probe.lock()) {
                 ++state->udp_updates;
@@ -112,6 +121,13 @@ TEST(RenderBuiltinLinkageTest, WsUsesExplicitNetworkCapabilitiesWithWeakLifetime
         }
         return WsTransport::ControllerAvailability{};
     });
+    ws->ConfigureLogicalLeaseRenewer([weak_probe](const LogicalSessionGrant&, std::int64_t) {
+        if (const auto state = weak_probe.lock()) {
+            ++state->lease_renewals;
+            return true;
+        }
+        return false;
+    });
 
     const auto payload = Data::From("capability-payload");
     const auto rtc_request = std::make_shared<PxLocalRtcRequestInfo>();
@@ -124,18 +140,22 @@ TEST(RenderBuiltinLinkageTest, WsUsesExplicitNetworkCapabilitiesWithWeakLifetime
                       rtc_request,
                       [rtc_reply_received](const std::shared_ptr<PxLocalRtcReplyInfo>& reply) { *rtc_reply_received = static_cast<bool>(reply); }),
                   PxLocalRtcAllocResult::kOk);
+        EXPECT_TRUE(ws->RevokeLocalRtcInstance("device", "stream", "allocation"));
         EXPECT_TRUE(ws->UpdateUdpAssociation(UdpMediaAssociation{}));
         const auto availability = ws->QueryControllerAvailability(round);
         EXPECT_TRUE(availability.known);
         EXPECT_FALSE(availability.available);
         EXPECT_TRUE(availability.reconnect_grace);
         EXPECT_EQ(availability.retry_after_ms, 321);
+        EXPECT_TRUE(ws->RenewLogicalSessionLease(LogicalSessionGrant{}, round));
     }
     EXPECT_EQ(probe->network_broadcasts, 100);
     EXPECT_EQ(probe->file_transfer_broadcasts, 100);
     EXPECT_EQ(probe->rtc_allocations, 100);
+    EXPECT_EQ(probe->rtc_revocations, 100);
     EXPECT_EQ(probe->udp_updates, 100);
     EXPECT_EQ(probe->availability_queries, 100);
+    EXPECT_EQ(probe->lease_renewals, 100);
     EXPECT_TRUE(*rtc_reply_received);
     EXPECT_TRUE(ws->HasLocalRtcService());
 
@@ -143,8 +163,10 @@ TEST(RenderBuiltinLinkageTest, WsUsesExplicitNetworkCapabilitiesWithWeakLifetime
     ws->BroadcastNetworkMessage(payload, false);
     ws->BroadcastFileTransferMessage("stream", payload, true);
     EXPECT_EQ(ws->AllocateLocalRtcInstance(rtc_request, {}), PxLocalRtcAllocResult::kFailed);
+    EXPECT_FALSE(ws->RevokeLocalRtcInstance("device", "stream", "allocation"));
     EXPECT_FALSE(ws->UpdateUdpAssociation(UdpMediaAssociation{}));
     EXPECT_FALSE(ws->QueryControllerAvailability(0).known);
+    EXPECT_FALSE(ws->RenewLogicalSessionLease(LogicalSessionGrant{}, 0));
 }
 
 struct IpcMediaIngressProbe final {

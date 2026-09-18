@@ -17,6 +17,7 @@ using namespace nlohmann;
 namespace px {
 
 class WsTransport;
+class FrontendLeaseRenewalCoordinator;
 
 // Lifetime:
 // - Owned by WsServer and observes WsTransport weakly.
@@ -60,6 +61,7 @@ class HttpHandler : public BaseHandler, public std::enable_shared_from_this<Http
     std::weak_ptr<WsTransport> transport_;
     // Shared owner: stopped and drained by WsServer before teardown.
     std::shared_ptr<PxAsyncScope> async_scope_;
+    std::shared_ptr<FrontendLeaseRenewalCoordinator> frontend_lease_renewals_;
 };
 
 } // namespace px

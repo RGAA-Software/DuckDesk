@@ -258,18 +258,39 @@ TEST(LogicalSessionRegistry, FindsAnyActiveRoleByTransportBindingWithoutMutating
     EXPECT_EQ(*logical_session_id, "observer");
     EXPECT_EQ(registry.ActiveSessionCount(), 1U);
     EXPECT_FALSE(registry.FindLogicalSessionIdByBinding("missing", 2).has_value());
-    EXPECT_TRUE(registry.FindLogicalSessionIdByBinding("rtc-local:stream-observer", 60'001).has_value());
+    EXPECT_FALSE(registry.FindLogicalSessionIdByBinding("rtc-local:stream-observer", 60'001).has_value());
 }
 
-TEST(LogicalSessionRegistry, GrantExpiryOnlyLimitsAdmissionNotAnEstablishedBinding) {
+TEST(LogicalSessionRegistry, EstablishedBindingExpiresUnlessExactLeaseIsRenewed) {
     LogicalSessionRegistry registry;
-    const auto grant = ControlGrant("one", "stream-one", "alice");
+    auto grant = ControlGrant("one", "stream-one", "alice");
     const auto admitted = registry.Bind(grant, LogicalSessionTransport::kRtcLocal, "rtc-one", false, 59'999);
     ASSERT_EQ(admitted.code, LogicalSessionAdmissionCode::kAccepted);
 
-    EXPECT_TRUE(registry.AuthorizeControllerInput("one", admitted.lease_generation, 120'000));
-    EXPECT_TRUE(registry.FindControllerInputLeaseByBinding("rtc-one", 120'000).has_value());
-    EXPECT_EQ(registry.SnapshotActive(120'000).size(), 1U);
+    EXPECT_FALSE(registry.AuthorizeControllerInput("one", admitted.lease_generation, 60'000));
+    EXPECT_FALSE(registry.FindControllerInputLeaseByBinding("rtc-one", 60'000).has_value());
+    EXPECT_TRUE(registry.SnapshotActive(60'000).empty());
+
+    grant.expires_at_ms = 120'000;
+    EXPECT_FALSE(registry.RenewLease(grant, 60'000));
+
+    LogicalSessionRegistry renewable_registry;
+    grant.expires_at_ms = 60'000;
+    const auto renewable = renewable_registry.Bind(grant, LogicalSessionTransport::kRtcLocal, "rtc-one", false, 1);
+    ASSERT_EQ(renewable.code, LogicalSessionAdmissionCode::kAccepted);
+    grant.expires_at_ms = 120'000;
+    EXPECT_TRUE(renewable_registry.RenewLease(grant, 30'000));
+    EXPECT_TRUE(renewable_registry.AuthorizeControllerInput("one", renewable.lease_generation, 60'001));
+
+    auto mismatched = grant;
+    mismatched.subject_id = "mallory";
+    mismatched.expires_at_ms = 180'000;
+    EXPECT_FALSE(renewable_registry.RenewLease(mismatched, 70'000));
+
+    auto invalid_join_mode = grant;
+    invalid_join_mode.join_mode = "unknown";
+    invalid_join_mode.expires_at_ms = 180'000;
+    EXPECT_FALSE(renewable_registry.RenewLease(invalid_join_mode, 70'000));
 
     EXPECT_EQ(registry.Bind(ControlGrant("two", "stream-two", "bob"), LogicalSessionTransport::kRtcLocal, "rtc-two", false, 60'000).code,
               LogicalSessionAdmissionCode::kExpired);

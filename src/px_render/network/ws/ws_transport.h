@@ -93,6 +93,7 @@ public:
         std::function<void(const std::shared_ptr<PxLocalRtcReplyInfo>&)>;
     using LocalRtcAllocator = std::function<PxLocalRtcAllocResult(
         const std::shared_ptr<PxLocalRtcRequestInfo>&, LocalRtcCompletion)>;
+    using LocalRtcRevoker = std::function<bool(const std::string&, const std::string&, const std::string&)>;
     using UdpAssociationUpdater =
         std::function<bool(const UdpMediaAssociation&)>;
     using ControllerAvailabilityQuery =
@@ -103,12 +104,11 @@ public:
         std::function<PxAwaitable<PxResult<ConsoleFrontendGrant>>(
             ConsoleFrontendAdmissionRequest,
             std::chrono::steady_clock::time_point)>;
+    using LogicalLeaseRenewer = std::function<bool(const LogicalSessionGrant&, std::int64_t)>;
 
-    void ConfigureNetworkServices(
-        NetworkBroadcaster network_broadcaster,
-        FileTransferBroadcaster file_transfer_broadcaster,
-        LocalRtcAllocator local_rtc_allocator,
-        UdpAssociationUpdater udp_association_updater);
+    void ConfigureNetworkServices(NetworkBroadcaster network_broadcaster, FileTransferBroadcaster file_transfer_broadcaster,
+                                  LocalRtcAllocator local_rtc_allocator, LocalRtcRevoker local_rtc_revoker,
+                                  UdpAssociationUpdater udp_association_updater);
     void BroadcastNetworkMessage(const std::shared_ptr<Data>& message,
                                  bool run_through) const;
     void BroadcastFileTransferMessage(const std::string& stream_id,
@@ -117,6 +117,7 @@ public:
     [[nodiscard]] PxLocalRtcAllocResult AllocateLocalRtcInstance(
         const std::shared_ptr<PxLocalRtcRequestInfo>& request,
         LocalRtcCompletion completion) const;
+    [[nodiscard]] bool RevokeLocalRtcInstance(const std::string& device_id, const std::string& stream_id, const std::string& allocation_id) const;
     [[nodiscard]] bool HasLocalRtcService() const;
     [[nodiscard]] bool UpdateUdpAssociation(
         const UdpMediaAssociation& association) const;
@@ -127,10 +128,12 @@ public:
     void ConfigureIpcMediaIngress(IpcVideoFrameSink video_sink,
                                   IpcAudioFrameSink audio_sink);
     void ConfigureFrontendAuthorizer(FrontendAuthorizer authorizer);
+    void ConfigureLogicalLeaseRenewer(LogicalLeaseRenewer renewer);
     [[nodiscard]] PxAwaitable<PxResult<ConsoleFrontendGrant>> AdmitFrontend(
         ConsoleFrontendAdmissionRequest request,
         std::chrono::steady_clock::time_point deadline) const;
     [[nodiscard]] bool RequiresConsoleFrontendAdmission() const noexcept;
+    [[nodiscard]] bool RenewLogicalSessionLease(const LogicalSessionGrant& grant, std::int64_t now_ms) const;
     void SubmitIpcVideoFrame(const CaptureVideoFrame& frame) const;
     void SubmitIpcAudioFrame(const CaptureAudioFrame& frame) const;
 
@@ -155,12 +158,14 @@ private:
     NetworkBroadcaster network_broadcaster_;
     FileTransferBroadcaster file_transfer_broadcaster_;
     LocalRtcAllocator local_rtc_allocator_;
+    LocalRtcRevoker local_rtc_revoker_;
     UdpAssociationUpdater udp_association_updater_;
     ControllerAvailabilityQuery controller_availability_query_;
     mutable std::mutex ipc_media_ingress_mutex_;
     IpcVideoFrameSink ipc_video_frame_sink_;
     IpcAudioFrameSink ipc_audio_frame_sink_;
     FrontendAuthorizer frontend_authorizer_;
+    LogicalLeaseRenewer logical_lease_renewer_;
     // exe 侧通过插件参数下发("app_mode");DLL 内的 RdSettings
     // 单例是独立副本不可用
     bool game_hook_mode_ = false;

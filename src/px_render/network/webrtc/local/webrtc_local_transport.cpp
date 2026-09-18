@@ -883,6 +883,23 @@ void WebRtcLocalTransport::UpdateCaptureMonitorInfo(const CaptureMonitorInfoMess
     capture_topology_ = message.monitors_;
 }
 
+bool WebRtcLocalTransport::RevokeLocalRtcInstance(const std::string& device_id, const std::string& stream_id, const std::string& allocation_id) {
+    if (device_id.empty() || stream_id.empty() || allocation_id.empty() || !runtime_) {
+        return false;
+    }
+    const auto connection_id = device_id + ":" + stream_id;
+    const auto removed = runtime_->servers.RemoveIf(
+        connection_id, [&allocation_id](const std::shared_ptr<RtcServer>& server) { return server && server->GetAllocationId() == allocation_id; });
+    if (!removed || !*removed) {
+        return false;
+    }
+    const auto server = *removed;
+    server->RequestExit();
+    PxAsyncRuntime::DeferJoin(std::jthread([server]() { server->Exit(); }));
+    LOGI("Revoked exact RTC local instance: {}", connection_id);
+    return true;
+}
+
 PxLocalRtcAllocResult WebRtcLocalTransport::AllocNewLocalRtcInstance(const std::shared_ptr<PxLocalRtcRequestInfo>& req,
                                                                      std::function<void(const std::shared_ptr<PxLocalRtcReplyInfo>&)>&& callback) {
     auto conn_id = req->device_id_ + ":" + req->stream_id_;
@@ -970,6 +987,7 @@ PxLocalRtcAllocResult WebRtcLocalTransport::AllocNewLocalRtcInstance(const std::
     const auto runtime = runtime_;
     auto rtc_server = RtcServer::Make(runtime);
     rtc_server->SetConnId(conn_id);
+    rtc_server->SetAllocationId(req->allocation_id_);
     rtc_server->SetClientNonce(req->client_nonce_);
     rtc_server->SetPermissions(req->capability_enforced_, req->permissions_);
     const auto weak_runtime = std::weak_ptr<WebRtcLocalRuntime>(runtime);
