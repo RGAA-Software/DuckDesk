@@ -1,67 +1,63 @@
-import axios from 'axios'
+import axios from "axios";
 
 // 获取基础URL
 const getBaseURL = () => {
-  const { protocol, hostname, port } = window.location
+    const { protocol, hostname, port } = window.location;
 
-  // 开发模式走 Vite 代理（同源，见 vite.config.ts 的 proxy），保持相对路径即可
-  if (import.meta.env.DEV) {
-    return ''
-  }
+    // 开发模式走 Vite 代理（同源，见 vite.config.ts 的 proxy），保持相对路径即可
+    if (import.meta.env.DEV) {
+        return "";
+    }
 
-  const basePort = port ? `:${port}` : ''
-  return `${protocol}//${hostname}${basePort}`
-}
+    const basePort = port ? `:${port}` : "";
+    return `${protocol}//${hostname}${basePort}`;
+};
 
 const getHostPort = () => {
-  const { hostname, port } = window.location
+    const { hostname, port } = window.location;
 
-  // 开发模式 WebSocket 也走 Vite 代理（/console 已配置 ws:true）
-  if (import.meta.env.DEV) {
-    return window.location.host
-  }
+    // 开发模式 WebSocket 也走 Vite 代理（/console 已配置 ws:true）
+    if (import.meta.env.DEV) {
+        return window.location.host;
+    }
 
-  const basePort = port ? `:${port}` : ''
-  return `${hostname}${basePort}`
-}
+    const basePort = port ? `:${port}` : "";
+    return `${hostname}${basePort}`;
+};
 
 // 导出 baseURL 常量
-export const BASE_URL = getBaseURL()
-export const HOST_PORT = getHostPort()
+export const BASE_URL = getBaseURL();
+export const HOST_PORT = getHostPort();
 
 const axiosHttp = axios.create({
-  baseURL: getBaseURL(),
-  timeout: 5000,
-  withCredentials: true,
-  headers: { 'X-Custom-Header': 'foobar' },
-})
+    baseURL: getBaseURL(),
+    timeout: 30000,
+});
 
-const CSRF_STORAGE_KEY = 'px_admin_csrf'
+const ADMIN_TOKEN_KEY = "pixels.admin_web.token";
 
-export function setAdminCsrfToken(token: string) {
-  if (token) sessionStorage.setItem(CSRF_STORAGE_KEY, token)
-  else sessionStorage.removeItem(CSRF_STORAGE_KEY)
+export function setAdminToken(token: string) {
+    if (token) sessionStorage.setItem(ADMIN_TOKEN_KEY, token);
+    else sessionStorage.removeItem(ADMIN_TOKEN_KEY);
 }
 
-export function getAdminCsrfToken(): string {
-  return sessionStorage.getItem(CSRF_STORAGE_KEY) || ''
+export function hasAdminToken(): boolean {
+    return Boolean(sessionStorage.getItem(ADMIN_TOKEN_KEY));
 }
 
-axiosHttp.interceptors.request.use((config) => {
-  const method = (config.method || 'get').toLowerCase()
-  if (!['get', 'head', 'options'].includes(method)) {
-    const csrf = getAdminCsrfToken()
-    if (csrf) config.headers.set('X-CSRF-Token', csrf)
-  }
-  return config
-})
+axiosHttp.interceptors.request.use(config => {
+    config.headers.set("X-Pixels-Client-Type", "admin_web");
+    const token = sessionStorage.getItem(ADMIN_TOKEN_KEY);
+    if (token) config.headers.set("Authorization", `Bearer ${token}`);
+    return config;
+});
 
 axiosHttp.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error?.response?.status === 401) setAdminCsrfToken('')
-    return Promise.reject(error)
-  },
-)
+    response => response,
+    error => {
+        if (error?.response?.status === 401) setAdminToken("");
+        return Promise.reject(error);
+    },
+);
 
-export default axiosHttp
+export default axiosHttp;

@@ -1,43 +1,68 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { Modal, message, type FormInstance } from "ant-design-vue";
-import { copyText } from "@/util/clipboard";
-import { validateAdminUsername, validateInitialPassword } from "@/util/identity_validation";
+import { useI18n } from "vue-i18n";
 import {
-    batchCreateAdminUsers,
     blockGuestSession,
     createAdminUser,
     deleteAdminUser,
     listAdminUsers,
-    listAdminUserSessions,
-    listGroups,
     listGuestSessions,
     patchAdminUser,
     resetAdminUserPassword,
-    revokeAdminUserSessions,
-    viewAdminUserPassword,
     type GuestSessionView,
-    type GroupView,
+    type ManagedRole,
     type UserAdminView,
-    type UserSessionView,
 } from "@/model/identity_api";
 
-const users = ref<UserAdminView[]>([]),
-    groups = ref<GroupView[]>([]);
-const total = ref(0),
-    page = ref(1),
-    keyword = ref(""),
-    loading = ref(false),
-    editorOpen = ref(false);
-const editorFormRef = ref<FormInstance>(),
-    editorSaving = ref(false);
+const { t } = useI18n();
+const users = ref<UserAdminView[]>([]);
+const total = ref(0);
+const page = ref(1);
+const keyword = ref("");
+const loading = ref(false);
+const editorOpen = ref(false);
+const editorFormRef = ref<FormInstance>();
+const editorSaving = ref(false);
 const editing = ref<UserAdminView>();
-const form = reactive({ username: "", password: "", group_ids: [] as string[] });
+const form = reactive({ username: "", password: "", role: "user" as ManagedRole, disabled: false });
+const resetOpen = ref(false);
+const resetSaving = ref(false);
+const resetUser = ref<UserAdminView>();
+const resetForm = reactive({ password: "" });
+const guestOpen = ref(false);
+const guestLoading = ref(false);
+const guests = ref<GuestSessionView[]>([]);
+
+const roleOptions = computed<Array<{ label: string; value: ManagedRole }>>(() => [
+    { label: t("identity.roles.user"), value: "user" },
+    { label: t("identity.roles.admin"), value: "admin" },
+    { label: t("identity.roles.viewer"), value: "viewer" },
+]);
+
+function usernameError(value: string): string | undefined {
+    const length = [...value].length;
+    if (length < 2 || length > 64) return t("identity.validation.usernameLength");
+    if (value.trim() !== value) return t("identity.validation.usernameWhitespace");
+    if (value.includes("/") || value.includes("\\")) return t("identity.validation.usernameSlash");
+    if (/[\u0000-\u001f\u007f-\u009f]/u.test(value))
+        return t("identity.validation.usernameControl");
+    return undefined;
+}
+
+function passwordError(value: string): string | undefined {
+    if (!value) return t("identity.validation.passwordRequired");
+    const length = [...value].length;
+    if (length < 8 || length > 128) return t("identity.validation.passwordLength");
+    if (!value.trim()) return t("identity.validation.passwordWhitespace");
+    return undefined;
+}
+
 const editorRules = {
     username: [
         {
             validator: (_rule: unknown, value: string) => {
-                const error = validateAdminUsername(value || "");
+                const error = usernameError(value || "");
                 return error ? Promise.reject(new Error(error)) : Promise.resolve();
             },
             trigger: ["blur", "change"],
@@ -46,62 +71,50 @@ const editorRules = {
     password: [
         {
             validator: (_rule: unknown, value: string) => {
-                const error = validateInitialPassword(value || "");
+                if (editing.value) return Promise.resolve();
+                const error = passwordError(value || "");
                 return error ? Promise.reject(new Error(error)) : Promise.resolve();
             },
             trigger: ["blur", "change"],
         },
     ],
 };
-const batchOpen = ref(false),
-    batchLoading = ref(false);
-const sessionsOpen = ref(false),
-    sessionsLoading = ref(false),
-    sessionUser = ref<UserAdminView>();
-const sessions = ref<UserSessionView[]>([]);
-const guestOpen = ref(false),
-    guestLoading = ref(false),
-    guests = ref<GuestSessionView[]>([]);
-const batchForm = reactive({ size: 10, username_prefix: "user", group_ids: [] as string[] });
+
 async function refresh() {
     loading.value = true;
     try {
-        const [userResult, groupList] = await Promise.all([
-            listAdminUsers(page.value, keyword.value),
-            listGroups(),
-        ]);
-        users.value = userResult.items;
-        total.value = userResult.total;
-        groups.value = groupList;
+        const result = await listAdminUsers(page.value, keyword.value);
+        users.value = result.items;
+        total.value = result.total;
     } finally {
         loading.value = false;
     }
 }
+
 function create() {
     editing.value = undefined;
-    Object.assign(form, { username: "", password: "", group_ids: [] });
+    Object.assign(form, { username: "", password: "", role: "user", disabled: false });
     editorFormRef.value?.clearValidate();
     editorOpen.value = true;
 }
+
 function edit(user: UserAdminView) {
     editing.value = user;
     Object.assign(form, {
         username: user.username,
         password: "",
-        group_ids: user.groups.map(group => group.gid),
+        role: user.role,
+        disabled: user.disabled,
     });
+    editorFormRef.value?.clearValidate();
     editorOpen.value = true;
 }
-function userRequestError(error: any): string {
-    const code = error?.response?.data?.code;
-    if (code === 608) return "用户名已存在，请更换用户名";
-    if (code === 634) return "所选用户组已不存在，请刷新后重试";
-    if (code === 602) return "所选设备已不存在，请刷新后重试";
-    if (code === 635) return "用户信息已被其他操作修改，请刷新后重试";
-    if (code === 633) return "当前账号没有修改用户的权限";
-    if (code === 600 || code === 603) return "用户名或密码不符合要求";
-    return error?.response?.data?.message || error?.message || "保存用户失败";
+
+function requestError(error: unknown, fallbackKey: string): string {
+    const response = (error as { response?: { data?: { message?: string } } })?.response;
+    return response?.data?.message || (error instanceof Error ? error.message : t(fallbackKey));
 }
+
 async function save() {
     try {
         await editorFormRef.value?.validate();
@@ -111,78 +124,59 @@ async function save() {
     editorSaving.value = true;
     try {
         if (editing.value) {
-            await patchAdminUser(editing.value.uid, {
-                version: editing.value.version,
-                username: form.username,
-                group_ids: form.group_ids,
-            });
+            await patchAdminUser(editing.value, { role: form.role, disabled: form.disabled });
         } else {
-            const createdUser = await createAdminUser({
+            await createAdminUser({
                 username: form.username,
-                initial_password: form.password || undefined,
-                group_ids: form.group_ids,
-            });
-            Modal.info({
-                title: "用户密码",
-                content: createdUser.initial_password,
-                okText: "关闭",
+                password: form.password,
+                role: form.role,
             });
         }
         editorOpen.value = false;
+        message.success(t("identity.users.saved"));
         await refresh();
     } catch (error) {
-        message.error(userRequestError(error));
+        message.error(requestError(error, "identity.users.saveFailed"));
     } finally {
         editorSaving.value = false;
     }
 }
+
 async function toggle(user: UserAdminView) {
-    await patchAdminUser(user.uid, { version: user.version, disabled: !user.disabled });
-    await refresh();
-}
-async function reset(user: UserAdminView) {
-    const resetResult = await resetAdminUserPassword(user);
-    await copyText(resetResult.initial_password);
-    Modal.info({ title: "新密码已复制", content: resetResult.initial_password });
-    await refresh();
-}
-async function showPassword(user: UserAdminView) {
     try {
-        const result = await viewAdminUserPassword(user.uid);
-        if (!result.password) {
-            Modal.warning({
-                title: "无法查看历史密码",
-                content: "该账号创建于密码查看功能启用之前，请重置一次密码。",
-            });
-            return;
-        }
-        Modal.info({
-            title: `${user.username} 的当前密码`,
-            content: result.password,
-            okText: "关闭",
-        });
-    } catch (error: any) {
-        message.error(error?.response?.data?.message || "读取密码失败");
+        await patchAdminUser(user, { role: user.role, disabled: !user.disabled });
+        await refresh();
+    } catch (error) {
+        message.error(requestError(error, "identity.users.saveFailed"));
     }
 }
-async function revoke(user: UserAdminView) {
-    await revokeAdminUserSessions(user.uid);
-    message.success("全部会话已撤销");
-    await refresh();
+
+function openPasswordReset(user: UserAdminView) {
+    resetUser.value = user;
+    resetForm.password = "";
+    resetOpen.value = true;
 }
-async function showSessions(user: UserAdminView) {
-    sessionUser.value = user;
-    sessionsOpen.value = true;
-    sessionsLoading.value = true;
+
+async function resetPassword() {
+    const user = resetUser.value;
+    const error = passwordError(resetForm.password);
+    if (!user || error) {
+        message.error(error || t("identity.users.resetFailed"));
+        return;
+    }
+    resetSaving.value = true;
     try {
-        sessions.value = await listAdminUserSessions(user.uid);
+        await resetAdminUserPassword(user, resetForm.password);
+        resetOpen.value = false;
+        message.success(t("identity.users.resetSucceeded"));
+        await refresh();
+    } catch (requestFailure) {
+        message.error(requestError(requestFailure, "identity.users.resetFailed"));
     } finally {
-        sessionsLoading.value = false;
+        resetSaving.value = false;
     }
 }
-function formatTime(value?: number) {
-    return value ? new Date(value).toLocaleString() : "-";
-}
+
 async function showGuests() {
     guestOpen.value = true;
     guestLoading.value = true;
@@ -192,24 +186,24 @@ async function showGuests() {
         guestLoading.value = false;
     }
 }
-function blockGuest(guest: GuestSessionView, includeIp: boolean) {
+
+function blockGuest(guest: GuestSessionView, includeSource: boolean) {
     Modal.confirm({
-        title: includeIp ? "封禁该来源？" : "封禁该访客？",
-        content: includeIp
-            ? `将撤销来源 ${guest.ip_hash_prefix} 的全部访客会话，并拒绝该来源新建访客会话。`
-            : "将立即撤销该访客的全部会话。",
+        title: t(includeSource ? "identity.guests.confirmSource" : "identity.guests.confirmGuest"),
+        content: t(includeSource ? "identity.guests.sourceImpact" : "identity.guests.guestImpact"),
         okType: "danger",
         async onOk() {
-            await blockGuestSession(guest.sid, true, includeIp);
-            message.success("封禁已生效");
+            await blockGuestSession(guest, includeSource);
+            message.success(t("identity.guests.blocked"));
             guests.value = await listGuestSessions();
         },
     });
 }
+
 function remove(user: UserAdminView) {
     Modal.confirm({
-        title: `删除用户 ${user.username}？`,
-        content: "账号将软删除且全部会话立即失效。",
+        title: t("identity.users.deleteTitle", { username: user.username }),
+        content: t("identity.users.deleteImpact"),
         okType: "danger",
         async onOk() {
             await deleteAdminUser(user);
@@ -217,42 +211,39 @@ function remove(user: UserAdminView) {
         },
     });
 }
+
 function onTableChange(pagination: { current?: number }) {
     page.value = pagination.current || 1;
     void refresh();
 }
-async function generateBatch() {
-    batchLoading.value = true;
-    try {
-        const blob = await batchCreateAdminUsers(batchForm);
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `px_users_${new Date().toISOString().slice(0, 10)}.csv`;
-        link.click();
-        URL.revokeObjectURL(url);
-        batchOpen.value = false;
-        message.success("用户已创建；密码已下载，也可随时在用户管理中查看");
-        await refresh();
-    } finally {
-        batchLoading.value = false;
-    }
+
+function formatTime(value?: string | null) {
+    return value ? new Date(value).toLocaleString() : "-";
 }
+
+function guestState(guest: GuestSessionView) {
+    if (guest.blocked) return t("identity.states.blocked");
+    if (guest.revoked_at) return t("identity.states.revoked");
+    if (new Date(guest.expires_at).getTime() <= Date.now()) return t("identity.states.expired");
+    return t("identity.states.active");
+}
+
 onMounted(refresh);
 </script>
+
 <template>
-    <a-card title="用户管理">
-        <template #extra
-            ><a-space
-                ><a-input-search
+    <a-card :title="t('identity.users.title')">
+        <template #extra>
+            <a-space>
+                <a-input-search
                     v-model:value="keyword"
-                    placeholder="用户名"
+                    :placeholder="t('identity.users.search')"
                     @search="refresh"
-                /><a-button @click="showGuests">访客会话</a-button
-                ><a-button @click="batchOpen = true">批量创建</a-button
-                ><a-button type="primary" @click="create">新建用户</a-button></a-space
-            ></template
-        >
+                />
+                <a-button @click="showGuests">{{ t("identity.guests.title") }}</a-button>
+                <a-button type="primary" @click="create">{{ t("identity.users.create") }}</a-button>
+            </a-space>
+        </template>
         <a-table
             :data-source="users"
             row-key="uid"
@@ -260,208 +251,154 @@ onMounted(refresh);
             :pagination="{ current: page, total, pageSize: 20 }"
             @change="onTableChange"
         >
-            <a-table-column title="用户名" data-index="username" />
-            <a-table-column title="用户组"
-                ><template #default="{ record }"
-                    ><a-tag v-for="g in record.groups" :key="g.gid">{{ g.name }}</a-tag></template
-                ></a-table-column
-            >
-            <a-table-column title="状态"
-                ><template #default="{ record }"
-                    ><a-tag :color="record.disabled ? 'red' : 'green'">{{
-                        record.disabled ? "已禁用" : "正常"
-                    }}</a-tag></template
-                ></a-table-column
-            >
-            <a-table-column title="操作" width="540"
-                ><template #default="{ record }"
-                    ><a-space wrap
-                        ><a-button size="small" @click="edit(record)">编辑</a-button
-                        ><a-button size="small" @click="toggle(record)">{{
-                            record.disabled ? "启用" : "禁用"
-                        }}</a-button
-                        ><a-button size="small" @click="showPassword(record)">查看密码</a-button
-                        ><a-button size="small" @click="reset(record)">重置密码</a-button
-                        ><a-button size="small" @click="showSessions(record)">会话</a-button
-                        ><a-button size="small" @click="revoke(record)">撤销会话</a-button
-                        ><a-button size="small" danger @click="remove(record)"
-                            >删除</a-button
-                        ></a-space
-                    ></template
-                ></a-table-column
-            >
+            <a-table-column :title="t('identity.users.username')" data-index="username" />
+            <a-table-column :title="t('identity.users.role')">
+                <template #default="{ record }">{{ t(`identity.roles.${record.role}`) }}</template>
+            </a-table-column>
+            <a-table-column :title="t('identity.users.createdAt')">
+                <template #default="{ record }">{{ formatTime(record.created_at) }}</template>
+            </a-table-column>
+            <a-table-column :title="t('identity.users.status')">
+                <template #default="{ record }">
+                    <a-tag :color="record.disabled ? 'red' : 'green'">
+                        {{
+                            t(
+                                record.disabled
+                                    ? "identity.states.disabled"
+                                    : "identity.states.active",
+                            )
+                        }}
+                    </a-tag>
+                </template>
+            </a-table-column>
+            <a-table-column :title="t('identity.users.actions')" width="390">
+                <template #default="{ record }">
+                    <a-space wrap>
+                        <a-button size="small" @click="edit(record)">{{
+                            t("identity.actions.edit")
+                        }}</a-button>
+                        <a-button size="small" @click="toggle(record)">
+                            {{
+                                t(
+                                    record.disabled
+                                        ? "identity.actions.enable"
+                                        : "identity.actions.disable",
+                                )
+                            }}
+                        </a-button>
+                        <a-button
+                            size="small"
+                            :disabled="record.disabled"
+                            @click="openPasswordReset(record)"
+                        >
+                            {{ t("identity.actions.resetPassword") }}
+                        </a-button>
+                        <a-button size="small" danger @click="remove(record)">{{
+                            t("identity.actions.delete")
+                        }}</a-button>
+                    </a-space>
+                </template>
+            </a-table-column>
         </a-table>
     </a-card>
+
     <a-modal
         v-model:open="editorOpen"
-        :title="editing ? '编辑用户' : '新建用户'"
+        :title="t(editing ? 'identity.users.edit' : 'identity.users.create')"
         :confirm-loading="editorSaving"
-        ok-text="保存"
-        cancel-text="取消"
+        :ok-text="t('identity.actions.save')"
+        :cancel-text="t('identity.actions.cancel')"
         @ok="save"
     >
-        <a-form ref="editorFormRef" :model="form" :rules="editorRules" layout="vertical"
-            ><a-form-item label="用户名" name="username"
-                ><a-input
-                    v-model:value="form.username"
-                    :maxlength="64"
-                    placeholder="2–64 个字符" /></a-form-item
-            ><a-form-item
-                v-if="!editing"
-                label="初始密码"
-                name="password"
-                extra="留空将自动生成安全密码；手动设置需输入 8–128 个字符"
-                ><a-input-password v-model:value="form.password" :maxlength="128" /></a-form-item
-            ><a-form-item label="用户组"
-                ><a-select
-                    v-model:value="form.group_ids"
-                    mode="multiple"
-                    :options="groups.map(g => ({ label: g.name, value: g.gid }))" /></a-form-item
-        ></a-form>
+        <a-form ref="editorFormRef" :model="form" :rules="editorRules" layout="vertical">
+            <a-form-item :label="t('identity.users.username')" name="username">
+                <a-input v-model:value="form.username" :disabled="!!editing" :maxlength="64" />
+            </a-form-item>
+            <a-form-item v-if="!editing" :label="t('identity.users.password')" name="password">
+                <a-input-password v-model:value="form.password" :maxlength="128" />
+            </a-form-item>
+            <a-form-item :label="t('identity.users.role')">
+                <a-select v-model:value="form.role" :options="roleOptions" />
+            </a-form-item>
+            <a-form-item v-if="editing" :label="t('identity.users.disabled')">
+                <a-switch v-model:checked="form.disabled" />
+            </a-form-item>
+        </a-form>
     </a-modal>
+
     <a-modal
-        v-model:open="batchOpen"
-        title="批量创建用户"
-        :confirm-loading="batchLoading"
-        @ok="generateBatch"
+        v-model:open="resetOpen"
+        :title="t('identity.users.resetTitle', { username: resetUser?.username || '' })"
+        :confirm-loading="resetSaving"
+        :ok-text="t('identity.actions.save')"
+        :cancel-text="t('identity.actions.cancel')"
+        @ok="resetPassword"
     >
-        <a-alert
-            type="info"
-            show-icon
-            message="密码会写入本次 CSV，也可由 Console 管理员随后逐个查看。"
-        />
-        <a-form layout="vertical" style="margin-top: 16px"
-            ><a-form-item label="用户名开头"
-                ><a-input v-model:value="batchForm.username_prefix" :maxlength="48" /></a-form-item
-            ><a-form-item label="数量（最多 500）"
-                ><a-input-number v-model:value="batchForm.size" :min="1" :max="500" /></a-form-item
-            ><a-form-item label="用户组"
-                ><a-select
-                    v-model:value="batchForm.group_ids"
-                    mode="multiple"
-                    :options="groups.map(g => ({ label: g.name, value: g.gid }))" /></a-form-item
-        ></a-form>
+        <a-alert type="info" show-icon :message="t('identity.users.passwordNotStored')" />
+        <a-form layout="vertical" style="margin-top: 16px">
+            <a-form-item :label="t('identity.users.newPassword')">
+                <a-input-password v-model:value="resetForm.password" :maxlength="128" />
+            </a-form-item>
+        </a-form>
     </a-modal>
+
     <a-modal
-        v-model:open="sessionsOpen"
-        :title="`${sessionUser?.username || ''} 的会话`"
+        v-model:open="guestOpen"
+        :title="t('identity.guests.title')"
         :footer="null"
-        width="920px"
+        width="1000px"
     >
-        <a-alert
-            type="info"
-            show-icon
-            message="仅显示来源哈希前缀用于关联排查，不暴露原始 IP、User-Agent 或令牌。"
-            style="margin-bottom: 12px"
-        />
-        <a-table
-            :data-source="sessions"
-            row-key="sid"
-            :loading="sessionsLoading"
-            :pagination="false"
-            size="small"
-            :scroll="{ x: 820 }"
-        >
-            <a-table-column title="客户端" data-index="client_type" width="110" />
-            <a-table-column title="创建时间" width="175"
-                ><template #default="{ record }">{{
-                    formatTime(record.created_at)
-                }}</template></a-table-column
-            >
-            <a-table-column title="最后使用" width="175"
-                ><template #default="{ record }">{{
-                    formatTime(record.last_used_at)
-                }}</template></a-table-column
-            >
-            <a-table-column title="来源" width="110"
-                ><template #default="{ record }">{{
-                    record.ip_hash_prefix || "-"
-                }}</template></a-table-column
-            >
-            <a-table-column title="状态" width="100"
-                ><template #default="{ record }"
-                    ><a-tag
-                        :color="
-                            record.revoked_at
-                                ? 'default'
-                                : record.expires_at <= Date.now()
-                                  ? 'orange'
-                                  : 'green'
-                        "
-                        >{{
-                            record.revoked_at
-                                ? "已撤销"
-                                : record.expires_at <= Date.now()
-                                  ? "已过期"
-                                  : "有效"
-                        }}</a-tag
-                    ></template
-                ></a-table-column
-            >
-        </a-table>
-    </a-modal>
-    <a-modal v-model:open="guestOpen" title="访客会话与来源封禁" :footer="null" width="1080px">
         <a-alert
             type="warning"
             show-icon
-            message="来源仅以服务端哈希前缀显示；封禁来源会影响同一公网出口下的其他访客。"
+            :message="t('identity.guests.privacyNotice')"
             style="margin-bottom: 12px"
         />
         <a-table
             :data-source="guests"
-            row-key="sid"
+            row-key="id"
             :loading="guestLoading"
             :pagination="{ pageSize: 20 }"
             size="small"
-            :scroll="{ x: 980 }"
+            :scroll="{ x: 900 }"
         >
-            <a-table-column title="访客" data-index="guest_id" width="250" />
-            <a-table-column title="客户端" data-index="client_type" width="110" />
-            <a-table-column title="来源" data-index="ip_hash_prefix" width="100" />
-            <a-table-column title="最后使用" width="175"
-                ><template #default="{ record }">{{
-                    formatTime(record.last_used_at)
-                }}</template></a-table-column
-            >
-            <a-table-column title="状态" width="90"
-                ><template #default="{ record }"
-                    ><a-tag
-                        :color="
-                            record.revoked_at
-                                ? 'default'
-                                : record.expires_at <= Date.now()
-                                  ? 'orange'
-                                  : 'green'
-                        "
-                        >{{
-                            record.revoked_at
-                                ? "已撤销"
-                                : record.expires_at <= Date.now()
-                                  ? "已过期"
-                                  : "有效"
-                        }}</a-tag
-                    ></template
-                ></a-table-column
-            >
-            <a-table-column title="操作" width="190"
-                ><template #default="{ record }"
-                    ><a-space
-                        ><a-button
+            <a-table-column :title="t('identity.guests.identity')" data-index="id" width="310" />
+            <a-table-column
+                :title="t('identity.guests.client')"
+                data-index="client_type"
+                width="110"
+            />
+            <a-table-column :title="t('identity.guests.createdAt')" width="180">
+                <template #default="{ record }">{{ formatTime(record.created_at) }}</template>
+            </a-table-column>
+            <a-table-column :title="t('identity.guests.expiresAt')" width="180">
+                <template #default="{ record }">{{ formatTime(record.expires_at) }}</template>
+            </a-table-column>
+            <a-table-column :title="t('identity.users.status')" width="90">
+                <template #default="{ record }">{{ guestState(record) }}</template>
+            </a-table-column>
+            <a-table-column :title="t('identity.users.actions')" width="190">
+                <template #default="{ record }">
+                    <a-space>
+                        <a-button
                             size="small"
                             danger
-                            :disabled="!!record.revoked_at"
+                            :disabled="record.blocked"
                             @click="blockGuest(record, false)"
-                            >封禁访客</a-button
-                        ><a-button
+                        >
+                            {{ t("identity.guests.blockGuest") }}
+                        </a-button>
+                        <a-button
                             size="small"
                             danger
-                            :disabled="!!record.revoked_at || !record.ip_hash_prefix"
+                            :disabled="record.blocked"
                             @click="blockGuest(record, true)"
-                            >封禁来源</a-button
-                        ></a-space
-                    ></template
-                ></a-table-column
-            >
+                        >
+                            {{ t("identity.guests.blockSource") }}
+                        </a-button>
+                    </a-space>
+                </template>
+            </a-table-column>
         </a-table>
     </a-modal>
 </template>
