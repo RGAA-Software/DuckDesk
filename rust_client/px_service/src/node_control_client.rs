@@ -854,8 +854,6 @@ fn start_request(
         .into(),
         webrtc_enabled: true,
         websocket_enabled: true,
-        live_stream_id: String::new(),
-        push_rtmp_url: String::new(),
         app_mode: mode.into(),
         webview_url_b64: webview,
         rdp_node_id: String::new(),

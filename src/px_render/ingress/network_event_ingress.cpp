@@ -33,7 +33,6 @@
 #include "px_capture/capture_message_maker.h"
 #include "px_common/data.h"
 #include "px_common/log.h"
-#include "px_common/md5.h"
 #include "px_common/process_util.h"
 #include "px_common/virtual_display_timeouts.h"
 #include "px_common/win32/process_helper.h"
@@ -43,7 +42,6 @@
 #include "px_message/rp_proto_converter.h"
 #include "px_render/modules/module_ids.h"
 #include "px_render/modules/render_module_registry.h"
-#include "px_render/network/webrtc/remote/rtc_messages.h"
 #include "px_render/network/ws/ws_user_proxy_router.h"
 #include "px_render_panel_message.pb.h"
 #include "rd_app.h"
@@ -78,29 +76,11 @@ struct VirtualDisplayCoordinator {
     std::unordered_map<std::string, CachedVirtualDisplayResponse> completed;
 };
 
-void NetworkEventIngress::SendRtcSignalingError(
-    const std::string& stream_id, const std::string& code,
-    const std::string& message) const {
-    if (stream_id.empty() || !module_registry_) {
-        return;
-    }
-    Message response;
-    response.set_type(MessageType::kSigAnswerSdpMessage);
-    response.mutable_sig_answer_sdp()->set_error_code(code);
-    response.mutable_sig_answer_sdp()->set_error_message(message);
-    const auto serialized = ProtoAsData(&response);
-    module_registry_->SendRelaySignalingMessage(stream_id, serialized);
-}
-
 namespace {
 
-std::optional<std::string> ResourceChannelBindingId(
-    const std::string& source_id, const std::string& stream_id) {
+std::optional<std::string> ResourceChannelBindingId(const std::string& source_id, const std::string& stream_id) {
     if (stream_id.empty()) {
         return std::nullopt;
-    }
-    if (source_id == kNetWebRtcRemoteLibraryId) {
-        return std::string("rtc:") + stream_id;
     }
     if (source_id == kNetWebRtcLocalLibraryId) {
         return std::string("rtc-local:") + stream_id;
@@ -108,37 +88,24 @@ std::optional<std::string> ResourceChannelBindingId(
     return std::nullopt;
 }
 
-std::string ResourceChannelConnectionKey(const std::string& source_id,
-                                         const std::string& connection_id,
-                                         const std::string& stream_id) {
-    const auto& stable_connection_id =
-        connection_id.empty() ? stream_id : connection_id;
-    return stable_connection_id.empty()
-               ? std::string{}
-               : source_id + ":" + stable_connection_id;
+std::string ResourceChannelConnectionKey(const std::string& source_id, const std::string& connection_id, const std::string& stream_id) {
+    const auto& stable_connection_id = connection_id.empty() ? stream_id : connection_id;
+    return stable_connection_id.empty() ? std::string{} : source_id + ":" + stable_connection_id;
 }
 
 int64_t CurrentSystemMilliseconds() {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(
-               std::chrono::system_clock::now().time_since_epoch())
-        .count();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 }
 
 bool IsControllerOnlyMessage(const MessageType type) {
-    return type == kApplicationTextCapabilities ||
-           type == kApplicationTextBarrier || type == kApplicationTextSubmit ||
-           type == MessageType::kMouseEvent || type == MessageType::kKeyEvent ||
-           type == MessageType::kTextInput ||
-           type == MessageType::kGamepadState || type == kReqCtrlAltDelete ||
-           type == kClipboardInfo || type == kClipboardInfoResp ||
-           type == MessageType::kClipboardReqAtBegin ||
-           type == MessageType::kClipboardReqAtEnd ||
-           type == MessageType::kClipboardReqBuffer ||
+    return type == kApplicationTextCapabilities || type == kApplicationTextBarrier || type == kApplicationTextSubmit ||
+           type == MessageType::kMouseEvent || type == MessageType::kKeyEvent || type == MessageType::kTextInput ||
+           type == MessageType::kGamepadState || type == kReqCtrlAltDelete || type == kClipboardInfo || type == kClipboardInfoResp ||
+           type == MessageType::kClipboardReqAtBegin || type == MessageType::kClipboardReqAtEnd || type == MessageType::kClipboardReqBuffer ||
            type == MessageType::kClipboardRespBuffer;
 }
 
-std::chrono::steady_clock::duration VirtualDisplayServiceResponseTimeout(
-    RemoteVirtualDisplayOperation operation) {
+std::chrono::steady_clock::duration VirtualDisplayServiceResponseTimeout(RemoteVirtualDisplayOperation operation) {
     switch (operation) {
         case kRemoteVirtualDisplayQuery:
             return kVirtualDisplayQueryRenderTimeout;
@@ -151,26 +118,20 @@ std::chrono::steady_clock::duration VirtualDisplayServiceResponseTimeout(
     }
 }
 
-bool VerifyGuestDeviceCredential(const RdSettings& settings,
-                                 const std::string& safety_pwd_md5) {
-    if (settings.device_safety_pwd_.empty() &&
-        settings.device_random_pwd_.empty()) {
+bool VerifyGuestDeviceCredential(const RdSettings& settings, const std::string& safety_pwd_md5) {
+    if (settings.device_safety_pwd_.empty() && settings.device_random_pwd_.empty()) {
         return true;
     }
     if (safety_pwd_md5.empty()) {
         return false;
     }
-    if (!settings.device_safety_pwd_.empty() &&
-        settings.device_safety_pwd_ == safety_pwd_md5) {
+    if (!settings.device_safety_pwd_.empty() && settings.device_safety_pwd_ == safety_pwd_md5) {
         return true;
     }
-    return !settings.device_random_pwd_.empty() &&
-           MD5::Hex(settings.device_random_pwd_) == safety_pwd_md5;
+    return !settings.device_random_pwd_.empty() && MD5::Hex(settings.device_random_pwd_) == safety_pwd_md5;
 }
 
-void SendVirtualDisplayResponse(const std::shared_ptr<RdApplication>& app,
-                                const std::string& device_id,
-                                const std::string& stream_id,
+void SendVirtualDisplayResponse(const std::shared_ptr<RdApplication>& app, const std::string& device_id, const std::string& stream_id,
                                 const VirtualDisplayResponse& response) {
     px::Message message;
     message.set_type(kVirtualDisplayResponse);
@@ -180,9 +141,7 @@ void SendVirtualDisplayResponse(const std::shared_ptr<RdApplication>& app,
     app->PostNetMessage(ProtoAsData(&message));
 }
 
-VirtualDisplayResponse BuildVirtualDisplayResponse(
-    const MsgVirtualDisplayServiceResult& result,
-    VirtualDisplayResponseState state) {
+VirtualDisplayResponse BuildVirtualDisplayResponse(const MsgVirtualDisplayServiceResult& result, VirtualDisplayResponseState state) {
     VirtualDisplayResponse response;
     response.set_request_id(result.request_id_);
     response.set_accepted(result.accepted_);
@@ -193,17 +152,14 @@ VirtualDisplayResponse BuildVirtualDisplayResponse(
     response.set_error_code(result.error_code_);
     response.set_error_message(result.error_message_);
     response.set_owned_display_count(result.owned_display_count_);
-    response.set_actual_virtual_display_count(
-        result.actual_virtual_display_count_);
+    response.set_actual_virtual_display_count(result.actual_virtual_display_count_);
     response.set_driver_installed(result.driver_installed_);
     response.set_package_valid(result.package_valid_);
     response.set_removal_safe(result.removal_safe_);
     return response;
 }
 
-VirtualDisplayResponse BuildVirtualDisplayFailure(const std::string& request_id,
-                                                  const std::string& code,
-                                                  const std::string& message) {
+VirtualDisplayResponse BuildVirtualDisplayFailure(const std::string& request_id, const std::string& code, const std::string& message) {
     VirtualDisplayResponse response;
     response.set_request_id(request_id);
     response.set_accepted(false);
@@ -213,104 +169,78 @@ VirtualDisplayResponse BuildVirtualDisplayFailure(const std::string& request_id,
     return response;
 }
 
-void CacheResponseLocked(VirtualDisplayCoordinator& coordinator,
-                         const std::string& request_id,
-                         CachedVirtualDisplayResponse&& cached) {
+void CacheResponseLocked(VirtualDisplayCoordinator& coordinator, const std::string& request_id, CachedVirtualDisplayResponse&& cached) {
     if (coordinator.completed.size() >= 256) {
         coordinator.completed.clear();
     }
     coordinator.completed[request_id] = std::move(cached);
 }
 
-void CompleteVirtualDisplayRequests(
-    const std::shared_ptr<RdApplication>& app,
-    const std::shared_ptr<VirtualDisplayCoordinator>& coordinator) {
+void CompleteVirtualDisplayRequests(const std::shared_ptr<RdApplication>& app, const std::shared_ptr<VirtualDisplayCoordinator>& coordinator) {
     std::vector<CachedVirtualDisplayResponse> ready;
     {
         std::scoped_lock lock(coordinator->mutex);
-        for (auto it = coordinator->pending.begin();
-             it != coordinator->pending.end();) {
+        for (auto it = coordinator->pending.begin(); it != coordinator->pending.end();) {
             if (!it->second.service_result) {
                 ++it;
                 continue;
             }
             const auto& result = *it->second.service_result;
-            const bool capture_ready = coordinator->capture_epoch >=
-                                           it->second.required_capture_epoch &&
-                                       coordinator->first_frame_epoch >=
-                                           it->second.required_capture_epoch;
-            if (result.accepted_ && result.topology_changed_ &&
-                !capture_ready) {
+            const bool capture_ready = coordinator->capture_epoch >= it->second.required_capture_epoch &&
+                                       coordinator->first_frame_epoch >= it->second.required_capture_epoch;
+            if (result.accepted_ && result.topology_changed_ && !capture_ready) {
                 ++it;
                 continue;
             }
             const auto state =
-                !result.accepted_
-                    ? kVirtualDisplayFailed
-                    : (result.topology_changed_ ? kVirtualDisplayNeedReconnect
-                                                : kVirtualDisplayReady);
+                !result.accepted_ ? kVirtualDisplayFailed : (result.topology_changed_ ? kVirtualDisplayNeedReconnect : kVirtualDisplayReady);
             CachedVirtualDisplayResponse completed{
                 .device_id = it->second.device_id,
                 .stream_id = it->second.stream_id,
                 .response = BuildVirtualDisplayResponse(result, state),
             };
-            CacheResponseLocked(*coordinator, it->first,
-                                CachedVirtualDisplayResponse(completed));
+            CacheResponseLocked(*coordinator, it->first, CachedVirtualDisplayResponse(completed));
             ready.push_back(std::move(completed));
             it = coordinator->pending.erase(it);
         }
     }
     for (const auto& completed_response : ready) {
-        SendVirtualDisplayResponse(app, completed_response.device_id,
-                                   completed_response.stream_id,
-                                   completed_response.response);
+        SendVirtualDisplayResponse(app, completed_response.device_id, completed_response.stream_id, completed_response.response);
     }
 }
 
-void ExpireVirtualDisplayRequests(
-    const std::shared_ptr<RdApplication>& app,
-    const std::shared_ptr<VirtualDisplayCoordinator>& coordinator) {
+void ExpireVirtualDisplayRequests(const std::shared_ptr<RdApplication>& app, const std::shared_ptr<VirtualDisplayCoordinator>& coordinator) {
     std::vector<CachedVirtualDisplayResponse> expired;
     const auto now = std::chrono::steady_clock::now();
     {
         std::scoped_lock lock(coordinator->mutex);
-        for (auto it = coordinator->pending.begin();
-             it != coordinator->pending.end();) {
+        for (auto it = coordinator->pending.begin(); it != coordinator->pending.end();) {
             if (it->second.deadline > now) {
                 ++it;
                 continue;
             }
-            const auto code = it->second.service_result
-                                  ? "CAPTURE_REBUILD_TIMEOUT"
-                                  : "SERVICE_TIMEOUT";
-            const auto message = it->second.service_result
-                                     ? "display topology changed but capture "
-                                       "did not produce a frame in time"
-                                     : "px_service did not answer the virtual "
-                                       "display request in time";
+            const auto code = it->second.service_result ? "CAPTURE_REBUILD_TIMEOUT" : "SERVICE_TIMEOUT";
+            const auto message = it->second.service_result ? "display topology changed but capture "
+                                                             "did not produce a frame in time"
+                                                           : "px_service did not answer the virtual "
+                                                             "display request in time";
             CachedVirtualDisplayResponse completed{
                 .device_id = it->second.device_id,
                 .stream_id = it->second.stream_id,
-                .response =
-                    BuildVirtualDisplayFailure(it->first, code, message),
+                .response = BuildVirtualDisplayFailure(it->first, code, message),
             };
-            CacheResponseLocked(*coordinator, it->first,
-                                CachedVirtualDisplayResponse(completed));
+            CacheResponseLocked(*coordinator, it->first, CachedVirtualDisplayResponse(completed));
             expired.push_back(std::move(completed));
             it = coordinator->pending.erase(it);
         }
     }
     for (const auto& expired_response : expired) {
-        SendVirtualDisplayResponse(app, expired_response.device_id,
-                                   expired_response.stream_id,
-                                   expired_response.response);
+        SendVirtualDisplayResponse(app, expired_response.device_id, expired_response.stream_id, expired_response.response);
     }
 }
 
-void ReconcileVirtualDisplayRequests(
-    const std::shared_ptr<RdApplication>& app,
-    const std::shared_ptr<VirtualDisplayCoordinator>& coordinator,
-    const MsgVirtualDisplayServiceResult& status) {
+void ReconcileVirtualDisplayRequests(const std::shared_ptr<RdApplication>& app, const std::shared_ptr<VirtualDisplayCoordinator>& coordinator,
+                                     const MsgVirtualDisplayServiceResult& status) {
     if (!status.accepted_) {
         return;
     }
@@ -318,21 +248,14 @@ void ReconcileVirtualDisplayRequests(
     {
         std::scoped_lock lock(coordinator->mutex);
         for (auto& [request_id, pending] : coordinator->pending) {
-            if (pending.service_result ||
-                status.topology_generation_ <=
-                    pending.initial_topology_generation) {
+            if (pending.service_result || status.topology_generation_ <= pending.initial_topology_generation) {
                 continue;
             }
             const bool expected_topology =
-                (pending.operation == kRemoteVirtualDisplayCreate &&
-                 status.owned_display_count_ ==
-                     pending.initial_owned_display_count + 1) ||
-                (pending.operation == kRemoteVirtualDisplayRemoveLast &&
-                 pending.initial_owned_display_count > 0 &&
-                 status.owned_display_count_ + 1 ==
-                     pending.initial_owned_display_count) ||
-                (pending.operation == kRemoteVirtualDisplayResetOwned &&
-                 status.owned_display_count_ == 0);
+                (pending.operation == kRemoteVirtualDisplayCreate && status.owned_display_count_ == pending.initial_owned_display_count + 1) ||
+                (pending.operation == kRemoteVirtualDisplayRemoveLast && pending.initial_owned_display_count > 0 &&
+                 status.owned_display_count_ + 1 == pending.initial_owned_display_count) ||
+                (pending.operation == kRemoteVirtualDisplayResetOwned && status.owned_display_count_ == 0);
             if (!expected_topology) {
                 continue;
             }
@@ -340,16 +263,13 @@ void ReconcileVirtualDisplayRequests(
             reconciled.request_id_ = request_id;
             reconciled.topology_changed_ = true;
             pending.service_result = std::move(reconciled);
-            pending.deadline = std::chrono::steady_clock::now() +
-                               kVirtualDisplayCaptureRebuildTimeout;
+            pending.deadline = std::chrono::steady_clock::now() + kVirtualDisplayCaptureRebuildTimeout;
             changed = true;
             LOGW(
                 "Reconciled virtual display request {} from authoritative "
                 "status: "
                 "owned {} -> {}, generation {} -> {}",
-                request_id, pending.initial_owned_display_count,
-                status.owned_display_count_,
-                pending.initial_topology_generation,
+                request_id, pending.initial_owned_display_count, status.owned_display_count_, pending.initial_topology_generation,
                 status.topology_generation_);
         }
     }
@@ -359,16 +279,13 @@ void ReconcileVirtualDisplayRequests(
 }
 }  // namespace
 
-std::shared_ptr<NetworkEventIngress> NetworkEventIngress::Make(
-    const std::shared_ptr<RdApplication>& app) {
+std::shared_ptr<NetworkEventIngress> NetworkEventIngress::Make(const std::shared_ptr<RdApplication>& app) {
     auto ingress = std::make_shared<NetworkEventIngress>(app);
     ingress->InitListeners();
     return ingress;
 }
 
-NetworkEventIngress::NetworkEventIngress(
-    const std::shared_ptr<RdApplication>& app)
-    : settings_(*RdSettings::Instance()) {
+NetworkEventIngress::NetworkEventIngress(const std::shared_ptr<RdApplication>& app) : settings_(*RdSettings::Instance()) {
     this->app_ = app;
     this->context_ = app->GetContext();
     this->module_registry_ = app->GetRenderModuleRegistry();
@@ -385,75 +302,56 @@ NetworkEventIngress::NetworkEventIngress(
 void NetworkEventIngress::InitListeners() {
     auto instance{settings_.app_instance_id_};
     if (instance.empty()) instance = settings_.webview_instance_id_;
-    if (instance.empty())
-        instance = std::to_string(GetCurrentProcessId()) + ":" +
-                   std::to_string(CurrentSystemMilliseconds());
-    application_text_ = std::make_shared<ApplicationTextService>(
-        instance, app_->GetLogicalSessionRegistry(),
-        app_->CreateApplicationTextBackend());
-    msg_listener_ =
-        context_->CreateMessageListener(MessageExecutionLane::kState);
+    if (instance.empty()) instance = std::to_string(GetCurrentProcessId()) + ":" + std::to_string(CurrentSystemMilliseconds());
+    application_text_ = std::make_shared<ApplicationTextService>(instance, app_->GetLogicalSessionRegistry(), app_->CreateApplicationTextBackend());
+    msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kState);
     const auto weak_self = weak_from_this();
-    msg_listener_->Listen<CaptureMonitorInfoMessage>(
-        [weak_self](const CaptureMonitorInfoMessage& msg) {
-            const auto self = weak_self.lock();
-            if (!self) {
-                return;
-            }
-            if (self->input_replay_service_) {
-                self->input_replay_service_->UpdateCaptureMonitorInfo(msg);
-            }
-            {
-                std::scoped_lock lock(self->virtual_display_->mutex);
-                ++self->virtual_display_->capture_epoch;
-            }
-            CompleteVirtualDisplayRequests(self->app_, self->virtual_display_);
-        });
-    msg_listener_->Listen<MsgCaptureTopologyFirstFrame>(
-        [weak_self](const MsgCaptureTopologyFirstFrame&) {
-            const auto self = weak_self.lock();
-            if (!self) {
-                return;
-            }
-            {
-                std::scoped_lock lock(self->virtual_display_->mutex);
-                self->virtual_display_->first_frame_epoch =
-                    self->virtual_display_->capture_epoch;
-            }
-            CompleteVirtualDisplayRequests(self->app_, self->virtual_display_);
-        });
+    msg_listener_->Listen<CaptureMonitorInfoMessage>([weak_self](const CaptureMonitorInfoMessage& msg) {
+        const auto self = weak_self.lock();
+        if (!self) {
+            return;
+        }
+        if (self->input_replay_service_) {
+            self->input_replay_service_->UpdateCaptureMonitorInfo(msg);
+        }
+        {
+            std::scoped_lock lock(self->virtual_display_->mutex);
+            ++self->virtual_display_->capture_epoch;
+        }
+        CompleteVirtualDisplayRequests(self->app_, self->virtual_display_);
+    });
+    msg_listener_->Listen<MsgCaptureTopologyFirstFrame>([weak_self](const MsgCaptureTopologyFirstFrame&) {
+        const auto self = weak_self.lock();
+        if (!self) {
+            return;
+        }
+        {
+            std::scoped_lock lock(self->virtual_display_->mutex);
+            self->virtual_display_->first_frame_epoch = self->virtual_display_->capture_epoch;
+        }
+        CompleteVirtualDisplayRequests(self->app_, self->virtual_display_);
+    });
     msg_listener_->Listen<MsgTimer1000>([weak_self](const MsgTimer1000&) {
         if (const auto self = weak_self.lock()) {
             ExpireVirtualDisplayRequests(self->app_, self->virtual_display_);
         }
     });
-    msg_listener_->Listen<MsgVirtualDisplayServiceResult>(
-        [weak_self](const MsgVirtualDisplayServiceResult& status) {
-            if (const auto self = weak_self.lock()) {
-                ReconcileVirtualDisplayRequests(self->app_,
-                                                self->virtual_display_, status);
-            }
-        });
+    msg_listener_->Listen<MsgVirtualDisplayServiceResult>([weak_self](const MsgVirtualDisplayServiceResult& status) {
+        if (const auto self = weak_self.lock()) {
+            ReconcileVirtualDisplayRequests(self->app_, self->virtual_display_, status);
+        }
+    });
 }
 
-void NetworkEventIngress::ProcessClientConnectedEvent(
-    const std::shared_ptr<ClientConnectedEvent>& event,
-    const std::string& source_id) {
-    const auto binding_id =
-        ResourceChannelBindingId(source_id, event->stream_id_);
+void NetworkEventIngress::ProcessClientConnectedEvent(const std::shared_ptr<ClientConnectedEvent>& event, const std::string& source_id) {
+    const auto binding_id = ResourceChannelBindingId(source_id, event->stream_id_);
     const auto logical_sessions = app_->GetLogicalSessionRegistry();
     const auto logical_session_id =
-        binding_id && logical_sessions
-            ? logical_sessions->FindLogicalSessionIdByBinding(
-                  *binding_id, CurrentSystemMilliseconds())
-            : std::nullopt;
-    const auto resource_connection_key = ResourceChannelConnectionKey(
-        source_id, event->connection_id_, event->stream_id_);
+        binding_id && logical_sessions ? logical_sessions->FindLogicalSessionIdByBinding(*binding_id, CurrentSystemMilliseconds()) : std::nullopt;
+    const auto resource_connection_key = ResourceChannelConnectionKey(source_id, event->connection_id_, event->stream_id_);
     if (logical_session_id && !resource_connection_key.empty()) {
-        app_->OpenConsoleResourceChannel(
-            resource_connection_key, *logical_session_id,
-            settings_.IsRdpMode() ? ConsoleResourceChannelKind::kRdp
-                                  : ConsoleResourceChannelKind::kMedia);
+        app_->OpenConsoleResourceChannel(resource_connection_key, *logical_session_id,
+                                         settings_.IsRdpMode() ? ConsoleResourceChannelKind::kRdp : ConsoleResourceChannelKind::kMedia);
     }
     if (settings_.IsRdpMode()) {
         context_->SendAppMessage(MsgClientConnected{
@@ -482,9 +380,7 @@ void NetworkEventIngress::ProcessClientConnectedEvent(
         });
     }
     if (voice_call_service_) {
-        voice_call_service_->HandleClientConnected(
-            event->visitor_device_id_, event->stream_id_,
-            event->connection_type_, source_id);
+        voice_call_service_->HandleClientConnected(event->visitor_device_id_, event->stream_id_, event->connection_type_, source_id);
     }
 
     module_registry_->InsertIdr();
@@ -533,26 +429,18 @@ void NetworkEventIngress::ProcessClientConnectedEvent(
     // WebRTC 接入时若主管线已是 H265/全彩:浏览器解不了,主动提示
     if (event->connection_type_ == "RTC") {
         const bool full_color = settings_.EnableFullColorMode();
-        const bool hevc = full_color || statistics_->video_encoder_format_ ==
-                                            Encoder::EncoderFormat::kHEVC;
+        const bool hevc = full_color || statistics_->video_encoder_format_ == Encoder::EncoderFormat::kHEVC;
         if (hevc) {
-            const std::string reason =
-                full_color ? "full_color" : "encoder_format";
-            LOGW("WebRTC connected while pipeline is H265 ({}), notify client",
-                 reason);
-            auto tip = NetMessageMaker::MakeVideoCodecChanged(
-                px::VideoType::kNetHevc, full_color, reason);
-            static_cast<void>(
-                module_registry_->PostRtcLocalMessage(tip, false));
+            const std::string reason = full_color ? "full_color" : "encoder_format";
+            LOGW("WebRTC connected while pipeline is H265 ({}), notify client", reason);
+            auto tip = NetMessageMaker::MakeVideoCodecChanged(px::VideoType::kNetHevc, full_color, reason);
+            static_cast<void>(module_registry_->PostRtcLocalMessage(tip, false));
         }
     }
 }
 
-void NetworkEventIngress::ProcessClientDisConnectedEvent(
-    const std::shared_ptr<ClientDisconnectedEvent>& event,
-    const std::string& source_id) {
-    const auto resource_connection_key = ResourceChannelConnectionKey(
-        source_id, event->connection_id_, event->stream_id_);
+void NetworkEventIngress::ProcessClientDisConnectedEvent(const std::shared_ptr<ClientDisconnectedEvent>& event, const std::string& source_id) {
+    const auto resource_connection_key = ResourceChannelConnectionKey(source_id, event->connection_id_, event->stream_id_);
     if (!resource_connection_key.empty()) {
         app_->CloseConsoleResourceChannel(resource_connection_key);
     }
@@ -565,18 +453,12 @@ void NetworkEventIngress::ProcessClientDisConnectedEvent(
     }
     if (const auto registry = app_->GetLogicalSessionRegistry()) {
         std::string binding_id;
-        if (source_id == kNetWebRtcRemoteLibraryId) {
-            binding_id = std::string("rtc:") + event->stream_id_;
-        } else if (source_id == kNetWebRtcLocalLibraryId) {
+        if (source_id == kNetWebRtcLocalLibraryId) {
             binding_id = std::string("rtc-local:") + event->stream_id_;
         }
         if (!binding_id.empty()) {
-            const auto closed =
-                event->preserve_reconnect_grace_
-                    ? registry->CloseBindingById(binding_id,
-                                                 CurrentSystemMilliseconds())
-                    : registry->CloseFailedBindingById(
-                          binding_id, CurrentSystemMilliseconds());
+            const auto closed = event->preserve_reconnect_grace_ ? registry->CloseBindingById(binding_id, CurrentSystemMilliseconds())
+                                                                 : registry->CloseFailedBindingById(binding_id, CurrentSystemMilliseconds());
             if (closed.release_controller_input) {
                 ReleaseControllerInput(LogicalSessionInputLease{
                     .logical_session_id = closed.logical_session_id,
@@ -598,15 +480,12 @@ void NetworkEventIngress::ProcessClientDisConnectedEvent(
         joystick_service_->HandleClientDisconnected(event->stream_id_);
     }
     if (file_transfer_service_) {
-        file_transfer_service_->HandleRouteDisconnected(
-            FileTransferRouteDisconnected{
-                .logical_session_id = event->logical_session_id_,
-                .stream_id = event->stream_id_,
-                .transport_id = source_id,
-                .connection_id = !event->connection_instance_id_.empty()
-                                     ? event->connection_instance_id_
-                                     : event->connection_id_,
-            });
+        file_transfer_service_->HandleRouteDisconnected(FileTransferRouteDisconnected{
+            .logical_session_id = event->logical_session_id_,
+            .stream_id = event->stream_id_,
+            .transport_id = source_id,
+            .connection_id = !event->connection_instance_id_.empty() ? event->connection_instance_id_ : event->connection_id_,
+        });
     }
     if (voice_call_service_) {
         voice_call_service_->HandleClientDisconnected(event->stream_id_);
@@ -616,8 +495,7 @@ void NetworkEventIngress::ProcessClientDisConnectedEvent(
     ReportClientDisConnected(event);
 }
 
-void NetworkEventIngress::ProcessCapturingMonitorInfoEvent(
-    const std::shared_ptr<CaptureMonitorInfoChangedEvent>& event) const {
+void NetworkEventIngress::ProcessCapturingMonitorInfoEvent(const std::shared_ptr<CaptureMonitorInfoChangedEvent>& event) const {
     LOGI(
         "Will update capture monitor information for the input replay "
         "service.");
@@ -625,20 +503,16 @@ void NetworkEventIngress::ProcessCapturingMonitorInfoEvent(
 
     // Send monitor changed message
     if (const auto capture_source = app_->GetWorkingMonitorCaptureSource()) {
-        const auto cm_msg = CaptureMonitorInfoMessage{
-            .monitors_ = capture_source->CaptureMonitors(),
-            .capturing_monitor_name_ = capture_source->CapturingMonitorName(),
-            .virtual_desktop_bound_rectangle_info_ =
-                capture_source->VirtualDesktopBounds()};
+        const auto cm_msg = CaptureMonitorInfoMessage{.monitors_ = capture_source->CaptureMonitors(),
+                                                      .capturing_monitor_name_ = capture_source->CapturingMonitorName(),
+                                                      .virtual_desktop_bound_rectangle_info_ = capture_source->VirtualDesktopBounds()};
         msg_notifier_->SendAppMessage(cm_msg);
         module_registry_->UpdateRtcLocalCaptureMonitorInfo(cm_msg);
     }
 }
 
-void NetworkEventIngress::ProcessUdpVoiceFrame(
-    const std::shared_ptr<UdpVoiceFrameEvent>& event) {
-    if (!event || !event->frame || !event->is_current_binding ||
-        !event->is_current_binding() || !voice_call_service_) {
+void NetworkEventIngress::ProcessUdpVoiceFrame(const std::shared_ptr<UdpVoiceFrameEvent>& event) {
+    if (!event || !event->frame || !event->is_current_binding || !event->is_current_binding() || !voice_call_service_) {
         return;
     }
     const auto registry = app_->GetLogicalSessionRegistry();
@@ -646,27 +520,21 @@ void NetworkEventIngress::ProcessUdpVoiceFrame(
         return;
     }
     const auto sessions = registry->SnapshotActive(CurrentSystemMilliseconds());
-    const auto active = std::ranges::find_if(
-        sessions, [&event](const LogicalSessionSnapshot& session) {
-            return session.logical_session_id == event->logical_session_id &&
-                   session.stream_id == event->stream_id;
-        });
+    const auto active = std::ranges::find_if(sessions, [&event](const LogicalSessionSnapshot& session) {
+        return session.logical_session_id == event->logical_session_id && session.stream_id == event->stream_id;
+    });
     if (active == sessions.end() || !event->is_current_binding()) {
         return;
     }
     voice_call_service_->HandleUdpVoiceFrame(event->stream_id, *event->frame);
 }
 
-void NetworkEventIngress::ProcessNetEvent(
-    const std::shared_ptr<NetworkClientEvent>& event,
-    const std::string& source_id) {
+void NetworkEventIngress::ProcessNetEvent(const std::shared_ptr<NetworkClientEvent>& event, const std::string& source_id) {
     if (event->is_proto_ && event->message_) {
         auto msg = std::make_shared<Message>();
-        const bool message_parsed = msg->ParsePartialFromArray(
-            event->message_->Bytes().data(), event->message_->Size());
+        const bool message_parsed = msg->ParsePartialFromArray(event->message_->Bytes().data(), event->message_->Size());
         if (!message_parsed) {
-            std::cout << "NetworkEventIngress HandleMessage parse error"
-                      << std::endl;
+            std::cout << "NetworkEventIngress HandleMessage parse error" << std::endl;
             return;
         }
 
@@ -681,8 +549,7 @@ void NetworkEventIngress::ProcessNetEvent(
                 // supplied protobuf stream_id, is the authority for every
                 // controller-only payload. This keeps an old RTC peer from
                 // impersonating a replacement Controller after takeover.
-                input_lease = registry->FindControllerInputLeaseByBinding(
-                    event->connection_instance_id_, now_ms);
+                input_lease = registry->FindControllerInputLeaseByBinding(event->connection_instance_id_, now_ms);
             }
             if (!input_lease.has_value()) {
                 LOGW(
@@ -693,55 +560,37 @@ void NetworkEventIngress::ProcessNetEvent(
         }
         const std::string source_connection_id = event->connection_instance_id_;
         if (application_text_ && input_lease &&
-            (msg->type() == kApplicationTextCapabilities ||
-             msg->type() == kApplicationTextBarrier ||
-             msg->type() == kApplicationTextSubmit)) {
+            (msg->type() == kApplicationTextCapabilities || msg->type() == kApplicationTextBarrier || msg->type() == kApplicationTextSubmit)) {
             const auto registry{app_->GetLogicalSessionRegistry()};
-            const auto stream{
-                registry->FindStreamId(input_lease->logical_session_id)};
+            const auto stream{registry->FindStreamId(input_lease->logical_session_id)};
             if (!stream) {
                 return;
             }
             const auto lease{*input_lease};
             const std::weak_ptr<LogicalSessionRegistry> weak_registry{registry};
-            const std::weak_ptr<RenderModuleRegistry> weak_modules{
-                module_registry_};
+            const std::weak_ptr<RenderModuleRegistry> weak_modules{module_registry_};
             const auto alive{[weak_registry, lease] {
                 const auto registry{weak_registry.lock()};
-                return registry && registry->IsCurrentInputBinding(
-                                       lease, CurrentSystemMilliseconds());
+                return registry && registry->IsCurrentInputBinding(lease, CurrentSystemMilliseconds());
             }};
-            const bool reliable{
-                event->transport_type_ == TransportKind::kWebSocket ||
-                event->channel_type_ == TransportChannel::kReliableControl};
-            application_text_->Handle(
-                *msg, lease, reliable, alive,
-                [weak_modules, stream = *stream, route = source_id,
-                 alive](Message response) {
-                    if (const auto modules{weak_modules.lock()};
-                        modules && alive()) {
-                        static_cast<void>(modules->SendControlMessageOnRoute(
-                            route, stream,
-                            Data::From(response.SerializeAsString()), false));
-                    }
-                });
+            const bool reliable{event->transport_type_ == TransportKind::kWebSocket || event->channel_type_ == TransportChannel::kReliableControl};
+            application_text_->Handle(*msg, lease, reliable, alive, [weak_modules, stream = *stream, route = source_id, alive](Message response) {
+                if (const auto modules{weak_modules.lock()}; modules && alive()) {
+                    static_cast<void>(modules->SendControlMessageOnRoute(route, stream, Data::From(response.SerializeAsString()), false));
+                }
+            });
             return;
         }
         if (application_text_ && input_lease &&
-            (msg->type() == kKeyEvent || msg->type() == kMouseEvent ||
-             msg->type() == kTextInput || msg->type() == kGamepadState) &&
-            !application_text_->AllowsOrdinaryInput(*input_lease,
-                                                    msg->input_generation())) {
+            (msg->type() == kKeyEvent || msg->type() == kMouseEvent || msg->type() == kTextInput || msg->type() == kGamepadState) &&
+            !application_text_->AllowsOrdinaryInput(*input_lease, msg->input_generation())) {
             return;
         }
-        if (msg->type() == MessageType::kFileAction ||
-            msg->type() == MessageType::kFileResponse) {
+        if (msg->type() == MessageType::kFileAction || msg->type() == MessageType::kFileResponse) {
             const auto registry = app_->GetLogicalSessionRegistry();
-            const auto lease =
-                registry && !source_connection_id.empty()
-                    ? registry->FindControllerLeaseByBinding(
-                          source_connection_id, CurrentSystemMilliseconds())
-                    : std::optional<LogicalSessionInputLease>{};
+            const auto lease = registry && !source_connection_id.empty()
+                                   ? registry->FindControllerLeaseByBinding(source_connection_id, CurrentSystemMilliseconds())
+                                   : std::optional<LogicalSessionInputLease>{};
             if (!lease.has_value()) {
                 LOGW(
                     "Drop file-transfer message without an active controller "
@@ -758,10 +607,8 @@ void NetworkEventIngress::ProcessNetEvent(
             }
             return;
         }
-        if (msg->type() == MessageType::kVoiceCallRequest ||
-            msg->type() == MessageType::kVoiceCallResponse ||
-            msg->type() == MessageType::kVoiceAudioConfig ||
-            msg->type() == MessageType::kVoiceAudioFrame) {
+        if (msg->type() == MessageType::kVoiceCallRequest || msg->type() == MessageType::kVoiceCallResponse ||
+            msg->type() == MessageType::kVoiceAudioConfig || msg->type() == MessageType::kVoiceAudioFrame) {
             if (voice_call_service_) {
                 voice_call_service_->HandleMessage(msg);
             }
@@ -775,106 +622,9 @@ void NetworkEventIngress::ProcessNetEvent(
         if (!self) {
             return;
         }
-        // Standard RTC uses the same media engine as Direct RTC. The
-        // legacy net_rtc transport only had data channels and could
-        // report Connected while delivering no video/audio tracks.
-        if (msg->type() == MessageType::kSigOfferSdpMessage) {
-            const auto sub = msg->sig_offer_sdp();
-            const auto stream_id = msg->stream_id();
-            const auto device_id = msg->device_id();
-            const auto sdp = sub.sdp();
-            if (!VerifyGuestDeviceCredential(self->settings_,
-                                             sub.safety_pwd_md5())) {
-                LOGW("Reject RTC offer: device password mismatch");
-                self->SendRtcSignalingError(stream_id, "RTC_PASSWORD_REJECTED",
-                                            "Device password was rejected");
-                return;
-            }
-            const auto registry = self->app_->GetLogicalSessionRegistry();
-            if (!registry || stream_id.empty() || sub.client_nonce().empty()) {
-                LOGW(
-                    "Reject RTC offer without a session registry, stream id, "
-                    "or client nonce");
-                self->SendRtcSignalingError(stream_id, "RTC_INVALID_REQUEST",
-                                            "RTC request is incomplete");
-                return;
-            }
-            const auto now_ms = CurrentSystemMilliseconds();
-            const auto session_key = MD5::Hex(device_id + "|" + stream_id +
-                                              "|" + sub.client_nonce());
-            const auto admission = registry->Bind(
-                {.logical_session_id = std::string("password:") + session_key,
-                 .stream_id = stream_id,
-                 .subject_id = std::string("password:") + session_key,
-                 .join_mode = "control",
-                 .expires_at_ms = 0,
-                 .allow_observer = true,
-                 .allow_takeover = true,
-                 .input_allowed = true},
-                LogicalSessionTransport::kRtcLocal,
-                std::string("rtc-local:") + stream_id, sub.takeover(), now_ms);
-            if (admission.code != LogicalSessionAdmissionCode::kAccepted) {
-                const bool occupied =
-                    admission.code == LogicalSessionAdmissionCode::kOccupied;
-                const bool remote_access_disabled =
-                    admission.code ==
-                    LogicalSessionAdmissionCode::kRemoteAccessDisabled;
-                LOGW(
-                    "Reject RTC offer: logical-session admission denied, "
-                    "occupied={}, remote_access_disabled={}",
-                    occupied, remote_access_disabled);
-                self->SendRtcSignalingError(
-                    stream_id,
-                    remote_access_disabled
-                        ? "RTC_REMOTE_ACCESS_DISABLED"
-                        : (occupied ? "RTC_OCCUPIED" : "RTC_ACCESS_DENIED"),
-                    remote_access_disabled
-                        ? "Remote access is disabled on the remote device"
-                        : (occupied ? "Remote controller is occupied"
-                                    : "Remote session admission denied"));
-                return;
-            }
-            if (admission.release_previous_controller_input) {
-                self->ReleaseControllerInput(LogicalSessionInputLease{
-                    .logical_session_id =
-                        admission.previous_controller_session_id,
-                    .generation =
-                        admission.previous_controller_lease_generation,
-                });
-                const auto previous_stream = registry->FindStreamId(
-                    admission.previous_controller_session_id);
-                if (previous_stream.has_value()) {
-                    self->module_registry_->ApplyLogicalSessionCapabilities(
-                        PxLogicalSessionCapabilityUpdate{
-                            .stream_id_ = *previous_stream,
-                            .permissions_ = {"view", "audio"},
-                        });
-                }
-            }
-            self->module_registry_->ApplyRtcLocalRemoteSdp(MsgRtcRemoteSdp{
-                .stream_id_ = stream_id,
-                .device_id_ = device_id,
-                .sdp_ = sdp,
-                .ice_config_json_ = R"({"ice_servers":[]})",
-                .permissions_ = {"view", "input", "clipboard", "file", "audio"},
-            });
-            return;
-        }
-        if (msg->type() == MessageType::kSigIceMessage) {
-            const auto sub = msg->sig_ice();
-            self->module_registry_->ApplyRtcLocalRemoteIce(MsgRtcRemoteIce{
-                .stream_id_ = msg->stream_id(),
-                .device_id_ = msg->device_id(),
-                .ice_ = sub.ice(),
-                .mid_ = sub.mid(),
-                .sdp_mline_index_ = sub.sdp_mline_index(),
-            });
-            return;
-        }
         if (settings_.IsWebViewMode() && msg->type() == kClipboardInfo) {
             const auto& clipboard = msg->clipboard_info();
-            if (clipboard.type() == kClipboardText &&
-                clipboard.msg().size() <= 1024 * 1024) {
+            if (clipboard.type() == kClipboardText && clipboard.msg().size() <= 1024 * 1024) {
                 app_->SetWebViewClipboardText(clipboard.msg());
             }
             return;
@@ -884,8 +634,7 @@ void NetworkEventIngress::ProcessNetEvent(
             LOGI(
                 "[LAT-clip] render recv kClipboardInfo, type: {}, files: {}, "
                 "len: {}",
-                (int)msg->clipboard_info().type(),
-                msg->clipboard_info().files_size(), event->message_->Size());
+                (int)msg->clipboard_info().type(), msg->clipboard_info().files_size(), event->message_->Size());
             context_->PostTask([weak_self, msg, event]() {
                 const auto self = weak_self.lock();
                 if (!self) {
@@ -895,8 +644,7 @@ void NetworkEventIngress::ProcessNetEvent(
                     LOGW(
                         "user-proxy not connected, drop client clipboard, "
                         "type={}, len={}",
-                        (int)msg->clipboard_info().type(),
-                        event->message_->Size());
+                        (int)msg->clipboard_info().type(), event->message_->Size());
                     return;
                 }
                 pxrp::RpMessage rp_msg;
@@ -906,13 +654,10 @@ void NetworkEventIngress::ProcessNetEvent(
                 sub.set_data_channel(false);
                 sub.set_stream_id(msg->stream_id());
                 sub.set_device_id(msg->device_id());
-                LOGI("PostUserProxyMessage client clipboard, type={}, len={}",
-                     (int)msg->clipboard_info().type(),
-                     event->message_->Size());
+                LOGI("PostUserProxyMessage client clipboard, type={}, len={}", (int)msg->clipboard_info().type(), event->message_->Size());
                 self->app_->PostUserProxyMessage(RpProtoAsData(&rp_msg));
             });
-        } else if (msg->type() == MessageType::kClipboardReqBuffer ||
-                   msg->type() == MessageType::kClipboardRespBuffer) {
+        } else if (msg->type() == MessageType::kClipboardReqBuffer || msg->type() == MessageType::kClipboardRespBuffer) {
             LOGI(
                 "[LAT-clip] render recv clipboard buffer msg, type: {}, len: "
                 "{}",
@@ -964,8 +709,7 @@ void NetworkEventIngress::ProcessNetEvent(
             case kHello: {
                 this->ProcessHelloEvent(std::move(msg));
                 if (event->transport_type_ == TransportKind::kUdpKcp) {
-                    this->SyncInfoToUdpTransport(
-                        event->socket_fd_, msg->device_id(), msg->stream_id());
+                    this->SyncInfoToUdpTransport(event->socket_fd_, msg->device_id(), msg->stream_id());
                 }
                 break;
             }
@@ -976,8 +720,7 @@ void NetworkEventIngress::ProcessNetEvent(
             case kHeartBeat: {
                 ProcessHeartBeat(std::move(msg));
                 if (event->transport_type_ == TransportKind::kUdpKcp) {
-                    this->SyncInfoToUdpTransport(
-                        event->socket_fd_, msg->device_id(), msg->stream_id());
+                    this->SyncInfoToUdpTransport(event->socket_fd_, msg->device_id(), msg->stream_id());
                 }
                 break;
             }
@@ -1053,8 +796,7 @@ void NetworkEventIngress::ProcessNetEvent(
                 break;
             }
             case MessageType::kMouseEvent: {
-                if (settings_.app_.IsGlobalReplayMode() &&
-                    input_replay_service_) {
+                if (settings_.app_.IsGlobalReplayMode() && input_replay_service_) {
                     input_replay_service_->HandleMessage(msg);
                 } else {
                     ProcessMouseEvent(std::move(msg), *input_lease);
@@ -1062,8 +804,7 @@ void NetworkEventIngress::ProcessNetEvent(
                 break;
             }
             case MessageType::kKeyEvent: {
-                if (settings_.app_.IsGlobalReplayMode() &&
-                    input_replay_service_) {
+                if (settings_.app_.IsGlobalReplayMode() && input_replay_service_) {
                     input_replay_service_->HandleMessage(msg);
                 } else {
                     ProcessKeyboardEvent(std::move(msg), *input_lease);
@@ -1076,8 +817,7 @@ void NetworkEventIngress::ProcessNetEvent(
             }
             case kFocusOutEvent:
             case kExitControlledEnd: {
-                if (settings_.app_.IsGlobalReplayMode() &&
-                    input_replay_service_) {
+                if (settings_.app_.IsGlobalReplayMode() && input_replay_service_) {
                     input_replay_service_->HandleMessage(msg);
                 }
                 break;
@@ -1088,8 +828,7 @@ void NetworkEventIngress::ProcessNetEvent(
                 // game through a control-packet mismatch. Console owns the
                 // lifecycle of game-hook instances and sends kSrvStopServer
                 // over its authenticated service channel instead.
-                LOGW("kStopRender received from client: device={}, stream={}",
-                     msg->device_id(), msg->stream_id());
+                LOGW("kStopRender received from client: device={}, stream={}", msg->device_id(), msg->stream_id());
                 if (settings_.IsGameHookMode() || settings_.IsWebViewMode()) {
                     LOGW(
                         "Ignore client kStopRender for Console application "
@@ -1125,16 +864,14 @@ void NetworkEventIngress::ProcessHelloEvent(std::shared_ptr<Message>&& msg) {
     module_registry_->DispatchNetworkAppEvent(client_hello_event);
 }
 
-NetworkEventIngress::InputLeaseKey NetworkEventIngress::ToInputLeaseKey(
-    const LogicalSessionInputLease& lease) {
+NetworkEventIngress::InputLeaseKey NetworkEventIngress::ToInputLeaseKey(const LogicalSessionInputLease& lease) {
     return InputLeaseKey{
         .logical_session_id_ = lease.logical_session_id,
         .generation_ = lease.generation,
     };
 }
 
-void NetworkEventIngress::ReleaseControllerInput(
-    const LogicalSessionInputLease& lease) {
+void NetworkEventIngress::ReleaseControllerInput(const LogicalSessionInputLease& lease) {
     const auto key = ToInputLeaseKey(lease);
     const auto found = input_states_.find(key);
     if (found == input_states_.end()) {
@@ -1142,9 +879,7 @@ void NetworkEventIngress::ReleaseControllerInput(
     }
     auto input_state = std::move(found->second);
     input_states_.erase(found);
-    if (!settings_.can_be_operated_ ||
-        (input_state.pressed_keys_.empty() &&
-         input_state.pressed_mouse_buttons_.empty())) {
+    if (!settings_.can_be_operated_ || (input_state.pressed_keys_.empty() && input_state.pressed_mouse_buttons_.empty())) {
         return;
     }
     if (settings_.app_.IsGlobalReplayMode()) {
@@ -1155,8 +890,7 @@ void NetworkEventIngress::ReleaseControllerInput(
         if (input_replay_service_) {
             input_replay_service_->ReleaseInputState();
         }
-        LOGI("controller desktop input released: session={}, generation={}",
-             lease.logical_session_id, lease.generation);
+        LOGI("controller desktop input released: session={}, generation={}", lease.logical_session_id, lease.generation);
         return;
     }
     if (settings_.IsWebViewMode()) {
@@ -1173,39 +907,31 @@ void NetworkEventIngress::ReleaseControllerInput(
         LOGI(
             "controller WebView input released: session={}, generation={}, "
             "keys={}, mouse_buttons={}",
-            lease.logical_session_id, lease.generation,
-            input_state.pressed_keys_.size(),
-            input_state.pressed_mouse_buttons_.size());
+            lease.logical_session_id, lease.generation, input_state.pressed_keys_.size(), input_state.pressed_mouse_buttons_.size());
         return;
     }
     const auto hwnd = app_->GetAppManager()->GetWindowHandle();
     if (!hwnd || !IsWindow(static_cast<HWND>(hwnd))) {
-        LOGW("controller lease released without a valid game HWND: session={}",
-             lease.logical_session_id);
+        LOGW("controller lease released without a valid game HWND: session={}", lease.logical_session_id);
         return;
     }
     const auto hwnd_value = reinterpret_cast<uint64_t>(hwnd);
     for (const auto key_code : input_state.pressed_keys_) {
-        const auto message = CaptureMessageMaker::MakeKeyboardEventMessage(
-            hwnd_value, key_code, 0, 0, 0);
+        const auto message = CaptureMessageMaker::MakeKeyboardEventMessage(hwnd_value, key_code, 0, 0, 0);
         PostIpcMessage(CaptureMessageMaker::ConvertMessageToString(message));
     }
     for (const auto button : input_state.pressed_mouse_buttons_) {
-        const auto message = CaptureMessageMaker::MakeMouseEventMessage(
-            hwnd_value, input_state.last_mouse_x_, input_state.last_mouse_y_,
-            button, 0, false, true);
+        const auto message =
+            CaptureMessageMaker::MakeMouseEventMessage(hwnd_value, input_state.last_mouse_x_, input_state.last_mouse_y_, button, 0, false, true);
         PostIpcMessage(CaptureMessageMaker::ConvertMessageToString(message));
     }
     LOGI(
         "controller lease released: session={}, generation={}, keys={}, "
         "mouse_buttons={}",
-        lease.logical_session_id, lease.generation,
-        input_state.pressed_keys_.size(),
-        input_state.pressed_mouse_buttons_.size());
+        lease.logical_session_id, lease.generation, input_state.pressed_keys_.size(), input_state.pressed_mouse_buttons_.size());
 }
 
-void NetworkEventIngress::ProcessMouseEvent(
-    std::shared_ptr<Message>&& msg, const LogicalSessionInputLease& lease) {
+void NetworkEventIngress::ProcessMouseEvent(std::shared_ptr<Message>&& msg, const LogicalSessionInputLease& lease) {
     if (!settings_.can_be_operated_) {
         return;
     }
@@ -1230,16 +956,13 @@ void NetworkEventIngress::ProcessMouseEvent(
     if (!hwnd || !IsWindow(static_cast<HWND>(hwnd))) {
         static thread_local uint64_t s_missing_mouse_window_count = 0;
         const auto missing_mouse_window_count = ++s_missing_mouse_window_count;
-        if (missing_mouse_window_count == 1 ||
-            (missing_mouse_window_count % 100) == 0) {
-            LOGW("hook-inner mouse: no game HWND yet, drop n={}",
-                 missing_mouse_window_count);
+        if (missing_mouse_window_count == 1 || (missing_mouse_window_count % 100) == 0) {
+            LOGW("hook-inner mouse: no game HWND yet, drop n={}", missing_mouse_window_count);
         }
         return;
     }
     RECT rect{0, 0, 0, 0};
-    if (!ProcessHelper::GetWindowPositionByHwnd(static_cast<HWND>(hwnd),
-                                                rect)) {
+    if (!ProcessHelper::GetWindowPositionByHwnd(static_cast<HWND>(hwnd), rect)) {
         LOGE("GetWindowPositionByHwnd failed for HWND: {:x}", hwnd_ptr);
         return;
     }
@@ -1247,8 +970,7 @@ void NetworkEventIngress::ProcessMouseEvent(
     int app_width = rect.right - rect.left;
     int app_height = rect.bottom - rect.top;
     if (app_width <= 0 || app_height <= 0) {
-        LOGW("hook-inner mouse: invalid window size {}x{}", app_width,
-             app_height);
+        LOGW("hook-inner mouse: invalid window size {}x{}", app_width, app_height);
         return;
     }
 
@@ -1265,9 +987,8 @@ void NetworkEventIngress::ProcessMouseEvent(
     input_state.last_mouse_x_ = static_cast<int>(x);
     input_state.last_mouse_y_ = static_cast<int>(y);
 
-    auto mouse_event_msg = CaptureMessageMaker::MakeMouseEventMessage(
-        hwnd_ptr, (int)x, (int)y, mouse_event.button(), mouse_event.data(),
-        mouse_event.pressed(), mouse_event.released());
+    auto mouse_event_msg = CaptureMessageMaker::MakeMouseEventMessage(hwnd_ptr, (int)x, (int)y, mouse_event.button(), mouse_event.data(),
+                                                                      mouse_event.pressed(), mouse_event.released());
     {
         static thread_local uint64_t s_mouse_event_count = 0;
         const auto mouse_event_count = ++s_mouse_event_count;
@@ -1275,17 +996,13 @@ void NetworkEventIngress::ProcessMouseEvent(
             LOGI(
                 "hook-inner mouse: n={} hwnd={:x} screen=({},{}) "
                 "ratio=({:.3f},{:.3f}) btn={}",
-                mouse_event_count, hwnd_ptr, (int)x, (int)y,
-                mouse_event.x_ratio(), mouse_event.y_ratio(),
-                mouse_event.button());
+                mouse_event_count, hwnd_ptr, (int)x, (int)y, mouse_event.x_ratio(), mouse_event.y_ratio(), mouse_event.button());
         }
     }
-    PostIpcMessage(
-        CaptureMessageMaker::ConvertMessageToString(mouse_event_msg));
+    PostIpcMessage(CaptureMessageMaker::ConvertMessageToString(mouse_event_msg));
 }
 
-void NetworkEventIngress::ProcessKeyboardEvent(
-    std::shared_ptr<Message>&& msg, const LogicalSessionInputLease& lease) {
+void NetworkEventIngress::ProcessKeyboardEvent(std::shared_ptr<Message>&& msg, const LogicalSessionInputLease& lease) {
     if (!settings_.can_be_operated_) {
         return;
     }
@@ -1307,12 +1024,9 @@ void NetworkEventIngress::ProcessKeyboardEvent(
     auto hwnd_ptr = reinterpret_cast<uint64_t>(hwnd);
     if (!hwnd || !IsWindow(static_cast<HWND>(hwnd))) {
         static thread_local uint64_t s_missing_keyboard_window_count = 0;
-        const auto missing_keyboard_window_count =
-            ++s_missing_keyboard_window_count;
-        if (missing_keyboard_window_count == 1 ||
-            (missing_keyboard_window_count % 100) == 0) {
-            LOGW("hook-inner key: no game HWND yet, drop n={}",
-                 missing_keyboard_window_count);
+        const auto missing_keyboard_window_count = ++s_missing_keyboard_window_count;
+        if (missing_keyboard_window_count == 1 || (missing_keyboard_window_count % 100) == 0) {
+            LOGW("hook-inner key: no game HWND yet, drop n={}", missing_keyboard_window_count);
         }
         return;
     }
@@ -1324,24 +1038,20 @@ void NetworkEventIngress::ProcessKeyboardEvent(
         input_state.pressed_keys_.erase(key_event.key_code());
     }
 
-    auto keyboard_msg = CaptureMessageMaker::MakeKeyboardEventMessage(
-        hwnd_ptr, key_event.key_code(), key_event.down(),
-        key_event.num_lock_status(), key_event.caps_lock_status());
+    auto keyboard_msg = CaptureMessageMaker::MakeKeyboardEventMessage(hwnd_ptr, key_event.key_code(), key_event.down(), key_event.num_lock_status(),
+                                                                      key_event.caps_lock_status());
     {
         static thread_local uint64_t s_key_event_count = 0;
         const auto key_event_count = ++s_key_event_count;
         if (key_event_count <= 5 || (key_event_count % 200) == 0) {
-            LOGI("hook-inner key: n={} hwnd={:x} key=0x{:x} down={}",
-                 key_event_count, hwnd_ptr, key_event.key_code(),
-                 key_event.down());
+            LOGI("hook-inner key: n={} hwnd={:x} key=0x{:x} down={}", key_event_count, hwnd_ptr, key_event.key_code(), key_event.down());
         }
     }
     PostIpcMessage(CaptureMessageMaker::ConvertMessageToString(keyboard_msg));
 }
 
 void NetworkEventIngress::ProcessTextInput(std::shared_ptr<Message>&& msg) {
-    if (!settings_.can_be_operated_ ||
-        settings_.GetInputTarget() != InputTarget::kCefBrowser) {
+    if (!settings_.can_be_operated_ || settings_.GetInputTarget() != InputTarget::kCefBrowser) {
         return;
     }
     const auto& input = msg->text_input();
@@ -1361,8 +1071,7 @@ void NetworkEventIngress::PostIpcMessage(const std::string& msg) {
     app_->PostGlobalAppMessage(std::move(task_msg));
 }
 
-void NetworkEventIngress::ProcessClientStatistics(
-    std::shared_ptr<Message>&& msg) {
+void NetworkEventIngress::ProcessClientStatistics(std::shared_ptr<Message>&& msg) {
     auto& cst = msg->client_statistics();
     statistics_->CopyDecodeDurations(cst.decode_durations());
     statistics_->CopyClientVideoRecvGaps(cst.video_recv_gaps());
@@ -1381,8 +1090,7 @@ void NetworkEventIngress::ProcessHeartBeat(std::shared_ptr<Message>&& msg) {
             return;
         }
         auto& hb = msg->heartbeat();
-        auto proto_msg = NetMessageMaker::MakeOnHeartBeatMsg(
-            self->app_, hb.index(), hb.timestamp());
+        auto proto_msg = NetMessageMaker::MakeOnHeartBeatMsg(self->app_, hb.index(), hb.timestamp());
         self->app_->PostNetMessage(proto_msg);
     });
 
@@ -1394,9 +1102,7 @@ void NetworkEventIngress::ProcessHeartBeat(std::shared_ptr<Message>&& msg) {
     module_registry_->DispatchNetworkAppEvent(event);
 }
 
-void NetworkEventIngress::ProcessClipboardInfo(std::shared_ptr<Message>&& msg) {
-    static_cast<void>(msg);
-}
+void NetworkEventIngress::ProcessClipboardInfo(std::shared_ptr<Message>&& msg) { static_cast<void>(msg); }
 
 void NetworkEventIngress::ProcessSwitchMonitor(std::shared_ptr<Message>&& msg) {
     LOGI("ProcessSwitchMonitor, name: {}", msg->switch_monitor().name());
@@ -1424,19 +1130,16 @@ void NetworkEventIngress::ProcessSwitchMonitor(std::shared_ptr<Message>&& msg) {
         self->app_->UpdateCapturingMonitorInfo();
 
         int monitor_index = 0;
-        auto monitor_index_result =
-            capture_source->MonitorIndexByName(switch_monitor_request.name());
+        auto monitor_index_result = capture_source->MonitorIndexByName(switch_monitor_request.name());
         if (monitor_index_result.has_value()) {
             monitor_index = monitor_index_result.value();
         }
-        auto switched_message = NetMessageMaker::MakeMonitorSwitched(
-            switch_monitor_request.name(), monitor_index);
+        auto switched_message = NetMessageMaker::MakeMonitorSwitched(switch_monitor_request.name(), monitor_index);
         self->app_->PostNetMessage(switched_message);
     });
 }
 
-void NetworkEventIngress::ProcessSwitchWorkMode(
-    std::shared_ptr<Message>&& msg) {
+void NetworkEventIngress::ProcessSwitchWorkMode(std::shared_ptr<Message>&& msg) {
     const auto weak_self = weak_from_this();
     app_->PostGlobalTask([weak_self, msg]() {
         const auto self = weak_self.lock();
@@ -1452,8 +1155,7 @@ void NetworkEventIngress::ProcessSwitchWorkMode(
     });
 }
 
-void NetworkEventIngress::ProcessSwitchFullColorMode(
-    std::shared_ptr<Message>&& msg) {
+void NetworkEventIngress::ProcessSwitchFullColorMode(std::shared_ptr<Message>&& msg) {
     const auto full_color_request = msg->switch_full_color_mode();
     settings_.SetFullColorMode(full_color_request.enable());
 }
@@ -1479,8 +1181,7 @@ void NetworkEventIngress::ProcessStopMediaRecordClientSide() {
     }
 }
 
-void NetworkEventIngress::ProcessChangeMonitorResolution(
-    std::shared_ptr<Message>&& msg) {
+void NetworkEventIngress::ProcessChangeMonitorResolution(std::shared_ptr<Message>&& msg) {
     const auto weak_self = weak_from_this();
     app_->PostGlobalTask([weak_self, msg]() {
         const auto self = weak_self.lock();
@@ -1488,9 +1189,7 @@ void NetworkEventIngress::ProcessChangeMonitorResolution(
             return;
         }
         const auto resolution_request = msg->change_monitor_resolution();
-        self->app_->ResetMonitorResolution(resolution_request.monitor_name(),
-                                           resolution_request.target_width(),
-                                           resolution_request.target_height());
+        self->app_->ResetMonitorResolution(resolution_request.monitor_name(), resolution_request.target_width(), resolution_request.target_height());
     });
 }
 
@@ -1503,38 +1202,28 @@ void NetworkEventIngress::ProcessInsertKeyFrame(std::shared_ptr<Message>&&) {
     });
 }
 
-void NetworkEventIngress::ProcessEncodedAudioFrameEvent(
-    const std::shared_ptr<Data>& audio_payload, int samples, int channels,
-    int bits, int frame_size) {
-    auto network_message = NetMessageMaker::MakeAudioFrameMsg(
-        audio_payload, samples, channels, bits, frame_size);
+void NetworkEventIngress::ProcessEncodedAudioFrameEvent(const std::shared_ptr<Data>& audio_payload, int samples, int channels, int bits,
+                                                        int frame_size) {
+    auto network_message = NetMessageMaker::MakeAudioFrameMsg(audio_payload, samples, channels, bits, frame_size);
     // statistics_->AppendMediaBytes(net_msg.size());
     app_->PostNetMessage(network_message);
 
     if (audio_payload) {
-        if (const auto media_bus = context_->GetEncodedMediaBus();
-            media_bus && media_bus->NeedsEncodedAudio()) {
-            media_bus->PublishEncodedAudio(
-                std::make_shared<const render::EncodedAudioFrame>(
-                    render::EncodedAudioFrame{
-                        .timestamp_us = static_cast<std::uint64_t>(
-                                            TimeUtil::GetCurrentTimestamp()) *
-                                        1000U,
-                        .codec = "opus",
-                        .samples = static_cast<std::uint32_t>(samples),
-                        .channels = static_cast<std::uint16_t>(channels),
-                        .bits_per_sample = static_cast<std::uint16_t>(bits),
-                        .frame_size = static_cast<std::uint32_t>(frame_size),
-                        .payload = render::MakeImmutableByteBuffer(
-                            audio_payload->AsString()),
-                    }));
+        if (const auto media_bus = context_->GetEncodedMediaBus(); media_bus && media_bus->NeedsEncodedAudio()) {
+            media_bus->PublishEncodedAudio(std::make_shared<const render::EncodedAudioFrame>(render::EncodedAudioFrame{
+                .timestamp_us = static_cast<std::uint64_t>(TimeUtil::GetCurrentTimestamp()) * 1000U,
+                .codec = "opus",
+                .samples = static_cast<std::uint32_t>(samples),
+                .channels = static_cast<std::uint16_t>(channels),
+                .bits_per_sample = static_cast<std::uint16_t>(bits),
+                .frame_size = static_cast<std::uint32_t>(frame_size),
+                .payload = render::MakeImmutableByteBuffer(audio_payload->AsString()),
+            }));
         }
     }
 }
 
-void NetworkEventIngress::ProcessCtrlAltDelete(std::shared_ptr<Message>&& msg) {
-    app_->ReqCtrlAltDelete(msg->device_id(), msg->stream_id());
-}
+void NetworkEventIngress::ProcessCtrlAltDelete(std::shared_ptr<Message>&& msg) { app_->ReqCtrlAltDelete(msg->device_id(), msg->stream_id()); }
 
 void NetworkEventIngress::ProcessUpdateDesktop() {
     if (context_) {
@@ -1550,14 +1239,11 @@ void NetworkEventIngress::ProcessHardUpdateDesktop() {
     desk_manager->UpdateDesktop();
 }
 
-void NetworkEventIngress::SyncInfoToUdpTransport(int64_t socket_fd,
-                                                 const std::string& device_id,
-                                                 const std::string& stream_id) {
+void NetworkEventIngress::SyncInfoToUdpTransport(int64_t socket_fd, const std::string& device_id, const std::string& stream_id) {
     module_registry_->SyncUdpInfo(socket_fd, device_id, stream_id);
 }
 
-void NetworkEventIngress::ReportClientConnected(
-    const std::shared_ptr<ClientConnectedEvent>& event) {
+void NetworkEventIngress::ReportClientConnected(const std::shared_ptr<ClientConnectedEvent>& event) {
     const auto weak_self = weak_from_this();
     app_->PostGlobalTask([weak_self, event]() {
         const auto self = weak_self.lock();
@@ -1577,8 +1263,7 @@ void NetworkEventIngress::ReportClientConnected(
     });
 }
 
-void NetworkEventIngress::ReportClientDisConnected(
-    const std::shared_ptr<ClientDisconnectedEvent>& event) {
+void NetworkEventIngress::ReportClientDisConnected(const std::shared_ptr<ClientDisconnectedEvent>& event) {
     const auto weak_self = weak_from_this();
     app_->PostGlobalTask([weak_self, event]() {
         const auto self = weak_self.lock();
@@ -1607,23 +1292,17 @@ void NetworkEventIngress::ProcessModifyFps(std::shared_ptr<Message>&& msg) {
     }
 }
 
-void NetworkEventIngress::ProcessVirtualDisplayRequest(
-    std::shared_ptr<Message>&& msg) {
+void NetworkEventIngress::ProcessVirtualDisplayRequest(std::shared_ptr<Message>&& msg) {
     const auto& request = msg->virtual_display_request();
     const auto request_id = request.request_id();
     const auto device_id = msg->device_id();
     const auto stream_id = msg->stream_id();
 
     const auto app = app_;
-    const auto fail = [app, &device_id, &stream_id, &request_id](
-                          const std::string& code, const std::string& message) {
-        SendVirtualDisplayResponse(
-            app, device_id, stream_id,
-            BuildVirtualDisplayFailure(request_id, code, message));
+    const auto fail = [app, &device_id, &stream_id, &request_id](const std::string& code, const std::string& message) {
+        SendVirtualDisplayResponse(app, device_id, stream_id, BuildVirtualDisplayFailure(request_id, code, message));
     };
-    if (request_id.empty() ||
-        request.operation() < kRemoteVirtualDisplayCreate ||
-        request.operation() > kRemoteVirtualDisplayResetOwned) {
+    if (request_id.empty() || request.operation() < kRemoteVirtualDisplayCreate || request.operation() > kRemoteVirtualDisplayResetOwned) {
         fail("INVALID_ARGUMENT", "invalid virtual display request");
         return;
     }
@@ -1632,42 +1311,34 @@ void NetworkEventIngress::ProcessVirtualDisplayRequest(
         return;
     }
     if (!settings_.virtual_display_enabled_) {
-        fail("FEATURE_DISABLED",
-             "virtual display management is disabled on the controlled device");
+        fail("FEATURE_DISABLED", "virtual display management is disabled on the controlled device");
         return;
     }
     if (settings_.IsGameHookMode()) {
-        fail("UNSUPPORTED_CAPTURE_MODE",
-             "virtual displays are only available in desktop capture mode");
+        fail("UNSUPPORTED_CAPTURE_MODE", "virtual displays are only available in desktop capture mode");
         return;
     }
 
     std::optional<VirtualDisplayResponse> cached;
     bool already_pending = false;
-    const auto [initial_owned_count, initial_generation] =
-        app_->GetVirtualDisplayStatusSnapshot();
+    const auto [initial_owned_count, initial_generation] = app_->GetVirtualDisplayStatusSnapshot();
     {
         std::scoped_lock lock(virtual_display_->mutex);
-        if (const auto it = virtual_display_->completed.find(request_id);
-            it != virtual_display_->completed.end()) {
+        if (const auto it = virtual_display_->completed.find(request_id); it != virtual_display_->completed.end()) {
             cached = it->second.response;
         } else if (virtual_display_->pending.contains(request_id)) {
             already_pending = true;
         } else {
             virtual_display_->pending.emplace(
-                request_id,
-                PendingVirtualDisplayRequest{
-                    .device_id = device_id,
-                    .stream_id = stream_id,
-                    .deadline = std::chrono::steady_clock::now() +
-                                VirtualDisplayServiceResponseTimeout(
-                                    request.operation()),
-                    .operation = request.operation(),
-                    .initial_owned_display_count = initial_owned_count,
-                    .initial_topology_generation = initial_generation,
-                    .required_capture_epoch =
-                        virtual_display_->capture_epoch + 1,
-                });
+                request_id, PendingVirtualDisplayRequest{
+                                .device_id = device_id,
+                                .stream_id = stream_id,
+                                .deadline = std::chrono::steady_clock::now() + VirtualDisplayServiceResponseTimeout(request.operation()),
+                                .operation = request.operation(),
+                                .initial_owned_display_count = initial_owned_count,
+                                .initial_topology_generation = initial_generation,
+                                .required_capture_epoch = virtual_display_->capture_epoch + 1,
+                            });
         }
     }
     if (cached) {
@@ -1675,8 +1346,7 @@ void NetworkEventIngress::ProcessVirtualDisplayRequest(
         return;
     }
     if (already_pending) {
-        fail("REQUEST_IN_PROGRESS",
-             "the same virtual display request is already running");
+        fail("REQUEST_IN_PROGRESS", "the same virtual display request is already running");
         return;
     }
 
@@ -1684,46 +1354,40 @@ void NetworkEventIngress::ProcessVirtualDisplayRequest(
     LOGI(
         "Virtual display request started: request={}, operation={}, owned={}, "
         "generation={}",
-        request_id, static_cast<int>(request.operation()), initial_owned_count,
-        initial_generation);
-    app_->RequestVirtualDisplay(
-        request_id, static_cast<int>(request.operation()), request.width(),
-        request.height(), request.refresh_hz(),
-        [coordinator, app](const MsgVirtualDisplayServiceResult& result) {
-            // The display-change path rebuilds the Render state lane and
-            // can discard work queued at exactly that boundary. Persist
-            // the Service result under the coordinator lock immediately;
-            // capture notifications and network responses remain safe to
-            // arrive in either order.
-            {
-                std::scoped_lock lock(coordinator->mutex);
-                const auto it = coordinator->pending.find(result.request_id_);
-                if (it == coordinator->pending.end()) {
-                    LOGW(
-                        "Late virtual display Service result ignored: "
-                        "request={}, accepted={}, code={}",
-                        result.request_id_, result.accepted_,
-                        result.error_code_);
-                    return;
-                }
-                LOGI(
-                    "Virtual display Service result received: request={}, "
-                    "accepted={}, "
-                    "changed={}, owned={}, generation={}, code={}",
-                    result.request_id_, result.accepted_,
-                    result.topology_changed_, result.owned_display_count_,
-                    result.topology_generation_, result.error_code_);
-                it->second.service_result = result;
-                if (result.accepted_ && result.topology_changed_) {
-                    // Driver completion and capture recovery are two
-                    // different phases. A slow but valid Service reply
-                    // must still receive the full first-frame budget.
-                    it->second.deadline = std::chrono::steady_clock::now() +
-                                          kVirtualDisplayCaptureRebuildTimeout;
-                }
-            }
-            CompleteVirtualDisplayRequests(app, coordinator);
-        });
+        request_id, static_cast<int>(request.operation()), initial_owned_count, initial_generation);
+    app_->RequestVirtualDisplay(request_id, static_cast<int>(request.operation()), request.width(), request.height(), request.refresh_hz(),
+                                [coordinator, app](const MsgVirtualDisplayServiceResult& result) {
+                                    // The display-change path rebuilds the Render state lane and
+                                    // can discard work queued at exactly that boundary. Persist
+                                    // the Service result under the coordinator lock immediately;
+                                    // capture notifications and network responses remain safe to
+                                    // arrive in either order.
+                                    {
+                                        std::scoped_lock lock(coordinator->mutex);
+                                        const auto it = coordinator->pending.find(result.request_id_);
+                                        if (it == coordinator->pending.end()) {
+                                            LOGW(
+                                                "Late virtual display Service result ignored: "
+                                                "request={}, accepted={}, code={}",
+                                                result.request_id_, result.accepted_, result.error_code_);
+                                            return;
+                                        }
+                                        LOGI(
+                                            "Virtual display Service result received: request={}, "
+                                            "accepted={}, "
+                                            "changed={}, owned={}, generation={}, code={}",
+                                            result.request_id_, result.accepted_, result.topology_changed_, result.owned_display_count_,
+                                            result.topology_generation_, result.error_code_);
+                                        it->second.service_result = result;
+                                        if (result.accepted_ && result.topology_changed_) {
+                                            // Driver completion and capture recovery are two
+                                            // different phases. A slow but valid Service reply
+                                            // must still receive the full first-frame budget.
+                                            it->second.deadline = std::chrono::steady_clock::now() + kVirtualDisplayCaptureRebuildTimeout;
+                                        }
+                                    }
+                                    CompleteVirtualDisplayRequests(app, coordinator);
+                                });
 }
 
 //    void NetworkEventIngress::ProcessFocusOutEvent() {
@@ -1736,9 +1400,7 @@ void NetworkEventIngress::ProcessVirtualDisplayRequest(
 //        //exit(0);
 //    }
 
-void NetworkEventIngress::ProcessAck(
-    const std::shared_ptr<NetworkClientEvent>& event,
-    const std::shared_ptr<Message>& message) {
+void NetworkEventIngress::ProcessAck(const std::shared_ptr<NetworkClientEvent>& event, const std::shared_ptr<Message>& message) {
     auto sub = message->ack();
     auto ack = std::make_shared<NetMessageAck>();
     ack->send_time_ = sub.send_time();

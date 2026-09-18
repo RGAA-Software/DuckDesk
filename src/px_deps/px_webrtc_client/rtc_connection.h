@@ -5,12 +5,13 @@
 #ifndef PX_RTC_CONNECTION_H
 #define PX_RTC_CONNECTION_H
 
-#include "rtc_client.h"
-#include "px_webrtc_client/webrtc_helper.h"
 #include <memory>
 #include <mutex>
 #include <utility>
 #include <vector>
+
+#include "px_webrtc_client/webrtc_helper.h"
+#include "rtc_client.h"
 
 namespace px {
 
@@ -25,14 +26,14 @@ class Thread;
 
 // cached ice
 class CachedIce {
-  public:
+public:
     std::string ice_;
     std::string mid_;
     int sdp_mline_index_{0};
 };
 
 class RtcConnection final {
-  public:
+public:
     RtcConnection();
     ~RtcConnection();
     bool Init(const std::string& remote_device_id);
@@ -57,42 +58,18 @@ class RtcConnection final {
     void On16msTimeout();
 
     void SetLocalRtcMode(bool on);
-    void SetIceServersJson(const std::string& json);
-    bool RestartIce(const std::string& json);
 
-    void SetOnLocalSdpSetCallback(OnLocalSdpSetCallback callback) {
-        local_sdp_set_cbk_ = std::move(callback);
-    }
-    void SetOnLocalIceCallback(OnLocalIceCallback callback) {
-        local_ice_cbk_ = std::move(callback);
-    }
-    void SetMediaMessageCallback(OnMediaMessageCallback callback) {
-        media_msg_cbk_ = std::move(callback);
-    }
-    void SetFtMessageCallback(OnFtMessageCallback callback) {
-        ft_msg_cbk_ = std::move(callback);
-    }
-    void SetFileTransferOnly(bool enabled) {
-        file_transfer_only_ = enabled;
-    }
-    void SetVideoTrackCount(int count) {
-        video_track_count_ = count;
-    }
-    void SetOnEncodedVideoFrameCallback(OnEncodedVideoFrameCallback callback) {
-        encoded_video_frame_cbk_ = std::move(callback);
-    }
-    void SetOnVideoFrameCallback(OnVideoFrameCallback callback) {
-        video_frame_cbk_ = std::move(callback);
-    }
-    void SetOnAudioDataCallback(OnAudioDataCallback callback) {
-        audio_data_cbk_ = std::move(callback);
-    }
-    void SetOnIceStateCallback(OnIceStateCallback callback) {
-        ice_state_cbk_ = std::move(callback);
-    }
-    void SetOnStatsJsonCallback(OnStatsJsonCallback callback) {
-        stats_json_cbk_ = std::move(callback);
-    }
+    void SetOnLocalSdpSetCallback(OnLocalSdpSetCallback callback) { local_sdp_set_cbk_ = std::move(callback); }
+    void SetOnLocalIceCallback(OnLocalIceCallback callback) { local_ice_cbk_ = std::move(callback); }
+    void SetMediaMessageCallback(OnMediaMessageCallback callback) { media_msg_cbk_ = std::move(callback); }
+    void SetFtMessageCallback(OnFtMessageCallback callback) { ft_msg_cbk_ = std::move(callback); }
+    void SetFileTransferOnly(bool enabled) { file_transfer_only_ = enabled; }
+    void SetVideoTrackCount(int count) { video_track_count_ = count; }
+    void SetOnEncodedVideoFrameCallback(OnEncodedVideoFrameCallback callback) { encoded_video_frame_cbk_ = std::move(callback); }
+    void SetOnVideoFrameCallback(OnVideoFrameCallback callback) { video_frame_cbk_ = std::move(callback); }
+    void SetOnAudioDataCallback(OnAudioDataCallback callback) { audio_data_cbk_ = std::move(callback); }
+    void SetOnIceStateCallback(OnIceStateCallback callback) { ice_state_cbk_ = std::move(callback); }
+    void SetOnStatsJsonCallback(OnStatsJsonCallback callback) { stats_json_cbk_ = std::move(callback); }
 
     // called by PeerCallback
     void OnIceGatheringComplete();
@@ -102,15 +79,14 @@ class RtcConnection final {
 
     void PostWorkTask(std::function<void()>&& task);
 
-  private:
+private:
     void CreatePeerConnection();
     void CreatePeerConnectionFactory();
 
     void SendCachedIces();
-    bool ApplyIceServersJson(const std::string& json, bool active);
     void RequestStats();
 
-  private:
+private:
     std::string remote_device_id_;
     OnLocalSdpSetCallback local_sdp_set_cbk_;
     OnLocalIceCallback local_ice_cbk_;
@@ -147,9 +123,8 @@ class RtcConnection final {
 
     std::shared_ptr<Thread> work_thread_ = nullptr;
 
-    // local(direct) mode: no STUN server, non-trickle signaling
+    // Direct Host mode uses no STUN/TURN server and non-trickle signaling.
     bool local_rtc_mode_ = false;
-    std::string ice_servers_json_;
     std::shared_ptr<RtcVideoSink> video_sink_ = nullptr;
 
     // encoded-sink mode(local multi-track): one sink per remote video track,
@@ -163,6 +138,6 @@ class RtcConnection final {
     uint32_t stats_tick_ = 0;
 };
 
-} // namespace px
+}  // namespace px
 
-#endif // PX_RTC_CONNECTION_H
+#endif  // PX_RTC_CONNECTION_H

@@ -1,16 +1,16 @@
 #pragma once
 
-#include <cstddef>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include "px_common/file_transfer_send_result.h"
 #include "px_common/async_result.h"
 #include "px_common/async_runtime.h"
+#include "px_common/file_transfer_send_result.h"
 #include "px_render/network/webrtc/webrtc_transport_types.h"
 
 namespace px {
@@ -18,8 +18,6 @@ namespace px {
 class CaptureMonitorInfoMessage;
 class Data;
 class Image;
-class MsgRtcRemoteIce;
-class MsgRtcRemoteSdp;
 class PxConnectedClientInfo;
 class PxLocalRtcReplyInfo;
 class PxLocalRtcRequestInfo;
@@ -38,10 +36,10 @@ enum class PxLocalRtcAllocResult;
 // - Lifecycle calls are serialized by RenderModuleRegistry.
 // - Media and network calls follow the existing WebRTC library contract.
 class WebRtcTransportHandle final {
-  private:
+private:
     class State;
 
-  public:
+public:
     explicit WebRtcTransportHandle(std::shared_ptr<State> state);
     ~WebRtcTransportHandle();
 
@@ -82,8 +80,6 @@ class WebRtcTransportHandle final {
     void SubmitLocalYuv(const std::string& monitor_name, std::uint64_t frame_index, int frame_width, int frame_height,
                         const std::shared_ptr<Image>& image);
     void UpdateCaptureMonitorInfo(const CaptureMonitorInfoMessage& message);
-    void ApplyRemoteSdp(const MsgRtcRemoteSdp& message);
-    void ApplyRemoteIce(const MsgRtcRemoteIce& message);
     [[nodiscard]] PxLocalRtcAllocResult AllocateLocalInstance(const std::shared_ptr<PxLocalRtcRequestInfo>& request,
                                                               std::function<void(const std::shared_ptr<PxLocalRtcReplyInfo>&)> completion);
     [[nodiscard]] bool RevokeLocalInstance(const std::string& device_id, const std::string& stream_id, const std::string& allocation_id);
@@ -91,16 +87,16 @@ class WebRtcTransportHandle final {
     [[nodiscard]] bool SubmitVoicePcm(const std::string& stream_id, const std::string& call_id,
                                       const std::shared_ptr<const std::vector<std::int16_t>>& samples, int sample_rate, int channels);
 
-  private:
+private:
     std::shared_ptr<State> state_;
 
     friend class WebRtcTransportHost;
 };
 
-// Composes the two fixed WebRTC network transports. No discovery, generic
+// Composes the fixed Direct Host WebRTC transport. No discovery, generic
 // transport interface, runtime loader, or plug-in object exists here.
 class WebRtcTransportHost final {
-  public:
+public:
     [[nodiscard]] static std::shared_ptr<WebRtcTransportHost> Create();
 
     WebRtcTransportHost() = default;
@@ -112,8 +108,8 @@ class WebRtcTransportHost final {
     [[nodiscard]] std::vector<std::shared_ptr<WebRtcTransportHandle>> CreateTransports();
     void Reset();
 
-  private:
+private:
     std::vector<std::shared_ptr<WebRtcTransportHandle>> transports_;
 };
 
-} // namespace px
+}  // namespace px

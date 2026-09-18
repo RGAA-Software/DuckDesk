@@ -8,7 +8,6 @@ else()
 endif()
 add_subdirectory(network/ws)
 add_subdirectory(network/relay)
-add_subdirectory(network/webrtc/remote)
 add_subdirectory(network/webrtc/local)
 add_subdirectory(architecture/encoders/ffmpeg)
 add_subdirectory(architecture/encoders/amf)
@@ -77,14 +76,13 @@ endif()
 
 target_link_libraries(main app_manager protobuf::libprotobuf px_message
         render_architecture_core render_media_recorder)
-target_link_libraries(main render_live_pusher)
 target_link_libraries(main px_rdp_stream)
 target_link_libraries(main render_frame_processors)
 target_link_libraries(main render_audio_processors)
 target_link_libraries(main render_audio_sources)
 target_link_libraries(main render_domain_services)
 target_link_libraries(main cap_dda cap_gdi enc_ffmpeg enc_amf enc_nvenc)
-target_link_libraries(main net_ws net_udp net_relay net_rtc net_rtc_local)
+target_link_libraries(main net_ws net_udp net_relay net_rtc_local)
 
 if(WIN32)
     add_executable(${PROJECT_NAME} WIN32 rd_main.cpp ${CMAKE_CURRENT_BINARY_DIR}/rd_icon.rc)
@@ -108,7 +106,6 @@ target_link_libraries(${PROJECT_NAME} unofficial::sqlite3::sqlite3 EasyHook64 gf
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/settings.toml"  "${CMAKE_CURRENT_BINARY_DIR}"
         COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/settings.toml"  "${PX_PROJECT_BINARY_PATH}"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:net_rtc> $<TARGET_FILE_DIR:${PROJECT_NAME}>
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:net_rtc_local> $<TARGET_FILE_DIR:${PROJECT_NAME}>
         # ffmpeg is now statically linked via vcpkg; no DLLs to copy
         # COMMAND ${CMAKE_COMMAND} -E copy "${FFMPEG_ROOT}/bin/avcodec-61.dll"  "${PX_PROJECT_BINARY_PATH}"

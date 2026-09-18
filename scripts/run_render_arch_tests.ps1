@@ -108,7 +108,6 @@ $lifecycleTargets = @(
     "test_captured_media_pipeline",
     "test_ws_callback_workflow",
     "test_media_recorder_sink",
-    "test_live_pusher_sink",
     "test_was_audio_capture_source",
     "test_was_audio_capture_runtime",
     "test_miniaudio_reinit_cancel",
@@ -126,7 +125,6 @@ $lifecycleTargets = @(
     "test_voice_call_runtime"
 )
 $integrationTargets = @(
-    "test_live_pusher_ffmpeg",
     "test_opus_encoder_runtime",
     "test_render_builtin_linkage",
     "test_record_writer",
@@ -284,7 +282,6 @@ $artifactMismatch = $false
 $artifactPairs = @(
     @("px_render.exe", "src/px_render/px_render.exe", "dist/px_render.exe"),
     @("px_gh.dll", "src/px_render/hook_capture/win/hk_obs/px_gh.dll", "dist/px_gh.dll"),
-    @("px_render_rtc_remote.dll", "src/px_render/network/webrtc/remote/px_render_rtc_remote.dll", "dist/px_render_rtc_remote.dll"),
     @("px_render_rtc.dll", "src/px_render/network/webrtc/local/px_render_rtc.dll", "dist/px_render_rtc.dll")
 )
 foreach ($pair in $artifactPairs) {

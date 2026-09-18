@@ -1,0 +1,98 @@
+import {PxSdk} from "./client/px_sdk.ts";
+import {PxRendererManager} from "./renderer/px_renderer_manager.ts";
+import {PxConnParams, PxSdkConnType, PxSdkParams, type RtcSessionIceConfig} from "./client/px_sdk_params.ts";
+import {getBrowserInfo} from "./util/px_browser_info.ts";
+
+export class PxApp {
+
+    // sdk
+    grSdk: PxSdk
+
+    // renderer manager
+    rendererManager: PxRendererManager
+
+    constructor() {
+        document.documentElement.style.margin = "0";
+        document.documentElement.style.padding = "0";
+        document.documentElement.style.overflow = "hidden";
+        document.body.style.margin = "0";
+        document.body.style.padding = "0";
+        document.body.style.overflow = "hidden";
+    }
+
+    start(): void {
+
+        const queryParams = new URLSearchParams(window.location.search);
+        const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+        const safetyPwdMd5 = queryParams.get('pwd_md5') ?? undefined;
+        const clientNonce = fragment.get('nonce') ?? queryParams.get('nonce') ?? undefined;
+        const instanceId = fragment.get('instance') ?? queryParams.get('instanceId') ?? undefined;
+        const deviceId = queryParams.get('deviceId') ?? undefined;
+        const relayHost = fragment.get('relay_host') ?? undefined;
+        const relayPort = Number(fragment.get('relay_port') || 0) || undefined;
+        let rtcIceConfig: RtcSessionIceConfig | undefined;
+        const encodedIce = fragment.get('ice');
+        if (encodedIce) {
+            try {
+                const padded = encodedIce.replace(/-/g, '+').replace(/_/g, '/')
+                    .padEnd(Math.ceil(encodedIce.length / 4) * 4, '=');
+                const binary = atob(padded);
+                const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+                rtcIceConfig = JSON.parse(new TextDecoder().decode(bytes)) as RtcSessionIceConfig;
+            } catch {
+                console.error('Invalid RTC ICE launch configuration');
+            }
+        }
+        if (window.location.hash) {
+            window.history.replaceState(null, document.title, window.location.pathname + window.location.search);
+        }
+        const hostParam = queryParams.get('host') ?? window.location.hostname;
+        const connType = queryParams.get('connType');
+        console.log('a参数值:', hostParam, connType);
+
+        //.transferControlToOffscreen();
+        const canvas = (document.getElementById("main-view") as HTMLCanvasElement);//.transferControlToOffscreen();
+        const remoteVideoElement = document.getElementById('remoteVideo') as HTMLVideoElement;
+        const rendererName = "webgl";//"webgl";//2d
+
+        this.rendererManager = new PxRendererManager(rendererName, canvas, remoteVideoElement);
+
+        let sdkConnType = PxSdkConnType.kWebSocket;
+        if (connType == "ws") {
+            sdkConnType = PxSdkConnType.kWebSocket;
+            remoteVideoElement.style.display = "none";
+        }
+        else if (connType == "rtc_direct") {
+            sdkConnType = PxSdkConnType.kWebRtcDirect;
+            canvas.style.display = "none";
+        }
+        else if (connType == "rtc") {
+            sdkConnType = PxSdkConnType.kWebRtc;
+            canvas.style.display = "none";
+        }
+
+        this.grSdk = new PxSdk(new PxSdkParams({
+            sdkType: sdkConnType,
+            canvas: canvas,
+            rendererName: rendererName
+        }), this.rendererManager);
+
+        this.grSdk.start(new PxConnParams({
+            //host: "10.0.0.16",
+            // host: "10.0.0.112",
+            host: hostParam,
+            port: window.location.port ? Number(window.location.port) : 4601,
+            safetyPwdMd5,
+            clientNonce,
+            deviceId,
+            instanceId,
+            relayHost,
+            relayPort,
+            rtcIceConfig,
+        }));
+
+        console.log("browse info: ", getBrowserInfo());
+
+    }
+
+}

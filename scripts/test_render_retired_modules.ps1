@@ -46,9 +46,9 @@ $artifactGroups = Join-Path $RepoRoot "packaging\artifact_groups.toml"
 Assert-NotMatch -Path $renderRootCmake `
     -Pattern 'add_subdirectory\s*\(\s*plugins\s*\)' `
     -Reason "Render still adds the legacy plugins source tree"
-Assert-Match -Path $renderRootCmake `
+Assert-NotMatch -Path $renderRootCmake `
     -Pattern 'add_subdirectory\s*\(\s*network/webrtc/remote\s*\)' `
-    -Reason "remote WebRTC library is not in the network build layer"
+    -Reason "retired remote WebRTC library is still in the network build layer"
 Assert-Match -Path $renderRootCmake `
     -Pattern 'add_subdirectory\s*\(\s*network/webrtc/local\s*\)' `
     -Reason "local WebRTC library is not in the network build layer"
@@ -68,8 +68,7 @@ foreach ($requiredSource in @(
     "encoders/opus/opus_encoder_runtime.cpp",
     "sources/was_audio/was_audio_capture_runtime.cpp",
     "services/file_transfer_service.cpp",
-    "services/event_replayer/win_event_replayer.cpp",
-    "sinks/live_pusher/live_pusher_ffmpeg.cpp"
+    "services/event_replayer/win_event_replayer.cpp"
 )) {
     Assert-Match -Path $architectureCmake `
         -Pattern ([regex]::Escape($requiredSource)) `
@@ -84,7 +83,7 @@ Assert-NotMatch -Path $artifactGroups `
     -Reason "product artifact declarations still package the legacy rd_plugins tree"
 Assert-Match -Path $publisher -Pattern '\$destination\s*=\s*Join-Path\s+\$distRoot\s+\(Split-Path\s+-Leaf' `
     -Reason "focused publishing does not place WebRTC beside px_render.exe"
-foreach ($library in @("px_render_rtc_remote.dll", "px_render_rtc.dll")) {
+foreach ($library in @("px_render_rtc.dll")) {
     Assert-Match -Path $artifactGroups `
         -Pattern ('destination\s*=\s*"' + [regex]::Escape($library) + '"') `
         -Reason "product artifact declarations do not place $library beside px_render.exe"
@@ -97,11 +96,15 @@ if ($CheckDist) {
         if (Test-Path -LiteralPath $legacyDistDirectory) {
             throw "legacy Render plugin delivery directory still exists: $legacyDistDirectory"
         }
-        foreach ($library in @("px_render_rtc_remote.dll", "px_render_rtc.dll")) {
+        foreach ($library in @("px_render_rtc.dll")) {
             $path = Join-Path $runtimeDirectory $library
             if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
                 throw "required WebRTC runtime library is missing beside px_render.exe: $path"
             }
+        }
+        $retiredRemoteLibrary = Join-Path $runtimeDirectory "px_render_rtc_remote.dll"
+        if (Test-Path -LiteralPath $retiredRemoteLibrary -PathType Leaf) {
+            throw "retired remote WebRTC runtime library is still packaged: $retiredRemoteLibrary"
         }
     }
 }

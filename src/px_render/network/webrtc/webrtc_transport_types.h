@@ -15,7 +15,6 @@ class Data;
 class PxAsyncRuntime;
 
 enum class WebRtcTransportKind {
-    kRemote,
     kLocal,
 };
 
@@ -44,8 +43,7 @@ struct WebRtcTransportConfiguration final {
     bool relay_enabled{true};
     int language{1};
     std::string appkey;
-    int rtc_port_start{60430};
-    int rtc_port_end{60490};
+    int media_port{4601};
     std::string rtc_advertised_ipv4;
 };
 
@@ -110,18 +108,6 @@ struct WebRtcFileTransferDisconnectedEvent final {
     std::string connection_instance_id;
 };
 
-struct WebRtcAnswerSdpEvent final {
-    std::string stream_id;
-    std::string sdp;
-};
-
-struct WebRtcIceEvent final {
-    std::string stream_id;
-    std::string ice;
-    std::string mid;
-    int sdp_mline_index{0};
-};
-
 struct WebRtcVoicePcmEvent final {
     std::string stream_id;
     std::string call_id;
@@ -145,9 +131,8 @@ struct WebRtcConfigureEncoderEvent final {
 };
 
 using WebRtcEvent = std::variant<WebRtcNetClientEvent, WebRtcClientConnectedEvent, WebRtcClientDisconnectedEvent, WebRtcFileTransferDisconnectedEvent,
-                                 WebRtcAnswerSdpEvent, WebRtcIceEvent, WebRtcVoicePcmEvent, WebRtcInsertIdrEvent, WebRtcSelectCaptureMonitorEvent,
-                                 WebRtcConfigureEncoderEvent>;
+                                 WebRtcVoicePcmEvent, WebRtcInsertIdrEvent, WebRtcSelectCaptureMonitorEvent, WebRtcConfigureEncoderEvent>;
 
 using WebRtcEventCallback = std::function<void(const WebRtcEvent&)>;
 
-} // namespace px
+}  // namespace px

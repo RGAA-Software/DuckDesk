@@ -38,7 +38,6 @@ function assert(condition, message) {
 // ---------- proto ----------
 const protoDir = path.join(import.meta.dirname, '../proto')
 const root = new protobuf.Root()
-protobuf.parse(await readFile(path.join(protoDir, 'px_signaling_message.proto'), 'utf8'), root)
 protobuf.parse(await readFile(path.join(protoDir, 'px_file_transfer.proto'), 'utf8'), root)
 protobuf.parse(
   (await readFile(path.join(protoDir, 'px_message.proto'), 'utf8')).replace(/^\s*import\s+"[^"]+"\s*;$/gm, ''),

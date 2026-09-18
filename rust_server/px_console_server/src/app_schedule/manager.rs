@@ -1537,34 +1537,14 @@ impl AppScheduleManager {
         } else {
             None
         };
-        let (live, relay_server_host, relay_server_port) = {
+        let (relay_server_host, relay_server_port) = {
             let settings = crate::gConsoleSettings.lock().await;
-            (
-                settings.live.clone(),
-                settings.server_w3c_ip.clone(),
-                settings.relay_port,
-            )
-        };
-        let is_rdp = app.app_type == ApplicationType::Rdp;
-        let push_rtmp_url = if is_rdp {
-            String::new()
-        } else {
-            live.resolved_publish_rtmp_url(&relay_server_host)?
+            (settings.server_w3c_ip.clone(), settings.relay_port)
         };
         let relay_appkey = conn.lock().await.appkey.clone();
         let relay_device_id = format!("{}__instance__{}", inst.device_id, instance_id);
-        let live_stream_id = if is_rdp {
-            String::new()
-        } else {
-            format!("{}__app__{}", inst.device_id, app.app_id)
-        };
         tracing::info!(
             instance_id = %instance_id,
-            live_stream_id = %live_stream_id,
-            publish_host = %url::Url::parse(&push_rtmp_url)
-                .ok()
-                .and_then(|url| url.host_str().map(str::to_string))
-                .unwrap_or_default(),
             app_mode = app.app_type.as_str(),
             "dispatching application instance"
         );
@@ -1581,8 +1561,6 @@ impl AppScheduleManager {
             encoder_format: app.encoder_format.clone(),
             webrtc_enabled: app.webrtc_enabled,
             websocket_enabled: app.websocket_enabled,
-            live_stream_id,
-            push_rtmp_url,
             app_mode: app.app_type.as_str().to_string(),
             webview_url_b64: if app.app_type == ApplicationType::Webview {
                 URL_SAFE_NO_PAD.encode(app.entry_url.as_bytes())

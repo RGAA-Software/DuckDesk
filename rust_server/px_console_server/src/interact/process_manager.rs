@@ -1,4 +1,3 @@
-use crate::console_settings::ConsoleLiveSettings;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -12,52 +11,29 @@ const RESTARTING: u8 = 2;
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct LocalProcessState {
     pub console_pid: Option<u32>,
-    pub media_pid: Option<u32>,
-    pub turn_pid: Option<u32>,
-    pub media_managed: bool,
 }
 
 impl LocalProcessState {
     pub fn console_running(self) -> bool {
         self.console_pid.is_some()
     }
-
-    pub fn media_running(self) -> bool {
-        self.media_pid.is_some()
-    }
-
-    pub fn turn_running(self) -> bool {
-        self.turn_pid.is_some()
-    }
 }
 
-/// Owns only the programs deployed beside this panel executable.  The exact
-/// executable paths are intentional: a separately installed Console/ZLM process
-/// must never be stopped by the local panel.
+/// Owns only the server process launched from the executable beside this panel.
+/// The exact path and server-mode arguments prevent the panel from stopping an
+/// unrelated Console process.
 pub struct ConsoleProcessManager {
     console_exe: PathBuf,
-    media_exe: PathBuf,
-    turn_exe: PathBuf,
-    media_managed: bool,
     lifecycle: AtomicU8,
     operation_lock: Mutex<()>,
 }
 
 impl ConsoleProcessManager {
-    pub fn for_current_exe(live: &ConsoleLiveSettings) -> Result<Self, String> {
+    pub fn for_current_exe() -> Result<Self, String> {
         let console_exe = std::env::current_exe()
             .map_err(|error| format!("cannot determine Console executable: {error}"))?;
-        let directory = console_exe
-            .parent()
-            .ok_or_else(|| "Console executable has no parent directory".to_string())?;
         Ok(Self {
-            media_exe: directory.join("px_media.exe"),
-            turn_exe: directory.join("px_turn.exe"),
             console_exe,
-            // `auto_start_media_server` only controls startup. When the media
-            // URL is local, panel exit must always clean up the adjacent
-            // px_media.exe as requested, even if it was started manually.
-            media_managed: crate::media_sidecar::is_local_sidecar_url(&live.media_server_url),
             lifecycle: AtomicU8::new(RUNNING),
             operation_lock: Mutex::new(()),
         })
@@ -93,8 +69,8 @@ impl ConsoleProcessManager {
         Ok(self.snapshot())
     }
 
-    /// Stops the local Console server and the local sidecar, then permanently
-    /// disables reconciliation so neither is resurrected during panel exit.
+    /// Stops the local Console server, then permanently disables reconciliation
+    /// so it is not resurrected during panel exit.
     pub fn stop_for_exit(&self) -> LocalProcessState {
         let _guard = self
             .operation_lock
@@ -126,20 +102,8 @@ impl ConsoleProcessManager {
     fn stop_local_processes(&self) {
         let mut system = System::new_all();
         system.refresh_processes(ProcessesToUpdate::All, true);
-        let (console_pids, media_pids, turn_pids) = self.matching_pids_from(&system);
-
-        // Stop the server first, then the media sidecar. The former may still
-        // be writing to ZLM while it exits, but both are guaranteed gone before
-        // the panel runtime closes.
+        let console_pids = self.matching_pids_from(&system);
         for pid in console_pids {
-            kill_pid(&system, pid);
-        }
-        if self.media_managed {
-            for pid in media_pids {
-                kill_pid(&system, pid);
-            }
-        }
-        for pid in turn_pids {
             kill_pid(&system, pid);
         }
 
@@ -150,44 +114,26 @@ impl ConsoleProcessManager {
             std::thread::sleep(std::time::Duration::from_millis(100));
             let mut refreshed = System::new_all();
             refreshed.refresh_processes(ProcessesToUpdate::All, true);
-            let (console_pids, media_pids, turn_pids) = self.matching_pids_from(&refreshed);
-            if console_pids.is_empty()
-                && (!self.media_managed || media_pids.is_empty())
-                && turn_pids.is_empty()
-            {
+            let console_pids = self.matching_pids_from(&refreshed);
+            if console_pids.is_empty() {
                 break;
             }
             for pid in console_pids {
-                kill_pid(&refreshed, pid);
-            }
-            if self.media_managed {
-                for pid in media_pids {
-                    kill_pid(&refreshed, pid);
-                }
-            }
-            for pid in turn_pids {
                 kill_pid(&refreshed, pid);
             }
         }
     }
 
     fn snapshot_from(&self, system: &System) -> LocalProcessState {
-        let (console_pids, media_pids, turn_pids) = self.matching_pids_from(system);
-        let mut state = LocalProcessState {
-            media_managed: self.media_managed,
-            ..Default::default()
-        };
+        let console_pids = self.matching_pids_from(system);
+        let mut state = LocalProcessState::default();
         state.console_pid = console_pids.into_iter().next();
-        state.media_pid = media_pids.into_iter().next();
-        state.turn_pid = turn_pids.into_iter().next();
         state
     }
 
-    fn matching_pids_from(&self, system: &System) -> (Vec<u32>, Vec<u32>, Vec<u32>) {
+    fn matching_pids_from(&self, system: &System) -> Vec<u32> {
         let own_pid = std::process::id();
         let mut console_pids = Vec::new();
-        let mut media_pids = Vec::new();
-        let mut turn_pids = Vec::new();
         for (pid, process) in system.processes() {
             if pid.as_u32() == own_pid {
                 continue;
@@ -197,13 +143,9 @@ impl ConsoleProcessManager {
             };
             if same_path(exe, &self.console_exe) && is_server_command(process.cmd()) {
                 console_pids.push(pid.as_u32());
-            } else if self.media_managed && same_path(exe, &self.media_exe) {
-                media_pids.push(pid.as_u32());
-            } else if same_path(exe, &self.turn_exe) {
-                turn_pids.push(pid.as_u32());
             }
         }
-        (console_pids, media_pids, turn_pids)
+        console_pids
     }
 }
 

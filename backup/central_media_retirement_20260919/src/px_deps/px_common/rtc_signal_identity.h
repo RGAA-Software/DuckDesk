@@ -24,3 +24,4 @@ inline std::string ResolveRtcFileTransferSignalRemoteDeviceId(
 } // namespace px
 
 #endif // PX_RTC_SIGNAL_IDENTITY_H
+

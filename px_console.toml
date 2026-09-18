@@ -57,21 +57,6 @@ force_authorize = false
 appkey = ""
 app_secret = ""
 
-# 媒体服务与 Console 同机，端口统一位于当前部署区间。
-[live]
-media_server_url = "http://127.0.0.1:4606"
-# Render 通过当前公网映射访问媒体发布入口。
-publish_public_host = "39.71.45.66"
-publish_rtmp_url = "rtmp://127.0.0.1:4607/live/{live_stream_id}"
-# 回环管理不需要 API 密钥；若媒体服务拆分到其他机器必须设置。
-api_secret = ""
-# RTMP publish app. Render uses stream_id: <device_id>__app__<app_id>.
-app = "live"
-default_app_id = "cargame_debug"
-# Start px_media.exe automatically only when media_server_url points to this
-# machine. Set false when the local sidecar is managed by Windows Service.
-auto_start_media_server = true
-
 [user]
 panel_sliding_days = 30
 panel_absolute_days = 90
@@ -95,21 +80,3 @@ guest_concurrent_instances = 3
 user_concurrent_instances = 3
 guest_daily_minutes = 60
 public_app_global_concurrency = 20
-
-# RTC 只供 Web 客户端使用；Native 仍使用 WS 控制和 UDP/TCP 媒体路线。
-[rtc]
-direct_probe_enabled = false
-
-[rtc.managed_console_server]
-enabled = true
-listen_ip = "0.0.0.0"
-public_host = "39.71.45.66"
-port = 4602
-# 5300/TCP 由当前公网节点保留给远程管理，因此媒体分配池从 5301 开始。
-# 128 个端口匹配当前单机服务能力；扩大前应先验证硬件、带宽与并发容量。
-relay_min_port = 5301
-relay_max_port = 5428
-realm = "pixels-console"
-enable_udp = true
-enable_tcp = true
-credential_ttl_seconds = 300

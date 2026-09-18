@@ -5,9 +5,8 @@ use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
 use prost::Message as ProstMessage;
 use protocol::console_service::{
-    ConsoleServiceCreateWallSession, ConsoleServiceHeartBeat, ConsoleServiceHello,
-    ConsoleServiceMessage, ConsoleServiceMessageType, ConsoleServiceValidateRdpSessionResult,
-    RtcIceConfigChanged,
+    ConsoleServiceHeartBeat, ConsoleServiceHello, ConsoleServiceMessage, ConsoleServiceMessageType,
+    ConsoleServiceValidateRdpSessionResult,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -279,12 +278,6 @@ impl ConsoleServiceConn {
                     .await;
             }
         } else if decoded_message.msg_type
-            == ConsoleServiceMessageType::KConsoleServiceCreateWallSessionResult
-        {
-            if let Some(sub) = decoded_message.create_wall_session_result {
-                crate::wall::console_wall_handler::on_wall_session_result(sub).await;
-            }
-        } else if decoded_message.msg_type
             == ConsoleServiceMessageType::KConsoleServiceValidateRdpSession
         {
             let Some(request) = decoded_message.validate_rdp_session else {
@@ -404,18 +397,6 @@ impl ConsoleServiceConn {
             .await
     }
 
-    pub async fn send_create_wall_session(
-        &mut self,
-        request: ConsoleServiceCreateWallSession,
-    ) -> bool {
-        let mut sv_msg = ConsoleServiceMessage::default();
-        sv_msg.set_msg_type(ConsoleServiceMessageType::KConsoleServiceCreateWallSession);
-        sv_msg.device_id = self.device_id.clone();
-        sv_msg.create_wall_session = Some(request);
-        self.send_bin_message_bytes(Bytes::from(sv_msg.encode_to_vec()))
-            .await
-    }
-
     async fn send_rdp_validation_result(
         &mut self,
         response: ConsoleServiceValidateRdpSessionResult,
@@ -431,18 +412,6 @@ impl ConsoleServiceConn {
     pub async fn send_bin_message_vec(&mut self, message_bytes: Vec<u8>) {
         self.send_bin_message_bytes(Bytes::from(message_bytes))
             .await;
-    }
-
-    pub async fn send_rtc_ice_config_changed(&mut self, revision: u64, changed_at: i64) -> bool {
-        let mut message = ConsoleServiceMessage::default();
-        message.set_msg_type(ConsoleServiceMessageType::KRtcIceConfigChanged);
-        message.device_id = self.device_id.clone();
-        message.rtc_ice_config_changed = Some(RtcIceConfigChanged {
-            revision,
-            changed_at,
-        });
-        self.send_bin_message_bytes(Bytes::from(message.encode_to_vec()))
-            .await
     }
 
     pub async fn send_bin_message_bytes(&mut self, om: Bytes) -> bool {

@@ -1,0 +1,197 @@
+syntax = "proto3";
+
+package console_service;
+
+// Between Console (Console) - Pixels Windows Service (px_service)
+// See docs/console_app_schedule_plan.md
+
+enum ConsoleServiceMessageType {
+  kConsoleServiceHello = 0;
+  kConsoleServiceHeartBeat = 1;
+  // Console -> Service
+  kConsoleServiceStartAppInstance = 2;
+  kConsoleServiceStopAppInstance = 3;
+  // Service -> Console
+  kConsoleServiceStartAppInstanceResult = 4;
+  kConsoleServiceStopAppInstanceResult = 5;
+  // Console -> Service -> local desktop render. This trusted hop is the only
+  // authority allowed to create a hidden, read-only wall observer.
+  kConsoleServiceCreateWallSession = 6;
+  // Service -> Console
+  kConsoleServiceCreateWallSessionResult = 7;
+  // Service -> Console, then Console -> Service. Validates that a locally
+  // running RDP workspace still belongs to an active Console session.
+  kConsoleServiceValidateRdpSession = 8;
+  kConsoleServiceValidateRdpSessionResult = 9;
+  // Console -> Service. Invalidation only; Service pulls the new version.
+  kRtcIceConfigChanged = 10;
+}
+
+message ConsoleServiceHello {
+  string device_id = 1;
+  string appkey = 2;
+  string version = 3;
+  bool rdp_available = 4;
+  // Public node trust metadata. Never credentials; advertised only over verified Console TLS.
+  string rdp_domain = 5;
+  string rdp_proxy_certificate_sha256 = 6;
+  // Immutable installed-product identity. This comes from the packaged
+  // product-manifest.json beside px_service.exe, never from the Service PE version.
+  string company = 7;
+  string product = 8;
+  string edition = 9;
+  string product_version = 10;
+  uint32 product_version_code = 11;
+  repeated string capabilities = 12;
+}
+
+message ConsoleServiceHeartBeat {
+  int64 hb_index = 1;
+  string device_id = 2;
+  bool render_alive = 3;
+  // json format authorization info reported by the panel (may be empty)
+  string auth_info_json = 4;
+  // json array of local app instance summaries (may be empty)
+  // [{instance_id, app_id, listen_port, pid, state}, ...]
+  string instances_json = 5;
+  // Render-owned logical session snapshot. Each item is deduplicated by
+  // logical_session_id and contains role, subject and active transports.
+  // Console derives current status and audit transitions from this reliable
+  // control-plane report; UDP never reports lifecycle state directly.
+  string logical_sessions_json = 6;
+  // Authoritative node-local configuration, repeated after every reconnect.
+  NodeEndpoints node_endpoints = 7;
+}
+
+message NodeEndpoints {
+  uint32 schema_version = 1;
+  string access_host = 2;
+  uint32 desktop_port = 3;
+  uint32 application_port_start = 4;
+  uint32 application_port_end = 5;
+  uint32 rtc_port_start = 6;
+  uint32 rtc_port_end = 7;
+}
+
+message ConsoleServiceStartAppInstance {
+  string request_id = 1;
+  string instance_id = 2;
+  string app_id = 3;
+  // Absolute install root on this machine (Placement.install_root)
+  string install_root = 4;
+  // Relative exe path under install_root (Application.game_exe_rel)
+  string game_exe_rel = 5;
+  string game_arguments = 6;
+  // 0 = Service allocates an available port
+  int32 listen_port = 7;
+  int32 encoder_fps = 8;
+  int32 encoder_bitrate = 9;
+  string encoder_format = 10;
+  bool webrtc_enabled = 11;
+  bool websocket_enabled = 12;
+  // Deterministic Console live stream name, normally <device_id>__app__<app_id>.
+  // Empty keeps backward compatibility and disables the passive RTMP pusher.
+  string live_stream_id = 13;
+  // RTMP publishing template, for example
+  // rtmp://127.0.0.1:1935/live/{live_stream_id}. Empty uses render settings.
+  string push_rtmp_url = 14;
+  // Application launch mode. Empty means legacy game-hook.
+  string app_mode = 15;
+  // UTF-8 Base64URL (no padding) entry URL. Required for app_mode=webview.
+  string webview_url_b64 = 16;
+  // Physical device identity of the child Render.
+  string device_id = 17;
+  // Unique Relay identity for this child Render. It must not replace the
+  // desktop Render connection which uses device_id.
+  string relay_device_id = 18;
+  string relay_server_host = 19;
+  int32 relay_server_port = 20;
+  string relay_appkey = 21;
+  // Private Console -> Service payload. Never copy into public application DTOs or process arguments.
+  RdpWorkspaceProvision rdp_workspace = 22;
+}
+
+message RdpWorkspaceProvision {
+  string workspace_id = 1;
+  string node_id = 2;
+  string account_name = 3;
+  string password = 4;
+  uint32 credential_version = 5;
+}
+
+message ConsoleServiceStopAppInstance {
+  string request_id = 1;
+  string instance_id = 2;
+}
+
+message ConsoleServiceStartAppInstanceResult {
+  string request_id = 1;
+  string instance_id = 2;
+  bool ok = 3;
+  string error = 4;
+  int32 listen_port = 5;
+  uint32 pid = 6;
+}
+
+message ConsoleServiceStopAppInstanceResult {
+  string request_id = 1;
+  string instance_id = 2;
+  bool ok = 3;
+  string error = 4;
+}
+
+message ConsoleServiceCreateWallSession {
+  string request_id = 1;
+  string session_id = 2;
+  string device_id = 3;
+  int32 render_port = 4;
+  string safety_pwd_md5 = 5;
+  string offer_sdp = 6;
+}
+
+message ConsoleServiceCreateWallSessionResult {
+  string request_id = 1;
+  string session_id = 2;
+  bool ok = 3;
+  string error = 4;
+  string answer_sdp = 5;
+}
+
+message ConsoleServiceValidateRdpSession {
+  string request_id = 1;
+  string instance_id = 2;
+  // Console binds this to the authenticated node, instance and original login session.
+  string logical_session_id = 3;
+}
+
+message ConsoleServiceValidateRdpSessionResult {
+  string request_id = 1;
+  bool ok = 2;
+  string code = 3;
+  string device_id = 4;
+  string instance_id = 5;
+  string subject_type = 6;
+  string subject_id = 7;
+  string logical_session_id = 8;
+}
+
+message RtcIceConfigChanged {
+  uint64 revision = 1;
+  int64 changed_at = 2;
+}
+
+message ConsoleServiceMessage {
+  ConsoleServiceMessageType msg_type = 1;
+  string device_id = 10;
+  ConsoleServiceHello hello = 20;
+  ConsoleServiceHeartBeat heartbeat = 30;
+  ConsoleServiceStartAppInstance start_app_instance = 40;
+  ConsoleServiceStopAppInstance stop_app_instance = 50;
+  ConsoleServiceStartAppInstanceResult start_app_instance_result = 60;
+  ConsoleServiceStopAppInstanceResult stop_app_instance_result = 70;
+  ConsoleServiceCreateWallSession create_wall_session = 80;
+  ConsoleServiceCreateWallSessionResult create_wall_session_result = 90;
+  ConsoleServiceValidateRdpSession validate_rdp_session = 100;
+  ConsoleServiceValidateRdpSessionResult validate_rdp_session_result = 110;
+  RtcIceConfigChanged rtc_ice_config_changed = 120;
+}

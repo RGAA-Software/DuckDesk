@@ -5,13 +5,14 @@
 #ifndef TEST_WEBRTC_RTCSERVER_H
 #define TEST_WEBRTC_RTCSERVER_H
 
-#include "px_webrtc_client/webrtc_helper.h"
-#include "px_common/rtc_monitor_track_slots.h"
-#include "px_render/network/webrtc/webrtc_transport_types.h"
-#include "rtc_heartbeat_watchdog.h"
 #include <algorithm>
 #include <mutex>
 #include <span>
+
+#include "px_common/rtc_monitor_track_slots.h"
+#include "px_render/network/webrtc/webrtc_transport_types.h"
+#include "px_webrtc_client/webrtc_helper.h"
+#include "rtc_heartbeat_watchdog.h"
 
 namespace px {
 class Data;
@@ -43,7 +44,7 @@ struct MonitorVideoTrack {
 };
 
 class RtcServer : public std::enable_shared_from_this<RtcServer> {
-  public:
+public:
     static std::shared_ptr<RtcServer> Make(const std::shared_ptr<WebRtcLocalRuntime>& runtime);
     explicit RtcServer(const std::shared_ptr<WebRtcLocalRuntime>& runtime);
     [[nodiscard]] std::shared_ptr<WebRtcExecutionContext> GetExecutionContext() const;
@@ -55,44 +56,26 @@ class RtcServer : public std::enable_shared_from_this<RtcServer> {
     // normal disconnect event.
     void CloseTerminal(const std::string& reason);
 
-    bool Start(const std::string& stream_id, const std::string& offer_sdp, PxLocalRtcSessionRole session_role,
-               const std::string& ice_config_json = "");
-    bool RestartWithOffer(const std::string& offer_sdp, const std::string& ice_config_json);
+    bool Start(const std::string& stream_id, const std::string& offer_sdp, PxLocalRtcSessionRole session_role);
     void Exit();
-    void OnRemoteIce(const std::string& ice, const std::string& mid, int sdp_mline_index);
     bool IsDataChannelConnected();
     bool IsFtDataChannelConnected();
     bool IsMediaConsumerActive();
-    bool IsWallObserver() const {
-        return wall_observer_;
-    }
-    bool IsObserver() const {
-        return wall_observer_ || observer_;
-    }
+    bool IsObserver() const { return observer_; }
 
     // conn_id: rtc_servers_ 的 map key(device_id:stream_id),断开清理时回传给 library
-    void SetConnId(const std::string& conn_id) {
-        connection_id_ = conn_id;
-    }
-    const std::string& GetConnId() const {
-        return connection_id_;
-    }
+    void SetConnId(const std::string& conn_id) { connection_id_ = conn_id; }
+    const std::string& GetConnId() const { return connection_id_; }
     // 真实访客 stream id(信令传入,与 px::Message.stream_id 一致)。
     // 连接/断开事件都用它做 visitor 标识,保证按 id 键控的插件能配对。
-    const std::string& GetStreamId() const {
-        return stream_id_;
-    }
+    const std::string& GetStreamId() const { return stream_id_; }
     void SetAllocationId(std::string allocation_id) { allocation_id_ = std::move(allocation_id); }
     const std::string& GetAllocationId() const { return allocation_id_; }
     // client_nonce: web client 的浏览器标识(launch 页 nonce)。
     // 新连接 nonce 与现存活跃连接相同 = 同一浏览器,信令直接自动接管,
     // 不再回 704 让用户确认;不同 nonce 维持占用确认流程
-    void SetClientNonce(const std::string& nonce) {
-        client_nonce_ = nonce;
-    }
-    const std::string& GetClientNonce() const {
-        return client_nonce_;
-    }
+    void SetClientNonce(const std::string& nonce) { client_nonce_ = nonce; }
+    const std::string& GetClientNonce() const { return client_nonce_; }
     void SetPermissions(bool capability_enforced, const std::vector<std::string>& permissions) {
         capability_enforced_ = capability_enforced;
         permissions_ = permissions;
@@ -109,12 +92,8 @@ class RtcServer : public std::enable_shared_from_this<RtcServer> {
         return !capability_enforced_ || std::find(permissions_.begin(), permissions_.end(), permission) != permissions_.end();
     }
     // 请求退出:置 exit_ 标记,停止一切收发;真正的资源回收由 library 延迟 Sweep
-    void RequestExit() {
-        exit_ = true;
-    }
-    bool IsExitRequested() const {
-        return exit_.load();
-    }
+    void RequestExit() { exit_ = true; }
+    bool IsExitRequested() const { return exit_.load(); }
 
     // 插件级客户端断开事件:ICE 瞬断/终态、媒体 datachannel 独立关闭、ICE 超时
     // 判死,任一检测点触发,全连接生命周期只发一次(去重)。
@@ -164,10 +143,9 @@ class RtcServer : public std::enable_shared_from_this<RtcServer> {
     bool SetVoiceCallAuthorization(const std::string& call_id, bool authorized);
     void OnVoiceCallPcm(const std::string& call_id, std::span<const std::int16_t> samples, int sample_rate, int channels);
 
-  private:
+private:
     bool CreatePeerConnectionFactory();
     bool CreatePeerConnection();
-    bool ApplyIceConfiguration(const std::string& ice_config_json, bool update_peer_connection);
     bool SetRemoteOffer(const std::string& offer_sdp);
     // 按屏路由 + 构造 NotifyFrameFrameBuffer 推给 video source(OnNewFrameCaptured/
     // OnNewRawFrameCaptured 的公共尾部)
@@ -175,22 +153,18 @@ class RtcServer : public std::enable_shared_from_this<RtcServer> {
                                      int64_t adapter_id, uint64_t frame_format);
     void CreateSomeMediaDeps(webrtc::PeerConnectionFactoryDependencies& media_deps);
 
-    void SendIceToRemote(const std::string& ice, const std::string& mid, int sdp_mline_index);
-
     // 远端音频轨(浏览器麦克风上行):挂 PCM sink,经 WASAPI 播放
     void OnRemoteAudioTrack(rtc::scoped_refptr<webrtc::AudioTrackInterface> track);
     void OnRemoteAudioTrackRemoved(rtc::scoped_refptr<webrtc::AudioTrackInterface> track);
     bool ExpireIfHeartbeatTimedOut(int64_t now_ms);
 
-  private:
+private:
     std::shared_ptr<WebRtcLocalRuntime> runtime_;
     std::unique_ptr<rtc::Thread> network_thread_;
     std::unique_ptr<rtc::Thread> worker_thread_;
     std::unique_ptr<rtc::Thread> sig_thread_;
     std::string stream_id_;
     std::string offer_sdp_;
-    std::string ice_config_json_;
-    bool standard_rtc_ = false;
     std::string answer_sdp_;
     std::shared_ptr<PeerCallback> peer_callback_ = nullptr;
     rtc::scoped_refptr<SetSessCallback> set_remote_offer_sdp_callback_ = nullptr;
@@ -218,7 +192,6 @@ class RtcServer : public std::enable_shared_from_this<RtcServer> {
     std::string client_nonce_;
     std::vector<std::string> permissions_;
     bool capability_enforced_ = false;
-    bool wall_observer_ = false;
     bool observer_ = false;
     std::atomic_bool ice_connected_ = false;
     // The initial observer timeout only applies before the first successful
@@ -248,9 +221,7 @@ class RtcServer : public std::enable_shared_from_this<RtcServer> {
     static constexpr int64_t kInitialConnectTimeoutMs = 15000;
     // Direct RTC uses the application heartbeat as an independent liveness
     // signal because libwebrtc may retain ICE/DataChannel "connected" after
-    // an abruptly terminated client. Standard RTC arms this only after it
-    // observes a heartbeat, preserving browser clients that currently use
-    // Relay signaling heartbeats instead of media-channel heartbeats.
+    // an abruptly terminated client.
     RtcHeartbeatWatchdog heartbeat_watchdog_{};
     // 断开事件去重:见 EmitClientDisconnectedEvent
     std::atomic_bool disconnect_event_sent_ = false;
@@ -271,6 +242,6 @@ class RtcServer : public std::enable_shared_from_this<RtcServer> {
     std::shared_ptr<RemoteAudioSink> remote_audio_sink_ = nullptr;
 };
 
-} // namespace px
+}  // namespace px
 
-#endif // TEST_WEBRTC_RTCSERVER_H
+#endif  // TEST_WEBRTC_RTCSERVER_H

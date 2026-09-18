@@ -1,6 +1,6 @@
 import {PxSdk} from "./client/px_sdk.ts";
 import {PxRendererManager} from "./renderer/px_renderer_manager.ts";
-import {PxConnParams, PxSdkConnType, PxSdkParams, type RtcSessionIceConfig} from "./client/px_sdk_params.ts";
+import {PxConnParams, PxSdkConnType, PxSdkParams} from "./client/px_sdk_params.ts";
 import {getBrowserInfo} from "./util/px_browser_info.ts";
 
 export class PxApp {
@@ -28,27 +28,12 @@ export class PxApp {
         const clientNonce = fragment.get('nonce') ?? queryParams.get('nonce') ?? undefined;
         const instanceId = fragment.get('instance') ?? queryParams.get('instanceId') ?? undefined;
         const deviceId = queryParams.get('deviceId') ?? undefined;
-        const relayHost = fragment.get('relay_host') ?? undefined;
-        const relayPort = Number(fragment.get('relay_port') || 0) || undefined;
-        let rtcIceConfig: RtcSessionIceConfig | undefined;
-        const encodedIce = fragment.get('ice');
-        if (encodedIce) {
-            try {
-                const padded = encodedIce.replace(/-/g, '+').replace(/_/g, '/')
-                    .padEnd(Math.ceil(encodedIce.length / 4) * 4, '=');
-                const binary = atob(padded);
-                const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-                rtcIceConfig = JSON.parse(new TextDecoder().decode(bytes)) as RtcSessionIceConfig;
-            } catch {
-                console.error('Invalid RTC ICE launch configuration');
-            }
-        }
         if (window.location.hash) {
             window.history.replaceState(null, document.title, window.location.pathname + window.location.search);
         }
         const hostParam = queryParams.get('host') ?? window.location.hostname;
         const connType = queryParams.get('connType');
-        console.log('a参数值:', hostParam, connType);
+        console.log('Connection parameters:', hostParam, connType);
 
         //.transferControlToOffscreen();
         const canvas = (document.getElementById("main-view") as HTMLCanvasElement);//.transferControlToOffscreen();
@@ -64,10 +49,6 @@ export class PxApp {
         }
         else if (connType == "rtc_direct") {
             sdkConnType = PxSdkConnType.kWebRtcDirect;
-            canvas.style.display = "none";
-        }
-        else if (connType == "rtc") {
-            sdkConnType = PxSdkConnType.kWebRtc;
             canvas.style.display = "none";
         }
 
@@ -86,9 +67,6 @@ export class PxApp {
             clientNonce,
             deviceId,
             instanceId,
-            relayHost,
-            relayPort,
-            rtcIceConfig,
         }));
 
         console.log("browse info: ", getBrowserInfo());

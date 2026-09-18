@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "test": "npm run test:voice && npm run test:unit",
     "test:unit": "vitest run",
-    "test:rtc": "vitest run test/standard_signaling.test.ts test/stats.test.ts",
+    "test:rtc": "vitest run test/stats.test.ts",
     "test:voice": "node test/voice_call_state_test.mjs"
   },
   "dependencies": {

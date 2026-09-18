@@ -59,27 +59,6 @@ force_authorize = false
 appkey = ""
 app_secret = ""
 
-# 媒体服务可与 Console 同机，也可独立部署。密钥仅保留在服务端配置中。
-[live]
-# TCP，供 Console 调用的媒体管理地址，不对客户端公开。
-# 同机使用回环地址；自动管理本机媒体服务时会同步其监听端口。
-# 分机请填写 Console 可达的内网地址，并在媒体机器配置对应端口及访问控制。
-media_server_url = "http://127.0.0.1:4606"
-# 渲染机器可达的媒体发布主机。留空使用 Console 对外地址。
-# 媒体独立部署时必须改为媒体机器的地址；只有全部 Render 同机时才可填回环地址。
-publish_public_host = ""
-# TCP，Render 发布媒体的入口；主机由 publish_public_host 确定。
-# 仅需渲染机器可达，不需要向浏览器开放；本机托管时会同步监听端口。
-publish_rtmp_url = "rtmp://127.0.0.1:4607/live/{live_stream_id}"
-# 媒体管理密钥；非回环部署必须填写与媒体服务一致的密钥，不得发送给客户端。
-api_secret = ""
-# RTMP publish app. Render uses stream_id: <device_id>__app__<app_id>.
-app = "live"
-default_app_id = "cargame_debug"
-# Start px_media.exe automatically only when media_server_url points to this
-# machine. Set false when the local sidecar is managed by Windows Service.
-auto_start_media_server = true
-
 [user]
 panel_sliding_days = 30
 panel_absolute_days = 90
@@ -99,26 +78,3 @@ guest_concurrent_instances = 3
 user_concurrent_instances = 3
 guest_daily_minutes = 60
 public_app_global_concurrency = 20
-
-# RTC 服务只供浏览器实时会话使用，不影响 Native 直连。
-# 此处为首次启动配置；若已经在管理页面保存 RTC 设置，需同步更新页面配置。
-[rtc]
-direct_probe_enabled = false
-
-[rtc.managed_console_server]
-enabled = true
-# 本机绑定地址；独立 RTC 服务应通过管理页面配置其真实地址，不绑定远端 IP。
-listen_ip = "0.0.0.0"
-# 浏览器可达的 RTC 服务地址，留空使用 Console 对外地址。
-public_host = ""
-# TCP + UDP，RTC 会话服务入口，两种协议均需映射到实际运行此服务的机器。
-port = 4602
-# UDP，RTC 服务的媒体转发范围，起止均包含；不是各 Render 的本机 RTC 范围。
-# 90 示例避开已存在的 SSH 5300。端口可按容量自行扩大，代码不限制为此区间。
-# 4608–4612 仅作预留，不产生监听；系统管理及数据库端口不在此处修改。
-relay_min_port = 5301
-relay_max_port = 5428
-realm = "pixels-console"
-enable_udp = true
-enable_tcp = true
-credential_ttl_seconds = 300

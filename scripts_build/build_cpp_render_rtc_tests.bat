@@ -13,9 +13,9 @@ if /I not "%~1"=="cloud_node" if /I not "%~1"=="remote" (
 set "CPP_PRODUCT=%~1"
 set "CPP_BUILD_DIR=build_official\%CPP_PRODUCT%\cmake"
 if not "%~2"=="" set "CPP_BUILD_JOBS=%~2"
-call "%~dp0..\scripts\build_cpp_target.bat" test_rtc_payload_authorization net_rtc check_cpp_ownership
+call "%~dp0..\scripts\build_cpp_target.bat" test_rtc_candidate_sdp test_rtc_heartbeat_watchdog test_webrtc_transport_lifecycle net_rtc_local check_cpp_ownership
 if errorlevel 1 exit /b %errorlevel%
-ctest --test-dir "%CPP_BUILD_DIR%" -R "^rtc_payload_authorization$" --output-on-failure
+ctest --test-dir "%CPP_BUILD_DIR%" -R "^(rtc_candidate_sdp|rtc_heartbeat_watchdog|webrtc_transport_lifecycle)$" --output-on-failure
 if errorlevel 1 exit /b %errorlevel%
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0..\scripts\publish_cpp_artifacts.ps1" -Component render_network_libraries -BuildDir "%CPP_BUILD_DIR%" -DistDir "build_official\%CPP_PRODUCT%\dist"
 exit /b %errorlevel%

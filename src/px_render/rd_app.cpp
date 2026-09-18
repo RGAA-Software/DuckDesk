@@ -38,8 +38,6 @@
 #include "architecture/services/input_replay_service.h"
 #include "architecture/services/joystick_service.h"
 #include "architecture/services/voice_call_service.h"
-#include "architecture/sinks/live_pusher/live_pusher_ffmpeg.h"
-#include "architecture/sinks/live_pusher_sink.h"
 #include "architecture/sinks/media_recorder_sink.h"
 #include "architecture/sources/dda/dda_capture_source.h"
 #include "architecture/sources/monitor_capture_source.h"
@@ -97,12 +95,10 @@ namespace {
 
 constexpr auto kApplicationShutdownBudget = std::chrono::seconds(15);
 
-PxAwaitable<void> StopApplicationNetworkClients(
-    std::shared_ptr<WsPanelClient> panel_client,
-    std::shared_ptr<RenderServiceClient> service_client,
-    std::shared_ptr<RenderModuleRegistry> module_registry,
-    const std::chrono::steady_clock::time_point deadline,
-    std::shared_ptr<std::promise<PxResult<void>>> completion) {
+PxAwaitable<void> StopApplicationNetworkClients(std::shared_ptr<WsPanelClient> panel_client, std::shared_ptr<RenderServiceClient> service_client,
+                                                std::shared_ptr<RenderModuleRegistry> module_registry,
+                                                const std::chrono::steady_clock::time_point deadline,
+                                                std::shared_ptr<std::promise<PxResult<void>>> completion) {
     if (panel_client) {
         panel_client->Exit();
     }
@@ -112,22 +108,19 @@ PxAwaitable<void> StopApplicationNetworkClients(
 
     auto outcome = PxResult<void>::Success();
     if (panel_client) {
-        const auto stopped =
-            co_await WsPanelClient::StopAsync(panel_client, deadline);
+        const auto stopped = co_await WsPanelClient::StopAsync(panel_client, deadline);
         if (!stopped) {
             outcome = PxResult<void>::Failure(stopped.Error());
         }
     }
     if (service_client) {
-        const auto stopped =
-            co_await RenderServiceClient::StopAsync(service_client, deadline);
+        const auto stopped = co_await RenderServiceClient::StopAsync(service_client, deadline);
         if (!stopped && outcome) {
             outcome = PxResult<void>::Failure(stopped.Error());
         }
     }
     if (module_registry) {
-        const auto stopped =
-            co_await module_registry->StopNetworkIngressAsync(deadline);
+        const auto stopped = co_await module_registry->StopNetworkIngressAsync(deadline);
         if (!stopped && outcome) {
             outcome = PxResult<void>::Failure(stopped.Error());
         }
@@ -135,28 +128,24 @@ PxAwaitable<void> StopApplicationNetworkClients(
     completion->set_value(std::move(outcome));
 }
 
-PxAwaitable<void> StopApplicationWebRtcLibraries(
-    std::shared_ptr<RenderModuleRegistry> module_registry,
-    const std::chrono::steady_clock::time_point deadline,
-    std::shared_ptr<std::promise<PxResult<void>>> completion) {
+PxAwaitable<void> StopApplicationWebRtcLibraries(std::shared_ptr<RenderModuleRegistry> module_registry,
+                                                 const std::chrono::steady_clock::time_point deadline,
+                                                 std::shared_ptr<std::promise<PxResult<void>>> completion) {
     if (!module_registry) {
         completion->set_value(PxResult<void>::Success());
         co_return;
     }
-    completion->set_value(
-        co_await module_registry->StopWebRtcLibrariesAsync(deadline));
+    completion->set_value(co_await module_registry->StopWebRtcLibrariesAsync(deadline));
 }
 
 class ApplicationShutdownDispatcher final {
 public:
     static std::shared_ptr<ApplicationShutdownDispatcher> Instance() {
-        static const auto instance =
-            std::make_shared<ApplicationShutdownDispatcher>();
+        static const auto instance = std::make_shared<ApplicationShutdownDispatcher>();
         return instance;
     }
 
-    ApplicationShutdownDispatcher()
-        : runtime_(PxAsyncRuntime::Create({.worker_threads = 1})) {
+    ApplicationShutdownDispatcher() : runtime_(PxAsyncRuntime::Create({.worker_threads = 1})) {
         if (runtime_ && runtime_->Start()) {
             scope_ = PxAsyncScope::Create(runtime_, PxAsyncLane::kWorker);
         }
@@ -173,11 +162,8 @@ public:
         }
     }
 
-    [[nodiscard]] bool Submit(
-        const std::shared_ptr<RdApplication>& application) const {
-        return scope_ &&
-               scope_->Spawn("application-root-shutdown",
-                             [application] { return Run(application); });
+    [[nodiscard]] bool Submit(const std::shared_ptr<RdApplication>& application) const {
+        return scope_ && scope_->Spawn("application-root-shutdown", [application] { return Run(application); });
     }
 
 private:
@@ -194,8 +180,7 @@ private:
 
 std::shared_ptr<RdApplication> RdApplication::Make(const AppParams& args) {
     struct WinApplicationEnabler final : WinApplication {
-        explicit WinApplicationEnabler(const AppParams& app_args)
-            : WinApplication(app_args) {}
+        explicit WinApplicationEnabler(const AppParams& app_args) : WinApplication(app_args) {}
     };
 
     // By OS
@@ -204,13 +189,10 @@ std::shared_ptr<RdApplication> RdApplication::Make(const AppParams& args) {
     // Linux
 }
 
-RdApplication::RdApplication(const AppParams& args)
-    : settings_(*RdSettings::Instance()) {
+RdApplication::RdApplication(const AppParams& args) : settings_(*RdSettings::Instance()) {
     logical_session_registry_ = std::make_shared<LogicalSessionRegistry>();
     logical_session_registry_->SetIncomingAccessEnabled(
-        ResolveIncomingAccessEnabled(
-            settings_.IncomingAccessProduct(),
-            settings_.incoming_remote_access_enabled_));
+        ResolveIncomingAccessEnabled(settings_.IncomingAccessProduct(), settings_.incoming_remote_access_enabled_));
 
     // debug
     // MessageBoxA(0, "", "debug", 0);
@@ -228,8 +210,7 @@ void RdApplication::Init(int argc, char** argv) {
     // sp
     sp_ = SharedPreference::Instance();
     auto path = FolderUtil::GetProgramDataPath() + L"/px_data";
-    std::string sp_name = std::format("pixels_render_{}.dat",
-                                      settings_.transmission_.listening_port_);
+    std::string sp_name = std::format("pixels_render_{}.dat", settings_.transmission_.listening_port_);
     if (!sp_->Init(std::filesystem::path{path}, sp_name)) {
         init_failed_ = true;
         init_error_ = std::format(
@@ -256,201 +237,124 @@ int RdApplication::Run() {
     const std::weak_ptr<RdApplication> weak_application = weak_from_this();
 
     const auto builtin_catalog = render::BuiltinModuleCatalog::Create();
-    composition_root_ = render::RenderCompositionRoot::Create(
-        context_->GetAsyncRuntime(), builtin_catalog);
+    composition_root_ = render::RenderCompositionRoot::Create(context_->GetAsyncRuntime(), builtin_catalog);
     encoded_media_bus_ = render::EncodedMediaBus::Create();
-    pipeline_error_log_gate_ = std::make_shared<render::RateLimitedLogGate>(
-        std::chrono::seconds(5), 16);
+    pipeline_error_log_gate_ = std::make_shared<render::RateLimitedLogGate>(std::chrono::seconds(5), 16);
     captured_media_pipeline_ = render::CapturedMediaPipeline::Create(
-        [weak_application](
-            const std::shared_ptr<const render::CapturedVideoFrame>& frame) {
+        [weak_application](const std::shared_ptr<const render::CapturedVideoFrame>& frame) {
             const auto application = weak_application.lock();
             return application ? application->DeliverExtensionVideoFrame(frame)
-                               : render::MediaSubmitResult(
-                                     std::unexpected(render::RenderError{
-                                         .code = render::RenderErrorCode::
-                                             kModuleDependencyUnavailable,
-                                         .component = "rd_application",
-                                         .operation = "deliver_extension_video",
-                                         .stage = "capture_output",
-                                         .reason = "application owner expired",
-                                         .recoverable = true,
-                                     }));
+                               : render::MediaSubmitResult(std::unexpected(render::RenderError{
+                                     .code = render::RenderErrorCode::kModuleDependencyUnavailable,
+                                     .component = "rd_application",
+                                     .operation = "deliver_extension_video",
+                                     .stage = "capture_output",
+                                     .reason = "application owner expired",
+                                     .recoverable = true,
+                                 }));
         },
-        [weak_application](
-            const std::shared_ptr<const render::CapturedAudioFrame>& frame) {
+        [weak_application](const std::shared_ptr<const render::CapturedAudioFrame>& frame) {
             const auto application = weak_application.lock();
             return application ? application->DeliverCapturedAudioFrame(frame)
-                               : render::MediaSubmitResult(
-                                     std::unexpected(render::RenderError{
-                                         .code = render::RenderErrorCode::
-                                             kModuleDependencyUnavailable,
-                                         .component = "rd_application",
-                                         .operation = "deliver_captured_audio",
-                                         .stage = "capture_output",
-                                         .reason = "application owner expired",
-                                         .recoverable = true,
-                                     }));
+                               : render::MediaSubmitResult(std::unexpected(render::RenderError{
+                                     .code = render::RenderErrorCode::kModuleDependencyUnavailable,
+                                     .component = "rd_application",
+                                     .operation = "deliver_captured_audio",
+                                     .stage = "capture_output",
+                                     .reason = "application owner expired",
+                                     .recoverable = true,
+                                 }));
         });
     frame_debugger_observer_ = render::FrameDebuggerObserver::Create(
-        context_->GetAsyncRuntime(),
-        render::FrameDebuggerOptions{
-            .queue_capacity = 120,
-            .save_encoded_video = false,
-            .output_directory =
-                std::filesystem::path(FolderUtil::GetProgramDataPath()) /
-                L"px_data" / L"render",
-            .raw_log_interval = std::chrono::seconds(1),
-        });
+        context_->GetAsyncRuntime(), render::FrameDebuggerOptions{
+                                         .queue_capacity = 120,
+                                         .save_encoded_video = false,
+                                         .output_directory = std::filesystem::path(FolderUtil::GetProgramDataPath()) / L"px_data" / L"render",
+                                         .raw_log_interval = std::chrono::seconds(1),
+                                     });
     const std::weak_ptr<RdContext> weak_context = context_;
     auto record_directory = settings_.record_dir_;
     if (record_directory.empty()) {
-        record_directory =
-            (std::filesystem::path(FolderUtil::GetProgramDataPath()) /
-             L"px_render_records")
-                .string();
+        record_directory = (std::filesystem::path(FolderUtil::GetProgramDataPath()) / L"px_render_records").string();
     }
-    media_recorder_sink_ = render::MediaRecorderSink::Create(
-        encoded_media_bus_,
-        render::MediaRecorderOptions{
-            .record_directory = std::move(record_directory),
-            .auto_enabled = settings_.record_auto_,
-            .max_segment_bytes = settings_.record_max_segment_bytes_,
-            .max_file_count = settings_.record_max_file_count_,
-            .queue_capacity = 512,
-        },
-        [weak_context] {
-            if (const auto context = weak_context.lock()) {
-                context->SendAppMessage(MsgInsertIDR{});
-            }
-        });
-    const auto push_configuration_valid =
-        !settings_.push_rtmp_url_.empty() && !settings_.live_stream_id_.empty();
-    if (settings_.push_enabled_ && !push_configuration_valid) {
-        LOGE(
-            "event=module.configure component=live_pusher "
-            "outcome=disabled reason=missing_url_or_stream_id");
-    }
-    live_pusher_sink_ = render::LivePusherSink::Create(
-        encoded_media_bus_,
-        render::LivePusherOptions{
-            .enabled = settings_.push_enabled_ && push_configuration_valid,
-            .publish_url = render::BuildLivePublishUrl(
-                settings_.push_rtmp_url_, settings_.live_stream_id_),
-            .primary_monitor = settings_.push_primary_monitor_,
-            .audio_bitrate = settings_.push_audio_bitrate_,
-            .queue_capacity = 48,
-        },
-        [weak_context] {
-            if (const auto context = weak_context.lock()) {
-                context->SendAppMessage(MsgInsertIDR{});
-            }
-        },
-        render::MakeFfmpegLivePushProcessor);
-    pipeline_statistics_observer_ =
-        render::PipelineStatisticsObserver::Create(encoded_media_bus_);
-    frame_carrier_processor_ =
-        render::FrameCarrierProcessor::Create(RdContext::GetCurrentExeFolder());
+    media_recorder_sink_ = render::MediaRecorderSink::Create(encoded_media_bus_,
+                                                             render::MediaRecorderOptions{
+                                                                 .record_directory = std::move(record_directory),
+                                                                 .auto_enabled = settings_.record_auto_,
+                                                                 .max_segment_bytes = settings_.record_max_segment_bytes_,
+                                                                 .max_file_count = settings_.record_max_file_count_,
+                                                                 .queue_capacity = 512,
+                                                             },
+                                                             [weak_context] {
+                                                                 if (const auto context = weak_context.lock()) {
+                                                                     context->SendAppMessage(MsgInsertIDR{});
+                                                                 }
+                                                             });
+    pipeline_statistics_observer_ = render::PipelineStatisticsObserver::Create(encoded_media_bus_);
+    frame_carrier_processor_ = render::FrameCarrierProcessor::Create(RdContext::GetCurrentExeFolder());
     frame_resizer_processor_ = render::FrameResizerProcessor::Create();
     network_transport_hub_ = render::NetworkTransportHub::Create(
-        [weak_application](const render::TransportRoute& route,
-                           const std::shared_ptr<Data>& message,
-                           const bool run_through) {
+        [weak_application](const render::TransportRoute& route, const std::shared_ptr<Data>& message, const bool run_through) {
             const auto application = weak_application.lock();
-            const auto manager = application
-                                     ? application->GetRenderModuleRegistry()
-                                     : std::shared_ptr<RenderModuleRegistry>{};
-            return manager && manager->SendControlMessageOnRoute(
-                                  route.transport_id, route.stream_id, message,
-                                  run_through);
+            const auto manager = application ? application->GetRenderModuleRegistry() : std::shared_ptr<RenderModuleRegistry>{};
+            return manager && manager->SendControlMessageOnRoute(route.transport_id, route.stream_id, message, run_through);
         },
-        [weak_application](const render::TransportRoute& route,
-                           const std::shared_ptr<Data>& message) {
+        [weak_application](const render::TransportRoute& route, const std::shared_ptr<Data>& message) {
             const auto application = weak_application.lock();
-            const auto manager = application
-                                     ? application->GetRenderModuleRegistry()
-                                     : std::shared_ptr<RenderModuleRegistry>{};
-            return manager ? manager->SendFileTransferMessageOnRoute(
-                                 route.transport_id, route.stream_id, message,
-                                 route.connection_id)
-                           : FileTransferSendResult::Disconnected(
-                                 "Render network layer is unavailable");
+            const auto manager = application ? application->GetRenderModuleRegistry() : std::shared_ptr<RenderModuleRegistry>{};
+            return manager ? manager->SendFileTransferMessageOnRoute(route.transport_id, route.stream_id, message, route.connection_id)
+                           : FileTransferSendResult::Disconnected("Render network layer is unavailable");
         },
-        [weak_application](const render::TransportRoute& route,
-                           const std::shared_ptr<Data>& message) {
+        [weak_application](const render::TransportRoute& route, const std::shared_ptr<Data>& message) {
             const auto application = weak_application.lock();
-            const auto manager = application
-                                     ? application->GetRenderModuleRegistry()
-                                     : std::shared_ptr<RenderModuleRegistry>{};
-            return manager && manager->SendVoiceMessageOnRoute(
-                                  route.transport_id, route.stream_id, message);
+            const auto manager = application ? application->GetRenderModuleRegistry() : std::shared_ptr<RenderModuleRegistry>{};
+            return manager && manager->SendVoiceMessageOnRoute(route.transport_id, route.stream_id, message);
         },
-        [weak_application](const render::TransportRoute& route,
-                           const std::string& call_id, const bool authorized) {
+        [weak_application](const render::TransportRoute& route, const std::string& call_id, const bool authorized) {
             const auto application = weak_application.lock();
-            const auto manager = application
-                                     ? application->GetRenderModuleRegistry()
-                                     : std::shared_ptr<RenderModuleRegistry>{};
-            return manager && manager->SetRtcVoiceAuthorizationOnRoute(
-                                  route.stream_id, call_id, authorized);
+            const auto manager = application ? application->GetRenderModuleRegistry() : std::shared_ptr<RenderModuleRegistry>{};
+            return manager && manager->SetRtcVoiceAuthorizationOnRoute(route.stream_id, call_id, authorized);
         },
-        [weak_application](
-            const render::TransportRoute& route, const std::string& call_id,
-            const std::shared_ptr<const std::vector<std::int16_t>>& samples,
-            const int sample_rate, const int channels) {
+        [weak_application](const render::TransportRoute& route, const std::string& call_id,
+                           const std::shared_ptr<const std::vector<std::int16_t>>& samples, const int sample_rate, const int channels) {
             const auto application = weak_application.lock();
-            const auto manager = application
-                                     ? application->GetRenderModuleRegistry()
-                                     : std::shared_ptr<RenderModuleRegistry>{};
-            return manager && manager->SendRtcVoicePcmOnRoute(
-                                  route.stream_id, call_id, samples,
-                                  sample_rate, channels);
+            const auto manager = application ? application->GetRenderModuleRegistry() : std::shared_ptr<RenderModuleRegistry>{};
+            return manager && manager->SendRtcVoicePcmOnRoute(route.stream_id, call_id, samples, sample_rate, channels);
         });
-    opus_encoder_processor_ = render::OpusEncoderProcessor::Create(
-        encoded_media_bus_,
-        [weak_application](
-            const std::shared_ptr<const render::EncodedAudioFrame>& frame) {
+    opus_encoder_processor_ =
+        render::OpusEncoderProcessor::Create(encoded_media_bus_, [weak_application](const std::shared_ptr<const render::EncodedAudioFrame>& frame) {
             const auto application = weak_application.lock();
-            if (!application || application->exit_app_ || !frame ||
-                !frame->payload) {
+            if (!application || application->exit_app_ || !frame || !frame->payload) {
                 return;
             }
-            const auto audio_payload =
-                Data::From(render::ImmutableByteBufferAsString(frame->payload));
-            application->PostNetMessage(NetMessageMaker::MakeAudioFrameMsg(
-                audio_payload, static_cast<int>(frame->samples),
-                static_cast<int>(frame->channels),
-                static_cast<int>(frame->bits_per_sample),
-                static_cast<int>(frame->frame_size)));
+            const auto audio_payload = Data::From(render::ImmutableByteBufferAsString(frame->payload));
+            application->PostNetMessage(
+                NetMessageMaker::MakeAudioFrameMsg(audio_payload, static_cast<int>(frame->samples), static_cast<int>(frame->channels),
+                                                   static_cast<int>(frame->bits_per_sample), static_cast<int>(frame->frame_size)));
         });
-    audio_capture_source_ = render::WasAudioCaptureSource::Create(
-        [weak_application](const CaptureAudioFrame& frame) {
-            const auto application = weak_application.lock();
-            if (!application || application->exit_app_) {
-                return;
+    audio_capture_source_ = render::WasAudioCaptureSource::Create([weak_application](const CaptureAudioFrame& frame) {
+        const auto application = weak_application.lock();
+        if (!application || application->exit_app_) {
+            return;
+        }
+        application->PostGlobalTask([weak_application, frame] {
+            if (const auto active_application = weak_application.lock(); active_application && !active_application->exit_app_) {
+                active_application->OnCapturedAudioFrame(frame);
             }
-            application->PostGlobalTask([weak_application, frame] {
-                if (const auto active_application = weak_application.lock();
-                    active_application && !active_application->exit_app_) {
-                    active_application->OnCapturedAudioFrame(frame);
-                }
-            });
         });
+    });
     input_replay_service_ = render::InputReplayService::Create();
-    joystick_service_ = render::JoystickService::Create(
-        {}, [weak_hub = std::weak_ptr<render::NetworkTransportHub>(
-                 network_transport_hub_)](
-                const std::string& transport_id, const std::string& stream_id,
-                const std::shared_ptr<Data>& message) {
+    joystick_service_ =
+        render::JoystickService::Create({}, [weak_hub = std::weak_ptr<render::NetworkTransportHub>(network_transport_hub_)](
+                                                const std::string& transport_id, const std::string& stream_id, const std::shared_ptr<Data>& message) {
             const auto hub = weak_hub.lock();
-            return hub &&
-                   hub->SendControl(
-                       render::TransportRoute{
-                           .channel = render::TransportChannelKind::kControl,
-                           .transport_id = transport_id,
-                           .stream_id = stream_id,
-                       },
-                       message, true);
+            return hub && hub->SendControl(
+                              render::TransportRoute{
+                                  .channel = render::TransportChannelKind::kControl,
+                                  .transport_id = transport_id,
+                                  .stream_id = stream_id,
+                              },
+                              message, true);
         });
     file_transfer_service_ = render::FileTransferService::Create(
         render::FileTransferServiceOptions{
@@ -458,23 +362,18 @@ int RdApplication::Run() {
             .enabled = settings_.file_transfer_enabled_,
             .max_transmit_speed_bits_per_second = settings_.max_transmit_speed_,
         },
-        [weak_hub = std::weak_ptr<render::NetworkTransportHub>(
-             network_transport_hub_)](const std::string& transport_id,
-                                      const std::string& stream_id,
-                                      const std::shared_ptr<Data>& message,
-                                      const std::string& connection_id) {
+        [weak_hub = std::weak_ptr<render::NetworkTransportHub>(network_transport_hub_)](
+            const std::string& transport_id, const std::string& stream_id, const std::shared_ptr<Data>& message, const std::string& connection_id) {
             const auto hub = weak_hub.lock();
             return hub ? hub->SendFileTransfer(
                              render::TransportRoute{
-                                 .channel = render::TransportChannelKind::
-                                     kFileTransfer,
+                                 .channel = render::TransportChannelKind::kFileTransfer,
                                  .transport_id = transport_id,
                                  .connection_id = connection_id,
                                  .stream_id = stream_id,
                              },
                              message)
-                       : FileTransferSendResult::Disconnected(
-                             "Render network transport hub is unavailable");
+                       : FileTransferSendResult::Disconnected("Render network transport hub is unavailable");
         },
         [weak_application](const render::FileTransferAuditBegin& audit) {
             if (const auto application = weak_application.lock()) {
@@ -520,32 +419,23 @@ int RdApplication::Run() {
             // conversion.
             return application->PostPanelMessage(RpProtoAsData(&message));
         },
-        [weak_hub = std::weak_ptr<render::NetworkTransportHub>(
-             network_transport_hub_)](const render::TransportRoute& route,
-                                      const std::shared_ptr<Data>& message) {
+        [weak_hub = std::weak_ptr<render::NetworkTransportHub>(network_transport_hub_)](const render::TransportRoute& route,
+                                                                                        const std::shared_ptr<Data>& message) {
             const auto hub = weak_hub.lock();
             return hub && hub->SendVoice(route, message);
         },
-        [weak_hub = std::weak_ptr<render::NetworkTransportHub>(
-             network_transport_hub_)](const render::TransportRoute& route,
-                                      const std::string& call_id,
-                                      const bool authorized) {
+        [weak_hub = std::weak_ptr<render::NetworkTransportHub>(network_transport_hub_)](const render::TransportRoute& route,
+                                                                                        const std::string& call_id, const bool authorized) {
             const auto hub = weak_hub.lock();
-            return hub &&
-                   hub->SetRtcVoiceAuthorization(route, call_id, authorized);
+            return hub && hub->SetRtcVoiceAuthorization(route, call_id, authorized);
         },
-        [weak_hub = std::weak_ptr<render::NetworkTransportHub>(
-             network_transport_hub_)](
-            const render::TransportRoute& route, const std::string& call_id,
-            const std::shared_ptr<const std::vector<std::int16_t>>& samples,
+        [weak_hub = std::weak_ptr<render::NetworkTransportHub>(network_transport_hub_)](
+            const render::TransportRoute& route, const std::string& call_id, const std::shared_ptr<const std::vector<std::int16_t>>& samples,
             const int sample_rate, const int channels) {
             const auto hub = weak_hub.lock();
-            return hub && hub->SendRtcVoicePcm(route, call_id, samples,
-                                               sample_rate, channels);
+            return hub && hub->SendRtcVoicePcm(route, call_id, samples, sample_rate, channels);
         });
-    if (!composition_root_ || !encoded_media_bus_ ||
-        !captured_media_pipeline_ || !frame_debugger_observer_ ||
-        !media_recorder_sink_ || !live_pusher_sink_ ||
+    if (!composition_root_ || !encoded_media_bus_ || !captured_media_pipeline_ || !frame_debugger_observer_ || !media_recorder_sink_ ||
         !pipeline_statistics_observer_) {
         init_failed_ = true;
         init_error_ = "Create Render composition root failed";
@@ -554,183 +444,120 @@ int RdApplication::Run() {
             "code=MODULE_DEPENDENCY_UNAVAILABLE outcome=failed");
         return -1;
     }
-    if (!frame_carrier_processor_ || !frame_resizer_processor_ ||
-        !opus_encoder_processor_ || !audio_capture_source_ ||
-        !input_replay_service_ || !joystick_service_ ||
-        !file_transfer_service_ || !network_transport_hub_ ||
-        !voice_call_service_) {
+    if (!frame_carrier_processor_ || !frame_resizer_processor_ || !opus_encoder_processor_ || !audio_capture_source_ || !input_replay_service_ ||
+        !joystick_service_ || !file_transfer_service_ || !network_transport_hub_ || !voice_call_service_) {
         init_failed_ = true;
         init_error_ = "Create frame processing modules failed";
         return -1;
     }
     auto debugger_registration = frame_debugger_observer_->MakeRegistration();
-    if (auto registered =
-            composition_root_->Register(std::move(debugger_registration));
-        !registered) {
+    if (auto registered = composition_root_->Register(std::move(debugger_registration)); !registered) {
         init_failed_ = true;
         init_error_ = registered.error().reason;
         LOGE(
             "event=module.register component=rd_application module={} "
             "code={} outcome=failed reason={}",
-            render::kFrameDebuggerModuleId,
-            render::StableErrorCode(registered.error().code),
-            registered.error().reason);
+            render::kFrameDebuggerModuleId, render::StableErrorCode(registered.error().code), registered.error().reason);
         return -1;
     }
     auto recorder_registration = media_recorder_sink_->MakeRegistration();
-    if (auto registered =
-            composition_root_->Register(std::move(recorder_registration));
-        !registered) {
+    if (auto registered = composition_root_->Register(std::move(recorder_registration)); !registered) {
         init_failed_ = true;
         init_error_ = registered.error().reason;
         LOGE(
             "event=module.register component=rd_application module={} "
             "code={} outcome=failed reason={}",
-            render::kMediaRecorderModuleId,
-            render::StableErrorCode(registered.error().code),
-            registered.error().reason);
+            render::kMediaRecorderModuleId, render::StableErrorCode(registered.error().code), registered.error().reason);
         return -1;
     }
-    auto pusher_registration = live_pusher_sink_->MakeRegistration();
-    if (auto registered =
-            composition_root_->Register(std::move(pusher_registration));
-        !registered) {
+    auto statistics_registration = pipeline_statistics_observer_->MakeRegistration();
+    if (auto registered = composition_root_->Register(std::move(statistics_registration)); !registered) {
         init_failed_ = true;
         init_error_ = registered.error().reason;
         LOGE(
             "event=module.register component=rd_application module={} "
             "code={} outcome=failed reason={}",
-            render::kLivePusherModuleId,
-            render::StableErrorCode(registered.error().code),
-            registered.error().reason);
-        return -1;
-    }
-    auto statistics_registration =
-        pipeline_statistics_observer_->MakeRegistration();
-    if (auto registered =
-            composition_root_->Register(std::move(statistics_registration));
-        !registered) {
-        init_failed_ = true;
-        init_error_ = registered.error().reason;
-        LOGE(
-            "event=module.register component=rd_application module={} "
-            "code={} outcome=failed reason={}",
-            render::kPipelineStatisticsModuleId,
-            render::StableErrorCode(registered.error().code),
-            registered.error().reason);
+            render::kPipelineStatisticsModuleId, render::StableErrorCode(registered.error().code), registered.error().reason);
         return -1;
     }
     auto resizer_registration = frame_resizer_processor_->MakeRegistration();
-    if (auto registered =
-            composition_root_->Register(std::move(resizer_registration));
-        !registered) {
+    if (auto registered = composition_root_->Register(std::move(resizer_registration)); !registered) {
         init_failed_ = true;
         init_error_ = registered.error().reason;
         LOGE(
             "event=module.register component=rd_application module={} "
             "code={} outcome=failed reason={}",
-            render::kFrameResizerModuleId,
-            render::StableErrorCode(registered.error().code),
-            registered.error().reason);
+            render::kFrameResizerModuleId, render::StableErrorCode(registered.error().code), registered.error().reason);
         return -1;
     }
     auto carrier_registration = frame_carrier_processor_->MakeRegistration();
-    if (auto registered =
-            composition_root_->Register(std::move(carrier_registration));
-        !registered) {
+    if (auto registered = composition_root_->Register(std::move(carrier_registration)); !registered) {
         init_failed_ = true;
         init_error_ = registered.error().reason;
         LOGE(
             "event=module.register component=rd_application module={} "
             "code={} outcome=failed reason={}",
-            render::kFrameCarrierModuleId,
-            render::StableErrorCode(registered.error().code),
-            registered.error().reason);
+            render::kFrameCarrierModuleId, render::StableErrorCode(registered.error().code), registered.error().reason);
         return -1;
     }
     auto opus_registration = opus_encoder_processor_->MakeRegistration();
-    if (auto registered =
-            composition_root_->Register(std::move(opus_registration));
-        !registered) {
+    if (auto registered = composition_root_->Register(std::move(opus_registration)); !registered) {
         init_failed_ = true;
         init_error_ = registered.error().reason;
         LOGE(
             "event=module.register component=rd_application module={} "
             "code={} outcome=failed reason={}",
-            render::kOpusEncoderModuleId,
-            render::StableErrorCode(registered.error().code),
-            registered.error().reason);
+            render::kOpusEncoderModuleId, render::StableErrorCode(registered.error().code), registered.error().reason);
         return -1;
     }
     auto input_registration = input_replay_service_->MakeRegistration();
-    if (auto registered =
-            composition_root_->Register(std::move(input_registration));
-        !registered) {
+    if (auto registered = composition_root_->Register(std::move(input_registration)); !registered) {
         init_failed_ = true;
         init_error_ = registered.error().reason;
         LOGE(
             "event=module.register component=rd_application module={} "
             "code={} outcome=failed reason={}",
-            render::kInputReplayModuleId,
-            render::StableErrorCode(registered.error().code),
-            registered.error().reason);
+            render::kInputReplayModuleId, render::StableErrorCode(registered.error().code), registered.error().reason);
         return -1;
     }
     auto audio_source_registration = audio_capture_source_->MakeRegistration();
-    if (auto registered =
-            composition_root_->Register(std::move(audio_source_registration));
-        !registered) {
+    if (auto registered = composition_root_->Register(std::move(audio_source_registration)); !registered) {
         init_failed_ = true;
         init_error_ = registered.error().reason;
         LOGE(
             "event=module.register component=rd_application module={} "
             "code={} outcome=failed reason={}",
-            render::kWasAudioCaptureModuleId,
-            render::StableErrorCode(registered.error().code),
-            registered.error().reason);
+            render::kWasAudioCaptureModuleId, render::StableErrorCode(registered.error().code), registered.error().reason);
         return -1;
     }
     auto joystick_registration = joystick_service_->MakeRegistration();
-    if (auto registered =
-            composition_root_->Register(std::move(joystick_registration));
-        !registered) {
+    if (auto registered = composition_root_->Register(std::move(joystick_registration)); !registered) {
         init_failed_ = true;
         init_error_ = registered.error().reason;
         LOGE(
             "event=module.register component=rd_application module={} "
             "code={} outcome=failed reason={}",
-            render::kJoystickModuleId,
-            render::StableErrorCode(registered.error().code),
-            registered.error().reason);
+            render::kJoystickModuleId, render::StableErrorCode(registered.error().code), registered.error().reason);
         return -1;
     }
-    auto file_transfer_registration =
-        file_transfer_service_->MakeRegistration();
-    if (auto registered =
-            composition_root_->Register(std::move(file_transfer_registration));
-        !registered) {
+    auto file_transfer_registration = file_transfer_service_->MakeRegistration();
+    if (auto registered = composition_root_->Register(std::move(file_transfer_registration)); !registered) {
         init_failed_ = true;
         init_error_ = registered.error().reason;
         LOGE(
             "event=module.register component=rd_application module={} "
             "code={} outcome=failed reason={}",
-            render::kFileTransferModuleId,
-            render::StableErrorCode(registered.error().code),
-            registered.error().reason);
+            render::kFileTransferModuleId, render::StableErrorCode(registered.error().code), registered.error().reason);
         return -1;
     }
     auto voice_call_registration = voice_call_service_->MakeRegistration();
-    if (auto registered =
-            composition_root_->Register(std::move(voice_call_registration));
-        !registered) {
+    if (auto registered = composition_root_->Register(std::move(voice_call_registration)); !registered) {
         init_failed_ = true;
         init_error_ = registered.error().reason;
         LOGE(
             "event=module.register component=rd_application module={} "
             "code={} outcome=failed reason={}",
-            render::kVoiceCallModuleId,
-            render::StableErrorCode(registered.error().code),
-            registered.error().reason);
+            render::kVoiceCallModuleId, render::StableErrorCode(registered.error().code), registered.error().reason);
         return -1;
     }
     context_->SetRenderCompositionRoot(composition_root_);
@@ -744,16 +571,14 @@ int RdApplication::Run() {
     context_->SetFileTransferService(file_transfer_service_);
     context_->SetNetworkTransportHub(network_transport_hub_);
     context_->SetVoiceCallService(voice_call_service_);
-    if (!composition_root_->RequestStart(
-            [](render::ModuleLifecycleResult result) {
-                if (!result) {
-                    LOGE(
-                        "event=composition.start component=rd_application "
-                        "code={} outcome=failed reason={}",
-                        render::StableErrorCode(result.error().code),
-                        result.error().reason);
-                }
-            })) {
+    if (!composition_root_->RequestStart([](render::ModuleLifecycleResult result) {
+            if (!result) {
+                LOGE(
+                    "event=composition.start component=rd_application "
+                    "code={} outcome=failed reason={}",
+                    render::StableErrorCode(result.error().code), result.error().reason);
+            }
+        })) {
         init_failed_ = true;
         init_error_ = "Schedule Render composition start failed";
         return -1;
@@ -787,8 +612,7 @@ int RdApplication::Run() {
     // connect to service
     LOGI("Will connect the service!");
     service_client_ = std::make_shared<RenderServiceClient>(shared_from_this());
-    resource_channel_reporter_ = ResourceChannelReporter::Create(
-        context_->GetAsyncRuntime(), service_client_);
+    resource_channel_reporter_ = ResourceChannelReporter::Create(context_->GetAsyncRuntime(), service_client_);
 
     // connect panel
     LOGI("Will connect the panel!");
@@ -798,27 +622,19 @@ int RdApplication::Run() {
     // app manager
     app_manager_ = AppManagerFactory::Make(context_);
     if (settings_.IsGameHookMode()) {
-        const std::weak_ptr<RenderModuleRegistry> weak_modules{
-            module_registry_};
+        const std::weak_ptr<RenderModuleRegistry> weak_modules{module_registry_};
         game_text_backend_ = std::make_shared<GameTextBackend>(
-            std::dynamic_pointer_cast<AppManagerWinImpl>(app_manager_),
-            context_->GetAsyncRuntime(),
-            [weak_modules](std::uint32_t pid, const CaptureTextCommand& command,
-                           std::function<bool()> authorize) {
+            std::dynamic_pointer_cast<AppManagerWinImpl>(app_manager_), context_->GetAsyncRuntime(),
+            [weak_modules](std::uint32_t pid, const CaptureTextCommand& command, std::function<bool()> authorize) {
                 const auto modules{weak_modules.lock()};
-                return modules &&
-                       modules->PostWsIpcBinaryMessageForPid(
-                           pid, Data::From(EncodeCaptureTextCommand(command)),
-                           std::move(authorize));
+                return modules && modules->PostWsIpcBinaryMessageForPid(pid, Data::From(EncodeCaptureTextCommand(command)), std::move(authorize));
             });
     }
     // encoder in thread
     encoder_thread_ = EncoderThread::Make(shared_from_this());
     // event bus listener
-    msg_listener_ =
-        context_->CreateMessageListener(MessageExecutionLane::kControl);
-    state_msg_listener_ =
-        context_->CreateMessageListener(MessageExecutionLane::kState);
+    msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kControl);
+    state_msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kState);
     // app shared info
     app_shared_info_ = AppSharedInfo::Make(context_);
 
@@ -866,43 +682,40 @@ int RdApplication::Run() {
             LOGI("Use dda capture module.");
             capture_source_->SetCaptureFps(FrameRate());
             const auto weak_self = weak_from_this();
-            capture_source_->SetCaptureErrorCallback(
-                [weak_self](const MonitorCaptureError& err) {
+            capture_source_->SetCaptureErrorCallback([weak_self](const MonitorCaptureError& err) {
+                const auto self = weak_self.lock();
+                if (!self || self->exit_app_) {
+                    return;
+                }
+                LOGE("*** capture error: {}", (int)err);
+                // the callback runs on the capture thread, switching
+                // capture must be done on the main thread, otherwise
+                // stopping DDA would join itself.
+                self->PostGlobalTask([weak_self]() {
                     const auto self = weak_self.lock();
                     if (!self || self->exit_app_) {
                         return;
                     }
-                    LOGE("*** capture error: {}", (int)err);
-                    // the callback runs on the capture thread, switching
-                    // capture must be done on the main thread, otherwise
-                    // stopping DDA would join itself.
-                    self->PostGlobalTask([weak_self]() {
-                        const auto self = weak_self.lock();
-                        if (!self || self->exit_app_) {
-                            return;
-                        }
-                        if (self->IsCurrentGdiCapture()) {
-                            LOGI("Already use GDI capture, ignore the error.");
-                            return;
-                        }
-                        if (self->monitor_changed_) {
-                            LOGI(
-                                "Maybe montor changed, ignore this error now.");
-                            return;
-                        }
-                        // change to GDI
-                        // capture_source_->SetEnabled(false);
-                        LOGI("Don't use DDA, will switch to GDI.");
-                        if (!self->SwitchGdiCapture() ||
-                            !self->capture_source_) {
-                            LOGE(
-                                "Switch to GDI failed or no capture module "
-                                "available.");
-                            return;
-                        }
-                        self->capture_source_->StartCapturing();
-                    });
+                    if (self->IsCurrentGdiCapture()) {
+                        LOGI("Already use GDI capture, ignore the error.");
+                        return;
+                    }
+                    if (self->monitor_changed_) {
+                        LOGI("Maybe montor changed, ignore this error now.");
+                        return;
+                    }
+                    // change to GDI
+                    // capture_source_->SetEnabled(false);
+                    LOGI("Don't use DDA, will switch to GDI.");
+                    if (!self->SwitchGdiCapture() || !self->capture_source_) {
+                        LOGE(
+                            "Switch to GDI failed or no capture module "
+                            "available.");
+                        return;
+                    }
+                    self->capture_source_->StartCapturing();
                 });
+            });
         } else {
             LOGI("Don't use DDA, will switch to GDI.");
             SwitchGdiCapture();
@@ -923,8 +736,7 @@ int RdApplication::Run() {
     }
 
     if (init_failed_) {
-        LOGE("RdApplication abort after game-hook start failure: {}",
-             init_error_);
+        LOGE("RdApplication abort after game-hook start failure: {}", init_error_);
         Exit();
         return -1;
     }
@@ -940,8 +752,7 @@ int RdApplication::RunMessageLoop() {
 
     MSG windows_message{};
     while (!exit_app_) {
-        const BOOL get_message_result =
-            GetMessage(&windows_message, NULL, 0, 0);
+        const BOOL get_message_result = GetMessage(&windows_message, NULL, 0, 0);
         if (get_message_result == 0 || get_message_result == -1) {
             break;
         }
@@ -978,135 +789,121 @@ void RdApplication::InitAppTimer() {
 
 void RdApplication::InitConnectionLifecycle() {
     const auto weak_self = weak_from_this();
-    msg_listener_->Listen<MsgClientConnected>(
-        [weak_self](const MsgClientConnected& msg) {
-            const auto self = weak_self.lock();
-            if (!self || self->exit_app_) {
-                return;
-            }
-            // A reconnect during the grace window invalidates any shutdown
-            // scheduled by the previous "last client disconnected" event.
-            // Only connections with a stable id participate in game lifetime.
-            // The transport name is deliberately not filtered: current web
-            // clients may negotiate Direct, UDP or another registered net
-            // module while preserving the same connect/disconnect id.
-            const bool tracked_game_client =
-                (self->settings_.IsGameHookMode() ||
-                 self->settings_.IsRdpMode()) &&
-                !msg.connection_id_.empty();
-            if (tracked_game_client) {
-                self->game_hook_has_seen_client_ = true;
-                std::lock_guard<std::mutex> lock(
-                    self->game_hook_clients_mutex_);
-                self->game_hook_client_ids_.insert(msg.connection_id_);
-            }
-            ++self->client_disconnect_generation_;
-            if (self->settings_.IsWebViewMode() && self->webview_runtime_) {
-                self->webview_runtime_->SetActive(true);
-                self->webview_runtime_->SendFocusEvent(true);
-            }
-        });
+    msg_listener_->Listen<MsgClientConnected>([weak_self](const MsgClientConnected& msg) {
+        const auto self = weak_self.lock();
+        if (!self || self->exit_app_) {
+            return;
+        }
+        // A reconnect during the grace window invalidates any shutdown
+        // scheduled by the previous "last client disconnected" event.
+        // Only connections with a stable id participate in game lifetime.
+        // The transport name is deliberately not filtered: current web
+        // clients may negotiate Direct, UDP or another registered net
+        // module while preserving the same connect/disconnect id.
+        const bool tracked_game_client = (self->settings_.IsGameHookMode() || self->settings_.IsRdpMode()) && !msg.connection_id_.empty();
+        if (tracked_game_client) {
+            self->game_hook_has_seen_client_ = true;
+            std::lock_guard<std::mutex> lock(self->game_hook_clients_mutex_);
+            self->game_hook_client_ids_.insert(msg.connection_id_);
+        }
+        ++self->client_disconnect_generation_;
+        if (self->settings_.IsWebViewMode() && self->webview_runtime_) {
+            self->webview_runtime_->SetActive(true);
+            self->webview_runtime_->SendFocusEvent(true);
+        }
+    });
 
-    msg_listener_->Listen<MsgClientDisconnected>(
-        [weak_self](const MsgClientDisconnected& msg) {
-            const auto self = weak_self.lock();
-            if (!self || self->exit_app_) {
-                return;
-            }
-            if (self->settings_.IsWebViewMode()) {
-                const auto generation = ++self->client_disconnect_generation_;
-                const auto weak_webview = weak_self;
-                self->context_->PostDelayTask(
-                    [weak_webview, generation]() {
-                        const auto self = weak_webview.lock();
-                        if (!self || self->exit_app_ ||
-                            self->client_disconnect_generation_ != generation ||
-                            self->HasConnectedPeer() ||
-                            !self->webview_runtime_) {
-                            return;
-                        }
-                        self->webview_runtime_->SendFocusEvent(false);
-                        self->webview_runtime_->SetActive(false);
-                    },
-                    100);
-                return;
-            }
-            if (!self->settings_.IsGameHookMode() &&
-                !self->settings_.IsRdpMode()) {
-                return;
-            }
-            bool removed_tracked_client = false;
-            if (!msg.connection_id_.empty()) {
-                std::lock_guard<std::mutex> lock(
-                    self->game_hook_clients_mutex_);
-                removed_tracked_client =
-                    self->game_hook_client_ids_.erase(msg.connection_id_) > 0;
-            }
-            // Still update the tracked set during startup so short-lived setup
-            // sockets cannot keep the process alive.  Only the stop decision
-            // is suppressed until the embedded web listener is ready.
-            if (!self->game_hook_startup_grace_complete_) {
-                LOGI(
-                    "Ignore application client-disconnect during startup grace "
-                    "period.");
-                return;
-            }
-            if (!removed_tracked_client) {
-                LOGI("Ignore untracked application client-disconnect event.");
-                return;
-            }
-            if (self->HasConnectedPeer()) {
-                LOGI("Still has connected clients");
-                return;
-            }
-            if (!self->game_hook_has_seen_client_) {
-                LOGW(
-                    "Ignore application client-disconnect before the first "
-                    "confirmed client connection.");
-                return;
-            }
-
+    msg_listener_->Listen<MsgClientDisconnected>([weak_self](const MsgClientDisconnected& msg) {
+        const auto self = weak_self.lock();
+        if (!self || self->exit_app_) {
+            return;
+        }
+        if (self->settings_.IsWebViewMode()) {
             const auto generation = ++self->client_disconnect_generation_;
-            LOGI(
-                "Last application client disconnected; stop render in 5 "
-                "seconds unless a client reconnects.");
+            const auto weak_webview = weak_self;
             self->context_->PostDelayTask(
-                [weak_self, generation]() {
-                    const auto self = weak_self.lock();
-                    if (!self || self->exit_app_ ||
-                        self->client_disconnect_generation_ != generation) {
+                [weak_webview, generation]() {
+                    const auto self = weak_webview.lock();
+                    if (!self || self->exit_app_ || self->client_disconnect_generation_ != generation || self->HasConnectedPeer() ||
+                        !self->webview_runtime_) {
                         return;
                     }
-                    if (self->HasConnectedPeer()) {
-                        return;
-                    }
-                    LOGI(
-                        "Application grace period elapsed with no clients; "
-                        "stopping render.");
-                    self->ExitForIdle(false);
+                    self->webview_runtime_->SendFocusEvent(false);
+                    self->webview_runtime_->SetActive(false);
                 },
-                5000);
-        });
+                100);
+            return;
+        }
+        if (!self->settings_.IsGameHookMode() && !self->settings_.IsRdpMode()) {
+            return;
+        }
+        bool removed_tracked_client = false;
+        if (!msg.connection_id_.empty()) {
+            std::lock_guard<std::mutex> lock(self->game_hook_clients_mutex_);
+            removed_tracked_client = self->game_hook_client_ids_.erase(msg.connection_id_) > 0;
+        }
+        // Still update the tracked set during startup so short-lived setup
+        // sockets cannot keep the process alive.  Only the stop decision
+        // is suppressed until the embedded web listener is ready.
+        if (!self->game_hook_startup_grace_complete_) {
+            LOGI(
+                "Ignore application client-disconnect during startup grace "
+                "period.");
+            return;
+        }
+        if (!removed_tracked_client) {
+            LOGI("Ignore untracked application client-disconnect event.");
+            return;
+        }
+        if (self->HasConnectedPeer()) {
+            LOGI("Still has connected clients");
+            return;
+        }
+        if (!self->game_hook_has_seen_client_) {
+            LOGW(
+                "Ignore application client-disconnect before the first "
+                "confirmed client connection.");
+            return;
+        }
+
+        const auto generation = ++self->client_disconnect_generation_;
+        LOGI(
+            "Last application client disconnected; stop render in 5 "
+            "seconds unless a client reconnects.");
+        self->context_->PostDelayTask(
+            [weak_self, generation]() {
+                const auto self = weak_self.lock();
+                if (!self || self->exit_app_ || self->client_disconnect_generation_ != generation) {
+                    return;
+                }
+                if (self->HasConnectedPeer()) {
+                    return;
+                }
+                LOGI(
+                    "Application grace period elapsed with no clients; "
+                    "stopping render.");
+                self->ExitForIdle(false);
+            },
+            5000);
+    });
 }
 
 void RdApplication::InitMessages() {
     InitConnectionLifecycle();
     auto weak_self = weak_from_this();
-    msg_listener_->Listen<MsgBeforeInject>(
-        [weak_self](const MsgBeforeInject& msg) {
-            const auto self = weak_self.lock();
-            if (!self || self->exit_app_) {
-                return;
-            }
-            // Prefer PrepareGameHookBoot() called synchronously before
-            // InjectDll. This async path is a fallback only.
-            if (self->settings_.capture_.IsVideoInnerCapture()) {
-                self->PrepareGameHookBoot(msg.pid_);
-            }
-        });
+    msg_listener_->Listen<MsgBeforeInject>([weak_self](const MsgBeforeInject& msg) {
+        const auto self = weak_self.lock();
+        if (!self || self->exit_app_) {
+            return;
+        }
+        // Prefer PrepareGameHookBoot() called synchronously before
+        // InjectDll. This async path is a fallback only.
+        if (self->settings_.capture_.IsVideoInnerCapture()) {
+            self->PrepareGameHookBoot(msg.pid_);
+        }
+    });
 
-    msg_listener_->Listen<MsgObsInjected>([weak_self](
-                                              const MsgObsInjected& msg) {
+    msg_listener_->Listen<MsgObsInjected>([weak_self](const MsgObsInjected& msg) {
         const auto self = weak_self.lock();
         if (!self || self->exit_app_) {
             return;
@@ -1120,8 +917,7 @@ void RdApplication::InitMessages() {
             LOGI(
                 "MsgObsInjected pid={}: skip host PID loopback (force_hook={} "
                 "os_supported={})",
-                msg.pid_, ForceInProcessHookAudio(),
-                IsProcessLoopbackCaptureSupported());
+                msg.pid_, ForceInProcessHookAudio(), IsProcessLoopbackCaptureSupported());
             return;
         }
         // MUST NOT run MiniAudio/WASAPI ActivateAudioInterfaceAsync on the
@@ -1141,8 +937,7 @@ void RdApplication::InitMessages() {
                 "MsgObsInjected: schedule PID process-loopback on worker "
                 "pid={}",
                 pid);
-            if (self->audio_capture_thread_ &&
-                self->audio_capture_thread_->IsJoinable()) {
+            if (self->audio_capture_thread_ && self->audio_capture_thread_->IsJoinable()) {
                 LOGI(
                     "MsgObsInjected: stopping previous audio worker before "
                     "restart");
@@ -1153,8 +948,7 @@ void RdApplication::InitMessages() {
             self->audio_capture_thread_ = Thread::MakeOnceTask(
                 [weak_self, pid]() {
                     auto self = weak_self.lock();
-                    if (!self || self->exit_app_ ||
-                        !self->audio_capture_source_) {
+                    if (!self || self->exit_app_ || !self->audio_capture_source_) {
                         return;
                     }
                     // MiniAudio manages COM itself: ma_context_init
@@ -1165,8 +959,7 @@ void RdApplication::InitMessages() {
                     // own capture thread. So this thread's COM init is only for
                     // the duration of Stop/StartProviding and must be paired
                     // before the thread exits.
-                    const HRESULT co_hr =
-                        CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+                    const HRESULT co_hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
                     const bool co_init = (co_hr == S_OK || co_hr == S_FALSE);
                     LOGI(
                         "PID audio worker: Stop+Start begin pid={} "
@@ -1176,8 +969,7 @@ void RdApplication::InitMessages() {
                     self->audio_capture_source_->SetLoopbackProcessId(pid);
                     self->audio_capture_source_->StartProviding();
                     const bool ok = self->audio_capture_source_->IsProviding();
-                    const int err =
-                        self->audio_capture_source_->GetLastStartError();
+                    const int err = self->audio_capture_source_->GetLastStartError();
                     if (ok) {
                         LOGI("PID audio worker: StartProviding OK pid={}", pid);
                     } else {
@@ -1253,9 +1045,6 @@ void RdApplication::InitMessages() {
         if (self->media_recorder_sink_) {
             self->media_recorder_sink_->ReportPerformance();
         }
-        if (self->live_pusher_sink_) {
-            self->live_pusher_sink_->ReportPerformance();
-        }
         if (self->pipeline_statistics_observer_) {
             self->pipeline_statistics_observer_->ReportPerformance();
         }
@@ -1286,113 +1075,102 @@ void RdApplication::InitMessages() {
         });
     });
 
-    msg_listener_->Listen<ClipboardMessage>(
-        [weak_self](const ClipboardMessage& msg) {
-            const auto self = weak_self.lock();
+    msg_listener_->Listen<ClipboardMessage>([weak_self](const ClipboardMessage& msg) {
+        const auto self = weak_self.lock();
+        if (!self || self->exit_app_) {
+            return;
+        }
+        self->PostGlobalTask([weak_self, msg]() {
+            auto self = weak_self.lock();
             if (!self || self->exit_app_) {
                 return;
             }
-            self->PostGlobalTask([weak_self, msg]() {
-                auto self = weak_self.lock();
-                if (!self || self->exit_app_) {
-                    return;
-                }
-                self->SendClipboardMessage(msg.msg_);
-            });
+            self->SendClipboardMessage(msg.msg_);
         });
+    });
 
     // DDA Init failed
-    msg_listener_->Listen<CaptureInitFailedMessage>(
-        [weak_self](const CaptureInitFailedMessage&) {
-            const auto self = weak_self.lock();
+    msg_listener_->Listen<CaptureInitFailedMessage>([weak_self](const CaptureInitFailedMessage&) {
+        const auto self = weak_self.lock();
+        if (!self || self->exit_app_) {
+            return;
+        }
+        self->PostGlobalTask([weak_self]() {
+            auto self = weak_self.lock();
             if (!self || self->exit_app_) {
                 return;
             }
-            self->PostGlobalTask([weak_self]() {
-                auto self = weak_self.lock();
-                if (!self || self->exit_app_) {
-                    return;
-                }
-                self->statistics_->IncreaseDDAFailedCount();
-                // tell UI process to restart me
-                self->RequestRestartMe();
-            });
+            self->statistics_->IncreaseDDAFailedCount();
+            // tell UI process to restart me
+            self->RequestRestartMe();
         });
+    });
 
     // CaptureMonitorInfoMessage
-    msg_listener_->Listen<CaptureMonitorInfoMessage>(
-        [weak_self](const CaptureMonitorInfoMessage&) {
-            const auto self = weak_self.lock();
+    msg_listener_->Listen<CaptureMonitorInfoMessage>([weak_self](const CaptureMonitorInfoMessage&) {
+        const auto self = weak_self.lock();
+        if (!self || self->exit_app_) {
+            return;
+        }
+        self->PostGlobalTask([weak_self]() {
+            auto self = weak_self.lock();
             if (!self || self->exit_app_) {
                 return;
             }
-            self->PostGlobalTask([weak_self]() {
+            self->SendConfigurationBack();
+            if (self->settings_.virtual_display_enabled_ && !self->settings_.IsGameHookMode()) {
+                // The display driver may publish the Windows topology
+                // notification before the Service operation response is
+                // delivered. Query the authoritative ownership state after
+                // that mutation has had a chance to commit, so a lost
+                // response cannot leave connected clients on a stale count.
+                self->context_->PostDelayTask(
+                    [weak_self]() {
+                        if (const auto self = weak_self.lock(); self && !self->exit_app_) {
+                            self->RefreshVirtualDisplayStatus("render-monitor-query");
+                        }
+                    },
+                    500);
+            }
+        });
+    });
+
+    msg_listener_->Listen<MsgVirtualDisplayServiceResult>([weak_self](const MsgVirtualDisplayServiceResult& msg) {
+        if (const auto self = weak_self.lock(); self && !self->exit_app_) {
+            self->UpdateVirtualDisplayStatus(msg);
+        }
+    });
+
+    msg_listener_->Listen<MsgRenderConnected2Service>([weak_self](const MsgRenderConnected2Service&) {
+        const auto self = weak_self.lock();
+        if (!self || self->exit_app_ || !self->settings_.virtual_display_enabled_ || self->settings_.IsGameHookMode()) {
+            return;
+        }
+        self->RefreshVirtualDisplayStatus("render-startup-query");
+    });
+
+    msg_listener_->Listen<MsgReCreateRefresher>([weak_self](const MsgReCreateRefresher&) {
+        const auto self = weak_self.lock();
+        if (!self || self->exit_app_) {
+            return;
+        }
+        // report to Panel
+        // !! USELESS !! Just report it
+        if (self->ws_panel_client_) {
+            self->ws_panel_client_->ReportMonitorChanged();
+        }
+
+        self->monitor_changed_ = true;
+        self->context_->PostDelayTask(
+            [weak_self]() {
                 auto self = weak_self.lock();
                 if (!self || self->exit_app_) {
                     return;
                 }
-                self->SendConfigurationBack();
-                if (self->settings_.virtual_display_enabled_ &&
-                    !self->settings_.IsGameHookMode()) {
-                    // The display driver may publish the Windows topology
-                    // notification before the Service operation response is
-                    // delivered. Query the authoritative ownership state after
-                    // that mutation has had a chance to commit, so a lost
-                    // response cannot leave connected clients on a stale count.
-                    self->context_->PostDelayTask(
-                        [weak_self]() {
-                            if (const auto self = weak_self.lock();
-                                self && !self->exit_app_) {
-                                self->RefreshVirtualDisplayStatus(
-                                    "render-monitor-query");
-                            }
-                        },
-                        500);
-                }
-            });
-        });
-
-    msg_listener_->Listen<MsgVirtualDisplayServiceResult>(
-        [weak_self](const MsgVirtualDisplayServiceResult& msg) {
-            if (const auto self = weak_self.lock(); self && !self->exit_app_) {
-                self->UpdateVirtualDisplayStatus(msg);
-            }
-        });
-
-    msg_listener_->Listen<MsgRenderConnected2Service>(
-        [weak_self](const MsgRenderConnected2Service&) {
-            const auto self = weak_self.lock();
-            if (!self || self->exit_app_ ||
-                !self->settings_.virtual_display_enabled_ ||
-                self->settings_.IsGameHookMode()) {
-                return;
-            }
-            self->RefreshVirtualDisplayStatus("render-startup-query");
-        });
-
-    msg_listener_->Listen<MsgReCreateRefresher>(
-        [weak_self](const MsgReCreateRefresher&) {
-            const auto self = weak_self.lock();
-            if (!self || self->exit_app_) {
-                return;
-            }
-            // report to Panel
-            // !! USELESS !! Just report it
-            if (self->ws_panel_client_) {
-                self->ws_panel_client_->ReportMonitorChanged();
-            }
-
-            self->monitor_changed_ = true;
-            self->context_->PostDelayTask(
-                [weak_self]() {
-                    auto self = weak_self.lock();
-                    if (!self || self->exit_app_) {
-                        return;
-                    }
-                    self->monitor_changed_ = false;
-                },
-                5000);
-        });
+                self->monitor_changed_ = false;
+            },
+            5000);
+    });
 
     msg_listener_->Listen<MsgModifyFps>([weak_self](const MsgModifyFps& msg) {
         const auto self = weak_self.lock();
@@ -1403,28 +1181,22 @@ void RdApplication::InitMessages() {
     });
 
     // request from Remote Panel's context menu or same function
-    msg_listener_->Listen<MsgPanelStreamLockScreen>(
-        [](const MsgPanelStreamLockScreen& msg) {
-            LOGI(" ** Panel request LockScreen from device: {}",
-                 msg.from_device_);
-            Hardware::LockScreen();
-        });
+    msg_listener_->Listen<MsgPanelStreamLockScreen>([](const MsgPanelStreamLockScreen& msg) {
+        LOGI(" ** Panel request LockScreen from device: {}", msg.from_device_);
+        Hardware::LockScreen();
+    });
 
     // request from Remote Panel's context menu or same function
-    msg_listener_->Listen<MsgPanelStreamRestartDevice>(
-        [](const MsgPanelStreamRestartDevice& msg) {
-            LOGI(" ** Panel request RestartDevice from device: {}",
-                 msg.from_device_);
-            Hardware::RestartDevice();
-        });
+    msg_listener_->Listen<MsgPanelStreamRestartDevice>([](const MsgPanelStreamRestartDevice& msg) {
+        LOGI(" ** Panel request RestartDevice from device: {}", msg.from_device_);
+        Hardware::RestartDevice();
+    });
 
     // request from Remote Panel's context menu or same function
-    msg_listener_->Listen<MsgPanelStreamShutdownDevice>(
-        [](const MsgPanelStreamShutdownDevice& msg) {
-            LOGI(" ** Panel request ShutdownDevice from device: {}",
-                 msg.from_device_);
-            Hardware::ShutdownDevice();
-        });
+    msg_listener_->Listen<MsgPanelStreamShutdownDevice>([](const MsgPanelStreamShutdownDevice& msg) {
+        LOGI(" ** Panel request ShutdownDevice from device: {}", msg.from_device_);
+        Hardware::ShutdownDevice();
+    });
 
     state_msg_listener_->Listen<MsgTimer20S>([weak_self](const MsgTimer20S&) {
         const auto self = weak_self.lock();
@@ -1437,14 +1209,12 @@ void RdApplication::InitMessages() {
                 return;
             }
             if (self->IsCurrentGdiCapture() && !self->force_gdi_) {
-                if (auto initialization_result = self->TryInitDdaCapture();
-                    !initialization_result) {
+                if (auto initialization_result = self->TryInitDdaCapture(); !initialization_result) {
                     LOGI("===> Try init dda capture result failed!");
                     return;
                 }
                 LOGI("Will switch to DDA");
-                if (auto switch_result = self->SwitchDdaCapture();
-                    switch_result && self->IsCurrentDdaCapture()) {
+                if (auto switch_result = self->SwitchDdaCapture(); switch_result && self->IsCurrentDdaCapture()) {
                     LOGI("Will start DDA capturing");
                     self->capture_source_->StartCapturing();
                 }
@@ -1457,8 +1227,7 @@ void RdApplication::InitMessages() {
     // a reason to restart it also terminates the game.  Game instances are
     // now lifecycle-managed by Console; without viewers they simply stop
     // capture/encode through the existing HasConnectedPeer gates.
-    state_msg_listener_->Listen<MsgTimer1Minute>([weak_self](
-                                                     const MsgTimer1Minute&) {
+    state_msg_listener_->Listen<MsgTimer1Minute>([weak_self](const MsgTimer1Minute&) {
         const auto self = weak_self.lock();
         if (!self || self->exit_app_) {
             return;
@@ -1488,10 +1257,8 @@ void RdApplication::OnCapturedAudioFrame(const CaptureAudioFrame& frame) {
     if (!HasConnectedPeer()) {
         static thread_local uint64_t s_dropped_audio_frame_count = 0;
         const auto dropped_audio_frame_count = ++s_dropped_audio_frame_count;
-        if (dropped_audio_frame_count == 1 ||
-            (dropped_audio_frame_count % 500) == 0) {
-            LOGW("CaptureAudioFrame: no connected peer, drop n={} idx={}",
-                 dropped_audio_frame_count, frame.frame_index_);
+        if (dropped_audio_frame_count == 1 || (dropped_audio_frame_count % 500) == 0) {
+            LOGW("CaptureAudioFrame: no connected peer, drop n={} idx={}", dropped_audio_frame_count, frame.frame_index_);
         }
         return;
     }
@@ -1503,39 +1270,28 @@ void RdApplication::OnCapturedAudioFrame(const CaptureAudioFrame& frame) {
     if (frame.full_data_) {
         static thread_local uint64_t s_encoded_audio_frame_count = 0;
         const auto encoded_audio_frame_count = ++s_encoded_audio_frame_count;
-        if (encoded_audio_frame_count == 1 ||
-            (encoded_audio_frame_count % 200) == 0) {
-            LOGI("CaptureAudioFrame→encode: n={} {}Hz {}ch {}bit bytes={}",
-                 encoded_audio_frame_count, samples, channels, bits,
+        if (encoded_audio_frame_count == 1 || (encoded_audio_frame_count % 200) == 0) {
+            LOGI("CaptureAudioFrame→encode: n={} {}Hz {}ch {}bit bytes={}", encoded_audio_frame_count, samples, channels, bits,
                  frame.full_data_->Size());
         }
-        const auto captured =
-            std::make_shared<const render::CapturedAudioFrame>(
-                render::CapturedAudioFrame{
-                    .timestamp_us = static_cast<std::uint64_t>(
-                                        TimeUtil::GetCurrentTimestamp()) *
-                                    1000U,
-                    .sample_rate_hz = static_cast<std::uint32_t>(samples),
-                    .channels = static_cast<std::uint16_t>(channels),
-                    .bits_per_sample = static_cast<std::uint16_t>(bits),
-                    .payload = render::MakeImmutableByteBuffer(
-                        frame.full_data_->AsString()),
-                });
-        const auto result =
-            captured_media_pipeline_->HasAudioProcessors()
-                ? captured_media_pipeline_->SubmitAudio(captured)
-                : DeliverCapturedAudioFrame(captured, frame.full_data_);
+        const auto captured = std::make_shared<const render::CapturedAudioFrame>(render::CapturedAudioFrame{
+            .timestamp_us = static_cast<std::uint64_t>(TimeUtil::GetCurrentTimestamp()) * 1000U,
+            .sample_rate_hz = static_cast<std::uint32_t>(samples),
+            .channels = static_cast<std::uint16_t>(channels),
+            .bits_per_sample = static_cast<std::uint16_t>(bits),
+            .payload = render::MakeImmutableByteBuffer(frame.full_data_->AsString()),
+        });
+        const auto result = captured_media_pipeline_->HasAudioProcessors() ? captured_media_pipeline_->SubmitAudio(captured)
+                                                                           : DeliverCapturedAudioFrame(captured, frame.full_data_);
         if (!result && pipeline_error_log_gate_) {
             const auto code = render::StableErrorCode(result.error().code);
-            const auto decision = pipeline_error_log_gate_->Evaluate(
-                std::string(code) + ":audio", std::chrono::steady_clock::now());
+            const auto decision = pipeline_error_log_gate_->Evaluate(std::string(code) + ":audio", std::chrono::steady_clock::now());
             if (decision.emit) {
                 LOGW(
                     "event=pipeline.submit component=rd_application code={} "
                     "operation=audio outcome=dropped recoverable={} "
                     "suppressed={} reason={}",
-                    code, result.error().recoverable,
-                    decision.suppressed_since_last_emit, result.error().reason);
+                    code, result.error().recoverable, decision.suppressed_since_last_emit, result.error().reason);
             }
         }
     } else if (frame.left_ch_data_ && frame.right_ch_data_) {
@@ -1555,8 +1311,7 @@ void RdApplication::OnCapturedAudioFrame(const CaptureAudioFrame& frame) {
             FFT32::DoFFT(self->fft_left_, frame.left_ch_data_, 960, true);
             FFT32::DoFFT(self->fft_right_, frame.right_ch_data_, 960, true);
             int cpy_size = 150;
-            if (self->fft_left_.size() < cpy_size ||
-                self->fft_right_.size() < cpy_size) {
+            if (self->fft_left_.size() < cpy_size || self->fft_right_.size() < cpy_size) {
                 return;
             }
 
@@ -1574,8 +1329,7 @@ void RdApplication::InitAudioCapture() {
         LOGI("WebView audio: use CEF stream callback");
         return;
     }
-    if (settings_.capture_.capture_audio_type_ !=
-        Capture::CaptureAudioType::kAudioGlobal) {
+    if (settings_.capture_.capture_audio_type_ != Capture::CaptureAudioType::kAudioGlobal) {
         return;
     }
     if (!audio_capture_source_) {
@@ -1615,9 +1369,7 @@ void RdApplication::PostGlobalAppMessage(std::shared_ptr<AppMessage>&& msg) {
     PostThreadMessage(main_thread_id_, WM_NULL, 0, 0);
 }
 
-void RdApplication::PostGlobalTask(std::function<void()>&& task) {
-    PostGlobalAppMessage(AppMessageMaker::MakeTaskMessage(std::move(task)));
-}
+void RdApplication::PostGlobalTask(std::function<void()>&& task) { PostGlobalAppMessage(AppMessageMaker::MakeTaskMessage(std::move(task))); }
 
 void RdApplication::PostIpcMessage(std::shared_ptr<Data>&& payload) {}
 
@@ -1651,8 +1403,7 @@ void RdApplication::StartProcessWithHook() {
     context_->PostDelayTask(
         [weak_self]() {
             const auto self = weak_self.lock();
-            if (!self || self->exit_app_ || !self->settings_.IsGameHookMode())
-                return;
+            if (!self || self->exit_app_ || !self->settings_.IsGameHookMode()) return;
             self->game_hook_startup_grace_complete_ = true;
             if (self->HasConnectedPeer()) return;
             LOGI(
@@ -1665,8 +1416,7 @@ void RdApplication::StartProcessWithHook() {
             // first page was already loading.
         },
         45000);
-    LOGI("StartProcessWithHook: game_path={}, capture_method={}",
-         settings_.app_.game_path_, (int)settings_.app_.inject_method_);
+    LOGI("StartProcessWithHook: game_path={}, capture_method={}", settings_.app_.game_path_, (int)settings_.app_.inject_method_);
     if (settings_.app_.game_path_.empty()) {
         LOGE("StartProcessWithHook: game-path is empty, cannot start game.");
         init_failed_ = true;
@@ -1679,8 +1429,7 @@ void RdApplication::StartProcessWithHook() {
         // Fail fast so Service can report to Console (no orphan Render without
         // game).
         init_failed_ = true;
-        init_error_ = std::format("StartProcessWithHook failed: {}",
-                                  settings_.app_.game_path_);
+        init_error_ = std::format("StartProcessWithHook failed: {}", settings_.app_.game_path_);
     } else {
         LOGI(
             "StartProcessWithHook requested OK, inject timer will attach "
@@ -1726,15 +1475,12 @@ void RdApplication::StartWebView() {
             [weak_self](const CaptureCursorBitmap& cursor) {
                 const auto self = weak_self.lock();
                 if (!self || self->exit_app_) return;
-                self->PostNetMessage(NetMessageMaker::MakeCursorInfoSyncMsg(
-                    cursor.x_, cursor.y_, cursor.hotspot_x_, cursor.hotspot_y_,
-                    cursor.width_, cursor.height_, cursor.visible_,
-                    cursor.data_, cursor.type_));
+                self->PostNetMessage(NetMessageMaker::MakeCursorInfoSyncMsg(cursor.x_, cursor.y_, cursor.hotspot_x_, cursor.hotspot_y_, cursor.width_,
+                                                                            cursor.height_, cursor.visible_, cursor.data_, cursor.type_));
             },
         .on_clipboard_text =
             [weak_self](const std::string& text) {
-                if (const auto self = weak_self.lock();
-                    self && !self->exit_app_) {
+                if (const auto self = weak_self.lock(); self && !self->exit_app_) {
                     self->SendClipboardMessage(text);
                 }
             },
@@ -1744,40 +1490,30 @@ void RdApplication::StartWebView() {
                 if (!self || self->exit_app_) return;
                 LOGE("WebView runtime failure: {}", error);
                 if (self->service_client_) {
-                    self->service_client_->NotifyAppInstanceReady(
-                        self->settings_.webview_instance_id_,
-                        self->settings_.transmission_.listening_port_, false,
-                        error);
+                    self->service_client_->NotifyAppInstanceReady(self->settings_.webview_instance_id_, self->settings_.transmission_.listening_port_,
+                                                                  false, error);
                 }
             },
         .on_first_frame =
             [weak_self]() {
                 LOGI("WebView first off-screen frame is ready");
-                if (const auto self = weak_self.lock();
-                    self && self->service_client_) {
-                    self->service_client_->NotifyAppInstanceReady(
-                        self->settings_.webview_instance_id_,
-                        self->settings_.transmission_.listening_port_, true,
-                        "");
+                if (const auto self = weak_self.lock(); self && self->service_client_) {
+                    self->service_client_->NotifyAppInstanceReady(self->settings_.webview_instance_id_, self->settings_.transmission_.listening_port_,
+                                                                  true, "");
                 }
                 if (const auto self = weak_self.lock();
-                    self && self->webview_runtime_ &&
-                    !self->HasConnectedPeer() &&
-                    !self->settings_.webview_smoke_test_) {
+                    self && self->webview_runtime_ && !self->HasConnectedPeer() && !self->settings_.webview_smoke_test_) {
                     self->webview_runtime_->SetActive(false);
                 }
             },
     };
     std::string error;
-    if (!webview_runtime_->Start(GetModuleHandleW(nullptr), config,
-                                 std::move(callbacks), error)) {
+    if (!webview_runtime_->Start(GetModuleHandleW(nullptr), config, std::move(callbacks), error)) {
         init_failed_ = true;
         init_error_ = error.empty() ? "WebView runtime start failed" : error;
         LOGE("StartWebView failed: {}", init_error_);
         if (service_client_) {
-            service_client_->NotifyAppInstanceReady(
-                settings_.webview_instance_id_,
-                settings_.transmission_.listening_port_, false, init_error_);
+            service_client_->NotifyAppInstanceReady(settings_.webview_instance_id_, settings_.transmission_.listening_port_, false, init_error_);
         }
         webview_runtime_.reset();
         return;
@@ -1808,23 +1544,16 @@ ApplicationTextBackend RdApplication::CreateApplicationTextBackend() {
     }
     const auto weak{weak_from_this()};
     return {
-        .kind = settings_.IsWebViewMode()
-                    ? ApplicationTextCapabilities::CEF_COMMIT
-                    : ApplicationTextCapabilities::OWNED_HOOK_WINDOW,
+        .kind = settings_.IsWebViewMode() ? ApplicationTextCapabilities::CEF_COMMIT : ApplicationTextCapabilities::OWNED_HOOK_WINDOW,
         .query =
-            [weak](
-                std::function<void(ApplicationTextBackendState)> completion) {
+            [weak](std::function<void(ApplicationTextBackendState)> completion) {
                 if (const auto self{weak.lock()}) {
-                    self->PostGlobalTask([weak,
-                                          completion = std::move(completion)] {
+                    self->PostGlobalTask([weak, completion = std::move(completion)] {
                         const auto self{weak.lock()};
-                        if (self && !self->exit_app_ &&
-                            self->webview_runtime_) {
+                        if (self && !self->exit_app_ && self->webview_runtime_) {
                             self->webview_runtime_->QueryTextTarget(completion);
-                        } else if (self && !self->exit_app_ &&
-                                   self->game_text_backend_) {
-                            self->game_text_backend_->Adapter().query(
-                                completion);
+                        } else if (self && !self->exit_app_ && self->game_text_backend_) {
+                            self->game_text_backend_->Adapter().query(completion);
                         } else {
                             completion({});
                         }
@@ -1836,17 +1565,12 @@ ApplicationTextBackend RdApplication::CreateApplicationTextBackend() {
         .release_keys =
             [weak](std::function<void(bool)> completion) {
                 if (const auto self{weak.lock()}) {
-                    self->PostGlobalTask([weak,
-                                          completion = std::move(completion)] {
+                    self->PostGlobalTask([weak, completion = std::move(completion)] {
                         const auto self{weak.lock()};
-                        if (self && !self->exit_app_ &&
-                            self->webview_runtime_) {
-                            self->webview_runtime_->ReleaseTextInputKeys(
-                                [completion] { completion(true); });
-                        } else if (self && !self->exit_app_ &&
-                                   self->game_text_backend_) {
-                            self->game_text_backend_->Adapter().release_keys(
-                                completion);
+                        if (self && !self->exit_app_ && self->webview_runtime_) {
+                            self->webview_runtime_->ReleaseTextInputKeys([completion] { completion(true); });
+                        } else if (self && !self->exit_app_ && self->game_text_backend_) {
+                            self->game_text_backend_->Adapter().release_keys(completion);
                         } else {
                             completion(false);
                         }
@@ -1856,30 +1580,20 @@ ApplicationTextBackend RdApplication::CreateApplicationTextBackend() {
                 }
             },
         .commit =
-            [weak](std::string text, std::string generation,
-                   std::function<bool()> authorize,
+            [weak](std::string text, std::string generation, std::function<bool()> authorize,
                    std::function<void(ApplicationTextOutcome)> completion) {
                 if (const auto self{weak.lock()}) {
-                    self->PostGlobalTask(
-                        [weak, text = std::move(text),
-                         generation = std::move(generation),
-                         authorize = std::move(authorize),
-                         completion = std::move(completion)]() mutable {
-                            const auto self{weak.lock()};
-                            if (self && !self->exit_app_ &&
-                                self->webview_runtime_) {
-                                self->webview_runtime_->CommitApplicationText(
-                                    std::move(text), std::move(generation),
-                                    std::move(authorize), completion);
-                            } else if (self && !self->exit_app_ &&
-                                       self->game_text_backend_) {
-                                self->game_text_backend_->Adapter().commit(
-                                    std::move(text), std::move(generation),
-                                    std::move(authorize), completion);
-                            } else {
-                                completion(TEXT_TARGET_UNAVAILABLE);
-                            }
-                        });
+                    self->PostGlobalTask([weak, text = std::move(text), generation = std::move(generation), authorize = std::move(authorize),
+                                          completion = std::move(completion)]() mutable {
+                        const auto self{weak.lock()};
+                        if (self && !self->exit_app_ && self->webview_runtime_) {
+                            self->webview_runtime_->CommitApplicationText(std::move(text), std::move(generation), std::move(authorize), completion);
+                        } else if (self && !self->exit_app_ && self->game_text_backend_) {
+                            self->game_text_backend_->Adapter().commit(std::move(text), std::move(generation), std::move(authorize), completion);
+                        } else {
+                            completion(TEXT_TARGET_UNAVAILABLE);
+                        }
+                    });
                 } else {
                     completion(TEXT_TARGET_UNAVAILABLE);
                 }
@@ -1887,11 +1601,9 @@ ApplicationTextBackend RdApplication::CreateApplicationTextBackend() {
     };
 }
 
-void RdApplication::HandleGameTextReply(const std::uint32_t pid,
-                                        const CaptureTextReply& reply) {
+void RdApplication::HandleGameTextReply(const std::uint32_t pid, const CaptureTextReply& reply) {
     PostGlobalTask([weak = weak_from_this(), pid, reply] {
-        if (const auto self{weak.lock()};
-            self && !self->exit_app_ && self->game_text_backend_) {
+        if (const auto self{weak.lock()}; self && !self->exit_app_ && self->game_text_backend_) {
             self->game_text_backend_->HandleReply(pid, reply);
         }
     });
@@ -1925,9 +1637,7 @@ void RdApplication::StartProcessWithScreenCapture() {
 }
 
 void RdApplication::OnCapturedVideoFrame(const CaptureVideoFrame& frame) const {
-    if (captured_media_pipeline_ &&
-        captured_media_pipeline_->HasVideoProcessors() && frame.raw_image_ &&
-        frame.raw_image_->data) {
+    if (captured_media_pipeline_ && captured_media_pipeline_->HasVideoProcessors() && frame.raw_image_ && frame.raw_image_->data) {
         auto pixel_format = render::VideoPixelFormat::kBgra8;
         switch (frame.raw_image_->raw_img_type_) {
             case RawImageType::kRGB:
@@ -1962,31 +1672,21 @@ void RdApplication::OnCapturedVideoFrame(const CaptureVideoFrame& frame) const {
                 .stream_id = "render-capture",
                 .monitor_id = std::move(monitor_id),
                 .frame_index = frame.frame_index_,
-                .timestamp_us = static_cast<std::uint64_t>(
-                                    TimeUtil::GetCurrentTimestamp()) *
-                                1000U,
+                .timestamp_us = static_cast<std::uint64_t>(TimeUtil::GetCurrentTimestamp()) * 1000U,
             },
-            frame.frame_width_, frame.frame_height_, pixel_format,
-            render::MakeImmutableByteBuffer(
-                frame.raw_image_->data->AsString()));
+            frame.frame_width_, frame.frame_height_, pixel_format, render::MakeImmutableByteBuffer(frame.raw_image_->data->AsString()));
         if (captured) {
-            const auto result = captured_media_pipeline_->SubmitVideo(
-                std::make_shared<const render::CapturedVideoFrame>(
-                    std::move(*captured)));
+            const auto result = captured_media_pipeline_->SubmitVideo(std::make_shared<const render::CapturedVideoFrame>(std::move(*captured)));
             if (!result && pipeline_error_log_gate_) {
                 const auto code = render::StableErrorCode(result.error().code);
-                const auto decision = pipeline_error_log_gate_->Evaluate(
-                    std::string(code) + ":video",
-                    std::chrono::steady_clock::now());
+                const auto decision = pipeline_error_log_gate_->Evaluate(std::string(code) + ":video", std::chrono::steady_clock::now());
                 if (decision.emit) {
                     LOGW(
                         "event=pipeline.submit component=rd_application "
                         "code={} "
                         "operation=video outcome=dropped recoverable={} "
                         "suppressed={} reason={}",
-                        code, result.error().recoverable,
-                        decision.suppressed_since_last_emit,
-                        result.error().reason);
+                        code, result.error().recoverable, decision.suppressed_since_last_emit, result.error().reason);
                 }
             }
             return;
@@ -1995,8 +1695,7 @@ void RdApplication::OnCapturedVideoFrame(const CaptureVideoFrame& frame) const {
     DeliverCapturedVideoFrame(frame);
 }
 
-void RdApplication::DeliverCapturedVideoFrame(
-    const CaptureVideoFrame& frame) const {
+void RdApplication::DeliverCapturedVideoFrame(const CaptureVideoFrame& frame) const {
     if (exit_app_) {
         return;
     }
@@ -2020,15 +1719,11 @@ void RdApplication::DeliverCapturedVideoFrame(
     encoder_thread_->Encode(frame);
 }
 
-std::shared_ptr<render::MediaSourcePort> RdApplication::CreateMediaSourcePort()
-    const {
-    return captured_media_pipeline_
-               ? captured_media_pipeline_->CreateSourcePort()
-               : std::shared_ptr<render::MediaSourcePort>{};
+std::shared_ptr<render::MediaSourcePort> RdApplication::CreateMediaSourcePort() const {
+    return captured_media_pipeline_ ? captured_media_pipeline_->CreateSourcePort() : std::shared_ptr<render::MediaSourcePort>{};
 }
 
-render::MediaSubmitResult RdApplication::DeliverExtensionVideoFrame(
-    const std::shared_ptr<const render::CapturedVideoFrame>& frame) const {
+render::MediaSubmitResult RdApplication::DeliverExtensionVideoFrame(const std::shared_ptr<const render::CapturedVideoFrame>& frame) const {
     if (!frame || !frame->Payload()) {
         return std::unexpected(render::RenderError{
             .code = render::RenderErrorCode::kPipelineInvalidFrame,
@@ -2070,11 +1765,8 @@ render::MediaSubmitResult RdApplication::DeliverExtensionVideoFrame(
                 .recoverable = true,
             });
     }
-    const auto frame_payload =
-        Data::From(render::ImmutableByteBufferAsString(frame->Payload()));
-    const auto image =
-        Image::Make(frame_payload, static_cast<int>(frame->Width()),
-                    static_cast<int>(frame->Height()), raw_type);
+    const auto frame_payload = Data::From(render::ImmutableByteBufferAsString(frame->Payload()));
+    const auto image = Image::Make(frame_payload, static_cast<int>(frame->Width()), static_cast<int>(frame->Height()), raw_type);
     if (!image) {
         return std::unexpected(render::RenderError{
             .code = render::RenderErrorCode::kPipelineInvalidFrame,
@@ -2094,10 +1786,8 @@ render::MediaSubmitResult RdApplication::DeliverExtensionVideoFrame(
     output.adapter_uid_ = -1;
     output.raw_image_ = image;
     const auto& monitor_id = frame->Identity().monitor_id;
-    const auto monitor_length =
-        std::min(monitor_id.size(), sizeof(output.display_name_) - 1);
-    std::copy_n(monitor_id.begin(), monitor_length,
-                std::begin(output.display_name_));
+    const auto monitor_length = std::min(monitor_id.size(), sizeof(output.display_name_) - 1);
+    std::copy_n(monitor_id.begin(), monitor_length, std::begin(output.display_name_));
     if (encoded_media_bus_) {
         encoded_media_bus_->PublishCapturedVideo(frame);
     }
@@ -2105,9 +1795,8 @@ render::MediaSubmitResult RdApplication::DeliverExtensionVideoFrame(
     return {};
 }
 
-render::MediaSubmitResult RdApplication::DeliverCapturedAudioFrame(
-    const std::shared_ptr<const render::CapturedAudioFrame>& frame,
-    const std::shared_ptr<Data>& source_audio_payload) {
+render::MediaSubmitResult RdApplication::DeliverCapturedAudioFrame(const std::shared_ptr<const render::CapturedAudioFrame>& frame,
+                                                                   const std::shared_ptr<Data>& source_audio_payload) {
     if (!frame || !frame->payload) {
         return std::unexpected(render::RenderError{
             .code = render::RenderErrorCode::kPipelineInvalidFrame,
@@ -2122,24 +1811,19 @@ render::MediaSubmitResult RdApplication::DeliverCapturedAudioFrame(
     const auto sample_rate_hz = static_cast<int>(frame->sample_rate_hz);
     const auto channels = static_cast<int>(frame->channels);
     const auto bits_per_sample = static_cast<int>(frame->bits_per_sample);
-    const auto audio_payload =
-        source_audio_payload
-            ? source_audio_payload
-            : Data::From(render::ImmutableByteBufferAsString(frame->payload));
+    const auto audio_payload = source_audio_payload ? source_audio_payload : Data::From(render::ImmutableByteBufferAsString(frame->payload));
     auto statistics = RdStatistics::Instance();
     statistics->audio_samples_ = sample_rate_hz;
     statistics->audio_channels_ = channels;
     statistics->audio_bits_ = bits_per_sample;
     const auto weak_self = weak_from_this();
-    context_->PostMediaTask(
-        [weak_self, audio_payload, sample_rate_hz, channels, bits_per_sample] {
-            const auto self = weak_self.lock();
-            if (!self || self->exit_app_ || !self->module_registry_) {
-                return;
-            }
-            self->module_registry_->BroadcastRawAudio(
-                audio_payload, sample_rate_hz, channels, bits_per_sample);
-        });
+    context_->PostMediaTask([weak_self, audio_payload, sample_rate_hz, channels, bits_per_sample] {
+        const auto self = weak_self.lock();
+        if (!self || self->exit_app_ || !self->module_registry_) {
+            return;
+        }
+        self->module_registry_->BroadcastRawAudio(audio_payload, sample_rate_hz, channels, bits_per_sample);
+    });
     const auto current_time = TimeUtil::GetCurrentTimestamp();
     if (last_post_audio_time_ == 0) {
         last_post_audio_time_ = current_time;
@@ -2166,8 +1850,7 @@ void RdApplication::ReplayLatestGameHookFrame() const {
         LOGI("Game-hook viewer connected before the first captured frame");
         return;
     }
-    LOGI("Replay cached game-hook frame on viewer connect: index={} size={}x{}",
-         frame->frame_index_, frame->frame_width_, frame->frame_height_);
+    LOGI("Replay cached game-hook frame on viewer connect: index={} size={}x{}", frame->frame_index_, frame->frame_width_, frame->frame_height_);
     // The encoder may not have existed when ProcessClientConnectedEvent
     // requested an IDR. Carry the request on the frame itself so a newly
     // created encoder also produces a decodable first packet.
@@ -2175,17 +1858,14 @@ void RdApplication::ReplayLatestGameHookFrame() const {
     encoder_thread_->Encode(*frame);
 }
 
-void RdApplication::OnCapturedCursorBitmap(
-    const CaptureCursorBitmap& cursor) const {
+void RdApplication::OnCapturedCursorBitmap(const CaptureCursorBitmap& cursor) const {
     // App-owned cursor sources must not be overwritten by the host desktop
     // capture loop.
     if (exit_app_ || settings_.IsWebViewMode() || settings_.IsRdpMode()) {
         return;
     }
-    PostNetMessage(NetMessageMaker::MakeCursorInfoSyncMsg(
-        cursor.x_, cursor.y_, cursor.hotspot_x_, cursor.hotspot_y_,
-        cursor.width_, cursor.height_, cursor.visible_, cursor.data_,
-        cursor.type_));
+    PostNetMessage(NetMessageMaker::MakeCursorInfoSyncMsg(cursor.x_, cursor.y_, cursor.hotspot_x_, cursor.hotspot_y_, cursor.width_, cursor.height_,
+                                                          cursor.visible_, cursor.data_, cursor.type_));
 }
 
 void RdApplication::OnIpcVideoFrame(const CaptureVideoFrame& incoming) const {
@@ -2203,23 +1883,17 @@ void RdApplication::OnIpcAudioFrame(const CaptureAudioFrame& frame) {
     // In-process media path: do not enqueue high-rate PCM on the application
     // bus.
     if (!context_) {
-        LOGE("OnIpcAudioFrame: context_ null, drop frame idx={} pcm={}",
-             frame.frame_index_,
-             frame.full_data_ ? frame.full_data_->Size() : 0);
+        LOGE("OnIpcAudioFrame: context_ null, drop frame idx={} pcm={}", frame.frame_index_, frame.full_data_ ? frame.full_data_->Size() : 0);
         return;
     }
     if (!frame.full_data_ || frame.full_data_->Size() <= 0) {
-        LOGE("OnIpcAudioFrame: empty pcm idx={} {}Hz {}ch", frame.frame_index_,
-             frame.samples_, frame.channels_);
+        LOGE("OnIpcAudioFrame: empty pcm idx={} {}Hz {}ch", frame.frame_index_, frame.samples_, frame.channels_);
         return;
     }
     static thread_local uint64_t s_received_ipc_audio_frame_count = 0;
-    const auto received_ipc_audio_frame_count =
-        ++s_received_ipc_audio_frame_count;
-    if (received_ipc_audio_frame_count == 1 ||
-        (received_ipc_audio_frame_count % 200) == 0) {
-        LOGI("OnIpcAudioFrame: n={} idx={} {}Hz {}ch {}bit bytes={} → media",
-             received_ipc_audio_frame_count, frame.frame_index_, frame.samples_,
+    const auto received_ipc_audio_frame_count = ++s_received_ipc_audio_frame_count;
+    if (received_ipc_audio_frame_count == 1 || (received_ipc_audio_frame_count % 200) == 0) {
+        LOGI("OnIpcAudioFrame: n={} idx={} {}Hz {}ch {}bit bytes={} → media", received_ipc_audio_frame_count, frame.frame_index_, frame.samples_,
              frame.channels_, frame.bits_, frame.full_data_->Size());
     }
     OnCapturedAudioFrame(frame);
@@ -2236,14 +1910,11 @@ bool RdApplication::HasConnectedPeer() const {
     return !game_hook_client_ids_.empty();
 }
 
-void RdApplication::WriteBoostUpInfoForPid(uint32_t pid) {
-    PrepareGameHookBoot(pid);
-}
+void RdApplication::WriteBoostUpInfoForPid(uint32_t pid) { PrepareGameHookBoot(pid); }
 
 bool RdApplication::PrepareGameHookBoot(uint32_t pid) {
     if (!app_manager_ || !app_manager_->CanHookProcess(pid)) {
-        LOGE("Hook bootstrap refused: pid={} is not an owned executable target",
-             pid);
+        LOGE("Hook bootstrap refused: pid={} is not an owned executable target", pid);
         return false;
     }
     if (!app_shared_message_) {
@@ -2264,17 +1935,13 @@ bool RdApplication::PrepareGameHookBoot(uint32_t pid) {
     LOGI(
         "PrepareGameHookBoot pid={}: prefer_pid_loopback={}, force_hook={}, "
         "os_supported={}, enable_hook_audio={}",
-        pid, prefer_pid, ForceInProcessHookAudio(),
-        IsProcessLoopbackCaptureSupported(),
-        app_shared_message_->enable_hook_audio_);
+        pid, prefer_pid, ForceInProcessHookAudio(), IsProcessLoopbackCaptureSupported(), app_shared_message_->enable_hook_audio_);
 
     std::string buffer{};
     buffer.resize(sizeof(AppSharedMessage));
     memcpy(buffer.data(), app_shared_message_.get(), sizeof(AppSharedMessage));
-    const auto manager =
-        std::dynamic_pointer_cast<AppManagerWinImpl>(app_manager_);
-    const auto process = manager ? manager->AcquireHookTarget(pid)
-                                 : std::shared_ptr<UniqueWinHandle>{};
+    const auto manager = std::dynamic_pointer_cast<AppManagerWinImpl>(app_manager_);
+    const auto process = manager ? manager->AcquireHookTarget(pid) : std::shared_ptr<UniqueWinHandle>{};
     if (!process || !app_shared_info_->WriteBootConfig(*process, buffer)) {
         LOGE("PrepareGameHookBoot failed for pid {}", pid);
         return false;
@@ -2297,10 +1964,8 @@ void RdApplication::SendAudioSpectrumMessage() const {
     spectrum->set_channels(statistics->audio_channels_);
     auto left_spectrum = statistics->GetLeftSpectrum();
     auto right_spectrum = statistics->GetRightSpectrum();
-    spectrum->mutable_left_spectrum()->Add(left_spectrum.begin(),
-                                           left_spectrum.end());
-    spectrum->mutable_right_spectrum()->Add(right_spectrum.begin(),
-                                            right_spectrum.end());
+    spectrum->mutable_left_spectrum()->Add(left_spectrum.begin(), left_spectrum.end());
+    spectrum->mutable_right_spectrum()->Add(right_spectrum.begin(), right_spectrum.end());
     auto network_message = ProtoAsData(spectrum_message);
 
     // audio spectrum
@@ -2317,16 +1982,13 @@ void RdApplication::ReportAudioSpectrum2Panel() {
     spectrum->set_channels(statistics->audio_channels_);
     auto left_spectrum = statistics->GetLeftSpectrum();
     auto right_spectrum = statistics->GetRightSpectrum();
-    spectrum->mutable_left_spectrum()->Add(left_spectrum.begin(),
-                                           left_spectrum.end());
-    spectrum->mutable_right_spectrum()->Add(right_spectrum.begin(),
-                                            right_spectrum.end());
+    spectrum->mutable_left_spectrum()->Add(left_spectrum.begin(), left_spectrum.end());
+    spectrum->mutable_right_spectrum()->Add(right_spectrum.begin(), right_spectrum.end());
     auto panel_buffer = RpProtoAsData(spectrum_message);
     PostPanelMessage(panel_buffer);
 }
 
-void RdApplication::SendClipboardMessage(
-    const std::string& clipboard_text) const {
+void RdApplication::SendClipboardMessage(const std::string& clipboard_text) const {
     px::Message clipboard_message;
     clipboard_message.set_type(px::kClipboardInfo);
     clipboard_message.mutable_clipboard_info()->set_msg(clipboard_text);
@@ -2343,9 +2005,7 @@ void RdApplication::SendConfigurationBack() {
 
     std::vector<CaptureMonitorInfo> monitors;
     std::string capturing_name;
-    const auto append_synthetic_monitor = [&monitors, &capturing_name](
-                                              const std::string& name,
-                                              int width, int height) {
+    const auto append_synthetic_monitor = [&monitors, &capturing_name](const std::string& name, int width, int height) {
         capturing_name = name;
         CaptureMonitorInfo monitor;
         monitor.name_ = name;
@@ -2370,24 +2030,19 @@ void RdApplication::SendConfigurationBack() {
         int width = settings_.encoder_.encode_width_;
         int height = settings_.encoder_.encode_height_;
         if (app_manager_) {
-            const auto hwnd =
-                static_cast<HWND>(app_manager_->GetWindowHandle());
+            const auto hwnd = static_cast<HWND>(app_manager_->GetWindowHandle());
             RECT client_rect{};
-            if (hwnd && IsWindow(hwnd) && GetClientRect(hwnd, &client_rect) &&
-                client_rect.right > client_rect.left &&
+            if (hwnd && IsWindow(hwnd) && GetClientRect(hwnd, &client_rect) && client_rect.right > client_rect.left &&
                 client_rect.bottom > client_rect.top) {
                 width = client_rect.right - client_rect.left;
                 height = client_rect.bottom - client_rect.top;
             }
         }
         append_synthetic_monitor("Application", width, height);
-        LOGI("Use synthetic game-hook monitor configuration: {}x{}", width,
-             height);
+        LOGI("Use synthetic game-hook monitor configuration: {}x{}", width, height);
     } else if (settings_.IsWebViewMode()) {
-        append_synthetic_monitor("webview", settings_.webview_width_,
-                                 settings_.webview_height_);
-        LOGI("Use synthetic WebView monitor configuration: {}x{}",
-             settings_.webview_width_, settings_.webview_height_);
+        append_synthetic_monitor("webview", settings_.webview_width_, settings_.webview_height_);
+        LOGI("Use synthetic WebView monitor configuration: {}x{}", settings_.webview_width_, settings_.webview_height_);
     } else {
         LOGE(
             "SendConfigurationBack failed, working monitor capture module is "
@@ -2403,18 +2058,13 @@ void RdApplication::SendConfigurationBack() {
 
     px::Message configuration_message;
     configuration_message.set_type(px::kServerConfiguration);
-    auto config =
-        configuration_message
-            .mutable_config();  // NOLINT(pixels-raw-pointer-boundary):
-                                // transient protobuf view
+    auto config = configuration_message.mutable_config();  // NOLINT(pixels-raw-pointer-boundary):
+                                                           // transient protobuf view
     // screen info
-    auto monitors_info =
-        config
-            ->mutable_monitors_info();  // NOLINT(pixels-raw-pointer-boundary):
-                                        // transient protobuf view
+    auto monitors_info = config->mutable_monitors_info();  // NOLINT(pixels-raw-pointer-boundary):
+                                                           // transient protobuf view
     LOGI("Will send configuration back, monitor size: {}", monitors.size());
-    for (std::size_t monitor_index = 0; monitor_index < monitors.size();
-         monitor_index++) {
+    for (std::size_t monitor_index = 0; monitor_index < monitors.size(); monitor_index++) {
         const auto& monitor = monitors[monitor_index];
         MonitorInfo monitor_info;
         monitor_info.set_name(monitor.name_);
@@ -2422,8 +2072,7 @@ void RdApplication::SendConfigurationBack() {
             MonitorResolution monitor_resolution;
             monitor_resolution.set_width(supported_resolution.width_);
             monitor_resolution.set_height(supported_resolution.height_);
-            monitor_info.mutable_resolutions()->Add(
-                std::move(monitor_resolution));
+            monitor_info.mutable_resolutions()->Add(std::move(monitor_resolution));
         }
         monitor_info.set_current_width(monitor.Width());
         monitor_info.set_current_height(monitor.Height());
@@ -2437,16 +2086,12 @@ void RdApplication::SendConfigurationBack() {
     config->set_ft_protocol_version(2);
     config->set_audio_enabled(settings_.audio_enabled_);
     config->set_can_be_operated(settings_.can_be_operated_);
-    config->set_virtual_display_enabled(settings_.virtual_display_enabled_ &&
-                                        !settings_.IsGameHookMode());
-    config->set_virtual_display_owned_count(
-        virtual_display_owned_count_.load());
+    config->set_virtual_display_enabled(settings_.virtual_display_enabled_ && !settings_.IsGameHookMode());
+    config->set_virtual_display_owned_count(virtual_display_owned_count_.load());
     config->set_virtual_display_max_count(kVirtualDisplayMaximumCount);
-    config->set_topology_generation(
-        virtual_display_topology_generation_.load());
+    config->set_topology_generation(virtual_display_topology_generation_.load());
     config->set_voice_call_enabled(settings_.voice_call_enabled_);
-    config->set_voice_call_protocol_version(settings_.voice_call_enabled_ ? 1
-                                                                          : 0);
+    config->set_voice_call_protocol_version(settings_.voice_call_enabled_ ? 1 : 0);
     config->set_voice_call_requires_headset(true);
     //
     auto configuration_buffer = ProtoAsData(&configuration_message);
@@ -2465,8 +2110,7 @@ void RdApplication::RequestRestartMe() const {
     ws_panel_client_->PostNetMessage(restart_buffer);
 }
 
-void RdApplication::ReportFileTransferAuditBegin(
-    const render::FileTransferAuditBegin& audit) {
+void RdApplication::ReportFileTransferAuditBegin(const render::FileTransferAuditBegin& audit) {
     const std::weak_ptr<RdApplication> weak_application = weak_from_this();
     PostGlobalTask([weak_application, audit] {
         const auto application = weak_application.lock();
@@ -2481,13 +2125,11 @@ void RdApplication::ReportFileTransferAuditBegin(
         begin.set_direction(audit.direction);
         begin.set_file_detail(audit.file_detail);
         begin.set_visitor_device_id(audit.visitor_device_id);
-        static_cast<void>(
-            application->PostPanelMessage(RpProtoAsData(&message)));
+        static_cast<void>(application->PostPanelMessage(RpProtoAsData(&message)));
     });
 }
 
-void RdApplication::ReportFileTransferAuditEnd(
-    const render::FileTransferAuditEnd& audit) {
+void RdApplication::ReportFileTransferAuditEnd(const render::FileTransferAuditEnd& audit) {
     const std::weak_ptr<RdApplication> weak_application = weak_from_this();
     PostGlobalTask([weak_application, audit] {
         const auto application = weak_application.lock();
@@ -2502,13 +2144,11 @@ void RdApplication::ReportFileTransferAuditEnd(
         end.set_success(audit.success);
         end.set_status(audit.status);
         end.set_end_reason(audit.reason);
-        static_cast<void>(
-            application->PostPanelMessage(RpProtoAsData(&message)));
+        static_cast<void>(application->PostPanelMessage(RpProtoAsData(&message)));
     });
 }
 
-void RdApplication::ResetMonitorResolution(const std::string& monitor_name,
-                                           int width, int height) {
+void RdApplication::ResetMonitorResolution(const std::string& monitor_name, int width, int height) {
     DEVMODE display_mode{};
     display_mode.dmSize = sizeof(display_mode);
     display_mode.dmPelsWidth = width;
@@ -2516,30 +2156,23 @@ void RdApplication::ResetMonitorResolution(const std::string& monitor_name,
     display_mode.dmBitsPerPel = 32;
     display_mode.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT;
     auto device_name = StringUtil::ToWString(monitor_name);
-    const LONG display_change_result = ChangeDisplaySettingsExW(
-        device_name.c_str(), &display_mode, nullptr, CDS_FULLSCREEN, nullptr);
-    const bool resolution_changed =
-        display_change_result == DISP_CHANGE_SUCCESSFUL;
+    const LONG display_change_result = ChangeDisplaySettingsExW(device_name.c_str(), &display_mode, nullptr, CDS_FULLSCREEN, nullptr);
+    const bool resolution_changed = display_change_result == DISP_CHANGE_SUCCESSFUL;
 
     px::Message response_message;
     response_message.set_type(px::kChangeMonitorResolutionResult);
-    auto resolution_result =
-        response_message
-            .mutable_change_monitor_resolution_result();  // NOLINT(pixels-raw-pointer-boundary):
-                                                          // transient protobuf
-                                                          // view
+    auto resolution_result = response_message.mutable_change_monitor_resolution_result();  // NOLINT(pixels-raw-pointer-boundary):
+                                                                                           // transient protobuf
+                                                                                           // view
     resolution_result->set_monitor_name(monitor_name);
     resolution_result->set_result(resolution_changed);
     auto response_buffer = ProtoAsData(&response_message);
     PostNetMessage(response_buffer);
 }
 
-std::shared_ptr<RenderModuleRegistry> RdApplication::GetRenderModuleRegistry() {
-    return module_registry_;
-}
+std::shared_ptr<RenderModuleRegistry> RdApplication::GetRenderModuleRegistry() { return module_registry_; }
 
-std::shared_ptr<MonitorCaptureSource>
-RdApplication::GetWorkingMonitorCaptureSource() {
+std::shared_ptr<MonitorCaptureSource> RdApplication::GetWorkingMonitorCaptureSource() {
     std::lock_guard<std::mutex> lk(capture_source_mtx_);
     return capture_source_;
 }
@@ -2549,18 +2182,15 @@ void RdApplication::SetFrameRate(int fps) {
     // Hook has no desktop capture module. Admission and encoder configuration
     // still share this target.
     encoder_thread_->SetFrameRate(fps);
-    if (const auto capture = GetWorkingMonitorCaptureSource())
-        capture->SetCaptureFps(fps);
+    if (const auto capture = GetWorkingMonitorCaptureSource()) capture->SetCaptureFps(fps);
     LOGI("Requested media frame rate: {}", fps);
 }
 
 int RdApplication::FrameRate() const noexcept {
-    return encoder_thread_ ? encoder_thread_->FrameRate()
-                           : render::InitialFrameRate(settings_.encoder_.fps_);
+    return encoder_thread_ ? encoder_thread_->FrameRate() : render::InitialFrameRate(settings_.encoder_.fps_);
 }
 
-std::map<std::string, std::shared_ptr<VideoEncoderModule>>
-RdApplication::GetWorkingVideoEncoders() const {
+std::map<std::string, std::shared_ptr<VideoEncoderModule>> RdApplication::GetWorkingVideoEncoders() const {
     if (encoder_thread_) {
         return encoder_thread_->GetWorkingVideoEncoders();
     }
@@ -2580,8 +2210,7 @@ bool RdApplication::GenerateD3DDevice(uint64_t adapter_uid) {
     HRESULT res = NULL;
     int adapter_index = 0;
     bool adapter_found = false;
-    res = CreateDXGIFactory1(__uuidof(IDXGIFactory1),
-                             reinterpret_cast<void**>(factory1.GetAddressOf()));
+    res = CreateDXGIFactory1(__uuidof(IDXGIFactory1), reinterpret_cast<void**>(factory1.GetAddressOf()));
     if (res != S_OK) {
         LOGE("CreateDXGIFactory1 failed");
         return false;
@@ -2589,18 +2218,15 @@ bool RdApplication::GenerateD3DDevice(uint64_t adapter_uid) {
     if (adapter_uid != static_cast<uint64_t>(-1)) {
         while (true) {
             adapter.Reset();
-            res =
-                factory1->EnumAdapters1(adapter_index, adapter.GetAddressOf());
+            res = factory1->EnumAdapters1(adapter_index, adapter.GetAddressOf());
             if (res != S_OK) {
-                LOGW("EnumAdapters1 index:{} failed, adapter_uid={}",
-                     adapter_index, adapter_uid);
+                LOGW("EnumAdapters1 index:{} failed, adapter_uid={}", adapter_index, adapter_uid);
                 break;
             }
 
             adapter->GetDesc(&desc);
             if (adapter_uid == desc.AdapterLuid.LowPart) {
-                LOGI("Adapter Index:{} Name: {}", adapter_index,
-                     StringUtil::ToUTF8(desc.Description).c_str());
+                LOGI("Adapter Index:{} Name: {}", adapter_index, StringUtil::ToUTF8(desc.Description).c_str());
                 LOGI("find adapter");
                 adapter_found = true;
                 break;
@@ -2612,39 +2238,26 @@ bool RdApplication::GenerateD3DDevice(uint64_t adapter_uid) {
     D3D_FEATURE_LEVEL featureLevel;
     if (adapter_found) {
         LOGI("D3D11CreateDevice begin for matched adapter uid={}", adapter_uid);
-        res = D3D11CreateDevice(
-            adapter.Get(), D3D_DRIVER_TYPE_UNKNOWN, nullptr,
-            D3D11_CREATE_DEVICE_BGRA_SUPPORT, nullptr, 0, D3D11_SDK_VERSION,
-            &new_device_wrapper->d3d11_device_, &featureLevel,
-            &new_device_wrapper->d3d11_device_context_);
-        LOGI("D3D11CreateDevice end for matched adapter uid={}, hr={}",
-             adapter_uid, res);
+        res = D3D11CreateDevice(adapter.Get(), D3D_DRIVER_TYPE_UNKNOWN, nullptr, D3D11_CREATE_DEVICE_BGRA_SUPPORT, nullptr, 0, D3D11_SDK_VERSION,
+                                &new_device_wrapper->d3d11_device_, &featureLevel, &new_device_wrapper->d3d11_device_context_);
+        LOGI("D3D11CreateDevice end for matched adapter uid={}, hr={}", adapter_uid, res);
     } else {
         LOGW(
             "Adapter uid {} not found or virtual/RDP path, fallback to generic "
             "D3D device creation",
             adapter_uid);
-        res = D3D11CreateDevice(
-            nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
-            D3D11_CREATE_DEVICE_BGRA_SUPPORT, nullptr, 0, D3D11_SDK_VERSION,
-            &new_device_wrapper->d3d11_device_, &featureLevel,
-            &new_device_wrapper->d3d11_device_context_);
-        if (res != S_OK || !new_device_wrapper->d3d11_device_ ||
-            !new_device_wrapper->d3d11_device_context_) {
-            LOGW("Fallback hardware D3D11CreateDevice failed: {}, try WARP",
-                 res);
+        res = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, D3D11_CREATE_DEVICE_BGRA_SUPPORT, nullptr, 0, D3D11_SDK_VERSION,
+                                &new_device_wrapper->d3d11_device_, &featureLevel, &new_device_wrapper->d3d11_device_context_);
+        if (res != S_OK || !new_device_wrapper->d3d11_device_ || !new_device_wrapper->d3d11_device_context_) {
+            LOGW("Fallback hardware D3D11CreateDevice failed: {}, try WARP", res);
             new_device_wrapper->d3d11_device_.Reset();
             new_device_wrapper->d3d11_device_context_.Reset();
-            res = D3D11CreateDevice(
-                nullptr, D3D_DRIVER_TYPE_WARP, nullptr,
-                D3D11_CREATE_DEVICE_BGRA_SUPPORT, nullptr, 0, D3D11_SDK_VERSION,
-                &new_device_wrapper->d3d11_device_, &featureLevel,
-                &new_device_wrapper->d3d11_device_context_);
+            res = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, D3D11_CREATE_DEVICE_BGRA_SUPPORT, nullptr, 0, D3D11_SDK_VERSION,
+                                    &new_device_wrapper->d3d11_device_, &featureLevel, &new_device_wrapper->d3d11_device_context_);
         }
     }
 
-    if (res != S_OK || !new_device_wrapper->d3d11_device_ ||
-        !new_device_wrapper->d3d11_device_context_) {
+    if (res != S_OK || !new_device_wrapper->d3d11_device_ || !new_device_wrapper->d3d11_device_context_) {
         LOGE("D3D11CreateDevice failed: {}", res);
         ClearD3DDevice(adapter_uid);
         return false;
@@ -2654,23 +2267,17 @@ bool RdApplication::GenerateD3DDevice(uint64_t adapter_uid) {
             ComPtr<IDXGIDevice> dxgi_device;
             ComPtr<IDXGIAdapter> device_adapter;
             DXGI_ADAPTER_DESC device_desc{};
-            if (SUCCEEDED(new_device_wrapper->d3d11_device_.As(&dxgi_device)) &&
-                dxgi_device &&
-                SUCCEEDED(dxgi_device->GetAdapter(&device_adapter)) &&
-                device_adapter &&
-                SUCCEEDED(device_adapter->GetDesc(&device_desc))) {
+            if (SUCCEEDED(new_device_wrapper->d3d11_device_.As(&dxgi_device)) && dxgi_device && SUCCEEDED(dxgi_device->GetAdapter(&device_adapter)) &&
+                device_adapter && SUCCEEDED(device_adapter->GetDesc(&device_desc))) {
                 device_adapter_uid = device_desc.AdapterLuid.LowPart;
-                LOGI("D3D11 prewarm resolved adapter: {} (uid={})",
-                     StringUtil::ToUTF8(device_desc.Description),
-                     device_adapter_uid);
+                LOGI("D3D11 prewarm resolved adapter: {} (uid={})", StringUtil::ToUTF8(device_desc.Description), device_adapter_uid);
             } else {
                 LOGW(
                     "D3D11 prewarm could not resolve the selected adapter "
                     "LUID.");
             }
         }
-        LOGI("D3D11CreateDevice mDevice = {}",
-             (void*)new_device_wrapper->d3d11_device_.Get());
+        LOGI("D3D11CreateDevice mDevice = {}", (void*)new_device_wrapper->d3d11_device_.Get());
         new_device_wrapper->adapter_uid_ = device_adapter_uid;
         d3d11_devices_[device_adapter_uid] = new_device_wrapper;
         d3d11_device_failure_counts_[device_adapter_uid] = 0;
@@ -2695,10 +2302,8 @@ void RdApplication::ClearModuleD3DState(uint64_t adapter_uid) {
     module_registry_->ClearModuleD3DResources(adapter_uid);
 }
 
-void RdApplication::HandleD3DDeviceFailure(uint64_t adapter_uid,
-                                           const std::string& reason) {
-    LOGE("HandleD3DDeviceFailure adapter_uid={}, reason={}", adapter_uid,
-         reason);
+void RdApplication::HandleD3DDeviceFailure(uint64_t adapter_uid, const std::string& reason) {
+    LOGE("HandleD3DDeviceFailure adapter_uid={}, reason={}", adapter_uid, reason);
     ClearD3DDevice(adapter_uid);
     ClearModuleD3DState(adapter_uid);
     if (encoder_thread_) {
@@ -2730,8 +2335,7 @@ void RdApplication::HandleD3DDeviceFailure(uint64_t adapter_uid,
 }
 
 ComPtr<ID3D11Device> RdApplication::GetD3DDevice(uint64_t adapter_uid) {
-    if (auto it = d3d11_devices_.find(adapter_uid);
-        it != d3d11_devices_.end()) {
+    if (auto it = d3d11_devices_.find(adapter_uid); it != d3d11_devices_.end()) {
         return it->second ? it->second->d3d11_device_ : nullptr;
     }
     // GDI/raw capture has no DXGI adapter LUID and reports UINT64_MAX.
@@ -2749,8 +2353,7 @@ ComPtr<ID3D11Device> RdApplication::GetD3DDevice(uint64_t adapter_uid) {
 }
 
 ComPtr<ID3D11DeviceContext> RdApplication::GetD3DContext(uint64_t adapter_uid) {
-    if (auto it = d3d11_devices_.find(adapter_uid);
-        it != d3d11_devices_.end()) {
+    if (auto it = d3d11_devices_.find(adapter_uid); it != d3d11_devices_.end()) {
         return it->second ? it->second->d3d11_device_context_ : nullptr;
     }
     if (adapter_uid == static_cast<uint64_t>(-1)) {
@@ -2763,8 +2366,7 @@ ComPtr<ID3D11DeviceContext> RdApplication::GetD3DContext(uint64_t adapter_uid) {
     return nullptr;
 }
 
-void RdApplication::ReqCtrlAltDelete(const std::string& device_id,
-                                     const std::string& stream_id) const {
+void RdApplication::ReqCtrlAltDelete(const std::string& device_id, const std::string& stream_id) const {
     if (!service_client_ || !service_client_->IsAlive()) {
         LOGE("Service client not connected, can't ReqCtrlAltDelete");
         return;
@@ -2776,10 +2378,8 @@ void RdApplication::ReqCtrlAltDelete(const std::string& device_id,
     service_client_->PostNetMessage(service_message.SerializeAsString());
 }
 
-void RdApplication::RequestVirtualDisplay(
-    const std::string& request_id, int operation, uint32_t width,
-    uint32_t height, uint32_t refresh_hz,
-    std::function<void(const MsgVirtualDisplayServiceResult&)>&& callback) {
+void RdApplication::RequestVirtualDisplay(const std::string& request_id, int operation, uint32_t width, uint32_t height, uint32_t refresh_hz,
+                                          std::function<void(const MsgVirtualDisplayServiceResult&)>&& callback) {
     if (!service_client_ || !service_client_->IsAlive()) {
         MsgVirtualDisplayServiceResult result;
         result.request_id_ = request_id;
@@ -2788,35 +2388,27 @@ void RdApplication::RequestVirtualDisplay(
         callback(result);
         return;
     }
-    service_client_->RequestVirtualDisplay(request_id, operation, width, height,
-                                           refresh_hz, std::move(callback));
+    service_client_->RequestVirtualDisplay(request_id, operation, width, height, refresh_hz, std::move(callback));
 }
 
-PxAwaitable<PxResult<ConsoleFrontendGrant>> RdApplication::AdmitConsoleFrontend(
-    ConsoleFrontendAdmissionRequest request,
-    const std::chrono::steady_clock::time_point deadline) {
+PxAwaitable<PxResult<ConsoleFrontendGrant>> RdApplication::AdmitConsoleFrontend(ConsoleFrontendAdmissionRequest request,
+                                                                                const std::chrono::steady_clock::time_point deadline) {
     if (!service_client_ || !service_client_->IsAlive()) {
-        std::fill(request.frontend_token.begin(), request.frontend_token.end(),
-                  '\0');
-        co_return PxResult<ConsoleFrontendGrant>::Failure(MakePxAsyncError(
-            PxAsyncErrorCode::kServiceNotConnected, "frontend_admission",
-            "px_service is unavailable", true));
+        std::fill(request.frontend_token.begin(), request.frontend_token.end(), '\0');
+        co_return PxResult<ConsoleFrontendGrant>::Failure(
+            MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected, "frontend_admission", "px_service is unavailable", true));
     }
     const auto expected_session_id = request.session_id;
-    auto result = co_await service_client_->RequestFrontendAdmissionAsync(
-        std::move(request.request_id), std::move(request.session_id),
-        request.revision, std::move(request.frontend_token), deadline);
+    auto result = co_await service_client_->RequestFrontendAdmissionAsync(std::move(request.request_id), std::move(request.session_id),
+                                                                          request.revision, std::move(request.frontend_token), deadline);
     if (!result.HasValue()) {
         co_return PxResult<ConsoleFrontendGrant>::Failure(result.Error());
     }
     auto admitted = result.TakeValue();
-    if (!admitted.accepted_ || admitted.session_id_ != expected_session_id ||
-        admitted.revision_ <= 0 || admitted.valid_for_ms_ == 0) {
-        co_return PxResult<ConsoleFrontendGrant>::Failure(MakePxAsyncError(
-            PxAsyncErrorCode::kServiceRejected, "frontend_admission",
-            "Console rejected frontend admission", false,
-            admitted.error_code_.empty() ? "ADMISSION_REJECTED"
-                                         : admitted.error_code_));
+    if (!admitted.accepted_ || admitted.session_id_ != expected_session_id || admitted.revision_ <= 0 || admitted.valid_for_ms_ == 0) {
+        co_return PxResult<ConsoleFrontendGrant>::Failure(
+            MakePxAsyncError(PxAsyncErrorCode::kServiceRejected, "frontend_admission", "Console rejected frontend admission", false,
+                             admitted.error_code_.empty() ? "ADMISSION_REJECTED" : admitted.error_code_));
     }
     co_return PxResult<ConsoleFrontendGrant>::Success(ConsoleFrontendGrant{
         .session_id = std::move(admitted.session_id_),
@@ -2831,36 +2423,25 @@ PxAwaitable<PxResult<ConsoleFrontendGrant>> RdApplication::AdmitConsoleFrontend(
     });
 }
 
-void RdApplication::OpenConsoleResourceChannel(
-    std::string connection_key, std::string logical_session_id,
-    const ConsoleResourceChannelKind channel_kind) {
+void RdApplication::OpenConsoleResourceChannel(std::string connection_key, std::string logical_session_id,
+                                               const ConsoleResourceChannelKind channel_kind) {
     if (!resource_channel_reporter_) {
         return;
     }
     const auto protocol_kind =
-        channel_kind == ConsoleResourceChannelKind::kRdp
-            ? ResourceChannelKind::kResourceChannelRdp
-            : ResourceChannelKind::kResourceChannelMedia;
-    resource_channel_reporter_->Open(
-        std::move(connection_key), std::move(logical_session_id),
-        static_cast<int>(protocol_kind));
+        channel_kind == ConsoleResourceChannelKind::kRdp ? ResourceChannelKind::kResourceChannelRdp : ResourceChannelKind::kResourceChannelMedia;
+    resource_channel_reporter_->Open(std::move(connection_key), std::move(logical_session_id), static_cast<int>(protocol_kind));
 }
 
-void RdApplication::CloseConsoleResourceChannel(
-    const std::string& connection_key) {
+void RdApplication::CloseConsoleResourceChannel(const std::string& connection_key) {
     if (resource_channel_reporter_) {
-        resource_channel_reporter_->Close(
-            connection_key,
-            static_cast<int>(
-                ResourceChannelOutcome::kResourceChannelPeerClosed));
+        resource_channel_reporter_->Close(connection_key, static_cast<int>(ResourceChannelOutcome::kResourceChannelPeerClosed));
     }
 }
 
-void RdApplication::UpdateVirtualDisplayStatus(
-    const MsgVirtualDisplayServiceResult& result) {
+void RdApplication::UpdateVirtualDisplayStatus(const MsgVirtualDisplayServiceResult& result) {
     if (!result.accepted_) {
-        LOGW("Ignore failed virtual display status: request={}, code={}",
-             result.request_id_, result.error_code_);
+        LOGW("Ignore failed virtual display status: request={}, code={}", result.request_id_, result.error_code_);
         return;
     }
     const auto current_generation = virtual_display_topology_generation_.load();
@@ -2869,63 +2450,48 @@ void RdApplication::UpdateVirtualDisplayStatus(
         LOGW(
             "Ignore stale virtual display status: request={}, incoming={}, "
             "current={}",
-            result.request_id_, result.topology_generation_,
-            current_generation);
+            result.request_id_, result.topology_generation_, current_generation);
         return;
     }
-    if (result.topology_generation_ == current_generation &&
-        result.owned_display_count_ == current_owned_count) {
+    if (result.topology_generation_ == current_generation && result.owned_display_count_ == current_owned_count) {
         return;
     }
     virtual_display_owned_count_.store(result.owned_display_count_);
     virtual_display_topology_generation_.store(result.topology_generation_);
-    LOGI("Apply virtual display status: request={}, owned={}, generation={}",
-         result.request_id_, result.owned_display_count_,
+    LOGI("Apply virtual display status: request={}, owned={}, generation={}", result.request_id_, result.owned_display_count_,
          result.topology_generation_);
     SendConfigurationBack();
 }
 
-void RdApplication::RefreshVirtualDisplayStatus(
-    const std::string& request_prefix) {
-    if (exit_app_ || !settings_.virtual_display_enabled_ ||
-        settings_.IsGameHookMode()) {
+void RdApplication::RefreshVirtualDisplayStatus(const std::string& request_prefix) {
+    if (exit_app_ || !settings_.virtual_display_enabled_ || settings_.IsGameHookMode()) {
         return;
     }
-    if (virtual_display_refresh_pending_.exchange(true,
-                                                  std::memory_order_acq_rel)) {
+    if (virtual_display_refresh_pending_.exchange(true, std::memory_order_acq_rel)) {
         return;
     }
-    const auto request_sequence = virtual_display_request_sequence_.fetch_add(
-                                      1, std::memory_order_relaxed) +
-                                  1;
-    const auto request_id =
-        std::format("{}-{}-{}-{}", request_prefix, GetCurrentProcessId(),
-                    GetTickCount64(), request_sequence);
+    const auto request_sequence = virtual_display_request_sequence_.fetch_add(1, std::memory_order_relaxed) + 1;
+    const auto request_id = std::format("{}-{}-{}-{}", request_prefix, GetCurrentProcessId(), GetTickCount64(), request_sequence);
     const auto weak_self = weak_from_this();
-    RequestVirtualDisplay(
-        request_id, kVirtualDisplayQuery, 1920, 1080, 60,
-        [weak_self](const MsgVirtualDisplayServiceResult& result) {
-            const auto self = weak_self.lock();
-            if (!self || self->exit_app_) {
-                return;
+    RequestVirtualDisplay(request_id, kVirtualDisplayQuery, 1920, 1080, 60, [weak_self](const MsgVirtualDisplayServiceResult& result) {
+        const auto self = weak_self.lock();
+        if (!self || self->exit_app_) {
+            return;
+        }
+        self->virtual_display_refresh_pending_.store(false, std::memory_order_release);
+        // Keep the callback as a topology-rebuild-safe fallback. The
+        // message-bus copy can be discarded when the state lane is
+        // rebuilt; UpdateVirtualDisplayStatus is idempotent for the
+        // same generation/count, so callback and broadcast may race.
+        self->PostGlobalTask([weak_self, result]() {
+            if (const auto self = weak_self.lock(); self && !self->exit_app_) {
+                self->UpdateVirtualDisplayStatus(result);
             }
-            self->virtual_display_refresh_pending_.store(
-                false, std::memory_order_release);
-            // Keep the callback as a topology-rebuild-safe fallback. The
-            // message-bus copy can be discarded when the state lane is
-            // rebuilt; UpdateVirtualDisplayStatus is idempotent for the
-            // same generation/count, so callback and broadcast may race.
-            self->PostGlobalTask([weak_self, result]() {
-                if (const auto self = weak_self.lock();
-                    self && !self->exit_app_) {
-                    self->UpdateVirtualDisplayStatus(result);
-                }
-            });
         });
+    });
 }
 
-std::pair<uint32_t, uint64_t> RdApplication::GetVirtualDisplayStatusSnapshot()
-    const {
+std::pair<uint32_t, uint64_t> RdApplication::GetVirtualDisplayStatusSnapshot() const {
     return {
         virtual_display_owned_count_.load(),
         virtual_display_topology_generation_.load(),
@@ -2949,9 +2515,7 @@ void RdApplication::OnServiceRequestedStop() {
         400);
 }
 
-std::shared_ptr<WinDesktopManager> RdApplication::GetDesktopManager() {
-    return desktop_mgr_;
-}
+std::shared_ptr<WinDesktopManager> RdApplication::GetDesktopManager() { return desktop_mgr_; }
 
 bool RdApplication::SwitchGdiCapture() {
     if (IsCurrentGdiCapture()) {
@@ -3058,8 +2622,7 @@ void RdApplication::RequestStaticDesktopFrame() {
     if (settings_.IsWebViewMode() || settings_.IsGameHookMode()) {
         return;
     }
-    const auto dda =
-        std::dynamic_pointer_cast<DdaCaptureSource>(dda_capture_source_);
+    const auto dda = std::dynamic_pointer_cast<DdaCaptureSource>(dda_capture_source_);
     if (!dda || !IsCurrentDdaCapture()) {
         return;
     }
@@ -3072,11 +2635,9 @@ void RdApplication::UpdateCapturingMonitorInfo() {
         LOGE("ProcessCapturingMonitorInfoEvent failed, module is null.");
         return;
     }
-    const auto cm_msg = CaptureMonitorInfoMessage{
-        .monitors_ = module->CaptureMonitors(),
-        .capturing_monitor_name_ = module->CapturingMonitorName(),
-        .virtual_desktop_bound_rectangle_info_ =
-            module->VirtualDesktopBounds()};
+    const auto cm_msg = CaptureMonitorInfoMessage{.monitors_ = module->CaptureMonitors(),
+                                                  .capturing_monitor_name_ = module->CapturingMonitorName(),
+                                                  .virtual_desktop_bound_rectangle_info_ = module->VirtualDesktopBounds()};
 
     LOGI("Config Monitors size: {}", cm_msg.monitors_.size());
     if (cm_msg.monitors_.empty()) {
@@ -3091,8 +2652,7 @@ void RdApplication::UpdateCapturingMonitorInfo() {
 }
 
 void RdApplication::ExitForIdle(bool startup) {
-    const auto status = startup ? ApplicationExitStatus::kStartupIdle
-                                : ApplicationExitStatus::kNoClients;
+    const auto status = startup ? ApplicationExitStatus::kStartupIdle : ApplicationExitStatus::kNoClients;
     process_exit_status_.store(static_cast<std::uint32_t>(status));
     if (settings_.IsGameHookMode()) {
         // Preserve the existing immediate game-runtime teardown and Job
@@ -3105,9 +2665,7 @@ void RdApplication::ExitForIdle(bool startup) {
 }
 
 void RdApplication::Exit() {
-    const auto application_runtime = context_
-                                         ? context_->GetAsyncRuntime()
-                                         : std::shared_ptr<PxAsyncRuntime>{};
+    const auto application_runtime = context_ ? context_->GetAsyncRuntime() : std::shared_ptr<PxAsyncRuntime>{};
     if (application_runtime && application_runtime->IsRuntimeThread()) {
         if (exit_dispatch_pending_.exchange(true, std::memory_order_acq_rel)) {
             return;
@@ -3135,8 +2693,7 @@ void RdApplication::Exit() {
         game_text_backend_->Stop();
     }
     const auto shutdown_started = std::chrono::steady_clock::now();
-    const auto shutdown_deadline =
-        shutdown_started + kApplicationShutdownBudget;
+    const auto shutdown_deadline = shutdown_started + kApplicationShutdownBudget;
     // Flip the guard first so asynchronous callbacks stop touching the
     // pipeline while its owners are being released.
     if (msg_listener_) {
@@ -3165,29 +2722,18 @@ void RdApplication::Exit() {
         LOGI(
             "event=application.shutdown component=rd_application "
             "operation=stop_network_clients outcome=started");
-        const auto async_runtime = context_ ? context_->GetAsyncRuntime()
-                                            : std::shared_ptr<PxAsyncRuntime>{};
-        if (async_runtime && !async_runtime->IsStopping() &&
-            !async_runtime->IsRuntimeThread()) {
-            const auto shutdown_scope =
-                PxAsyncScope::Create(async_runtime, PxAsyncLane::kControl);
-            const auto completion =
-                std::make_shared<std::promise<PxResult<void>>>();
+        const auto async_runtime = context_ ? context_->GetAsyncRuntime() : std::shared_ptr<PxAsyncRuntime>{};
+        if (async_runtime && !async_runtime->IsStopping() && !async_runtime->IsRuntimeThread()) {
+            const auto shutdown_scope = PxAsyncScope::Create(async_runtime, PxAsyncLane::kControl);
+            const auto completion = std::make_shared<std::promise<PxResult<void>>>();
             auto future = completion->get_future();
             const auto spawned =
                 shutdown_scope &&
-                shutdown_scope->Spawn("application-network-shutdown",
-                                      [panel_client = ws_panel_client_,
-                                       service_client = service_client_,
-                                       module_registry = module_registry_,
-                                       shutdown_deadline, completion]() {
-                                          return StopApplicationNetworkClients(
-                                              panel_client, service_client,
-                                              module_registry,
-                                              shutdown_deadline, completion);
-                                      });
-            if (!spawned || future.wait_until(shutdown_deadline) !=
-                                std::future_status::ready) {
+                shutdown_scope->Spawn("application-network-shutdown", [panel_client = ws_panel_client_, service_client = service_client_,
+                                                                       module_registry = module_registry_, shutdown_deadline, completion]() {
+                    return StopApplicationNetworkClients(panel_client, service_client, module_registry, shutdown_deadline, completion);
+                });
+            if (!spawned || future.wait_until(shutdown_deadline) != std::future_status::ready) {
                 LOGE(
                     "event=application.shutdown component=rd_application "
                     "code=ASYNC_SCOPE_DRAIN_TIMEOUT "
@@ -3203,8 +2749,7 @@ void RdApplication::Exit() {
                         "event=application.shutdown component=rd_application "
                         "code={} operation=stop_network_clients "
                         "outcome=failed recoverable={} reason={}",
-                        stopped.Error().StableCode(), stopped.Error().retryable,
-                        stopped.Error().message);
+                        stopped.Error().StableCode(), stopped.Error().retryable, stopped.Error().message);
                 } else {
                     ws_panel_client_.reset();
                     service_client_.reset();
@@ -3270,13 +2815,10 @@ void RdApplication::Exit() {
     }
     if (composition_root_) {
         LOGI("RdApplication shutdown: built-in modules");
-        const auto completion =
-            std::make_shared<std::promise<render::ModuleLifecycleResult>>();
+        const auto completion = std::make_shared<std::promise<render::ModuleLifecycleResult>>();
         auto future = completion->get_future();
-        static_cast<void>(composition_root_->RequestStop(
-            [completion](render::ModuleLifecycleResult result) {
-                completion->set_value(std::move(result));
-            }));
+        static_cast<void>(
+            composition_root_->RequestStop([completion](render::ModuleLifecycleResult result) { completion->set_value(std::move(result)); }));
         if (future.wait_until(shutdown_deadline) != std::future_status::ready) {
             LOGE(
                 "event=composition.stop component=rd_application "
@@ -3286,33 +2828,22 @@ void RdApplication::Exit() {
             LOGE(
                 "event=composition.stop component=rd_application code={} "
                 "outcome=failed reason={}",
-                render::StableErrorCode(stopped.error().code),
-                stopped.error().reason);
+                render::StableErrorCode(stopped.error().code), stopped.error().reason);
         }
     }
     if (module_registry_) {
         LOGI("RdApplication shutdown: module event routing");
         module_registry_->StopRouting();
-        const auto async_runtime = context_ ? context_->GetAsyncRuntime()
-                                            : std::shared_ptr<PxAsyncRuntime>{};
-        if (async_runtime && !async_runtime->IsStopping() &&
-            !async_runtime->IsRuntimeThread()) {
-            const auto shutdown_scope =
-                PxAsyncScope::Create(async_runtime, PxAsyncLane::kControl);
-            const auto completion =
-                std::make_shared<std::promise<PxResult<void>>>();
+        const auto async_runtime = context_ ? context_->GetAsyncRuntime() : std::shared_ptr<PxAsyncRuntime>{};
+        if (async_runtime && !async_runtime->IsStopping() && !async_runtime->IsRuntimeThread()) {
+            const auto shutdown_scope = PxAsyncScope::Create(async_runtime, PxAsyncLane::kControl);
+            const auto completion = std::make_shared<std::promise<PxResult<void>>>();
             auto future = completion->get_future();
-            const auto spawned =
-                shutdown_scope &&
-                shutdown_scope->Spawn("application-webrtc-shutdown",
-                                      [module_registry = module_registry_,
-                                       shutdown_deadline, completion] {
-                                          return StopApplicationWebRtcLibraries(
-                                              module_registry,
-                                              shutdown_deadline, completion);
-                                      });
-            if (!spawned || future.wait_until(shutdown_deadline) !=
-                                std::future_status::ready) {
+            const auto spawned = shutdown_scope && shutdown_scope->Spawn("application-webrtc-shutdown", [module_registry = module_registry_,
+                                                                                                         shutdown_deadline, completion] {
+                return StopApplicationWebRtcLibraries(module_registry, shutdown_deadline, completion);
+            });
+            if (!spawned || future.wait_until(shutdown_deadline) != std::future_status::ready) {
                 LOGE(
                     "event=webrtc.callback_quiescence component=rd_application "
                     "code=WEBRTC_CALLBACK_QUIESCENCE_TIMEOUT operation=stop "
@@ -3325,8 +2856,7 @@ void RdApplication::Exit() {
                     "event=webrtc.callback_quiescence component=rd_application "
                     "code={} "
                     "operation=stop outcome=failed recoverable={} reason={}",
-                    stopped.Error().StableCode(), stopped.Error().retryable,
-                    stopped.Error().message);
+                    stopped.Error().StableCode(), stopped.Error().retryable, stopped.Error().message);
             }
         } else {
             LOGE(
@@ -3341,9 +2871,7 @@ void RdApplication::Exit() {
     LOGI(
         "event=application.shutdown component=rd_application "
         "operation=ordered_shutdown outcome=finished duration_ms={}",
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::steady_clock::now() - shutdown_started)
-            .count());
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - shutdown_started).count());
 
     if (main_thread_id_ != 0) {
         PostThreadMessage(main_thread_id_, WM_QUIT, 0, 0);
@@ -3408,8 +2936,7 @@ void WinApplication::CaptureControlC() {
 void WinApplication::LoadDxAddress() {
     app_shared_message_ = DxAddressLoader::LoadDxAddress();
     if (app_shared_message_) {
-        app_shared_message_->ipc_port_ =
-            settings_.transmission_.listening_port_;
+        app_shared_message_->ipc_port_ = settings_.transmission_.listening_port_;
         app_shared_message_->self_size_ = sizeof(AppSharedMessage);
         app_shared_message_->enable_hook_events_ = 1;
     } else {

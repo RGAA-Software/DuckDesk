@@ -57,20 +57,6 @@ target_link_libraries(test_media_recorder_sink
     PRIVATE render_media_recorder GTest::gtest GTest::gtest_main)
 add_test(NAME media_recorder_sink COMMAND test_media_recorder_sink)
 
-add_executable(test_live_pusher_sink
-    unit/test_live_pusher_sink.cpp)
-target_link_libraries(test_live_pusher_sink
-    PRIVATE render_live_pusher GTest::gtest GTest::gtest_main)
-add_test(NAME live_pusher_sink COMMAND test_live_pusher_sink)
-
-add_executable(test_live_pusher_ffmpeg
-    ../architecture/sinks/live_pusher/tests/test_live_pusher_ffmpeg.cpp)
-target_include_directories(test_live_pusher_ffmpeg PRIVATE
-    ../architecture/sinks/live_pusher)
-target_link_libraries(test_live_pusher_ffmpeg
-    PRIVATE render_live_pusher GTest::gtest GTest::gtest_main)
-add_test(NAME live_pusher_ffmpeg COMMAND test_live_pusher_ffmpeg)
-
 add_executable(test_frame_resizer_processor
     unit/test_frame_resizer_processor.cpp)
 target_link_libraries(test_frame_resizer_processor
@@ -228,16 +214,12 @@ add_executable(test_webrtc_transport_lifecycle
         ../network/webrtc/webrtc_execution_context.cpp
         ../network/webrtc_transport_host.cpp)
 target_link_libraries(test_webrtc_transport_lifecycle
-        PRIVATE px_common net_rtc net_rtc_local
+        PRIVATE px_common net_rtc_local
         GTest::gtest GTest::gtest_main)
 target_compile_definitions(test_webrtc_transport_lifecycle
         PRIVATE
-        PX_WEBRTC_REMOTE_LIBRARY_PATH="$<TARGET_FILE:net_rtc>"
         PX_WEBRTC_LOCAL_LIBRARY_PATH="$<TARGET_FILE:net_rtc_local>")
 add_custom_command(TARGET test_webrtc_transport_lifecycle POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        $<TARGET_FILE:net_rtc>
-        $<TARGET_FILE_DIR:test_webrtc_transport_lifecycle>
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         $<TARGET_FILE:net_rtc_local>
         $<TARGET_FILE_DIR:test_webrtc_transport_lifecycle>)
@@ -247,12 +229,6 @@ add_test(NAME webrtc_transport_lifecycle
 add_executable(test_rtc_heartbeat_watchdog test_rtc_heartbeat_watchdog.cpp)
 target_link_libraries(test_rtc_heartbeat_watchdog PRIVATE GTest::gtest GTest::gtest_main)
 add_test(NAME rtc_heartbeat_watchdog COMMAND test_rtc_heartbeat_watchdog)
-
-add_executable(test_rtc_payload_authorization
-    test_rtc_payload_authorization.cpp
-    ../network/webrtc/remote/rtc_payload_authorization.cpp)
-target_link_libraries(test_rtc_payload_authorization PRIVATE px_message GTest::gtest GTest::gtest_main)
-add_test(NAME rtc_payload_authorization COMMAND test_rtc_payload_authorization)
 
 add_executable(test_rtc_candidate_sdp
     test_rtc_candidate_sdp.cpp
@@ -311,14 +287,12 @@ set_tests_properties(
     render_service_rpc_state
     logical_session_registry
     rtc_heartbeat_watchdog
-    rtc_payload_authorization
     PROPERTIES LABELS "render-unit")
 
 set_property(TEST
     captured_media_pipeline
     ws_callback_workflow
     media_recorder_sink
-    live_pusher_sink
     was_audio_capture_source
     was_audio_capture_runtime
     miniaudio_reinit_cancel
@@ -330,7 +304,6 @@ set_property(TEST
     APPEND PROPERTY LABELS "render-lifecycle")
 
 set_property(TEST
-    live_pusher_ffmpeg
     opus_encoder_runtime
     render_builtin_linkage
     APPEND PROPERTY LABELS "render-integration")

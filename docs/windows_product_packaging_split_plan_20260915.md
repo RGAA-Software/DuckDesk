@@ -60,7 +60,7 @@
 | 原生桌面远控与文件传输 | 是 | 是，访问方 | 是 |
 | RDP Client | 是 | 是 | 是 |
 | RDP Host Proxy 与策略模块 | 是 | 否 | 是 |
-| `px_render_rtc.dll`、`px_render_rtc_remote.dll` | 是 | 否 | 是，默认保留浏览器远控 |
+| `px_render_rtc.dll`（Direct Host；`px_render_rtc_remote.dll` 已退役归档） | 是 | 否 | 是，默认保留浏览器远控 |
 | `web_client/` | 是 | 否 | 是，默认保留浏览器远控 |
 | Render `settings.toml` | 是 | 否 | 是，精简配置 |
 | `px_service.toml` | 是 | 否 | 是，精简配置 |

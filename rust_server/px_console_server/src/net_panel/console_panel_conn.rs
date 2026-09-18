@@ -6,7 +6,6 @@ use futures_util::SinkExt;
 use prost::Message as ProstMessage;
 use protocol::console_panel::{
     ConsolePanelHeartBeat, ConsolePanelHello, ConsolePanelMessage, ConsolePanelMessageType,
-    RtcIceConfigChanged,
 };
 use px_base::sys_info::SysInfo;
 use serde::{Deserialize, Serialize};
@@ -236,18 +235,6 @@ impl ConsolePanelConn {
     pub async fn send_bin_message_vec(&mut self, message_bytes: Vec<u8>) {
         self.send_bin_message_bytes(Bytes::from(message_bytes))
             .await;
-    }
-
-    pub async fn send_rtc_ice_config_changed(&mut self, revision: u64, changed_at: i64) -> bool {
-        let mut message = ConsolePanelMessage::default();
-        message.set_msg_type(ConsolePanelMessageType::KRtcIceConfigChanged);
-        message.device_id = self.device_id.clone();
-        message.rtc_ice_config_changed = Some(RtcIceConfigChanged {
-            revision,
-            changed_at,
-        });
-        self.send_bin_message_bytes(Bytes::from(message.encode_to_vec()))
-            .await
     }
 
     pub async fn send_bin_message_bytes(&mut self, om: Bytes) -> bool {

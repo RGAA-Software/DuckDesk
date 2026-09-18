@@ -14,30 +14,21 @@ const src = path.join(repo, 'src', 'px_deps', 'px_message')
 const targets = [
   {
     dir: 'web/px_web_client/proto',
-    files: ['px_message.proto', 'px_signaling_message.proto', 'px_file_transfer.proto'],
+    files: ['px_message.proto', 'px_file_transfer.proto'],
   },
   {
     dir: 'src/px_web_client/proto',
-    files: ['px_message.proto', 'px_signaling_message.proto', 'px_client_panel_message.proto', 'px_file_transfer.proto'],
+    files: ['px_message.proto', 'px_client_panel_message.proto', 'px_file_transfer.proto'],
   },
 ]
 
 for (const { dir } of targets) {
   fs.mkdirSync(path.join(repo, dir), { recursive: true })
+  for (const retiredProto of ['px_signaling_message.proto', 'relay_message.proto']) {
+    const retiredPath = path.join(repo, dir, retiredProto)
+    fs.rmSync(retiredPath, { force: true, maxRetries: 3, retryDelay: 50 })
+  }
 }
-
-// The standard browser RTC transport uses the Console application Relay for
-// SDP/ICE signaling. Relay messages have a different canonical source.
-fs.copyFileSync(
-  path.join(repo, 'src', 'px_deps', 'px_server_protocol', 'relay_message.proto'),
-  path.join(repo, 'src', 'px_web_client', 'proto', 'relay_message.proto'),
-)
-console.log('synced src/px_web_client/proto/relay_message.proto')
-fs.copyFileSync(
-  path.join(repo, 'src', 'px_deps', 'px_server_protocol', 'relay_message.proto'),
-  path.join(repo, 'web', 'px_web_client', 'proto', 'relay_message.proto'),
-)
-console.log('synced web/px_web_client/proto/relay_message.proto')
 
 for (const { dir, files } of targets) {
   const out = path.join(repo, dir)

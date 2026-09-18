@@ -54,8 +54,7 @@ pub struct ConsoleServiceHeartBeat {
     #[prost(message, optional, tag = "7")]
     pub node_endpoints: ::core::option::Option<NodeEndpoints>,
 }
-#[derive(serde::Serialize, serde::Deserialize)]
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct NodeEndpoints {
     #[prost(uint32, tag = "1")]
     pub schema_version: u32,
@@ -67,10 +66,6 @@ pub struct NodeEndpoints {
     pub application_port_start: u32,
     #[prost(uint32, tag = "5")]
     pub application_port_end: u32,
-    #[prost(uint32, tag = "6")]
-    pub rtc_port_start: u32,
-    #[prost(uint32, tag = "7")]
-    pub rtc_port_end: u32,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ConsoleServiceStartAppInstance {
@@ -101,35 +96,26 @@ pub struct ConsoleServiceStartAppInstance {
     pub webrtc_enabled: bool,
     #[prost(bool, tag = "12")]
     pub websocket_enabled: bool,
-    /// Deterministic Console live stream name, normally \<device_id>**app**\<app_id>.
-    /// Empty keeps backward compatibility and disables the passive RTMP pusher.
     #[prost(string, tag = "13")]
-    pub live_stream_id: ::prost::alloc::string::String,
-    /// RTMP publishing template, for example
-    /// rtmp://127.0.0.1:1935/live/{live_stream_id}. Empty uses render settings.
-    #[prost(string, tag = "14")]
-    pub push_rtmp_url: ::prost::alloc::string::String,
-    /// Application launch mode. Empty means legacy game-hook.
-    #[prost(string, tag = "15")]
     pub app_mode: ::prost::alloc::string::String,
     /// UTF-8 Base64URL (no padding) entry URL. Required for app_mode=webview.
-    #[prost(string, tag = "16")]
+    #[prost(string, tag = "14")]
     pub webview_url_b64: ::prost::alloc::string::String,
     /// Physical device identity of the child Render.
-    #[prost(string, tag = "17")]
+    #[prost(string, tag = "15")]
     pub device_id: ::prost::alloc::string::String,
     /// Unique Relay identity for this child Render. It must not replace the
     /// desktop Render connection which uses device_id.
-    #[prost(string, tag = "18")]
+    #[prost(string, tag = "16")]
     pub relay_device_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "19")]
+    #[prost(string, tag = "17")]
     pub relay_server_host: ::prost::alloc::string::String,
-    #[prost(int32, tag = "20")]
+    #[prost(int32, tag = "18")]
     pub relay_server_port: i32,
-    #[prost(string, tag = "21")]
+    #[prost(string, tag = "19")]
     pub relay_appkey: ::prost::alloc::string::String,
     /// Private Console -> Service payload. Never copy into public application DTOs or process arguments.
-    #[prost(message, optional, tag = "22")]
+    #[prost(message, optional, tag = "20")]
     pub rdp_workspace: ::core::option::Option<RdpWorkspaceProvision>,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -179,34 +165,6 @@ pub struct ConsoleServiceStopAppInstanceResult {
     pub error: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct ConsoleServiceCreateWallSession {
-    #[prost(string, tag = "1")]
-    pub request_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub session_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "3")]
-    pub device_id: ::prost::alloc::string::String,
-    #[prost(int32, tag = "4")]
-    pub render_port: i32,
-    #[prost(string, tag = "5")]
-    pub safety_pwd_md5: ::prost::alloc::string::String,
-    #[prost(string, tag = "6")]
-    pub offer_sdp: ::prost::alloc::string::String,
-}
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct ConsoleServiceCreateWallSessionResult {
-    #[prost(string, tag = "1")]
-    pub request_id: ::prost::alloc::string::String,
-    #[prost(string, tag = "2")]
-    pub session_id: ::prost::alloc::string::String,
-    #[prost(bool, tag = "3")]
-    pub ok: bool,
-    #[prost(string, tag = "4")]
-    pub error: ::prost::alloc::string::String,
-    #[prost(string, tag = "5")]
-    pub answer_sdp: ::prost::alloc::string::String,
-}
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ConsoleServiceValidateRdpSession {
     #[prost(string, tag = "1")]
     pub request_id: ::prost::alloc::string::String,
@@ -235,13 +193,6 @@ pub struct ConsoleServiceValidateRdpSessionResult {
     #[prost(string, tag = "8")]
     pub logical_session_id: ::prost::alloc::string::String,
 }
-#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct RtcIceConfigChanged {
-    #[prost(uint64, tag = "1")]
-    pub revision: u64,
-    #[prost(int64, tag = "2")]
-    pub changed_at: i64,
-}
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ConsoleServiceMessage {
     #[prost(enumeration = "ConsoleServiceMessageType", tag = "1")]
@@ -257,27 +208,13 @@ pub struct ConsoleServiceMessage {
     #[prost(message, optional, tag = "50")]
     pub stop_app_instance: ::core::option::Option<ConsoleServiceStopAppInstance>,
     #[prost(message, optional, tag = "60")]
-    pub start_app_instance_result: ::core::option::Option<
-        ConsoleServiceStartAppInstanceResult,
-    >,
+    pub start_app_instance_result: ::core::option::Option<ConsoleServiceStartAppInstanceResult>,
     #[prost(message, optional, tag = "70")]
-    pub stop_app_instance_result: ::core::option::Option<
-        ConsoleServiceStopAppInstanceResult,
-    >,
+    pub stop_app_instance_result: ::core::option::Option<ConsoleServiceStopAppInstanceResult>,
     #[prost(message, optional, tag = "80")]
-    pub create_wall_session: ::core::option::Option<ConsoleServiceCreateWallSession>,
-    #[prost(message, optional, tag = "90")]
-    pub create_wall_session_result: ::core::option::Option<
-        ConsoleServiceCreateWallSessionResult,
-    >,
-    #[prost(message, optional, tag = "100")]
     pub validate_rdp_session: ::core::option::Option<ConsoleServiceValidateRdpSession>,
-    #[prost(message, optional, tag = "110")]
-    pub validate_rdp_session_result: ::core::option::Option<
-        ConsoleServiceValidateRdpSessionResult,
-    >,
-    #[prost(message, optional, tag = "120")]
-    pub rtc_ice_config_changed: ::core::option::Option<RtcIceConfigChanged>,
+    #[prost(message, optional, tag = "90")]
+    pub validate_rdp_session_result: ::core::option::Option<ConsoleServiceValidateRdpSessionResult>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -290,17 +227,10 @@ pub enum ConsoleServiceMessageType {
     /// Service -> Console
     KConsoleServiceStartAppInstanceResult = 4,
     KConsoleServiceStopAppInstanceResult = 5,
-    /// Console -> Service -> local desktop render. This trusted hop is the only
-    /// authority allowed to create a hidden, read-only wall observer.
-    KConsoleServiceCreateWallSession = 6,
-    /// Service -> Console
-    KConsoleServiceCreateWallSessionResult = 7,
     /// Service -> Console, then Console -> Service. Validates that a locally
     /// running RDP workspace still belongs to an active Console session.
-    KConsoleServiceValidateRdpSession = 8,
-    KConsoleServiceValidateRdpSessionResult = 9,
-    /// Console -> Service. Invalidation only; Service pulls the new version.
-    KRtcIceConfigChanged = 10,
+    KConsoleServiceValidateRdpSession = 6,
+    KConsoleServiceValidateRdpSessionResult = 7,
 }
 impl ConsoleServiceMessageType {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -313,23 +243,12 @@ impl ConsoleServiceMessageType {
             Self::KConsoleServiceHeartBeat => "kConsoleServiceHeartBeat",
             Self::KConsoleServiceStartAppInstance => "kConsoleServiceStartAppInstance",
             Self::KConsoleServiceStopAppInstance => "kConsoleServiceStopAppInstance",
-            Self::KConsoleServiceStartAppInstanceResult => {
-                "kConsoleServiceStartAppInstanceResult"
-            }
-            Self::KConsoleServiceStopAppInstanceResult => {
-                "kConsoleServiceStopAppInstanceResult"
-            }
-            Self::KConsoleServiceCreateWallSession => "kConsoleServiceCreateWallSession",
-            Self::KConsoleServiceCreateWallSessionResult => {
-                "kConsoleServiceCreateWallSessionResult"
-            }
-            Self::KConsoleServiceValidateRdpSession => {
-                "kConsoleServiceValidateRdpSession"
-            }
+            Self::KConsoleServiceStartAppInstanceResult => "kConsoleServiceStartAppInstanceResult",
+            Self::KConsoleServiceStopAppInstanceResult => "kConsoleServiceStopAppInstanceResult",
+            Self::KConsoleServiceValidateRdpSession => "kConsoleServiceValidateRdpSession",
             Self::KConsoleServiceValidateRdpSessionResult => {
                 "kConsoleServiceValidateRdpSessionResult"
             }
-            Self::KRtcIceConfigChanged => "kRtcIceConfigChanged",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -337,31 +256,18 @@ impl ConsoleServiceMessageType {
         match value {
             "kConsoleServiceHello" => Some(Self::KConsoleServiceHello),
             "kConsoleServiceHeartBeat" => Some(Self::KConsoleServiceHeartBeat),
-            "kConsoleServiceStartAppInstance" => {
-                Some(Self::KConsoleServiceStartAppInstance)
-            }
-            "kConsoleServiceStopAppInstance" => {
-                Some(Self::KConsoleServiceStopAppInstance)
-            }
+            "kConsoleServiceStartAppInstance" => Some(Self::KConsoleServiceStartAppInstance),
+            "kConsoleServiceStopAppInstance" => Some(Self::KConsoleServiceStopAppInstance),
             "kConsoleServiceStartAppInstanceResult" => {
                 Some(Self::KConsoleServiceStartAppInstanceResult)
             }
             "kConsoleServiceStopAppInstanceResult" => {
                 Some(Self::KConsoleServiceStopAppInstanceResult)
             }
-            "kConsoleServiceCreateWallSession" => {
-                Some(Self::KConsoleServiceCreateWallSession)
-            }
-            "kConsoleServiceCreateWallSessionResult" => {
-                Some(Self::KConsoleServiceCreateWallSessionResult)
-            }
-            "kConsoleServiceValidateRdpSession" => {
-                Some(Self::KConsoleServiceValidateRdpSession)
-            }
+            "kConsoleServiceValidateRdpSession" => Some(Self::KConsoleServiceValidateRdpSession),
             "kConsoleServiceValidateRdpSessionResult" => {
                 Some(Self::KConsoleServiceValidateRdpSessionResult)
             }
-            "kRtcIceConfigChanged" => Some(Self::KRtcIceConfigChanged),
             _ => None,
         }
     }

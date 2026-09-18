@@ -332,9 +332,7 @@ impl RelayErrorCode {
             "kRelayCodeCreateRoomFailed" => Some(Self::KRelayCodeCreateRoomFailed),
             "kRelayCodeRejectControl" => Some(Self::KRelayCodeRejectControl),
             "kRelayCodeClientNotFound" => Some(Self::KRelayCodeClientNotFound),
-            "kRelayCodeRemoteClientNotFound" => {
-                Some(Self::KRelayCodeRemoteClientNotFound)
-            }
+            "kRelayCodeRemoteClientNotFound" => Some(Self::KRelayCodeRemoteClientNotFound),
             _ => None,
         }
     }

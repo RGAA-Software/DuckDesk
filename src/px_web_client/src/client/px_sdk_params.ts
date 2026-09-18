@@ -2,7 +2,6 @@
 export enum PxSdkConnType {
     kWebSocket = 0,
     kWebRtcDirect = 1,
-    kWebRtc = 2,
 }
 
 // sdk params
@@ -32,9 +31,6 @@ export class PxConnParams {
     clientNonce?: string;
     deviceId?: string;
     instanceId?: string;
-    relayHost?: string;
-    relayPort?: number;
-    rtcIceConfig?: RtcSessionIceConfig;
     constructor(params: {
         host: string;
         port: number;
@@ -42,9 +38,6 @@ export class PxConnParams {
         clientNonce?: string;
         deviceId?: string;
         instanceId?: string;
-        relayHost?: string;
-        relayPort?: number;
-        rtcIceConfig?: RtcSessionIceConfig;
     }) {
         this.host = params.host;
         this.port = params.port;
@@ -52,20 +45,5 @@ export class PxConnParams {
         this.clientNonce = params.clientNonce;
         this.deviceId = params.deviceId;
         this.instanceId = params.instanceId;
-        this.relayHost = params.relayHost;
-        this.relayPort = params.relayPort;
-        this.rtcIceConfig = params.rtcIceConfig;
     }
-}
-
-export interface RtcSessionIceConfig {
-    revision: number;
-    direct_probe_enabled: boolean;
-    expires_at: number;
-    ice_servers: Array<{
-        id: string;
-        urls: string[];
-        username?: string;
-        credential?: string;
-    }>;
 }

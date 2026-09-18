@@ -282,7 +282,8 @@ function Remove-RetiredRenderNetworkLibraries {
         "deps\network\net_rtc.dll",
         "deps\network\net_rtc_local.dll",
         "deps\network\px_render_rtc.dll",
-        "deps\network\px_render_rtc_remote.dll")) {
+        "deps\network\px_render_rtc_remote.dll",
+        "px_render_rtc_remote.dll")) {
         $retiredPath = Join-Path $distRoot $relativePath
         if (-not (Test-Path -LiteralPath $retiredPath -PathType Leaf)) {
             continue
@@ -304,7 +305,6 @@ function Remove-RetiredRenderNetworkLibraries {
 }
 
 $renderNetworkLibraryMap = @{
-    "net_rtc"       = "network\webrtc\remote\px_render_rtc_remote.dll"
     "net_rtc_local" = "network\webrtc\local\px_render_rtc.dll"
 }
 
@@ -509,9 +509,7 @@ switch ($Component) {
             -Source (Join-Path $buildRoot "src\px_render\px_render.exe") `
             -Destination (Join-Path $distRoot "px_render.exe") `
             -ProcessName "px_render"
-        foreach ($target in @("net_rtc", "net_rtc_local")) {
-            Publish-RenderNetworkLibrary -Target $target
-        }
+        Publish-RenderNetworkLibrary -Target "net_rtc_local"
         Publish-RenderCefRuntime
         Publish-VerifiedFile `
             -Source (Join-Path $buildRoot "src\px_deps\px_client.exe") `

@@ -25,7 +25,7 @@ function Get-LinkBlock([string]$TargetPattern) {
 }
 
 $renderLink = Get-LinkBlock "[^\r\n]*[\\/]px_render\.exe:\s+CXX_EXECUTABLE_LINKER[^\r\n]*"
-foreach ($requiredImportLibrary in @("px_render_rtc_remote.lib", "px_render_rtc.lib")) {
+foreach ($requiredImportLibrary in @("px_render_rtc.lib")) {
     if ($renderLink -notmatch [regex]::Escape($requiredImportLibrary)) {
         throw "px_render.exe must link the WebRTC DLL import library '$requiredImportLibrary'."
     }
@@ -35,15 +35,14 @@ if ($renderLink -match "(?i)(?:^|[\\/\s])webrtc\.lib(?:\s|$)") {
 }
 
 $clientLink = Get-LinkBlock "[^\r\n]*[\\/]px_client\.exe:\s+CXX_EXECUTABLE_LINKER[^\r\n]*"
-if ($clientLink -match "px_client_rtc\.lib|px_relay_client\.lib") {
-    throw "Native px_client.exe must not link retired RTC or Relay transports."
+if ($clientLink -match "px_client_rtc\.lib") {
+    throw "Native px_client.exe must not link the retired RTC transport."
 }
 if ($clientLink -match "(?i)(?:^|[\\/\s])webrtc\.lib(?:\s|$)") {
     throw "px_client.exe must not link the static libwebrtc archive webrtc.lib."
 }
 
 foreach ($dllPattern in @(
-    "[^\r\n]*[\\/]px_render_rtc_remote\.dll[^\r\n]*:\s+CXX_SHARED_LIBRARY_LINKER[^\r\n]*",
     "[^\r\n]*[\\/]px_render_rtc\.dll[^\r\n]*:\s+CXX_SHARED_LIBRARY_LINKER[^\r\n]*",
     "[^\r\n]*[\\/]px_client_rtc\.dll[^\r\n]*:\s+CXX_SHARED_LIBRARY_LINKER[^\r\n]*"
 )) {
@@ -54,7 +53,6 @@ foreach ($dllPattern in @(
 }
 
 $cmakeFiles = @(
-    (Join-Path $root "src/px_render/network/webrtc/remote/CMakeLists.txt"),
     (Join-Path $root "src/px_render/network/webrtc/local/CMakeLists.txt"),
     (Join-Path $root "src/px_deps/px_webrtc_client/CMakeLists.txt")
 )

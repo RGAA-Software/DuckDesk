@@ -3,29 +3,31 @@
 //
 
 #include "rtc_server.h"
-#include "message_type_ids.h"
-#include "peer_callback.h"
-#include "webrtc_local_transport.h"
-#include "rtc_data_channel.h"
-#include "px_common/log.h"
-#include "rtc_video_encoder_factory.h"
-#include "video_source_impl.h"
-#include "audio_source_impl.h"
-#include "remote_audio_sink.h"
-#include "px_common/data.h"
-#include "px_common/time_util.h"
-#include "px_common/privacy_log.h"
-#include "rtc_base/ref_counted_object.h"
-#include "api/stats/rtc_stats_collector_callback.h"
+
 #include <array>
 #include <atomic>
 #include <chrono>
-#include <functional>
-#include <optional>
 #include <format>
+#include <functional>
 #include <mutex>
 #include <nlohmann/json.hpp>
+#include <optional>
 #include <thread>
+
+#include "api/stats/rtc_stats_collector_callback.h"
+#include "audio_source_impl.h"
+#include "message_type_ids.h"
+#include "peer_callback.h"
+#include "px_common/data.h"
+#include "px_common/log.h"
+#include "px_common/privacy_log.h"
+#include "px_common/time_util.h"
+#include "remote_audio_sink.h"
+#include "rtc_base/ref_counted_object.h"
+#include "rtc_data_channel.h"
+#include "rtc_video_encoder_factory.h"
+#include "video_source_impl.h"
+#include "webrtc_local_transport.h"
 
 using namespace webrtc;
 
@@ -43,18 +45,15 @@ int64_t CurrentSteadyMilliseconds() {
 // clock without opening a Windows audio device; RemoteAudioSink owns
 // the only authorization-gated physical playout path.
 class PullAudioDeviceModule : public webrtc::AudioDeviceModule {
-  public:
+public:
     PullAudioDeviceModule() : playout_(std::make_shared<PlayoutState>()) {}
-    ~PullAudioDeviceModule() override {
-        StopPlayout();
-    }
+    ~PullAudioDeviceModule() override { StopPlayout(); }
 
-    int32_t ActiveAudioLayer(AudioLayer* layer) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
-        if (layer)
-            *layer = kDummyAudio;
+    int32_t ActiveAudioLayer(AudioLayer* layer) const override {  // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
+        if (layer) *layer = kDummyAudio;
         return 0;
     }
-    int32_t RegisterAudioCallback(webrtc::AudioTransport* callback) override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
+    int32_t RegisterAudioCallback(webrtc::AudioTransport* callback) override {  // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
         std::scoped_lock lock(playout_->callback_mutex);
         if (callback) {
             playout_->callback = std::ref(*callback);
@@ -73,68 +72,41 @@ class PullAudioDeviceModule : public webrtc::AudioDeviceModule {
         initialized_ = false;
         return 0;
     }
-    bool Initialized() const override {
-        return initialized_;
-    }
-    int16_t PlayoutDevices() override {
-        return 1;
-    }
-    int16_t RecordingDevices() override {
-        return 0;
-    }
+    bool Initialized() const override { return initialized_; }
+    int16_t PlayoutDevices() override { return 1; }
+    int16_t RecordingDevices() override { return 0; }
     int32_t PlayoutDeviceName(uint16_t, char name[kAdmMaxDeviceNameSize], char guid[kAdmMaxGuidSize]) override {
-        if (name)
-            name[0] = '\0';
-        if (guid)
-            guid[0] = '\0';
+        if (name) name[0] = '\0';
+        if (guid) guid[0] = '\0';
         return 0;
     }
     int32_t RecordingDeviceName(uint16_t, char name[kAdmMaxDeviceNameSize], char guid[kAdmMaxGuidSize]) override {
-        if (name)
-            name[0] = '\0';
-        if (guid)
-            guid[0] = '\0';
+        if (name) name[0] = '\0';
+        if (guid) guid[0] = '\0';
         return -1;
     }
-    int32_t SetPlayoutDevice(uint16_t) override {
-        return 0;
-    }
-    int32_t SetPlayoutDevice(WindowsDeviceType) override {
-        return 0;
-    }
-    int32_t SetRecordingDevice(uint16_t) override {
-        return -1;
-    }
-    int32_t SetRecordingDevice(WindowsDeviceType) override {
-        return -1;
-    }
-    int32_t PlayoutIsAvailable(bool* available) override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
-        if (available)
-            *available = true;
+    int32_t SetPlayoutDevice(uint16_t) override { return 0; }
+    int32_t SetPlayoutDevice(WindowsDeviceType) override { return 0; }
+    int32_t SetRecordingDevice(uint16_t) override { return -1; }
+    int32_t SetRecordingDevice(WindowsDeviceType) override { return -1; }
+    int32_t PlayoutIsAvailable(bool* available) override {  // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
+        if (available) *available = true;
         return 0;
     }
     int32_t InitPlayout() override {
         playout_initialized_ = true;
         return 0;
     }
-    bool PlayoutIsInitialized() const override {
-        return playout_initialized_;
-    }
-    int32_t RecordingIsAvailable(bool* available) override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
-        if (available)
-            *available = false;
+    bool PlayoutIsInitialized() const override { return playout_initialized_; }
+    int32_t RecordingIsAvailable(bool* available) override {  // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
+        if (available) *available = false;
         return 0;
     }
-    int32_t InitRecording() override {
-        return -1;
-    }
-    bool RecordingIsInitialized() const override {
-        return false;
-    }
+    int32_t InitRecording() override { return -1; }
+    bool RecordingIsInitialized() const override { return false; }
     int32_t StartPlayout() override {
         const auto playout = playout_;
-        if (playout->playing.exchange(true))
-            return 0;
+        if (playout->playing.exchange(true)) return 0;
         LOGI("PullAudioDeviceModule playout clock started");
         playout_thread_ = std::thread([playout]() {
             auto next = std::chrono::steady_clock::now();
@@ -160,128 +132,85 @@ class PullAudioDeviceModule : public webrtc::AudioDeviceModule {
         return 0;
     }
     int32_t StopPlayout() override {
-        if (!playout_->playing.exchange(false))
-            return 0;
-        if (playout_thread_.joinable())
-            playout_thread_.join();
+        if (!playout_->playing.exchange(false)) return 0;
+        if (playout_thread_.joinable()) playout_thread_.join();
         LOGI("PullAudioDeviceModule playout clock stopped after {} pulls", playout_->pull_count.load());
         return 0;
     }
-    bool Playing() const override {
-        return playout_->playing;
+    bool Playing() const override { return playout_->playing; }
+    int32_t StartRecording() override { return -1; }
+    int32_t StopRecording() override { return 0; }
+    bool Recording() const override { return false; }
+    int32_t InitSpeaker() override { return 0; }
+    bool SpeakerIsInitialized() const override { return true; }
+    int32_t InitMicrophone() override { return -1; }
+    bool MicrophoneIsInitialized() const override { return false; }
+    int32_t SpeakerVolumeIsAvailable(bool* available) override {  // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
+        return available ? Unavailable(*available) : 0;
     }
-    int32_t StartRecording() override {
-        return -1;
+    int32_t SetSpeakerVolume(uint32_t) override { return -1; }
+    int32_t SpeakerVolume(uint32_t* volume) const override {  // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
+        return volume ? Zero(*volume) : 0;
     }
-    int32_t StopRecording() override {
+    int32_t MaxSpeakerVolume(uint32_t* volume) const override {  // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
+        return volume ? Zero(*volume) : 0;
+    }
+    int32_t MinSpeakerVolume(uint32_t* volume) const override {  // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
+        return volume ? Zero(*volume) : 0;
+    }
+    int32_t MicrophoneVolumeIsAvailable(bool* available) override {  // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
+        return available ? Unavailable(*available) : 0;
+    }
+    int32_t SetMicrophoneVolume(uint32_t) override { return -1; }
+    int32_t MicrophoneVolume(uint32_t* volume) const override {  // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
+        return volume ? Zero(*volume) : 0;
+    }
+    int32_t MaxMicrophoneVolume(uint32_t* volume) const override {  // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
+        return volume ? Zero(*volume) : 0;
+    }
+    int32_t MinMicrophoneVolume(uint32_t* volume) const override {  // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
+        return volume ? Zero(*volume) : 0;
+    }
+    int32_t SpeakerMuteIsAvailable(bool* available) override {  // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
+        return available ? Unavailable(*available) : 0;
+    }
+    int32_t SetSpeakerMute(bool) override { return -1; }
+    int32_t SpeakerMute(bool* enabled) const override {  // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
+        return enabled ? False(*enabled) : 0;
+    }
+    int32_t MicrophoneMuteIsAvailable(bool* available) override {  // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
+        return available ? Unavailable(*available) : 0;
+    }
+    int32_t SetMicrophoneMute(bool) override { return -1; }
+    int32_t MicrophoneMute(bool* enabled) const override {  // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
+        return enabled ? False(*enabled) : 0;
+    }
+    int32_t StereoPlayoutIsAvailable(bool* available) const override {  // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
+        return available ? Unavailable(*available) : 0;
+    }
+    int32_t SetStereoPlayout(bool) override { return -1; }
+    int32_t StereoPlayout(bool* enabled) const override {  // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
+        return enabled ? False(*enabled) : 0;
+    }
+    int32_t StereoRecordingIsAvailable(bool* available) const override {  // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
+        return available ? Unavailable(*available) : 0;
+    }
+    int32_t SetStereoRecording(bool) override { return -1; }
+    int32_t StereoRecording(bool* enabled) const override {  // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
+        return enabled ? False(*enabled) : 0;
+    }
+    int32_t PlayoutDelay(uint16_t* delay_ms) const override {  // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
+        if (delay_ms) *delay_ms = 10;
         return 0;
     }
-    bool Recording() const override {
-        return false;
-    }
-    int32_t InitSpeaker() override {
-        return 0;
-    }
-    bool SpeakerIsInitialized() const override {
-        return true;
-    }
-    int32_t InitMicrophone() override {
-        return -1;
-    }
-    bool MicrophoneIsInitialized() const override {
-        return false;
-    }
-    int32_t SpeakerVolumeIsAvailable(bool* available) override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
-        return available ? Unavailable(*available) : 0;
-    }
-    int32_t SetSpeakerVolume(uint32_t) override {
-        return -1;
-    }
-    int32_t SpeakerVolume(uint32_t* volume) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
-        return volume ? Zero(*volume) : 0;
-    }
-    int32_t MaxSpeakerVolume(uint32_t* volume) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
-        return volume ? Zero(*volume) : 0;
-    }
-    int32_t MinSpeakerVolume(uint32_t* volume) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
-        return volume ? Zero(*volume) : 0;
-    }
-    int32_t MicrophoneVolumeIsAvailable(bool* available) override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
-        return available ? Unavailable(*available) : 0;
-    }
-    int32_t SetMicrophoneVolume(uint32_t) override {
-        return -1;
-    }
-    int32_t MicrophoneVolume(uint32_t* volume) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
-        return volume ? Zero(*volume) : 0;
-    }
-    int32_t MaxMicrophoneVolume(uint32_t* volume) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
-        return volume ? Zero(*volume) : 0;
-    }
-    int32_t MinMicrophoneVolume(uint32_t* volume) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
-        return volume ? Zero(*volume) : 0;
-    }
-    int32_t SpeakerMuteIsAvailable(bool* available) override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
-        return available ? Unavailable(*available) : 0;
-    }
-    int32_t SetSpeakerMute(bool) override {
-        return -1;
-    }
-    int32_t SpeakerMute(bool* enabled) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
-        return enabled ? False(*enabled) : 0;
-    }
-    int32_t MicrophoneMuteIsAvailable(bool* available) override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
-        return available ? Unavailable(*available) : 0;
-    }
-    int32_t SetMicrophoneMute(bool) override {
-        return -1;
-    }
-    int32_t MicrophoneMute(bool* enabled) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
-        return enabled ? False(*enabled) : 0;
-    }
-    int32_t StereoPlayoutIsAvailable(bool* available) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
-        return available ? Unavailable(*available) : 0;
-    }
-    int32_t SetStereoPlayout(bool) override {
-        return -1;
-    }
-    int32_t StereoPlayout(bool* enabled) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
-        return enabled ? False(*enabled) : 0;
-    }
-    int32_t StereoRecordingIsAvailable(bool* available) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
-        return available ? Unavailable(*available) : 0;
-    }
-    int32_t SetStereoRecording(bool) override {
-        return -1;
-    }
-    int32_t StereoRecording(bool* enabled) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
-        return enabled ? False(*enabled) : 0;
-    }
-    int32_t PlayoutDelay(uint16_t* delay_ms) const override { // NOLINT(pixels-raw-pointer-boundary): libwebrtc ADM ABI
-        if (delay_ms)
-            *delay_ms = 10;
-        return 0;
-    }
-    bool BuiltInAECIsAvailable() const override {
-        return false;
-    }
-    bool BuiltInAGCIsAvailable() const override {
-        return false;
-    }
-    bool BuiltInNSIsAvailable() const override {
-        return false;
-    }
-    int32_t EnableBuiltInAEC(bool) override {
-        return -1;
-    }
-    int32_t EnableBuiltInAGC(bool) override {
-        return -1;
-    }
-    int32_t EnableBuiltInNS(bool) override {
-        return -1;
-    }
+    bool BuiltInAECIsAvailable() const override { return false; }
+    bool BuiltInAGCIsAvailable() const override { return false; }
+    bool BuiltInNSIsAvailable() const override { return false; }
+    int32_t EnableBuiltInAEC(bool) override { return -1; }
+    int32_t EnableBuiltInAGC(bool) override { return -1; }
+    int32_t EnableBuiltInNS(bool) override { return -1; }
 
-  private:
+private:
     struct PlayoutState {
         std::mutex callback_mutex;
         std::optional<std::reference_wrapper<webrtc::AudioTransport>> callback;
@@ -309,15 +238,13 @@ class PullAudioDeviceModule : public webrtc::AudioDeviceModule {
 };
 
 class VoiceInboundStatsCallback : public webrtc::RTCStatsCollectorCallback {
-  public:
+public:
     void OnStatsDelivered(const rtc::scoped_refptr<const webrtc::RTCStatsReport>& report) override {
-        if (!report)
-            return;
+        if (!report) return;
         try {
             const auto root = nlohmann::json::parse(report->ToJson());
             const auto inspect = [](const nlohmann::json& stat) {
-                if (!stat.is_object() || stat.value("type", "") != "inbound-rtp")
-                    return;
+                if (!stat.is_object() || stat.value("type", "") != "inbound-rtp") return;
                 const auto kind = stat.value("kind", stat.value("mediaType", ""));
                 if (kind == "audio") {
                     LOGI("Voice inbound RTC stats packets={} bytes={} lost={} jitter={} samples={} emitted={} concealed={} audio_level={} codec={}",
@@ -327,11 +254,9 @@ class VoiceInboundStatsCallback : public webrtc::RTCStatsCollectorCallback {
                 }
             };
             if (root.is_array()) {
-                for (const auto& stat : root)
-                    inspect(stat);
+                for (const auto& stat : root) inspect(stat);
             } else if (root.is_object()) {
-                for (const auto& [_, stat] : root.items())
-                    inspect(stat);
+                for (const auto& [_, stat] : root.items()) inspect(stat);
             }
         } catch (const std::exception& error) {
             LOGW("Voice inbound RTC stats parse failed: {}", error.what());
@@ -375,29 +300,25 @@ std::optional<int> ExtractMessageType(const std::string& data) {
             has_hello_payload = true;
         }
         switch (wire) {
-        case 0:
-            if (!ReadVarint(data, offset))
+            case 0:
+                if (!ReadVarint(data, offset)) return std::nullopt;
+                break;
+            case 1:
+                if (offset + 8 > data.size()) return std::nullopt;
+                offset += 8;
+                break;
+            case 2: {
+                const auto length = ReadVarint(data, offset);
+                if (!length || *length > data.size() - offset) return std::nullopt;
+                offset += static_cast<size_t>(*length);
+                break;
+            }
+            case 5:
+                if (offset + 4 > data.size()) return std::nullopt;
+                offset += 4;
+                break;
+            default:
                 return std::nullopt;
-            break;
-        case 1:
-            if (offset + 8 > data.size())
-                return std::nullopt;
-            offset += 8;
-            break;
-        case 2: {
-            const auto length = ReadVarint(data, offset);
-            if (!length || *length > data.size() - offset)
-                return std::nullopt;
-            offset += static_cast<size_t>(*length);
-            break;
-        }
-        case 5:
-            if (offset + 4 > data.size())
-                return std::nullopt;
-            offset += 4;
-            break;
-        default:
-            return std::nullopt;
         }
     }
     return has_hello_payload ? std::optional<int>(0) : std::nullopt;
@@ -405,57 +326,53 @@ std::optional<int> ExtractMessageType(const std::string& data) {
 
 bool IsClipboardMessage(const int type) {
     switch (type) {
-    case wire::kClipboardInfo:
-    case wire::kClipboardInfoResp:
-    case wire::kClipboardReqAtBegin:
-    case wire::kClipboardReqBuffer:
-    case wire::kClipboardReqAtEnd:
-    case wire::kClipboardRespBuffer:
-        return true;
-    default:
-        return false;
+        case wire::kClipboardInfo:
+        case wire::kClipboardInfoResp:
+        case wire::kClipboardReqAtBegin:
+        case wire::kClipboardReqBuffer:
+        case wire::kClipboardReqAtEnd:
+        case wire::kClipboardRespBuffer:
+            return true;
+        default:
+            return false;
     }
 }
 
 bool IsInteractiveControlMessage(const int type) {
     switch (type) {
-    case wire::kApplicationTextCapabilities:
-    case wire::kApplicationTextSubmit:
-    case wire::kApplicationTextBarrier:
-    case wire::kKeyEvent:
-    case wire::kMouseEvent:
-    case wire::kGamepadState:
-    case wire::kSwitchMonitor:
-    case wire::kSwitchWorkMode:
-    case wire::kChangeMonitorResolution:
-    case wire::kInsertKeyFrame:
-    case wire::kLockDevice:
-    case wire::kStopRender:
-    case wire::kReqCtrlAltDelete:
-    case wire::kUpdateDesktop:
-    case wire::kHardUpdateDesktop:
-    case wire::kSwitchFullColorMode:
-    case wire::kStartMediaRecordClientSide:
-    case wire::kStopMediaRecordClientSide:
-    case wire::kModifyFps:
-    case wire::kVirtualDisplayRequest:
-    case wire::kTextInput:
-        return true;
-    default:
-        return false;
+        case wire::kApplicationTextCapabilities:
+        case wire::kApplicationTextSubmit:
+        case wire::kApplicationTextBarrier:
+        case wire::kKeyEvent:
+        case wire::kMouseEvent:
+        case wire::kGamepadState:
+        case wire::kSwitchMonitor:
+        case wire::kSwitchWorkMode:
+        case wire::kChangeMonitorResolution:
+        case wire::kInsertKeyFrame:
+        case wire::kLockDevice:
+        case wire::kStopRender:
+        case wire::kReqCtrlAltDelete:
+        case wire::kUpdateDesktop:
+        case wire::kHardUpdateDesktop:
+        case wire::kSwitchFullColorMode:
+        case wire::kStartMediaRecordClientSide:
+        case wire::kStopMediaRecordClientSide:
+        case wire::kModifyFps:
+        case wire::kVirtualDisplayRequest:
+        case wire::kTextInput:
+            return true;
+        default:
+            return false;
     }
 }
-} // namespace
+}  // namespace
 
-std::shared_ptr<RtcServer> RtcServer::Make(const std::shared_ptr<WebRtcLocalRuntime>& runtime) {
-    return std::make_shared<RtcServer>(runtime);
-}
+std::shared_ptr<RtcServer> RtcServer::Make(const std::shared_ptr<WebRtcLocalRuntime>& runtime) { return std::make_shared<RtcServer>(runtime); }
 
 RtcServer::RtcServer(const std::shared_ptr<WebRtcLocalRuntime>& runtime) : runtime_(runtime) {}
 
-std::shared_ptr<WebRtcExecutionContext> RtcServer::GetExecutionContext() const {
-    return runtime_ ? runtime_->GetContext() : nullptr;
-}
+std::shared_ptr<WebRtcExecutionContext> RtcServer::GetExecutionContext() const { return runtime_ ? runtime_->GetContext() : nullptr; }
 
 void RtcServer::DispatchEvent(WebRtcEvent event) const {
     if (runtime_) {
@@ -463,21 +380,13 @@ void RtcServer::DispatchEvent(WebRtcEvent event) const {
     }
 }
 
-void RtcServer::QueueEvent(WebRtcEvent event) const {
-    DispatchEvent(std::move(event));
-}
+void RtcServer::QueueEvent(WebRtcEvent event) const { DispatchEvent(std::move(event)); }
 
-void RtcServer::RequestEncodedIdr(const std::string& mon_name) {
-    runtime_->InsertIdr(mon_name);
-}
+void RtcServer::RequestEncodedIdr(const std::string& mon_name) { runtime_->InsertIdr(mon_name); }
 
-uint64_t RtcServer::GetLatestEncodedSeq(const std::string& mon_name) {
-    return runtime_->GetLatestEncodedSeq(mon_name);
-}
+uint64_t RtcServer::GetLatestEncodedSeq(const std::string& mon_name) { return runtime_->GetLatestEncodedSeq(mon_name); }
 
-size_t RtcServer::GetCachedFrameCount(const std::string& mon_name, uint64_t after_seq) {
-    return runtime_->GetCachedFrameCount(mon_name, after_seq);
-}
+size_t RtcServer::GetCachedFrameCount(const std::string& mon_name, uint64_t after_seq) { return runtime_->GetCachedFrameCount(mon_name, after_seq); }
 
 std::shared_ptr<RtcLocalEncodedVideoFrame> RtcServer::ReadNextEncodedVideoFrame(const std::string& mon_name, uint64_t after_seq, bool& out_gap) {
     return runtime_->ReadNextEncodedVideoFrame(mon_name, after_seq, out_gap);
@@ -503,13 +412,9 @@ void RtcServer::CloseTerminal(const std::string& reason) {
     NotifyTerminal();
 }
 
-bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp, PxLocalRtcSessionRole session_role,
-                      const std::string& ice_config_json) {
+bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp, PxLocalRtcSessionRole session_role) {
     this->stream_id_ = stream_id;
     this->offer_sdp_ = offer_sdp;
-    this->ice_config_json_ = ice_config_json;
-    this->standard_rtc_ = !ice_config_json.empty();
-    this->wall_observer_ = session_role == PxLocalRtcSessionRole::kWallObserver;
     this->observer_ = session_role == PxLocalRtcSessionRole::kObserver;
     this->created_timestamp_ms_ = (int64_t)TimeUtil::GetCurrentTimestamp();
     webrtc::field_trial::InitFieldTrialsFromString("");
@@ -532,7 +437,7 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
             return;
         }
         webrtc::PeerConnectionInterface::RTCOfferAnswerOptions options;
-        options.offer_to_receive_audio = !server->IsWallObserver() && server->HasPermission("audio");
+        options.offer_to_receive_audio = server->HasPermission("audio");
         options.offer_to_receive_video = server->HasPermission("view");
         LOGI("Will create answer sdp.");
         server->peer_conn_->CreateAnswer(server->create_answer_callback_.get(), options);
@@ -555,28 +460,6 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
             return;
         }
         LOGI("Set local answer sdp success.");
-        // Standard RTC always trickles ICE over Console Relay.  Returning
-        // the answer as soon as SetLocalDescription succeeds is required
-        // for TURN/TCP: an unreachable UDP TURN URL can keep libwebrtc's
-        // gathering state open for tens of seconds while TCP candidates
-        // are still perfectly usable.  The legacy direct HTTP flow has no
-        // trickle channel, so it continues to wait for gathering complete.
-        if (server->standard_rtc_ && server->peer_conn_ && server->peer_conn_->local_description()) {
-            std::string answer_sdp;
-            if (!server->peer_conn_->local_description()->ToString(&answer_sdp)) {
-                LOGE("Get local standard RTC answer failed");
-                server->CloseTerminal("local standard RTC answer serialization failed");
-                if (server->answer_sdp_callback_) {
-                    server->answer_sdp_callback_("");
-                }
-                return;
-            }
-            server->answer_sdp_ = answer_sdp;
-            LOGI("Get standard RTC answer success before ICE gathering completes");
-            if (server->answer_sdp_callback_) {
-                server->answer_sdp_callback_(answer_sdp);
-            }
-        }
     });
 
     set_local_answer_sdp_callback_->SetSdpFailedCallback([weak_server](const std::string& message) {
@@ -591,7 +474,7 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
 
     // create answer sdp callback
     create_answer_callback_->SetOnCreateSdpSuccessCallback(
-        [weak_server](webrtc::SessionDescriptionInterface* desc) { // NOLINT(pixels-raw-pointer-boundary): libwebrtc SDP callback ABI
+        [weak_server](webrtc::SessionDescriptionInterface* desc) {  // NOLINT(pixels-raw-pointer-boundary): libwebrtc SDP callback ABI
             if (const auto server = weak_server.lock()) {
                 server->peer_conn_->SetLocalDescription(server->set_local_answer_sdp_callback_.get(), desc);
             }
@@ -608,23 +491,9 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
     });
 
     // peer connection
-    peer_callback_->SetOnIceCallback([weak_server](const std::string& ice, const std::string& mid, int sdp_mline_index) {
-        LOGI("ICE: {}", ice);
-        if (const auto server = weak_server.lock()) {
-            server->SendIceToRemote(ice, mid, sdp_mline_index);
-        }
-    });
-
     peer_callback_->SetOnDataChannelCallback([weak_server](const std::string& name, rtc::scoped_refptr<webrtc::DataChannelInterface> ch) {
         const auto server = weak_server.lock();
         if (!server) {
-            ch->Close();
-            return;
-        }
-        // A wall observer is receive-only. Even a crafted offer must not
-        // obtain an input, file-transfer or protocol channel.
-        if (server->IsWallObserver()) {
-            LOGW("Ignore data channel from wall observer: {}", name);
             ch->Close();
             return;
         }
@@ -728,7 +597,7 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
     // 远端音频轨(浏览器麦克风上行):接收解码后经 WASAPI 播放
     peer_callback_->SetOnAudioTrackCallback([weak_server](rtc::scoped_refptr<webrtc::AudioTrackInterface> track) {
         const auto server = weak_server.lock();
-        if (!server || server->IsWallObserver()) {
+        if (!server) {
             return;
         }
         server->OnRemoteAudioTrack(std::move(track));
@@ -769,9 +638,6 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
             return;
         }
         LOGI("Ice Gather completed.");
-        if (server->standard_rtc_) {
-            return;
-        }
         std::string answer_sdp;
         if (!server->peer_conn_->local_description()->ToString(&answer_sdp)) {
             LOGE("Get local answer failed");
@@ -788,27 +654,7 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
         }
     });
 
-    if (!ice_config_json_.empty() && !ApplyIceConfiguration(ice_config_json_, false)) {
-        return false;
-    }
     return CreatePeerConnectionFactory() && CreatePeerConnection() && SetRemoteOffer(offer_sdp_);
-}
-
-bool RtcServer::RestartWithOffer(const std::string& offer_sdp, const std::string& ice_config_json) {
-    if (exit_ || !peer_conn_ || ice_config_json.empty()) {
-        return false;
-    }
-    if (!ApplyIceConfiguration(ice_config_json, true)) {
-        return false;
-    }
-    offer_sdp_ = offer_sdp;
-    ice_config_json_ = ice_config_json;
-    standard_rtc_ = true;
-    disconnect_event_sent_ = false;
-    ice_disconnected_since_ms_ = 0;
-    peer_conn_->RestartIce();
-    LOGI("Apply in-place standard RTC ICE restart, stream={}", stream_id_);
-    return SetRemoteOffer(offer_sdp_);
 }
 
 void RtcServer::CreateSomeMediaDeps(PeerConnectionFactoryDependencies& media_deps) {
@@ -865,42 +711,9 @@ bool RtcServer::CreatePeerConnectionFactory() {
     return true;
 }
 
-bool RtcServer::ApplyIceConfiguration(const std::string& ice_config_json, bool update_peer_connection) {
-    auto next = configuration_;
-    next.servers.clear();
-    try {
-        const auto config = nlohmann::json::parse(ice_config_json);
-        for (const auto& entry : config.value("ice_servers", nlohmann::json::array())) {
-            const auto username = entry.value("username", "");
-            const auto credential = entry.value("credential", "");
-            for (const auto& url : entry.value("urls", std::vector<std::string>{})) {
-                webrtc::PeerConnectionInterface::IceServer server;
-                server.uri = url;
-                server.username = username;
-                server.password = credential;
-                server.tls_cert_policy = webrtc::PeerConnectionInterface::TlsCertPolicy::kTlsCertPolicySecure;
-                next.servers.push_back(std::move(server));
-            }
-        }
-    } catch (const std::exception& error) {
-        LOGE("Invalid standard RTC ICE configuration: {}", error.what());
-        return false;
-    }
-    if (update_peer_connection && peer_conn_) {
-        const auto result = peer_conn_->SetConfiguration(next);
-        if (!result.ok()) {
-            LOGE("SetConfiguration for standard RTC failed: {}", result.message());
-            return false;
-        }
-    }
-    LOGI("Configured {} ICE server URLs for standard RTC", next.servers.size());
-    configuration_ = std::move(next);
-    return true;
-}
-
 bool RtcServer::CreatePeerConnection() {
-    configuration_.port_allocator_config.min_port = runtime_->rtc_port_start;
-    configuration_.port_allocator_config.max_port = runtime_->rtc_port_end;
+    configuration_.port_allocator_config.min_port = runtime_->media_port;
+    configuration_.port_allocator_config.max_port = runtime_->media_port;
     auto result = peer_conn_factory_->CreatePeerConnectionOrError(configuration_, webrtc::PeerConnectionDependencies(peer_callback_.get()));
     if (!result.ok()) {
         std::cerr << "create peer connection failed: " << result.error().message() << std::endl;
@@ -956,7 +769,7 @@ bool RtcServer::CreatePeerConnection() {
         // 否则非当前屏的 track 永远等不到帧(采集端默认只采当前屏)
         runtime_->EnableAllMonitorCapture();
     } else if (allow_video) {
-        MonitorVideoTrack mvt; // monitor_name_ 为空 = 接收所有屏的动态 track(旧行为)
+        MonitorVideoTrack mvt;  // monitor_name_ 为空 = 接收所有屏的动态 track(旧行为)
         mvt.source_ = std::make_shared<VideoSourceImpl>();
         mvt.track_source_ = rtc::make_ref_counted<VideoTrackSourceImpl>(mvt.source_);
         // video/audio 必须挂同一 MediaStream id,否则 web 端若直接用
@@ -970,10 +783,7 @@ bool RtcServer::CreatePeerConnection() {
         video_tracks_.push_back(mvt);
     }
 
-    // Console wall sessions are video-only by contract. Do not create an RTP
-    // audio sender at all; this saves capture/encode/network work and makes
-    // the privacy boundary independent of browser mute state.
-    if (!IsWallObserver() && HasPermission("audio")) {
+    if (HasPermission("audio")) {
         audio_source_ = AudioSourceImpl::Create();
         auto audio_track = peer_conn_factory_->CreateAudioTrack("audio", audio_source_.get());
         // 多 track 模式下音频用独立 stream id,避免和多路 video 混在同一 stream;
@@ -1001,33 +811,16 @@ bool RtcServer::CreatePeerConnection() {
     // 而 BWE 又依赖码流动起来才能探测上行——鸡生蛋死锁,表现为视频完全发不出来。
     // 给一个有意义的起点,后续仍由 BWE 按真实链路状况上下调整。
     //
-    // 本地链路(loopback/局域网)直接把工作点钉住:实测 GCC 的延迟估计
-    // 在客户端高负载(有头浏览器解码渲染)下会误判拥塞,目标码率/fps 在
-    // 1M~15M / 14~44fps 之间秒级震荡——x264 每 3s 被迫重开、生产速率被压到
-    // ~30fps,pacing 失配又反过来喂养延迟估计,形成延迟螺旋。
-    // 本插件只服务本地链路,钉死 min=start=max 让 GCC 无震荡空间;
-    // 链路侧其余自适应(IDR/pacing)不受影响。
-    //
-    // 钉值取 24M(原 12M):pacer 按此速率放包,钉值翻倍让 IDR 等大帧的
-    // 排空时间减半(73KB: 49ms→24ms),直接削掉 pacing 段延迟;loopback/
-    // 有线 LAN 容量充裕,Wi-Fi 直连也留有余量。实测双 track 总分配
-    // ~11.3M 已到 12M 上限,24M 给双屏高动态场景留出头空间。
+    // Direct Host may be reached over a public network. Seed GCC high enough
+    // for a responsive first picture while retaining a real adaptation range.
     webrtc::BitrateSettings bitrate_settings;
     static constexpr int kMaximumBitrateBps = 24 * 1000 * 1000;
-    if (standard_rtc_) {
-        // TURN/WAN capacity is not known in advance. Seed GCC high enough
-        // for a responsive first picture but keep a real adaptation range.
-        bitrate_settings.min_bitrate_bps = 500 * 1000;
-        bitrate_settings.start_bitrate_bps = 6 * 1000 * 1000;
-        bitrate_settings.max_bitrate_bps = kMaximumBitrateBps;
-    } else {
-        bitrate_settings.min_bitrate_bps = kMaximumBitrateBps;
-        bitrate_settings.start_bitrate_bps = kMaximumBitrateBps;
-        bitrate_settings.max_bitrate_bps = kMaximumBitrateBps;
-    }
+    bitrate_settings.min_bitrate_bps = 500 * 1000;
+    bitrate_settings.start_bitrate_bps = 6 * 1000 * 1000;
+    bitrate_settings.max_bitrate_bps = kMaximumBitrateBps;
     auto bitrate_err = peer_conn_->SetBitrate(bitrate_settings);
-    LOGI("SetBitrate: mode={} min={} start={} max={} ok={}", standard_rtc_ ? "standard" : "direct", *bitrate_settings.min_bitrate_bps,
-         *bitrate_settings.start_bitrate_bps, *bitrate_settings.max_bitrate_bps, bitrate_err.ok());
+    LOGI("SetBitrate: mode=direct min={} start={} max={} ok={}", *bitrate_settings.min_bitrate_bps, *bitrate_settings.start_bitrate_bps,
+         *bitrate_settings.max_bitrate_bps, bitrate_err.ok());
 
     // 首帧加速:即将开始发流,此刻主动请求主管线产 IDR。
     // 建连前的旧帧无需清理:Encode 首次执行时会以当前产出序号引导
@@ -1049,34 +842,8 @@ bool RtcServer::SetRemoteOffer(const std::string& offer_sdp) {
         return false;
     }
     peer_conn_->SetRemoteDescription(set_remote_offer_sdp_callback_.get(),
-                                     session_description.release()); // NOLINT(pixels-raw-pointer-boundary): ownership passes to libwebrtc
+                                     session_description.release());  // NOLINT(pixels-raw-pointer-boundary): ownership passes to libwebrtc
     return true;
-}
-
-void RtcServer::OnRemoteIce(const std::string& ice, const std::string& mid, int sdp_mline_index) {
-    LOGI("OnRemoteIce: {}", ice);
-    webrtc::SdpParseError error;
-    std::unique_ptr<webrtc::IceCandidateInterface> candidate(webrtc::CreateIceCandidate(mid, sdp_mline_index, ice, &error));
-    if (!error.line.empty()) {
-        LOGE("Create IceCandidate failed: {} - {}", error.line, error.description);
-        return;
-    }
-    peer_conn_->AddIceCandidate(std::move(candidate), [](webrtc::RTCError error) {
-        if (error.ok()) {
-            LOGI("AddIceCandidate success.");
-        } else {
-            LOGE("AddIceCandidate failed: {}", error.message());
-        }
-    });
-}
-
-void RtcServer::SendIceToRemote(const std::string& ice, const std::string& mid, int sdp_mline_index) {
-    runtime_->QueueEvent(WebRtcIceEvent{
-        .stream_id = stream_id_,
-        .ice = ice,
-        .mid = mid,
-        .sdp_mline_index = sdp_mline_index,
-    });
 }
 
 void RtcServer::OnRemoteAudioTrack(rtc::scoped_refptr<webrtc::AudioTrackInterface> track) {
@@ -1146,8 +913,7 @@ bool RtcServer::SetVoiceCallAuthorization(const std::string& call_id, bool autho
             const auto callback = rtc::make_ref_counted<VoiceInboundStatsCallback>();
             peer_conn_->GetStats(callback.get());
         }
-        if (sink)
-            sink->SetAuthorized({}, false);
+        if (sink) sink->SetAuthorized({}, false);
         return true;
     }
     if (call_id.empty() || !voice_audio_source_ || !sink) {
@@ -1236,7 +1002,7 @@ bool RtcServer::IsDataChannelConnected() {
         return false;
     }
     const auto now_ms = CurrentSteadyMilliseconds();
-    if (!standard_rtc_ && !heartbeat_watchdog_.IsArmed()) {
+    if (!heartbeat_watchdog_.IsArmed()) {
         heartbeat_watchdog_.Arm(now_ms);
     }
     return !ExpireIfHeartbeatTimedOut(now_ms);
@@ -1244,18 +1010,13 @@ bool RtcServer::IsDataChannelConnected() {
 
 void RtcServer::OnMediaDataChannelOpened() {
     media_data_channel_ever_connected_ = true;
-    const auto now_ms = CurrentSteadyMilliseconds();
-    if (!standard_rtc_) {
-        heartbeat_watchdog_.Arm(now_ms);
-    }
+    heartbeat_watchdog_.Arm(CurrentSteadyMilliseconds());
 }
 
-void RtcServer::OnClientHeartbeat() {
-    heartbeat_watchdog_.ObserveHeartbeat(CurrentSteadyMilliseconds());
-}
+void RtcServer::OnClientHeartbeat() { heartbeat_watchdog_.ObserveHeartbeat(CurrentSteadyMilliseconds()); }
 
 bool RtcServer::ExpireIfHeartbeatTimedOut(const int64_t now_ms) {
-    if (wall_observer_ || !heartbeat_watchdog_.HasExpired(now_ms)) {
+    if (!heartbeat_watchdog_.HasExpired(now_ms)) {
         return false;
     }
     LOGW("Rtc server heartbeat timeout, conn_id: {}, last_heartbeat_ms: {}.", connection_id_, heartbeat_watchdog_.LastHeartbeatMs());
@@ -1275,30 +1036,20 @@ bool RtcServer::IsMediaConsumerActive() {
     if (ExpireIfHeartbeatTimedOut(now_ms)) {
         return false;
     }
-    // Wall observers have no data channel. Interactive sessions become media consumers when their control channel opens;
-    // this query is repeated independently of capture, so waiting for that channel does not permanently idle capture.
-    return IsWallObserver() || (media_data_channel_ && media_data_channel_->IsConnected());
+    return media_data_channel_ && media_data_channel_->IsConnected();
 }
 
-bool RtcServer::IsFtDataChannelConnected() {
-    return !exit_ && ft_data_channel_ && ft_data_channel_->IsConnected();
-}
+bool RtcServer::IsFtDataChannelConnected() { return !exit_ && ft_data_channel_ && ft_data_channel_->IsConnected(); }
 
-uint32_t RtcServer::GetMediaPendingMessages() {
-    return !exit_ && media_data_channel_ ? media_data_channel_->GetPendingDataCount() : 0;
-}
+uint32_t RtcServer::GetMediaPendingMessages() { return !exit_ && media_data_channel_ ? media_data_channel_->GetPendingDataCount() : 0; }
 
-uint32_t RtcServer::GetFtPendingMessages() {
-    return !exit_ && ft_data_channel_ ? ft_data_channel_->GetPendingDataCount() : 0;
-}
+uint32_t RtcServer::GetFtPendingMessages() { return !exit_ && ft_data_channel_ ? ft_data_channel_->GetPendingDataCount() : 0; }
 
 bool RtcServer::HasEnoughBufferForQueuingMediaMessages() {
     return !exit_ && media_data_channel_ && media_data_channel_->HasEnoughBufferForQueuingMessages();
 }
 
-bool RtcServer::HasEnoughBufferForQueuingFtMessages() {
-    return !exit_ && ft_data_channel_ && ft_data_channel_->HasEnoughBufferForQueuingMessages();
-}
+bool RtcServer::HasEnoughBufferForQueuingFtMessages() { return !exit_ && ft_data_channel_ && ft_data_channel_->HasEnoughBufferForQueuingMessages(); }
 
 std::shared_ptr<FileTransferWritableSignal> RtcServer::AcquireFtWritableSignal() {
     return !exit_ && ft_data_channel_ ? ft_data_channel_->AcquireFileTransferWritableSignal() : std::shared_ptr<FileTransferWritableSignal>{};
@@ -1306,7 +1057,7 @@ std::shared_ptr<FileTransferWritableSignal> RtcServer::AcquireFtWritableSignal()
 
 void RtcServer::On100msTimeout() {
     const auto steady_now_ms = CurrentSteadyMilliseconds();
-    const bool initial_connection_ready = IsWallObserver() ? ice_ever_connected_.load() : media_data_channel_ever_connected_.load();
+    const bool initial_connection_ready = media_data_channel_ever_connected_.load();
     if (!exit_ && !initial_connection_ready) {
         auto now = (int64_t)TimeUtil::GetCurrentTimestamp();
         if (now - created_timestamp_ms_ >= kInitialConnectTimeoutMs) {
@@ -1325,13 +1076,9 @@ void RtcServer::On100msTimeout() {
     }
 }
 
-std::string RtcServer::GetAnswerSdp() {
-    return answer_sdp_;
-}
+std::string RtcServer::GetAnswerSdp() { return answer_sdp_; }
 
-void RtcServer::SetOnAnswerCallback(std::function<void(const std::string& answer_sdp)>&& callback) {
-    answer_sdp_callback_ = callback;
-}
+void RtcServer::SetOnAnswerCallback(std::function<void(const std::string& answer_sdp)>&& callback) { answer_sdp_callback_ = callback; }
 
 void RtcServer::OnNewFrameCaptured(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, uint64_t handle,
                                    int64_t adapter_id, uint64_t frame_format) {
@@ -1365,7 +1112,6 @@ void RtcServer::OnNewRawFrameCaptured(const std::string& mon_name, uint64_t fram
 
 void RtcServer::DispatchCapturedFrameNotify(const std::string& mon_name, uint64_t frame_idx, int frame_width, int frame_height, uint64_t handle,
                                             int64_t adapter_id, uint64_t frame_format) {
-
     // 按屏路由:多 track 模式每条 track 只发自己那块屏的帧;
     // 单 track(动态)模式接收所有屏,编码器侧处理切屏。多轨模式遇到
     // 新显示器时在已协商的空槽位内绑定,不触发连接重建或 SDP 重协商。
@@ -1475,9 +1221,6 @@ void RtcServer::OnRawAudioData(const std::shared_ptr<Data>& data, int samples, i
 }
 
 void RtcServer::EmitClientDisconnectedEvent() {
-    if (IsWallObserver()) {
-        return;
-    }
     // 全连接生命周期只发一次:ICE 瞬断/终态、media datachannel 独立关闭、
     // ICE 超时判死 都可能触发。
     if (disconnect_event_sent_.exchange(true)) {
@@ -1568,4 +1311,4 @@ void RtcServer::Exit() {
     LOGI("RTC peer cleanup completed, conn_id: {}", connection_id_);
 }
 
-} // namespace px
+}  // namespace px

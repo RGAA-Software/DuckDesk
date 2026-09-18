@@ -58,8 +58,6 @@ pub struct StartAppRequest {
     pub encoder_format: String,
     pub webrtc_enabled: bool,
     pub websocket_enabled: bool,
-    pub live_stream_id: String,
-    pub push_rtmp_url: String,
     pub app_mode: String,
     pub webview_url_b64: String,
     pub rdp_node_id: String,
@@ -242,12 +240,6 @@ pub fn build_game_hook_launch_spec(
         format!("--device_id={}", req.device_id.trim()),
     ];
     append_relay_arguments(&mut args, req);
-    if !req.live_stream_id.trim().is_empty() {
-        args.push(format!("--live_stream_id={}", req.live_stream_id.trim()));
-    }
-    if !req.push_rtmp_url.trim().is_empty() {
-        args.push(format!("--push_rtmp_url={}", req.push_rtmp_url.trim()));
-    }
     if let Some(view_info) = view {
         args.push(format!(
             "--app_game_view_path={}",
@@ -307,12 +299,6 @@ pub fn build_webview_launch_spec(
         format!("--device_id={}", req.device_id.trim()),
     ];
     append_relay_arguments(&mut args, req);
-    if !req.live_stream_id.trim().is_empty() {
-        args.push(format!("--live_stream_id={}", req.live_stream_id.trim()));
-    }
-    if !req.push_rtmp_url.trim().is_empty() {
-        args.push(format!("--push_rtmp_url={}", req.push_rtmp_url.trim()));
-    }
     Ok(RenderLaunchSpec {
         work_dir,
         app_path: app_path.to_string_lossy().to_string(),
@@ -896,8 +882,6 @@ mod tests {
             encoder_format: "h264".to_string(),
             webrtc_enabled: true,
             websocket_enabled: true,
-            live_stream_id: "device-a__app__app-car".to_string(),
-            push_rtmp_url: "rtmp://127.0.0.1:1935/live/{live_stream_id}".to_string(),
             device_id: "device-a".to_string(),
             relay_device_id: format!("device-a__instance__{instance_id}"),
             relay_server_host: "console.test".to_string(),
@@ -981,7 +965,6 @@ mod tests {
         assert!(spec.args.iter().any(|arg| arg == "--capture_audio=false"));
         let args = spec.args.join(" ");
         assert!(!args.contains(req.rdp_account.as_ref().unwrap().password.as_str()));
-        assert!(!args.contains("--push_rtmp_url"));
         assert!(!args.contains("--app_game_path"));
     }
 
@@ -1061,10 +1044,6 @@ mod tests {
             .args
             .iter()
             .any(|argument| argument == "--relay_enabled=true"));
-        assert!(spec
-            .args
-            .iter()
-            .any(|argument| argument == "--live_stream_id=device-a__app__app-car"));
     }
 
     #[test]

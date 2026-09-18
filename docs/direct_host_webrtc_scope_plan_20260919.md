@@ -2,7 +2,7 @@
 
 > 决策日期：2026-09-19。
 >
-> 状态：已批准的实施边界；尚未表示代码归档、构建清理或端到端验收已经完成。
+> 状态：活动代码、构建与归档清理已完成聚焦实现和短测；公网跨端功能验收仍按第 8 节继续，尚未关闭 DB5。
 >
 > 本文同时约束 Windows Client、Web Client、Android、Render、Service、Console 后端、Console 前端、Relay、安装包和 DB0–DB5
 > 验收。任一端单独修改都不能宣称本计划完成。
@@ -115,3 +115,27 @@ ZLM直播和 Coturn/TURN不再是 DB0–DB5出口。录像、文件、Direct Hos
 
 DB5短期功能出口通过后统一长测：Relay长连接、Direct Host重复建连、Windows/Android持续会话、数据库资源增长、备份/WAL/异机复制自然
 周期、Render空闲升级及 Relay冗余排空。长测不再分散阻塞每个开发阶段。
+
+## 8. 实施与验收记录
+
+2026-09-19 已完成以下聚焦实现：
+
+- `backup/central_media_retirement_20260919/` 保存全部退役实现及 91 个共享文件的改前快照，`MANIFEST.md` 与
+  `shared_before/SNAPSHOT_SHA256.txt` 固定来源、原因和逐文件 SHA-256；归档不参与活动构建。
+- Console 已移除 ZLM/Coturn sidecar、直播/视频墙/中央 RTC 路由、配置和打包；资源描述符只返回当前节点确认的 Direct Host
+  `render_host + render_port`，Relay 保留既有非 WebRTC 数据协议。
+- Render 只构建 `net_rtc_local`；同一实例端口承载直接协商及 UDP，中央 SDP/ICE 消息、remote RTC DLL、live pusher 和
+  `wall_observer` 隐藏入口均已移除。未授权、超时或不可达均 fail-closed，不存在媒体 fallback。
+- Windows Client 与 Web Client 已移除 ICE server、RestartIce、中央 signaling 和 TURN/Relay candidate fallback。Web Client
+  只建立 `iceServers: []` 的 Direct Host 连接，并返回稳定的 `RTC_DIRECT_REQUIRED` / `RTC_DIRECT_UNREACHABLE` 错误。
+- Rust 三个相关 workspace `cargo check`、现代 Web Client 55 项 Vitest 与 19 项语音断言、旧 Web Client 构建均通过。
+- Render Direct Host 聚焦用例 3/3 通过；C++ 可读命名与所有权门禁通过。Cloud Node 的 `px_render.exe` / `px_render_rtc.dll`
+  SHA-256 分别为 `F5A2268A96E013B527A5A2BE76D21FADB54400CB16C4AABC29BEC3C4B6E92FD5` /
+  `CF18B22AEBED1E56CD7339F267EB6F7A05617061B9219F9B7B61DE8FC1C89DC7`；Remote 对应为
+  `A2F0472E9B68E83EE583D7A98EC73717733A1E990269AFE66940DF8FFCC8BF4B` /
+  `24D71E6B236E756CBFBCBD215E4C18F3447167897D2CD91632B4359313F2C362`，构建树与各自 dist 一致。
+- Windows Client 聚焦构建、6 个测试程序共 28 项断言通过；`px_client.exe` 的构建树/dist SHA-256 均为
+  `E625806DA98F32A9D3B339EC37D91620A6904E2602A8474D71233D57921922C1`。
+
+尚未完成且不得被上述聚焦证据冒充：正式 Console 产品入口、真实公网 Windows/Web 首帧/音频/输入/重连/撤销、Relay 数据面真机回归、
+Android CloudApplication 真机直连、安装包内容审计，以及所有 DB5 短测通过后的统一长测。

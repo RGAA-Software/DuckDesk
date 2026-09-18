@@ -8,8 +8,6 @@ pub const DEFAULT_PANEL_PORT: u16 = 4999;
 pub const DEFAULT_DISCOVERY_PORT: u16 = 4604;
 pub const DEFAULT_APPLICATION_PORT_START: u16 = 4613;
 pub const DEFAULT_APPLICATION_PORT_END: u16 = 4998;
-pub const DEFAULT_RTC_PORT_START: u16 = 5000;
-pub const DEFAULT_RTC_PORT_END: u16 = 5031;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
@@ -18,7 +16,6 @@ pub struct NodeConfig {
     pub access_host: String,
     pub network: NetworkConfig,
     pub applications: PortRange,
-    pub rtc: PortRange,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
@@ -60,10 +57,6 @@ impl Default for NodeConfig {
             applications: PortRange {
                 port_start: DEFAULT_APPLICATION_PORT_START,
                 port_end: DEFAULT_APPLICATION_PORT_END,
-            },
-            rtc: PortRange {
-                port_start: DEFAULT_RTC_PORT_START,
-                port_end: DEFAULT_RTC_PORT_END,
             },
         }
     }
@@ -109,24 +102,20 @@ impl NodeConfig {
         if self.network.discovery_enabled && self.network.discovery_port == 0 {
             return Err("enabled discovery requires a port between 1 and 65535".into());
         }
-        for (name, range) in [("applications", &self.applications), ("rtc", &self.rtc)] {
-            if range.port_start == 0 || range.port_start > range.port_end {
-                return Err(format!(
-                    "{name} requires 1 <= port_start <= port_end <= 65535"
-                ));
-            }
-            if range.contains(self.network.listen_port)
-                || range.contains(self.network.desktop_port)
-                || range.contains(self.network.panel_port)
-            {
-                return Err(format!("{name} overlaps a node listener"));
-            }
+        if self.applications.port_start == 0
+            || self.applications.port_start > self.applications.port_end
+        {
+            return Err("applications requires 1 <= port_start <= port_end <= 65535".into());
+        }
+        if self.applications.contains(self.network.listen_port)
+            || self.applications.contains(self.network.desktop_port)
+            || self.applications.contains(self.network.panel_port)
+        {
+            return Err("applications overlaps a node listener".into());
         }
         if self.network.listen_port == self.network.desktop_port
             || self.network.listen_port == self.network.panel_port
             || self.network.desktop_port == self.network.panel_port
-            || self.applications.port_start <= self.rtc.port_end
-                && self.rtc.port_start <= self.applications.port_end
         {
             return Err("node port assignments overlap".into());
         }
@@ -144,8 +133,6 @@ impl NodeConfig {
         let mut names = vec![
             "service_server_port",
             "panel_server_port",
-            "rtc_port_start",
-            "rtc_port_end",
             "rtc_advertised_ipv4",
         ];
         if desktop {
@@ -173,8 +160,6 @@ impl NodeConfig {
             self.network.listen_port
         ));
         args.push(format!("--panel_server_port={}", self.network.panel_port));
-        args.push(format!("--rtc_port_start={}", self.rtc.port_start));
-        args.push(format!("--rtc_port_end={}", self.rtc.port_end));
         if let Ok(advertised_ipv4) = self.access_host.parse::<std::net::Ipv4Addr>() {
             args.push(format!("--rtc_advertised_ipv4={advertised_ipv4}"));
         }
@@ -222,10 +207,6 @@ mod tests {
             port_start: 4613,
             port_end: 4998,
         };
-        config.rtc = PortRange {
-            port_start: 5000,
-            port_end: 5031,
-        };
         config.validate().unwrap();
         config.applications = PortRange {
             port_start: 40000,
@@ -237,11 +218,9 @@ mod tests {
     #[test]
     fn rejects_zero_reversed_overlapping_and_unknown_settings() {
         let mut config = NodeConfig::default();
-        config.rtc.port_start = 0;
+        config.applications.port_start = 0;
         assert!(config.validate().is_err());
-        config.rtc.port_start = 65535;
-        assert!(config.validate().is_err());
-        config.rtc = config.applications.clone();
+        config.applications.port_start = 65535;
         assert!(config.validate().is_err());
         assert!(toml::from_str::<NodeConfig>("[netwrok]\nlisten_port=4603").is_err());
         assert!(toml::from_str::<NodeConfig>("[network]\nlisten_port=65536").is_err());
@@ -253,7 +232,6 @@ mod tests {
         let mut args = vec![
             "--service_server_port".into(),
             "1".into(),
-            "--rtc_port_start=2".into(),
             "--network_listen_port=12345".into(),
             "--panel_server_port=20369".into(),
             "--game_path=中文 game.exe".into(),
@@ -290,7 +268,6 @@ mod tests {
         assert_eq!(config.network.panel_port, 4999);
         assert_eq!(config.applications.port_start, 4613);
         assert_eq!(config.applications.port_end, 4998);
-        assert_eq!(config.rtc.port_end, 5031);
         assert!(!config.network.discovery_enabled);
     }
 

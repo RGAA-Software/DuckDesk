@@ -755,13 +755,15 @@ SQLx、Desk/Auth SQLx、四套 Web 生产构建、Console Web 36 项、Console/A
 标注“完整 DB0–DB5 验收未完成”。本结果只把 CM-EVENT 提升为部分迁移；告警页真实浏览器流程、断库期间节点补报、可信逐 GPU 指标、
 趋势聚合、管理实时流和公网节点验证尚未完成。
 
-### 2026-09-19 媒体范围收敛（尚未实施）
+### 2026-09-19 媒体范围收敛（聚焦实现与构建已通过）
 
 用户已决定保留Relay名称、协议、路由和现有非WebRTC数据转发，只移除经Relay中转的WebRTC SDP/ICE；Windows Client、Web Client
-及适用Android流程的WebRTC只允许直接连接节点当前上报并由实例ACK确认的Render host/port。ZLMediaKit、Coturn/TURN、中央推流和
-中央RTC signaling须完整归档到`backup/`后退出活动构建、安装包和运行时。此决定减少后续范围，但本页现有747/747报告发生在代码清理
-之前，不能作为归档或Direct Host跨端验收证据。完整组件矩阵和短测顺序见
-[Direct Host WebRTC 与中央媒体能力收缩计划](direct_host_webrtc_scope_plan_20260919.md)。
+及适用Android流程的WebRTC只允许直接连接节点当前上报并由实例ACK确认的Render host/port。活动代码已经移除并归档ZLMediaKit、
+Coturn/TURN、中央推流、中央RTC signaling、remote RTC DLL和对应构建/打包入口；91个共享文件改前快照具有逐文件SHA-256。
+Rust相关workspace检查、现代/旧Web Client、Cloud Node/Remote Render和Windows Client聚焦构建与单元测试均通过，运行制品与各自
+`build_official/<product>/dist`副本哈希一致。精确清单、制品哈希和仍待公网/Android验证的边界见
+[Direct Host WebRTC 与中央媒体能力收缩计划](direct_host_webrtc_scope_plan_20260919.md#8-实施与验收记录)。本页747/747报告仍发生在
+代码清理之前，不能作为新变更的完整PostgreSQL回归或DB5跨端验收证据。
 
 ## 仍未通过的阶段出口
 
@@ -771,16 +773,16 @@ Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 W
 
 | 阶段 | 当前未完成项 |
 |---|---|
-| DB0 | 已补领域/权限/恢复边界及Auth字节/固定向量；仍需按2026-09-19边界冻结Direct Host描述符、实际端点/代际、显式CloudApplication target，移除ZLM/TURN/中央RTC字段，并补齐完整合成基线 |
+| DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。仍需在本轮完整PostgreSQL门禁中重建并冻结更新后的合成基线 |
 | DB1-EXIT | Desk/Auth 产品服务已接入；Console PG 组合根已能作为独立进程启动并通过断库 fail-closed 验收，但正式 `px_console.exe` 构建/安装包仍未切换，不能用开发目标或 schema CLI 替代三服务产品验收 |
 | DB2-A | 身份/管理HTTP、本人资料/头像、密码计算/限流/Origin、访客HMAC/会话/公开目录、Saved Connections、本人实例列表、更新目录、访问/通道/传输历史及录像目录HTTP、严格配置、稳定私钥加载、独立初始化CLI、静态文件服务及进程生命周期已实现；Console用户门户及管理后台的当前目录/身份/状态入口均已切新bearer/主体API，源码不再保留旧`/api/v1`。仍需录像下载、Direct Host观察者权限、正式产品二进制/安装包及客户端全链路；视频墙延期，ZLM直播和RTC/TURN管理明确退役，不再作为待实现项 |
-| DB2-B/C/D | 设备/应用/节点/部署目录、user/guest资源入口、更新与历史元数据入口及Console节点WS已接；Windows Service已切到新节点协议并实现部署准备、调和、命令fencing、精确launch ACK、Render前端准入转发、实际媒体/RDP通道生命周期及遥测。仍需归档并移除ZLM/Coturn/中央RTC signaling且保持Relay既有数据回归；打通Windows Client、Web Client、Render、Service、Console描述符和适用Android的Direct Host链路；完成公网首帧/输入/音频与持续续租/撤销、逐GPU指标、趋势/断线补报/管理实时流、GPU/RDP执行、周期通道指标、文件/录像生产与媒体投递、无人值守更新及其余产品入口 |
+| DB2-B/C/D | 设备/应用/节点/部署目录、user/guest资源入口、更新与历史元数据入口及Console节点WS已接；Windows Service已切到新节点协议并实现部署准备、调和、命令fencing、精确launch ACK、Render前端准入转发、实际媒体/RDP通道生命周期及遥测。ZLM/Coturn/中央RTC signaling已归档移除，Windows/Web/Render/Service/Console的Direct Host活动代码和聚焦构建已接通。仍需Relay既有数据真机回归、公网首帧/输入/音频与持续续租/撤销、Android直连、逐GPU指标、趋势/断线补报/管理实时流、GPU/RDP执行、周期通道指标、文件/录像生产与媒体投递、无人值守更新及其余产品入口 |
 | DB2-EXIT / DB3 | Desk/Auth 独立产品流程已验证；Console 与共享消费者仍待去 Mongo、接新签发/验证及库外水位，Auth 通知 outbox 尚未接通；不建设运行时双后端 |
 | DB4 | 恢复集、保留、异机复制、恢复准入/执行/封印、三库写屏障/安全水位、外部见证、Auth keyring、pgBackRest/WAL/PITR、Windows SCM包及WSL2 systemd生命周期已实现。开发期仍需目标Linux发行版VM短测、Pixels外层签名/生产密钥托管、独立主机或对象仓库一次完整恢复、目标环境keyring/见证轮换及真实节点与Windows/RDP事实对账；连续7天窗口和自然周期稳定性统一放到DB5功能通过后的长测，不阻塞每个开发切片 |
 | DB5 | 全新环境服务端—Windows Client/Web Client—Render/Service—Relay—Android功能回归及完整制品验收；必须证明Direct Host与Relay分别正常且安装包不含ZLM/Coturn，先短测通过，最后统一长测 |
 | DB-HA / P1–P7 | 独立主机 HA、正式发行隔离、授权/连接服务、升级、运维与真实容量/稳定性验收 |
 
-接续依赖顺序：中央媒体归档与Relay/Direct Host双回归 → Console新API和统一切换（包含录像/文件等保留的真实媒体工作流）→
+接续依赖顺序：Relay/Direct Host真实跨端双回归 → Console新API和统一切换（包含录像/文件等保留的真实媒体工作流）→
 同步许可证消费者 → 备份/恢复短测 → 全新部署短测 → 统一长测。
 资源会话 repository 证据见[CloudApplication/桌面会话与描述符契约](postgresql_resource_session_contract.md)；
 专项测试入口与独立 AES 固定向量已经通过，不再列为未开始。Service 已开始切入新节点协议，但其他客户端和真实 OS/媒体链路仍未验收，

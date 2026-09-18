@@ -1,12 +1,11 @@
 #include "render_event_ingress.h"
 
-#include <chrono>
 #include <algorithm>
+#include <chrono>
 #include <functional>
+#include <nlohmann/json.hpp>
 #include <type_traits>
 #include <unordered_set>
-
-#include <nlohmann/json.hpp>
 
 #include "architecture/encoders/video_encoder_module.h"
 #include "architecture/services/file_transfer_service.h"
@@ -30,8 +29,12 @@
 namespace px {
 
 RenderEventIngress::RenderEventIngress(const std::shared_ptr<RdApplication>& app)
-    : app_(app), context_(app->GetContext()), module_registry_(context_->GetRenderModuleRegistry()), network_ingress_(NetworkEventIngress::Make(app)),
-      msg_notifier_(context_->GetMessageNotifier()), stat_(RdStatistics::Instance()) {}
+    : app_(app),
+      context_(app->GetContext()),
+      module_registry_(context_->GetRenderModuleRegistry()),
+      network_ingress_(NetworkEventIngress::Make(app)),
+      msg_notifier_(context_->GetMessageNotifier()),
+      stat_(RdStatistics::Instance()) {}
 
 void RenderEventIngress::ProcessWebRtcEvent(const std::string& source_id, const WebRtcEvent& event) {
     const auto ingress = std::ref(*this);
@@ -67,8 +70,7 @@ void RenderEventIngress::ProcessWebRtcEvent(const std::string& source_id, const 
                 disconnected->preserve_reconnect_grace_ = value.preserve_reconnect_grace;
                 owner.network_ingress_->ProcessClientDisConnectedEvent(disconnected, source_id);
             } else if constexpr (std::is_same_v<Event, WebRtcFileTransferDisconnectedEvent>) {
-                const auto prefix = source_id == kNetWebRtcRemoteLibraryId ? "rtc:" : "rtc-local:";
-                const auto binding_id = std::string(prefix) + value.stream_id;
+                const auto binding_id = std::string("rtc-local:") + value.stream_id;
                 const auto registry = owner.app_->GetLogicalSessionRegistry();
                 const auto logical_session_id =
                     registry ? registry->FindLogicalSessionIdByBinding(binding_id, static_cast<std::int64_t>(TimeUtil::GetCurrentTimestamp()))
@@ -85,10 +87,6 @@ void RenderEventIngress::ProcessWebRtcEvent(const std::string& source_id, const 
                         .connection_id = value.connection_instance_id,
                     });
                 }
-            } else if constexpr (std::is_same_v<Event, WebRtcAnswerSdpEvent>) {
-                owner.SendWebRtcAnswerSdpToRemote(value);
-            } else if constexpr (std::is_same_v<Event, WebRtcIceEvent>) {
-                owner.SendWebRtcIceToRemote(value);
             } else if constexpr (std::is_same_v<Event, WebRtcVoicePcmEvent>) {
                 if (const auto service = owner.context_->GetVoiceCallService(); service && !value.pcm.empty()) {
                     service->HandleWebRtcPcm(value.stream_id, value.call_id, value.pcm, value.sample_rate, value.channels);
@@ -222,24 +220,6 @@ void RenderEventIngress::ProcessRenderEvent(const RenderEventEnvelope& envelope)
         envelope.payload);
 }
 
-void RenderEventIngress::SendWebRtcAnswerSdpToRemote(const WebRtcAnswerSdpEvent& event) {
-    const auto message = std::make_shared<Message>();
-    message->set_type(MessageType::kSigAnswerSdpMessage);
-    message->mutable_sig_answer_sdp()->set_sdp(event.sdp);
-    module_registry_->SendRelaySignalingMessage(event.stream_id, ProtoAsData(message));
-    LOGI("Send WebRTC SDP by relay: {}", event.stream_id);
-}
-
-void RenderEventIngress::SendWebRtcIceToRemote(const WebRtcIceEvent& event) {
-    const auto message = std::make_shared<Message>();
-    message->set_type(MessageType::kSigIceMessage);
-    message->mutable_sig_ice()->set_ice(event.ice);
-    message->mutable_sig_ice()->set_mid(event.mid);
-    message->mutable_sig_ice()->set_sdp_mline_index(event.sdp_mline_index);
-    module_registry_->SendRelaySignalingMessage(event.stream_id, ProtoAsData(message));
-    LOGI("Send WebRTC ICE by relay: {}", event.ice);
-}
-
 void RenderEventIngress::ProcessPanelStreamMessage(const std::shared_ptr<PanelStreamMessageEvent>& event) {
     if (!event || !event->body_) {
         return;
@@ -272,4 +252,4 @@ void RenderEventIngress::ReportRelayAlive(const std::string& device_id, const st
     app_->PostPanelMessage(RpProtoAsData(&message));
 }
 
-} // namespace px
+}  // namespace px

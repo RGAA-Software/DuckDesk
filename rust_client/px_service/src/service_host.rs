@@ -1979,8 +1979,6 @@ mod tests {
             encoder_format: "h264".to_string(),
             webrtc_enabled: true,
             websocket_enabled: true,
-            live_stream_id: "test-device__app__test-app".to_string(),
-            push_rtmp_url: "rtmp://127.0.0.1:1935/live/{live_stream_id}".to_string(),
             device_id: "test-device".to_string(),
             relay_device_id: format!("test-device__instance__{id}"),
             relay_server_host: "console.test".to_string(),

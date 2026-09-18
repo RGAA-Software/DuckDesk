@@ -1,5 +1,4 @@
 use crate::config::console_server_config::ConsoleServerConfig;
-use crate::rtc::model::ConsoleRtcSettings;
 use crate::{gAuthManager, gConsoleSettings};
 use px_base::ip_util::get_clean_ipv4_addresses;
 use serde::Deserialize;
@@ -21,99 +20,6 @@ fn default_force_authorize() -> bool {
 
 fn default_ssl_enable() -> bool {
     true
-}
-
-fn default_media_server_url() -> String {
-    "http://127.0.0.1:12888".to_string()
-}
-
-fn default_live_app() -> String {
-    "live".to_string()
-}
-
-fn default_live_app_id() -> String {
-    "cargame_debug".to_string()
-}
-
-fn default_auto_start_media_server() -> bool {
-    true
-}
-
-fn default_publish_rtmp_url() -> String {
-    "rtmp://127.0.0.1:1935/live/{live_stream_id}".to_string()
-}
-
-/// ZLMediaKit integration settings. `api_secret` is deliberately server-only:
-/// the Console issues short-lived playback tickets instead of returning this value
-/// or a direct media-server URL to the browser.
-#[derive(Debug, Deserialize, Clone)]
-#[serde(default)]
-pub struct ConsoleLiveSettings {
-    pub media_server_url: String,
-    pub api_secret: String,
-    pub app: String,
-    pub default_app_id: String,
-    /// Host or IP advertised to remote Render publishers. Empty means the
-    /// Console machine address resolved into `server_w3c_ip`.
-    #[serde(default)]
-    pub publish_public_host: String,
-    /// Address used by render instances to publish the passive main stream.
-    /// Its scheme, port and path are retained; the host is selected from
-    /// `publish_public_host` or the Console machine address.
-    /// `{live_stream_id}` is replaced by Render before publishing.
-    #[serde(default = "default_publish_rtmp_url")]
-    pub publish_rtmp_url: String,
-    /// Start the fixed px_media.exe sidecar when media_server_url is local.
-    #[serde(default = "default_auto_start_media_server")]
-    pub auto_start_media_server: bool,
-}
-
-impl Default for ConsoleLiveSettings {
-    fn default() -> Self {
-        Self {
-            media_server_url: default_media_server_url(),
-            api_secret: String::new(),
-            app: default_live_app(),
-            default_app_id: default_live_app_id(),
-            publish_public_host: String::new(),
-            publish_rtmp_url: default_publish_rtmp_url(),
-            auto_start_media_server: default_auto_start_media_server(),
-        }
-    }
-}
-
-impl ConsoleLiveSettings {
-    pub fn resolved_publish_rtmp_url(&self, console_machine_host: &str) -> Result<String, String> {
-        const STREAM_TOKEN: &str = "__PIXELS_LIVE_STREAM_ID__";
-        let configured = self
-            .publish_rtmp_url
-            .replace("{live_stream_id}", STREAM_TOKEN);
-        let mut url = url::Url::parse(&configured)
-            .map_err(|error| format!("live.publish_rtmp_url is invalid: {error}"))?;
-        if !matches!(url.scheme(), "rtmp" | "rtmps") {
-            return Err("live.publish_rtmp_url must use rtmp or rtmps".to_string());
-        }
-
-        let selected_host = if self.publish_public_host.trim().is_empty() {
-            console_machine_host.trim()
-        } else {
-            self.publish_public_host.trim()
-        };
-        if selected_host.is_empty() {
-            return Err(
-                "live.publish_public_host and the Console machine address are both empty"
-                    .to_string(),
-            );
-        }
-        let normalized_host = selected_host
-            .strip_prefix('[')
-            .and_then(|host| host.strip_suffix(']'))
-            .unwrap_or(selected_host);
-        url.set_host(Some(normalized_host)).map_err(|_| {
-            "live.publish_public_host is not a valid IP address or hostname".to_string()
-        })?;
-        Ok(url.as_str().replace(STREAM_TOKEN, "{live_stream_id}"))
-    }
 }
 
 /// 鉴权是否放行（force_authorize=false 时所有 WS/HTTP 鉴权过滤直接通过）。
@@ -253,19 +159,9 @@ pub struct ConsoleSettings {
     #[serde(default = "default_ssl_enable")]
     pub ssl_enable: bool,
 
-    /// ZLMediaKit discovery and Console-proxied HLS playback configuration.
-    #[serde(default)]
-    pub live: ConsoleLiveSettings,
-
     /// End-user identity, throttling and quota policy.
     #[serde(default)]
     pub user: ConsoleUserSettings,
-
-    /// Standard WebRTC ICE discovery and managed Coturn settings. Runtime Web
-    /// administration is persisted separately under storage and overrides
-    /// these bootstrap defaults after the first successful save.
-    #[serde(default)]
-    pub rtc: ConsoleRtcSettings,
 
     // ./xx/xx.a
     #[serde(skip_deserializing, skip_serializing)]
@@ -324,7 +220,6 @@ impl ConsoleSettings {
                 );
             }
         }
-        self.live.resolved_publish_rtmp_url(&self.server_w3c_ip)?;
         Ok(())
     }
 
@@ -413,8 +308,6 @@ impl ConsoleSettings {
             relay_port = self.relay_port,
             ssl_enable = self.ssl_enable,
             force_authorize = self.force_authorize,
-            media_server_url = %self.live.media_server_url,
-            publish_public_host = %self.live.publish_public_host,
             "Console settings loaded (secrets redacted)"
         );
     }
@@ -484,35 +377,5 @@ mod security_tests {
             .join("\n");
         let settings: ConsoleSettings = toml::from_str(&without_relay_setting).unwrap();
         assert!(settings.relay_enabled);
-    }
-
-    #[test]
-    fn live_publish_host_defaults_to_console_machine_address() {
-        let mut settings = base();
-        settings.server_w3c_ip = "10.0.0.16".to_string();
-        settings.live.publish_rtmp_url = "rtmp://127.0.0.1:1935/live/{live_stream_id}".to_string();
-        assert_eq!(
-            settings
-                .live
-                .resolved_publish_rtmp_url(&settings.server_w3c_ip)
-                .unwrap(),
-            "rtmp://10.0.0.16:1935/live/{live_stream_id}"
-        );
-    }
-
-    #[test]
-    fn explicit_live_publish_host_accepts_domain_and_preserves_template() {
-        let mut settings = base();
-        settings.server_w3c_ip = "10.0.0.16".to_string();
-        settings.live.publish_public_host = "media.example.test".to_string();
-        settings.live.publish_rtmp_url =
-            "rtmps://127.0.0.1:1940/custom/{live_stream_id}".to_string();
-        assert_eq!(
-            settings
-                .live
-                .resolved_publish_rtmp_url(&settings.server_w3c_ip)
-                .unwrap(),
-            "rtmps://media.example.test:1940/custom/{live_stream_id}"
-        );
     }
 }

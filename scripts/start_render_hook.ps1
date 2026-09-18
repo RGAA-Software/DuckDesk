@@ -19,8 +19,6 @@ $WebsocketEnabled = 'true'
 $EncoderFps = '60'
 $EncoderBitrate = '20'
 $EncoderFormat = 'h264'
-$LiveStreamId = "${DeviceId}__app__cargame_debug"
-$LivePushEnabled = $true
 # =============================
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
@@ -79,7 +77,6 @@ Write-Host "  --encoder_bitrate=$EncoderBitrate"
 Write-Host "  --encoder_format=$EncoderFormat"
 Write-Host "  --network_listen_port=$Port"
 Write-Host "  --device_id=$DeviceId"
-Write-Host "  --live_stream_id=$LiveStreamId"
 Write-Host '  --logfile'
 Write-Host ''
 
@@ -92,9 +89,6 @@ $tomlPath = Join-Path $Dist 'settings.toml'
 if (Test-Path -LiteralPath $tomlPath) {
     $toml = Get-Content -LiteralPath $tomlPath -Raw
     $toml = $toml -replace 'event-replay-mode\s*=\s*"[^"]*"', 'event-replay-mode = "inner"'
-    if ($LivePushEnabled) {
-        $toml = $toml -replace '(?ms)(\[push\]\s*\r?\n)enabled\s*=\s*false', '$1enabled = true'
-    }
     Set-Content -LiteralPath $tomlPath -Value $toml -NoNewline
 }
 
@@ -112,8 +106,7 @@ $argList = @(
     "--encoder_bitrate=$EncoderBitrate",
     "--encoder_format=$EncoderFormat",
     "--network_listen_port=$Port",
-    "--device_id=$DeviceId",
-    "--live_stream_id=$LiveStreamId"
+    "--device_id=$DeviceId"
 )
 
 Write-Host 'Starting px_render.exe ...'

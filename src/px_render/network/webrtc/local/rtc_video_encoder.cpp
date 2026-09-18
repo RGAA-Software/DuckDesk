@@ -1,15 +1,17 @@
 #include "rtc_video_encoder.h"
+
 #include <atomic>
 #include <chrono>
-#include "px_common/log.h"
-#include "px_common/data.h"
-#include "px_common/time_util.h"
+
 #include "h264_sei_helper.h"
-#include "webrtc_local_transport.h"
-#include "rtc_server.h"
-#include "video_source_impl.h"
-#include "settings/rd_settings.h"
+#include "px_common/data.h"
+#include "px_common/log.h"
+#include "px_common/time_util.h"
 #include "px_render/modules/module_ids.h"
+#include "rtc_server.h"
+#include "settings/rd_settings.h"
+#include "video_source_impl.h"
+#include "webrtc_local_transport.h"
 
 namespace px {
 
@@ -17,17 +19,13 @@ bool gAdapterBitrate = true;
 
 RtcSharedVideoEncoder::RtcSharedVideoEncoder(const std::shared_ptr<RtcServer>& server) : server_(server) {}
 
-RtcSharedVideoEncoder::~RtcSharedVideoEncoder() {
-    LOGI("rtc shared encoder released.");
-}
+RtcSharedVideoEncoder::~RtcSharedVideoEncoder() { LOGI("rtc shared encoder released."); }
 
-int RtcSharedVideoEncoder::GetVideoEncoderMinBitrate() {
-    return this->GetTargetBitrate();
-}
+int RtcSharedVideoEncoder::GetVideoEncoderMinBitrate() { return this->GetTargetBitrate(); }
 
-int32_t
-RtcSharedVideoEncoder::InitEncode(const webrtc::VideoCodec* codec_settings, // NOLINT(pixels-raw-pointer-boundary): libwebrtc VideoEncoder ABI
-                                  const webrtc::VideoEncoder::Settings& settings) {
+int32_t RtcSharedVideoEncoder::InitEncode(
+    const webrtc::VideoCodec* codec_settings,  // NOLINT(pixels-raw-pointer-boundary): libwebrtc VideoEncoder ABI
+    const webrtc::VideoEncoder::Settings& settings) {
     LOGI("InitEncode start bitrate {} kbps", codec_settings->startBitrate);
     return WEBRTC_VIDEO_CODEC_OK;
 }
@@ -40,14 +38,14 @@ int32_t RtcSharedVideoEncoder::Release() {
 void RtcSharedVideoEncoder::SetRates(const RateControlParameters& parameters) {
     mTargetBitrate = parameters.bitrate.get_sum_bps();
 
-    // A wall observer shares the already encoded stream with the single
+    // An observer shares the already encoded stream with the single
     // interactive RTC session. Its peer-local BWE may still tune that
     // connection's pacer, but it must never reconfigure the shared
     // physical encoder; otherwise two peers become last-writer-wins on
     // bitrate/fps and can repeatedly reopen or reconfigure the encoder.
-    if (server_ && server_->IsWallObserver()) {
+    if (server_ && server_->IsObserver()) {
         if (!observer_feedback_ignored_.exchange(true)) {
-            LOGI("Ignore encoder rate feedback from wall observer.");
+            LOGI("Ignore encoder rate feedback from observer.");
         }
         return;
     }
@@ -74,7 +72,7 @@ void RtcSharedVideoEncoder::SetRates(const RateControlParameters& parameters) {
 
 int32_t RtcSharedVideoEncoder::Encode(
     const webrtc::VideoFrame& frame,
-    const std::vector<webrtc::VideoFrameType>* frame_types) { // NOLINT(pixels-raw-pointer-boundary): libwebrtc VideoEncoder ABI
+    const std::vector<webrtc::VideoFrameType>* frame_types) {  // NOLINT(pixels-raw-pointer-boundary): libwebrtc VideoEncoder ABI
     if (!encoded_image_callback_) {
         RTC_LOG(LS_WARNING) << "RegisterEncodeCompleteCallback() not called";
         return WEBRTC_VIDEO_CODEC_UNINITIALIZED;
@@ -220,7 +218,7 @@ int32_t RtcSharedVideoEncoder::Encode(
     if (this->insert_timer_sei_) {
         this->insert_timer_sei_ = false;
         SeiInfo sei_info;
-        sei_info.frame_index_ = frame.id(); // encoded_frame->frame_index;
+        sei_info.frame_index_ = frame.id();  // encoded_frame->frame_index;
         sei_info.sender_ts_ = TimeUtil::GetCurrentTimestamp();
         ;
         auto sei = H264SeiHelper::GenCustomSei(sei_info.AsString());
@@ -282,8 +280,7 @@ int32_t RtcSharedVideoEncoder::Encode(
     // 帧龄:发送时刻(unix) - 编码完成时记录的 wall clock(unix)
     auto frame_age_ms = unix_now_ms - encoded_video_frame->timestamp_;
     send_age_sum_ += frame_age_ms;
-    if (frame_age_ms > send_age_max_)
-        send_age_max_ = frame_age_ms;
+    if (frame_age_ms > send_age_max_) send_age_max_ = frame_age_ms;
     encodedImage.SetRtpTimestamp(send_rtp_ts);
     encodedImage.ntp_time_ms_ = send_ntp_ms;
     // RTC factory 只协商 H264。全彩模式主管线会出 HEVC,绝不能再当 H264 塞给浏览器。
@@ -302,12 +299,13 @@ int32_t RtcSharedVideoEncoder::Encode(
     auto cb_result = encoded_image_callback_->get().OnEncodedImage(encodedImage, &codec_specific);
     static std::atomic_uint64_t sent_frames = 0;
     if (++sent_frames % 300 == 1 || cb_result.error != webrtc::EncodedImageCallback::Result::OK) {
-        LOGI("sent encoded frame #{}, seq={}, key={}, size={}, cb_err={}, ts_miss={}, ts_log={}, age_avg={}ms, age_max={}ms, cache={}, "
-             "win: keys={}, broken={}, idr_req={}, pre_idr_drops={}, backlog_skips={}",
-             sent_frames.load(), encoded_video_frame->seq_, encoded_video_frame->key_, encoded_video_frame->data_->Size(), (int)cb_result.error,
-             ts_lookup_miss_, input_ts_log_.size(), send_age_count_ > 0 ? send_age_sum_ / send_age_count_ : 0, send_age_max_,
-             server_->GetCachedFrameCount(mon_name, consumed_seq_), win_key_sent_, win_chain_broken_, win_idr_requested_, win_pre_idr_drops_,
-             win_backlog_skips_);
+        LOGI(
+            "sent encoded frame #{}, seq={}, key={}, size={}, cb_err={}, ts_miss={}, ts_log={}, age_avg={}ms, age_max={}ms, cache={}, "
+            "win: keys={}, broken={}, idr_req={}, pre_idr_drops={}, backlog_skips={}",
+            sent_frames.load(), encoded_video_frame->seq_, encoded_video_frame->key_, encoded_video_frame->data_->Size(), (int)cb_result.error,
+            ts_lookup_miss_, input_ts_log_.size(), send_age_count_ > 0 ? send_age_sum_ / send_age_count_ : 0, send_age_max_,
+            server_->GetCachedFrameCount(mon_name, consumed_seq_), win_key_sent_, win_chain_broken_, win_idr_requested_, win_pre_idr_drops_,
+            win_backlog_skips_);
         send_age_sum_ = 0;
         send_age_max_ = 0;
         send_age_count_ = 0;
@@ -443,4 +441,4 @@ int RtcSharedVideoEncoder::GetMaxBitrate() const {
     return 0;
 }
 
-} // namespace px
+}  // namespace px

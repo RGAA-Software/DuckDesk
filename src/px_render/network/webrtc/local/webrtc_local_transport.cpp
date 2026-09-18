@@ -3,27 +3,29 @@
 //
 
 #include "webrtc_local_transport.h"
-#include "rtc_candidate_sdp.h"
-#include "rtc_server.h"
-#include "architecture/sources/capture_types.h"
-#include "px_common/log.h"
-#include "px_common/file.h"
-#include "px_common/image.h"
-#include "px_common/time_util.h"
-#include "px_common/data.h"
-#include "px_capture/capture_message.h"
-#include "px_common/async_runtime.h"
-#include "px_render/modules/module_ids.h"
 
-#include <functional>
-#include <format>
-#include <optional>
 #include <Windows.h>
 
+#include <format>
+#include <functional>
+#include <optional>
+
+#include "architecture/sources/capture_types.h"
+#include "px_capture/capture_message.h"
+#include "px_common/async_runtime.h"
+#include "px_common/data.h"
+#include "px_common/file.h"
+#include "px_common/image.h"
+#include "px_common/log.h"
+#include "px_common/time_util.h"
+#include "px_render/modules/module_ids.h"
+#include "rtc_candidate_sdp.h"
+#include "rtc_server.h"
+
 namespace px {
-WebRtcLocalRuntime::WebRtcLocalRuntime(std::weak_ptr<WebRtcLocalTransport> owner, std::weak_ptr<WebRtcExecutionContext> context, int port_start,
-                                       int port_end)
-    : rtc_port_start(port_start), rtc_port_end(port_end), owner_(std::move(owner)), context_(std::move(context)) {}
+WebRtcLocalRuntime::WebRtcLocalRuntime(std::weak_ptr<WebRtcLocalTransport> owner, std::weak_ptr<WebRtcExecutionContext> context,
+                                       const int media_port_value)
+    : media_port(media_port_value), owner_(std::move(owner)), context_(std::move(context)) {}
 
 void WebRtcLocalRuntime::WithOwner(const std::function<void(WebRtcLocalTransport&)>& operation) {
     std::scoped_lock lock(owner_mutex_);
@@ -42,9 +44,7 @@ void WebRtcLocalRuntime::DeactivateOwner() {
     owner_.reset();
 }
 
-std::shared_ptr<WebRtcExecutionContext> WebRtcLocalRuntime::GetContext() const {
-    return context_.lock();
-}
+std::shared_ptr<WebRtcExecutionContext> WebRtcLocalRuntime::GetContext() const { return context_.lock(); }
 
 void WebRtcLocalRuntime::QueueEvent(WebRtcEvent event, const bool immediate) const {
     const auto context = context_.lock();
@@ -124,9 +124,7 @@ bool WebRtcLocalRuntime::WaitForEncodedFrame(const std::string& mon_name, uint64
     return ready;
 }
 
-WebRtcLocalTransport::~WebRtcLocalTransport() {
-    Destroy();
-}
+WebRtcLocalTransport::~WebRtcLocalTransport() { Destroy(); }
 
 WebRtcTransportInfo WebRtcLocalTransport::Info() const {
     return WebRtcTransportInfo{
@@ -171,7 +169,7 @@ bool WebRtcLocalTransport::Start(const WebRtcTransportConfiguration& configurati
         LOGE("event=webrtc.transport.start component={} code=WEBRTC_RUNTIME_MISSING outcome=failed", kNetWebRtcLocalLibraryId);
         return false;
     }
-    runtime_ = std::make_shared<WebRtcLocalRuntime>(weak_from_this(), execution_context_, configuration.rtc_port_start, configuration.rtc_port_end);
+    runtime_ = std::make_shared<WebRtcLocalRuntime>(weak_from_this(), execution_context_, configuration.media_port);
 
     if (!enabled_.load(std::memory_order_acquire)) {
         lifecycle_.store(WebRtcTransportLifecycle::kRunning, std::memory_order_release);
@@ -269,29 +267,15 @@ void WebRtcLocalTransport::SetEventCallback(WebRtcEventCallback callback) {
     }
 }
 
-void WebRtcLocalTransport::SetEnabled(const bool enabled) {
-    enabled_.store(enabled, std::memory_order_release);
-}
+void WebRtcLocalTransport::SetEnabled(const bool enabled) { enabled_.store(enabled, std::memory_order_release); }
 
 bool WebRtcLocalTransport::IsWorking() const {
     return enabled_.load(std::memory_order_acquire) && lifecycle_.load(std::memory_order_acquire) == WebRtcTransportLifecycle::kRunning;
 }
 
-void WebRtcLocalTransport::UpdateSettings(const WebRtcTransportSettings& settings) {
-    settings_ = settings;
-}
+void WebRtcLocalTransport::UpdateSettings(const WebRtcTransportSettings& settings) { settings_ = settings; }
 
-bool WebRtcLocalTransport::PostWork(std::function<void()> task) const {
-    return execution_context_ && execution_context_->PostWork(std::move(task));
-}
-
-void WebRtcLocalTransport::ApplyRtcRemoteSdp(const MsgRtcRemoteSdp& message) {
-    OnRemoteSdp(message);
-}
-
-void WebRtcLocalTransport::ApplyRtcRemoteIce(const MsgRtcRemoteIce& message) {
-    OnRemoteIce(message);
-}
+bool WebRtcLocalTransport::PostWork(std::function<void()> task) const { return execution_context_ && execution_context_->PostWork(std::move(task)); }
 
 void WebRtcLocalTransport::ApplyLogicalSessionCapabilities(const PxLogicalSessionCapabilityUpdate& update) {
     const auto runtime = runtime_;
@@ -303,73 +287,6 @@ void WebRtcLocalTransport::ApplyLogicalSessionCapabilities(const PxLogicalSessio
             server->SetPermissions(true, update.permissions_);
         }
     });
-}
-
-void WebRtcLocalTransport::OnRemoteSdp(const MsgRtcRemoteSdp& message) {
-    const auto weak_runtime = std::weak_ptr<WebRtcLocalRuntime>(runtime_);
-    static_cast<void>(PostWork([weak_runtime, message]() {
-        const auto runtime = weak_runtime.lock();
-        if (!runtime) {
-            return;
-        }
-        // Do not hold runtime->owner_mutex_ while RtcServer::Start().
-        // Start queries the same runtime for monitor topology and IDR
-        // requests; holding that non-recursive mutex here turns a normal
-        // standard-RTC offer into a self-deadlock. The task itself uses no
-        // borrowed owner reference, and every owner-dependent runtime call
-        // below rechecks owner activity under its own short lock.
-        if (!runtime->IsOwnerActive()) {
-            return;
-        }
-        const auto conn_id = message.device_id_ + ":" + message.stream_id_;
-        auto send_answer = [weak_runtime, stream_id = message.stream_id_](const std::string& answer_sdp) {
-            if (answer_sdp.empty()) {
-                LOGE("Standard RTC produced an empty answer, stream={}", stream_id);
-                return;
-            }
-            if (const auto locked = weak_runtime.lock()) {
-                locked->QueueEvent(WebRtcAnswerSdpEvent{.stream_id = stream_id, .sdp = answer_sdp});
-            }
-        };
-
-        if (auto existing = runtime->servers.TryGet(conn_id); existing.has_value()) {
-            const auto& server = existing.value();
-            server->SetPermissions(true, message.permissions_);
-            server->SetOnAnswerCallback(send_answer);
-            if (server->RestartWithOffer(message.sdp_, message.ice_config_json_)) {
-                LOGI("Reused RTC media peer for standard ICE restart: {}", conn_id);
-                return;
-            }
-            LOGW("Standard RTC in-place restart failed, replacing peer: {}", conn_id);
-            static_cast<void>(runtime->servers.RemoveIf(conn_id, [server](const std::shared_ptr<RtcServer>& current) { return current == server; }));
-            PxAsyncRuntime::DeferJoin(std::jthread([server]() { server->Exit(); }));
-        }
-
-        auto server = RtcServer::Make(runtime);
-        server->SetConnId(conn_id);
-        server->SetPermissions(true, message.permissions_);
-        server->SetOnAnswerCallback(send_answer);
-        if (!server->Start(message.stream_id_, message.sdp_, PxLocalRtcSessionRole::kInteractive, message.ice_config_json_)) {
-            LOGE("Failed to start standard RTC media peer: {}", conn_id);
-            return;
-        }
-        runtime->servers.Insert(conn_id, server);
-        LOGI("Started standard RTC media peer: {}", conn_id);
-    }));
-}
-
-void WebRtcLocalTransport::OnRemoteIce(const MsgRtcRemoteIce& message) {
-    const auto weak_runtime = std::weak_ptr<WebRtcLocalRuntime>(runtime_);
-    static_cast<void>(PostWork([weak_runtime, message]() {
-        const auto runtime = weak_runtime.lock();
-        if (!runtime) {
-            return;
-        }
-        const auto conn_id = message.device_id_ + ":" + message.stream_id_;
-        if (auto server = runtime->servers.TryGet(conn_id); server.has_value()) {
-            server.value()->OnRemoteIce(message.ice_, message.mid_, message.sdp_mline_index_);
-        }
-    }));
 }
 
 // 视频/音频帧消息不该走 datachannel:RTC 的音视频走 RTP 轨,web 端也不认识
@@ -386,7 +303,7 @@ static bool IsMediaFrameMessage(const std::shared_ptr<Data>& msg) {
         return false;
     }
     const auto bytes = std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(msg->MutableBytes().data()),
-                                                msg->Size()); // NOLINT(pixels-raw-pointer-boundary): Data view is wrapped immediately
+                                                msg->Size());  // NOLINT(pixels-raw-pointer-boundary): Data view is wrapped immediately
     const size_t n = msg->Size();
     size_t i = 0;
     auto read_varint = [&](uint64_t& out) -> bool {
@@ -419,29 +336,29 @@ static bool IsMediaFrameMessage(const std::shared_ptr<Data>& msg) {
             return type == 30 || type == 40;
         }
         switch (wire) {
-        case 0: {
-            uint64_t v;
-            if (!read_varint(v)) {
-                return false;
+            case 0: {
+                uint64_t discarded_value{};
+                if (!read_varint(discarded_value)) {
+                    return false;
+                }
+                break;
             }
-            break;
-        }
-        case 1:
-            i += 8;
-            break;
-        case 2: {
-            uint64_t len = 0;
-            if (!read_varint(len)) {
-                return false;
+            case 1:
+                i += 8;
+                break;
+            case 2: {
+                uint64_t len = 0;
+                if (!read_varint(len)) {
+                    return false;
+                }
+                i += (size_t)len;
+                break;
             }
-            i += (size_t)len;
-            break;
-        }
-        case 5:
-            i += 4;
-            break;
-        default:
-            return false; // group 等不支持,视为非媒体帧
+            case 5:
+                i += 4;
+                break;
+            default:
+                return false;  // group 等不支持,视为非媒体帧
         }
         if (i > n) {
             return false;
@@ -562,7 +479,7 @@ void WebRtcLocalTransport::WaitForMediaChannelActive() {
 int WebRtcLocalTransport::GetConnectedClientsCount() {
     int count = 0;
     runtime_->servers.ApplyAll([&](const auto&, const std::shared_ptr<RtcServer>& srv) {
-        if (!srv->IsWallObserver() && srv->IsDataChannelConnected()) {
+        if (srv->IsDataChannelConnected()) {
             count++;
         }
     });
@@ -729,7 +646,7 @@ void WebRtcLocalTransport::OnRawAudioData(const std::shared_ptr<Data>& data, int
         LOGI("OnRawAudioData #{}, bytes={}, rate={} ch={} bits={}, peers={}", cnt, data->Size(), samples, channels, bits, runtime_->servers.Size());
     }
     runtime_->servers.ApplyAll([&](const std::string&, const std::shared_ptr<RtcServer>& srv) {
-        if (!srv || srv->IsExitRequested() || srv->IsWallObserver()) {
+        if (!srv || srv->IsExitRequested()) {
             return;
         }
         srv->OnRawAudioData(data, samples, channels, bits);
@@ -905,8 +822,8 @@ PxLocalRtcAllocResult WebRtcLocalTransport::AllocNewLocalRtcInstance(const std::
     auto conn_id = req->device_id_ + ":" + req->stream_id_;
     LOGI("==>AllocNewLocalRtcInstance Offer sdp {} => {}, takeover: {}", conn_id, req->sdp_.size(), req->takeover_);
 
-    const bool is_observer = req->session_role_ == PxLocalRtcSessionRole::kObserver || req->session_role_ == PxLocalRtcSessionRole::kWallObserver;
-    static constexpr size_t kMaxWallObservers = 16;
+    const bool is_observer = req->session_role_ == PxLocalRtcSessionRole::kObserver;
+    static constexpr size_t kMaxObservers = 16;
 
     // Observer sessions coexist with the single interactive connection.
     // They use unique Console-issued stream ids and never participate in the
@@ -925,8 +842,8 @@ PxLocalRtcAllocResult WebRtcLocalTransport::AllocNewLocalRtcInstance(const std::
     });
     if (is_observer) {
         const bool duplicate = runtime_->servers.HasKey(conn_id);
-        if (observer_count >= kMaxWallObservers || duplicate) {
-            LOGW("Reject wall observer, count: {}, duplicate: {}", observer_count, duplicate);
+        if (observer_count >= kMaxObservers || duplicate) {
+            LOGW("Reject observer, count: {}, duplicate: {}", observer_count, duplicate);
             return PxLocalRtcAllocResult::kFailed;
         }
     } else if (!old_servers.empty()) {
@@ -1040,12 +957,10 @@ PxLocalRtcAllocResult WebRtcLocalTransport::AllocNewLocalRtcInstance(const std::
     return PxLocalRtcAllocResult::kOk;
 }
 
-} // namespace px
+}  // namespace px
 
 namespace px {
 
-std::shared_ptr<WebRtcLocalTransport> CreateWebRtcLocalTransport() {
-    return std::make_shared<WebRtcLocalTransport>();
-}
+std::shared_ptr<WebRtcLocalTransport> CreateWebRtcLocalTransport() { return std::make_shared<WebRtcLocalTransport>(); }
 
-} // namespace px
+}  // namespace px

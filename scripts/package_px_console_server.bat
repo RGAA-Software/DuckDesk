@@ -23,7 +23,6 @@ set "CERT_DIR=%OUTPUT_DIR%\certs"
 set "WEB_SRC=%REPO_ROOT%\web\px_console"
 set "SERVER_SRC=%REPO_ROOT%\rust_server\px_console_server"
 set "SERVER_WORKSPACE=%REPO_ROOT%\rust_server"
-set "MEDIA_SRC=%SERVER_SRC%\media"
 set "AUTH_SERVER_OUTPUT=%REPO_ROOT%\output\px_auth"
 
 echo ============================================
@@ -135,51 +134,6 @@ if errorlevel 1 (
 copy /Y "%REPO_ROOT%\px_console.toml" "%OUTPUT_DIR%\px_console.toml" >nul
 if errorlevel 1 (
     echo ERROR: Failed to refresh px_console.toml.
-    exit /b 1
-)
-
-:: Fixed media sidecars. ZLMediaKit requires its complete runtime because
-:: FFmpeg/SRT/WebRTC/OpenSSL DLLs and media_www are loaded at runtime.
-if not exist "%MEDIA_SRC%\px_media.exe" (
-    echo ERROR: Fixed ZLMediaKit binary is missing: %MEDIA_SRC%\px_media.exe
-    exit /b 1
-)
-if not exist "%MEDIA_SRC%\config.ini" (
-    echo ERROR: ZLMediaKit config is missing: %MEDIA_SRC%\config.ini
-    exit /b 1
-)
-if not exist "%MEDIA_SRC%\px_turn.exe" (
-    echo ERROR: Bundled Coturn binary is missing: %MEDIA_SRC%\px_turn.exe
-    echo        Run scripts\build_px_turn.bat first.
-    exit /b 1
-)
-if not exist "%MEDIA_SRC%\turnserver.conf" (
-    echo ERROR: Bundled Coturn config is missing: %MEDIA_SRC%\turnserver.conf
-    exit /b 1
-)
-if not exist "%MEDIA_SRC%\COTURN_LICENSE" (
-    echo ERROR: Bundled Coturn license is missing: %MEDIA_SRC%\COTURN_LICENSE
-    exit /b 1
-)
-robocopy "%MEDIA_SRC%" "%OUTPUT_DIR%" /E /NFL /NDL /NJH /NJS /NP >nul
-if errorlevel 8 (
-    echo ERROR: Failed to copy the ZLMediaKit runtime.
-    exit /b 1
-)
-if not exist "%OUTPUT_DIR%\px_media.exe" (
-    echo ERROR: Failed to copy px_media.exe.
-    exit /b 1
-)
-if not exist "%OUTPUT_DIR%\config.ini" (
-    echo ERROR: Failed to copy ZLMediaKit config.ini.
-    exit /b 1
-)
-if not exist "%OUTPUT_DIR%\px_turn.exe" (
-    echo ERROR: Failed to copy px_turn.exe.
-    exit /b 1
-)
-if not exist "%OUTPUT_DIR%\turnserver.conf" (
-    echo ERROR: Failed to copy turnserver.conf.
     exit /b 1
 )
 

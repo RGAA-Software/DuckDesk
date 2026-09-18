@@ -2,32 +2,26 @@
 
 #include <atomic>
 #include <utility>
-#include <variant>
 
 #include "px_common/callback_quiescence.h"
 #include "px_common/log.h"
 #include "px_render/network/webrtc/local/webrtc_local_transport.h"
-#include "px_render/network/webrtc/remote/webrtc_remote_transport.h"
 
 namespace px {
 
 class WebRtcTransportHandle::State final {
-  public:
-    using Transport = std::variant<std::shared_ptr<WebRtcRemoteTransport>, std::shared_ptr<WebRtcLocalTransport>>;
+public:
+    using Transport = std::shared_ptr<WebRtcLocalTransport>;
 
     State(std::string base_name, const WebRtcTransportKind kind, Transport transport)
         : base_name_(std::move(base_name)), kind_(kind), transport_(std::move(transport)), callback_quiescence_(PxCallbackQuiescence::Create()) {}
 
-    template <typename Operation> decltype(auto) Visit(Operation&& operation) const {
-        return std::visit([&operation](const auto& transport) -> decltype(auto) { return operation(transport); }, transport_);
+    template <typename Operation>
+    decltype(auto) Visit(Operation&& operation) const {
+        return operation(transport_);
     }
 
-    [[nodiscard]] std::shared_ptr<WebRtcLocalTransport> Local() const {
-        if (std::holds_alternative<std::shared_ptr<WebRtcLocalTransport>>(transport_)) {
-            return std::get<std::shared_ptr<WebRtcLocalTransport>>(transport_);
-        }
-        return {};
-    }
+    [[nodiscard]] std::shared_ptr<WebRtcLocalTransport> Local() const { return transport_; }
 
     void BeginStop() {
         callback_quiescence_->BeginStop();
@@ -44,9 +38,7 @@ class WebRtcTransportHandle::State final {
         }
     }
 
-    [[nodiscard]] bool IsAccepting() const {
-        return callback_quiescence_->IsAccepting();
-    }
+    [[nodiscard]] bool IsAccepting() const { return callback_quiescence_->IsAccepting(); }
 
     const std::string base_name_;
     const WebRtcTransportKind kind_;
@@ -59,17 +51,11 @@ class WebRtcTransportHandle::State final {
 
 WebRtcTransportHandle::WebRtcTransportHandle(std::shared_ptr<State> state) : state_(std::move(state)) {}
 
-WebRtcTransportHandle::~WebRtcTransportHandle() {
-    state_->DestroyTransport();
-}
+WebRtcTransportHandle::~WebRtcTransportHandle() { state_->DestroyTransport(); }
 
-WebRtcTransportKind WebRtcTransportHandle::Kind() const {
-    return state_->kind_;
-}
+WebRtcTransportKind WebRtcTransportHandle::Kind() const { return state_->kind_; }
 
-std::string WebRtcTransportHandle::BaseName() const {
-    return state_->base_name_;
-}
+std::string WebRtcTransportHandle::BaseName() const { return state_->base_name_; }
 
 WebRtcTransportInfo WebRtcTransportHandle::Info() const {
     return state_->Visit([](const auto& transport) { return transport->Info(); });
@@ -81,13 +67,9 @@ bool WebRtcTransportHandle::Start(const WebRtcTransportConfiguration& configurat
     return started;
 }
 
-void WebRtcTransportHandle::Stop() {
-    state_->BeginStop();
-}
+void WebRtcTransportHandle::Stop() { state_->BeginStop(); }
 
-void WebRtcTransportHandle::Destroy() {
-    state_->DestroyTransport();
-}
+void WebRtcTransportHandle::Destroy() { state_->DestroyTransport(); }
 
 PxAwaitable<PxResult<void>> WebRtcTransportHandle::StopAsync(std::shared_ptr<WebRtcTransportHandle> owner,
                                                              const std::chrono::steady_clock::time_point deadline) {
@@ -99,9 +81,10 @@ PxAwaitable<PxResult<void>> WebRtcTransportHandle::StopAsync(std::shared_ptr<Web
     const auto quiescent =
         co_await PxCallbackQuiescence::WaitUntilQuiescent(owner->state_->callback_quiescence_, deadline, "webrtc.callback_quiescence");
     if (!quiescent) {
-        LOGE("event=webrtc.callback_quiescence component={} code=WEBRTC_CALLBACK_QUIESCENCE_TIMEOUT operation=stop outcome=timeout "
-             "recoverable=false outstanding={} reason={}",
-             owner->BaseName(), owner->OutstandingCallbacks(), quiescent.Error().message);
+        LOGE(
+            "event=webrtc.callback_quiescence component={} code=WEBRTC_CALLBACK_QUIESCENCE_TIMEOUT operation=stop outcome=timeout "
+            "recoverable=false outstanding={} reason={}",
+            owner->BaseName(), owner->OutstandingCallbacks(), quiescent.Error().message);
         co_return PxResult<void>::Failure(quiescent.Error());
     }
     LOGI("event=webrtc.callback_quiescence component={} operation=stop outcome=success outstanding=0 duration_ms={}", owner->BaseName(),
@@ -109,9 +92,7 @@ PxAwaitable<PxResult<void>> WebRtcTransportHandle::StopAsync(std::shared_ptr<Web
     co_return PxResult<void>::Success();
 }
 
-std::uint64_t WebRtcTransportHandle::OutstandingCallbacks() const {
-    return state_->callback_quiescence_->Outstanding();
-}
+std::uint64_t WebRtcTransportHandle::OutstandingCallbacks() const { return state_->callback_quiescence_->Outstanding(); }
 
 void WebRtcTransportHandle::SetEventCallback(WebRtcEventCallback callback) {
     if (!callback || !state_->IsAccepting()) {
@@ -201,9 +182,7 @@ int WebRtcTransportHandle::MediaConsumerCount() const {
     return ConnectedClientCount();
 }
 
-bool WebRtcTransportHandle::HasVideoClient() const {
-    return IsWorking() && ConnectedClientCount() > 0;
-}
+bool WebRtcTransportHandle::HasVideoClient() const { return IsWorking() && ConnectedClientCount() > 0; }
 
 std::int64_t WebRtcTransportHandle::QueuedMediaMessageCount() const {
     return state_->Visit([](const auto& transport) { return transport->GetQueuingMediaMsgCount(); });
@@ -213,9 +192,7 @@ std::int64_t WebRtcTransportHandle::QueuedFileTransferMessageCount() const {
     return state_->Visit([](const auto& transport) { return transport->GetQueuingFtMsgCount(); });
 }
 
-std::vector<std::shared_ptr<PxConnectedClientInfo>> WebRtcTransportHandle::ConnectedClients() const {
-    return {};
-}
+std::vector<std::shared_ptr<PxConnectedClientInfo>> WebRtcTransportHandle::ConnectedClients() const { return {}; }
 
 void WebRtcTransportHandle::SubmitLocalSharedTexture(const std::string& monitor_name, const std::uint64_t frame_index, const int frame_width,
                                                      const int frame_height, const std::uint64_t shared_handle, const std::int64_t adapter_id,
@@ -235,18 +212,6 @@ void WebRtcTransportHandle::SubmitLocalYuv(const std::string& monitor_name, cons
 void WebRtcTransportHandle::UpdateCaptureMonitorInfo(const CaptureMonitorInfoMessage& message) {
     if (const auto local = state_->Local(); local && state_->IsAccepting()) {
         local->UpdateCaptureMonitorInfo(message);
-    }
-}
-
-void WebRtcTransportHandle::ApplyRemoteSdp(const MsgRtcRemoteSdp& message) {
-    if (state_->IsAccepting()) {
-        state_->Visit([&message](const auto& transport) { transport->ApplyRtcRemoteSdp(message); });
-    }
-}
-
-void WebRtcTransportHandle::ApplyRemoteIce(const MsgRtcRemoteIce& message) {
-    if (state_->IsAccepting()) {
-        state_->Visit([&message](const auto& transport) { transport->ApplyRtcRemoteIce(message); });
     }
 }
 
@@ -291,25 +256,17 @@ bool WebRtcTransportHandle::SubmitVoicePcm(const std::string& stream_id, const s
     return true;
 }
 
-std::shared_ptr<WebRtcTransportHost> WebRtcTransportHost::Create() {
-    return std::make_shared<WebRtcTransportHost>();
-}
+std::shared_ptr<WebRtcTransportHost> WebRtcTransportHost::Create() { return std::make_shared<WebRtcTransportHost>(); }
 
-WebRtcTransportHost::~WebRtcTransportHost() {
-    Reset();
-}
+WebRtcTransportHost::~WebRtcTransportHost() { Reset(); }
 
 std::vector<std::shared_ptr<WebRtcTransportHandle>> WebRtcTransportHost::CreateTransports() {
     if (!transports_.empty()) {
         return transports_;
     }
-    auto remote_state = std::make_shared<WebRtcTransportHandle::State>("px_render_rtc_remote", WebRtcTransportKind::kRemote,
-                                                                       WebRtcTransportHandle::State::Transport{CreateWebRtcRemoteTransport()});
-    transports_.push_back(std::make_shared<WebRtcTransportHandle>(std::move(remote_state)));
-    auto local_state = std::make_shared<WebRtcTransportHandle::State>("px_render_rtc", WebRtcTransportKind::kLocal,
-                                                                      WebRtcTransportHandle::State::Transport{CreateWebRtcLocalTransport()});
+    auto local_state = std::make_shared<WebRtcTransportHandle::State>("px_render_rtc", WebRtcTransportKind::kLocal, CreateWebRtcLocalTransport());
     transports_.push_back(std::make_shared<WebRtcTransportHandle>(std::move(local_state)));
-    LOGI("event=webrtc.library.link component=webrtc_transport_host libraries=2 outcome=success");
+    LOGI("event=webrtc.library.link component=webrtc_transport_host libraries=1 outcome=success");
     return transports_;
 }
 
@@ -322,4 +279,4 @@ void WebRtcTransportHost::Reset() {
     transports_.clear();
 }
 
-} // namespace px
+}  // namespace px

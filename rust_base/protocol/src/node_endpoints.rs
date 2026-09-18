@@ -30,20 +30,12 @@ impl NodeEndpoints {
         if !valid_port(self.desktop_port)
             || !valid_port(self.application_port_start)
             || !valid_port(self.application_port_end)
-            || !valid_port(self.rtc_port_start)
-            || !valid_port(self.rtc_port_end)
             || self.application_port_start > self.application_port_end
-            || self.rtc_port_start > self.rtc_port_end
         {
             return Err("invalid node port range");
         }
         let applications = self.application_port_start..=self.application_port_end;
-        let rtc = self.rtc_port_start..=self.rtc_port_end;
-        if applications.contains(&self.desktop_port)
-            || rtc.contains(&self.desktop_port)
-            || (self.application_port_start <= self.rtc_port_end
-                && self.rtc_port_start <= self.application_port_end)
-        {
+        if applications.contains(&self.desktop_port) {
             return Err("overlapping node ports");
         }
         Ok(())
@@ -75,8 +67,6 @@ mod tests {
             desktop_port: 4601,
             application_port_start: 4613,
             application_port_end: 4998,
-            rtc_port_start: 5000,
-            rtc_port_end: 5031,
         }
     }
 
@@ -122,10 +112,6 @@ mod tests {
             },
             NodeEndpoints {
                 desktop_port: 0,
-                ..sample()
-            },
-            NodeEndpoints {
-                rtc_port_start: 4900,
                 ..sample()
             },
             NodeEndpoints {

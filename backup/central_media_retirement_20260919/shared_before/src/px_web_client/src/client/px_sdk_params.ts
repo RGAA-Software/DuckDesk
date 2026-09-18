@@ -1,0 +1,71 @@
+// connection type
+export enum PxSdkConnType {
+    kWebSocket = 0,
+    kWebRtcDirect = 1,
+    kWebRtc = 2,
+}
+
+// sdk params
+export class PxSdkParams {
+    // type
+    sdkType: PxSdkConnType;
+
+    // canvas
+    canvas: HTMLCanvasElement;
+
+    // renderer name
+    // 2d / webgl / webgpu
+    rendererName: string
+
+    constructor(params: { sdkType: PxSdkConnType; canvas: HTMLCanvasElement; rendererName: string }) {
+        this.sdkType = params.sdkType;
+        this.canvas = params.canvas;
+        this.rendererName = params.rendererName;
+    }
+}
+
+// conn params
+export class PxConnParams {
+    host: string;
+    port: number;
+    safetyPwdMd5?: string;
+    clientNonce?: string;
+    deviceId?: string;
+    instanceId?: string;
+    relayHost?: string;
+    relayPort?: number;
+    rtcIceConfig?: RtcSessionIceConfig;
+    constructor(params: {
+        host: string;
+        port: number;
+        safetyPwdMd5?: string;
+        clientNonce?: string;
+        deviceId?: string;
+        instanceId?: string;
+        relayHost?: string;
+        relayPort?: number;
+        rtcIceConfig?: RtcSessionIceConfig;
+    }) {
+        this.host = params.host;
+        this.port = params.port;
+        this.safetyPwdMd5 = params.safetyPwdMd5;
+        this.clientNonce = params.clientNonce;
+        this.deviceId = params.deviceId;
+        this.instanceId = params.instanceId;
+        this.relayHost = params.relayHost;
+        this.relayPort = params.relayPort;
+        this.rtcIceConfig = params.rtcIceConfig;
+    }
+}
+
+export interface RtcSessionIceConfig {
+    revision: number;
+    direct_probe_enabled: boolean;
+    expires_at: number;
+    ice_servers: Array<{
+        id: string;
+        urls: string[];
+        username?: string;
+        credential?: string;
+    }>;
+}

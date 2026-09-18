@@ -3,6 +3,8 @@
 > 2026-09-19媒体范围更新：Render保留Direct Host WebRTC和Relay既有非RTC数据能力；ZLMediaKit live pusher、Coturn/TURN及经Relay
 > 中转的WebRTC signaling退出活动产品并按归档规则保存。本计划中的通用模块/所有权结论继续有效，任何“推流”或公网Coturn验收旧项
 > 不再是当前出口。权威跨端边界见[Direct Host专项计划](direct_host_webrtc_scope_plan_20260919.md)。
+> 本文后续提到的 `px_render_rtc_remote.dll` 仅保留为旧阶段结构记录；该 DLL 已归档并从活动构建、打包和运行时删除，当前只交付
+> Direct Host `px_render_rtc.dll`。
 
 ## 1. 决策、目标和范围
 

@@ -111,11 +111,9 @@ impl ConsolePanel {
             .first()
             .cloned()
             .unwrap_or_else(|| "127.0.0.1".to_string());
-        let processes = Arc::new(
-            ConsoleProcessManager::for_current_exe(&settings.live).unwrap_or_else(|error| {
-                panic!("Console process manager initialization failed: {error}")
-            }),
-        );
+        let processes = Arc::new(ConsoleProcessManager::for_current_exe().unwrap_or_else(
+            |error| panic!("Console process manager initialization failed: {error}"),
+        ));
         let process_state = processes.snapshot();
         Self {
             language,
@@ -259,17 +257,9 @@ impl ConsolePanel {
             format!("{} / {}", self.auth.username, self.auth.password)
         };
         let console_status = status_label(self.process_state.console_running());
-        let media_status = if self.process_state.media_managed {
-            status_label(self.process_state.media_running())
-        } else {
-            "远端/未托管".to_string()
-        };
-        let turn_status = status_label(self.process_state.turn_running());
 
         let running_count = [
             self.process_state.console_running(),
-            self.process_state.media_running(),
-            self.process_state.turn_running(),
             self.redis_ok && self.mongodb_ok,
         ]
         .into_iter()
@@ -283,7 +273,7 @@ impl ConsolePanel {
             ]
             .spacing(5),
             Space::new().width(Length::Fill),
-            status_pill(format!("{running_count}/4 服务正常"), running_count == 4),
+            status_pill(format!("{running_count}/2 服务正常"), running_count == 2),
         ]
         .align_y(iced::Alignment::Center)
         .width(Length::Fill);
@@ -297,18 +287,6 @@ impl ConsolePanel {
                     "HTTP 管理、应用调度与 API",
                     console_status,
                     self.process_state.console_running()
-                ),
-                service_item(
-                    "本地媒体服务",
-                    "px_media / ZLMediaKit",
-                    media_status,
-                    self.process_state.media_running()
-                ),
-                service_item(
-                    "TURN 中继服务",
-                    "px_turn / Coturn",
-                    turn_status,
-                    self.process_state.turn_running()
                 ),
                 service_item(
                     "Redis",
@@ -387,7 +365,7 @@ impl ConsolePanel {
             );
         }
         if self.exiting {
-            page = page.push(text("正在停止 Console、px_media 与 px_turn…"));
+            page = page.push(text("正在停止 Console…"));
         }
 
         let base = container(scrollable(page).width(Length::Fill).height(Length::Fill))
@@ -469,8 +447,7 @@ fn exit_area(exiting: bool) -> Element<'static, Message> {
         row![
             column![
                 text("关闭本机服务").size(16),
-                text("退出面板时，将停止本机 Console、px_media 与 px_turn；远端 ZLMediaKit 不受影响。")
-                    .size(13),
+                text("退出面板时，将停止本机 Console 服务。").size(13),
             ]
             .spacing(3),
             Space::new().width(Length::Fill),
@@ -509,7 +486,7 @@ fn exit_confirmation() -> Element<'static, Message> {
         column![
             text("确认退出").size(25),
             text("是否停止本机 Console 服务？").size(17),
-            text("这会一并停止 px_media 与 px_turn；远端 ZLMediaKit 不受影响。").size(14),
+            text("正在运行的本机 Console 服务将停止。").size(14),
             row![
                 Space::new().width(Length::Fill),
                 button("取消").on_press(Message::CancelExit),

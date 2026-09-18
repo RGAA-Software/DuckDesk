@@ -137,28 +137,22 @@ public:
     // Sync: write file bootstrap for injected DLL (port + DXGI offsets). Not
     // SHM.
     bool PrepareGameHookBoot(uint32_t pid);
-    void ResetMonitorResolution(const std::string& monitor_name, int width,
-                                int height);
+    void ResetMonitorResolution(const std::string& monitor_name, int width, int height);
     std::shared_ptr<RenderModuleRegistry> GetRenderModuleRegistry();
     std::shared_ptr<MonitorCaptureSource> GetWorkingMonitorCaptureSource();
     void SetFrameRate(int fps);
     [[nodiscard]] int FrameRate() const noexcept;
-    std::map<std::string, std::shared_ptr<VideoEncoderModule>>
-    GetWorkingVideoEncoders() const;
+    std::map<std::string, std::shared_ptr<VideoEncoderModule>> GetWorkingVideoEncoders() const;
     bool GenerateD3DDevice(uint64_t adapter_uid);
     void ClearD3DDevice(uint64_t adapter_uid);
     void ClearModuleD3DState(uint64_t adapter_uid);
-    void HandleD3DDeviceFailure(uint64_t adapter_uid,
-                                const std::string& reason);
+    void HandleD3DDeviceFailure(uint64_t adapter_uid, const std::string& reason);
     ComPtr<ID3D11Device> GetD3DDevice(uint64_t adapter_uid);
     ComPtr<ID3D11DeviceContext> GetD3DContext(uint64_t adapter_uid);
     std::shared_ptr<SharedPreference> GetSp() const { return sp_; }
-    std::shared_ptr<LogicalSessionRegistry> GetLogicalSessionRegistry() const {
-        return logical_session_registry_;
-    }
+    std::shared_ptr<LogicalSessionRegistry> GetLogicalSessionRegistry() const { return logical_session_registry_; }
     std::shared_ptr<render::MediaSourcePort> CreateMediaSourcePort() const;
-    void ReqCtrlAltDelete(const std::string& device_id,
-                          const std::string& stream_id) const;
+    void ReqCtrlAltDelete(const std::string& device_id, const std::string& stream_id) const;
     // service 经 ws 下发 kSrvStopServer(Console 停止实例):先广播
     // kInstanceStopped 给所有 RTC 客户端,留出发送时间后自行退出(不等服务强杀)
     void OnServiceRequestedStop();
@@ -172,19 +166,13 @@ public:
 
     // update capturing monitor
     void UpdateCapturingMonitorInfo();
-    void RequestVirtualDisplay(
-        const std::string& request_id, int operation, uint32_t width,
-        uint32_t height, uint32_t refresh_hz,
-        std::function<void(const MsgVirtualDisplayServiceResult&)>&& callback);
-    [[nodiscard]] PxAwaitable<PxResult<ConsoleFrontendGrant>>
-    AdmitConsoleFrontend(ConsoleFrontendAdmissionRequest request,
-                         std::chrono::steady_clock::time_point deadline);
-    void OpenConsoleResourceChannel(
-        std::string connection_key, std::string logical_session_id,
-        ConsoleResourceChannelKind channel_kind);
+    void RequestVirtualDisplay(const std::string& request_id, int operation, uint32_t width, uint32_t height, uint32_t refresh_hz,
+                               std::function<void(const MsgVirtualDisplayServiceResult&)>&& callback);
+    [[nodiscard]] PxAwaitable<PxResult<ConsoleFrontendGrant>> AdmitConsoleFrontend(ConsoleFrontendAdmissionRequest request,
+                                                                                   std::chrono::steady_clock::time_point deadline);
+    void OpenConsoleResourceChannel(std::string connection_key, std::string logical_session_id, ConsoleResourceChannelKind channel_kind);
     void CloseConsoleResourceChannel(const std::string& connection_key);
-    void UpdateVirtualDisplayStatus(
-        const MsgVirtualDisplayServiceResult& result);
+    void UpdateVirtualDisplayStatus(const MsgVirtualDisplayServiceResult& result);
     void RefreshVirtualDisplayStatus(const std::string& request_prefix);
     std::pair<uint32_t, uint64_t> GetVirtualDisplayStatusSnapshot() const;
     void SendWebViewMouseEvent(const MouseEvent& event);
@@ -224,8 +212,7 @@ private:
     int RunMessageLoop();
     void InitConnectionLifecycle();
     void RequestRestartMe() const;
-    void ReportFileTransferAuditBegin(
-        const render::FileTransferAuditBegin& audit);
+    void ReportFileTransferAuditBegin(const render::FileTransferAuditBegin& audit);
     void ReportFileTransferAuditEnd(const render::FileTransferAuditEnd& audit);
 
     bool SwitchGdiCapture();
@@ -234,11 +221,9 @@ private:
     bool IsCurrentDdaCapture();
     bool TryInitDdaCapture();
     void DeliverCapturedVideoFrame(const CaptureVideoFrame& frame) const;
-    render::MediaSubmitResult DeliverExtensionVideoFrame(
-        const std::shared_ptr<const render::CapturedVideoFrame>& frame) const;
-    render::MediaSubmitResult DeliverCapturedAudioFrame(
-        const std::shared_ptr<const render::CapturedAudioFrame>& frame,
-        const std::shared_ptr<Data>& source_audio_payload = {});
+    render::MediaSubmitResult DeliverExtensionVideoFrame(const std::shared_ptr<const render::CapturedVideoFrame>& frame) const;
+    render::MediaSubmitResult DeliverCapturedAudioFrame(const std::shared_ptr<const render::CapturedAudioFrame>& frame,
+                                                        const std::shared_ptr<Data>& source_audio_payload = {});
 
 protected:
     RdSettings& settings_;
@@ -270,7 +255,6 @@ protected:
     std::shared_ptr<render::FrameDebuggerObserver> frame_debugger_observer_;
     std::shared_ptr<render::FrameCarrierProcessor> frame_carrier_processor_;
     std::shared_ptr<render::FrameResizerProcessor> frame_resizer_processor_;
-    std::shared_ptr<render::LivePusherSink> live_pusher_sink_;
     std::shared_ptr<render::MediaRecorderSink> media_recorder_sink_;
     std::shared_ptr<render::OpusEncoderProcessor> opus_encoder_processor_;
     std::shared_ptr<render::WasAudioCaptureSource> audio_capture_source_;
@@ -279,8 +263,7 @@ protected:
     std::shared_ptr<render::FileTransferService> file_transfer_service_;
     std::shared_ptr<render::NetworkTransportHub> network_transport_hub_;
     std::shared_ptr<render::VoiceCallService> voice_call_service_;
-    std::shared_ptr<render::PipelineStatisticsObserver>
-        pipeline_statistics_observer_;
+    std::shared_ptr<render::PipelineStatisticsObserver> pipeline_statistics_observer_;
     std::shared_ptr<render::RateLimitedLogGate> pipeline_error_log_gate_;
     std::mutex task_mutex_;
     std::queue<std::shared_ptr<AppMessage>> pending_tasks_;

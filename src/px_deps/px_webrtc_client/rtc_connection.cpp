@@ -3,30 +3,32 @@
 //
 
 #include "rtc_connection.h"
-#include "px_common/log.h"
-#include "px_webrtc_client/webrtc_helper.h"
-#include "px_common/time_util.h"
-#include "px_common/thread.h"
-#include "peer_callback.h"
-#include "rtc_data_channel.h"
-#include "rtc_video_sink.h"
-#include "rtc_encoded_frame_sink.h"
-#include "rtc_audio_sink.h"
-#include "rtc_null_decoder_factory.h"
+
 #include <px_common/folder_util.h>
 #include <px_common/string_util.h>
+
 #include <algorithm>
 #include <cstdlib>
 #include <mutex>
-#include <nlohmann/json.hpp>
+
 #include "api/stats/rtc_stats_collector_callback.h"
+#include "peer_callback.h"
+#include "px_common/log.h"
+#include "px_common/thread.h"
+#include "px_common/time_util.h"
+#include "px_webrtc_client/webrtc_helper.h"
+#include "rtc_audio_sink.h"
+#include "rtc_data_channel.h"
+#include "rtc_encoded_frame_sink.h"
+#include "rtc_null_decoder_factory.h"
+#include "rtc_video_sink.h"
 
 using namespace webrtc;
 
 namespace px {
 
 class RtcStatsJsonCallback : public webrtc::RTCStatsCollectorCallback {
-  public:
+public:
     explicit RtcStatsJsonCallback(OnStatsJsonCallback callback) : callback_(std::move(callback)) {}
 
     void OnStatsDelivered(const rtc::scoped_refptr<const webrtc::RTCStatsReport>& report) override {
@@ -35,13 +37,13 @@ class RtcStatsJsonCallback : public webrtc::RTCStatsCollectorCallback {
         }
     }
 
-  private:
+private:
     OnStatsJsonCallback callback_;
 };
 
 // forwards libwebrtc internal logs into our logger, mainly to see decoder errors
 class WebrtcLogForwarder : public rtc::LogSink {
-  public:
+public:
     void OnLogMessage(const std::string& message) override {
         std::string m = message;
         while (!m.empty() && (m.back() == '\n' || m.back() == '\r')) {
@@ -190,8 +192,6 @@ static void CreateSomeMediaDeps(PeerConnectionFactoryDependencies& media_deps) {
 void RtcConnection::CreatePeerConnectionFactory() {
     configuration_.sdp_semantics = webrtc::SdpSemantics::kUnifiedPlan;
     configuration_.media_config.video.periodic_alr_bandwidth_probing = true;
-
-    ApplyIceServersJson(ice_servers_json_, false);
 
     network_thread_ = rtc::Thread::CreateWithSocketServer();
     network_thread_->Start();
@@ -390,33 +390,21 @@ void RtcConnection::PostInputMessage(std::shared_ptr<Data> msg) {
     }
 }
 
-int64_t RtcConnection::GetQueuingMediaMsgCount() {
-    return media_data_channel_ ? media_data_channel_->GetPendingDataCount() : 0;
-}
+int64_t RtcConnection::GetQueuingMediaMsgCount() { return media_data_channel_ ? media_data_channel_->GetPendingDataCount() : 0; }
 
-int64_t RtcConnection::GetQueuingFtMsgCount() {
-    return ft_data_channel_ ? ft_data_channel_->GetPendingDataCount() : 0;
-}
+int64_t RtcConnection::GetQueuingFtMsgCount() { return ft_data_channel_ ? ft_data_channel_->GetPendingDataCount() : 0; }
 
 bool RtcConnection::HasEnoughBufferForQueuingMediaMessages() {
     return media_data_channel_ && media_data_channel_->HasEnoughBufferForQueuingMessages();
 }
 
-bool RtcConnection::HasEnoughBufferForQueuingFtMessages() {
-    return ft_data_channel_ && ft_data_channel_->HasEnoughBufferForQueuingMessages();
-}
+bool RtcConnection::HasEnoughBufferForQueuingFtMessages() { return ft_data_channel_ && ft_data_channel_->HasEnoughBufferForQueuingMessages(); }
 
-bool RtcConnection::IsMediaChannelReady() {
-    return media_data_channel_ && media_data_channel_->IsConnected();
-}
+bool RtcConnection::IsMediaChannelReady() { return media_data_channel_ && media_data_channel_->IsConnected(); }
 
-bool RtcConnection::IsFtChannelReady() {
-    return ft_data_channel_ && ft_data_channel_->IsConnected();
-}
+bool RtcConnection::IsFtChannelReady() { return ft_data_channel_ && ft_data_channel_->IsConnected(); }
 
-bool RtcConnection::IsInputChannelReady() {
-    return input_data_channel_ && input_data_channel_->IsConnected();
-}
+bool RtcConnection::IsInputChannelReady() { return input_data_channel_ && input_data_channel_->IsConnected(); }
 
 void RtcConnection::On16msTimeout() {
     if (ft_data_channel_) {
@@ -431,71 +419,9 @@ void RtcConnection::On16msTimeout() {
     }
 }
 
-void RtcConnection::PostWorkTask(std::function<void()>&& task) {
-    this->work_thread_->Post(std::move(task));
-}
+void RtcConnection::PostWorkTask(std::function<void()>&& task) { this->work_thread_->Post(std::move(task)); }
 
-void RtcConnection::SetLocalRtcMode(bool on) {
-    local_rtc_mode_ = on;
-}
-
-void RtcConnection::SetIceServersJson(const std::string& json) {
-    ice_servers_json_ = json;
-}
-
-bool RtcConnection::ApplyIceServersJson(const std::string& json, bool active) {
-    configuration_.servers.clear();
-    if (local_rtc_mode_) {
-        return true;
-    }
-    try {
-        const auto config = nlohmann::json::parse(json);
-        for (const auto& entry : config.value("ice_servers", nlohmann::json::array())) {
-            const auto username = entry.value("username", "");
-            const auto credential = entry.value("credential", "");
-            for (const auto& url : entry.value("urls", std::vector<std::string>{})) {
-                auto server = webrtc::PeerConnectionInterface::IceServer();
-                server.uri = url;
-                server.username = username;
-                server.password = credential;
-                server.tls_cert_policy = webrtc::PeerConnectionInterface::TlsCertPolicy::kTlsCertPolicySecure;
-                configuration_.servers.push_back(std::move(server));
-            }
-        }
-        LOGI("Configured {} ICE server URLs for full RTC{}", configuration_.servers.size(), active ? " restart" : "");
-    } catch (const std::exception& error) {
-        LOGE("Invalid RTC ICE configuration: {}", error.what());
-        return false;
-    }
-    if (active && peer_conn_) {
-        const auto result = peer_conn_->SetConfiguration(configuration_);
-        if (!result.ok()) {
-            LOGE("SetConfiguration failed before ICE restart: {}", result.message());
-            return false;
-        }
-    }
-    ice_servers_json_ = json;
-    return true;
-}
-
-bool RtcConnection::RestartIce(const std::string& json) {
-    if (local_rtc_mode_ || !peer_conn_ || !ApplyIceServersJson(json, true)) {
-        return false;
-    }
-    already_set_answer_sdp_ = false;
-    {
-        std::lock_guard<std::mutex> guard(ice_mtx_);
-        cached_ices_.clear();
-    }
-    peer_conn_->RestartIce();
-    auto options = webrtc::PeerConnectionInterface::RTCOfferAnswerOptions();
-    options.offer_to_receive_audio = !file_transfer_only_;
-    options.offer_to_receive_video = file_transfer_only_ ? 0 : 1;
-    options.ice_restart = true;
-    peer_conn_->CreateOffer(create_sess_callback_.get(), options);
-    LOGI("SetConfiguration succeeded; ICE restart offer requested");
-    return true;
-}
+void RtcConnection::SetLocalRtcMode(bool on) { local_rtc_mode_ = on; }
 
 void RtcConnection::RequestStats() {
     if (!peer_conn_ || !stats_json_cbk_) {
@@ -601,4 +527,4 @@ void RtcConnection::OnIceStateChanged(int state) {
     }
 }
 
-} // namespace px
+}  // namespace px

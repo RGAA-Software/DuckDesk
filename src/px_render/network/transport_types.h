@@ -52,7 +52,6 @@ enum class PxLocalRtcContentType {
 enum class PxLocalRtcSessionRole {
     kInteractive,
     kObserver,
-    kWallObserver,
 };
 
 class PxLocalRtcRequestInfo {

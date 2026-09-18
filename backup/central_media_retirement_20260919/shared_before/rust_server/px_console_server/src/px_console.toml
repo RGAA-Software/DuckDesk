@@ -1,0 +1,124 @@
+# Console 独立配置：此文件不规定各渲染机器的应用端口池。
+# 下列端口为部署示例，均可按环境调整；修改后重启 Console。
+# 大规模部署时各 Service 主动连接 Console，各 Render 使用自己的节点地址。
+# 实例启动后以 Service 回报的实际端口为准，不能把 Console 地址当成 Render 地址。
+# 实例名称
+server_name = "Srv.01"
+
+# Console 对外地址，仅主机名或 IP，不含协议、端口。留空时自动探测。
+server_w3c_ip = ""
+
+# TCP，Console 管理页面与安全连接入口。客户端、Panel 和各 Service 需要能访问。
+# 公网部署需映射至 Console 所在机器；证书需与访问地址匹配。
+console_port = 4600
+
+# UDP，局域网发现，仅需本地网段可达，不需要公网开放。
+# 使用明确的 Console 地址接入时关闭；关闭后不会发送发现广播。
+udp_broadcast_enabled = false
+udp_broadcast_port = 4604
+
+# TCP，Console 的必备 Relay 入口，默认启动。Native 显式 Relay 会话、节点注册与控制信令需要访问。
+# 跨网络部署时需映射至 Console 所在机器；端口可以按部署环境修改。
+relay_enabled = true
+relay_port = 4605
+
+# mongodb装在本机，则不需要修改
+# mongodb url
+environment = "test"
+mongodb_url = "mongodb://localhost:27017/"
+
+# redis装在本机，则不需要修改
+# redis url address
+redis_url = "redis://127.0.0.1:6379/"
+
+## cert.pem
+ssl_cert = "certs/cert.pem"
+
+## key.pem
+ssl_key = "certs/key.pem"
+
+# Console is the only public TLS endpoint. Panel, Windows clients and the
+# Windows service connect to this port with HTTPS/WSS. Render and local IPC
+# keep their existing HTTP/WS transports.
+ssl_enable = true
+privacy_hash_salt = "local-test-only-privacy-salt"
+
+# 授权服务器地址（px_auth_server）
+auth_server_url = "https://127.0.0.1:30400"
+
+# 授权拉取周期（秒）
+auth_pull_interval_secs = 3600
+
+# 接入凭据（与 auth server 的 [app_credential] 段一致）
+# 为空则 pull 请求不携带签名头（兼容 auth server require_app_credential=false）
+# force_authorize: true = enforce WS token / HTTP appkey auth;
+# false = bypass all auth checks (local/testing). Default when missing: true.
+force_authorize = false
+
+[app_credential]
+appkey = ""
+app_secret = ""
+
+# 媒体服务可与 Console 同机，也可独立部署。密钥仅保留在服务端配置中。
+[live]
+# TCP，供 Console 调用的媒体管理地址，不对客户端公开。
+# 同机使用回环地址；自动管理本机媒体服务时会同步其监听端口。
+# 分机请填写 Console 可达的内网地址，并在媒体机器配置对应端口及访问控制。
+media_server_url = "http://127.0.0.1:4606"
+# 渲染机器可达的媒体发布主机。留空使用 Console 对外地址。
+# 媒体独立部署时必须改为媒体机器的地址；只有全部 Render 同机时才可填回环地址。
+publish_public_host = ""
+# TCP，Render 发布媒体的入口；主机由 publish_public_host 确定。
+# 仅需渲染机器可达，不需要向浏览器开放；本机托管时会同步监听端口。
+publish_rtmp_url = "rtmp://127.0.0.1:4607/live/{live_stream_id}"
+# 媒体管理密钥；非回环部署必须填写与媒体服务一致的密钥，不得发送给客户端。
+api_secret = ""
+# RTMP publish app. Render uses stream_id: <device_id>__app__<app_id>.
+app = "live"
+default_app_id = "cargame_debug"
+# Start px_media.exe automatically only when media_server_url points to this
+# machine. Set false when the local sidecar is managed by Windows Service.
+auto_start_media_server = true
+
+[user]
+panel_sliding_days = 30
+panel_absolute_days = 90
+web_sliding_hours = 12
+web_absolute_days = 30
+admin_sliding_hours = 2
+admin_absolute_hours = 8
+guest_absolute_hours = 24
+[user.rate_limit]
+login_per_ip_per_minute = 10
+login_per_account_per_15_minutes = 20
+guest_session_per_ip_per_hour = 30
+start_per_subject_per_minute = 6
+
+[user.quota]
+guest_concurrent_instances = 3
+user_concurrent_instances = 3
+guest_daily_minutes = 60
+public_app_global_concurrency = 20
+
+# RTC 服务只供浏览器实时会话使用，不影响 Native 直连。
+# 此处为首次启动配置；若已经在管理页面保存 RTC 设置，需同步更新页面配置。
+[rtc]
+direct_probe_enabled = false
+
+[rtc.managed_console_server]
+enabled = true
+# 本机绑定地址；独立 RTC 服务应通过管理页面配置其真实地址，不绑定远端 IP。
+listen_ip = "0.0.0.0"
+# 浏览器可达的 RTC 服务地址，留空使用 Console 对外地址。
+public_host = ""
+# TCP + UDP，RTC 会话服务入口，两种协议均需映射到实际运行此服务的机器。
+port = 4602
+# UDP，RTC 服务的媒体转发范围，起止均包含；不是各 Render 的本机 RTC 范围。
+# 90 示例避开已存在的 SSH 5300。端口可按容量自行扩大，代码不限制为此区间。
+# 4608–4612 仅作预留，不产生监听；系统管理及数据库端口不在此处修改。
+relay_min_port = 5301
+relay_max_port = 5428
+realm = "pixels-console"
+enable_udp = true
+enable_tcp = true
+credential_ttl_seconds = 300

@@ -13,8 +13,8 @@ rem           frontend -> output\px_console\web\
 rem           (the server serves static files from the web\ dir next to the exe)
 rem
 rem Notes:
-rem   - The repository TOML template and frozen px_media/px_turn runtime are
-rem     refreshed on every build. Certificates and runtime data stay preserved.
+rem   - The repository TOML template is refreshed on every build. Certificates
+rem     and runtime data stay preserved.
 rem   - For the first full deployment (certs, config template, runtime dirs)
 rem     use scripts\package_px_console_server.bat instead.
 rem   - A running server locks its exe; stop it first, otherwise the exe copy
@@ -28,7 +28,6 @@ rem --- Per-server settings ---
 set "SERVER_NAME=px_console_server"
 set "EXE_NAME=px_console"
 set "WEB_SRC=%REPO_ROOT%\web\px_console"
-set "MEDIA_SRC=%REPO_ROOT%\rust_server\px_console_server\media"
 rem Subdirectory under output\%EXE_NAME%\ that holds the frontend files.
 set "WEB_SUBDIR=web"
 set "OUTPUT_DIR=%REPO_ROOT%\output\%EXE_NAME%"
@@ -188,26 +187,6 @@ rem Refresh the repository template on every build. Machine-specific deployment
 rem profiles are applied after this build and must not live only under output\.
 copy /Y "%REPO_ROOT%\px_console.toml" "%OUTPUT_DIR%\%EXE_NAME%.toml" >nul
 if errorlevel 1 echo WARNING: Failed to refresh %EXE_NAME%.toml.
-
-rem Fixed ZLMediaKit/Coturn runtime. Keep the sidecars and their DLL/config
-rem beside px_console.exe on every normal build, not only first-time packaging.
-if not exist "%MEDIA_SRC%\px_media.exe" (
-    echo ERROR: Fixed media runtime is missing: %MEDIA_SRC%\px_media.exe
-    exit /b 1
-)
-if not exist "%MEDIA_SRC%\px_turn.exe" (
-    echo ERROR: Fixed TURN runtime is missing: %MEDIA_SRC%\px_turn.exe
-    exit /b 1
-)
-if not exist "%MEDIA_SRC%\turnserver.conf" (
-    echo ERROR: Fixed TURN config is missing: %MEDIA_SRC%\turnserver.conf
-    exit /b 1
-)
-robocopy "%MEDIA_SRC%" "%OUTPUT_DIR%" /E /NFL /NDL /NJH /NJS /NP >nul
-if errorlevel 8 (
-    echo ERROR: Failed to deploy media runtime beside %EXE_NAME%.exe.
-    exit /b 1
-)
 
 rem shared TLS cert (all servers share one; seed on first deploy only)
 if not exist "%OUTPUT_DIR%\certs\cert.pem" (

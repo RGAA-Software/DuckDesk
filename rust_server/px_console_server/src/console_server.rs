@@ -25,7 +25,6 @@ use crate::device::console_device_router::make_device_router;
 use crate::event::console_event_router::make_event_router;
 use crate::identity::public_router::make_public_resource_router;
 use crate::identity::router::make_admin_identity_router;
-use crate::live::console_live_router::make_live_router;
 use crate::net_client::console_client_router::make_client_router;
 use crate::net_client::console_client_ws_handler;
 use crate::net_cm::console_cm_ws_handler;
@@ -34,11 +33,9 @@ use crate::net_panel::console_panel_ws_handler;
 use crate::net_service::console_service_router::make_service_router;
 use crate::net_service::console_service_ws_handler;
 use crate::record::console_record_router::make_record_router;
-use crate::rtc::router::{make_admin_rtc_router, make_node_rtc_router};
 use crate::stream::console_stream_router::make_stream_router;
 use crate::update::update_router::make_update_router;
 use crate::user::session_router::{make_session_router, make_user_self_router};
-use crate::wall::console_wall_router::make_wall_router;
 use axum::middleware::{self};
 
 // Compatibility routes for clients deployed before the Pixels Console rename.
@@ -133,12 +130,7 @@ impl ConsoleServer {
             // user
             .nest("/api/v1/session", make_session_router(context.clone()))
             .nest("/api/v1/user", make_user_self_router(context.clone()))
-            .nest(
-                "/api/v1/admin",
-                make_admin_identity_router(context.clone())
-                    .merge(make_admin_rtc_router(context.clone())),
-            )
-            .nest("/api/v1/rtc", make_node_rtc_router(context.clone()))
+            .nest("/api/v1/admin", make_admin_identity_router(context.clone()))
             .nest(
                 "/api/v1/public",
                 make_public_resource_router(context.clone()),
@@ -148,10 +140,6 @@ impl ConsoleServer {
                 "/api/v1/stream/control",
                 make_stream_router(context.clone()),
             )
-            // ZLMediaKit live discovery + Console-ticketed HLS playback.
-            .nest("/api/v1/live/control", make_live_router(context.clone()))
-            // Trusted, same-origin signaling for the read-only 3x3 wall.
-            .nest("/api/v1/wall/control", make_wall_router(context.clone()))
             // connected panel
             .nest("/api/v1/panel/control", make_panel_router(context.clone()))
             // connected service

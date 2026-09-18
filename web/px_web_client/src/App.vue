@@ -17,7 +17,6 @@ import {
 import { decodeConnectToken } from './rtc/connect_token'
 import { decodeMessage } from './rtc/proto'
 import { MessageType, ClientType, VideoCodec, GameStatus, VirtualDisplayState, VirtualDisplayOperation } from './rtc/protocol_enums'
-import { StandardRtcSignaling } from './rtc/standard_signaling'
 import { applyDocumentTitle } from './locales/i18n'
 import logoUrl from './assets/px_icon.png'
 import {
@@ -75,11 +74,6 @@ const FT_DATA_CHANNEL_LABEL = 'ft_data_channel' // 文件传输通道(rtc_server
 const INPUT_DATA_CHANNEL_LABEL = 'input_data_channel' // 输入专用不可靠通道(render 端按此名字识别)
 const PING_DATA_CHANNEL_LABEL = 'ping_data_channel' // 诊断通道:render 收到即回显,实测 datachannel RTT
 const ICE_GATHER_TIMEOUT_MS = 10000
-interface RtcSessionIceConfig {
-  revision: number
-  ice_servers: Array<{ urls: string[]; username?: string; credential?: string }>
-}
-
 type ConnStatus = 'idle' | 'connecting' | 'connected' | 'failed' | 'reconnecting'
 
 // ---------- 会话恢复/自动重连 ----------
@@ -100,11 +94,7 @@ const connectionInstanceId = ref('')
 let frontendDescriptor: ReturnType<typeof takeFrontendDescriptor>['descriptor'] = null
 let frontendDescriptorIncomplete = false
 const grantedPermissions = ref<string[]>([])
-const requestedConnectionType = ref<'rtc_direct' | 'rtc'>('rtc_direct')
-const relayHost = ref('')
-const relayPort = ref(0)
-let rtcIceConfig: RtcSessionIceConfig | null = null
-let forceStandardRtc = false
+let unsupportedConnectionType = ''
 
 function hasGrantedPermission(permission: string) {
   // Manual administrator/debug connections do not carry a Console capability
@@ -165,11 +155,6 @@ function cancelReconnectTimer() {
 
 function scheduleReconnect(reason: string) {
   if (manualClose || reconnectTimer !== null) return
-  const standardFallbackReady = relayHost.value && relayPort.value > 0
-  if (!isStandardRtc() && standardFallbackReady) {
-    forceStandardRtc = true
-    addLog(`[rtc-route] Direct 会话未连通(${reason})，使用设备密码重开 RTC Standard`)
-  }
   reconnectCount.value += 1
   status.value = 'reconnecting'
   errorMsg.value = ''
@@ -490,10 +475,7 @@ let dc: RTCDataChannel | null = null
 let stopControlHeartbeat: (() => void) | null = null
 let inputDc: RTCDataChannel | null = null
 let pingDc: RTCDataChannel | null = null
-let standardSignaling: StandardRtcSignaling | null = null
-let directFallbackTimer: number | null = null
-let standardRestarting = false
-const pendingStandardRemoteIce: RTCIceCandidateInit[] = []
+let directConnectTimer: number | null = null
 let pingTimer: number | null = null
 const pingRttMs = ref(-1)
 let input: InputController | null = null
@@ -591,56 +573,6 @@ watch(grantedPermissions, () => {
   }
 })
 watch(connectionInstanceId, () => resetApplicationText(true))
-
-function decodeRtcIceConfig(encoded: string): RtcSessionIceConfig | null {
-  if (!encoded) return null
-  try {
-    const padded = encoded.replace(/-/g, '+').replace(/_/g, '/')
-      + '='.repeat((4 - (encoded.length % 4)) % 4)
-    const binary = atob(padded)
-    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
-    const value = JSON.parse(new TextDecoder().decode(bytes)) as RtcSessionIceConfig
-    return Number.isFinite(value.revision) && Array.isArray(value.ice_servers) ? value : null
-  } catch {
-    return null
-  }
-}
-
-function browserIceServers(config: RtcSessionIceConfig | null): RTCIceServer[] {
-  return (config?.ice_servers ?? []).map((server) => ({
-    urls: server.urls,
-    username: server.username,
-    credential: server.credential,
-  }))
-}
-
-async function hydratePasswordRelayRoute(): Promise<void> {
-  if (relayHost.value && relayPort.value > 0) return
-  try {
-    const resp = await fetch('/get/render/configuration')
-    const result = (await resp.json()) as {
-      code?: number
-      data?: { device_id?: string; relay_host?: string; relay_port?: number }
-    }
-    if (result.code !== 200 || !result.data) return
-    if (result.data.relay_host) relayHost.value = result.data.relay_host
-    if (Number(result.data.relay_port) > 0) relayPort.value = Number(result.data.relay_port)
-    const deviceId = result.data.device_id || form.deviceId
-    // A direct URL initially uses the public device id. Console Relay registers
-    // the Render under its server_ identity, so the guest standard path must
-    // replace (not merely fill) that initial value.
-    if (deviceId) signalDeviceId.value = `server_${deviceId}`
-    if (relayHost.value && relayPort.value > 0) {
-      addLog('[rtc-route] 已加载游客标准 RTC Relay，认证仍只使用设备密码')
-    }
-  } catch (error) {
-    addLog(`[rtc-route] 加载游客标准 RTC Relay 失败: ${String(error)}`)
-  }
-}
-
-function isStandardRtc(): boolean {
-  return forceStandardRtc || requestedConnectionType.value === 'rtc'
-}
 
 // ---------- 性能面板(pc.getStats 采样)----------
 const perf = ref<PerfStats>({ ...EMPTY_PERF })
@@ -1327,8 +1259,6 @@ const showStepList = computed(
 const pwdMd5Override = ref('')
 /** true when URL/token explicitly supplied a device id (triggers auto-connect) */
 const autoConnectFromUrl = ref(false)
-const signalDeviceId = ref('')
-
 function loadQueryParams() {
   const queryParameters = new URLSearchParams(window.location.search)
   const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ''))
@@ -1354,11 +1284,8 @@ function loadQueryParams() {
     launchStreamIdOverride = launchStreamId
     form.streamId = launchStreamIdOverride
   }
-  requestedConnectionType.value = queryParameters.get('connType') === 'rtc' ? 'rtc' : 'rtc_direct'
-  relayHost.value = fragment.get('relay_host') ?? ''
-  relayPort.value = Number(fragment.get('relay_port') ?? 0)
-  signalDeviceId.value = fragment.get('signal_device_id') ?? form.deviceId
-  rtcIceConfig = decodeRtcIceConfig(fragment.get('ice') ?? '')
+  const requestedConnectionType = queryParameters.get('connType') ?? 'rtc_direct'
+  unsupportedConnectionType = requestedConnectionType === 'rtc_direct' ? '' : requestedConnectionType
   const parsedFrontendDescriptor = takeFrontendDescriptor(fragment)
   frontendDescriptor = parsedFrontendDescriptor.descriptor
   frontendDescriptorIncomplete = parsedFrontendDescriptor.incomplete
@@ -1370,10 +1297,8 @@ function loadQueryParams() {
     sanitizedUrl.hash = fragment.toString()
     window.history.replaceState(null, '', sanitizedUrl)
   }
-  if (requestedConnectionType.value === 'rtc' && (!rtcIceConfig || !relayHost.value || relayPort.value <= 0)) {
-    addLog('[rtc-standard] Console 启动参数不完整，将在连接时明确报错')
-  } else if (rtcIceConfig) {
-    addLog(`[rtc-route] requested=${requestedConnectionType.value} ICE revision=${rtcIceConfig.revision}`)
+  if (unsupportedConnectionType) {
+    addLog(`[rtc-route] 不支持连接类型: ${unsupportedConnectionType}; 仅允许 rtc_direct`)
   }
   grantedPermissions.value = (fragment.get('perms') ?? '')
     .split(',')
@@ -1433,14 +1358,10 @@ function cleanup() {
   stopControlHeartbeat = null
   resetApplicationText()
   stopConnWatchdog()
-  if (directFallbackTimer !== null) {
-    window.clearTimeout(directFallbackTimer)
-    directFallbackTimer = null
+  if (directConnectTimer !== null) {
+    window.clearTimeout(directConnectTimer)
+    directConnectTimer = null
   }
-  standardRestarting = false
-  pendingStandardRemoteIce.length = 0
-  standardSignaling?.stop()
-  standardSignaling = null
   input?.detach()
   input = null
   gamepad?.disable()
@@ -1523,37 +1444,6 @@ function cleanup() {
   if (voiceAudioRef.value) voiceAudioRef.value.srcObject = null
 }
 
-async function restartStandardRtc(reason: string, force = false) {
-  if (!pc || !standardSignaling || standardRestarting || manualClose) return
-  standardRestarting = true
-  try {
-    const nextConfig = rtcIceConfig
-    if (!force) return
-    pc.setConfiguration({
-      iceServers: browserIceServers(nextConfig),
-      iceTransportPolicy: 'all',
-    })
-    pendingStandardRemoteIce.length = 0
-    const offer = await pc.createOffer({ iceRestart: true })
-    await pc.setLocalDescription(offer)
-    if (!offer.sdp) throw new Error('ICE restart Offer SDP 为空')
-    const answer = await standardSignaling.exchangeOffer(
-      offer.sdp,
-      effectivePwdMd5(),
-    )
-    await pc.setRemoteDescription({ type: 'answer', sdp: answer })
-    for (const candidate of pendingStandardRemoteIce.splice(0)) {
-      await pc.addIceCandidate(candidate)
-    }
-    addLog(`[rtc-standard] SetConfiguration + ICE restart 完成: reason=${reason} revision=${nextConfig?.revision ?? 'password'}`)
-  } catch (error) {
-    addLog(`[rtc-standard] ICE restart 失败: ${String(error)}`)
-    scheduleReconnect('ICE restart failed')
-  } finally {
-    standardRestarting = false
-  }
-}
-
 async function connect() {
   if (!form.deviceId) {
     errorMsg.value = '请填写设备 ID'
@@ -1567,50 +1457,15 @@ async function connect() {
   setConnectStep('init', `deviceId=${form.deviceId} streamId=${form.streamId}`)
 
   try {
-    if (forceStandardRtc || requestedConnectionType.value === 'rtc') {
-      await hydratePasswordRelayRoute()
+    if (unsupportedConnectionType) {
+      throw new Error(`RTC_DIRECT_REQUIRED: 不支持连接类型 ${unsupportedConnectionType}`)
     }
-    const standardRtc = isStandardRtc()
-    if (standardRtc) {
-      if (!relayHost.value || relayPort.value <= 0) {
-        throw new Error('RTC Standard 缺少 Relay 启动参数')
-      }
-      pc = new RTCPeerConnection({
-        iceServers: browserIceServers(rtcIceConfig),
-        iceTransportPolicy: 'all',
-      })
-      addLog(`[rtc-route] RTC Standard, ICE revision=${rtcIceConfig?.revision ?? 'guest'}`)
-    } else {
-      // Direct RTC remains host-only; Render rewrites its candidate to the
-      // browser-reachable address for the specialized local endpoint.
-      pc = new RTCPeerConnection()
-      addLog('[rtc-route] RTC Direct')
-    }
+    // Direct Host uses only host candidates. Render rewrites its host
+    // candidate to the authoritative browser-reachable address.
+    pc = new RTCPeerConnection({ iceServers: [] })
+    addLog('[rtc-route] RTC Direct Host')
     // 无头/CDP 调试用:getStats 等诊断入口
     ;(window as unknown as { __pc?: RTCPeerConnection | null }).__pc = pc
-
-    if (standardRtc) {
-      pc.onicecandidate = (event) => {
-        if (event.candidate) standardSignaling?.sendIce(event.candidate)
-      }
-      standardSignaling = new StandardRtcSignaling(
-        {
-          relayHost: relayHost.value,
-          relayPort: relayPort.value,
-          remoteDeviceId: signalDeviceId.value || form.deviceId,
-          targetDeviceId: form.deviceId,
-          streamId: form.streamId,
-          clientNonce: clientNonce.value,
-          safetyPwdMd5: effectivePwdMd5(),
-          secure: window.location.protocol === 'https:',
-        },
-        async (candidate) => {
-          if (pc?.remoteDescription) await pc.addIceCandidate(candidate)
-          else pendingStandardRemoteIce.push(candidate)
-        },
-        addLog,
-      )
-    }
 
     // 第一条音频 m-line 只接收桌面系统声；第二条是语音通话专用
     // sendrecv 轨。两流独立，语音挂断不会破坏系统声音。
@@ -1670,9 +1525,9 @@ async function connect() {
       if (state === 'connecting') {
         setConnectStep('peer', `connectionState=${state}`)
       } else if (state === 'connected') {
-        if (directFallbackTimer !== null) {
-          window.clearTimeout(directFallbackTimer)
-          directFallbackTimer = null
+        if (directConnectTimer !== null) {
+          window.clearTimeout(directConnectTimer)
+          directConnectTimer = null
         }
         // 连接(或重连)成功:取消挂起的重连、清零重试计数
         cancelReconnectTimer()
@@ -1832,10 +1687,6 @@ async function connect() {
     pingDc.onerror = (ev: Event) => addLog(`ping datachannel onerror: ${String(ev)}`)
 
     setConnectStep('negotiate')
-    if (standardRtc) {
-      setConnectStep('signal', '正在连接 Console 标准 RTC 信令 Relay')
-      await standardSignaling?.connect()
-    }
     const offer = await pc.createOffer({
       offerToReceiveAudio: true,
       offerToReceiveVideo: true,
@@ -1847,39 +1698,6 @@ async function connect() {
       addLog(lines.length ? `${tag} 帧率相关: ${lines.map((line) => line.trim()).join(' | ')}` : `${tag} 无帧率上限行`)
     }
     scanFr('offer', offer.sdp ?? '')
-
-    if (standardRtc) {
-      const localSdp = pc.localDescription?.sdp
-      if (!localSdp || !standardSignaling) throw new Error('标准 RTC 本地 SDP 或信令对象为空')
-      setConnectStep('signal', '通过 Console Relay 交换 SDP/Trickle ICE')
-      const exchangeStandardOffer = async (takeover = false) => {
-        return standardSignaling!.exchangeOffer(
-          localSdp,
-          effectivePwdMd5(),
-          takeover,
-        )
-      }
-      let answerSdp: string
-      try {
-        answerSdp = await exchangeStandardOffer()
-      } catch (error) {
-        const code = error instanceof Error ? error.message : String(error)
-        if (code !== 'RTC_OCCUPIED') throw error
-        if (!window.confirm('该设备当前已有主控在线,是否接管?(对方的连接将被断开)')) {
-          throw new Error('设备已被连接,未接管')
-        }
-        addLog('标准 RTC 主控被占用,用户确认接管,带 takeover 重新发起信令')
-        answerSdp = await exchangeStandardOffer(true)
-      }
-      setConnectStep('answer', `standard answer_sdp length=${answerSdp.length}`)
-      scanFr('answer', answerSdp)
-      await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
-      for (const candidate of pendingStandardRemoteIce.splice(0)) {
-        await pc.addIceCandidate(candidate)
-      }
-      setConnectStep('peer', `connectionState=${pc.connectionState} ice=${pc.iceConnectionState}`)
-      return
-    }
 
     // 等 ICE gathering complete 再发 offer,不做 trickle
     setConnectStep('ice', `iceGatheringState=${pc.iceGatheringState}`)
@@ -1948,14 +1766,17 @@ async function connect() {
     scanFr('answer', answerSdp)
     await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
     setConnectStep('peer', `connectionState=${pc.connectionState} ice=${pc.iceConnectionState}`)
-    // A successful HTTP probe/answer is not yet a connected Direct session.
-    // If ICE/data channels never become ready, reopen the password-authenticated
-    // RTC Standard route instead of retrying the same local path forever.
-    directFallbackTimer = window.setTimeout(() => {
+    // A successful HTTP answer is not yet a connected Direct Host session.
+    // There is deliberately no Relay/TURN fallback; report a stable product
+    // error when the advertised Render host/port cannot be reached.
+    directConnectTimer = window.setTimeout(() => {
       if (pc && pc.connectionState !== 'connected' && !manualClose) {
-        forceStandardRtc = true
-        addLog('[rtc-route] Direct SDP 成功但实际建连超时，自动重开 RTC Standard')
-        scheduleReconnect('direct connect timeout')
+        const directError = 'RTC_DIRECT_UNREACHABLE: 无法连接 Render Direct Host，请检查公网地址、端口和 UDP 防火墙'
+        addLog(`[rtc-route] ${directError}`)
+        cleanup()
+        status.value = 'failed'
+        errorMsg.value = directError
+        setConnectStep('failed', directError)
       }
     }, 10000)
   } catch (err) {
@@ -1977,7 +1798,6 @@ async function connect() {
 // 手动点「连接/重新连接」:清零重试计数
 function manualConnect() {
   manualClose = false
-  forceStandardRtc = false
   cancelReconnectTimer()
   reconnectCount.value = 0
   void connect()
@@ -2015,9 +1835,7 @@ function exposeInputConnDebug() {
     status: () => status.value,
     reconnectCount: () => reconnectCount.value,
     pointerLocked: () => pointerLocked.value,
-    rtcMode: () => isStandardRtc() ? 'standard' : 'direct',
-    iceRevision: () => rtcIceConfig?.revision ?? 0,
-    restartIce: () => restartStandardRtc('diagnostic request', true),
+    rtcMode: () => 'direct',
     selectedPath: () => ({
       local: perf.value.localCand,
       remote: perf.value.remoteCand,
@@ -2074,8 +1892,6 @@ onMounted(() => {
   exposeInputConnDebug()
   exposeFtDebug()
   void fetchRenderVersion()
-  // Direct RTC may use the same password-authenticated standard RTC path as a fallback.
-  void hydratePasswordRelayRoute()
   document.addEventListener('pointerlockchange', onPointerLockChange)
   // URL 带了 deviceId/?c= 则自动连接(空密码也可,便于无头/本地调试)
   if (autoConnectFromUrl.value && form.deviceId) {

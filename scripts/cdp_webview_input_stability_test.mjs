@@ -20,12 +20,7 @@ const PRIMARY_X = Number(process.env.PX_WEBVIEW_TEST_PRIMARY_X || 0.5)
 const PRIMARY_Y = Number(process.env.PX_WEBVIEW_TEST_PRIMARY_Y || 0.30)
 const CDP_PORT = Number(process.env.PX_WEBVIEW_TEST_CDP_PORT || 9521)
 const SCREENSHOT_PATH = process.env.PX_WEBVIEW_TEST_SCREENSHOT_PATH || ''
-const RTC_ROUTE = process.env.PX_WEBRTC_TEST_ROUTE || 'auto'
-const FORCE_RELAY = process.env.PX_WEBRTC_FORCE_RELAY === '1'
-const EXPECT_RELAY_PROTOCOL = (process.env.PX_WEBRTC_EXPECT_RELAY_PROTOCOL || '').trim().toLowerCase()
-const EXPECT_RTC_MODE = (process.env.PX_WEBRTC_EXPECT_MODE || '').trim().toLowerCase()
 const HOLD_MS = Math.max(0, Number(process.env.PX_WEBRTC_HOLD_MS || 0))
-const EXPECT_MIN_REVISION = Math.max(0, Number(process.env.PX_WEBRTC_EXPECT_MIN_REVISION || 0))
 const TEST_USER = process.env.PX_WEBVIEW_TEST_USER || ''
 const TEST_PASSWORD = process.env.PX_WEBVIEW_TEST_PASSWORD || ''
 const TEST_PERMISSIONS = (process.env.PX_WEBVIEW_TEST_PERMISSIONS || 'view,input')
@@ -150,10 +145,10 @@ async function captureRemoteFrame(filePath) {
   console.log(`SCREENSHOT ${filePath}`)
 }
 
-async function testStandardRtcFeatures() {
+async function testDirectRtcFeatures() {
   const audio = await evaluate(`window.__mic?.state?.() || null`)
   if (!audio || audio.systemAudioTrackCount < 1) {
-    throw new Error(`standard RTC system-audio track missing: ${JSON.stringify(audio)}`)
+    throw new Error(`Direct Host RTC system-audio track missing: ${JSON.stringify(audio)}`)
   }
   console.log(`FEATURE audio ${JSON.stringify(audio)}`)
 
@@ -215,9 +210,9 @@ async function testStandardRtcFeatures() {
 
   if (VOICE_ONLY) return
 
-  const clipboardText = `px-standard-rtc-${Date.now()}`
+  const clipboardText = `px-direct-rtc-${Date.now()}`
   const clipboardSent = await evaluate(`window.__clipboard?.sendText?.(${JSON.stringify(clipboardText)}) || false`)
-  if (!clipboardSent) throw new Error('standard RTC clipboard send failed')
+  if (!clipboardSent) throw new Error('Direct Host RTC clipboard send failed')
   let clipboardEcho = ''
   let clipboardAck = ''
   for (let retry = 0; retry < 40; retry += 1) {
@@ -231,7 +226,7 @@ async function testStandardRtcFeatures() {
   } else if (clipboardEcho === clipboardText) {
     console.log(`FEATURE clipboard echo chars=${clipboardText.length}`)
   } else if (REQUIRE_CLIPBOARD_ECHO) {
-    throw new Error(`standard RTC clipboard acknowledgement failed: ${JSON.stringify({ clipboardAck, clipboardEcho })}`)
+    throw new Error(`Direct Host RTC clipboard acknowledgement failed: ${JSON.stringify({ clipboardAck, clipboardEcho })}`)
   } else {
     console.log(`FEATURE clipboard outbound chars=${clipboardText.length} echo=pending-remote-verification`)
   }
@@ -242,11 +237,11 @@ async function testStandardRtcFeatures() {
     if (ftReady) break
     await sleep(250)
   }
-  if (!ftReady) throw new Error('standard RTC file-transfer channel/protocol not ready')
+  if (!ftReady) throw new Error('Direct Host RTC file-transfer channel/protocol not ready')
   const fileName = `px_rtc_e2e_${Date.now()}.txt`
   const remoteDir = 'C:\\Users\\Public\\Documents'
   const remotePath = `${remoteDir}\\${fileName}`
-  const content = `Pixels standard RTC file round trip ${Date.now()}\n`
+  const content = `Pixels Direct Host RTC file round trip ${Date.now()}\n`
   const upload = await evaluate(`window.__ft.uploadText(${JSON.stringify(fileName)}, ${JSON.stringify(remoteDir)}, ${JSON.stringify(content)})`)
   let uploadJob = null
   for (let retry = 0; retry < 120; retry += 1) {
@@ -254,13 +249,13 @@ async function testStandardRtcFeatures() {
     if (uploadJob?.state === 'done' || uploadJob?.state === 'error' || uploadJob?.state === 'cancelled') break
     await sleep(250)
   }
-  if (uploadJob?.state !== 'done') throw new Error(`standard RTC upload failed: ${JSON.stringify(uploadJob)}`)
+  if (uploadJob?.state !== 'done') throw new Error(`Direct Host RTC upload failed: ${JSON.stringify(uploadJob)}`)
   const download = await evaluate(`window.__ft.download(${JSON.stringify(remotePath)})`)
   if (!/^[a-f0-9]{64}$/i.test(upload.sha256)
       || !/^[a-f0-9]{64}$/i.test(download.sha256)
       || download.sha256 !== upload.sha256
       || download.size !== upload.size) {
-    throw new Error(`standard RTC file hash mismatch: ${JSON.stringify({ upload, download })}`)
+    throw new Error(`Direct Host RTC file hash mismatch: ${JSON.stringify({ upload, download })}`)
   }
   await evaluate(`window.__ft.removeFile(${JSON.stringify(remotePath)})`)
   console.log(`FEATURE file roundtrip bytes=${download.size} sha256=${download.sha256}`)
@@ -364,17 +359,6 @@ async function main() {
   await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject })
   await command('Runtime.enable')
   await command('Page.enable')
-  if (FORCE_RELAY) {
-    await command('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
-      const NativePeerConnection = window.RTCPeerConnection
-      function RelayOnlyPeerConnection(configuration = {}) {
-        return new NativePeerConnection({ ...configuration, iceTransportPolicy: 'relay' })
-      }
-      RelayOnlyPeerConnection.prototype = NativePeerConnection.prototype
-      Object.setPrototypeOf(RelayOnlyPeerConnection, NativePeerConnection)
-      window.RTCPeerConnection = RelayOnlyPeerConnection
-    })()` })
-  }
   await command('Storage.getCookies')
 
   let originReady = false
@@ -424,9 +408,7 @@ async function main() {
       })
       if (!connection.data?.launch_url || !connection.data?.password_hash) return { error: 'device-connection-failed', connection }
       const url = new URL(connection.data.launch_url, location.href)
-      const rtc = connection.data.rtc_ice_config
-      const route = ${JSON.stringify(RTC_ROUTE)}
-      url.searchParams.set('connType', route === 'standard' ? 'rtc' : route === 'direct' ? 'rtc_direct' : (rtc?.direct_probe_enabled ? 'rtc_direct' : 'rtc'))
+      url.searchParams.set('connType', 'rtc_direct')
       const connectJson = JSON.stringify({ d: connection.data.device_id, m: connection.data.password_hash })
       const connectBytes = new TextEncoder().encode(connectJson); let connectBinary = ''
       for (const byte of connectBytes) connectBinary += String.fromCharCode(byte)
@@ -434,14 +416,6 @@ async function main() {
       url.searchParams.set('stream_id', connection.data.stream_id)
       const fragment = new URLSearchParams(url.hash.replace(/^#/, ''))
       fragment.set('perms', requestedPermissions.join(','))
-      if (connection.data.relay_host) fragment.set('relay_host', connection.data.relay_host)
-      if (connection.data.relay_port) fragment.set('relay_port', String(connection.data.relay_port))
-      if (connection.data.signal_device_id) fragment.set('signal_device_id', connection.data.signal_device_id)
-      if (rtc) {
-        const bytes = new TextEncoder().encode(JSON.stringify(rtc)); let binary = ''
-        for (const byte of bytes) binary += String.fromCharCode(byte)
-        fragment.set('ice', btoa(binary).split('+').join('-').split('/').join('_').replace(/=+$/g, ''))
-      }
       url.hash = fragment.toString()
       return { url: url.toString(), instanceId: '', csrf, appId: 'device:' + requestedDeviceId, authenticated }
     }
@@ -470,14 +444,7 @@ async function main() {
     })
     if (!connection.data?.launch_url || !connection.data?.password_hash) return { error: 'connection-failed', connection }
     const url = new URL(connection.data.launch_url, location.href)
-    const rtc = connection.data.rtc_ice_config
-    const route = ${JSON.stringify(RTC_ROUTE)}
-    url.searchParams.set(
-      'connType',
-      route === 'standard' ? 'rtc'
-        : route === 'direct' ? 'rtc_direct'
-          : (rtc?.direct_probe_enabled ? 'rtc_direct' : 'rtc'),
-    )
+    url.searchParams.set('connType', 'rtc_direct')
     const connectJson = JSON.stringify({ d: connection.data.device_id, m: connection.data.password_hash })
     const connectBytes = new TextEncoder().encode(connectJson)
     let connectBinary = ''
@@ -486,15 +453,6 @@ async function main() {
     url.searchParams.set('stream_id', connection.data.stream_id)
     const fragment = new URLSearchParams(url.hash.replace(/^#/, ''))
     fragment.set('perms', requestedPermissions.join(','))
-    if (connection.data.relay_host) fragment.set('relay_host', connection.data.relay_host)
-    if (connection.data.relay_port) fragment.set('relay_port', String(connection.data.relay_port))
-    if (connection.data.signal_device_id) fragment.set('signal_device_id', connection.data.signal_device_id)
-    if (rtc) {
-      const bytes = new TextEncoder().encode(JSON.stringify(rtc))
-      let binary = ''
-      for (const byte of bytes) binary += String.fromCharCode(byte)
-      fragment.set('ice', btoa(binary).split('+').join('-').split('/').join('_').replace(/=+$/g, ''))
-    }
     url.hash = fragment.toString()
     return { url: url.toString(), instanceId, csrf, appId: app.app_id, authenticated }
   })()`)
@@ -531,29 +489,22 @@ async function main() {
   await sleep(2_500)
   const rtc = await evaluate(`({
     mode: window.__conn?.rtcMode?.() || '',
-    revision: window.__conn?.iceRevision?.() || 0,
     reconnects: window.__conn?.reconnectCount?.() || 0,
     selectedPath: window.__conn?.selectedPath?.() || null,
   })`)
   console.log(`RTC ${JSON.stringify(rtc)}`)
-  if (EXPECT_RTC_MODE && rtc?.mode !== EXPECT_RTC_MODE) {
-    throw new Error(`expected RTC mode ${EXPECT_RTC_MODE}: ${JSON.stringify(rtc)}`)
+  if (rtc?.mode !== 'direct') {
+    throw new Error(`expected Direct Host RTC mode: ${JSON.stringify(rtc)}`)
   }
-  if (FORCE_RELAY && !`${rtc?.selectedPath?.local || ''} ${rtc?.selectedPath?.remote || ''}`.includes('relay')) {
-    throw new Error(`forced relay selected a non-relay path: ${JSON.stringify(rtc)}`)
-  }
-  if (EXPECT_RELAY_PROTOCOL &&
-      !`${rtc?.selectedPath?.local || ''} ${rtc?.selectedPath?.remote || ''}`.toLowerCase()
-        .includes(`turn:${EXPECT_RELAY_PROTOCOL}`)) {
-    throw new Error(`expected TURN/${EXPECT_RELAY_PROTOCOL.toUpperCase()} path: ${JSON.stringify(rtc)}`)
+  if (`${rtc?.selectedPath?.local || ''} ${rtc?.selectedPath?.remote || ''}`.toLowerCase().includes('relay')) {
+    throw new Error(`Direct Host RTC selected a forbidden relay candidate: ${JSON.stringify(rtc)}`)
   }
   if (HOLD_MS > 0) {
     const framesBefore = await evaluate(`document.querySelector('video')?.getVideoPlaybackQuality?.().totalVideoFrames || 0`)
-    console.log(`HOLD active-session ${HOLD_MS}ms revision=${rtc?.revision || 0} frames=${framesBefore}`)
+    console.log(`HOLD active-session ${HOLD_MS}ms frames=${framesBefore}`)
     await sleep(HOLD_MS)
     const afterHold = await evaluate(`({
       mode: window.__conn?.rtcMode?.() || '',
-      revision: window.__conn?.iceRevision?.() || 0,
       reconnects: window.__conn?.reconnectCount?.() || 0,
       status: window.__conn?.status?.() || '',
       frames: document.querySelector('video')?.getVideoPlaybackQuality?.().totalVideoFrames || 0,
@@ -562,9 +513,6 @@ async function main() {
     console.log(`RTC_AFTER_HOLD ${JSON.stringify(afterHold)}`)
     if (afterHold.status !== 'connected' || afterHold.frames <= framesBefore) {
       throw new Error(`active RTC session was not stable during hold: ${JSON.stringify(afterHold)}`)
-    }
-    if (EXPECT_MIN_REVISION && afterHold.revision < EXPECT_MIN_REVISION) {
-      throw new Error(`RTC revision did not update to ${EXPECT_MIN_REVISION}: ${JSON.stringify(afterHold)}`)
     }
   }
 
@@ -576,7 +524,7 @@ async function main() {
   }
   if (!inputReady) throw new Error('Web client input channel did not attach')
   console.log('INPUT attached')
-  if (FULL_FEATURES) await testStandardRtcFeatures()
+  if (FULL_FEATURES) await testDirectRtcFeatures()
   if (TEST_RECONNECT) {
     const reconnectBefore = await evaluate(`window.__conn?.reconnectCount?.() || 0`)
     await evaluate(`(() => {
@@ -601,7 +549,7 @@ async function main() {
         || reconnected.status !== 'connected'
         || !reconnected.replaced
         || reconnected.frames <= 0) {
-      throw new Error(`standard RTC reconnect failed: ${JSON.stringify(reconnected)}`)
+      throw new Error(`Direct Host RTC reconnect failed: ${JSON.stringify(reconnected)}`)
     }
     console.log(`FEATURE reconnect peer-replaced=true retry-counter=${reconnectBefore}->${reconnected.reconnects} frames=${reconnected.frames}`)
   }

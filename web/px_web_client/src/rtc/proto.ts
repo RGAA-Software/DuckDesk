@@ -1,22 +1,14 @@
 // px.Message 运行时加载(protobufjs 动态解析,proto 源文件以 ?raw 内联进 bundle)
-// px_message.proto import 了 px_signaling_message.proto;两者同 package px,
-// 先解析被依赖的文件、并剥掉 import 语句,即可在同一 Root 内完成解析。
 import protobuf from 'protobufjs'
 import { MessageType } from './protocol_enums'
-import pxSignalingProto from '../../proto/px_signaling_message.proto?raw'
 import pxFileTransferProto from '../../proto/px_file_transfer.proto?raw'
 import pxMessageProto from '../../proto/px_message.proto?raw'
-import relayMessageProto from '../../proto/relay_message.proto?raw'
 
 const root = new protobuf.Root()
-protobuf.parse(pxSignalingProto, root)
 protobuf.parse(pxFileTransferProto, root)
 protobuf.parse(pxMessageProto.replace(/^\s*import\s+"[^"]+"\s*;\s*$/gm, ''), root)
-protobuf.parse(relayMessageProto, root)
 
 export const PxMessage = root.lookupType('px.Message')
-export const RelayMessage = root.lookupType('px_relay.RelayMessage')
-export const RelayMessageType = root.lookupEnum('px_relay.RelayMessageType')
 
 // MessageType 枚举值(px_message.proto)
 export const MSG_TYPE_HELLO = MessageType.Hello // kHello
@@ -47,9 +39,6 @@ export const MSG_TYPE_VIRTUAL_DISPLAY_RESPONSE = MessageType.VirtualDisplayRespo
 export const MSG_TYPE_VOICE_CALL_REQUEST = MessageType.VoiceCallRequest
 export const MSG_TYPE_VOICE_CALL_RESPONSE = MessageType.VoiceCallResponse
 export const MSG_TYPE_VOICE_AUDIO_CONFIG = MessageType.VoiceAudioConfig
-export const MSG_TYPE_SIG_OFFER_SDP = MessageType.SigOfferSdp
-export const MSG_TYPE_SIG_ANSWER_SDP = MessageType.SigAnswerSdp
-export const MSG_TYPE_SIG_ICE = MessageType.SigIce
 
 // ClipboardType(px_message.proto)
 export const CLIPBOARD_TYPE_TEXT = 0 // kClipboardText

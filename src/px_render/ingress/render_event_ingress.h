@@ -21,18 +21,16 @@ class NetworkEventIngress;
 class MessageNotifier;
 
 class RenderEventIngress : public std::enable_shared_from_this<RenderEventIngress> {
-  public:
+public:
     explicit RenderEventIngress(const std::shared_ptr<RdApplication>& app);
     void ProcessWebRtcEvent(const std::string& source_id, const WebRtcEvent& event);
     void ProcessRenderEvent(const RenderEventEnvelope& event);
 
-  private:
-    void SendWebRtcAnswerSdpToRemote(const WebRtcAnswerSdpEvent& event);
-    void SendWebRtcIceToRemote(const WebRtcIceEvent& event);
+private:
     void ProcessPanelStreamMessage(const std::shared_ptr<PanelStreamMessageEvent>& event);
     void ReportRelayAlive(const std::string& device_id, int64_t timestamp);
 
-  private:
+private:
     std::shared_ptr<RdApplication> app_ = nullptr;
     std::shared_ptr<RdContext> context_ = nullptr;
     std::shared_ptr<RenderModuleRegistry> module_registry_ = nullptr;
@@ -41,6 +39,6 @@ class RenderEventIngress : public std::enable_shared_from_this<RenderEventIngres
     std::shared_ptr<RdStatistics> stat_ = nullptr;
 };
 
-} // namespace px
+}  // namespace px
 
-#endif // PX_RENDER_EVENT_INGRESS_H
+#endif  // PX_RENDER_EVENT_INGRESS_H

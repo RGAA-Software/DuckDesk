@@ -17,7 +17,7 @@ $architectureRoot = Join-Path $RepoRoot "src\px_render\architecture"
 # tests and ownership gate and are not reclassified as newly authored code by
 # a path-only move.
 $retainedImplementationPattern = [regex]::new(
-    'architecture\\(?:encoders\\(?:amf|ffmpeg|nvenc|opus)|processors\\(?:frame_carrier|frame_resizer)|services\\(?:event_replayer|joystick|voice_call)|sinks\\live_pusher|sources\\(?:dda|gdi|was_audio))\\')
+    'architecture\\(?:encoders\\(?:amf|ffmpeg|nvenc|opus)|processors\\(?:frame_carrier|frame_resizer)|services\\(?:event_replayer|joystick|voice_call)|sources\\(?:dda|gdi|was_audio))\\')
 $nativeFiles = Get-ChildItem -LiteralPath $architectureRoot -Recurse -File |
     Where-Object {
         $_.Extension -in @(".h", ".hpp", ".cpp", ".cc", ".cxx") -and
@@ -301,7 +301,7 @@ $webRtcHost = Get-Content -LiteralPath `
 if ($webRtcHost -match "directory_iterator") {
     $violations.Add("webrtc_transport_host.cpp: fixed WebRTC loading must not scan directories")
 }
-foreach ($libraryName in @("px_render_rtc_remote", "px_render_rtc")) {
+foreach ($libraryName in @("px_render_rtc")) {
     if ($webRtcHost -notmatch [regex]::Escape($libraryName)) {
         $violations.Add("webrtc_transport_host.cpp: missing explicit $libraryName boundary")
     }
@@ -539,7 +539,6 @@ foreach ($required in @(
     "PxCallbackQuiescence",
     "StopAsync",
     "WEBRTC_CALLBACK_QUIESCENCE_TIMEOUT",
-    "CreateWebRtcRemoteTransport",
     "CreateWebRtcLocalTransport"
 )) {
     if ($webrtcHostSource -notmatch [regex]::Escape($required)) {

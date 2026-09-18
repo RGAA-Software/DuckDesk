@@ -1,23 +1,23 @@
-#include <iostream>
-
-#include "rd_app.h"
-#include "settings/rd_settings.h"
-#include "rd_context.h"
-#include "px_common/log.h"
-#include "px_common/dump_helper.h"
-#include "px_common/base64.h"
-#include "px_common/folder_util.h"
-#include "px_common/hardware.h"
-#include "px_common/process_util.h"
-#include "px_common/win32/render_instance_lease.h"
-#include "gflags/gflags.h"
-#include "version_config.h"
-#include "webview/webview_runtime.h"
-
 #include <Windows.h>
+
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
+#include <iostream>
+
+#include "gflags/gflags.h"
+#include "px_common/base64.h"
+#include "px_common/dump_helper.h"
+#include "px_common/folder_util.h"
+#include "px_common/hardware.h"
+#include "px_common/log.h"
+#include "px_common/process_util.h"
+#include "px_common/win32/render_instance_lease.h"
+#include "rd_app.h"
+#include "rd_context.h"
+#include "settings/rd_settings.h"
+#include "version_config.h"
+#include "webview/webview_runtime.h"
 
 using namespace px;
 
@@ -44,15 +44,8 @@ DEFINE_string(capture_video_type, "inner", "inner/global");
 DEFINE_bool(webrtc_enabled, true, "");
 DEFINE_bool(websocket_enabled, true, "");
 DEFINE_int32(network_listen_port, 4601, "");
-DEFINE_int32(rtc_port_start, 60430, "RTC media range start");
-DEFINE_int32(rtc_port_end, 60490, "RTC media range end");
 DEFINE_string(rtc_advertised_ipv4, "", "Render public IPv4 advertised to Web RTC peers");
 DEFINE_bool(udp_kcp_enabled, true, "");
-
-DEFINE_string(sig_server_address, "", "");
-DEFINE_string(sig_server_port, "", "");
-DEFINE_string(coturn_server_address, "", "");
-DEFINE_string(coturn_server_port, "", "");
 
 DEFINE_string(capture_audio_device, "", "capture audio device");
 
@@ -80,8 +73,7 @@ DEFINE_string(service_ipc_token, "", "ephemeral px_service IPC credential");
 // can be operated by mouse / keyboard
 DEFINE_bool(can_be_operated, true, "");
 DEFINE_bool(incoming_remote_access_enabled, true, "allow new inbound desktop and file-transfer sessions");
-DEFINE_bool(direct_allow_takeover, true,
-            "allow explicit takeover for no-Console Direct RTC connections");
+DEFINE_bool(direct_allow_takeover, true, "allow explicit takeover for no-Console Direct RTC connections");
 DEFINE_bool(enable_virtual_display, true, "allow controlled virtual display management in desktop mode");
 // file transfer enabled
 DEFINE_bool(file_transfer_enabled, true, "");
@@ -110,9 +102,6 @@ DEFINE_bool(webview_gpu, true, "Use CEF accelerated OSR shared textures");
 DEFINE_bool(webview_smoke_test, false, "Render WebView frames without a connected peer for diagnostics");
 // appkey
 DEFINE_string(appkey, "", "appkey");
-DEFINE_string(live_stream_id, "", "Console-issued live stream id");
-DEFINE_string(push_rtmp_url, "", "Console-issued RTMP publish URL template");
-DEFINE_string(push_primary_monitor, "", "primary monitor name for live push");
 
 void UpdateSettings(RdSettings& settings) {
     if (FLAGS_steam_app_id > 0) {
@@ -121,12 +110,10 @@ void UpdateSettings(RdSettings& settings) {
     }
 
     auto encoder_format = FLAGS_encoder_format;
-    std::ranges::transform(encoder_format, encoder_format.begin(),
-                           [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    std::ranges::transform(encoder_format, encoder_format.begin(), [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
     if (encoder_format == "h264" || encoder_format == "avc") {
         settings.encoder_.encoder_format_ = Encoder::EncoderFormat::kH264;
-    }
-    else {
+    } else {
         settings.encoder_.encoder_format_ = Encoder::EncoderFormat::kHEVC;
     }
 
@@ -135,8 +122,7 @@ void UpdateSettings(RdSettings& settings) {
 
     if (FLAGS_encoder_resolution_type == "origin") {
         settings.encoder_.encode_res_type_ = Encoder::EncodeResolutionType::kOrigin;
-    }
-    else {
+    } else {
         settings.encoder_.encode_res_type_ = Encoder::EncodeResolutionType::kSpecify;
     }
     settings.encoder_.encode_width_ = FLAGS_encoder_width;
@@ -146,16 +132,14 @@ void UpdateSettings(RdSettings& settings) {
     settings.capture_.enable_audio_ = FLAGS_capture_audio;
     if (FLAGS_capture_audio_type == "global") {
         settings.capture_.capture_audio_type_ = Capture::CaptureAudioType::kAudioGlobal;
-    }
-    else {
+    } else {
         settings.capture_.capture_audio_type_ = Capture::CaptureAudioType::kAudioInner;
     }
 
     settings.capture_.enable_video_ = FLAGS_capture_video;
     if (FLAGS_capture_video_type == "global") {
         settings.capture_.capture_video_type_ = Capture::CaptureVideoType::kCaptureScreen;
-    }
-    else {
+    } else {
         settings.capture_.capture_video_type_ = Capture::CaptureVideoType::kVideoInner;
     }
     // Ignored: audio capture plugin always uses the OS default playback device.
@@ -163,12 +147,6 @@ void UpdateSettings(RdSettings& settings) {
     (void)FLAGS_capture_audio_device;
     if (!gflags::GetCommandLineFlagInfoOrDie("network_listen_port").is_default) {
         settings.transmission_.listening_port_ = FLAGS_network_listen_port;
-    }
-    if (!gflags::GetCommandLineFlagInfoOrDie("rtc_port_start").is_default) {
-        settings.rtc_port_start_ = FLAGS_rtc_port_start;
-    }
-    if (!gflags::GetCommandLineFlagInfoOrDie("rtc_port_end").is_default) {
-        settings.rtc_port_end_ = FLAGS_rtc_port_end;
     }
     if (!gflags::GetCommandLineFlagInfoOrDie("rtc_advertised_ipv4").is_default) {
         settings.rtc_advertised_ipv4_ = FLAGS_rtc_advertised_ipv4;
@@ -220,22 +198,19 @@ void UpdateSettings(RdSettings& settings) {
     // app mode: explicit CLI overrides settings.toml application.mode
     if (FLAGS_app_mode == "desktop") {
         settings.application_mode_ = ApplicationMode::kDesktop;
-    }
-    else if (FLAGS_app_mode == "game-hook" || FLAGS_app_mode == "inner_capture") {
+    } else if (FLAGS_app_mode == "game-hook" || FLAGS_app_mode == "inner_capture") {
         settings.application_mode_ = ApplicationMode::kGameHook;
-    }
-    else if (FLAGS_app_mode == "webview") {
+    } else if (FLAGS_app_mode == "webview") {
         settings.application_mode_ = ApplicationMode::kWebView;
-    }
-    else if (FLAGS_app_mode == "rdp") {
+    } else if (FLAGS_app_mode == "rdp") {
         settings.application_mode_ = ApplicationMode::kRdp;
         settings.rdp_launch_.workspace_id = FLAGS_rdp_workspace_id;
         settings.rdp_launch_.instance_id = FLAGS_rdp_instance_id;
         settings.rdp_launch_.node_id = FLAGS_rdp_node_id;
         settings.rdp_launch_.device_id = FLAGS_rdp_device_id;
         settings.device_id_ = FLAGS_rdp_device_id;
-        settings.rdp_launch_.proxy_port = FLAGS_rdp_proxy_port > 0 && FLAGS_rdp_proxy_port <= 65535
-            ? static_cast<std::uint16_t>(FLAGS_rdp_proxy_port) : std::uint16_t{};
+        settings.rdp_launch_.proxy_port =
+            FLAGS_rdp_proxy_port > 0 && FLAGS_rdp_proxy_port <= 65535 ? static_cast<std::uint16_t>(FLAGS_rdp_proxy_port) : std::uint16_t{};
         settings.rdp_launch_.target_certificate_sha256 = FLAGS_rdp_target_certificate_sha256;
         settings.rdp_launch_.proxy_certificate_sha256 = FLAGS_rdp_proxy_certificate_sha256;
     }
@@ -250,21 +225,6 @@ void UpdateSettings(RdSettings& settings) {
 
     // appkey
     settings.appkey_ = FLAGS_appkey;
-    if (!FLAGS_live_stream_id.empty()) {
-        settings.live_stream_id_ = FLAGS_live_stream_id;
-    }
-    if (!FLAGS_push_rtmp_url.empty()) {
-        settings.push_rtmp_url_ = FLAGS_push_rtmp_url;
-    }
-    // A Console-scheduled application supplies both values explicitly.  Treat that
-    // pair as the live-push enable signal so a packaged settings.toml can keep
-    // passive pushing disabled for ordinary desktop/standalone launches.
-    if (!FLAGS_live_stream_id.empty() && !FLAGS_push_rtmp_url.empty()) {
-        settings.push_enabled_ = true;
-    }
-    if (!FLAGS_push_primary_monitor.empty()) {
-        settings.push_primary_monitor_ = FLAGS_push_primary_monitor;
-    }
 }
 
 void PrintInputArgs() {
@@ -292,10 +252,6 @@ void PrintInputArgs() {
     LOGI("app_game_path: {}", settings.app_.game_path_);
     LOGI("app_game_args: {}", FLAGS_app_game_args);
     LOGI("block debug: {}", FLAGS_debug_block);
-    LOGI("sig server address: {}", FLAGS_sig_server_address);
-    LOGI("sig server port: {}", FLAGS_sig_server_port);
-    LOGI("coturn server address: {}", FLAGS_coturn_server_address);
-    LOGI("coturn server port: {}", FLAGS_coturn_server_port);
     LOGI("device id: {}", FLAGS_device_id);
     LOGI("device random password configured: {}", !FLAGS_device_random_pwd.empty());
     LOGI("panel server host: {}", FLAGS_panel_server_host);
@@ -317,9 +273,6 @@ void PrintInputArgs() {
     LOGI("webview accelerated paint: {}", settings.webview_gpu_);
     LOGI("event replay mode: {} (0=global,1=inner)", (int)settings.app_.event_replay_mode_);
     LOGI("appkey configured: {}", !FLAGS_appkey.empty());
-    LOGI("live stream id: {}", settings.live_stream_id_);
-    LOGI("push rtmp url configured: {}", !settings.push_rtmp_url_.empty());
-    LOGI("push primary monitor: {}", settings.push_primary_monitor_);
     LOGI("--------------In args end----------------");
 }
 
@@ -366,8 +319,7 @@ int main(int argc, char** argv) {
     px::ProcessUtil::SetProcessInHighLevel();
     px::ProcessUtil::PinToPerformanceCores();
 
-    auto log_file_path = std::format(L"{}/px_logs/pixels_render_{}.log",
-                                     FolderUtil::GetProgramDataPath(), settings.transmission_.listening_port_);
+    auto log_file_path = std::format(L"{}/px_logs/pixels_render_{}.log", FolderUtil::GetProgramDataPath(), settings.transmission_.listening_port_);
     Logger::InitLog(log_file_path, FLAGS_logfile);
 
     // Install crash handling only after product-mode admission. Unsupported
@@ -379,9 +331,8 @@ int main(int argc, char** argv) {
     [[maybe_unused]] const auto dump_registration = CaptureDumpByBreakpad(std::move(bc));
 
     const auto valid_port = [](int port) { return port > 0 && port <= 65535; };
-    if (!valid_port(settings.transmission_.listening_port_) || !valid_port(settings.service_server_port_) ||
-        !valid_port(settings.rtc_port_start_) || !valid_port(settings.rtc_port_end_) || settings.rtc_port_start_ > settings.rtc_port_end_) {
-        LOGE("Invalid network or RTC port configuration");
+    if (!valid_port(settings.transmission_.listening_port_) || !valid_port(settings.service_server_port_)) {
+        LOGE("Invalid network port configuration");
         return 1;
     }
     settings.ApplyApplicationMode();
@@ -392,7 +343,7 @@ int main(int argc, char** argv) {
     auto settings_str = settings.Dump();
     LOGI("\n" + settings_str);
 
-    //settings.block_debug_ = true;
+    // settings.block_debug_ = true;
     if (settings.block_debug_) {
         MessageBoxA(0, 0, 0, 0);
     }

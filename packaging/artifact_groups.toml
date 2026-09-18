@@ -198,12 +198,6 @@ destination = "resources/render/frame_carrier/ic_logo_point.png"
 
 [[groups.render_common]]
 root = "build"
-source = "src/px_render/network/webrtc/remote/px_render_rtc_remote.dll"
-destination = "px_render_rtc_remote.dll"
-owned_pe = true
-
-[[groups.render_common]]
-root = "build"
 source = "src/px_render/network/webrtc/local/px_render_rtc.dll"
 destination = "px_render_rtc.dll"
 owned_pe = true

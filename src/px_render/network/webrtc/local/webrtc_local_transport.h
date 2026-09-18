@@ -5,21 +5,21 @@
 #ifndef PX_RENDER_WEBRTC_LOCAL_TRANSPORT_H
 #define PX_RENDER_WEBRTC_LOCAL_TRANSPORT_H
 
-#include <map>
 #include <atomic>
 #include <chrono>
-#include <mutex>
 #include <condition_variable>
 #include <functional>
+#include <map>
+#include <mutex>
 #include <span>
-#include "px_render/network/webrtc/webrtc_execution_context.h"
+
 #include "px_capture/monitor_util.h"
 #include "px_common/concurrent_hashmap.h"
-#include "px_common/rtc_monitor_track_slots.h"
-#include "rtc_local_encoded_frame.h"
 #include "px_common/concurrent_type.h"
 #include "px_common/file_transfer_send_result.h"
-#include "px_render/network/webrtc/remote/rtc_messages.h"
+#include "px_common/rtc_monitor_track_slots.h"
+#include "px_render/network/webrtc/webrtc_execution_context.h"
+#include "rtc_local_encoded_frame.h"
 
 #if defined(_WIN32)
 #if defined(PX_NET_RTC_LOCAL_BUILD)
@@ -39,11 +39,9 @@ class RtcServer;
 class WebRtcLocalTransport;
 
 class WebRtcLocalRuntime final {
-  public:
-    WebRtcLocalRuntime(std::weak_ptr<WebRtcLocalTransport> owner, std::weak_ptr<WebRtcExecutionContext> context,
-                       int rtc_port_start = 60430, int rtc_port_end = 60490);
-    const int rtc_port_start{60430};
-    const int rtc_port_end{60490};
+public:
+    WebRtcLocalRuntime(std::weak_ptr<WebRtcLocalTransport> owner, std::weak_ptr<WebRtcExecutionContext> context, int media_port);
+    const int media_port{4601};
 
     void WithOwner(const std::function<void(WebRtcLocalTransport&)>& operation);
     [[nodiscard]] bool IsOwnerActive() const;
@@ -66,14 +64,14 @@ class WebRtcLocalRuntime final {
 
     ConcurrentHashMap<std::string, std::shared_ptr<RtcServer>> servers;
 
-  private:
+private:
     mutable std::mutex owner_mutex_;
     std::weak_ptr<WebRtcLocalTransport> owner_;
     std::weak_ptr<WebRtcExecutionContext> context_;
 };
 
 class PX_NET_RTC_LOCAL_API WebRtcLocalTransport final : public std::enable_shared_from_this<WebRtcLocalTransport> {
-  public:
+public:
     WebRtcLocalTransport() = default;
     ~WebRtcLocalTransport();
 
@@ -85,8 +83,6 @@ class PX_NET_RTC_LOCAL_API WebRtcLocalTransport final : public std::enable_share
     void SetEnabled(bool enabled);
     [[nodiscard]] bool IsWorking() const;
     void UpdateSettings(const WebRtcTransportSettings& settings);
-    void ApplyRtcRemoteSdp(const MsgRtcRemoteSdp& message);
-    void ApplyRtcRemoteIce(const MsgRtcRemoteIce& message);
     void ApplyLogicalSessionCapabilities(const PxLogicalSessionCapabilityUpdate& update);
     void PostProtoMessage(std::shared_ptr<Data> msg, bool run_through);
     bool PostTargetStreamProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through);
@@ -157,14 +153,13 @@ class PX_NET_RTC_LOCAL_API WebRtcLocalTransport final : public std::enable_share
     void EnableAllMonitorCapture();
     static constexpr int kMaxRtcVideoTracks = kReservedRtcMonitorTrackCount;
 
-  private:
+private:
     [[nodiscard]] bool PostWork(std::function<void()> task) const;
-    void OnRemoteSdp(const MsgRtcRemoteSdp& message);
-    void OnRemoteIce(const MsgRtcRemoteIce& message);
     void WaitForMediaChannelActive();
     // 定期清扫已终止的 RtcServer,防止死连接残留拖垮媒体投递
     void SweepDeadRtcServers();
-  private:
+
+private:
     std::shared_ptr<WebRtcLocalRuntime> runtime_;
     std::shared_ptr<WebRtcExecutionContext> execution_context_;
     WebRtcTransportSettings settings_{};
@@ -202,6 +197,6 @@ class PX_NET_RTC_LOCAL_API WebRtcLocalTransport final : public std::enable_share
 
 [[nodiscard]] PX_NET_RTC_LOCAL_API std::shared_ptr<WebRtcLocalTransport> CreateWebRtcLocalTransport();
 
-} // namespace px
+}  // namespace px
 
-#endif // PX_RENDER_WEBRTC_LOCAL_TRANSPORT_H
+#endif  // PX_RENDER_WEBRTC_LOCAL_TRANSPORT_H

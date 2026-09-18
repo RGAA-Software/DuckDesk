@@ -8,6 +8,8 @@
 - 基线：Render 内建模块和流程节点插件迁移已经完成；本阶段继续完成网络控制面的业务请求、连接、重连、准入、超时和关闭协程化。
 - 约束：继续使用 canonical standalone Asio 以及现有 `PxAsyncRuntime`、`PxAsyncScope`、`PxAwaitable`，不切换 asio3。
 - 交付方式：按可独立验证的批次实施，每批必须保持可构建、可测试、可回退；最终由用户在目标环境统一验收。
+- 2026-09-19 媒体边界：旧记录中的 `px_render_rtc_remote.dll` 已归档；当前只构建 Direct Host `px_render_rtc.dll`，历史双 DLL
+  哈希不得作为当前发布清单。
 
 本计划是 `docs/render_builtin_modules_architecture_upgrade_plan.md` 的网络控制面后续阶段。若两份文档发生冲突，以仓库 `AGENTS.md`、
 `docs/cpp_smart_pointer_standard.md` 和本计划中更严格的生命周期约束为准。

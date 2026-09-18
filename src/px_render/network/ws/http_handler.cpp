@@ -40,9 +40,7 @@ constexpr auto kHandlerErrIpDirectAuthorizationRejected = 707;
 constexpr auto kHandlerErrConsoleAdmissionRejected = 708;
 
 int64_t CurrentSystemMilliseconds() {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(
-               std::chrono::system_clock::now().time_since_epoch())
-        .count();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 }
 
 struct RtcPasswordAdmission {
@@ -197,8 +195,10 @@ private:
             close->preserve_reconnect_grace_ = false;
             transport->EmitEvent(close);
         }
-        LOGW("event=session.lease component=net_ws operation=renew outcome=revoked session={} reason={}",
-             PrivacyLogId(identity.logical_grant.logical_session_id), reason);
+        LOGW(
+            "event=session.lease component=net_ws operation=renew outcome=revoked code=LOGICAL_LEASE_REVOKED recoverable=false "
+            "session={} reason={}",
+            PrivacyLogId(identity.logical_grant.logical_session_id), reason);
         RemoveCurrent(control);
     }
 
@@ -252,8 +252,7 @@ void HttpHandler::HandlePing(http::web_request& req, http::web_response& resp) {
     resp.fill_json(data);
 }
 
-void HttpHandler::HandleVerifySecurityPassword(http::web_request& req,
-                                               http::web_response& resp) {
+void HttpHandler::HandleVerifySecurityPassword(http::web_request& req, http::web_response& resp) {
     auto params = GetQueryParams(req.query());
     auto value = GetParam(params, "safety_pwd_md5");
     if (!value.has_value()) {
@@ -270,8 +269,7 @@ void HttpHandler::HandleVerifySecurityPassword(http::web_request& req,
     SendOkJson(resp, "");
 }
 
-void HttpHandler::HandleGetRenderConfiguration(http::web_request& req,
-                                               http::web_response& resp) {
+void HttpHandler::HandleGetRenderConfiguration(http::web_request& req, http::web_response& resp) {
     const auto transport = transport_.lock();
     if (!transport) {
         SendErrorJson(resp, kHandlerErrParams);
@@ -282,11 +280,9 @@ void HttpHandler::HandleGetRenderConfiguration(http::web_request& req,
     obj["device_id"] = settings.device_id;
     obj["relay_host"] = settings.relay_host;
     obj["relay_port"] = std::atoi(settings.relay_port.c_str());
-    obj["incoming_remote_access_enabled"] =
-        settings.incoming_remote_access_enabled;
+    obj["incoming_remote_access_enabled"] = settings.incoming_remote_access_enabled;
     obj["file_transfer_enabled"] = settings.file_transfer_enabled;
-    const auto controller =
-        transport->QueryControllerAvailability(CurrentSystemMilliseconds());
+    const auto controller = transport->QueryControllerAvailability(CurrentSystemMilliseconds());
     obj["controller_availability_known"] = controller.known;
     obj["controller_available"] = controller.available;
     obj["controller_reconnect_grace"] = controller.reconnect_grace;
@@ -298,8 +294,7 @@ void HttpHandler::HandleGetRenderConfiguration(http::web_request& req,
     SendOkJson(resp, obj.dump());
 }
 
-void HttpHandler::HandlePanelStreamMessage(http::web_request& req,
-                                           http::web_response& resp) {
+void HttpHandler::HandlePanelStreamMessage(http::web_request& req, http::web_response& resp) {
     const auto transport = transport_.lock();
     if (!transport) {
         SendErrorJson(resp, kHandlerErrParams);
@@ -319,15 +314,13 @@ void HttpHandler::HandlePanelStreamMessage(http::web_request& req,
     SendOkJson(resp, "");
 }
 
-bool HttpHandler::VerifySafetyPassword(
-    const std::unordered_map<std::string, std::string>& params) {
+bool HttpHandler::VerifySafetyPassword(const std::unordered_map<std::string, std::string>& params) {
     const auto transport = transport_.lock();
     if (!transport) {
         return false;
     }
     auto settings = transport->Settings();
-    if (settings.device_safety_password.empty() &&
-        settings.device_random_password.empty()) {
+    if (settings.device_safety_password.empty() && settings.device_random_password.empty()) {
         return true;
     }
     auto value = GetParam(params, "safety_pwd_md5");
@@ -335,8 +328,7 @@ bool HttpHandler::VerifySafetyPassword(
         return false;
     }
     // 安全密码:存的就是 MD5,直接比对
-    if (!settings.device_safety_password.empty() &&
-        settings.device_safety_password == value.value()) {
+    if (!settings.device_safety_password.empty() && settings.device_safety_password == value.value()) {
         return true;
     }
     // 临时(随机)密码:存的是明文,兼容"前端 md5 后传入"和"直接传明文"两种形式
@@ -351,8 +343,7 @@ bool HttpHandler::VerifySafetyPassword(
     return false;
 }
 
-void HttpHandler::CloseAdmittedLogicalSessionBinding(
-    const std::string& logical_session_id, const std::string& binding_id) {
+void HttpHandler::CloseAdmittedLogicalSessionBinding(const std::string& logical_session_id, const std::string& binding_id) {
     if (logical_session_id.empty() || binding_id.empty()) {
         return;
     }
@@ -365,9 +356,7 @@ void HttpHandler::CloseAdmittedLogicalSessionBinding(
     }
 }
 
-void HttpHandler::HandleAllocLocalRtc(
-    std::shared_ptr<asio2::http_session>& session_ptr, http::web_request& req,
-    http::web_response& resp) {
+void HttpHandler::HandleAllocLocalRtc(std::shared_ptr<asio2::http_session>& session_ptr, http::web_request& req, http::web_response& resp) {
     if (transport_.expired() || !async_scope_ || !async_scope_->IsAccepting()) {
         SendErrorJson(resp, kHandlerErrNoWebRtcLocalLibrary);
         return;
@@ -375,60 +364,47 @@ void HttpHandler::HandleAllocLocalRtc(
     LOGI(
         "event=workflow.start component=net_ws operation=rtc_local_allocate "
         "outcome=accepted peer={} remote_port={} local_port={}",
-        PrivacyLogId(session_ptr->remote_address()), session_ptr->remote_port(),
-        session_ptr->local_port());
+        PrivacyLogId(session_ptr->remote_address()), session_ptr->remote_port(), session_ptr->local_port());
     auto params = GetQueryParams(req.query());
     auto body = std::string(req.body());
     auto remote_address = std::string(session_ptr->remote_address());
     auto response_defer = resp.defer();
     const auto weak_self = weak_from_this();
     const auto session = session_ptr;
-    if (!async_scope_->Spawn(
-            "rtc-local-http-allocation",
-            [weak_self, session, params = std::move(params),
-             body = std::move(body), remote_address = std::move(remote_address),
-             response_defer = std::move(response_defer)]() mutable {
-                return AllocateLocalRtcAsync(
-                    weak_self, session, std::move(params), std::move(body),
-                    std::move(remote_address), std::move(response_defer));
-            })) {
+    if (!async_scope_->Spawn("rtc-local-http-allocation",
+                             [weak_self, session, params = std::move(params), body = std::move(body), remote_address = std::move(remote_address),
+                              response_defer = std::move(response_defer)]() mutable {
+                                 return AllocateLocalRtcAsync(weak_self, session, std::move(params), std::move(body), std::move(remote_address),
+                                                              std::move(response_defer));
+                             })) {
         SendErrorJson(resp, kHandlerErrCreateRtcLocalServerFailed);
     }
 }
 
-PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(
-    std::weak_ptr<HttpHandler> owner,
-    std::shared_ptr<asio2::http_session> session,
-    std::unordered_map<std::string, std::string> params, std::string body,
-    std::string remote_address,
-    std::shared_ptr<http::response_defer> response_defer) {
+PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(std::weak_ptr<HttpHandler> owner, std::shared_ptr<asio2::http_session> session,
+                                                     std::unordered_map<std::string, std::string> params, std::string body,
+                                                     std::string remote_address, std::shared_ptr<http::response_defer> response_defer) {
     const auto self = owner.lock();
     const auto transport = self ? self->transport_.lock() : nullptr;
     if (!self || !transport) {
-        session->post_queued_event(
-            [session, response_defer = std::move(response_defer)]() mutable {
-                session->response().fill_json(
-                    R"({"code":702,"message":)"
-                    R"("No WebRTC local network library","data":""})");
-                response_defer.reset();
-            });
+        session->post_queued_event([session, response_defer = std::move(response_defer)]() mutable {
+            session->response().fill_json(R"({"code":702,"message":)"
+                                          R"("No WebRTC local network library","data":""})");
+            response_defer.reset();
+        });
         co_return;
     }
-    const auto make_reply =
-        [self](const int code, const http::status status = http::status::ok,
-               const std::string& response_data = std::string{}) {
-            return DeferredHttpReply{
-                .payload_ = self->WrapBasicInfo(
-                    code, self->GetErrorMessage(code), response_data),
-                .status_ = status,
-            };
+    const auto make_reply = [self](const int code, const http::status status = http::status::ok, const std::string& response_data = std::string{}) {
+        return DeferredHttpReply{
+            .payload_ = self->WrapBasicInfo(code, self->GetErrorMessage(code), response_data),
+            .status_ = status,
         };
+    };
     const auto complete = [session, response_defer](DeferredHttpReply reply) {
-        session->post_queued_event(
-            [session, response_defer, reply = std::move(reply)]() mutable {
-                session->response().fill_json(reply.payload_, reply.status_);
-                response_defer.reset();
-            });
+        session->post_queued_event([session, response_defer, reply = std::move(reply)]() mutable {
+            session->response().fill_json(reply.payload_, reply.status_);
+            response_defer.reset();
+        });
     };
 
     std::string sdp;
@@ -441,41 +417,31 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(
         complete(make_reply(kHandlerErrParams));
         co_return;
     }
-    const auto device_id =
-        self->GetParam(params, "device_id").value_or(std::string{});
+    const auto device_id = self->GetParam(params, "device_id").value_or(std::string{});
     if (sdp.empty()) {
         complete(make_reply(kHandlerErrParams));
         co_return;
     }
     const auto nonce_param = self->GetParam(params, "client_nonce");
-    const auto client_nonce =
-        !body_nonce.empty() ? body_nonce : nonce_param.value_or(std::string{});
+    const auto client_nonce = !body_nonce.empty() ? body_nonce : nonce_param.value_or(std::string{});
     if (client_nonce.empty()) {
         complete(make_reply(kHandlerErrParams));
         co_return;
     }
-    const auto requested_stream_id =
-        self->GetParam(params, "stream_id").value_or(std::string{});
+    const auto requested_stream_id = self->GetParam(params, "stream_id").value_or(std::string{});
     RtcPasswordAdmission authentication;
     std::shared_ptr<SecureFrontendToken> frontend_token;
     std::optional<ConsoleFrontendGrant> console_frontend_grant;
     std::string descriptor_session_id;
     std::int64_t descriptor_revision{0};
     if (transport->RequiresConsoleFrontendAdmission()) {
-        const auto session_id =
-            self->GetParam(params, "session_id").value_or(std::string{});
-        const auto revision_text =
-            self->GetParam(params, "session_revision").value_or(std::string{});
+        const auto session_id = self->GetParam(params, "session_id").value_or(std::string{});
+        const auto revision_text = self->GetParam(params, "session_revision").value_or(std::string{});
         auto token_entry = params.find("frontend_token");
         std::int64_t revision = 0;
-        const auto parsed_revision = std::from_chars(
-            revision_text.data(), revision_text.data() + revision_text.size(),
-            revision);
-        if (session_id.empty() || token_entry == params.end() ||
-            token_entry->second.empty() || revision <= 0 ||
-            parsed_revision.ec != std::errc{} ||
-            parsed_revision.ptr !=
-                revision_text.data() + revision_text.size()) {
+        const auto parsed_revision = std::from_chars(revision_text.data(), revision_text.data() + revision_text.size(), revision);
+        if (session_id.empty() || token_entry == params.end() || token_entry->second.empty() || revision <= 0 || parsed_revision.ec != std::errc{} ||
+            parsed_revision.ptr != revision_text.data() + revision_text.size()) {
             complete(make_reply(kHandlerErrParams, http::status::bad_request));
             co_return;
         }
@@ -495,42 +461,30 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(
                 "code=CONSOLE_FRONTEND_REJECTED "
                 "operation=console_frontend_auth "
                 "outcome=rejected recoverable={} device={} reason={}",
-                admitted.Error().retryable, PrivacyLogId(device_id),
-                admitted.Error().StableCode());
-            complete(make_reply(kHandlerErrConsoleAdmissionRejected,
-                                http::status::forbidden));
+                admitted.Error().retryable, PrivacyLogId(device_id), admitted.Error().StableCode());
+            complete(make_reply(kHandlerErrConsoleAdmissionRejected, http::status::forbidden));
             co_return;
         }
         auto grant = admitted.TakeValue();
         const auto settings = transport->Settings();
-        if (grant.target_kind != "cloud_application" ||
-            grant.instance_id != settings.device_id ||
-            (grant.access_role != "controller" &&
-             grant.access_role != "observer") ||
-            grant.valid_for_ms == 0) {
-            complete(make_reply(kHandlerErrConsoleAdmissionRejected,
-                                http::status::forbidden));
+        if (grant.target_kind != "cloud_application" || grant.instance_id != settings.device_id ||
+            (grant.access_role != "controller" && grant.access_role != "observer") || grant.valid_for_ms == 0) {
+            complete(make_reply(kHandlerErrConsoleAdmissionRejected, http::status::forbidden));
             co_return;
         }
         descriptor_session_id = session_id;
         descriptor_revision = revision;
         console_frontend_grant = grant;
-        const auto stream_id = requested_stream_id.empty()
-                                   ? grant.session_id
-                                   : requested_stream_id;
+        const auto stream_id = requested_stream_id.empty() ? grant.session_id : requested_stream_id;
         const bool controller = grant.access_role == "controller";
         authentication = RtcPasswordAdmission{
             .permissions_ =
-                controller
-                    ? std::vector<std::string>{"view", "input", "clipboard",
-                                               "file", "audio"}
-                    : std::vector<std::string>{"view", "audio"},
+                controller ? std::vector<std::string>{"view", "input", "clipboard", "file", "audio"} : std::vector<std::string>{"view", "audio"},
             .logical_session_id_ = grant.session_id,
             .stream_id_ = stream_id,
             .join_mode_ = controller ? "control" : "observe",
             .subject_id_ = grant.client_type + ":" + grant.session_id,
-            .expires_at_ms_ = CurrentSystemMilliseconds() +
-                              static_cast<std::int64_t>(grant.valid_for_ms),
+            .expires_at_ms_ = CurrentSystemMilliseconds() + static_cast<std::int64_t>(grant.valid_for_ms),
             .allow_observer_ = !controller,
             .allow_takeover_ = false,
         };
@@ -541,24 +495,17 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(
                 "code=SESSION_PASSWORD_REJECTED operation=rtc_password_auth "
                 "outcome=rejected recoverable=false device={}",
                 PrivacyLogId(device_id));
-            complete(make_reply(kHandlerErrVerifySafetyPasswordFailed,
-                                http::status::forbidden));
+            complete(make_reply(kHandlerErrVerifySafetyPasswordFailed, http::status::forbidden));
             co_return;
         }
         const auto stream_id =
-            requested_stream_id.empty()
-                ? std::string("password:") +
-                      MD5::Hex(remote_address + "|" + client_nonce)
-                : requested_stream_id;
+            requested_stream_id.empty() ? std::string("password:") + MD5::Hex(remote_address + "|" + client_nonce) : requested_stream_id;
         authentication = RtcPasswordAdmission{
             .permissions_ = {"view", "input", "clipboard", "file", "audio"},
-            .logical_session_id_ =
-                std::string("password:") +
-                MD5::Hex(device_id + "|" + stream_id + "|" + client_nonce),
+            .logical_session_id_ = std::string("password:") + MD5::Hex(device_id + "|" + stream_id + "|" + client_nonce),
             .stream_id_ = stream_id,
             .join_mode_ = "control",
-            .subject_id_ = std::string("password:") +
-                           MD5::Hex(remote_address + "|" + client_nonce),
+            .subject_id_ = std::string("password:") + MD5::Hex(remote_address + "|" + client_nonce),
             .expires_at_ms_ = 0,
             .allow_observer_ = false,
             .allow_takeover_ = transport->Settings().direct_allow_takeover,
@@ -573,8 +520,7 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(
         const auto value = self->GetParam(params, "takeover");
         return value && (*value == "1" || *value == "true");
     }();
-    const auto admitted_binding_id =
-        std::string("rtc-local:") + authentication.stream_id_;
+    const auto admitted_binding_id = std::string("rtc-local:") + authentication.stream_id_;
     const auto rtc_allocation_id = GetUUID();
     const auto admission_grant = LogicalSessionGrant{
         .logical_session_id = authentication.logical_session_id_,
@@ -587,9 +533,8 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(
         .input_allowed = true,
     };
     auto admitted = co_await AwaitWsValueCallback<LogicalSessionAdmission>(
-        [weak_transport = self->transport_, admission_grant,
-         admitted_binding_id, takeover_requested](
-            std::function<void(LogicalSessionAdmission)> completion) {
+        [weak_transport = self->transport_, admission_grant, admitted_binding_id,
+         takeover_requested](std::function<void(LogicalSessionAdmission)> completion) {
             const auto active_plugin = weak_transport.lock();
             if (!active_plugin) {
                 return false;
@@ -603,14 +548,11 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(
             active_plugin->EmitEvent(event);
             return true;
         },
-        std::chrono::steady_clock::now() + std::chrono::seconds(3),
-        "rtc_session_admit",
-        [owner, logical_session_id = authentication.logical_session_id_,
-         admitted_binding_id](const LogicalSessionAdmission& late) {
+        std::chrono::steady_clock::now() + std::chrono::seconds(3), "rtc_session_admit",
+        [owner, logical_session_id = authentication.logical_session_id_, admitted_binding_id](const LogicalSessionAdmission& late) {
             if (late.code == LogicalSessionAdmissionCode::kAccepted) {
                 if (const auto active_owner = owner.lock()) {
-                    active_owner->CloseAdmittedLogicalSessionBinding(
-                        logical_session_id, admitted_binding_id);
+                    active_owner->CloseAdmittedLogicalSessionBinding(logical_session_id, admitted_binding_id);
                 }
             }
         });
@@ -620,12 +562,9 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(
     }
     const auto admission = admitted.TakeValue();
     if (admission.code != LogicalSessionAdmissionCode::kAccepted) {
-        const auto code =
-            admission.code == LogicalSessionAdmissionCode::kRemoteAccessDisabled
-                ? kHandlerErrRemoteAccessDisabled
-                : (admission.code == LogicalSessionAdmissionCode::kOccupied
-                       ? kHandlerErrRtcLocalOccupied
-                       : kHandlerErrSessionRejected);
+        const auto code = admission.code == LogicalSessionAdmissionCode::kRemoteAccessDisabled
+                              ? kHandlerErrRemoteAccessDisabled
+                              : (admission.code == LogicalSessionAdmissionCode::kOccupied ? kHandlerErrRtcLocalOccupied : kHandlerErrSessionRejected);
         complete(make_reply(code, http::status::forbidden));
         co_return;
     }
@@ -636,79 +575,47 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(
     rtc_request->allocation_id_ = rtc_allocation_id;
     rtc_request->req_ip_ = remote_address;
     rtc_request->sdp_ = sdp;
-    rtc_request->content_type_ =
-        self->GetParam(params, "content_type") ==
-                std::optional<std::string>("game_stream")
-            ? PxLocalRtcContentType::kGameStream
-            : PxLocalRtcContentType::kDesktop;
+    rtc_request->content_type_ = self->GetParam(params, "content_type") == std::optional<std::string>("game_stream")
+                                     ? PxLocalRtcContentType::kGameStream
+                                     : PxLocalRtcContentType::kDesktop;
     rtc_request->capability_enforced_ = true;
     rtc_request->takeover_ = takeover_requested;
     if (admission.role == LogicalSessionRole::kObserver) {
         rtc_request->session_role_ = PxLocalRtcSessionRole::kObserver;
         rtc_request->permissions_ = {"view", "audio"};
     } else {
-        rtc_request->permissions_ = {"view", "input", "clipboard", "file",
-                                     "audio"};
+        rtc_request->permissions_ = {"view", "input", "clipboard", "file", "audio"};
     }
-    if (self->GetParam(params, "session_role") ==
-        std::optional<std::string>("wall_observer")) {
-        if (remote_address != "127.0.0.1" && remote_address != "::1") {
-            self->CloseAdmittedLogicalSessionBinding(
-                authentication.logical_session_id_, admitted_binding_id);
-            complete(make_reply(kHandlerErrParams));
-            co_return;
-        }
-        rtc_request->session_role_ = PxLocalRtcSessionRole::kWallObserver;
-    }
-    rtc_request->client_nonce_ =
-        !body_nonce.empty()
-            ? body_nonce
-            : self->GetParam(params, "client_nonce").value_or(std::string{});
+    rtc_request->client_nonce_ = !body_nonce.empty() ? body_nonce : self->GetParam(params, "client_nonce").value_or(std::string{});
 
     const auto executor = co_await asio::this_coro::executor;
-    const auto rtc_operation =
-        PxAsyncOneShot<std::shared_ptr<PxLocalRtcReplyInfo>>::Create(executor);
-    const std::weak_ptr<PxAsyncOneShot<std::shared_ptr<PxLocalRtcReplyInfo>>>
-        weak_rtc_operation = rtc_operation;
-    const auto allocation = transport->AllocateLocalRtcInstance(
-        rtc_request, [weak_rtc_operation](
-                         const std::shared_ptr<PxLocalRtcReplyInfo>& reply) {
-            if (const auto operation = weak_rtc_operation.lock()) {
-                if (reply) {
-                    static_cast<void>(operation->TryComplete(
-                        PxResult<std::shared_ptr<PxLocalRtcReplyInfo>>::Success(
-                            reply)));
-                } else {
-                    static_cast<void>(operation->TryFail(MakePxAsyncError(
-                        PxAsyncErrorCode::kProtocolError, "rtc_local_allocate",
-                        "RTC reply is empty", false, "RTC_LOCAL_EMPTY_REPLY")));
-                }
+    const auto rtc_operation = PxAsyncOneShot<std::shared_ptr<PxLocalRtcReplyInfo>>::Create(executor);
+    const std::weak_ptr<PxAsyncOneShot<std::shared_ptr<PxLocalRtcReplyInfo>>> weak_rtc_operation = rtc_operation;
+    const auto allocation = transport->AllocateLocalRtcInstance(rtc_request, [weak_rtc_operation](const std::shared_ptr<PxLocalRtcReplyInfo>& reply) {
+        if (const auto operation = weak_rtc_operation.lock()) {
+            if (reply) {
+                static_cast<void>(operation->TryComplete(PxResult<std::shared_ptr<PxLocalRtcReplyInfo>>::Success(reply)));
+            } else {
+                static_cast<void>(operation->TryFail(
+                    MakePxAsyncError(PxAsyncErrorCode::kProtocolError, "rtc_local_allocate", "RTC reply is empty", false, "RTC_LOCAL_EMPTY_REPLY")));
             }
-        });
+        }
+    });
     if (allocation != PxLocalRtcAllocResult::kOk) {
-        static_cast<void>(rtc_operation->TryFail(MakePxAsyncError(
-            PxAsyncErrorCode::kServiceRejected, "rtc_local_allocate",
-            "RTC allocation was rejected", false,
-            allocation == PxLocalRtcAllocResult::kOccupied
-                ? "RTC_LOCAL_OCCUPIED"
-                : "RTC_LOCAL_CREATE_FAILED")));
+        static_cast<void>(rtc_operation->TryFail(
+            MakePxAsyncError(PxAsyncErrorCode::kServiceRejected, "rtc_local_allocate", "RTC allocation was rejected", false,
+                             allocation == PxLocalRtcAllocResult::kOccupied ? "RTC_LOCAL_OCCUPIED" : "RTC_LOCAL_CREATE_FAILED")));
     }
-    auto rtc_reply =
-        co_await PxAsyncOneShot<std::shared_ptr<PxLocalRtcReplyInfo>>::
-            WaitUntil(rtc_operation, std::chrono::steady_clock::now() +
-                                         std::chrono::seconds(10));
+    auto rtc_reply = co_await PxAsyncOneShot<std::shared_ptr<PxLocalRtcReplyInfo>>::WaitUntil(
+        rtc_operation, std::chrono::steady_clock::now() + std::chrono::seconds(10));
     if (!rtc_reply.HasValue()) {
-        self->CloseAdmittedLogicalSessionBinding(
-            authentication.logical_session_id_, admitted_binding_id);
-        const auto code = rtc_reply.Error().detail_code == "RTC_LOCAL_OCCUPIED"
-                              ? kHandlerErrRtcLocalOccupied
-                              : kHandlerErrCreateRtcLocalServerFailed;
+        self->CloseAdmittedLogicalSessionBinding(authentication.logical_session_id_, admitted_binding_id);
+        const auto code = rtc_reply.Error().detail_code == "RTC_LOCAL_OCCUPIED" ? kHandlerErrRtcLocalOccupied : kHandlerErrCreateRtcLocalServerFailed;
         LOGW(
             "event=workflow.complete component=net_ws code={} "
             "operation=rtc_local_allocate outcome=failed recoverable={} "
             "reason={}",
-            rtc_reply.Error().StableCode(), rtc_reply.Error().retryable,
-            rtc_reply.Error().message);
+            rtc_reply.Error().StableCode(), rtc_reply.Error().retryable, rtc_reply.Error().message);
         complete(make_reply(code));
         co_return;
     }
@@ -751,8 +658,7 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(
         "outcome=accepted device={} takeover={}",
         PrivacyLogId(device_id), rtc_request->takeover_);
     complete(DeferredHttpReply{
-        .payload_ =
-            self->WrapBasicInfo(200, self->GetErrorMessage(200), result),
+        .payload_ = self->WrapBasicInfo(200, self->GetErrorMessage(200), result),
         .status_ = http::status::ok,
     });
     co_return;

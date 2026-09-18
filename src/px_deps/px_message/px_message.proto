@@ -2,7 +2,6 @@ syntax = "proto3";
 
 package px;
 
-import "px_signaling_message.proto";
 import "px_file_transfer.proto";
 
 enum RespCode
@@ -81,11 +80,6 @@ enum MessageType {
   kClipboardReqBuffer = 350;
   kClipboardReqAtEnd = 351;
   kClipboardRespBuffer = 360;
-
-  //
-  kSigOfferSdpMessage = 370;
-  kSigAnswerSdpMessage = 380;
-  kSigIceMessage = 390;
 
   // client -> render 
   kSwitchFullColorMode = 460;
@@ -875,12 +869,6 @@ message Message {
   ClipboardReqBuffer cp_req_buffer = 350;
   ClipboardReqAtEnd cp_req_at_end = 351;
   ClipboardRespBuffer cp_resp_buffer = 360;
-
-  // signaling begin
-  SigOfferSdpMessage sig_offer_sdp = 370;
-  SigAnswerSdpMessage sig_answer_sdp = 380;
-  SigIceMessage sig_ice = 450;
-  // signaling end
 
   SwitchFullColorMode switch_full_color_mode = 480;
 

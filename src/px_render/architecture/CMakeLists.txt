@@ -30,19 +30,6 @@ target_compile_features(render_media_recorder PUBLIC cxx_std_23)
 target_link_libraries(render_media_recorder
     PUBLIC render_architecture_core px_media_record)
 
-add_library(render_live_pusher STATIC
-    sinks/live_pusher_sink.cpp
-    sinks/live_pusher/live_pusher_ffmpeg.cpp)
-target_include_directories(render_live_pusher
-    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-    PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/sinks/live_pusher
-        ${FFMPEG_ROOT}/include)
-target_compile_features(render_live_pusher PUBLIC cxx_std_23)
-target_link_libraries(render_live_pusher
-    PUBLIC render_architecture_core
-    PRIVATE ${FFMPEG_LIBRARIES})
-
 add_library(render_frame_processors STATIC
     processors/frame_carrier_processor.cpp
     processors/frame_resizer_processor.cpp

@@ -33,35 +33,23 @@ class RdContext;
 class RenderModuleRegistry;
 struct VirtualDisplayCoordinator;
 
-class NetworkEventIngress
-    : public std::enable_shared_from_this<NetworkEventIngress> {
-   public:
-    static std::shared_ptr<NetworkEventIngress> Make(
-        const std::shared_ptr<RdApplication>& app);
+class NetworkEventIngress : public std::enable_shared_from_this<NetworkEventIngress> {
+public:
+    static std::shared_ptr<NetworkEventIngress> Make(const std::shared_ptr<RdApplication>& app);
     explicit NetworkEventIngress(const std::shared_ptr<RdApplication>& app);
-    void ProcessNetEvent(const std::shared_ptr<NetworkClientEvent>& event,
-                         const std::string& source_id);
+    void ProcessNetEvent(const std::shared_ptr<NetworkClientEvent>& event, const std::string& source_id);
     void ProcessUdpVoiceFrame(const std::shared_ptr<UdpVoiceFrameEvent>& event);
-    void ProcessClientConnectedEvent(
-        const std::shared_ptr<ClientConnectedEvent>& event,
-        const std::string& source_id);
-    void ProcessClientDisConnectedEvent(
-        const std::shared_ptr<ClientDisconnectedEvent>& event,
-        const std::string& source_id);
-    void ProcessCapturingMonitorInfoEvent(
-        const std::shared_ptr<CaptureMonitorInfoChangedEvent>& event) const;
-    void ProcessEncodedAudioFrameEvent(
-        const std::shared_ptr<Data>& audio_payload, int samples, int channels,
-        int bits, int frame_size);
+    void ProcessClientConnectedEvent(const std::shared_ptr<ClientConnectedEvent>& event, const std::string& source_id);
+    void ProcessClientDisConnectedEvent(const std::shared_ptr<ClientDisconnectedEvent>& event, const std::string& source_id);
+    void ProcessCapturingMonitorInfoEvent(const std::shared_ptr<CaptureMonitorInfoChangedEvent>& event) const;
+    void ProcessEncodedAudioFrameEvent(const std::shared_ptr<Data>& audio_payload, int samples, int channels, int bits, int frame_size);
     void ReleaseControllerInput(const LogicalSessionInputLease& lease);
 
-   private:
+private:
     void InitListeners();
     void ProcessHelloEvent(std::shared_ptr<Message>&& msg);
-    void ProcessMouseEvent(std::shared_ptr<Message>&& msg,
-                           const LogicalSessionInputLease& lease);
-    void ProcessKeyboardEvent(std::shared_ptr<Message>&& msg,
-                              const LogicalSessionInputLease& lease);
+    void ProcessMouseEvent(std::shared_ptr<Message>&& msg, const LogicalSessionInputLease& lease);
+    void ProcessKeyboardEvent(std::shared_ptr<Message>&& msg, const LogicalSessionInputLease& lease);
     void ProcessTextInput(std::shared_ptr<Message>&& msg);
     void PostIpcMessage(const std::string& msg);
     void ProcessClientStatistics(std::shared_ptr<Message>&& msg);
@@ -92,29 +80,20 @@ class NetworkEventIngress
     // client -> render 退出
     // void ProcessExitControlledEnd();
 
-    void SyncInfoToUdpTransport(int64_t socket_fd, const std::string& device_id,
-                                const std::string& stream_id);
+    void SyncInfoToUdpTransport(int64_t socket_fd, const std::string& device_id, const std::string& stream_id);
 
     // report client connect/disconnect state
-    void ReportClientConnected(
-        const std::shared_ptr<ClientConnectedEvent>& event);
-    void ReportClientDisConnected(
-        const std::shared_ptr<ClientDisconnectedEvent>& event);
+    void ReportClientConnected(const std::shared_ptr<ClientConnectedEvent>& event);
+    void ReportClientDisConnected(const std::shared_ptr<ClientDisconnectedEvent>& event);
 
     // ack
-    void ProcessAck(const std::shared_ptr<NetworkClientEvent>& event,
-                    const std::shared_ptr<Message>& message);
-    void SendRtcSignalingError(const std::string& stream_id,
-                               const std::string& code,
-                               const std::string& message) const;
-
+    void ProcessAck(const std::shared_ptr<NetworkClientEvent>& event, const std::shared_ptr<Message>& message);
     struct InputLeaseKey {
         std::string logical_session_id_;
         uint64_t generation_ = 0;
 
         [[nodiscard]] bool operator<(const InputLeaseKey& other) const {
-            return std::tie(logical_session_id_, generation_) <
-                   std::tie(other.logical_session_id_, other.generation_);
+            return std::tie(logical_session_id_, generation_) < std::tie(other.logical_session_id_, other.generation_);
         }
     };
 
@@ -127,7 +106,7 @@ class NetworkEventIngress
 
     static InputLeaseKey ToInputLeaseKey(const LogicalSessionInputLease& lease);
 
-   private:
+private:
     // Process-lifetime settings singleton; non-null by construction.
     RdSettings& settings_;
     std::shared_ptr<RdStatistics> statistics_ = nullptr;

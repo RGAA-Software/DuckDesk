@@ -32,7 +32,7 @@ using OnStatsJsonCallback = std::function<void(const std::string& json)>;
 // Concrete C++ facade exported by px_client_rtc.dll. The implementation and
 // all libwebrtc types stay private to the DLL; consumers link only its import library.
 class PX_RTC_CLIENT_API RtcClient final {
-  public:
+public:
     RtcClient();
     ~RtcClient();
 
@@ -70,16 +70,14 @@ class PX_RTC_CLIENT_API RtcClient final {
 
     void On16msTimeout();
     void SetLocalRtcMode(bool enabled);
-    void SetIceServersJson(const std::string& json);
-    [[nodiscard]] bool RestartIce(const std::string& json);
     void SetFileTransferOnly(bool enabled);
     void SetVideoTrackCount(int count);
 
-  private:
+private:
     class Impl;
     std::unique_ptr<Impl> impl_;
 };
 
 [[nodiscard]] PX_RTC_CLIENT_API std::shared_ptr<RtcClient> CreateRtcClient();
 
-} // namespace px
+}  // namespace px

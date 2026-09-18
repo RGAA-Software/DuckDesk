@@ -437,7 +437,7 @@ if(PX_PRODUCT STREQUAL "cloud_node")
 
         ### render
         enc_amf cap_gdi
-        net_relay net_rtc enc_nvenc
+        net_relay enc_nvenc
         px_gh px_gh_injector px_gh_address
         net_rtc_local
 
@@ -511,7 +511,6 @@ set(WEBCLIENT_ROOT "${CMAKE_SOURCE_DIR}/src/px_web_client")
 set(MESSAGE_PROTO_PATH ${CMAKE_SOURCE_DIR}/src/px_deps/px_message)
 if(PX_PRODUCT STREQUAL "cloud_node")
     add_custom_command(TARGET px_build_cloud_node_all PRE_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/px_signaling_message.proto"  "${WEBCLIENT_ROOT}/proto/px_signaling_message.proto"
         COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/px_message.proto"  "${WEBCLIENT_ROOT}/proto/px_message.proto"
         COMMAND ${CMAKE_COMMAND} -E copy "${MESSAGE_PROTO_PATH}/px_client_panel_message.proto"  "${WEBCLIENT_ROOT}/proto/px_client_panel_message.proto"
     )

@@ -4,6 +4,9 @@
 > 适用Android流程按同一描述符进入DB5平台验收。ZLMediaKit、Coturn/STUN/TURN及经Relay中转的WebRTC signaling退役；Relay其余
 > 数据能力保持。本文DLL所有权与生命周期结论继续有效，网络范围以
 > [Direct Host WebRTC 与中央媒体能力收缩计划](direct_host_webrtc_scope_plan_20260919.md)为准。
+>
+> 本文后续出现的 `px_render_rtc_remote.dll`、双 Render RTC DLL、Relay signaling、TURN 或对应哈希均是已完成旧阶段的历史记录，
+> 不再是活动构建、发布或验收要求。当前 Render 只交付 `px_render_rtc.dll`；不得按历史章节恢复 remote DLL。
 
 ## 1. 产品决定
 

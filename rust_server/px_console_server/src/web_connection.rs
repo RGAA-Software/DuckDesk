@@ -1,11 +1,10 @@
 use crate::app_schedule::gAppScheduleManager;
 use crate::console_api_error::ConsoleApiError;
+use crate::gDeviceManager;
 use crate::identity::access_policy::{
     guest_can_access_app, subject_owns_running_instance, user_can_access_app,
 };
-use crate::rtc::model::RtcSessionIceConfig;
 use crate::user::session::{AuthenticatedGuest, AuthenticatedUser};
-use crate::{gConsoleSettings, gDeviceManager, gRtcConfigManager};
 use axum::extract::{Extension, Path};
 use axum::http::header::CACHE_CONTROL;
 use axum::response::{IntoResponse, Response};
@@ -26,15 +25,14 @@ pub struct WebConnectionRequest {
 #[derive(Debug, Default, Serialize)]
 pub struct WebConnectionDescriptor {
     pub launch_url: String,
+    pub connection_type: String,
+    pub render_host: String,
+    pub render_port: i32,
     pub device_id: String,
     pub instance_id: String,
     pub stream_id: String,
     pub password_hash: String,
     pub permissions: Vec<String>,
-    pub rtc_ice_config: RtcSessionIceConfig,
-    pub relay_host: String,
-    pub relay_port: u16,
-    pub signal_device_id: String,
 }
 
 fn default_join_mode() -> String {
@@ -74,21 +72,6 @@ fn host_for_url(host: &str) -> String {
     }
 }
 
-async fn rtc_config(subject: &str) -> Result<RtcSessionIceConfig, ConsoleApiError> {
-    gRtcConfigManager
-        .issue_session_config(subject)
-        .await
-        .map_err(|error| {
-            tracing::error!(%error, "issue RTC configuration failed");
-            ConsoleApiError::InternalError
-        })
-}
-
-async fn relay_endpoint() -> (String, u16) {
-    let settings = gConsoleSettings.lock().await;
-    (settings.server_w3c_ip.clone(), settings.relay_port)
-}
-
 fn device_password_hash(
     device: &crate::device::console_device::ConsoleDevice,
 ) -> Result<String, ConsoleApiError> {
@@ -105,7 +88,7 @@ fn device_password_hash(
 
 pub async fn user_web_device_connection(
     Path(device_id): Path<String>,
-    Extension(subject): Extension<AuthenticatedUser>,
+    Extension(_subject): Extension<AuthenticatedUser>,
     Json(request): Json<WebConnectionRequest>,
 ) -> Result<Response, ConsoleApiError> {
     validate_request(&request)?;
@@ -123,18 +106,16 @@ pub async fn user_web_device_connection(
         .next()
         .ok_or(ConsoleApiError::DeviceOffline)?;
     let stream_id = format!("web-{}", Uuid::new_v4().simple());
-    let (relay_host, relay_port) = relay_endpoint().await;
     let descriptor = WebConnectionDescriptor {
         launch_url: format!("http://{}:{}/web/", host_for_url(&host), port),
+        connection_type: "rtc_direct".to_string(),
+        render_host: host,
+        render_port: port,
         device_id: device_id.clone(),
         instance_id: String::new(),
         stream_id,
         password_hash: device_password_hash(&device)?,
         permissions: permissions(&request.join_mode, true),
-        rtc_ice_config: rtc_config(&subject.sid).await?,
-        relay_host,
-        relay_port,
-        signal_device_id: format!("server_{device_id}"),
     };
     Ok((
         [(CACHE_CONTROL, "no-store, private")],
@@ -147,7 +128,6 @@ async fn instance_descriptor(
     instance_id: &str,
     subject_type: &str,
     subject_id: &str,
-    session_id: &str,
     request: WebConnectionRequest,
 ) -> Result<Response, ConsoleApiError> {
     validate_request(&request)?;
@@ -189,25 +169,20 @@ async fn instance_descriptor(
         .map(|(host, _)| host)
         .ok_or(ConsoleApiError::DeviceOffline)?;
     let stream_id = format!("web-{}", Uuid::new_v4().simple());
-    let (relay_host, relay_port) = relay_endpoint().await;
     let descriptor = WebConnectionDescriptor {
         launch_url: format!(
             "http://{}:{}/web/",
             host_for_url(&host),
             instance.listen_port
         ),
+        connection_type: "rtc_direct".to_string(),
+        render_host: host,
+        render_port: instance.listen_port,
         device_id: instance.device_id.clone(),
         instance_id: instance.instance_id.clone(),
         stream_id,
         password_hash: device_password_hash(&device)?,
         permissions: permissions(&request.join_mode, false),
-        rtc_ice_config: rtc_config(session_id).await?,
-        relay_host,
-        relay_port,
-        signal_device_id: format!(
-            "server_{}__instance__{}",
-            instance.device_id, instance.instance_id
-        ),
     };
     Ok((
         [(CACHE_CONTROL, "no-store, private")],
@@ -221,7 +196,7 @@ pub async fn user_web_instance_connection(
     Extension(subject): Extension<AuthenticatedUser>,
     Json(request): Json<WebConnectionRequest>,
 ) -> Result<Response, ConsoleApiError> {
-    instance_descriptor(&instance_id, "user", &subject.uid, &subject.sid, request).await
+    instance_descriptor(&instance_id, "user", &subject.uid, request).await
 }
 
 pub async fn guest_web_instance_connection(
@@ -229,14 +204,7 @@ pub async fn guest_web_instance_connection(
     Extension(subject): Extension<AuthenticatedGuest>,
     Json(request): Json<WebConnectionRequest>,
 ) -> Result<Response, ConsoleApiError> {
-    instance_descriptor(
-        &instance_id,
-        "guest",
-        &subject.guest_id,
-        &subject.sid,
-        request,
-    )
-    .await
+    instance_descriptor(&instance_id, "guest", &subject.guest_id, request).await
 }
 
 #[cfg(test)]

@@ -1,52 +1,8 @@
 use std::fs;
-use std::path::{Path, PathBuf};
-
-fn copy_required(source: &str, destination: &Path) {
-    if !Path::new(source).is_file() {
-        panic!("required Console media artifact is missing: {source}");
-    }
-    fs::copy(source, destination).unwrap_or_else(|error| {
-        panic!(
-            "failed to copy {source} to {}: {error}",
-            destination.display()
-        )
-    });
-}
-
-fn copy_media_runtime(source: &Path, destination: &Path) {
-    for entry in fs::read_dir(source)
-        .unwrap_or_else(|error| panic!("failed to list {}: {error}", source.display()))
-    {
-        let entry =
-            entry.unwrap_or_else(|error| panic!("failed to read media runtime entry: {error}"));
-        let source_path = entry.path();
-        let destination_path: PathBuf = destination.join(entry.file_name());
-
-        if source_path.is_dir() {
-            fs::create_dir_all(&destination_path).unwrap_or_else(|error| {
-                panic!("failed to create {}: {error}", destination_path.display())
-            });
-            copy_media_runtime(&source_path, &destination_path);
-        } else if source_path.is_file() {
-            fs::copy(&source_path, &destination_path).unwrap_or_else(|error| {
-                panic!(
-                    "failed to copy {} to {}: {error}",
-                    source_path.display(),
-                    destination_path.display()
-                )
-            });
-        }
-    }
-}
+use std::path::Path;
 
 fn main() {
     println!("cargo:rerun-if-changed=src/px_console.toml");
-    println!("cargo:rerun-if-changed=media/px_media.exe");
-    println!("cargo:rerun-if-changed=media/config.ini");
-    println!("cargo:rerun-if-changed=media/px_turn.exe");
-    println!("cargo:rerun-if-changed=media/turnserver.conf");
-    println!("cargo:rerun-if-changed=media/COTURN_LICENSE");
-    println!("cargo:rerun-if-changed=media");
     println!("cargo:rerun-if-changed=../../web/px_console/dist");
     #[cfg(windows)]
     {
@@ -70,19 +26,6 @@ fn main() {
     if let Err(copy_error) = fs::copy(src_path, dest_path) {
         eprintln!("copy settings failed: {}", copy_error);
     }
-
-    // ZLMediaKit is a fixed, prebuilt Console sidecar. Keep the complete runtime
-    // beside px_console.exe: FFmpeg/SRT/WebRTC/OpenSSL DLLs are dynamically loaded
-    // by px_media.exe, so shipping only the executable is not sufficient.
-    copy_required("media/px_media.exe", &dest_folder.join("px_media.exe"));
-    copy_required("media/config.ini", &dest_folder.join("config.ini"));
-    copy_required("media/px_turn.exe", &dest_folder.join("px_turn.exe"));
-    copy_required(
-        "media/turnserver.conf",
-        &dest_folder.join("turnserver.conf"),
-    );
-    copy_required("media/COTURN_LICENSE", &dest_folder.join("COTURN_LICENSE"));
-    copy_media_runtime(Path::new("media"), dest_folder);
 
     // make certs if needed
     let certs_folder = dest_folder.join("certs");
@@ -128,7 +71,6 @@ fn main() {
     let _ = builder::create_dir_if_not_exists(web_folder.to_str().unwrap());
 
     // Copy the Console Web production bundle. `rust_server/web` is a legacy
-    // CoDesk bundle and does not contain the current Vue Console (including the
-    // live viewer); serving it made source changes appear to have no effect.
+    // CoDesk bundle and does not contain the current Vue Console.
     builder::copy_dir_all("../../web/px_console/dist", web_folder).unwrap();
 }

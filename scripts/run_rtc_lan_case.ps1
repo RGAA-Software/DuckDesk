@@ -1,14 +1,6 @@
 param(
-    [ValidateSet('rtc', 'rtc_direct')]
-    [string]$ConnectionMode = 'rtc',
     [ValidateSet('control', 'observe')]
     [string]$JoinMode = 'control',
-    [ValidateSet('any', 'host', 'relay')]
-    [string]$ExpectedCandidate = 'host',
-    [ValidateSet('', 'udp', 'tcp')]
-    [string]$ExpectedRelayProtocol = '',
-    [switch]$BlockDirectUdp,
-    [switch]$BlockTurnUdp,
     [ValidateRange(6, 600)]
     [int]$SampleSeconds = 15,
     [ValidateRange(5, 60)]
@@ -16,8 +8,6 @@ param(
     [ValidateRange(0, 100)]
     [double]$MaxLossRatePercent = 0,
     [string]$ConsoleBase = 'https://127.0.0.1:4600',
-    [Parameter(Mandatory = $true)]
-    [string]$TargetHost,
     [string]$DeviceId = '001190520',
     [string]$InstanceId = '',
     [ValidateSet('cdp_webrtc_diag.mjs', 'cdp_virtual_display_e2e.mjs', 'cdp_game_hook_input.mjs')]
@@ -35,7 +25,6 @@ $suffix = [guid]::NewGuid().ToString('N').Substring(0, 10)
 $username = "rtc_$suffix"
 $password = "T!$([guid]::NewGuid().ToString('N'))"
 $uid = $null
-$rules = [Collections.Generic.List[string]]::new()
 $exitCode = 1
 
 if ($ConsoleBase.StartsWith('https://') -and
@@ -68,13 +57,6 @@ function ConvertTo-Base64Url([string]$Value) {
     [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Value)).TrimEnd('=').Replace('+', '-').Replace('/', '_')
 }
 
-function Add-BlockRule([string]$Suffix, [string]$RemoteAddress, [string]$RemotePort = 'Any') {
-    $name = "PixelsAcceptance_$PID`_$suffix`_$Suffix"
-    New-NetFirewallRule -Name $name -DisplayName $name -Direction Outbound -Action Block `
-        -Protocol UDP -RemoteAddress $RemoteAddress -RemotePort $RemotePort | Out-Null
-    $rules.Add($name)
-}
-
 try {
     $accessToken = $BearerToken
     if (-not $accessToken) {
@@ -93,9 +75,7 @@ try {
         $accessToken = $login.data.access_token
     }
 
-    if ($BlockDirectUdp) { Add-BlockRule 'direct_udp' $TargetHost }
-
-    $nonce = "${ConnectionMode}_$suffix"
+    $nonce = "rtc_direct_$suffix"
     $connectionPath = if ($InstanceId) {
         "/api/v1/user/instances/$([Uri]::EscapeDataString($InstanceId))/web-connection"
     } else {
@@ -120,31 +100,13 @@ try {
         throw "unexpected permissions for join=$JoinMode instance=$InstanceId`: actual=$($actualPermissions -join ',') expected=$($expectedPermissions -join ',')"
     }
 
-    if ($BlockTurnUdp) {
-        Add-BlockRule 'turn_udp' $value.relay_host ([string]$value.rtc_ice_config.ice_servers[0].urls[0].Split(':')[-1].Split('?')[0])
-        # Windows does not apply an outbound firewall rule to a TURN server on
-        # the same machine (the local Console/TURN acceptance topology). Remove
-        # UDP URLs from this one browser session as the deterministic local
-        # equivalent of a blocked UDP path; TCP remains issued by Console and
-        # is still negotiated and verified from getStats().
-        foreach ($server in $value.rtc_ice_config.ice_servers) {
-            $tcpUrls = @($server.urls | Where-Object { $_ -notmatch 'transport=udp(?:&|$)' })
-            if ($tcpUrls.Count -eq 0) { throw 'TURN TCP URL is unavailable for the UDP-blocked case' }
-            $server.urls = $tcpUrls
-        }
-    }
-
     $launch = [uri]$value.launch_url
     $query = [Web.HttpUtility]::ParseQueryString($launch.Query)
-    $query['connType'] = $ConnectionMode
+    $query['connType'] = 'rtc_direct'
     $query['stream_id'] = $value.stream_id
     $query['c'] = ConvertTo-Base64Url (@{d=$value.device_id; m=$value.password_hash} | ConvertTo-Json -Compress)
     $fragment = [Web.HttpUtility]::ParseQueryString($launch.Fragment.TrimStart('#'))
     $fragment['perms'] = $value.permissions -join ','
-    $fragment['relay_host'] = $value.relay_host
-    $fragment['relay_port'] = [string]$value.relay_port
-    $fragment['signal_device_id'] = $value.signal_device_id
-    $fragment['ice'] = ConvertTo-Base64Url ($value.rtc_ice_config | ConvertTo-Json -Compress -Depth 12)
     $builder = [UriBuilder]::new($launch)
     $builder.Query = $query.ToString()
     $builder.Fragment = $fragment.ToString()
@@ -152,9 +114,7 @@ try {
     $env:WEB_URL = $builder.Uri.AbsoluteUri
     $env:SAMPLE_SECONDS = [string]$SampleSeconds
     $env:CONNECT_TIMEOUT_SECONDS = [string]$ConnectTimeoutSeconds
-    $env:EXPECT_CANDIDATE_TYPE = if ($ExpectedCandidate -eq 'any') { '' } else { $ExpectedCandidate }
-    $env:EXPECT_RELAY_PROTOCOL = $ExpectedRelayProtocol
-    $env:FORCE_RELAY = if ($ExpectedCandidate -eq 'relay') { '1' } else { '0' }
+    $env:EXPECT_CANDIDATE_TYPE = 'host'
     $env:TAKEOVER_CONFIRMATION = $TakeoverConfirmation
     $env:EXPECT_INPUT = if ($JoinMode -eq 'observe') { 'disabled' } else { 'enabled' }
     $env:MAX_LOSS_RATE_PERCENT = [string]$MaxLossRatePercent
@@ -164,7 +124,7 @@ try {
     $env:CDP_PORT = [string](Get-Random -Minimum 22000 -Maximum 45000)
     if ($EvidenceDir) { $env:OUT_DIR = $EvidenceDir }
     if ($Quiet) { $env:QUIET = '1' }
-    if (-not $Quiet) { Write-Host "Running RTC LAN gate: mode=$ConnectionMode join=$JoinMode candidate=$ExpectedCandidate relayProtocol=$ExpectedRelayProtocol samples=${SampleSeconds}s" }
+    if (-not $Quiet) { Write-Host "Running Direct Host RTC gate: join=$JoinMode candidate=host samples=${SampleSeconds}s" }
     $nodeStarted = Get-Date
     & node (Join-Path $PSScriptRoot $DiagnosticScript)
     $nodeExitCode = $LASTEXITCODE
@@ -176,10 +136,7 @@ try {
     $exitCode = 0
 }
 finally {
-    foreach ($name in $rules) {
-        Remove-NetFirewallRule -Name $name -ErrorAction SilentlyContinue
-    }
-    foreach ($name in 'WEB_URL', 'SAMPLE_SECONDS', 'CONNECT_TIMEOUT_SECONDS', 'EXPECT_CANDIDATE_TYPE', 'EXPECT_RELAY_PROTOCOL', 'FORCE_RELAY', 'TAKEOVER_CONFIRMATION', 'EXPECT_INPUT', 'MAX_LOSS_RATE_PERCENT', 'RENDER_PORT', 'CDP_PORT', 'OUT_DIR', 'QUIET') {
+    foreach ($name in 'WEB_URL', 'SAMPLE_SECONDS', 'CONNECT_TIMEOUT_SECONDS', 'EXPECT_CANDIDATE_TYPE', 'TAKEOVER_CONFIRMATION', 'EXPECT_INPUT', 'MAX_LOSS_RATE_PERCENT', 'RENDER_PORT', 'CDP_PORT', 'OUT_DIR', 'QUIET') {
         Remove-Item "Env:\$name" -ErrorAction SilentlyContinue
     }
     if ($uid -and $uid -match '^[A-Za-z0-9_-]+$' -and (Test-Path -LiteralPath $MongoExe)) {
@@ -196,11 +153,6 @@ printjson({users:db.c_user.count({uid:u}),sessions:db.c_user_session.count({subj
 "@
         $cleanupResult = & $MongoExe db_gr_console_server --quiet --eval $cleanup
         if (-not $Quiet) { $cleanupResult }
-    }
-    $remainingRules = @($rules | Where-Object { Get-NetFirewallRule -Name $_ -ErrorAction SilentlyContinue })
-    if ($remainingRules.Count -ne 0) {
-        Write-Error "acceptance firewall cleanup failed: $($remainingRules -join ',')"
-        $exitCode = 1
     }
 }
 

@@ -1,4 +1,5 @@
 #include <Windows.h>
+#include <gtest/gtest.h>
 
 #include <atomic>
 #include <chrono>
@@ -8,10 +9,8 @@
 #include <string>
 #include <thread>
 
-#include <gtest/gtest.h>
-
-#include "px_render/network/webrtc_transport_host.h"
 #include "px_render/network/webrtc/webrtc_execution_context.h"
+#include "px_render/network/webrtc_transport_host.h"
 
 namespace px {
 namespace {
@@ -22,7 +21,7 @@ PxAwaitable<void> CollectWebRtcStop(std::shared_ptr<WebRtcTransportHandle> trans
     completion->set_value(co_await WebRtcTransportHandle::StopAsync(transport, std::chrono::steady_clock::now() + 5s));
 }
 
-void RunLifecycleRounds(const std::filesystem::path& rtc_path, const std::filesystem::path& rtc_local_path) {
+void RunLifecycleRounds(const std::filesystem::path& rtc_local_path) {
     const auto runtime = PxAsyncRuntime::Create({.worker_threads = 1});
     ASSERT_TRUE(runtime->Start());
     const auto scope = PxAsyncScope::Create(runtime, PxAsyncLane::kControl);
@@ -30,11 +29,11 @@ void RunLifecycleRounds(const std::filesystem::path& rtc_path, const std::filesy
     for (int round = 0; round < 100; ++round) {
         auto host = WebRtcTransportHost::Create();
         auto transports = host->CreateTransports();
-        ASSERT_EQ(transports.size(), 2U) << "round " << round;
+        ASSERT_EQ(transports.size(), 1U) << "round " << round;
 
         const WebRtcTransportConfiguration configuration{
             .async_runtime = runtime,
-            .base_path = std::filesystem::path(PX_WEBRTC_REMOTE_LIBRARY_PATH).parent_path().generic_string(),
+            .base_path = rtc_local_path.parent_path().generic_string(),
             .base_data_path = std::filesystem::temp_directory_path().wstring(),
             .device_id = "rtc-lifecycle-" + std::to_string(round),
             .language = 0,
@@ -61,7 +60,6 @@ void RunLifecycleRounds(const std::filesystem::path& rtc_path, const std::filesy
         host->Reset();
         host.reset();
         EXPECT_LT(std::chrono::steady_clock::now() - stop_started, std::chrono::seconds(5)) << "round " << round;
-        EXPECT_NE(GetModuleHandleW(rtc_path.filename().c_str()), nullptr);
         EXPECT_NE(GetModuleHandleW(rtc_local_path.filename().c_str()), nullptr);
     }
     scope->BeginStop();
@@ -70,30 +68,23 @@ void RunLifecycleRounds(const std::filesystem::path& rtc_path, const std::filesy
     runtime->Join();
 }
 
-TEST(WebRtcTransportLifecycle, RapidStartStopWithDirectlyLinkedDlls) {
-    RunLifecycleRounds(PX_WEBRTC_REMOTE_LIBRARY_PATH, PX_WEBRTC_LOCAL_LIBRARY_PATH);
-}
+TEST(WebRtcTransportLifecycle, RapidStartStopWithDirectlyLinkedDlls) { RunLifecycleRounds(PX_WEBRTC_LOCAL_LIBRARY_PATH); }
 
 TEST(WebRtcTransportLifecycle, DllsRemainLoadedForProcessLifetime) {
-    const auto rtc_path = std::filesystem::path(PX_WEBRTC_REMOTE_LIBRARY_PATH);
     const auto rtc_local_path = std::filesystem::path(PX_WEBRTC_LOCAL_LIBRARY_PATH);
     auto host = WebRtcTransportHost::Create();
     auto transports = host->CreateTransports();
-    ASSERT_EQ(transports.size(), 2U);
-    EXPECT_EQ(transports[0]->Kind(), WebRtcTransportKind::kRemote);
-    EXPECT_EQ(transports[0]->BaseName(), "px_render_rtc_remote");
-    EXPECT_EQ(transports[1]->Kind(), WebRtcTransportKind::kLocal);
-    EXPECT_EQ(transports[1]->BaseName(), "px_render_rtc");
+    ASSERT_EQ(transports.size(), 1U);
+    EXPECT_EQ(transports[0]->Kind(), WebRtcTransportKind::kLocal);
+    EXPECT_EQ(transports[0]->BaseName(), "px_render_rtc");
 
     host->Reset();
     host.reset();
 
     // Directly linked DLLs remain process dependencies after transport owners are released.
-    EXPECT_NE(GetModuleHandleW(rtc_path.filename().c_str()), nullptr);
     EXPECT_NE(GetModuleHandleW(rtc_local_path.filename().c_str()), nullptr);
 
     transports.clear();
-    EXPECT_NE(GetModuleHandleW(rtc_path.filename().c_str()), nullptr);
     EXPECT_NE(GetModuleHandleW(rtc_local_path.filename().c_str()), nullptr);
 }
 
@@ -161,5 +152,5 @@ TEST(WebRtcTransportLifecycle, QueuedEventsAreSafeWhenCallbackIsUnregisteredDuri
     runtime->Join();
 }
 
-} // namespace
-} // namespace px
+}  // namespace
+}  // namespace px

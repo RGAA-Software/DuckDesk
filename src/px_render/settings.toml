@@ -16,10 +16,6 @@ service_host = "127.0.0.1"
 service_port = 4603
 
 [rtc]
-# UDP，浏览器实时会话的媒体端口池，起止均包含；按本机实际网络环境设置。
-# 不得与 Render 主端口重叠。范围可自行扩大，不限制为此部署示例。
-port_start = 5000
-port_end = 5299
 # Optional public IPv4 for Web RTC direct media. Service normally injects this
 # from its node access_host; use this only when Render runs without Service.
 advertised_ipv4 = ""
@@ -70,15 +66,6 @@ auto_enabled = true
 dir = ""
 #max_segment_bytes = 1073741824
 #max_file_count = 24
-
-# Passive live push: only consumes media while an existing remote-control
-# client has caused render to capture and encode. Console/Panel supplies
-# live_stream_id at launch; standalone can pass --live_stream_id.
-[push]
-enabled = false
-rtmp_url = "rtmp://127.0.0.1:4607/live/{live_stream_id}"
-audio_bitrate = 96000
-#primary_monitor = "\\\\.\\DISPLAY1" # optional; empty locks the first active stream
 
 [voice]
 # Incoming calls still require an explicit local Yes/No confirmation.

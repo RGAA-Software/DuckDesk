@@ -116,10 +116,6 @@ type LooseStats = {
   port?: number
   candidateType?: string
   protocol?: string
-  // Chrome exposes the transport used between the endpoint and TURN here.
-  // A TURN/TCP allocation still relays UDP media, so `protocol` alone would
-  // misleadingly report `/udp` and hide the TCP fallback from diagnostics.
-  relayProtocol?: string
 }
 
 export class PerfCollector {
@@ -236,10 +232,7 @@ export class PerfCollector {
     const formatCandidate = (candidate?: LooseStats): string => {
       if (!candidate) return '?'
       const address = candidate.ip ?? candidate.address ?? '?'
-      const turnTransport = candidate.candidateType === 'relay' && candidate.relayProtocol
-        ? ` via turn:${candidate.relayProtocol}`
-        : ''
-      return `${candidate.candidateType ?? '?'} ${address}:${candidate.port ?? '?'}/${candidate.protocol ?? '?'}${turnTransport}`
+      return `${candidate.candidateType ?? '?'} ${address}:${candidate.port ?? '?'}/${candidate.protocol ?? '?'}`
     }
     performanceStats.localCand = formatCandidate(candidates.get(pairLocalId))
     performanceStats.remoteCand = formatCandidate(candidates.get(pairRemoteId))

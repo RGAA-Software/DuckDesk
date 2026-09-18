@@ -22,8 +22,6 @@ mod console_router;
 mod event;
 mod identity;
 mod interact;
-mod live;
-mod media_sidecar;
 mod native_connection;
 mod net_client;
 mod net_cm;
@@ -32,14 +30,12 @@ mod net_service;
 mod rdp_connection;
 mod rdp_session_authorization;
 mod record;
-mod rtc;
 mod stream;
 mod system;
 mod test_reset;
 mod update;
 mod user;
 mod user_device;
-mod wall;
 mod web_connection;
 
 use crate::auth::console_auth_license_keys::init_license_verifier;
@@ -67,7 +63,6 @@ use crate::record::console_remote_session_manager::ConsoleRemoteSessionManager;
 use crate::record::console_render_record_manager::ConsoleRenderRecordManager;
 use crate::record::console_visit_manager::ConsoleVisitManager;
 use crate::record::record_tunnel::RecordTunnelManager;
-use crate::rtc::manager::RtcConfigManager;
 use crate::stream::console_stream_manager::ConsoleStreamManager;
 use crate::system::console_system_manager::ConsoleSystemManager;
 use crate::update::update_info_manager::UpdateInfoManager;
@@ -134,8 +129,6 @@ lazy_static::lazy_static! {
     pub static ref gRenderRecordManager: Arc<ConsoleRenderRecordManager> = ConsoleRenderRecordManager::new();
     pub static ref gRecordTunnel: Arc<RecordTunnelManager> = RecordTunnelManager::new();
 
-    // Standard WebRTC ICE/STUN/TURN configuration. net_rtc_local never reads it.
-    pub static ref gRtcConfigManager: Arc<RtcConfigManager> = Arc::new(RtcConfigManager::new());
 }
 
 #[derive(Parser, Debug)]
@@ -253,50 +246,6 @@ async fn run_as_server(machine_code: String) {
     if let Err(error) = gConsoleSettings.lock().await.validate_for_server() {
         tracing::error!(%error, "Console security configuration rejected");
         return;
-    }
-
-    let rtc_storage_dir = std::env::current_exe()
-        .ok()
-        .and_then(|path| path.parent().map(|directory| directory.join("storage")))
-        .unwrap_or_else(|| std::path::PathBuf::from("storage"));
-    let (rtc_settings, rtc_console_host) = {
-        let settings = gConsoleSettings.lock().await;
-        (settings.rtc.clone(), settings.server_w3c_ip.clone())
-    };
-    if let Err(error) = gRtcConfigManager
-        .initialize(rtc_settings, &rtc_console_host, rtc_storage_dir)
-        .await
-    {
-        tracing::error!(%error, "RTC ICE configuration initialization failed");
-        return;
-    }
-
-    // The fixed ZLMediaKit executable is deployed beside px_console.exe.  Start
-    // it only for a local media_server_url; a remote ZLM remains externally
-    // managed.
-    let live_settings = gConsoleSettings.lock().await.live.clone();
-    crate::media_sidecar::ensure_started(&live_settings).await;
-    let rtc_config = gRtcConfigManager.config().await;
-    match (
-        gRtcConfigManager.turn_rest_secret_base64().await,
-        gRtcConfigManager.storage_dir().await,
-    ) {
-        (Ok(secret), Ok(storage_dir)) => {
-            if let Err(error) = crate::media_sidecar::apply_turn_config(
-                &rtc_config.managed_console_server,
-                rtc_config.revision,
-                &secret,
-                &storage_dir,
-                true,
-            )
-            .await
-            {
-                tracing::error!(%error, "managed px_turn sidecar failed to start");
-            }
-        }
-        (Err(error), _) | (_, Err(error)) => {
-            tracing::error!(%error, "managed px_turn sidecar configuration is unavailable");
-        }
     }
 
     // update machine code

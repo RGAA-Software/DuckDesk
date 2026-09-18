@@ -68,7 +68,6 @@ $rdpFiles = [ordered]@{
     'px_service.exe' = $ServiceExe
     'px_render.exe' = (Join-Path $RenderDist 'px_render.exe')
     'px_render_rtc.dll' = (Join-Path $RenderDist 'px_render_rtc.dll')
-    'px_render_rtc_remote.dll' = (Join-Path $RenderDist 'px_render_rtc_remote.dll')
     'px_voice_apm.dll' = (Join-Path $RenderDist 'px_voice_apm.dll')
     'rdp\px_rdp_proxy.exe' = $proxyExe
     'rdp\px_rdp_server_proxy.dll' = $proxyDll

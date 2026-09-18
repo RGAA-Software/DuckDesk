@@ -51,18 +51,18 @@ describe('PerfCollector selected path diagnostics', () => {
         currentRoundTripTime: 0.042, localCandidateId: 'local', remoteCandidateId: 'remote',
       },
       {
-        id: 'local', type: 'local-candidate', candidateType: 'relay', address: '10.0.0.1',
-        port: 50000, protocol: 'udp', relayProtocol: 'tcp',
+        id: 'local', type: 'local-candidate', candidateType: 'host', address: '198.51.100.10',
+        port: 4601, protocol: 'udp',
       },
       {
-        id: 'remote', type: 'remote-candidate', candidateType: 'relay', ip: '192.0.2.44',
-        port: 50001, protocol: 'udp', relayProtocol: 'tcp',
+        id: 'remote', type: 'remote-candidate', candidateType: 'host', ip: '203.0.113.20',
+        port: 4601, protocol: 'udp',
       },
     )))
     await vi.advanceTimersByTimeAsync(0)
     expect(updates[0].rttMs).toBe(42)
-    expect(updates[0].localCand).toBe('relay 10.0.0.1:50000/udp via turn:tcp')
-    expect(updates[0].remoteCand).toBe('relay 192.0.2.44:50001/udp via turn:tcp')
+    expect(updates[0].localCand).toBe('host 198.51.100.10:4601/udp')
+    expect(updates[0].remoteCand).toBe('host 203.0.113.20:4601/udp')
     collector.stop()
   })
 })
