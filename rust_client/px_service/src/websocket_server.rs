@@ -43,6 +43,10 @@ impl WebsocketService {
     }
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "tungstenite fixes the handshake callback error response type"
+)]
 async fn handle_connection(
     stream: TcpStream,
     runtime: Arc<Mutex<ServiceRuntime>>,
@@ -164,6 +168,27 @@ async fn handle_connection(
                     });
                     None
                 }
+                service_core::command::Command::AdmitFrontend {
+                    request_id,
+                    session_id,
+                    revision,
+                    frontend_token,
+                } => {
+                    let operation_runtime = runtime.clone();
+                    let operation_tx = tx.clone();
+                    tokio::spawn(async move {
+                        let response = process_frontend_admission(
+                            operation_runtime,
+                            request_id,
+                            session_id,
+                            revision,
+                            frontend_token,
+                        )
+                        .await;
+                        let _ = operation_tx.send(encode_service_message(&response));
+                    });
+                    None
+                }
                 command => {
                     let mut guard = runtime.lock().await;
                     match guard.handle_command(command) {
@@ -188,6 +213,93 @@ async fn handle_connection(
     drop(tx);
     let _ = writer.await;
     Ok(())
+}
+
+fn frontend_admission_service_message(
+    result: service_core::MsgFrontendAdmissionResult,
+) -> service_core::ServiceMessage {
+    service_core::ServiceMessage {
+        r#type: service_core::ServiceMessageType::FrontendAdmissionResult as i32,
+        frontend_admission_result: Some(result),
+        ..Default::default()
+    }
+}
+
+async fn process_frontend_admission(
+    runtime: Arc<Mutex<ServiceRuntime>>,
+    request_id: String,
+    session_id: String,
+    revision: i64,
+    frontend_token: String,
+) -> service_core::ServiceMessage {
+    let started_at = std::time::Instant::now();
+    let mut response = service_core::MsgFrontendAdmissionResult {
+        request_id,
+        ..Default::default()
+    };
+    let parsed_session_id = match uuid::Uuid::parse_str(&session_id) {
+        Ok(session_id)
+            if !session_id.is_nil()
+                && revision > 0
+                && !frontend_token.is_empty()
+                && !response.request_id.is_empty() =>
+        {
+            session_id
+        }
+        _ => {
+            response.error_code = "INVALID_REQUEST".into();
+            return frontend_admission_service_message(response);
+        }
+    };
+    let node_control_sender = runtime.lock().await.node_control_sender.clone();
+    let (completion, result) = tokio::sync::oneshot::channel();
+    let operation = crate::node_control_client::NodeControlOperation::AdmitFrontend {
+        session_id: parsed_session_id,
+        revision,
+        frontend_token: zeroize::Zeroizing::new(frontend_token),
+        completion,
+    };
+    if node_control_sender.try_send(operation).is_err() {
+        response.error_code = "NODE_CONTROL_UNAVAILABLE".into();
+        return frontend_admission_service_message(response);
+    }
+    let grant = match tokio::time::timeout(std::time::Duration::from_secs(12), result).await {
+        Ok(Ok(Ok(grant))) => grant,
+        Ok(Ok(Err(_))) => {
+            response.error_code = "ADMISSION_REJECTED".into();
+            return frontend_admission_service_message(response);
+        }
+        Ok(Err(_)) | Err(_) => {
+            response.error_code = "NODE_CONTROL_UNAVAILABLE".into();
+            return frontend_admission_service_message(response);
+        }
+    };
+    response.accepted = true;
+    response.session_id = grant.session_id.to_string();
+    response.revision = grant.revision;
+    match grant.target {
+        px_node_protocol::FrontendTarget::Desktop { device_id } => {
+            response.target_kind = "desktop".into();
+            response.device_id = device_id.to_string();
+        }
+        px_node_protocol::FrontendTarget::CloudApplication {
+            application_id,
+            instance_id,
+        } => {
+            response.target_kind = "cloud_application".into();
+            response.application_id = application_id.to_string();
+            response.instance_id = instance_id.to_string();
+        }
+    }
+    response.client_type = grant.client_type;
+    response.access_role = grant.access_role;
+    let elapsed_ms = u32::try_from(started_at.elapsed().as_millis()).unwrap_or(u32::MAX);
+    response.valid_for_ms = grant.valid_for_ms.saturating_sub(elapsed_ms);
+    if response.valid_for_ms == 0 {
+        response.accepted = false;
+        response.error_code = "ADMISSION_EXPIRED".into();
+    }
+    frontend_admission_service_message(response)
 }
 
 fn virtual_display_service_message(
@@ -371,8 +483,8 @@ mod tests {
     use service_core::process::ProcessSnapshot;
     use service_core::windows_util::{default_service_data_root, default_service_log_root};
     use service_core::{
-        encode_service_message, MsgHeartBeat, MsgStartServer, RenderLaunchSpec, RenderStatus,
-        ServiceMessage, ServiceMessageType,
+        encode_service_message, MsgFrontendAdmissionRequest, MsgHeartBeat, MsgStartServer,
+        RenderLaunchSpec, RenderStatus, ServiceMessage, ServiceMessageType,
     };
     use tokio_tungstenite::{
         connect_async, tungstenite::client::IntoClientRequest, tungstenite::Message,
@@ -580,6 +692,113 @@ mod tests {
 
         let render_url = format!("ws://127.0.0.1:{port}/service/message?from=render");
         assert!(connect_async(render_url).await.is_err());
+
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn websocket_service_forwards_frontend_admission_without_echoing_secret() {
+        let port_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = port_listener.local_addr().unwrap().port();
+        drop(port_listener);
+
+        let mut config = ServiceConfig::new(
+            port,
+            default_service_data_root(),
+            default_service_log_root(),
+        );
+        config.listen_host = "127.0.0.1".to_string();
+        let runtime = Arc::new(Mutex::new(ServiceRuntime::new(
+            config,
+            StdArc::new(MockProcessManager::new()),
+            StdArc::new(MockActions),
+        )));
+        let (token, mut operations) = {
+            let mut guard = runtime.lock().await;
+            (
+                guard.ipc_token.clone(),
+                guard.node_control_receiver.take().unwrap(),
+            )
+        };
+        let service = WebsocketService::new(runtime);
+        let task = tokio::spawn(async move { service.run_console().await });
+        tokio::time::sleep(Duration::from_millis(150)).await;
+
+        let mut request = format!("ws://127.0.0.1:{port}/service/message")
+            .into_client_request()
+            .unwrap();
+        request
+            .headers_mut()
+            .insert("authorization", format!("Bearer {token}").parse().unwrap());
+        let (mut websocket, _) = connect_async(request).await.unwrap();
+        let session_id = uuid::Uuid::new_v4();
+        let admission_request = ServiceMessage {
+            r#type: ServiceMessageType::FrontendAdmissionRequest as i32,
+            frontend_admission_request: Some(MsgFrontendAdmissionRequest {
+                request_id: "render-request-1".into(),
+                session_id: session_id.to_string(),
+                revision: 7,
+                frontend_token: "single-use-secret".into(),
+            }),
+            ..Default::default()
+        };
+        websocket
+            .send(Message::Binary(
+                encode_service_message(&admission_request).into(),
+            ))
+            .await
+            .unwrap();
+
+        let operation = tokio::time::timeout(Duration::from_secs(2), operations.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let crate::node_control_client::NodeControlOperation::AdmitFrontend {
+            session_id: actual_session_id,
+            revision,
+            frontend_token,
+            completion,
+        } = operation;
+        assert_eq!(actual_session_id, session_id);
+        assert_eq!(revision, 7);
+        assert_eq!(frontend_token.as_str(), "single-use-secret");
+        assert!(completion
+            .send(Ok(px_node_protocol::FrontendGrant {
+                session_id,
+                revision: 8,
+                target: px_node_protocol::FrontendTarget::CloudApplication {
+                    application_id: uuid::Uuid::new_v4(),
+                    instance_id: uuid::Uuid::new_v4(),
+                },
+                client_type: "android".into(),
+                access_role: "controller".into(),
+                valid_for_ms: 29_000,
+            }))
+            .is_ok());
+
+        let message = websocket.next().await.unwrap().unwrap();
+        let Message::Binary(bytes) = message else {
+            panic!("expected binary response");
+        };
+        assert!(!bytes
+            .windows("single-use-secret".len())
+            .any(|window| window == b"single-use-secret"));
+        let response = service_core::decode_service_message(&bytes).unwrap();
+        assert_eq!(
+            response.message_type(),
+            Some(ServiceMessageType::FrontendAdmissionResult)
+        );
+        let result = response.frontend_admission_result.unwrap();
+        assert!(result.accepted);
+        assert_eq!(result.request_id, "render-request-1");
+        assert_eq!(result.session_id, session_id.to_string());
+        assert_eq!(result.revision, 8);
+        assert_eq!(result.target_kind, "cloud_application");
+        assert_eq!(result.client_type, "android");
+        assert_eq!(result.access_role, "controller");
+        assert!(result.valid_for_ms > 0);
+        assert!(result.valid_for_ms <= 29_000);
+        assert!(result.error_code.is_empty());
 
         task.abort();
     }

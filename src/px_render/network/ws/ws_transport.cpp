@@ -3,66 +3,68 @@
 //
 
 #include "ws_transport.h"
-#include "app/app_messages.h"
 
+#include <algorithm>
 #include <utility>
 
-#include "ws_server.h"
-#include "px_common/log.h"
-#include "px_common/data.h"
+#include "app/app_messages.h"
 #include "px_capture/capture_message.h"
-#include "px_render/modules/module_ids.h"
+#include "px_common/data.h"
+#include "px_common/log.h"
 #include "px_render/architecture/events/render_event.h"
 #include "px_render/architecture/runtime/render_execution_context.h"
+#include "px_render/modules/module_ids.h"
+#include "ws_server.h"
 
 namespace px {
 
-WsTransport::WsTransport(std::shared_ptr<PxAsyncRuntime> async_runtime) : async_runtime_(std::move(async_runtime)) {}
+WsTransport::WsTransport(std::shared_ptr<PxAsyncRuntime> async_runtime)
+    : async_runtime_(std::move(async_runtime)) {}
 
-std::string WsTransport::Id() const {
-    return kNetWsTransportId;
-}
+std::string WsTransport::Id() const { return kNetWsTransportId; }
 
-std::string WsTransport::Name() const {
-    return "Net WebSocket";
-}
+std::string WsTransport::Name() const { return "Net WebSocket"; }
 
-std::string WsTransport::VersionName() const {
-    return "1.1.0";
-}
+std::string WsTransport::VersionName() const { return "1.1.0"; }
 
-uint32_t WsTransport::VersionCode() const {
-    return 110;
-}
+uint32_t WsTransport::VersionCode() const { return 110; }
 
-std::string WsTransport::Description() const {
-    return "Network via WebSocket";
-}
+std::string WsTransport::Description() const { return "Network via WebSocket"; }
 
 bool WsTransport::Start(const px::RenderModuleConfiguration& configuration) {
-    if ((configuration.app_mode == "rdp") != (configuration.rdp_proxy_port != 0)) {
-        LOGE("event=module.start component=net_ws code=RDP_PROXY_ENDPOINT_MISSING "
-             "operation=validate_configuration outcome=failed recoverable=false");
+    if ((configuration.app_mode == "rdp") !=
+        (configuration.rdp_proxy_port != 0)) {
+        LOGE(
+            "event=module.start component=net_ws "
+            "code=RDP_PROXY_ENDPOINT_MISSING "
+            "operation=validate_configuration outcome=failed "
+            "recoverable=false");
         return false;
     }
     if (!RenderModule::Start(configuration)) {
         return false;
     }
     game_hook_mode_ = configuration.app_mode == "game-hook";
+    console_frontend_admission_required_ = configuration.app_mode != "desktop";
     auto listen_port = configuration.ws_listen_port;
     auto config_listen_port = std::int64_t{0};
     if (config_listen_port > 0) {
         listen_port = config_listen_port;
     }
-    const auto self = std::dynamic_pointer_cast<WsTransport>(shared_from_this());
+    const auto self =
+        std::dynamic_pointer_cast<WsTransport>(shared_from_this());
     const std::weak_ptr<WsTransport> weak_self = self;
     if (weak_self.expired()) {
-        LOGE("event=module.start component=net_ws code=MODULE_DEPENDENCY_UNAVAILABLE "
-             "operation=create_server outcome=failed recoverable=false "
-             "reason=ws_transport_requires_shared_ownership");
+        LOGE(
+            "event=module.start component=net_ws "
+            "code=MODULE_DEPENDENCY_UNAVAILABLE "
+            "operation=create_server outcome=failed recoverable=false "
+            "reason=ws_transport_requires_shared_ownership");
         return false;
     }
-    ws_server_ = std::make_shared<WsServer>(weak_self, async_runtime_, static_cast<uint16_t>(listen_port), configuration.rdp_proxy_port);
+    ws_server_ = std::make_shared<WsServer>(weak_self, async_runtime_,
+                                            static_cast<uint16_t>(listen_port),
+                                            configuration.rdp_proxy_port);
     if (!ws_server_->Start()) {
         ws_server_.reset();
         RenderModule::Stop();
@@ -80,9 +82,13 @@ bool WsTransport::Destroy() {
     return RenderModule::Destroy();
 }
 
-PxAwaitable<PxResult<void>> WsTransport::StopAsync(std::shared_ptr<WsTransport> owner, const std::chrono::steady_clock::time_point deadline) {
+PxAwaitable<PxResult<void>> WsTransport::StopAsync(
+    std::shared_ptr<WsTransport> owner,
+    const std::chrono::steady_clock::time_point deadline) {
     if (!owner) {
-        co_return PxResult<void>::Failure(MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument, "net-ws.stop", "WS transport owner is missing"));
+        co_return PxResult<void>::Failure(
+            MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument, "net-ws.stop",
+                             "WS transport owner is missing"));
     }
     owner->RenderModule::Stop();
     const auto server = owner->ws_server_;
@@ -96,7 +102,8 @@ PxAwaitable<PxResult<void>> WsTransport::StopAsync(std::shared_ptr<WsTransport> 
     co_return PxResult<void>::Success();
 }
 
-void WsTransport::ApplyLogicalSessionCapabilities(const PxLogicalSessionCapabilityUpdate& update) {
+void WsTransport::ApplyLogicalSessionCapabilities(
+    const PxLogicalSessionCapabilityUpdate& update) {
     if (ws_server_) {
         ws_server_->UpdateLogicalSessionCapabilities(update);
     }
@@ -117,50 +124,59 @@ bool WsTransport::IsWorking() const {
 void WsTransport::Broadcast(std::shared_ptr<Data> msg, bool run_through) {
     if (IsWorking() && HasConnectedClients() && msg) {
         const auto server = ws_server_;
-        static_cast<void>(execution_context_->Post([server, msg = std::move(msg)]() {
-            if (server && server->IsWorking()) {
-                server->PostNetMessage(msg);
-            }
-        }));
+        static_cast<void>(
+            execution_context_->Post([server, msg = std::move(msg)]() {
+                if (server && server->IsWorking()) {
+                    server->PostNetMessage(msg);
+                }
+            }));
     }
 }
 
-bool WsTransport::SendToStream(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through) {
+bool WsTransport::SendToStream(const std::string& stream_id,
+                               std::shared_ptr<Data> msg, bool run_through) {
     if (IsWorking() && HasConnectedClients() && msg) {
         const auto server = ws_server_;
-        return execution_context_->Post([server, stream_id, msg = std::move(msg)]() {
-            if (server && server->IsWorking()) {
-                static_cast<void>(server->PostTargetStreamMessage(stream_id, msg));
-            }
-        });
+        return execution_context_->Post(
+            [server, stream_id, msg = std::move(msg)]() {
+                if (server && server->IsWorking()) {
+                    static_cast<void>(
+                        server->PostTargetStreamMessage(stream_id, msg));
+                }
+            });
     }
     return false;
 }
 
-FileTransferSendResult WsTransport::SendFileTransfer(const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through,
-                                                     const std::string& connection_instance_id) {
+FileTransferSendResult WsTransport::SendFileTransfer(
+    const std::string& stream_id, std::shared_ptr<Data> msg, bool run_through,
+    const std::string& connection_instance_id) {
     // A file-transfer-only client intentionally opens /file/transfer without
     // a companion /stream connection.  HasConnectedClients() reports media
     // stream routers, so using it here drops every response for a standalone
     // file manager even though the target FT router is alive.  Let the FT
     // router lookup below be the source of truth for this channel.
     if (!msg) {
-        return FileTransferSendResult::TransportError("WebSocket file-transfer payload is empty");
+        return FileTransferSendResult::TransportError(
+            "WebSocket file-transfer payload is empty");
     }
     if (IsWorking()) {
-        return ws_server_->PostTargetFileTransferMessage(stream_id, msg, connection_instance_id);
+        return ws_server_->PostTargetFileTransferMessage(
+            stream_id, msg, connection_instance_id);
     }
-    return FileTransferSendResult::Disconnected("WebSocket file-transfer server is not working");
+    return FileTransferSendResult::Disconnected(
+        "WebSocket file-transfer server is not working");
 }
 
 void WsTransport::SendUserProxy(std::shared_ptr<Data> msg) {
     if (IsWorking() && msg && ws_server_) {
         const auto server = ws_server_;
-        static_cast<void>(execution_context_->Post([server, msg = std::move(msg)]() {
-            if (server && server->IsWorking()) {
-                server->PostUserProxyMessage(msg);
-            }
-        }));
+        static_cast<void>(
+            execution_context_->Post([server, msg = std::move(msg)]() {
+                if (server && server->IsWorking()) {
+                    server->PostUserProxyMessage(msg);
+                }
+            }));
     }
 }
 
@@ -169,15 +185,20 @@ void WsTransport::SendIpc(std::shared_ptr<Data> msg) {
         return;
     }
     const auto server = ws_server_;
-    static_cast<void>(execution_context_->Post([server, msg = std::move(msg)]() {
-        if (server && server->IsWorking()) {
-            server->PostIpcBinaryMessage(msg);
-        }
-    }));
+    static_cast<void>(
+        execution_context_->Post([server, msg = std::move(msg)]() {
+            if (server && server->IsWorking()) {
+                server->PostIpcBinaryMessage(msg);
+            }
+        }));
 }
 
-bool WsTransport::SendIpcForPid(std::uint32_t pid, std::shared_ptr<Data> message, std::function<bool()> authorize) {
-    return IsWorking() && message && ws_server_ && ws_server_->PostIpcBinaryMessageForPid(pid, std::move(message), std::move(authorize));
+bool WsTransport::SendIpcForPid(std::uint32_t pid,
+                                std::shared_ptr<Data> message,
+                                std::function<bool()> authorize) {
+    return IsWorking() && message && ws_server_ &&
+           ws_server_->PostIpcBinaryMessageForPid(pid, std::move(message),
+                                                  std::move(authorize));
 }
 
 void WsTransport::RegisterIpcPid(uint32_t pid) {
@@ -231,19 +252,14 @@ int64_t WsTransport::QueuedFileTransferCount() {
     }
 }
 
-bool WsTransport::HasMediaCapacity() const noexcept {
-    return true;
-}
+bool WsTransport::HasMediaCapacity() const noexcept { return true; }
 
-bool WsTransport::HasFileTransferCapacity() const noexcept {
-    return true;
-}
+bool WsTransport::HasFileTransferCapacity() const noexcept { return true; }
 
-bool WsTransport::HasConnectedClients() {
-    return ConnectedClientCount() > 0;
-}
+bool WsTransport::HasConnectedClients() { return ConnectedClientCount() > 0; }
 
-std::vector<std::shared_ptr<PxConnectedClientInfo>> WsTransport::ConnectedClients() {
+std::vector<std::shared_ptr<PxConnectedClientInfo>>
+WsTransport::ConnectedClients() {
     if (IsWorking()) {
         return ws_server_->GetConnectedClientInfo();
     }
@@ -259,8 +275,11 @@ void WsTransport::HandleAppEvent(const std::shared_ptr<AppBaseEvent>& event) {
     }
 }
 
-void WsTransport::ConfigureNetworkServices(NetworkBroadcaster network_broadcaster, FileTransferBroadcaster file_transfer_broadcaster,
-                                           LocalRtcAllocator local_rtc_allocator, UdpAssociationUpdater udp_association_updater) {
+void WsTransport::ConfigureNetworkServices(
+    NetworkBroadcaster network_broadcaster,
+    FileTransferBroadcaster file_transfer_broadcaster,
+    LocalRtcAllocator local_rtc_allocator,
+    UdpAssociationUpdater udp_association_updater) {
     std::scoped_lock lock(network_services_mutex_);
     network_broadcaster_ = std::move(network_broadcaster);
     file_transfer_broadcaster_ = std::move(file_transfer_broadcaster);
@@ -268,7 +287,8 @@ void WsTransport::ConfigureNetworkServices(NetworkBroadcaster network_broadcaste
     udp_association_updater_ = std::move(udp_association_updater);
 }
 
-void WsTransport::BroadcastNetworkMessage(const std::shared_ptr<Data>& message, const bool run_through) const {
+void WsTransport::BroadcastNetworkMessage(const std::shared_ptr<Data>& message,
+                                          const bool run_through) const {
     NetworkBroadcaster broadcaster;
     {
         std::scoped_lock lock(network_services_mutex_);
@@ -279,7 +299,9 @@ void WsTransport::BroadcastNetworkMessage(const std::shared_ptr<Data>& message, 
     }
 }
 
-void WsTransport::BroadcastFileTransferMessage(const std::string& stream_id, const std::shared_ptr<Data>& message, const bool run_through) const {
+void WsTransport::BroadcastFileTransferMessage(
+    const std::string& stream_id, const std::shared_ptr<Data>& message,
+    const bool run_through) const {
     FileTransferBroadcaster broadcaster;
     {
         std::scoped_lock lock(network_services_mutex_);
@@ -290,14 +312,16 @@ void WsTransport::BroadcastFileTransferMessage(const std::string& stream_id, con
     }
 }
 
-PxLocalRtcAllocResult WsTransport::AllocateLocalRtcInstance(const std::shared_ptr<PxLocalRtcRequestInfo>& request,
-                                                            LocalRtcCompletion completion) const {
+PxLocalRtcAllocResult WsTransport::AllocateLocalRtcInstance(
+    const std::shared_ptr<PxLocalRtcRequestInfo>& request,
+    LocalRtcCompletion completion) const {
     LocalRtcAllocator allocator;
     {
         std::scoped_lock lock(network_services_mutex_);
         allocator = local_rtc_allocator_;
     }
-    return allocator ? allocator(request, std::move(completion)) : PxLocalRtcAllocResult::kFailed;
+    return allocator ? allocator(request, std::move(completion))
+                     : PxLocalRtcAllocResult::kFailed;
 }
 
 bool WsTransport::HasLocalRtcService() const {
@@ -305,7 +329,8 @@ bool WsTransport::HasLocalRtcService() const {
     return static_cast<bool>(local_rtc_allocator_);
 }
 
-bool WsTransport::UpdateUdpAssociation(const UdpMediaAssociation& association) const {
+bool WsTransport::UpdateUdpAssociation(
+    const UdpMediaAssociation& association) const {
     UdpAssociationUpdater updater;
     {
         std::scoped_lock lock(network_services_mutex_);
@@ -317,12 +342,14 @@ bool WsTransport::UpdateUdpAssociation(const UdpMediaAssociation& association) c
     return updater(association);
 }
 
-void WsTransport::ConfigureControllerAvailabilityQuery(ControllerAvailabilityQuery query) {
+void WsTransport::ConfigureControllerAvailabilityQuery(
+    ControllerAvailabilityQuery query) {
     std::scoped_lock lock(network_services_mutex_);
     controller_availability_query_ = std::move(query);
 }
 
-WsTransport::ControllerAvailability WsTransport::QueryControllerAvailability(const std::int64_t now_ms) const {
+WsTransport::ControllerAvailability WsTransport::QueryControllerAvailability(
+    const std::int64_t now_ms) const {
     ControllerAvailabilityQuery query;
     {
         std::scoped_lock lock(network_services_mutex_);
@@ -331,10 +358,38 @@ WsTransport::ControllerAvailability WsTransport::QueryControllerAvailability(con
     return query ? query(now_ms) : ControllerAvailability{};
 }
 
-void WsTransport::ConfigureIpcMediaIngress(IpcVideoFrameSink video_sink, IpcAudioFrameSink audio_sink) {
+void WsTransport::ConfigureIpcMediaIngress(IpcVideoFrameSink video_sink,
+                                           IpcAudioFrameSink audio_sink) {
     std::scoped_lock lock(ipc_media_ingress_mutex_);
     ipc_video_frame_sink_ = std::move(video_sink);
     ipc_audio_frame_sink_ = std::move(audio_sink);
+}
+
+void WsTransport::ConfigureFrontendAuthorizer(FrontendAuthorizer authorizer) {
+    std::scoped_lock lock(network_services_mutex_);
+    frontend_authorizer_ = std::move(authorizer);
+}
+
+PxAwaitable<PxResult<ConsoleFrontendGrant>> WsTransport::AdmitFrontend(
+    ConsoleFrontendAdmissionRequest request,
+    const std::chrono::steady_clock::time_point deadline) const {
+    FrontendAuthorizer authorizer;
+    {
+        std::scoped_lock lock(network_services_mutex_);
+        authorizer = frontend_authorizer_;
+    }
+    if (!authorizer) {
+        std::fill(request.frontend_token.begin(), request.frontend_token.end(),
+                  '\0');
+        co_return PxResult<ConsoleFrontendGrant>::Failure(MakePxAsyncError(
+            PxAsyncErrorCode::kServiceNotConnected, "frontend_admission",
+            "Console frontend authorizer is unavailable", true));
+    }
+    co_return co_await authorizer(std::move(request), deadline);
+}
+
+bool WsTransport::RequiresConsoleFrontendAdmission() const noexcept {
+    return console_frontend_admission_required_;
 }
 
 void WsTransport::SubmitIpcVideoFrame(const CaptureVideoFrame& frame) const {
@@ -359,8 +414,12 @@ void WsTransport::SubmitIpcAudioFrame(const CaptureAudioFrame& frame) const {
     }
 }
 
-void WsTransport::ReceiveClientEvent(const bool is_proto, const std::int64_t socket_fd, const TransportKind transport_type,
-                                     const TransportChannel channel_type, std::shared_ptr<Data> message, std::string connection_instance_id) {
+void WsTransport::ReceiveClientEvent(const bool is_proto,
+                                     const std::int64_t socket_fd,
+                                     const TransportKind transport_type,
+                                     const TransportChannel channel_type,
+                                     std::shared_ptr<Data> message,
+                                     std::string connection_instance_id) {
     auto event = std::make_shared<NetworkClientEvent>();
     event->is_proto_ = is_proto;
     event->socket_fd_ = socket_fd;
@@ -368,18 +427,21 @@ void WsTransport::ReceiveClientEvent(const bool is_proto, const std::int64_t soc
     event->channel_type_ = channel_type;
     event->message_ = std::move(message);
     event->connection_instance_id_ = std::move(connection_instance_id);
-    const auto weak_self = std::weak_ptr<WsTransport>(std::dynamic_pointer_cast<WsTransport>(shared_from_this()));
-    event->ack_callback_ = [weak_self](const std::shared_ptr<NetMessageAck>& ack) {
-        if (const auto self = weak_self.lock()) {
-            self->HandleMessageAck(ack);
-        }
-    };
+    const auto weak_self = std::weak_ptr<WsTransport>(
+        std::dynamic_pointer_cast<WsTransport>(shared_from_this()));
+    event->ack_callback_ =
+        [weak_self](const std::shared_ptr<NetMessageAck>& ack) {
+            if (const auto self = weak_self.lock()) {
+                self->HandleMessageAck(ack);
+            }
+        };
     EmitEvent(event);
 }
 
-void WsTransport::ReceiveClientEventImmediately(const bool is_proto, const std::int64_t socket_fd, const TransportKind transport_type,
-                                                const TransportChannel channel_type, std::shared_ptr<Data> message,
-                                                std::string connection_instance_id) {
+void WsTransport::ReceiveClientEventImmediately(
+    const bool is_proto, const std::int64_t socket_fd,
+    const TransportKind transport_type, const TransportChannel channel_type,
+    std::shared_ptr<Data> message, std::string connection_instance_id) {
     auto event = std::make_shared<NetworkClientEvent>();
     event->is_proto_ = is_proto;
     event->socket_fd_ = socket_fd;
@@ -387,17 +449,20 @@ void WsTransport::ReceiveClientEventImmediately(const bool is_proto, const std::
     event->channel_type_ = channel_type;
     event->message_ = std::move(message);
     event->connection_instance_id_ = std::move(connection_instance_id);
-    const auto weak_self = std::weak_ptr<WsTransport>(std::dynamic_pointer_cast<WsTransport>(shared_from_this()));
-    event->ack_callback_ = [weak_self](const std::shared_ptr<NetMessageAck>& ack) {
-        if (const auto self = weak_self.lock()) {
-            self->HandleMessageAck(ack);
-        }
-    };
+    const auto weak_self = std::weak_ptr<WsTransport>(
+        std::dynamic_pointer_cast<WsTransport>(shared_from_this()));
+    event->ack_callback_ =
+        [weak_self](const std::shared_ptr<NetMessageAck>& ack) {
+            if (const auto self = weak_self.lock()) {
+                self->HandleMessageAck(ack);
+            }
+        };
     EmitEventImmediately(event);
 }
 
 void WsTransport::HandleMessageAck(const std::shared_ptr<NetMessageAck>& ack) {
-    // LOGI("OnMessage ack, type: {}, channel: {}, resp time: {}", ack->msg_type_, (int)ack->ch_type_, ack->resp_time_);
+    // LOGI("OnMessage ack, type: {}, channel: {}, resp time: {}",
+    // ack->msg_type_, (int)ack->ch_type_, ack->resp_time_);
     if (ack->ch_type_ == TransportChannel::kFileTransfer) {
         if (last_ack_) {
             auto diff = ack->resp_time_ - last_ack_->resp_time_;
@@ -407,8 +472,11 @@ void WsTransport::HandleMessageAck(const std::shared_ptr<NetMessageAck>& ack) {
     }
 }
 
-void WsTransport::SubmitEncodedVideo(const std::string& mon_name, const EncodedVideoType& video_type, const std::shared_ptr<Data>& data,
-                                     uint64_t frame_index, int frame_width, int frame_height, bool key) {
+void WsTransport::SubmitEncodedVideo(const std::string& mon_name,
+                                     const EncodedVideoType& video_type,
+                                     const std::shared_ptr<Data>& encoded_frame,
+                                     uint64_t frame_index, int frame_width,
+                                     int frame_height, bool key) {
     if (!mon_name.empty()) {
         std::lock_guard<std::mutex> lk(capturing_mon_mtx_);
         capturing_monitor_name_ = mon_name;
@@ -426,4 +494,4 @@ std::string WsTransport::CapturingMonitorName() {
     return capturing_monitor_name_;
 }
 
-} // namespace px
+}  // namespace px

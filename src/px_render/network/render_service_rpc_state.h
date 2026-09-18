@@ -14,7 +14,12 @@ class RenderServiceRpcState final {
 public:
     explicit RenderServiceRpcState(asio::any_io_executor executor)
         : virtual_display_requests_(
-              std::make_shared<PxAsyncRequestRegistry<MsgVirtualDisplayServiceResult>>(
+              std::make_shared<
+                  PxAsyncRequestRegistry<MsgVirtualDisplayServiceResult>>(
+                  executor)),
+          frontend_admission_requests_(
+              std::make_shared<
+                  PxAsyncRequestRegistry<MsgFrontendAdmissionServiceResult>>(
                   std::move(executor))) {}
 
     RenderServiceRpcState(const RenderServiceRpcState&) = delete;
@@ -22,8 +27,10 @@ public:
 
     std::shared_ptr<PxAsyncRequestRegistry<MsgVirtualDisplayServiceResult>>
         virtual_display_requests_;
+    std::shared_ptr<PxAsyncRequestRegistry<MsgFrontendAdmissionServiceResult>>
+        frontend_admission_requests_;
 };
 
-} // namespace px
+}  // namespace px
 
-#endif // PX_RENDER_SERVICE_RPC_STATE_H
+#endif  // PX_RENDER_SERVICE_RPC_STATE_H

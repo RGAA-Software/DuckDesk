@@ -16,7 +16,8 @@ enum class TransportKind {
 enum class TransportChannel {
     kMedia,
     kFileTransfer,
-    // Existing ordered/reliable RTC data channel; metadata, not a new connection.
+    // Existing ordered/reliable RTC data channel; metadata, not a new
+    // connection.
     kReliableControl,
 };
 
@@ -104,6 +105,25 @@ struct UdpMediaAssociation final {
     std::int64_t expires_at_ms_{0};
     bool force_gdi_{false};
     bool revoke_{false};
+};
+
+struct ConsoleFrontendAdmissionRequest final {
+    std::string request_id;
+    std::string session_id;
+    std::int64_t revision{0};
+    std::string frontend_token;
+};
+
+struct ConsoleFrontendGrant final {
+    std::string session_id;
+    std::int64_t revision{0};
+    std::string target_kind;
+    std::string device_id;
+    std::string application_id;
+    std::string instance_id;
+    std::string client_type;
+    std::string access_role;
+    std::uint32_t valid_for_ms{0};
 };
 
 }  // namespace px

@@ -5,20 +5,20 @@
 #ifndef PX_RENDER_SERVICE_CLIENT_H
 #define PX_RENDER_SERVICE_CLIENT_H
 
-#include <memory>
-#include <string>
+#include <asio2/websocket/wss_client.hpp>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <mutex>
+#include <string>
 #include <unordered_map>
 #include <vector>
-#include <asio2/websocket/wss_client.hpp>
 
+#include "network/render_service_rpc_state.h"
 #include "px_common/async_result.h"
 #include "px_common/async_runtime.h"
-#include "network/render_service_rpc_state.h"
 
 namespace px {
 
@@ -27,26 +27,40 @@ class RdApplication;
 class RdStatistics;
 class MessageListener;
 class PxReconnectSupervisor;
-template <typename Client> class PxReconnectAdapterSlot;
-template <typename T> class PxAsyncMailbox;
-class RenderServiceClient : public std::enable_shared_from_this<RenderServiceClient> {
-  public:
+template <typename Client>
+class PxReconnectAdapterSlot;
+template <typename T>
+class PxAsyncMailbox;
+class RenderServiceClient
+    : public std::enable_shared_from_this<RenderServiceClient> {
+public:
     explicit RenderServiceClient(const std::shared_ptr<RdApplication>& app);
     ~RenderServiceClient();
     void Start();
     void Exit();
-    [[nodiscard]] static PxAwaitable<PxResult<void>> StopAsync(std::shared_ptr<RenderServiceClient> owner,
-                                                               std::chrono::steady_clock::time_point deadline);
+    [[nodiscard]] static PxAwaitable<PxResult<void>> StopAsync(
+        std::shared_ptr<RenderServiceClient> owner,
+        std::chrono::steady_clock::time_point deadline);
     bool IsAlive() const;
     void PostNetMessage(const std::string& msg);
-    void NotifyAppInstanceReady(const std::string& instance_id, int listen_port, bool ok, const std::string& error);
-    void RequestVirtualDisplay(const std::string& request_id, int operation, uint32_t width, uint32_t height, uint32_t refresh_hz,
-                               std::function<void(const MsgVirtualDisplayServiceResult&)>&& callback);
-    PxAwaitable<PxResult<MsgVirtualDisplayServiceResult>> RequestVirtualDisplayAsync(std::string request_id, int operation, uint32_t width,
-                                                                                     uint32_t height, uint32_t refresh_hz,
-                                                                                     std::chrono::steady_clock::time_point deadline);
+    void NotifyAppInstanceReady(const std::string& instance_id, int listen_port,
+                                bool ok, const std::string& error);
+    void RequestVirtualDisplay(
+        const std::string& request_id, int operation, uint32_t width,
+        uint32_t height, uint32_t refresh_hz,
+        std::function<void(const MsgVirtualDisplayServiceResult&)>&& callback);
+    PxAwaitable<PxResult<MsgVirtualDisplayServiceResult>>
+    RequestVirtualDisplayAsync(std::string request_id, int operation,
+                               uint32_t width, uint32_t height,
+                               uint32_t refresh_hz,
+                               std::chrono::steady_clock::time_point deadline);
+    PxAwaitable<PxResult<MsgFrontendAdmissionServiceResult>>
+    RequestFrontendAdmissionAsync(
+        std::string request_id, std::string session_id, std::int64_t revision,
+        std::string frontend_token,
+        std::chrono::steady_clock::time_point deadline);
 
-  private:
+private:
     struct AsyncStateSnapshot final {
         std::shared_ptr<PxAsyncScope> scope{};
         std::shared_ptr<RenderServiceRpcState> rpc_state{};
@@ -58,15 +72,17 @@ class RenderServiceClient : public std::enable_shared_from_this<RenderServiceCli
     void ParseMessage(const std::string& msg);
     void SendPendingAppInstanceReady();
     PxResult<void> TryPostNetMessage(const std::string& msg);
+    PxResult<void> TryPostSensitiveNetMessage(std::string msg);
     void FailPendingRequests(const PxAsyncError& error);
     std::shared_ptr<PxAsyncScope> BeginStop();
     void FinishStop();
     void ScheduleDeferredExit();
     [[nodiscard]] AsyncStateSnapshot SnapshotAsyncState() const;
-    static PxAwaitable<void> RunIncomingMessageLoop(std::weak_ptr<RenderServiceClient> weak_client,
-                                                    std::shared_ptr<PxAsyncMailbox<std::string>> mailbox);
+    static PxAwaitable<void> RunIncomingMessageLoop(
+        std::weak_ptr<RenderServiceClient> weak_client,
+        std::shared_ptr<PxAsyncMailbox<std::string>> mailbox);
 
-  private:
+private:
     std::shared_ptr<RdStatistics> statistics_{};
     std::shared_ptr<RdApplication> app_{};
     std::shared_ptr<RdContext> context_{};
@@ -92,6 +108,6 @@ class RenderServiceClient : public std::enable_shared_from_this<RenderServiceCli
     std::atomic_int64_t heartbeat_index_{0};
 };
 
-} // namespace px
+}  // namespace px
 
-#endif // PX_WS_CLIENT_H
+#endif  // PX_WS_CLIENT_H

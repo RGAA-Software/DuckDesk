@@ -3,52 +3,54 @@
 //
 
 #include "render_module_registry.h"
+
 #include <algorithm>
 #include <mutex>
 #include <type_traits>
-#include "rd_app.h"
-#include "session/logical_session_registry.h"
-#include "px_render/modules/module_ids.h"
-#include "rd_context.h"
-#include "px_common/log.h"
-#include "px_common/win32/win_helper.h"
-#include "px_common/string_util.h"
-#include "px_render/ingress/render_event_ingress.h"
-#include "px_render/pipeline/encoded_video_fanout.h"
-#include "settings/rd_settings.h"
-#include "px_common/folder_util.h"
-#include "px_capture/capture_message.h"
-#include "architecture/modules/render_module.h"
+
 #include "architecture/encoders/video_encoder_module.h"
-#include "architecture/sources/monitor_capture_source.h"
-#include "px_render/network/transport_types.h"
+#include "architecture/modules/render_module.h"
 #include "architecture/services/file_transfer_service.h"
 #include "architecture/services/voice_call_service.h"
+#include "architecture/sources/monitor_capture_source.h"
+#include "network/webrtc_transport_host.h"
+#include "px_capture/capture_message.h"
+#include "px_common/folder_util.h"
+#include "px_common/log.h"
+#include "px_common/string_util.h"
+#include "px_common/win32/win_helper.h"
+#include "px_message.pb.h"
+#include "px_render/architecture/encoders/amf/amf_video_encoder.h"
+#include "px_render/architecture/encoders/ffmpeg/ffmpeg_video_encoder.h"
+#include "px_render/architecture/encoders/nvenc/nvenc_encoder_module.h"
 #include "px_render/architecture/sources/dda/dda_capture_source.h"
 #include "px_render/architecture/sources/gdi/gdi_capture_source.h"
-#include "px_render/architecture/encoders/ffmpeg/ffmpeg_video_encoder.h"
-#include "px_render/architecture/encoders/amf/amf_video_encoder.h"
-#include "px_render/architecture/encoders/nvenc/nvenc_encoder_module.h"
-#include "px_render/network/ws/ws_transport.h"
-#include "px_render/network/udp/udp_transport.h"
+#include "px_render/ingress/render_event_ingress.h"
+#include "px_render/modules/module_ids.h"
 #include "px_render/network/relay/relay_transport.h"
-#include "network/webrtc_transport_host.h"
-#include "px_message.pb.h"
+#include "px_render/network/transport_types.h"
+#include "px_render/network/udp/udp_transport.h"
+#include "px_render/network/ws/ws_transport.h"
+#include "px_render/pipeline/encoded_video_fanout.h"
+#include "rd_app.h"
+#include "rd_context.h"
+#include "session/logical_session_registry.h"
+#include "settings/rd_settings.h"
 
 namespace px {
 namespace {
 WebRtcEncodedVideoType ToWebRtcEncodedVideoType(const EncodedVideoType type) {
     switch (type) {
-    case EncodedVideoType::kH264:
-        return WebRtcEncodedVideoType::kH264;
-    case EncodedVideoType::kH265:
-        return WebRtcEncodedVideoType::kH265;
-    case EncodedVideoType::kVp8:
-        return WebRtcEncodedVideoType::kVp8;
-    case EncodedVideoType::kVp9:
-        return WebRtcEncodedVideoType::kVp9;
-    case EncodedVideoType::kAv1:
-        return WebRtcEncodedVideoType::kAv1;
+        case EncodedVideoType::kH264:
+            return WebRtcEncodedVideoType::kH264;
+        case EncodedVideoType::kH265:
+            return WebRtcEncodedVideoType::kH265;
+        case EncodedVideoType::kVp8:
+            return WebRtcEncodedVideoType::kVp8;
+        case EncodedVideoType::kVp9:
+            return WebRtcEncodedVideoType::kVp9;
+        case EncodedVideoType::kAv1:
+            return WebRtcEncodedVideoType::kAv1;
     }
     return WebRtcEncodedVideoType::kH264;
 }
@@ -73,20 +75,21 @@ WebRtcTransportSettings MakeWebRtcSettings(const RenderRuntimeSettings& info) {
     };
 }
 
-} // namespace
+}  // namespace
 
-std::shared_ptr<RenderModuleRegistry> RenderModuleRegistry::Make(const std::shared_ptr<RdApplication>& app) {
+std::shared_ptr<RenderModuleRegistry> RenderModuleRegistry::Make(
+    const std::shared_ptr<RdApplication>& app) {
     return std::make_shared<RenderModuleRegistry>(app);
 }
 
-RenderModuleRegistry::RenderModuleRegistry(const std::shared_ptr<RdApplication>& app) : settings_(*RdSettings::Instance()) {
+RenderModuleRegistry::RenderModuleRegistry(
+    const std::shared_ptr<RdApplication>& app)
+    : settings_(*RdSettings::Instance()) {
     this->app_ = app;
     this->context_ = app->GetContext();
 }
 
-RenderModuleRegistry::~RenderModuleRegistry() {
-    exiting_ = true;
-}
+RenderModuleRegistry::~RenderModuleRegistry() { exiting_ = true; }
 
 void RenderModuleRegistry::StartModules() {
     exiting_ = false;
@@ -110,56 +113,100 @@ void RenderModuleRegistry::StartModules() {
         .relay_port = settings_.relay_port_,
         .language = settings_.language_,
         .appkey = settings_.appkey_,
-        .app_mode = settings_.IsRdpMode()        ? "rdp"
-                    : settings_.IsGameHookMode() ? "game-hook"
-                                                 : (settings_.IsWebViewMode() ? "webview" : "desktop"),
-        .rdp_proxy_port = settings_.IsRdpMode() ? settings_.rdp_launch_.proxy_port : std::uint16_t{},
-        .udp_media_budget_bps = static_cast<std::uint64_t>(std::max(1, settings_.encoder_.bitrate_)) * 1'000'000,
+        .app_mode = settings_.IsRdpMode() ? "rdp"
+                    : settings_.IsGameHookMode()
+                        ? "game-hook"
+                        : (settings_.IsWebViewMode() ? "webview" : "desktop"),
+        .rdp_proxy_port = settings_.IsRdpMode()
+                              ? settings_.rdp_launch_.proxy_port
+                              : std::uint16_t{},
+        .udp_media_budget_bps = static_cast<std::uint64_t>(
+                                    std::max(1, settings_.encoder_.bitrate_)) *
+                                1'000'000,
     };
-    const auto register_builtin = [base_configuration](const std::shared_ptr<RenderModule>& module, const std::string& module_name) -> bool {
+    const auto register_builtin =
+        [base_configuration](const std::shared_ptr<RenderModule>& module,
+                             const std::string& module_name) -> bool {
         auto configuration = base_configuration;
         configuration.instance_name = module_name;
         if (!module || module->Id().empty() || !module->Start(configuration)) {
-            LOGE("event=module.start component=render_module_registry module={} "
-                 "delivery=static outcome=failed",
-                 module_name);
+            LOGE(
+                "event=module.start component=render_module_registry module={} "
+                "delivery=static outcome=failed",
+                module_name);
             return false;
         }
-        LOGI("event=module.start component=render_module_registry module={} "
-             "delivery=static outcome=success",
-             module_name);
+        LOGI(
+            "event=module.start component=render_module_registry module={} "
+            "delivery=static outcome=success",
+            module_name);
         return true;
     };
-    const std::weak_ptr<LogicalSessionRegistry> weak_sessions = app_ ? app_->GetLogicalSessionRegistry() : std::shared_ptr<LogicalSessionRegistry>{};
-    const auto configure_controller_availability = [weak_sessions](const std::shared_ptr<WsTransport>& transport) {
-        if (!transport) {
-            return;
-        }
-        transport->ConfigureControllerAvailabilityQuery([weak_sessions](const std::int64_t now_ms) {
-            const auto sessions = weak_sessions.lock();
-            if (!sessions) {
-                return WsTransport::ControllerAvailability{};
+    const std::weak_ptr<LogicalSessionRegistry> weak_sessions =
+        app_ ? app_->GetLogicalSessionRegistry()
+             : std::shared_ptr<LogicalSessionRegistry>{};
+    const auto configure_controller_availability =
+        [weak_sessions](const std::shared_ptr<WsTransport>& transport) {
+            if (!transport) {
+                return;
             }
-            const auto availability = sessions->ControllerAvailability(now_ms);
-            return WsTransport::ControllerAvailability{.known = true,
-                                                       .available = availability.available,
-                                                       .reconnect_grace = availability.reconnect_grace,
-                                                       .retry_after_ms = availability.retry_after_ms};
-        });
-    };
+            transport->ConfigureControllerAvailabilityQuery(
+                [weak_sessions](const std::int64_t now_ms) {
+                    const auto sessions = weak_sessions.lock();
+                    if (!sessions) {
+                        return WsTransport::ControllerAvailability{};
+                    }
+                    const auto availability =
+                        sessions->ControllerAvailability(now_ms);
+                    return WsTransport::ControllerAvailability{
+                        .known = true,
+                        .available = availability.available,
+                        .reconnect_grace = availability.reconnect_grace,
+                        .retry_after_ms = availability.retry_after_ms};
+                });
+        };
+    const std::weak_ptr<RdApplication> weak_application = app_;
+    const auto configure_frontend_authorizer =
+        [weak_application](const std::shared_ptr<WsTransport>& transport) {
+            if (!transport) {
+                return;
+            }
+            transport->ConfigureFrontendAuthorizer(
+                [weak_application](
+                    ConsoleFrontendAdmissionRequest request,
+                    const std::chrono::steady_clock::time_point deadline)
+                    -> PxAwaitable<PxResult<ConsoleFrontendGrant>> {
+                    const auto application = weak_application.lock();
+                    if (!application) {
+                        std::fill(request.frontend_token.begin(),
+                                  request.frontend_token.end(), '\0');
+                        co_return PxResult<ConsoleFrontendGrant>::Failure(
+                            MakePxAsyncError(
+                                PxAsyncErrorCode::kServiceStopped,
+                                "frontend_admission",
+                                "Render application is unavailable"));
+                    }
+                    co_return co_await application->AdmitConsoleFrontend(
+                        std::move(request), deadline);
+                });
+        };
     if (settings_.IsRdpMode()) {
-        const auto transport = std::make_shared<WsTransport>(context_->GetAsyncRuntime());
+        const auto transport =
+            std::make_shared<WsTransport>(context_->GetAsyncRuntime());
         if (register_builtin(transport, "net_ws")) {
             ws_transport_ = transport;
             configure_controller_availability(transport);
+            configure_frontend_authorizer(transport);
         }
-        return; // No capture, encoders, native media, RTC, relay or host IPC in this composition.
+        return;  // No capture, encoders, native media, RTC, relay or host IPC
+                 // in this composition.
     }
     const auto dda_capture = std::make_shared<DdaCaptureSource>();
     const auto weak_registry = weak_from_this();
     dda_capture->ConfigureMediaBacklogProbe([weak_registry]() {
         const auto registry = weak_registry.lock();
-        return registry ? registry->QueuedNetworkMediaMessages() : std::int64_t{0};
+        return registry ? registry->QueuedNetworkMediaMessages()
+                        : std::int64_t{0};
     });
     if (register_builtin(dda_capture, "cap_dda")) {
         dda_capture_ = dda_capture;
@@ -180,16 +227,20 @@ void RenderModuleRegistry::StartModules() {
     if (register_builtin(nvenc_encoder, "enc_nvenc")) {
         nvenc_encoder_ = nvenc_encoder;
     }
-    const auto ws_transport = std::make_shared<WsTransport>(context_->GetAsyncRuntime());
+    const auto ws_transport =
+        std::make_shared<WsTransport>(context_->GetAsyncRuntime());
     if (register_builtin(ws_transport, "net_ws")) {
         ws_transport_ = ws_transport;
         configure_controller_availability(ws_transport);
+        configure_frontend_authorizer(ws_transport);
     }
-    const auto udp_transport = std::make_shared<UdpTransport>(context_->GetAsyncRuntime());
+    const auto udp_transport =
+        std::make_shared<UdpTransport>(context_->GetAsyncRuntime());
     if (register_builtin(udp_transport, "net_udp")) {
         udp_transport_ = udp_transport;
     }
-    const auto relay_transport = std::make_shared<RelayTransport>(context_->GetAsyncRuntime());
+    const auto relay_transport =
+        std::make_shared<RelayTransport>(context_->GetAsyncRuntime());
     if (register_builtin(relay_transport, "net_relay")) {
         relay_transport_ = relay_transport;
     }
@@ -214,9 +265,10 @@ void RenderModuleRegistry::StartModules() {
             continue;
         }
         if (!transport->Start(webrtc_configuration)) {
-            LOGE("event=webrtc.library.start component=render_module_registry "
-                 "library={} outcome=failed recoverable=false",
-                 transport->BaseName());
+            LOGE(
+                "event=webrtc.library.start component=render_module_registry "
+                "library={} outcome=failed recoverable=false",
+                transport->BaseName());
             continue;
         }
         if (transport->Kind() == WebRtcTransportKind::kRemote) {
@@ -225,43 +277,52 @@ void RenderModuleRegistry::StartModules() {
             rtc_local_transport_ = transport;
         }
         const auto info = transport->Info();
-        LOGI("event=webrtc.library.start component=render_module_registry "
-             "library={} id={} version={} outcome=success",
-             transport->BaseName(), info.id, info.version_name);
+        LOGI(
+            "event=webrtc.library.start component=render_module_registry "
+            "library={} id={} version={} outcome=success",
+            transport->BaseName(), info.id, info.version_name);
     }
 
     WsTransport::LocalRtcAllocator local_rtc_allocator;
     if (rtc_local_transport_) {
-        local_rtc_allocator = [weak_registry](const std::shared_ptr<PxLocalRtcRequestInfo>& request, WsTransport::LocalRtcCompletion completion) {
-            if (const auto registry = weak_registry.lock()) {
-                return registry->AllocateRtcLocalInstance(request, std::move(completion));
-            }
-            return PxLocalRtcAllocResult::kFailed;
-        };
+        local_rtc_allocator =
+            [weak_registry](
+                const std::shared_ptr<PxLocalRtcRequestInfo>& request,
+                WsTransport::LocalRtcCompletion completion) {
+                if (const auto registry = weak_registry.lock()) {
+                    return registry->AllocateRtcLocalInstance(
+                        request, std::move(completion));
+                }
+                return PxLocalRtcAllocResult::kFailed;
+            };
     }
     WsTransport::UdpAssociationUpdater udp_association_updater;
     if (udp_transport_) {
-        udp_association_updater = [weak_registry](const UdpMediaAssociation& association) {
-            if (const auto registry = weak_registry.lock()) {
-                return registry->UpdateUdpMediaAssociation(association);
-            }
-            return false;
-        };
+        udp_association_updater =
+            [weak_registry](const UdpMediaAssociation& association) {
+                if (const auto registry = weak_registry.lock()) {
+                    return registry->UpdateUdpMediaAssociation(association);
+                }
+                return false;
+            };
     }
 
     ws_transport->ConfigureNetworkServices(
-        [weak_registry](const std::shared_ptr<Data>& message, const bool run_through) {
+        [weak_registry](const std::shared_ptr<Data>& message,
+                        const bool run_through) {
             if (const auto registry = weak_registry.lock()) {
                 registry->BroadcastNetworkMessage(message, run_through);
             }
         },
-        [weak_registry](const std::string& stream_id, const std::shared_ptr<Data>& message, const bool run_through) {
+        [weak_registry](const std::string& stream_id,
+                        const std::shared_ptr<Data>& message,
+                        const bool run_through) {
             if (const auto registry = weak_registry.lock()) {
-                registry->BroadcastFileTransferMessage(stream_id, message, run_through);
+                registry->BroadcastFileTransferMessage(stream_id, message,
+                                                       run_through);
             }
         },
         std::move(local_rtc_allocator), std::move(udp_association_updater));
-    const std::weak_ptr<RdApplication> weak_application = app_;
     ws_transport->ConfigureIpcMediaIngress(
         [weak_application](const CaptureVideoFrame& frame) {
             if (const auto application = weak_application.lock()) {
@@ -301,28 +362,31 @@ void RenderModuleRegistry::BindIngressCallbacks() {
             }
         });
     });
-    VisitWebRtcLibraries([weak_self](const std::shared_ptr<WebRtcTransportHandle>& library) {
-        const auto source_id = library->Info().id;
-        library->SetEventCallback([weak_self, source_id](const WebRtcEvent& event) {
-            const auto self = weak_self.lock();
-            if (!self || self->exiting_) {
-                return;
-            }
-            std::shared_ptr<RenderEventIngress> router;
-            {
-                std::lock_guard lock(self->routing_mtx_);
-                router = self->control_ingress_;
-            }
-            if (router) {
-                router->ProcessWebRtcEvent(source_id, event);
-            }
+    VisitWebRtcLibraries(
+        [weak_self](const std::shared_ptr<WebRtcTransportHandle>& library) {
+            const auto source_id = library->Info().id;
+            library->SetEventCallback(
+                [weak_self, source_id](const WebRtcEvent& event) {
+                    const auto self = weak_self.lock();
+                    if (!self || self->exiting_) {
+                        return;
+                    }
+                    std::shared_ptr<RenderEventIngress> router;
+                    {
+                        std::lock_guard lock(self->routing_mtx_);
+                        router = self->control_ingress_;
+                    }
+                    if (router) {
+                        router->ProcessWebRtcEvent(source_id, event);
+                    }
+                });
         });
-    });
     for (const auto& capture : {GetDdaCapture(), GetGdiCapture()}) {
         if (!capture) {
             continue;
         }
-        capture->SetEventCallback([weak_self](const RenderEventEnvelope& envelope) {
+        capture->SetEventCallback([weak_self](
+                                      const RenderEventEnvelope& envelope) {
             const auto self = weak_self.lock();
             if (!self || self->exiting_) {
                 return;
@@ -339,13 +403,16 @@ void RenderModuleRegistry::BindIngressCallbacks() {
             }
             std::visit(
                 [&app, &router, &envelope](const auto& event) {
-                    using Event = typename std::decay_t<decltype(event)>::element_type;
+                    using Event =
+                        typename std::decay_t<decltype(event)>::element_type;
                     if (!event) {
                         return;
                     }
-                    if constexpr (std::is_same_v<Event, CapturedVideoFrameEvent>) {
+                    if constexpr (std::is_same_v<Event,
+                                                 CapturedVideoFrameEvent>) {
                         app->OnCapturedVideoFrame(event->frame_);
-                    } else if constexpr (std::is_same_v<Event, CursorUpdatedEvent>) {
+                    } else if constexpr (std::is_same_v<Event,
+                                                        CursorUpdatedEvent>) {
                         app->OnCapturedCursorBitmap(event->cursor_info_);
                     } else if (router) {
                         router->ProcessRenderEvent(envelope);
@@ -354,8 +421,10 @@ void RenderModuleRegistry::BindIngressCallbacks() {
                 envelope.payload);
         });
     }
-    VisitEncoders([weak_self](const std::shared_ptr<VideoEncoderModule>& encoder) {
-        encoder->SetEventCallback([weak_self](const RenderEventEnvelope& envelope) {
+    VisitEncoders([weak_self](
+                      const std::shared_ptr<VideoEncoderModule>& encoder) {
+        encoder->SetEventCallback([weak_self](
+                                      const RenderEventEnvelope& envelope) {
             const auto self = weak_self.lock();
             if (!self || self->exiting_) {
                 return;
@@ -367,8 +436,10 @@ void RenderModuleRegistry::BindIngressCallbacks() {
             }
             std::visit(
                 [&fanout](const auto& event) {
-                    using Event = typename std::decay_t<decltype(event)>::element_type;
-                    if constexpr (std::is_same_v<Event, EncodedVideoFrameEvent>) {
+                    using Event =
+                        typename std::decay_t<decltype(event)>::element_type;
+                    if constexpr (std::is_same_v<Event,
+                                                 EncodedVideoFrameEvent>) {
                         if (event && fanout) {
                             fanout->ProcessEncodedVideoFrameEvent(event);
                         }
@@ -387,8 +458,13 @@ void RenderModuleRegistry::StopRouting() {
     if (exiting_.exchange(true)) {
         return;
     }
-    VisitAllModules([](const std::shared_ptr<RenderModule>& module) { module->SetEventCallback({}); });
-    VisitWebRtcLibraries([](const std::shared_ptr<WebRtcTransportHandle>& library) { library->SetEventCallback({}); });
+    VisitAllModules([](const std::shared_ptr<RenderModule>& module) {
+        module->SetEventCallback({});
+    });
+    VisitWebRtcLibraries(
+        [](const std::shared_ptr<WebRtcTransportHandle>& library) {
+            library->SetEventCallback({});
+        });
     {
         std::lock_guard lock(routing_mtx_);
         control_ingress_.reset();
@@ -397,7 +473,8 @@ void RenderModuleRegistry::StopRouting() {
     }
 }
 
-PxAwaitable<PxResult<void>> RenderModuleRegistry::StopNetworkIngressAsync(const std::chrono::steady_clock::time_point deadline) {
+PxAwaitable<PxResult<void>> RenderModuleRegistry::StopNetworkIngressAsync(
+    const std::chrono::steady_clock::time_point deadline) {
     std::shared_ptr<WsTransport> ws_transport;
     std::shared_ptr<UdpTransport> udp_transport;
     {
@@ -406,7 +483,8 @@ PxAwaitable<PxResult<void>> RenderModuleRegistry::StopNetworkIngressAsync(const 
         udp_transport = udp_transport_;
     }
     if (ws_transport) {
-        const auto stopped = co_await WsTransport::StopAsync(ws_transport, deadline);
+        const auto stopped =
+            co_await WsTransport::StopAsync(ws_transport, deadline);
         if (!stopped) {
             co_return stopped;
         }
@@ -417,7 +495,8 @@ PxAwaitable<PxResult<void>> RenderModuleRegistry::StopNetworkIngressAsync(const 
     co_return PxResult<void>::Success();
 }
 
-PxAwaitable<PxResult<void>> RenderModuleRegistry::StopWebRtcLibrariesAsync(const std::chrono::steady_clock::time_point deadline) {
+PxAwaitable<PxResult<void>> RenderModuleRegistry::StopWebRtcLibrariesAsync(
+    const std::chrono::steady_clock::time_point deadline) {
     std::vector<std::shared_ptr<WebRtcTransportHandle>> libraries;
     {
         std::shared_lock lock(modules_mtx_);
@@ -429,7 +508,8 @@ PxAwaitable<PxResult<void>> RenderModuleRegistry::StopWebRtcLibrariesAsync(const
         }
     }
     for (const auto& library : libraries) {
-        const auto stopped = co_await WebRtcTransportHandle::StopAsync(library, deadline);
+        const auto stopped =
+            co_await WebRtcTransportHandle::StopAsync(library, deadline);
         if (!stopped) {
             co_return stopped;
         }
@@ -448,22 +528,14 @@ void RenderModuleRegistry::StopModules() {
     std::vector<std::shared_ptr<WebRtcTransportHandle>> webrtc_libraries;
     {
         std::unique_lock<std::shared_mutex> lock(modules_mtx_);
-        if (ffmpeg_encoder_)
-            modules.push_back(ffmpeg_encoder_);
-        if (nvenc_encoder_)
-            modules.push_back(nvenc_encoder_);
-        if (amf_encoder_)
-            modules.push_back(amf_encoder_);
-        if (dda_capture_)
-            modules.push_back(dda_capture_);
-        if (gdi_capture_)
-            modules.push_back(gdi_capture_);
-        if (ws_transport_)
-            modules.push_back(ws_transport_);
-        if (udp_transport_)
-            modules.push_back(udp_transport_);
-        if (relay_transport_)
-            modules.push_back(relay_transport_);
+        if (ffmpeg_encoder_) modules.push_back(ffmpeg_encoder_);
+        if (nvenc_encoder_) modules.push_back(nvenc_encoder_);
+        if (amf_encoder_) modules.push_back(amf_encoder_);
+        if (dda_capture_) modules.push_back(dda_capture_);
+        if (gdi_capture_) modules.push_back(gdi_capture_);
+        if (ws_transport_) modules.push_back(ws_transport_);
+        if (udp_transport_) modules.push_back(udp_transport_);
+        if (relay_transport_) modules.push_back(relay_transport_);
         ffmpeg_encoder_.reset();
         nvenc_encoder_.reset();
         amf_encoder_.reset();
@@ -525,7 +597,9 @@ std::shared_ptr<MonitorCaptureSource> RenderModuleRegistry::GetGdiCapture() {
     return gdi_capture_;
 }
 
-void RenderModuleRegistry::SyncUdpInfo(const std::int64_t socket_fd, const std::string& device_id, const std::string& stream_id) {
+void RenderModuleRegistry::SyncUdpInfo(const std::int64_t socket_fd,
+                                       const std::string& device_id,
+                                       const std::string& stream_id) {
     // UDP media association is now value-driven through
     // UpdateUdpMediaAssociation; the former generic transport sync state
     // had no UDP consumer.
@@ -543,32 +617,40 @@ bool RenderModuleRegistry::IsRelayConnected() {
     return relay && relay->IsWorking();
 }
 
-void RenderModuleRegistry::SubmitRtcLocalSharedTexture(const std::string& monitor_name, const std::uint64_t frame_index, const int frame_width,
-                                                       const int frame_height, const std::uint64_t shared_handle, const std::int64_t adapter_id,
-                                                       const std::uint64_t frame_format) {
+void RenderModuleRegistry::SubmitRtcLocalSharedTexture(
+    const std::string& monitor_name, const std::uint64_t frame_index,
+    const int frame_width, const int frame_height,
+    const std::uint64_t shared_handle, const std::int64_t adapter_id,
+    const std::uint64_t frame_format) {
     std::shared_ptr<WebRtcTransportHandle> rtc_local;
     {
         std::shared_lock lock(modules_mtx_);
         rtc_local = rtc_local_transport_;
     }
     if (rtc_local) {
-        rtc_local->SubmitLocalSharedTexture(monitor_name, frame_index, frame_width, frame_height, shared_handle, adapter_id, frame_format);
+        rtc_local->SubmitLocalSharedTexture(
+            monitor_name, frame_index, frame_width, frame_height, shared_handle,
+            adapter_id, frame_format);
     }
 }
 
-void RenderModuleRegistry::SubmitRtcLocalYuv(const std::string& monitor_name, const std::uint64_t frame_index, const int frame_width,
-                                             const int frame_height, const std::shared_ptr<Image>& image) {
+void RenderModuleRegistry::SubmitRtcLocalYuv(
+    const std::string& monitor_name, const std::uint64_t frame_index,
+    const int frame_width, const int frame_height,
+    const std::shared_ptr<Image>& image) {
     std::shared_ptr<WebRtcTransportHandle> rtc_local;
     {
         std::shared_lock lock(modules_mtx_);
         rtc_local = rtc_local_transport_;
     }
     if (rtc_local) {
-        rtc_local->SubmitLocalYuv(monitor_name, frame_index, frame_width, frame_height, image);
+        rtc_local->SubmitLocalYuv(monitor_name, frame_index, frame_width,
+                                  frame_height, image);
     }
 }
 
-void RenderModuleRegistry::UpdateRtcLocalCaptureMonitorInfo(const CaptureMonitorInfoMessage& message) {
+void RenderModuleRegistry::UpdateRtcLocalCaptureMonitorInfo(
+    const CaptureMonitorInfoMessage& message) {
     std::shared_ptr<WebRtcTransportHandle> rtc_local;
     {
         std::shared_lock lock(modules_mtx_);
@@ -579,7 +661,8 @@ void RenderModuleRegistry::UpdateRtcLocalCaptureMonitorInfo(const CaptureMonitor
     }
 }
 
-void RenderModuleRegistry::ApplyRtcLocalRemoteSdp(const MsgRtcRemoteSdp& message) {
+void RenderModuleRegistry::ApplyRtcLocalRemoteSdp(
+    const MsgRtcRemoteSdp& message) {
     std::shared_ptr<WebRtcTransportHandle> rtc_local;
     {
         std::shared_lock lock(modules_mtx_);
@@ -590,7 +673,8 @@ void RenderModuleRegistry::ApplyRtcLocalRemoteSdp(const MsgRtcRemoteSdp& message
     }
 }
 
-void RenderModuleRegistry::ApplyRtcLocalRemoteIce(const MsgRtcRemoteIce& message) {
+void RenderModuleRegistry::ApplyRtcLocalRemoteIce(
+    const MsgRtcRemoteIce& message) {
     std::shared_ptr<WebRtcTransportHandle> rtc_local;
     {
         std::shared_lock lock(modules_mtx_);
@@ -601,17 +685,22 @@ void RenderModuleRegistry::ApplyRtcLocalRemoteIce(const MsgRtcRemoteIce& message
     }
 }
 
-PxLocalRtcAllocResult RenderModuleRegistry::AllocateRtcLocalInstance(const std::shared_ptr<PxLocalRtcRequestInfo>& request,
-                                                                     std::function<void(const std::shared_ptr<PxLocalRtcReplyInfo>&)>&& completion) {
+PxLocalRtcAllocResult RenderModuleRegistry::AllocateRtcLocalInstance(
+    const std::shared_ptr<PxLocalRtcRequestInfo>& request,
+    std::function<void(const std::shared_ptr<PxLocalRtcReplyInfo>&)>&&
+        completion) {
     std::shared_ptr<WebRtcTransportHandle> rtc_local;
     {
         std::shared_lock lock(modules_mtx_);
         rtc_local = rtc_local_transport_;
     }
-    return rtc_local ? rtc_local->AllocateLocalInstance(request, std::move(completion)) : PxLocalRtcAllocResult::kFailed;
+    return rtc_local ? rtc_local->AllocateLocalInstance(request,
+                                                        std::move(completion))
+                     : PxLocalRtcAllocResult::kFailed;
 }
 
-bool RenderModuleRegistry::UpdateUdpMediaAssociation(const UdpMediaAssociation& association) {
+bool RenderModuleRegistry::UpdateUdpMediaAssociation(
+    const UdpMediaAssociation& association) {
     std::shared_ptr<UdpTransport> udp;
     {
         std::shared_lock lock(modules_mtx_);
@@ -624,7 +713,8 @@ bool RenderModuleRegistry::UpdateUdpMediaAssociation(const UdpMediaAssociation& 
     return false;
 }
 
-void RenderModuleRegistry::BroadcastNetworkMessage(const std::shared_ptr<Data>& message, const bool run_through) {
+void RenderModuleRegistry::BroadcastNetworkMessage(
+    const std::shared_ptr<Data>& message, const bool run_through) {
     if (!message) {
         return;
     }
@@ -637,16 +727,19 @@ void RenderModuleRegistry::BroadcastNetworkMessage(const std::shared_ptr<Data>& 
         udp = udp_transport_;
         relay = relay_transport_;
     }
-    if (ws)
-        ws->Broadcast(message, run_through);
-    if (udp)
-        udp->Broadcast(message, run_through);
-    if (relay)
-        relay->Broadcast(message, run_through);
-    VisitWebRtcLibraries([message, run_through](const std::shared_ptr<WebRtcTransportHandle>& library) { library->Send(message, run_through); });
+    if (ws) ws->Broadcast(message, run_through);
+    if (udp) udp->Broadcast(message, run_through);
+    if (relay) relay->Broadcast(message, run_through);
+    VisitWebRtcLibraries(
+        [message,
+         run_through](const std::shared_ptr<WebRtcTransportHandle>& library) {
+            library->Send(message, run_through);
+        });
 }
 
-void RenderModuleRegistry::BroadcastTargetStreamMessage(const std::string& stream_id, const std::shared_ptr<Data>& message, const bool run_through) {
+void RenderModuleRegistry::BroadcastTargetStreamMessage(
+    const std::string& stream_id, const std::shared_ptr<Data>& message,
+    const bool run_through) {
     if (!message) {
         return;
     }
@@ -665,12 +758,17 @@ void RenderModuleRegistry::BroadcastTargetStreamMessage(const std::string& strea
         static_cast<void>(udp->SendToStream(stream_id, message, run_through));
     if (relay)
         static_cast<void>(relay->SendToStream(stream_id, message, run_through));
-    VisitWebRtcLibraries([&stream_id, &message, run_through](const std::shared_ptr<WebRtcTransportHandle>& library) {
-        static_cast<void>(library->SendToStream(stream_id, message, run_through));
-    });
+    VisitWebRtcLibraries(
+        [&stream_id, &message,
+         run_through](const std::shared_ptr<WebRtcTransportHandle>& library) {
+            static_cast<void>(
+                library->SendToStream(stream_id, message, run_through));
+        });
 }
 
-void RenderModuleRegistry::BroadcastFileTransferMessage(const std::string& stream_id, const std::shared_ptr<Data>& message, const bool run_through) {
+void RenderModuleRegistry::BroadcastFileTransferMessage(
+    const std::string& stream_id, const std::shared_ptr<Data>& message,
+    const bool run_through) {
     if (!message) {
         return;
     }
@@ -682,26 +780,38 @@ void RenderModuleRegistry::BroadcastFileTransferMessage(const std::string& strea
         relay = relay_transport_;
     }
     if (ws)
-        static_cast<void>(ws->SendFileTransfer(stream_id, message, run_through));
+        static_cast<void>(
+            ws->SendFileTransfer(stream_id, message, run_through));
     if (relay)
-        static_cast<void>(relay->SendFileTransfer(stream_id, message, run_through));
-    VisitWebRtcLibraries([&stream_id, &message, run_through](const std::shared_ptr<WebRtcTransportHandle>& library) {
-        static_cast<void>(library->SendFileTransfer(stream_id, message, run_through));
-    });
+        static_cast<void>(
+            relay->SendFileTransfer(stream_id, message, run_through));
+    VisitWebRtcLibraries(
+        [&stream_id, &message,
+         run_through](const std::shared_ptr<WebRtcTransportHandle>& library) {
+            static_cast<void>(
+                library->SendFileTransfer(stream_id, message, run_through));
+        });
 }
 
-void RenderModuleRegistry::BroadcastRawAudio(const std::shared_ptr<Data>& data, const int samples, const int channels, const int bits) {
-    if (!data) {
+void RenderModuleRegistry::BroadcastRawAudio(
+    const std::shared_ptr<Data>& audio_frame, const int samples,
+    const int channels, const int bits) {
+    if (!audio_frame) {
         return;
     }
-    VisitWebRtcLibraries([&data, samples, channels, bits](const std::shared_ptr<WebRtcTransportHandle>& library) {
-        library->SubmitRawAudio(data, samples, channels, bits);
-    });
+    VisitWebRtcLibraries(
+        [&audio_frame, samples, channels,
+         bits](const std::shared_ptr<WebRtcTransportHandle>& library) {
+            library->SubmitRawAudio(audio_frame, samples, channels, bits);
+        });
 }
 
-std::uint64_t RenderModuleRegistry::EffectiveVideoBitrate(std::uint64_t requested_bps) const {
+std::uint64_t RenderModuleRegistry::EffectiveVideoBitrate(
+    std::uint64_t requested_bps) const {
     std::shared_lock lock(modules_mtx_);
-    return udp_transport_ && udp_transport_->ConnectedClientCount() > 0 ? udp_transport_->VideoEncodingBitrate() : requested_bps;
+    return udp_transport_ && udp_transport_->ConnectedClientCount() > 0
+               ? udp_transport_->VideoEncodingBitrate()
+               : requested_bps;
 }
 
 bool RenderModuleRegistry::HasNativeMediaClient() const {
@@ -709,20 +819,27 @@ bool RenderModuleRegistry::HasNativeMediaClient() const {
     return udp_transport_ && udp_transport_->ConnectedClientCount() > 0;
 }
 
-bool RenderModuleRegistry::PublishNativeEncodedVideo(const std::string& monitor_name, const std::shared_ptr<EncodedVideoFrameEvent>& event) {
+bool RenderModuleRegistry::PublishNativeEncodedVideo(
+    const std::string& monitor_name,
+    const std::shared_ptr<EncodedVideoFrameEvent>& event) {
     std::shared_ptr<UdpTransport> udp{};
     {
         std::shared_lock lock(modules_mtx_);
         udp = udp_transport_;
     }
     if (udp && event && event->data_) {
-        return udp->SubmitEncodedVideo(monitor_name, event->type_, event->data_, event->frame_index_, static_cast<int>(event->frame_width_),
-                                       static_cast<int>(event->frame_height_), event->key_frame_, event->reference_state_);
+        return udp->SubmitEncodedVideo(
+            monitor_name, event->type_, event->data_, event->frame_index_,
+            static_cast<int>(event->frame_width_),
+            static_cast<int>(event->frame_height_), event->key_frame_,
+            event->reference_state_);
     }
     return false;
 }
 
-void RenderModuleRegistry::PublishEncodedVideoMetadata(const std::string& monitor_name, const std::shared_ptr<EncodedVideoFrameEvent>& event) {
+void RenderModuleRegistry::PublishEncodedVideoMetadata(
+    const std::string& monitor_name,
+    const std::shared_ptr<EncodedVideoFrameEvent>& event) {
     if (!event || !event->data_) {
         return;
     }
@@ -732,16 +849,24 @@ void RenderModuleRegistry::PublishEncodedVideoMetadata(const std::string& monito
         ws = ws_transport_;
     }
     if (ws) {
-        ws->SubmitEncodedVideo(monitor_name, event->type_, event->data_, event->frame_index_, static_cast<int>(event->frame_width_),
-                               static_cast<int>(event->frame_height_), event->key_frame_);
+        ws->SubmitEncodedVideo(
+            monitor_name, event->type_, event->data_, event->frame_index_,
+            static_cast<int>(event->frame_width_),
+            static_cast<int>(event->frame_height_), event->key_frame_);
     }
-    VisitWebRtcLibraries([&monitor_name, &event](const std::shared_ptr<WebRtcTransportHandle>& library) {
-        library->SubmitEncodedVideo(monitor_name, ToWebRtcEncodedVideoType(event->type_), event->data_, event->frame_index_,
-                                    static_cast<int>(event->frame_width_), static_cast<int>(event->frame_height_), event->key_frame_);
-    });
+    VisitWebRtcLibraries(
+        [&monitor_name,
+         &event](const std::shared_ptr<WebRtcTransportHandle>& library) {
+            library->SubmitEncodedVideo(
+                monitor_name, ToWebRtcEncodedVideoType(event->type_),
+                event->data_, event->frame_index_,
+                static_cast<int>(event->frame_width_),
+                static_cast<int>(event->frame_height_), event->key_frame_);
+        });
 }
 
-void RenderModuleRegistry::DispatchNetworkAppEvent(const std::shared_ptr<AppBaseEvent>& event) {
+void RenderModuleRegistry::DispatchNetworkAppEvent(
+    const std::shared_ptr<AppBaseEvent>& event) {
     if (!event) {
         return;
     }
@@ -750,13 +875,17 @@ void RenderModuleRegistry::DispatchNetworkAppEvent(const std::shared_ptr<AppBase
         std::shared_lock lock(modules_mtx_);
         ws = ws_transport_;
     }
-    if (ws)
-        ws->HandleAppEvent(event);
+    if (ws) ws->HandleAppEvent(event);
 }
 
-void RenderModuleRegistry::ApplyLogicalSessionCapabilities(const PxLogicalSessionCapabilityUpdate& update) {
-    if (const auto registry = app_ ? app_->GetLogicalSessionRegistry() : std::shared_ptr<LogicalSessionRegistry>{}) {
-        const auto allowed = std::find(update.permissions_.begin(), update.permissions_.end(), "input") != update.permissions_.end();
+void RenderModuleRegistry::ApplyLogicalSessionCapabilities(
+    const PxLogicalSessionCapabilityUpdate& update) {
+    if (const auto registry = app_
+                                  ? app_->GetLogicalSessionRegistry()
+                                  : std::shared_ptr<LogicalSessionRegistry>{}) {
+        const auto allowed =
+            std::find(update.permissions_.begin(), update.permissions_.end(),
+                      "input") != update.permissions_.end();
         registry->UpdateInputCapabilityByStream(update.stream_id_, allowed);
     }
     std::shared_ptr<WsTransport> ws;
@@ -764,12 +893,15 @@ void RenderModuleRegistry::ApplyLogicalSessionCapabilities(const PxLogicalSessio
         std::shared_lock lock(modules_mtx_);
         ws = ws_transport_;
     }
-    if (ws)
-        ws->ApplyLogicalSessionCapabilities(update);
-    VisitWebRtcLibraries([&update](const std::shared_ptr<WebRtcTransportHandle>& library) { library->ApplyLogicalSessionCapabilities(update); });
+    if (ws) ws->ApplyLogicalSessionCapabilities(update);
+    VisitWebRtcLibraries(
+        [&update](const std::shared_ptr<WebRtcTransportHandle>& library) {
+            library->ApplyLogicalSessionCapabilities(update);
+        });
 }
 
-bool RenderModuleRegistry::PostRtcLocalMessage(const std::shared_ptr<Data>& message, const bool run_through) {
+bool RenderModuleRegistry::PostRtcLocalMessage(
+    const std::shared_ptr<Data>& message, const bool run_through) {
     std::shared_ptr<WebRtcTransportHandle> rtc_local;
     {
         std::shared_lock lock(modules_mtx_);
@@ -782,7 +914,8 @@ bool RenderModuleRegistry::PostRtcLocalMessage(const std::shared_ptr<Data>& mess
     return false;
 }
 
-void RenderModuleRegistry::SendRelaySignalingMessage(const std::string& stream_id, const std::shared_ptr<Data>& message) {
+void RenderModuleRegistry::SendRelaySignalingMessage(
+    const std::string& stream_id, const std::shared_ptr<Data>& message) {
     std::shared_ptr<RelayTransport> relay;
     {
         std::shared_lock lock(modules_mtx_);
@@ -798,7 +931,8 @@ void RenderModuleRegistry::SendRelaySignalingMessage(const std::string& stream_i
     static_cast<void>(relay->SendToStream(stream_id, message, true));
 }
 
-void RenderModuleRegistry::PostWsIpcBinaryMessage(const std::shared_ptr<Data>& message) {
+void RenderModuleRegistry::PostWsIpcBinaryMessage(
+    const std::shared_ptr<Data>& message) {
     std::shared_ptr<WsTransport> ws;
     {
         std::shared_lock lock(modules_mtx_);
@@ -809,13 +943,16 @@ void RenderModuleRegistry::PostWsIpcBinaryMessage(const std::shared_ptr<Data>& m
     }
 }
 
-bool RenderModuleRegistry::PostWsIpcBinaryMessageForPid(std::uint32_t pid, std::shared_ptr<Data> message, std::function<bool()> authorize) {
+bool RenderModuleRegistry::PostWsIpcBinaryMessageForPid(
+    std::uint32_t pid, std::shared_ptr<Data> message,
+    std::function<bool()> authorize) {
     std::shared_ptr<WsTransport> ws{};
     {
         std::shared_lock lock{modules_mtx_};
         ws = ws_transport_;
     }
-    return ws && message && ws->SendIpcForPid(pid, std::move(message), std::move(authorize));
+    return ws && message &&
+           ws->SendIpcForPid(pid, std::move(message), std::move(authorize));
 }
 
 void RenderModuleRegistry::RegisterWsIpcPid(const std::uint32_t pid) {
@@ -829,7 +966,8 @@ void RenderModuleRegistry::RegisterWsIpcPid(const std::uint32_t pid) {
     }
 }
 
-void RenderModuleRegistry::PostWsUserProxyMessage(const std::shared_ptr<Data>& message) {
+void RenderModuleRegistry::PostWsUserProxyMessage(
+    const std::shared_ptr<Data>& message) {
     std::shared_ptr<WsTransport> ws;
     {
         std::shared_lock lock(modules_mtx_);
@@ -859,10 +997,8 @@ bool RenderModuleRegistry::HasWorkingVideoClient() {
         udp = udp_transport_;
         relay = relay_transport_;
     }
-    if (ws && ws->IsWorking() && !ws->HasOnlyAudioClients())
-        return true;
-    if (udp && udp->IsWorking() && !udp->HasOnlyAudioClients())
-        return true;
+    if (ws && ws->IsWorking() && !ws->HasOnlyAudioClients()) return true;
+    if (udp && udp->IsWorking() && !udp->HasOnlyAudioClients()) return true;
     if (relay && relay->IsWorking() && !relay->HasOnlyAudioClients())
         return true;
     for (const auto& library : SnapshotWebRtcLibraries()) {
@@ -904,14 +1040,16 @@ std::vector<RenderModuleInfo> RenderModuleRegistry::SnapshotModuleInfo() {
     return result;
 }
 
-bool RenderModuleRegistry::SetModuleEnabled(const std::string& module_id, const bool enabled) {
+bool RenderModuleRegistry::SetModuleEnabled(const std::string& module_id,
+                                            const bool enabled) {
     for (const auto& module : SnapshotModules()) {
         if (module->Id() != module_id) {
             continue;
         }
-        LOGI("event=module.enable component=render_module_registry "
-             "module={} enabled={}",
-             module->Name(), enabled);
+        LOGI(
+            "event=module.enable component=render_module_registry "
+            "module={} enabled={}",
+            module->Name(), enabled);
         module->SetEnabled(enabled);
         return true;
     }
@@ -920,31 +1058,39 @@ bool RenderModuleRegistry::SetModuleEnabled(const std::string& module_id, const 
         if (info.id != module_id) {
             continue;
         }
-        LOGI("event=module.enable component=render_module_registry "
-             "module={} delivery=dynamic-network-library enabled={}",
-             info.name, enabled);
+        LOGI(
+            "event=module.enable component=render_module_registry "
+            "module={} delivery=dynamic-network-library enabled={}",
+            info.name, enabled);
         library->SetEnabled(enabled);
         return true;
     }
     return false;
 }
 
-void RenderModuleRegistry::DispatchAppEventToModules(const std::shared_ptr<AppBaseEvent>& event) {
+void RenderModuleRegistry::DispatchAppEventToModules(
+    const std::shared_ptr<AppBaseEvent>& event) {
     if (!event) {
         return;
     }
-    VisitAllModules([&event](const std::shared_ptr<RenderModule>& module) { module->HandleAppEvent(event); });
+    VisitAllModules([&event](const std::shared_ptr<RenderModule>& module) {
+        module->HandleAppEvent(event);
+    });
 }
 
-void RenderModuleRegistry::UpdateModuleD3DResources(const std::uint64_t adapter_uid, const Microsoft::WRL::ComPtr<ID3D11Device>& device,
-                                                    const Microsoft::WRL::ComPtr<ID3D11DeviceContext>& context) {
-    VisitAllModules([adapter_uid, device, context](const std::shared_ptr<RenderModule>& module) {
+void RenderModuleRegistry::UpdateModuleD3DResources(
+    const std::uint64_t adapter_uid,
+    const Microsoft::WRL::ComPtr<ID3D11Device>& device,
+    const Microsoft::WRL::ComPtr<ID3D11DeviceContext>& context) {
+    VisitAllModules([adapter_uid, device,
+                     context](const std::shared_ptr<RenderModule>& module) {
         module->d3d11_devices_[adapter_uid] = device;
         module->d3d11_device_contexts_[adapter_uid] = context;
     });
 }
 
-void RenderModuleRegistry::ClearModuleD3DResources(const std::uint64_t adapter_uid) {
+void RenderModuleRegistry::ClearModuleD3DResources(
+    const std::uint64_t adapter_uid) {
     VisitAllModules([adapter_uid](const std::shared_ptr<RenderModule>& module) {
         module->d3d11_devices_.erase(adapter_uid);
         module->d3d11_device_contexts_.erase(adapter_uid);
@@ -952,52 +1098,51 @@ void RenderModuleRegistry::ClearModuleD3DResources(const std::uint64_t adapter_u
 }
 
 void RenderModuleRegistry::InsertIdr(const std::string& monitor_name) {
-    VisitEncoders([&monitor_name](const std::shared_ptr<VideoEncoderModule>& encoder) { encoder->RequestKeyFrame(monitor_name); });
+    VisitEncoders(
+        [&monitor_name](const std::shared_ptr<VideoEncoderModule>& encoder) {
+            encoder->RequestKeyFrame(monitor_name);
+        });
 }
 
-bool RenderModuleRegistry::InvalidateReferenceFrame(const std::string& monitor_name, const std::uint64_t invalid_frame_index) {
+bool RenderModuleRegistry::InvalidateReferenceFrame(
+    const std::string& monitor_name, const std::uint64_t invalid_frame_index) {
     bool accepted = false;
-    VisitEncoders([&accepted, &monitor_name, invalid_frame_index](const std::shared_ptr<VideoEncoderModule>& encoder) {
-        accepted = encoder->InvalidateReferenceFrame(monitor_name, invalid_frame_index) || accepted;
+    VisitEncoders([&accepted, &monitor_name, invalid_frame_index](
+                      const std::shared_ptr<VideoEncoderModule>& encoder) {
+        accepted = encoder->InvalidateReferenceFrame(monitor_name,
+                                                     invalid_frame_index) ||
+                   accepted;
     });
     return accepted;
 }
 
-std::vector<std::shared_ptr<RenderModule>> RenderModuleRegistry::SnapshotModules() {
+std::vector<std::shared_ptr<RenderModule>>
+RenderModuleRegistry::SnapshotModules() {
     std::vector<std::shared_ptr<RenderModule>> modules;
     std::shared_lock lock(modules_mtx_);
-    if (ffmpeg_encoder_)
-        modules.push_back(ffmpeg_encoder_);
-    if (nvenc_encoder_)
-        modules.push_back(nvenc_encoder_);
-    if (amf_encoder_)
-        modules.push_back(amf_encoder_);
-    if (dda_capture_)
-        modules.push_back(dda_capture_);
-    if (gdi_capture_)
-        modules.push_back(gdi_capture_);
-    if (ws_transport_)
-        modules.push_back(ws_transport_);
-    if (udp_transport_)
-        modules.push_back(udp_transport_);
-    if (relay_transport_)
-        modules.push_back(relay_transport_);
+    if (ffmpeg_encoder_) modules.push_back(ffmpeg_encoder_);
+    if (nvenc_encoder_) modules.push_back(nvenc_encoder_);
+    if (amf_encoder_) modules.push_back(amf_encoder_);
+    if (dda_capture_) modules.push_back(dda_capture_);
+    if (gdi_capture_) modules.push_back(gdi_capture_);
+    if (ws_transport_) modules.push_back(ws_transport_);
+    if (udp_transport_) modules.push_back(udp_transport_);
+    if (relay_transport_) modules.push_back(relay_transport_);
     return modules;
 }
 
-std::vector<std::shared_ptr<VideoEncoderModule>> RenderModuleRegistry::SnapshotEncoders() {
+std::vector<std::shared_ptr<VideoEncoderModule>>
+RenderModuleRegistry::SnapshotEncoders() {
     std::vector<std::shared_ptr<VideoEncoderModule>> encoders;
     std::shared_lock lock(modules_mtx_);
-    if (ffmpeg_encoder_)
-        encoders.push_back(ffmpeg_encoder_);
-    if (nvenc_encoder_)
-        encoders.push_back(nvenc_encoder_);
-    if (amf_encoder_)
-        encoders.push_back(amf_encoder_);
+    if (ffmpeg_encoder_) encoders.push_back(ffmpeg_encoder_);
+    if (nvenc_encoder_) encoders.push_back(nvenc_encoder_);
+    if (amf_encoder_) encoders.push_back(amf_encoder_);
     return encoders;
 }
 
-std::vector<std::shared_ptr<WebRtcTransportHandle>> RenderModuleRegistry::SnapshotWebRtcLibraries() {
+std::vector<std::shared_ptr<WebRtcTransportHandle>>
+RenderModuleRegistry::SnapshotWebRtcLibraries() {
     std::vector<std::shared_ptr<WebRtcTransportHandle>> libraries;
     std::shared_lock lock(modules_mtx_);
     if (rtc_transport_) {
@@ -1009,7 +1154,8 @@ std::vector<std::shared_ptr<WebRtcTransportHandle>> RenderModuleRegistry::Snapsh
     return libraries;
 }
 
-void RenderModuleRegistry::VisitAllModules(const std::function<void(const std::shared_ptr<RenderModule>&)>& visitor) {
+void RenderModuleRegistry::VisitAllModules(
+    const std::function<void(const std::shared_ptr<RenderModule>&)>& visitor) {
     for (const auto& module : SnapshotModules()) {
         if (visitor) {
             visitor(module);
@@ -1017,7 +1163,9 @@ void RenderModuleRegistry::VisitAllModules(const std::function<void(const std::s
     }
 }
 
-void RenderModuleRegistry::VisitEncoders(const std::function<void(const std::shared_ptr<VideoEncoderModule>&)>& visitor) {
+void RenderModuleRegistry::VisitEncoders(
+    const std::function<void(const std::shared_ptr<VideoEncoderModule>&)>&
+        visitor) {
     for (const auto& encoder : SnapshotEncoders()) {
         if (visitor) {
             visitor(encoder);
@@ -1033,7 +1181,8 @@ void RenderModuleRegistry::On1Second() {
     auto weak_self = weak_from_this();
     context->PostTask([weak_self]() {
         auto self = weak_self.lock();
-        if (!self || self->exiting_ || !self->context_ || !self->control_ingress_) {
+        if (!self || self->exiting_ || !self->context_ ||
+            !self->control_ingress_) {
             return;
         }
 
@@ -1059,14 +1208,14 @@ void RenderModuleRegistry::On1Second() {
             udp = self->udp_transport_;
             relay = self->relay_transport_;
         }
-        if (ws)
-            media_consumer_count += ws->ConnectedClientCount();
-        if (udp)
-            media_consumer_count += udp->ConnectedClientCount();
-        if (relay)
-            media_consumer_count += relay->ConnectedClientCount();
+        if (ws) media_consumer_count += ws->ConnectedClientCount();
+        if (udp) media_consumer_count += udp->ConnectedClientCount();
+        if (relay) media_consumer_count += relay->ConnectedClientCount();
         for (const auto& library : webrtc_snapshot) {
-            media_consumer_count += library->Kind() == WebRtcTransportKind::kLocal ? library->MediaConsumerCount() : library->ConnectedClientCount();
+            media_consumer_count +=
+                library->Kind() == WebRtcTransportKind::kLocal
+                    ? library->MediaConsumerCount()
+                    : library->ConnectedClientCount();
         }
 
         // LOGI("connected_client_count: {}", connected_client_count);
@@ -1094,30 +1243,48 @@ void RenderModuleRegistry::DumpModuleInfo() {
     LOGI("====> Total modules: {}", module_info.size());
     int index = 1;
     for (const auto& module : module_info) {
-        LOGI("Module {}. [{}] vn: [{}], vc: [{}], enabled: [{}]", index++, module.name, module.version_name, module.version_code, module.enabled);
+        LOGI("Module {}. [{}] vn: [{}], vc: [{}], enabled: [{}]", index++,
+             module.name, module.version_name, module.version_code,
+             module.enabled);
     }
 }
 
-void RenderModuleRegistry::SyncModuleSettings(const RenderRuntimeSettings& info) {
+void RenderModuleRegistry::SyncModuleSettings(
+    const RenderRuntimeSettings& info) {
     if (exiting_) {
         return;
     }
-    if (const auto registry = app_ ? app_->GetLogicalSessionRegistry() : std::shared_ptr<LogicalSessionRegistry>{}) {
-        const bool effectiveEnabled{ResolveIncomingAccessEnabled(settings_.IncomingAccessProduct(), info.incoming_remote_access_enabled)};
+    if (const auto registry = app_
+                                  ? app_->GetLogicalSessionRegistry()
+                                  : std::shared_ptr<LogicalSessionRegistry>{}) {
+        const bool effectiveEnabled{
+            ResolveIncomingAccessEnabled(settings_.IncomingAccessProduct(),
+                                         info.incoming_remote_access_enabled)};
         registry->SetIncomingAccessEnabled(effectiveEnabled);
-        LOGI("event=incoming_access_policy component=render operation=apply product_kind={} requested_desktop_enabled={} effective_enabled={}",
-             static_cast<int>(settings_.IncomingAccessProduct()), info.incoming_remote_access_enabled, effectiveEnabled);
+        LOGI(
+            "event=incoming_access_policy component=render operation=apply "
+            "product_kind={} requested_desktop_enabled={} effective_enabled={}",
+            static_cast<int>(settings_.IncomingAccessProduct()),
+            info.incoming_remote_access_enabled, effectiveEnabled);
     }
-    VisitAllModules([&](const std::shared_ptr<RenderModule>& module) { module->UpdateSettings(info); });
+    VisitAllModules([&](const std::shared_ptr<RenderModule>& module) {
+        module->UpdateSettings(info);
+    });
     const auto webrtc_settings = MakeWebRtcSettings(info);
-    VisitWebRtcLibraries([&webrtc_settings](const std::shared_ptr<WebRtcTransportHandle>& library) { library->UpdateSettings(webrtc_settings); });
+    VisitWebRtcLibraries(
+        [&webrtc_settings](
+            const std::shared_ptr<WebRtcTransportHandle>& library) {
+            library->UpdateSettings(webrtc_settings);
+        });
     if (const auto service = context_->GetFileTransferService()) {
         static_cast<void>(service->SetEnabled(info.file_transfer_enabled));
         service->UpdateRateLimit(info.max_transmit_speed);
     }
 }
 
-void RenderModuleRegistry::VisitWebRtcLibraries(const std::function<void(const std::shared_ptr<WebRtcTransportHandle>&)>& visitor) {
+void RenderModuleRegistry::VisitWebRtcLibraries(
+    const std::function<void(const std::shared_ptr<WebRtcTransportHandle>&)>&
+        visitor) {
     for (const auto& library : SnapshotWebRtcLibraries()) {
         if (visitor) {
             visitor(library);
@@ -1125,9 +1292,11 @@ void RenderModuleRegistry::VisitWebRtcLibraries(const std::function<void(const s
     }
 }
 
-FileTransferSendResult RenderModuleRegistry::SendFileTransferMessageOnRoute(const std::string& transport_id, const std::string& stream_id,
-                                                                            const std::shared_ptr<Data>& message, const std::string& connection_id) {
-    FileTransferSendResult result = FileTransferSendResult::Disconnected("requested file-transfer transport is unavailable");
+FileTransferSendResult RenderModuleRegistry::SendFileTransferMessageOnRoute(
+    const std::string& transport_id, const std::string& stream_id,
+    const std::shared_ptr<Data>& message, const std::string& connection_id) {
+    FileTransferSendResult result = FileTransferSendResult::Disconnected(
+        "requested file-transfer transport is unavailable");
     std::shared_ptr<WsTransport> ws;
     std::shared_ptr<RelayTransport> relay;
     {
@@ -1138,18 +1307,22 @@ FileTransferSendResult RenderModuleRegistry::SendFileTransferMessageOnRoute(cons
     if (ws && ws->Id() == transport_id) {
         result = ws->SendFileTransfer(stream_id, message, false, connection_id);
     } else if (relay && relay->Id() == transport_id) {
-        result = relay->SendFileTransfer(stream_id, message, false, connection_id);
+        result =
+            relay->SendFileTransfer(stream_id, message, false, connection_id);
     }
-    VisitWebRtcLibraries([&](const std::shared_ptr<WebRtcTransportHandle>& library) {
-        if (library->Info().id == transport_id) {
-            result = library->SendFileTransfer(stream_id, message, false, connection_id);
-        }
-    });
+    VisitWebRtcLibraries(
+        [&](const std::shared_ptr<WebRtcTransportHandle>& library) {
+            if (library->Info().id == transport_id) {
+                result = library->SendFileTransfer(stream_id, message, false,
+                                                   connection_id);
+            }
+        });
     return result;
 }
 
-bool RenderModuleRegistry::SendControlMessageOnRoute(const std::string& transport_id, const std::string& stream_id,
-                                                     const std::shared_ptr<Data>& message, const bool run_through) {
+bool RenderModuleRegistry::SendControlMessageOnRoute(
+    const std::string& transport_id, const std::string& stream_id,
+    const std::shared_ptr<Data>& message, const bool run_through) {
     bool sent = false;
     std::shared_ptr<WsTransport> ws;
     std::shared_ptr<UdpTransport> udp;
@@ -1167,16 +1340,18 @@ bool RenderModuleRegistry::SendControlMessageOnRoute(const std::string& transpor
     } else if (relay && relay->Id() == transport_id) {
         sent = relay->SendToStream(stream_id, message, run_through);
     }
-    VisitWebRtcLibraries([&](const std::shared_ptr<WebRtcTransportHandle>& library) {
-        if (library->Info().id == transport_id) {
-            sent = library->SendToStream(stream_id, message, run_through);
-        }
-    });
+    VisitWebRtcLibraries(
+        [&](const std::shared_ptr<WebRtcTransportHandle>& library) {
+            if (library->Info().id == transport_id) {
+                sent = library->SendToStream(stream_id, message, run_through);
+            }
+        });
     return sent;
 }
 
-bool RenderModuleRegistry::SendVoiceMessageOnRoute(const std::string& transport_id, const std::string& stream_id,
-                                                   const std::shared_ptr<Data>& message) {
+bool RenderModuleRegistry::SendVoiceMessageOnRoute(
+    const std::string& transport_id, const std::string& stream_id,
+    const std::shared_ptr<Data>& message) {
     if (!message || stream_id.empty()) {
         return false;
     }
@@ -1190,10 +1365,14 @@ bool RenderModuleRegistry::SendVoiceMessageOnRoute(const std::string& transport_
         udp = udp_transport_;
         relay = relay_transport_;
     }
-    if (transport_id == kNetWsTransportId || transport_id == kNetUdpTransportId) {
+    if (transport_id == kNetWsTransportId ||
+        transport_id == kNetUdpTransportId) {
         Message envelope{};
-        // Protobuf ABI borrows these bytes only for this bounded synchronous parse.
-        if (message->Size() > 4096U || !envelope.ParseFromArray(message->Bytes().data(), static_cast<int>(message->Size())) ||
+        // Protobuf ABI borrows these bytes only for this bounded synchronous
+        // parse.
+        if (message->Size() > 4096U ||
+            !envelope.ParseFromArray(message->Bytes().data(),
+                                     static_cast<int>(message->Size())) ||
             envelope.stream_id() != stream_id) {
             return false;
         }
@@ -1202,59 +1381,75 @@ bool RenderModuleRegistry::SendVoiceMessageOnRoute(const std::string& transport_
                 return false;
             }
             const auto& audio = envelope.voice_audio_frame();
-            if (audio.opus().empty() || audio.opus().size() > UdpVoiceProtocol::kMaxOpusBytes) {
+            if (audio.opus().empty() ||
+                audio.opus().size() > UdpVoiceProtocol::kMaxOpusBytes) {
                 return false;
             }
-            return udp->SendVoiceFrame(stream_id, UdpVoiceFrame{
-                                                      .call_id = audio.call_id(),
-                                                      .sequence = audio.sequence(),
-                                                      .capture_time_ms = audio.capture_time_ms(),
-                                                      .opus = {audio.opus().begin(), audio.opus().end()},
-                                                  });
+            return udp->SendVoiceFrame(
+                stream_id,
+                UdpVoiceFrame{
+                    .call_id = audio.call_id(),
+                    .sequence = audio.sequence(),
+                    .capture_time_ms = audio.capture_time_ms(),
+                    .opus = {audio.opus().begin(), audio.opus().end()},
+                });
         }
-        // Native call signaling uses only its owning reliable transport, never an RTC/Relay fallback.
+        // Native call signaling uses only its owning reliable transport, never
+        // an RTC/Relay fallback.
         return ws && ws->SendToStream(stream_id, message, true);
     }
     const auto send_selected = [&](const auto& transport) {
-        if (transport && (transport_id.empty() || transport->Id() == transport_id)) {
-            delivered = transport->SendToStream(stream_id, message, true) || delivered;
+        if (transport &&
+            (transport_id.empty() || transport->Id() == transport_id)) {
+            delivered =
+                transport->SendToStream(stream_id, message, true) || delivered;
         }
     };
     send_selected(ws);
     send_selected(udp);
     send_selected(relay);
-    VisitWebRtcLibraries([&](const std::shared_ptr<WebRtcTransportHandle>& library) {
-        if (transport_id.empty() || library->Info().id == transport_id) {
-            delivered = library->SendToStream(stream_id, message, true) || delivered;
-        }
-    });
+    VisitWebRtcLibraries(
+        [&](const std::shared_ptr<WebRtcTransportHandle>& library) {
+            if (transport_id.empty() || library->Info().id == transport_id) {
+                delivered = library->SendToStream(stream_id, message, true) ||
+                            delivered;
+            }
+        });
     if (!delivered && !transport_id.empty()) {
         const auto send_fallback = [&](const auto& transport) {
             if (transport) {
-                delivered = transport->SendToStream(stream_id, message, true) || delivered;
+                delivered = transport->SendToStream(stream_id, message, true) ||
+                            delivered;
             }
         };
         send_fallback(ws);
         send_fallback(udp);
         send_fallback(relay);
         VisitWebRtcLibraries(
-            [&](const std::shared_ptr<WebRtcTransportHandle>& library) { delivered = library->SendToStream(stream_id, message, true) || delivered; });
+            [&](const std::shared_ptr<WebRtcTransportHandle>& library) {
+                delivered = library->SendToStream(stream_id, message, true) ||
+                            delivered;
+            });
     }
     return delivered;
 }
 
-bool RenderModuleRegistry::SetRtcVoiceAuthorizationOnRoute(const std::string& stream_id, const std::string& call_id, const bool authorized) {
+bool RenderModuleRegistry::SetRtcVoiceAuthorizationOnRoute(
+    const std::string& stream_id, const std::string& call_id,
+    const bool authorized) {
     std::shared_ptr<WebRtcTransportHandle> rtc_local;
     {
         std::shared_lock lock(modules_mtx_);
         rtc_local = rtc_local_transport_;
     }
-    return rtc_local && rtc_local->SetVoiceAuthorization(stream_id, call_id, authorized);
+    return rtc_local &&
+           rtc_local->SetVoiceAuthorization(stream_id, call_id, authorized);
 }
 
-bool RenderModuleRegistry::SendRtcVoicePcmOnRoute(const std::string& stream_id, const std::string& call_id,
-                                                  const std::shared_ptr<const std::vector<std::int16_t>>& samples, const int sample_rate,
-                                                  const int channels) {
+bool RenderModuleRegistry::SendRtcVoicePcmOnRoute(
+    const std::string& stream_id, const std::string& call_id,
+    const std::shared_ptr<const std::vector<std::int16_t>>& samples,
+    const int sample_rate, const int channels) {
     if (!samples || samples->empty()) {
         return false;
     }
@@ -1263,7 +1458,8 @@ bool RenderModuleRegistry::SendRtcVoicePcmOnRoute(const std::string& stream_id, 
         std::shared_lock lock(modules_mtx_);
         rtc_local = rtc_local_transport_;
     }
-    return rtc_local && rtc_local->SubmitVoicePcm(stream_id, call_id, samples, sample_rate, channels);
+    return rtc_local && rtc_local->SubmitVoicePcm(stream_id, call_id, samples,
+                                                  sample_rate, channels);
 }
 
 int64_t RenderModuleRegistry::QueuedNetworkMediaMessages() {
@@ -1284,11 +1480,12 @@ int64_t RenderModuleRegistry::QueuedNetworkMediaMessages() {
         queuing_msg_count += relay->QueuedMediaCount();
     }
     static_cast<void>(udp);
-    VisitWebRtcLibraries([&](const std::shared_ptr<WebRtcTransportHandle>& library) {
-        if (library->ConnectedClientCount() > 0) {
-            queuing_msg_count += library->QueuedMediaMessageCount();
-        }
-    });
+    VisitWebRtcLibraries(
+        [&](const std::shared_ptr<WebRtcTransportHandle>& library) {
+            if (library->ConnectedClientCount() > 0) {
+                queuing_msg_count += library->QueuedMediaMessageCount();
+            }
+        });
     return queuing_msg_count;
 }
 
@@ -1307,11 +1504,12 @@ int64_t RenderModuleRegistry::QueuedNetworkFileTransferMessages() {
     if (relay && relay->ConnectedClientCount() > 0) {
         queuing_msg_count += relay->QueuedFileTransferCount();
     }
-    VisitWebRtcLibraries([&](const std::shared_ptr<WebRtcTransportHandle>& library) {
-        if (library->ConnectedClientCount() > 0) {
-            queuing_msg_count += library->QueuedFileTransferMessageCount();
-        }
-    });
+    VisitWebRtcLibraries(
+        [&](const std::shared_ptr<WebRtcTransportHandle>& library) {
+            if (library->ConnectedClientCount() > 0) {
+                queuing_msg_count += library->QueuedFileTransferMessageCount();
+            }
+        });
     return queuing_msg_count;
 }
 
@@ -1326,13 +1524,13 @@ int RenderModuleRegistry::GetTotalConnectedClientsCount() {
         udp = udp_transport_;
         relay = relay_transport_;
     }
-    if (ws)
-        total_size += ws->ConnectedClientCount();
-    if (udp)
-        total_size += udp->ConnectedClientCount();
-    if (relay)
-        total_size += relay->ConnectedClientCount();
-    VisitWebRtcLibraries([&](const std::shared_ptr<WebRtcTransportHandle>& library) { total_size += library->ConnectedClientCount(); });
+    if (ws) total_size += ws->ConnectedClientCount();
+    if (udp) total_size += udp->ConnectedClientCount();
+    if (relay) total_size += relay->ConnectedClientCount();
+    VisitWebRtcLibraries(
+        [&](const std::shared_ptr<WebRtcTransportHandle>& library) {
+            total_size += library->ConnectedClientCount();
+        });
     return total_size;
 }
 
@@ -1347,19 +1545,20 @@ int RenderModuleRegistry::GetTotalMediaConsumersCount() {
         udp = udp_transport_;
         relay = relay_transport_;
     }
-    if (ws)
-        total_size += ws->ConnectedClientCount();
-    if (udp)
-        total_size += udp->ConnectedClientCount();
-    if (relay)
-        total_size += relay->ConnectedClientCount();
-    VisitWebRtcLibraries([&](const std::shared_ptr<WebRtcTransportHandle>& library) {
-        total_size += library->Kind() == WebRtcTransportKind::kLocal ? library->MediaConsumerCount() : library->ConnectedClientCount();
-    });
+    if (ws) total_size += ws->ConnectedClientCount();
+    if (udp) total_size += udp->ConnectedClientCount();
+    if (relay) total_size += relay->ConnectedClientCount();
+    VisitWebRtcLibraries(
+        [&](const std::shared_ptr<WebRtcTransportHandle>& library) {
+            total_size += library->Kind() == WebRtcTransportKind::kLocal
+                              ? library->MediaConsumerCount()
+                              : library->ConnectedClientCount();
+        });
     return total_size;
 }
 
-std::vector<std::shared_ptr<PxConnectedClientInfo>> RenderModuleRegistry::GetConnectedClientsInfo() {
+std::vector<std::shared_ptr<PxConnectedClientInfo>>
+RenderModuleRegistry::GetConnectedClientsInfo() {
     std::vector<std::shared_ptr<PxConnectedClientInfo>> clients_info;
     std::shared_ptr<WsTransport> ws;
     std::shared_ptr<RelayTransport> relay;
@@ -1378,22 +1577,25 @@ std::vector<std::shared_ptr<PxConnectedClientInfo>> RenderModuleRegistry::GetCon
             clients_info.push_back(info);
         }
     }
-    VisitWebRtcLibraries([&](const std::shared_ptr<WebRtcTransportHandle>& library) {
-        for (const auto& info : library->ConnectedClients()) {
-            clients_info.push_back(info);
-        }
-    });
+    VisitWebRtcLibraries(
+        [&](const std::shared_ptr<WebRtcTransportHandle>& library) {
+            for (const auto& info : library->ConnectedClients()) {
+                clients_info.push_back(info);
+            }
+        });
     return clients_info;
 }
 
 // is GDI
-bool RenderModuleRegistry::IsGdiCapture(const std::shared_ptr<MonitorCaptureSource>& source) {
+bool RenderModuleRegistry::IsGdiCapture(
+    const std::shared_ptr<MonitorCaptureSource>& source) {
     return source && source->Id() == kGdiCaptureSourceId;
 }
 
 // is DDA
-bool RenderModuleRegistry::IsDdaCapture(const std::shared_ptr<MonitorCaptureSource>& source) {
+bool RenderModuleRegistry::IsDdaCapture(
+    const std::shared_ptr<MonitorCaptureSource>& source) {
     return source && source->Id() == kDdaCaptureSourceId;
 }
 
-} // namespace px
+}  // namespace px

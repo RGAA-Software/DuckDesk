@@ -6,6 +6,7 @@
 
 #include <windows.h>
 
+#include <algorithm>
 #include <filesystem>
 #include <future>
 #include <random>
@@ -146,7 +147,7 @@ PxAwaitable<void> StopApplicationWebRtcLibraries(
 }
 
 class ApplicationShutdownDispatcher final {
-   public:
+public:
     static std::shared_ptr<ApplicationShutdownDispatcher> Instance() {
         static const auto instance =
             std::make_shared<ApplicationShutdownDispatcher>();
@@ -178,7 +179,7 @@ class ApplicationShutdownDispatcher final {
                              [application] { return Run(application); });
     }
 
-   private:
+private:
     static PxAwaitable<void> Run(std::shared_ptr<RdApplication> application) {
         application->Exit();
         co_return;
@@ -2405,8 +2406,9 @@ void RdApplication::SendConfigurationBack() {
                                 // transient protobuf view
     // screen info
     auto monitors_info =
-        config->mutable_monitors_info();  // NOLINT(pixels-raw-pointer-boundary):
-                                          // transient protobuf view
+        config
+            ->mutable_monitors_info();  // NOLINT(pixels-raw-pointer-boundary):
+                                        // transient protobuf view
     LOGI("Will send configuration back, monitor size: {}", monitors.size());
     for (std::size_t monitor_index = 0; monitor_index < monitors.size();
          monitor_index++) {
@@ -2785,6 +2787,45 @@ void RdApplication::RequestVirtualDisplay(
     }
     service_client_->RequestVirtualDisplay(request_id, operation, width, height,
                                            refresh_hz, std::move(callback));
+}
+
+PxAwaitable<PxResult<ConsoleFrontendGrant>> RdApplication::AdmitConsoleFrontend(
+    ConsoleFrontendAdmissionRequest request,
+    const std::chrono::steady_clock::time_point deadline) {
+    if (!service_client_ || !service_client_->IsAlive()) {
+        std::fill(request.frontend_token.begin(), request.frontend_token.end(),
+                  '\0');
+        co_return PxResult<ConsoleFrontendGrant>::Failure(MakePxAsyncError(
+            PxAsyncErrorCode::kServiceNotConnected, "frontend_admission",
+            "px_service is unavailable", true));
+    }
+    const auto expected_session_id = request.session_id;
+    auto result = co_await service_client_->RequestFrontendAdmissionAsync(
+        std::move(request.request_id), std::move(request.session_id),
+        request.revision, std::move(request.frontend_token), deadline);
+    if (!result.HasValue()) {
+        co_return PxResult<ConsoleFrontendGrant>::Failure(result.Error());
+    }
+    auto admitted = result.TakeValue();
+    if (!admitted.accepted_ || admitted.session_id_ != expected_session_id ||
+        admitted.revision_ <= 0 || admitted.valid_for_ms_ == 0) {
+        co_return PxResult<ConsoleFrontendGrant>::Failure(MakePxAsyncError(
+            PxAsyncErrorCode::kServiceRejected, "frontend_admission",
+            "Console rejected frontend admission", false,
+            admitted.error_code_.empty() ? "ADMISSION_REJECTED"
+                                         : admitted.error_code_));
+    }
+    co_return PxResult<ConsoleFrontendGrant>::Success(ConsoleFrontendGrant{
+        .session_id = std::move(admitted.session_id_),
+        .revision = admitted.revision_,
+        .target_kind = std::move(admitted.target_kind_),
+        .device_id = std::move(admitted.device_id_),
+        .application_id = std::move(admitted.application_id_),
+        .instance_id = std::move(admitted.instance_id_),
+        .client_type = std::move(admitted.client_type_),
+        .access_role = std::move(admitted.access_role_),
+        .valid_for_ms = admitted.valid_for_ms_,
+    });
 }
 
 void RdApplication::UpdateVirtualDisplayStatus(

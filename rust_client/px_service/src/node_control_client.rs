@@ -12,7 +12,7 @@ use px_node_protocol::{
 };
 use service_core::{AppInstanceState, StartAppRequest};
 use tokio::net::TcpStream;
-use tokio::sync::Mutex;
+use tokio::sync::{oneshot, Mutex};
 use tokio::time::{sleep, timeout};
 use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 use tokio_tungstenite::tungstenite::Message;
@@ -44,6 +44,15 @@ struct ConnectionIdentity {
 struct ProtocolSession {
     next_request_id: u64,
     identity: Option<ConnectionIdentity>,
+}
+
+pub(crate) enum NodeControlOperation {
+    AdmitFrontend {
+        session_id: Uuid,
+        revision: i64,
+        frontend_token: zeroize::Zeroizing<String>,
+        completion: oneshot::Sender<Result<px_node_protocol::FrontendGrant, String>>,
+    },
 }
 
 impl ProtocolSession {
@@ -118,11 +127,15 @@ impl ProtocolSession {
 
 pub async fn node_control_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), String> {
     let product = ProductDescriptor::load_for_current_executable()?;
-    let (store, mut stop_rx) = {
-        let guard = runtime.lock().await;
+    let (store, mut stop_rx, mut operations) = {
+        let mut guard = runtime.lock().await;
         (
             NodeControlStore::new(guard.config.data_root.clone()),
             guard.subscribe_stop(),
+            guard
+                .node_control_receiver
+                .take()
+                .ok_or_else(|| "node-control operation receiver was already taken".to_string())?,
         )
     };
     loop {
@@ -144,7 +157,15 @@ pub async fn node_control_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<()
                 .node
                 .set_access_host(configuration.public_host.clone())?;
         }
-        match run_connection(&runtime, &configuration, &product, &mut stop_rx).await {
+        match run_connection(
+            &runtime,
+            &configuration,
+            &product,
+            &mut stop_rx,
+            &mut operations,
+        )
+        .await
+        {
             Ok(ConnectionEnd::Stopped) => return Ok(()),
             Err(error) => warn!(%error, "node-control connection ended"),
         }
@@ -164,6 +185,7 @@ async fn run_connection(
     configuration: &NodeControlConfiguration,
     product: &ProductDescriptor,
     stop_rx: &mut tokio::sync::broadcast::Receiver<()>,
+    operations: &mut tokio::sync::mpsc::Receiver<NodeControlOperation>,
 ) -> Result<ConnectionEnd, String> {
     let websocket = WebSocketConfig::default()
         .max_message_size(Some(MAX_MESSAGE_BYTES))
@@ -261,6 +283,64 @@ async fn run_connection(
                     acknowledge(&mut socket, &mut session, &command, outcome).await?;
                 }
             }
+            operation = operations.recv() => {
+                let Some(operation) = operation else {
+                    return Err("node-control operation channel closed".into());
+                };
+                execute_operation(&mut socket, &mut session, operation).await?;
+            }
+        }
+    }
+}
+
+async fn execute_operation(
+    socket: &mut NodeSocket,
+    session: &mut ProtocolSession,
+    operation: NodeControlOperation,
+) -> Result<(), String> {
+    match operation {
+        NodeControlOperation::AdmitFrontend {
+            session_id,
+            revision,
+            frontend_token,
+            completion,
+        } => {
+            let started_at = std::time::Instant::now();
+            let request = NodeRequest::AdmitFrontend {
+                request_id: session.request_id()?,
+                session_id,
+                revision,
+                frontend_token: frontend_token.to_string(),
+            };
+            let expected = request.request_id();
+            let (result, reset_connection) = match exchange(socket, request).await {
+                Ok(NodeResponse::FrontendAdmitted {
+                    request_id,
+                    mut grant,
+                }) if request_id == expected => {
+                    let elapsed_ms =
+                        u32::try_from(started_at.elapsed().as_millis()).unwrap_or(u32::MAX);
+                    grant.valid_for_ms = grant.valid_for_ms.saturating_sub(elapsed_ms);
+                    if grant.valid_for_ms == 0 {
+                        (
+                            Err("frontend admission lease expired in transit".into()),
+                            false,
+                        )
+                    } else {
+                        (Ok(grant), false)
+                    }
+                }
+                Ok(NodeResponse::Error { code, .. }) => {
+                    (Err(format!("frontend admission rejected: {code}")), false)
+                }
+                Ok(_) => (Err("unexpected frontend admission response".into()), true),
+                Err(error) => (Err(error), true),
+            };
+            let _ = completion.send(result);
+            if reset_connection {
+                return Err("node-control protocol failed during frontend admission".into());
+            }
+            Ok(())
         }
     }
 }
@@ -987,6 +1067,86 @@ mod tests {
                 control_epoch: 3,
                 ..
             }
+        ));
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn frontend_admission_operation_uses_real_websocket_and_bounded_lease() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let expected_session_id = Uuid::new_v4();
+        let expected_application_id = Uuid::new_v4();
+        let expected_instance_id = Uuid::new_v4();
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(stream).await.unwrap();
+            let message = socket.next().await.unwrap().unwrap();
+            let Message::Text(text) = message else {
+                panic!("expected text request");
+            };
+            let request: NodeRequest = serde_json::from_str(&text).unwrap();
+            let NodeRequest::AdmitFrontend {
+                request_id,
+                session_id,
+                revision,
+                frontend_token,
+            } = request
+            else {
+                panic!("expected frontend admission request");
+            };
+            assert_eq!(session_id, expected_session_id);
+            assert_eq!(revision, 7);
+            assert_eq!(frontend_token, "single-use-secret");
+            let response = NodeResponse::FrontendAdmitted {
+                request_id,
+                grant: px_node_protocol::FrontendGrant {
+                    session_id,
+                    revision: 8,
+                    target: px_node_protocol::FrontendTarget::CloudApplication {
+                        application_id: expected_application_id,
+                        instance_id: expected_instance_id,
+                    },
+                    client_type: "android".into(),
+                    access_role: "controller".into(),
+                    valid_for_ms: 30_000,
+                },
+            };
+            socket
+                .send(Message::Text(
+                    serde_json::to_string(&response).unwrap().into(),
+                ))
+                .await
+                .unwrap();
+        });
+
+        let endpoint = format!("ws://{address}/api/console/node-control");
+        let (mut socket, _) = tokio_tungstenite::connect_async(endpoint).await.unwrap();
+        let mut session = ProtocolSession::new();
+        let (completion, result) = oneshot::channel();
+        execute_operation(
+            &mut socket,
+            &mut session,
+            NodeControlOperation::AdmitFrontend {
+                session_id: expected_session_id,
+                revision: 7,
+                frontend_token: zeroize::Zeroizing::new("single-use-secret".to_string()),
+                completion,
+            },
+        )
+        .await
+        .unwrap();
+        let grant = result.await.unwrap().unwrap();
+        assert_eq!(grant.session_id, expected_session_id);
+        assert_eq!(grant.revision, 8);
+        assert!(grant.valid_for_ms > 0);
+        assert!(grant.valid_for_ms <= 30_000);
+        assert!(matches!(
+            grant.target,
+            px_node_protocol::FrontendTarget::CloudApplication {
+                application_id,
+                instance_id,
+            } if application_id == expected_application_id && instance_id == expected_instance_id
         ));
         server.await.unwrap();
     }

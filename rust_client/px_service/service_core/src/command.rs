@@ -24,6 +24,12 @@ pub enum Command {
         height: u32,
         refresh_hz: u32,
     },
+    AdmitFrontend {
+        request_id: String,
+        session_id: String,
+        revision: i64,
+        frontend_token: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -92,6 +98,20 @@ pub fn dispatch_message(bytes: &[u8]) -> Result<DispatchResult, String> {
         ServiceMessageType::AppInstanceReady => {
             return Err("app_instance_ready is handled by the service runtime".to_string())
         }
+        ServiceMessageType::FrontendAdmissionRequest => {
+            let request = message
+                .frontend_admission_request
+                .ok_or("missing frontend_admission_request payload")?;
+            Command::AdmitFrontend {
+                request_id: request.request_id,
+                session_id: request.session_id,
+                revision: request.revision,
+                frontend_token: request.frontend_token,
+            }
+        }
+        ServiceMessageType::FrontendAdmissionResult => {
+            return Err("frontend_admission_result is outbound only".to_string())
+        }
     };
     Ok(DispatchResult { command })
 }
@@ -100,8 +120,9 @@ pub fn dispatch_message(bytes: &[u8]) -> Result<DispatchResult, String> {
 mod tests {
     use super::*;
     use crate::proto::{
-        encode_service_message, MsgAuthInfo, MsgHeartBeat, MsgReqCtrlAltDelete, MsgRestartServer,
-        MsgStartServer, MsgVirtualDisplayRequest, ServiceMessage,
+        encode_service_message, MsgAuthInfo, MsgFrontendAdmissionRequest, MsgHeartBeat,
+        MsgReqCtrlAltDelete, MsgRestartServer, MsgStartServer, MsgVirtualDisplayRequest,
+        ServiceMessage,
     };
 
     #[test]
@@ -246,6 +267,42 @@ mod tests {
                 height: 1080,
                 refresh_hz: 60,
             }
+        );
+    }
+
+    #[test]
+    fn dispatch_frontend_admission_request() {
+        let bytes = encode_service_message(&ServiceMessage {
+            r#type: ServiceMessageType::FrontendAdmissionRequest as i32,
+            frontend_admission_request: Some(MsgFrontendAdmissionRequest {
+                request_id: "admission-1".to_string(),
+                session_id: "01994ddb-b930-7480-a15d-0a5176d1cc61".to_string(),
+                revision: 3,
+                frontend_token: "single-use-secret".to_string(),
+            }),
+            ..Default::default()
+        });
+        let result = dispatch_message(&bytes).unwrap();
+        assert_eq!(
+            result.command,
+            Command::AdmitFrontend {
+                request_id: "admission-1".to_string(),
+                session_id: "01994ddb-b930-7480-a15d-0a5176d1cc61".to_string(),
+                revision: 3,
+                frontend_token: "single-use-secret".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn frontend_admission_result_is_outbound_only() {
+        let bytes = encode_service_message(&ServiceMessage {
+            r#type: ServiceMessageType::FrontendAdmissionResult as i32,
+            ..Default::default()
+        });
+        assert_eq!(
+            dispatch_message(&bytes).unwrap_err(),
+            "frontend_admission_result is outbound only"
         );
     }
 }

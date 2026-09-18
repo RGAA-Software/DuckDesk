@@ -357,7 +357,11 @@ mod tests {
             height: 1080,
             refresh_hz: 60,
         };
-        let error = identify_created_monitor(&[monitor.clone()], &[monitor]).unwrap_err();
+        let error = identify_created_monitor(
+            std::slice::from_ref(&monitor),
+            std::slice::from_ref(&monitor),
+        )
+        .unwrap_err();
         assert_eq!(error.code, "MONITOR_ENUMERATION_FAILED");
     }
 }

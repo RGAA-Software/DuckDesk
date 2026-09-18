@@ -7,10 +7,10 @@ mod generated {
 }
 
 pub use generated::{
-    MsgAppInstanceReady, MsgAuthInfo, MsgHeartBeat, MsgHeartBeatResp, MsgReqCtrlAltDelete,
-    MsgRestartServer, MsgStartServer, MsgStopServer, MsgVirtualDisplayRequest,
-    MsgVirtualDisplayResult, RenderStatus, ServiceMessage, ServiceMessageType,
-    VirtualDisplayOperation,
+    MsgAppInstanceReady, MsgAuthInfo, MsgFrontendAdmissionRequest, MsgFrontendAdmissionResult,
+    MsgHeartBeat, MsgHeartBeatResp, MsgReqCtrlAltDelete, MsgRestartServer, MsgStartServer,
+    MsgStopServer, MsgVirtualDisplayRequest, MsgVirtualDisplayResult, RenderStatus, ServiceMessage,
+    ServiceMessageType, VirtualDisplayOperation,
 };
 
 // prost only derives PartialEq; all MsgAuthInfo fields are scalar so Eq is sound
@@ -29,6 +29,8 @@ impl ServiceMessageType {
     pub const VirtualDisplayRequest: Self = Self::KSrvVirtualDisplayRequest;
     pub const VirtualDisplayResult: Self = Self::KSrvVirtualDisplayResult;
     pub const AppInstanceReady: Self = Self::KSrvAppInstanceReady;
+    pub const FrontendAdmissionRequest: Self = Self::KSrvFrontendAdmissionRequest;
+    pub const FrontendAdmissionResult: Self = Self::KSrvFrontendAdmissionResult;
 }
 
 #[allow(non_upper_case_globals)]
@@ -119,6 +121,47 @@ mod tests {
         assert_eq!(
             decode_service_message(&encode_service_message(&msg)).unwrap(),
             msg
+        );
+    }
+
+    #[test]
+    fn round_trip_frontend_admission() {
+        let request = ServiceMessage {
+            r#type: ServiceMessageType::FrontendAdmissionRequest as i32,
+            frontend_admission_request: Some(MsgFrontendAdmissionRequest {
+                request_id: "admission-1".to_string(),
+                session_id: "01994ddb-b930-7480-a15d-0a5176d1cc61".to_string(),
+                revision: 4,
+                frontend_token: "single-use-secret".to_string(),
+            }),
+            ..Default::default()
+        };
+        assert_eq!(
+            decode_service_message(&encode_service_message(&request)).unwrap(),
+            request
+        );
+
+        let response = ServiceMessage {
+            r#type: ServiceMessageType::FrontendAdmissionResult as i32,
+            frontend_admission_result: Some(MsgFrontendAdmissionResult {
+                request_id: "admission-1".to_string(),
+                accepted: true,
+                error_code: String::new(),
+                session_id: "01994ddb-b930-7480-a15d-0a5176d1cc61".to_string(),
+                revision: 5,
+                target_kind: "cloud_application".to_string(),
+                device_id: String::new(),
+                application_id: "01994ddb-b930-7480-a15d-0a5176d1cc62".to_string(),
+                instance_id: "01994ddb-b930-7480-a15d-0a5176d1cc63".to_string(),
+                client_type: "android".to_string(),
+                access_role: "controller".to_string(),
+                valid_for_ms: 30_000,
+            }),
+            ..Default::default()
+        };
+        assert_eq!(
+            decode_service_message(&encode_service_message(&response)).unwrap(),
+            response
         );
     }
 

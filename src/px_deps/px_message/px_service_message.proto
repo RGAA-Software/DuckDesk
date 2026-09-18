@@ -14,6 +14,8 @@ enum ServiceMessageType {
   kSrvVirtualDisplayRequest = 9;
   kSrvVirtualDisplayResult = 10;
   kSrvAppInstanceReady = 11;
+  kSrvFrontendAdmissionRequest = 12;
+  kSrvFrontendAdmissionResult = 13;
 }
 
 enum VirtualDisplayOperation {
@@ -114,6 +116,28 @@ message MsgAppInstanceReady {
   string error = 4;
 }
 
+message MsgFrontendAdmissionRequest {
+  string request_id = 1;
+  string session_id = 2;
+  int64 revision = 3;
+  string frontend_token = 4;
+}
+
+message MsgFrontendAdmissionResult {
+  string request_id = 1;
+  bool accepted = 2;
+  string error_code = 3;
+  string session_id = 4;
+  int64 revision = 5;
+  string target_kind = 6;
+  string device_id = 7;
+  string application_id = 8;
+  string instance_id = 9;
+  string client_type = 10;
+  string access_role = 11;
+  uint32 valid_for_ms = 12;
+}
+
 message ServiceMessage {
   ServiceMessageType type = 1;
   MsgStartServer start_server = 2;
@@ -128,4 +152,6 @@ message ServiceMessage {
   MsgVirtualDisplayRequest virtual_display_request = 11;
   MsgVirtualDisplayResult virtual_display_result = 12;
   MsgAppInstanceReady app_instance_ready = 13;
+  MsgFrontendAdmissionRequest frontend_admission_request = 14;
+  MsgFrontendAdmissionResult frontend_admission_result = 15;
 }

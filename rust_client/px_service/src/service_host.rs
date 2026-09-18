@@ -47,6 +47,9 @@ pub struct ServiceRuntime {
     /// Per-service-start credential required by the loopback Render IPC WS.
     /// It is never persisted and is only passed to child Render processes.
     pub ipc_token: String,
+    pub(crate) node_control_sender: mpsc::Sender<crate::node_control_client::NodeControlOperation>,
+    pub(crate) node_control_receiver:
+        Option<mpsc::Receiver<crate::node_control_client::NodeControlOperation>>,
     stop_tx: broadcast::Sender<()>,
 }
 
@@ -112,6 +115,7 @@ impl ServiceRuntime {
             config.node.applications.port_start,
             config.node.applications.port_end,
         );
+        let (node_control_sender, node_control_receiver) = mpsc::channel(128);
         Self {
             config,
             storage,
@@ -128,6 +132,8 @@ impl ServiceRuntime {
             virtual_display_init_error,
             virtual_display_results: std::collections::HashMap::new(),
             ipc_token: URL_SAFE_NO_PAD.encode(ipc_bytes),
+            node_control_sender,
+            node_control_receiver: Some(node_control_receiver),
             stop_tx,
         }
     }
@@ -330,6 +336,9 @@ impl ServiceRuntime {
             }
             Command::VirtualDisplay { .. } => {
                 Err("virtual display operations must use the asynchronous service path".to_string())
+            }
+            Command::AdmitFrontend { .. } => {
+                Err("frontend admission must use the asynchronous service path".to_string())
             }
         }
     }

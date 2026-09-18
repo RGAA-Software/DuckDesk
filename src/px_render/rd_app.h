@@ -18,7 +18,10 @@
 #include "app/app_messages.h"
 #include "app_global_messages.h"
 #include "architecture/pipeline/captured_media_pipeline.h"
+#include "network/transport_types.h"
 #include "px_capture/capture_message.h"
+#include "px_common/async_result.h"
+#include "px_common/async_runtime.h"
 #include "px_common/concurrent_hashmap.h"
 #include "px_common/concurrent_queue.h"
 #include "px_common/concurrent_type.h"
@@ -100,7 +103,7 @@ class WasAudioCaptureSource;
 }  // namespace render
 
 class RdApplication : public std::enable_shared_from_this<RdApplication> {
-   public:
+public:
     static std::shared_ptr<RdApplication> Make(const AppParams& args);
 
     virtual ~RdApplication();
@@ -167,6 +170,9 @@ class RdApplication : public std::enable_shared_from_this<RdApplication> {
         const std::string& request_id, int operation, uint32_t width,
         uint32_t height, uint32_t refresh_hz,
         std::function<void(const MsgVirtualDisplayServiceResult&)>&& callback);
+    [[nodiscard]] PxAwaitable<PxResult<ConsoleFrontendGrant>>
+    AdmitConsoleFrontend(ConsoleFrontendAdmissionRequest request,
+                         std::chrono::steady_clock::time_point deadline);
     void UpdateVirtualDisplayStatus(
         const MsgVirtualDisplayServiceResult& result);
     void RefreshVirtualDisplayStatus(const std::string& request_prefix);
@@ -179,16 +185,16 @@ class RdApplication : public std::enable_shared_from_this<RdApplication> {
     void SendWebViewFocusEvent(bool focused);
     void SetWebViewClipboardText(std::string text);
 
-   public:
+public:
     template <typename T>
     void SendAppMessage(const T& message) {
         context_->SendAppMessage(message);
     }
 
-   protected:
+protected:
     explicit RdApplication(const AppParams& args);
 
-   private:
+private:
     void InitAppTimer();
     void InitMessages();
     void InitAudioCapture();
@@ -224,7 +230,7 @@ class RdApplication : public std::enable_shared_from_this<RdApplication> {
         const std::shared_ptr<const render::CapturedAudioFrame>& frame,
         const std::shared_ptr<Data>& source_audio_payload = {});
 
-   protected:
+protected:
     RdSettings& settings_;
     std::shared_ptr<WsPanelClient> ws_panel_client_ = nullptr;
     std::shared_ptr<AppManager> app_manager_ = nullptr;
@@ -333,7 +339,7 @@ extern std::shared_ptr<RdApplication> rdApp;
 
 // Windows
 class WinApplication : public RdApplication {
-   public:
+public:
     ~WinApplication() override;
 
     int Run() override;
@@ -341,7 +347,7 @@ class WinApplication : public RdApplication {
     void CaptureControlC() override;
     void LoadDxAddress();
 
-   protected:
+protected:
     explicit WinApplication(const AppParams& args);
 };
 

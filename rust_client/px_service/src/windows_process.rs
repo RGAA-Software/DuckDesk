@@ -466,11 +466,13 @@ unsafe fn create_process_with_token(
     let mut command_w: Vec<u16> = command.encode_utf16().chain(Some(0)).collect();
     let work_dir_w: Vec<u16> = work_dir.encode_utf16().chain(Some(0)).collect();
     let mut desktop_w: Vec<u16> = "WinSta0\\Default".encode_utf16().chain(Some(0)).collect();
-    let mut startup_info = STARTUPINFOW::default();
-    startup_info.cb = std::mem::size_of::<STARTUPINFOW>() as u32;
-    startup_info.lpDesktop = PWSTR(desktop_w.as_mut_ptr());
-    startup_info.dwFlags = STARTF_USESHOWWINDOW;
-    startup_info.wShowWindow = SW_SHOW.0 as u16;
+    let startup_info = STARTUPINFOW {
+        cb: std::mem::size_of::<STARTUPINFOW>() as u32,
+        lpDesktop: PWSTR(desktop_w.as_mut_ptr()),
+        dwFlags: STARTF_USESHOWWINDOW,
+        wShowWindow: SW_SHOW.0 as u16,
+        ..Default::default()
+    };
     let mut process_info = PROCESS_INFORMATION::default();
 
     let creation_flags =
@@ -491,21 +493,23 @@ unsafe fn create_process_with_token(
 
     let _ = DestroyEnvironmentBlock(environment);
     let _ = CloseHandle(primary_token);
-    if result.is_ok() {
-        info!(
-            "CreateProcessAsUserW succeeded, method={}, pid={}, tid={}",
-            launch_method, process_info.dwProcessId, process_info.dwThreadId
-        );
-        let _ = CloseHandle(process_info.hThread);
-        let _ = CloseHandle(process_info.hProcess);
-        Ok(())
-    } else {
-        let err = result.unwrap_err();
-        error!(
-            "CreateProcessAsUserW failed, method={}, command={}, work_dir={}, error={}",
-            launch_method, safe_command, work_dir, err
-        );
-        Err(format!("CreateProcessAsUserW failed: {err}"))
+    match result {
+        Ok(()) => {
+            info!(
+                "CreateProcessAsUserW succeeded, method={}, pid={}, tid={}",
+                launch_method, process_info.dwProcessId, process_info.dwThreadId
+            );
+            let _ = CloseHandle(process_info.hThread);
+            let _ = CloseHandle(process_info.hProcess);
+            Ok(())
+        }
+        Err(error) => {
+            error!(
+                "CreateProcessAsUserW failed, method={}, command={}, work_dir={}, error={}",
+                launch_method, safe_command, work_dir, error
+            );
+            Err(format!("CreateProcessAsUserW failed: {error}"))
+        }
     }
 }
 
