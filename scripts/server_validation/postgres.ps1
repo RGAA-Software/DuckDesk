@@ -7,7 +7,7 @@ param(
     [ValidateRange(0,65535)]
     [int]$Port = 0,
     [switch]$Linux,
-    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'backup-pg', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'catalog', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'node-control', 'console-process', 'console-admin')]
+    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'backup-pg', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'catalog', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'node-control', 'console-process', 'console-admin', 'console-browser')]
     [string]$Suite = ''
 )
 
@@ -67,7 +67,7 @@ $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_de
 foreach ($service in @('console','auth','desk')) {
     $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo "rust_server/px_${service}_server/migrations") -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
 }
-if ($Action -eq 'TestSuite') {
+if ($Action -eq 'TestSuite' -and $Suite -ne 'console-browser') {
     # Focused native checks do not build either web application. Excluding them also lets
     # frontend work continue without invalidating an unrelated long-running native test.
     $sourceFiles = @($sourceFiles | Where-Object { $_ -notmatch '^web[\\/]' })
@@ -296,6 +296,26 @@ try {
         Add-Step 'LINUX-BASELINE: pristine three-database snapshot isolated before Windows tests'
     }
     if ($Action -eq 'TestSuite') {
+        if ($Suite -eq 'console-browser') {
+            Invoke-Checked 'cargo' @('build','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--features','pg-integration','--bins','--target-dir',$targetDir) | Out-Null
+            Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_console'),'run','build') | Out-Null
+            $consoleRuntime = Join-Path $targetDir 'debug/px_console_pg.exe'
+            $consoleAdministrator = Join-Path $targetDir 'debug/px_console_admin.exe'
+            $consoleBrowser = Invoke-Checked 'node' @((Join-Path $PSScriptRoot 'console_browser.cjs'),$consoleRuntime,$consoleAdministrator,$dbTool)
+            Write-Host $consoleBrowser
+            foreach ($case in @('console-browser/login-dashboard','console-browser/identity-create-user-group',
+                'console-browser/device-one-time-enrollment','console-browser/navigation-language-theme',
+                'console-process/restart-preserves-session-data','console-process/database-outage-fails-closed-and-recovers',
+                'console-browser/logout-revokes')) {
+                if (-not $consoleBrowser.Contains("PASS $case")) { throw "Console functional assertion missing: $case" }
+                Add-Step "CONSOLE/$case"
+            }
+            $fingerprints.px_db = (Get-FileHash -LiteralPath $dbTool -Algorithm SHA256).Hash
+            $fingerprints.px_console = (Get-FileHash -LiteralPath $consoleRuntime -Algorithm SHA256).Hash
+            Assert-SourceHashes
+            Add-Step 'FOCUSED-ONLY: Console native process and built management UI browser flow; no restore or cross-platform acceptance'
+            return
+        }
         if ($Suite -eq 'postgres') {
             Invoke-Checked 'docker' @('exec',$container,'psql','-X','-v','ON_ERROR_STOP=1','-U','pixels_admin','-d','pixels_desk','-c',
                 "CREATE TABLE pixels.pg_fixture(id uuid PRIMARY KEY,version text NOT NULL,created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP); ALTER TABLE pixels.pg_fixture OWNER TO pixels_desk_owner; GRANT SELECT,INSERT,UPDATE,DELETE ON pixels.pg_fixture TO pixels_desk_runtime") | Out-Null
@@ -546,7 +566,10 @@ try {
     Add-Step 'AUTH-API: native startup, private file ACL, bootstrap races, login, roles, signing and revocation'
     $fingerprints.px_auth = (Get-FileHash -LiteralPath (Join-Path $targetDir 'debug/px_auth.exe')).Hash
     $fingerprints.px_auth_admin = (Get-FileHash -LiteralPath (Join-Path $targetDir 'debug/px_auth_admin.exe')).Hash
-    $fingerprints.px_console_admin = (Get-FileHash -LiteralPath (Join-Path $targetDir 'debug/px_console_admin.exe')).Hash
+    $consoleRuntime = Join-Path $targetDir 'debug/px_console_pg.exe'
+    $consoleAdministrator = Join-Path $targetDir 'debug/px_console_admin.exe'
+    $fingerprints.px_console = (Get-FileHash -LiteralPath $consoleRuntime).Hash
+    $fingerprints.px_console_admin = (Get-FileHash -LiteralPath $consoleAdministrator).Hash
     $deskTool = Join-Path $targetDir 'debug/px_desk.exe'
     $fingerprints.px_desk = (Get-FileHash -LiteralPath $deskTool -Algorithm SHA256).Hash
     foreach ($webRoot in @('web/px_pixels','web/px_auth','web/px_console','web/px_web_client')) {
@@ -568,8 +591,8 @@ try {
     Add-Step 'AUTH-WEB: five contract tests, catalogs, themes, bounds, retry identity and logout failures'
     Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_console'),'run','build') | Out-Null
     $consoleWebUnit = Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_console'),'run','test:unit','--','--run')
-    if ($consoleWebUnit -notmatch 'Tests\s+29 passed') { throw 'Console frontend contract tests missing' }
-    Add-Step 'CONSOLE-WEB: 29 bearer identity, managed directory/activity, explicit subject, descriptor secrecy and production bundle tests'
+    if ($consoleWebUnit -notmatch 'Tests\s+31 passed') { throw 'Console frontend contract tests missing' }
+    Add-Step 'CONSOLE-WEB: 31 bearer identity, managed directory/activity, localization, descriptor secrecy and production bundle tests'
     $consoleParity = Get-Content -LiteralPath (Join-Path $repo 'docs/console_management_feature_parity.md') -Raw
     $requiredConsoleCapabilities = @(
         'CM-IDENTITY', 'CM-DASHBOARD', 'CM-DEVICE', 'CM-ONLINE', 'CM-CONNECTION', 'CM-APPLICATION',
@@ -582,6 +605,15 @@ try {
         }
     }
     Add-Step 'CONSOLE-PARITY: all historical management capabilities remain classified with owners and acceptance gates'
+    $consoleBrowser = Invoke-Checked 'node' @((Join-Path $PSScriptRoot 'console_browser.cjs'),$consoleRuntime,$consoleAdministrator,$dbTool)
+    Write-Host $consoleBrowser
+    foreach ($case in @('console-browser/login-dashboard','console-browser/identity-create-user-group',
+        'console-browser/device-one-time-enrollment','console-browser/navigation-language-theme',
+        'console-process/restart-preserves-session-data','console-process/database-outage-fails-closed-and-recovers',
+        'console-browser/logout-revokes')) {
+        if (-not $consoleBrowser.Contains("PASS $case")) { throw "Console functional assertion missing: $case" }
+        Add-Step "CONSOLE/$case"
+    }
     Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_web_client'),'run','build') | Out-Null
     $webClientUnit = Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_web_client'),'test')
     if ($webClientUnit -notmatch 'Tests\s+65 passed' -or $webClientUnit -notmatch 'voice_call_state: 19 assertions passed') {
@@ -732,7 +764,7 @@ try {
     }
     foreach ($entry in $savedEnv.GetEnumerator()) { [Environment]::SetEnvironmentVariable($entry.Key,$entry.Value) }
     if (Test-Path -LiteralPath $reportDir) {
-        $scope = if ($Action -eq 'TestSuite') { "Focused native suite: $Suite; no full regression, browser or restore acceptance" } else { 'PG foundation, Console repositories, private cache IO, Auth and Desk products; full DB0-DB5 acceptance not complete' }
+        $scope = if ($Action -eq 'TestSuite') { "Focused suite: $Suite; no full cross-platform or restore acceptance" } else { 'PG foundation, Console repositories, private cache IO, Auth and Desk products; full DB0-DB5 acceptance not complete' }
         $report = [ordered]@{run_id=$runId; revision=$revision; recorded_at=[DateTime]::UtcNow.ToString('o'); action=$Action; suite=$Suite; linux_requested=$Linux.IsPresent; project=$project; deployment=$secrets.PIXELS_DEPLOYMENT_ID; source_hashes=$sourceHashes; artifacts=$fingerprints; status=$(if($failed){'FAIL'}else{'PASS'}); cases=$steps; scope=$scope}
         [IO.File]::WriteAllText((Join-Path $reportDir 'report.json'),($report | ConvertTo-Json -Depth 8))
         Write-Host "Report: $reportDir"

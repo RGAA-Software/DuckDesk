@@ -54,9 +54,20 @@ impl IngressPolicy {
         match origins.as_slice() {
             [value] if value.to_str().ok() == Some(self.origin.as_str()) => Ok(()),
             [] if matches!(client, ClientType::Panel | ClientType::Android) => Ok(()),
+            [] if matches!(client, ClientType::AdminWeb | ClientType::UserWeb)
+                && one_header_equals(headers, "sec-fetch-site", "same-origin")
+                && one_header_equals(headers, "sec-fetch-mode", "cors") =>
+            {
+                Ok(())
+            }
             _ => Err(ApiError::Rejected),
         }
     }
+}
+
+fn one_header_equals(headers: &axum::http::HeaderMap, name: &str, expected: &str) -> bool {
+    let values = headers.get_all(name).iter().collect::<Vec<_>>();
+    matches!(values.as_slice(), [value] if value.to_str().ok() == Some(expected))
 }
 
 #[cfg(test)]
@@ -91,5 +102,26 @@ mod tests {
             false
         )
         .is_err());
+        let policy = IngressPolicy::new(
+            "http://127.0.0.1:8123",
+            false,
+            Duration::from_secs(60),
+            true,
+        )
+        .unwrap();
+        let mut browser_headers = axum::http::HeaderMap::new();
+        assert!(policy
+            .check(&browser_headers, ClientType::AdminWeb)
+            .is_err());
+        browser_headers.insert("sec-fetch-site", "same-origin".parse().unwrap());
+        assert!(policy
+            .check(&browser_headers, ClientType::AdminWeb)
+            .is_err());
+        browser_headers.insert("sec-fetch-mode", "cors".parse().unwrap());
+        assert!(policy.check(&browser_headers, ClientType::AdminWeb).is_ok());
+        browser_headers.insert("sec-fetch-site", "cross-site".parse().unwrap());
+        assert!(policy
+            .check(&browser_headers, ClientType::AdminWeb)
+            .is_err());
     }
 }

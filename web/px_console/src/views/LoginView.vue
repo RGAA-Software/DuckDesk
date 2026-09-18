@@ -57,6 +57,7 @@ async function login() {
                     block
                     :loading="loading"
                     :disabled="!username || !password"
+                    @click="login"
                 >
                     {{ t("adminLogin.submit") }}
                 </a-button>

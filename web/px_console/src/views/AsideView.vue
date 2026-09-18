@@ -11,6 +11,7 @@ import {
     UserOutlined,
 } from "@ant-design/icons-vue";
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import { useRouter } from "vue-router";
 import { useTheme } from "@/composables/useTheme";
@@ -18,6 +19,7 @@ import { useTheme } from "@/composables/useTheme";
 const router = useRouter();
 const route = useRoute();
 const { isDark } = useTheme();
+const { t } = useI18n();
 
 // 计算属性，自动获取当前路由路径
 const activeMenu = computed(() => {
@@ -67,42 +69,42 @@ const handleClickLogo = async () => {
         >
             <a-menu-item key="/resources">
                 <template #icon><HomeOutlined /></template>
-                <span class="">资源总览</span>
+                <span>{{ t("navigation.dashboard") }}</span>
             </a-menu-item>
 
             <a-menu-item key="/devices-list">
                 <template #icon><DesktopOutlined /></template>
-                <span class="">设备列表</span>
+                <span>{{ t("navigation.devices") }}</span>
             </a-menu-item>
 
             <a-menu-item key="/online-connection">
                 <template #icon><ApiOutlined /></template>
-                <span class="">在线连接</span>
+                <span>{{ t("navigation.online") }}</span>
             </a-menu-item>
 
             <a-menu-item key="/apps">
                 <template #icon><AppstoreOutlined /></template>
-                <span class="">应用调度</span>
+                <span>{{ t("navigation.applications") }}</span>
             </a-menu-item>
 
             <a-menu-item key="/security-internal">
                 <template #icon><LockOutlined /></template>
-                <span class="">安全审计</span>
+                <span>{{ t("navigation.security") }}</span>
             </a-menu-item>
 
             <a-menu-item key="/user-manager">
                 <template #icon><TeamOutlined /></template>
-                <span class="">用户管理</span>
+                <span>{{ t("navigation.users") }}</span>
             </a-menu-item>
 
             <a-menu-item key="/group-manager">
                 <template #icon><TeamOutlined /></template>
-                <span class="">用户组管理</span>
+                <span>{{ t("navigation.groups") }}</span>
             </a-menu-item>
 
             <a-menu-item key="/profile-info">
                 <template #icon><UserOutlined /></template>
-                <span class="">个人中心</span>
+                <span>{{ t("navigation.profile") }}</span>
             </a-menu-item>
         </a-menu>
     </div>

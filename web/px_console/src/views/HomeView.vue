@@ -3,12 +3,15 @@ import AsideView from "@/views/AsideView.vue";
 import HeaderView from "@/views/HeaderView.vue";
 import { useRoute } from "vue-router";
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import { useTheme } from "@/composables/useTheme";
 const route = useRoute();
 const { isDark } = useTheme();
+const { t } = useI18n();
 
 const headerTitle = computed(() => {
-    return (route.meta.title as string) ?? "";
+    const titleKey = route.meta.titleKey as string | undefined;
+    return titleKey ? t(titleKey) : "";
 });
 </script>
 

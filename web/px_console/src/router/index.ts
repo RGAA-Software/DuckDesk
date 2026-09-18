@@ -34,7 +34,7 @@ const router = createRouter({
                     name: "resources",
                     component: ResourcesView,
                     meta: {
-                        title: "资源总览",
+                        titleKey: "navigation.dashboard",
                         requiresAuth: true,
                     },
                 },
@@ -43,7 +43,7 @@ const router = createRouter({
                     name: "devices-list",
                     component: DevicesList,
                     meta: {
-                        title: "设备列表",
+                        titleKey: "navigation.devices",
                         requiresAuth: true,
                     },
                 },
@@ -52,7 +52,7 @@ const router = createRouter({
                     name: "online-connection",
                     component: OnlineConnection,
                     meta: {
-                        title: "在线连接",
+                        titleKey: "navigation.online",
                         requiresAuth: true,
                     },
                 },
@@ -61,7 +61,7 @@ const router = createRouter({
                     name: "apps",
                     component: AppsView,
                     meta: {
-                        title: "应用调度",
+                        titleKey: "navigation.applications",
                         requiresAuth: true,
                     },
                 },
@@ -70,7 +70,7 @@ const router = createRouter({
                     name: "security-internal",
                     component: SecurityInternal,
                     meta: {
-                        title: "安全审计",
+                        titleKey: "navigation.security",
                         requiresAuth: true,
                     },
                 },
@@ -79,7 +79,7 @@ const router = createRouter({
                     name: "user-manager",
                     component: UserManager,
                     meta: {
-                        title: "用户管理",
+                        titleKey: "navigation.users",
                         requiresAuth: true,
                     },
                 },
@@ -87,14 +87,14 @@ const router = createRouter({
                     path: "/group-manager",
                     name: "group-manager",
                     component: GroupManager,
-                    meta: { title: "用户组管理", requiresAuth: true },
+                    meta: { titleKey: "navigation.groups", requiresAuth: true },
                 },
                 {
                     path: "/profile-info",
                     name: "profile-info",
                     component: ProfileInfo,
                     meta: {
-                        title: "个人中心",
+                        titleKey: "navigation.profile",
                         requiresAuth: true,
                     },
                 },
