@@ -267,7 +267,7 @@ try {
     Set-LocalEnv 'PIXELS_TEST_CONTAINER' $container
     # Dedicated empty fixture databases keep bootstrap/last-administrator assertions platform-independent.
     foreach ($service in @('auth','console')) {
-        $fixtureKinds = if ($service -eq 'auth') { @('bootstrap') } else { @('control','bootstrap','api','directory','node_control','process','admin') }
+        $fixtureKinds = if ($service -eq 'auth') { @('bootstrap') } else { @('control','bootstrap','api','directory','node_control','process','admin','browser_template') }
         foreach ($fixtureKind in $fixtureKinds) {
         foreach ($platform in @('windows','linux')) {
             $fixtureDb = "pixels_${service}_${fixtureKind}_$platform"

@@ -16,6 +16,7 @@ const administratorExecutable = process.argv[3];
 const databaseExecutable = process.argv[4];
 const container = process.env.PIXELS_TEST_CONTAINER;
 const databaseName = "pixels_console_browser_windows";
+const templateDatabaseName = "pixels_console_browser_template_windows";
 const initialUsername = "browser-admin";
 const initialPassword = "browser-console-password";
 const createdUserPassword = "browser-created-password";
@@ -61,7 +62,18 @@ function runExecutable(executable, arguments, environment) {
 }
 
 function createBrowserDatabase() {
-  docker("exec", container, "createdb", "-U", "pixels_admin", "-O", "pixels_console_owner", "-T", "pixels_console", databaseName);
+  docker(
+    "exec",
+    container,
+    "createdb",
+    "-U",
+    "pixels_admin",
+    "-O",
+    "pixels_console_owner",
+    "-T",
+    templateDatabaseName,
+    databaseName,
+  );
   databaseCreated = true;
   docker(
     "exec",
