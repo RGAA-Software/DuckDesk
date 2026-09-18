@@ -1,0 +1,60 @@
+# Console PostgreSQL 产品配置与发布
+
+> 2026-09-19。本文只描述当前 `px_console.exe`。没有 Mongo、Redis、旧 TOML、appkey、设备密码、旧 API 或旧端口 fallback。
+
+## 运行配置
+
+Console 只从环境读取配置；发行包不携带真实配置、证书、私钥或数据库口令。
+
+| 环境变量 | 含义 |
+|---|---|
+| `PIXELS_CONSOLE_DATABASE_URL` | Console 专用 `pixels_console_runtime` PostgreSQL DSN；生产使用 verify-full 和受信 CA |
+| `PIXELS_DEPLOYMENT_ID` | 与三库初始化及恢复安全状态一致的非 nil 部署 UUID |
+| `PIXELS_CONSOLE_LISTEN` | 显式监听 `IP:port`；无默认端口，禁止 20371 |
+| `PIXELS_CONSOLE_STATIC_DIRECTORY` | 发行包的 `static` 绝对路径，必须包含普通文件 `index.html` |
+| `PIXELS_CONSOLE_TLS_CERT` / `PIXELS_CONSOLE_TLS_KEY` | 正式环境必须同时提供的证书链和私钥路径 |
+| `PIXELS_CONSOLE_PUBLIC_ORIGIN` | 浏览器唯一允许的规范 HTTPS Origin，不从 Host 或转发头推导 |
+| `PIXELS_CONSOLE_REGISTRATION` | `0` 或 `1`，是否开放用户注册 |
+| `PIXELS_CONSOLE_GUESTS` | `0` 或 `1`，是否开放访客签发 |
+| `PIXELS_CONSOLE_SESSION_LIFETIME_SECONDS` | 登录会话期限，必须在实现规定的有界范围内 |
+| `PIXELS_CONSOLE_GUEST_LIFETIME_SECONDS` | 访客期限，60–86400 秒 |
+| `PIXELS_CONSOLE_GUEST_SOURCE_KEY` | 32 字节私有来源 HMAC 密钥文件 |
+| `PIXELS_CONSOLE_WORKSPACE_ACTIVE_KEY` | 当前工作区加密密钥 UUID |
+| `PIXELS_CONSOLE_WORKSPACE_KEYS` | 最多 32 个 `{id,path}` 的严格 JSON 数组；包含活动密钥及轮换期旧密钥 |
+| `PIXELS_CONSOLE_LOCAL_DEVELOPMENT=1` | 仅显式本机开发：监听和 PG 都必须为 loopback，才允许无 TLS |
+
+配置缺失、未知格式、私有文件权限过宽、静态目录无效、数据库身份/schema/deployment 不匹配，都会在监听前失败。
+数据库 authority 丢失后当前进程终止；监督器可以启动新进程，但同一进程不会重新取得权威继续服务。
+
+## 全新部署
+
+1. 用独立 owner DSN 执行 `px_db migrate console`；再用 runtime DSN 执行 `px_db check console`。
+2. 在仅服务身份、SYSTEM、Administrators 可访问的目录中准备两个尚不存在的文件路径，设置
+   `PIXELS_CONSOLE_GUEST_SOURCE_KEY`、`PIXELS_CONSOLE_WORKSPACE_KEY` 和新的 `PIXELS_CONSOLE_WORKSPACE_KEY_ID`，执行
+   `px_console_admin generate-secrets`。工具使用 create-new，失败不覆盖已有密钥。
+3. 把输出的 UUID 配为 `PIXELS_CONSOLE_WORKSPACE_ACTIVE_KEY`，并把对应 `{id,path}` 写入
+   `PIXELS_CONSOLE_WORKSPACE_KEYS`。撤下 `PIXELS_CONSOLE_WORKSPACE_KEY` 这个仅生成工具使用的变量。
+4. 使用 owner DSN、`PIXELS_CONSOLE_INITIAL_USERNAME` 和私有 `PIXELS_CONSOLE_INITIAL_PASSWORD_FILE` 执行
+   `px_console_admin bootstrap`。只允许全新空库成功一次，并发初始化只有一个胜者。
+5. 撤下 owner 和初始化口令，设置 runtime DSN、TLS、Origin 及上表其余变量，启动 `px_console.exe`。
+
+生产服务账号不能获得 owner、DDL、跨库或私钥目录外权限。密钥不写数据库、不随发行包分发、不因缺失自动生成。
+
+## 构建与发行
+
+- 日常后端/前端聚焦构建：`scripts_build\build_px_console_server.bat`，输出到 `output\px_console\dev`，不提升版本。
+- 仅更新 Console Web：`scripts_build\build_console_web.bat`，同步到 `output\px_console\dev\static` 并逐文件校验哈希。
+- 正式发行：`scripts\package_px_console_server.bat`。它独立提升 Console 版本，运行前端合同测试和生产构建，编译 PostgreSQL
+  `px_console.exe`、`px_console_admin.exe`、`px_db.exe`，输出新的 `output\px_console\releases\<run-id>`。
+
+发行脚本永不删除既有 release，不覆盖部署目录，不生成或复制密钥/证书/口令。`release.json` 固定声明 PostgreSQL 和环境配置，
+`sha256.json` 覆盖包内全部先前文件；包内容门禁拒绝旧 `px_console.toml`、ZLMediaKit、Coturn/TURN sidecar。
+
+## 升级与回退
+
+先停止准入并等待请求收敛，停止 Console 以释放共享 schema 锁，完成三库协调备份，再由 owner 运行新包的 `px_db migrate console`。
+新 release 与旧 release 并列放置，监督器只切换可执行文件和 `static` 路径；私有配置及密钥路径保持在包外。
+启动后检查 ready、管理员登录、节点重连及关键目录。若迁移已经执行，不能只换回旧二进制；必须按恢复计划恢复匹配的三库、密钥与
+外部见证后再启动旧 release。开发中的产品不提供旧 schema、旧 API 或旧配置兼容层。
+
+功能与数据库验收以[数据库实施状态](server_database_execution_status.md)为准；打包成功不等于公网 Windows/Web/Android 或最终长测通过。

@@ -1,103 +1,27 @@
 @echo off
-setlocal enabledelayedexpansion
+setlocal
 
-rem ============================================================================
-rem build_console_web.bat
-rem
-rem Build and deploy ONLY the Console web frontend (web\px_console). Reusable after
-rem every frontend-only change, without rebuilding the Rust server or anything
-rem else.
-rem
-rem   [1/2] Build the Vue frontend   web\px_console      (npm ci -> npm run build)
-rem   [2/2] Deploy dist\* into       output\px_console\web\
-rem
-rem Notes:
-rem   - px_console_server serves static files from the web\ dir next to its exe,
-rem     so this is where the frontend must land.
-rem   - The target web\ dir is wiped first so stale hashed vite assets cannot
-rem     linger alongside the new ones.
-rem   - This script does NOT rebuild px_console.exe; if you also changed Rust
-rem     code, run build_px_console_server.bat instead.
-rem ============================================================================
-
+rem Focused Console web build. It publishes only static assets to the PG development layout.
 cd /d "%~dp0.." || exit /b 1
 set "REPO_ROOT=%cd%"
+set "WEB_ROOT=%REPO_ROOT%\web\px_console"
+set "STATIC_OUTPUT=%REPO_ROOT%\output\px_console\dev\static"
 
-set "WEB_SRC=%REPO_ROOT%\web\px_console"
-set "OUTPUT_DIR=%REPO_ROOT%\output\px_console"
-set "WEB_SUBDIR=web"
-
-echo ============================================
-echo Building Console web frontend
-echo ============================================
-echo.
-
-call :check_tool npm
+where npm.cmd >nul 2>nul || (echo ERROR: npm.cmd is required.& exit /b 1)
+if not exist "%WEB_ROOT%\node_modules" (
+    call npm.cmd --prefix "%WEB_ROOT%" ci --no-audit --no-fund
+    if errorlevel 1 exit /b 1
+)
+call npm.cmd --prefix "%WEB_ROOT%" run build
 if errorlevel 1 exit /b 1
 
-rem --- [1/2] Build the frontend ---
-echo [1/2] Building frontend: %WEB_SRC%
-cd /d "%WEB_SRC%"
+if exist "%STATIC_OUTPUT%" rmdir /S /Q "%STATIC_OUTPUT%"
+mkdir "%STATIC_OUTPUT%"
+xcopy /E /I /Y "%WEB_ROOT%\dist\*" "%STATIC_OUTPUT%\" >nul
+if errorlevel 1 exit /b 1
 
-rem Always sync deps first so package.json additions cannot leave a stale
-rem node_modules; fall back to npm install when npm ci cannot run.
-echo npm ci...
-call npm ci
-if errorlevel 1 (
-    echo npm ci failed, falling back to npm install...
-    call npm install
-    if errorlevel 1 (
-        echo ERROR: npm install failed in %WEB_SRC%.
-        exit /b 1
-    )
-)
+pwsh.exe -NoProfile -Command "$source='%WEB_ROOT%\dist'; $copy='%STATIC_OUTPUT%'; Get-ChildItem -LiteralPath $source -File -Recurse | ForEach-Object { $relative=[IO.Path]::GetRelativePath($source,$_.FullName); $target=Join-Path $copy $relative; if((Get-FileHash -LiteralPath $_.FullName).Hash -ne (Get-FileHash -LiteralPath $target).Hash){throw ('Web hash mismatch: ' + $relative)} }; Write-Host 'HASH OK Console static assets'"
+if errorlevel 1 exit /b 1
 
-echo npm run build...
-call npm run build
-if errorlevel 1 (
-    echo ERROR: npm run build failed in %WEB_SRC%.
-    exit /b 1
-)
-if not exist "dist\index.html" (
-    echo ERROR: frontend build did not produce dist\index.html.
-    exit /b 1
-)
-echo.
-
-rem --- [2/2] Deploy into output\px_console\web\ ---
-echo [2/2] Deploying to %OUTPUT_DIR%\%WEB_SUBDIR%
-if not exist "%OUTPUT_DIR%" (
-    echo       output dir does not exist yet, creating it.
-    echo       NOTE: for a first-time full deployment - exe, certs, config -
-    echo       run build_px_console_server.bat or scripts\package_px_console_server.bat.
-    mkdir "%OUTPUT_DIR%"
-)
-
-if exist "%OUTPUT_DIR%\%WEB_SUBDIR%" rmdir /S /Q "%OUTPUT_DIR%\%WEB_SUBDIR%"
-mkdir "%OUTPUT_DIR%\%WEB_SUBDIR%"
-xcopy /E /I /Y "%WEB_SRC%\dist\*" "%OUTPUT_DIR%\%WEB_SUBDIR%\" >nul
-if errorlevel 1 (
-    echo ERROR: Failed to copy frontend files to %OUTPUT_DIR%\%WEB_SUBDIR%.
-    exit /b 1
-)
-
-echo.
-echo ============================================
-echo Console web build + deploy complete!
-echo ============================================
-echo Output: %OUTPUT_DIR%\%WEB_SUBDIR%
-echo If px_console_server is running, restart it to serve the new assets.
-echo.
-
-endlocal
-exit /b 0
-
-rem --- Helper: check that a tool is in PATH ---
-:check_tool
-where %~1 >nul 2>nul
-if errorlevel 1 (
-    echo ERROR: Required tool '%~1' is not found in PATH.
-    echo        Please install Node.js / npm first.
-    exit /b 1
-)
+echo Console web development build: %STATIC_OUTPUT%
 exit /b 0

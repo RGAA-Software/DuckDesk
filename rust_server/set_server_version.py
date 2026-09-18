@@ -56,7 +56,11 @@ def bump_version(version: str) -> str:
 
 
 def manifest_for(service: str) -> Path:
-    path = ROOT / service / "Cargo.toml"
+    path = (
+        ROOT / "px_console_server" / "runtime" / "Cargo.toml"
+        if service == "px_console_server"
+        else ROOT / service / "Cargo.toml"
+    )
     if not path.is_file():
         raise SystemExit(f"Manifest not found: {path}")
     return path

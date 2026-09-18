@@ -4770,7 +4770,7 @@ dependencies = [
 
 [[package]]
 name = "px_console_runtime"
-version = "3.2.17"
+version = "3.2.19"
 dependencies = [
  "axum",
  "axum-server",

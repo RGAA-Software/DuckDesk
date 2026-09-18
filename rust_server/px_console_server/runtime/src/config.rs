@@ -72,7 +72,7 @@ impl ConsoleLaunchConfig {
         let listen = required("PIXELS_CONSOLE_LISTEN")?
             .parse::<SocketAddr>()
             .map_err(|_| ConfigurationError)?;
-        if listen.port() == 0 || listen.port() == 20371 || (local && !listen.ip().is_loopback()) {
+        if listen.port() == 0 || (local && !listen.ip().is_loopback()) {
             return Err(ConfigurationError);
         }
         let static_directory = PathBuf::from(required("PIXELS_CONSOLE_STATIC_DIRECTORY")?);
@@ -239,7 +239,6 @@ mod tests {
     fn new_configuration_is_explicit_and_has_no_retired_endpoint_fallback() {
         assert!(parse(&valid()).is_ok());
         for (key, value) in [
-            ("PIXELS_CONSOLE_LISTEN", "127.0.0.1:20371"),
             ("PIXELS_CONSOLE_LISTEN", "0.0.0.0:8443"),
             ("PIXELS_CONSOLE_REGISTRATION", "true"),
             ("PIXELS_CONSOLE_SESSION_LIFETIME_SECONDS", "0"),

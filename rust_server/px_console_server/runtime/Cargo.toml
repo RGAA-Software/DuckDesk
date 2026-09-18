@@ -1,6 +1,6 @@
 [package]
 name = "px_console_runtime"
-version = "3.2.17"
+version = "3.2.19"
 edition = "2021"
 rust-version = "1.88"
 
@@ -56,7 +56,7 @@ name = "process"
 required-features = ["pg-integration"]
 
 [[bin]]
-name = "px_console_pg"
+name = "px_console"
 path = "src/main.rs"
 
 [[bin]]

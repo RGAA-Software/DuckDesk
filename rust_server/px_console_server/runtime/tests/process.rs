@@ -167,7 +167,7 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
         "path": workspace_key_path,
     }]);
 
-    let mut command = Command::new(env!("CARGO_BIN_EXE_px_console_pg"));
+    let mut command = Command::new(env!("CARGO_BIN_EXE_px_console"));
     command
         .env("PIXELS_CONSOLE_LOCAL_DEVELOPMENT", "1")
         .env("PIXELS_DEPLOYMENT_ID", deployment.to_string())

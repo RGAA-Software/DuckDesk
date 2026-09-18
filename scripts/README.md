@@ -43,7 +43,7 @@ Command Line     : <repo>/build_official/cloud_node/dist/px_render.exe
 
 ## Server packaging scripts
 
-Auth and Desk now build complete versioned releases under `output/<server>/releases/<run-id>/`.
+Auth, Console and Desk build complete versioned releases under `output/<server>/releases/<run-id>/`.
 These are release-only entry points, not routine development commands. They bump their own server version,
 build the matching web/server/schema tools, and verify all copied artifact hashes.
 No signing keys, TLS private keys or deployed configuration are generated, copied or overwritten.
@@ -52,9 +52,9 @@ No signing keys, TLS private keys or deployed configuration are generated, copie
   [Configuration, explicit initialization and tests](../docs/px_auth_server_runtime_config.md).
 - `package_px_desk_server.bat`: px_desk, px_db and static web assets.
   [Configuration and tests](../docs/px_desk_web_overview.md).
-- `package_px_console_server.bat`: still the unconverted Console packaging path.
-  Do not mix its old license/config protocol with the new Auth release; DB2/DB3 cutover is unfinished.
-- `ensure_tls_cert.bat`: legacy Console helper only; not used by the new Auth/Desk packaging paths.
+- `package_px_console_server.bat`: PostgreSQL `px_console`, `px_console_admin`, `px_db` and static web assets.
+  [Configuration, initialization and upgrade](../docs/px_console_server_runtime_config.md).
+- `ensure_tls_cert.bat`: retired Console helper; not used by the Auth/Console/Desk release paths.
 
 Focused tests: `pwsh -NoProfile -File scripts/server_validation/postgres.ps1 Test -Linux`.
 Explicit query generation after reviewed SQL changes: `PrepareQueries`; it is not an acceptance run.

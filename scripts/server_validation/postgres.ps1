@@ -299,7 +299,7 @@ try {
         if ($Suite -eq 'console-browser') {
             Invoke-Checked 'cargo' @('build','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--features','pg-integration','--bins','--target-dir',$targetDir) | Out-Null
             Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_console'),'run','build') | Out-Null
-            $consoleRuntime = Join-Path $targetDir 'debug/px_console_pg.exe'
+            $consoleRuntime = Join-Path $targetDir 'debug/px_console.exe'
             $consoleAdministrator = Join-Path $targetDir 'debug/px_console_admin.exe'
             $consoleBrowser = Invoke-Checked 'node' @((Join-Path $PSScriptRoot 'console_browser.cjs'),$consoleRuntime,$consoleAdministrator,$dbTool)
             Write-Host $consoleBrowser
@@ -566,7 +566,7 @@ try {
     Add-Step 'AUTH-API: native startup, private file ACL, bootstrap races, login, roles, signing and revocation'
     $fingerprints.px_auth = (Get-FileHash -LiteralPath (Join-Path $targetDir 'debug/px_auth.exe')).Hash
     $fingerprints.px_auth_admin = (Get-FileHash -LiteralPath (Join-Path $targetDir 'debug/px_auth_admin.exe')).Hash
-    $consoleRuntime = Join-Path $targetDir 'debug/px_console_pg.exe'
+    $consoleRuntime = Join-Path $targetDir 'debug/px_console.exe'
     $consoleAdministrator = Join-Path $targetDir 'debug/px_console_admin.exe'
     $fingerprints.px_console = (Get-FileHash -LiteralPath $consoleRuntime).Hash
     $fingerprints.px_console_admin = (Get-FileHash -LiteralPath $consoleAdministrator).Hash
