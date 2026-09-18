@@ -591,8 +591,8 @@ try {
     Add-Step 'AUTH-WEB: five contract tests, catalogs, themes, bounds, retry identity and logout failures'
     Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_console'),'run','build') | Out-Null
     $consoleWebUnit = Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_console'),'run','test:unit','--','--run')
-    if ($consoleWebUnit -notmatch 'Tests\s+33 passed') { throw 'Console frontend contract tests missing' }
-    Add-Step 'CONSOLE-WEB: 33 bearer identity, managed directory/activity/telemetry history, localization, descriptor secrecy and production bundle tests'
+    if ($consoleWebUnit -notmatch 'Tests\s+36 passed') { throw 'Console frontend contract tests missing' }
+    Add-Step 'CONSOLE-WEB: 36 bearer identity, managed directory/activity/telemetry history and alerts, localization, descriptor secrecy and production bundle tests'
     $consoleParity = Get-Content -LiteralPath (Join-Path $repo 'docs/console_management_feature_parity.md') -Raw
     $requiredConsoleCapabilities = @(
         'CM-IDENTITY', 'CM-DASHBOARD', 'CM-DEVICE', 'CM-ONLINE', 'CM-CONNECTION', 'CM-APPLICATION',
