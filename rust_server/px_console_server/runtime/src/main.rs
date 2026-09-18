@@ -20,8 +20,19 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         policy,
         vault,
         guests,
+        recording_cache_root,
+        recording_cache_options,
     } = ConsoleLaunchConfig::from_env()?.load().await?;
-    let runtime = ConsoleRuntime::activate(&database, deployment, vault, policy, guests).await?;
+    let runtime = ConsoleRuntime::activate_with_cache(
+        &database,
+        deployment,
+        vault,
+        policy,
+        guests,
+        recording_cache_root,
+        recording_cache_options,
+    )
+    .await?;
     let cancellation = runtime.cancellation_token();
     let application = runtime.product_router(static_directory);
     let listener = std::net::TcpListener::bind(listen)?;

@@ -21,6 +21,10 @@ Console 只从环境读取配置；发行包不携带真实配置、证书、私
 | `PIXELS_CONSOLE_GUEST_SOURCE_KEY` | 32 字节私有来源 HMAC 密钥文件 |
 | `PIXELS_CONSOLE_WORKSPACE_ACTIVE_KEY` | 当前工作区加密密钥 UUID |
 | `PIXELS_CONSOLE_WORKSPACE_KEYS` | 最多 32 个 `{id,path}` 的严格 JSON 数组；包含活动密钥及轮换期旧密钥 |
+| `PIXELS_CONSOLE_RECORDING_CACHE_DIRECTORY` | 已由管理工具初始化、绑定当前 deployment 的私有录像缓存目录 |
+| `PIXELS_CONSOLE_RECORDING_CACHE_BYTES` | 缓存字节上限，1 MiB–1 TiB；占用和预留容量均纳入限制 |
+| `PIXELS_CONSOLE_RECORDING_CACHE_DOWNLOADS` | 同时下载上限，1–32；超过上限直接拒绝而非无界排队 |
+| `PIXELS_CONSOLE_RECORDING_CACHE_TTL_SECONDS` | 非保留缓存有效期，60–604800 秒 |
 | `PIXELS_CONSOLE_LOCAL_DEVELOPMENT=1` | 仅显式本机开发：监听和 PG 都必须为 loopback，才允许无 TLS |
 
 配置缺失、未知格式、私有文件权限过宽、静态目录无效、数据库身份/schema/deployment 不匹配，都会在监听前失败。
@@ -36,9 +40,27 @@ Console 只从环境读取配置；发行包不携带真实配置、证书、私
    `PIXELS_CONSOLE_WORKSPACE_KEYS`。撤下 `PIXELS_CONSOLE_WORKSPACE_KEY` 这个仅生成工具使用的变量。
 4. 使用 owner DSN、`PIXELS_CONSOLE_INITIAL_USERNAME` 和私有 `PIXELS_CONSOLE_INITIAL_PASSWORD_FILE` 执行
    `px_console_admin bootstrap`。只允许全新空库成功一次，并发初始化只有一个胜者。
-5. 撤下 owner 和初始化口令，设置 runtime DSN、TLS、Origin 及上表其余变量，启动 `px_console.exe`。
+5. 创建仅服务身份、SYSTEM、Administrators 可访问的空缓存目录，设置 `PIXELS_DEPLOYMENT_ID` 和
+   `PIXELS_CONSOLE_RECORDING_CACHE_DIRECTORY`，执行 `px_console_admin initialize-recording-cache`。工具只初始化空目录、写入
+   deployment 身份且从不覆盖；复制其他部署的目录或手工创建标记都会被拒绝。
+6. 撤下 owner 和初始化口令，设置 runtime DSN、TLS、Origin、缓存限额及上表其余变量，启动 `px_console.exe`。
 
 生产服务账号不能获得 owner、DDL、跨库或私钥目录外权限。密钥不写数据库、不随发行包分发、不因缺失自动生成。
+
+## 录像缓存与下载
+
+本人入口 `POST /api/console/recordings/{recording_id}/cache` 和管理员入口
+`POST /api/console/managed/recordings/{recording_id}/cache` 请求缓存；响应只返回 `fetching` 或 `ready` 及稳定元数据，不返回磁盘路径、
+内部 lease 或节点凭据。对应 `GET .../download` 只接受当前 bearer 与终端身份，下载前再次检查原登录、录像 owner/ACL、文件版本、
+内容 SHA-256 和当前缓存运行代际。
+
+下载支持完整文件和单一 byte range；多 range、非法或越界 range 返回 416。服务端以 64 KiB 有界分块和小容量队列传输，读租约在慢速
+接收期间持续短周期续期；退出、改密、撤权、取消或文件证明变化都会停止后续读取。文件名固定为
+`recording-<uuid>.mp4`，不会采用数据库或请求提供的路径。缓存清理任务每 30 秒有界处理废弃 attempt；retain/evict 和物理文件锁仍由
+数据库协调器裁决。
+
+当前 HTTP 下载消费者和缓存协调器已经接入正式组合根；节点把录像字节写入该缓存的生产通道属于后续 DB2 媒体链出口。在生产者完成前，
+`fetching` 是诚实状态，不能由 UI 或运维伪装为可下载。
 
 ## 构建与发行
 

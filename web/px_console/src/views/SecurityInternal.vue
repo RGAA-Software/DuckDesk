@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message } from "ant-design-vue";
 import { onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import {
@@ -6,6 +7,8 @@ import {
     listManagedFileTransfers,
     listManagedRecordings,
     listManagedVisits,
+    downloadManagedRecording,
+    requestManagedRecordingCache,
     type ChannelRecord,
     type FileTransferRecord,
     type RecordingProfile,
@@ -18,6 +21,7 @@ const visits = ref<VisitRecord[]>([]);
 const channels = ref<ChannelRecord[]>([]);
 const transfers = ref<FileTransferRecord[]>([]);
 const recordings = ref<RecordingProfile[]>([]);
+const recordingAction = ref("");
 
 async function refresh() {
     loading.value = true;
@@ -38,6 +42,28 @@ function bytes(value: number) {
     if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(2)} MB`;
     if (value >= 1024) return `${(value / 1024).toFixed(2)} KB`;
     return `${value} B`;
+}
+
+async function downloadRecording(recording: RecordingProfile) {
+    recordingAction.value = recording.id;
+    try {
+        const cache = await requestManagedRecordingCache(recording.id);
+        if (cache.state !== "ready") {
+            message.info(t("activity.recordingPreparing"));
+            return;
+        }
+        const blob = await downloadManagedRecording(recording.id);
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = recording.file_name;
+        anchor.click();
+        URL.revokeObjectURL(url);
+    } catch {
+        message.error(t("activity.recordingDownloadFailed"));
+    } finally {
+        recordingAction.value = "";
+    }
 }
 
 onMounted(refresh);
@@ -165,6 +191,17 @@ onMounted(refresh);
                             new Date(record.observed_at).toLocaleString()
                         }}</template></a-table-column
                     >
+                    <a-table-column :title="t('activity.action')">
+                        <template #default="{ record }">
+                            <a-button
+                                type="link"
+                                :loading="recordingAction === record.id"
+                                @click="downloadRecording(record)"
+                            >
+                                {{ t("activity.download") }}
+                            </a-button>
+                        </template>
+                    </a-table-column>
                 </a-table>
             </a-tab-pane>
         </a-tabs>

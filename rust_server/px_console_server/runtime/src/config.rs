@@ -1,6 +1,7 @@
 use crate::{IngressPolicy, RuntimeSecrets, WorkspaceKeyFile};
-use px_console_store::WorkspaceVault;
+use px_console_store::{CacheOptions, WorkspaceVault};
 use px_pg::{DatabaseConfig, Transport};
+use px_private_files::CacheRoot;
 use serde::Deserialize;
 use std::{env, net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 use uuid::Uuid;
@@ -29,6 +30,8 @@ pub struct ConsoleLaunchConfig {
     guest_source_key: PathBuf,
     active_workspace_key: Uuid,
     workspace_keys: Vec<WorkspaceKeyFile>,
+    recording_cache_directory: PathBuf,
+    recording_cache_options: CacheOptions,
 }
 
 pub struct ConsoleLaunch {
@@ -40,6 +43,8 @@ pub struct ConsoleLaunch {
     pub policy: IngressPolicy,
     pub vault: Arc<WorkspaceVault>,
     pub guests: crate::GuestAdmission,
+    pub recording_cache_root: Arc<CacheRoot>,
+    pub recording_cache_options: CacheOptions,
 }
 
 impl ConsoleLaunchConfig {
@@ -117,6 +122,19 @@ impl ConsoleLaunchConfig {
                 path: source.path,
             })
             .collect();
+        let recording_cache_directory =
+            PathBuf::from(required("PIXELS_CONSOLE_RECORDING_CACHE_DIRECTORY")?);
+        let recording_cache_options = CacheOptions {
+            byte_limit: number(&required("PIXELS_CONSOLE_RECORDING_CACHE_BYTES")?)?,
+            maximum_downloads: number(&required("PIXELS_CONSOLE_RECORDING_CACHE_DOWNLOADS")?)?,
+            ttl_seconds: number(&required("PIXELS_CONSOLE_RECORDING_CACHE_TTL_SECONDS")?)?,
+        };
+        if !(1_048_576..=1_099_511_627_776).contains(&recording_cache_options.byte_limit)
+            || !(1..=32).contains(&recording_cache_options.maximum_downloads)
+            || !(60..=604800).contains(&recording_cache_options.ttl_seconds)
+        {
+            return Err(ConfigurationError);
+        }
         Ok(Self {
             database,
             deployment,
@@ -129,6 +147,8 @@ impl ConsoleLaunchConfig {
             guest_source_key,
             active_workspace_key,
             workspace_keys,
+            recording_cache_directory,
+            recording_cache_options,
         })
     }
 
@@ -159,6 +179,12 @@ impl ConsoleLaunchConfig {
         .await
         .map_err(|_| ConfigurationError)?;
         let (vault, guests) = secrets.into_parts();
+        let recording_cache_root = tokio::task::spawn_blocking(move || {
+            CacheRoot::open(&self.recording_cache_directory, self.deployment)
+        })
+        .await
+        .map_err(|_| ConfigurationError)?
+        .map_err(|_| ConfigurationError)?;
         Ok(ConsoleLaunch {
             database: self.database,
             deployment: self.deployment,
@@ -168,6 +194,8 @@ impl ConsoleLaunchConfig {
             policy: self.policy,
             vault,
             guests,
+            recording_cache_root,
+            recording_cache_options: self.recording_cache_options,
         })
     }
 }
@@ -184,6 +212,10 @@ fn flag(value: Option<String>, default: bool) -> Result<bool, ConfigurationError
 fn seconds(value: String) -> Result<Duration, ConfigurationError> {
     let value = value.parse::<u64>().map_err(|_| ConfigurationError)?;
     Ok(Duration::from_secs(value))
+}
+
+fn number<T: std::str::FromStr>(value: &str) -> Result<T, ConfigurationError> {
+    value.parse().map_err(|_| ConfigurationError)
 }
 
 #[cfg(test)]
@@ -228,6 +260,22 @@ mod tests {
                 "PIXELS_CONSOLE_WORKSPACE_KEYS".into(),
                 format!(r#"[{{"id":"{active}","path":"private/workspace.key"}}]"#),
             ),
+            (
+                "PIXELS_CONSOLE_RECORDING_CACHE_DIRECTORY".into(),
+                "C:\\Pixels\\recordings".into(),
+            ),
+            (
+                "PIXELS_CONSOLE_RECORDING_CACHE_BYTES".into(),
+                "1073741824".into(),
+            ),
+            (
+                "PIXELS_CONSOLE_RECORDING_CACHE_DOWNLOADS".into(),
+                "4".into(),
+            ),
+            (
+                "PIXELS_CONSOLE_RECORDING_CACHE_TTL_SECONDS".into(),
+                "86400".into(),
+            ),
         ])
     }
 
@@ -244,6 +292,8 @@ mod tests {
             ("PIXELS_CONSOLE_SESSION_LIFETIME_SECONDS", "0"),
             ("PIXELS_CONSOLE_GUEST_LIFETIME_SECONDS", "86401"),
             ("PIXELS_CONSOLE_PUBLIC_ORIGIN", "http://public.example.test"),
+            ("PIXELS_CONSOLE_RECORDING_CACHE_BYTES", "not-a-number"),
+            ("PIXELS_CONSOLE_RECORDING_CACHE_DOWNLOADS", "0"),
         ] {
             let mut values = valid();
             values.insert(key.into(), value.into());

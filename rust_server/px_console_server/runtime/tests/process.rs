@@ -151,7 +151,9 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
     let guest_key_path = private_directory.path().join("guest-source.key");
     let workspace_key_path = private_directory.path().join("workspace.key");
     let static_directory = private_directory.path().join("web");
+    let recording_cache_directory = private_directory.path().join("recording-cache");
     std::fs::create_dir(&static_directory).unwrap();
+    std::fs::create_dir(&recording_cache_directory).unwrap();
     std::fs::write(
         static_directory.join("index.html"),
         "pixels-console-process",
@@ -160,6 +162,7 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
     std::fs::write(static_directory.join("app.js"), "pixels-console-script").unwrap();
     px_private_files::private::create_private(&guest_key_path, &[41; 32]).unwrap();
     px_private_files::private::create_private(&workspace_key_path, &[42; 32]).unwrap();
+    drop(px_private_files::CacheRoot::initialize(&recording_cache_directory, deployment).unwrap());
     let workspace_key_id = Uuid::new_v4();
     let address = unused_loopback_address();
     let workspace_keys = serde_json::json!([{
@@ -185,6 +188,13 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
             workspace_key_id.to_string(),
         )
         .env("PIXELS_CONSOLE_WORKSPACE_KEYS", workspace_keys.to_string())
+        .env(
+            "PIXELS_CONSOLE_RECORDING_CACHE_DIRECTORY",
+            &recording_cache_directory,
+        )
+        .env("PIXELS_CONSOLE_RECORDING_CACHE_BYTES", "1073741824")
+        .env("PIXELS_CONSOLE_RECORDING_CACHE_DOWNLOADS", "4")
+        .env("PIXELS_CONSOLE_RECORDING_CACHE_TTL_SECONDS", "86400")
         .env_remove("PIXELS_CONSOLE_TLS_CERT")
         .env_remove("PIXELS_CONSOLE_TLS_KEY")
         .stdin(Stdio::null())

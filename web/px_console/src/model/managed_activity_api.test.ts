@@ -4,9 +4,11 @@ import {
     listManagedChannels,
     listManagedResourceSessions,
     listManagedVisits,
+    downloadManagedRecording,
+    requestManagedRecordingCache,
 } from "./managed_activity_api";
 
-vi.mock("@/http", () => ({ default: { get: vi.fn() } }));
+vi.mock("@/http", () => ({ default: { get: vi.fn(), post: vi.fn() } }));
 
 describe("PostgreSQL managed activity API", () => {
     beforeEach(() => vi.clearAllMocks());
@@ -44,5 +46,23 @@ describe("PostgreSQL managed activity API", () => {
         expect(axiosHttp.get).toHaveBeenCalledWith("/api/console/managed/activity/channels", {
             params: { session: "session-id", after: undefined, limit: 100 },
         });
+    });
+
+    it("requests the private cache before downloading an authorized recording", async () => {
+        vi.mocked(axiosHttp.post).mockResolvedValue({
+            data: { recording_id: "recording id", state: "ready" },
+        } as never);
+        vi.mocked(axiosHttp.get).mockResolvedValue({ data: new Blob(["video"]) } as never);
+
+        await requestManagedRecordingCache("recording id");
+        await downloadManagedRecording("recording id");
+
+        expect(axiosHttp.post).toHaveBeenCalledWith(
+            "/api/console/managed/recordings/recording%20id/cache",
+        );
+        expect(axiosHttp.get).toHaveBeenCalledWith(
+            "/api/console/managed/recordings/recording%20id/download",
+            { responseType: "blob" },
+        );
     });
 });

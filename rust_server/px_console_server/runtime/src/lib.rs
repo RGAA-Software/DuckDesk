@@ -14,6 +14,7 @@ mod node_api;
 mod node_wire;
 mod policy;
 mod profile_api;
+mod recording_cache_api;
 mod request;
 mod resource_api;
 mod saved_connection_api;
@@ -33,8 +34,9 @@ pub use config::{ConfigurationError, ConsoleLaunch, ConsoleLaunchConfig};
 use error::ApiError;
 pub use guest_source::GuestAdmission;
 pub use policy::IngressPolicy;
-use px_console_store::{ConsoleDatabase, RuntimeEpoch, WorkspaceVault};
+use px_console_store::{CacheOptions, CacheRuntime, ConsoleDatabase, RuntimeEpoch, WorkspaceVault};
 use px_pg::{DatabaseConfig, LeaseStatus, Service, ServiceLease};
+use px_private_files::CacheRoot;
 pub use secrets::{RuntimeSecrets, WorkspaceKeyFile};
 use std::{sync::Arc, time::Duration};
 use tokio::{sync::Semaphore, task::JoinHandle};
@@ -54,6 +56,7 @@ pub(crate) struct StateData {
     dummy: Zeroizing<String>,
     guests: GuestAdmission,
     epoch: RuntimeEpoch,
+    recording_cache: Option<CacheRuntime>,
 }
 impl StateData {
     fn active(&self) -> Result<(), ApiError> {
@@ -69,6 +72,7 @@ pub struct ConsoleRuntime {
     state: Arc<StateData>,
     supervisor: JoinHandle<()>,
     telemetry_retention: JoinHandle<()>,
+    cache_expiration: Option<JoinHandle<()>>,
 }
 impl ConsoleRuntime {
     pub async fn activate(
@@ -77,6 +81,35 @@ impl ConsoleRuntime {
         vault: Arc<WorkspaceVault>,
         policy: IngressPolicy,
         guests: GuestAdmission,
+    ) -> Result<Self, ApiError> {
+        Self::activate_inner(database, deployment, vault, policy, guests, None).await
+    }
+    pub async fn activate_with_cache(
+        database: &DatabaseConfig,
+        deployment: Uuid,
+        vault: Arc<WorkspaceVault>,
+        policy: IngressPolicy,
+        guests: GuestAdmission,
+        recording_cache_root: Arc<CacheRoot>,
+        recording_cache_options: CacheOptions,
+    ) -> Result<Self, ApiError> {
+        Self::activate_inner(
+            database,
+            deployment,
+            vault,
+            policy,
+            guests,
+            Some((recording_cache_root, recording_cache_options)),
+        )
+        .await
+    }
+    async fn activate_inner(
+        database: &DatabaseConfig,
+        deployment: Uuid,
+        vault: Arc<WorkspaceVault>,
+        policy: IngressPolicy,
+        guests: GuestAdmission,
+        recording_cache: Option<(Arc<CacheRoot>, CacheOptions)>,
     ) -> Result<Self, ApiError> {
         if !guests.matches(deployment) {
             return Err(ApiError::Invalid);
@@ -104,6 +137,20 @@ impl ConsoleRuntime {
                 return Err(error);
             }
         };
+        let recording_cache = match recording_cache {
+            Some((root, options)) => match db
+                .recording_cache()
+                .begin_runtime(root, epoch, options)
+                .await
+            {
+                Ok(cache) => Some(cache),
+                Err(error) => {
+                    db.close().await;
+                    return Err(error.into());
+                }
+            },
+            None => None,
+        };
         let cancellation = CancellationToken::new();
         let state = Arc::new(StateData {
             db,
@@ -117,6 +164,7 @@ impl ConsoleRuntime {
             dummy,
             guests,
             epoch,
+            recording_cache,
         });
         let supervisor_cancellation = cancellation.clone();
         let supervisor = tokio::spawn(async move {
@@ -164,10 +212,36 @@ impl ConsoleRuntime {
                 }
             }
         });
+        let cache_expiration = state.recording_cache.clone().map(|cache| {
+            let cache_state = state.clone();
+            let cache_cancellation = cancellation.clone();
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(Duration::from_secs(30));
+                interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+                loop {
+                    tokio::select! {
+                        biased;
+                        _=cache_cancellation.cancelled()=>break,
+                        _=interval.tick()=>{
+                            match tokio::time::timeout(
+                                Duration::from_secs(10),
+                                cache_state.db.recording_cache().expire(&cache, 100),
+                            ).await {
+                                Ok(Ok(expired)) if expired > 0 => tracing::info!(expired, "expired abandoned recording cache attempts"),
+                                Ok(Ok(_)) => {}
+                                Ok(Err(error)) => tracing::warn!(%error, "recording cache expiration failed"),
+                                Err(_) => tracing::warn!("recording cache expiration timed out"),
+                            }
+                        },
+                    }
+                }
+            })
+        });
         Ok(Self {
             state,
             supervisor,
             telemetry_retention,
+            cache_expiration,
         })
     }
     pub fn router(&self) -> Router {
@@ -182,6 +256,7 @@ impl ConsoleRuntime {
             .merge(profile_api::routes())
             .merge(update_api::routes())
             .merge(history_api::routes())
+            .merge(recording_cache_api::routes())
             .merge(telemetry_alert_api::routes())
             .route("/health/ready", get(ready))
             .route("/api/console/accounts", post(identity::register))
@@ -239,8 +314,14 @@ impl ConsoleRuntime {
         self.state.cancellation.cancel();
         self.supervisor.abort();
         self.telemetry_retention.abort();
+        if let Some(task) = &self.cache_expiration {
+            task.abort();
+        }
         let _ = (&mut self.supervisor).await;
         let _ = (&mut self.telemetry_retention).await;
+        if let Some(mut task) = self.cache_expiration.take() {
+            let _ = (&mut task).await;
+        }
         // Every upgraded node connection owns one permit until its database generation is
         // closed. Listener shutdown must precede this call so no new upgrade can race the join.
         let _connections = self
@@ -257,6 +338,9 @@ impl Drop for ConsoleRuntime {
         self.state.cancellation.cancel();
         self.supervisor.abort();
         self.telemetry_retention.abort();
+        if let Some(task) = &self.cache_expiration {
+            task.abort();
+        }
     }
 }
 async fn ready(State(state): State<Arc<StateData>>) -> Result<StatusCode, ApiError> {

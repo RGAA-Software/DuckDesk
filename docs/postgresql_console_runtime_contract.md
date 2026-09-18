@@ -123,7 +123,8 @@ Service 已实现认证、节点/端口/能力报告、challenge 清单对账、
 Service 同时接受 Render 的类型化前端准入 IPC，只把 session/revision/一次性 token 发给当前节点控制任务，等待 Console
 `FrontendAdmitted` 后返回绑定 target/instance/role 的剩余租约；排队、IPC 和网络耗时从租约扣除，超时、断线、迟到响应及错误 request_id
 均不产生授权。非桌面 Render 在 WebSocket 分配前强制走此路径，并验证目标为 CloudApplication、instance 为本进程实例；没有设备密码
-或旧 Console 路径 fallback。通道、文件传输和录像 wire 已在 Console 协议中定义，但实际 Service/Render 生产者尚未接入。
+或旧 Console 路径 fallback。通道、文件传输和录像元数据 wire 已在 Console 协议中定义；正式 Console 已接入部署绑定的私有录像缓存、
+本人/管理员授权请求和有界 Range 下载，但实际 Service/Render 字节生产者尚未接入，因此不得把 `fetching` 当作媒体已交付。
 直接模式不再用空 Relay 字段启动“启用 Relay”的 Render。新 RDP workspace envelope 和 GPU 绑定尚未进入 wire，因此 Service 明确报告
 `rdp=false`，带 GPU 或 RDP 的意外 Start 不执行；这不能记作 RDP/GPU 或实际 PG→Windows Render 端到端通过。
 

@@ -530,7 +530,7 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(std::weak_ptr<HttpHandler> 
         .expires_at_ms = authentication.expires_at_ms_,
         .allow_observer = authentication.allow_observer_,
         .allow_takeover = authentication.allow_takeover_,
-        .input_allowed = true,
+        .input_allowed = std::ranges::find(authentication.permissions_, "input") != authentication.permissions_.end(),
     };
     auto admitted = co_await AwaitWsValueCallback<LogicalSessionAdmission>(
         [weak_transport = self->transport_, admission_grant, admitted_binding_id,

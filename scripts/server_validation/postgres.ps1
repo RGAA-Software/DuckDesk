@@ -325,7 +325,7 @@ try {
         $suiteCounts['directory-api'] = 7
         $suiteCounts['node-control'] = 1
         $suiteCounts['console-process'] = 1
-        $suiteCounts['console-admin'] = 2
+        $suiteCounts['console-admin'] = 3
         $suiteCounts['schema_gate'] = 4
         $suiteCounts['auth'] = 7
         $suiteCounts['auth-api'] = 9
@@ -425,7 +425,7 @@ try {
     Add-Step 'ACCOUNTS: empty bootstrap, exact login binding, password/logout races and restricted identity privileges'
     $consoleUnit = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--lib','--target-dir',$targetDir)
     Write-Host $consoleUnit
-    Add-TestCases $consoleUnit 'native/console-ingress' 5
+    Add-TestCases $consoleUnit 'native/console-ingress' 6
     $nodeProtocolUnit = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_node_protocol','--lib','--target-dir',$targetDir)
     Write-Host $nodeProtocolUnit
     Add-TestCases $nodeProtocolUnit 'native/node-protocol' 1
@@ -444,8 +444,8 @@ try {
     Add-Step 'CONSOLE-PROCESS: real listener readiness and terminal database-authority loss'
     $consoleAdmin = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--features','pg-integration','--test','admin','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $consoleAdmin
-    Add-TestCases $consoleAdmin 'native/console-admin' 2
-    Add-Step 'CONSOLE-ADMIN: explicit private secret generation and owner-only empty-database bootstrap'
+    Add-TestCases $consoleAdmin 'native/console-admin' 3
+    Add-Step 'CONSOLE-ADMIN: explicit private secret/cache provisioning and owner-only empty-database bootstrap'
     $controlIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--test','control','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $controlIntegration
     Add-TestCases $controlIntegration 'native/control' 8
@@ -591,8 +591,8 @@ try {
     Add-Step 'AUTH-WEB: five contract tests, catalogs, themes, bounds, retry identity and logout failures'
     Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_console'),'run','build') | Out-Null
     $consoleWebUnit = Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_console'),'run','test:unit','--','--run')
-    if ($consoleWebUnit -notmatch 'Tests\s+36 passed') { throw 'Console frontend contract tests missing' }
-    Add-Step 'CONSOLE-WEB: 36 bearer identity, managed directory/activity/telemetry history and alerts, localization, descriptor secrecy and production bundle tests'
+    if ($consoleWebUnit -notmatch 'Tests\s+37 passed') { throw 'Console frontend contract tests missing' }
+    Add-Step 'CONSOLE-WEB: 37 bearer identity, managed directory/activity/telemetry history and alerts, authorized recording downloads, localization, descriptor secrecy and production bundle tests'
     $consoleParity = Get-Content -LiteralPath (Join-Path $repo 'docs/console_management_feature_parity.md') -Raw
     $requiredConsoleCapabilities = @(
         'CM-IDENTITY', 'CM-DASHBOARD', 'CM-DEVICE', 'CM-ONLINE', 'CM-CONNECTION', 'CM-APPLICATION',

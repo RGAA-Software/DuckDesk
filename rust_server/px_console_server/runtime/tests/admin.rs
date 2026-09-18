@@ -129,6 +129,33 @@ fn explicit_secret_generation_is_private_distinct_and_never_overwrites() {
     );
 }
 
+#[test]
+fn recording_cache_initialization_is_explicit_deployment_bound_and_never_overwrites() {
+    let private_directory = PrivateDirectory::new();
+    let cache_directory = private_directory.path.join("recording-cache");
+    std::fs::create_dir(&cache_directory).unwrap();
+    let deployment = Uuid::new_v4();
+    let command = || {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_px_console_admin"));
+        command
+            .arg("initialize-recording-cache")
+            .env("PIXELS_DEPLOYMENT_ID", deployment.to_string())
+            .env("PIXELS_CONSOLE_RECORDING_CACHE_DIRECTORY", &cache_directory)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            command.creation_flags(0x08000000);
+        }
+        command
+    };
+    assert!(command().output().unwrap().status.success());
+    assert!(px_private_files::CacheRoot::open(&cache_directory, deployment).is_ok());
+    assert!(!command().output().unwrap().status.success());
+    assert!(px_private_files::CacheRoot::open(&cache_directory, Uuid::new_v4()).is_err());
+}
+
 #[tokio::test]
 async fn bootstrap_is_owner_only_empty_only_and_concurrent_safe() {
     let private_directory = PrivateDirectory::new();

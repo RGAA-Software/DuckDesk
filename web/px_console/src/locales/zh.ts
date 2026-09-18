@@ -318,6 +318,7 @@ export default {
         users: "用户",
     },
     activity: {
+        action: "操作",
         auditNotice:
             "此页展示节点通过认证控制通道上报的持久元数据；录像存在状态是最后一次观测，不代表文件当前一定可读取。",
         auditTitle: "会话与活动审计",
@@ -330,6 +331,7 @@ export default {
         createdAt: "创建时间",
         desktop: "桌面",
         direction: "方向",
+        download: "下载",
         file: "文件",
         includeClosed: "包含已关闭",
         kind: "类型",
@@ -341,6 +343,8 @@ export default {
         reason: "原因",
         received: "接收",
         recordings: "录像元数据",
+        recordingDownloadFailed: "录像不可用或当前授权已撤销。",
+        recordingPreparing: "正在从节点复制录像，请稍后重试。",
         reportedMissing: "节点报告不存在",
         reportedPresent: "节点报告存在",
         role: "访问角色",

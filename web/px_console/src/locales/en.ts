@@ -338,6 +338,7 @@ export default {
         users: "Users",
     },
     activity: {
+        action: "Action",
         auditNotice:
             "This page shows persistent metadata reported through authenticated node control channels. Recording presence is the last observation, not proof that a file is currently readable.",
         auditTitle: "Session and activity audit",
@@ -350,6 +351,7 @@ export default {
         createdAt: "Created",
         desktop: "Desktop",
         direction: "Direction",
+        download: "Download",
         file: "File",
         includeClosed: "Include closed",
         kind: "Kind",
@@ -361,6 +363,8 @@ export default {
         reason: "Reason",
         received: "Received",
         recordings: "Recording metadata",
+        recordingDownloadFailed: "The recording is unavailable or authorization was revoked.",
+        recordingPreparing: "The recording is being copied from its node. Try again shortly.",
         reportedMissing: "Reported missing",
         reportedPresent: "Reported present",
         role: "Access role",

@@ -1,6 +1,6 @@
 use px_console_store::{initialize_administrator, PasswordDigest, Username};
 use px_pg::{DatabaseConfig, Transport};
-use px_private_files::private;
+use px_private_files::{private, CacheRoot};
 use rand::RngCore;
 use std::{env, path::PathBuf};
 use uuid::Uuid;
@@ -19,8 +19,20 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     match arguments.as_slice() {
         [command] if command == "bootstrap" => bootstrap().await,
         [command] if command == "generate-secrets" => generate_secrets(),
-        _ => Err("usage: px_console_admin <bootstrap|generate-secrets>; explicit provisioning only; configuration via environment".into()),
+        [command] if command == "initialize-recording-cache" => initialize_recording_cache(),
+        _ => Err("usage: px_console_admin <bootstrap|generate-secrets|initialize-recording-cache>; explicit provisioning only; configuration via environment".into()),
     }
+}
+
+fn initialize_recording_cache() -> Result<(), Box<dyn std::error::Error>> {
+    let deployment = env::var("PIXELS_DEPLOYMENT_ID")?.parse::<Uuid>()?;
+    if deployment.is_nil() {
+        return Err("deployment identifier must not be nil".into());
+    }
+    let path = PathBuf::from(env::var("PIXELS_CONSOLE_RECORDING_CACHE_DIRECTORY")?);
+    let root = CacheRoot::initialize(&path, deployment)?;
+    println!("Console recording cache initialized: root_id={}", root.id());
+    Ok(())
 }
 
 async fn bootstrap() -> Result<(), Box<dyn std::error::Error>> {

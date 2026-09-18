@@ -73,6 +73,16 @@ export interface RecordingProfile {
     observed_at: string;
 }
 
+export interface RecordingCacheProfile {
+    recording_id: string;
+    state: "missing" | "fetching" | "verifying" | "ready" | "retry_required";
+    pinned: boolean;
+    revision: number;
+    size_bytes: number;
+    received_bytes: number;
+    updated_at: string;
+}
+
 async function collectPages<T extends { id: string }>(
     path: string,
     extra: Record<string, string | undefined> = {},
@@ -122,4 +132,21 @@ export function listManagedFileTransfers(node?: string): Promise<FileTransferRec
 
 export function listManagedRecordings(node?: string): Promise<RecordingProfile[]> {
     return collectPages<RecordingProfile>("/api/console/managed/recordings", { node });
+}
+
+export async function requestManagedRecordingCache(
+    recordingId: string,
+): Promise<RecordingCacheProfile> {
+    const response = await axiosHttp.post<RecordingCacheProfile>(
+        `/api/console/managed/recordings/${encodeURIComponent(recordingId)}/cache`,
+    );
+    return response.data;
+}
+
+export async function downloadManagedRecording(recordingId: string): Promise<Blob> {
+    const response = await axiosHttp.get<Blob>(
+        `/api/console/managed/recordings/${encodeURIComponent(recordingId)}/download`,
+        { responseType: "blob" },
+    );
+    return response.data;
 }
