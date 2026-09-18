@@ -536,6 +536,10 @@ try {
     $fingerprints.px_console_admin = (Get-FileHash -LiteralPath (Join-Path $targetDir 'debug/px_console_admin.exe')).Hash
     $deskTool = Join-Path $targetDir 'debug/px_desk.exe'
     $fingerprints.px_desk = (Get-FileHash -LiteralPath $deskTool -Algorithm SHA256).Hash
+    foreach ($webRoot in @('web/px_pixels','web/px_auth')) {
+        Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo $webRoot),'ci','--no-audit','--no-fund') | Out-Null
+    }
+    Add-Step 'WEB-DEPS: both locked frontend dependency trees installed from clean state'
     Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_pixels'),'run','build') | Out-Null
     $webUnit = Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_pixels'),'run','test:unit','--','--run','src/submission.spec.ts')
     if ($webUnit -notmatch '1 passed') { throw 'Desk submission identity unit test missing' }
