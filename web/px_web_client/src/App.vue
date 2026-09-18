@@ -56,6 +56,11 @@ import FileTransferWindow from './FileTransferWindow.vue'
 import { useFileTransfer } from './useFileTransfer'
 import { sha256Hex } from './rtc/file_transfer'
 import { appendFrontendAuthorization, takeFrontendDescriptor } from './rtc/frontend_descriptor'
+import {
+    createDirectHostRtcConfiguration,
+    directHostUnreachableMessage,
+    rejectedDirectHostConnectionType,
+} from "./rtc/direct_host_policy";
 
 const { t } = useI18n()
 
@@ -1284,8 +1289,8 @@ function loadQueryParams() {
     launchStreamIdOverride = launchStreamId
     form.streamId = launchStreamIdOverride
   }
-  const requestedConnectionType = queryParameters.get('connType') ?? 'rtc_direct'
-  unsupportedConnectionType = requestedConnectionType === 'rtc_direct' ? '' : requestedConnectionType
+  const requestedConnectionType = queryParameters.get("connType");
+  unsupportedConnectionType = rejectedDirectHostConnectionType(requestedConnectionType);
   const parsedFrontendDescriptor = takeFrontendDescriptor(fragment)
   frontendDescriptor = parsedFrontendDescriptor.descriptor
   frontendDescriptorIncomplete = parsedFrontendDescriptor.incomplete
@@ -1462,7 +1467,7 @@ async function connect() {
     }
     // Direct Host uses only host candidates. Render rewrites its host
     // candidate to the authoritative browser-reachable address.
-    pc = new RTCPeerConnection({ iceServers: [] })
+    pc = new RTCPeerConnection(createDirectHostRtcConfiguration());
     addLog('[rtc-route] RTC Direct Host')
     // 无头/CDP 调试用:getStats 等诊断入口
     ;(window as unknown as { __pc?: RTCPeerConnection | null }).__pc = pc
@@ -1771,7 +1776,7 @@ async function connect() {
     // error when the advertised Render host/port cannot be reached.
     directConnectTimer = window.setTimeout(() => {
       if (pc && pc.connectionState !== 'connected' && !manualClose) {
-        const directError = 'RTC_DIRECT_UNREACHABLE: 无法连接 Render Direct Host，请检查公网地址、端口和 UDP 防火墙'
+        const directError = directHostUnreachableMessage();
         addLog(`[rtc-route] ${directError}`)
         cleanup()
         status.value = 'failed'

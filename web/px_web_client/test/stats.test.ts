@@ -41,7 +41,7 @@ describe('PerfCollector selected path diagnostics', () => {
     collector.stop()
   })
 
-  it('shows relay/TCP transport separately from relayed UDP media', async () => {
+  it("reports the selected Direct Host candidate pair and transport", async () => {
     const updates: PerfStats[] = []
     const collector = new PerfCollector((value) => updates.push(value))
     collector.start(peer(report(

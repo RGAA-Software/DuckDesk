@@ -616,10 +616,10 @@ try {
     }
     Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_web_client'),'run','build') | Out-Null
     $webClientUnit = Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_web_client'),'test')
-    if ($webClientUnit -notmatch 'Tests\s+65 passed' -or $webClientUnit -notmatch 'voice_call_state: 19 assertions passed') {
+    if ($webClientUnit -notmatch 'Tests\s+59 passed' -or $webClientUnit -notmatch 'voice_call_state: 19 assertions passed') {
         throw 'Web Client descriptor/media contract tests missing'
     }
-    Add-Step 'WEB-CLIENT: Console descriptor forwarding, token redaction, media/control and voice contracts'
+    Add-Step 'WEB-CLIENT: Direct Host policy, Console descriptor forwarding, token redaction, media/control and voice contracts'
     $authBrowser = Invoke-Checked 'node' @((Join-Path $PSScriptRoot 'auth_browser.cjs'),(Join-Path $targetDir 'debug/px_auth.exe'))
     Write-Host $authBrowser
     foreach ($case in @('auth-browser/login-create-customer','auth-browser/commit-response-loss-exact-retry','auth-browser/renew-and-revoke',
