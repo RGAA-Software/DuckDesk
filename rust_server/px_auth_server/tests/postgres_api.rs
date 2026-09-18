@@ -89,11 +89,22 @@ fn native_process_starts_serves_and_rejects_unsafe_configuration() {
         let line = BufReader::new(stdout).lines().next();
         let _ = sender.send(line);
     });
-    let line = receiver
-        .recv_timeout(Duration::from_secs(20))
-        .unwrap()
-        .unwrap()
-        .unwrap();
+    let startup_line = receiver.recv_timeout(Duration::from_secs(20));
+    let line = match startup_line {
+        Ok(Some(Ok(line))) => line,
+        unexpected => {
+            let _ = server.0.kill();
+            let status = server.0.wait();
+            let mut stderr = String::new();
+            if let Some(mut stream) = server.0.stderr.take() {
+                let _ = stream.read_to_string(&mut stderr);
+            }
+            reader.join().unwrap();
+            panic!(
+                "Auth did not report its listener: result={unexpected:?}, status={status:?}, stderr={stderr}"
+            );
+        }
+    };
     reader.join().unwrap();
     let address = line
         .strip_prefix("Auth listening http://")
