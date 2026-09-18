@@ -492,6 +492,27 @@ async fn operation(
                     revision: recording.revision,
                 })
             }
+            NodeRequest::PollRecordingCache { after, limit, .. } => {
+                let cache = state
+                    .recording_cache
+                    .as_ref()
+                    .ok_or(ApiError::Unavailable)?;
+                let attempts = state
+                    .db
+                    .recording_cache()
+                    .pending(cache, connection, after, u32::from(limit))
+                    .await?;
+                let mut uploads = Vec::with_capacity(attempts.len());
+                for attempt in attempts {
+                    if let Some(upload) = state.uploads.issue(connection, attempt)? {
+                        uploads.push(upload);
+                    }
+                }
+                Ok(NodeResponse::RecordingCacheUploads {
+                    request_id,
+                    uploads,
+                })
+            }
             NodeRequest::Authenticate { .. } => Err(ApiError::Invalid),
         }
     };

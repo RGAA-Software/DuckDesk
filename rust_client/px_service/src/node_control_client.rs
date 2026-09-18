@@ -8,22 +8,25 @@ use px_node_protocol::{
     ApplicationLaunch, ChannelKind, ChannelProgress, CommandOutcome, CommandReceipt,
     DeploymentAssignment, DeploymentObservation, DeploymentPreparation, NodeCommand,
     NodeCommandAction, NodeReport, NodeRequest, NodeResponse, ObservedRuntime,
-    ObservedRuntimePhase, OpenChannel, PreparationFailure, PreparationState, RuntimeInventory,
-    VideoCodec, MAX_MESSAGE_BYTES,
+    ObservedRuntimePhase, OpenChannel, PreparationFailure, PreparationState, RecordingCacheUpload,
+    RuntimeInventory, VideoCodec, MAX_MESSAGE_BYTES,
 };
 use service_core::{AppInstanceState, StartAppRequest};
 use tokio::net::TcpStream;
 use tokio::sync::{oneshot, Mutex};
+use tokio::task::JoinSet;
 use tokio::time::{sleep, timeout};
 use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
+use tokio_util::io::ReaderStream;
 use tracing::{info, warn};
 use uuid::Uuid;
 use zeroize::Zeroize;
 
 use crate::node_control_store::{NodeControlConfiguration, NodeControlStore};
 use crate::product_descriptor::ProductDescriptor;
+use crate::recording_inventory::RecordingInventory;
 use crate::service_host::ServiceRuntime;
 
 type NodeSocket = WebSocketStream<MaybeTlsStream<TcpStream>>;
@@ -147,10 +150,11 @@ impl ProtocolSession {
 
 pub async fn node_control_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<(), String> {
     let product = ProductDescriptor::load_for_current_executable()?;
-    let (store, mut stop_rx, mut operations) = {
+    let (store, data_root, mut stop_rx, mut operations) = {
         let mut guard = runtime.lock().await;
         (
             NodeControlStore::new(guard.config.data_root.clone()),
+            guard.config.data_root.clone(),
             guard.subscribe_stop(),
             guard
                 .node_control_receiver
@@ -158,6 +162,7 @@ pub async fn node_control_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<()
                 .ok_or_else(|| "node-control operation receiver was already taken".to_string())?,
         )
     };
+    let recording_inventory = RecordingInventory::load(&data_root)?;
     loop {
         let configuration = loop {
             match store.load()? {
@@ -181,6 +186,7 @@ pub async fn node_control_loop(runtime: Arc<Mutex<ServiceRuntime>>) -> Result<()
             &runtime,
             &configuration,
             &product,
+            &recording_inventory,
             &mut stop_rx,
             &mut operations,
         )
@@ -204,6 +210,7 @@ async fn run_connection(
     runtime: &Arc<Mutex<ServiceRuntime>>,
     configuration: &NodeControlConfiguration,
     product: &ProductDescriptor,
+    recording_inventory: &Arc<std::sync::Mutex<RecordingInventory>>,
     stop_rx: &mut tokio::sync::broadcast::Receiver<()>,
     operations: &mut tokio::sync::mpsc::Receiver<NodeControlOperation>,
 ) -> Result<ConnectionEnd, String> {
@@ -247,11 +254,28 @@ async fn run_connection(
     .await?;
     sync_deployments(&mut socket, &mut session, product, endpoint_revision, 1).await?;
     reconcile(&mut socket, &mut session, runtime).await?;
+    let inventory_for_connection = recording_inventory.clone();
+    tokio::task::spawn_blocking(move || {
+        inventory_for_connection
+            .lock()
+            .map_err(|_| "recording inventory lock is unavailable".to_string())?
+            .begin_connection()
+    })
+    .await
+    .map_err(|_| "recording inventory connection reset failed".to_string())??;
+    sync_recordings(&mut socket, &mut session, recording_inventory).await?;
 
     let mut report_sequence = 1_u64;
     let mut reports = tokio::time::interval(REPORT_INTERVAL);
     reports.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     reports.tick().await;
+    let http = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(|_| "recording upload HTTP client cannot be created".to_string())?;
+    let console_endpoint = url::Url::parse(&configuration.endpoint)
+        .map_err(|_| "node-control endpoint cannot be reused for recording upload".to_string())?;
+    let mut upload_tasks = JoinSet::new();
     loop {
         tokio::select! {
             _ = stop_rx.recv() => {
@@ -277,6 +301,7 @@ async fn run_connection(
                     endpoint_revision,
                     report_sequence,
                 ).await?;
+                sync_recordings(&mut socket, &mut session, recording_inventory).await?;
             }
             _ = sleep(COMMAND_POLL) => {
                 let request = NodeRequest::PollCommand {
@@ -302,6 +327,15 @@ async fn run_connection(
                     };
                     acknowledge(&mut socket, &mut session, &command, outcome).await?;
                 }
+                let uploads = poll_recording_uploads(&mut socket, &mut session).await?;
+                for upload in uploads {
+                    let upload_http = http.clone();
+                    let upload_endpoint = console_endpoint.clone();
+                    let upload_inventory = recording_inventory.clone();
+                    upload_tasks.spawn(async move {
+                        upload_recording(upload_http, upload_endpoint, upload_inventory, upload).await
+                    });
+                }
             }
             operation = operations.recv() => {
                 let Some(operation) = operation else {
@@ -309,8 +343,141 @@ async fn run_connection(
                 };
                 execute_operation(&mut socket, &mut session, operation).await?;
             }
+            completed = upload_tasks.join_next(), if !upload_tasks.is_empty() => {
+                match completed {
+                    Some(Ok(Ok(()))) => {}
+                    Some(Ok(Err(error))) => warn!(%error, "recording cache upload failed"),
+                    Some(Err(error)) => warn!(%error, "recording cache upload task failed"),
+                    None => {}
+                }
+            }
         }
     }
+}
+
+async fn sync_recordings(
+    socket: &mut NodeSocket,
+    session: &mut ProtocolSession,
+    inventory: &Arc<std::sync::Mutex<RecordingInventory>>,
+) -> Result<(), String> {
+    let inventory_for_scan = inventory.clone();
+    let reports = tokio::task::spawn_blocking(move || {
+        inventory_for_scan
+            .lock()
+            .map_err(|_| "recording inventory lock is unavailable".to_string())?
+            .scan()
+    })
+    .await
+    .map_err(|_| "recording inventory scan task failed".to_string())??;
+    for recording in reports.into_iter().take(32) {
+        let source_id = recording.source_id;
+        let sequence = recording.sequence;
+        let request = NodeRequest::ReportRecording {
+            request_id: session.request_id()?,
+            recording,
+        };
+        let expected = request.request_id();
+        match exchange(socket, request).await? {
+            NodeResponse::RecordingReported {
+                request_id,
+                source_sequence,
+                ..
+            } if request_id == expected
+                && source_sequence == i64::try_from(sequence).unwrap_or(-1) =>
+            {
+                let inventory_for_acknowledgement = inventory.clone();
+                tokio::task::spawn_blocking(move || {
+                    inventory_for_acknowledgement
+                        .lock()
+                        .map_err(|_| "recording inventory lock is unavailable".to_string())?
+                        .acknowledge(source_id, sequence)
+                })
+                .await
+                .map_err(|_| "recording inventory acknowledgement task failed".to_string())??;
+            }
+            NodeResponse::Error { code, .. } => {
+                return Err(format!("recording report rejected: {code}"));
+            }
+            _ => return Err("unexpected recording report response".into()),
+        }
+    }
+    Ok(())
+}
+
+async fn poll_recording_uploads(
+    socket: &mut NodeSocket,
+    session: &mut ProtocolSession,
+) -> Result<Vec<RecordingCacheUpload>, String> {
+    let request = NodeRequest::PollRecordingCache {
+        request_id: session.request_id()?,
+        after: None,
+        limit: 4,
+    };
+    let expected = request.request_id();
+    match exchange(socket, request).await? {
+        NodeResponse::RecordingCacheUploads {
+            request_id,
+            uploads,
+        } if request_id == expected => Ok(uploads),
+        NodeResponse::Error { code, .. } => Err(format!("recording cache poll rejected: {code}")),
+        _ => Err("unexpected recording cache poll response".into()),
+    }
+}
+
+async fn upload_recording(
+    http: reqwest::Client,
+    mut console_endpoint: url::Url,
+    inventory: Arc<std::sync::Mutex<RecordingInventory>>,
+    upload: RecordingCacheUpload,
+) -> Result<(), String> {
+    let expected_path = format!("/api/console/node-recording-cache/{}", upload.attempt_id);
+    if upload.valid_for_ms == 0 || upload.upload_path != expected_path {
+        return Err("recording upload capability is invalid".into());
+    }
+    console_endpoint
+        .set_scheme(match console_endpoint.scheme() {
+            "ws" => "http",
+            "wss" => "https",
+            _ => return Err("recording upload endpoint scheme is invalid".into()),
+        })
+        .map_err(|_| "recording upload endpoint scheme cannot be changed".to_string())?;
+    console_endpoint.set_path(&upload.upload_path);
+    console_endpoint.set_query(None);
+    console_endpoint.set_fragment(None);
+    let inventory_for_open = inventory.clone();
+    let upload_source_id = upload.source_id;
+    let upload_size = upload.size_bytes;
+    let upload_sha256 = upload.source_sha256;
+    let file = tokio::task::spawn_blocking(move || {
+        inventory_for_open
+            .lock()
+            .map_err(|_| "recording inventory lock is unavailable".to_string())?
+            .open_upload(upload_source_id, upload_size, upload_sha256)
+    })
+    .await
+    .map_err(|_| "recording upload source open task failed".to_string())??;
+    let file = tokio::fs::File::from_std(file);
+    let stream = ReaderStream::with_capacity(file, 1024 * 1024);
+    let upload_token = zeroize::Zeroizing::new(upload.upload_token);
+    let response = http
+        .put(console_endpoint)
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", upload_token.as_str()),
+        )
+        .header(reqwest::header::CONTENT_TYPE, "application/octet-stream")
+        .header(reqwest::header::CONTENT_LENGTH, upload_size)
+        .body(reqwest::Body::wrap_stream(stream))
+        .send()
+        .await
+        .map_err(|_| "recording upload request failed".to_string())?;
+    if response.status() != reqwest::StatusCode::CREATED {
+        return Err(format!(
+            "recording upload was rejected with HTTP {}",
+            response.status().as_u16()
+        ));
+    }
+    Ok(())
 }
 
 async fn execute_operation(
@@ -1390,6 +1557,97 @@ mod tests {
         assert_eq!(reported.state, "closed");
         assert_eq!(reported.sequence, 1);
         assert_eq!(reported.revision, 2);
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn recording_upload_streams_only_the_registered_content_identity() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        let temporary = tempfile::tempdir().unwrap();
+        let data_root = temporary.path().join("px_data");
+        let recording_root = temporary.path().join("px_render_records");
+        std::fs::create_dir_all(&data_root).unwrap();
+        std::fs::create_dir_all(&recording_root).unwrap();
+        let recording_bytes = b"service recording upload";
+        std::fs::write(
+            recording_root.join("rec_mon0_20260919_04.30.00.mp4"),
+            recording_bytes,
+        )
+        .unwrap();
+        let inventory = RecordingInventory::load(&data_root).unwrap();
+        let report = inventory.lock().unwrap().scan().unwrap().remove(0);
+        let attempt_id = Uuid::new_v4();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let expected_token = "a".repeat(64);
+        let server_token = expected_token.clone();
+        let server = tokio::spawn(async move {
+            let (mut connection, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            let header_end = loop {
+                let mut buffer = [0_u8; 1024];
+                let count = connection.read(&mut buffer).await.unwrap();
+                assert!(count > 0);
+                request.extend_from_slice(&buffer[..count]);
+                if let Some(position) = request.windows(4).position(|bytes| bytes == b"\r\n\r\n") {
+                    break position + 4;
+                }
+            };
+            let headers = String::from_utf8(request[..header_end].to_vec()).unwrap();
+            assert!(headers.starts_with(&format!(
+                "PUT /api/console/node-recording-cache/{attempt_id} HTTP/1.1\r\n"
+            )));
+            assert!(headers
+                .to_ascii_lowercase()
+                .contains(&format!("authorization: bearer {server_token}\r\n")));
+            let content_length = headers
+                .lines()
+                .find_map(|line| {
+                    line.to_ascii_lowercase()
+                        .strip_prefix("content-length: ")
+                        .and_then(|value| value.parse::<usize>().ok())
+                })
+                .unwrap();
+            while request.len() - header_end < content_length {
+                let mut buffer = [0_u8; 1024];
+                let count = connection.read(&mut buffer).await.unwrap();
+                assert!(count > 0);
+                request.extend_from_slice(&buffer[..count]);
+            }
+            assert_eq!(
+                &request[header_end..header_end + content_length],
+                recording_bytes
+            );
+            connection
+                .write_all(
+                    b"HTTP/1.1 201 Created\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}",
+                )
+                .await
+                .unwrap();
+        });
+        let upload = RecordingCacheUpload {
+            attempt_id,
+            recording_id: Uuid::new_v4(),
+            source_id: report.source_id,
+            size_bytes: report.size_bytes,
+            source_sha256: report.source_sha256,
+            upload_path: format!("/api/console/node-recording-cache/{attempt_id}"),
+            upload_token: expected_token,
+            valid_for_ms: 30_000,
+        };
+        let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .unwrap();
+        upload_recording(
+            client,
+            url::Url::parse(&format!("ws://{address}/api/console/node-control")).unwrap(),
+            inventory,
+            upload,
+        )
+        .await
+        .unwrap();
         server.await.unwrap();
     }
 }

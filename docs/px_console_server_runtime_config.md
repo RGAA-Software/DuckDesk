@@ -59,8 +59,16 @@ Console 只从环境读取配置；发行包不携带真实配置、证书、私
 `recording-<uuid>.mp4`，不会采用数据库或请求提供的路径。缓存清理任务每 30 秒有界处理废弃 attempt；retain/evict 和物理文件锁仍由
 数据库协调器裁决。
 
-当前 HTTP 下载消费者和缓存协调器已经接入正式组合根；节点把录像字节写入该缓存的生产通道属于后续 DB2 媒体链出口。在生产者完成前，
-`fetching` 是诚实状态，不能由 UI 或运维伪装为可下载。
+节点通过已认证的控制长连接轮询待取录像；Console 返回最长 30 秒、一次使用、绑定当前 node generation/cache attempt/source
+identity 的上传能力。大文件不进入控制 WebSocket，而是 PUT 到同一 Console Origin 下的固定
+`/api/console/node-recording-cache/<attempt-id>`，请求必须使用 `application/octet-stream`、精确 Content-Length 且不得携带浏览器、Origin、
+代理或查询参数身份。Console 在读取正文前重新验证当前节点权威，边收边校验大小和 SHA-256，成功 sync/rename 后才提交 ready。
+
+Windows Service 从 `C:\Users\Public\Pixels\px_render_records` 读取 Render 已完成的直接子文件；存在 `.recording` 标记、重解析点、非普通
+文件、非 MP4、空文件或超过 1 TiB 的对象不会上报/上传。Service 在自己的 `px_data` 中原子持久化 source UUID、hash、sequence 和
+present 状态，重连时重新向当前 generation 报告，文件消失时显式报告撤下。当前目录扫描得到的录像尚不具有可靠的单一
+resource-session 归属，因此只报告 `session_id=null`；管理员链路可完整使用，Cloud Application 本人录像归属必须由 Render 完成段事件
+携带 session UUID 后再关闭，不能用设备或账号猜测兜底。
 
 ## 构建与发行
 

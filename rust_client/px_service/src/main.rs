@@ -6,6 +6,7 @@ mod node_control_store;
 mod node_telemetry;
 mod parsec_vdd;
 mod product_descriptor;
+mod recording_inventory;
 mod service_host;
 mod service_windows;
 mod user_proxy;

@@ -1,9 +1,10 @@
 #[path = "support/runtime_fixture.rs"]
 mod fixture;
 
-use fixture::{call, login, register, resource_call, start, PASSWORD};
+use fixture::{call, login, register, resource_call, start_with_cache, PASSWORD};
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::{net::SocketAddr, time::Duration};
 use tokio::net::TcpListener;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
@@ -69,7 +70,7 @@ fn telemetry_report(request_id: u64, sequence: u64, cpu_utilization_per_mille: u
 
 #[tokio::test]
 async fn authenticated_node_websocket_fences_generation_and_drives_reconciliation() {
-    let runtime = start().await;
+    let (runtime, _cache_directory) = start_with_cache().await;
     let router = runtime.router();
     let admin = login(&router, "initial-admin", PASSWORD, "admin_web").await;
     let (status, device) = call(
@@ -495,17 +496,20 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     assert_eq!(completed_transfer["type"], "file_transfer_reported");
     assert_eq!(completed_transfer["state"], "completed");
 
+    let recording_bytes = b"synthetic authenticated recording bytes";
+    let recording_source_id = Uuid::new_v4();
+    let recording_sha256: [u8; 32] = Sha256::digest(recording_bytes).into();
     let recording = exchange(
         &mut socket,
         json!({
             "type":"report_recording",
             "request_id":15,
             "recording":{
-                "source_id":Uuid::new_v4(),
-                "source_sha256":vec![9_u8; 32],
+                "source_id":recording_source_id,
+                "source_sha256":recording_sha256,
                 "session_id":resource_session["id"],
                 "file_name":"cloud-session.mp4",
-                "size_bytes":8192,
+                "size_bytes":recording_bytes.len(),
                 "modified_unix_ms":1_700_000_000_000_i64,
                 "codec":"h264",
                 "sequence":1,
@@ -586,6 +590,75 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     assert_eq!(managed_recordings.as_array().unwrap().len(), 1);
     assert_eq!(managed_recordings[0]["id"], recording["recording_id"]);
 
+    let recording_id = recording["recording_id"].as_str().unwrap();
+    let (cache_status, cache_profile) = call(
+        &router,
+        "POST",
+        &format!("/api/console/managed/recordings/{recording_id}/cache"),
+        "admin_web",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(cache_status.as_u16(), 200, "{cache_profile}");
+    assert_eq!(cache_profile["state"], "fetching");
+    let upload_list = exchange(
+        &mut socket,
+        json!({"type":"poll_recording_cache","request_id":16,"after":null,"limit":4}),
+    )
+    .await;
+    assert_eq!(upload_list["type"], "recording_cache_uploads");
+    assert_eq!(upload_list["uploads"].as_array().unwrap().len(), 1);
+    let upload = &upload_list["uploads"][0];
+    assert_eq!(upload["recording_id"], recording["recording_id"]);
+    assert_eq!(upload["source_id"], recording_source_id.to_string());
+    assert_eq!(upload["size_bytes"], recording_bytes.len());
+    assert_eq!(upload["source_sha256"], json!(recording_sha256));
+    assert!(upload["valid_for_ms"].as_u64().unwrap() <= 30_000);
+    let upload_token = upload["upload_token"].as_str().unwrap();
+    let upload_url = format!(
+        "http://{address}{}",
+        upload["upload_path"].as_str().unwrap()
+    );
+    let http = reqwest::Client::new();
+    let upload_response = http
+        .put(&upload_url)
+        .header("authorization", format!("Bearer {upload_token}"))
+        .header("content-type", "application/octet-stream")
+        .body(recording_bytes.to_vec())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(upload_response.status().as_u16(), 201);
+    let published: Value = serde_json::from_slice(&upload_response.bytes().await.unwrap()).unwrap();
+    assert_eq!(published["state"], "ready");
+    let replay = http
+        .put(&upload_url)
+        .header("authorization", format!("Bearer {upload_token}"))
+        .header("content-type", "application/octet-stream")
+        .body(recording_bytes.to_vec())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(replay.status().as_u16(), 401);
+    let download = http
+        .get(format!(
+            "http://{address}/api/console/managed/recordings/{recording_id}/download"
+        ))
+        .header("authorization", format!("Bearer {admin}"))
+        .header("x-pixels-client-type", "admin_web")
+        .header("origin", fixture::ORIGIN)
+        .header("range", "bytes=10-19")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(download.status().as_u16(), 206);
+    assert_eq!(download.headers()["content-range"], "bytes 10-19/39");
+    assert_eq!(
+        download.bytes().await.unwrap().as_ref(),
+        &recording_bytes[10..20]
+    );
+
     let (status, closing) = resource_call(
         &router,
         "POST",
@@ -602,7 +675,7 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
         &mut socket,
         json!({
             "type":"begin_frontend_retirement",
-            "request_id":16,
+            "request_id":17,
             "session_id":resource_session["id"]
         }),
     )
@@ -612,7 +685,7 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
         &mut socket,
         json!({
             "type":"finish_frontend_retirement",
-            "request_id":17,
+            "request_id":18,
             "session_id":resource_session["id"],
             "challenge_id":retirement["retirement"]["challenge_id"]
         }),
@@ -631,13 +704,13 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     )
     .await;
     assert_eq!(status.as_u16(), 200, "{stopping}");
-    let stop_command = exchange(&mut socket, json!({"type":"poll_command","request_id":18})).await;
+    let stop_command = exchange(&mut socket, json!({"type":"poll_command","request_id":19})).await;
     assert_eq!(stop_command["command"]["action"]["kind"], "stop");
     let stopped = exchange(
         &mut socket,
         json!({
             "type":"acknowledge_command",
-            "request_id":19,
+            "request_id":20,
             "receipt":{
                 "command_id":stop_command["command"]["id"],
                 "lease_id":stop_command["command"]["lease_id"],
@@ -652,10 +725,10 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     assert_eq!(stopped["state"], "stopped");
 
     let sequence_error =
-        exchange(&mut socket, json!({"type":"poll_command","request_id":19})).await;
+        exchange(&mut socket, json!({"type":"poll_command","request_id":20})).await;
     assert_eq!(
         sequence_error,
-        json!({"type":"error","request_id":19,"code":"invalid_sequence"})
+        json!({"type":"error","request_id":20,"code":"invalid_sequence"})
     );
     let closed = tokio::time::timeout(Duration::from_secs(5), socket.next())
         .await

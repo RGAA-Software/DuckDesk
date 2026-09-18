@@ -7,9 +7,10 @@ use axum::{
 };
 use px_console_runtime::{ConsoleRuntime, GuestAdmission, IngressPolicy};
 use px_console_store::{
-    initialize_administrator, PasswordDigest, Username, WorkspaceKey, WorkspaceVault,
+    initialize_administrator, CacheOptions, PasswordDigest, Username, WorkspaceKey, WorkspaceVault,
 };
 use px_pg::{DatabaseConfig, Transport};
+use px_private_files::CacheRoot;
 use serde_json::{json, Value};
 use std::{env, net::SocketAddr, sync::Arc, time::Duration};
 use tower::ServiceExt;
@@ -61,6 +62,45 @@ pub fn guests() -> GuestAdmission {
     .unwrap()
 }
 pub async fn start() -> ConsoleRuntime {
+    initialize().await;
+    ConsoleRuntime::activate(
+        &config("RUNTIME"),
+        deployment(),
+        vault(),
+        policy(),
+        guests(),
+    )
+    .await
+    .unwrap()
+}
+
+pub async fn start_with_cache() -> (ConsoleRuntime, tempfile::TempDir) {
+    initialize().await;
+    let directory = tempfile::Builder::new()
+        .prefix("pixels-runtime-cache-")
+        .tempdir()
+        .unwrap();
+    make_private(directory.path());
+    let root = CacheRoot::initialize(directory.path(), deployment()).unwrap();
+    let runtime = ConsoleRuntime::activate_with_cache(
+        &config("RUNTIME"),
+        deployment(),
+        vault(),
+        policy(),
+        guests(),
+        root,
+        CacheOptions {
+            byte_limit: 16 * 1024 * 1024,
+            maximum_downloads: 4,
+            ttl_seconds: 3600,
+        },
+    )
+    .await
+    .unwrap();
+    (runtime, directory)
+}
+
+async fn initialize() {
     static INIT: tokio::sync::OnceCell<()> = tokio::sync::OnceCell::const_new();
     INIT.get_or_init(|| async {
         let hash = px_credentials::hash(PASSWORD).unwrap();
@@ -74,15 +114,34 @@ pub async fn start() -> ConsoleRuntime {
         .unwrap();
     })
     .await;
-    ConsoleRuntime::activate(
-        &config("RUNTIME"),
-        deployment(),
-        vault(),
-        policy(),
-        guests(),
-    )
-    .await
-    .unwrap()
+}
+
+fn make_private(path: &std::path::Path) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700)).unwrap();
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let identity = std::process::Command::new("whoami")
+            .creation_flags(0x08000000)
+            .output()
+            .unwrap();
+        assert!(identity.status.success());
+        let grant = format!(
+            "{}:(OI)(CI)F",
+            String::from_utf8(identity.stdout).unwrap().trim()
+        );
+        let result = std::process::Command::new("icacls")
+            .arg(path)
+            .args(["/inheritance:r", "/grant:r", &grant, "*S-1-5-18:(OI)(CI)F"])
+            .creation_flags(0x08000000)
+            .output()
+            .unwrap();
+        assert!(result.status.success());
+    }
 }
 pub async fn call(
     router: &Router,

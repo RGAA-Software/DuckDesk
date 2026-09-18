@@ -395,6 +395,22 @@ pub struct RecordingReport {
     pub present: bool,
 }
 
+/// A short-lived, one-use upload capability returned only on an authenticated node-control
+/// connection. The node resolves `source_id` inside its private recording inventory and sends
+/// bytes to `upload_path` on the same Console origin; it never supplies a filesystem path.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingCacheUpload {
+    pub attempt_id: Uuid,
+    pub recording_id: Uuid,
+    pub source_id: Uuid,
+    pub size_bytes: u64,
+    pub source_sha256: [u8; 32],
+    pub upload_path: String,
+    pub upload_token: String,
+    pub valid_for_ms: u32,
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum NodeRequest {
@@ -470,6 +486,11 @@ pub enum NodeRequest {
         request_id: u64,
         recording: RecordingReport,
     },
+    PollRecordingCache {
+        request_id: u64,
+        after: Option<Uuid>,
+        limit: u16,
+    },
 }
 
 impl NodeRequest {
@@ -491,7 +512,8 @@ impl NodeRequest {
             | Self::ReportChannel { request_id, .. }
             | Self::BeginFileTransfer { request_id, .. }
             | Self::ReportFileTransfer { request_id, .. }
-            | Self::ReportRecording { request_id, .. } => *request_id,
+            | Self::ReportRecording { request_id, .. }
+            | Self::PollRecordingCache { request_id, .. } => *request_id,
         }
     }
 }
@@ -605,6 +627,10 @@ pub enum NodeResponse {
         source_sequence: i64,
         revision: i64,
     },
+    RecordingCacheUploads {
+        request_id: u64,
+        uploads: Vec<RecordingCacheUpload>,
+    },
     Error {
         request_id: Option<u64>,
         code: String,
@@ -630,7 +656,8 @@ impl NodeResponse {
             | Self::ChannelReported { request_id, .. }
             | Self::FileTransferStarted { request_id, .. }
             | Self::FileTransferReported { request_id, .. }
-            | Self::RecordingReported { request_id, .. } => Some(*request_id),
+            | Self::RecordingReported { request_id, .. }
+            | Self::RecordingCacheUploads { request_id, .. } => Some(*request_id),
             Self::Error { request_id, .. } => *request_id,
         }
     }

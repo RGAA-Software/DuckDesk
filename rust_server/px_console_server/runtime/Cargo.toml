@@ -1,6 +1,6 @@
 [package]
 name = "px_console_runtime"
-version = "3.2.20"
+version = "3.2.21"
 edition = "2021"
 rust-version = "1.88"
 
@@ -38,6 +38,7 @@ tower = { version = "0.5", features = ["util"] }
 tokio-tungstenite = "0.28"
 sqlx = { version = "=0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "uuid"] }
 tempfile = "3"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 
 [[test]]
 name = "identity_api"

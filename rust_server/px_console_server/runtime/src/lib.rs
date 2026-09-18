@@ -15,6 +15,7 @@ mod node_wire;
 mod policy;
 mod profile_api;
 mod recording_cache_api;
+mod recording_upload_api;
 mod request;
 mod resource_api;
 mod saved_connection_api;
@@ -57,6 +58,7 @@ pub(crate) struct StateData {
     guests: GuestAdmission,
     epoch: RuntimeEpoch,
     recording_cache: Option<CacheRuntime>,
+    uploads: Arc<recording_upload_api::UploadRegistry>,
 }
 impl StateData {
     fn active(&self) -> Result<(), ApiError> {
@@ -165,6 +167,7 @@ impl ConsoleRuntime {
             guests,
             epoch,
             recording_cache,
+            uploads: recording_upload_api::UploadRegistry::new(),
         });
         let supervisor_cancellation = cancellation.clone();
         let supervisor = tokio::spawn(async move {
@@ -257,6 +260,7 @@ impl ConsoleRuntime {
             .merge(update_api::routes())
             .merge(history_api::routes())
             .merge(recording_cache_api::routes())
+            .merge(recording_upload_api::routes())
             .merge(telemetry_alert_api::routes())
             .route("/health/ready", get(ready))
             .route("/api/console/accounts", post(identity::register))
