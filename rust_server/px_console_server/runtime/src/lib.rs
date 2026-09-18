@@ -18,6 +18,7 @@ mod resource_api;
 mod saved_connection_api;
 mod secrets;
 mod static_files;
+mod update_api;
 use axum::{
     extract::{DefaultBodyLimit, State},
     http::{header, HeaderValue, StatusCode},
@@ -138,6 +139,7 @@ impl ConsoleRuntime {
             .merge(resource_api::routes())
             .merge(saved_connection_api::routes())
             .merge(profile_api::routes())
+            .merge(update_api::routes())
             .route("/health/ready", get(ready))
             .route("/api/console/accounts", post(identity::register))
             .route("/api/console/sessions", post(identity::login))

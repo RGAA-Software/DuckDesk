@@ -4781,6 +4781,7 @@ dependencies = [
  "px_node_protocol",
  "px_pg",
  "px_private_files",
+ "px_release_catalog",
  "rand 0.9.2",
  "ring",
  "rustls 0.23.35",

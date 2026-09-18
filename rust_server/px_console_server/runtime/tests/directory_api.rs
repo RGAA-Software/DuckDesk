@@ -48,6 +48,146 @@ fn saved_connection_settings(name: &str) -> Value {
 }
 
 #[tokio::test]
+async fn update_catalog_requires_explicit_approval_and_exact_client_identity() {
+    let runtime = start().await;
+    let router = runtime.router();
+    let admin = login(&router, "initial-admin", PASSWORD, "admin_web").await;
+    let username = register(&router).await;
+    let android = login(&router, &username, PASSWORD, "android").await;
+    let request_id = Uuid::new_v4();
+    let artifact = json!({
+        "target":{
+            "product":"android",
+            "distribution":"official",
+            "channel":"stable",
+            "os":"android",
+            "architecture":"aarch64"
+        },
+        "build_number":32018,
+        "version":"3.2.18",
+        "artifact_url":"https://downloads.example.test/pixels-3.2.18.apk",
+        "sha256":"a".repeat(64),
+        "size_bytes":12345678,
+        "metadata_url":"https://downloads.example.test/3.2.18.targets.json",
+        "metadata_sha256":"b".repeat(64)
+    });
+    let create_body = json!({"request_id":request_id,"artifact":artifact});
+    let (created_status, created) = call(
+        &router,
+        "POST",
+        "/api/console/managed/updates",
+        "admin_web",
+        Some(&admin),
+        create_body.clone(),
+    )
+    .await;
+    assert_eq!(created_status, StatusCode::CREATED, "{created}");
+    assert_eq!(created["state"], "pending");
+    assert_eq!(
+        call(
+            &router,
+            "POST",
+            "/api/console/managed/updates",
+            "admin_web",
+            Some(&admin),
+            create_body,
+        )
+        .await
+        .1,
+        created
+    );
+    let latest_path = "/api/console/updates/latest?product=android&distribution=official&channel=stable&os=android&architecture=aarch64";
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            latest_path,
+            "android",
+            Some(&android),
+            Value::Null,
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    let release_id = created["id"].as_str().unwrap();
+    let (approved_status, approved) = call(
+        &router,
+        "PATCH",
+        &format!("/api/console/managed/updates/{release_id}"),
+        "admin_web",
+        Some(&admin),
+        json!({"revision":1,"decision":"approve"}),
+    )
+    .await;
+    assert_eq!(approved_status, StatusCode::OK, "{approved}");
+    let (latest_status, latest) = call(
+        &router,
+        "GET",
+        latest_path,
+        "android",
+        Some(&android),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(latest_status, StatusCode::OK, "{latest}");
+    assert_eq!(latest, approved);
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            latest_path,
+            "panel",
+            Some(&android),
+            Value::Null,
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            "/api/console/managed/updates?limit=100",
+            "admin_web",
+            Some(&admin),
+            Value::Null,
+        )
+        .await
+        .1
+        .as_array()
+        .unwrap()
+        .len(),
+        1
+    );
+    let (withdrawn_status, withdrawn) = call(
+        &router,
+        "PATCH",
+        &format!("/api/console/managed/updates/{release_id}"),
+        "admin_web",
+        Some(&admin),
+        json!({"revision":2,"decision":"withdraw"}),
+    )
+    .await;
+    assert_eq!(withdrawn_status, StatusCode::OK, "{withdrawn}");
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            latest_path,
+            "android",
+            Some(&android),
+            Value::Null,
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    runtime.shutdown().await;
+}
+
+#[tokio::test]
 async fn saved_connections_are_user_client_acl_and_revision_bound() {
     let runtime = start().await;
     let router = runtime.router();
