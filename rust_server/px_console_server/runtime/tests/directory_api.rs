@@ -654,6 +654,68 @@ async fn resource_ingress_requires_one_explicit_principal_kind_without_token_fal
     assert_eq!(status, StatusCode::OK, "{sessions}");
     assert_eq!(sessions, json!([]));
 
+    for path in [
+        "/api/console/activity/visits?limit=0",
+        "/api/console/activity/channels?limit=100&unexpected=1",
+        "/api/console/file-transfers?limit=101",
+        "/api/console/recordings?node=not-a-uuid&limit=100",
+    ] {
+        assert_eq!(
+            resource_call(
+                &router,
+                "GET",
+                path,
+                "android",
+                Some(&user),
+                Some("user"),
+                Value::Null,
+            )
+            .await
+            .0,
+            StatusCode::BAD_REQUEST
+        );
+    }
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            "/api/console/managed/activity/visits?limit=100",
+            "android",
+            Some(&user),
+            Value::Null,
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        resource_call(
+            &router,
+            "GET",
+            "/api/console/activity/visits?limit=100",
+            "android",
+            Some(guest_token),
+            Some("guest"),
+            Value::Null,
+        )
+        .await,
+        (StatusCode::OK, json!([]))
+    );
+    assert_eq!(
+        resource_call(
+            &router,
+            "GET",
+            &format!("/api/console/recordings?node={}&limit=100", Uuid::new_v4()),
+            "android",
+            Some(guest_token),
+            Some("guest"),
+            Value::Null,
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+
     runtime.shutdown().await;
 }
 #[tokio::test]

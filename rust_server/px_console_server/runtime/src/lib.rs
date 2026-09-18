@@ -7,6 +7,7 @@ mod device_api;
 pub mod error;
 mod guest_api;
 mod guest_source;
+mod history_api;
 mod identity;
 mod management;
 mod node_api;
@@ -140,6 +141,7 @@ impl ConsoleRuntime {
             .merge(saved_connection_api::routes())
             .merge(profile_api::routes())
             .merge(update_api::routes())
+            .merge(history_api::routes())
             .route("/health/ready", get(ready))
             .route("/api/console/accounts", post(identity::register))
             .route("/api/console/sessions", post(identity::login))

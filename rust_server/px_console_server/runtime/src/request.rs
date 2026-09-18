@@ -149,6 +149,13 @@ impl ResourceContext {
             ResourceSubjectKind::Guest => ResourceCredential::Guest(&self.token),
         }
     }
+
+    pub fn user_token(&self) -> Result<&TokenDigest, ApiError> {
+        match self.subject {
+            ResourceSubjectKind::User => Ok(&self.token),
+            ResourceSubjectKind::Guest => Err(ApiError::Rejected),
+        }
+    }
 }
 
 pub fn resource_context(

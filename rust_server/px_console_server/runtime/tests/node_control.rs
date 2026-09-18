@@ -244,6 +244,100 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     assert_eq!(running["state"], "running");
 
     let instance_id = instance["id"].as_str().unwrap();
+    let (status, resource_session) = resource_call(
+        &router,
+        "POST",
+        "/api/console/resource-sessions",
+        "android",
+        Some(&user),
+        Some("user"),
+        json!({
+            "request_id":Uuid::new_v4(),
+            "target":{
+                "kind":"cloud_application",
+                "application_id":application["id"],
+                "instance_id":instance["id"]
+            },
+            "access":"controller"
+        }),
+    )
+    .await;
+    assert_eq!(status.as_u16(), 201, "{resource_session}");
+    let session_id = resource_session["id"].as_str().unwrap();
+    let (status, owned_visits) = resource_call(
+        &router,
+        "GET",
+        "/api/console/activity/visits?limit=100",
+        "android",
+        Some(&user),
+        Some("user"),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status.as_u16(), 200, "{owned_visits}");
+    assert_eq!(owned_visits.as_array().unwrap().len(), 1);
+    assert_eq!(owned_visits[0]["session"]["id"], resource_session["id"]);
+    assert_eq!(
+        owned_visits[0]["session"]["target"]["kind"],
+        "cloud_application"
+    );
+    let (status, managed_visits) = call(
+        &router,
+        "GET",
+        "/api/console/managed/activity/visits?limit=100",
+        "admin_web",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status.as_u16(), 200, "{managed_visits}");
+    assert!(managed_visits
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|visit| visit["session"]["id"] == resource_session["id"]));
+    for path in [
+        format!("/api/console/activity/channels?session={session_id}&limit=100"),
+        "/api/console/file-transfers?limit=100".into(),
+    ] {
+        assert_eq!(
+            resource_call(
+                &router,
+                "GET",
+                &path,
+                "android",
+                Some(&user),
+                Some("user"),
+                Value::Null,
+            )
+            .await,
+            (axum::http::StatusCode::OK, json!([]))
+        );
+    }
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            "/api/console/managed/file-transfers?limit=100",
+            "admin_web",
+            Some(&admin),
+            Value::Null,
+        )
+        .await,
+        (axum::http::StatusCode::OK, json!([]))
+    );
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            "/api/console/managed/recordings?limit=100",
+            "admin_web",
+            Some(&admin),
+            Value::Null,
+        )
+        .await,
+        (axum::http::StatusCode::OK, json!([]))
+    );
     let (status, stopping) = resource_call(
         &router,
         "POST",
