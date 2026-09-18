@@ -710,8 +710,10 @@ async fn exchange(
         .await
         .map_err(|_| "node-control write timed out".to_string())?
         .map_err(|error| format!("node-control write failed: {error}"))?;
-    if let NodeRequest::Authenticate { node_token, .. } = &mut request {
-        node_token.zeroize();
+    match &mut request {
+        NodeRequest::Authenticate { node_token, .. } => node_token.zeroize(),
+        NodeRequest::AdmitFrontend { frontend_token, .. } => frontend_token.zeroize(),
+        _ => {}
     }
     let response = timeout(EXCHANGE_TIMEOUT, async {
         loop {

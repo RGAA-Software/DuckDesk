@@ -129,6 +129,142 @@ pub fn challenge(value: store::ReconciliationChallenge) -> wire::ReconciliationC
     }
 }
 
+pub fn frontend_grant(value: store::FrontendGrant) -> wire::FrontendGrant {
+    wire::FrontendGrant {
+        session_id: value.session.id,
+        revision: value.session.revision,
+        target: frontend_target(value.session.target),
+        client_type: value.session.client_type,
+        access_role: value.session.access_role,
+        valid_for_ms: value.valid_for_ms,
+    }
+}
+
+pub fn expected_frontend(value: store::ExpectedFrontend) -> wire::ExpectedFrontend {
+    wire::ExpectedFrontend {
+        id: value.id,
+        revision: value.revision,
+        state: value.state,
+    }
+}
+
+pub fn frontend_retirement(value: store::FrontendRetirement) -> wire::FrontendRetirement {
+    wire::FrontendRetirement {
+        session_id: value.session_id,
+        challenge_id: value.challenge_id,
+        reject_through_revision: value.reject_through_revision,
+        deadline: value.deadline,
+    }
+}
+
+pub fn open_channel(value: wire::OpenChannel) -> store::OpenChannel {
+    store::OpenChannel {
+        source_id: value.source_id,
+        session_id: value.session_id,
+        kind: match value.kind {
+            wire::ChannelKind::Control => store::ChannelKind::Control,
+            wire::ChannelKind::Media => store::ChannelKind::Media,
+            wire::ChannelKind::Audio => store::ChannelKind::Audio,
+            wire::ChannelKind::File => store::ChannelKind::File,
+            wire::ChannelKind::Rdp => store::ChannelKind::Rdp,
+        },
+    }
+}
+
+pub fn channel_progress(value: wire::ChannelProgress) -> store::ChannelProgress {
+    store::ChannelProgress {
+        sequence: value.sequence,
+        sent_bytes: value.sent_bytes,
+        received_bytes: value.received_bytes,
+        elapsed_ms: value.elapsed_ms,
+        outcome: match value.outcome {
+            wire::ChannelOutcome::Progress => store::ChannelOutcome::Progress,
+            wire::ChannelOutcome::Closed { reason } => store::ChannelOutcome::Closed {
+                reason: match reason {
+                    wire::ChannelClose::PeerClosed => store::ChannelClose::PeerClosed,
+                    wire::ChannelClose::UserStopped => store::ChannelClose::UserStopped,
+                },
+            },
+            wire::ChannelOutcome::Failed { reason } => store::ChannelOutcome::Failed {
+                reason: match reason {
+                    wire::ChannelFailure::TransportLost => store::ChannelFailure::TransportLost,
+                    wire::ChannelFailure::PolicyRevoked => store::ChannelFailure::PolicyRevoked,
+                    wire::ChannelFailure::IoError => store::ChannelFailure::IoError,
+                },
+            },
+        },
+    }
+}
+
+pub fn begin_file_transfer(value: wire::BeginFileTransfer) -> store::BeginFileTransfer {
+    store::BeginFileTransfer {
+        request_id: value.transfer_request_id,
+        session_id: value.session_id,
+        direction: match value.direction {
+            wire::TransferDirection::ToNode => store::TransferDirection::ToNode,
+            wire::TransferDirection::FromNode => store::TransferDirection::FromNode,
+        },
+        file_name: value.file_name,
+        total_bytes: value.total_bytes,
+        expected_sha256: value.expected_sha256,
+    }
+}
+
+pub fn transfer_progress(value: wire::TransferProgress) -> store::TransferProgress {
+    store::TransferProgress {
+        sequence: value.sequence,
+        transferred_bytes: value.transferred_bytes,
+        outcome: match value.outcome {
+            wire::TransferOutcome::Progress => store::TransferOutcome::Progress,
+            wire::TransferOutcome::Completed { received_sha256 } => {
+                store::TransferOutcome::Completed { received_sha256 }
+            }
+            wire::TransferOutcome::Failed { reason } => store::TransferOutcome::Failed {
+                reason: match reason {
+                    wire::TransferFailure::TransportLost => store::TransferFailure::TransportLost,
+                    wire::TransferFailure::HashMismatch => store::TransferFailure::HashMismatch,
+                    wire::TransferFailure::PolicyRevoked => store::TransferFailure::PolicyRevoked,
+                    wire::TransferFailure::IoError => store::TransferFailure::IoError,
+                    wire::TransferFailure::SourceChanged => store::TransferFailure::SourceChanged,
+                },
+            },
+            wire::TransferOutcome::Cancelled => store::TransferOutcome::Cancelled,
+        },
+    }
+}
+
+pub fn recording_report(value: wire::RecordingReport) -> store::RecordingReport {
+    store::RecordingReport {
+        source_id: value.source_id,
+        source_sha256: value.source_sha256,
+        session_id: value.session_id,
+        file_name: value.file_name,
+        size_bytes: value.size_bytes,
+        modified_unix_ms: value.modified_unix_ms,
+        codec: match value.codec {
+            wire::RecordingCodec::H264 => store::RecordingCodec::H264,
+            wire::RecordingCodec::H265 => store::RecordingCodec::H265,
+            wire::RecordingCodec::Av1 => store::RecordingCodec::Av1,
+            wire::RecordingCodec::Unknown => store::RecordingCodec::Unknown,
+        },
+        sequence: value.sequence,
+        present: value.present,
+    }
+}
+
+fn frontend_target(value: store::SessionTarget) -> wire::FrontendTarget {
+    match value {
+        store::SessionTarget::Desktop { device_id } => wire::FrontendTarget::Desktop { device_id },
+        store::SessionTarget::CloudApplication {
+            application_id,
+            instance_id,
+        } => wire::FrontendTarget::CloudApplication {
+            application_id,
+            instance_id,
+        },
+    }
+}
+
 pub fn command(value: store::NodeCommand) -> wire::NodeCommand {
     wire::NodeCommand {
         id: value.id,

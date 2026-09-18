@@ -295,6 +295,148 @@ async fn operation(
                     deployments,
                 })
             }
+            NodeRequest::ListFrontends { .. } => Ok(NodeResponse::Frontends {
+                request_id,
+                frontends: state
+                    .db
+                    .resource_sessions()
+                    .list_node(connection)
+                    .await?
+                    .into_iter()
+                    .map(crate::node_wire::expected_frontend)
+                    .collect(),
+            }),
+            NodeRequest::AdmitFrontend {
+                session_id,
+                revision,
+                frontend_token,
+                ..
+            } => {
+                let token = Zeroizing::new(frontend_token);
+                let digest = request::secret_digest(&token).ok_or(ApiError::Invalid)?;
+                let grant = state
+                    .db
+                    .resource_sessions()
+                    .admit_frontend(connection, session_id, revision, &digest)
+                    .await?;
+                Ok(NodeResponse::FrontendAdmitted {
+                    request_id,
+                    grant: crate::node_wire::frontend_grant(grant),
+                })
+            }
+            NodeRequest::BeginFrontendRetirement { session_id, .. } => {
+                let retirement = state
+                    .db
+                    .resource_sessions()
+                    .begin_retirement(connection, session_id)
+                    .await?;
+                Ok(NodeResponse::FrontendRetirementStarted {
+                    request_id,
+                    retirement: crate::node_wire::frontend_retirement(retirement),
+                })
+            }
+            NodeRequest::FinishFrontendRetirement {
+                session_id,
+                challenge_id,
+                ..
+            } => {
+                let session = state
+                    .db
+                    .resource_sessions()
+                    .finish_retirement(connection, session_id, challenge_id)
+                    .await?;
+                Ok(NodeResponse::FrontendRetired {
+                    request_id,
+                    session_id: session.id,
+                    revision: session.revision,
+                })
+            }
+            NodeRequest::OpenChannel { channel, .. } => {
+                let channel = state
+                    .db
+                    .activity()
+                    .open_channel(connection, &crate::node_wire::open_channel(channel))
+                    .await?;
+                Ok(NodeResponse::ChannelOpened {
+                    request_id,
+                    channel_id: channel.id,
+                    state: channel.state,
+                    sequence: channel.sequence,
+                    revision: channel.revision,
+                })
+            }
+            NodeRequest::ReportChannel {
+                channel_id,
+                progress,
+                ..
+            } => {
+                let channel = state
+                    .db
+                    .activity()
+                    .report_channel(
+                        connection,
+                        channel_id,
+                        &crate::node_wire::channel_progress(progress),
+                    )
+                    .await?;
+                Ok(NodeResponse::ChannelReported {
+                    request_id,
+                    channel_id: channel.id,
+                    state: channel.state,
+                    sequence: channel.sequence,
+                    revision: channel.revision,
+                })
+            }
+            NodeRequest::BeginFileTransfer { transfer, .. } => {
+                let transfer = state
+                    .db
+                    .file_transfers()
+                    .begin(connection, &crate::node_wire::begin_file_transfer(transfer))
+                    .await?;
+                Ok(NodeResponse::FileTransferStarted {
+                    request_id,
+                    transfer_id: transfer.id,
+                    state: transfer.state,
+                    sequence: transfer.sequence,
+                    revision: transfer.revision,
+                })
+            }
+            NodeRequest::ReportFileTransfer {
+                transfer_id,
+                progress,
+                ..
+            } => {
+                let transfer = state
+                    .db
+                    .file_transfers()
+                    .report(
+                        connection,
+                        transfer_id,
+                        &crate::node_wire::transfer_progress(progress),
+                    )
+                    .await?;
+                Ok(NodeResponse::FileTransferReported {
+                    request_id,
+                    transfer_id: transfer.id,
+                    state: transfer.state,
+                    sequence: transfer.sequence,
+                    revision: transfer.revision,
+                })
+            }
+            NodeRequest::ReportRecording { recording, .. } => {
+                let recording = state
+                    .db
+                    .recordings()
+                    .report(connection, &crate::node_wire::recording_report(recording))
+                    .await?;
+                Ok(NodeResponse::RecordingReported {
+                    request_id,
+                    recording_id: recording.id,
+                    reported_present: recording.reported_present,
+                    source_sequence: recording.source_sequence,
+                    revision: recording.revision,
+                })
+            }
             NodeRequest::Authenticate { .. } => Err(ApiError::Invalid),
         }
     };

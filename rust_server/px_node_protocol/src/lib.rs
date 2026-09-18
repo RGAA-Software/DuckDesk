@@ -190,6 +190,176 @@ pub struct DeploymentAssignment {
     pub preparation: DeploymentPreparation,
 }
 
+#[derive(Clone, Copy, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum FrontendTarget {
+    Desktop {
+        device_id: Uuid,
+    },
+    CloudApplication {
+        application_id: Uuid,
+        instance_id: Uuid,
+    },
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FrontendGrant {
+    pub session_id: Uuid,
+    pub revision: i64,
+    pub target: FrontendTarget,
+    pub client_type: String,
+    pub access_role: String,
+    pub valid_for_ms: u32,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExpectedFrontend {
+    pub id: Uuid,
+    pub revision: i64,
+    pub state: String,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FrontendRetirement {
+    pub session_id: Uuid,
+    pub challenge_id: Uuid,
+    pub reject_through_revision: i64,
+    pub deadline: DateTime<Utc>,
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ChannelKind {
+    Control,
+    Media,
+    Audio,
+    File,
+    Rdp,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OpenChannel {
+    pub source_id: Uuid,
+    pub session_id: Uuid,
+    pub kind: ChannelKind,
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ChannelFailure {
+    TransportLost,
+    PolicyRevoked,
+    IoError,
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ChannelClose {
+    PeerClosed,
+    UserStopped,
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ChannelOutcome {
+    #[serde(deserialize_with = "strict_empty::deserialize")]
+    Progress,
+    Closed {
+        reason: ChannelClose,
+    },
+    Failed {
+        reason: ChannelFailure,
+    },
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChannelProgress {
+    pub sequence: u64,
+    pub sent_bytes: u64,
+    pub received_bytes: u64,
+    pub elapsed_ms: u64,
+    pub outcome: ChannelOutcome,
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TransferDirection {
+    ToNode,
+    FromNode,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BeginFileTransfer {
+    pub transfer_request_id: Uuid,
+    pub session_id: Uuid,
+    pub direction: TransferDirection,
+    pub file_name: String,
+    pub total_bytes: u64,
+    pub expected_sha256: [u8; 32],
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TransferFailure {
+    TransportLost,
+    HashMismatch,
+    PolicyRevoked,
+    IoError,
+    SourceChanged,
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum TransferOutcome {
+    #[serde(deserialize_with = "strict_empty::deserialize")]
+    Progress,
+    Completed {
+        received_sha256: [u8; 32],
+    },
+    Failed {
+        reason: TransferFailure,
+    },
+    #[serde(deserialize_with = "strict_empty::deserialize")]
+    Cancelled,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TransferProgress {
+    pub sequence: u64,
+    pub transferred_bytes: u64,
+    pub outcome: TransferOutcome,
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecordingCodec {
+    H264,
+    H265,
+    Av1,
+    Unknown,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordingReport {
+    pub source_id: Uuid,
+    pub source_sha256: [u8; 32],
+    pub session_id: Option<Uuid>,
+    pub file_name: String,
+    pub size_bytes: u64,
+    pub modified_unix_ms: i64,
+    pub codec: RecordingCodec,
+    pub sequence: u64,
+    pub present: bool,
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum NodeRequest {
@@ -225,6 +395,46 @@ pub enum NodeRequest {
         after: Option<Uuid>,
         limit: u16,
     },
+    ListFrontends {
+        request_id: u64,
+    },
+    AdmitFrontend {
+        request_id: u64,
+        session_id: Uuid,
+        revision: i64,
+        frontend_token: String,
+    },
+    BeginFrontendRetirement {
+        request_id: u64,
+        session_id: Uuid,
+    },
+    FinishFrontendRetirement {
+        request_id: u64,
+        session_id: Uuid,
+        challenge_id: Uuid,
+    },
+    OpenChannel {
+        request_id: u64,
+        channel: OpenChannel,
+    },
+    ReportChannel {
+        request_id: u64,
+        channel_id: Uuid,
+        progress: ChannelProgress,
+    },
+    BeginFileTransfer {
+        request_id: u64,
+        transfer: BeginFileTransfer,
+    },
+    ReportFileTransfer {
+        request_id: u64,
+        transfer_id: Uuid,
+        progress: TransferProgress,
+    },
+    ReportRecording {
+        request_id: u64,
+        recording: RecordingReport,
+    },
 }
 
 impl NodeRequest {
@@ -237,7 +447,16 @@ impl NodeRequest {
             | Self::PollCommand { request_id }
             | Self::AcknowledgeCommand { request_id, .. }
             | Self::ReportDeployment { request_id, .. }
-            | Self::ListDeployments { request_id, .. } => *request_id,
+            | Self::ListDeployments { request_id, .. }
+            | Self::ListFrontends { request_id }
+            | Self::AdmitFrontend { request_id, .. }
+            | Self::BeginFrontendRetirement { request_id, .. }
+            | Self::FinishFrontendRetirement { request_id, .. }
+            | Self::OpenChannel { request_id, .. }
+            | Self::ReportChannel { request_id, .. }
+            | Self::BeginFileTransfer { request_id, .. }
+            | Self::ReportFileTransfer { request_id, .. }
+            | Self::ReportRecording { request_id, .. } => *request_id,
         }
     }
 }
@@ -299,6 +518,58 @@ pub enum NodeResponse {
         request_id: u64,
         deployments: Vec<DeploymentAssignment>,
     },
+    Frontends {
+        request_id: u64,
+        frontends: Vec<ExpectedFrontend>,
+    },
+    FrontendAdmitted {
+        request_id: u64,
+        grant: FrontendGrant,
+    },
+    FrontendRetirementStarted {
+        request_id: u64,
+        retirement: FrontendRetirement,
+    },
+    FrontendRetired {
+        request_id: u64,
+        session_id: Uuid,
+        revision: i64,
+    },
+    ChannelOpened {
+        request_id: u64,
+        channel_id: Uuid,
+        state: String,
+        sequence: i64,
+        revision: i64,
+    },
+    ChannelReported {
+        request_id: u64,
+        channel_id: Uuid,
+        state: String,
+        sequence: i64,
+        revision: i64,
+    },
+    FileTransferStarted {
+        request_id: u64,
+        transfer_id: Uuid,
+        state: String,
+        sequence: i64,
+        revision: i64,
+    },
+    FileTransferReported {
+        request_id: u64,
+        transfer_id: Uuid,
+        state: String,
+        sequence: i64,
+        revision: i64,
+    },
+    RecordingReported {
+        request_id: u64,
+        recording_id: Uuid,
+        reported_present: bool,
+        source_sequence: i64,
+        revision: i64,
+    },
     Error {
         request_id: Option<u64>,
         code: String,
@@ -315,7 +586,16 @@ impl NodeResponse {
             | Self::Command { request_id, .. }
             | Self::CommandAcknowledged { request_id, .. }
             | Self::DeploymentReported { request_id }
-            | Self::Deployments { request_id, .. } => Some(*request_id),
+            | Self::Deployments { request_id, .. }
+            | Self::Frontends { request_id, .. }
+            | Self::FrontendAdmitted { request_id, .. }
+            | Self::FrontendRetirementStarted { request_id, .. }
+            | Self::FrontendRetired { request_id, .. }
+            | Self::ChannelOpened { request_id, .. }
+            | Self::ChannelReported { request_id, .. }
+            | Self::FileTransferStarted { request_id, .. }
+            | Self::FileTransferReported { request_id, .. }
+            | Self::RecordingReported { request_id, .. } => Some(*request_id),
             Self::Error { request_id, .. } => *request_id,
         }
     }
@@ -369,6 +649,9 @@ mod tests {
             r#"{"type":"unknown","request_id":1}"#,
             r#"{"type":"reconcile","request_id":1,"inventory":{"challenge_id":"00000000-0000-0000-0000-000000000000","runtimes":[{"instance_id":"00000000-0000-0000-0000-000000000000","launch_id":"00000000-0000-0000-0000-000000000000","port":1,"phase":"running","extra":1}]}}"#,
             r#"{"type":"acknowledge_command","request_id":1,"receipt":{"command_id":"00000000-0000-0000-0000-000000000000","lease_id":"00000000-0000-0000-0000-000000000000","instance_id":"00000000-0000-0000-0000-000000000000","launch_id":"00000000-0000-0000-0000-000000000000","instance_revision":1,"outcome":{"result":"absent","extra":1}}}"#,
+            r#"{"type":"admit_frontend","request_id":1,"session_id":"00000000-0000-0000-0000-000000000000","revision":1,"frontend_token":"secret","extra":1}"#,
+            r#"{"type":"report_channel","request_id":1,"channel_id":"00000000-0000-0000-0000-000000000000","progress":{"sequence":1,"sent_bytes":0,"received_bytes":0,"elapsed_ms":0,"outcome":{"kind":"progress","extra":1}}}"#,
+            r#"{"type":"report_file_transfer","request_id":1,"transfer_id":"00000000-0000-0000-0000-000000000000","progress":{"sequence":1,"transferred_bytes":0,"outcome":{"kind":"cancelled","extra":1}}}"#,
         ] {
             assert!(serde_json::from_str::<NodeRequest>(invalid).is_err());
         }
@@ -381,5 +664,23 @@ mod tests {
         .unwrap();
         assert!(!response.contains("token"));
         assert!(!response.contains("secret"));
+
+        let admitted = serde_json::to_string(&NodeResponse::FrontendAdmitted {
+            request_id: 2,
+            grant: FrontendGrant {
+                session_id: Uuid::nil(),
+                revision: 1,
+                target: FrontendTarget::CloudApplication {
+                    application_id: Uuid::nil(),
+                    instance_id: Uuid::nil(),
+                },
+                client_type: "android".into(),
+                access_role: "controller".into(),
+                valid_for_ms: 30_000,
+            },
+        })
+        .unwrap();
+        assert!(!admitted.contains("token"));
+        assert!(!admitted.contains("secret"));
     }
 }
