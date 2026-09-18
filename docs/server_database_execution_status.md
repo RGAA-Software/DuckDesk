@@ -650,6 +650,10 @@ frontend token 周期复核，不签发新的短期 ticket；本地硬截止、�
 `build_official/cloud_node/dist` 哈希同步通过。公网首帧/输入/音频、持续续租、在线撤销、Console 中断及 Android 真机仍待端到端验收，
 不能据此宣告 DB2-A 或 DB5 完成。
 
+管理端历史能力已建立独立的[功能守恒清单](console_management_feature_parity.md)，以稳定 ID 逐项记录 DTO、WebSocket、录像读写、
+视频墙、直播、RTC/TURN、硬件事件、许可证和文件传输的迁移状态、目标归属与验收条件。完整 PostgreSQL 门禁会检查这些 ID 全部存在；
+删除页面或旧源码不能删除待办。旧实现只在提交 `519be7d85` 中作为行为取证，不构成兼容层或恢复旧 `/api/v1` 的依据。
+
 最新完整软件基线 `pg-20260918-164811-93a8a3ce` 在 revision `21c6bd9bf` 上为 735/735 项 PASS。它包含本轮 frontend
 授权续租、硬截止和精确 RTC 撤销实现，并从三套空 PostgreSQL
 数据库开始，覆盖 Windows 与 WSL Linux 的 Rust 单元/集成测试、Console 243/Desk 9/Auth 30 条 SQLx 在线/离线一致性、四套 Web

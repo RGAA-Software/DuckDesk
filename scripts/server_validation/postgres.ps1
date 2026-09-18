@@ -568,8 +568,20 @@ try {
     Add-Step 'AUTH-WEB: five contract tests, catalogs, themes, bounds, retry identity and logout failures'
     Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_console'),'run','build') | Out-Null
     $consoleWebUnit = Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_console'),'run','test:unit','--','--run')
-    if ($consoleWebUnit -notmatch 'Tests\s+21 passed') { throw 'Console frontend contract tests missing' }
-    Add-Step 'CONSOLE-WEB: new bearer identity, explicit subject, descriptor secrecy, type-check and production bundle'
+    if ($consoleWebUnit -notmatch 'Tests\s+29 passed') { throw 'Console frontend contract tests missing' }
+    Add-Step 'CONSOLE-WEB: 29 bearer identity, managed directory/activity, explicit subject, descriptor secrecy and production bundle tests'
+    $consoleParity = Get-Content -LiteralPath (Join-Path $repo 'docs/console_management_feature_parity.md') -Raw
+    $requiredConsoleCapabilities = @(
+        'CM-IDENTITY', 'CM-DASHBOARD', 'CM-DEVICE', 'CM-ONLINE', 'CM-CONNECTION', 'CM-APPLICATION',
+        'CM-RECORDING', 'CM-WALL', 'CM-LIVE', 'CM-EVENT', 'CM-REALTIME', 'CM-RTC', 'CM-LICENSE',
+        'CM-PROFILE', 'CM-TRANSFER', 'CM-OBSERVER'
+    )
+    foreach ($capability in $requiredConsoleCapabilities) {
+        if ($consoleParity -notmatch [regex]::Escape("| $capability |")) {
+            throw "Console feature parity capability is untracked: $capability"
+        }
+    }
+    Add-Step 'CONSOLE-PARITY: all historical management capabilities remain classified with owners and acceptance gates'
     Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_web_client'),'run','build') | Out-Null
     $webClientUnit = Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_web_client'),'test')
     if ($webClientUnit -notmatch 'Tests\s+65 passed' -or $webClientUnit -notmatch 'voice_call_state: 19 assertions passed') {
