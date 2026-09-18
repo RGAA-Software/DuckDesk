@@ -1,7 +1,12 @@
 import type { AxiosResponse, InternalAxiosRequestConfig } from "axios";
 import { afterEach, describe, expect, it } from "vitest";
 import axiosHttp, { setAdminToken } from "@/http";
-import { loginAdmin, logoutAdmin, queryAdminSession } from "./admin_session_api";
+import {
+    changeAdminPassword,
+    loginAdmin,
+    logoutAdmin,
+    queryAdminSession,
+} from "./admin_session_api";
 
 function installAdapter(responseData: unknown) {
     let request: InternalAxiosRequestConfig | undefined;
@@ -60,5 +65,19 @@ describe("PostgreSQL Console administrator session", () => {
         expect(request()?.method).toBe("delete");
         expect(request()?.url).toBe("/api/console/session");
         expect(sessionStorage.getItem("pixels.admin_web.token")).toBeNull();
+    });
+
+    it("changes the password through the PostgreSQL identity endpoint", async () => {
+        setAdminToken("c".repeat(64));
+        const request = installAdapter(null);
+
+        await changeAdminPassword("current-passphrase", "replacement-passphrase");
+
+        expect(request()?.method).toBe("patch");
+        expect(request()?.url).toBe("/api/console/password");
+        expect(JSON.parse(String(request()?.data))).toEqual({
+            current_password: "current-passphrase",
+            new_password: "replacement-passphrase",
+        });
     });
 });

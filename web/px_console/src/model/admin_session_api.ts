@@ -38,3 +38,13 @@ export async function logoutAdmin(): Promise<void> {
         setAdminToken("");
     }
 }
+
+export async function changeAdminPassword(
+    currentPassword: string,
+    newPassword: string,
+): Promise<void> {
+    await axiosHttp.patch("/api/console/password", {
+        current_password: currentPassword,
+        new_password: newPassword,
+    });
+}

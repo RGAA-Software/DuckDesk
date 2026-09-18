@@ -93,4 +93,47 @@ export default {
             title: "Groups and members",
         },
     },
+    devices: {
+        access: "Access",
+        accessTitle: "Access to {name}",
+        copyCredential: "Copy enrollment token",
+        create: "Register device",
+        credentialNotice:
+            "The enrollment token is shown only once. Copy it now and configure the target device through a secure channel.",
+        credentialTitle: "One-time device enrollment token",
+        disabled: "Disable device",
+        edit: "Edit device",
+        groups: "Authorized groups",
+        inventoryNotice:
+            "This page shows the persistent device inventory. Node management reports availability, capacity, and runtime metrics.",
+        name: "Device name",
+        platform: "Platform",
+        platforms: {
+            android: "Android",
+            linux: "Linux",
+            macos: "macOS",
+            windows: "Windows",
+        },
+        publicCode: "Public device code",
+        registeredAt: "Registered",
+        rotate: "Rotate token",
+        search: "Search name, device code, or ID",
+        title: "Device inventory",
+        users: "Direct user access",
+        confirm: {
+            deleteImpact:
+                "The device inventory entry, access grants, and associated node identity will become invalid.",
+            deleteTitle: "Delete device {name}?",
+            rotateImpact:
+                "The old enrollment token and affected authorization will become invalid immediately.",
+            rotateTitle: "Rotate the device enrollment token?",
+        },
+        messages: {
+            accessSaved: "Device access saved",
+            copied: "Enrollment token copied",
+        },
+        validation: {
+            name: "Device name is required and cannot start or end with spaces",
+        },
+    },
 };
