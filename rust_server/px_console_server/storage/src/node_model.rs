@@ -149,6 +149,13 @@ pub struct NodeTelemetry {
     pub gpus: Vec<NodeGpuTelemetry>,
 }
 
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NodeTelemetryBackfillSample {
+    pub sample_id: Uuid,
+    pub telemetry: NodeTelemetry,
+}
+
 pub(crate) struct ValidatedNodeReport {
     pub sequence: i64,
     pub host: String,
@@ -180,9 +187,20 @@ pub(crate) struct ValidatedNodeGpuTelemetry {
 
 impl NodeTelemetry {
     fn validate(&self) -> Result<ValidatedNodeTelemetry, StoreError> {
+        self.validate_with_maximum_age(TimeDelta::hours(1))
+    }
+
+    pub(crate) fn validate_backfill(&self) -> Result<ValidatedNodeTelemetry, StoreError> {
+        self.validate_with_maximum_age(TimeDelta::days(7))
+    }
+
+    fn validate_with_maximum_age(
+        &self,
+        maximum_age: TimeDelta,
+    ) -> Result<ValidatedNodeTelemetry, StoreError> {
         let now = Utc::now();
         if self.sampled_at > now + TimeDelta::minutes(5)
-            || self.sampled_at < now - TimeDelta::hours(1)
+            || self.sampled_at < now - maximum_age
             || self.gpus.len() > 16
         {
             return Err(StoreError::InvalidInput);

@@ -307,6 +307,20 @@ async fn operation(
                     endpoint_revision: node.endpoint_revision,
                 })
             }
+            NodeRequest::ReportTelemetryBackfill { samples, .. } => {
+                let sample_ids = state
+                    .db
+                    .nodes()
+                    .report_telemetry_backfill(
+                        connection,
+                        &crate::node_wire::telemetry_backfill(samples),
+                    )
+                    .await?;
+                Ok(NodeResponse::TelemetryBackfilled {
+                    request_id,
+                    sample_ids,
+                })
+            }
             NodeRequest::BeginReconciliation { .. } => Ok(NodeResponse::ReconciliationStarted {
                 request_id,
                 challenge: crate::node_wire::challenge(
@@ -554,7 +568,9 @@ async fn operation(
 
 fn management_event(message: &NodeRequest, node_id: Uuid) -> Option<(&'static str, Option<Uuid>)> {
     match message {
-        NodeRequest::Report { .. } => Some(("nodes", Some(node_id))),
+        NodeRequest::Report { .. } | NodeRequest::ReportTelemetryBackfill { .. } => {
+            Some(("nodes", Some(node_id)))
+        }
         NodeRequest::Reconcile { .. } | NodeRequest::AcknowledgeCommand { .. } => {
             Some(("instances", Some(node_id)))
         }

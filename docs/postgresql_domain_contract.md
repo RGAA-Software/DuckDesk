@@ -44,16 +44,24 @@ JSONB 只允许版本化、限长且经过 DTO 验证的事件详情/遥测附�
 PCI vendor/device/subsystem 唯一匹配的 NVIDIA NVML 设备填充逐 GPU 利用率、显存及编码器压力。无驱动、查询失败、歧义匹配及其他厂商
 继续保持 NULL，P3 调度不得将其解释成 0 或空闲。历史行与 latest 在同一报告事务提交，GPU 历史通过
 `(node_id,node_generation,report_sequence)` 外键绑定机器样本；管理查询使用接收时间、代际和序号的完整降序游标。原始样本固定保留
-7 天，Console 独立任务每分钟最多清理 5000 个过期机器样本并级联其 GPU 行，运行角色没有 UPDATE 历史的权限。趋势聚合、阈值告警、
-断线补报和逐 GPU 预约不因原始历史表存在而视为完成。
+7 天，Console 独立任务每分钟最多清理 5000 个过期机器样本并级联其 GPU 行，运行角色没有 UPDATE 历史的权限。趋势聚合、阈值告警和
+逐 GPU 预约均有独立门禁，不能只因原始历史表存在而视为完成。
+
+断线遥测使用独立历史补报契约，不重用在线 `NodeReport`：Windows Service 在受保护目录中以 LocalMachine DPAPI 保存最多 240 个
+严格按采样时间排序的样本，重连后每批最多 4 个渐进补报。每个样本带随机 UUID，Console 的
+`node_telemetry_backfill_receipts` 以 `(node_id,sample_id)` 和 payload SHA-256 做精确幂等去重；响应丢失后相同请求可安全重试，
+复用同一 ID 改变采样时间或指标会拒绝。补报必须来自当前受认证连接，但只追加
+机器/GPU 历史并按真实 `sampled_at` 进入趋势，不更新 latest、节点 `last_seen`、端点、可调度状态或告警条件。在线报告继续使用当前
+generation 的正 sequence；补报在该 generation 使用服务器分配的负 sequence，二者不会冲突。补报最多接受 7 天内样本；原始历史
+按 7 天有界清理，去重回执在 8 天后每批最多清理 5000 条。
 
 阈值告警使用每节点 `node_telemetry_alert_policies`，默认 CPU/内存/固定磁盘 warning/critical 为 850/950‰，GPU 为
 900/980‰；默认连续 3 个已接受样本越线才开事件，低于 warning 减 50‰ 的回滞边界连续 3 个样本才恢复。缺失或 NULL 指标不产生、
 不刷新也不恢复事件。`node_telemetry_alert_conditions` 只保存去重/回滞工作状态；`node_telemetry_alert_events` 保存 active、
 acknowledged、recovered 生命周期、阈值快照、首次/最新/峰值、次数和 CAS revision，同一节点/指标/资源最多一个未恢复事件。
 确认人和策略变更分别写追加审计；恢复事件保留 180 天后由每批最多 5000 条的有界任务清理，未恢复事件不自动删除。策略和确认只有
-admin 可写，viewer 可读。当前 Windows 采样尚无可信逐 GPU 利用率，因此 GPU 告警字段与调度一样保持“未知不推断”；断线补报、
-趋势聚合、管理实时推送和真实公网 GPU 告警验收仍是后续领域。
+admin 可写，viewer 可读。Windows 仅对唯一匹配的 NVIDIA 设备使用可信 NVML 指标；其他厂商、驱动失败或歧义匹配继续保持
+“未知不推断”。管理实时推送的公网高频/断库专项和真实公网 GPU 告警验收仍是后续领域。
 
 RDP 工作区沿用[已冻结模式决策 §0.0](rdp_application_mode_design.md)：同一应用/节点使用同一个持久 Windows 账号与桌面，
 不因 user/guest、访问者变化或重连另建账号。用户/访客 owner 属于资源会话与占用，不属于工作区唯一键；不同访问者先后访问会看到同一工作区文件。

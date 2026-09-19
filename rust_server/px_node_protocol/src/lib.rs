@@ -99,6 +99,13 @@ pub struct NodeReport {
     pub telemetry: NodeTelemetry,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TelemetryBackfillSample {
+    pub sample_id: Uuid,
+    pub telemetry: NodeTelemetry,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TelemetryProbeState {
@@ -436,6 +443,10 @@ pub enum NodeRequest {
         request_id: u64,
         report: NodeReport,
     },
+    ReportTelemetryBackfill {
+        request_id: u64,
+        samples: Vec<TelemetryBackfillSample>,
+    },
     BeginReconciliation {
         request_id: u64,
     },
@@ -512,6 +523,7 @@ impl NodeRequest {
         match self {
             Self::Authenticate { request_id, .. }
             | Self::Report { request_id, .. }
+            | Self::ReportTelemetryBackfill { request_id, .. }
             | Self::BeginReconciliation { request_id }
             | Self::Reconcile { request_id, .. }
             | Self::PollCommand { request_id }
@@ -565,6 +577,10 @@ pub enum NodeResponse {
         request_id: u64,
         state: String,
         endpoint_revision: i64,
+    },
+    TelemetryBackfilled {
+        request_id: u64,
+        sample_ids: Vec<Uuid>,
     },
     ReconciliationStarted {
         request_id: u64,
@@ -656,6 +672,7 @@ impl NodeResponse {
         match self {
             Self::Authenticated { request_id, .. }
             | Self::Reported { request_id, .. }
+            | Self::TelemetryBackfilled { request_id, .. }
             | Self::ReconciliationStarted { request_id, .. }
             | Self::Reconciled { request_id }
             | Self::Command { request_id, .. }

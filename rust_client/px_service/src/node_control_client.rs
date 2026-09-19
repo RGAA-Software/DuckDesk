@@ -9,7 +9,7 @@ use px_node_protocol::{
     DeploymentAssignment, DeploymentObservation, DeploymentPreparation, GpuReservation,
     NodeCommand, NodeCommandAction, NodeReport, NodeRequest, NodeResponse, ObservedRuntime,
     ObservedRuntimePhase, OpenChannel, PreparationFailure, PreparationState, RecordingCacheUpload,
-    RuntimeInventory, VideoCodec, MAX_MESSAGE_BYTES,
+    RuntimeInventory, TelemetryBackfillSample, VideoCodec, MAX_MESSAGE_BYTES,
 };
 use service_core::{AppInstanceState, StartAppRequest};
 use tokio::net::TcpStream;
@@ -24,7 +24,9 @@ use tracing::{info, warn};
 use uuid::Uuid;
 use zeroize::Zeroize;
 
-use crate::node_control_store::{NodeControlConfiguration, NodeControlStore};
+use crate::node_control_store::{
+    NodeControlConfiguration, NodeControlStore, TelemetryBacklogStore,
+};
 use crate::product_descriptor::ProductDescriptor;
 use crate::recording_inventory::RecordingInventory;
 use crate::service_host::ServiceRuntime;
@@ -164,6 +166,11 @@ pub async fn node_control_loop(
                 .ok_or_else(|| "node-control operation receiver was already taken".to_string())?,
         )
     };
+    let telemetry_backlog =
+        TelemetryBacklogStore::new(runtime.lock().await.config.data_root.clone());
+    let mut last_offline_sample = std::time::Instant::now()
+        .checked_sub(REPORT_INTERVAL)
+        .unwrap_or_else(std::time::Instant::now);
     loop {
         let configuration = loop {
             match store.load()? {
@@ -188,13 +195,26 @@ pub async fn node_control_loop(
             &configuration,
             &product,
             &recording_inventory,
+            &telemetry_backlog,
             &mut stop_rx,
             &mut operations,
         )
         .await
         {
             Ok(ConnectionEnd::Stopped) => return Ok(()),
-            Err(error) => warn!(%error, "node-control connection ended"),
+            Err(error) => {
+                warn!(%error, "node-control connection ended");
+                if last_offline_sample.elapsed() >= REPORT_INTERVAL {
+                    if let Err(backlog_error) = telemetry_backlog.append(
+                        tokio::task::spawn_blocking(crate::node_telemetry::sample)
+                            .await
+                            .unwrap_or_else(|_| crate::node_telemetry::unavailable()),
+                    ) {
+                        warn!(error = %backlog_error, "offline node telemetry could not be queued");
+                    }
+                    last_offline_sample = std::time::Instant::now();
+                }
+            }
         }
         tokio::select! {
             _ = stop_rx.recv() => return Ok(()),
@@ -212,6 +232,7 @@ async fn run_connection(
     configuration: &NodeControlConfiguration,
     product: &ProductDescriptor,
     recording_inventory: &Arc<std::sync::Mutex<RecordingInventory>>,
+    telemetry_backlog: &TelemetryBacklogStore,
     stop_rx: &mut tokio::sync::broadcast::Receiver<()>,
     operations: &mut tokio::sync::mpsc::Receiver<NodeControlOperation>,
 ) -> Result<ConnectionEnd, String> {
@@ -253,6 +274,7 @@ async fn run_connection(
         1,
     )
     .await?;
+    sync_telemetry_backlog(&mut socket, &mut session, telemetry_backlog, 4).await?;
     sync_deployments(&mut socket, &mut session, product, endpoint_revision, 1).await?;
     reconcile(&mut socket, &mut session, runtime).await?;
     let inventory_for_connection = recording_inventory.clone();
@@ -295,6 +317,7 @@ async fn run_connection(
                     product,
                     report_sequence,
                 ).await?;
+                sync_telemetry_backlog(&mut socket, &mut session, telemetry_backlog, 4).await?;
                 sync_deployments(
                     &mut socket,
                     &mut session,
@@ -666,6 +689,57 @@ async fn report(
         NodeResponse::Error { code, .. } => Err(format!("node report rejected: {code}")),
         _ => Err("unexpected node report response".into()),
     }
+}
+
+async fn sync_telemetry_backlog(
+    socket: &mut NodeSocket,
+    session: &mut ProtocolSession,
+    backlog: &TelemetryBacklogStore,
+    maximum_batches: usize,
+) -> Result<(), String> {
+    for _ in 0..maximum_batches {
+        let pending = match backlog.pending(4) {
+            Ok(pending) => pending,
+            Err(error) => {
+                warn!(%error, "protected node telemetry backlog is unavailable");
+                return Ok(());
+            }
+        };
+        if pending.is_empty() {
+            return Ok(());
+        }
+        let expected_sample_ids = pending
+            .iter()
+            .map(|sample| sample.sample_id)
+            .collect::<Vec<_>>();
+        let request = NodeRequest::ReportTelemetryBackfill {
+            request_id: session.request_id()?,
+            samples: pending
+                .into_iter()
+                .map(|sample| TelemetryBackfillSample {
+                    sample_id: sample.sample_id,
+                    telemetry: sample.telemetry,
+                })
+                .collect(),
+        };
+        let expected_request_id = request.request_id();
+        match exchange(socket, request).await? {
+            NodeResponse::TelemetryBackfilled {
+                request_id,
+                sample_ids,
+            } if request_id == expected_request_id && sample_ids == expected_sample_ids => {
+                if let Err(error) = backlog.acknowledge(&sample_ids) {
+                    warn!(%error, "node telemetry acknowledgement could not be persisted");
+                    return Ok(());
+                }
+            }
+            NodeResponse::Error { code, .. } => {
+                return Err(format!("node telemetry backfill rejected: {code}"));
+            }
+            _ => return Err("unexpected node telemetry backfill response".into()),
+        }
+    }
+    Ok(())
 }
 
 async fn sync_deployments(

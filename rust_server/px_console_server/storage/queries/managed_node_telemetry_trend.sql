@@ -39,15 +39,15 @@ gpu_samples AS (
     FROM pixels.node_gpu_history AS history
     CROSS JOIN aligned
     WHERE history.node_id = aligned.node_id
-      AND history.received_at >= aligned.first_bucket
-      AND history.received_at < aligned.last_bucket + aligned.bucket_seconds * INTERVAL '1 second'
+      AND history.sampled_at >= aligned.first_bucket
+      AND history.sampled_at < aligned.last_bucket + aligned.bucket_seconds * INTERVAL '1 second'
     GROUP BY history.node_id, history.node_generation, history.report_sequence
 ),
 samples AS (
     SELECT
         telemetry.node_id,
         to_timestamp(
-            floor(EXTRACT(EPOCH FROM telemetry.received_at) / aligned.bucket_seconds)
+            floor(EXTRACT(EPOCH FROM telemetry.sampled_at) / aligned.bucket_seconds)
             * aligned.bucket_seconds
         ) AS bucket_start,
         telemetry.cpu_utilization_per_mille,
@@ -74,8 +74,8 @@ samples AS (
      AND gpu_samples.node_generation = telemetry.node_generation
      AND gpu_samples.report_sequence = telemetry.report_sequence
     WHERE telemetry.node_id = aligned.node_id
-      AND telemetry.received_at >= aligned.first_bucket
-      AND telemetry.received_at < aligned.last_bucket + aligned.bucket_seconds * INTERVAL '1 second'
+      AND telemetry.sampled_at >= aligned.first_bucket
+      AND telemetry.sampled_at < aligned.last_bucket + aligned.bucket_seconds * INTERVAL '1 second'
 )
 SELECT
     buckets.bucket_start AS "bucket_start!",

@@ -2003,10 +2003,13 @@ mod tests {
     #[tokio::test]
     async fn rdp_reaper_slow_snapshot_does_not_lock_out_stop_or_apply_stale_state() {
         let dirs = make_app_test_dirs("reaper_race");
+        let listen_port = (4613..=4998)
+            .find(|candidate| std::net::TcpListener::bind(("127.0.0.1", *candidate as u16)).is_ok())
+            .expect("an application test port must be available");
         let manager = Arc::new(MockProcessManager::new(vec![ProcessSnapshot::new(
             4321,
             dirs.render_path.to_string_lossy().into_owned(),
-            "--app_mode=game-hook --network_listen_port=4753",
+            format!("--app_mode=game-hook --network_listen_port={listen_port}"),
         )]));
         manager.list_delay_ms.store(250, Ordering::SeqCst);
         let mut service = test_runtime(vec![]);
@@ -2015,7 +2018,7 @@ mod tests {
             .app_registry
             .begin_start(
                 &dirs.work_dir_s,
-                sample_start_req("reaper-race", 4753, &dirs.game_root_s),
+                sample_start_req("reaper-race", listen_port, &dirs.game_root_s),
             )
             .unwrap();
         service

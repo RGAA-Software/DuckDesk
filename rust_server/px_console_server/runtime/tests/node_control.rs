@@ -887,13 +887,39 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     )
     .await;
     assert_eq!(status.as_u16(), 200, "{stopping}");
-    let stop_command = exchange(&mut socket, json!({"type":"poll_command","request_id":19})).await;
+    let backfill_sample_id = Uuid::new_v4();
+    let backfilled = exchange(
+        &mut socket,
+        json!({
+            "type":"report_telemetry_backfill",
+            "request_id":19,
+            "samples":[{
+                "sample_id":backfill_sample_id,
+                "telemetry":{
+                    "sampled_at":chrono::Utc::now()-chrono::TimeDelta::minutes(2),
+                    "probe_state":"unavailable",
+                    "logical_processors":null,
+                    "cpu_utilization_per_mille":null,
+                    "memory_total_bytes":null,
+                    "memory_available_bytes":null,
+                    "disk_total_bytes":null,
+                    "disk_free_bytes":null,
+                    "gpu_inventory_revision":null,
+                    "gpus":[]
+                }
+            }]
+        }),
+    )
+    .await;
+    assert_eq!(backfilled["type"], "telemetry_backfilled");
+    assert_eq!(backfilled["sample_ids"], json!([backfill_sample_id]));
+    let stop_command = exchange(&mut socket, json!({"type":"poll_command","request_id":20})).await;
     assert_eq!(stop_command["command"]["action"]["kind"], "stop");
     let stopped = exchange(
         &mut socket,
         json!({
             "type":"acknowledge_command",
-            "request_id":20,
+            "request_id":21,
             "receipt":{
                 "command_id":stop_command["command"]["id"],
                 "lease_id":stop_command["command"]["lease_id"],
@@ -908,10 +934,10 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     assert_eq!(stopped["state"], "stopped");
 
     let sequence_error =
-        exchange(&mut socket, json!({"type":"poll_command","request_id":20})).await;
+        exchange(&mut socket, json!({"type":"poll_command","request_id":21})).await;
     assert_eq!(
         sequence_error,
-        json!({"type":"error","request_id":20,"code":"invalid_sequence"})
+        json!({"type":"error","request_id":21,"code":"invalid_sequence"})
     );
     let closed = tokio::time::timeout(Duration::from_secs(5), socket.next())
         .await

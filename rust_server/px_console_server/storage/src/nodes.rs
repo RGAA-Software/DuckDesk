@@ -1,11 +1,12 @@
 use crate::{
     control, ManagedNodeProfile, ManagedNodeTelemetrySample, NodeConfiguration, NodeConnection,
     NodeGpuHistoryProfile, NodeGpuProfile, NodeProduct, NodeProfile, NodeReport,
-    NodeTelemetryProfile, NodeTelemetryTrend, NodeTelemetryTrendPoint, RuntimeEpoch, StoreError,
-    TelemetryHistoryCursor, TelemetryTrendRequest, TokenDigest,
+    NodeTelemetryBackfillSample, NodeTelemetryProfile, NodeTelemetryTrend, NodeTelemetryTrendPoint,
+    RuntimeEpoch, StoreError, TelemetryHistoryCursor, TelemetryTrendRequest, TokenDigest,
 };
+use sha2::{Digest, Sha256};
 use sqlx::{PgConnection, PgPool};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -159,7 +160,7 @@ impl NodeStore {
     ) -> Result<Vec<ManagedNodeTelemetrySample>, StoreError> {
         if !(1..=100).contains(&limit)
             || before
-                .is_some_and(|cursor| cursor.node_generation <= 0 || cursor.report_sequence <= 0)
+                .is_some_and(|cursor| cursor.node_generation <= 0 || cursor.report_sequence == 0)
         {
             return Err(StoreError::InvalidInput);
         }
@@ -271,6 +272,9 @@ impl NodeStore {
             .execute(&mut *tx)
             .await?
             .rows_affected();
+        sqlx::query_file!("queries/prune_node_telemetry_backfill_receipts.sql")
+            .execute(&mut *tx)
+            .await?;
         tx.commit().await?;
         Ok(removed)
     }
@@ -421,6 +425,114 @@ impl NodeStore {
         tx.commit().await?;
         Ok(node)
     }
+
+    pub async fn report_telemetry_backfill(
+        &self,
+        connection: &NodeConnection,
+        samples: &[NodeTelemetryBackfillSample],
+    ) -> Result<Vec<Uuid>, StoreError> {
+        if samples.is_empty() || samples.len() > 4 {
+            return Err(StoreError::InvalidInput);
+        }
+        let mut sample_ids = HashSet::with_capacity(samples.len());
+        let mut validated_samples = Vec::with_capacity(samples.len());
+        let mut previous_sampled_at = None;
+        for sample in samples {
+            if sample.sample_id.is_nil()
+                || !sample_ids.insert(sample.sample_id)
+                || previous_sampled_at
+                    .is_some_and(|previous| previous >= sample.telemetry.sampled_at)
+            {
+                return Err(StoreError::InvalidInput);
+            }
+            previous_sampled_at = Some(sample.telemetry.sampled_at);
+            let validated_telemetry = sample.telemetry.validate_backfill()?;
+            let payload_sha256 = telemetry_payload_sha256(&validated_telemetry);
+            validated_samples.push((sample, validated_telemetry, payload_sha256));
+        }
+
+        let mut tx = self.pool.begin().await?;
+        control::read_gate(&mut tx).await?;
+        sqlx::query_file_scalar!(
+            "queries/authorize_node_telemetry_backfill.sql",
+            connection.id,
+            connection.key.0.as_slice(),
+            connection.generation,
+            connection.epoch.0
+        )
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(StoreError::Rejected)?;
+
+        let mut acknowledged = Vec::with_capacity(validated_samples.len());
+        for (sample, telemetry, payload_sha256) in validated_samples {
+            let receipt = sqlx::query_file!(
+                "queries/insert_node_telemetry_backfill_receipt.sql",
+                connection.id,
+                sample.sample_id,
+                telemetry.sampled_at,
+                payload_sha256.as_slice()
+            )
+            .fetch_one(&mut *tx)
+            .await?;
+            if !receipt.exact {
+                return Err(StoreError::Rejected);
+            }
+            if !receipt.inserted {
+                acknowledged.push(sample.sample_id);
+                continue;
+            }
+            let received_at = receipt.received_at;
+            let sequence = sqlx::query_file_scalar!(
+                "queries/next_node_telemetry_backfill_sequence.sql",
+                connection.id,
+                connection.generation
+            )
+            .fetch_one(&mut *tx)
+            .await?;
+            sqlx::query_file!(
+                "queries/insert_node_telemetry_history.sql",
+                connection.id,
+                connection.generation,
+                sequence,
+                telemetry.probe_state,
+                telemetry.sampled_at,
+                received_at,
+                telemetry.logical_processors,
+                telemetry.cpu_utilization_per_mille,
+                telemetry.memory_total_bytes,
+                telemetry.memory_available_bytes,
+                telemetry.disk_total_bytes,
+                telemetry.disk_free_bytes,
+                telemetry.gpu_inventory_revision
+            )
+            .execute(&mut *tx)
+            .await?;
+            for gpu in telemetry.gpus {
+                sqlx::query_file!(
+                    "queries/insert_node_gpu_history.sql",
+                    connection.id,
+                    connection.generation,
+                    sequence,
+                    gpu.stable_key,
+                    telemetry.gpu_inventory_revision,
+                    gpu.name,
+                    gpu.runtime_binding_ready,
+                    gpu.dedicated_memory_bytes,
+                    gpu.used_memory_bytes,
+                    gpu.utilization_per_mille,
+                    gpu.encoder_utilization_per_mille,
+                    telemetry.sampled_at,
+                    received_at
+                )
+                .execute(&mut *tx)
+                .await?;
+            }
+            acknowledged.push(sample.sample_id);
+        }
+        tx.commit().await?;
+        Ok(acknowledged)
+    }
     pub async fn close_connection(&self, connection: &NodeConnection) -> Result<(), StoreError> {
         let mut tx = self.pool.begin().await?;
         control::read_gate(&mut tx).await?;
@@ -551,5 +663,49 @@ impl NodeStore {
         .execute(connection)
         .await?;
         Ok(())
+    }
+}
+
+fn telemetry_payload_sha256(telemetry: &crate::node_model::ValidatedNodeTelemetry) -> Vec<u8> {
+    let mut hasher = Sha256::new();
+    hasher.update(b"pixels-node-telemetry-backfill-v1\0");
+    hasher.update(telemetry.sampled_at.timestamp_micros().to_be_bytes());
+    update_text_digest(&mut hasher, telemetry.probe_state);
+    update_optional_i16_digest(&mut hasher, telemetry.logical_processors);
+    update_optional_i16_digest(&mut hasher, telemetry.cpu_utilization_per_mille);
+    update_optional_i64_digest(&mut hasher, telemetry.memory_total_bytes);
+    update_optional_i64_digest(&mut hasher, telemetry.memory_available_bytes);
+    update_optional_i64_digest(&mut hasher, telemetry.disk_total_bytes);
+    update_optional_i64_digest(&mut hasher, telemetry.disk_free_bytes);
+    update_optional_i64_digest(&mut hasher, telemetry.gpu_inventory_revision);
+    hasher.update((telemetry.gpus.len() as u64).to_be_bytes());
+    for gpu in &telemetry.gpus {
+        update_text_digest(&mut hasher, &gpu.stable_key);
+        update_text_digest(&mut hasher, &gpu.name);
+        hasher.update([u8::from(gpu.runtime_binding_ready)]);
+        update_optional_i64_digest(&mut hasher, gpu.dedicated_memory_bytes);
+        update_optional_i64_digest(&mut hasher, gpu.used_memory_bytes);
+        update_optional_i16_digest(&mut hasher, gpu.utilization_per_mille);
+        update_optional_i16_digest(&mut hasher, gpu.encoder_utilization_per_mille);
+    }
+    hasher.finalize().to_vec()
+}
+
+fn update_text_digest(hasher: &mut Sha256, value: &str) {
+    hasher.update((value.len() as u64).to_be_bytes());
+    hasher.update(value.as_bytes());
+}
+
+fn update_optional_i16_digest(hasher: &mut Sha256, value: Option<i16>) {
+    hasher.update([u8::from(value.is_some())]);
+    if let Some(value) = value {
+        hasher.update(value.to_be_bytes());
+    }
+}
+
+fn update_optional_i64_digest(hasher: &mut Sha256, value: Option<i64>) {
+    hasher.update([u8::from(value.is_some())]);
+    if let Some(value) = value {
+        hasher.update(value.to_be_bytes());
     }
 }

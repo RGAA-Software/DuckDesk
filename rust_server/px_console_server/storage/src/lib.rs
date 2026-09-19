@@ -98,8 +98,9 @@ pub use model::{
 pub use node_model::{
     ManagedNodeProfile, ManagedNodeTelemetrySample, NodeConfiguration, NodeConnection,
     NodeGpuHistoryProfile, NodeGpuProfile, NodeGpuTelemetry, NodeProduct, NodeProfile, NodeReport,
-    NodeTelemetry, NodeTelemetryProfile, NodeTelemetryTrend, NodeTelemetryTrendPoint, RuntimeEpoch,
-    TelemetryHistoryCursor, TelemetryProbeState, TelemetryTrendRequest,
+    NodeTelemetry, NodeTelemetryBackfillSample, NodeTelemetryProfile, NodeTelemetryTrend,
+    NodeTelemetryTrendPoint, RuntimeEpoch, TelemetryHistoryCursor, TelemetryProbeState,
+    TelemetryTrendRequest,
 };
 pub use nodes::NodeStore;
 pub use outbox::{AuthorizationEvent, DeliveryFailure};

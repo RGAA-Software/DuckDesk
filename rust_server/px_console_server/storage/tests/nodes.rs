@@ -4,9 +4,9 @@ use argon2::{
 };
 use px_console_store::{
     ClientType, DevicePlatform, DeviceStore, IdentityStore, NodeConfiguration, NodeGpuTelemetry,
-    NodeProduct, NodeProfile, NodeReport, NodeStore, NodeTelemetry, PasswordDigest, StoreError,
-    TelemetryAlertFilter, TelemetryAlertMetric, TelemetryAlertPolicy, TelemetryAlertStore,
-    TelemetryProbeState, TelemetryTrendRequest, TokenDigest, Username,
+    NodeProduct, NodeProfile, NodeReport, NodeStore, NodeTelemetry, NodeTelemetryBackfillSample,
+    PasswordDigest, StoreError, TelemetryAlertFilter, TelemetryAlertMetric, TelemetryAlertPolicy,
+    TelemetryAlertStore, TelemetryProbeState, TelemetryTrendRequest, TokenDigest, Username,
 };
 use px_pg::{DatabaseConfig, Transport};
 use std::{env, sync::OnceLock, time::Duration};
@@ -483,14 +483,14 @@ async fn telemetry_trend_aggregates_on_database_time_and_keeps_unknown_samples_v
             .unwrap();
     }
     sqlx::query(
-        "UPDATE pixels.node_telemetry_history SET received_at=clock_timestamp()-make_interval(secs => CASE report_sequence WHEN 1 THEN 65 WHEN 2 THEN 35 ELSE 5 END) WHERE node_id=$1",
+        "UPDATE pixels.node_telemetry_history SET sampled_at=clock_timestamp()-make_interval(secs => CASE report_sequence WHEN 1 THEN 65 WHEN 2 THEN 35 ELSE 5 END),received_at=clock_timestamp()-make_interval(secs => CASE report_sequence WHEN 1 THEN 65 WHEN 2 THEN 35 ELSE 5 END) WHERE node_id=$1",
     )
     .bind(node.id)
     .execute(&fixture.owner)
     .await
     .unwrap();
     sqlx::query(
-        "UPDATE pixels.node_gpu_history AS gpu SET received_at=telemetry.received_at FROM pixels.node_telemetry_history AS telemetry WHERE gpu.node_id=telemetry.node_id AND gpu.node_generation=telemetry.node_generation AND gpu.report_sequence=telemetry.report_sequence AND gpu.node_id=$1",
+        "UPDATE pixels.node_gpu_history AS gpu SET sampled_at=telemetry.sampled_at,received_at=telemetry.received_at FROM pixels.node_telemetry_history AS telemetry WHERE gpu.node_id=telemetry.node_id AND gpu.node_generation=telemetry.node_generation AND gpu.report_sequence=telemetry.report_sequence AND gpu.node_id=$1",
     )
     .bind(node.id)
     .execute(&fixture.owner)
@@ -574,6 +574,130 @@ async fn telemetry_trend_aggregates_on_database_time_and_keeps_unknown_samples_v
             .await
             .is_err());
     }
+    fixture.close().await;
+}
+
+#[tokio::test]
+async fn disconnected_telemetry_backfill_is_idempotent_historical_and_never_current_authority() {
+    let fixture = Fixture::new().await;
+    let (node, key) = fixture.node().await;
+    let epoch = fixture.nodes.begin_runtime().await.unwrap();
+    let connection = fixture
+        .nodes
+        .open_connection(epoch, &key, &token())
+        .await
+        .unwrap();
+    let mut live_report = report(1);
+    live_report.telemetry = ready_telemetry();
+    live_report.telemetry.cpu_utilization_per_mille = Some(100);
+    fixture
+        .nodes
+        .report(&connection, &live_report)
+        .await
+        .unwrap();
+
+    let mut samples = Vec::new();
+    for age_seconds in [90, 60, 30] {
+        let mut telemetry = ready_telemetry();
+        telemetry.sampled_at = chrono::Utc::now() - chrono::TimeDelta::seconds(age_seconds);
+        telemetry.cpu_utilization_per_mille = Some(990);
+        samples.push(NodeTelemetryBackfillSample {
+            sample_id: Uuid::new_v4(),
+            telemetry,
+        });
+    }
+    let expected_ids = samples
+        .iter()
+        .map(|sample| sample.sample_id)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        fixture
+            .nodes
+            .report_telemetry_backfill(&connection, &samples)
+            .await
+            .unwrap(),
+        expected_ids
+    );
+    let mut changed_retry = samples.clone();
+    changed_retry[0].telemetry.cpu_utilization_per_mille = Some(980);
+    assert!(fixture
+        .nodes
+        .report_telemetry_backfill(&connection, &changed_retry)
+        .await
+        .is_err());
+    assert_eq!(
+        fixture
+            .nodes
+            .report_telemetry_backfill(&connection, &samples)
+            .await
+            .unwrap(),
+        expected_ids
+    );
+
+    let managed = fixture
+        .nodes
+        .list_managed_views(&fixture.admin, None, 100)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|candidate| candidate.node.id == node.id)
+        .unwrap();
+    let latest = managed.telemetry.unwrap();
+    assert_eq!(latest.report_sequence, 1);
+    assert_eq!(latest.cpu_utilization_per_mille, Some(100));
+    let history = fixture
+        .nodes
+        .list_telemetry_history(&fixture.admin, node.id, None, 100)
+        .await
+        .unwrap();
+    assert_eq!(history.len(), 4);
+    assert_eq!(
+        history
+            .iter()
+            .filter(|sample| sample.telemetry.report_sequence < 0)
+            .count(),
+        3
+    );
+    assert!(fixture
+        .alerts
+        .list(
+            &fixture.admin,
+            TelemetryAlertFilter {
+                node_id: Some(node.id),
+                ..Default::default()
+            },
+            100,
+        )
+        .await
+        .unwrap()
+        .is_empty());
+    let trend = fixture
+        .nodes
+        .telemetry_trend(
+            &fixture.admin,
+            node.id,
+            TelemetryTrendRequest {
+                window_minutes: 5,
+                bucket_seconds: 30,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        trend
+            .points
+            .iter()
+            .map(|point| point.sample_count)
+            .sum::<i64>(),
+        4
+    );
+
+    fixture.nodes.close_connection(&connection).await.unwrap();
+    assert!(fixture
+        .nodes
+        .report_telemetry_backfill(&connection, &samples)
+        .await
+        .is_err());
     fixture.close().await;
 }
 

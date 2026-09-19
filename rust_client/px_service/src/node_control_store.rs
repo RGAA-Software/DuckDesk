@@ -1,11 +1,16 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
+use uuid::Uuid;
 use zeroize::{Zeroize, Zeroizing};
 
 const CONFIG_DIRECTORY: &str = "node-control";
 const CONFIG_FILE: &str = "configuration.dpapi";
+const TELEMETRY_BACKLOG_FILE: &str = "telemetry-backlog.dpapi";
 const MAX_INPUT_BYTES: u64 = 16 * 1024;
+const MAX_TELEMETRY_BACKLOG_BYTES: u64 = 4 * 1024 * 1024;
+const MAX_TELEMETRY_BACKLOG_SAMPLES: usize = 240;
 
 #[derive(Debug)]
 pub struct NodeControlConfiguration {
@@ -142,6 +147,145 @@ impl NodeControlStore {
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
             Err(_) => Err("cannot remove protected node-control configuration".into()),
         }
+    }
+
+    #[cfg(test)]
+    fn file_path(&self) -> &Path {
+        &self.file_path
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct StoredTelemetrySample {
+    pub sample_id: Uuid,
+    pub telemetry: px_node_protocol::NodeTelemetry,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct StoredTelemetryBacklog {
+    schema_version: u32,
+    samples: Vec<StoredTelemetrySample>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct TelemetryBacklogStore {
+    directory: PathBuf,
+    file_path: PathBuf,
+}
+
+impl TelemetryBacklogStore {
+    pub fn new(data_root: PathBuf) -> Self {
+        let directory = data_root.join(CONFIG_DIRECTORY);
+        Self {
+            file_path: directory.join(TELEMETRY_BACKLOG_FILE),
+            directory,
+        }
+    }
+
+    pub fn append(&self, telemetry: px_node_protocol::NodeTelemetry) -> Result<(), String> {
+        let mut samples = self.load_all()?;
+        let retention_start = chrono::Utc::now() - chrono::TimeDelta::days(7);
+        samples.retain(|sample| sample.telemetry.sampled_at >= retention_start);
+        if samples
+            .last()
+            .is_some_and(|sample| sample.telemetry.sampled_at >= telemetry.sampled_at)
+        {
+            return Err("node telemetry backlog samples must be strictly ordered".into());
+        }
+        if samples.len() == MAX_TELEMETRY_BACKLOG_SAMPLES {
+            samples.remove(0);
+        }
+        samples.push(StoredTelemetrySample {
+            sample_id: Uuid::new_v4(),
+            telemetry,
+        });
+        self.save_all(&samples)
+    }
+
+    pub fn pending(&self, limit: usize) -> Result<Vec<StoredTelemetrySample>, String> {
+        if limit == 0 || limit > 4 {
+            return Err("node telemetry backlog batch limit is invalid".into());
+        }
+        let retention_start = chrono::Utc::now() - chrono::TimeDelta::days(7);
+        Ok(self
+            .load_all()?
+            .into_iter()
+            .filter(|sample| sample.telemetry.sampled_at >= retention_start)
+            .take(limit)
+            .collect())
+    }
+
+    pub fn acknowledge(&self, sample_ids: &[Uuid]) -> Result<(), String> {
+        if sample_ids.is_empty() || sample_ids.len() > 4 {
+            return Err("node telemetry acknowledgement is invalid".into());
+        }
+        let acknowledged = sample_ids.iter().copied().collect::<HashSet<_>>();
+        if acknowledged.len() != sample_ids.len() {
+            return Err("node telemetry acknowledgement contains duplicates".into());
+        }
+        let mut samples = self.load_all()?;
+        if !acknowledged
+            .iter()
+            .all(|sample_id| samples.iter().any(|sample| sample.sample_id == *sample_id))
+        {
+            return Err("node telemetry acknowledgement does not match the backlog".into());
+        }
+        samples.retain(|sample| !acknowledged.contains(&sample.sample_id));
+        self.save_all(&samples)
+    }
+
+    fn load_all(&self) -> Result<Vec<StoredTelemetrySample>, String> {
+        if !self.file_path.exists() {
+            return Ok(Vec::new());
+        }
+        platform::ensure_private_directory(&self.directory)?;
+        reject_reparse_point(&self.file_path)?;
+        let metadata = std::fs::metadata(&self.file_path)
+            .map_err(|_| "cannot inspect protected node telemetry backlog".to_string())?;
+        if metadata.len() == 0 || metadata.len() > MAX_TELEMETRY_BACKLOG_BYTES {
+            return Err("protected node telemetry backlog size is invalid".into());
+        }
+        let encrypted = std::fs::read(&self.file_path)
+            .map_err(|_| "cannot read protected node telemetry backlog".to_string())?;
+        let mut plaintext = platform::unseal(&encrypted)?;
+        let decoded = serde_json::from_slice::<StoredTelemetryBacklog>(&plaintext);
+        plaintext.zeroize();
+        let backlog =
+            decoded.map_err(|_| "invalid protected node telemetry backlog".to_string())?;
+        if backlog.schema_version != 1 || backlog.samples.len() > MAX_TELEMETRY_BACKLOG_SAMPLES {
+            return Err("unsupported protected node telemetry backlog".into());
+        }
+        let mut sample_ids = HashSet::with_capacity(backlog.samples.len());
+        let valid = backlog.samples.iter().enumerate().all(|(index, sample)| {
+            !sample.sample_id.is_nil()
+                && sample_ids.insert(sample.sample_id)
+                && index.checked_sub(1).is_none_or(|previous_index| {
+                    backlog.samples[previous_index].telemetry.sampled_at
+                        < sample.telemetry.sampled_at
+                })
+        });
+        if !valid {
+            return Err("protected node telemetry backlog ordering is invalid".into());
+        }
+        Ok(backlog.samples)
+    }
+
+    fn save_all(&self, samples: &[StoredTelemetrySample]) -> Result<(), String> {
+        platform::ensure_private_directory(&self.directory)?;
+        let mut plaintext = serde_json::to_vec(&StoredTelemetryBacklog {
+            schema_version: 1,
+            samples: samples.to_vec(),
+        })
+        .map_err(|_| "cannot serialize node telemetry backlog".to_string())?;
+        let encrypted = platform::seal(&plaintext);
+        plaintext.zeroize();
+        let encrypted = encrypted?;
+        let pending = self.file_path.with_extension("dpapi.pending");
+        std::fs::write(&pending, encrypted)
+            .map_err(|_| "cannot write protected node telemetry backlog".to_string())?;
+        platform::replace_file(&pending, &self.file_path)
     }
 
     #[cfg(test)]
@@ -588,6 +732,39 @@ mod tests {
             .any(|bytes| bytes
                 == b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
         store.clear().unwrap();
+        std::fs::remove_dir(directory.join(CONFIG_DIRECTORY)).unwrap();
+        std::fs::remove_dir(directory).unwrap();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn protected_telemetry_backlog_is_ordered_bounded_and_acknowledged_exactly() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!("pixels_telemetry_backlog_{nonce}"));
+        std::fs::create_dir(&directory).unwrap();
+        let store = TelemetryBacklogStore::new(directory.clone());
+        let mut first = crate::node_telemetry::unavailable();
+        first.sampled_at = chrono::Utc::now() - chrono::TimeDelta::minutes(2);
+        let mut second = crate::node_telemetry::unavailable();
+        second.sampled_at = chrono::Utc::now() - chrono::TimeDelta::minutes(1);
+        store.append(first).unwrap();
+        store.append(second).unwrap();
+
+        let pending = store.pending(4).unwrap();
+        assert_eq!(pending.len(), 2);
+        let encrypted = std::fs::read(store.file_path()).unwrap();
+        assert!(!String::from_utf8_lossy(&encrypted).contains("sampled_at"));
+        store.acknowledge(&[pending[0].sample_id]).unwrap();
+        let remaining = store.pending(4).unwrap();
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].sample_id, pending[1].sample_id);
+        store.acknowledge(&[remaining[0].sample_id]).unwrap();
+        assert!(store.pending(4).unwrap().is_empty());
+
+        std::fs::remove_file(store.file_path()).unwrap();
         std::fs::remove_dir(directory.join(CONFIG_DIRECTORY)).unwrap();
         std::fs::remove_dir(directory).unwrap();
     }
