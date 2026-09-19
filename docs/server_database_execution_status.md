@@ -1114,6 +1114,8 @@ store、三项最低水位、Official deployment UUID 和规范 HTTPS origin；�
 聚焦构建已通过；当前 development `px_panel.exe` build/dist SHA-256 均为
 `6D093BFA81D18DC43771A4169642DDCB9F5EBB85F71177180FBD0AF410B8F72B`。因为仓库不包含 approved trust store、正式 Official UUID/origin
 和签名材料，本轮没有伪造正式双发行或运行 release-only 全构建；Windows 正式双制品/安装升级卸载仍是待执行验收项。
+策略回归随后发现并修正身份协议水位误写为 2 的问题：当前 Console、Service、Android 和 Windows 生产协议均为 1，正式 Windows policy
+现明确写 1 并有单测断言；否则签名与 nonce 均正确的当前 Console 也会被 Windows 客户端确定性拒绝。
 
 Web Client 增加可重复的公网验收入口，使用 `user_web` 创建当前资源会话，并确认当前本地产物能完成 frontend grant、SDP、ICE、四条
 DataChannel 和公网 UDP peer 连接，令牌也从可见 URL 移除；但公网 Render 没有发送任何 RTP，视频轨保持 muted，不能记为首帧通过。

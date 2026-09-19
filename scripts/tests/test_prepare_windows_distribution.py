@@ -73,6 +73,7 @@ class PrepareWindowsDistributionTest(unittest.TestCase):
         self.assertEqual(policy["distribution"], "official")
         self.assertEqual(policy["expected_deployment_id"], self.environment["PIXELS_EXPECTED_DEPLOYMENT_ID"])
         self.assertEqual(policy["official_console_origin"], self.environment["PIXELS_OFFICIAL_CONSOLE_URL"])
+        self.assertEqual(policy["protocol_version"], 1)
         self.assertEqual((output_directory / "deployment-trust.json").read_bytes(), self.trust_store.read_bytes())
 
     def test_customer_policy_contains_no_official_identity(self) -> None:

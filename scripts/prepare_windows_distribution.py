@@ -165,7 +165,7 @@ def build_policy(distribution: str, trust_epoch: int, matrix_customer: bool) -> 
         "minimum_certificate_version": certificate_version,
         "minimum_descriptor_revision": descriptor_revision,
         "minimum_trust_epoch": configured_epoch,
-        "protocol_version": 2,
+        "protocol_version": 1,
     }
 
 
