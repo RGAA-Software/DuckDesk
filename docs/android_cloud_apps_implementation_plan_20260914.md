@@ -321,3 +321,17 @@ cd src/px_android
 - Xiaomi 22021211RC 成功登录公网测试账号、读取账号目录、启动 Public Web Application、取得明确 CloudApplication descriptor、
   直连公网动态端口 4613、收到 H.264 1920×1080 首媒体并初始化 MediaCodec；随后结束远控、停止实例、确认恢复“可以启动”并注销账号。
 - 本记录关闭账号 CloudApplication Direct 短链路，不冒充设备 ACL、Android Relay、文件、音频、撤销/续租或最终统一长测。
+
+## 12. 2026-09-19 Android Relay 路由切片
+
+- 云应用卡片复用同一连接偏好编辑器，增加“自动/直连/Relay”显式路径。选择按 `cloud-app:<application_id>` 保存；`Automatic` 当前等同
+  已验收的 Direct 路径，不做静默 Relay fallback。
+- Console descriptor 在配置 Relay 时返回 host、port 和逐资源会话 `admission_ticket`。票据最长 300 秒并绑定 session 与目标
+  device/instance；部署 appkey 不返回客户端。Relay 在 upgrade 前验票，Render 仍独立校验 frontend grant 和租约。
+- 共享凭据、Relay、Console 单测和严格 Clippy通过；真实 PG node-control 报告为
+  `test-results/server_validation/pg-20260919-233340-c48eec6f`，1/1 PASS，源哈希不变且隔离环境已清理。
+- 1.0.8 Debug APK 从清洁输出完成 454/454 Gradle task，单测、Lint、arm64 Native、打包和 `adb install -r` 全部通过；SHA-256 为
+  `3805209B164975B338CF4C8265E401403D9C4F80B680B9388CD67341AD2F693D`。Xiaomi 22021211RC 已验证入口、三种路径及 Relay 选择重开持久化，
+  无 AndroidRuntime/JNI fatal。
+- 公网仍运行本切片之前的 Console/Relay，故尚无 Android Relay 首帧证据。必须先部署当前服务端，再验证媒体、音频、输入、撤销和
+  descriptor 到期后以新 descriptor 重连；不得用 UI/单测冒充端到端通过。

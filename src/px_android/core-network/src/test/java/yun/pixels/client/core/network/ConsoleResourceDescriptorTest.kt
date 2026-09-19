@@ -18,6 +18,9 @@ class ConsoleResourceDescriptorTest {
         assertEquals("session-1", result.value.sessionId)
         assertEquals(2L, result.value.sessionRevision)
         assertEquals("frontend-secret", result.value.frontendToken)
+        assertEquals("relay.example.com", result.value.relay?.host)
+        assertEquals(4605, result.value.relay?.port)
+        assertEquals(RELAY_ADMISSION_TICKET, result.value.relay?.admissionTicket)
     }
 
     @Test
@@ -65,8 +68,19 @@ class ConsoleResourceDescriptorTest {
             "transport": "native",
             "expires_at": "2026-09-19T02:00:00Z"
           },
-          "token": "frontend-secret"
+          "token": "frontend-secret",
+          "relay": {
+            "host": "relay.example.com",
+            "port": 4605,
+            "admission_ticket": "$RELAY_ADMISSION_TICKET"
+          }
         }
         """.trimIndent(),
     )
+
+    private companion object {
+        const val RELAY_ADMISSION_TICKET =
+            "pxr1.1789783200.10000000-0000-0000-0000-000000000001.20000000-0000-0000-0000-000000000002." +
+                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    }
 }

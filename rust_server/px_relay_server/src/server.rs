@@ -16,7 +16,10 @@ use futures_util::{SinkExt, StreamExt};
 use prost::Message as ProstMessage;
 use protocol::px_relay::{RelayCreateRoomRespMessage, RelayMessage, RelayMessageType};
 use serde::{Deserialize, Serialize};
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 use subtle::ConstantTimeEq;
 use tokio::sync::{mpsc, Mutex};
 use uuid::Uuid;
@@ -34,8 +37,8 @@ struct RelayQuery {
     remote_device_id: String,
     #[serde(default, rename = "device_name")]
     _device_name: String,
-    #[serde(default, rename = "stream_id")]
-    _stream_id: String,
+    #[serde(default)]
+    stream_id: String,
     appkey: String,
 }
 
@@ -87,19 +90,57 @@ async fn websocket_upgrade(
 ) -> Response {
     if !valid_identity(&query.device_id)
         || (!query.remote_device_id.is_empty() && !valid_identity(&query.remote_device_id))
-        || state
-            .config
-            .app_key
-            .as_slice()
-            .ct_eq(query.appkey.as_bytes())
-            .unwrap_u8()
-            != 1
+        || !authorized_admission(&state.config, &query)
     {
         return StatusCode::UNAUTHORIZED.into_response();
     }
     websocket
         .max_message_size(state.config.max_message_bytes)
         .on_upgrade(move |socket| serve_connection(state, query, socket))
+}
+
+fn authorized_admission(config: &RelayConfig, query: &RelayQuery) -> bool {
+    if config
+        .app_key
+        .as_slice()
+        .ct_eq(query.appkey.as_bytes())
+        .unwrap_u8()
+        == 1
+    {
+        return true;
+    }
+    let Some(remote_resource_id) = frontend_remote_resource(query) else {
+        return false;
+    };
+    let Ok(session_id) = Uuid::parse_str(&query.stream_id) else {
+        return false;
+    };
+    let Ok(now_unix_seconds) = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|value| value.as_secs())
+    else {
+        return false;
+    };
+    px_credentials::verify_relay_admission(
+        &config.app_key,
+        &query.appkey,
+        session_id,
+        remote_resource_id,
+        now_unix_seconds,
+    )
+}
+
+fn frontend_remote_resource(query: &RelayQuery) -> Option<Uuid> {
+    let remote_resource = if query.device_id.starts_with("client_") {
+        query.remote_device_id.strip_prefix("server_")?
+    } else if query.device_id.starts_with("ft_client_") {
+        query.remote_device_id.strip_prefix("ft_server_")?
+    } else {
+        return None;
+    };
+    Uuid::parse_str(remote_resource)
+        .ok()
+        .filter(|value| !value.is_nil())
 }
 
 fn valid_identity(value: &str) -> bool {

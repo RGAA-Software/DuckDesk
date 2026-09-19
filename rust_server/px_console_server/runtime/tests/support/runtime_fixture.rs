@@ -5,7 +5,9 @@ use axum::{
     http::{HeaderMap, Request, StatusCode},
     Router,
 };
-use px_console_runtime::{ConsoleRuntime, GuestAdmission, IngressPolicy};
+use px_console_runtime::{
+    ConsoleRuntime, GuestAdmission, IngressPolicy, RelayEndpoint, RuntimeResources,
+};
 use px_console_store::{
     initialize_administrator, CacheOptions, PasswordDigest, Username, WorkspaceKey, WorkspaceVault,
 };
@@ -93,6 +95,41 @@ pub async fn start_with_cache() -> (ConsoleRuntime, tempfile::TempDir) {
             byte_limit: 16 * 1024 * 1024,
             maximum_downloads: 4,
             ttl_seconds: 3600,
+        },
+    )
+    .await
+    .unwrap();
+    (runtime, directory)
+}
+
+pub async fn start_with_cache_and_relay() -> (ConsoleRuntime, tempfile::TempDir) {
+    initialize().await;
+    let directory = tempfile::Builder::new()
+        .prefix("pixels-runtime-cache-relay-")
+        .tempdir()
+        .unwrap();
+    make_private(directory.path());
+    let root = CacheRoot::initialize(directory.path(), deployment()).unwrap();
+    let runtime = ConsoleRuntime::activate_with_resources(
+        &config("RUNTIME"),
+        deployment(),
+        vault(),
+        policy(),
+        guests(),
+        RuntimeResources {
+            recording_cache: Some((
+                root,
+                CacheOptions {
+                    byte_limit: 16 * 1024 * 1024,
+                    maximum_downloads: 4,
+                    ttl_seconds: 3600,
+                },
+            )),
+            relay: Some(RelayEndpoint {
+                host: "relay.example.test".into(),
+                port: 4605,
+                app_key: "isolated-relay-app-key".into(),
+            }),
         },
     )
     .await

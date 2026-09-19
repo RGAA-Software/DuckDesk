@@ -4,8 +4,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import yun.pixels.client.core.domain.account.ResourceConnection
+import yun.pixels.client.core.domain.account.ResourceRelayEndpoint
+import yun.pixels.client.core.domain.session.RemoteConnectionRoute
 import yun.pixels.client.core.domain.session.RemoteSessionId
 import yun.pixels.client.core.domain.session.RemoteSessionRequest
+import yun.pixels.client.core.domain.session.RemoteSessionPreferences
 import yun.pixels.client.core.domain.session.RemoteSessionTarget
 
 class ConsoleResourceSessionConfigTest {
@@ -51,6 +54,23 @@ class ConsoleResourceSessionConfigTest {
         assertNull(incomplete.toNativeConfig("android-device", null))
     }
 
+    @Test
+    fun relayRouteUsesConsoleEndpointAndFrontendCredential() {
+        val request = RemoteSessionRequest(
+            id = RemoteSessionId("local-session"),
+            target = RemoteSessionTarget.CloudApplication("Cloud Game", "application-1", "instance-1", connection("instance-1")),
+            preferences = RemoteSessionPreferences(connectionRoute = RemoteConnectionRoute.Relay),
+        )
+
+        val config = request.toNativeConfig("android-device", null)
+
+        requireNotNull(config)
+        assertEquals(true, config.useRelay)
+        assertEquals("relay.example.com", config.relayHost)
+        assertEquals(4605, config.relayPort)
+        assertEquals(RELAY_ADMISSION_TICKET, config.relayAdmissionTicket)
+    }
+
     private fun connection(remoteResourceId: String) = ResourceConnection(
         host = "render.example.com",
         port = 4613,
@@ -60,5 +80,12 @@ class ConsoleResourceSessionConfigTest {
         frontendToken = "frontend-secret",
         transport = "native",
         expiresAtEpochMillis = Long.MAX_VALUE,
+        relay = ResourceRelayEndpoint("relay.example.com", 4605, RELAY_ADMISSION_TICKET),
     )
+
+    private companion object {
+        const val RELAY_ADMISSION_TICKET =
+            "pxr1.1789783200.10000000-0000-0000-0000-000000000001.20000000-0000-0000-0000-000000000002." +
+                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    }
 }

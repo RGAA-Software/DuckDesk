@@ -5,7 +5,10 @@ use protocol::px_relay::{
     RelayCreateRoomMessage, RelayHello, RelayMessage, RelayMessageType, RelayNotificationMessage,
     RelayRequestControlMessage, RelayRequestControlRespMessage, RelayTargetMessage,
 };
-use std::{net::SocketAddr, time::Duration};
+use std::{
+    net::SocketAddr,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 use tokio::{net::TcpListener, task::JoinHandle};
 use tokio_tungstenite::{
     connect_async,
@@ -67,6 +70,42 @@ async fn rejects_invalid_app_key_before_websocket_upgrade() {
     .await;
     let tungstenite::Error::Http(response) = result.unwrap_err() else {
         panic!("expected an HTTP rejection");
+    };
+    assert_eq!(response.status(), http::StatusCode::UNAUTHORIZED);
+    server.abort();
+}
+
+#[tokio::test]
+async fn accepts_only_a_current_ticket_bound_to_the_frontend_route() {
+    let (address, server) = start_server().await;
+    let session_id = uuid::Uuid::parse_str("10000000-0000-0000-0000-000000000001").unwrap();
+    let remote_resource_id = uuid::Uuid::parse_str("20000000-0000-0000-0000-000000000002").unwrap();
+    let now_unix_seconds = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let ticket = px_credentials::issue_relay_admission(
+        b"test-relay-app-key",
+        session_id,
+        remote_resource_id,
+        now_unix_seconds,
+        now_unix_seconds + 60,
+    )
+    .unwrap();
+    let accepted = connect_async(format!(
+        "ws://{address}/relay?device_id=client_android&remote_device_id=server_{remote_resource_id}&device_name=test&stream_id={session_id}&appkey={}",
+        ticket.as_str()
+    ))
+    .await;
+    assert!(accepted.is_ok());
+
+    let mismatched = connect_async(format!(
+        "ws://{address}/relay?device_id=client_android&remote_device_id=server_30000000-0000-0000-0000-000000000003&device_name=test&stream_id={session_id}&appkey={}",
+        ticket.as_str()
+    ))
+    .await;
+    let tungstenite::Error::Http(response) = mismatched.unwrap_err() else {
+        panic!("expected a route-bound ticket rejection");
     };
     assert_eq!(response.status(), http::StatusCode::UNAUTHORIZED);
     server.abort();

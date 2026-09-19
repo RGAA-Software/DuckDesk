@@ -26,6 +26,7 @@
 #include "px_client_sdk/sdk_statistics.h"
 #include "px_client_sdk/sdk_voice_call.h"
 #include "px_client_sdk/thunder_sdk.h"
+#include "px_common/console_frontend_relay_credential.h"
 #include "px_common/log.h"
 #include "px_common/md5.h"
 #include "px_common/message_notifier.h"
@@ -588,9 +589,11 @@ bool NativeSession::Initialize() {
         !config_.frontend_session_id.empty() || config_.frontend_session_revision != 0 || !config_.frontend_token.empty();
     const bool valid_frontend = !config_.frontend_session_id.empty() && config_.frontend_session_revision > 0 && !config_.frontend_token.empty() &&
                                 config_.stream_id == config_.frontend_session_id;
+    const bool valid_relay =
+        !config_.use_relay || (!config_.relay_host.empty() && config_.relay_port > 0 && !config_.relay_admission_ticket.empty() && valid_frontend);
     if (initialized_ || config_.session_id.empty() || config_.host.empty() || config_.port <= 0 || config_.remote_device_id.empty() ||
         config_.stream_id.empty() || config_.client_device_id.empty() || !surface_ || !callback_ || (has_frontend_fields && !valid_frontend) ||
-        (!has_frontend_fields && config_.remote_password_hash.empty())) {
+        (!has_frontend_fields && config_.remote_password_hash.empty()) || !valid_relay) {
         return false;
     }
 
@@ -603,6 +606,8 @@ bool NativeSession::Initialize() {
     params->enable_video_ = config_.enable_video;
     params->enable_controller_ = config_.enable_input;
     params->file_transfer_only_ = false;
+    params->media_transport_ = config_.use_relay ? px::SdkMediaTransport::kWebSocket : px::SdkMediaTransport::kUdp;
+    params->connection_route_ = config_.use_relay ? px::SdkConnectionRoute::kWebSocketRelay : px::SdkConnectionRoute::kDirect;
     params->ip_ = config_.host;
     params->port_ = config_.port;
     params->client_type_ = px::ClientType::kAndroid;
@@ -628,6 +633,13 @@ bool NativeSession::Initialize() {
     params->connection_nonce_ = config_.connection_nonce;
     params->connection_instance_id_ = config_.connection_instance_id;
     params->remote_password_hash_ = config_.remote_password_hash;
+    params->relay_host_ = config_.relay_host;
+    params->relay_port_ = config_.relay_port;
+    params->relay_remote_device_id_ = params->remote_device_id_;
+    params->appkey_ = config_.relay_admission_ticket;
+    if (config_.use_relay && valid_frontend) {
+        params->remote_password_hash_ = px::BuildConsoleFrontendRelayCredential(config_.frontend_session_revision, config_.frontend_token);
+    }
     params->render_type_name_ = "mediacodec_surface";
 
     const auto weak_self = weak_from_this();

@@ -47,6 +47,10 @@
     <string name="remove_device">移除设备</string>
     <string name="connection_preferences">连接偏好</string>
     <string name="connection_preferences_title">%1$s 的连接偏好</string>
+    <string name="connection_route">连接路径</string>
+    <string name="connection_route_automatic">自动</string>
+    <string name="connection_route_direct">直连</string>
+    <string name="connection_route_relay">Relay</string>
     <string name="preferred_frame_rate">首选帧率</string>
     <string name="frame_rate_value">%1$d 帧</string>
     <string name="play_remote_audio">播放远端声音</string>

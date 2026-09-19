@@ -1729,8 +1729,11 @@ name = "px_credentials"
 version = "0.1.0"
 dependencies = [
  "argon2",
+ "hex",
+ "hmac",
  "rand 0.9.2",
  "sha2",
+ "uuid",
  "zeroize",
 ]
 
@@ -1819,6 +1822,7 @@ dependencies = [
  "http",
  "prost",
  "protocol",
+ "px_credentials",
  "serde",
  "subtle",
  "tokio",

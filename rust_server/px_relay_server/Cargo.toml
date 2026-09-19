@@ -9,6 +9,7 @@ axum = { version = "0.8.1", features = ["json", "ws"] }
 futures-util = "0.3"
 prost = "0.14.1"
 protocol = { path = "../../rust_base/protocol" }
+px_credentials = { path = "../px_credentials" }
 serde = { version = "1", features = ["derive"] }
 subtle = "2"
 tokio = { version = "1.43", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }

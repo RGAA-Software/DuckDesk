@@ -10,7 +10,7 @@ use axum::{
     Json, Router,
 };
 use px_console_store::{
-    ApplicationInstance, OpenResourceSession, ResourceSession, StartApplication,
+    ApplicationInstance, OpenResourceSession, ResourceSession, SessionTarget, StartApplication,
 };
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -180,8 +180,33 @@ async fn descriptor(
             state.entitlement(),
         )
         .await?;
+    let relay = if let Some(endpoint) = state.relay.as_ref() {
+        let remote_resource_id = match descriptor.session.target {
+            SessionTarget::Desktop { device_id } => device_id,
+            SessionTarget::CloudApplication { instance_id, .. } => instance_id,
+        };
+        let now_unix_seconds =
+            u64::try_from(chrono::Utc::now().timestamp()).map_err(|_| ApiError::Unavailable)?;
+        let expires_at_unix_seconds =
+            u64::try_from(descriptor.expires_at.timestamp()).map_err(|_| ApiError::Unavailable)?;
+        let admission_ticket = px_credentials::issue_relay_admission(
+            endpoint.app_key.as_bytes(),
+            descriptor.session.id,
+            remote_resource_id,
+            now_unix_seconds,
+            expires_at_unix_seconds,
+        )
+        .ok_or(ApiError::Unavailable)?;
+        Some(json!({
+            "host": endpoint.host,
+            "port": endpoint.port,
+            "admission_ticket": admission_ticket.as_str(),
+        }))
+    } else {
+        None
+    };
     Ok(Json(
-        json!({"descriptor":descriptor,"token":token.as_str()}),
+        json!({"descriptor":descriptor,"token":token.as_str(),"relay":relay}),
     ))
 }
 

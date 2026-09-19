@@ -23,6 +23,7 @@ import yun.pixels.client.core.domain.account.RemoteApplicationAccess
 import yun.pixels.client.core.domain.account.RemoteApplicationInstance
 import yun.pixels.client.core.domain.account.RemoteApplicationType
 import yun.pixels.client.core.domain.account.ResourceConnection
+import yun.pixels.client.core.domain.account.ResourceRelayEndpoint
 
 interface ConsoleAccountApi {
     suspend fun testEndpoint(endpointInput: String): AccountResult<ConsoleEndpoint>
@@ -417,6 +418,16 @@ internal fun parseResourceConnection(
     val transport = descriptor.requiredString("transport") ?: return invalidResponse()
     val expiresAt = descriptor.requiredInstantMillis("expires_at") ?: return invalidResponse()
     val actualTarget = session.optJSONObject("target") ?: return invalidResponse()
+    val relay = when (val relayPayload = payload.optJSONObject("relay")) {
+        null -> null
+        else -> {
+            val relayHost = relayPayload.requiredString("host") ?: return invalidResponse()
+            val relayPort = relayPayload.optInt("port")
+            val relayAdmissionTicket = relayPayload.requiredString("admission_ticket") ?: return invalidResponse()
+            if (relayPort !in 1..65535 || relayAdmissionTicket.length !in 64..256) return invalidResponse()
+            ResourceRelayEndpoint(relayHost, relayPort, relayAdmissionTicket)
+        }
+    }
     if (
         sessionId != opened.sessionId ||
         revision < opened.revision ||
@@ -429,7 +440,7 @@ internal fun parseResourceConnection(
     ) {
         return invalidResponse()
     }
-    return AccountResult.Success(ResourceConnection(host, port, remoteResourceId, sessionId, revision, token, transport, expiresAt))
+    return AccountResult.Success(ResourceConnection(host, port, remoteResourceId, sessionId, revision, token, transport, expiresAt, relay))
 }
 
 private fun sameResourceTarget(expected: JSONObject, actual: JSONObject): Boolean = when (expected.optString("kind")) {

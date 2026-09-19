@@ -1,8 +1,9 @@
 #[path = "support/runtime_fixture.rs"]
 mod fixture;
 
-use fixture::{call, login, register, resource_call, start_with_cache, PASSWORD};
+use fixture::{call, login, register, resource_call, start_with_cache_and_relay, PASSWORD};
 use futures_util::{SinkExt, StreamExt};
+use px_credentials::verify_relay_admission;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::{net::SocketAddr, time::Duration};
@@ -74,7 +75,7 @@ fn telemetry_report(request_id: u64, sequence: u64, cpu_utilization_per_mille: u
 
 #[tokio::test]
 async fn authenticated_node_websocket_fences_generation_and_drives_reconciliation() {
-    let (runtime, _cache_directory) = start_with_cache().await;
+    let (runtime, _cache_directory) = start_with_cache_and_relay().await;
     let router = runtime.router();
     let admin = login(&router, "initial-admin", PASSWORD, "admin_web").await;
     let (status, device) = call(
@@ -456,6 +457,14 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     let start_command = exchange(&mut socket, json!({"type":"poll_command","request_id":7})).await;
     assert_eq!(start_command["type"], "command");
     assert_eq!(start_command["command"]["action"]["kind"], "start");
+    assert_eq!(
+        start_command["command"]["action"]["relay"],
+        json!({
+            "host":"relay.example.test",
+            "port":4605,
+            "app_key":"isolated-relay-app-key"
+        })
+    );
     let running = exchange(
         &mut socket,
         json!({
@@ -510,6 +519,27 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     )
     .await;
     assert_eq!(status.as_u16(), 200, "{descriptor}");
+    assert_eq!(descriptor["relay"]["host"], "relay.example.test");
+    assert_eq!(descriptor["relay"]["port"], 4605);
+    let relay_admission = descriptor["relay"]["admission_ticket"]
+        .as_str()
+        .expect("Relay admission ticket");
+    assert_ne!(relay_admission, "isolated-relay-app-key");
+    let session_id = descriptor["descriptor"]["session"]["id"]
+        .as_str()
+        .and_then(|value| Uuid::parse_str(value).ok())
+        .expect("resource session id");
+    let remote_resource_id = descriptor["descriptor"]["session"]["target"]["instance_id"]
+        .as_str()
+        .and_then(|value| Uuid::parse_str(value).ok())
+        .expect("resource instance id");
+    assert!(verify_relay_admission(
+        b"isolated-relay-app-key",
+        relay_admission,
+        session_id,
+        remote_resource_id,
+        chrono::Utc::now().timestamp().try_into().unwrap()
+    ));
     let expected_frontends =
         exchange(&mut socket, json!({"type":"list_frontends","request_id":9})).await;
     assert_eq!(expected_frontends["type"], "frontends");

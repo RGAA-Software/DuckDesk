@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Stop
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -44,6 +45,7 @@ fun CloudAppsScreen(
     onStart: (RemoteApplication) -> Unit,
     onConnect: (RemoteApplication) -> Unit,
     onStop: (RemoteApplication) -> Unit,
+    onEditPreferences: (RemoteApplication) -> Unit,
 ) {
     Scaffold(topBar = {
         TopAppBar(
@@ -76,7 +78,7 @@ fun CloudAppsScreen(
             ) {
                 item { state.failure?.let { Text(stringResource(it.labelResource()), color = MaterialTheme.colorScheme.error) } }
                 items(state.applications, key = RemoteApplication::appId) { app ->
-                    CloudAppCard(app, state.pendingAppId == app.appId, onStart, onConnect, onStop)
+                    CloudAppCard(app, state.pendingAppId == app.appId, onStart, onConnect, onStop, onEditPreferences)
                 }
             }
         }
@@ -102,6 +104,7 @@ private fun CloudAppCard(
     onStart: (RemoteApplication) -> Unit,
     onConnect: (RemoteApplication) -> Unit,
     onStop: (RemoteApplication) -> Unit,
+    onEditPreferences: (RemoteApplication) -> Unit,
 ) {
     val runningInstance = app.runningInstance
     Card(Modifier.fillMaxWidth()) {
@@ -122,17 +125,29 @@ private fun CloudAppCard(
                     color = if (app.isSupported) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
                 )
             }
-            if (pending) CircularProgressIndicator()
-            else if (!app.isSupported) Unit
-            else if (runningInstance == null) Button(onClick = { onStart(app) }) {
-                Icon(Icons.Outlined.PlayArrow, null); Text(stringResource(R.string.start))
-            }
-            else Column(horizontalAlignment = Alignment.End) {
-                if (runningInstance.reconnectable) Button(onClick = { onConnect(app) }) {
-                    Text(stringResource(R.string.connect))
-                }
-                OutlinedButton(onClick = { onStop(app) }) {
-                    Icon(Icons.Outlined.Stop, null); Text(stringResource(R.string.stop))
+            if (pending) {
+                CircularProgressIndicator()
+            } else if (app.isSupported) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { onEditPreferences(app) }) {
+                        Icon(Icons.Outlined.Tune, stringResource(R.string.connection_preferences))
+                    }
+                    if (runningInstance == null) {
+                        Button(onClick = { onStart(app) }) {
+                            Icon(Icons.Outlined.PlayArrow, null)
+                            Text(stringResource(R.string.start))
+                        }
+                    } else {
+                        Column(horizontalAlignment = Alignment.End) {
+                            if (runningInstance.reconnectable) {
+                                Button(onClick = { onConnect(app) }) { Text(stringResource(R.string.connect)) }
+                            }
+                            OutlinedButton(onClick = { onStop(app) }) {
+                                Icon(Icons.Outlined.Stop, null)
+                                Text(stringResource(R.string.stop))
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -6,6 +6,9 @@ rust-version = "1.88"
 
 [dependencies]
 argon2 = "0.5"
+hex = "0.4"
+hmac = "0.12"
 rand = "0.9"
 sha2 = "0.10"
+uuid = "1"
 zeroize = "1.8"

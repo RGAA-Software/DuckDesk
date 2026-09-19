@@ -47,6 +47,10 @@
     <string name="remove_device">Remove device</string>
     <string name="connection_preferences">Connection preferences</string>
     <string name="connection_preferences_title">%1$s preferences</string>
+    <string name="connection_route">Connection route</string>
+    <string name="connection_route_automatic">Automatic</string>
+    <string name="connection_route_direct">Direct</string>
+    <string name="connection_route_relay">Relay</string>
     <string name="preferred_frame_rate">Preferred frame rate</string>
     <string name="frame_rate_value">%1$d FPS</string>
     <string name="play_remote_audio">Play remote audio</string>

@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import yun.pixels.client.core.domain.session.RemoteDecoderMode
+import yun.pixels.client.core.domain.session.RemoteConnectionRoute
 import yun.pixels.client.core.domain.session.RemoteInputMode
 import yun.pixels.client.core.domain.session.RemoteSessionPreferences
 
@@ -40,6 +41,17 @@ fun DeviceSessionPreferencesDialog(
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator() }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                    PreferenceSection(title = stringResource(R.string.connection_route)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            RemoteConnectionRoute.entries.forEach { route ->
+                                FilterChip(
+                                    selected = draft.connectionRoute == route,
+                                    onClick = { draft = draft.copy(connectionRoute = route) },
+                                    label = { Text(stringResource(route.labelResource())) },
+                                )
+                            }
+                        }
+                    }
                     PreferenceSection(title = stringResource(R.string.preferred_frame_rate)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             RemoteSessionPreferences.SUPPORTED_FRAME_RATES.sorted().forEach { frameRate ->
@@ -113,4 +125,10 @@ private fun RemoteInputMode.labelResource(): Int = when (this) {
     RemoteInputMode.DirectTouch -> R.string.input_mode_direct_touch
     RemoteInputMode.Touchpad -> R.string.input_mode_touchpad
     RemoteInputMode.Gamepad -> R.string.input_mode_gamepad
+}
+
+private fun RemoteConnectionRoute.labelResource(): Int = when (this) {
+    RemoteConnectionRoute.Automatic -> R.string.connection_route_automatic
+    RemoteConnectionRoute.Direct -> R.string.connection_route_direct
+    RemoteConnectionRoute.Relay -> R.string.connection_route_relay
 }

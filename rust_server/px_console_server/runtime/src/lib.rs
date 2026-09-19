@@ -156,6 +156,26 @@ impl ConsoleRuntime {
         )
         .await
     }
+    #[cfg(feature = "pg-integration")]
+    pub async fn activate_with_resources(
+        database: &DatabaseConfig,
+        deployment: Uuid,
+        vault: Arc<WorkspaceVault>,
+        policy: IngressPolicy,
+        guests: GuestAdmission,
+        resources: RuntimeResources,
+    ) -> Result<Self, ApiError> {
+        Self::activate_inner(
+            database,
+            deployment,
+            vault,
+            policy,
+            guests,
+            resources,
+            LicenseEntitlement::synthetic_for_integration(deployment),
+        )
+        .await
+    }
     pub async fn activate_product_with_cache(
         database: &DatabaseConfig,
         deployment: Uuid,

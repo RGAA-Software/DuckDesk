@@ -52,6 +52,10 @@ struct NativeSessionConfig final {
     std::string frontend_token{};
     std::string connection_nonce{};
     std::string connection_instance_id{};
+    bool use_relay{};
+    std::string relay_host{};
+    std::int32_t relay_port{};
+    std::string relay_admission_ticket{};
     bool enable_video{true};
     bool enable_audio{true};
     bool enable_input{true};

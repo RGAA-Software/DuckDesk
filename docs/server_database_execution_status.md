@@ -985,7 +985,7 @@ Relay 公网数据面已完成首个独立产品纵向切片。新增 `px_relay_
 暂停/恢复/停止及双向原始载荷转发，明确拒绝已退役的 notification/中央 WebRTC 信令通道；连接数、房间数、双向业务载荷字节和
 丢弃数从 `/healthz` 输出。它不依赖 Mongo、Redis、ZLMediaKit 或 Coturn。Console 仅在
 `PIXELS_RELAY_PUBLIC_HOST/PORT/APP_KEY` 三项全部显式存在时向节点下发 Relay 描述，不提供默认地址或兼容 fallback；Service 向
-Render 传递规范实例 UUID，线上的 `server_` 前缀只由 Render 添加一次。Relay 单元测试 3/3、Console/Relay 严格 Clippy、Service
+Render 传递规范实例 UUID，线上的 `server_` 前缀只由 Render 添加一次。Relay 单元测试 4/4、Console/Relay 严格 Clippy、Service
 91/91（另 1 项物理 NVIDIA 专项按环境忽略）及严格 Clippy 均通过。
 
 公网 Windows CloudApplication 短测分别通过 Native Direct 与 Native Relay。Relay 用例真实建立动态 4613 端点和活动房间，解码
@@ -1029,6 +1029,16 @@ APK SHA-256 为 `8118D761102E1621B6098D62EB02DBAFF0F12978C9F5922238545D93A589F70
 H.264 1920×1080 MediaCodec，退出远控、停止实例后恢复“可以启动”，最后注销账号；无 AndroidRuntime/JNI fatal。
 这关闭 Android 账号/目录/CloudApplication owner 的 Direct 短链路，设备 ACL、Relay、文件、音频和撤销/续租仍分别验收。
 
+Android Relay 客户端切片现已完成本地实现和短门禁。Console descriptor 只向当前资源会话签发最长 300 秒、HMAC 防篡改并绑定
+session UUID 与目标 device/instance UUID 的 `admission_ticket`；部署级 `PIXELS_RELAY_APP_KEY` 不进入本次 Android 用户 DTO、DataStore 或 APK。
+Relay 在 WebSocket upgrade 前验证票据期限和目标路由，Render 随后仍以 frontend token 向 Console 做权威会话/角色准入，二者不能互相替代。
+共享凭据 3/3、Relay 4/4（含合法票据、篡改/错目标拒绝和既有双向转发）、Console 15/15、严格 Clippy，以及真实 PostgreSQL 节点控制
+报告 `pg-20260919-233340-c48eec6f` 1/1 均通过并完成隔离卷清理。Android 全模块测试、Lint、arm64 Native 和从清洁输出执行的
+454/454 task 完整 Debug 构建通过；1.0.8 已用 `adb install -r` 覆盖安装至 Xiaomi 22021211RC，APK SHA-256 为
+`3805209B164975B338CF4C8265E401403D9C4F80B680B9388CD67341AD2F693D`。真机已验证云应用卡片的连接偏好入口、自动/直连/Relay 三种路径及
+Relay 选择持久化，无 AndroidRuntime/JNI fatal。当前公网 Console/Relay 尚未部署这批服务端代码，因此这里不宣称 Android Relay 首帧
+端到端通过；`Automatic` 当前仍明确保持 Direct，不实现隐式失败回退，descriptor 到期后的重连续签也仍待完成。
+
 Web Client 增加可重复的公网验收入口，使用 `user_web` 创建当前资源会话，并确认当前本地产物能完成 frontend grant、SDP、ICE、四条
 DataChannel 和公网 UDP peer 连接，令牌也从可见 URL 移除；但公网 Render 没有发送任何 RTP，视频轨保持 muted，不能记为首帧通过。
 同时确认远端 `web_client` 仍是旧版（日志仍声明游客 RTC Relay/设备密码，直接被当前 Render 以 HTTP 400 拒绝）。本地已把当前 Web 构建
@@ -1049,7 +1059,7 @@ Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 W
 | DB2-B/C/D | 设备/应用/节点/部署目录、user/guest资源入口、更新与历史元数据入口、Console节点WS及独立管理实时事件流已接；Windows Service已切到新节点协议并实现部署准备、调和、命令fencing、精确launch ACK、Render前端准入转发、实际媒体/RDP通道生命周期、遥测、DPAPI有界断线补报、唯一PCI身份的NVIDIA逐GPU指标、GPU预算/原子硬过滤/物理stable key运行时绑定与节点二次准入、只读调度预览/逐候选拒绝解释、数据库时钟对齐的有界服务端趋势/陈旧判断、录像session归属及通用录像字节上传。ZLM/Coturn/中央RTC signaling已归档移除，Windows/Web/Render/Service/Console的Direct Host活动代码和聚焦构建已接通；Direct Host WebRTC 已生产真实视频/数据载荷字节，并以5秒周期、单调sequence和最终终态累计上报；Relay出站媒体/文件数据只在底层WebSocket完整写成功后按真实connection累计，本机真实套接字与重连生命周期专项通过。独立纯数据 `px_relay` 已部署公网，Windows Native Relay 的动态实例、活动房间、首帧、窗口、输入及双向字节短测通过，默认 Direct 路径回归通过。Render真实文件引擎现已把操作UUID、实际总量/进度、单文件SHA-256或确定性多文件清单摘要经Service送入Console，真实payload单元测试、本机Service WebSocket桥及PostgreSQL 8组专项通过。仍需Relay音频、文件独立hash、断线重连/撤销和完整通道计数，Direct Host公网Web/音频/持续续租/撤销、Android直连、AMD/Intel逐GPU指标、管理实时流的公网高频/断库专项、RDP执行及计数、文件传输公网取消/重试/断线补报与客户端展示、无人值守更新及其余产品入口 |
 | DB2-EXIT / DB3 | Windows 侧功能出口完成：Desk/Auth 独立产品、Auth 事务 outbox、Official 认证接触和 30/40 秒持续 currentness、Customer 私有离线、库外水位、额度/feature 事务门禁及管理员状态均已接；keyring/恢复代际/监督取消短测通过。Service 只消费 Console control epoch。旧授权、Mongo/Redis/旧 Console 组合根和可误用入口已归档，活动锁文件不含旧后端。Linux systemd unit 静态验证通过，但 Unix binary/SIGTERM 仍须随 DB4/DB5 Linux 总门禁形成动态证据；不建设运行时双后端 |
 | DB4 | 恢复集、保留、异机复制、恢复准入/执行/封印、三库写屏障/安全水位、外部见证、Auth keyring、pgBackRest/WAL/PITR、Windows SCM包及WSL2 systemd生命周期已实现。开发期仍需目标Linux发行版VM短测、Pixels外层签名/生产密钥托管、独立主机或对象仓库一次完整恢复、目标环境keyring/见证轮换及真实节点与Windows/RDP事实对账；连续7天窗口和自然周期稳定性统一放到DB5功能通过后的长测，不阻塞每个开发切片 |
-| DB5 | 公网 Windows CloudApplication 的 Native Direct/Relay、Android guest 与账号 CloudApplication Native Direct 首帧/启停清理短测已通过，公网录像本人下载也已通过；Android 设备 ACL 仍未验收。Web Client 已通过当前授权、ICE和DataChannel但公网无RTP，且远端仍托管旧Web资产，不能记为通过；部署被失效机器凭据阻塞。仍需Android Relay、Relay剩余通道、RDP/文件/更新、完整制品和安装包不含ZLM/Coturn审计。全部短测通过后再统一长测 |
+| DB5 | 公网 Windows CloudApplication 的 Native Direct/Relay、Android guest 与账号 CloudApplication Native Direct 首帧/启停清理短测已通过，公网录像本人下载也已通过；Android Relay 的短期路由票据、客户端选择和真机持久化已实现，但新 Console/Relay 尚未公网部署，不能记为首帧通过；Android 设备 ACL 仍未验收。Web Client 已通过当前授权、ICE和DataChannel但公网无RTP，且远端仍托管旧Web资产，不能记为通过；部署被失效机器凭据阻塞。仍需Android Relay公网首帧/续签、Relay剩余通道、RDP/文件/更新、完整制品和安装包不含ZLM/Coturn审计。全部短测通过后再统一长测 |
 | DB-HA / P1–P7 | 独立主机 HA、正式发行隔离、授权/连接服务、升级、运维与真实容量/稳定性验收 |
 
 接续依赖顺序：补完 Windows/Web/Android 的 Direct Host 与 Relay 剩余跨端矩阵 → Console录像管理员动作、文件/RDP/更新等保留工作流 →

@@ -455,6 +455,17 @@ fun PixelsApp(graph: PixelsAppGraph) {
                             cloudAppsViewModel.connect(application)
                         },
                         onStop = cloudAppsViewModel::stop,
+                        onEditPreferences = { application ->
+                            val deviceKey = "cloud-app:${application.appId}"
+                            preferencesEditor = SessionPreferencesEditor(deviceKey, application.name)
+                            coroutineScope.launch {
+                                val loaded = runCatching { graph.remoteSessionPreferences.load(deviceKey) }
+                                    .getOrDefault(RemoteSessionPreferences())
+                                if (preferencesEditor?.deviceKey == deviceKey) {
+                                    preferencesEditor = preferencesEditor?.copy(preferences = loaded)
+                                }
+                            }
+                        },
                     )
                 }
 

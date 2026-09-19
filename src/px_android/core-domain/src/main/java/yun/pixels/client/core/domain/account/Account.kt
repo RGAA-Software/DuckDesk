@@ -40,6 +40,13 @@ data class ResourceConnection(
     val frontendToken: String,
     val transport: String,
     val expiresAtEpochMillis: Long,
+    val relay: ResourceRelayEndpoint? = null,
+)
+
+data class ResourceRelayEndpoint(
+    val host: String,
+    val port: Int,
+    val admissionTicket: String,
 )
 
 enum class AccountFailure {

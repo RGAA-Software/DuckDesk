@@ -15,6 +15,7 @@ import yun.pixels.client.core.domain.session.ClipboardDownloadState
 import yun.pixels.client.core.domain.session.ClipboardFileDescriptor
 import yun.pixels.client.core.domain.session.LocalClipboardFile
 import yun.pixels.client.core.domain.session.RemoteClipboardFiles
+import yun.pixels.client.core.domain.session.RemoteConnectionRoute
 import yun.pixels.client.core.domain.session.RemoteDecoderMode
 import yun.pixels.client.core.domain.session.RemoteMouseButton
 import yun.pixels.client.core.domain.session.RemoteSessionCapabilities
@@ -613,6 +614,9 @@ internal fun RemoteSessionRequest.toNativeConfig(
                 frontendSessionRevision = 0,
                 frontendToken = "",
                 instanceId = "",
+                relayHost = "",
+                relayPort = 0,
+                relayAdmissionTicket = "",
             )
         }
         is RemoteSessionTarget.Account -> sessionTarget.connection.toNativeEndpoint("")
@@ -621,6 +625,11 @@ internal fun RemoteSessionRequest.toNativeConfig(
     if (endpoint.remoteDeviceId.isBlank() || endpoint.streamId.isBlank() || clientDeviceId.isBlank()) return null
     val consoleResource = target !is RemoteSessionTarget.Direct
     if (consoleResource && (endpoint.frontendSessionRevision <= 0 || endpoint.frontendToken.isBlank())) return null
+    val useRelay = preferences.connectionRoute == RemoteConnectionRoute.Relay
+    if (
+        useRelay &&
+        (endpoint.relayHost.isBlank() || endpoint.relayPort !in 1..65535 || endpoint.relayAdmissionTicket.length !in 64..256)
+    ) return null
     return NativeSessionConfig(
         sessionId = id.value,
         host = endpoint.host,
@@ -636,6 +645,10 @@ internal fun RemoteSessionRequest.toNativeConfig(
         frontendToken = endpoint.frontendToken,
         connectionNonce = if (consoleResource) endpoint.streamId else directAuthorization?.clientNonce.orEmpty(),
         connectionInstanceId = endpoint.instanceId,
+        useRelay = useRelay,
+        relayHost = if (useRelay) endpoint.relayHost else "",
+        relayPort = if (useRelay) endpoint.relayPort else 0,
+        relayAdmissionTicket = if (useRelay) endpoint.relayAdmissionTicket else "",
         enableVideo = enableVideo,
         enableAudio = enableAudio,
         enableInput = enableInput,
@@ -655,6 +668,9 @@ internal fun yun.pixels.client.core.domain.account.ResourceConnection.toNativeEn
         frontendSessionRevision = sessionRevision,
         frontendToken = frontendToken,
         instanceId = instanceId,
+        relayHost = relay?.host.orEmpty(),
+        relayPort = relay?.port ?: 0,
+        relayAdmissionTicket = relay?.admissionTicket.orEmpty(),
     )
 }
 
@@ -668,6 +684,9 @@ internal data class NativeEndpoint(
     val frontendSessionRevision: Long,
     val frontendToken: String,
     val instanceId: String,
+    val relayHost: String,
+    val relayPort: Int,
+    val relayAdmissionTicket: String,
 )
 
 internal fun String.isPrivateOrCarrierGradeAddress(): Boolean {

@@ -56,6 +56,7 @@ data class RemoteSessionPreferences(
     val audioEnabled: Boolean = true,
     val inputMode: RemoteInputMode = RemoteInputMode.DirectTouch,
     val decoderMode: RemoteDecoderMode = RemoteDecoderMode.Automatic,
+    val connectionRoute: RemoteConnectionRoute = RemoteConnectionRoute.Automatic,
 ) {
     init {
         require(frameRate in SUPPORTED_FRAME_RATES) { "Unsupported remote frame rate: $frameRate" }
@@ -65,6 +66,12 @@ data class RemoteSessionPreferences(
         const val DEFAULT_FRAME_RATE = 60
         val SUPPORTED_FRAME_RATES = setOf(30, DEFAULT_FRAME_RATE)
     }
+}
+
+enum class RemoteConnectionRoute {
+    Automatic,
+    Direct,
+    Relay,
 }
 
 interface RemoteSessionPreferencesRepository {

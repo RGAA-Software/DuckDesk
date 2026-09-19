@@ -1,5 +1,5 @@
 <resources>
-    <string name="cloud_apps_title">Cloud Apps</string><string name="account">Account</string><string name="sign_in">Sign in</string>
+    <string name="cloud_apps_title">Cloud Apps</string><string name="connection_preferences">Connection preferences</string><string name="account">Account</string><string name="sign_in">Sign in</string>
     <string name="refresh">Refresh</string><string name="configure_console">Configure a PX Console address in Settings to browse cloud apps.</string>
     <string name="no_cloud_apps">No cloud apps are available.</string><string name="continue_action">Continue</string>
     <string name="unsupported_type">This app type is not supported on Android yet.</string><string name="ready">Ready</string>
