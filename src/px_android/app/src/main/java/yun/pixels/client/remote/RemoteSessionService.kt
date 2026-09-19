@@ -20,18 +20,28 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.compose.runtime.Stable
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import yun.pixels.client.MainActivity
 import yun.pixels.client.PixelsApplication
 import yun.pixels.client.R
+import yun.pixels.client.core.domain.account.ResourceConnection
 import yun.pixels.client.core.domain.session.RemoteSessionRequest
 import yun.pixels.client.core.domain.session.RemoteSessionSnapshot
 import yun.pixels.client.core.domain.session.RemoteSessionStatus
+import yun.pixels.client.core.domain.session.RemoteSessionTarget
+import yun.pixels.client.core.domain.session.RemoteResourceConnectionRenewal
+import yun.pixels.client.core.domain.session.RemoteResourceConnectionRenewer
+import yun.pixels.client.core.domain.session.RemoteSessionFailure
 import yun.pixels.client.core.domain.session.ClipboardDownloadState
 import yun.pixels.client.core.domain.session.RemoteClipboardFiles
 import yun.pixels.client.core.nativebridge.AndroidRemoteSessionTransport
@@ -57,6 +67,7 @@ class RemoteSessionService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var transport: AndroidRemoteSessionTransport
     private lateinit var workflow: RemoteSessionWorkflow
+    private lateinit var connectionRenewer: RemoteResourceConnectionRenewer
     private lateinit var fileTransfers: AndroidFileTransferCoordinator
     private lateinit var clipboard: AndroidClipboardCoordinator
     private lateinit var recordings: AndroidRecordingCoordinator
@@ -74,6 +85,7 @@ class RemoteSessionService : Service() {
     private val heldKeys = mutableSetOf<RemoteKey>()
     private val heldMouseButtons = mutableSetOf<RemoteMouseButton>()
     private var gamepadActive = false
+    private val connectionRenewalJobs = mutableMapOf<RemoteSessionId, Job>()
     private val audioFocusListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         hasAudioFocus = focusChange == AudioManager.AUDIOFOCUS_GAIN
         if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
@@ -100,6 +112,7 @@ class RemoteSessionService : Service() {
             serviceScope,
         )
         workflow = RemoteSessionWorkflow(transport, serviceScope)
+        connectionRenewer = graph.resourceConnectionRenewer
         fileTransfers = AndroidFileTransferCoordinator(this, transport, serviceScope)
         clipboard = AndroidClipboardCoordinator(this, transport, serviceScope)
         recordings = AndroidRecordingCoordinator(this, transport, serviceScope)
@@ -127,7 +140,10 @@ class RemoteSessionService : Service() {
                         val connected = workflow.snapshot.value.status as? RemoteSessionStatus.Connected
                         if (event.sessionId == connected?.request?.id) gamepadHaptics.apply(event.strongMotor, event.weakMotor)
                     }
-                    is RemoteTransportEvent.Disconnected -> if (event.sessionId == currentRequest()?.id) gamepadHaptics.stop()
+                    is RemoteTransportEvent.Disconnected -> if (event.sessionId == currentRequest()?.id) {
+                        gamepadHaptics.stop()
+                        if (event.recoverable) renewResourceConnection(event.sessionId)
+                    }
                     else -> Unit
                 }
             }
@@ -167,6 +183,8 @@ class RemoteSessionService : Service() {
     }
 
     override fun onDestroy() {
+        connectionRenewalJobs.values.forEach(Job::cancel)
+        connectionRenewalJobs.clear()
         runBlocking {
             currentRequest()?.let {
                 releaseAllInputs(it.id)
@@ -250,6 +268,8 @@ class RemoteSessionService : Service() {
 
     private fun stopSession() {
         preparedRequest = null
+        connectionRenewalJobs.values.forEach(Job::cancel)
+        connectionRenewalJobs.clear()
         serviceScope.launch {
             val sessionId = currentRequest()?.id
             releaseAllInputs(sessionId)
@@ -271,16 +291,77 @@ class RemoteSessionService : Service() {
     private fun retrySession() {
         val failed = workflow.snapshot.value.status as? RemoteSessionStatus.Failed ?: return
         val request = failed.request
-        preparedRequest = request
         if (userWantsAudio) requestAudioFocus() else abandonAudioFocus()
         mutableAudioEnabled.value = userWantsAudio && hasAudioFocus
         startService(Intent(this, RemoteSessionService::class.java))
         startForegroundSession(request.target.displayName, userWantsAudio)
         serviceScope.launch {
-            workflow.start(request)
-            transport.setFrameRate(request.id, request.preferences.frameRate)
-            transport.setAudioEnabled(request.id, mutableAudioEnabled.value)
+            val retryRequest = if (request.target is RemoteSessionTarget.Direct) {
+                request
+            } else {
+                when (val renewal = connectionRenewer.renew(request.target)) {
+                    is RemoteResourceConnectionRenewal.Renewed -> request.copy(target = request.target.withConnection(renewal.connection))
+                    is RemoteResourceConnectionRenewal.Rejected -> {
+                        workflow.fail(request.id, renewal.reason)
+                        return@launch
+                    }
+                }
+            }
+            val started = workflow.restart(retryRequest)
+            retainPreparedRequest(retryRequest)
+            if (started) configureTransport(retryRequest)
         }
+    }
+
+    private fun renewResourceConnection(sessionId: RemoteSessionId) {
+        if (connectionRenewalJobs.containsKey(sessionId)) return
+        val request = currentRequest()?.takeIf { current -> current.id == sessionId && current.target !is RemoteSessionTarget.Direct } ?: return
+        val renewalJob = serviceScope.launch(start = CoroutineStart.LAZY) {
+            try {
+                while (coroutineContext.isActive && canRenewConnection(sessionId)) {
+                    when (val renewal = connectionRenewer.renew(request.target)) {
+                        is RemoteResourceConnectionRenewal.Renewed -> {
+                            val renewedRequest = request.copy(target = request.target.withConnection(renewal.connection))
+                            val started = workflow.restart(renewedRequest)
+                            retainPreparedRequest(renewedRequest)
+                            if (started) configureTransport(renewedRequest)
+                            return@launch
+                        }
+                        is RemoteResourceConnectionRenewal.Rejected -> {
+                            if (renewal.reason != RemoteSessionFailure.NetworkUnavailable) {
+                                workflow.fail(sessionId, renewal.reason)
+                                return@launch
+                            }
+                            delay(CONNECTION_RENEWAL_RETRY_MILLIS)
+                            if (workflow.snapshot.value.status is RemoteSessionStatus.Connected) return@launch
+                        }
+                    }
+                }
+            } finally {
+                connectionRenewalJobs.remove(sessionId)
+            }
+        }
+        connectionRenewalJobs[sessionId] = renewalJob
+        renewalJob.start()
+    }
+
+    private suspend fun configureTransport(request: RemoteSessionRequest) {
+        transport.setFrameRate(request.id, request.preferences.frameRate)
+        transport.setAudioEnabled(request.id, mutableAudioEnabled.value)
+    }
+
+    private fun retainPreparedRequest(request: RemoteSessionRequest) {
+        if (currentRequest() == request) preparedRequest = request
+    }
+
+    private fun canRenewConnection(sessionId: RemoteSessionId): Boolean = when (val status = workflow.snapshot.value.status) {
+        is RemoteSessionStatus.Starting -> status.request.id == sessionId
+        is RemoteSessionStatus.Connected -> status.request.id == sessionId
+        is RemoteSessionStatus.Reconnecting -> status.request.id == sessionId
+        RemoteSessionStatus.Idle,
+        is RemoteSessionStatus.Stopping,
+        is RemoteSessionStatus.Failed,
+        -> false
     }
 
     private fun updateHeldInputs(command: InputCommand) {
@@ -593,6 +674,7 @@ class RemoteSessionService : Service() {
         private const val CHANNEL_ID = "pixels_remote_session"
         private const val NOTIFICATION_ID = 1201
         private const val ACTION_STOP = "yun.pixels.client.action.STOP_REMOTE_SESSION"
+        private const val CONNECTION_RENEWAL_RETRY_MILLIS = 5_000L
         private val ACTIVE_TRANSFER_STATES = setOf(
             FileTransferState.Preparing,
             FileTransferState.Queued,
@@ -600,4 +682,10 @@ class RemoteSessionService : Service() {
             FileTransferState.AwaitingOverwrite,
         )
     }
+}
+
+private fun RemoteSessionTarget.withConnection(connection: ResourceConnection): RemoteSessionTarget = when (this) {
+    is RemoteSessionTarget.Direct -> this
+    is RemoteSessionTarget.Account -> copy(connection = connection)
+    is RemoteSessionTarget.CloudApplication -> copy(connection = connection)
 }

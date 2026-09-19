@@ -22,6 +22,13 @@ interface ConsoleApplicationApi {
         instanceId: String,
     ): AccountResult<ResourceConnection>
 
+    suspend fun renewApplicationConnection(
+        session: AccountSession,
+        appId: String,
+        instanceId: String,
+        connection: ResourceConnection,
+    ): AccountResult<ResourceConnection>
+
     suspend fun publicApplications(session: GuestSession): AccountResult<List<RemoteApplication>>
 
     suspend fun startGuestApplication(session: GuestSession, appId: String, clientNonce: String): AccountResult<RemoteApplicationInstance>
@@ -32,6 +39,13 @@ interface ConsoleApplicationApi {
         session: GuestSession,
         appId: String,
         instanceId: String,
+    ): AccountResult<ResourceConnection>
+
+    suspend fun renewGuestApplicationConnection(
+        session: GuestSession,
+        appId: String,
+        instanceId: String,
+        connection: ResourceConnection,
     ): AccountResult<ResourceConnection>
 }
 

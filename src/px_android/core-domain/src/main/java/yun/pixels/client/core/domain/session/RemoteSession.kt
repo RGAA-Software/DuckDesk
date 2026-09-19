@@ -373,6 +373,16 @@ sealed interface RemoteTransportStartResult {
     data class Rejected(val reason: RemoteSessionFailure) : RemoteTransportStartResult
 }
 
+sealed interface RemoteResourceConnectionRenewal {
+    data class Renewed(val connection: ResourceConnection) : RemoteResourceConnectionRenewal
+
+    data class Rejected(val reason: RemoteSessionFailure) : RemoteResourceConnectionRenewal
+}
+
+fun interface RemoteResourceConnectionRenewer {
+    suspend fun renew(target: RemoteSessionTarget): RemoteResourceConnectionRenewal
+}
+
 sealed interface RemoteTransportEvent {
     val sessionId: RemoteSessionId
 
@@ -453,23 +463,28 @@ class RemoteSessionWorkflow(
                 }
             }
             if (activeRequest != null) transport.stop(activeRequest.id)
-            stateMutex.withLock { mutableSnapshot.value = RemoteSessionSnapshot(RemoteSessionStatus.Starting(request)) }
-            val startResult = try {
-                transport.start(request)
-            } catch (cancellation: CancellationException) {
-                throw cancellation
-            } catch (_: Throwable) {
-                RemoteTransportStartResult.Rejected(RemoteSessionFailure.TransportUnavailable)
-            }
-            when (val result = startResult) {
-                RemoteTransportStartResult.Accepted -> Unit
-                is RemoteTransportStartResult.Rejected -> stateMutex.withLock {
-                    if (currentRequest()?.id == request.id) {
-                        mutableSnapshot.value = RemoteSessionSnapshot(RemoteSessionStatus.Failed(request, result.reason))
-                    }
-                }
-            }
+            startTransport(request)
         }
+    }
+
+    suspend fun restart(request: RemoteSessionRequest): Boolean = commandMutex.withLock {
+        val activeRequest = stateMutex.withLock {
+            currentRequest()?.takeIf { current -> current.id == request.id }?.also { current ->
+                mutableSnapshot.value = mutableSnapshot.value.copy(status = RemoteSessionStatus.Stopping(current))
+            }
+        } ?: return@withLock false
+        transport.stop(activeRequest.id)
+        startTransport(request)
+    }
+
+    suspend fun fail(sessionId: RemoteSessionId, reason: RemoteSessionFailure): Boolean = commandMutex.withLock {
+        val request = stateMutex.withLock {
+            currentRequest()?.takeIf { current -> current.id == sessionId }?.also { current ->
+                mutableSnapshot.value = RemoteSessionSnapshot(RemoteSessionStatus.Failed(current, reason))
+            }
+        } ?: return@withLock false
+        transport.stop(request.id)
+        true
     }
 
     suspend fun stop() {
@@ -540,6 +555,28 @@ class RemoteSessionWorkflow(
         is RemoteSessionStatus.Reconnecting -> status.request
         is RemoteSessionStatus.Stopping -> status.request
         is RemoteSessionStatus.Failed -> status.request
+    }
+
+    private suspend fun startTransport(request: RemoteSessionRequest): Boolean {
+        stateMutex.withLock { mutableSnapshot.value = RemoteSessionSnapshot(RemoteSessionStatus.Starting(request)) }
+        val startResult = try {
+            transport.start(request)
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (_: Throwable) {
+            RemoteTransportStartResult.Rejected(RemoteSessionFailure.TransportUnavailable)
+        }
+        return when (startResult) {
+            RemoteTransportStartResult.Accepted -> true
+            is RemoteTransportStartResult.Rejected -> {
+                stateMutex.withLock {
+                    if (currentRequest()?.id == request.id) {
+                        mutableSnapshot.value = RemoteSessionSnapshot(RemoteSessionStatus.Failed(request, startResult.reason))
+                    }
+                }
+                false
+            }
+        }
     }
 
 }

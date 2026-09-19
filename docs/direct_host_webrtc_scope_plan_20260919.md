@@ -159,6 +159,10 @@ DB5短期功能出口通过后统一长测：Relay长连接、Direct Host重复�
   在 upgrade 前验签和校验目标路由，Render 的 frontend grant 是其后的第二道独立门禁。部署 appkey 不进入 Android DTO/APK。
   Relay 4/4、独立 Relay 准入票据 1/1、Console 15/15、严格 Clippy、真实 PG node-control 1/1 和 Android 1.0.8 清洁构建/真机路径持久化均通过；
   新服务端尚未公网部署，所以 Android Relay 仍不得记为端到端通过。
+- Android 已补齐同一资源会话的 descriptor 重签与 transport 替换：user/guest owner 固化在连接模型，续签只提交已有 session/revision，
+  不新建资源会话或访客身份；可恢复网络错误按 5 秒重试，Native 已恢复则停止循环，确定性拒绝 fail-closed。1.0.10 清洁构建
+  454/454 task 和覆盖安装通过，APK SHA-256 为 `3B7F875C1C7ABE8F1667A4F85B78A346CDBB97A5404FFA20DED002238BD142BD`。
+  该项关闭本地实现门禁，不替代新 Console/Relay 公网部署后的真实 Relay 票据重连。
 
 尚未完成且不得被上述聚焦证据冒充：真实公网 Web/Android 首帧/音频/输入/重连/撤销、Windows 剩余音频与撤销矩阵、Relay 剩余通道、
-Android CloudApplication Relay 真机首帧与票据续签、安装包内容审计，以及所有 DB5 短测通过后的统一长测。
+Android CloudApplication Relay 真机首帧与真实票据续签、安装包内容审计，以及所有 DB5 短测通过后的统一长测。

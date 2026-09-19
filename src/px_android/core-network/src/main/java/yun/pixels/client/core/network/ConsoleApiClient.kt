@@ -23,6 +23,7 @@ import yun.pixels.client.core.domain.account.RemoteApplicationAccess
 import yun.pixels.client.core.domain.account.RemoteApplicationInstance
 import yun.pixels.client.core.domain.account.RemoteApplicationType
 import yun.pixels.client.core.domain.account.ResourceConnection
+import yun.pixels.client.core.domain.account.ResourceConnectionOwner
 import yun.pixels.client.core.domain.account.ResourceRelayEndpoint
 
 interface ConsoleAccountApi {
@@ -33,11 +34,30 @@ interface ConsoleAccountApi {
     suspend fun logout(session: AccountSession): AccountResult<Unit>
     suspend fun devices(session: AccountSession): AccountResult<List<AccountDevice>>
     suspend fun resolveConnection(session: AccountSession, deviceId: String): AccountResult<ResourceConnection>
+    suspend fun renewConnection(
+        session: AccountSession,
+        deviceId: String,
+        connection: ResourceConnection,
+    ): AccountResult<ResourceConnection>
 }
 
-class ConsoleApiClient(
+class ConsoleApiClient private constructor(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val requestExecutor: ConsoleRequestExecutor,
+    @Suppress("UNUSED_PARAMETER") constructorMarker: Unit,
 ) : ConsoleAccountApi, ConsoleApplicationApi {
+    constructor(ioDispatcher: CoroutineDispatcher = Dispatchers.IO) : this(
+        ioDispatcher,
+        ConsoleRequestExecutor(::executeHttpsRequest),
+        Unit,
+    )
+
+    internal constructor(ioDispatcher: CoroutineDispatcher, requestExecutor: ConsoleRequestExecutor) : this(
+        ioDispatcher,
+        requestExecutor,
+        Unit,
+    )
+
     override suspend fun testEndpoint(endpointInput: String): AccountResult<ConsoleEndpoint> = withContext(ioDispatcher) {
         val endpoint = normalizeEndpoint(endpointInput) ?: return@withContext failure(AccountFailure.InvalidEndpoint)
         val response = request(endpoint, "/health/ready", "GET") ?: return@withContext failure(AccountFailure.NetworkUnavailable)
@@ -97,6 +117,21 @@ class ConsoleApiClient(
             )
         }
 
+    override suspend fun renewConnection(
+        session: AccountSession,
+        deviceId: String,
+        connection: ResourceConnection,
+    ): AccountResult<ResourceConnection> = withContext(ioDispatcher) {
+        renewResourceConnection(
+            session.endpoint,
+            session.accessToken,
+            SUBJECT_USER,
+            JSONObject().put("kind", "desktop").put("device_id", deviceId),
+            deviceId,
+            connection,
+        )
+    }
+
     override suspend fun applications(session: AccountSession): AccountResult<List<RemoteApplication>> = withContext(ioDispatcher) {
         catalogWithInstances(session.endpoint, session.accessToken, SUBJECT_USER, "/api/console/applications?limit=100")
     }
@@ -125,6 +160,15 @@ class ConsoleApiClient(
         resolveCloudApplicationConnection(session.endpoint, session.accessToken, SUBJECT_GUEST, appId, instanceId)
     }
 
+    override suspend fun renewGuestApplicationConnection(
+        session: GuestSession,
+        appId: String,
+        instanceId: String,
+        connection: ResourceConnection,
+    ): AccountResult<ResourceConnection> = withContext(ioDispatcher) {
+        renewCloudApplicationConnection(session.endpoint, session.accessToken, SUBJECT_GUEST, appId, instanceId, connection)
+    }
+
     override suspend fun startApplication(
         session: AccountSession,
         appId: String,
@@ -143,6 +187,15 @@ class ConsoleApiClient(
         instanceId: String,
     ): AccountResult<ResourceConnection> = withContext(ioDispatcher) {
         resolveCloudApplicationConnection(session.endpoint, session.accessToken, SUBJECT_USER, appId, instanceId)
+    }
+
+    override suspend fun renewApplicationConnection(
+        session: AccountSession,
+        appId: String,
+        instanceId: String,
+        connection: ResourceConnection,
+    ): AccountResult<ResourceConnection> = withContext(ioDispatcher) {
+        renewCloudApplicationConnection(session.endpoint, session.accessToken, SUBJECT_USER, appId, instanceId, connection)
     }
 
     private fun catalogWithInstances(
@@ -228,6 +281,22 @@ class ConsoleApiClient(
         instanceId,
     )
 
+    private fun renewCloudApplicationConnection(
+        endpoint: ConsoleEndpoint,
+        accessToken: String,
+        subjectKind: String,
+        appId: String,
+        instanceId: String,
+        connection: ResourceConnection,
+    ): AccountResult<ResourceConnection> = renewResourceConnection(
+        endpoint,
+        accessToken,
+        subjectKind,
+        JSONObject().put("kind", "cloud_application").put("application_id", appId).put("instance_id", instanceId),
+        instanceId,
+        connection,
+    )
+
     private fun resolveResourceConnection(
         endpoint: ConsoleEndpoint,
         accessToken: String,
@@ -245,14 +314,33 @@ class ConsoleApiClient(
             is AccountResult.Success -> opened.value
             is AccountResult.Failure -> return opened
         }
-        return request(
-            endpoint,
-            "/api/console/resource-sessions/${encodePathSegment(openedSession.sessionId)}/descriptor",
-            "POST",
-            accessToken,
-            subjectKind,
-            JSONObject().put("revision", openedSession.revision),
-        )?.parseObject { parseResourceConnection(it, openedSession, target, remoteResourceId) }
+        val descriptorRequest = resourceDescriptorRequest(openedSession.sessionId, openedSession.revision)
+        val expectedOwner = subjectKind.toConnectionOwner() ?: return invalidResponse()
+        return request(endpoint, descriptorRequest.path, "POST", accessToken, subjectKind, descriptorRequest.body)
+            ?.parseObject { parseResourceConnection(it, openedSession, target, remoteResourceId, expectedOwner) }
+            ?: failure(AccountFailure.NetworkUnavailable)
+    }
+
+    private fun renewResourceConnection(
+        endpoint: ConsoleEndpoint,
+        accessToken: String,
+        subjectKind: String,
+        target: JSONObject,
+        remoteResourceId: String,
+        connection: ResourceConnection,
+    ): AccountResult<ResourceConnection> {
+        if (
+            connection.remoteResourceId != remoteResourceId ||
+            connection.owner.subjectKind != subjectKind ||
+            connection.sessionRevision <= 0 ||
+            connection.sessionRevision == Long.MAX_VALUE
+        ) {
+            return invalidResponse()
+        }
+        val descriptorRequest = resourceDescriptorRequest(connection.sessionId, connection.sessionRevision)
+        val renewedSession = OpenedResourceSession(connection.sessionId, connection.sessionRevision + 1)
+        return request(endpoint, descriptorRequest.path, "POST", accessToken, subjectKind, descriptorRequest.body)
+            ?.parseObject { parseResourceConnection(it, renewedSession, target, remoteResourceId, connection.owner) }
             ?: failure(AccountFailure.NetworkUnavailable)
     }
 
@@ -263,45 +351,28 @@ class ConsoleApiClient(
         bearerToken: String? = null,
         subjectKind: String? = null,
         body: JSONObject? = null,
-    ): HttpResponse? {
-        val connection = runCatching { URI(endpoint.baseUrl).resolve(path).toURL().openConnection() as HttpsURLConnection }.getOrNull()
-            ?: return null
-        return try {
-            connection.requestMethod = method
-            connection.connectTimeout = CONNECT_TIMEOUT_MILLIS
-            connection.readTimeout = READ_TIMEOUT_MILLIS
-            connection.instanceFollowRedirects = false
-            connection.useCaches = false
-            connection.setRequestProperty("Accept", "application/json")
-            connection.setRequestProperty("User-Agent", "Pixels-Android/1")
-            connection.setRequestProperty("X-Pixels-Client-Type", "android")
-            bearerToken?.let { connection.setRequestProperty("Authorization", "Bearer $it") }
-            subjectKind?.let { connection.setRequestProperty("X-Pixels-Subject-Kind", it) }
-            if (body != null) {
-                connection.doOutput = true
-                connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                connection.outputStream.use { it.write(body.toString().toByteArray(StandardCharsets.UTF_8)) }
-            }
-            val status = connection.responseCode
-            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-            HttpResponse(status, stream?.bufferedReader(StandardCharsets.UTF_8)?.use { it.readText() }.orEmpty())
-        } catch (_: Exception) {
-            null
-        } finally {
-            connection.disconnect()
-        }
-    }
-
-    companion object {
-        private const val CONNECT_TIMEOUT_MILLIS = 5_000
-        private const val READ_TIMEOUT_MILLIS = 8_000
-        private const val SUBJECT_USER = "user"
-        private const val SUBJECT_GUEST = "guest"
-    }
+    ): HttpResponse? = requestExecutor.execute(endpoint, path, method, bearerToken, subjectKind, body)
 }
 
 internal data class OpenedResourceSession(val sessionId: String, val revision: Long)
+internal data class ResourceDescriptorRequest(val path: String, val body: JSONObject)
 internal data class HttpResponse(val status: Int, val body: String)
+
+internal fun interface ConsoleRequestExecutor {
+    fun execute(
+        endpoint: ConsoleEndpoint,
+        path: String,
+        method: String,
+        bearerToken: String?,
+        subjectKind: String?,
+        body: JSONObject?,
+    ): HttpResponse?
+}
+
+internal fun resourceDescriptorRequest(sessionId: String, revision: Long): ResourceDescriptorRequest = ResourceDescriptorRequest(
+    path = "/api/console/resource-sessions/${encodePathSegment(sessionId)}/descriptor",
+    body = JSONObject().put("revision", revision),
+)
 
 internal fun normalizeEndpoint(input: String): ConsoleEndpoint? = runCatching {
     val normalized = input.trim().trimEnd('/')
@@ -407,6 +478,7 @@ internal fun parseResourceConnection(
     opened: OpenedResourceSession,
     expectedTarget: JSONObject,
     remoteResourceId: String,
+    expectedOwner: ResourceConnectionOwner,
 ): AccountResult<ResourceConnection> {
     val descriptor = payload.optJSONObject("descriptor") ?: return invalidResponse()
     val session = descriptor.optJSONObject("session") ?: return invalidResponse()
@@ -418,6 +490,11 @@ internal fun parseResourceConnection(
     val transport = descriptor.requiredString("transport") ?: return invalidResponse()
     val expiresAt = descriptor.requiredInstantMillis("expires_at") ?: return invalidResponse()
     val actualTarget = session.optJSONObject("target") ?: return invalidResponse()
+    val owner = when (session.optJSONObject("owner")?.optString("kind")) {
+        SUBJECT_USER -> ResourceConnectionOwner.User
+        SUBJECT_GUEST -> ResourceConnectionOwner.Guest
+        else -> return invalidResponse()
+    }
     val relay = when (val relayPayload = payload.optJSONObject("relay")) {
         null -> null
         else -> {
@@ -434,13 +511,14 @@ internal fun parseResourceConnection(
         session.optString("client_type") != "android" ||
         session.optString("access_role") != "controller" ||
         session.optString("state") !in setOf("pending", "connected") ||
+        owner != expectedOwner ||
         !sameResourceTarget(expectedTarget, actualTarget) ||
         port !in 1..65535 ||
         transport != "native"
     ) {
         return invalidResponse()
     }
-    return AccountResult.Success(ResourceConnection(host, port, remoteResourceId, sessionId, revision, token, transport, expiresAt, relay))
+    return AccountResult.Success(ResourceConnection(host, port, remoteResourceId, sessionId, revision, token, transport, expiresAt, relay, owner))
 }
 
 private fun sameResourceTarget(expected: JSONObject, actual: JSONObject): Boolean = when (expected.optString("kind")) {
@@ -474,6 +552,18 @@ private fun JSONObject.requiredInstantMillis(name: String): Long? =
 
 private fun encodePathSegment(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8.name()).replace("+", "%20")
 
+private val ResourceConnectionOwner.subjectKind: String
+    get() = when (this) {
+        ResourceConnectionOwner.User -> SUBJECT_USER
+        ResourceConnectionOwner.Guest -> SUBJECT_GUEST
+    }
+
+private fun String.toConnectionOwner(): ResourceConnectionOwner? = when (this) {
+    SUBJECT_USER -> ResourceConnectionOwner.User
+    SUBJECT_GUEST -> ResourceConnectionOwner.Guest
+    else -> null
+}
+
 private fun String.toApplicationType(): RemoteApplicationType = when (lowercase()) {
     "game_hook" -> RemoteApplicationType.GameHook
     "webview" -> RemoteApplicationType.WebView
@@ -483,3 +573,44 @@ private fun String.toApplicationType(): RemoteApplicationType = when (lowercase(
 
 private fun <T> invalidResponse(): AccountResult<T> = failure(AccountFailure.InvalidResponse)
 private fun <T> failure(reason: AccountFailure): AccountResult<T> = AccountResult.Failure(reason)
+
+private fun executeHttpsRequest(
+    endpoint: ConsoleEndpoint,
+    path: String,
+    method: String,
+    bearerToken: String?,
+    subjectKind: String?,
+    body: JSONObject?,
+): HttpResponse? {
+    val connection = runCatching { URI(endpoint.baseUrl).resolve(path).toURL().openConnection() as HttpsURLConnection }.getOrNull()
+        ?: return null
+    return try {
+        connection.requestMethod = method
+        connection.connectTimeout = CONNECT_TIMEOUT_MILLIS
+        connection.readTimeout = READ_TIMEOUT_MILLIS
+        connection.instanceFollowRedirects = false
+        connection.useCaches = false
+        connection.setRequestProperty("Accept", "application/json")
+        connection.setRequestProperty("User-Agent", "Pixels-Android/1")
+        connection.setRequestProperty("X-Pixels-Client-Type", "android")
+        bearerToken?.let { connection.setRequestProperty("Authorization", "Bearer $it") }
+        subjectKind?.let { connection.setRequestProperty("X-Pixels-Subject-Kind", it) }
+        if (body != null) {
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            connection.outputStream.use { it.write(body.toString().toByteArray(StandardCharsets.UTF_8)) }
+        }
+        val status = connection.responseCode
+        val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+        HttpResponse(status, stream?.bufferedReader(StandardCharsets.UTF_8)?.use { it.readText() }.orEmpty())
+    } catch (_: Exception) {
+        null
+    } finally {
+        connection.disconnect()
+    }
+}
+
+private const val CONNECT_TIMEOUT_MILLIS = 5_000
+private const val READ_TIMEOUT_MILLIS = 8_000
+private const val SUBJECT_USER = "user"
+private const val SUBJECT_GUEST = "guest"

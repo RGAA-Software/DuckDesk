@@ -41,7 +41,13 @@ data class ResourceConnection(
     val transport: String,
     val expiresAtEpochMillis: Long,
     val relay: ResourceRelayEndpoint? = null,
+    val owner: ResourceConnectionOwner = ResourceConnectionOwner.User,
 )
+
+enum class ResourceConnectionOwner {
+    User,
+    Guest,
+}
 
 data class ResourceRelayEndpoint(
     val host: String,

@@ -20,6 +20,7 @@ import yun.pixels.client.core.domain.device.DeviceResolver
 import yun.pixels.client.core.network.ConsoleApiClient
 import yun.pixels.client.core.network.ConsoleApplicationRepository
 import yun.pixels.client.core.network.ConsoleSessionCoordinator
+import yun.pixels.client.core.network.ConsoleResourceConnectionRenewer
 
 class PixelsApplication : Application() {
     lateinit var graph: PixelsAppGraph
@@ -47,4 +48,5 @@ class PixelsAppGraph(application: Application) {
     ).also { repository -> applicationScope.launch { repository.restore() } }
     val accountRepository: AccountRepository = consoleSessionRepository
     val applicationRepository: ApplicationRepository = ConsoleApplicationRepository(consoleApi, consoleSessionRepository)
+    val resourceConnectionRenewer = ConsoleResourceConnectionRenewer(consoleApi, consoleApi, consoleSessionRepository)
 }

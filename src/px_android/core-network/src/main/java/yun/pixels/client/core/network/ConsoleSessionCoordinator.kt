@@ -119,6 +119,10 @@ class ConsoleSessionCoordinator(
         }
     }
 
+    internal suspend fun currentGuestSession(): GuestSession? = guestMutex.withLock {
+        guestSession?.takeIf { session -> session.expiresAtEpochMillis > now() && session.endpoint == mutableEndpoint.value }
+    }
+
     internal suspend fun invalidateGuest() {
         guestMutex.withLock { guestSession = null }
     }

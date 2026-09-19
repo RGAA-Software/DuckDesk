@@ -80,6 +80,71 @@ class RemoteSessionWorkflowTest {
     }
 
     @Test
+    fun restartReplacesTheConnectionForTheSameSession() = runTest {
+        val transport = FakeRemoteSessionTransport()
+        val workflow = RemoteSessionWorkflow(transport, CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
+        val original = request("session-1")
+        val renewed = original.copy(
+            target = (original.target as RemoteSessionTarget.Direct).copy(credential = "renewed-credential"),
+        )
+        workflow.start(original)
+
+        assertTrue(workflow.restart(renewed))
+
+        assertEquals(listOf(original.id), transport.stops)
+        assertEquals(listOf(original, renewed), transport.starts)
+        assertEquals(RemoteSessionStatus.Starting(renewed), workflow.snapshot.value.status)
+    }
+
+    @Test
+    fun staleRestartCannotRestoreAStoppedSession() = runTest {
+        val transport = FakeRemoteSessionTransport()
+        val workflow = RemoteSessionWorkflow(transport, CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
+        val request = request("session-1")
+        workflow.start(request)
+        workflow.stop()
+
+        assertEquals(false, workflow.restart(request))
+        assertEquals(listOf(request), transport.starts)
+        assertTrue(workflow.snapshot.value.status is RemoteSessionStatus.Idle)
+    }
+
+    @Test
+    fun rejectedRestartKeepsTheRenewedRequestInTypedFailure() = runTest {
+        val transport = FakeRemoteSessionTransport()
+        val workflow = RemoteSessionWorkflow(transport, CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
+        val original = request("session-1")
+        val renewed = original.copy(
+            target = (original.target as RemoteSessionTarget.Direct).copy(credential = "renewed-credential"),
+        )
+        workflow.start(original)
+        transport.startResult = RemoteTransportStartResult.Rejected(RemoteSessionFailure.AuthenticationRejected)
+
+        assertEquals(false, workflow.restart(renewed))
+
+        assertEquals(
+            RemoteSessionStatus.Failed(renewed, RemoteSessionFailure.AuthenticationRejected),
+            workflow.snapshot.value.status,
+        )
+    }
+
+    @Test
+    fun explicitFailureStopsRetriesAndKeepsTheTypedReason() = runTest {
+        val transport = FakeRemoteSessionTransport()
+        val workflow = RemoteSessionWorkflow(transport, CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
+        val request = request("session-1")
+        workflow.start(request)
+
+        assertTrue(workflow.fail(request.id, RemoteSessionFailure.AuthenticationRejected))
+
+        assertEquals(listOf(request.id), transport.stops)
+        assertEquals(
+            RemoteSessionStatus.Failed(request, RemoteSessionFailure.AuthenticationRejected),
+            workflow.snapshot.value.status,
+        )
+    }
+
+    @Test
     fun queuedEventFromStoppedSessionIsIgnored() = runTest {
         val transport = FakeRemoteSessionTransport()
         val workflow = RemoteSessionWorkflow(transport, CoroutineScope(UnconfinedTestDispatcher(testScheduler)))

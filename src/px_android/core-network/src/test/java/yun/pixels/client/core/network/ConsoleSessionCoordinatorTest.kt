@@ -130,6 +130,12 @@ private class FakeApi(
     override suspend fun devices(session: AccountSession) = devicesResult
 
     override suspend fun resolveConnection(session: AccountSession, deviceId: String): AccountResult<ResourceConnection> = connectionResult
+
+    override suspend fun renewConnection(
+        session: AccountSession,
+        deviceId: String,
+        connection: ResourceConnection,
+    ): AccountResult<ResourceConnection> = connectionResult
 }
 
 private class FakeEndpointStore(private var endpoint: ConsoleEndpoint? = ConsoleEndpoint("https://console.example")) : ConsoleEndpointStore {

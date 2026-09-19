@@ -335,3 +335,22 @@ cd src/px_android
   无 AndroidRuntime/JNI fatal。
 - 公网仍运行本切片之前的 Console/Relay，故尚无 Android Relay 首帧证据。必须先部署当前服务端，再验证媒体、音频、输入、撤销和
   descriptor 到期后以新 descriptor 重连；不得用 UI/单测冒充端到端通过。
+
+## 13. 2026-09-20 Android descriptor 续签与重连切片
+
+- Android 对账号桌面和 CloudApplication 断线不创建新的资源会话，只向
+  `POST /api/console/resource-sessions/{existing_session_id}/descriptor` 提交当前 revision；返回 revision 必须严格前进，session、目标、
+  `client_type=android`、controller role、状态、native transport 和 owner kind 必须保持一致。
+- `ResourceConnection` 明确记录 `user|guest` owner。登录用户只能以当前有效 user session 续签；guest 只能复用创建原资源会话的内存 guest
+  身份。guest 到期、登录状态切换或 owner 不一致均 fail-closed，不静默创建新 guest、新资源会话或换用另一主体。
+- 同一 UI session 使用显式 restart 停止旧 Native attempt 并装载新 descriptor。Native callback 每次 attempt 使用独立 callback UUID，
+  已取消 attempt 的排队/迟到回调不能污染新连接；用户停止、换会话和续签并发时，旧结果不能覆盖新的 prepared request。
+- 可恢复断线期间若 Console 暂时不可达，续签以 5 秒间隔继续尝试；Native 已用旧授权自行恢复时立即停止续签循环。认证、协议、资源结束等
+  确定性拒绝进入类型化失败并停止旧 transport；用户手动重试资源会话前也必须先取得新 descriptor。Direct 本机连接保持原重连行为。
+- 单元测试覆盖同会话 descriptor 的唯一请求路径/revision、owner/target 拒绝、user/guest 身份选择、过期 guest 不换 owner、工作流重启、
+  start 拒绝、停止后的迟到 restart 和显式失败。全模块 JVM 测试、Lint、arm64 Native 与清洁 454/454 task 构建通过。
+- 1.0.10 Debug APK 已用 `adb install -r` 覆盖安装至 Xiaomi 22021211RC，未卸载、未清数据；SHA-256 为
+  `3B7F875C1C7ABE8F1667A4F85B78A346CDBB97A5404FFA20DED002238BD142BD`。设备报告 versionCode 10010/versionName 1.0.10-debug，
+  冷启动及“设备/云应用/传输/设置”顶级导航可见，无 FATAL EXCEPTION/JNI fatal。
+- 本切片关闭 Android 本地续签实现和短门禁，不关闭公网端到端：当前新 Console/Relay 仍未部署，Android Relay 首帧、真实断线后新票据
+  重连、音频、输入与在线撤销仍须在同批公网服务端上短测。
