@@ -16,7 +16,7 @@ pub const HEADER_APP_SIGN: &str = "x-app-sign";
 
 pub fn hex_decode(encoded_text: &str) -> Option<Vec<u8>> {
     let encoded_text = encoded_text.trim();
-    if encoded_text.len() % 2 != 0
+    if !encoded_text.len().is_multiple_of(2)
         || !encoded_text
             .chars()
             .all(|character| character.is_ascii_hexdigit())

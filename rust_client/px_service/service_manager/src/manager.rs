@@ -248,8 +248,10 @@ impl ServiceManager {
                 return Err("CreateToolhelp32Snapshot returned invalid handle".to_string());
             }
 
-            let mut entry = PROCESSENTRY32W::default();
-            entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+            let mut entry = PROCESSENTRY32W {
+                dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
+                ..Default::default()
+            };
             let mut has_entry = Process32FirstW(snapshot, &mut entry)
                 .map(|_| true)
                 .unwrap_or(false);

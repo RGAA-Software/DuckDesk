@@ -1155,6 +1155,13 @@ Console PostgreSQL 工作区 6 项和资源会话/RDP 占用 11 项。2026-09-20
 `pg-20260920-053731-bd9441e4`、`pg-20260920-053930-e4373942`，隔离容器与卷已清理。该结果恢复了日常 RDP 软件回归门禁，
 不替代公网 Windows 的桌面画面、输入、音频、剪贴板、双工作区、故障恢复或运行制品验收。
 
+Rust Client 依赖审计随后关闭了无效数据库依赖：`px_base` 中无人调用的 MongoDB/Redis 工具模块及依赖已删除，`px_auth_mgr` 的未使用
+MongoDB 声明和 `px_sysinfo` 对未使用授权 crate 的依赖也已移除；更新后的 Client 锁文件不含 `mongodb` 或 `redis`。`px_sysinfo` 仍是
+无 UI 的 `px_osinfo` 命令行采集器，活动 Rust manifest/锁文件/源码均不含 Zed、GPUI 或 gpui-component。Rust Base workspace 测试为
+协议 2/2、授权 30/30、基础库 39/39（另 1 项真实 SMTP 按环境忽略），Client workspace 为 Service 96/96（另 1 项物理 NVIDIA 忽略）、
+系统信息 4/4、User Proxy 99/99、Service Core 87/87（另 1 项真实 UE 样本忽略）、Service Manager 12/12；两个 workspace 的严格
+Clippy 均通过。本项只清理编译依赖并恢复静态门禁，不扩大为 Windows 安装包或公网产品验收。
+
 ## 仍未通过的阶段出口
 
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。

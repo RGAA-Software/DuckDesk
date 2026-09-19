@@ -4,6 +4,12 @@ pub struct KvStorage {
     db: Option<Db>,
 }
 
+impl Default for KvStorage {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl KvStorage {
     pub fn new() -> Self {
         Self { db: None }

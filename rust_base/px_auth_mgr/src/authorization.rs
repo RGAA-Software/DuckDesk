@@ -19,10 +19,7 @@ pub fn default_mode() -> String {
     MODE_LICENSED.to_string()
 }
 
-/// Converts persisted product identifiers from pre-Console releases to the
-/// canonical names. Product identifiers are stored in MongoDB and signed
-/// license payloads, so callers must accept the legacy spellings during an
-/// in-place upgrade.
+/// Normalizes product identifiers used by this retained authorization model.
 pub fn normalize_product(product: &str) -> &str {
     match product {
         LEGACY_PRODUCT_CMS => PRODUCT_CONSOLE,

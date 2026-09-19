@@ -9,9 +9,7 @@ pub mod json_util;
 pub mod kv_storage;
 pub mod log_util;
 pub mod machine_code;
-pub mod mongodb_util;
 pub mod path_util;
-pub mod redis_util;
 pub mod server_id_util;
 pub mod string_util;
 pub mod sys_info;
@@ -154,12 +152,7 @@ pub fn ok_resp_vec_str_map(payload: Vec<HashMap<String, String>>) -> RespVecStri
 }
 
 pub fn get_query_param(params: &HashMap<String, String>, key: &str) -> Option<String> {
-    let value = params.get(key);
-    if let Some(value) = value {
-        Some(value.to_string())
-    } else {
-        None
-    }
+    params.get(key).map(ToString::to_string)
 }
 
 pub fn get_current_timestamp() -> i64 {
@@ -396,12 +389,6 @@ pub fn format_duration_compact(milliseconds: i64) -> String {
 mod tests {
     use super::*;
 
-    fn get_test_debug_directory() -> String {
-        let current_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-        let dir = current_dir.join("target").join("debug");
-        dir.to_str().unwrap().to_string()
-    }
-
     #[test]
     fn md5_test() {
         let result = md5_hex(&"123".to_string());
@@ -425,7 +412,7 @@ mod tests {
 
     #[test]
     fn test_calculate_dir_size() {
-        let mut dir_path = std::env::current_dir()
+        let dir_path = std::env::current_dir()
             .unwrap()
             .to_str()
             .unwrap()

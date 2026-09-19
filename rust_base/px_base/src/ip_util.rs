@@ -300,85 +300,6 @@ pub fn get_all_ipv4_addresses_raw() -> Result<Vec<(String, Ipv4Addr)>, Box<dyn s
     Ok(result)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::net::Ipv4Addr;
-
-    #[test]
-    fn test_is_virtual_interface() {
-        // 测试虚拟接口
-        assert!(is_virtual_interface("docker0"));
-        assert!(is_virtual_interface("br-12345"));
-        assert!(is_virtual_interface("vethabc123"));
-        assert!(is_virtual_interface("vmnet1"));
-        assert!(is_virtual_interface("vboxnet0"));
-        assert!(is_virtual_interface("virbr0"));
-        assert!(is_virtual_interface("tun0"));
-        assert!(is_virtual_interface("tap0"));
-        assert!(is_virtual_interface("wg0"));
-
-        // 测试真实接口（应该返回false）
-        assert!(!is_virtual_interface("eth0"));
-        assert!(!is_virtual_interface("en0"));
-        assert!(!is_virtual_interface("wlan0"));
-        assert!(!is_virtual_interface("Wi-Fi"));
-        assert!(!is_virtual_interface("Ethernet"));
-    }
-
-    #[test]
-    fn test_is_private_address() {
-        // RFC 1918 私有地址
-        assert!(is_private_address(&Ipv4Addr::new(10, 0, 0, 1)));
-        assert!(is_private_address(&Ipv4Addr::new(172, 16, 0, 1)));
-        assert!(is_private_address(&Ipv4Addr::new(172, 31, 255, 254)));
-        assert!(is_private_address(&Ipv4Addr::new(192, 168, 1, 1)));
-
-        // 公网地址
-        assert!(!is_private_address(&Ipv4Addr::new(8, 8, 8, 8)));
-        assert!(!is_private_address(&Ipv4Addr::new(1, 1, 1, 1)));
-        assert!(!is_private_address(&Ipv4Addr::new(203, 0, 113, 1)));
-    }
-
-    #[test]
-    fn test_get_ipv4_details() {
-        let ip = Ipv4Addr::new(192, 168, 1, 100);
-        let details = get_ipv4_details(ip);
-
-        assert_eq!(details.ip, ip);
-        assert_eq!(details.ip_type, IPType::Private);
-        assert_eq!(details.possible_use, "家庭/小型办公网络");
-
-        let ip = Ipv4Addr::new(8, 8, 8, 8);
-        let details = get_ipv4_details(ip);
-        assert_eq!(details.ip_type, IPType::Public);
-    }
-
-    #[test]
-    fn test_get_clean_ipv4_addresses() {
-        // 注意：这个测试在实际运行时会返回实际系统的IP地址
-        // 所以不能断言具体结果，只能检查是否没有panic
-        let result = get_clean_ipv4_addresses();
-        match result {
-            Ok(ips) => {
-                println!("找到 {} 个干净IP地址:", ips.len());
-                for ip in &ips {
-                    println!("  {}", ip);
-                    let details = get_ipv4_details(*ip);
-                    println!(
-                        "    类型: {:?}, 可能用途: {}",
-                        details.ip_type, details.possible_use
-                    );
-                }
-            }
-            Err(interface_error) => {
-                // 在某些环境下可能无法获取网络接口信息
-                println!("无法获取网络接口信息: {}", interface_error);
-            }
-        }
-    }
-}
-
 /// 使用示例
 pub fn test_ip_main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== 获取干净的真实IPv4地址 ===\n");
@@ -466,4 +387,74 @@ pub fn test_ip_main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::Ipv4Addr;
+
+    #[test]
+    fn test_is_virtual_interface() {
+        assert!(is_virtual_interface("docker0"));
+        assert!(is_virtual_interface("br-12345"));
+        assert!(is_virtual_interface("vethabc123"));
+        assert!(is_virtual_interface("vmnet1"));
+        assert!(is_virtual_interface("vboxnet0"));
+        assert!(is_virtual_interface("virbr0"));
+        assert!(is_virtual_interface("tun0"));
+        assert!(is_virtual_interface("tap0"));
+        assert!(is_virtual_interface("wg0"));
+
+        assert!(!is_virtual_interface("eth0"));
+        assert!(!is_virtual_interface("en0"));
+        assert!(!is_virtual_interface("wlan0"));
+        assert!(!is_virtual_interface("Wi-Fi"));
+        assert!(!is_virtual_interface("Ethernet"));
+    }
+
+    #[test]
+    fn test_is_private_address() {
+        assert!(is_private_address(&Ipv4Addr::new(10, 0, 0, 1)));
+        assert!(is_private_address(&Ipv4Addr::new(172, 16, 0, 1)));
+        assert!(is_private_address(&Ipv4Addr::new(172, 31, 255, 254)));
+        assert!(is_private_address(&Ipv4Addr::new(192, 168, 1, 1)));
+
+        assert!(!is_private_address(&Ipv4Addr::new(8, 8, 8, 8)));
+        assert!(!is_private_address(&Ipv4Addr::new(1, 1, 1, 1)));
+        assert!(!is_private_address(&Ipv4Addr::new(203, 0, 113, 1)));
+    }
+
+    #[test]
+    fn test_get_ipv4_details() {
+        let private_ip = Ipv4Addr::new(192, 168, 1, 100);
+        let private_details = get_ipv4_details(private_ip);
+
+        assert_eq!(private_details.ip, private_ip);
+        assert_eq!(private_details.ip_type, IPType::Private);
+        assert_eq!(private_details.possible_use, "家庭/小型办公网络");
+
+        let public_details = get_ipv4_details(Ipv4Addr::new(8, 8, 8, 8));
+        assert_eq!(public_details.ip_type, IPType::Public);
+    }
+
+    #[test]
+    fn test_get_clean_ipv4_addresses() {
+        match get_clean_ipv4_addresses() {
+            Ok(addresses) => {
+                println!("找到 {} 个干净IP地址:", addresses.len());
+                for address in &addresses {
+                    println!("  {}", address);
+                    let details = get_ipv4_details(*address);
+                    println!(
+                        "    类型: {:?}, 可能用途: {}",
+                        details.ip_type, details.possible_use
+                    );
+                }
+            }
+            Err(interface_error) => {
+                println!("无法获取网络接口信息: {}", interface_error);
+            }
+        }
+    }
 }

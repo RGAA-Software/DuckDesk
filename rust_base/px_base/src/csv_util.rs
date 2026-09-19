@@ -43,13 +43,9 @@ pub fn read_csv_file(path: String) -> Result<CsvInfo, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::OpenOptions;
-    use std::io::Write;
 
     #[test]
     fn test_read_csv_file() {
-        //let mut r = OpenOptions::new().write(true).create(true).open("sample.csv").unwrap();
-        //r.write("xxxx".as_bytes()).unwrap();
         if let Err(read_error) = read_csv_file(String::from("test/Book1.csv")) {
             println!("***error*** {}", read_error);
         }

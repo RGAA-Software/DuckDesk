@@ -55,8 +55,10 @@ impl SystemInfo {
             "".to_string()
         };
 
-        let mut cpu_info = CpuInfo::default();
-        cpu_info.brand = brand;
+        let mut cpu_info = CpuInfo {
+            brand,
+            ..Default::default()
+        };
 
         if let Some(fi) = cpuid.get_feature_info() {
             cpu_info.family = fi.family_id();
@@ -69,8 +71,10 @@ impl SystemInfo {
         match disks {
             Ok(disk_list) => {
                 for disk in disk_list {
-                    let mut disk_info = HardDiskInfo::default();
-                    disk_info.name = disk.name.clone();
+                    let mut disk_info = HardDiskInfo {
+                        name: disk.name.clone(),
+                        ..Default::default()
+                    };
                     if let Some(model) = &disk.model {
                         disk_info.model = model.clone();
                     }
