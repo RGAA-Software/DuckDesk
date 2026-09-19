@@ -1,6 +1,7 @@
 use crate::{error::ApiError, StateData};
 use axum::{
     extract::State,
+    http::{header, Method},
     routing::{get, post},
     Json, Router,
 };
@@ -17,6 +18,7 @@ use std::{
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
+use tower_http::cors::{Any, CorsLayer};
 use uuid::Uuid;
 
 const CERTIFICATE_LIMIT: u64 = 16 * 1024;
@@ -234,6 +236,12 @@ pub(crate) fn routes() -> Router<Arc<StateData>> {
     Router::new()
         .route("/.well-known/pixels", get(identity))
         .route("/.well-known/pixels/challenge", post(challenge))
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods([Method::GET, Method::POST])
+                .allow_headers([header::CONTENT_TYPE]),
+        )
 }
 
 async fn identity(

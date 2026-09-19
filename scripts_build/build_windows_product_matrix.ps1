@@ -88,12 +88,18 @@ foreach ($distribution in @('official', 'customer')) {
     }
     if ($nodeRequired) {
         $webOutput = Join-Path $distributionRoot 'web'
+        $env:PIXELS_WEB_DISTRIBUTION = $distribution
+        $env:PIXELS_WEB_DEPLOYMENT_POLICY_FILE = Join-Path $deploymentDirectory 'deployment-policy.json'
+        $env:PIXELS_WEB_DEPLOYMENT_TRUST_FILE = Join-Path $deploymentDirectory 'deployment-trust.json'
+        $env:PIXELS_WEB_CLIENT_BUILD = [string]$version.product_version_code
         Push-Location (Join-Path $repoRoot 'web\px_web_client')
         try {
             Invoke-NativeChecked -FilePath 'npm.cmd' -Arguments @('ci')
             Invoke-NativeChecked -FilePath 'npm.cmd' -Arguments @('run', 'build', '--', '--outDir', $webOutput, '--emptyOutDir')
         } finally {
             Pop-Location
+            Remove-Item Env:PIXELS_WEB_DISTRIBUTION, Env:PIXELS_WEB_DEPLOYMENT_POLICY_FILE, Env:PIXELS_WEB_DEPLOYMENT_TRUST_FILE, `
+                Env:PIXELS_WEB_CLIENT_BUILD -ErrorAction SilentlyContinue
         }
     }
 

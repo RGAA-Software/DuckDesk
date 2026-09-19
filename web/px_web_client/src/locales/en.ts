@@ -31,6 +31,7 @@ export default {
     steps: {
       idle: 'Idle',
       init: 'Initialize WebRTC',
+      identity: 'Verify Console identity',
       negotiate: 'Create local media offer',
       ice: 'Gather network candidates (ICE)',
       signal: 'Request remote desktop from host',
@@ -42,6 +43,9 @@ export default {
       failed: 'Connection failed',
       done: 'Connected',
     },
+  },
+  security: {
+    deploymentIdentityRejected: 'The Console deployment identity could not be verified. No session credential was sent to the host.',
   },
   clipboard: {
     sendRemote: 'Send to remote clipboard',

@@ -58,7 +58,8 @@ Windows DPAPI 加密。加载时拒绝 reparse point、宽权限目录、未知�
 
 Service 已消费签名部署证书、短期平台描述和 nonce 持有证明，并持久化 deployment ID/kind、certificate version、descriptor revision、
 trust epoch 五项水位；身份切换、类别切换、损坏记录或任一回退均 fail-closed。节点部署信任材料由受控安装/维护流程提供，不能把管理员
-任意输入根信任当成 Official/Customer 访问端发行隔离的替代品；Windows Client 与 Web 的独立发行门禁仍按 DB5/P0 实施。
+任意输入根信任当成 Official/Customer 访问端发行隔离的替代品。Windows Panel 与 Web Client 已各自在凭据使用前实施同一签名部署身份门禁；
+正式发行仍必须通过产品矩阵把 approved policy/trust 材料分别注入 Official/Customer 制品，不能在运行时从目标 Console 建立根信任。
 
 ## 3. 高级监听配置
 

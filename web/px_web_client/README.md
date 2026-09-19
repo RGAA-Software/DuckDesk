@@ -34,8 +34,21 @@ npm run dev
 npm run build
 ```
 
-产物输出到 `dist/`。`vite.config.ts` 中 `base: './'` 为相对路径,可直接部署到任意子路径。
+普通 `npm run build` 只生成 development 产物并输出到 `dist/`。正式 Official/Customer Web Client 不允许单独手工拼装，必须由
+Cloud Node 或 Remote 的完整产品矩阵构建生成；矩阵构建会把该发行对应的 deployment policy、approved trust store 和当前产品 build
+水位注入 Web bundle。缺少任何一项，或 policy 与发行类别不一致时，构建失败关闭。`vite.config.ts` 中 `base: './'` 为相对路径，产物可部署
+到 Render 的 `/web/` 子路径。
+
+## 部署身份门禁
+
+Console 生成的启动 URL fragment 必须携带 `console_origin`、资源会话 ID、revision 和一次性 frontend token。Official/Customer bundle 在创建
+`RTCPeerConnection`、向 Render 发送 token 或使用任何凭据前，先跨源访问 Console 的公开身份端点，验证 `PXDC1` 证书、`PXDD1` 短期描述、
+`PXDP1` nonce 持有证明、发行类别、协议/build 水位和本地持久化单调水位。Official 只接受编译时固定的官方 HTTPS origin 与 deployment ID；
+Customer 只接受签名类别为 `private` 的部署，并在首次成功后按 Console origin 固定 deployment ID。验证失败时不会回落到手工设备密码路径。
+
+development bundle 保留本地手工连接入口用于聚焦开发，不构成 Official/Customer 产品行为。
 
 ## 部署
 
-render 端在同源 `/web/` 路径下托管本前端。将 `dist/` 内容交给后端打包/拷贝到对应静态目录即可,信令请求走同源相对路径 `/alloc/local/rtc`,无需额外配置跨域。
+Render 在同源 `/web/` 路径下托管本前端，RTC 信令仍走 Render 同源相对路径 `/alloc/local/rtc`。部署身份发现和 nonce proof 访问启动描述符指定的
+Console HTTPS origin；Console 仅对这两个不含账号凭据、且内容经过签名的公开端点开放 GET/POST CORS，不扩大其他 Console API 的跨域权限。

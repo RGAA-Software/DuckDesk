@@ -417,6 +417,7 @@ export function prepareDescriptorLaunchUrl(response: DescriptorResponse) {
     fragment.set("session_id", descriptor.session.id);
     fragment.set("session_revision", String(descriptor.session.revision));
     fragment.set("frontend_token", token);
+    fragment.set("console_origin", window.location.origin);
     fragment.set(
         "perms",
         descriptor.session.access_role === "controller"

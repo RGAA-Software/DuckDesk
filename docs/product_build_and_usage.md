@@ -38,6 +38,10 @@ Windows Rust 使用仓库 `rust_client/.cargo/config.toml` 中的 MSVC `/Brepro`
 `CARGO_TARGET_DIR` 构建，共享 Service 在源码、依赖、编译参数和 revision 相同时也必须得到相同 SHA-256；构建、stage、dist
 三层必须逐文件核对。产品清单只由完整产品构建从干净沙箱生成，聚焦构建不得用“重写清单”掩盖 dist 中其他文件的漂移。
 
+Cloud Node 与 Remote 的 Official/Customer Web Client 也是发行绑定制品，不是可在两种发行之间复制的通用静态目录。完整矩阵构建从对应
+`deployment` 目录注入 policy、approved trust store 和产品 build 水位；缺少材料、发行不匹配或非正 build 会在 Vite 构建阶段失败关闭。
+正式 bundle 只接受带 `console_origin` 的 Console 资源启动描述符，并在向 Render 使用 frontend token 前完成签名部署身份和 nonce 证明。
+
 ## 2. 完整编译规则
 
 完整产品构建每次执行以下行为：

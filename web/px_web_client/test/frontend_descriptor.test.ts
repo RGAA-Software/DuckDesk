@@ -10,6 +10,7 @@ describe("Console frontend descriptor", () => {
             session_id: "00000000-0000-4000-8000-000000000001",
             session_revision: "2",
             frontend_token: "a".repeat(64),
+            console_origin: "https://console.example.test",
             perms: "view,input",
         });
 
@@ -21,6 +22,7 @@ describe("Console frontend descriptor", () => {
             sessionId: "00000000-0000-4000-8000-000000000001",
             sessionRevision: "2",
             token: "a".repeat(64),
+            consoleOrigin: "https://console.example.test",
         });
         expect(fragment.has("frontend_token")).toBe(false);
         expect(fragment.get("perms")).toBe("view,input");
@@ -58,6 +60,7 @@ describe("Console frontend descriptor", () => {
                 sessionId: "00000000-0000-4000-8000-000000000001",
                 sessionRevision: "9",
                 token: "c".repeat(64),
+                consoleOrigin: "https://console.example.test",
             },
             "must-not-be-forwarded",
         );

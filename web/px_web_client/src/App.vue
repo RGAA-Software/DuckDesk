@@ -56,6 +56,7 @@ import FileTransferWindow from './FileTransferWindow.vue'
 import { useFileTransfer } from './useFileTransfer'
 import { sha256Hex } from './rtc/file_transfer'
 import { appendFrontendAuthorization, takeFrontendDescriptor } from './rtc/frontend_descriptor'
+import { DeploymentIdentityError, packagedDeploymentIdentityGate } from './rtc/deployment_identity'
 import {
     createDirectHostRtcConfiguration,
     directHostUnreachableMessage,
@@ -1150,6 +1151,7 @@ function addLog(msg: string) {
 type ConnectStep =
   | 'idle'
   | 'init'
+  | 'identity'
   | 'negotiate'
   | 'ice'
   | 'signal'
@@ -1163,6 +1165,7 @@ type ConnectStep =
 
 const CONNECT_FLOW_STEPS: ConnectStep[] = [
   'init',
+  'identity',
   'negotiate',
   'ice',
   'signal',
@@ -1464,6 +1467,14 @@ async function connect() {
   try {
     if (unsupportedConnectionType) {
       throw new Error(`RTC_DIRECT_REQUIRED: 不支持连接类型 ${unsupportedConnectionType}`)
+    }
+    if (!frontendDescriptor && packagedDeploymentIdentityGate.requiresVerifiedConsole()) {
+      throw new DeploymentIdentityError()
+    }
+    if (frontendDescriptor) {
+      setConnectStep('identity', frontendDescriptor.consoleOrigin)
+      const verifiedDeployment = await packagedDeploymentIdentityGate.verify(frontendDescriptor.consoleOrigin)
+      if (verifiedDeployment) addLog(`[deployment] 已验证 ${verifiedDeployment.deploymentKind} ${verifiedDeployment.deploymentId}`)
     }
     // Direct Host uses only host candidates. Render rewrites its host
     // candidate to the authoritative browser-reachable address.
@@ -1785,7 +1796,8 @@ async function connect() {
       }
     }, 10000)
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = err instanceof DeploymentIdentityError ? t('security.deploymentIdentityRejected')
+      : err instanceof Error ? err.message : String(err)
     addLog(`连接失败: ${msg}`)
     const failedAt = CONNECT_FLOW_STEPS.includes(connectStep.value) ? connectStep.value : 'init'
     cleanup()

@@ -37,6 +37,7 @@ describe("prepareDescriptorLaunchUrl", () => {
         expect(fragment.get("session_id")).toBe("00000000-0000-4000-8000-000000000001");
         expect(fragment.get("session_revision")).toBe("2");
         expect(fragment.get("frontend_token")).toBe("a".repeat(64));
+        expect(fragment.get("console_origin")).toBe("http://localhost:3000");
         expect(fragment.get("perms")).toBe("view,input,clipboard,file,audio");
     });
 

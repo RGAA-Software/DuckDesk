@@ -2,6 +2,7 @@ export interface FrontendDescriptor {
     sessionId: string;
     sessionRevision: string;
     token: string;
+    consoleOrigin: string;
 }
 
 export interface ParsedFrontendDescriptor {
@@ -15,6 +16,7 @@ export function takeFrontendDescriptor(fragment: URLSearchParams): ParsedFronten
         sessionId: fragment.get("session_id") ?? "",
         sessionRevision: fragment.get("session_revision") ?? "",
         token: fragment.get("frontend_token") ?? "",
+        consoleOrigin: fragment.get("console_origin") ?? "",
     };
     const fields = [descriptor.sessionId, descriptor.sessionRevision, descriptor.token];
     const incomplete = fields.some(Boolean) && !fields.every(Boolean);
