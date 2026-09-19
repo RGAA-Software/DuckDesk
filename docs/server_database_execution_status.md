@@ -1077,6 +1077,12 @@ build 与协议范围均进入签名和 fail-closed 校验。Console 在监听�
 仍未完成客户端验签与水位持久化、发行内置信任根、Official 固定端点/Customer 可编辑私有端点和独立构建输出；Broker/Relay/更新端点也
 尚未进入认证后下发。
 
+Android 已增加与服务端 wire 同域分离的部署身份验证基础：严格解析 trust store、`PXDC1/PXDD1/PXDP1`，校验 Official/Private、deployment、
+证书/描述/trust 水位、客户端 build、协议范围、有效期及 nonce/revision 重放边界。项目最低 API 31 不假设系统 Ed25519（平台只从 API 33
+保证），因此生产实现使用独立 Conscrypt provider，验证器保持可注入以便 JVM 固定合同测试；专项 3/3 和 `core-network` lint 通过。
+当前尚未把验证器接入 endpoint 保存、登录/注册/guest 前挑战，也未接发行 trust store、Official/Customer flavor 和持久化水位，不能记为
+Android 发行身份门禁通过。
+
 Web Client 增加可重复的公网验收入口，使用 `user_web` 创建当前资源会话，并确认当前本地产物能完成 frontend grant、SDP、ICE、四条
 DataChannel 和公网 UDP peer 连接，令牌也从可见 URL 移除；但公网 Render 没有发送任何 RTP，视频轨保持 muted，不能记为首帧通过。
 同时确认远端 `web_client` 仍是旧版（日志仍声明游客 RTC Relay/设备密码，直接被当前 Render 以 HTTP 400 拒绝）。本地已把当前 Web 构建
