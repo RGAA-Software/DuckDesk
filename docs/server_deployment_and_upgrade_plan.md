@@ -134,8 +134,8 @@ Customer 首次启动填写私有 HTTPS 入口，验证成功后才展示登录�
 
 ### 3.2 部署证书与发现协议
 
-建议新增项目发现接口 `/.well-known/pixels`，它是项目协议，不宣称是已有行业标准。分两步：公开验证平台身份，认证后获取授权范围内的端点。
-最低模型：
+Console 已实现项目发现接口 `GET /.well-known/pixels` 与 nonce 持有证明接口 `POST /.well-known/pixels/challenge`；它们是项目协议，
+不宣称是已有行业标准。当前服务端切片公开验证平台身份，后续客户端通过认证后再获取授权范围内的动态端点。目标模型：
 
 ```text
 DeploymentIdentity
@@ -164,6 +164,12 @@ TLS 按系统或管理员导入的 CA 验证主机名/链，再验证部署证�
 所有会话描述和受控服务身份绑定 deployment、角色、授权版本和有效范围。新 Broker/Relay 端点由平台授权，不能任意把账号令牌转发到描述中的 URL。
 Direct 对端地址可能动态变化，其身份通过会话授权和端点持有者证明验证，不能要求所有 Render 必须使用平台同一域名。
 TLS 证书轮换或域名更换不自动创建新 DeploymentId；恢复/克隆部署是否沿用身份须通过管理操作决定，不能复制后同时宣称唯一 owner。
+
+当前 `PXDC1` 部署证书、`PXDD1` 平台描述和 `PXDP1` 在线证明使用相互独立的签名域；Console 启动前校验数据库 deployment UUID、
+许可证 distribution、部署证书类别、公私钥匹配、certificate version 与 trust epoch。平台描述最长 300 秒，在线证明最长 30 秒，
+请求 nonce 必须是 32 字节规范 base64url。已实现描述中的固定相对 Console API 路径、协议范围、最低客户端 build、认证与注册策略；
+Broker/Relay/更新端点仍须通过后续认证响应安全下发，不能用当前相对路径集合冒充目标模型全部完成。Windows、Android、Web、Service 的
+验签和水位持久化、Official/Customer 发行内置信任根与独立构建、显式离线签发工具仍属于 DB5/P0，完成前发行隔离不得判定通过。
 
 ### 3.3 Customer 禁止官方平台的准确边界
 

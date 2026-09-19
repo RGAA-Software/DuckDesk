@@ -1,6 +1,6 @@
 # Console PostgreSQL 产品配置与发布
 
-> 2026-09-19。本文只描述当前 `px_console.exe`。没有 Mongo、Redis、旧 TOML、appkey、设备密码、旧 API 或旧端口 fallback。
+> 2026-09-20。本文只描述当前 `px_console.exe`。没有 Mongo、Redis、旧 TOML、appkey、设备密码、旧 API 或旧端口 fallback。
 
 ## 运行配置
 
@@ -33,6 +33,13 @@ Console 只从环境读取配置；发行包不携带真实配置、证书、私
 | `PIXELS_CONSOLE_LICENSE_STATE_DIRECTORY` | 数据库/备份之外的私有水位目录，保存 license revision、可信时间及 Auth recovery generation |
 | `PIXELS_CONSOLE_AUTH_VERIFY_URL` | 仅 Official 必填，固定为 HTTPS `/api/auth/licenses/verify`；Customer 必须完全不配置；本机开发可用 loopback HTTP |
 | `PIXELS_CONSOLE_AUTH_VERIFY_CA` | Official 可选的 Auth 私有 CA PEM；存在时只加入该 HTTPS 客户端的信任根，仍执行主机名与证书链校验；Customer 禁止配置 |
+| `PIXELS_CONSOLE_DEPLOYMENT_CERTIFICATE` | Pixels 离线根签发的 `PXDC1` 部署证书；绑定 deployment UUID、official/private 类别、部署公钥、版本和有效期 |
+| `PIXELS_CONSOLE_DEPLOYMENT_SIGNING_KEY` | 与部署证书公钥匹配的 Ed25519 PKCS#8 私钥；仅用于平台描述和在线 nonce 证明，不用于许可证或用户 token |
+| `PIXELS_CONSOLE_DEPLOYMENT_TRUST_STORE` | 规范编码的 Pixels 部署根公钥集合；不接受发现响应自行携带的新根 |
+| `PIXELS_CONSOLE_DEPLOYMENT_CERTIFICATE_VERSION` | 本部署允许的最低证书版本，必须大于零；用于撤下旧证书 |
+| `PIXELS_CONSOLE_DESCRIPTOR_REVISION` | 平台描述单调 revision，必须大于零；端点/策略变化时提升，不允许回退 |
+| `PIXELS_CONSOLE_DEPLOYMENT_TRUST_EPOCH` | 部署信任材料水位，必须与信任根文件一致且大于零 |
+| `PIXELS_CONSOLE_MINIMUM_CLIENT_BUILD` | 平台允许接入的最低客户端 build，必须大于零 |
 | `PIXELS_CONSOLE_LOCAL_DEVELOPMENT=1` | 仅显式本机开发：监听和 PG 都必须为 loopback，才允许无 TLS |
 
 配置缺失、未知格式、私有文件权限过宽、静态目录无效、数据库身份/schema/deployment 不匹配，都会在监听前失败。
@@ -55,10 +62,13 @@ Linux 发行使用包内 `deploy/systemd/pixels-console@.service`：非零退出
    独立空水位目录并设置 `PIXELS_CONSOLE_LICENSE_STATE_DIRECTORY`。Official 必须配置自己的 Auth HTTPS verify URL；Customer
    必须不配置任何 Auth URL，也不能把官方路径作为可填服务器。首次有效验证会 create-new 水位，后续只能提高 revision/可信时间；
    Auth recovery generation 改变时必须走恢复准入/轮换流程，进程不会自行重置水位。
-6. 创建仅服务身份、SYSTEM、Administrators 可访问的空缓存目录，设置 `PIXELS_DEPLOYMENT_ID` 和
+6. 由受控离线签发流程为同一 `PIXELS_DEPLOYMENT_ID` 签发部署证书并配置部署私钥、部署根信任文件和四个单调版本变量。
+   `official` 许可证必须匹配 `official` 部署证书，`customer` 必须匹配 `private`；数据库 UUID、证书 UUID、私钥公钥或 trust epoch
+   任一不一致都在监听前失败。部署证书与商业许可证是两套独立 wire，不得共用密钥或把许可证当平台身份证明。
+7. 创建仅服务身份、SYSTEM、Administrators 可访问的空缓存目录，设置 `PIXELS_DEPLOYMENT_ID` 和
    `PIXELS_CONSOLE_RECORDING_CACHE_DIRECTORY`，执行 `px_console_admin initialize-recording-cache`。工具只初始化空目录、写入
    deployment 身份且从不覆盖；复制其他部署的目录或手工创建标记都会被拒绝。
-7. 撤下 owner 和初始化口令，设置 runtime DSN、TLS、Origin、缓存限额及上表其余变量，启动 `px_console.exe`。
+8. 撤下 owner 和初始化口令，设置 runtime DSN、TLS、Origin、缓存限额及上表其余变量，启动 `px_console.exe`。
 
 Console 在打开数据库监听前完成许可证准入。Official 必须先由 Auth 数据库时钟在线确认当前 revision 且未撤销，再以本地受控信任根
 复核同一 wire；Customer 完全离线验签，因此只能以导入的许可证 revision/有效期和库外水位为界，不能宣称获知尚未导入的官方撤销。
@@ -74,6 +84,19 @@ Customer 不创建在线任务。管理员可用 `GET /api/console/managed/licen
 事务 advisory lock 串行化最后名额。`cloud_applications` 允许 game-hook/webview，`desktop` 允许桌面目标，`rdp` 允许 RDP 应用；
 实例预约、资源会话创建和 descriptor 签发都会检查对应 feature。幂等重试可以返回已经提交的原结果，但不会创建新资源或签发新 grant。
 Service 不读取 `PXLIC1`，只执行通过 Console 数据库事务与当前 control epoch 下发的命令，避免形成第二个额度权威。
+
+## 平台发现与持有证明
+
+`GET /.well-known/pixels` 返回 `certificate_wire` 与最长 300 秒的 `descriptor_wire`。证书由 Pixels 离线部署根签名；描述由当前部署
+私钥签名，固定声明 deployment UUID、official/private 类别、descriptor revision、trust epoch、最低客户端 build、协议范围、认证方式、
+注册策略及相对 API 路径。客户端必须先完成系统/企业 CA 的 TLS 主机名和证书链校验，再使用发行内置或管理员导入的部署根验证两个 wire；
+Customer 只接受 `private`，Official 只接受 `official`。不能只检查 JSON 中的类别字符串、域名、IP、User-Agent 或静态 secret。
+
+随后客户端向 `POST /.well-known/pixels/challenge` 发送 32 字节随机数的规范 base64url nonce 和刚验证的 descriptor revision；Console 返回
+最长 30 秒的 `proof_wire`。客户端验证同一 deployment 公钥、nonce、revision 和有效期后，才可发送用户名、密码、Cookie、节点 token 或
+其他凭据。旧 revision、旧 trust epoch、过期证书/描述/证明、未知字段、非规范编码、篡改签名和错误发行全部 fail-closed。当前切片先交付
+服务端协议与密码学合同；Windows/Android/Web 客户端消费、发行内置信任根、配置水位持久化和 official/customer 独立构建仍按 DB5/P0
+继续实施，不能把发现接口存在本身记为发行隔离完成。
 
 生产服务账号不能获得 owner、DDL、跨库或私钥目录外权限。密钥不写数据库、不随发行包分发、不因缺失自动生成。
 

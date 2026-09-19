@@ -1676,6 +1676,7 @@ dependencies = [
  "libc",
  "px_console_store",
  "px_credentials",
+ "px_deployment_identity",
  "px_license",
  "px_node_protocol",
  "px_pg",
@@ -1733,6 +1734,20 @@ dependencies = [
  "rand 0.9.2",
  "sha2",
  "zeroize",
+]
+
+[[package]]
+name = "px_deployment_identity"
+version = "3.2.9"
+dependencies = [
+ "base64",
+ "hex",
+ "ring",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+ "uuid",
 ]
 
 [[package]]

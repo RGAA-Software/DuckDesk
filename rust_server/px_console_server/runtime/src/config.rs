@@ -1,5 +1,6 @@
 use crate::{
-    IngressPolicy, LicenseEntitlement, LicenseLaunchConfig, RuntimeSecrets, WorkspaceKeyFile,
+    DeploymentIdentityLaunchConfig, IngressPolicy, LicenseEntitlement, LicenseLaunchConfig,
+    RuntimeSecrets, WorkspaceKeyFile,
 };
 use px_console_store::{CacheOptions, WorkspaceVault};
 use px_pg::{DatabaseConfig, Transport};
@@ -42,6 +43,7 @@ pub struct ConsoleLaunchConfig {
     recording_cache_directory: PathBuf,
     recording_cache_options: CacheOptions,
     relay: Option<RelayEndpoint>,
+    deployment_identity: DeploymentIdentityLaunchConfig,
     license: LicenseLaunchConfig,
 }
 
@@ -57,6 +59,7 @@ pub struct ConsoleLaunch {
     pub recording_cache_root: Arc<CacheRoot>,
     pub recording_cache_options: CacheOptions,
     pub relay: Option<RelayEndpoint>,
+    pub deployment_identity: Arc<crate::DeploymentIdentityRuntime>,
     pub license: LicenseEntitlement,
 }
 
@@ -182,6 +185,18 @@ impl ConsoleLaunchConfig {
             local,
         )
         .map_err(|_| ConfigurationError)?;
+        let deployment_identity = DeploymentIdentityLaunchConfig::new(
+            PathBuf::from(required("PIXELS_CONSOLE_DEPLOYMENT_CERTIFICATE")?),
+            PathBuf::from(required("PIXELS_CONSOLE_DEPLOYMENT_SIGNING_KEY")?),
+            PathBuf::from(required("PIXELS_CONSOLE_DEPLOYMENT_TRUST_STORE")?),
+            number(&required("PIXELS_CONSOLE_DEPLOYMENT_CERTIFICATE_VERSION")?)?,
+            number(&required("PIXELS_CONSOLE_DESCRIPTOR_REVISION")?)?,
+            number(&required("PIXELS_CONSOLE_DEPLOYMENT_TRUST_EPOCH")?)?,
+            number(&required("PIXELS_CONSOLE_MINIMUM_CLIENT_BUILD")?)?,
+            registration,
+            guests_enabled,
+        )
+        .map_err(|_| ConfigurationError)?;
         Ok(Self {
             database,
             deployment,
@@ -197,6 +212,7 @@ impl ConsoleLaunchConfig {
             recording_cache_directory,
             recording_cache_options,
             relay,
+            deployment_identity,
             license,
         })
     }
@@ -239,6 +255,12 @@ impl ConsoleLaunchConfig {
             .admit(self.deployment)
             .await
             .map_err(|_| ConfigurationError)?;
+        let deployment_identity = Arc::new(
+            self.deployment_identity
+                .load(self.deployment, license.payload.distribution)
+                .await
+                .map_err(|_| ConfigurationError)?,
+        );
         Ok(ConsoleLaunch {
             database: self.database,
             deployment: self.deployment,
@@ -251,6 +273,7 @@ impl ConsoleLaunchConfig {
             recording_cache_root,
             recording_cache_options: self.recording_cache_options,
             relay: self.relay,
+            deployment_identity,
             license,
         })
     }
@@ -358,6 +381,25 @@ mod tests {
                 "PIXELS_CONSOLE_LICENSE_STATE_DIRECTORY".into(),
                 "private/license-state".into(),
             ),
+            (
+                "PIXELS_CONSOLE_DEPLOYMENT_CERTIFICATE".into(),
+                "private/deployment.cert".into(),
+            ),
+            (
+                "PIXELS_CONSOLE_DEPLOYMENT_SIGNING_KEY".into(),
+                "private/deployment.pk8".into(),
+            ),
+            (
+                "PIXELS_CONSOLE_DEPLOYMENT_TRUST_STORE".into(),
+                "private/deployment-trust.json".into(),
+            ),
+            (
+                "PIXELS_CONSOLE_DEPLOYMENT_CERTIFICATE_VERSION".into(),
+                "1".into(),
+            ),
+            ("PIXELS_CONSOLE_DESCRIPTOR_REVISION".into(), "1".into()),
+            ("PIXELS_CONSOLE_DEPLOYMENT_TRUST_EPOCH".into(), "1".into()),
+            ("PIXELS_CONSOLE_MINIMUM_CLIENT_BUILD".into(), "1".into()),
         ])
     }
 
@@ -384,6 +426,29 @@ mod tests {
         let mut missing = valid();
         missing.remove("PIXELS_CONSOLE_GUEST_SOURCE_KEY");
         assert!(parse(&missing).is_err());
+        for key in [
+            "PIXELS_CONSOLE_DEPLOYMENT_CERTIFICATE",
+            "PIXELS_CONSOLE_DEPLOYMENT_SIGNING_KEY",
+            "PIXELS_CONSOLE_DEPLOYMENT_TRUST_STORE",
+            "PIXELS_CONSOLE_DEPLOYMENT_CERTIFICATE_VERSION",
+            "PIXELS_CONSOLE_DESCRIPTOR_REVISION",
+            "PIXELS_CONSOLE_DEPLOYMENT_TRUST_EPOCH",
+            "PIXELS_CONSOLE_MINIMUM_CLIENT_BUILD",
+        ] {
+            let mut values = valid();
+            values.remove(key);
+            assert!(parse(&values).is_err(), "accepted missing {key}");
+        }
+        for key in [
+            "PIXELS_CONSOLE_DEPLOYMENT_CERTIFICATE_VERSION",
+            "PIXELS_CONSOLE_DESCRIPTOR_REVISION",
+            "PIXELS_CONSOLE_DEPLOYMENT_TRUST_EPOCH",
+            "PIXELS_CONSOLE_MINIMUM_CLIENT_BUILD",
+        ] {
+            let mut values = valid();
+            values.insert(key.into(), "0".into());
+            assert!(parse(&values).is_err(), "accepted {key}=0");
+        }
 
         let mut relay = valid();
         relay.insert(
