@@ -1,13 +1,13 @@
 #include "panel_connection_input.h"
 
-#include "px_common/base64.h"
-
 #include <algorithm>
-#include <charconv>
 #include <cctype>
+#include <charconv>
 #include <nlohmann/json.hpp>
 #include <string_view>
 #include <system_error>
+
+#include "px_common/base64.h"
 
 namespace px::panel::product {
 namespace {
@@ -36,10 +36,7 @@ std::optional<ParsedConnectionInput> ParseSharedLink(const std::string& value) {
                                      .deviceId = payload.value("did", ""),
                                      .displayName = payload.value("dn", ""),
                                      .port = payload.value("rdpt", 0),
-                                     .password = payload.value("rpwd", ""),
-                                     .relayHost = payload.value("rlst", ""),
-                                     .relayPort = payload.value("rlpt", 0),
-                                     .relayDeviceId = payload.value("did", "").empty() ? std::string{} : "server_" + payload.value("did", "")};
+                                     .password = payload.value("rpwd", "")};
         if (const auto addresses = payload.find("ips"); addresses != payload.end() && addresses->is_array()) {
             for (const auto& address : *addresses) {
                 if (address.is_object()) {

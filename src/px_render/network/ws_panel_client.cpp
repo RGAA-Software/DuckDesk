@@ -474,15 +474,11 @@ void WsPanelClient::ParseNetMessage(const std::string& msg) {
             settings.device_id_ = sub.device_id();
             settings.device_random_pwd_ = sub.device_random_pwd();
             settings.device_safety_pwd_ = sub.device_safety_pwd();
-            settings.relay_host_ = sub.relay_host();
-            settings.relay_port_ = sub.relay_port();
             settings.can_be_operated_ = sub.can_be_operated();
             settings.incoming_remote_access_enabled_ = !sub.remote_access_disabled();
-            settings.relay_enabled_ = sub.relay_enabled();
             settings.language_ = sub.language();
             settings.file_transfer_enabled_ = sub.file_transfer_enabled();
             settings.audio_enabled_ = sub.audio_enabled();
-            settings.appkey_ = sub.appkey();
             settings.max_transmit_speed_ = sub.max_transmit_speed();
             settings.max_receive_speed_ = sub.max_receive_speed();
             settings.role_ = sub.role();

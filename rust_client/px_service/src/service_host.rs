@@ -51,6 +51,7 @@ pub struct ServiceRuntime {
     pub(crate) node_control_receiver:
         Option<mpsc::Receiver<crate::node_control_client::NodeControlOperation>>,
     pub(crate) node_control_identity: Option<crate::node_control_client::NodeControlIdentity>,
+    pub(crate) node_control_relay: Option<px_node_protocol::RelayEndpoint>,
     stop_tx: broadcast::Sender<()>,
 }
 
@@ -63,6 +64,50 @@ pub enum ControlEvent {
     SessionLogoff(u32),
     SessionLock(u32),
     SessionUnlock(u32),
+}
+
+const SERVICE_OWNED_RELAY_ARGUMENTS: [&str; 4] = [
+    "relay_server_host",
+    "relay_server_port",
+    "appkey",
+    "relay_enabled",
+];
+
+fn strip_service_owned_relay_arguments(arguments: &mut Vec<String>) {
+    let mut skip_following_value = false;
+    arguments.retain(|argument| {
+        if skip_following_value {
+            skip_following_value = false;
+            return false;
+        }
+        for name in SERVICE_OWNED_RELAY_ARGUMENTS {
+            if argument == &format!("--{name}") {
+                skip_following_value = true;
+                return false;
+            }
+            if argument.starts_with(&format!("--{name}=")) {
+                return false;
+            }
+        }
+        true
+    });
+}
+
+fn apply_node_relay_arguments(
+    arguments: &mut Vec<String>,
+    relay: Option<&px_node_protocol::RelayEndpoint>,
+) {
+    strip_service_owned_relay_arguments(arguments);
+    let Some(relay) = relay else {
+        arguments.push("--relay_enabled=false".to_string());
+        return;
+    };
+    arguments.extend([
+        format!("--relay_server_host={}", relay.host),
+        format!("--relay_server_port={}", relay.port),
+        format!("--appkey={}", relay.app_key),
+        "--relay_enabled=true".to_string(),
+    ]);
 }
 
 fn rebase_missing_desktop_launch(
@@ -136,6 +181,7 @@ impl ServiceRuntime {
             node_control_sender,
             node_control_receiver: Some(node_control_receiver),
             node_control_identity: None,
+            node_control_relay: None,
             stop_tx,
         }
     }
@@ -340,6 +386,7 @@ impl ServiceRuntime {
                     heartbeat.node_generation = identity.generation;
                     heartbeat.control_epoch = identity.control_epoch;
                     heartbeat.node_control_ready = true;
+                    heartbeat.node_access_host = self.config.node.access_host.clone();
                 }
                 Ok(Some(response))
             }
@@ -366,6 +413,7 @@ impl ServiceRuntime {
     }
 
     pub fn start_desktop(&mut self, mut spec: RenderLaunchSpec) -> Result<(), String> {
+        strip_service_owned_relay_arguments(&mut spec.args);
         self.config.node.configure_render(&mut spec.args, true);
         info!(
             "start desktop requested, work_dir={}, app_path={}",
@@ -381,6 +429,7 @@ impl ServiceRuntime {
             self.stop_desktop()?;
         }
         let mut secure_args = spec.args.clone();
+        apply_node_relay_arguments(&mut secure_args, self.node_control_relay.as_ref());
         secure_args.retain(|arg| !arg.starts_with("--service_ipc_token="));
         secure_args.push(format!("--service_ipc_token={}", self.ipc_token));
         self.process_manager.start_process_as_active_user(
@@ -1687,6 +1736,53 @@ mod tests {
     }
 
     #[test]
+    fn desktop_relay_configuration_is_service_owned_and_not_persisted() {
+        let config = test_config(
+            4603,
+            std::env::temp_dir().join("px_data_test_relay"),
+            std::env::temp_dir().join("px_logs_test_relay"),
+        );
+        let manager = Arc::new(MockProcessManager::new(Vec::new()));
+        let mut runtime =
+            ServiceRuntime::new(config, manager.clone(), Arc::new(MockActions::new()));
+        runtime.node_control_relay = Some(px_node_protocol::RelayEndpoint {
+            host: "relay.example.test".to_string(),
+            port: 4605,
+            app_key: "deployment-relay-key".to_string(),
+        });
+        runtime
+            .start_desktop(RenderLaunchSpec {
+                work_dir: "D:/app".to_string(),
+                app_path: "D:/app/px_render.exe".to_string(),
+                args: vec![
+                    "--app_mode=desktop".to_string(),
+                    "--relay_server_host=untrusted.example".to_string(),
+                    "--relay_server_port=1".to_string(),
+                    "--appkey=untrusted".to_string(),
+                    "--relay_enabled=false".to_string(),
+                ],
+            })
+            .unwrap();
+
+        let launches = manager.launches.lock().unwrap();
+        const EXPECTED_RELAY_ARGUMENTS: [&str; 4] = [
+            "--relay_server_host=relay.example.test",
+            "--relay_server_port=4605",
+            "--appkey=deployment-relay-key",
+            "--relay_enabled=true",
+        ];
+        for argument in EXPECTED_RELAY_ARGUMENTS {
+            assert!(launches[0].args.iter().any(|actual| actual == argument));
+        }
+        let persisted = runtime.state.last_desktop_launch.as_ref().unwrap();
+        assert!(!persisted.args.iter().any(|argument| {
+            SERVICE_OWNED_RELAY_ARGUMENTS
+                .iter()
+                .any(|name| argument.starts_with(&format!("--{name}")))
+        }));
+    }
+
+    #[test]
     fn heartbeat_returns_working_after_sync() {
         let mut runtime = test_runtime(vec![ProcessSnapshot::new(
             1,
@@ -1695,6 +1791,7 @@ mod tests {
         )]);
         let node_id = uuid::Uuid::new_v4();
         let device_id = uuid::Uuid::new_v4();
+        runtime.config.node.access_host = "render.example.test".to_string();
         runtime.node_control_identity = Some(crate::node_control_client::NodeControlIdentity {
             node_id,
             device_id,
@@ -1720,6 +1817,7 @@ mod tests {
         assert_eq!(heartbeat.device_id, device_id.to_string());
         assert_eq!(heartbeat.node_generation, 7);
         assert_eq!(heartbeat.control_epoch, 11);
+        assert_eq!(heartbeat.node_access_host, "render.example.test");
     }
 
     #[test]

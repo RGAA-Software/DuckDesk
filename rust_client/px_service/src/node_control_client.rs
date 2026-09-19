@@ -9,8 +9,8 @@ use px_node_protocol::{
     CommandReceipt, DeploymentAssignment, DeploymentObservation, DeploymentPreparation,
     GpuReservation, NodeCommand, NodeCommandAction, NodeReport, NodeRequest, NodeResponse,
     ObservedRuntime, ObservedRuntimePhase, OpenChannel, PreparationFailure, PreparationState,
-    RecordingCacheUpload, RuntimeInventory, TelemetryBackfillSample, TransferDirection,
-    TransferProgress, VideoCodec, MAX_MESSAGE_BYTES,
+    RecordingCacheUpload, RelayEndpoint, RuntimeInventory, TelemetryBackfillSample,
+    TransferDirection, TransferProgress, VideoCodec, MAX_MESSAGE_BYTES,
 };
 use service_core::{AppInstanceState, StartAppRequest};
 use tokio::net::TcpStream;
@@ -47,6 +47,11 @@ pub(crate) struct NodeControlIdentity {
     pub device_id: Uuid,
     pub generation: i64,
     pub control_epoch: i64,
+}
+
+struct NodeControlAuthentication {
+    identity: NodeControlIdentity,
+    relay: Option<RelayEndpoint>,
 }
 
 struct ProtocolSession {
@@ -132,7 +137,7 @@ impl ProtocolSession {
         &mut self,
         expected_request_id: u64,
         response: NodeResponse,
-    ) -> Result<NodeControlIdentity, String> {
+    ) -> Result<NodeControlAuthentication, String> {
         match response {
             NodeResponse::Authenticated {
                 request_id,
@@ -140,11 +145,13 @@ impl ProtocolSession {
                 device_id,
                 generation,
                 control_epoch,
+                relay,
             } if request_id == expected_request_id
                 && !node_id.is_nil()
                 && !device_id.is_nil()
                 && generation > 0
-                && control_epoch > 0 =>
+                && control_epoch > 0
+                && relay.as_ref().is_none_or(valid_relay_endpoint) =>
             {
                 let identity = NodeControlIdentity {
                     node_id,
@@ -153,7 +160,7 @@ impl ProtocolSession {
                     control_epoch,
                 };
                 self.identity = Some(identity);
-                Ok(identity)
+                Ok(NodeControlAuthentication { identity, relay })
             }
             NodeResponse::Error { code, .. } => {
                 Err(format!("node-control authentication rejected: {code}"))
@@ -179,6 +186,14 @@ impl ProtocolSession {
         }
         Ok(())
     }
+}
+
+fn valid_relay_endpoint(endpoint: &RelayEndpoint) -> bool {
+    !endpoint.host.trim().is_empty()
+        && endpoint.host.trim() == endpoint.host
+        && !endpoint.host.contains(['/', '?', '#', '@'])
+        && endpoint.port != 0
+        && (16..=512).contains(&endpoint.app_key.len())
 }
 
 pub async fn node_control_loop(
@@ -231,7 +246,10 @@ pub async fn node_control_loop(
             &mut operations,
         )
         .await;
-        runtime.lock().await.node_control_identity = None;
+        let mut runtime = runtime.lock().await;
+        runtime.node_control_identity = None;
+        runtime.node_control_relay = None;
+        drop(runtime);
         match connection_result {
             Ok(ConnectionEnd::Stopped) => return Ok(()),
             Err(error) => {
@@ -289,13 +307,24 @@ async fn run_connection(
     let authentication = session.authenticate(&configuration.node_token)?;
     let authentication_id = authentication.request_id();
     let response = exchange(&mut socket, authentication).await?;
-    let identity = session.accept_authentication(authentication_id, response)?;
-    runtime.lock().await.node_control_identity = Some(identity);
+    let authentication = session.accept_authentication(authentication_id, response)?;
+    {
+        let mut runtime = runtime.lock().await;
+        let relay_changed = runtime.node_control_relay != authentication.relay;
+        runtime.node_control_identity = Some(authentication.identity);
+        runtime.node_control_relay = authentication.relay.clone();
+        if relay_changed && runtime.state.desktop_alive {
+            if let Some(launch) = runtime.state.last_desktop_launch.clone() {
+                runtime.restart_desktop(launch)?;
+            }
+        }
+    }
     info!(
-        node_id = %identity.node_id,
-        device_id = %identity.device_id,
-        generation = identity.generation,
-        control_epoch = identity.control_epoch,
+        node_id = %authentication.identity.node_id,
+        device_id = %authentication.identity.device_id,
+        generation = authentication.identity.generation,
+        control_epoch = authentication.identity.control_epoch,
+        relay_configured = authentication.relay.is_some(),
         "node-control authenticated"
     );
 
@@ -1535,11 +1564,13 @@ mod tests {
                     device_id,
                     generation: 4,
                     control_epoch: 5,
+                    relay: None,
                 },
             )
             .unwrap();
-        assert_eq!(identity.node_id, node_id);
-        assert_eq!(identity.device_id, device_id);
+        assert_eq!(identity.identity.node_id, node_id);
+        assert_eq!(identity.identity.device_id, device_id);
+        assert!(identity.relay.is_none());
         assert_eq!(session.request_id().unwrap(), 2);
     }
 
@@ -1729,6 +1760,7 @@ mod tests {
                         device_id,
                         generation: 2,
                         control_epoch: 3,
+                        relay: None,
                     })
                     .unwrap()
                     .into(),

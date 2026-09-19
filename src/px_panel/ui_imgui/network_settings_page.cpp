@@ -1,10 +1,5 @@
 #include "network_settings_page.h"
 
-#include "px_ui/components/button.h"
-#include "px_ui/components/form.h"
-#include "px_ui/components/surface.h"
-#include "px_ui/layout_metrics.h"
-
 #include <imgui.h>
 #include <misc/cpp/imgui_stdlib.h>
 
@@ -12,12 +7,15 @@
 #include <string_view>
 #include <utility>
 
+#include "px_ui/components/button.h"
+#include "px_ui/components/form.h"
+#include "px_ui/components/surface.h"
+#include "px_ui/layout_metrics.h"
+
 namespace px::panel::ui {
 namespace {
 
-void DrawText(const std::string_view text) {
-    ImGui::TextUnformatted(text.data(), text.data() + text.size());
-}
+void DrawText(const std::string_view text) { ImGui::TextUnformatted(text.data(), text.data() + text.size()); }
 
 void DrawDisabledText(const std::string_view text) {
     ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
@@ -46,13 +44,9 @@ bool BeginEndpointTable(const std::string_view identifier) {
     return true;
 }
 
-std::string DisplayPort(const std::optional<int> port) {
-    return port.has_value() && *port > 0 ? std::to_string(*port) : "--";
-}
+std::string DisplayPort(const std::optional<int> port) { return port.has_value() && *port > 0 ? std::to_string(*port) : "--"; }
 
-std::string DisplayRange(const PortRange range) {
-    return std::to_string(range.first) + "-" + std::to_string(range.last);
-}
+std::string DisplayRange(const PortRange range) { return std::to_string(range.first) + "-" + std::to_string(range.last); }
 
 } // namespace
 
@@ -63,27 +57,23 @@ NetworkPageAction NetworkSettingsPage::Draw(const px::ui::Localizer& localizer) 
     px::ui::HorizontalSeparator();
     ImGui::Spacing();
 
-    px::ui::FieldLabel(text(px::ui::TextId::Authorization));
-    static_cast<void>(px::ui::TextArea({"authorization"}, draft_.authorizationInfo, {-1.0F, px::ui::Scale(92.0F)}));
+    px::ui::FieldLabel(text(px::ui::TextId::ConsoleAddress));
+    px::ui::FieldDescription(text(px::ui::TextId::ConsoleAddressHint));
+    static_cast<void>(px::ui::TextField({"console-address"}, draft_.consoleAddress, "https://console.example.com"));
     if (ImGui::IsItemDeactivatedAfterEdit()) {
-        return NetworkPageAction::AuthorizationChanged;
+        return NetworkPageAction::ConsoleAddressChanged;
     }
 
     ImGui::Spacing();
-    px::ui::SectionTitle(text(px::ui::TextId::ResolvedControlEndpoints));
+    px::ui::SectionTitle(text(px::ui::TextId::ResolvedConsoleEndpoint));
     {
         px::ui::CardScope resolved{{"ResolvedEndpoints"}, {0.0F, px::ui::Scale(108.0F)}};
         if (resolved.Visible() && BeginEndpointTable("ResolvedEndpointTable")) {
-            DrawEndpoint(text(px::ui::TextId::Supervisor), DisplayPort(draft_.consolePort), text(px::ui::TextId::NodeManagement));
-            DrawEndpoint(text(px::ui::TextId::Relay), DisplayPort(draft_.relayPort), text(px::ui::TextId::ReliableRoutedConnection));
+            DrawEndpoint(text(px::ui::TextId::ConsoleService), DisplayPort(draft_.consolePort), text(px::ui::TextId::ConsoleApiPurpose));
+            DrawEndpoint(text(px::ui::TextId::TransportSecurity), "HTTPS", text(px::ui::TextId::HttpsRequired));
             ImGui::EndTable();
         }
     }
-
-    ImGui::Spacing();
-    px::ui::FieldLabel(text(px::ui::TextId::NodePublicAddress));
-    px::ui::FieldDescription(text(px::ui::TextId::OptionalPublicAddress));
-    static_cast<void>(px::ui::TextField({"public-address"}, draft_.nodePublicAddress, text(px::ui::TextId::PublicAddressHint)));
 
     ImGui::Spacing();
     px::ui::SectionTitle(text(px::ui::TextId::NodeListeningPorts));
@@ -117,16 +107,10 @@ NetworkPageAction NetworkSettingsPage::Draw(const px::ui::Localizer& localizer) 
     return NetworkPageAction::None;
 }
 
-const NetworkSettingsDraft& NetworkSettingsPage::Draft() const noexcept {
-    return draft_;
-}
+const NetworkSettingsDraft& NetworkSettingsPage::Draft() const noexcept { return draft_; }
 
-void NetworkSettingsPage::SetDraft(NetworkSettingsDraft draft) {
-    draft_ = std::move(draft);
-}
+void NetworkSettingsPage::SetDraft(NetworkSettingsDraft draft) { draft_ = std::move(draft); }
 
-void NetworkSettingsPage::SetStatus(const px::ui::TextId status) noexcept {
-    status_ = status;
-}
+void NetworkSettingsPage::SetStatus(const px::ui::TextId status) noexcept { status_ = status; }
 
 } // namespace px::panel::ui

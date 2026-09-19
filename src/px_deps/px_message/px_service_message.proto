@@ -9,8 +9,7 @@ enum ServiceMessageType {
   kSrvHeartBeat = 3;
   kSrvHeartBeatResp = 4;
   kSrvReqCtrlAltDelete = 5;
-  kSrvAuthInfo = 6;
-  reserved 7, 8;
+  reserved 6, 7, 8;
   kSrvVirtualDisplayRequest = 9;
   kSrvVirtualDisplayResult = 10;
   kSrvAppInstanceReady = 11;
@@ -56,30 +55,10 @@ enum RenderStatus {
   kWorking = 2;
 }
 
-message MsgAuthInfo {
-  string device_id = 1;
-  string auth_id = 2;
-  string auth_name = 3;
-  string machine_code = 4;
-  string appkey = 5;
-  int32 role = 6;
-  int32 days = 7;
-  int32 max_streams = 8;
-  int64 end_timestamp_ms = 9;
-  // console(Console) server address, so the service can connect to Console
-  string console_host = 10;
-  int32 console_port = 11;
-  // whether the Console websocket connection uses TLS (wss) or plain ws
-  bool console_ssl = 12;
-  // client-reachable address advertised for this Render node; no scheme or port
-  string node_access_host = 13;
-}
-
 message MsgHeartBeat {
   int64 index = 1;
   string from = 2;
-  // panel carries its latest authorization info on every heartbeat
-  MsgAuthInfo auth_info = 3;
+  reserved 3;
   // JSON snapshot of Render logical sessions. It is transported only on the
   // reliable Render-Service control channel and forwarded by Service.
   string logical_sessions_json = 4;
@@ -94,6 +73,8 @@ message MsgHeartBeatResp {
   int64 node_generation = 5;
   int64 control_epoch = 6;
   bool node_control_ready = 7;
+  // Current client-reachable host from the authenticated Service node configuration.
+  string node_access_host = 8;
 }
 
 message MsgReqCtrlAltDelete {
@@ -274,9 +255,7 @@ message ServiceMessage {
   MsgHeartBeat heart_beat = 5;
   MsgHeartBeatResp heart_beat_resp = 6;
   MsgReqCtrlAltDelete req_ctrl_alt_delete = 7;
-  // sent by panel right after connecting, and embedded in every heartbeat
-  MsgAuthInfo auth_info = 8;
-  reserved 9, 10;
+  reserved 8, 9, 10;
   MsgVirtualDisplayRequest virtual_display_request = 11;
   MsgVirtualDisplayResult virtual_display_result = 12;
   MsgAppInstanceReady app_instance_ready = 13;

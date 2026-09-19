@@ -7,7 +7,6 @@
 #include <utility>
 #include <vector>
 
-#include "panel_connection_links.h"
 #include "panel_device_name.h"
 #include "px_common/log.h"
 #include "px_common/uuid.h"
@@ -26,6 +25,7 @@ struct PanelServiceBridge::State final {
     bool nodeControlReady{};
     std::string nodeId{};
     std::string deviceId{};
+    std::string nodeAccessHost{};
     std::int64_t nodeGeneration{};
     std::int64_t controlEpoch{};
     std::atomic_int64_t heartbeatIndex{};
@@ -48,6 +48,7 @@ ServiceSnapshot PanelServiceBridge::Snapshot() const {
             .nodeControlReady = state_->nodeControlReady,
             .nodeId = state_->nodeId,
             .deviceId = state_->deviceId,
+            .nodeAccessHost = state_->nodeAccessHost,
             .nodeGeneration = state_->nodeGeneration,
             .controlEpoch = state_->controlEpoch};
 }
@@ -118,6 +119,15 @@ void PanelServiceBridge::Run(const std::shared_ptr<State>& state, const std::sto
             if (const auto active = weakState.lock()) {
                 active->connected.store(false, std::memory_order_release);
                 active->renderRunning.store(false, std::memory_order_release);
+                {
+                    const std::scoped_lock lock{active->mutex};
+                    active->nodeControlReady = false;
+                    active->nodeId.clear();
+                    active->deviceId.clear();
+                    active->nodeAccessHost.clear();
+                    active->nodeGeneration = 0;
+                    active->controlEpoch = 0;
+                }
                 active->wakeup.notify_all();
             }
         });
@@ -135,6 +145,7 @@ void PanelServiceBridge::Run(const std::shared_ptr<State>& state, const std::sto
                     active->nodeControlReady = heartbeat.node_control_ready();
                     active->nodeId = heartbeat.node_id();
                     active->deviceId = heartbeat.device_id();
+                    active->nodeAccessHost = heartbeat.node_access_host();
                     active->nodeGeneration = heartbeat.node_generation();
                     active->controlEpoch = heartbeat.control_epoch();
                     const auto identity = active->config->Identity();
@@ -184,15 +195,6 @@ void PanelServiceBridge::SendHeartbeat(const std::shared_ptr<State>& state) {
     auto& heartbeat = *message.mutable_heart_beat();
     heartbeat.set_index(state->heartbeatIndex.fetch_add(1, std::memory_order_acq_rel));
     heartbeat.set_from("panel");
-    const auto endpoint = state->config->Console();
-    const auto identity = state->config->Identity();
-    auto& auth = *heartbeat.mutable_auth_info();
-    auth.set_device_id(identity.deviceId);
-    auth.set_console_host(endpoint ? endpoint->host : std::string{});
-    auth.set_console_port(endpoint ? endpoint->port : 0);
-    auth.set_console_ssl(true);
-    auth.set_node_access_host(ResolveNodeAccessHost(state->config->NodePublicAddress(), CollectPanelLocalAddresses()));
-    auth.set_appkey(endpoint ? endpoint->appKey : std::string{});
     std::shared_ptr<asio2::ws_client> client{};
     {
         const std::scoped_lock lock{state->mutex};
@@ -202,7 +204,6 @@ void PanelServiceBridge::SendHeartbeat(const std::shared_ptr<State>& state) {
 }
 
 void PanelServiceBridge::SendRenderCommand(const std::shared_ptr<State>& state, const bool restart) {
-    const auto endpoint = state->config->Console();
     const auto identity = state->config->Identity();
     const auto ports = state->config->Ports();
     const auto settings = state->config->Settings();
@@ -234,14 +235,10 @@ void PanelServiceBridge::SendRenderCommand(const std::shared_ptr<State>& state, 
         std::format("--panel_server_port={}", ports.panel),
         "--service_server_host=127.0.0.1",
         std::format("--service_server_port={}", ports.service),
-        std::format("--relay_server_host={}", endpoint ? endpoint->host : std::string{}),
-        std::format("--relay_server_port={}", endpoint ? endpoint->relayPort : 0),
         "--can_be_operated=true",
         state->config->IncomingRemoteAccessEnabled() ? "--incoming_remote_access_enabled=true" : "--incoming_remote_access_enabled=false",
-        "--relay_enabled=true",
         std::format("--language={}", settings.language == ::px::ui::Language::English ? 1 : 0),
-        "--logfile=true",
-        std::format("--appkey={}", endpoint ? endpoint->appKey : std::string{})};
+        "--logfile=true"};
     ServiceMessage message{};
     message.set_type(restart ? ServiceMessageType::kSrvRestartServer : ServiceMessageType::kSrvStartServer);
     auto setPayload = [&arguments, &state](const auto& payload) {

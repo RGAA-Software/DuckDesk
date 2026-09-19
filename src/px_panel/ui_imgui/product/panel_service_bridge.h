@@ -23,6 +23,7 @@ struct ServiceSnapshot final {
     bool nodeControlReady{};
     std::string nodeId{};
     std::string deviceId{};
+    std::string nodeAccessHost{};
     std::int64_t nodeGeneration{};
     std::int64_t controlEpoch{};
 };

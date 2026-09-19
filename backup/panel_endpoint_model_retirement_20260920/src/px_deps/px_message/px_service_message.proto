@@ -1,0 +1,295 @@
+syntax = "proto3";
+
+package px;
+
+enum ServiceMessageType {
+  kSrvStartServer = 0;
+  kSrvStopServer = 1;
+  kSrvRestartServer = 2;
+  kSrvHeartBeat = 3;
+  kSrvHeartBeatResp = 4;
+  kSrvReqCtrlAltDelete = 5;
+  kSrvAuthInfo = 6;
+  reserved 7, 8;
+  kSrvVirtualDisplayRequest = 9;
+  kSrvVirtualDisplayResult = 10;
+  kSrvAppInstanceReady = 11;
+  kSrvFrontendAdmissionRequest = 12;
+  kSrvFrontendAdmissionResult = 13;
+  kSrvResourceChannelOpenRequest = 14;
+  kSrvResourceChannelOpenResult = 15;
+  kSrvResourceChannelReportRequest = 16;
+  kSrvResourceChannelReportResult = 17;
+  kSrvRecordingFinalized = 18;
+  kSrvRecordingFinalizedResult = 19;
+  kSrvFileTransferBeginRequest = 20;
+  kSrvFileTransferBeginResult = 21;
+  kSrvFileTransferReportRequest = 22;
+  kSrvFileTransferReportResult = 23;
+}
+
+enum VirtualDisplayOperation {
+  kVirtualDisplayCreate = 0;
+  kVirtualDisplayRemoveLast = 1;
+  kVirtualDisplayQuery = 2;
+  kVirtualDisplayResetOwned = 3;
+}
+
+message MsgStartServer {
+  string work_dir = 1;
+  string app_path = 2;
+  repeated string args = 3;
+}
+
+message MsgStopServer {
+
+}
+
+message MsgRestartServer {
+  string work_dir = 1;
+  string app_path = 2;
+  repeated string args = 3;
+}
+
+enum RenderStatus {
+  kStopped = 0;
+  kWorking = 2;
+}
+
+message MsgAuthInfo {
+  string device_id = 1;
+  string auth_id = 2;
+  string auth_name = 3;
+  string machine_code = 4;
+  string appkey = 5;
+  int32 role = 6;
+  int32 days = 7;
+  int32 max_streams = 8;
+  int64 end_timestamp_ms = 9;
+  // console(Console) server address, so the service can connect to Console
+  string console_host = 10;
+  int32 console_port = 11;
+  // whether the Console websocket connection uses TLS (wss) or plain ws
+  bool console_ssl = 12;
+  // client-reachable address advertised for this Render node; no scheme or port
+  string node_access_host = 13;
+}
+
+message MsgHeartBeat {
+  int64 index = 1;
+  string from = 2;
+  // panel carries its latest authorization info on every heartbeat
+  MsgAuthInfo auth_info = 3;
+  // JSON snapshot of Render logical sessions. It is transported only on the
+  // reliable Render-Service control channel and forwarded by Service.
+  string logical_sessions_json = 4;
+}
+
+message MsgHeartBeatResp {
+  int64 index = 1;
+  RenderStatus render_status = 2;
+  // Present only after Service authenticates its configured Console node.
+  string node_id = 3;
+  string device_id = 4;
+  int64 node_generation = 5;
+  int64 control_epoch = 6;
+  bool node_control_ready = 7;
+}
+
+message MsgReqCtrlAltDelete {
+  string req_device_id = 1;
+  string req_stream_id = 2;
+}
+
+message MsgVirtualDisplayRequest {
+  string request_id = 1;
+  VirtualDisplayOperation operation = 2;
+  uint32 width = 3;
+  uint32 height = 4;
+  uint32 refresh_hz = 5;
+}
+
+message MsgVirtualDisplayResult {
+  string request_id = 1;
+  bool accepted = 2;
+  bool topology_changed = 3;
+  uint64 topology_generation = 4;
+  string logical_display_id = 5;
+  string error_code = 6;
+  string error_message = 7;
+  uint32 owned_display_count = 8;
+  uint32 actual_virtual_display_count = 9;
+  bool driver_installed = 10;
+  bool package_valid = 11;
+  bool removal_safe = 12;
+  string phase = 13;
+}
+
+message MsgAppInstanceReady {
+  string instance_id = 1;
+  int32 listen_port = 2;
+  bool ok = 3;
+  string error = 4;
+}
+
+message MsgFrontendAdmissionRequest {
+  string request_id = 1;
+  string session_id = 2;
+  int64 revision = 3;
+  string frontend_token = 4;
+}
+
+message MsgFrontendAdmissionResult {
+  string request_id = 1;
+  bool accepted = 2;
+  string error_code = 3;
+  string session_id = 4;
+  int64 revision = 5;
+  string target_kind = 6;
+  string device_id = 7;
+  string application_id = 8;
+  string instance_id = 9;
+  string client_type = 10;
+  string access_role = 11;
+  uint32 valid_for_ms = 12;
+}
+
+enum ResourceChannelKind {
+  kResourceChannelControl = 0;
+  kResourceChannelMedia = 1;
+  kResourceChannelAudio = 2;
+  kResourceChannelFile = 3;
+  kResourceChannelRdp = 4;
+}
+
+enum ResourceChannelOutcome {
+  kResourceChannelProgress = 0;
+  kResourceChannelPeerClosed = 1;
+  kResourceChannelUserStopped = 2;
+  kResourceChannelTransportLost = 3;
+  kResourceChannelPolicyRevoked = 4;
+  kResourceChannelIoError = 5;
+}
+
+message MsgResourceChannelOpenRequest {
+  string request_id = 1;
+  string source_id = 2;
+  string session_id = 3;
+  ResourceChannelKind channel_kind = 4;
+}
+
+message MsgResourceChannelOpenResult {
+  string request_id = 1;
+  bool accepted = 2;
+  string error_code = 3;
+  string channel_id = 4;
+  string state = 5;
+  int64 sequence = 6;
+  int64 revision = 7;
+}
+
+message MsgResourceChannelReportRequest {
+  string request_id = 1;
+  string channel_id = 2;
+  uint64 sequence = 3;
+  uint64 sent_bytes = 4;
+  uint64 received_bytes = 5;
+  uint64 elapsed_ms = 6;
+  ResourceChannelOutcome outcome = 7;
+}
+
+message MsgResourceChannelReportResult {
+  string request_id = 1;
+  bool accepted = 2;
+  string error_code = 3;
+  string channel_id = 4;
+  string state = 5;
+  int64 sequence = 6;
+  int64 revision = 7;
+}
+
+message MsgRecordingFinalized {
+  string event_id = 1;
+  string file_name = 2;
+  string session_id = 3;
+  string codec = 4;
+}
+
+message MsgRecordingFinalizedResult {
+  string event_id = 1;
+  bool accepted = 2;
+  string error_code = 3;
+}
+
+enum ServiceFileTransferDirection {
+  kServiceFileTransferToNode = 0;
+  kServiceFileTransferFromNode = 1;
+}
+
+enum ServiceFileTransferOutcome {
+  kServiceFileTransferProgress = 0;
+  kServiceFileTransferCompleted = 1;
+  kServiceFileTransferTransportLost = 2;
+  kServiceFileTransferHashMismatch = 3;
+  kServiceFileTransferPolicyRevoked = 4;
+  kServiceFileTransferIoError = 5;
+  kServiceFileTransferSourceChanged = 6;
+  kServiceFileTransferCancelled = 7;
+}
+
+message MsgFileTransferBeginRequest {
+  string request_id = 1;
+  string transfer_request_id = 2;
+  string session_id = 3;
+  ServiceFileTransferDirection direction = 4;
+  string file_name = 5;
+  uint64 total_bytes = 6;
+  bytes expected_sha256 = 7;
+}
+
+message MsgFileTransferReportRequest {
+  string request_id = 1;
+  string transfer_id = 2;
+  uint64 sequence = 3;
+  uint64 transferred_bytes = 4;
+  ServiceFileTransferOutcome outcome = 5;
+  bytes received_sha256 = 6;
+}
+
+message MsgFileTransferResult {
+  string request_id = 1;
+  bool accepted = 2;
+  string error_code = 3;
+  string transfer_id = 4;
+  string state = 5;
+  int64 sequence = 6;
+  int64 revision = 7;
+}
+
+message ServiceMessage {
+  ServiceMessageType type = 1;
+  MsgStartServer start_server = 2;
+  MsgStopServer stop_server = 3;
+  MsgRestartServer restart_server = 4;
+  MsgHeartBeat heart_beat = 5;
+  MsgHeartBeatResp heart_beat_resp = 6;
+  MsgReqCtrlAltDelete req_ctrl_alt_delete = 7;
+  // sent by panel right after connecting, and embedded in every heartbeat
+  MsgAuthInfo auth_info = 8;
+  reserved 9, 10;
+  MsgVirtualDisplayRequest virtual_display_request = 11;
+  MsgVirtualDisplayResult virtual_display_result = 12;
+  MsgAppInstanceReady app_instance_ready = 13;
+  MsgFrontendAdmissionRequest frontend_admission_request = 14;
+  MsgFrontendAdmissionResult frontend_admission_result = 15;
+  MsgResourceChannelOpenRequest resource_channel_open_request = 16;
+  MsgResourceChannelOpenResult resource_channel_open_result = 17;
+  MsgResourceChannelReportRequest resource_channel_report_request = 18;
+  MsgResourceChannelReportResult resource_channel_report_result = 19;
+  MsgRecordingFinalized recording_finalized = 20;
+  MsgRecordingFinalizedResult recording_finalized_result = 21;
+  MsgFileTransferBeginRequest file_transfer_begin_request = 22;
+  MsgFileTransferResult file_transfer_begin_result = 23;
+  MsgFileTransferReportRequest file_transfer_report_request = 24;
+  MsgFileTransferResult file_transfer_report_result = 25;
+}

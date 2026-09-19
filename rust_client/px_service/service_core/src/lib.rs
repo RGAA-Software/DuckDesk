@@ -23,7 +23,7 @@ pub use process::{
     collect_process_tree, find_pids_for_game_exe, ProcessKind, ProcessSnapshot, RenderMode,
 };
 pub use proto::{
-    decode_service_message, encode_service_message, MsgAuthInfo, MsgFileTransferBeginRequest,
+    decode_service_message, encode_service_message, MsgFileTransferBeginRequest,
     MsgFileTransferReportRequest, MsgFileTransferResult, MsgFrontendAdmissionRequest,
     MsgFrontendAdmissionResult, MsgHeartBeat, MsgHeartBeatResp, MsgRecordingFinalized,
     MsgRecordingFinalizedResult, MsgReqCtrlAltDelete, MsgResourceChannelOpenRequest,

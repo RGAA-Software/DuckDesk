@@ -1,15 +1,15 @@
 #pragma once
 
-#include "network_settings_model.h"
-#include "settings_port.h"
-
-#include <filesystem>
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
+
+#include "network_settings_model.h"
+#include "settings_port.h"
 
 namespace px {
 class SharedPreference;
@@ -18,10 +18,9 @@ class SharedPreference;
 namespace px::panel::product {
 
 struct ConsoleEndpoint final {
+    std::string baseUrl{};
     std::string host{};
-    int port{};
-    int relayPort{};
-    std::string appKey{};
+    int port{443};
 
     [[nodiscard]] bool IsValid() const;
 };
@@ -76,10 +75,9 @@ class PanelConfigStore final {
 
     PanelConfigStore(std::shared_ptr<SharedPreference> preferences, std::filesystem::path executableDirectory);
 
-    [[nodiscard]] std::optional<ConsoleEndpoint> ParseAuthorization(const std::string& value) const;
+    [[nodiscard]] std::optional<ConsoleEndpoint> ParseConsoleAddress(const std::string& value) const;
     [[nodiscard]] std::optional<ConsoleEndpoint> Console() const;
-    [[nodiscard]] std::string Authorization() const;
-    [[nodiscard]] std::string NodePublicAddress() const;
+    [[nodiscard]] std::string ConsoleAddress() const;
     [[nodiscard]] PanelIdentity Identity() const;
     [[nodiscard]] NodePorts Ports() const;
     [[nodiscard]] ui::SettingsSnapshot Settings() const;
@@ -91,7 +89,7 @@ class PanelConfigStore final {
     [[nodiscard]] std::vector<RemoteDeviceHistory> LoadRemoteDeviceHistory() const;
     [[nodiscard]] CloudApplicationPreference LoadCloudApplicationPreference(const std::string& applicationId) const;
 
-    bool SaveNetwork(const std::string& authorization, const std::string& publicAddress, const ConsoleEndpoint& endpoint);
+    bool SaveNetwork(const std::string& consoleAddress, const ConsoleEndpoint& endpoint);
     bool SaveIdentity(const PanelIdentity& identity);
     bool SaveCustomDeviceName(const std::string& deviceName);
     bool SaveGeneral(const ui::GeneralSettings& settings);

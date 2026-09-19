@@ -7,7 +7,7 @@ mod generated {
 }
 
 pub use generated::{
-    MsgAppInstanceReady, MsgAuthInfo, MsgFileTransferBeginRequest, MsgFileTransferReportRequest,
+    MsgAppInstanceReady, MsgFileTransferBeginRequest, MsgFileTransferReportRequest,
     MsgFileTransferResult, MsgFrontendAdmissionRequest, MsgFrontendAdmissionResult, MsgHeartBeat,
     MsgHeartBeatResp, MsgRecordingFinalized, MsgRecordingFinalizedResult, MsgReqCtrlAltDelete,
     MsgResourceChannelOpenRequest, MsgResourceChannelOpenResult, MsgResourceChannelReportRequest,
@@ -17,10 +17,6 @@ pub use generated::{
     ServiceMessage, ServiceMessageType, VirtualDisplayOperation,
 };
 
-// prost only derives PartialEq; all MsgAuthInfo fields are scalar so Eq is sound
-// and keeps Command/ServiceState's Eq derive working.
-impl Eq for MsgAuthInfo {}
-
 #[allow(non_upper_case_globals)]
 impl ServiceMessageType {
     pub const StartServer: Self = Self::KSrvStartServer;
@@ -29,7 +25,6 @@ impl ServiceMessageType {
     pub const HeartBeat: Self = Self::KSrvHeartBeat;
     pub const HeartBeatResp: Self = Self::KSrvHeartBeatResp;
     pub const ReqCtrlAltDelete: Self = Self::KSrvReqCtrlAltDelete;
-    pub const AuthInfo: Self = Self::KSrvAuthInfo;
     pub const VirtualDisplayRequest: Self = Self::KSrvVirtualDisplayRequest;
     pub const VirtualDisplayResult: Self = Self::KSrvVirtualDisplayResult;
     pub const AppInstanceReady: Self = Self::KSrvAppInstanceReady;

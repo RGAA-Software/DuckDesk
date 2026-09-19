@@ -109,17 +109,16 @@ bool PanelClientLauncher::Launch(const NativeLaunchRequest& request) {
 namespace {
 
 nlohmann::json BuildNativeEnvelope(const NativeLaunchRequest& request, const std::string& host, const int port, const PanelConfigStore& config) {
-    const auto endpoint = config.Console();
     const auto identity = config.Identity();
     const auto settings = config.Settings();
-    const std::string localHost{ResolveNodeAccessHost(config.NodePublicAddress(), CollectPanelLocalAddresses())};
+    const std::string localHost{ResolveNodeAccessHost({}, CollectPanelLocalAddresses())};
     const std::array decoderNames{"Auto", "Hardware", "Software"};
     return {{"schema", 1},
             {"mode", request.fileTransfer ? "file-transfer" : "desktop"},
             {"host", host},
             {"local_host", localHost},
             {"port", port},
-            {"appkey", request.relayAdmissionTicket.empty() ? (endpoint ? endpoint->appKey : std::string{}) : request.relayAdmissionTicket},
+            {"appkey", request.relayAdmissionTicket},
             {"stream_id", request.directStreamId},
             {"stream_name", request.displayName},
             {"connection_instance_id", request.instanceId},

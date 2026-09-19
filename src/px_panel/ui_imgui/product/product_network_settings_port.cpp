@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <mutex>
 #include <optional>
 #include <utility>
@@ -9,17 +8,11 @@
 namespace px::panel::product {
 namespace {
 
-bool ValidPublicAddress(const std::string& value) {
-    if (value.empty()) return true;
-    return !value.contains("://") && value.find_first_of(" /\\?#@") == std::string::npos && value != "0.0.0.0" && value != "::";
-}
-
 class ProductNetworkSettingsPort final : public ui::NetworkSettingsPort, public std::enable_shared_from_this<ProductNetworkSettingsPort> {
 public:
     explicit ProductNetworkSettingsPort(std::shared_ptr<PanelProductRuntime> runtime) : runtime_{std::move(runtime)} {
         const auto ports = runtime_->Config()->Ports();
-        state_.settings = {.authorizationInfo = runtime_->Config()->Authorization(),
-                           .nodePublicAddress = runtime_->Config()->NodePublicAddress(),
+        state_.settings = {.consoleAddress = runtime_->Config()->ConsoleAddress(),
                            .serviceManagementPort = ports.service,
                            .desktopConnectionPort = ports.desktop,
                            .applicationPorts = {ports.applicationFirst, ports.applicationLast},
@@ -33,24 +26,24 @@ public:
         return state_;
     }
 
-    void ParseAuthorization(std::string authorizationInfo) override {
-        const auto endpoint = runtime_->Config()->ParseAuthorization(authorizationInfo);
+    void ParseConsoleAddress(std::string consoleAddress) override {
+        const auto endpoint = runtime_->Config()->ParseConsoleAddress(consoleAddress);
         const std::scoped_lock lock{mutex_};
-        state_.settings.authorizationInfo = std::move(authorizationInfo);
+        state_.settings.consoleAddress = std::move(consoleAddress);
         ApplyEndpointLocked(endpoint);
-        state_.operation = endpoint ? ui::NetworkOperation::Idle : ui::NetworkOperation::InvalidAuthorization;
+        state_.operation = endpoint ? ui::NetworkOperation::Idle : ui::NetworkOperation::InvalidConsoleAddress;
         state_.detail.clear();
     }
 
-    void Verify(std::string authorizationInfo) override {
-        const auto endpoint = runtime_->Config()->ParseAuthorization(authorizationInfo);
+    void Verify(std::string consoleAddress) override {
+        const auto endpoint = runtime_->Config()->ParseConsoleAddress(consoleAddress);
         if (!endpoint) {
-            SetFailure(ui::NetworkOperation::InvalidAuthorization, {});
+            SetFailure(ui::NetworkOperation::InvalidConsoleAddress, {});
             return;
         }
         {
             const std::scoped_lock lock{mutex_};
-            state_.settings.authorizationInfo = std::move(authorizationInfo);
+            state_.settings.consoleAddress = std::move(consoleAddress);
             ApplyEndpointLocked(endpoint);
             state_.operation = ui::NetworkOperation::Verifying;
             state_.detail.clear();
@@ -68,14 +61,10 @@ public:
         }));
     }
 
-    void Save(std::string authorizationInfo, std::string nodePublicAddress) override {
-        const auto endpoint = runtime_->Config()->ParseAuthorization(authorizationInfo);
+    void Save(std::string consoleAddress) override {
+        const auto endpoint = runtime_->Config()->ParseConsoleAddress(consoleAddress);
         if (!endpoint) {
-            SetFailure(ui::NetworkOperation::InvalidAuthorization, {});
-            return;
-        }
-        if (!ValidPublicAddress(nodePublicAddress)) {
-            SetFailure(ui::NetworkOperation::InvalidPublicAddress, {});
+            SetFailure(ui::NetworkOperation::InvalidConsoleAddress, {});
             return;
         }
         {
@@ -85,9 +74,8 @@ public:
         }
         const auto runtime = runtime_;
         const std::weak_ptr<ProductNetworkSettingsPort> weakSelf{shared_from_this()};
-        static_cast<void>(runtime_->Worker()->Post([runtime, weakSelf, authorizationInfo = std::move(authorizationInfo),
-                                                    nodePublicAddress = std::move(nodePublicAddress), endpoint = *endpoint] {
-            if (!runtime->Config()->SaveNetwork(authorizationInfo, nodePublicAddress, endpoint)) {
+        static_cast<void>(runtime_->Worker()->Post([runtime, weakSelf, consoleAddress = endpoint->baseUrl, endpoint = *endpoint] {
+            if (!runtime->Config()->SaveNetwork(consoleAddress, endpoint)) {
                 if (const auto self = weakSelf.lock()) self->SetFailure(ui::NetworkOperation::Failed, "Unable to save network settings");
                 return;
             }
@@ -95,8 +83,7 @@ public:
             if (!self) return;
             {
                 const std::scoped_lock lock{self->mutex_};
-                self->state_.settings.authorizationInfo = std::move(authorizationInfo);
-                self->state_.settings.nodePublicAddress = std::move(nodePublicAddress);
+                self->state_.settings.consoleAddress = std::move(consoleAddress);
                 self->ApplyEndpointLocked(endpoint);
                 self->state_.operation = ui::NetworkOperation::SavedNeedsRestart;
                 self->state_.detail.clear();
@@ -120,7 +107,6 @@ private:
     }
     void ApplyEndpointLocked(const std::optional<ConsoleEndpoint>& endpoint) {
         state_.settings.consolePort = endpoint ? std::optional{endpoint->port} : std::nullopt;
-        state_.settings.relayPort = endpoint ? std::optional{endpoint->relayPort} : std::nullopt;
     }
     void SetFailure(const ui::NetworkOperation operation, std::string detail) {
         const std::scoped_lock lock{mutex_};

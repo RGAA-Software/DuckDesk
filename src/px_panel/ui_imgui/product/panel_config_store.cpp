@@ -1,30 +1,23 @@
 #include "panel_config_store.h"
 
-#include "px_common/base64.h"
-#include "px_common/folder_util.h"
-#include "px_common/shared_preference.h"
-#include "version_config.h"
-
-#include <nlohmann/json.hpp>
-#include <openssl/evp.h>
-
 #include <algorithm>
-#include <array>
+#include <cctype>
 #include <charconv>
 #include <fstream>
 #include <functional>
 #include <map>
+#include <nlohmann/json.hpp>
 #include <string_view>
 #include <system_error>
 #include <utility>
 #include <vector>
 
+#include "px_common/folder_util.h"
+#include "px_common/shared_preference.h"
+#include "version_config.h"
+
 namespace px::panel::product {
 namespace {
-
-constexpr std::string_view kAccessPrefix{"console://access##"};
-constexpr std::array<unsigned char, 32> kDeploymentKey{'c', 'a', 'e', '8', 'a', 'e', '8', 'C', 'D', 'T', 'D', 'F', '2', '8', '9', '4',
-                                                       '3', '7', 'e', '#', '$', '(', ')', '9', '2', 'c', 'b', '1', '7', '5', '4', '0'};
 
 std::string Read(const std::shared_ptr<SharedPreference>& preferences, const std::string& key, const std::string& fallback = {}) {
     return preferences->Get(key, fallback);
@@ -40,35 +33,126 @@ int ReadPositiveInt(const std::shared_ptr<SharedPreference>& preferences, const 
     return value > 0 ? value : fallback;
 }
 
-std::optional<std::string> DecryptAuthorizationPayload(const std::string& authorization) {
-    if (!authorization.starts_with(kAccessPrefix))
-        return std::nullopt;
-    const std::string encoded{authorization.substr(kAccessPrefix.size())};
-    const std::string packed{Base64::Base64Decode(encoded)};
-    constexpr std::size_t nonceSize{12};
-    constexpr std::size_t tagSize{16};
-    if (packed.size() <= nonceSize + tagSize)
-        return std::nullopt;
+bool ValidDnsHost(const std::string_view host) {
+    if (host.empty() || host.size() > 253 || host.front() == '.' || host.back() == '.') return false;
+    std::size_t labelStart{};
+    while (labelStart < host.size()) {
+        const auto labelEnd = host.find('.', labelStart);
+        const auto label = host.substr(labelStart, labelEnd == std::string_view::npos ? host.size() - labelStart : labelEnd - labelStart);
+        if (label.empty() || label.size() > 63 || !std::isalnum(static_cast<unsigned char>(label.front())) ||
+            !std::isalnum(static_cast<unsigned char>(label.back())) ||
+            !std::ranges::all_of(label, [](const unsigned char character) { return std::isalnum(character) != 0 || character == '-'; })) {
+            return false;
+        }
+        if (labelEnd == std::string_view::npos) break;
+        labelStart = labelEnd + 1;
+    }
+    return true;
+}
 
-    const auto context = std::unique_ptr<EVP_CIPHER_CTX, decltype(&EVP_CIPHER_CTX_free)>{EVP_CIPHER_CTX_new(), &EVP_CIPHER_CTX_free};
-    if (!context)
+bool ValidIpv4Literal(const std::string_view host) {
+    std::size_t octetStart{};
+    std::size_t octetCount{};
+    while (octetStart < host.size()) {
+        const auto octetEnd = host.find('.', octetStart);
+        const auto octet = host.substr(octetStart, octetEnd == std::string_view::npos ? host.size() - octetStart : octetEnd - octetStart);
+        int value{};
+        const auto result = std::from_chars(octet.data(), octet.data() + octet.size(), value);
+        if (octet.empty() || octet.size() > 3 || result.ec != std::errc{} || result.ptr != octet.data() + octet.size() || value > 255) {
+            return false;
+        }
+        ++octetCount;
+        if (octetEnd == std::string_view::npos) break;
+        octetStart = octetEnd + 1;
+    }
+    return octetCount == 4;
+}
+
+std::optional<std::size_t> CountIpv6Groups(const std::string_view text, const bool mayContainIpv4) {
+    if (text.empty()) return std::size_t{};
+    std::size_t groupStart{};
+    std::size_t groupCount{};
+    while (groupStart < text.size()) {
+        const auto groupEnd = text.find(':', groupStart);
+        const auto group = text.substr(groupStart, groupEnd == std::string_view::npos ? text.size() - groupStart : groupEnd - groupStart);
+        if (group.empty()) return std::nullopt;
+        if (group.contains('.')) {
+            if (!mayContainIpv4 || groupEnd != std::string_view::npos || !ValidIpv4Literal(group)) return std::nullopt;
+            groupCount += 2;
+        } else {
+            if (group.size() > 4 || !std::ranges::all_of(group, [](const unsigned char character) { return std::isxdigit(character) != 0; })) {
         return std::nullopt;
-    std::vector<unsigned char> plain(packed.size() - nonceSize - tagSize + EVP_MAX_BLOCK_LENGTH);
-    int produced{};
-    int tail{};
-    const auto cipherSize = static_cast<int>(packed.size() - nonceSize - tagSize);
-    const bool initialized =
-        EVP_DecryptInit_ex(context.get(), EVP_aes_256_gcm(), nullptr, nullptr, nullptr) == 1 &&
-        EVP_DecryptInit_ex(context.get(), nullptr, nullptr, kDeploymentKey.data(), reinterpret_cast<const unsigned char*>(packed.data())) == 1;
-    if (!initialized ||
-        EVP_DecryptUpdate(context.get(), plain.data(), &produced, reinterpret_cast<const unsigned char*>(packed.data() + nonceSize), cipherSize) !=
-            1 ||
-        EVP_CIPHER_CTX_ctrl(context.get(), EVP_CTRL_GCM_SET_TAG, static_cast<int>(tagSize),
-                            const_cast<char*>(packed.data() + nonceSize + cipherSize)) != 1 ||
-        EVP_DecryptFinal_ex(context.get(), plain.data() + produced, &tail) != 1) {
+            }
+            ++groupCount;
+        }
+        if (groupEnd == std::string_view::npos) break;
+        groupStart = groupEnd + 1;
+    }
+    return groupCount;
+}
+
+bool ValidIpv6Literal(const std::string_view host) {
+    if (host.empty() || host.contains('%') || host.contains(":::")) return false;
+    const auto compression = host.find("::");
+    if (compression == std::string_view::npos) {
+        const auto groups = CountIpv6Groups(host, true);
+        return groups && *groups == 8;
+    }
+    if (host.find("::", compression + 2) != std::string_view::npos) return false;
+    const auto leftGroups = CountIpv6Groups(host.substr(0, compression), false);
+    const auto rightGroups = CountIpv6Groups(host.substr(compression + 2), true);
+    return leftGroups && rightGroups && *leftGroups + *rightGroups < 8;
+}
+
+std::optional<int> ParsePort(const std::string_view text) {
+    int port{};
+    const auto result = std::from_chars(text.data(), text.data() + text.size(), port);
+    return result.ec == std::errc{} && result.ptr == text.data() + text.size() && port > 0 && port <= 65535 ? std::optional{port} : std::nullopt;
+}
+
+std::optional<ConsoleEndpoint> ParseHttpsConsoleAddress(std::string value) {
+    constexpr std::string_view prefix{"https://"};
+    if (!value.starts_with(prefix)) return std::nullopt;
+    value.erase(0, prefix.size());
+    if (value.ends_with('/')) value.pop_back();
+    if (value.empty() || value.find_first_of("/?#@ \\\t\r\n") != std::string::npos) return std::nullopt;
+
+    std::string host{};
+    int port{443};
+    bool ipv6{};
+    if (value.starts_with('[')) {
+        const auto closing = value.find(']');
+        if (closing == std::string::npos) return std::nullopt;
+        host = value.substr(1, closing - 1);
+        ipv6 = true;
+        if (closing + 1 < value.size()) {
+            if (value[closing + 1] != ':') return std::nullopt;
+            const auto parsed = ParsePort(std::string_view{value}.substr(closing + 2));
+            if (!parsed) return std::nullopt;
+            port = *parsed;
+        }
+    } else {
+        if (std::ranges::count(value, ':') > 1) return std::nullopt;
+        const auto separator = value.rfind(':');
+        if (separator != std::string::npos) {
+            host = value.substr(0, separator);
+            const auto parsed = ParsePort(std::string_view{value}.substr(separator + 1));
+            if (!parsed) return std::nullopt;
+            port = *parsed;
+        } else {
+            host = value;
+        }
+    }
+    const bool decimalAddress =
+        !ipv6 && std::ranges::all_of(host, [](const unsigned char character) { return std::isdigit(character) != 0 || character == '.'; });
+    if (!(ipv6 ? ValidIpv6Literal(host) : (decimalAddress ? ValidIpv4Literal(host) : ValidDnsHost(host))) || host == "0.0.0.0" || host == "::") {
         return std::nullopt;
     }
-    return std::string{reinterpret_cast<const char*>(plain.data()), static_cast<std::size_t>(produced + tail)};
+    std::ranges::transform(host, host.begin(), [](const unsigned char character) { return static_cast<char>(std::tolower(character)); });
+    std::string normalized{prefix};
+    normalized += ipv6 ? "[" + host + "]" : host;
+    if (port != 443) normalized += ':' + std::to_string(port);
+    return ConsoleEndpoint{.baseUrl = std::move(normalized), .host = std::move(host), .port = port};
 }
 
 std::map<std::string, int> ReadNodePortOverrides(const std::filesystem::path& path) {
@@ -108,9 +192,7 @@ std::map<std::string, int> ReadNodePortOverrides(const std::filesystem::path& pa
 
 } // namespace
 
-bool ConsoleEndpoint::IsValid() const {
-    return !host.empty() && port > 0 && port <= 65535 && relayPort > 0 && relayPort <= 65535 && !appKey.empty();
-}
+bool ConsoleEndpoint::IsValid() const { return !baseUrl.empty() && !host.empty() && port > 0 && port <= 65535; }
 
 std::shared_ptr<PanelConfigStore> PanelConfigStore::Create(const std::filesystem::path& executableDirectory) {
     const auto preferences = SharedPreference::Instance();
@@ -123,33 +205,10 @@ std::shared_ptr<PanelConfigStore> PanelConfigStore::Create(const std::filesystem
 PanelConfigStore::PanelConfigStore(std::shared_ptr<SharedPreference> preferences, std::filesystem::path executableDirectory)
     : preferences_{std::move(preferences)}, executableDirectory_{std::move(executableDirectory)} {}
 
-std::optional<ConsoleEndpoint> PanelConfigStore::ParseAuthorization(const std::string& value) const {
-    try {
-        const auto payload = DecryptAuthorizationPayload(value);
-        if (!payload)
-            return std::nullopt;
-        const auto root = nlohmann::json::parse(*payload);
-        const auto& config = root.at("console_srv_config");
-        ConsoleEndpoint endpoint{.host = config.at("srv_w3c_ip").get<std::string>(),
-                                 .port = config.at("srv_console_port").get<int>(),
-                                 .relayPort = config.at("srv_relay_port").get<int>(),
-                                 .appKey = config.at("srv_appkey").get<std::string>()};
-        return endpoint.IsValid() ? std::optional{std::move(endpoint)} : std::nullopt;
-    } catch (...) {
-        return std::nullopt;
-    }
-}
+std::optional<ConsoleEndpoint> PanelConfigStore::ParseConsoleAddress(const std::string& value) const { return ParseHttpsConsoleAddress(value); }
 
-std::optional<ConsoleEndpoint> PanelConfigStore::Console() const {
-    return ParseAuthorization(Authorization());
-}
-std::string PanelConfigStore::Authorization() const {
-    return Read(preferences_, "console_access_info");
-}
-std::string PanelConfigStore::NodePublicAddress() const {
-    return Read(preferences_, "node_access_host");
-}
-
+std::optional<ConsoleEndpoint> PanelConfigStore::Console() const { return ParseConsoleAddress(ConsoleAddress()); }
+std::string PanelConfigStore::ConsoleAddress() const { return Read(preferences_, "console_server_url"); }
 PanelIdentity PanelConfigStore::Identity() const {
     return {.deviceId = Read(preferences_, "device_id"),
             .deviceName = Read(preferences_, "device_name"),
@@ -272,12 +331,10 @@ CloudApplicationPreference PanelConfigStore::LoadCloudApplicationPreference(cons
     }
 }
 
-bool PanelConfigStore::SaveNetwork(const std::string& authorization, const std::string& publicAddress, const ConsoleEndpoint& endpoint) {
+bool PanelConfigStore::SaveNetwork(const std::string& consoleAddress, const ConsoleEndpoint& endpoint) {
+    if (!endpoint.IsValid() || consoleAddress != endpoint.baseUrl) return false;
     const std::scoped_lock lock{mutex_};
-    return preferences_->Put("console_access_info", authorization) && preferences_->Put("console_server_host", endpoint.host) &&
-           preferences_->PutInt("console_server_port", endpoint.port) && preferences_->Put("relay_server_host", endpoint.host) &&
-           preferences_->PutInt("relay_server_port", endpoint.relayPort) && preferences_->Put("node_access_host", publicAddress) &&
-           preferences_->Put("console_ssl_enable", "true");
+    return preferences_->Put("console_server_url", consoleAddress);
 }
 
 bool PanelConfigStore::SaveIdentity(const PanelIdentity& identity) {
@@ -391,8 +448,7 @@ bool PanelConfigStore::SaveCloudApplicationPreference(const std::string& applica
 }
 
 void PanelConfigStore::Clear() {
-    for (const std::string key : {"device_id", "device_name", "device_name_custom", "device_random_pwd", "device_safety_pwd", "console_server_host",
-                                  "console_server_port", "relay_server_host", "relay_server_port", "console_access_info", "node_access_host",
+    for (const std::string key : {"device_id", "device_name", "device_name_custom", "device_random_pwd", "device_safety_pwd", "console_server_url",
                                   "incoming_remote_access_enabled"}) {
         static_cast<void>(preferences_->Remove(key));
     }

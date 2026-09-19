@@ -21,15 +21,13 @@ constexpr Catalog kEnglish{
     "Exit programs",
     "Settings / Network",
     "Connection addresses and node service ports",
-    "Authorization",
-    "Resolved control endpoints",
-    "Supervisor",
-    "Node management and status",
-    "Relay",
-    "Reliable routed connection",
-    "Node public address",
-    "Optional. Leave empty when automatic address detection is suitable.",
-    "Public IP or hostname",
+    "Console address",
+    "Resolved Console endpoint",
+    "Console service",
+    "Account, catalog, session, and node APIs",
+    "Transport security",
+    "HTTPS is required",
+    "Enter the HTTPS address of the Console deployment. Relay routes are issued by Console and are not configured here.",
     "Node listening ports",
     "Service management port",
     "Local service management",
@@ -43,8 +41,7 @@ constexpr Catalog kEnglish{
     "Local panel API",
     "Save",
     "Verify",
-    "Authorization information is invalid.",
-    "The public address is invalid.",
+    "The Console HTTPS address is invalid.",
     "Verifying...",
     "Verification succeeded.",
     "Saving...",
@@ -301,15 +298,13 @@ constexpr Catalog kSimplifiedChinese{
     "退出程序",
     "设置 / 网络",
     "连接地址与节点服务端口",
-    "授权信息",
-    "解析后的控制端点",
-    "管理服务",
-    "节点管理与状态",
-    "转发服务",
-    "可靠转发连接",
-    "节点公网地址",
-    "可选。自动地址探测可用时请留空。",
-    "公网 IP 或域名",
+    "Console 地址",
+    "解析后的 Console 端点",
+    "Console 服务",
+    "账号、目录、会话与节点接口",
+    "传输安全",
+    "必须使用 HTTPS",
+    "填写 Console 部署的 HTTPS 地址。Relay 路由由 Console 签发，不在此处配置。",
     "节点监听端口",
     "服务管理端口",
     "本机服务管理",
@@ -323,8 +318,7 @@ constexpr Catalog kSimplifiedChinese{
     "本机 Panel 接口",
     "保存",
     "验证",
-    "授权信息无效。",
-    "节点公网地址无效。",
+    "Console HTTPS 地址无效。",
     "正在验证……",
     "验证成功。",
     "正在保存……",
@@ -577,13 +571,9 @@ static_assert(kSimplifiedChinese.size() == kTextCount);
 
 Localizer::Localizer(const Language language) noexcept : language_{language} {}
 
-void Localizer::SetLanguage(const Language language) noexcept {
-    language_ = language;
-}
+void Localizer::SetLanguage(const Language language) noexcept { language_ = language; }
 
-Language Localizer::CurrentLanguage() const noexcept {
-    return language_;
-}
+Language Localizer::CurrentLanguage() const noexcept { return language_; }
 
 std::string_view Localizer::Text(const TextId id) const noexcept {
     const std::size_t index{std::to_underlying(id)};

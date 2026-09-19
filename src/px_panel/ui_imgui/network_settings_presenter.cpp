@@ -1,26 +1,22 @@
 #include "network_settings_presenter.h"
 
+#include <imgui.h>
+
+#include <utility>
+
 #include "px_ui/components/button.h"
 #include "px_ui/components/overlay.h"
 #include "px_ui/components/surface.h"
 #include "px_ui/layout_metrics.h"
 
-#include <imgui.h>
-
-#include <utility>
-
 namespace px::panel::ui {
 
-NetworkSettingsPresenter::NetworkSettingsPresenter(std::shared_ptr<NetworkSettingsPort> port) : port_{std::move(port)} {
-    Synchronize();
-}
+NetworkSettingsPresenter::NetworkSettingsPresenter(std::shared_ptr<NetworkSettingsPort> port) : port_{std::move(port)} { Synchronize(); }
 
 px::ui::TextId NetworkSettingsPresenter::StatusText(const NetworkOperation operation) const noexcept {
     switch (operation) {
-    case NetworkOperation::InvalidAuthorization:
-        return px::ui::TextId::InvalidAuthorization;
-    case NetworkOperation::InvalidPublicAddress:
-        return px::ui::TextId::InvalidPublicAddress;
+        case NetworkOperation::InvalidConsoleAddress:
+            return px::ui::TextId::InvalidConsoleAddress;
     case NetworkOperation::Verifying:
         return px::ui::TextId::Verifying;
     case NetworkOperation::Verified:
@@ -45,15 +41,13 @@ void NetworkSettingsPresenter::Synchronize() {
     }
     auto draft = page_.Draft();
     draft.consolePort = state.settings.consolePort;
-    draft.relayPort = state.settings.relayPort;
     draft.serviceManagementPort = state.settings.serviceManagementPort;
     draft.desktopConnectionPort = state.settings.desktopConnectionPort;
     draft.applicationPorts = state.settings.applicationPorts;
     draft.rtcPorts = state.settings.rtcPorts;
     draft.panelListeningPort = state.settings.panelListeningPort;
-    if (draft.authorizationInfo.empty() && draft.nodePublicAddress.empty()) {
-        draft.authorizationInfo = state.settings.authorizationInfo;
-        draft.nodePublicAddress = state.settings.nodePublicAddress;
+    if (draft.consoleAddress.empty()) {
+        draft.consoleAddress = state.settings.consoleAddress;
     }
     page_.SetDraft(std::move(draft));
 }
@@ -87,14 +81,14 @@ void NetworkSettingsPresenter::Draw(const px::ui::Localizer& localizer) {
     const NetworkPageAction action{page_.Draw(localizer)};
     const auto& draft = page_.Draft();
     switch (action) {
-    case NetworkPageAction::AuthorizationChanged:
-        port_->ParseAuthorization(draft.authorizationInfo);
+        case NetworkPageAction::ConsoleAddressChanged:
+            port_->ParseConsoleAddress(draft.consoleAddress);
         break;
     case NetworkPageAction::VerifyRequested:
-        port_->Verify(draft.authorizationInfo);
+            port_->Verify(draft.consoleAddress);
         break;
     case NetworkPageAction::SaveRequested:
-        port_->Save(draft.authorizationInfo, draft.nodePublicAddress);
+            port_->Save(draft.consoleAddress);
         break;
     case NetworkPageAction::None:
         break;

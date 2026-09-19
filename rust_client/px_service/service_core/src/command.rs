@@ -100,7 +100,6 @@ pub fn dispatch_message(bytes: &[u8]) -> Result<DispatchResult, String> {
                 logical_sessions_json: heart_beat.logical_sessions_json,
             }
         }
-        ServiceMessageType::AuthInfo => return Err("panel node authorization is retired".into()),
         ServiceMessageType::ReqCtrlAltDelete => {
             let request = message
                 .req_ctrl_alt_delete
@@ -240,12 +239,11 @@ pub fn dispatch_message(bytes: &[u8]) -> Result<DispatchResult, String> {
 mod tests {
     use super::*;
     use crate::proto::{
-        encode_service_message, MsgAuthInfo, MsgFileTransferBeginRequest,
-        MsgFileTransferReportRequest, MsgFrontendAdmissionRequest, MsgHeartBeat,
-        MsgReqCtrlAltDelete, MsgResourceChannelOpenRequest, MsgResourceChannelReportRequest,
-        MsgRestartServer, MsgStartServer, MsgVirtualDisplayRequest, ResourceChannelKind,
-        ResourceChannelOutcome, ServiceFileTransferDirection, ServiceFileTransferOutcome,
-        ServiceMessage,
+        encode_service_message, MsgFileTransferBeginRequest, MsgFileTransferReportRequest,
+        MsgFrontendAdmissionRequest, MsgHeartBeat, MsgReqCtrlAltDelete,
+        MsgResourceChannelOpenRequest, MsgResourceChannelReportRequest, MsgRestartServer,
+        MsgStartServer, MsgVirtualDisplayRequest, ResourceChannelKind, ResourceChannelOutcome,
+        ServiceFileTransferDirection, ServiceFileTransferOutcome, ServiceMessage,
     };
 
     #[test]
@@ -298,53 +296,6 @@ mod tests {
                 logical_sessions_json: String::new(),
             }
         );
-    }
-
-    #[test]
-    fn dispatch_heartbeat_ignores_retired_panel_auth_info() {
-        let auth_info = MsgAuthInfo {
-            device_id: "dev-1".to_string(),
-            appkey: "ak-1".to_string(),
-            console_host: "console.example.com".to_string(),
-            console_port: 443,
-            ..Default::default()
-        };
-        let bytes = encode_service_message(&ServiceMessage {
-            r#type: ServiceMessageType::HeartBeat as i32,
-            heart_beat: Some(MsgHeartBeat {
-                index: 1,
-                from: "panel".to_string(),
-                auth_info: Some(auth_info.clone()),
-                logical_sessions_json: String::new(),
-            }),
-            ..Default::default()
-        });
-        let result = dispatch_message(&bytes).unwrap();
-        assert_eq!(
-            result.command,
-            Command::HeartBeat {
-                index: 1,
-                from: "panel".to_string(),
-                logical_sessions_json: String::new(),
-            }
-        );
-    }
-
-    #[test]
-    fn dispatch_auth_info() {
-        let auth_info = MsgAuthInfo {
-            device_id: "dev-1".to_string(),
-            appkey: "ak-1".to_string(),
-            console_host: "console.example.com".to_string(),
-            console_port: 8443,
-            ..Default::default()
-        };
-        let bytes = encode_service_message(&ServiceMessage {
-            r#type: ServiceMessageType::AuthInfo as i32,
-            auth_info: Some(auth_info.clone()),
-            ..Default::default()
-        });
-        assert!(dispatch_message(&bytes).is_err());
     }
 
     #[test]

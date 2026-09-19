@@ -52,7 +52,7 @@ pub enum NodeCommandAction {
     Stop,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RelayEndpoint {
     pub host: String,
@@ -583,6 +583,7 @@ pub enum NodeResponse {
         device_id: Uuid,
         generation: i64,
         control_epoch: i64,
+        relay: Option<RelayEndpoint>,
     },
     Reported {
         request_id: u64,
@@ -765,6 +766,7 @@ mod tests {
             device_id: Uuid::nil(),
             generation: 2,
             control_epoch: 3,
+            relay: None,
         })
         .unwrap();
         assert!(!response.contains("token"));

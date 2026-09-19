@@ -248,7 +248,6 @@
   "id_verify_success": "驗證成功。",
   "id_verify_relay_failed": "驗證中轉服務失敗。",
   "id_verify_console_failed": "驗證管理服務失敗。",
-  "id_console_access_info_invalid": "Console 接入資訊不完整或無效。請重新複製完整接入設定，或填寫有效的 Console/中轉服務位址和連接埠。",
   "id_verify_relay_failed_actionable": "中轉服務驗證失敗。請確認 Relay 已啟動，並檢查位址、TCP 連接埠、App Key 和防火牆規則後重試。",
   "id_nothing": "沒有任何訊息...",
   "id_found_manager_server": "檢測到服務",

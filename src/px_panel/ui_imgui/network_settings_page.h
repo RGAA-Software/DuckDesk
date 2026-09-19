@@ -1,16 +1,15 @@
 #pragma once
 
-#include "network_settings_model.h"
-
-#include "px_ui/localization.h"
-
 #include <cstdint>
+
+#include "network_settings_model.h"
+#include "px_ui/localization.h"
 
 namespace px::panel::ui {
 
 enum class NetworkPageAction : std::uint8_t {
     None,
-    AuthorizationChanged,
+    ConsoleAddressChanged,
     VerifyRequested,
     SaveRequested,
 };

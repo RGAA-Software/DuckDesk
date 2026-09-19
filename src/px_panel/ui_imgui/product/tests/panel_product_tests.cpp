@@ -1,26 +1,8 @@
-#include "panel_audit_store.h"
-#include "panel_connection_input.h"
-#include "panel_connection_links.h"
-#include "panel_config_store.h"
-#include "panel_device_name.h"
-#include "environment_diagnostics.h"
-#include "panel_local_server.h"
-#include "panel_system_information.h"
-#include "panel_worker.h"
-#include "windows_environment_probe.h"
-#include "connection_progress_tracker.h"
-#include "panel_navigation_model.h"
-
-#include "px_common/base64.h"
-#include "px_common/shared_preference.h"
-#include "px_render_panel_message.pb.h"
-
 #include <gtest/gtest.h>
-#include <nlohmann/json.hpp>
-#include <asio2/websocket/ws_client.hpp>
 
-#include <array>
 #include <algorithm>
+#include <array>
+#include <asio2/websocket/ws_client.hpp>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -29,9 +11,26 @@
 #include <fstream>
 #include <future>
 #include <mutex>
+#include <nlohmann/json.hpp>
 #include <string_view>
 #include <thread>
 #include <vector>
+
+#include "connection_progress_tracker.h"
+#include "environment_diagnostics.h"
+#include "panel_audit_store.h"
+#include "panel_config_store.h"
+#include "panel_connection_input.h"
+#include "panel_connection_links.h"
+#include "panel_device_name.h"
+#include "panel_local_server.h"
+#include "panel_navigation_model.h"
+#include "panel_system_information.h"
+#include "panel_worker.h"
+#include "px_common/base64.h"
+#include "px_common/shared_preference.h"
+#include "px_render_panel_message.pb.h"
+#include "windows_environment_probe.h"
 
 namespace px::panel::product {
 
@@ -99,7 +98,7 @@ TEST(PanelSystemInformationTest, RejectsHandshakeAndMalformedPayloadWithoutThrow
 namespace {
 
 class TemporaryDirectory final {
-  public:
+public:
     TemporaryDirectory() {
         path_ =
             std::filesystem::temp_directory_path() / std::format("pixels-panel-test-{}", std::chrono::steady_clock::now().time_since_epoch().count());
@@ -109,11 +108,9 @@ class TemporaryDirectory final {
         std::error_code error{};
         std::filesystem::remove_all(path_, error);
     }
-    [[nodiscard]] const std::filesystem::path& Path() const {
-        return path_;
-    }
+    [[nodiscard]] const std::filesystem::path& Path() const { return path_; }
 
-  private:
+private:
     std::filesystem::path path_{};
 };
 
@@ -199,8 +196,7 @@ TEST(EnvironmentDiagnosticsTest, RefreshesOnThePanelWorkerAndPublishesACompleteG
     const auto waitForGeneration = [&diagnostics](const std::uint64_t generation) {
         for (int attempt{}; attempt < 100; ++attempt) {
             const auto snapshot = diagnostics->Snapshot();
-            if (!snapshot.refreshing && snapshot.generation >= generation)
-                return snapshot;
+            if (!snapshot.refreshing && snapshot.generation >= generation) return snapshot;
             std::this_thread::sleep_for(std::chrono::milliseconds{10});
         }
         return diagnostics->Snapshot();
@@ -380,6 +376,38 @@ TEST(PanelConfigStoreTest, PersistsAndClearsConnectionPreferences) {
     EXPECT_FALSE(config->LoadCloudApplicationPreference("application-1").forceRelay);
 }
 
+TEST(PanelConfigStoreTest, AcceptsOnlyNormalizedHttpsConsoleAddresses) {
+    TemporaryDirectory directory{};
+    const auto preferences = std::make_shared<SharedPreference>();
+    ASSERT_TRUE(preferences->Init(directory.Path(), "preferences"));
+    const auto config = std::make_shared<PanelConfigStore>(preferences, directory.Path());
+
+    const auto endpoint = config->ParseConsoleAddress("https://console.example.test:8443/");
+    ASSERT_TRUE(endpoint);
+    EXPECT_EQ(endpoint->baseUrl, "https://console.example.test:8443");
+    EXPECT_EQ(endpoint->host, "console.example.test");
+    EXPECT_EQ(endpoint->port, 8443);
+    EXPECT_FALSE(config->ParseConsoleAddress("http://console.example.test"));
+    EXPECT_FALSE(config->ParseConsoleAddress("https://user@console.example.test"));
+    EXPECT_FALSE(config->ParseConsoleAddress("https://console.example.test/api"));
+    EXPECT_FALSE(config->ParseConsoleAddress("console://access##retired"));
+    EXPECT_FALSE(config->ParseConsoleAddress("https://-console.example.test"));
+    EXPECT_FALSE(config->ParseConsoleAddress("https://console-.example.test"));
+    EXPECT_FALSE(config->ParseConsoleAddress("https://999.999.999.999"));
+    EXPECT_FALSE(config->ParseConsoleAddress("https://[:::]"));
+    const auto ipv6Endpoint = config->ParseConsoleAddress("https://[2001:DB8::10]");
+    ASSERT_TRUE(ipv6Endpoint);
+    EXPECT_EQ(ipv6Endpoint->baseUrl, "https://[2001:db8::10]");
+    EXPECT_EQ(ipv6Endpoint->host, "2001:db8::10");
+
+    ASSERT_TRUE(config->SaveNetwork(endpoint->baseUrl, *endpoint));
+    EXPECT_EQ(config->ConsoleAddress(), endpoint->baseUrl);
+    ASSERT_TRUE(config->Console());
+    EXPECT_EQ(config->Console()->port, 8443);
+    config->Clear();
+    EXPECT_TRUE(config->ConsoleAddress().empty());
+}
+
 TEST(PanelLocalServerTest, RuntimeDesktopAccessUpdatesAreDeliveredOnTheRendererSessionThread) {
     TemporaryDirectory directory{};
     {
@@ -472,8 +500,7 @@ TEST(PanelLocalServerTest, ReceivesPxOsInfoSnapshotsOverTheLocalSystemInformatio
     for (int attempt{}; attempt < 100 && !received; ++attempt) {
         const auto information = server->SystemInformation();
         received = information.has_value() && information->cpuName == "Route CPU";
-        if (!received)
-            std::this_thread::sleep_for(std::chrono::milliseconds{20});
+        if (!received) std::this_thread::sleep_for(std::chrono::milliseconds{20});
     }
     EXPECT_TRUE(received);
     client->stop();
@@ -483,9 +510,7 @@ TEST(PanelLocalServerTest, ReceivesPxOsInfoSnapshotsOverTheLocalSystemInformatio
 TEST(PanelConnectionLinksTest, PreservesCompleteDesktopAndWebConnectionPayloads) {
     const PanelIdentity identity{.deviceId = "109022351", .deviceName = "Pixels Public Node", .randomPassword = "temporary"};
     const NodePorts ports{};
-    const ConsoleEndpoint endpoint{.host = "39.71.45.66", .port = 4600, .relayPort = 4605, .appKey = "app-key"};
-
-    const auto links = BuildPanelConnectionLinks(identity, ports, endpoint, "39.71.45.66", {"192.168.1.8"});
+    const auto links = BuildPanelConnectionLinks(identity, ports, "39.71.45.66", {"192.168.1.8"});
     ASSERT_TRUE(links.desktop.starts_with("link://"));
     const auto desktopPayload = nlohmann::json::parse(Base64::Base64Decode(links.desktop.substr(7)));
     EXPECT_EQ(desktopPayload.at("did"), identity.deviceId);
@@ -496,9 +521,9 @@ TEST(PanelConnectionLinksTest, PreservesCompleteDesktopAndWebConnectionPayloads)
     EXPECT_EQ(desktopPayload.at("ips").at(0).at("ip"), "39.71.45.66");
     EXPECT_EQ(desktopPayload.at("ppt"), ports.panel);
     EXPECT_EQ(desktopPayload.at("rdpt"), ports.desktop);
-    EXPECT_EQ(desktopPayload.at("rlst"), endpoint.host);
-    EXPECT_EQ(desktopPayload.at("rlpt"), endpoint.relayPort);
-    EXPECT_EQ(desktopPayload.at("rlak"), endpoint.appKey);
+    EXPECT_FALSE(desktopPayload.contains("rlst"));
+    EXPECT_FALSE(desktopPayload.contains("rlpt"));
+    EXPECT_FALSE(desktopPayload.contains("rlak"));
 
     const std::string webPrefix{"http://39.71.45.66:4601/web/?c="};
     ASSERT_TRUE(links.web.starts_with(webPrefix));
@@ -520,7 +545,7 @@ TEST(PanelConnectionLinksTest, PreservesCompleteDesktopAndWebConnectionPayloads)
 
 TEST(PanelConnectionLinksTest, UsesFirstLocalAddressWhenNoPublicAddressIsConfigured) {
     const PanelIdentity identity{.deviceId = "101", .deviceName = "Pixels", .randomPassword = "temporary"};
-    const auto links = BuildPanelConnectionLinks(identity, NodePorts{}, std::nullopt, {}, {"192.168.1.8", "10.0.0.2"});
+    const auto links = BuildPanelConnectionLinks(identity, NodePorts{}, {}, {"192.168.1.8", "10.0.0.2"});
 
     EXPECT_TRUE(links.web.starts_with("http://192.168.1.8:4601/web/?c="));
     EXPECT_EQ(links.web.find("127.0.0.1"), std::string::npos);
@@ -540,8 +565,7 @@ TEST(PanelConnectionInputTest, DistinguishesDeviceLinkAndDirectEndpointInputs) {
     EXPECT_EQ(device->deviceId, "109022351");
 
     const PanelIdentity identity{.deviceId = "109022351", .deviceName = "Pixels Public Node", .randomPassword = "temporary"};
-    const ConsoleEndpoint relay{.host = "39.71.45.66", .port = 4600, .relayPort = 4605, .appKey = "app-key"};
-    const auto links = BuildPanelConnectionLinks(identity, NodePorts{}, relay, "39.71.45.66", {});
+    const auto links = BuildPanelConnectionLinks(identity, NodePorts{}, "39.71.45.66", {});
     const auto shared = ParseConnectionInput(links.desktop, 4601);
     ASSERT_TRUE(shared);
     EXPECT_EQ(shared->kind, ConnectionInputKind::SharedLink);
@@ -551,9 +575,9 @@ TEST(PanelConnectionInputTest, DistinguishesDeviceLinkAndDirectEndpointInputs) {
     ASSERT_EQ(shared->hosts.size(), 1);
     EXPECT_EQ(shared->hosts.front(), "39.71.45.66");
     EXPECT_EQ(shared->port, 4601);
-    EXPECT_EQ(shared->relayHost, "39.71.45.66");
-    EXPECT_EQ(shared->relayPort, 4605);
-    EXPECT_EQ(shared->relayDeviceId, "server_109022351");
+    EXPECT_TRUE(shared->relayHost.empty());
+    EXPECT_EQ(shared->relayPort, 0);
+    EXPECT_TRUE(shared->relayDeviceId.empty());
 
     const auto direct = ParseConnectionInput("https://39.71.45.66:4613/path", 4601);
     ASSERT_TRUE(direct);
@@ -565,5 +589,5 @@ TEST(PanelConnectionInputTest, DistinguishesDeviceLinkAndDirectEndpointInputs) {
     EXPECT_FALSE(ConnectionInputNeedsPassword(links.desktop));
 }
 
-} // namespace
-} // namespace px::panel::product
+}  // namespace
+}  // namespace px::panel::product

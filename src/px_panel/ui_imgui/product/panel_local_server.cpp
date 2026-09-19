@@ -1,11 +1,11 @@
 #include "panel_local_server.h"
 
+#include <utility>
+
 #include "px_client_panel_message.pb.h"
 #include "px_common/hardware.h"
 #include "px_common/log.h"
 #include "px_render_panel_message.pb.h"
-
-#include <utility>
 
 namespace px::panel::product {
 namespace {
@@ -13,8 +13,7 @@ namespace {
 std::string QueryValue(const std::string_view query, const std::string_view key) {
     const std::string marker{std::string{key} + "="};
     const auto begin = query.find(marker);
-    if (begin == std::string_view::npos)
-        return {};
+    if (begin == std::string_view::npos) return {};
     const auto valueBegin = begin + marker.size();
     const auto end = query.find('&', valueBegin);
     return std::string{query.substr(valueBegin, end - valueBegin)};
@@ -38,9 +37,7 @@ std::shared_ptr<PanelLocalServer> PanelLocalServer::Create(const std::shared_ptr
 
 PanelLocalServer::PanelLocalServer(std::shared_ptr<PanelConfigStore> config, std::shared_ptr<PanelAuditStore> auditStore)
     : config_{std::move(config)}, auditStore_{std::move(auditStore)} {}
-PanelLocalServer::~PanelLocalServer() {
-    Stop();
-}
+PanelLocalServer::~PanelLocalServer() { Stop(); }
 
 LocalServerSnapshot PanelLocalServer::Snapshot() const {
     return {.listening = server_ && server_->is_started(),
@@ -70,8 +67,7 @@ void PanelLocalServer::ResolveVoiceCall(const VoiceCallRequest& request, const b
         pendingVoiceCall_.reset();
         renderer = rendererSession_;
     }
-    if (!renderer)
-        return;
+    if (!renderer) return;
     pxrp::RpMessage message{};
     message.set_type(pxrp::kRpVoiceCallConsentDecision);
     auto& decision = *message.mutable_voice_call_consent_decision();
@@ -110,11 +106,9 @@ bool PanelLocalServer::OpenFileTransfer(const std::string& streamId) {
     std::shared_ptr<asio2::http_session> session{};
     {
         const std::scoped_lock lock{mutex_};
-        if (const auto found = clients_.find(streamId); found != clients_.end())
-            session = found->second;
+        if (const auto found = clients_.find(streamId); found != clients_.end()) session = found->second;
     }
-    if (!session)
-        return false;
+    if (!session) return false;
     pxcp::CpMessage message{};
     message.set_type(pxcp::CpMessageType::kCpOpenFileTransfer);
     message.set_stream_id(streamId);
@@ -151,28 +145,25 @@ void PanelLocalServer::Start() {
 
 void PanelLocalServer::AddRoute(const std::string& path) {
     const std::weak_ptr<PanelLocalServer> weakSelf{shared_from_this()};
-    server_->bind(path, websocket::listener<asio2::http_session>{}
+    server_->bind(
+        path, websocket::listener<asio2::http_session>{}
                             .on("message",
                                 [weakSelf, path](std::shared_ptr<asio2::http_session>&, const std::string_view bytes) {
                                     const auto self = weakSelf.lock();
-                                    if (!self)
-                                        return;
+                          if (!self) return;
                                     if (path == "/panel") {
                                         pxcp::CpMessage message{};
-                                        if (!message.ParseFromArray(bytes.data(), static_cast<int>(bytes.size())))
-                                            return;
+                              if (!message.ParseFromArray(bytes.data(), static_cast<int>(bytes.size()))) return;
                                         if (message.type() == pxcp::CpMessageType::kCpHello && !message.stream_id().empty()) {
                                             LOGI("Panel client event channel ready: {}", message.stream_id());
                                         }
                                     } else if (path == "/panel/renderer") {
                                         pxrp::RpMessage message{};
-                                        if (!message.ParseFromArray(bytes.data(), static_cast<int>(bytes.size())))
-                                            return;
+                              if (!message.ParseFromArray(bytes.data(), static_cast<int>(bytes.size()))) return;
                                         self->auditStore_->Consume(message, self->config_->Identity().deviceId);
                                         if (message.type() == pxrp::kRpVoiceCallConsentRequest) {
                                             const auto& request = message.voice_call_consent_request();
-                                            if (request.protocol_version() != 1)
-                                                return;
+                                  if (request.protocol_version() != 1) return;
                                             const std::scoped_lock lock{self->mutex_};
                                             self->pendingVoiceCall_ = VoiceCallRequest{.visitorDeviceId = request.visitor_device_id(),
                                                                                        .streamId = request.stream_id(),
@@ -194,8 +185,7 @@ void PanelLocalServer::AddRoute(const std::string& path) {
                                                 const std::scoped_lock lock{self->mutex_};
                                                 handler = self->restartHandler_;
                                             }
-                                            if (handler)
-                                                handler();
+                                  if (handler) handler();
                                         }
                                     } else if (path == "/sys/info") {
                                         if (auto systemInformation = ParsePanelSystemInformation(bytes)) {
@@ -207,8 +197,7 @@ void PanelLocalServer::AddRoute(const std::string& path) {
                             .on("open",
                                 [weakSelf, path](std::shared_ptr<asio2::http_session>& session) {
                                     const auto self = weakSelf.lock();
-                                    if (!self)
-                                        return;
+                          if (!self) return;
                                     session->ws_stream().binary(true);
                                     session->set_no_delay(true);
                                     if (path == "/panel") {
@@ -225,15 +214,13 @@ void PanelLocalServer::AddRoute(const std::string& path) {
                                         }
                                         self->rendererConnections_.fetch_add(1, std::memory_order_acq_rel);
                                         session->post_queued_event([weakSelf, session] {
-                                            if (const auto active = weakSelf.lock())
-                                                active->SendPanelInfo(session);
+                                  if (const auto active = weakSelf.lock()) active->SendPanelInfo(session);
                                         });
                                     }
                                 })
                             .on("close", [weakSelf, path](std::shared_ptr<asio2::http_session>& session) {
                                 const auto self = weakSelf.lock();
-                                if (!self)
-                                    return;
+                      if (!self) return;
                                 if (path == "/panel") {
                                     const std::string streamId{QueryValue(session->get_request().get_query(), "stream_id")};
                                     const std::scoped_lock lock{self->mutex_};
@@ -241,16 +228,14 @@ void PanelLocalServer::AddRoute(const std::string& path) {
                                         self->clients_.erase(found);
                                     }
                                     const int remaining{DecrementConnectionCount(self->clientConnections_)};
-                                    if (remaining == 0 && !self->stopping_.load(std::memory_order_acquire) &&
-                                        self->config_->Settings().disconnectAutoLock) {
+                          if (remaining == 0 && !self->stopping_.load(std::memory_order_acquire) && self->config_->Settings().disconnectAutoLock) {
                                         LOGI("Last Panel client disconnected; locking the workstation by policy");
                                         Hardware::LockScreen();
                                     }
                                 } else if (path == "/panel/renderer") {
                                     {
                                         const std::scoped_lock lock{self->mutex_};
-                                        if (self->rendererSession_ == session)
-                                            self->rendererSession_.reset();
+                              if (self->rendererSession_ == session) self->rendererSession_.reset();
                                     }
                                     static_cast<void>(DecrementConnectionCount(self->rendererConnections_));
                                 }
@@ -259,7 +244,6 @@ void PanelLocalServer::AddRoute(const std::string& path) {
 
 void PanelLocalServer::SendPanelInfo(const std::shared_ptr<asio2::http_session>& session) const {
     const auto identity = config_->Identity();
-    const auto endpoint = config_->Console();
     const auto settings = config_->Settings();
     pxrp::RpMessage message{};
     message.set_type(pxrp::kSyncPanelInfo);
@@ -267,16 +251,10 @@ void PanelLocalServer::SendPanelInfo(const std::shared_ptr<asio2::http_session>&
     info.set_device_id(identity.deviceId);
     info.set_device_random_pwd(identity.randomPassword);
     info.set_device_safety_pwd(identity.securityPasswordHash);
-    info.set_relay_host(endpoint ? endpoint->host : std::string{});
-    info.set_relay_port(endpoint ? std::to_string(endpoint->relayPort) : std::string{});
-    info.set_console_host(endpoint ? endpoint->host : std::string{});
-    info.set_console_port(endpoint ? std::to_string(endpoint->port) : std::string{});
     info.set_can_be_operated(true);
-    info.set_relay_enabled(true);
     info.set_language(settings.language == ::px::ui::Language::English ? 1 : 0);
     info.set_file_transfer_enabled(true);
     info.set_audio_enabled(settings.general.captureAudio);
-    info.set_appkey(endpoint ? endpoint->appKey : std::string{});
     info.set_role(1);
     const bool incomingRemoteAccessEnabled{config_->IncomingRemoteAccessEnabled()};
     info.set_remote_access_disabled(!incomingRemoteAccessEnabled);

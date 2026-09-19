@@ -117,10 +117,11 @@ public:
 
     ui::RemoteControlState Snapshot() const override {
         const auto identity = runtime_->Config()->Identity();
-        const auto endpoint = runtime_->Config()->Console();
         const auto ports = runtime_->Config()->Ports();
         const auto localAddresses = CollectPanelLocalAddresses();
-        const auto links = BuildPanelConnectionLinks(identity, ports, endpoint, runtime_->Config()->NodePublicAddress(), localAddresses);
+        const auto service = runtime_->Service();
+        const std::string nodeAccessHost{service ? service->Snapshot().nodeAccessHost : std::string{}};
+        const auto links = BuildPanelConnectionLinks(identity, ports, nodeAccessHost, localAddresses);
         ui::RemoteControlState result{.deviceId = identity.deviceId,
                                       .temporaryPassword = identity.randomPassword,
                                       .deviceName = identity.deviceName,
@@ -569,7 +570,6 @@ private:
                                          "Console did not issue a Relay route for this resource session.");
                 return;
             }
-            const auto console = runtime_->Config()->Console();
             const bool launched = runtime_->Launcher()->Launch(
                 {.connectionKind =
                      target.kind == ConnectionInputKind::SharedLink ? NativeConnectionKind::SharedLinkDirect : NativeConnectionKind::IpDirect,
@@ -584,8 +584,8 @@ private:
                  .frontendSessionId = target.frontendSessionId,
                  .frontendSessionRevision = target.frontendSessionRevision,
                  .frontendToken = target.frontendToken,
-                 .relayHost = target.relayHost.empty() && console ? console->host : target.relayHost,
-                 .relayPort = target.relayPort <= 0 && console ? console->relayPort : target.relayPort,
+                 .relayHost = target.relayHost,
+                 .relayPort = target.relayPort,
                  .relayRemoteDeviceId = target.relayDeviceId.empty() ? "server_" + remoteDeviceId : target.relayDeviceId,
                  .relayAdmissionTicket = target.relayAdmissionTicket,
                  .viewOnly = viewOnly,

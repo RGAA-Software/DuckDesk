@@ -253,7 +253,6 @@
   "id_verify_success": "Verify Success.",
   "id_verify_relay_failed": "Verify relay server failed.",
   "id_verify_console_failed": "Verify Supervisor server failed.",
-  "id_console_access_info_invalid": "The Console access information is incomplete or invalid. Copy the complete access configuration again, or enter valid Console and Relay addresses and ports.",
   "id_verify_relay_failed_actionable": "Relay verification failed. Confirm Relay is running, then check its address, TCP port, app key, and firewall rule before retrying.",
   "id_nothing": "There's nothing here...",
   "id_found_manager_server": "Found Servers",

@@ -11,10 +11,8 @@ struct PortRange final {
 };
 
 struct NetworkSettingsDraft final {
-    std::string authorizationInfo{};
-    std::string nodePublicAddress{};
+    std::string consoleAddress{};
     std::optional<int> consolePort{};
-    std::optional<int> relayPort{};
     int serviceManagementPort{4603};
     int desktopConnectionPort{4601};
     PortRange applicationPorts{4613, 4998};

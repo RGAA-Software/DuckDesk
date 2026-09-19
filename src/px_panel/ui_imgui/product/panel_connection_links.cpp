@@ -1,13 +1,13 @@
 #include "panel_connection_links.h"
 
-#include "px_common/base64.h"
-#include "px_common/ip_util.h"
-
 #include <charconv>
 #include <cstdint>
 #include <format>
 #include <nlohmann/json.hpp>
 #include <system_error>
+
+#include "px_common/base64.h"
+#include "px_common/ip_util.h"
 
 namespace px::panel::product {
 namespace {
@@ -52,8 +52,8 @@ std::string ResolveNodeAccessHost(const std::string& configuredAddress, const st
     return address == localAddresses.end() ? std::string{} : *address;
 }
 
-PanelConnectionLinks BuildPanelConnectionLinks(const PanelIdentity& identity, const NodePorts& ports, const std::optional<ConsoleEndpoint>& console,
-                                               const std::string& publicAddress, const std::vector<std::string>& localAddresses) {
+PanelConnectionLinks BuildPanelConnectionLinks(const PanelIdentity& identity, const NodePorts& ports, const std::string& publicAddress,
+                                               const std::vector<std::string>& localAddresses) {
     if (identity.deviceId.empty() || identity.randomPassword.empty()) {
         return {};
     }
@@ -75,10 +75,7 @@ PanelConnectionLinks BuildPanelConnectionLinks(const PanelIdentity& identity, co
                                         {"iidx", DeviceIconIndex(identity.deviceId)},
                                         {"ips", std::move(addresses)},
                                         {"ppt", ports.panel},
-                                        {"rdpt", ports.desktop},
-                                        {"rlst", console ? console->host : std::string{}},
-                                        {"rlpt", console ? console->relayPort : 0},
-                                        {"rlak", console ? console->appKey : std::string{}}};
+                                        {"rdpt", ports.desktop}};
     PanelConnectionLinks links{.desktop = "link://" + Base64::Base64Encode(desktopPayload.dump())};
 
     const std::string host{ResolveNodeAccessHost(publicAddress, localAddresses)};

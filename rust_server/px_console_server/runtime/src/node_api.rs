@@ -229,6 +229,14 @@ async fn session(mut socket: WebSocket, state: Arc<StateData>) {
             device_id: connection.device_id(),
             generation: connection.generation(),
             control_epoch: connection.epoch().value(),
+            relay: state
+                .relay
+                .as_ref()
+                .map(|endpoint| px_node_protocol::RelayEndpoint {
+                    host: endpoint.host.clone(),
+                    port: endpoint.port,
+                    app_key: endpoint.app_key.clone(),
+                }),
         },
     )
     .await

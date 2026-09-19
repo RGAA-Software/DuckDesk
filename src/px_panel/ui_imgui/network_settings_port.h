@@ -1,16 +1,15 @@
 #pragma once
 
-#include "network_settings_model.h"
-
 #include <memory>
 #include <string>
+
+#include "network_settings_model.h"
 
 namespace px::panel::ui {
 
 enum class NetworkOperation {
     Idle,
-    InvalidAuthorization,
-    InvalidPublicAddress,
+    InvalidConsoleAddress,
     Verifying,
     Verified,
     Saving,
@@ -29,9 +28,9 @@ class NetworkSettingsPort {
     virtual ~NetworkSettingsPort() = default;
 
     virtual NetworkSettingsState Snapshot() const = 0;
-    virtual void ParseAuthorization(std::string authorizationInfo) = 0;
-    virtual void Verify(std::string authorizationInfo) = 0;
-    virtual void Save(std::string authorizationInfo, std::string nodePublicAddress) = 0;
+    virtual void ParseConsoleAddress(std::string consoleAddress) = 0;
+    virtual void Verify(std::string consoleAddress) = 0;
+    virtual void Save(std::string consoleAddress) = 0;
     virtual void RestartRender() = 0;
     virtual void Acknowledge() = 0;
 };
