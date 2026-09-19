@@ -1,6 +1,12 @@
+pub mod monitor_app;
+pub mod monitor_dashboard;
+pub mod monitor_host_app;
+pub mod monitor_model;
+pub mod monitor_sender;
 pub mod single_instance;
 pub mod sys_info_mgr;
 pub mod sys_panel_client;
+pub mod tray;
 
 use std::sync::Arc;
 use tokio::sync::Mutex;

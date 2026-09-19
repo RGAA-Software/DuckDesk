@@ -1,0 +1,4 @@
+{
+  "7z_path": "../../../tools/7z/7za.exe",
+  "nsis_path": "../../../tools/nsis/makensis.exe"
+}

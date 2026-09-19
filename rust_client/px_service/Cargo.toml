@@ -13,7 +13,7 @@ px_node_protocol = { path = "../../rust_server/px_node_protocol" }
 protocol = { path = "../../rust_base/protocol" }
 service_core = { path = "./service_core" }
 prost = "0.14.1"
-rustls = "0.23"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 tokio = { version = "1.43.0", features = ["full"] }
 tokio-tungstenite = { version = "0.27.0", features = ["rustls-tls-native-roots", "tokio-rustls"] }
 futures-util = "0.3.31"
