@@ -318,6 +318,11 @@ impl NodeStore {
             .fetch_optional(&mut *tx)
             .await?
             .ok_or(StoreError::Rejected)?;
+        let (rdp_domain, rdp_proxy_certificate_sha256) = validated
+            .rdp_identity
+            .as_ref()
+            .map(|(domain, pin)| (Some(domain.as_str()), Some(pin.as_str())))
+            .unwrap_or((None, None));
         let node = sqlx::query_file_as!(
             NodeProfile,
             "queries/node_report.sql",
@@ -332,7 +337,9 @@ impl NodeStore {
             i32::from(report.application_port_end),
             report.game_hook,
             report.webview,
-            report.rdp
+            report.rdp,
+            rdp_domain,
+            rdp_proxy_certificate_sha256
         )
         .fetch_optional(&mut *tx)
         .await?

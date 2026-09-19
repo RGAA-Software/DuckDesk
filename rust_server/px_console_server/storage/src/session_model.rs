@@ -92,6 +92,10 @@ pub struct ResourceDescriptor {
     pub host: String,
     pub port: u16,
     pub transport: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rdp_domain: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rdp_proxy_certificate_sha256: Option<String>,
     pub expires_at: DateTime<Utc>,
 }
 #[derive(Debug, Clone, serde::Serialize)]
@@ -170,6 +174,8 @@ pub(crate) struct SessionEndpoint {
     pub host: String,
     pub port: i32,
     pub transport: String,
+    pub rdp_domain: Option<String>,
+    pub rdp_proxy_certificate_sha256: Option<String>,
 }
 #[cfg(test)]
 mod tests {

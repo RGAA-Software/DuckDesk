@@ -10,11 +10,45 @@ use axum::{
     Json, Router,
 };
 use px_console_store::{
-    ApplicationInstance, OpenResourceSession, ResourceSession, SessionTarget, StartApplication,
+    ApplicationInstance, OpenResourceSession, ResourceDescriptor, ResourceSession, SessionTarget,
+    StartApplication,
 };
-use serde_json::{json, Value};
 use std::sync::Arc;
 use uuid::Uuid;
+use zeroize::Zeroizing;
+
+fn serialize_secret<S>(value: &Zeroizing<String>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(value.as_str())
+}
+
+#[derive(serde::Serialize)]
+struct RdpFrontendBootstrap {
+    schema: u32,
+    account_name: String,
+    domain: String,
+    proxy_certificate_sha256: String,
+    #[serde(serialize_with = "serialize_secret")]
+    password: Zeroizing<String>,
+}
+
+#[derive(serde::Serialize)]
+struct RelayFrontendBootstrap {
+    host: String,
+    port: u16,
+    admission_ticket: String,
+}
+
+#[derive(serde::Serialize)]
+struct DescriptorResponse {
+    descriptor: ResourceDescriptor,
+    #[serde(serialize_with = "serialize_secret")]
+    token: Zeroizing<String>,
+    relay: Option<RelayFrontendBootstrap>,
+    rdp: Option<RdpFrontendBootstrap>,
+}
 
 pub(crate) fn routes() -> Router<Arc<StateData>> {
     Router::new()
@@ -165,7 +199,7 @@ async fn descriptor(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
     Input(value): Input<Revision>,
-) -> Result<Json<Value>, ApiError> {
+) -> Result<Json<DescriptorResponse>, ApiError> {
     let context = request::resource_context(&state, &headers)?;
     let (token, digest) = request::mint();
     let descriptor = state
@@ -180,6 +214,27 @@ async fn descriptor(
             state.entitlement(),
         )
         .await?;
+    let rdp = if descriptor.transport == "rdp" {
+        let domain = descriptor.rdp_domain.clone().ok_or(ApiError::Unavailable)?;
+        let proxy_certificate_sha256 = descriptor
+            .rdp_proxy_certificate_sha256
+            .clone()
+            .ok_or(ApiError::Unavailable)?;
+        let credential = state
+            .db
+            .workspaces()
+            .credentials_for_frontend(descriptor.session.id)
+            .await?;
+        Some(RdpFrontendBootstrap {
+            schema: 1,
+            account_name: credential.account_name,
+            domain,
+            proxy_certificate_sha256,
+            password: credential.password,
+        })
+    } else {
+        None
+    };
     let relay = if let Some(endpoint) = state.relay.as_ref() {
         let remote_resource_id = match descriptor.session.target {
             SessionTarget::Desktop { device_id } => device_id,
@@ -197,17 +252,20 @@ async fn descriptor(
             expires_at_unix_seconds,
         )
         .ok_or(ApiError::Unavailable)?;
-        Some(json!({
-            "host": endpoint.host,
-            "port": endpoint.port,
-            "admission_ticket": admission_ticket.as_str(),
-        }))
+        Some(RelayFrontendBootstrap {
+            host: endpoint.host.clone(),
+            port: endpoint.port,
+            admission_ticket: admission_ticket.as_str().to_string(),
+        })
     } else {
         None
     };
-    Ok(Json(
-        json!({"descriptor":descriptor,"token":token.as_str(),"relay":relay}),
-    ))
+    Ok(Json(DescriptorResponse {
+        descriptor,
+        token,
+        relay,
+        rdp,
+    }))
 }
 
 async fn close(

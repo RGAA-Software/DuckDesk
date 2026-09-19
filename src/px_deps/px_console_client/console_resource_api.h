@@ -30,6 +30,7 @@ struct ConsoleResourceConnection final {
     std::int64_t session_revision{};
     std::shared_ptr<const px::SecretBuffer> frontend_token{};
     std::string transport{};
+    std::shared_ptr<const px::SecretBuffer> rdp_configuration{};
     std::string relay_host{};
     int relay_port{};
     std::string relay_admission_ticket{};

@@ -1,6 +1,6 @@
 # RDP 应用模式开发计划
 
-> 日期：2026-09-08。状态：WebSocket/proxy、初步输入和会话保留重连已经实现；完整功能与故障验收需在 Console 当前配置的公网 Windows 节点重新执行。
+> 日期：2026-09-08，2026-09-20 更新。状态：WebSocket/proxy、初步输入、会话保留重连及 PostgreSQL Console→Panel 受保护工作区启动信封已经实现并通过本地短测；RDP 模式固定使用专用可靠通道，Panel 不显示且模型不继承 Native 的强制 TCP/Relay 偏好。完整功能与故障验收需在 Console 当前配置的公网 Windows 节点重新执行。
 > 用户确认单工作区单客户端设计。本文是后续实施入口；产品决策见
 > [RDP 模式设计第 0 节](rdp_application_mode_design.md#0-最新决策rdp-原生代理与会话保留)，
 > 已有实现以只读参考仓库 `D:/dolit/rdp` 的当前代码为准；旧功能盘点文档已不存在。

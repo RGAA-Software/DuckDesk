@@ -13,6 +13,8 @@ pub fn report(value: wire::NodeReport) -> store::NodeReport {
         game_hook: value.game_hook,
         webview: value.webview,
         rdp: value.rdp,
+        rdp_domain: value.rdp_domain,
+        rdp_proxy_certificate_sha256: value.rdp_proxy_certificate_sha256,
         telemetry: telemetry(value.telemetry),
     }
 }

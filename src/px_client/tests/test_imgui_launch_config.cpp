@@ -109,16 +109,35 @@ TEST(ClientImguiLaunchConfigTest, ParsesProtectedRdpLaunch) {
     const auto config = ParseClientLaunchEnvelope(R"({
         "schema":1,"host":"127.0.0.1","port":5403,"stream_id":"rdp-1","device_id":"client-1",
         "remote_device_id":"render-1","connection_nonce":"nonce","connection_instance_id":"instance-1",
-        "remote_password_hash":"render-password-hash",
-        "rdp":{"schema":1,"account_name":"prdp_user1","domain":"PIXELS",
+        "frontend_session_id":"rdp-1","frontend_session_revision":2,"frontend_token":"frontend-secret",
+        "rdp":{"schema":1,"account_name":"pxrdp_0123456789abcd","domain":"PIXELS",
         "proxy_certificate_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                "password":"a-secure-workspace-password-with-32-bytes"}
     })");
     ASSERT_TRUE(config);
     EXPECT_TRUE(config->rdp);
-    EXPECT_EQ(config->rdpAccount, "prdp_user1");
+    ASSERT_TRUE(config->frontendToken);
+    EXPECT_EQ(config->frontendToken->View(), "frontend-secret");
+    EXPECT_EQ(config->rdpAccount, "pxrdp_0123456789abcd");
     ASSERT_TRUE(config->rdpPassword);
     EXPECT_EQ(config->rdpPassword->View(), "a-secure-workspace-password-with-32-bytes");
+}
+
+TEST(ClientImguiLaunchConfigTest, RejectsMalformedRdpIdentityAndPasswordType) {
+    EXPECT_FALSE(ParseClientLaunchEnvelope(R"({
+        "schema":1,"host":"127.0.0.1","port":5403,"stream_id":"rdp-1","device_id":"client-1",
+        "remote_device_id":"render-1","connection_nonce":"nonce","frontend_session_id":"rdp-1",
+        "frontend_session_revision":2,"frontend_token":"frontend-secret",
+        "rdp":{"schema":1,"account_name":"Administrator","domain":"PIXELS",
+        "proxy_certificate_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","password":"secret"}
+    })"));
+    EXPECT_FALSE(ParseClientLaunchEnvelope(R"({
+        "schema":1,"host":"127.0.0.1","port":5403,"stream_id":"rdp-1","device_id":"client-1",
+        "remote_device_id":"render-1","connection_nonce":"nonce","frontend_session_id":"rdp-1",
+        "frontend_session_revision":2,"frontend_token":"frontend-secret",
+        "rdp":{"schema":1,"account_name":"pxrdp_0123456789abcd","domain":"PIXELS",
+        "proxy_certificate_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","password":42}
+    })"));
 }
 
 }  // namespace px::client::imgui

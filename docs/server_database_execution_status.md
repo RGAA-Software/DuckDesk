@@ -1162,6 +1162,27 @@ MongoDB 声明和 `px_sysinfo` 对未使用授权 crate 的依赖也已移除；
 系统信息 4/4、User Proxy 99/99、Service Core 87/87（另 1 项真实 UE 样本忽略）、Service Manager 12/12；两个 workspace 的严格
 Clippy 均通过。本项只清理编译依赖并恢复静态门禁，不扩大为 Windows 安装包或公网产品验收。
 
+RDP 的 PostgreSQL 产品连接缺口已在本地实现收口。Windows Service 不再固定上报 `rdp=false`：只有安装目录中的 RDP 部署清单、代理、
+策略和证书材料通过既有严格校验时，节点报告才携带 RDP 能力、Windows domain 与 proxy certificate SHA-256；任一缺件均 fail-closed，
+不会伪装为可调度。Console 把这两项非秘密身份持久化到节点，变化时推进 endpoint revision 并触发重新对账。RDP descriptor 仍只允许
+当前 `panel + controller + CloudApplication`；Console 仅在 descriptor 已签发且未过期、节点代际/epoch/端点仍相同、用户或 guest 授权仍有效、
+实例 Running 且工作区 Ready 时解封账号密码。管理 DTO、Android、observer、已撤销登录和已关闭会话均不能取得该信封。
+
+Panel 解析信封后以 `SecretBuffer` 持有，按 `transport=rdp` 选择现有 `--rdp-launch-stdin`，并把同一 session/revision/frontend token 一并
+交给 Client；Client 因而以 Console 前端授权建立 RDP WebSocket，不再需要或伪造 Render 密码。RDP 不提供传输切换选项，模型层也会清除
+该应用可能残留的本地强制 TCP/Relay 偏好，不能出现界面禁用但启动流程仍索取 Relay 路由的分叉。Console 与 Client 在完成其他字段解析前
+先把源 JSON 中的工作区密码转入可清零缓冲并抹除源值；畸形信封同样不保留普通字符串密码。
+
+节点配置 migration 0029、277 条 Console SQLx 离线元数据和严格 Clippy 已更新，PrepareQueries 报告为
+`pg-20260920-064650-0b1082e1`。最终聚焦回归为 Service 节点控制 13/13、RDP Service Core 14/14、Service Host 30/30、工作区 6/6、
+资源会话 11/11、Console 节点控制 1/1 和 Client 启动信封 1/1；最新 PostgreSQL 报告为
+`pg-20260920-070459-213d2c8f`、`pg-20260920-070630-8149a72c`，隔离容器与卷均已清理。资源会话测试还验证登录撤销和会话关闭后立即
+拒绝再次解封。Console development `px_console.exe` 构建/输出 SHA-256 为
+`2857BF4AD61234210EDE16172598AC2E7C3398647492F31C64AB932FADB044FF`。Client、Cloud Node、Remote 的 development dist 均已重新收集，
+分别以 41、315、77 件分发物通过逐件 SHA-256 和产品依赖边界复核；本轮使用聚焦增量构建，不执行 release-only 全量升版构建。
+公网 Console 与节点制品尚未部署：`39.71.45.66` 的 WinRM 和 SSH 均可达，但登记管理员凭据分别在认证阶段返回 Access denied / Authentication
+failed；因此本条只关闭本地实现和短门禁，不宣称公网 RDP 图形、输入、音频、剪贴板或会话保留验收通过。
+
 ## 仍未通过的阶段出口
 
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。

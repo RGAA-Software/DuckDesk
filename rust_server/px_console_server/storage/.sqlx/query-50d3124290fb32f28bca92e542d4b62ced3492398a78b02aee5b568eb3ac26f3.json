@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE pixels.nodes n SET report_sequence=$4,last_seen=clock_timestamp(),product_version_code=$5,\nendpoint_revision=n.endpoint_revision+CASE WHEN n.public_host IS DISTINCT FROM $6 OR n.desktop_port IS DISTINCT FROM $7 OR n.application_port_start IS DISTINCT FROM $8 OR n.application_port_end IS DISTINCT FROM $9 THEN 1 ELSE 0 END,\nstate=CASE WHEN n.public_host IS DISTINCT FROM $6 OR n.desktop_port IS DISTINCT FROM $7 OR n.application_port_start IS DISTINCT FROM $8 OR n.application_port_end IS DISTINCT FROM $9 OR n.game_hook<>$10 OR n.webview<>$11 OR n.rdp<>$12 OR n.last_seen<=statement_timestamp()-interval '30 seconds' THEN 'reconciling' ELSE n.state END,\nreconciliation_id=CASE WHEN n.public_host IS DISTINCT FROM $6 OR n.desktop_port IS DISTINCT FROM $7 OR n.application_port_start IS DISTINCT FROM $8 OR n.application_port_end IS DISTINCT FROM $9 OR n.game_hook<>$10 OR n.webview<>$11 OR n.rdp<>$12 OR n.last_seen<=statement_timestamp()-interval '30 seconds' THEN NULL ELSE n.reconciliation_id END,\nreconciliation_deadline=CASE WHEN n.public_host IS DISTINCT FROM $6 OR n.desktop_port IS DISTINCT FROM $7 OR n.application_port_start IS DISTINCT FROM $8 OR n.application_port_end IS DISTINCT FROM $9 OR n.game_hook<>$10 OR n.webview<>$11 OR n.rdp<>$12 OR n.last_seen<=statement_timestamp()-interval '30 seconds' THEN NULL ELSE n.reconciliation_deadline END,\npublic_host=$6,desktop_port=$7,application_port_start=$8,application_port_end=$9,game_hook=$10,webview=$11,rdp=$12\nWHERE n.connection_hash=$1 AND n.generation=$2 AND n.control_epoch=$3 AND $3=(SELECT epoch FROM pixels.control_runtime)\nAND $4>n.report_sequence AND NOT n.disabled AND n.deleted_at IS NULL\nAND EXISTS(SELECT 1 FROM pixels.devices d WHERE d.id=n.device_id AND NOT d.disabled AND d.deleted_at IS NULL)\nRETURNING id,device_id,product,revision,generation,control_epoch,state,draining,disabled,max_instances,report_sequence,last_seen,product_version_code,public_host,desktop_port,application_port_start,application_port_end,game_hook,webview,rdp,endpoint_revision,true AS \"fresh!\"\n",
+  "query": "UPDATE pixels.nodes n SET report_sequence=$4,last_seen=clock_timestamp(),product_version_code=$5,\nendpoint_revision=n.endpoint_revision+CASE WHEN n.public_host IS DISTINCT FROM $6 OR n.desktop_port IS DISTINCT FROM $7 OR n.application_port_start IS DISTINCT FROM $8 OR n.application_port_end IS DISTINCT FROM $9 OR n.rdp_domain IS DISTINCT FROM $13 OR n.rdp_proxy_certificate_sha256 IS DISTINCT FROM $14 THEN 1 ELSE 0 END,\nstate=CASE WHEN n.public_host IS DISTINCT FROM $6 OR n.desktop_port IS DISTINCT FROM $7 OR n.application_port_start IS DISTINCT FROM $8 OR n.application_port_end IS DISTINCT FROM $9 OR n.game_hook<>$10 OR n.webview<>$11 OR n.rdp<>$12 OR n.rdp_domain IS DISTINCT FROM $13 OR n.rdp_proxy_certificate_sha256 IS DISTINCT FROM $14 OR n.last_seen<=statement_timestamp()-interval '30 seconds' THEN 'reconciling' ELSE n.state END,\nreconciliation_id=CASE WHEN n.public_host IS DISTINCT FROM $6 OR n.desktop_port IS DISTINCT FROM $7 OR n.application_port_start IS DISTINCT FROM $8 OR n.application_port_end IS DISTINCT FROM $9 OR n.game_hook<>$10 OR n.webview<>$11 OR n.rdp<>$12 OR n.rdp_domain IS DISTINCT FROM $13 OR n.rdp_proxy_certificate_sha256 IS DISTINCT FROM $14 OR n.last_seen<=statement_timestamp()-interval '30 seconds' THEN NULL ELSE n.reconciliation_id END,\nreconciliation_deadline=CASE WHEN n.public_host IS DISTINCT FROM $6 OR n.desktop_port IS DISTINCT FROM $7 OR n.application_port_start IS DISTINCT FROM $8 OR n.application_port_end IS DISTINCT FROM $9 OR n.game_hook<>$10 OR n.webview<>$11 OR n.rdp<>$12 OR n.rdp_domain IS DISTINCT FROM $13 OR n.rdp_proxy_certificate_sha256 IS DISTINCT FROM $14 OR n.last_seen<=statement_timestamp()-interval '30 seconds' THEN NULL ELSE n.reconciliation_deadline END,\npublic_host=$6,desktop_port=$7,application_port_start=$8,application_port_end=$9,game_hook=$10,webview=$11,rdp=$12,rdp_domain=$13,rdp_proxy_certificate_sha256=$14\nWHERE n.connection_hash=$1 AND n.generation=$2 AND n.control_epoch=$3 AND $3=(SELECT epoch FROM pixels.control_runtime)\nAND $4>n.report_sequence AND NOT n.disabled AND n.deleted_at IS NULL\nAND EXISTS(SELECT 1 FROM pixels.devices d WHERE d.id=n.device_id AND NOT d.disabled AND d.deleted_at IS NULL)\nRETURNING id,device_id,product,revision,generation,control_epoch,state,draining,disabled,max_instances,report_sequence,last_seen,product_version_code,public_host,desktop_port,application_port_start,application_port_end,game_hook,webview,rdp,endpoint_revision,true AS \"fresh!\"\n",
   "describe": {
     "columns": [
       {
@@ -127,7 +127,9 @@
         "Int4",
         "Bool",
         "Bool",
-        "Bool"
+        "Bool",
+        "Text",
+        "Text"
       ]
     },
     "nullable": [
@@ -155,5 +157,5 @@
       null
     ]
   },
-  "hash": "633ac76907412ff84ad443be1f0ee33afa62a4538c39a1190ca347a5df4c7bc1"
+  "hash": "50d3124290fb32f28bca92e542d4b62ced3492398a78b02aee5b568eb3ac26f3"
 }

@@ -165,6 +165,27 @@ impl WorkspaceStore {
         tx.commit().await?;
         Ok(result)
     }
+    /// The caller has just issued this exact Panel controller descriptor. This
+    /// second gate binds the decrypted password to that still-live RDP frontend;
+    /// management and non-Panel callers have no API that crosses this boundary.
+    pub async fn credentials_for_frontend(
+        &self,
+        session_id: Uuid,
+    ) -> Result<WorkspaceCredential, StoreError> {
+        let mut tx = self.pool.begin().await?;
+        control::read_gate(&mut tx).await?;
+        let row = sqlx::query_file_as!(
+            WorkspaceRow,
+            "queries/authorize_workspace_frontend.sql",
+            session_id
+        )
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(StoreError::Rejected)?;
+        let result = self.credential(&row)?;
+        tx.commit().await?;
+        Ok(result)
+    }
     /// A SID is evidence reported by the trusted node, not an authorization to adopt
     /// an unrelated Windows account. The node must verify its provisioning ownership.
     pub async fn confirm_account(

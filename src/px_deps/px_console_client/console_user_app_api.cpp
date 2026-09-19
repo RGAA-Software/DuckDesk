@@ -195,6 +195,8 @@ px::Result<ConsoleNativeApplicationConnection, ConsoleApiError> ConsoleUserAppAp
                                               .session_id = resource->session_id,
                                               .session_revision = resource->session_revision,
                                               .frontend_token = resource->frontend_token,
+                                              .transport = resource->transport,
+                                              .rdp_configuration = resource->rdp_configuration,
                                               .relay_host = resource->relay_host,
                                               .relay_port = resource->relay_port,
                                               .relay_admission_ticket = resource->relay_admission_ticket};

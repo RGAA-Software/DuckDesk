@@ -1,0 +1,88 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT w.id,w.application_id,w.deployment_id,w.node_id,w.account_name,w.windows_sid,w.revision,w.credential_revision,\ns.schema_version,s.key_id,s.nonce,s.ciphertext\nFROM pixels.resource_sessions r\nJOIN pixels.instances i ON i.id=r.instance_id AND i.application_id=r.application_id AND i.node_id=r.node_id\nJOIN pixels.nodes n ON n.id=r.node_id\nJOIN pixels.rdp_workspaces w ON w.application_id=i.application_id AND w.deployment_id=i.deployment_id AND w.node_id=i.node_id\nJOIN pixels.workspace_secrets s ON s.workspace_id=w.id\nWHERE r.id=$1 AND r.target_kind='cloud_application' AND r.client_type='panel' AND r.access_role='controller'\nAND r.state IN ('pending','connected') AND r.descriptor_hash IS NOT NULL AND r.descriptor_expires_at>clock_timestamp()\nAND i.kind='rdp' AND i.state='running' AND i.desired_state='running' AND i.ended_at IS NULL\nAND r.node_generation=n.generation AND r.control_epoch=n.control_epoch AND r.endpoint_revision=n.endpoint_revision\nAND n.state='ready' AND NOT n.disabled AND n.deleted_at IS NULL\nAND n.control_epoch=(SELECT epoch FROM pixels.control_runtime)\nAND n.last_seen>clock_timestamp()-interval '30 seconds'\nAND w.state='ready'\nAND ((r.owner_user IS NOT NULL AND EXISTS(\n    SELECT 1 FROM pixels.login_sessions l JOIN pixels.users u ON u.id=l.user_id\n    WHERE l.id=r.login_session_id AND u.id=r.owner_user AND u.role IN ('user','admin')\n    AND NOT u.disabled AND u.deleted_at IS NULL AND u.authorization_revision=r.owner_revision\n    AND l.authorization_revision=r.owner_revision AND l.client_type=r.client_type\n    AND l.revoked_at IS NULL AND l.expires_at>clock_timestamp() AND l.absolute_expires_at>clock_timestamp()\n)) OR (r.owner_guest IS NOT NULL AND EXISTS(\n    SELECT 1 FROM pixels.guest_sessions g WHERE g.id=r.owner_guest AND g.revision=r.owner_revision\n    AND g.client_type=r.client_type AND g.revoked_at IS NULL AND g.expires_at>clock_timestamp()\n    AND NOT EXISTS(SELECT 1 FROM pixels.guest_blocks b WHERE b.guest_id=g.id)\n    AND NOT EXISTS(SELECT 1 FROM pixels.guest_source_blocks b WHERE b.source_hash=g.source_hash AND b.expires_at>clock_timestamp())\n)))\nFOR SHARE OF r,i,w,s\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "application_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "deployment_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "node_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "account_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "windows_sid",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "credential_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "schema_version",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "key_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 10,
+        "name": "nonce",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 11,
+        "name": "ciphertext",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "f9c0e91d80aa5e26268491242f59ec82b547dec07637660a05c71fe84add27b8"
+}

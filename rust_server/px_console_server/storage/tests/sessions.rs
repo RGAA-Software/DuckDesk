@@ -5,11 +5,12 @@ use px_console_store::{
     ApplicationInstance, ClientType, CommandOutcome, CommandReceipt, DeploymentTarget,
     DeviceAccess, NodeConnection, OpenResourceSession, ResourceCredential, ResourceSession,
     ResourceSessionStore, RuntimeEntitlement, SessionAccess, SessionTarget, StoreError,
-    TokenDigest,
+    TokenDigest, WorkspaceCommandLease, WorkspaceKey, WorkspaceStore, WorkspaceVault,
 };
 use std::{env, sync::Arc, time::Duration};
 use tokio::sync::Barrier;
 use uuid::Uuid;
+use zeroize::Zeroizing;
 
 #[tokio::test]
 async fn license_session_quota_and_feature_gate_new_grants() {
@@ -480,7 +481,80 @@ async fn rdp_last_frontend_is_atomic_and_never_uses_android_or_observer_fallback
     let session_store = store().await;
     let (node, app, _) = fixture.prepared(DeploymentTarget::Rdp, 1).await;
     let key = fixture.session("user", ClientType::Panel).await;
-    let instance = running(&fixture, &node, app.id, &key, ClientType::Panel, false).await;
+    let instance = fixture
+        .instances
+        .reserve(
+            ResourceCredential::User(&key),
+            ClientType::Panel,
+            node.epoch(),
+            &request(app.id),
+        )
+        .await
+        .unwrap();
+    let command = fixture
+        .instances
+        .next_command(&node)
+        .await
+        .unwrap()
+        .unwrap();
+    let vault_key = Uuid::new_v4();
+    let workspace_store = WorkspaceStore::connect(
+        &config("RUNTIME"),
+        env::var("PIXELS_DEPLOYMENT_ID").unwrap().parse().unwrap(),
+        Arc::new(
+            WorkspaceVault::new(
+                vault_key,
+                vec![WorkspaceKey {
+                    id: vault_key,
+                    bytes: Zeroizing::new([91; 32]),
+                }],
+            )
+            .unwrap(),
+        ),
+    )
+    .await
+    .unwrap();
+    let workspace = workspace_store
+        .credentials_for_start(
+            &node,
+            WorkspaceCommandLease {
+                command_id: command.id,
+                lease_id: command.lease_id,
+            },
+        )
+        .await
+        .unwrap();
+    workspace_store
+        .confirm_account(
+            &node,
+            WorkspaceCommandLease {
+                command_id: command.id,
+                lease_id: command.lease_id,
+            },
+            workspace.workspace_id,
+            "S-1-5-21-11-22-33-1001",
+        )
+        .await
+        .unwrap();
+    let port = match command.action {
+        px_console_store::NodeCommandAction::Start { port, .. } => port,
+        _ => panic!("expected start command"),
+    };
+    fixture
+        .instances
+        .acknowledge_command(
+            &node,
+            &CommandReceipt {
+                command_id: command.id,
+                lease_id: command.lease_id,
+                instance_id: instance.id,
+                launch_id: command.launch_id,
+                instance_revision: command.instance_revision,
+                outcome: CommandOutcome::Running { port },
+            },
+        )
+        .await
+        .unwrap();
     let barrier = Arc::new(Barrier::new(20));
     let mut handles = Vec::new();
     for _ in 0..20 {
@@ -525,6 +599,18 @@ async fn rdp_last_frontend_is_atomic_and_never_uses_android_or_observer_fallback
         .await
         .unwrap();
     assert_eq!(descriptor.transport, "rdp");
+    assert_eq!(descriptor.rdp_domain.as_deref(), Some("RDP-NODE"));
+    assert_eq!(
+        descriptor.rdp_proxy_certificate_sha256.as_deref(),
+        Some("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+    );
+    let frontend = workspace_store
+        .credentials_for_frontend(winner.id)
+        .await
+        .unwrap();
+    assert_eq!(frontend.workspace_id, workspace.workspace_id);
+    assert_eq!(frontend.account_name, workspace.account_name);
+    assert!(!frontend.password.is_empty());
     let challenge = session_store
         .begin_retirement(&node, winner.id)
         .await
@@ -534,6 +620,10 @@ async fn rdp_last_frontend_is_atomic_and_never_uses_android_or_observer_fallback
         .await
         .unwrap();
     assert_eq!(closed.state, "closed");
+    assert!(workspace_store
+        .credentials_for_frontend(winner.id)
+        .await
+        .is_err());
     assert_eq!(
         closed,
         session_store
@@ -554,14 +644,44 @@ async fn rdp_last_frontend_is_atomic_and_never_uses_android_or_observer_fallback
             .state,
         "running"
     );
-    assert!(session_store
+    let reopened = session_store
         .open(
             ResourceCredential::User(&key),
             ClientType::Panel,
-            &open_request(app.id, instance.id)
+            &open_request(app.id, instance.id),
         )
         .await
+        .unwrap();
+    session_store
+        .descriptor(
+            ResourceCredential::User(&key),
+            ClientType::Panel,
+            reopened.id,
+            reopened.revision,
+            &token(),
+        )
+        .await
+        .unwrap();
+    assert!(workspace_store
+        .credentials_for_frontend(reopened.id)
+        .await
         .is_ok());
+    let (owner_user, login_session): (Uuid, Uuid) = sqlx::query_as(
+        "SELECT owner_user,login_session_id FROM pixels.resource_sessions WHERE id=$1",
+    )
+    .bind(reopened.id)
+    .fetch_one(&fixture.owner)
+    .await
+    .unwrap();
+    fixture
+        .identity
+        .revoke_session(owner_user, login_session)
+        .await
+        .unwrap();
+    assert!(workspace_store
+        .credentials_for_frontend(reopened.id)
+        .await
+        .is_err());
     // Explicitly provision a separate Android-origin RDP fixture; descriptor/open must still deny it.
     let (node2, app2, _) = fixture.prepared(DeploymentTarget::Rdp, 1).await;
     let android = fixture.session("user", ClientType::Android).await;
@@ -582,6 +702,7 @@ async fn rdp_last_frontend_is_atomic_and_never_uses_android_or_observer_fallback
         )
         .await
         .is_err());
+    workspace_store.close().await;
     session_store.close().await;
     fixture.close().await;
 }

@@ -962,6 +962,17 @@ async fn report(
         }
     };
     let capability = |name: &str| product.capabilities.iter().any(|value| value == name);
+    let rdp_configuration = if capability("rdp_host") {
+        std::env::current_exe()
+            .ok()
+            .and_then(|executable| executable.parent().map(|directory| directory.join("rdp")))
+            .and_then(|directory| {
+                service_core::rdp_deployment::RdpDeployment::load(&directory).ok()
+            })
+            .and_then(|deployment| deployment.frontend_identity().ok())
+    } else {
+        None
+    };
     let request = NodeRequest::Report {
         request_id: session.request_id()?,
         report: NodeReport {
@@ -973,8 +984,9 @@ async fn report(
             application_port_end: node.applications.port_end,
             game_hook: capability("game_hook"),
             webview: capability("webview_host"),
-            // RDP remains unavailable until the new protocol carries a workspace envelope.
-            rdp: false,
+            rdp: rdp_configuration.is_some(),
+            rdp_domain: rdp_configuration.as_ref().map(|(domain, _)| domain.clone()),
+            rdp_proxy_certificate_sha256: rdp_configuration.map(|(_, pin)| pin),
             telemetry,
         },
     };
@@ -1145,9 +1157,26 @@ fn preparation_state(
                 PreparationState::Ready
             }
         }
-        DeploymentPreparation::Rdp { .. } => PreparationState::Failed {
-            reason: PreparationFailure::UnsupportedMode,
-        },
+        DeploymentPreparation::Rdp { .. } => {
+            if !capability("rdp_host") {
+                return PreparationState::Failed {
+                    reason: PreparationFailure::UnsupportedMode,
+                };
+            }
+            let deployment = std::env::current_exe()
+                .ok()
+                .and_then(|executable| executable.parent().map(|directory| directory.join("rdp")))
+                .and_then(|directory| {
+                    service_core::rdp_deployment::RdpDeployment::load(&directory).ok()
+                });
+            if deployment.is_some() {
+                PreparationState::Ready
+            } else {
+                PreparationState::Failed {
+                    reason: PreparationFailure::MissingFiles,
+                }
+            }
+        }
     }
 }
 

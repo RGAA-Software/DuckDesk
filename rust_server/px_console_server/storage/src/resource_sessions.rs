@@ -224,6 +224,8 @@ impl ResourceSessionStore {
             host: endpoint.host,
             port: endpoint.port.try_into().map_err(|_| StoreError::Rejected)?,
             transport: endpoint.transport,
+            rdp_domain: endpoint.rdp_domain,
+            rdp_proxy_certificate_sha256: endpoint.rdp_proxy_certificate_sha256,
             expires_at: issued.expires_at,
         };
         tx.commit().await?;

@@ -68,6 +68,14 @@ impl RdpDeployment {
         Ok(())
     }
 
+    pub fn frontend_identity(&self) -> Result<(String, String), String> {
+        self.validate()?;
+        Ok((
+            self.target_domain.clone(),
+            self.proxy_certificate_sha256.to_ascii_lowercase(),
+        ))
+    }
+
     fn configuration(
         &self,
         directory: &Path,

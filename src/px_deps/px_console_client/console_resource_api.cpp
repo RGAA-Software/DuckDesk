@@ -1,6 +1,7 @@
 #include "console_resource_api.h"
 
 #include <algorithm>
+#include <cctype>
 #include <format>
 #include <nlohmann/json.hpp>
 #include <string_view>
@@ -39,6 +40,24 @@ bool SameTarget(const json& actual, const ConsoleResourceTarget& expected) {
     }
     return actual.value("kind", "") == "cloud_application" && actual.value("application_id", "") == expected.application_id &&
            actual.value("instance_id", "") == expected.instance_id;
+}
+
+bool IsRdpAccountName(const std::string_view value) {
+    constexpr std::string_view prefix{"pxrdp_"};
+    return value.size() == 20U && value.starts_with(prefix) &&
+           std::all_of(value.begin() + prefix.size(), value.end(),
+                       [](const unsigned char character) { return std::isdigit(character) != 0 || (character >= 'a' && character <= 'f'); });
+}
+
+bool IsWindowsDomain(const std::string_view value) {
+    return !value.empty() && value.size() <= 15U &&
+           std::all_of(value.begin(), value.end(), [](const unsigned char character) { return std::isalnum(character) != 0 || character == '-'; });
+}
+
+bool IsSha256(const std::string_view value) {
+    return value.size() == 64U && std::all_of(value.begin(), value.end(), [](const unsigned char character) {
+               return std::isdigit(character) != 0 || (character >= 'a' && character <= 'f');
+           });
 }
 
 }  // namespace
@@ -91,6 +110,37 @@ px::Result<ConsoleResourceConnection, ConsoleApiError> OpenPanelResourceConnecti
             .session_revision = descriptor_revision,
             .frontend_token = px::SecretBuffer::Take(std::move(frontend_token)),
             .transport = descriptor.value("transport", "")};
+        if (result.transport == "rdp") {
+            const auto rdp = payload.find("rdp");
+            if (rdp == payload.end() || !rdp->is_object() || rdp->value("schema", 0) != 1) {
+                return TcErr(ConsoleApiError::kParseJsonFailed);
+            }
+            const auto passwordEntry = rdp->find("password");
+            if (passwordEntry == rdp->end() || !passwordEntry->is_string()) {
+                return TcErr(ConsoleApiError::kParseJsonFailed);
+            }
+            auto& sourcePassword = passwordEntry->get_ref<std::string&>();
+            auto password = px::SecretBuffer::Take(sourcePassword);
+            std::fill(sourcePassword.begin(), sourcePassword.end(), '\0');
+            const auto account = rdp->value("account_name", "");
+            const auto domain = rdp->value("domain", "");
+            const auto certificate = rdp->value("proxy_certificate_sha256", "");
+            payload["rdp"] = nullptr;
+            if (!password || password->Bytes().empty() || !IsRdpAccountName(account) || !IsWindowsDomain(domain) || !IsSha256(certificate)) {
+                return TcErr(ConsoleApiError::kParseJsonFailed);
+            }
+            auto configuration_payload = json{{"schema", 1},
+                                              {"account_name", account},
+                                              {"domain", domain},
+                                              {"proxy_certificate_sha256", certificate},
+                                              {"password", std::string{password->View()}}};
+            auto configuration = configuration_payload.dump();
+            auto& configuration_password = configuration_payload["password"].get_ref<std::string&>();
+            std::fill(configuration_password.begin(), configuration_password.end(), '\0');
+            result.rdp_configuration = px::SecretBuffer::Take(std::move(configuration));
+        } else if (result.transport != "native" || (payload.contains("rdp") && !payload["rdp"].is_null())) {
+            return TcErr(ConsoleApiError::kParseJsonFailed);
+        }
         if (const auto relay = payload.find("relay"); relay != payload.end() && !relay->is_null()) {
             result.relay_host = relay->value("host", "");
             result.relay_port = relay->value("port", 0);
@@ -104,9 +154,9 @@ px::Result<ConsoleResourceConnection, ConsoleApiError> OpenPanelResourceConnecti
         const auto& owner = session.at("owner");
         if (result.host.empty() || result.port <= 0 || result.port > 65'535 || result.remote_resource_id.empty() || result.session_id != session_id ||
             result.session_revision < opened_revision || !result.frontend_token || result.frontend_token->Bytes().empty() ||
-            result.transport != "native" || session.value("client_type", "") != "panel" || session.value("access_role", "") != access ||
-            (session.value("state", "") != "pending" && session.value("state", "") != "connected") || owner.value("kind", "") != expected_owner ||
-            !SameTarget(session.at("target"), target)) {
+            (result.transport == "rdp") != static_cast<bool>(result.rdp_configuration) || session.value("client_type", "") != "panel" ||
+            session.value("access_role", "") != access || (session.value("state", "") != "pending" && session.value("state", "") != "connected") ||
+            owner.value("kind", "") != expected_owner || !SameTarget(session.at("target"), target)) {
             return TcErr(ConsoleApiError::kParseJsonFailed);
         }
         return result;

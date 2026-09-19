@@ -199,6 +199,8 @@ fn report(sequence: u64) -> NodeReport {
         game_hook: true,
         webview: true,
         rdp: true,
+        rdp_domain: Some("RDP-NODE".into()),
+        rdp_proxy_certificate_sha256: Some("b".repeat(64)),
         telemetry: unavailable_telemetry(),
     }
 }

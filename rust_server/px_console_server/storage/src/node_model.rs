@@ -74,6 +74,8 @@ pub struct NodeReport {
     pub game_hook: bool,
     pub webview: bool,
     pub rdp: bool,
+    pub rdp_domain: Option<String>,
+    pub rdp_proxy_certificate_sha256: Option<String>,
     pub telemetry: NodeTelemetry,
 }
 impl NodeReport {
@@ -101,9 +103,29 @@ impl NodeReport {
                 .map_err(|_| StoreError::InvalidInput)?
                 .to_string()
         };
+        let rdp_identity = match (
+            self.rdp,
+            self.rdp_domain.as_deref(),
+            self.rdp_proxy_certificate_sha256.as_deref(),
+        ) {
+            (false, None, None) => None,
+            (true, Some(domain), Some(pin))
+                if !domain.is_empty()
+                    && domain.len() <= 15
+                    && domain
+                        .bytes()
+                        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+                    && pin.len() == 64
+                    && pin.bytes().all(|byte| byte.is_ascii_hexdigit()) =>
+            {
+                Some((domain.to_string(), pin.to_ascii_lowercase()))
+            }
+            _ => return Err(StoreError::InvalidInput),
+        };
         Ok(ValidatedNodeReport {
             sequence,
             host,
+            rdp_identity,
             telemetry: self.telemetry.validate()?,
         })
     }
@@ -163,6 +185,7 @@ pub struct NodeTelemetryBackfillSample {
 pub(crate) struct ValidatedNodeReport {
     pub sequence: i64,
     pub host: String,
+    pub rdp_identity: Option<(String, String)>,
     pub telemetry: ValidatedNodeTelemetry,
 }
 
@@ -498,6 +521,8 @@ mod tests {
             game_hook: true,
             webview: true,
             rdp: true,
+            rdp_domain: Some("RDP-NODE".into()),
+            rdp_proxy_certificate_sha256: Some("b".repeat(64)),
             telemetry: NodeTelemetry {
                 sampled_at: Utc::now(),
                 probe_state: TelemetryProbeState::Unavailable,

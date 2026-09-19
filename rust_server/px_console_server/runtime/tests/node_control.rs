@@ -49,6 +49,8 @@ fn telemetry_report(request_id: u64, sequence: u64, cpu_utilization_per_mille: u
             "game_hook":true,
             "webview":true,
             "rdp":true,
+            "rdp_domain":"RDP-NODE",
+            "rdp_proxy_certificate_sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
             "telemetry":{
                 "sampled_at":chrono::Utc::now(),
                 "probe_state":"ready",
@@ -272,6 +274,8 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
                 "game_hook":true,
                 "webview":true,
                 "rdp":true,
+                "rdp_domain":"RDP-NODE",
+                "rdp_proxy_certificate_sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
                 "telemetry":{
                     "sampled_at":chrono::Utc::now(),
                     "probe_state":"ready",

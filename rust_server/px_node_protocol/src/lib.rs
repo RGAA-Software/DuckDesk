@@ -105,6 +105,8 @@ pub struct NodeReport {
     pub game_hook: bool,
     pub webview: bool,
     pub rdp: bool,
+    pub rdp_domain: Option<String>,
+    pub rdp_proxy_certificate_sha256: Option<String>,
     pub telemetry: NodeTelemetry,
 }
 

@@ -44,15 +44,16 @@ public:
                 preferences = self->preferences_;
             }
             for (const auto& application : applications) {
+                const bool rdpMode{application.app_type == "rdp"};
                 const auto inMemory = preferences.find(application.app_id);
                 const auto persisted = runtime->Config()->LoadCloudApplicationPreference(application.app_id);
-                const bool forceTcp{inMemory != preferences.end() ? inMemory->second.first : persisted.forceTcp};
-                const bool forceRelay{inMemory != preferences.end() ? inMemory->second.second : persisted.forceRelay};
+                const bool forceTcp{!rdpMode && (inMemory != preferences.end() ? inMemory->second.first : persisted.forceTcp)};
+                const bool forceRelay{!rdpMode && (inMemory != preferences.end() ? inMemory->second.second : persisted.forceRelay)};
                 cards.push_back({.streamId = application.app_id,
                                  .name = application.name,
                                  .instanceState = application.running_instance ? application.running_instance->state : "stopped",
                                  .kind = ResolveApplicationKind(application.app_type),
-                                 .rdpMode = application.app_type == "rdp",
+                                 .rdpMode = rdpMode,
                                  .forceTcp = forceTcp,
                                  .forceRelay = forceRelay});
                 if (application.running_instance) instances[application.app_id] = application.running_instance->instance_id;
@@ -223,7 +224,8 @@ private:
                 runtime->Notify(true, "Application failed", "Console did not issue a Relay route for this resource session.");
                 return;
             }
-            const bool launched = runtime->Launcher()->Launch({.connectionKind = NativeConnectionKind::IpDirect,
+            const bool rdp = launch.connection.transport == "rdp";
+            const bool launched = runtime->Launcher()->Launch({.connectionKind = rdp ? NativeConnectionKind::Rdp : NativeConnectionKind::IpDirect,
                                                                .displayName = launch.card.name,
                                                                .remoteDeviceId = launch.connection.device_id,
                                                                .instanceId = launch.instanceId,
@@ -239,6 +241,7 @@ private:
                                                                .relayPort = launch.connection.relay_port,
                                                                .relayRemoteDeviceId = "server_" + launch.connection.device_id,
                                                                .relayAdmissionTicket = launch.connection.relay_admission_ticket,
+                                                               .rdpConfiguration = launch.connection.rdp_configuration,
                                                                .viewOnly = launch.viewOnly,
                                                                .forceTcp = launch.card.forceTcp,
                                                                .forceRelay = launch.card.forceRelay});

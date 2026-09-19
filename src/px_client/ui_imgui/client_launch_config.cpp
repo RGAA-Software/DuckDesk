@@ -1,6 +1,7 @@
 #include "client_launch_config.h"
 
 #include <algorithm>
+#include <cctype>
 #include <format>
 #include <nlohmann/json.hpp>
 
@@ -21,6 +22,24 @@ std::string AuthenticationQuery(const ClientLaunchConfig& config) {
                            config.frontendSessionRevision, px::UrlHelper::EncodeQueryComponent(std::string(config.frontendToken->View())));
     }
     return "safety_pwd_md5=" + px::UrlHelper::EncodeQueryComponent(config.remotePasswordHash);
+}
+
+bool IsRdpAccountName(const std::string_view value) {
+    constexpr std::string_view prefix{"pxrdp_"};
+    return value.size() == 20U && value.starts_with(prefix) &&
+           std::all_of(value.begin() + prefix.size(), value.end(),
+                       [](const unsigned char character) { return std::isdigit(character) != 0 || (character >= 'a' && character <= 'f'); });
+}
+
+bool IsWindowsDomain(const std::string_view value) {
+    return !value.empty() && value.size() <= 15U &&
+           std::all_of(value.begin(), value.end(), [](const unsigned char character) { return std::isalnum(character) != 0 || character == '-'; });
+}
+
+bool IsSha256(const std::string_view value) {
+    return value.size() == 64U && std::all_of(value.begin(), value.end(), [](const unsigned char character) {
+               return std::isdigit(character) != 0 || (character >= 'a' && character <= 'f');
+           });
 }
 
 }  // namespace
@@ -76,11 +95,15 @@ std::optional<ClientLaunchConfig> ParseClientLaunchEnvelope(const std::string_vi
         }
         if (const auto rdp = values.find("rdp"); rdp != values.end() && rdp->is_object()) {
             result.rdp = true;
+            const auto passwordEntry = rdp->find("password");
+            if (passwordEntry == rdp->end() || !passwordEntry->is_string()) return std::nullopt;
+            auto& sourcePassword = passwordEntry->get_ref<std::string&>();
+            auto password = sourcePassword;
+            std::fill(sourcePassword.begin(), sourcePassword.end(), '\0');
+            result.rdpPassword = px::SecretBuffer::Take(std::move(password));
             result.rdpAccount = Value<std::string>(*rdp, "account_name");
             result.rdpDomain = Value<std::string>(*rdp, "domain");
             result.rdpProxyCertificateSha256 = Value<std::string>(*rdp, "proxy_certificate_sha256");
-            auto password = Value<std::string>(*rdp, "password");
-            result.rdpPassword = px::SecretBuffer::Take(std::move(password));
         }
         const bool hasConsoleFrontendFields = result.frontendToken || !result.frontendSessionId.empty() || result.frontendSessionRevision != 0;
         const bool consoleFrontend = result.frontendToken && !result.frontendToken->Bytes().empty();
@@ -91,8 +114,8 @@ std::optional<ClientLaunchConfig> ParseClientLaunchEnvelope(const std::string_vi
             (!hasConsoleFrontendFields && result.remotePasswordHash.empty())) {
             return std::nullopt;
         }
-        if (result.rdp && (result.rdpAccount.empty() || result.rdpDomain.empty() || result.rdpProxyCertificateSha256.size() != 64U ||
-                           !result.rdpPassword || result.rdpPassword->Bytes().empty())) {
+        if (result.rdp && (!IsRdpAccountName(result.rdpAccount) || !IsWindowsDomain(result.rdpDomain) ||
+                           !IsSha256(result.rdpProxyCertificateSha256) || !result.rdpPassword || result.rdpPassword->Bytes().empty())) {
             return std::nullopt;
         }
         return result;
