@@ -1100,6 +1100,15 @@ Windows Panel 已接入同一部署身份协议。`/.well-known/pixels` discover
 `px_panel.exe` build/dist SHA-256 均为 `0588475159CA22576C3F332FD469AEC00B74F39743552BD20186D013BE78BBB0`。本切片尚未生成或
 验收 Windows Official/Customer 双发行的正式 policy/trust 资源和独立输出目录，因此只关闭运行时门禁实现，不把 Windows 双制品出口记为通过。
 
+Windows 双发行构建边界随后已实现：Cloud Node、Client、Remote 的完整发布入口会在清理和升版之前同时预检 approved canonical trust
+store、三项最低水位、Official deployment UUID 和规范 HTTPS origin；通过后只消费一次产品版本，并在
+`build_official/<product>/<official|customer>/` 分别生成 deployment policy/trust、CMake/Cargo/Web/RDP、dist 与安装包。Customer policy
+不会携带 Official UUID/origin；产品描述、dist 清单、远程聚焦发布和安装器均校验 distribution。安装器登记发行身份，只允许同产品同发行
+覆盖/升级，跨 Official/Customer 必须先卸载。身份生成 5/5 单测、Python 编译检查、PowerShell 解析、Rust 描述符专项和 Client Panel
+聚焦构建已通过；当前 development `px_panel.exe` build/dist SHA-256 均为
+`6D093BFA81D18DC43771A4169642DDCB9F5EBB85F71177180FBD0AF410B8F72B`。因为仓库不包含 approved trust store、正式 Official UUID/origin
+和签名材料，本轮没有伪造正式双发行或运行 release-only 全构建；Windows 正式双制品/安装升级卸载仍是待执行验收项。
+
 Web Client 增加可重复的公网验收入口，使用 `user_web` 创建当前资源会话，并确认当前本地产物能完成 frontend grant、SDP、ICE、四条
 DataChannel 和公网 UDP peer 连接，令牌也从可见 URL 移除；但公网 Render 没有发送任何 RTP，视频轨保持 muted，不能记为首帧通过。
 同时确认远端 `web_client` 仍是旧版（日志仍声明游客 RTC Relay/设备密码，直接被当前 Render 以 HTTP 400 拒绝）。本地已把当前 Web 构建
@@ -1120,7 +1129,7 @@ Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 W
 | DB2-B/C/D | 设备/应用/节点/部署目录、user/guest资源入口、更新与历史元数据入口、Console节点WS及独立管理实时事件流已接；Windows Service已切到新节点协议并实现部署准备、调和、命令fencing、精确launch ACK、Render前端准入转发、实际媒体/RDP通道生命周期、遥测、DPAPI有界断线补报、唯一PCI身份的NVIDIA逐GPU指标、GPU预算/原子硬过滤/物理stable key运行时绑定与节点二次准入、只读调度预览/逐候选拒绝解释、数据库时钟对齐的有界服务端趋势/陈旧判断、录像session归属及通用录像字节上传。ZLM/Coturn/中央RTC signaling已归档移除，Windows/Web/Render/Service/Console的Direct Host活动代码和聚焦构建已接通；Direct Host WebRTC 已生产真实视频/数据载荷字节，并以5秒周期、单调sequence和最终终态累计上报；Relay出站媒体/文件数据只在底层WebSocket完整写成功后按真实connection累计，本机真实套接字与重连生命周期专项通过。独立纯数据 `px_relay` 已部署公网，Windows Native Relay 的动态实例、活动房间、首帧、窗口、输入及双向字节短测通过，默认 Direct 路径回归通过。Render真实文件引擎现已把操作UUID、实际总量/进度、单文件SHA-256或确定性多文件清单摘要经Service送入Console，真实payload单元测试、本机Service WebSocket桥及PostgreSQL 8组专项通过。仍需Relay音频、文件独立hash、断线重连/撤销和完整通道计数，Direct Host公网Web/音频/持续续租/撤销、Android直连、AMD/Intel逐GPU指标、管理实时流的公网高频/断库专项、RDP执行及计数、文件传输公网取消/重试/断线补报与客户端展示、无人值守更新及其余产品入口 |
 | DB2-EXIT / DB3 | Windows 侧功能出口完成：Desk/Auth 独立产品、Auth 事务 outbox、Official 认证接触和 30/40 秒持续 currentness、Customer 私有离线、库外水位、额度/feature 事务门禁及管理员状态均已接；keyring/恢复代际/监督取消短测通过。Service 只消费 Console control epoch。旧授权、Mongo/Redis/旧 Console 组合根和可误用入口已归档，活动锁文件不含旧后端。Linux systemd unit 静态验证通过，但 Unix binary/SIGTERM 仍须随 DB4/DB5 Linux 总门禁形成动态证据；不建设运行时双后端 |
 | DB4 | 恢复集、保留、异机复制、恢复准入/执行/封印、三库写屏障/安全水位、外部见证、Auth keyring、pgBackRest/WAL/PITR、Windows SCM包及WSL2 systemd生命周期已实现。开发期仍需目标Linux发行版VM短测、Pixels外层签名/生产密钥托管、独立主机或对象仓库一次完整恢复、目标环境keyring/见证轮换及真实节点与Windows/RDP事实对账；连续7天窗口和自然周期稳定性统一放到DB5功能通过后的长测，不阻塞每个开发切片 |
-| DB5 | 公网 Windows CloudApplication 的 Native Direct/Relay、Android guest 与账号 CloudApplication Native Direct 首帧/启停清理短测已通过，公网录像本人下载也已通过；Windows Panel 的账号、目录、实例与显式资源 descriptor 已切当前 API 并完成公网 API 短测，主机设置旧设备自注册/appkey/加密接入串路径也已删除，Relay 部署配置改由已认证 Console→Service 节点控制下发。Official/Customer 签名 deployment identity 的服务端证书/描述/nonce证明协议、Console 启动交叉绑定、部署私钥和离线根/trust store/证书签发工具已实现；Android、Windows Service 与 Windows Panel 已接凭据前验签、nonce证明和持久水位，Panel 还实现 Official 固定端点、Customer 私有端点及按 origin+DeploymentId 隔离凭据，但 Windows 正式双发行资源/独立沙箱、Android 正式双制品真机以及 Web 同等门禁尚未验收。Android Relay 的短期路由票据、客户端选择、真机持久化及同资源会话 descriptor 重签/安全 restart 已实现，但新 Console/Relay 尚未公网部署，不能记为首帧或真实续签通过；Android 设备 ACL 仍未验收。Web Client 已通过当前授权、ICE和DataChannel但公网无RTP，且远端仍托管旧Web资产，不能记为通过；部署被失效机器凭据阻塞。仍需Android Relay公网首帧/真实断线续签、Relay剩余通道、RDP/文件/更新、完整制品和安装包不含ZLM/Coturn审计。全部短测通过后再统一长测 |
+| DB5 | 公网 Windows CloudApplication 的 Native Direct/Relay、Android guest 与账号 CloudApplication Native Direct 首帧/启停清理短测已通过，公网录像本人下载也已通过；Windows Panel 的账号、目录、实例与显式资源 descriptor 已切当前 API 并完成公网 API 短测，主机设置旧设备自注册/appkey/加密接入串路径也已删除，Relay 部署配置改由已认证 Console→Service 节点控制下发。Official/Customer 签名 deployment identity 的服务端证书/描述/nonce证明协议、Console 启动交叉绑定、部署私钥和离线根/trust store/证书签发工具已实现；Android、Windows Service 与 Windows Panel 已接凭据前验签、nonce证明和持久水位，Panel 还实现 Official 固定端点、Customer 私有端点及按 origin+DeploymentId 隔离凭据。Windows 双发行的一次预检/一次升版、独立沙箱、policy/trust、清单、安装器与聚焦发布边界已实现并通过软件门禁，但缺正式 approved 材料，尚未执行 release-only 双制品和安装/升级/卸载验收；Android 正式双制品真机以及 Web 同等门禁也尚未验收。Android Relay 的短期路由票据、客户端选择、真机持久化及同资源会话 descriptor 重签/安全 restart 已实现，但新 Console/Relay 尚未公网部署，不能记为首帧或真实续签通过；Android 设备 ACL 仍未验收。Web Client 已通过当前授权、ICE和DataChannel但公网无RTP，且远端仍托管旧Web资产，不能记为通过；部署被失效机器凭据阻塞。仍需Android Relay公网首帧/真实断线续签、Relay剩余通道、RDP/文件/更新、完整制品和安装包不含ZLM/Coturn审计。全部短测通过后再统一长测 |
 | DB-HA / P1–P7 | 独立主机 HA、正式发行隔离、授权/连接服务、升级、运维与真实容量/稳定性验收 |
 
 接续依赖顺序：补完 Windows/Web/Android 的 Direct Host 与 Relay 剩余跨端矩阵 → Console录像管理员动作、文件/RDP/更新等保留工作流 →

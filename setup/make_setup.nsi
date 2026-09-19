@@ -16,6 +16,14 @@ Unicode true
 !ifndef PRODUCT_VERSION_CODE
     !error "PRODUCT_VERSION_CODE is required"
 !endif
+!ifndef DISTRIBUTION
+    !error "DISTRIBUTION is required"
+!endif
+!if "${DISTRIBUTION}" != "official"
+!if "${DISTRIBUTION}" != "customer"
+    !error "DISTRIBUTION must be official or customer"
+!endif
+!endif
 !ifndef COMPANY
     !error "COMPANY is required"
 !endif
@@ -68,7 +76,7 @@ RequestExecutionLevel admin
     !define OUTPUT_DIR "."
 !endif
 
-OutFile "${OUTPUT_DIR}\${INSTALLER_BASENAME}_${PRODUCT_VERSION}_Setup.exe"
+OutFile "${OUTPUT_DIR}\${INSTALLER_BASENAME}_${DISTRIBUTION}_${PRODUCT_VERSION}_Setup.exe"
 
 InstallDir "${INSTALL_DIR}"
 
@@ -184,6 +192,7 @@ parsec_vdd_install_ok:
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\${APPNAME}.exe"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "Publisher" "${COMPANY}"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "DisplayVersion" "${PRODUCT_VERSION}"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "Distribution" "${DISTRIBUTION}"
     WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "NoModify" 1
     WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "NoRepair" 1
 
@@ -277,13 +286,17 @@ FunctionEnd
 Function ResolveExistingInstallDirectory
     SetRegView 64
     ReadRegStr $R0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "InstallLocation"
+    ReadRegStr $R1 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "Distribution"
     StrCmp $R0 "" resolve_existing_32 resolve_existing_found
 resolve_existing_32:
     SetRegView 32
     ReadRegStr $R0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "InstallLocation"
+    ReadRegStr $R1 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "Distribution"
     SetRegView 64
 resolve_existing_found:
     StrCmp $R0 "" resolve_existing_done
+    StrCmp $R1 "${DISTRIBUTION}" resolve_existing_distribution_ok resolve_existing_legacy
+resolve_existing_distribution_ok:
     IfFileExists "$R0\product-edition.txt" 0 resolve_existing_legacy
     StrCpy $INSTDIR $R0
     Goto resolve_existing_done

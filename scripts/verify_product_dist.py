@@ -169,6 +169,41 @@ def verify_windows_product_boundary(dist_dir: Path, product: str, actual_files: 
             raise RuntimeError(f"Remote PE dependency boundary violation: {forbidden_dependencies}")
 
 
+def verify_distribution_identity(dist_dir: Path, manifest: dict[str, object], actual_files: set[str]) -> None:
+    distribution = manifest.get("distribution")
+    if distribution not in {"development", "official", "customer"}:
+        raise RuntimeError("product manifest has an invalid distribution")
+    policy_path = "resources/deployment/deployment-policy.json"
+    trust_path = "resources/deployment/deployment-trust.json"
+    if distribution == "development":
+        if policy_path in actual_files or trust_path in actual_files:
+            raise RuntimeError("development distribution contains release deployment identity resources")
+        return
+    if not {policy_path, trust_path}.issubset(actual_files):
+        raise RuntimeError("official/customer distribution is missing deployment identity resources")
+    policy = json.loads((dist_dir / policy_path).read_text(encoding="utf-8"))
+    expected_fields = [
+        "schema_version",
+        "distribution",
+        "expected_deployment_id",
+        "official_console_origin",
+        "minimum_certificate_version",
+        "minimum_descriptor_revision",
+        "minimum_trust_epoch",
+        "protocol_version",
+    ]
+    if list(policy) != expected_fields or policy.get("schema_version") != 1 or policy.get("distribution") != distribution:
+        raise RuntimeError("packaged deployment policy does not match the product distribution")
+    if distribution == "official" and (
+        not isinstance(policy.get("expected_deployment_id"), str) or not isinstance(policy.get("official_console_origin"), str)
+    ):
+        raise RuntimeError("official distribution is missing its fixed deployment identity")
+    if distribution == "customer" and (
+        policy.get("expected_deployment_id") is not None or policy.get("official_console_origin") is not None
+    ):
+        raise RuntimeError("customer distribution contains Official deployment identity values")
+
+
 def main() -> int:
     args = parse_args()
     dist_dir = args.dist_dir.resolve()
@@ -192,6 +227,7 @@ def main() -> int:
         extra = sorted(actual_files - expected_files)
         raise RuntimeError(f"dist file set mismatch; missing={missing}, extra={extra}")
     product = product_manifest.get("product")
+    verify_distribution_identity(dist_dir, product_manifest, actual_files)
     if product in WINDOWS_PRODUCTS:
         verify_windows_product_boundary(dist_dir, str(product), actual_files)
     for relative, expected_hash in sums.items():

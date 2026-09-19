@@ -33,6 +33,7 @@ const REMOTE_CAPABILITIES: &[&str] = &[
 pub struct ProductDescriptor {
     pub schema_version: u32,
     pub product: String,
+    pub distribution: String,
     pub edition: String,
     pub company: String,
     pub product_version: String,
@@ -73,6 +74,12 @@ impl ProductDescriptor {
                 "installed product descriptor must use schema 2 and company Pixels".to_string(),
             );
         }
+        if !matches!(
+            self.distribution.as_str(),
+            "development" | "official" | "customer"
+        ) {
+            return Err("installed product descriptor has an invalid distribution".to_string());
+        }
         let expected = match (self.product.as_str(), self.edition.as_str()) {
             ("cloud_node", "CLOUD_NODE") => CLOUD_NODE_CAPABILITIES,
             ("remote", "REMOTE") => REMOTE_CAPABILITIES,
@@ -111,6 +118,7 @@ mod tests {
         ProductDescriptor {
             schema_version: 2,
             product: product.to_string(),
+            distribution: "official".to_string(),
             edition: edition.to_string(),
             company: "Pixels".to_string(),
             product_version: "3.3.67".to_string(),
@@ -135,5 +143,8 @@ mod tests {
         let mut remote = REMOTE_CAPABILITIES.to_vec();
         remote.push("webview_host");
         assert!(descriptor("remote", "REMOTE", &remote).validate().is_err());
+        let mut invalid_distribution = descriptor("remote", "REMOTE", REMOTE_CAPABILITIES);
+        invalid_distribution.distribution = "official-looking".to_string();
+        assert!(invalid_distribution.validate().is_err());
     }
 }

@@ -1754,6 +1754,7 @@ mod tests {
         ProductDescriptor {
             schema_version: 2,
             product: "cloud_node".into(),
+            distribution: "official".into(),
             edition: "CLOUD_NODE".into(),
             company: "Pixels".into(),
             product_version: "3.3.67".into(),

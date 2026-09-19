@@ -4,8 +4,9 @@ setlocal enabledelayedexpansion
 rem Incremental C++ target builder. This script never bumps the product version,
 rem runs npm, invokes Cargo, collects the complete dist tree, or builds servers.
 rem Usage: scripts\build_cpp_target.bat target [target ...]
-rem Required environment: CPP_PRODUCT. The build directory is always isolated
-rem at build_official\<product>\cmake unless a product wrapper supplies the same path.
+rem Required environment: CPP_PRODUCT. Focused builds use the development tree
+rem at build_official\<product>\cmake. Release orchestration sets
+rem CPP_DISTRIBUTION=official|customer and uses a nested flavor tree.
 
 cd /d "%~dp0\.."
 if "%~1"=="" (
@@ -24,7 +25,17 @@ if /I not "%CPP_PRODUCT%"=="cloud_node" if /I not "%CPP_PRODUCT%"=="client" if /
 )
 pwsh.exe -NoProfile -File "%~dp0check_cpp_readable_names.ps1"
 if errorlevel 1 exit /b %errorlevel%
-set "EXPECTED_BUILD_DIR=build_official\%CPP_PRODUCT%\cmake"
+set "BUILD_DISTRIBUTION=%CPP_DISTRIBUTION%"
+if not defined BUILD_DISTRIBUTION set "BUILD_DISTRIBUTION=development"
+if /I not "%BUILD_DISTRIBUTION%"=="development" if /I not "%BUILD_DISTRIBUTION%"=="official" if /I not "%BUILD_DISTRIBUTION%"=="customer" (
+    echo ERROR: CPP_DISTRIBUTION must be development, official, or customer.
+    exit /b 2
+)
+if /I "%BUILD_DISTRIBUTION%"=="development" (
+    set "EXPECTED_BUILD_DIR=build_official\%CPP_PRODUCT%\cmake"
+) else (
+    set "EXPECTED_BUILD_DIR=build_official\%CPP_PRODUCT%\%BUILD_DISTRIBUTION%\cmake"
+)
 set "BUILD_DIR=%CPP_BUILD_DIR%"
 if not defined BUILD_DIR set "BUILD_DIR=%EXPECTED_BUILD_DIR%"
 if /I not "%BUILD_DIR%"=="%EXPECTED_BUILD_DIR%" (
@@ -75,12 +86,17 @@ if exist "%BUILD_DIR%\build.ninja" if defined CPP_PRODUCT (
         echo ERROR: %BUILD_DIR% is not configured for PX_PRODUCT=%CPP_PRODUCT%.
         exit /b 1
     )
+    findstr.exe /x /c:"PX_DISTRIBUTION:STRING=%BUILD_DISTRIBUTION%" "%BUILD_DIR%\CMakeCache.txt" >nul 2>&1
+    if errorlevel 1 (
+        echo ERROR: %BUILD_DIR% is not configured for PX_DISTRIBUTION=%BUILD_DISTRIBUTION%.
+        exit /b 1
+    )
 )
 
 if not exist "%BUILD_DIR%\build.ninja" (
     echo C++ build tree does not exist; configuring CMake only: %CD%\%BUILD_DIR%
     if defined CPP_PRODUCT (
-        cmake -S . -B "%BUILD_DIR%" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTARGET_TYPE=Official -DPX_PRODUCT=%CPP_PRODUCT% -Wno-dev
+        cmake -S . -B "%BUILD_DIR%" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTARGET_TYPE=Official -DPX_PRODUCT=%CPP_PRODUCT% -DPX_DISTRIBUTION=%BUILD_DISTRIBUTION% %CPP_CMAKE_DISTRIBUTION_ARGS% -Wno-dev
     ) else (
         cmake -S . -B "%BUILD_DIR%" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTARGET_TYPE=Official -Wno-dev
     )

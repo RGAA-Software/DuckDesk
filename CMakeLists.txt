@@ -9,7 +9,19 @@ if(NOT PX_PRODUCT STREQUAL "cloud_node" AND NOT PX_PRODUCT STREQUAL "client" AND
     message(FATAL_ERROR "PX_PRODUCT must be cloud_node, client, or remote; got '${PX_PRODUCT}'")
 endif()
 
-set(PX_PRODUCT_BUILD_ROOT "${CMAKE_SOURCE_DIR}/build_official/${PX_PRODUCT}")
+set(PX_DISTRIBUTION "development" CACHE STRING "Pixels distribution: development, official, or customer")
+set_property(CACHE PX_DISTRIBUTION PROPERTY STRINGS development official customer)
+if(NOT PX_DISTRIBUTION STREQUAL "development" AND NOT PX_DISTRIBUTION STREQUAL "official" AND NOT PX_DISTRIBUTION STREQUAL "customer")
+    message(FATAL_ERROR "PX_DISTRIBUTION must be development, official, or customer; got '${PX_DISTRIBUTION}'")
+endif()
+
+if(PX_DISTRIBUTION STREQUAL "development")
+    set(PX_PRODUCT_BUILD_RELATIVE "build_official/${PX_PRODUCT}")
+    set(PX_PRODUCT_BUILD_ROOT "${CMAKE_SOURCE_DIR}/build_official/${PX_PRODUCT}")
+else()
+    set(PX_PRODUCT_BUILD_RELATIVE "build_official/${PX_PRODUCT}/${PX_DISTRIBUTION}")
+    set(PX_PRODUCT_BUILD_ROOT "${CMAKE_SOURCE_DIR}/build_official/${PX_PRODUCT}/${PX_DISTRIBUTION}")
+endif()
 set(PX_EXPECTED_BINARY_DIR "${PX_PRODUCT_BUILD_ROOT}/cmake")
 cmake_path(NORMAL_PATH PX_EXPECTED_BINARY_DIR)
 cmake_path(ABSOLUTE_PATH CMAKE_BINARY_DIR NORMALIZE OUTPUT_VARIABLE PX_ACTUAL_BINARY_DIR)
@@ -18,6 +30,14 @@ string(TOLOWER "${PX_ACTUAL_BINARY_DIR}" PX_ACTUAL_BINARY_DIR_LOWER)
 if(NOT PX_ACTUAL_BINARY_DIR_LOWER STREQUAL PX_EXPECTED_BINARY_DIR_LOWER)
     message(FATAL_ERROR
         "Pixels product builds are isolated. Configure ${PX_PRODUCT} only in ${PX_EXPECTED_BINARY_DIR}; got ${PX_ACTUAL_BINARY_DIR}")
+endif()
+
+set(PX_DEPLOYMENT_POLICY_DIR "" CACHE PATH "Prepared deployment policy directory for an official/customer release")
+if(NOT PX_DISTRIBUTION STREQUAL "development")
+    if(PX_DEPLOYMENT_POLICY_DIR STREQUAL "" OR NOT EXISTS "${PX_DEPLOYMENT_POLICY_DIR}/deployment-policy.json" OR
+       NOT EXISTS "${PX_DEPLOYMENT_POLICY_DIR}/deployment-trust.json")
+        message(FATAL_ERROR "Official/customer builds require a prepared PX_DEPLOYMENT_POLICY_DIR")
+    endif()
 endif()
 
 find_program(PX_PYTHON_EXECUTABLE NAMES python python3 REQUIRED)
@@ -66,12 +86,13 @@ file(WRITE "${PX_PRODUCT_BUILD_ROOT}/product-build.json"
     "{\n"
     "  \"schema_version\": 1,\n"
     "  \"product\": \"${PX_PRODUCT_NAME}\",\n"
+    "  \"distribution\": \"${PX_DISTRIBUTION}\",\n"
     "  \"edition\": \"${PX_PRODUCT_EDITION}\",\n"
     "  \"company\": \"${PX_PRODUCT_COMPANY}\",\n"
     "  \"product_version\": \"${PX_PRODUCT_VERSION}\",\n"
     "  \"product_version_code\": ${PX_PRODUCT_VERSION_CODE},\n"
     "  \"git_revision\": \"${PX_GIT_REVISION}\",\n"
-    "  \"cmake_binary_dir\": \"build_official/${PX_PRODUCT}/cmake\"\n"
+    "  \"cmake_binary_dir\": \"${PX_PRODUCT_BUILD_RELATIVE}/cmake\"\n"
     "}\n")
 message(STATUS "Pixels product: ${PX_PRODUCT_NAME} (${PX_PRODUCT_EDITION}) ${PX_PRODUCT_VERSION} (${PX_PRODUCT_VERSION_CODE})")
 
@@ -424,6 +445,7 @@ foreach(PX_PRODUCT_EXECUTABLE IN ITEMS px_panel px_client px_render net_ws)
         target_include_directories(${PX_PRODUCT_EXECUTABLE} BEFORE PRIVATE "${PX_PRODUCT_GENERATED_DIR}")
         target_compile_definitions(${PX_PRODUCT_EXECUTABLE} PRIVATE
             "PX_PRODUCT_EDITION_${PX_PRODUCT_EDITION}=1"
+            "PX_PRODUCT_DISTRIBUTION=\"${PX_DISTRIBUTION}\""
             "PX_PRODUCT_VERSION_NAME=\"${PX_PRODUCT_VERSION}\""
             "PX_PRODUCT_VERSION_CODE=${PX_PRODUCT_VERSION_CODE}")
     endif()
@@ -517,6 +539,10 @@ if(PX_PRODUCT STREQUAL "cloud_node")
 endif()
 
 function(pixels_add_product_packaging target product)
+    set(PX_COLLECT_DISTRIBUTION_ARGUMENTS --distribution "${PX_DISTRIBUTION}")
+    if(NOT PX_DISTRIBUTION STREQUAL "development")
+        list(APPEND PX_COLLECT_DISTRIBUTION_ARGUMENTS --deployment-policy-dir "${PX_DEPLOYMENT_POLICY_DIR}")
+    endif()
     add_custom_command(TARGET ${target} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/setup" "${CMAKE_BINARY_DIR}/setup"
         COMMAND ${CMAKE_COMMAND} -E rm -f
@@ -526,6 +552,7 @@ function(pixels_add_product_packaging target product)
                 --build-dir "${CMAKE_BINARY_DIR}"
                 --source-dir "${CMAKE_SOURCE_DIR}"
                 --product "${product}"
+                ${PX_COLLECT_DISTRIBUTION_ARGUMENTS}
                 --dist-dir "${PX_PRODUCT_BUILD_ROOT}/dist"
         COMMAND python "${CMAKE_SOURCE_DIR}/scripts/verify_product_dist.py"
                 "${PX_PRODUCT_BUILD_ROOT}/dist"

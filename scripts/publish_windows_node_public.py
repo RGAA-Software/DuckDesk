@@ -25,6 +25,7 @@ REMOTE_DIRECTORIES = {
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--product", required=True, choices=("cloud_node", "remote"))
+    parser.add_argument("--distribution", default="development", choices=("development", "official", "customer"))
     parser.add_argument("--component", required=True, choices=("service", "render", "web"))
     parser.add_argument("--preflight-only", action="store_true")
     return parser.parse_args()
@@ -66,6 +67,7 @@ def run_powershell(client: paramiko.SSHClient, script: str) -> dict[str, object]
 def service_script(
     remote_directory: str,
     product: str,
+    distribution: str,
     exe_hash: str,
     config_hash: str,
     descriptor_hash: str,
@@ -81,7 +83,8 @@ $descriptorTarget = Join-Path $directory 'product-manifest.json'
 $descriptorStaging = Join-Path $directory 'product-manifest.staged.json'
 if (-not (Test-Path -LiteralPath $descriptorTarget -PathType Leaf)) {{ throw 'Focused publish requires an installed current product descriptor' }}
 $installedProduct = Get-Content -LiteralPath $descriptorTarget -Raw | ConvertFrom-Json
-if ($installedProduct.schema_version -ne 2 -or $installedProduct.company -ne 'Pixels' -or $installedProduct.product -ne '{product}') {{
+if ($installedProduct.schema_version -ne 2 -or $installedProduct.company -ne 'Pixels' -or $installedProduct.product -ne '{product}' -or
+    $installedProduct.distribution -ne '{distribution}') {{
     throw 'Installed product identity does not match the requested focused publish'
 }}
 if ((Get-FileHash -LiteralPath $staging -Algorithm SHA256).Hash -ne '{exe_hash}') {{ throw 'Service staging hash mismatch' }}
@@ -121,7 +124,7 @@ try {{
 """
 
 
-def render_script(remote_directory: str, product: str, exe_hash: str) -> str:
+def render_script(remote_directory: str, product: str, distribution: str, exe_hash: str) -> str:
     return rf"""
 $ErrorActionPreference = 'Stop'
 $directory = '{remote_directory}'
@@ -130,7 +133,8 @@ $staging = Join-Path $directory 'px_render.staged.exe'
 $descriptorTarget = Join-Path $directory 'product-manifest.json'
 if (-not (Test-Path -LiteralPath $descriptorTarget -PathType Leaf)) {{ throw 'Focused publish requires an installed current product descriptor' }}
 $installedProduct = Get-Content -LiteralPath $descriptorTarget -Raw | ConvertFrom-Json
-if ($installedProduct.schema_version -ne 2 -or $installedProduct.company -ne 'Pixels' -or $installedProduct.product -ne '{product}') {{
+if ($installedProduct.schema_version -ne 2 -or $installedProduct.company -ne 'Pixels' -or $installedProduct.product -ne '{product}' -or
+    $installedProduct.distribution -ne '{distribution}') {{
     throw 'Installed product identity does not match the requested focused publish'
 }}
 if ((Get-FileHash -LiteralPath $staging -Algorithm SHA256).Hash -ne '{exe_hash}') {{ throw 'Render staging hash mismatch' }}
@@ -175,6 +179,7 @@ try {{
 def web_script(
     remote_directory: str,
     product: str,
+    distribution: str,
     staging_name: str,
     expected_files: dict[str, str],
 ) -> str:
@@ -194,7 +199,8 @@ if (-not $resolvedStaging.StartsWith($resolvedDirectory, [StringComparison]::Ord
 }}
 if (-not (Test-Path -LiteralPath $descriptorTarget -PathType Leaf)) {{ throw 'Focused publish requires an installed current product descriptor' }}
 $installedProduct = Get-Content -LiteralPath $descriptorTarget -Raw | ConvertFrom-Json
-if ($installedProduct.schema_version -ne 2 -or $installedProduct.company -ne 'Pixels' -or $installedProduct.product -ne '{product}') {{
+if ($installedProduct.schema_version -ne 2 -or $installedProduct.company -ne 'Pixels' -or $installedProduct.product -ne '{product}' -or
+    $installedProduct.distribution -ne '{distribution}') {{
     throw 'Installed product identity does not match the requested focused publish'
 }}
 $expected = ConvertFrom-Json -InputObject '{expected_json}'
@@ -252,7 +258,8 @@ def ensure_remote_directory(sftp: paramiko.SFTPClient, path: str) -> None:
 
 def main() -> int:
     args = parse_args()
-    dist_directory = ROOT / "build_official" / args.product / "dist"
+    product_root = ROOT / "build_official" / args.product
+    dist_directory = product_root / "dist" if args.distribution == "development" else product_root / args.distribution / "dist"
     remote_directory = REMOTE_DIRECTORIES[args.product]
     subprocess.run(
         ["python", str(ROOT / "scripts" / "verify_product_dist.py"), str(dist_directory)],
@@ -299,7 +306,12 @@ def main() -> int:
                 raise RuntimeError(
                     "Focused public publish requires a valid current product installation; run the product installer first"
                 ) from error
-            expected_identity = {"schema_version": 2, "product": args.product, "company": "Pixels"}
+            expected_identity = {
+                "schema_version": 2,
+                "product": args.product,
+                "distribution": args.distribution,
+                "company": "Pixels",
+            }
             actual_identity = {key: installed_descriptor.get(key) for key in expected_identity}
             if actual_identity != expected_identity:
                 raise RuntimeError(
@@ -308,7 +320,13 @@ def main() -> int:
             if args.preflight_only:
                 print(
                     json.dumps(
-                        {"Host": host, "Product": args.product, "Component": args.component, "Preflight": "passed"},
+                        {
+                            "Host": host,
+                            "Product": args.product,
+                            "Distribution": args.distribution,
+                            "Component": args.component,
+                            "Preflight": "passed",
+                        },
                         ensure_ascii=False,
                         separators=(",", ":"),
                     )
@@ -331,6 +349,7 @@ def main() -> int:
                 service_script(
                     remote_directory,
                     args.product,
+                    args.distribution,
                     expected_hashes["px_service.staged.exe"],
                     expected_hashes["px_service.staged.toml"],
                     expected_hashes["product-manifest.staged.json"],
@@ -345,20 +364,21 @@ def main() -> int:
         elif args.component == "render":
             result = run_powershell(
                 client,
-                render_script(remote_directory, args.product, expected_hashes["px_render.staged.exe"]),
+                render_script(remote_directory, args.product, args.distribution, expected_hashes["px_render.staged.exe"]),
             )
             if result.get("ExeHash") != expected_hashes["px_render.staged.exe"]:
                 raise RuntimeError("Remote Render hash verification failed")
         else:
             result = run_powershell(
                 client,
-                web_script(remote_directory, args.product, staging_name, expected_hashes),
+                web_script(remote_directory, args.product, args.distribution, staging_name, expected_hashes),
             )
             if result.get("FileCount") != len(expected_hashes):
                 raise RuntimeError("Remote browser artifact count verification failed")
             if result.get("IndexHash") != expected_hashes.get("index.html"):
                 raise RuntimeError("Remote browser index hash verification failed")
         result["Host"] = host
+        result["Distribution"] = args.distribution
         print(json.dumps(result, ensure_ascii=False, separators=(",", ":")))
         return 0
     finally:

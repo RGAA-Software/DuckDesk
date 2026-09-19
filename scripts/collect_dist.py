@@ -135,6 +135,7 @@ def collect_artifacts(
 def write_distribution_manifests(
     source_dir: Path,
     product_config: dict[str, object],
+    distribution: str,
     staging_dir: Path,
     owned_pe: list[str],
 ) -> None:
@@ -153,6 +154,7 @@ def write_distribution_manifests(
     manifest = {
         "schema_version": 2,
         "product": product_config["product"],
+        "distribution": distribution,
         "edition": product_config["edition"],
         "company": product_config["company"],
         "product_version": product_config["product_version"],
@@ -236,6 +238,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--build-dir", required=True, type=Path, help="Product CMake binary directory")
     parser.add_argument("--source-dir", required=True, type=Path, help="Repository source root")
     parser.add_argument("--product", choices=("cloud_node", "client", "remote"), required=True)
+    parser.add_argument("--distribution", choices=("development", "official", "customer"), required=True)
+    parser.add_argument("--deployment-policy-dir", type=Path)
     parser.add_argument("--dist-dir", required=True, type=Path)
     return parser.parse_args()
 
@@ -247,6 +251,8 @@ def main() -> int:
     final_dir = args.dist_dir.resolve()
     product_root = build_dir.parent
     expected_product_root = (source_dir / "build_official" / args.product).resolve()
+    if args.distribution != "development":
+        expected_product_root = (expected_product_root / args.distribution).resolve()
     if build_dir.name != "cmake" or product_root != expected_product_root:
         raise RuntimeError(
             f"product build directory must be {expected_product_root / 'cmake'}; got {build_dir}"
@@ -267,11 +273,16 @@ def main() -> int:
         build_stamp = json.load(source)
     expected_stamp = {
         "product": args.product,
+        "distribution": args.distribution,
         "edition": product_config["edition"],
         "company": product_config["company"],
         "product_version": product_config["product_version"],
         "product_version_code": product_config["product_version_code"],
-        "cmake_binary_dir": f"build_official/{args.product}/cmake",
+        "cmake_binary_dir": (
+            f"build_official/{args.product}/cmake"
+            if args.distribution == "development"
+            else f"build_official/{args.product}/{args.distribution}/cmake"
+        ),
     }
     actual_stamp = {key: build_stamp.get(key) for key in expected_stamp}
     if actual_stamp != expected_stamp:
@@ -294,7 +305,22 @@ def main() -> int:
 
     atexit.register(cleanup)
     owned_pe = collect_artifacts(product_config, artifact_config, roots, staging_dir)
-    write_distribution_manifests(source_dir, product_config, staging_dir, owned_pe)
+    if args.distribution == "development":
+        if args.deployment_policy_dir is not None:
+            raise RuntimeError("development distributions must not accept release deployment policy inputs")
+    else:
+        if args.deployment_policy_dir is None:
+            raise RuntimeError("official/customer distributions require --deployment-policy-dir")
+        policy_directory = args.deployment_policy_dir.resolve()
+        expected_policy_directory = product_root / "deployment"
+        if policy_directory != expected_policy_directory:
+            raise RuntimeError(f"deployment policy directory must be {expected_policy_directory}; got {policy_directory}")
+        for policy_name in ("deployment-policy.json", "deployment-trust.json"):
+            policy_source = policy_directory / policy_name
+            if not policy_source.is_file():
+                raise RuntimeError(f"required deployment policy input is missing: {policy_source}")
+            copy_file(policy_source, staging_dir / "resources" / "deployment" / policy_name, staging_dir)
+    write_distribution_manifests(source_dir, product_config, args.distribution, staging_dir, owned_pe)
     publish_staging_directory(staging_dir, final_dir)
     atexit.unregister(cleanup)
     print(f"Done: {args.product} distribution published to {final_dir}")

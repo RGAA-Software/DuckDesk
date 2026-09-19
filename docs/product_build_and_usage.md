@@ -11,9 +11,15 @@
 
 ```text
 build_official/
-├── cloud_node/{cmake,cargo,web,rdp_policy,dist,installer,reports}/
-├── client/{cmake,cargo,dist,installer,reports}/
-├── remote/{cmake,cargo,web,rdp_policy,dist,installer,reports}/
+├── cloud_node/{cmake,dist}/                         # 日常聚焦开发
+│   ├── official/{cmake,cargo,web,rdp_policy,deployment,dist,installer,reports}/
+│   └── customer/{cmake,cargo,web,rdp_policy,deployment,dist,installer,reports}/
+├── client/{cmake,dist}/                             # 日常聚焦开发
+│   ├── official/{cmake,cargo,deployment,dist,installer,reports}/
+│   └── customer/{cmake,cargo,deployment,dist,installer,reports}/
+├── remote/{cmake,dist}/                             # 日常聚焦开发
+│   ├── official/{cmake,cargo,web,rdp_policy,deployment,dist,installer,reports}/
+│   └── customer/{cmake,cargo,web,rdp_policy,deployment,dist,installer,reports}/
 └── android/{official,customer}/{gradle,native,dist,reports}/
 ```
 
@@ -36,12 +42,13 @@ Windows Rust 使用仓库 `rust_client/.cargo/config.toml` 中的 MSVC `/Brepro`
 
 完整产品构建每次执行以下行为：
 
-1. 删除目标产品整个旧沙箱；
-2. 只递增目标产品自己的版本号一次；
-3. 从干净目录构建该产品的全部 C++、Rust、Web、RDP 或 Android 产物；
-4. 用严格白名单重新生成完整 `dist`；
-5. 校验产品身份、制品清单和 SHA-256；
-6. Windows 继续生成可安装、覆盖安装、升级和卸载的安装包。
+1. 在任何清理或升版前验证 approved trust store、三项最低水位、Official deployment UUID 和规范 HTTPS origin；
+2. 删除目标产品整个旧沙箱；
+3. 只递增目标产品自己的版本号一次；
+4. 从干净目录分别构建同版本 Official 与 Customer 的全部 C++、Rust、Web、RDP 产物；
+5. 用严格白名单重新生成两套完整 `dist`，分别写入签名身份 policy/trust 公共材料；
+6. 校验 product、distribution、制品清单和 SHA-256；
+7. 分别生成支持覆盖安装、同发行升级和卸载的安装包。跨 Official/Customer 覆盖会要求先卸载。
 
 在仓库根目录 `D:\GoCloud\GammaRayPremium` 执行。不要从旧目录复制文件拼装产品。
 
@@ -69,7 +76,12 @@ scripts_build\build_client_product.bat
 scripts_build\build_remote_product.bat
 ```
 
-这些都是发布级完整构建；不接受旧的 `full`、`incremental` 或 `reconfigure` 参数。
+这些都是发布级完整构建；每条命令一次升版并同时构建 Official/Customer，不接受旧的 `full`、`incremental` 或 `reconfigure` 参数。
+
+执行前必须设置：`PIXELS_DEPLOYMENT_TRUST_STORE_FILE`、`PIXELS_DEPLOYMENT_CERTIFICATE_VERSION`、
+`PIXELS_DESCRIPTOR_REVISION`、`PIXELS_DEPLOYMENT_TRUST_EPOCH`、`PIXELS_EXPECTED_DEPLOYMENT_ID` 和
+`PIXELS_OFFICIAL_CONSOLE_URL`。Customer 产物不会写入后两项；它们只用于同一矩阵事务中的 Official 半边。trust store 必须是离线签发流程输出的
+规范 JSON，不能使用服务器下载内容或测试 key。预检失败不会删除现有产物，也不会消耗版本号。
 
 ### 2.3 完整构建 Android
 
@@ -99,9 +111,12 @@ Release 必须使用上述统一入口，不能直接调用 Gradle 的 `assemble
 完整构建成功后从对应 `dist` 启动，不得使用 CMake 树里的 EXE 作为产品验收入口：
 
 ```bat
-build_official\cloud_node\dist\px_panel.exe
-build_official\client\dist\px_panel.exe
-build_official\remote\dist\px_panel.exe
+build_official\cloud_node\official\dist\px_panel.exe
+build_official\cloud_node\customer\dist\px_panel.exe
+build_official\client\official\dist\px_panel.exe
+build_official\client\customer\dist\px_panel.exe
+build_official\remote\official\dist\px_panel.exe
+build_official\remote\customer\dist\px_panel.exe
 ```
 
 产品边界：
@@ -115,16 +130,17 @@ build_official\remote\dist\px_panel.exe
 安装包位置：
 
 ```text
-build_official/<product>/installer/<version>/
+build_official/<product>/<official|customer>/installer/<version>/
 ```
 
-安装、升级或覆盖安装使用对应版本的 `PixelsCloudNode_*_Setup.exe`、`PixelsClient_*_Setup.exe` 或 `PixelsRemote_*_Setup.exe`。卸载使用 Windows“已安装的应用”或产品卸载程序。
+安装、升级或覆盖安装使用对应版本的 `PixelsCloudNode_<distribution>_*_Setup.exe`、`PixelsClient_<distribution>_*_Setup.exe` 或
+`PixelsRemote_<distribution>_*_Setup.exe`。安装器在注册表记录发行身份；同产品不同发行不能直接覆盖，须先卸载。卸载使用 Windows“已安装的应用”或产品卸载程序。
 
 ## 4. Console 与连接配置
 
 产品只使用当前 Console 身份和权威连接描述：
 
-- Console 地址和账号在设置页配置；
+- Official 的 Console 地址来自已验证安装策略，设置页只读；Customer 在设置页填写私有 Console；
 - 支持当前账号登录、注册和云应用会话；
 - Android 使用 `client_type=android`；
 - 不使用局域网测试机假设，不探测或回退到已退役端口；
@@ -165,7 +181,8 @@ scripts_build\build_cpp_product_render.bat remote 18
 scripts_build\build_cpp_product_panel_tests.bat client 18
 ```
 
-聚焦入口仍把变化的运行文件发布到对应产品 `dist` 并核对 SHA-256，但聚焦 `dist` 不能冒充完整发布包。需要交付或制作安装包时，必须重新运行第 2 节的完整产品构建。
+聚焦入口固定使用 `PX_DISTRIBUTION=development`，仍把变化的运行文件发布到对应产品 `dist` 并核对 SHA-256；该目录不含正式 deployment
+policy/trust，不能冒充完整发布包。需要交付或制作安装包时，必须重新运行第 2 节的完整双发行构建。
 
 ## 7. 清理
 
@@ -186,7 +203,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts_build\clean_product_
 - `product-build.json` 与目标产品、版本和 CMake 目录一致；
 - `dist/product-manifest.json` 与产品清单一致；
 - `dist/artifact-manifest.json` 中全部 SHA-256 校验通过；
-- Windows 安装包位于本产品 `installer/<version>`；
+- Windows 两种发行使用同一产品版本，安装包分别位于 `<official|customer>/installer/<version>`；
 - 没有公共 `build_official/dist`、公共 Rust 编译目录或其他产品制品混入。
 
 服务端 Console/Auth/Desk 有独立发布流程，不属于上述四个客户端产品沙箱。

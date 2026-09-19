@@ -1,7 +1,8 @@
 # 编译入口
 
 原仓库根目录的 31 个 `build_*.bat` 已统一移到这里，不保留根目录转发脚本。
-脚本通过自身路径定位仓库；每个产品只写入自己的 `build_official/<product>/` 沙箱。
+脚本通过自身路径定位仓库；每个产品只写入自己的 `build_official/<product>/` 沙箱。聚焦开发使用该目录下的
+`cmake/dist`；发布构建在同一次升版事务中生成 `official` 与 `customer` 两个子沙箱。
 `scripts/` 继续存放公共构建辅助工具、发布和诊断脚本。
 完整命令、产物目录和使用方式以 `docs/product_build_and_usage.md` 为唯一权威说明。
 
@@ -15,7 +16,8 @@ scripts_build\build_official.bat remote
 scripts_build\build_android_product.bat official release
 ```
 
-上述入口每次都先删除目标产品的旧沙箱，独立升版一次，再构建完整产物。日常 C++ 聚焦验证才使用：
+上述 Windows 入口每次都先完成两种发行的身份材料预检，再删除目标产品旧沙箱、独立升版一次，并构建 Official/Customer 两套完整产物。
+缺少 approved trust store、最低水位、Official deployment UUID 或 HTTPS origin 时，不清理、不升版。日常 C++ 聚焦验证才使用：
 
 ```bat
 scripts_build\build_cpp_client.bat client
@@ -27,8 +29,9 @@ scripts_build\build_cpp_android_common.bat px_common
 ```
 
 也可以在本目录执行对应文件名；从其他目录调用时使用脚本的完整路径。
-产品定向入口必须显式接收 `cloud_node`、`client` 或 `remote`。运行产物分别发布到
-`build_official/<product>/dist` 并核对 SHA-256；根 `build_official` 和公共 `dist` 不再是有效构建或运行目录。
+产品定向入口必须显式接收 `cloud_node`、`client` 或 `remote`。聚焦运行产物发布到
+`build_official/<product>/dist` 并核对 SHA-256；发布运行产物位于 `build_official/<product>/<official|customer>/dist`。
+根 `build_official` 和公共 `dist` 不再是有效构建或运行目录。
 
 `build_cloud_node.bat`、`build_client_product.bat`、`build_remote_product.bat` 是发布流程，会运行 Web/Rust 等相关步骤并递增版本，
 不能用于普通 C++ 增量验证。`build_official_tests.bat` 是批量测试构建。

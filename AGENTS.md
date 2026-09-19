@@ -11,6 +11,9 @@
   and web assets when applicable) has been synchronized into `build_official\<product>\dist`.
 - Before reporting a build ready for validation, verify that the relevant build-tree artifacts and their `build_official\<product>\dist` copies have
   matching SHA-256 hashes. If a destination file is in use, stop the corresponding process, publish the artifact, and re-run the hash check.
+- Focused development builds use `build_official\<product>\{cmake,dist}` with `PX_DISTRIBUTION=development`. Release-only full builds produce both
+  `build_official\<product>\official\...` and `build_official\<product>\customer\...` in one version transaction; do not copy either flavor back into
+  the development dist or treat a development dist as an installable Official/Customer package.
 
 # Project-wide modern C++ ownership and asynchronous safety
 

@@ -105,6 +105,8 @@ product 决定能力，distribution 决定平台与更新策略，release_channe
 - 同一事务的两个 flavor 使用同一产品版本，各有唯一 build ID、分发标记和制品摘要；失败的版本不回退复用。
 - 每次新的完整构建事务仍升版；日常 focused C++ 验证继续遵守现有不升版规则。
 - 目标输出为 `build_official/<product>/<distribution>/...`，所有 CMake、Cargo、Gradle、dist、installer、reports 均隔离。
+- Windows 完整产品入口一次预检并一次升版，随后构建同版本 `official` 与 `customer`；任一发行失败即整次事务失败，不能把另一半标记为完整矩阵。
+  日常聚焦 C++ 继续使用 `<product>/cmake` 与 `<product>/dist` 的 `development` 沙箱，它不含正式身份材料、不能制作安装包。
 - 不读取其他 flavor 的已编译产品文件，不把 flavor 编译宏留在公共缓存。切换此目录结构时同步修改构建文档和所有发布校验脚本。
 - Server 套件建立自己的版本与组件锁定清单，列出 Console/Broker/Relay/Web 的确切版本与摘要；不随意混装组件。
 

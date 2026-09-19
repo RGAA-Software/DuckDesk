@@ -20,6 +20,10 @@ using Json = nlohmann::json;
 
 constexpr std::size_t kConfigurationLimit{64 * 1024};
 constexpr std::string_view kWatermarkCredential{"watermark"};
+#ifndef PX_PRODUCT_DISTRIBUTION
+#define PX_PRODUCT_DISTRIBUTION "development"
+#endif
+constexpr std::string_view kProductDistribution{PX_PRODUCT_DISTRIBUTION};
 
 struct ParsedPolicy final {
     px_console::DeploymentVerificationPolicy verification{};
@@ -129,13 +133,17 @@ std::shared_ptr<PanelDeploymentIdentityGate> PanelDeploymentIdentityGate::Create
     const auto parsedTrustStore = trustStoreBytes ? px_console::ParseDeploymentTrustStore(*trustStoreBytes)
                                                   : px::Result<px_console::DeploymentTrustStore, px_console::DeploymentIdentityError>{
                                                         std::unexpected{px_console::DeploymentIdentityError::kInvalid}};
-    const auto trustStore = parsedTrustStore && parsedPolicy && parsedTrustStore->trustEpoch == parsedPolicy->verification.minimumTrustEpoch
+    const auto compiledDistribution = kProductDistribution == "official" ? PanelDistribution::Official : PanelDistribution::Customer;
+    const bool policyMatchesExecutable =
+        parsedPolicy && ((kProductDistribution == "official" && parsedPolicy->distribution == PanelDistribution::Official) ||
+                         (kProductDistribution == "customer" && parsedPolicy->distribution == PanelDistribution::Customer));
+    const auto acceptedPolicy = policyMatchesExecutable ? parsedPolicy : std::nullopt;
+    const auto trustStore = parsedTrustStore && acceptedPolicy && parsedTrustStore->trustEpoch == acceptedPolicy->verification.minimumTrustEpoch
                                 ? std::optional{*parsedTrustStore}
                                 : std::nullopt;
-    return std::make_shared<PanelDeploymentIdentityGate>(parsedPolicy ? std::optional{parsedPolicy->verification} : std::nullopt, trustStore,
-                                                         parsedPolicy ? parsedPolicy->distribution : PanelDistribution::Customer,
-                                                         parsedPolicy ? parsedPolicy->officialConsoleAddress : std::string{},
-                                                         PanelCredentialVault::Create("DeploymentIdentity"));
+    return std::make_shared<PanelDeploymentIdentityGate>(
+        acceptedPolicy ? std::optional{acceptedPolicy->verification} : std::nullopt, trustStore, compiledDistribution,
+        acceptedPolicy ? acceptedPolicy->officialConsoleAddress : std::string{}, PanelCredentialVault::Create("DeploymentIdentity"));
 }
 
 PanelDeploymentIdentityGate::PanelDeploymentIdentityGate(std::optional<px_console::DeploymentVerificationPolicy> policy,

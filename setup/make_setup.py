@@ -64,6 +64,7 @@ RETIRED_RDP_NAMES = {
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--product", required=True, choices=PRODUCTS)
+    parser.add_argument("--distribution", required=True, choices=("official", "customer"))
     parser.add_argument("--dist-dir", type=Path, help="Verified product dist directory")
     parser.add_argument("--output-root", type=Path, help="Installer output root")
     parser.add_argument("--validate-only", action="store_true")
@@ -95,7 +96,7 @@ def load_product_config(repo_root: Path, product: str) -> dict[str, object]:
     return config
 
 
-def validate_dist(repo_root: Path, product: str, dist_dir: Path, config: dict[str, object]) -> dict[str, object]:
+def validate_dist(repo_root: Path, product: str, distribution: str, dist_dir: Path, config: dict[str, object]) -> dict[str, object]:
     if not dist_dir.is_dir():
         raise RuntimeError(f"product dist folder not found: {dist_dir}")
     subprocess.run(
@@ -105,6 +106,7 @@ def validate_dist(repo_root: Path, product: str, dist_dir: Path, config: dict[st
     manifest = load_json(dist_dir / "product-manifest.json")
     expected_identity = {
         "product": product,
+        "distribution": distribution,
         "company": config["company"],
         "product_version": config["product_version"],
         "product_version_code": config["product_version_code"],
@@ -175,6 +177,7 @@ def create_installer(
     setup_dir: Path,
     staging_dir: Path,
     product: str,
+    distribution: str,
     version: str,
     version_code: int,
     company: str,
@@ -184,6 +187,7 @@ def create_installer(
             str(makensis),
             f"/DOUTPUT_DIR={staging_dir}",
             f"/DPRODUCT_ID={product}",
+            f"/DDISTRIBUTION={distribution}",
             f"/DPRODUCT_VERSION={version}",
             f"/DPRODUCT_VERSION_CODE={version_code}",
             f"/DCOMPANY={company}",
@@ -193,7 +197,7 @@ def create_installer(
         check=True,
     )
     basename = {"cloud_node": "PixelsCloudNode", "client": "PixelsClient", "remote": "PixelsRemote"}[product]
-    installer = staging_dir / f"{basename}_{version}_Setup.exe"
+    installer = staging_dir / f"{basename}_{distribution}_{version}_Setup.exe"
     if not installer.is_file():
         raise RuntimeError(f"NSIS did not create expected installer: {installer}")
     return installer
@@ -204,19 +208,19 @@ def main() -> int:
     setup_dir = Path(__file__).resolve().parent
     repo_root = setup_dir.parent
     config = load_product_config(repo_root, args.product)
-    expected_dist_dir = (repo_root / "build_official" / args.product / "dist").resolve()
+    expected_dist_dir = (repo_root / "build_official" / args.product / args.distribution / "dist").resolve()
     dist_dir = (args.dist_dir or expected_dist_dir).resolve()
     if dist_dir != expected_dist_dir:
         raise RuntimeError(f"installer input must be the isolated product dist {expected_dist_dir}; got {dist_dir}")
-    manifest = validate_dist(repo_root, args.product, dist_dir, config)
+    manifest = validate_dist(repo_root, args.product, args.distribution, dist_dir, config)
     if args.validate_only:
-        print(f"Validated installer input: {args.product} {config['product_version']} ({dist_dir})")
+        print(f"Validated installer input: {args.product}/{args.distribution} {config['product_version']} ({dist_dir})")
         return 0
 
     tool_config = load_tool_config(setup_dir)
     seven_zip = find_7z(tool_config.get("7z_path"), repo_root)
     makensis = find_nsis(tool_config.get("nsis_dir_path"), repo_root)
-    expected_output_root = (repo_root / "build_official" / args.product / "installer").resolve()
+    expected_output_root = (repo_root / "build_official" / args.product / args.distribution / "installer").resolve()
     output_root = (args.output_root or expected_output_root).resolve()
     if output_root != expected_output_root:
         raise RuntimeError(f"installer output must be the isolated product directory {expected_output_root}; got {output_root}")
@@ -234,6 +238,7 @@ def main() -> int:
             setup_dir,
             staging_dir,
             args.product,
+            args.distribution,
             str(config["product_version"]),
             int(config["product_version_code"]),
             str(config["company"]),
@@ -241,6 +246,7 @@ def main() -> int:
         release_manifest = {
             "schema_version": 1,
             "product": args.product,
+            "distribution": args.distribution,
             "company": config["company"],
             "product_version": config["product_version"],
             "product_version_code": config["product_version_code"],
