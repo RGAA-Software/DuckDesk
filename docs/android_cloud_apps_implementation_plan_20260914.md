@@ -1,6 +1,6 @@
 # Android 云应用模块实施计划
 
-> 状态：已切换 PostgreSQL `/api/console` 资源会话模型；2026-09-19 已完成公网 guest 目录、实例启停、显式 CloudApplication 描述符、Direct 首帧与清理短测
+> 状态：已切换 PostgreSQL `/api/console` 资源会话模型；2026-09-19 已完成公网 guest 与账号目录、实例启停、显式 CloudApplication 描述符、Direct 首帧与清理短测
 > 日期：2026-09-15
 > 范围：`src/px_android`，复用现有 `px_console` 用户、游客和应用调度接口
 > 首轮环境：公网测试 `px_console`（`https://39.71.45.66:4600`）与 Pixels Android 真机
@@ -309,3 +309,15 @@ cd src/px_android
 - 启动、返回、连接已有实例和主动停止均完成真机闭环；收尾时云应用卡片恢复“可以启动”，无本轮活动实例残留。
 - Android 全量 `testDebugUnitTest`、`lintDebug` 与 Debug APK 构建通过；最终 APK SHA-256 为
   `51856DFEFA84FEDBA6FAC2DCB0D12B4912CCC78E9E61D7D63A75BCB662318FF1`，使用既有 Debug 签名覆盖安装，未卸载或清除应用数据。
+
+## 11. 2026-09-19 当前资源会话与账号补充验收
+
+- 登录响应按当前 Console 形状只读取 `expires_at`；已删除客户端领域对象、加密会话存储和测试中的 `absolute_expires_at` 假字段。
+  DataStore key 与 Keystore alias 直接升为 v2，不导入 v1；`avatar_url:null` 保持真正的空值。
+- 活动公网脚本已整体切到 `/api/console`，以 `client_type=android` 分别验证 guest/user 目录、实例、显式 CloudApplication target、
+  descriptor、CAS 停止、资源会话关闭和注销。旧 `/api/v1` 脚本原文只保存在 `backup/`，不参与执行。
+- 1.0.6 Debug APK 从清洁输出完成 454 个 Gradle task，并以 `adb install -r` 覆盖安装；SHA-256 为
+  `8118D761102E1621B6098D62EB02DBAFF0F12978C9F5922238545D93A589F706`。
+- Xiaomi 22021211RC 成功登录公网测试账号、读取账号目录、启动 Public Web Application、取得明确 CloudApplication descriptor、
+  直连公网动态端口 4613、收到 H.264 1920×1080 首媒体并初始化 MediaCodec；随后结束远控、停止实例、确认恢复“可以启动”并注销账号。
+- 本记录关闭账号 CloudApplication Direct 短链路，不冒充设备 ACL、Android Relay、文件、音频、撤销/续租或最终统一长测。

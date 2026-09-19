@@ -38,7 +38,7 @@ class AndroidConsoleSessionStore private constructor(
     }
 
     companion object {
-        private val sessionKey = stringPreferencesKey("android_user_session_v1")
+        private val sessionKey = stringPreferencesKey("android_user_session_v2")
 
         fun create(context: Context, scope: CoroutineScope): AndroidConsoleSessionStore {
             val applicationContext = context.applicationContext
@@ -46,7 +46,7 @@ class AndroidConsoleSessionStore private constructor(
                 scope = scope,
                 produceFile = { applicationContext.preferencesDataStoreFile("pixels_android_console_session") },
             )
-            return AndroidConsoleSessionStore(store, AndroidKeystoreTextCipher("pixels_android_console_session_v1"))
+            return AndroidConsoleSessionStore(store, AndroidKeystoreTextCipher("pixels_android_console_session_v2"))
         }
 
         private fun encode(session: AccountSession): String = JSONObject()
@@ -57,7 +57,6 @@ class AndroidConsoleSessionStore private constructor(
             .put("mustChangePassword", session.profile.mustChangePassword)
             .put("accessToken", session.accessToken)
             .put("expiresAt", session.expiresAtEpochMillis)
-            .put("absoluteExpiresAt", session.absoluteExpiresAtEpochMillis)
             .toString()
 
         private fun decode(value: String): AccountSession? = runCatching {
@@ -72,7 +71,6 @@ class AndroidConsoleSessionStore private constructor(
                 ),
                 accessToken = json.getString("accessToken"),
                 expiresAtEpochMillis = json.getLong("expiresAt"),
-                absoluteExpiresAtEpochMillis = json.getLong("absoluteExpiresAt"),
             )
         }.getOrNull()
     }

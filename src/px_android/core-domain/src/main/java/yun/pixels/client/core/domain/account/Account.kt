@@ -22,7 +22,6 @@ data class AccountSession(
     val profile: AccountProfile,
     val accessToken: String,
     val expiresAtEpochMillis: Long,
-    val absoluteExpiresAtEpochMillis: Long,
 )
 
 data class AccountDevice(

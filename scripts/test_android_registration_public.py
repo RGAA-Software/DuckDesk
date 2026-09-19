@@ -1,4 +1,4 @@
-"""Register, log in, log out, and remove one temporary Android Console account."""
+"""Register, authenticate, log out, and remove a temporary Android account."""
 
 from __future__ import annotations
 
@@ -7,14 +7,29 @@ import json
 import urllib.parse
 import uuid
 from pathlib import Path
+from typing import Any
 
-from migrate_public_catalog_names_20260915 import AdminClient
 from test_android_cloud_apps_public import ApiError, ConsoleClient, require_string
+
+
+def list_users(client: ConsoleClient, token: str) -> list[dict[str, Any]]:
+    users: list[dict[str, Any]] = []
+    after = ""
+    for _ in range(100):
+        query = urllib.parse.urlencode({"limit": 100, **({"after": after} if after else {})})
+        page = client.request(f"/api/console/users?{query}", token=token)
+        if not isinstance(page, list):
+            raise ApiError("Managed user directory is not a list")
+        users.extend(page)
+        if len(page) < 100:
+            return users
+        after = require_string(page[-1], "id")
+    raise ApiError("Managed user directory exceeds the supported test page window")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--endpoint", required=True, help="HTTPS PX Console base URL")
+    parser.add_argument("--endpoint", required=True, help="HTTPS Pixels Console base URL")
     parser.add_argument("--ca", required=True, type=Path, help="CA or server certificate PEM")
     parser.add_argument("--admin-credentials", required=True, type=Path, help="Ignored JSON containing admin username and password")
     arguments = parser.parse_args()
@@ -27,46 +42,48 @@ def main() -> None:
     suffix = uuid.uuid4().hex[:12]
     username = f"android_smoke_{suffix}"
     password = f"Aa1!{uuid.uuid4().hex}"
-    client = ConsoleClient(arguments.endpoint, arguments.ca)
-    guest = client.request(
-        "/api/v1/session/guest",
-        body={"client_nonce": f"android-registration-{suffix}", "client_type": "android"},
+    android = ConsoleClient(arguments.endpoint, arguments.ca)
+    registered = android.request(
+        "/api/console/accounts",
+        method="POST",
+        body={"username": username, "password": password},
     )
-    guest_token = require_string(guest, "access_token")
-    registered = client.request(
-        "/api/v1/user/register",
-        guest_token,
-        {"username": username, "password": password},
+    user_id = require_string(registered, "id")
+    login = android.request(
+        "/api/console/sessions",
+        method="POST",
+        body={"username": username, "password": password},
     )
-    uid = require_string(registered, "uid")
+    user_token = require_string(login, "token")
+    android.request("/api/console/session", method="DELETE", token=user_token)
+
+    administrator = ConsoleClient(arguments.endpoint, arguments.ca, client_type="admin_web")
+    admin_login = administrator.request(
+        "/api/console/sessions",
+        method="POST",
+        body={"username": admin_username, "password": admin_password},
+    )
+    admin_token = require_string(admin_login, "token")
     deleted = False
     try:
-        login = client.request(
-            "/api/v1/session/user/login",
-            body={"username": username, "password": password, "client_type": "android"},
+        managed_user = next(
+            (item for item in list_users(administrator, admin_token) if item.get("id") == user_id),
+            None,
         )
-        user_token = require_string(login, "access_token")
-        client.request("/api/v1/session/user/logout", user_token, {})
+        if managed_user is None:
+            raise ApiError("Registered Android user was not visible to the current management API")
+        revision = managed_user.get("revision")
+        if not isinstance(revision, int) or revision <= 0:
+            raise ApiError("Registered Android user has an invalid revision")
+        query = urllib.parse.urlencode({"revision": revision})
+        administrator.request(
+            f"/api/console/users/{urllib.parse.quote(user_id, safe='')}?{query}",
+            method="DELETE",
+            token=admin_token,
+        )
+        deleted = True
     finally:
-        admin = AdminClient(arguments.endpoint, arguments.ca)
-        admin.login(admin_username, admin_password)
-        try:
-            query = urllib.parse.urlencode({"page": 1, "page_size": 100, "keyword": username})
-            page = admin.request(f"/api/v1/admin/users?{query}")
-            row = next((item for item in page.get("items", []) if item.get("uid") == uid), None)
-            if row is None:
-                raise ApiError("Registered user was not visible to the cleanup API")
-            result = admin.request(
-                f"/api/v1/admin/users/{urllib.parse.quote(uid, safe='')}",
-                {"version": row.get("version")},
-                write=True,
-                method="DELETE",
-            )
-            deleted = result.get("uid") == uid and result.get("disabled") is True
-            if not deleted:
-                raise ApiError("Temporary user cleanup did not return a disabled user")
-        finally:
-            admin.logout()
+        administrator.request("/api/console/session", method="DELETE", token=admin_token)
     print(json.dumps({"registered": True, "android_login": True, "logout": True, "cleanup": deleted}))
 
 

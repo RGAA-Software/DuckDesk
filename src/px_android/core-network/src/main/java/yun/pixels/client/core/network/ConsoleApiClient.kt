@@ -346,18 +346,17 @@ internal fun accountFailure(response: HttpResponse): AccountFailure {
     }
 }
 
-private fun parseLogin(endpoint: ConsoleEndpoint, payload: JSONObject): AccountResult<AccountSession> {
+internal fun parseLogin(endpoint: ConsoleEndpoint, payload: JSONObject): AccountResult<AccountSession> {
     val accessToken = payload.requiredString("token") ?: return invalidResponse()
     val profile = payload.optJSONObject("profile") ?: return invalidResponse()
     val expiresAt = payload.requiredInstantMillis("expires_at") ?: return invalidResponse()
-    val absoluteExpiresAt = payload.requiredInstantMillis("absolute_expires_at") ?: return invalidResponse()
-    return AccountResult.Success(AccountSession(endpoint, parseProfile(profile), accessToken, expiresAt, absoluteExpiresAt))
+    return AccountResult.Success(AccountSession(endpoint, parseProfile(profile), accessToken, expiresAt))
 }
 
 private fun parseProfile(payload: JSONObject): AccountProfile = AccountProfile(
     userId = payload.getString("id"),
     username = payload.getString("username"),
-    avatarPath = payload.optString("avatar_url").takeIf(String::isNotBlank),
+    avatarPath = payload.optionalString("avatar_url"),
     mustChangePassword = false,
 )
 
@@ -456,6 +455,8 @@ internal fun mergeInstances(
 }
 
 private fun JSONObject.requiredString(name: String): String? = optString(name).takeIf(String::isNotBlank)
+private fun JSONObject.optionalString(name: String): String? =
+    if (has(name) && !isNull(name)) optString(name).takeIf(String::isNotBlank) else null
 private fun JSONObject.requiredLong(name: String): Long? = if (has(name) && !isNull(name)) optLong(name) else null
 private fun JSONObject.requiredInstantMillis(name: String): Long? =
     requiredString(name)?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }

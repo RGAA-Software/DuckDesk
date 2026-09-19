@@ -84,7 +84,6 @@ class ConsoleSessionCoordinatorTest {
         profile = AccountProfile("u1", "alice", null, false),
         accessToken = "token",
         expiresAtEpochMillis = expiresAt,
-        absoluteExpiresAtEpochMillis = expiresAt + 100,
     )
 
     private fun connection() = ResourceConnection(

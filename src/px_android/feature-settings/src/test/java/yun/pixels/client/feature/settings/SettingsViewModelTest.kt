@@ -173,6 +173,5 @@ private class FakeAccountRepository(
         profile = AccountProfile("user-1", username, null, false),
         accessToken = "token",
         expiresAtEpochMillis = Long.MAX_VALUE,
-        absoluteExpiresAtEpochMillis = Long.MAX_VALUE,
     )
 }

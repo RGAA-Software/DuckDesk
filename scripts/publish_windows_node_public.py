@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish focused Service or Render artifacts to the configured public Windows node."""
+"""Publish focused Service, Render, or browser artifacts to the public Windows node."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import hashlib
 import json
 import re
 import subprocess
+import uuid
 from pathlib import Path
 
 import paramiko
@@ -24,7 +25,7 @@ REMOTE_DIRECTORIES = {
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--product", required=True, choices=("cloud_node", "remote"))
-    parser.add_argument("--component", required=True, choices=("service", "render"))
+    parser.add_argument("--component", required=True, choices=("service", "render", "web"))
     parser.add_argument("--preflight-only", action="store_true")
     return parser.parse_args()
 
@@ -171,6 +172,84 @@ try {{
 """
 
 
+def web_script(
+    remote_directory: str,
+    product: str,
+    staging_name: str,
+    expected_files: dict[str, str],
+) -> str:
+    expected_json = json.dumps(expected_files, ensure_ascii=False, separators=(",", ":"))
+    return rf"""
+$ErrorActionPreference = 'Stop'
+$directory = '{remote_directory}'
+$staging = Join-Path $directory '{staging_name}'
+$target = Join-Path $directory 'web_client'
+$descriptorTarget = Join-Path $directory 'product-manifest.json'
+$resolvedDirectory = [IO.Path]::GetFullPath($directory).TrimEnd('\') + '\'
+$resolvedStaging = [IO.Path]::GetFullPath($staging)
+$resolvedTarget = [IO.Path]::GetFullPath($target)
+if (-not $resolvedStaging.StartsWith($resolvedDirectory, [StringComparison]::OrdinalIgnoreCase) -or
+    -not $resolvedTarget.StartsWith($resolvedDirectory, [StringComparison]::OrdinalIgnoreCase)) {{
+    throw 'Unsafe browser artifact deployment path'
+}}
+if (-not (Test-Path -LiteralPath $descriptorTarget -PathType Leaf)) {{ throw 'Focused publish requires an installed current product descriptor' }}
+$installedProduct = Get-Content -LiteralPath $descriptorTarget -Raw | ConvertFrom-Json
+if ($installedProduct.schema_version -ne 2 -or $installedProduct.company -ne 'Pixels' -or $installedProduct.product -ne '{product}') {{
+    throw 'Installed product identity does not match the requested focused publish'
+}}
+$expected = ConvertFrom-Json -InputObject '{expected_json}'
+$expectedNames = @($expected.psobject.Properties.Name)
+$actualFiles = @(Get-ChildItem -LiteralPath $staging -File -Recurse)
+if ($actualFiles.Count -ne $expectedNames.Count) {{ throw 'Staged browser artifact file count mismatch' }}
+foreach ($relativePath in $expectedNames) {{
+    $candidate = Join-Path $staging $relativePath.Replace('/', '\')
+    if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {{ throw "Staged browser artifact is missing: $relativePath" }}
+    if ((Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash -ne $expected.psobject.Properties[$relativePath].Value) {{
+        throw "Staged browser artifact hash mismatch: $relativePath"
+    }}
+}}
+$backup = Join-Path $directory ('web_client.before-' + [DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))
+$previousMoved = $false
+try {{
+    if (Test-Path -LiteralPath $target -PathType Container) {{
+        Move-Item -LiteralPath $target -Destination $backup
+        $previousMoved = $true
+    }}
+    Move-Item -LiteralPath $staging -Destination $target
+    foreach ($relativePath in $expectedNames) {{
+        $published = Join-Path $target $relativePath.Replace('/', '\')
+        if ((Get-FileHash -LiteralPath $published -Algorithm SHA256).Hash -ne $expected.psobject.Properties[$relativePath].Value) {{
+            throw "Published browser artifact hash mismatch: $relativePath"
+        }}
+    }}
+}} catch {{
+    if ($previousMoved -and -not (Test-Path -LiteralPath $target) -and (Test-Path -LiteralPath $backup)) {{
+        Move-Item -LiteralPath $backup -Destination $target
+    }}
+    throw
+}}
+[pscustomobject]@{{
+    Component = 'web'
+    FileCount = $expectedNames.Count
+    IndexHash = (Get-FileHash -LiteralPath (Join-Path $target 'index.html') -Algorithm SHA256).Hash
+    RecoverableBackup = if ($previousMoved) {{ $backup }} else {{ $null }}
+}} | ConvertTo-Json -Compress
+"""
+
+
+def ensure_remote_directory(sftp: paramiko.SFTPClient, path: str) -> None:
+    segments = [segment for segment in path.replace("\\", "/").split("/") if segment]
+    if not segments:
+        raise RuntimeError("Remote directory path is empty")
+    current = segments[0]
+    for segment in segments[1:]:
+        current = f"{current}/{segment}"
+        try:
+            sftp.stat(current)
+        except OSError:
+            sftp.mkdir(current)
+
+
 def main() -> int:
     args = parse_args()
     dist_directory = ROOT / "build_official" / args.product / "dist"
@@ -191,8 +270,17 @@ def main() -> int:
             "px_service.staged.toml": dist_directory / "px_service.toml",
             "product-manifest.staged.json": dist_directory / "product-manifest.json",
         }
-    else:
+    elif args.component == "render":
         sources = {"px_render.staged.exe": dist_directory / "px_render.exe"}
+    else:
+        web_directory = dist_directory / "web_client"
+        sources = {
+            source.relative_to(web_directory).as_posix(): source
+            for source in sorted(web_directory.rglob("*"))
+            if source.is_file()
+        }
+        if not sources:
+            raise RuntimeError(f"Required browser distribution is empty: {web_directory}")
     for source in sources.values():
         if not source.is_file():
             raise RuntimeError(f"Required deployment input is missing: {source}")
@@ -226,8 +314,17 @@ def main() -> int:
                     )
                 )
                 return 0
-            for name, source in sources.items():
-                sftp.put(str(source), f"{remote_directory}/{name}")
+            if args.component == "web":
+                staging_name = f"web_client.staged-{uuid.uuid4().hex}"
+                remote_staging = f"{remote_directory}/{staging_name}"
+                ensure_remote_directory(sftp, remote_staging)
+                for name, source in sources.items():
+                    remote_path = f"{remote_staging}/{name}"
+                    ensure_remote_directory(sftp, remote_path.rsplit("/", 1)[0])
+                    sftp.put(str(source), remote_path)
+            else:
+                for name, source in sources.items():
+                    sftp.put(str(source), f"{remote_directory}/{name}")
         if args.component == "service":
             result = run_powershell(
                 client,
@@ -245,13 +342,22 @@ def main() -> int:
                 raise RuntimeError("Remote Service config hash verification failed")
             if result.get("DescriptorHash") != expected_hashes["product-manifest.staged.json"]:
                 raise RuntimeError("Remote product descriptor hash verification failed")
-        else:
+        elif args.component == "render":
             result = run_powershell(
                 client,
                 render_script(remote_directory, args.product, expected_hashes["px_render.staged.exe"]),
             )
             if result.get("ExeHash") != expected_hashes["px_render.staged.exe"]:
                 raise RuntimeError("Remote Render hash verification failed")
+        else:
+            result = run_powershell(
+                client,
+                web_script(remote_directory, args.product, staging_name, expected_hashes),
+            )
+            if result.get("FileCount") != len(expected_hashes):
+                raise RuntimeError("Remote browser artifact count verification failed")
+            if result.get("IndexHash") != expected_hashes.get("index.html"):
+                raise RuntimeError("Remote browser index hash verification failed")
         result["Host"] = host
         print(json.dumps(result, ensure_ascii=False, separators=(",", ":")))
         return 0
