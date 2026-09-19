@@ -17,9 +17,9 @@ import ContactUs from '@/components/ContactUs.vue'
 import DotGlobe from '@/components/DotGlobe.vue'
 import HeroCloudIllustration from '@/components/HeroCloudIllustration.vue'
 import platformManyToManySvg from '@/assets/diagram/platform-many-to-many.svg?raw'
-import cloudGamingScene from '@/assets/showcase/cloud-gaming-csgo.webp'
-import cloudRenderingScene from '@/assets/showcase/cloud-rendering-blender.webp'
-import remoteDesktopScene from '@/assets/showcase/remote-desktop-photoshop.webp'
+import cloudGamingScene from '@/assets/showcase/cloud-gaming-csgo-720p.webp'
+import cloudRenderingScene from '@/assets/showcase/cloud-rendering-blender-720p.webp'
+import remoteDesktopScene from '@/assets/showcase/remote-desktop-photoshop-720p.webp'
 
 interface Solution {
     id: string
@@ -165,10 +165,28 @@ function scrollToSolutions() {
                 </div>
               </div>
 
-              <div v-if="solution.id === 'remote'" class="remote-device">
-                <span />
-                <img :src="remoteDesktopScene" alt="">
-                <i />
+              <div v-if="solution.id === 'remote'" class="remote-laptop">
+                <div class="remote-laptop-display">
+                  <img :src="remoteDesktopScene" alt="">
+                </div>
+                <span class="remote-laptop-base"><i /></span>
+              </div>
+
+              <div v-if="solution.id === 'game'" class="game-device">
+                <div class="game-device-screen">
+                  <img :src="cloudGamingScene" alt="">
+                  <span class="game-device-shade" />
+                  <span class="game-joystick"><i /></span>
+                  <span class="game-action-buttons">
+                    <i /><i /><i /><i />
+                  </span>
+                </div>
+                <span class="game-device-camera" />
+              </div>
+
+              <div v-if="solution.id === 'render'" class="render-tablet">
+                <img :src="cloudRenderingScene" alt="">
+                <span class="render-tablet-camera" />
               </div>
 
             </div>
@@ -759,51 +777,216 @@ function scrollToSolutions() {
     object-position: 62% 50%;
 }
 
-.remote-device {
+.remote-laptop {
     position: absolute;
-    z-index: 2;
-    bottom: 7%;
-    left: 4%;
-    width: 154px;
-    height: 82px;
+    z-index: 3;
+    right: 3.5%;
+    bottom: 4.5%;
+    width: 252px;
+    animation: device-float 5.2s ease-in-out infinite;
+    will-change: transform;
+}
+
+.remote-laptop-display {
     overflow: hidden;
-    border: 5px solid #111827;
-    border-radius: 17px;
+    aspect-ratio: 16 / 9;
+    padding: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 14px 14px 7px 7px;
     background: #111827;
-    box-shadow: 0 22px 36px rgba(15, 23, 42, 0.28);
+    box-shadow: 0 24px 42px rgba(15, 23, 42, 0.34);
 }
 
-.remote-device > span {
-    position: absolute;
-    z-index: 2;
-    top: 50%;
-    right: 3px;
-    left: auto;
-    width: 3px;
-    height: 18px;
-    border-radius: 2px;
-    background: rgba(255, 255, 255, 0.35);
-    transform: translateY(-50%);
-}
-
-.remote-device img {
+.remote-laptop-display img {
     width: 100%;
     height: 100%;
-    border-radius: 12px;
+    border-radius: 8px 8px 3px 3px;
     object-fit: cover;
     object-position: 52% center;
 }
 
-.remote-device > i {
+.remote-laptop-base {
+    position: relative;
+    display: block;
+    height: 12px;
+    margin: -1px -15px 0;
+    border-radius: 2px 2px 12px 12px;
+    background: linear-gradient(180deg, #d9dde3, #89929f);
+    box-shadow: 0 13px 24px rgba(15, 23, 42, 0.3);
+}
+
+.remote-laptop-base i {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 42px;
+    height: 4px;
+    border-radius: 0 0 5px 5px;
+    background: #717b88;
+    transform: translateX(-50%);
+}
+
+.game-device {
+    position: absolute;
+    z-index: 3;
+    right: 3.5%;
+    bottom: 5.5%;
+    width: 216px;
+    aspect-ratio: 2 / 1;
+    padding: 6px 11px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 19px;
+    background: #111827;
+    box-shadow:
+        0 24px 42px rgba(15, 23, 42, 0.34),
+        0 0 0 1px rgba(15, 23, 42, 0.16);
+    animation: device-float 5.6s -1.8s ease-in-out infinite;
+    will-change: transform;
+}
+
+.game-device-screen {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    border-radius: 13px;
+    background: #0b1016;
+}
+
+.game-device-screen > img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+}
+
+.game-device-shade {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(3, 7, 18, 0.44), transparent 34%, transparent 66%, rgba(3, 7, 18, 0.38));
+}
+
+.game-joystick {
+    position: absolute;
+    bottom: 13px;
+    left: 15px;
+    width: 34px;
+    height: 34px;
+    border: 1px solid rgba(255, 255, 255, 0.58);
+    border-radius: 50%;
+    background: rgba(4, 12, 18, 0.34);
+    box-shadow: inset 0 0 0 5px rgba(255, 255, 255, 0.07);
+    backdrop-filter: blur(3px);
+}
+
+.game-joystick i {
+    position: absolute;
+    top: 8px;
+    left: 10px;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.78);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.32);
+}
+
+.game-action-buttons {
+    position: absolute;
+    right: 18px;
+    bottom: 13px;
+    width: 38px;
+    height: 38px;
+}
+
+.game-action-buttons i {
+    position: absolute;
+    width: 11px;
+    height: 11px;
+    border: 1px solid rgba(255, 255, 255, 0.62);
+    border-radius: 50%;
+    background: rgba(4, 12, 18, 0.38);
+    backdrop-filter: blur(3px);
+}
+
+.game-action-buttons i:first-child {
+    top: 0;
+    left: 14px;
+}
+
+.game-action-buttons i:nth-child(2) {
+    top: 14px;
+    right: 0;
+}
+
+.game-action-buttons i:nth-child(3) {
+    bottom: 0;
+    left: 14px;
+}
+
+.game-action-buttons i:last-child {
+    top: 14px;
+    left: 0;
+}
+
+.game-device-camera {
     position: absolute;
     z-index: 2;
-    right: 5px;
-    bottom: 5px;
-    width: 7px;
-    height: 7px;
+    top: 50%;
+    right: 4px;
+    width: 3px;
+    height: 14px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-50%);
+}
+
+.render-tablet {
+    position: absolute;
+    z-index: 3;
+    right: 3.5%;
+    bottom: 5.5%;
+    width: 218px;
+    aspect-ratio: 16 / 10;
+    padding: 7px 13px 7px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 18px;
+    background: #111827;
+    box-shadow:
+        0 24px 42px rgba(15, 23, 42, 0.34),
+        0 0 0 1px rgba(15, 23, 42, 0.14);
+    animation: device-float 6s -3.4s ease-in-out infinite;
+    will-change: transform;
+}
+
+.render-tablet img {
+    width: 100%;
+    height: 100%;
+    border-radius: 11px;
+    object-fit: cover;
+    object-position: 62% center;
+}
+
+.render-tablet-camera {
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    width: 4px;
+    height: 4px;
     border-radius: 50%;
-    background: #22c55e;
-    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.18);
+    background: #475569;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+    transform: translateY(-50%);
+}
+
+@keyframes device-float {
+    0%,
+    100% {
+        transform: translate3d(0, 0, 0);
+    }
+
+    50% {
+        transform: translate3d(0, -7px, 0);
+    }
 }
 
 .solution-remote .solution-visual {
@@ -1088,6 +1271,15 @@ function scrollToSolutions() {
         linear-gradient(145deg, #081811, #211b0c 48%, #231221);
 }
 
+@media (prefers-reduced-motion: reduce) {
+    .remote-laptop,
+    .game-device,
+    .render-tablet {
+        animation: none;
+        transform: none;
+    }
+}
+
 @media (max-width: 1020px) {
     .hero-layout {
         grid-template-columns: 1fr 0.82fr;
@@ -1278,13 +1470,93 @@ function scrollToSolutions() {
         inset: 31px 0 0;
     }
 
-    .remote-device {
-        bottom: 5%;
-        left: 3%;
-        width: 118px;
-        height: 64px;
-        border-width: 4px;
+    .remote-laptop {
+        right: 2.5%;
+        bottom: 4%;
+        width: 174px;
+    }
+
+    .remote-laptop-display {
+        padding: 4px;
+        border-radius: 10px 10px 5px 5px;
+    }
+
+    .remote-laptop-base {
+        height: 8px;
+        margin-inline: -10px;
+        border-radius: 1px 1px 8px 8px;
+    }
+
+    .remote-laptop-base i {
+        width: 30px;
+        height: 3px;
+    }
+
+    .game-device {
+        right: 2.5%;
+        bottom: 4.5%;
+        width: 148px;
+        padding: 4px 8px;
+        border-radius: 14px;
+    }
+
+    .game-device-screen {
+        border-radius: 9px;
+    }
+
+    .game-joystick {
+        bottom: 8px;
+        left: 10px;
+        width: 24px;
+        height: 24px;
+        box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.07);
+    }
+
+    .game-joystick i {
+        top: 6px;
+        left: 7px;
+        width: 9px;
+        height: 9px;
+    }
+
+    .game-action-buttons {
+        right: 11px;
+        bottom: 8px;
+        width: 27px;
+        height: 27px;
+    }
+
+    .game-action-buttons i {
+        width: 8px;
+        height: 8px;
+    }
+
+    .game-action-buttons i:first-child {
+        left: 10px;
+    }
+
+    .game-action-buttons i:nth-child(2) {
+        top: 10px;
+    }
+
+    .game-action-buttons i:nth-child(3) {
+        left: 10px;
+    }
+
+    .game-action-buttons i:last-child {
+        top: 10px;
+    }
+
+    .render-tablet {
+        right: 2.5%;
+        bottom: 4.5%;
+        width: 154px;
+        padding: 5px 9px 5px 6px;
         border-radius: 13px;
+    }
+
+    .render-tablet img {
+        border-radius: 8px;
     }
 
     .capability-grid {
