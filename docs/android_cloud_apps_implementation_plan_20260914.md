@@ -1,6 +1,6 @@
 # Android 云应用模块实施计划
 
-> 状态：实现与公网端到端验收完成
+> 状态：已切换 PostgreSQL `/api/console` 资源会话模型；2026-09-19 已完成公网 guest 目录、实例启停、显式 CloudApplication 描述符、Direct 首帧与清理短测
 > 日期：2026-09-15
 > 范围：`src/px_android`，复用现有 `px_console` 用户、游客和应用调度接口
 > 首轮环境：公网测试 `px_console`（`https://39.71.45.66:4600`）与 Pixels Android 真机
@@ -121,7 +121,7 @@ core-network
 - `ConsoleSessionCoordinator` 是 endpoint、Android guest token 和 Android user token 的唯一会话协调者。
 - guest token 只在内存存在；user token 继续加密持久化；密码和注册确认密码从不落盘。
 - endpoint 是独立非秘密设置。切换 endpoint 必须取消旧请求、清除旧 endpoint 对应的 user session 和 guest session，再发布新状态。
-- Render 主机和端口只来自经过校验的 Console `native-connection` 描述或当前节点连接配置。不得猜测、回落或探测已退役端口。
+- Render 主机和端口只来自经过校验的 Console resource-session descriptor。不得猜测、回落或探测已退役端口。
 - 云应用 ViewModel 只依赖领域 repository，不直接拼 URL、读 token 或操作 Android Service。
 - 组合根把领域层产生的 `RemoteSessionRequest` 交给已有 `RemoteSessionService`，不复制会话生命周期。
 - 领域层新增明确的 `RemoteSessionTarget.CloudApplication`，携带应用 ID、实例 ID、连接描述和返回目的地；删除
@@ -149,15 +149,14 @@ UserReady --退出/401--> GuestStarting
 
 | 场景 | API | Android 行为 |
 |---|---|---|
-| 建立游客身份 | `POST /api/v1/session/guest` | `{client_nonce, client_type:"android"}`；Android guest Bearer 仅驻内存 |
-| 注册 | `POST /api/v1/user/register` | 使用 guest Bearer；成功后自动登录 |
-| 登录/退出 | `/api/v1/session/user/login`、`/api/v1/session/user/logout` | `client_type:"android"`；Android user Bearer 加密保存 |
-| 游客目录 | `GET /api/v1/public/apps` | 与 guest instances 合并 |
-| 游客实例 | `GET /api/v1/public/instances` | 只显示本 guest session 所有实例 |
-| 游客启动/连接/停止 | `/api/v1/public/apps/**`、`/public/instances/**` | 使用 guest Bearer |
-| 用户目录 | `GET /api/v1/user/apps` | Console 已合并 public + ACL 并附当前用户实例 |
-| 用户实例 | `GET /api/v1/user/instances` | 轮询与错误收敛 |
-| 用户启动/连接/停止 | `/api/v1/user/apps/**`、`/user/instances/**` | 使用 user Bearer |
+| 健康检查 | `GET /health/ready` | 只接受 HTTPS 就绪响应，不用目录接口冒充探针 |
+| 建立游客身份 | `POST /api/console/guest-sessions` | `X-Pixels-Client-Type: android`；guest Bearer 仅驻内存 |
+| 注册 | `POST /api/console/accounts` | 无 guest 依赖；成功后用同一当前接口自动登录 |
+| 登录/退出 | `POST /api/console/sessions`、`DELETE /api/console/session` | Android user Bearer 加密保存 |
+| 游客/用户目录 | `/api/console/guest/applications`、`/api/console/applications` | 分别使用 guest/user Bearer，并与本人实例列表合并 |
+| 本人实例 | `GET/POST /api/console/instances`、`POST /instances/{id}/stop` | 强制显式 `X-Pixels-Subject-Kind: guest|user` 和 revision CAS |
+| 建立资源会话 | `POST /api/console/resource-sessions` | 云应用 target 必须同时带 application_id 和 instance_id；桌面 target 只带 device_id |
+| 获取描述符 | `POST /api/console/resource-sessions/{id}/descriptor` | 校验 session、target、Android client type、controller role、revision、native transport 与实际 host/port |
 
 列表 DTO 完整解析 `app_id`、`app_type`、`name`、`access_mode`、`cover_url`、`running_instance` 和 `version`。
 Native 连接描述必须解析 `app_type`，发现 `rdp` 或未知类型时在创建 `RemoteSessionRequest` 前拒绝。
@@ -182,7 +181,7 @@ request ID 和错误分类，不记录 token、密码或完整连接描述。注
 
 - 地址输入，例如 `https://console.example.com:4600`。
 - “测试连接”和“保存”操作；只接受 HTTPS、有效主机和端口，不接受 user-info、query、fragment 或非空路径。
-- “测试连接”访问现有 `GET /api/v1/public/apps` 并验证标准 Console 响应，不使用仅能证明端口开放的探测，也不尝试旧地址。
+- “测试连接”访问 `GET /health/ready` 并要求业务就绪，不尝试旧地址或目录兼容接口。
 - 保存成功后云应用与账号功能立即使用新 endpoint。
 - 已登录时修改 endpoint，必须明确确认将退出当前账号；取消时不改 endpoint。
 - Release 仅信任系统/企业受信 CA。Debug 可使用明确打包的测试公钥证书，但不得关闭主机名或证书校验。
@@ -282,7 +281,7 @@ cd src/px_android
   真机直连前必须只同步远端公钥证书到 debug trust 配置并保留正常主机名校验。Release 不打包测试证书。
 - USB 设备 `e2b3b128` 已授权，Debug APK 已采用覆盖安装方式部署；后续真机测试不得卸载应用或清除数据。
 - 不再探测任何已废弃的内网节点地址或固定 Render 端口。先确认公网节点已向 Console 上报在线状态，再启动应用并以该实例
-  `native-connection` 返回的实际主机和 4613–4998 动态端口验证 TCP/WS 与 UDP 数据面。
+  resource-session descriptor 返回的实际主机和 4613–4998 动态端口验证 TCP/WS 与 UDP 数据面。
 - Android 真机直接使用公网 Console；应用 Native 连接使用 Console 返回的公网节点地址和实际动态端口，不以 ADB reverse 代替数据面网络。
 
 这些是 E2E 开始前的环境门禁，不阻塞 P0/P1 的代码和自动化测试。

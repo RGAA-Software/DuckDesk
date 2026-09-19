@@ -1,12 +1,10 @@
 package yun.pixels.client.core.network
 
-import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import yun.pixels.client.core.domain.account.AccountConnection
 import yun.pixels.client.core.domain.account.AccountDevice
 import yun.pixels.client.core.domain.account.AccountFailure
 import yun.pixels.client.core.domain.account.AccountResult
@@ -17,6 +15,7 @@ import yun.pixels.client.core.domain.account.ConsoleEndpoint
 import yun.pixels.client.core.domain.account.ConsoleEndpointStore
 import yun.pixels.client.core.domain.account.ConsoleSessionRepository
 import yun.pixels.client.core.domain.account.GuestSession
+import yun.pixels.client.core.domain.account.ResourceConnection
 
 class ConsoleSessionCoordinator(
     private val api: ConsoleAccountApi,
@@ -81,11 +80,7 @@ class ConsoleSessionCoordinator(
             return AccountResult.Failure(AccountFailure.InvalidCredentials)
         }
         val endpoint = mutableEndpoint.value ?: return AccountResult.Failure(AccountFailure.InvalidEndpoint)
-        val guest = when (val result = guestSession()) {
-            is AccountResult.Success -> result.value
-            is AccountResult.Failure -> return result
-        }
-        return when (val registered = api.register(endpoint, guest.accessToken, username, password)) {
+        return when (val registered = api.register(endpoint, username, password)) {
             is AccountResult.Failure -> registered
             is AccountResult.Success -> when (val login = login(endpoint.baseUrl, username, password)) {
                 is AccountResult.Success -> login
@@ -105,7 +100,7 @@ class ConsoleSessionCoordinator(
 
     override suspend fun devices(): AccountResult<List<AccountDevice>> = withUserSession(api::devices)
 
-    override suspend fun resolveConnection(deviceId: String): AccountResult<AccountConnection> =
+    override suspend fun resolveConnection(deviceId: String): AccountResult<ResourceConnection> =
         withUserSession { session -> api.resolveConnection(session, deviceId) }
 
     internal fun currentUserSession(): AccountSession? = (mutableState.value as? AccountState.SignedIn)?.session
@@ -115,7 +110,7 @@ class ConsoleSessionCoordinator(
         guestSession?.takeIf { it.expiresAtEpochMillis > now() && it.endpoint == mutableEndpoint.value }
             ?.let { return AccountResult.Success(it) }
         val endpoint = mutableEndpoint.value ?: return AccountResult.Failure(AccountFailure.InvalidEndpoint)
-        when (val result = api.guestSession(endpoint, UUID.randomUUID().toString())) {
+        when (val result = api.guestSession(endpoint)) {
             is AccountResult.Success -> {
                 guestSession = result.value
                 result

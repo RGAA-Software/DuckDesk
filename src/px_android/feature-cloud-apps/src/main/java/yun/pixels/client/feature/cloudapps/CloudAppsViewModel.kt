@@ -112,14 +112,14 @@ class CloudAppsViewModel(
     }
 
     private suspend fun connect(application: RemoteApplication, instance: RemoteApplicationInstance, nonce: String) {
-        when (val result = repository.resolveConnection(instance.instanceId)) {
+        when (val result = repository.resolveConnection(application.appId, instance.instanceId)) {
             is AccountResult.Failure -> fail(result.reason)
             is AccountResult.Success -> {
                 mutableState.value = mutableState.value.copy(pendingAppId = null)
                 mutableRemoteRequests.emit(
                     RemoteSessionRequest(
                         RemoteSessionId(UUID.randomUUID().toString()),
-                        RemoteSessionTarget.CloudApplication(application.name, application.appId, instance.instanceId, result.value, nonce),
+                        RemoteSessionTarget.CloudApplication(application.name, application.appId, instance.instanceId, result.value),
                     ),
                 )
             }

@@ -15,7 +15,7 @@ class ConsoleApplicationRepositoryTest {
         val stopped = instance(RemoteApplicationInstance.State.Stopped, reconnectable = false)
         val failed = instance(RemoteApplicationInstance.State.Failed, reconnectable = false)
 
-        val merged = mergeGuestInstances(listOf(application), listOf(stopped, failed))
+        val merged = mergeInstances(listOf(application), listOf(stopped, failed))
 
         assertNull(merged.single().runningInstance)
     }
@@ -25,7 +25,7 @@ class ConsoleApplicationRepositoryTest {
         val application = application()
         val running = instance(RemoteApplicationInstance.State.Running, reconnectable = true)
 
-        val merged = mergeGuestInstances(listOf(application), listOf(running))
+        val merged = mergeInstances(listOf(application), listOf(running))
 
         assertEquals(running, merged.single().runningInstance)
     }

@@ -1006,6 +1006,17 @@ view/audio。授权租约按 Console TTL 续签，撤销、身份漂移、续签
 Client 为 `4397F0A35FD3EDE5D47DB077B0995C798914704663A67B373469F0EEC6325E99`。本轮新安全制品尚未完成公网部署复验：
 现有公网主机 WinRM 与 SSH 都在认证阶段拒绝已登记机器凭据；此前公网 Relay/Direct 通过证据不冒充本轮安全补丁的公网证据。
 
+Android DB5 资源会话切片已删除活动客户端中的全部旧 `/api/v1` 调用和 Console 账号/云应用 `password_hash` 连接模型。健康检查、
+guest、注册、登录/退出、设备/应用目录、实例 CAS 启停、显式 desktop/CloudApplication 资源会话和 descriptor 均改用当前
+`/api/console` 契约；所有请求使用 `client_type=android`，资源请求另外强制声明 user/guest subject。Native 数据面直接使用 descriptor 的
+session ID、revision 和短期 frontend token，且校验返回 target、client type、controller role、状态、transport 和实际 host/port；不再伪造
+`android-<nonce>` stream ID，也不回落到设备密码。Android 全模块 JVM 测试、arm64 native、lint 和从清洁输出执行的完整 Debug 构建通过。
+版本 1.0.5 APK 已用 `adb install -r` 覆盖安装到 Xiaomi 22021211RC，SHA-256 为
+`4033D341A7B3C5FDF4FCE2AC617D96F6887FF6D32CDC0601FABE9608F6DAC05D`。同一公网正式 Console 上完成 guest public 目录、启动 WebView、
+取得显式 CloudApplication descriptor、直连 `39.71.45.66:4613`、WS frontend 准入、UDP/FEC 首帧、MediaCodec 解码、退出和实例停止清理；
+最终页面恢复“可以启动”，无 AndroidRuntime/JNI fatal。本轮证明 Android guest Direct 短链路，不替代账号/ACL、Android Relay、文件、音频、
+撤销/续租或统一长测。
+
 ## 仍未通过的阶段出口
 
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。
@@ -1020,7 +1031,7 @@ Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 W
 | DB2-B/C/D | 设备/应用/节点/部署目录、user/guest资源入口、更新与历史元数据入口、Console节点WS及独立管理实时事件流已接；Windows Service已切到新节点协议并实现部署准备、调和、命令fencing、精确launch ACK、Render前端准入转发、实际媒体/RDP通道生命周期、遥测、DPAPI有界断线补报、唯一PCI身份的NVIDIA逐GPU指标、GPU预算/原子硬过滤/物理stable key运行时绑定与节点二次准入、只读调度预览/逐候选拒绝解释、数据库时钟对齐的有界服务端趋势/陈旧判断、录像session归属及通用录像字节上传。ZLM/Coturn/中央RTC signaling已归档移除，Windows/Web/Render/Service/Console的Direct Host活动代码和聚焦构建已接通；Direct Host WebRTC 已生产真实视频/数据载荷字节，并以5秒周期、单调sequence和最终终态累计上报；Relay出站媒体/文件数据只在底层WebSocket完整写成功后按真实connection累计，本机真实套接字与重连生命周期专项通过。独立纯数据 `px_relay` 已部署公网，Windows Native Relay 的动态实例、活动房间、首帧、窗口、输入及双向字节短测通过，默认 Direct 路径回归通过。Render真实文件引擎现已把操作UUID、实际总量/进度、单文件SHA-256或确定性多文件清单摘要经Service送入Console，真实payload单元测试、本机Service WebSocket桥及PostgreSQL 8组专项通过。仍需Relay音频、文件独立hash、断线重连/撤销和完整通道计数，Direct Host公网Web/音频/持续续租/撤销、Android直连、AMD/Intel逐GPU指标、管理实时流的公网高频/断库专项、RDP执行及计数、文件传输公网取消/重试/断线补报与客户端展示、无人值守更新及其余产品入口 |
 | DB2-EXIT / DB3 | Windows 侧功能出口完成：Desk/Auth 独立产品、Auth 事务 outbox、Official 认证接触和 30/40 秒持续 currentness、Customer 私有离线、库外水位、额度/feature 事务门禁及管理员状态均已接；keyring/恢复代际/监督取消短测通过。Service 只消费 Console control epoch。旧授权、Mongo/Redis/旧 Console 组合根和可误用入口已归档，活动锁文件不含旧后端。Linux systemd unit 静态验证通过，但 Unix binary/SIGTERM 仍须随 DB4/DB5 Linux 总门禁形成动态证据；不建设运行时双后端 |
 | DB4 | 恢复集、保留、异机复制、恢复准入/执行/封印、三库写屏障/安全水位、外部见证、Auth keyring、pgBackRest/WAL/PITR、Windows SCM包及WSL2 systemd生命周期已实现。开发期仍需目标Linux发行版VM短测、Pixels外层签名/生产密钥托管、独立主机或对象仓库一次完整恢复、目标环境keyring/见证轮换及真实节点与Windows/RDP事实对账；连续7天窗口和自然周期稳定性统一放到DB5功能通过后的长测，不阻塞每个开发切片 |
-| DB5 | 公网 Windows CloudApplication 的 Native Direct 与 Native Relay 首帧/窗口/输入短测均已通过，公网录像本人下载也已通过；仍需全新环境服务端—Web Client—Android回归、Relay剩余通道、RDP/文件/更新、完整制品和安装包不含ZLM/Coturn审计。全部短测通过后再统一长测 |
+| DB5 | 公网 Windows CloudApplication 的 Native Direct/Relay 和 Android guest CloudApplication Native Direct 首帧/启停清理短测已通过，公网录像本人下载也已通过；仍需账号/ACL Android、Web Client、Android Relay、Relay剩余通道、RDP/文件/更新、完整制品和安装包不含ZLM/Coturn审计。全部短测通过后再统一长测 |
 | DB-HA / P1–P7 | 独立主机 HA、正式发行隔离、授权/连接服务、升级、运维与真实容量/稳定性验收 |
 
 接续依赖顺序：补完 Windows/Web/Android 的 Direct Host 与 Relay 剩余跨端矩阵 → Console录像管理员动作、文件/RDP/更新等保留工作流 →

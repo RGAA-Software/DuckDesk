@@ -1,15 +1,9 @@
 #include "native_session.h"
 
-#include "native_audio_player.h"
-#include "native_clipboard.h"
-#include "px_client_sdk/sdk_voice_call.h"
-#include "px_client_sdk/platform/voice_audio_endpoint_port.h"
-#include "data.h"
-
 #include <android/native_window_jni.h>
 
-#include <chrono>
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <format>
 #include <functional>
@@ -17,24 +11,29 @@
 #include <optional>
 #include <utility>
 
+#include "data.h"
 #include "ft_async_session.h"
 #include "ft_engine.h"
+#include "native_audio_player.h"
+#include "native_clipboard.h"
 #include "px_client_sdk/gl/raw_image.h"
 #include "px_client_sdk/platform/android/android_decoder_factory.h"
 #include "px_client_sdk/platform/android/android_video_output.h"
-#include "px_client_sdk/sdk_params.h"
-#include "px_client_sdk/sdk_statistics.h"
+#include "px_client_sdk/platform/voice_audio_endpoint_port.h"
 #include "px_client_sdk/sdk_messages.h"
+#include "px_client_sdk/sdk_params.h"
+#include "px_client_sdk/sdk_recording_session.h"
+#include "px_client_sdk/sdk_statistics.h"
+#include "px_client_sdk/sdk_voice_call.h"
 #include "px_client_sdk/thunder_sdk.h"
-#include "px_common/md5.h"
 #include "px_common/log.h"
+#include "px_common/md5.h"
 #include "px_common/message_notifier.h"
 #include "px_common/thread.h"
 #include "px_common/time_util.h"
 #include "px_common/url_helper.h"
-#include "px_client_sdk/sdk_recording_session.h"
-#include "px_message/proto_message_maker.h"
 #include "px_message/proto_converter.h"
+#include "px_message/proto_message_maker.h"
 
 namespace pixels::android {
 namespace {
@@ -49,25 +48,33 @@ constexpr std::int32_t kRecordingFailed = 3;
 enum class JavaVoicePhase : jint { kIdle = 0, kRequesting = 1, kConnected = 2 };
 constexpr std::size_t kMaximumRemoteDirectoryEntries = 2048U;
 
+std::string AuthenticationQuery(const NativeSessionConfig& config) {
+    if (!config.frontend_token.empty()) {
+        return std::format("session_id={}&session_revision={}&frontend_token={}", px::UrlHelper::EncodeQueryComponent(config.frontend_session_id),
+                           config.frontend_session_revision, px::UrlHelper::EncodeQueryComponent(config.frontend_token));
+    }
+    return "safety_pwd_md5=" + px::UrlHelper::EncodeQueryComponent(config.remote_password_hash);
+}
+
 std::int32_t MouseButtonFlag(const std::int32_t button, const bool down) {
     switch (button) {
-    case 0:
-        return down ? px::ButtonFlag::kLeftMouseButtonDown : px::ButtonFlag::kLeftMouseButtonUp;
-    case 1:
-        return down ? px::ButtonFlag::kMiddleMouseButtonDown : px::ButtonFlag::kMiddleMouseButtonUp;
-    case 2:
-        return down ? px::ButtonFlag::kRightMouseButtonDown : px::ButtonFlag::kRightMouseButtonUp;
-    default:
-        return px::ButtonFlag::kNone;
+        case 0:
+            return down ? px::ButtonFlag::kLeftMouseButtonDown : px::ButtonFlag::kLeftMouseButtonUp;
+        case 1:
+            return down ? px::ButtonFlag::kMiddleMouseButtonDown : px::ButtonFlag::kMiddleMouseButtonUp;
+        case 2:
+            return down ? px::ButtonFlag::kRightMouseButtonDown : px::ButtonFlag::kRightMouseButtonUp;
+        default:
+            return px::ButtonFlag::kNone;
     }
 }
 
 void WithEnvironment(const std::uintptr_t vm_handle, const std::function<void(JNIEnv&)>& action) {
-    auto* vm = reinterpret_cast<JavaVM*>(vm_handle); // NOLINT(pixels-raw-pointer-boundary)
+    auto* vm = reinterpret_cast<JavaVM*>(vm_handle);  // NOLINT(pixels-raw-pointer-boundary)
     if (vm == nullptr) {
         return;
     }
-    JNIEnv* environment = nullptr; // NOLINT(pixels-raw-pointer-boundary)
+    JNIEnv* environment = nullptr;  // NOLINT(pixels-raw-pointer-boundary)
     bool detach_when_done{};
     const auto environment_result = vm->GetEnv(reinterpret_cast<void**>(&environment), JNI_VERSION_1_6);
     if (environment_result == JNI_EDETACHED) {
@@ -95,8 +102,7 @@ void DeleteLocalReference(JNIEnv& environment, const std::uintptr_t handle) {
 
 std::uintptr_t MakeStringArray(JNIEnv& environment, const std::vector<std::string>& values) {
     const auto string_class_handle = reinterpret_cast<std::uintptr_t>(environment.FindClass("java/lang/String"));
-    if (string_class_handle == 0U)
-        return 0U;
+    if (string_class_handle == 0U) return 0U;
     const auto array_handle = reinterpret_cast<std::uintptr_t>(
         environment.NewObjectArray(static_cast<jsize>(values.size()), reinterpret_cast<jclass>(string_class_handle), nullptr));
     for (std::size_t index = 0; array_handle != 0U && index < values.size(); ++index) {
@@ -117,7 +123,7 @@ std::uintptr_t MakeByteArray(JNIEnv& environment, const std::string& value) {
         return result_handle;
     }
     environment.SetByteArrayRegion(reinterpret_cast<jbyteArray>(result_handle), 0, static_cast<jsize>(value.size()),
-                                   reinterpret_cast<const jbyte*>(value.data())); // NOLINT(pixels-raw-pointer-boundary)
+                                   reinterpret_cast<const jbyte*>(value.data()));  // NOLINT(pixels-raw-pointer-boundary)
     return environment.ExceptionCheck() ? 0U : result_handle;
 }
 
@@ -127,7 +133,7 @@ std::uintptr_t MakeLongArray(JNIEnv& environment, const std::vector<std::int64_t
         return result_handle;
     }
     environment.SetLongArrayRegion(reinterpret_cast<jlongArray>(result_handle), 0, static_cast<jsize>(values.size()),
-                                   reinterpret_cast<const jlong*>(values.data())); // NOLINT(pixels-raw-pointer-boundary)
+                                   reinterpret_cast<const jlong*>(values.data()));  // NOLINT(pixels-raw-pointer-boundary)
     return environment.ExceptionCheck() ? 0U : result_handle;
 }
 
@@ -137,7 +143,7 @@ std::uintptr_t MakeIntArray(JNIEnv& environment, const std::vector<std::int32_t>
         return result_handle;
     }
     environment.SetIntArrayRegion(reinterpret_cast<jintArray>(result_handle), 0, static_cast<jsize>(values.size()),
-                                  reinterpret_cast<const jint*>(values.data())); // NOLINT(pixels-raw-pointer-boundary)
+                                  reinterpret_cast<const jint*>(values.data()));  // NOLINT(pixels-raw-pointer-boundary)
     return environment.ExceptionCheck() ? 0U : result_handle;
 }
 
@@ -160,10 +166,10 @@ std::uintptr_t MakeByteArrayArray(JNIEnv& environment, const std::vector<std::st
     return environment.ExceptionCheck() ? 0U : result_handle;
 }
 
-} // namespace
+}  // namespace
 
 std::shared_ptr<JavaSessionCallback> JavaSessionCallback::Create(JNIEnv& environment, const jobject listener) {
-    JavaVM* vm = nullptr; // NOLINT(pixels-raw-pointer-boundary)
+    JavaVM* vm = nullptr;  // NOLINT(pixels-raw-pointer-boundary)
     if (environment.GetJavaVM(&vm) != JNI_OK) {
         return {};
     }
@@ -299,7 +305,7 @@ void JavaSessionCallback::ClipboardText(const std::string& session_id, const std
         const auto text_handle = reinterpret_cast<std::uintptr_t>(environment.NewByteArray(static_cast<jsize>(text.size())));
         if (method != nullptr && session_id_handle != 0U && text_handle != 0U) {
             environment.SetByteArrayRegion(reinterpret_cast<jbyteArray>(text_handle), 0, static_cast<jsize>(text.size()),
-                                           reinterpret_cast<const jbyte*>(text.data())); // NOLINT(pixels-raw-pointer-boundary)
+                                           reinterpret_cast<const jbyte*>(text.data()));  // NOLINT(pixels-raw-pointer-boundary)
             if (!environment.ExceptionCheck()) {
                 environment.CallVoidMethod(listener, method, reinterpret_cast<jstring>(session_id_handle), reinterpret_cast<jbyteArray>(text_handle));
             }
@@ -529,10 +535,8 @@ void JavaSessionCallback::MediaUnavailable(const std::string& session_id, const 
         const std::unique_ptr<_jclass, decltype(delete_local)> listener_class{environment.GetObjectClass(reinterpret_cast<jobject>(listener_handle)),
                                                                               delete_local};
         const std::unique_ptr<_jstring, decltype(delete_local)> session_value{environment.NewStringUTF(session_id.c_str()), delete_local};
-        if (!listener_class || !session_value || environment.ExceptionCheck())
-            return;
-        if (environment.GetMethodID(listener_class.get(), "onMediaUnavailable", "(Ljava/lang/String;Z)V") == nullptr)
-            return;
+        if (!listener_class || !session_value || environment.ExceptionCheck()) return;
+        if (environment.GetMethodID(listener_class.get(), "onMediaUnavailable", "(Ljava/lang/String;Z)V") == nullptr) return;
         environment.CallVoidMethod(reinterpret_cast<jobject>(listener_handle),
                                    environment.GetMethodID(listener_class.get(), "onMediaUnavailable", "(Ljava/lang/String;Z)V"), session_value.get(),
                                    interrupted);
@@ -555,7 +559,7 @@ void JavaSessionCallback::Disconnected(const std::string& session_id, const std:
     });
 }
 
-void NativeWindowReleaser::operator()(ANativeWindow* window) const noexcept { // NOLINT(pixels-raw-pointer-boundary)
+void NativeWindowReleaser::operator()(ANativeWindow* window) const noexcept {  // NOLINT(pixels-raw-pointer-boundary)
     if (window != nullptr) {
         ANativeWindow_release(window);
     }
@@ -572,16 +576,21 @@ std::shared_ptr<NativeSession> NativeSession::Create(NativeSessionConfig config,
 
 NativeSession::NativeSession(NativeSessionConfig config, std::shared_ptr<JavaSessionCallback> callback,
                              std::unique_ptr<ANativeWindow, NativeWindowReleaser> surface)
-    : config_(std::move(config)), callback_(std::move(callback)), surface_(std::move(surface)), audio_player_(std::make_unique<NativeAudioPlayer>()) {
-}
+    : config_(std::move(config)),
+      callback_(std::move(callback)),
+      surface_(std::move(surface)),
+      audio_player_(std::make_unique<NativeAudioPlayer>()) {}
 
-NativeSession::~NativeSession() {
-    Stop();
-}
+NativeSession::~NativeSession() { Stop(); }
 
 bool NativeSession::Initialize() {
+    const bool has_frontend_fields =
+        !config_.frontend_session_id.empty() || config_.frontend_session_revision != 0 || !config_.frontend_token.empty();
+    const bool valid_frontend = !config_.frontend_session_id.empty() && config_.frontend_session_revision > 0 && !config_.frontend_token.empty() &&
+                                config_.stream_id == config_.frontend_session_id;
     if (initialized_ || config_.session_id.empty() || config_.host.empty() || config_.port <= 0 || config_.remote_device_id.empty() ||
-        config_.stream_id.empty() || config_.client_device_id.empty() || !surface_ || !callback_) {
+        config_.stream_id.empty() || config_.client_device_id.empty() || !surface_ || !callback_ || (has_frontend_fields && !valid_frontend) ||
+        (!has_frontend_fields && config_.remote_password_hash.empty())) {
         return false;
     }
 
@@ -609,16 +618,13 @@ bool NativeSession::Initialize() {
     params->device_name_ = "Pixels Android";
     params->display_name_ = "Pixels Android";
     params->display_remote_name_ = config_.remote_device_id;
-    params->media_path_ =
-        std::format("/media?only_audio=0&remote_device_id={}&stream_id={}&visitor_device_id={}&safety_pwd_md5={}",
-                    px::UrlHelper::EncodeQueryComponent(config_.remote_device_id), px::UrlHelper::EncodeQueryComponent(config_.stream_id),
-                    px::UrlHelper::EncodeQueryComponent(config_.client_device_id),
-                    px::UrlHelper::EncodeQueryComponent(config_.remote_password_hash));
-    params->ft_path_ =
-        std::format("/file/transfer?remote_device_id={}&stream_id={}&visitor_device_id={}&safety_pwd_md5={}",
-                    px::UrlHelper::EncodeQueryComponent(config_.remote_device_id), px::UrlHelper::EncodeQueryComponent(config_.stream_id),
-                    px::UrlHelper::EncodeQueryComponent(config_.client_device_id),
-                    px::UrlHelper::EncodeQueryComponent(config_.remote_password_hash));
+    const auto authentication_query = AuthenticationQuery(config_);
+    params->media_path_ = std::format(
+        "/media?only_audio=0&remote_device_id={}&stream_id={}&visitor_device_id={}&{}", px::UrlHelper::EncodeQueryComponent(config_.remote_device_id),
+        px::UrlHelper::EncodeQueryComponent(config_.stream_id), px::UrlHelper::EncodeQueryComponent(config_.client_device_id), authentication_query);
+    params->ft_path_ = std::format(
+        "/file/transfer?remote_device_id={}&stream_id={}&visitor_device_id={}&{}", px::UrlHelper::EncodeQueryComponent(config_.remote_device_id),
+        px::UrlHelper::EncodeQueryComponent(config_.stream_id), px::UrlHelper::EncodeQueryComponent(config_.client_device_id), authentication_query);
     params->connection_nonce_ = config_.connection_nonce;
     params->connection_instance_id_ = config_.connection_instance_id;
     params->remote_password_hash_ = config_.remote_password_hash;
@@ -676,8 +682,7 @@ bool NativeSession::Initialize() {
 
     decoder_output_ = std::make_shared<px::AndroidVideoOutput>(surface_);
     initialized_ = sdk_->Init(params, px::MakeAndroidVideoDecoderFactory(decoder_output_, config_.prefer_software_decoder));
-    if (!initialized_)
-        return false;
+    if (!initialized_) return false;
     statistics_ = px::SdkStatistics::Instance();
     last_received_bytes_ = statistics_->recv_data_size_.load();
 
@@ -771,9 +776,7 @@ bool NativeSession::Initialize() {
                 std::lock_guard lock(self->lifecycle_mutex_);
                 sdk = self->sdk_;
             }
-            return sdk && sdk->PostFileTransferMessage(
-                                 std::move(file_transfer_message))
-                              .accepted();
+            return sdk && sdk->PostFileTransferMessage(std::move(file_transfer_message)).accepted();
         },
         [weak_self](std::function<void()> task) {
             const auto self = weak_self.lock();
@@ -796,9 +799,7 @@ bool NativeSession::Initialize() {
                 self->callback_->ClipboardFiles(self->config_.session_id, files);
             }
         },
-        [weak_self](const std::string& generation,
-                    const std::vector<std::string>& paths,
-                    const std::string& error) {
+        [weak_self](const std::string& generation, const std::vector<std::string>& paths, const std::string& error) {
             if (const auto self = weak_self.lock(); self && !self->stopped_.load()) {
                 self->callback_->ClipboardFilesReady(self->config_.session_id, generation, paths, error);
             }
@@ -903,15 +904,13 @@ bool NativeSession::Initialize() {
     });
     sdk_->SetOnMonitorSwitchedCallback([weak_self](std::shared_ptr<px::Message> message) {
         const auto self = weak_self.lock();
-        if (!self || !message || !message->has_monitor_switched() || self->stopped_.load())
-            return;
+        if (!self || !message || !message->has_monitor_switched() || self->stopped_.load()) return;
         std::vector<std::string> monitor_names;
         std::string active_monitor_name;
         {
             std::lock_guard lock(self->lifecycle_mutex_);
             active_monitor_name = message->monitor_switched().name();
-            if (active_monitor_name.empty())
-                return;
+            if (active_monitor_name.empty()) return;
             self->active_monitor_name_ = active_monitor_name;
             if (std::find(self->monitor_names_.begin(), self->monitor_names_.end(), active_monitor_name) == self->monitor_names_.end()) {
                 self->monitor_names_.push_back(active_monitor_name);
@@ -995,8 +994,7 @@ bool NativeSession::Initialize() {
     });
     sdk_->SetOnHeartBeatCallback([weak_self](std::shared_ptr<px::Message> message) {
         const auto self = weak_self.lock();
-        if (!self || !message || !message->has_on_heartbeat() || self->stopped_.load())
-            return;
+        if (!self || !message || !message->has_on_heartbeat() || self->stopped_.load()) return;
         const auto sent_at = message->on_heartbeat().timestamp();
         const auto received_at = px::TimeUtil::GetCurrentTimestamp();
         self->latest_latency_millis_.store(received_at >= sent_at ? static_cast<std::int32_t>(received_at - sent_at) : 0);
@@ -1029,8 +1027,7 @@ bool NativeSession::Initialize() {
                 statistics_due = true;
             }
         }
-        if (size_changed)
-            self->callback_->FrameSizeChanged(self->config_.session_id, image->img_width, image->img_height);
+        if (size_changed) self->callback_->FrameSizeChanged(self->config_.session_id, image->img_width, image->img_height);
         if (statistics_due) {
             self->callback_->Statistics(self->config_.session_id, frames_per_second, self->latest_latency_millis_.load(), bitrate_kbps,
                                         self->statistics_->video_decoder_.Clone());
@@ -1072,8 +1069,7 @@ bool NativeSession::Start() {
 
 bool NativeSession::RebindSurface(std::unique_ptr<ANativeWindow, NativeWindowReleaser> surface) {
     std::lock_guard command_lock(command_mutex_);
-    if (!surface)
-        return false;
+    if (!surface) return false;
     return QueueSurfaceUpdate(std::shared_ptr<ANativeWindow>{std::move(surface)});
 }
 
@@ -1129,16 +1125,14 @@ void NativeSession::DispatchSurfaceUpdate(std::shared_ptr<px::ThunderSdk> sdk, s
     const auto output_available = replacement != nullptr;
     {
         std::lock_guard lock(lifecycle_mutex_);
-        if (stopped_.load() || !decoder_output_)
-            return;
+        if (stopped_.load() || !decoder_output_) return;
     }
     const auto weak_self = weak_from_this();
     sdk->RefreshVideoOutput(
         output_available,
         [weak_self, retiring_surface = std::move(retiring_surface)]() {
             static_cast<void>(retiring_surface);
-            if (const auto self = weak_self.lock())
-                self->CompleteSurfaceUpdate();
+            if (const auto self = weak_self.lock()) self->CompleteSurfaceUpdate();
         },
         [output = decoder_output_, replacement = std::move(replacement)]() mutable { output->Replace(std::move(replacement)); });
 }
@@ -1179,25 +1173,21 @@ bool NativeSession::SendMouse(const std::int32_t action, const std::int32_t butt
         sdk = sdk_;
         monitor_name = active_monitor_name_;
     }
-    if (monitor_name.empty())
-        return false;
+    if (monitor_name.empty()) return false;
 
     if (action == kMouseMoveAbsolute || action == kMouseMoveRelative) {
         const auto message = px::ProtoMessageMaker::MakeMouseEvent(px::ButtonFlag::kMouseMove, monitor_name, cursor_x, cursor_y, 0, false, false,
                                                                    client_signal_device_id_, config_.stream_id);
-        if (!message)
-            return false;
+        if (!message) return false;
         sdk->PostMediaMessage(message);
         return true;
     }
     if (action == kMouseButton) {
         const auto flag = MouseButtonFlag(button, down);
-        if (flag == px::ButtonFlag::kNone)
-            return false;
+        if (flag == px::ButtonFlag::kNone) return false;
         const auto message = px::ProtoMessageMaker::MakeMouseEvent(flag, monitor_name, cursor_x, cursor_y, 0, down, !down, client_signal_device_id_,
                                                                    config_.stream_id);
-        if (!message)
-            return false;
+        if (!message) return false;
         sdk->PostMediaMessage(message);
         return true;
     }
@@ -1209,8 +1199,7 @@ bool NativeSession::SendMouse(const std::int32_t action, const std::int32_t butt
         sdk->PostMediaMessage(px::ProtoMessageMaker::MakeMouseEvent(px::ButtonFlag::kMouseEventHWheel, monitor_name, cursor_x, cursor_y, delta_x,
                                                                     false, false, client_signal_device_id_, config_.stream_id));
     }
-    if (delta_x == 0 && delta_y == 0)
-        return false;
+    if (delta_x == 0 && delta_y == 0) return false;
     return true;
 }
 
@@ -1219,14 +1208,12 @@ bool NativeSession::SendKey(const std::int32_t virtual_key_code, const bool down
     std::shared_ptr<px::ThunderSdk> sdk;
     {
         std::lock_guard state_lock(lifecycle_mutex_);
-        if (stopped_.load() || !started_ || !config_.enable_input || !sdk_ || virtual_key_code <= 0 || virtual_key_code > 0xFF)
-            return false;
+        if (stopped_.load() || !started_ || !config_.enable_input || !sdk_ || virtual_key_code <= 0 || virtual_key_code > 0xFF) return false;
         sdk = sdk_;
     }
     const auto message =
         px::ProtoMessageMaker::MakeKeyEvent(static_cast<std::uint32_t>(virtual_key_code), down, client_signal_device_id_, config_.stream_id);
-    if (!message)
-        return false;
+    if (!message) return false;
     sdk->PostMediaMessage(message);
     return true;
 }
@@ -1248,8 +1235,7 @@ bool NativeSession::SendGamepad(const NativeGamepadState& state) {
     const auto message =
         px::ProtoMessageMaker::MakeGamepadState(state.buttons, state.left_trigger, state.right_trigger, state.left_thumb_x, state.left_thumb_y,
                                                 state.right_thumb_x, state.right_thumb_y, client_signal_device_id_, config_.stream_id);
-    if (!message)
-        return false;
+    if (!message) return false;
     sdk->PostMediaMessage(message);
     return true;
 }
@@ -1259,13 +1245,11 @@ bool NativeSession::SendText(const std::string& text) {
     std::shared_ptr<px::ThunderSdk> sdk;
     {
         std::lock_guard state_lock(lifecycle_mutex_);
-        if (stopped_.load() || !started_ || !config_.enable_input || !sdk_)
-            return false;
+        if (stopped_.load() || !started_ || !config_.enable_input || !sdk_) return false;
         sdk = sdk_;
     }
     const auto message = px::ProtoMessageMaker::MakeTextInput(text, client_signal_device_id_, config_.stream_id);
-    if (!message)
-        return false;
+    if (!message) return false;
     sdk->PostMediaMessage(message);
     return true;
 }
@@ -1276,8 +1260,7 @@ bool NativeSession::SendClipboardText(const std::string& text) {
     std::shared_ptr<NativeClipboard> clipboard{};
     {
         std::lock_guard state_lock(lifecycle_mutex_);
-        if (!started_ || stopped_.load() || !config_.enable_clipboard || text.empty() || text.size() > 1'048'576U)
-            return false;
+        if (!started_ || stopped_.load() || !config_.enable_clipboard || text.empty() || text.size() > 1'048'576U) return false;
         sdk = sdk_;
         clipboard = clipboard_;
     }
@@ -1327,13 +1310,11 @@ bool NativeSession::SendSecureAttention() {
     std::shared_ptr<px::ThunderSdk> sdk;
     {
         std::lock_guard state_lock(lifecycle_mutex_);
-        if (stopped_.load() || !started_ || !config_.enable_input || !sdk_)
-            return false;
+        if (stopped_.load() || !started_ || !config_.enable_input || !sdk_) return false;
         sdk = sdk_;
     }
     const auto message = px::ProtoMessageMaker::MakeCtrlAltDelete(client_signal_device_id_, config_.stream_id);
-    if (!message)
-        return false;
+    if (!message) return false;
     sdk->PostMediaMessage(message);
     return true;
 }
@@ -1347,26 +1328,22 @@ bool NativeSession::SwitchMonitor(const std::string& monitor_name) {
             std::find(monitor_names_.begin(), monitor_names_.end(), monitor_name) == monitor_names_.end()) {
             return false;
         }
-        if (active_monitor_name_ == monitor_name)
-            return true;
+        if (active_monitor_name_ == monitor_name) return true;
         sdk = sdk_;
     }
     const auto message = px::ProtoMessageMaker::MakeChangeMonitor(0, monitor_name, client_signal_device_id_, config_.stream_id);
-    if (!message)
-        return false;
+    if (!message) return false;
     sdk->PostMediaMessage(message);
     return true;
 }
 
 bool NativeSession::SetFrameRate(const std::int32_t frame_rate) {
-    if (frame_rate < 15 || frame_rate > 120)
-        return false;
+    if (frame_rate < 15 || frame_rate > 120) return false;
     std::lock_guard command_lock(command_mutex_);
     std::shared_ptr<px::ThunderSdk> sdk;
     {
         std::lock_guard state_lock(lifecycle_mutex_);
-        if (stopped_.load() || !started_ || !sdk_)
-            return false;
+        if (stopped_.load() || !started_ || !sdk_) return false;
         sdk = sdk_;
     }
     const auto message = std::make_shared<px::Message>();
@@ -1382,8 +1359,7 @@ bool NativeSession::SetFrameRate(const std::int32_t frame_rate) {
 
 bool NativeSession::SetAudioEnabled(const bool enabled) {
     std::lock_guard command_lock(command_mutex_);
-    if (stopped_.load() || !audio_player_)
-        return false;
+    if (stopped_.load() || !audio_player_) return false;
     audio_player_->SetEnabled(enabled && config_.enable_audio);
     return true;
 }
@@ -1492,29 +1468,23 @@ void NativeSession::SubmitRecordingFrame(std::shared_ptr<px::Message> message) {
     std::shared_ptr<px::RecordingSession> recording{};
     {
         std::lock_guard lock(lifecycle_mutex_);
-        if (stopped_.load())
-            return;
+        if (stopped_.load()) return;
         recording = recording_session_;
     }
-    if (recording)
-        static_cast<void>(recording->Submit(std::move(message)));
+    if (recording) static_cast<void>(recording->Submit(std::move(message)));
 }
 
 bool NativeSession::StartRecording(const std::string& recording_id, const std::string& staging_directory) {
     std::lock_guard command_lock(command_mutex_);
-    if (recording_id.empty() || staging_directory.empty() || recording_id.size() > 128U || staging_directory.size() > 4096U)
-        return false;
+    if (recording_id.empty() || staging_directory.empty() || recording_id.size() > 128U || staging_directory.size() > 4096U) return false;
     std::shared_ptr<px::ThunderSdk> sdk{};
     std::shared_ptr<px::RecordingSession> recording{};
     {
         std::lock_guard state_lock(lifecycle_mutex_);
-        if (stopped_.load() || !started_ || !sdk_)
-            return false;
+        if (stopped_.load() || !started_ || !sdk_) return false;
         std::erase_if(finishing_recordings_, [](const auto& run) { return run->WaitFor(std::chrono::milliseconds::zero()); });
-        if (recording_session_ && recording_session_->WaitFor(std::chrono::milliseconds::zero()))
-            recording_session_.reset();
-        if (recording_session_ || finishing_recordings_.size() >= 4U)
-            return false;
+        if (recording_session_ && recording_session_->WaitFor(std::chrono::milliseconds::zero())) recording_session_.reset();
+        if (recording_session_ || finishing_recordings_.size() >= 4U) return false;
         sdk = sdk_;
         const auto weak_callback = std::weak_ptr<JavaSessionCallback>(callback_);
         const auto session_id = config_.session_id;
@@ -1527,8 +1497,7 @@ bool NativeSession::StartRecording(const std::string& recording_id, const std::s
                                                           .max_file_count = 0,
                                                           .on_request_keyframe =
                                                               [weak_sdk = std::weak_ptr<px::ThunderSdk>(sdk)] {
-                                                                  if (const auto active = weak_sdk.lock())
-                                                                      active->RequestVideoKeyFrame();
+                                                                  if (const auto active = weak_sdk.lock()) active->RequestVideoKeyFrame();
                                                               },
                                                       }},
                                                  {.started =
@@ -1545,8 +1514,7 @@ bool NativeSession::StartRecording(const std::string& recording_id, const std::s
                                                                                        result.error.empty() ? kRecordingCompleted : kRecordingFailed,
                                                                                        result.error);
                                                       }});
-        if (!recording)
-            return false;
+        if (!recording) return false;
         recording_session_ = recording;
         active_recording_id_ = recording_id;
         if (!recording->Start()) {
@@ -1564,8 +1532,7 @@ bool NativeSession::StopRecording(const std::string& recording_id) {
     std::shared_ptr<px::RecordingSession> recording{};
     {
         std::lock_guard state_lock(lifecycle_mutex_);
-        if (recording_id.empty() || recording_id != active_recording_id_ || !recording_session_)
-            return false;
+        if (recording_id.empty() || recording_id != active_recording_id_ || !recording_session_) return false;
         active_recording_id_.clear();
         recording = std::move(recording_session_);
         finishing_recordings_.push_back(recording);
@@ -1644,8 +1611,7 @@ void NativeSession::Stop() {
         sdk = std::move(sdk_);
         file_transfer_session = std::move(file_transfer_session_);
         recordings = std::move(finishing_recordings_);
-        if (recording_session_)
-            recordings.push_back(std::move(recording_session_));
+        if (recording_session_) recordings.push_back(std::move(recording_session_));
         clipboard = std::move(clipboard_);
         voice_call = std::move(voice_call_);
         file_transfer_ready_ = false;
@@ -1674,10 +1640,8 @@ void NativeSession::Stop() {
             std::chrono::seconds(2)));
         static_cast<void>(file_transfer_session->StopAndWait(std::chrono::seconds(2)));
     }
-    for (const auto& recording : recordings)
-        recording->Stop();
-    for (const auto& recording : recordings)
-        static_cast<void>(recording->WaitFor(std::chrono::seconds(5)));
+    for (const auto& recording : recordings) recording->Stop();
+    for (const auto& recording : recordings) static_cast<void>(recording->WaitFor(std::chrono::seconds(5)));
     recordings.clear();
     if (clipboard) {
         clipboard->Stop();
@@ -1688,11 +1652,9 @@ void NativeSession::Stop() {
         // the peer observes the session transport closing.
         voice_call->Close();
     }
-    if (sdk)
-        sdk->Exit();
-    if (decoder_output_)
-        decoder_output_->Replace({});
+    if (sdk) sdk->Exit();
+    if (decoder_output_) decoder_output_->Replace({});
     audio_player_->Stop();
 }
 
-} // namespace pixels::android
+}  // namespace pixels::android

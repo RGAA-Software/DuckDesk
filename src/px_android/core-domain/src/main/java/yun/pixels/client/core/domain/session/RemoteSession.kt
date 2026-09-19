@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import yun.pixels.client.core.domain.account.AccountConnection
+import yun.pixels.client.core.domain.account.ResourceConnection
 import yun.pixels.client.core.domain.device.RemoteDevice
 
 @JvmInline
@@ -30,16 +30,14 @@ sealed interface RemoteSessionTarget {
     data class Account(
         override val displayName: String,
         val remoteDeviceId: String,
-        val connection: AccountConnection,
-        val clientNonce: String,
+        val connection: ResourceConnection,
     ) : RemoteSessionTarget
 
     data class CloudApplication(
         override val displayName: String,
         val appId: String,
         val instanceId: String,
-        val connection: AccountConnection,
-        val clientNonce: String,
+        val connection: ResourceConnection,
     ) : RemoteSessionTarget
 }
 

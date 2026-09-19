@@ -129,7 +129,6 @@ class DeviceHomeViewModel(
             return
         }
         viewModelScope.launch {
-            val clientNonce = UUID.randomUUID().toString()
             when (val result = accountRepository.resolveConnection(device.deviceId)) {
                 is AccountResult.Success -> mutableRemoteRequests.emit(
                     RemoteSessionRequest(
@@ -138,7 +137,6 @@ class DeviceHomeViewModel(
                             displayName = device.displayName,
                             remoteDeviceId = device.deviceId,
                             connection = result.value,
-                            clientNonce = clientNonce,
                         ),
                     ),
                 )

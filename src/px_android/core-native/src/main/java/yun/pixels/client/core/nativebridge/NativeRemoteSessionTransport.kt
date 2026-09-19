@@ -610,21 +610,17 @@ internal fun RemoteSessionRequest.toNativeConfig(
                 remoteDeviceId = sessionTarget.device.id.value,
                 streamId = directAuthorization?.streamId ?: return null,
                 remotePasswordHash = sessionTarget.credential.orEmpty(),
+                frontendSessionRevision = 0,
+                frontendToken = "",
                 instanceId = "",
             )
         }
-        is RemoteSessionTarget.Account -> sessionTarget.connection.toNativeEndpoint(sessionTarget.clientNonce)
-        is RemoteSessionTarget.CloudApplication -> sessionTarget.connection.toNativeEndpoint(sessionTarget.clientNonce)
+        is RemoteSessionTarget.Account -> sessionTarget.connection.toNativeEndpoint("")
+        is RemoteSessionTarget.CloudApplication -> sessionTarget.connection.toNativeEndpoint(sessionTarget.instanceId)
     }
     if (endpoint.remoteDeviceId.isBlank() || endpoint.streamId.isBlank() || clientDeviceId.isBlank()) return null
-    val authenticatedConnection = when (val sessionTarget = target) {
-        is RemoteSessionTarget.Account -> sessionTarget.connection to sessionTarget.clientNonce
-        is RemoteSessionTarget.CloudApplication -> sessionTarget.connection to sessionTarget.clientNonce
-        is RemoteSessionTarget.Direct -> null
-    }
-    if (authenticatedConnection != null &&
-        (authenticatedConnection.first.passwordHash.isBlank() || authenticatedConnection.second.isBlank())
-    ) return null
+    val consoleResource = target !is RemoteSessionTarget.Direct
+    if (consoleResource && (endpoint.frontendSessionRevision <= 0 || endpoint.frontendToken.isBlank())) return null
     return NativeSessionConfig(
         sessionId = id.value,
         host = endpoint.host,
@@ -635,7 +631,10 @@ internal fun RemoteSessionRequest.toNativeConfig(
         streamId = endpoint.streamId,
         clientDeviceId = clientDeviceId,
         remotePasswordHash = endpoint.remotePasswordHash,
-        connectionNonce = authenticatedConnection?.second ?: directAuthorization?.clientNonce.orEmpty(),
+        frontendSessionId = if (consoleResource) endpoint.streamId else "",
+        frontendSessionRevision = endpoint.frontendSessionRevision,
+        frontendToken = endpoint.frontendToken,
+        connectionNonce = if (consoleResource) endpoint.streamId else directAuthorization?.clientNonce.orEmpty(),
         connectionInstanceId = endpoint.instanceId,
         enableVideo = enableVideo,
         enableAudio = enableAudio,
@@ -645,14 +644,16 @@ internal fun RemoteSessionRequest.toNativeConfig(
     )
 }
 
-internal fun yun.pixels.client.core.domain.account.AccountConnection.toNativeEndpoint(clientNonce: String): NativeEndpoint {
+internal fun yun.pixels.client.core.domain.account.ResourceConnection.toNativeEndpoint(instanceId: String): NativeEndpoint {
     return NativeEndpoint(
         host = host,
         port = port,
         ssl = false,
-        remoteDeviceId = deviceId,
-        streamId = "android-$clientNonce",
-        remotePasswordHash = passwordHash,
+        remoteDeviceId = remoteResourceId,
+        streamId = sessionId,
+        remotePasswordHash = "",
+        frontendSessionRevision = sessionRevision,
+        frontendToken = frontendToken,
         instanceId = instanceId,
     )
 }
@@ -664,6 +665,8 @@ internal data class NativeEndpoint(
     val remoteDeviceId: String,
     val streamId: String,
     val remotePasswordHash: String,
+    val frontendSessionRevision: Long,
+    val frontendToken: String,
     val instanceId: String,
 )
 

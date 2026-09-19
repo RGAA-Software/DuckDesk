@@ -11,10 +11,10 @@ import yun.pixels.client.core.domain.account.AccountResult
 import yun.pixels.client.core.domain.account.AccountSession
 import yun.pixels.client.core.domain.account.AccountSessionStore
 import yun.pixels.client.core.domain.account.AccountState
-import yun.pixels.client.core.domain.account.AccountConnection
 import yun.pixels.client.core.domain.account.ConsoleEndpoint
 import yun.pixels.client.core.domain.account.ConsoleEndpointStore
 import yun.pixels.client.core.domain.account.GuestSession
+import yun.pixels.client.core.domain.account.ResourceConnection
 
 class ConsoleSessionCoordinatorTest {
     @Test
@@ -87,15 +87,15 @@ class ConsoleSessionCoordinatorTest {
         absoluteExpiresAtEpochMillis = expiresAt + 100,
     )
 
-    private fun connection() = AccountConnection(
+    private fun connection() = ResourceConnection(
         host = "render.example",
         port = 4601,
-        deviceId = "device",
-        instanceId = "",
-        passwordHash = "password-hash",
-        relayHost = "relay.example",
-        relayPort = 443,
-        signalDeviceId = "server_device",
+        remoteResourceId = "device",
+        sessionId = "session",
+        sessionRevision = 1,
+        frontendToken = "frontend-token",
+        transport = "native",
+        expiresAtEpochMillis = Long.MAX_VALUE,
     )
 }
 
@@ -114,14 +114,14 @@ private class FakeSessionStore(var session: AccountSession? = null) : AccountSes
 private class FakeApi(
     private val loginResult: AccountResult<AccountSession> = AccountResult.Failure(AccountFailure.InvalidCredentials),
     private val devicesResult: AccountResult<List<AccountDevice>> = AccountResult.Success(emptyList()),
-    private val connectionResult: AccountResult<AccountConnection> = AccountResult.Failure(AccountFailure.AuthenticationRequired),
+    private val connectionResult: AccountResult<ResourceConnection> = AccountResult.Failure(AccountFailure.AuthenticationRequired),
 ) : ConsoleAccountApi {
     override suspend fun testEndpoint(endpointInput: String) = AccountResult.Success(ConsoleEndpoint(endpointInput))
 
-    override suspend fun guestSession(endpoint: ConsoleEndpoint, clientNonce: String) =
+    override suspend fun guestSession(endpoint: ConsoleEndpoint) =
         AccountResult.Success(GuestSession(endpoint, "guest", Long.MAX_VALUE))
 
-    override suspend fun register(endpoint: ConsoleEndpoint, guestToken: String, username: String, password: String) =
+    override suspend fun register(endpoint: ConsoleEndpoint, username: String, password: String) =
         AccountResult.Success(AccountProfile("new", username, null, false))
 
     override suspend fun login(endpointInput: String, username: String, password: String) = loginResult
@@ -130,7 +130,7 @@ private class FakeApi(
 
     override suspend fun devices(session: AccountSession) = devicesResult
 
-    override suspend fun resolveConnection(session: AccountSession, deviceId: String): AccountResult<AccountConnection> = connectionResult
+    override suspend fun resolveConnection(session: AccountSession, deviceId: String): AccountResult<ResourceConnection> = connectionResult
 }
 
 private class FakeEndpointStore(private var endpoint: ConsoleEndpoint? = ConsoleEndpoint("https://console.example")) : ConsoleEndpointStore {

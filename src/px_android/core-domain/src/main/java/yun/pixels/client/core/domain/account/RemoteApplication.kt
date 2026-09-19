@@ -42,5 +42,5 @@ interface ApplicationRepository {
 
     suspend fun stop(instanceId: String): AccountResult<Unit>
 
-    suspend fun resolveConnection(instanceId: String): AccountResult<AccountConnection>
+    suspend fun resolveConnection(appId: String, instanceId: String): AccountResult<ResourceConnection>
 }

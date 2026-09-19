@@ -10,7 +10,7 @@
 > [Direct Host WebRTC 与中央媒体能力收缩计划](direct_host_webrtc_scope_plan_20260919.md)。iOS/macOS仍为后续平台适配。
 > 归档规则更新：本次精简的旧实现完整保存到根目录 `backup/`，文中“删除/移除”表示退出活动源码和构建，不直接销毁原代码。
 > 当前产品构建和交付边界以 [产品编译、产物与使用说明](product_build_and_usage.md) 为准；本文第 13 节 RTC 实施和测试内容仅为历史记录。
-> 2026-09-12 鉴权更新：Android 已删除一次性连接票据与续期状态机。账号设备和应用入口从 Console 获取稳定 Native 端点与设备密码摘要，最终仍由 Render 直接鉴权；旧 M5 票据内容仅为历史记录。
+> 2026-09-19 鉴权更新：Android 账号设备和云应用统一使用 PostgreSQL Console 资源会话描述符及短期 frontend grant；Render 校验 session/revision/token。旧设备密码摘要和旧 M5 票据内容只属于历史记录。
 > 2026-09-14 云应用更新：新增独立一级“云应用”Tab、PX Console 配置、游客 public 应用、账号注册/登录与 ACL 应用；
 > 实施计划见 [Android 云应用模块实施计划](android_cloud_apps_implementation_plan_20260914.md)。
 
@@ -78,7 +78,7 @@ Pixels Android 使用独立且统一的品牌资源：
 
 ### 4.1 设备首页
 
-- 支持 Console 账号登录与账号设备同步，连接时使用 Console 返回的稳定 Native 端点与设备密码摘要；同时保留免登录的连接码/IP/扫码入口。
+- 支持 Console 账号登录与账号设备同步，账号连接使用 Console 返回的资源会话描述符和 frontend grant；免登录连接码/IP/扫码仍使用其独立的直接设备凭据边界。
 - 自动发现局域网设备。
 - 扫描二维码和手动输入连接信息。
 - 展示设备名称、在线状态、连接方式和最近连接时间。
@@ -98,7 +98,7 @@ Pixels Android 使用独立且统一的品牌资源：
 
 - 使用独立一级“云应用” Tab，只展示当前 PX Console 的 public 应用和已登录账号 ACL 应用。
 - 支持 Android guest、注册、登录、启动并连接、连接现有实例和停止；不把应用写入设备库。
-- 云应用连接只消费 Console `native-connection` 返回的权威实际端点，会话结束返回云应用 Tab。
+- 云应用连接只消费 Console resource-session descriptor 返回的权威实际端点、显式 CloudApplication target 和 frontend grant；会话结束返回云应用 Tab。
 - 首版允许 game-hook 和 webview；RDP 与未知类型显式禁用，不得按 Native 模式误启动。
 
 不保留旧版 Steam 专属页面。Steam 游戏与其他程序统一建模为云应用，产品层不绑定特定商店。
@@ -621,7 +621,7 @@ logical session 与 stream 绑定。Web 客户端使用的服务端 RTC 能力�
   以及真实局域网远控均通过；手柄竖屏提示下首次系统返回只退出手柄模式，第二次返回显示结束确认，取消后视频会话继续，确认后才停止会话并回到设备页。
   全套 Android 单元测试、lint 和 debug APK 构建通过，无 `AndroidRuntime` 崩溃；APK SHA-256 为
   `1178ADA387E2EC9488E76A7F1579E917B78C19FC284FCD9AC6946E7AF2EE7640`，测试过程未卸载应用。
-- 2026-09-12：上述 M5 临时授权恢复方案已经整体退役。Android 现在获取稳定连接描述，并由 Render 直接校验设备密码摘要；不再续发、兑换或缓存连接票据。
+- 2026-09-19：上述 M5 临时授权和后续设备密码式账号连接均已退出 Console 账号/云应用链路。Android 使用当前资源会话描述符，Render 校验短期 frontend grant；不提供旧接口 fallback。
 - 2026-09-07 导航与远控遮挡复核把应用详情纳入设备 Tab 的选中层级，允许直接切换一级栏目，切换后只返回对应根页；远控和会话文件页保持无底栏全屏栈，
   文件根页系统返回只退回远控，结束会话回到连接前父页。远控工具栏默认收成右上角单按钮，展开后系统返回先收起，不再常驻遮挡画面。Xiaomi 22021211RC
   覆盖安装后完成设备→设置→系统返回、设备→应用→传输→设备、真实会话文件→远控，以及工具栏展开→返回收起→结束确认的短时验证；实时画面约 55 FPS / 3–5 ms，

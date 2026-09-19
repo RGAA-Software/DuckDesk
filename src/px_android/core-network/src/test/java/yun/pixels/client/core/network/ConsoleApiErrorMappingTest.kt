@@ -6,21 +6,20 @@ import yun.pixels.client.core.domain.account.AccountFailure
 
 class ConsoleApiErrorMappingTest {
     @Test
-    fun serverErrorNameDistinguishesInvalidLoginFromExpiredSession() {
-        assertEquals(AccountFailure.InvalidCredentials, accountFailure(401, """{"error":"AUTH_INVALID_CREDENTIALS"}"""))
-        assertEquals(AccountFailure.AuthenticationRequired, accountFailure(401, """{"error":"AUTH_REQUIRED"}"""))
+    fun currentAuthenticationAndAuthorizationCodesRemainTyped() {
+        assertEquals(AccountFailure.AuthenticationRequired, accountFailure(HttpResponse(401, """{"code":"unauthorized"}""")))
+        assertEquals(AccountFailure.Forbidden, accountFailure(HttpResponse(403, """{"code":"rejected"}""")))
     }
 
     @Test
-    fun deviceOfflineOverridesGenericServiceUnavailableStatus() {
-        assertEquals(AccountFailure.DeviceOffline, accountFailure(503, """{"error":"DEVICE_OFFLINE"}"""))
-        assertEquals(AccountFailure.ServerError, accountFailure(503, """{"error":"REQUEST_FAILED"}"""))
+    fun serviceFailureAndMissingResourceRemainTyped() {
+        assertEquals(AccountFailure.ServerError, accountFailure(HttpResponse(503, """{"code":"unavailable"}""")))
+        assertEquals(AccountFailure.NotFound, accountFailure(HttpResponse(404, """{"code":"not_found"}""")))
     }
 
     @Test
-    fun stableBusinessCodesPreserveRegistrationAndQuotaFailures() {
-        assertEquals(AccountFailure.UsernameConflict, accountFailure(409, """{"code":608,"error":"REQUEST_FAILED"}"""))
-        assertEquals(AccountFailure.RateLimited, accountFailure(429, """{"code":638,"error":"RATE_LIMITED"}"""))
-        assertEquals(AccountFailure.QuotaExceeded, accountFailure(429, """{"code":639,"error":"QUOTA_EXCEEDED"}"""))
+    fun currentConflictAndRateLimitCodesRemainTyped() {
+        assertEquals(AccountFailure.InstanceBusy, accountFailure(HttpResponse(409, """{"code":"conflict"}""")))
+        assertEquals(AccountFailure.RateLimited, accountFailure(HttpResponse(429, """{"code":"rate_limited"}""")))
     }
 }

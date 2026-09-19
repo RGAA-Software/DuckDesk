@@ -17,7 +17,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
-import yun.pixels.client.core.domain.account.AccountConnection
 import yun.pixels.client.core.domain.account.AccountDevice
 import yun.pixels.client.core.domain.account.AccountFailure
 import yun.pixels.client.core.domain.account.AccountResult
@@ -30,6 +29,7 @@ import yun.pixels.client.core.domain.account.RemoteApplication
 import yun.pixels.client.core.domain.account.RemoteApplicationAccess
 import yun.pixels.client.core.domain.account.RemoteApplicationInstance
 import yun.pixels.client.core.domain.account.RemoteApplicationType
+import yun.pixels.client.core.domain.account.ResourceConnection
 import yun.pixels.client.core.domain.session.RemoteSessionTarget
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -125,23 +125,22 @@ class CloudAppsViewModelTest {
         runningInstance = instance,
     )
 
-    private fun connection() = AccountConnection(
+    private fun connection() = ResourceConnection(
         host = "render.example.com",
         port = 4613,
-        deviceId = "node-1",
-        instanceId = "instance-1",
-        passwordHash = "password-hash",
-        relayHost = "relay.example.com",
-        relayPort = 443,
-        signalDeviceId = "signal-1",
-        appType = RemoteApplicationType.GameHook,
+        remoteResourceId = "instance-1",
+        sessionId = "session-1",
+        sessionRevision = 2,
+        frontendToken = "frontend-token",
+        transport = "native",
+        expiresAtEpochMillis = Long.MAX_VALUE,
     )
 }
 
 private class FakeApplicationRepository(
     private val applications: List<RemoteApplication>,
     private val startResult: AccountResult<RemoteApplicationInstance> = AccountResult.Failure(AccountFailure.ServerError),
-    private val connectionResult: AccountResult<AccountConnection> = AccountResult.Failure(AccountFailure.DeviceOffline),
+    private val connectionResult: AccountResult<ResourceConnection> = AccountResult.Failure(AccountFailure.DeviceOffline),
 ) : ApplicationRepository {
     var applicationCalls = 0
     val startedAppIds = mutableListOf<String>()
@@ -159,7 +158,7 @@ private class FakeApplicationRepository(
 
     override suspend fun stop(instanceId: String): AccountResult<Unit> = AccountResult.Success(Unit)
 
-    override suspend fun resolveConnection(instanceId: String): AccountResult<AccountConnection> {
+    override suspend fun resolveConnection(appId: String, instanceId: String): AccountResult<ResourceConnection> {
         resolvedInstanceIds += instanceId
         return connectionResult
     }
@@ -182,7 +181,7 @@ private class FakeConsoleSessionRepository(
 
     override suspend fun devices(): AccountResult<List<AccountDevice>> = AccountResult.Success(emptyList())
 
-    override suspend fun resolveConnection(deviceId: String): AccountResult<AccountConnection> =
+    override suspend fun resolveConnection(deviceId: String): AccountResult<ResourceConnection> =
         AccountResult.Failure(AccountFailure.DeviceOffline)
 
     override suspend fun saveEndpoint(endpoint: String): AccountResult<ConsoleEndpoint> {

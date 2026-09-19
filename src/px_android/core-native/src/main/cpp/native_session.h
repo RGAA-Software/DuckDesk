@@ -23,12 +23,12 @@ class RecordingSession;
 class FileDirectory;
 class VoiceCallController;
 struct VoiceCallStatus;
-} // namespace px
+}  // namespace px
 
 namespace px::ft {
 class FtAsyncSession;
 struct TransferJobStatus;
-} // namespace px::ft
+}  // namespace px::ft
 
 namespace pixels::android {
 
@@ -47,6 +47,9 @@ struct NativeSessionConfig final {
     std::string stream_id{};
     std::string client_device_id{};
     std::string remote_password_hash{};
+    std::string frontend_session_id{};
+    std::int64_t frontend_session_revision{};
+    std::string frontend_token{};
     std::string connection_nonce{};
     std::string connection_instance_id{};
     bool enable_video{true};
@@ -67,7 +70,7 @@ struct NativeGamepadState final {
 };
 
 class JavaSessionCallback final {
-  public:
+public:
     static std::shared_ptr<JavaSessionCallback> Create(JNIEnv& environment, jobject listener);
 
     JavaSessionCallback(std::uintptr_t vm_handle, std::uintptr_t listener_handle);
@@ -98,17 +101,17 @@ class JavaSessionCallback final {
     void MediaUnavailable(const std::string& session_id, bool interrupted) const;
     void Disconnected(const std::string& session_id, std::int32_t reason, bool recoverable) const;
 
-  private:
+private:
     std::uintptr_t vm_handle_{};
     std::uintptr_t listener_handle_{};
 };
 
 struct NativeWindowReleaser final {
-    void operator()(ANativeWindow* window) const noexcept; // NOLINT(pixels-raw-pointer-boundary)
+    void operator()(ANativeWindow* window) const noexcept;  // NOLINT(pixels-raw-pointer-boundary)
 };
 
 class NativeSession final : public std::enable_shared_from_this<NativeSession> {
-  public:
+public:
     static std::shared_ptr<NativeSession> Create(NativeSessionConfig config, std::shared_ptr<JavaSessionCallback> callback,
                                                  std::unique_ptr<ANativeWindow, NativeWindowReleaser> surface);
 
@@ -147,7 +150,7 @@ class NativeSession final : public std::enable_shared_from_this<NativeSession> {
     bool SetAudioEnabled(bool enabled);
     void Stop();
 
-  private:
+private:
     void SubmitRecordingFrame(std::shared_ptr<px::Message> message);
     bool QueueSurfaceUpdate(std::shared_ptr<ANativeWindow> surface);
     void CompleteSurfaceUpdate();
@@ -191,4 +194,4 @@ class NativeSession final : public std::enable_shared_from_this<NativeSession> {
     std::chrono::steady_clock::time_point statistics_window_started_{std::chrono::steady_clock::now()};
 };
 
-} // namespace pixels::android
+}  // namespace pixels::android

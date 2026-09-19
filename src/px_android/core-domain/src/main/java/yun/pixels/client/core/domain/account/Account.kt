@@ -32,16 +32,15 @@ data class AccountDevice(
     val lastSeenEpochMillis: Long?,
 )
 
-data class AccountConnection(
+data class ResourceConnection(
     val host: String,
     val port: Int,
-    val deviceId: String,
-    val instanceId: String,
-    val passwordHash: String,
-    val relayHost: String,
-    val relayPort: Int,
-    val signalDeviceId: String,
-    val appType: RemoteApplicationType? = null,
+    val remoteResourceId: String,
+    val sessionId: String,
+    val sessionRevision: Long,
+    val frontendToken: String,
+    val transport: String,
+    val expiresAtEpochMillis: Long,
 )
 
 enum class AccountFailure {
@@ -103,7 +102,7 @@ interface AccountRepository {
 
     suspend fun devices(): AccountResult<List<AccountDevice>>
 
-    suspend fun resolveConnection(deviceId: String): AccountResult<AccountConnection>
+    suspend fun resolveConnection(deviceId: String): AccountResult<ResourceConnection>
 }
 
 interface ConsoleSessionRepository : AccountRepository {

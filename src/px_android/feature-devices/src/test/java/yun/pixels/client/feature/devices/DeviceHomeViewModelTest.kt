@@ -36,8 +36,8 @@ import yun.pixels.client.core.domain.account.AccountRepository
 import yun.pixels.client.core.domain.account.AccountResult
 import yun.pixels.client.core.domain.account.AccountSession
 import yun.pixels.client.core.domain.account.AccountState
-import yun.pixels.client.core.domain.account.AccountConnection
 import yun.pixels.client.core.domain.account.ConsoleEndpoint
+import yun.pixels.client.core.domain.account.ResourceConnection
 import yun.pixels.client.core.domain.session.RemoteSessionTarget
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -231,15 +231,15 @@ class DeviceHomeViewModelTest {
         oneTimePassword = "123456",
     )
 
-    private fun accountConnection() = AccountConnection(
+    private fun accountConnection() = ResourceConnection(
         host = "render.example.com",
         port = 4601,
-        deviceId = "account-device",
-        instanceId = "",
-        passwordHash = "password-hash",
-        relayHost = "relay.example.com",
-        relayPort = 443,
-        signalDeviceId = "signal-device",
+        remoteResourceId = "account-device",
+        sessionId = "session-1",
+        sessionRevision = 1,
+        frontendToken = "frontend-token",
+        transport = "native",
+        expiresAtEpochMillis = Long.MAX_VALUE,
     )
 }
 
@@ -268,7 +268,7 @@ private class FakeDeviceResolver(private val resolution: DeviceResolution) : Dev
 
 private class FakeAccountRepository(
     private val devicesResult: AccountResult<List<AccountDevice>>? = null,
-    private val connectionResult: AccountResult<AccountConnection>? = null,
+    private val connectionResult: AccountResult<ResourceConnection>? = null,
 ) : AccountRepository {
     private val mutableState = MutableStateFlow<AccountState>(AccountState.SignedOut)
     override val state: StateFlow<AccountState> = mutableState
@@ -296,7 +296,7 @@ private class FakeAccountRepository(
 
     override suspend fun devices(): AccountResult<List<AccountDevice>> = devicesResult ?: AccountResult.Success(availableDevices)
 
-    override suspend fun resolveConnection(deviceId: String): AccountResult<AccountConnection> {
+    override suspend fun resolveConnection(deviceId: String): AccountResult<ResourceConnection> {
         resolvedDeviceIds += deviceId
         return connectionResult ?: AccountResult.Failure(AccountFailure.DeviceOffline)
     }

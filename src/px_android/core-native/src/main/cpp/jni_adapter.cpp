@@ -1,6 +1,3 @@
-#include "native_session.h"
-#include "native_clipboard.h"
-
 #include <android/native_window_jni.h>
 #include <jni.h>
 
@@ -14,11 +11,14 @@
 #include <utility>
 #include <vector>
 
+#include "native_clipboard.h"
+#include "native_session.h"
+
 namespace pixels::android {
 namespace {
 
 class SessionRegistry final {
-  public:
+public:
     std::int64_t Add(std::shared_ptr<NativeSession> session) {
         std::lock_guard lock(mutex_);
         const auto id = next_id_++;
@@ -38,7 +38,7 @@ class SessionRegistry final {
         return node.empty() ? std::shared_ptr<NativeSession>{} : std::move(node.mapped());
     }
 
-  private:
+private:
     mutable std::mutex mutex_{};
     std::unordered_map<std::int64_t, std::shared_ptr<NativeSession>> sessions_{};
     std::int64_t next_id_{1};
@@ -58,7 +58,7 @@ std::string ReadString(JNIEnv& environment, const jobject config, const jclass c
     if (value == nullptr) {
         return {};
     }
-    const char* characters = environment.GetStringUTFChars(value, nullptr); // NOLINT(pixels-raw-pointer-boundary)
+    const char* characters = environment.GetStringUTFChars(value, nullptr);  // NOLINT(pixels-raw-pointer-boundary)
     const std::string result = characters == nullptr ? std::string{} : std::string{characters};
     if (characters != nullptr) {
         environment.ReleaseStringUTFChars(value, characters);
@@ -70,6 +70,11 @@ std::string ReadString(JNIEnv& environment, const jobject config, const jclass c
 std::int32_t ReadInt(JNIEnv& environment, const jobject config, const jclass config_class, const std::string_view field_name) {
     const auto field = environment.GetFieldID(config_class, field_name.data(), "I");
     return field == nullptr ? 0 : environment.GetIntField(config, field);
+}
+
+std::int64_t ReadLong(JNIEnv& environment, const jobject config, const jclass config_class, const std::string_view field_name) {
+    const auto field = environment.GetFieldID(config_class, field_name.data(), "J");
+    return field == nullptr ? 0 : environment.GetLongField(config, field);
 }
 
 bool ReadBoolean(JNIEnv& environment, const jobject config, const jclass config_class, const std::string_view field_name) {
@@ -87,7 +92,7 @@ std::string ReadUtf8Bytes(JNIEnv& environment, const jbyteArray value, const jsi
     }
     std::string result(static_cast<std::size_t>(length), '\0');
     environment.GetByteArrayRegion(value, 0, length,
-                                   reinterpret_cast<jbyte*>(result.data())); // NOLINT(pixels-raw-pointer-boundary)
+                                   reinterpret_cast<jbyte*>(result.data()));  // NOLINT(pixels-raw-pointer-boundary)
     return environment.ExceptionCheck() ? std::string{} : result;
 }
 
@@ -95,7 +100,7 @@ std::string ReadJavaString(JNIEnv& environment, const jstring value, const std::
     if (value == nullptr) {
         return {};
     }
-    const char* characters = environment.GetStringUTFChars(value, nullptr); // NOLINT(pixels-raw-pointer-boundary)
+    const char* characters = environment.GetStringUTFChars(value, nullptr);  // NOLINT(pixels-raw-pointer-boundary)
     const std::string result = characters == nullptr ? std::string{} : std::string{characters};
     if (characters != nullptr) {
         environment.ReleaseStringUTFChars(value, characters);
@@ -137,6 +142,9 @@ NativeSessionConfig ReadConfig(JNIEnv& environment, const jobject config) {
         .stream_id = ReadString(environment, config, config_class, "streamId"),
         .client_device_id = ReadString(environment, config, config_class, "clientDeviceId"),
         .remote_password_hash = ReadString(environment, config, config_class, "remotePasswordHash"),
+        .frontend_session_id = ReadString(environment, config, config_class, "frontendSessionId"),
+        .frontend_session_revision = ReadLong(environment, config, config_class, "frontendSessionRevision"),
+        .frontend_token = ReadString(environment, config, config_class, "frontendToken"),
         .connection_nonce = ReadString(environment, config, config_class, "connectionNonce"),
         .connection_instance_id = ReadString(environment, config, config_class, "connectionInstanceId"),
         .enable_video = ReadBoolean(environment, config, config_class, "enableVideo"),
@@ -149,7 +157,7 @@ NativeSessionConfig ReadConfig(JNIEnv& environment, const jobject config) {
     return result;
 }
 
-jlong NativeCreate(JNIEnv* environment, jobject, jobject config, jobject listener, jobject surface) { // NOLINT(pixels-raw-pointer-boundary)
+jlong NativeCreate(JNIEnv* environment, jobject, jobject config, jobject listener, jobject surface) {  // NOLINT(pixels-raw-pointer-boundary)
     if (environment == nullptr || config == nullptr || listener == nullptr || surface == nullptr) {
         return 0;
     }
@@ -159,12 +167,12 @@ jlong NativeCreate(JNIEnv* environment, jobject, jobject config, jobject listene
     return session ? Registry().Add(std::move(session)) : 0;
 }
 
-jboolean NativeStart(JNIEnv*, jobject, const jlong native_session_id) { // NOLINT(pixels-raw-pointer-boundary)
+jboolean NativeStart(JNIEnv*, jobject, const jlong native_session_id) {  // NOLINT(pixels-raw-pointer-boundary)
     const auto session = Registry().Find(native_session_id);
     return session && session->Start() ? JNI_TRUE : JNI_FALSE;
 }
 
-jboolean NativeReplaceSurface(JNIEnv* environment, jobject, const jlong native_session_id, // NOLINT(pixels-raw-pointer-boundary)
+jboolean NativeReplaceSurface(JNIEnv* environment, jobject, const jlong native_session_id,  // NOLINT(pixels-raw-pointer-boundary)
                               jobject surface) {
     if (environment == nullptr || surface == nullptr) {
         return JNI_FALSE;
@@ -177,57 +185,51 @@ jboolean NativeReplaceSurface(JNIEnv* environment, jobject, const jlong native_s
     return session->RebindSurface(std::move(native_window)) ? JNI_TRUE : JNI_FALSE;
 }
 
-jboolean NativeDetachSurface(JNIEnv*, jobject, const jlong native_session_id) { // NOLINT(pixels-raw-pointer-boundary)
+jboolean NativeDetachSurface(JNIEnv*, jobject, const jlong native_session_id) {  // NOLINT(pixels-raw-pointer-boundary)
     const auto session = Registry().Find(native_session_id);
     return session && session->DetachSurface() ? JNI_TRUE : JNI_FALSE;
 }
 
 jboolean NativeSendMouse(JNIEnv*, jobject, const jlong native_session_id, const jint action, const jint button, const jboolean down,
                          const jfloat x_ratio, const jfloat y_ratio, const jint delta_x,
-                         const jint delta_y) { // NOLINT(pixels-raw-pointer-boundary)
+                         const jint delta_y) {  // NOLINT(pixels-raw-pointer-boundary)
     const auto session = Registry().Find(native_session_id);
     return session && session->SendMouse(action, button, down == JNI_TRUE, x_ratio, y_ratio, delta_x, delta_y) ? JNI_TRUE : JNI_FALSE;
 }
 
 jboolean NativeSendKey(JNIEnv*, jobject, const jlong native_session_id, const jint virtual_key_code,
-                       const jboolean down) { // NOLINT(pixels-raw-pointer-boundary)
+                       const jboolean down) {  // NOLINT(pixels-raw-pointer-boundary)
     const auto session = Registry().Find(native_session_id);
     return session && session->SendKey(virtual_key_code, down == JNI_TRUE) ? JNI_TRUE : JNI_FALSE;
 }
 
-jboolean NativeSendText(JNIEnv* environment, jobject, const jlong native_session_id, // NOLINT(pixels-raw-pointer-boundary)
+jboolean NativeSendText(JNIEnv* environment, jobject, const jlong native_session_id,  // NOLINT(pixels-raw-pointer-boundary)
                         const jbyteArray utf8_text) {
-    if (environment == nullptr || utf8_text == nullptr)
-        return JNI_FALSE;
+    if (environment == nullptr || utf8_text == nullptr) return JNI_FALSE;
     const auto length = environment->GetArrayLength(utf8_text);
-    if (length <= 0 || length > 4096)
-        return JNI_FALSE;
+    if (length <= 0 || length > 4096) return JNI_FALSE;
     std::string text(static_cast<std::size_t>(length), '\0');
     environment->GetByteArrayRegion(utf8_text, 0, length,
-                                    reinterpret_cast<jbyte*>(text.data())); // NOLINT(pixels-raw-pointer-boundary)
-    if (environment->ExceptionCheck())
-        return JNI_FALSE;
+                                    reinterpret_cast<jbyte*>(text.data()));  // NOLINT(pixels-raw-pointer-boundary)
+    if (environment->ExceptionCheck()) return JNI_FALSE;
     const auto session = Registry().Find(native_session_id);
     return session && session->SendText(text) ? JNI_TRUE : JNI_FALSE;
 }
 
-jboolean NativeSendClipboardText(JNIEnv* environment, jobject, const jlong native_session_id, // NOLINT(pixels-raw-pointer-boundary)
+jboolean NativeSendClipboardText(JNIEnv* environment, jobject, const jlong native_session_id,  // NOLINT(pixels-raw-pointer-boundary)
                                  const jbyteArray utf8_text) {
-    if (environment == nullptr || utf8_text == nullptr)
-        return JNI_FALSE;
+    if (environment == nullptr || utf8_text == nullptr) return JNI_FALSE;
     const auto length = environment->GetArrayLength(utf8_text);
-    if (length <= 0 || length > 1'048'576)
-        return JNI_FALSE;
+    if (length <= 0 || length > 1'048'576) return JNI_FALSE;
     std::string text(static_cast<std::size_t>(length), '\0');
     environment->GetByteArrayRegion(utf8_text, 0, length,
-                                    reinterpret_cast<jbyte*>(text.data())); // NOLINT(pixels-raw-pointer-boundary)
-    if (environment->ExceptionCheck())
-        return JNI_FALSE;
+                                    reinterpret_cast<jbyte*>(text.data()));  // NOLINT(pixels-raw-pointer-boundary)
+    if (environment->ExceptionCheck()) return JNI_FALSE;
     const auto session = Registry().Find(native_session_id);
     return session && session->SendClipboardText(text) ? JNI_TRUE : JNI_FALSE;
 }
 
-jboolean NativeSendClipboardFiles(JNIEnv* environment, jobject, const jlong native_session_id, // NOLINT(pixels-raw-pointer-boundary)
+jboolean NativeSendClipboardFiles(JNIEnv* environment, jobject, const jlong native_session_id,  // NOLINT(pixels-raw-pointer-boundary)
                                   const jstring generation, const jobjectArray display_names, const jobjectArray local_paths,
                                   const jlongArray sizes) {
     if (environment == nullptr || generation == nullptr || display_names == nullptr || local_paths == nullptr || sizes == nullptr) {
@@ -242,7 +244,7 @@ jboolean NativeSendClipboardFiles(JNIEnv* environment, jobject, const jlong nati
         return JNI_FALSE;
     }
     std::vector<jlong> file_sizes(names.size());
-    environment->GetLongArrayRegion(sizes, 0, size_count, file_sizes.data()); // NOLINT(pixels-raw-pointer-boundary)
+    environment->GetLongArrayRegion(sizes, 0, size_count, file_sizes.data());  // NOLINT(pixels-raw-pointer-boundary)
     if (environment->ExceptionCheck()) {
         return JNI_FALSE;
     }
@@ -255,7 +257,7 @@ jboolean NativeSendClipboardFiles(JNIEnv* environment, jobject, const jlong nati
     return session && session->SendClipboardFiles(generation_value, std::move(files)) ? JNI_TRUE : JNI_FALSE;
 }
 
-jboolean NativeDownloadClipboardFiles(JNIEnv* environment, jobject, const jlong native_session_id, // NOLINT(pixels-raw-pointer-boundary)
+jboolean NativeDownloadClipboardFiles(JNIEnv* environment, jobject, const jlong native_session_id,  // NOLINT(pixels-raw-pointer-boundary)
                                       const jstring generation, const jstring destination_directory) {
     if (environment == nullptr) {
         return JNI_FALSE;
@@ -266,7 +268,7 @@ jboolean NativeDownloadClipboardFiles(JNIEnv* environment, jobject, const jlong 
     return session && session->DownloadClipboardFiles(generation_value, destination_value) ? JNI_TRUE : JNI_FALSE;
 }
 
-jint NativeStartFileUpload(JNIEnv* environment, jobject, const jlong native_session_id, // NOLINT(pixels-raw-pointer-boundary)
+jint NativeStartFileUpload(JNIEnv* environment, jobject, const jlong native_session_id,  // NOLINT(pixels-raw-pointer-boundary)
                            const jbyteArray local_path, const jbyteArray remote_directory) {
     if (environment == nullptr) {
         return 0;
@@ -277,7 +279,7 @@ jint NativeStartFileUpload(JNIEnv* environment, jobject, const jlong native_sess
     return session ? session->StartFileUpload(local, remote) : 0;
 }
 
-jint NativeStartFileDownload(JNIEnv* environment, jobject, const jlong native_session_id, // NOLINT(pixels-raw-pointer-boundary)
+jint NativeStartFileDownload(JNIEnv* environment, jobject, const jlong native_session_id,  // NOLINT(pixels-raw-pointer-boundary)
                              const jbyteArray remote_path, const jbyteArray local_directory) {
     if (environment == nullptr) {
         return 0;
@@ -288,7 +290,7 @@ jint NativeStartFileDownload(JNIEnv* environment, jobject, const jlong native_se
     return session ? session->StartFileDownload(remote, local) : 0;
 }
 
-jboolean NativeListRemoteDirectory(JNIEnv* environment, jobject, const jlong native_session_id, // NOLINT(pixels-raw-pointer-boundary)
+jboolean NativeListRemoteDirectory(JNIEnv* environment, jobject, const jlong native_session_id,  // NOLINT(pixels-raw-pointer-boundary)
                                    const jbyteArray remote_path) {
     if (environment == nullptr) {
         return JNI_FALSE;
@@ -298,14 +300,14 @@ jboolean NativeListRemoteDirectory(JNIEnv* environment, jobject, const jlong nat
     return session && session->ListRemoteDirectory(remote) ? JNI_TRUE : JNI_FALSE;
 }
 
-jboolean NativeCancelFileTransfer(JNIEnv*, jobject, const jlong native_session_id, const jint job_id) { // NOLINT(pixels-raw-pointer-boundary)
+jboolean NativeCancelFileTransfer(JNIEnv*, jobject, const jlong native_session_id, const jint job_id) {  // NOLINT(pixels-raw-pointer-boundary)
     const auto session = Registry().Find(native_session_id);
     return session && session->CancelFileTransfer(job_id) ? JNI_TRUE : JNI_FALSE;
 }
 
 jboolean NativeConfirmFileOverwrite(JNIEnv*, jobject, const jlong native_session_id, const jint job_id, const jint file_number,
                                     const jboolean overwrite, const jlong offset_bytes,
-                                    const jboolean apply_to_all) { // NOLINT(pixels-raw-pointer-boundary)
+                                    const jboolean apply_to_all) {  // NOLINT(pixels-raw-pointer-boundary)
     if (offset_bytes < 0) {
         return JNI_FALSE;
     }
@@ -316,17 +318,17 @@ jboolean NativeConfirmFileOverwrite(JNIEnv*, jobject, const jlong native_session
                : JNI_FALSE;
 }
 
-jboolean NativeSetAudioEnabled(JNIEnv*, jobject, const jlong native_session_id, const jboolean enabled) { // NOLINT(pixels-raw-pointer-boundary)
+jboolean NativeSetAudioEnabled(JNIEnv*, jobject, const jlong native_session_id, const jboolean enabled) {  // NOLINT(pixels-raw-pointer-boundary)
     const auto session = Registry().Find(native_session_id);
     return session && session->SetAudioEnabled(enabled == JNI_TRUE) ? JNI_TRUE : JNI_FALSE;
 }
 
-jboolean NativeSetFrameRate(JNIEnv*, jobject, const jlong native_session_id, const jint frame_rate) { // NOLINT(pixels-raw-pointer-boundary)
+jboolean NativeSetFrameRate(JNIEnv*, jobject, const jlong native_session_id, const jint frame_rate) {  // NOLINT(pixels-raw-pointer-boundary)
     const auto session = Registry().Find(native_session_id);
     return session && session->SetFrameRate(frame_rate) ? JNI_TRUE : JNI_FALSE;
 }
 
-jboolean NativeStartRecording(JNIEnv* environment, jobject, const jlong native_session_id, // NOLINT(pixels-raw-pointer-boundary)
+jboolean NativeStartRecording(JNIEnv* environment, jobject, const jlong native_session_id,  // NOLINT(pixels-raw-pointer-boundary)
                               const jbyteArray recording_id, const jbyteArray staging_directory) {
     if (environment == nullptr) {
         return JNI_FALSE;
@@ -337,7 +339,7 @@ jboolean NativeStartRecording(JNIEnv* environment, jobject, const jlong native_s
     return session && session->StartRecording(id, directory) ? JNI_TRUE : JNI_FALSE;
 }
 
-jboolean NativeStopRecording(JNIEnv* environment, jobject, const jlong native_session_id, // NOLINT(pixels-raw-pointer-boundary)
+jboolean NativeStopRecording(JNIEnv* environment, jobject, const jlong native_session_id,  // NOLINT(pixels-raw-pointer-boundary)
                              const jbyteArray recording_id) {
     if (environment == nullptr) {
         return JNI_FALSE;
@@ -347,36 +349,36 @@ jboolean NativeStopRecording(JNIEnv* environment, jobject, const jlong native_se
     return session && session->StopRecording(id) ? JNI_TRUE : JNI_FALSE;
 }
 
-jboolean NativeStartVoiceCall(JNIEnv*, jobject, const jlong native_session_id) { // NOLINT(pixels-raw-pointer-boundary)
+jboolean NativeStartVoiceCall(JNIEnv*, jobject, const jlong native_session_id) {  // NOLINT(pixels-raw-pointer-boundary)
     const auto session = Registry().Find(native_session_id);
     return session && session->StartVoiceCall() ? JNI_TRUE : JNI_FALSE;
 }
 
-jboolean NativeStopVoiceCall(JNIEnv*, jobject, const jlong native_session_id) { // NOLINT(pixels-raw-pointer-boundary)
+jboolean NativeStopVoiceCall(JNIEnv*, jobject, const jlong native_session_id) {  // NOLINT(pixels-raw-pointer-boundary)
     const auto session = Registry().Find(native_session_id);
     return session && session->StopVoiceCall() ? JNI_TRUE : JNI_FALSE;
 }
 
 jboolean NativeSetVoiceMicrophoneMuted(JNIEnv*, jobject, const jlong native_session_id,
-                                       const jboolean muted) { // NOLINT(pixels-raw-pointer-boundary)
+                                       const jboolean muted) {  // NOLINT(pixels-raw-pointer-boundary)
     const auto session = Registry().Find(native_session_id);
     return session && session->SetVoiceMicrophoneMuted(muted == JNI_TRUE) ? JNI_TRUE : JNI_FALSE;
 }
 
 jboolean NativeSetVoiceSpeakerMuted(JNIEnv*, jobject, const jlong native_session_id,
-                                    const jboolean muted) { // NOLINT(pixels-raw-pointer-boundary)
+                                    const jboolean muted) {  // NOLINT(pixels-raw-pointer-boundary)
     const auto session = Registry().Find(native_session_id);
     return session && session->SetVoiceSpeakerMuted(muted == JNI_TRUE) ? JNI_TRUE : JNI_FALSE;
 }
 
-jboolean NativeSendSecureAttention(JNIEnv*, jobject, const jlong native_session_id) { // NOLINT(pixels-raw-pointer-boundary)
+jboolean NativeSendSecureAttention(JNIEnv*, jobject, const jlong native_session_id) {  // NOLINT(pixels-raw-pointer-boundary)
     const auto session = Registry().Find(native_session_id);
     return session && session->SendSecureAttention() ? JNI_TRUE : JNI_FALSE;
 }
 
 jboolean NativeSendGamepad(JNIEnv*, jobject, const jlong native_session_id, const jint buttons, const jint left_trigger, const jint right_trigger,
                            const jint left_thumb_x, const jint left_thumb_y, const jint right_thumb_x,
-                           const jint right_thumb_y) { // NOLINT(pixels-raw-pointer-boundary)
+                           const jint right_thumb_y) {  // NOLINT(pixels-raw-pointer-boundary)
     const auto session = Registry().Find(native_session_id);
     const NativeGamepadState state{
         .buttons = buttons,
@@ -390,33 +392,31 @@ jboolean NativeSendGamepad(JNIEnv*, jobject, const jlong native_session_id, cons
     return session && session->SendGamepad(state) ? JNI_TRUE : JNI_FALSE;
 }
 
-jboolean NativeSwitchMonitor(JNIEnv* environment, jobject, const jlong native_session_id, // NOLINT(pixels-raw-pointer-boundary)
+jboolean NativeSwitchMonitor(JNIEnv* environment, jobject, const jlong native_session_id,  // NOLINT(pixels-raw-pointer-boundary)
                              const jstring monitor_name) {
-    if (environment == nullptr || monitor_name == nullptr)
-        return JNI_FALSE;
-    const char* characters = environment->GetStringUTFChars(monitor_name, nullptr); // NOLINT(pixels-raw-pointer-boundary)
-    if (characters == nullptr)
-        return JNI_FALSE;
+    if (environment == nullptr || monitor_name == nullptr) return JNI_FALSE;
+    const char* characters = environment->GetStringUTFChars(monitor_name, nullptr);  // NOLINT(pixels-raw-pointer-boundary)
+    if (characters == nullptr) return JNI_FALSE;
     const std::string name{characters};
     environment->ReleaseStringUTFChars(monitor_name, characters);
     const auto session = Registry().Find(native_session_id);
     return session && session->SwitchMonitor(name) ? JNI_TRUE : JNI_FALSE;
 }
 
-void NativeStop(JNIEnv*, jobject, const jlong native_session_id) { // NOLINT(pixels-raw-pointer-boundary)
+void NativeStop(JNIEnv*, jobject, const jlong native_session_id) {  // NOLINT(pixels-raw-pointer-boundary)
     if (const auto session = Registry().Remove(native_session_id)) {
         session->Stop();
     }
 }
 
-} // namespace
-} // namespace pixels::android
+}  // namespace
+}  // namespace pixels::android
 
-extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) { // NOLINT(pixels-raw-pointer-boundary)
+extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) {  // NOLINT(pixels-raw-pointer-boundary)
     if (vm == nullptr) {
         return JNI_ERR;
     }
-    JNIEnv* environment = nullptr; // NOLINT(pixels-raw-pointer-boundary)
+    JNIEnv* environment = nullptr;  // NOLINT(pixels-raw-pointer-boundary)
     if (vm->GetEnv(reinterpret_cast<void**>(&environment), JNI_VERSION_1_6) != JNI_OK) {
         return JNI_ERR;
     }
