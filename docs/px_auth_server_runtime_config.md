@@ -77,6 +77,11 @@ activation 为 immediately 或 at+timestamp，不用客户端猜签发时钟。
 只读角色不显示写入入口，服务端仍逐请求鉴权。
 私有离线验证的即时撤销和备份回退问题不能由此 API 解决；库外防回滚水位仍是 DB4/Console 准入门禁。
 
+`/licenses/verify` 同时是 Official Console 的认证消费者接触点。只有签名、deployment、product、distribution、machine 和时间全部通过后，
+Auth 才把该 license 截至数据库当前 revision 的通知 outbox 标为已接触并清除旧 lease；内部 lease UUID 从不出现在 HTTP。
+随后仍独立检查 wire 是否为当前 revision 且未撤销：旧 wire 的接触可以完成通知记账，但响应必为拒绝。响应丢失不会产生 fail-open，
+因为 Console 的在线新鲜度只由成功 currentness 响应推进。
+
 ## 开发与发布
 
 日常：设置 SQLX_OFFLINE=true，cargo check/test 的目标为 px_auth_server / px_auth_store / px_license；

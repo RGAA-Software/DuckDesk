@@ -53,6 +53,7 @@ impl From<StoreError> for ApiError {
         match value {
             StoreError::InvalidInput => Self::Invalid,
             StoreError::Rejected => Self::Rejected,
+            StoreError::LicenseRestriction => Self::Rejected,
             StoreError::NotFound => Self::NotFound,
             StoreError::Database(e) => e.into(),
             _ => Self::Unavailable,

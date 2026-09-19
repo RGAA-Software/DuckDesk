@@ -24,6 +24,25 @@ pub enum NotificationFailure {
 }
 
 impl LicenseStore {
+    /// Records authenticated contact from the exact signed-license consumer. This is
+    /// intentionally separate from dispatcher leases: no lease token crosses the API.
+    /// A late dispatcher ACK is fenced after this update clears its lease.
+    pub async fn acknowledge_consumer_contact(&self, license_id: Uuid) -> Result<u64, AuthError> {
+        if license_id.is_nil() {
+            return Err(AuthError::Invalid);
+        }
+        Ok(sqlx::query(
+            "UPDATE pixels.license_notification_outbox notification \
+             SET delivered_at=clock_timestamp(),lease_id=NULL,lease_until=NULL,last_error=NULL \
+             WHERE notification.license_id=$1 AND notification.delivered_at IS NULL \
+             AND notification.revision <= COALESCE((SELECT license.revision FROM pixels.licenses license WHERE license.id=$1),0)",
+        )
+        .bind(license_id)
+        .execute(&self.pool)
+        .await?
+        .rows_affected())
+    }
+
     /// Claims only the oldest undelivered revision for each license.
     pub async fn claim_notifications(
         &self,

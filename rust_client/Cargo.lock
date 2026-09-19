@@ -6357,7 +6357,6 @@ dependencies = [
  "nvml-wrapper",
  "prost 0.14.4",
  "protocol",
- "px_auth_mgr",
  "px_base",
  "px_node_protocol",
  "rand 0.9.4",

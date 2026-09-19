@@ -6,6 +6,10 @@ use std::{
     fs::{self, File, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
+    sync::{
+        atomic::{AtomicI64, Ordering},
+        Arc, Mutex,
+    },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use url::Url;
@@ -13,6 +17,8 @@ use uuid::Uuid;
 
 const WATERMARK_SCHEMA_VERSION: u16 = 1;
 const LICENSE_WIRE_LIMIT: u64 = 8192;
+const ONLINE_REFRESH_SECONDS: u64 = 30;
+const ONLINE_FAILURE_LIMIT_SECONDS: i64 = 40;
 
 #[derive(Debug, thiserror::Error)]
 #[error("Console license admission failed during {stage} validation")]
@@ -37,6 +43,36 @@ pub struct LicenseLaunchConfig {
 pub struct LicenseEntitlement {
     pub payload: LicensePayload,
     pub trusted_at: i64,
+    online: Option<Arc<OnlineLicenseMonitor>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct LicenseStatus {
+    pub license_id: Uuid,
+    pub revision: i64,
+    pub distribution: Distribution,
+    pub mode: px_license::Mode,
+    pub expires_at: i64,
+    pub max_devices: u32,
+    pub max_sessions: u32,
+    pub features: Vec<px_license::Feature>,
+    pub last_authoritative_time: i64,
+    pub online_fresh_until: Option<i64>,
+}
+
+struct OnlineLicenseMonitor {
+    url: Url,
+    wire: String,
+    consumer_deployment_id: Uuid,
+    distribution: Distribution,
+    machine_sha256: String,
+    license_id: Uuid,
+    revision: i64,
+    watermark_store: Arc<WatermarkStore>,
+    watermark: Mutex<LicenseWatermark>,
+    refresh_lock: tokio::sync::Mutex<()>,
+    last_authoritative_time: AtomicI64,
+    last_success_local_time: AtomicI64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -128,9 +164,11 @@ impl LicenseLaunchConfig {
             .map_err(|_| LicenseAdmissionError)?;
         let wire_bytes = read_private_bounded(&self.license_file, LICENSE_WIRE_LIMIT)
             .map_err(|_| LicenseAdmissionError)?;
-        let wire = std::str::from_utf8(&wire_bytes).map_err(|_| LicenseAdmissionError)?;
+        let wire = std::str::from_utf8(&wire_bytes)
+            .map_err(|_| LicenseAdmissionError)?
+            .to_owned();
         verify_private_directory(&self.watermark_directory).map_err(|_| LicenseAdmissionError)?;
-        let state = WatermarkStore::open(&self.watermark_directory)?;
+        let state = Arc::new(WatermarkStore::open(&self.watermark_directory)?);
         let previous = state.load(
             consumer_deployment_id,
             self.authority_deployment_id,
@@ -148,7 +186,7 @@ impl LicenseLaunchConfig {
             Some(url) => Some(
                 verify_online(
                     url,
-                    wire,
+                    &wire,
                     consumer_deployment_id,
                     self.distribution,
                     &self.machine_sha256,
@@ -162,7 +200,7 @@ impl LicenseLaunchConfig {
             .map_or_else(current_unix_time, |response| Ok(response.verified_at))?;
         let payload = verifier
             .verify(
-                wire,
+                &wire,
                 &VerifyContext {
                     deployment_id: consumer_deployment_id,
                     product: Product::PixelsConsole,
@@ -196,9 +234,27 @@ impl LicenseLaunchConfig {
             last_trusted_time: trusted_at.max(last_trusted_time),
         };
         state.persist(&watermark)?;
+        let local_admission_time = current_unix_time()?;
+        let online_monitor = self.auth_verify_url.map(|url| {
+            Arc::new(OnlineLicenseMonitor {
+                url,
+                wire,
+                consumer_deployment_id,
+                distribution: self.distribution,
+                machine_sha256: watermark.machine_sha256.clone(),
+                license_id: payload.license_id,
+                revision: payload.revision,
+                watermark_store: state,
+                watermark: Mutex::new(watermark.clone()),
+                refresh_lock: tokio::sync::Mutex::new(()),
+                last_authoritative_time: AtomicI64::new(watermark.last_trusted_time),
+                last_success_local_time: AtomicI64::new(local_admission_time),
+            })
+        });
         Ok(LicenseEntitlement {
             payload,
             trusted_at: watermark.last_trusted_time,
+            online: online_monitor,
         })
     }
 }
@@ -210,7 +266,49 @@ impl LicenseEntitlement {
         {
             return Err(LicenseAdmissionError);
         }
+        if let Some(online) = &self.online {
+            online.validate(now)?;
+        }
         Ok(())
+    }
+
+    pub fn online_refresh_interval(&self) -> Option<Duration> {
+        self.online
+            .as_ref()
+            .map(|_| Duration::from_secs(ONLINE_REFRESH_SECONDS))
+    }
+
+    pub async fn refresh_online(&self) -> Result<(), LicenseAdmissionError> {
+        match &self.online {
+            Some(online) => online.refresh().await,
+            None => Ok(()),
+        }
+    }
+
+    pub fn status(&self) -> LicenseStatus {
+        let (last_authoritative_time, online_fresh_until) =
+            self.online
+                .as_ref()
+                .map_or((self.trusted_at, None), |online| {
+                    let authoritative = online.last_authoritative_time.load(Ordering::Acquire);
+                    let fresh_until = online
+                        .last_success_local_time
+                        .load(Ordering::Acquire)
+                        .saturating_add(ONLINE_FAILURE_LIMIT_SECONDS);
+                    (authoritative, Some(fresh_until))
+                });
+        LicenseStatus {
+            license_id: self.payload.license_id,
+            revision: self.payload.revision,
+            distribution: self.payload.distribution,
+            mode: self.payload.mode,
+            expires_at: self.payload.expires_at,
+            max_devices: self.payload.max_devices,
+            max_sessions: self.payload.max_sessions,
+            features: self.payload.features.clone(),
+            last_authoritative_time,
+            online_fresh_until,
+        }
     }
 
     #[cfg(feature = "pg-integration")]
@@ -235,7 +333,69 @@ impl LicenseEntitlement {
                 key_id: "f".repeat(64),
             },
             trusted_at: 0,
+            online: None,
         }
+    }
+}
+
+impl OnlineLicenseMonitor {
+    fn validate(&self, now: i64) -> Result<(), LicenseAdmissionError> {
+        let authoritative = self.last_authoritative_time.load(Ordering::Acquire);
+        let local_success = self.last_success_local_time.load(Ordering::Acquire);
+        if now < authoritative
+            || now < local_success
+            || now.saturating_sub(local_success) > ONLINE_FAILURE_LIMIT_SECONDS
+        {
+            return Err(LicenseAdmissionError {
+                stage: "online-freshness",
+            });
+        }
+        Ok(())
+    }
+
+    async fn refresh(&self) -> Result<(), LicenseAdmissionError> {
+        let _refresh = self.refresh_lock.lock().await;
+        let response = verify_online(
+            &self.url,
+            &self.wire,
+            self.consumer_deployment_id,
+            self.distribution,
+            &self.machine_sha256,
+        )
+        .await?;
+        let previous_time = self.last_authoritative_time.load(Ordering::Acquire);
+        if response.license_id != self.license_id
+            || response.revision != self.revision
+            || response.verified_at < previous_time
+        {
+            return Err(LicenseAdmissionError {
+                stage: "online-response",
+            });
+        }
+        let mut next = self
+            .watermark
+            .lock()
+            .map_err(|_| LicenseAdmissionError {
+                stage: "watermark-lock",
+            })?
+            .clone();
+        next.last_trusted_time = response.verified_at;
+        let watermark_store = self.watermark_store.clone();
+        let persisted = next.clone();
+        tokio::task::spawn_blocking(move || watermark_store.persist(&persisted))
+            .await
+            .map_err(|_| LicenseAdmissionError {
+                stage: "watermark-task",
+            })??;
+        *self.watermark.lock().map_err(|_| LicenseAdmissionError {
+            stage: "watermark-lock",
+        })? = next;
+        let local_time = current_unix_time()?;
+        self.last_authoritative_time
+            .store(response.verified_at, Ordering::Release);
+        self.last_success_local_time
+            .store(local_time, Ordering::Release);
+        Ok(())
     }
 }
 
@@ -671,14 +831,18 @@ mod tests {
     async fn official_distribution_requires_matching_online_currentness_response() {
         use axum::{routing::post, Json, Router};
         use serde_json::json;
+        use std::sync::atomic::AtomicUsize;
 
         let fixture = Fixture::new();
         fixture.write_license(1, Distribution::Official);
         let verified_at = current_unix_time().unwrap();
         let license_id = fixture.license_id;
+        let requests = Arc::new(AtomicUsize::new(0));
+        let server_requests = requests.clone();
         let application = Router::new().route(
             "/api/auth/licenses/verify",
             post(move || async move {
+                server_requests.fetch_add(1, Ordering::Relaxed);
                 Json(json!({
                     "license_id": license_id,
                     "revision": 1,
@@ -703,8 +867,21 @@ mod tests {
         let entitlement = config.admit(fixture.deployment_id).await.unwrap();
         assert_eq!(entitlement.payload.license_id, fixture.license_id);
         assert_eq!(entitlement.trusted_at, verified_at);
+        assert_eq!(
+            entitlement.online_refresh_interval(),
+            Some(Duration::from_secs(30))
+        );
+        entitlement.refresh_online().await.unwrap();
+        assert_eq!(requests.load(Ordering::Relaxed), 2);
         server.abort();
         let _ = server.await;
+        assert!(entitlement.refresh_online().await.is_err());
+        let monitor = entitlement.online.as_ref().unwrap();
+        monitor.last_success_local_time.store(
+            current_unix_time().unwrap() - ONLINE_FAILURE_LIMIT_SECONDS - 1,
+            Ordering::Release,
+        );
+        assert!(entitlement.validate_now().is_err());
     }
 
     #[test]

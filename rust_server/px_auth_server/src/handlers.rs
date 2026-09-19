@@ -219,6 +219,13 @@ pub async fn verify(
             },
         )
         .map_err(|_| ApiError::Unauthorized)?;
+    // The signed wire and all explicit target bindings authenticate this exact consumer
+    // contact. Internal outbox lease IDs remain private; revoked or superseded consumers
+    // still confirm contact before currentness is rejected, then fail closed locally.
+    state
+        .store
+        .acknowledge_consumer_contact(payload.license_id)
+        .await?;
     let current = state
         .store
         .current(payload.license_id, payload.revision)

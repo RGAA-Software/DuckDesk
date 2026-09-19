@@ -911,6 +911,20 @@ Auth API 专项 `pg-20260919-132439-aaf66b82` 为 9/9，另有真实 loopback HT
 日常开发构建已同步 Web 和 `output/px_console/dev/px_console.exe`，build/output SHA-256 为
 `CB915423B5115A78F0B264CAE5964D1347464C386CC73C653AC2D60D809BC8D9`。完整 PostgreSQL 总回归仍须在本批后续报告补证。
 
+DB3 后续切片把许可证字段变成产品硬门禁。设备和资源会话的最后名额在写事务内分别用 advisory lock 串行化，避免并发超发；
+CloudApplications/Desktop/Rdp 在实例预约、会话创建及 descriptor 签发入口执行。真实 PG 专项为 devices 9/9
+`pg-20260919-134020-93df5126`、instances 16/16 `pg-20260919-134115-17a2aa59`、sessions 11/11
+`pg-20260919-134428-27e91cd8`。管理状态入口 `/api/console/managed/license` 已加入管理员门禁，directory API 7/7
+`pg-20260919-135216-3c168db1` 通过。
+
+Official 运行期每 30 秒以受保护签名 wire 和完整目标绑定重新验证，只有成功 currentness 才推进库外水位；连续失败、撤销或 revision 替换
+最迟在最后成功后 40 秒使请求/readiness fail-closed 并取消进程。Auth 在这次认证接触后确认该许可证截至当前 revision 的 outbox，
+不公开内部 lease；旧 wire 能确认“消费者已接触”但 currentness 仍拒绝。Auth API 9/9 `pg-20260919-135756-f4997034` 覆盖签发、续期、
+吊销三次 outbox 收敛。Service 不建立第二许可证权威，已删除未使用的旧 `px_auth_mgr` 依赖；Cloud Node/Remote 聚焦发行构建均通过且
+stage/dist SHA-256 同为 `0B34DBA66CF2BF680DEA61C50F93773520C8897E10C0F02F5136D53425ED7028`。
+Console 聚焦开发构建随后通过，`.cache/console-dev/release` 与 `output/px_console/dev` 的 `px_console.exe` SHA-256 均为
+`1654CC6DD4FD3D531B377814EA2DDD28D0570EC89F0BF9D293101586AF4E8B1D`；这不是正式发行整编或 DB5 完整制品声明。
+
 ## 仍未通过的阶段出口
 
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。
@@ -923,7 +937,7 @@ Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 W
 | DB1-EXIT | 完成：Desk/Auth 产品服务与 PostgreSQL Console 正式 `px_console.exe` 均已接入；三者具有独立发行入口。Console 当前 3.2.21 发行、进程断库 fail-closed、真实浏览器和制品哈希已通过；后续能力缺口归 DB2–DB5，不再把旧 Mongo 组合根当产品入口 |
 | DB2-A | 身份/管理HTTP、本人资料/头像、密码计算/限流/Origin、访客HMAC/会话/公开目录、Saved Connections、本人实例列表、更新目录、访问/通道/传输历史及录像目录HTTP、严格配置、稳定私钥加载、独立初始化CLI、静态文件服务及进程生命周期已实现；Console用户门户及管理后台的当前目录/身份/状态入口均已切新bearer/主体API，源码不再保留旧`/api/v1`，正式PostgreSQL产品二进制和发行包已切换。部署绑定录像缓存、本人/管理员授权Range下载、Render完成段session归属、Windows Service真实字节生产、本人/管理下载页面、保留/释放/驱逐 Console 副本及真实浏览器空目录流程已接；Direct Host观察者不再默认获得输入。仍需公网真实录像有数据浏览器流程；视频墙延期，ZLM直播和RTC/TURN管理明确退役，不再作为待实现项 |
 | DB2-B/C/D | 设备/应用/节点/部署目录、user/guest资源入口、更新与历史元数据入口、Console节点WS及独立管理实时事件流已接；Windows Service已切到新节点协议并实现部署准备、调和、命令fencing、精确launch ACK、Render前端准入转发、实际媒体/RDP通道生命周期、遥测、DPAPI有界断线补报、唯一PCI身份的NVIDIA逐GPU指标、GPU预算/原子硬过滤/物理stable key运行时绑定与节点二次准入、只读调度预览/逐候选拒绝解释、数据库时钟对齐的有界服务端趋势/陈旧判断、录像session归属及通用录像字节上传。ZLM/Coturn/中央RTC signaling已归档移除，Windows/Web/Render/Service/Console的Direct Host活动代码和聚焦构建已接通。仍需Relay既有数据真机回归、公网首帧/输入/音频与持续续租/撤销、Android直连、AMD/Intel逐GPU指标、管理实时流的公网高频/断库专项、RDP执行、周期通道指标、文件传输字节生产、无人值守更新及其余产品入口 |
-| DB2-EXIT / DB3 | Desk/Auth 独立产品流程已验证，Auth 签发/续期/吊销事务 outbox 已接，PostgreSQL Console 已接新验签/Official 在线当前性/Customer 私有离线与库外水位；其余共享消费者、许可证额度/feature 强限制和受认证通知投递执行器仍待完成；不建设运行时双后端 |
+| DB2-EXIT / DB3 | Desk/Auth 独立产品流程已验证；Auth 事务 outbox、Official 认证接触确认、30/40 秒持续 currentness、Customer 私有离线、库外水位、额度/feature 事务硬门禁及管理员状态均已接。Service 明确只消费 Console control epoch，不复制许可证解析，旧授权依赖已删除。仍需 Auth/Console keyring 与水位恢复轮换实测、正式监督器部署联动，并清理非产品旧 Console crate 的 Mongo/旧签名源码后关闭 DB3；不建设运行时双后端 |
 | DB4 | 恢复集、保留、异机复制、恢复准入/执行/封印、三库写屏障/安全水位、外部见证、Auth keyring、pgBackRest/WAL/PITR、Windows SCM包及WSL2 systemd生命周期已实现。开发期仍需目标Linux发行版VM短测、Pixels外层签名/生产密钥托管、独立主机或对象仓库一次完整恢复、目标环境keyring/见证轮换及真实节点与Windows/RDP事实对账；连续7天窗口和自然周期稳定性统一放到DB5功能通过后的长测，不阻塞每个开发切片 |
 | DB5 | 全新环境服务端—Windows Client/Web Client—Render/Service—Relay—Android功能回归及完整制品验收；必须证明Direct Host与Relay分别正常且安装包不含ZLM/Coturn，先短测通过，最后统一长测 |
 | DB-HA / P1–P7 | 独立主机 HA、正式发行隔离、授权/连接服务、升级、运维与真实容量/稳定性验收 |

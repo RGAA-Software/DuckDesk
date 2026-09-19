@@ -68,9 +68,14 @@ Auth 已实现 PG 签发事实先提交、request_id 幂等、撤销事务与审
 签发/续期事件引用已提交的精确 wire，吊销事件只携带更高 revision，不伪造空许可证；outbox 写入失败会回滚许可证、
 request、issuance 和 audit。领取租约是 Auth 内部执行器能力，不通过公共 HTTP API 暴露。
 
-目前完成的是事务 outbox 及内部领取/确认契约，不是通知已经送达 Console。后续投递执行器必须使用受认证的部署消费者，
-官方部署可消费官方 Auth；Customer 离线部署不得把官方地址作为可填服务器，也不能因无法即时收到官方撤销而声称实时撤销。
+Official Console 以受保护的已签名 wire 及精确 deployment/product/distribution/machine 绑定每 30 秒调用一次 `/verify`；这次接触
+就是部署消费者认证，不新增可伪造的回调 URL，也不把内部 lease UUID 暴露给 API。Auth 在验签和绑定通过后原子确认该 license 截至
+数据库当前 revision 的 outbox；即使响应丢失，Console 也不会因此续命，最后一次成功后的第 40 秒开始 API/readiness fail-closed 并退出。
+旧 revision 在续期或吊销后仍可证明“原消费者已接触 Auth”，因此会确认通知事实，但 currentness 仍返回拒绝，绝不会恢复旧授权。
+Customer 产品完全不启动这条在线循环；它不得填写官方地址，也不能声称获知尚未导入的撤销。手工调用 verify 不改变 Customer 产品边界。
 使用及精确验收范围见 [Auth 配置](px_auth_server_runtime_config.md)与[状态](server_database_execution_status.md)。
 Console PostgreSQL 产品已接 `PXLIC1` 本地验签、Official Auth 在线当前性复核、Customer 禁止 Auth URL、库外原子水位及请求期到期/回拨门禁；
-仍需其他共享消费者删除旧签名解析路径、许可证额度/feature 的业务入口硬限制、恢复轮换实测和受认证通知投递执行器。
+`max_devices` 与 `max_sessions` 在同一 PostgreSQL 事务内用独立 advisory lock 竞争最后名额；CloudApplications、Desktop、Rdp 分别硬限制
+game-hook/webview 实例、桌面目标和 RDP 实例，并在实例预约、资源会话及新 descriptor 三层拒绝。Windows Service 不复制许可证解析器，
+只消费当前 Console 代际已经准入的节点命令；旧 `px_auth_mgr` 依赖已从 Service 删除。仍需恢复轮换实测和正式部署监督器联动。
 这些未完成前不得把此库或 Auth 独立验收计为 DB3 完成。

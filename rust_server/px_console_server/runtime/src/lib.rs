@@ -10,6 +10,7 @@ mod guest_source;
 mod history_api;
 mod identity;
 mod license;
+mod license_api;
 mod management;
 mod management_events;
 mod node_api;
@@ -36,9 +37,12 @@ use axum::{
 pub use config::{ConfigurationError, ConsoleLaunch, ConsoleLaunchConfig};
 use error::ApiError;
 pub use guest_source::GuestAdmission;
-pub use license::{LicenseAdmissionError, LicenseEntitlement, LicenseLaunchConfig};
+pub use license::{LicenseAdmissionError, LicenseEntitlement, LicenseLaunchConfig, LicenseStatus};
 pub use policy::IngressPolicy;
-use px_console_store::{CacheOptions, CacheRuntime, ConsoleDatabase, RuntimeEpoch, WorkspaceVault};
+use px_console_store::{
+    CacheOptions, CacheRuntime, ConsoleDatabase, RuntimeEntitlement, RuntimeEpoch, WorkspaceVault,
+};
+use px_license::Feature;
 use px_pg::{DatabaseConfig, LeaseStatus, Service, ServiceLease};
 use px_private_files::CacheRoot;
 pub use secrets::{RuntimeSecrets, WorkspaceKeyFile};
@@ -76,11 +80,26 @@ impl StateData {
             .map_err(|_| ApiError::Unavailable)?;
         Ok(())
     }
+
+    fn entitlement(&self) -> RuntimeEntitlement {
+        RuntimeEntitlement::new(
+            self.license.payload.max_devices,
+            self.license.payload.max_sessions,
+            self.license
+                .payload
+                .features
+                .contains(&Feature::CloudApplications),
+            self.license.payload.features.contains(&Feature::Desktop),
+            self.license.payload.features.contains(&Feature::Rdp),
+        )
+        .expect("a verified license always contains valid nonzero limits")
+    }
 }
 /// Owner of the lease renewal task and the shared database pool.
 pub struct ConsoleRuntime {
     state: Arc<StateData>,
     supervisor: JoinHandle<()>,
+    license_supervisor: Option<JoinHandle<()>>,
     telemetry_retention: JoinHandle<()>,
     cache_expiration: Option<JoinHandle<()>>,
 }
@@ -225,6 +244,33 @@ impl ConsoleRuntime {
                 }
             }
         });
+        let license_supervisor = state.license.online_refresh_interval().map(|refresh_period| {
+            let license_state = state.clone();
+            let license_cancellation = cancellation.clone();
+            tokio::spawn(async move {
+                let mut freshness_check = tokio::time::interval(Duration::from_secs(1));
+                freshness_check.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+                let mut refresh = tokio::time::interval_at(
+                    tokio::time::Instant::now() + refresh_period,
+                    refresh_period,
+                );
+                refresh.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+                loop {
+                    tokio::select! {
+                        biased;
+                        _=license_cancellation.cancelled()=>break,
+                        _=freshness_check.tick()=>if license_state.license.validate_now().is_err(){
+                            tracing::error!("official license authority freshness expired");
+                            license_cancellation.cancel();
+                            break;
+                        },
+                        _=refresh.tick()=>if let Err(error)=license_state.license.refresh_online().await{
+                            tracing::warn!(%error, "official license authority refresh failed");
+                        },
+                    }
+                }
+            })
+        });
         let telemetry_state = state.clone();
         let telemetry_cancellation = cancellation.clone();
         let telemetry_retention = tokio::spawn(async move {
@@ -286,6 +332,7 @@ impl ConsoleRuntime {
         Ok(Self {
             state,
             supervisor,
+            license_supervisor,
             telemetry_retention,
             cache_expiration,
         })
@@ -294,6 +341,7 @@ impl ConsoleRuntime {
         Router::new()
             .merge(device_api::routes())
             .merge(application_api::routes())
+            .merge(license_api::routes())
             .merge(management_events::routes())
             .merge(node_api::routes())
             .merge(deployment_api::routes())
@@ -361,11 +409,17 @@ impl ConsoleRuntime {
     pub async fn shutdown(mut self) {
         self.state.cancellation.cancel();
         self.supervisor.abort();
+        if let Some(task) = &self.license_supervisor {
+            task.abort();
+        }
         self.telemetry_retention.abort();
         if let Some(task) = &self.cache_expiration {
             task.abort();
         }
         let _ = (&mut self.supervisor).await;
+        if let Some(mut task) = self.license_supervisor.take() {
+            let _ = (&mut task).await;
+        }
         let _ = (&mut self.telemetry_retention).await;
         if let Some(mut task) = self.cache_expiration.take() {
             let _ = (&mut task).await;
@@ -385,6 +439,9 @@ impl Drop for ConsoleRuntime {
     fn drop(&mut self) {
         self.state.cancellation.cancel();
         self.supervisor.abort();
+        if let Some(task) = &self.license_supervisor {
+            task.abort();
+        }
         self.telemetry_retention.abort();
         if let Some(task) = &self.cache_expiration {
             task.abort();

@@ -46,7 +46,13 @@ async fn create(
     let device = state
         .db
         .devices()
-        .create(&actor, &input.name, input.platform, &digest)
+        .create_with_entitlement(
+            &actor,
+            &input.name,
+            input.platform,
+            &digest,
+            state.entitlement(),
+        )
         .await?;
     Ok((
         StatusCode::CREATED,

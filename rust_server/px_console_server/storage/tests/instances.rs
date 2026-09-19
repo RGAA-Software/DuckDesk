@@ -8,7 +8,8 @@ use px_console_store::{
     DeploymentTarget, DevicePlatform, DeviceStore, GpuResourceProfile, IdentityStore,
     NodeConnection, NodeGpuTelemetry, NodeProduct, NodeReport, NodeStore, NodeTelemetry,
     PasswordDigest, PlacementPreviewRequest, PlacementRejectionReason, PreparationState,
-    StoreError, TelemetryProbeState, TokenDigest, Username, VideoCodec, VideoSpec,
+    RuntimeEntitlement, StoreError, TelemetryProbeState, TokenDigest, Username, VideoCodec,
+    VideoSpec,
 };
 use px_console_store::{
     GuestStore, InstanceStore, NodeConfiguration, OriginFingerprint, ResourceCredential,
@@ -372,6 +373,57 @@ fn request(app: Uuid) -> StartApplication {
         application_id: app,
         deployment_id: None,
     }
+}
+
+#[tokio::test]
+async fn license_features_reject_cloud_and_rdp_reservations_before_commands_exist() {
+    let fixture = Fixture::new().await;
+    let (cloud_node, cloud_app, _) = fixture.prepared(DeploymentTarget::Webview, 2).await;
+    let cloud_user = fixture.session("user", ClientType::Android).await;
+    let without_cloud = RuntimeEntitlement::new(8, 8, false, true, true).unwrap();
+    assert_eq!(
+        fixture
+            .instances
+            .reserve_with_entitlement(
+                ResourceCredential::User(&cloud_user),
+                ClientType::Android,
+                cloud_node.epoch(),
+                &request(cloud_app.id),
+                without_cloud,
+            )
+            .await,
+        Err(StoreError::LicenseRestriction)
+    );
+    assert!(fixture
+        .instances
+        .next_command(&cloud_node)
+        .await
+        .unwrap()
+        .is_none());
+
+    let (rdp_node, rdp_app, _) = fixture.prepared(DeploymentTarget::Rdp, 1).await;
+    let rdp_user = fixture.session("user", ClientType::Android).await;
+    let without_rdp = RuntimeEntitlement::new(8, 8, true, true, false).unwrap();
+    assert_eq!(
+        fixture
+            .instances
+            .reserve_with_entitlement(
+                ResourceCredential::User(&rdp_user),
+                ClientType::Android,
+                rdp_node.epoch(),
+                &request(rdp_app.id),
+                without_rdp,
+            )
+            .await,
+        Err(StoreError::LicenseRestriction)
+    );
+    assert!(fixture
+        .instances
+        .next_command(&rdp_node)
+        .await
+        .unwrap()
+        .is_none());
+    fixture.close().await;
 }
 
 #[tokio::test]

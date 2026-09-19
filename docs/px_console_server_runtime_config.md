@@ -61,6 +61,16 @@ Console 在打开数据库监听前完成许可证准入。Official 必须先由
 所有 API 请求和 readiness 在返回前后都会重查可信时间与到期时间，时钟回拨或到期立即 fail-closed。水位目录出现未知文件、
 不完整原子替换或 deployment/发行/机器/Auth generation 不一致时拒绝启动，不猜测修复。
 
+Official 启动后每 30 秒重新调用同一精确 `/verify`；成功响应才推进内存和库外可信时间。最后一次成功后 40 秒仍不能重新确认、收到撤销、
+revision 已被续期替换、响应绑定不符或本机时钟回拨时，所有 API/readiness 立即拒绝，监督任务取消 Console 并让进程非零退出。
+Customer 不创建在线任务。管理员可用 `GET /api/console/managed/license` 查看 license ID/revision、发行、模式、到期、额度、features、
+最后权威时间和 Official 在线新鲜度截止时间；普通用户、访客和节点身份无权读取。
+
+额度不是 UI 提示：活动设备目录达到 `max_devices` 后创建事务拒绝；未关闭资源会话达到 `max_sessions` 后新会话事务拒绝，两个计数都以
+事务 advisory lock 串行化最后名额。`cloud_applications` 允许 game-hook/webview，`desktop` 允许桌面目标，`rdp` 允许 RDP 应用；
+实例预约、资源会话创建和 descriptor 签发都会检查对应 feature。幂等重试可以返回已经提交的原结果，但不会创建新资源或签发新 grant。
+Service 不读取 `PXLIC1`，只执行通过 Console 数据库事务与当前 control epoch 下发的命令，避免形成第二个额度权威。
+
 生产服务账号不能获得 owner、DDL、跨库或私钥目录外权限。密钥不写数据库、不随发行包分发、不因缺失自动生成。
 
 ## 录像缓存与下载

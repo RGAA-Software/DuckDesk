@@ -102,7 +102,8 @@ Relay协议主体、录像或文件传输。
 2. **DB0**：冻结 Direct Host描述符、显式 CloudApplication target、端点代际、权限及合成用例；从当前契约移除 ZLM/TURN/中央 RTC字段。
 3. **DB1**：正式 `px_console.exe` 切 PostgreSQL组合根；新安装不携带媒体/TURN sidecar，断库 fail-closed。
 4. **DB2**：先完成 CM-REALTIME与节点/遥测闭环，再完成命令、实际端点、Direct Host WebRTC、录像、文件、RDP和更新执行器。
-5. **DB3**：Console/Service切新许可证协议、库外水位和 Auth outbox，清除三个服务的 Mongo运行依赖。
+5. **DB3**：Console 切新许可证协议、库外水位、额度/feature 门禁及 Auth outbox 认证接触；Service 只消费 Console control epoch，
+   不复制 PXLIC 解析器，并清除未使用的旧授权依赖；清除三个产品服务的 Mongo 运行依赖。
 6. **DB4**：在短期可重复测试中完成目标 Linux、异机副本、PITR、keyring/witness轮换、签名与节点/RDP恢复对账；自然周期长测后置。
 7. **DB5**：全新环境先 Windows后 Android完成短期功能验收和完整制品核验，随后才进入统一长测。
 

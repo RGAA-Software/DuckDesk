@@ -62,7 +62,13 @@ async fn start(
     let result = state
         .db
         .instances()
-        .reserve(context.credential(), context.client, state.epoch, &value)
+        .reserve_with_entitlement(
+            context.credential(),
+            context.client,
+            state.epoch,
+            &value,
+            state.entitlement(),
+        )
         .await?;
     Ok((StatusCode::CREATED, Json(result)))
 }
@@ -129,7 +135,12 @@ async fn open(
     let result = state
         .db
         .resource_sessions()
-        .open(context.credential(), context.client, &value)
+        .open_with_entitlement(
+            context.credential(),
+            context.client,
+            &value,
+            state.entitlement(),
+        )
         .await?;
     Ok((StatusCode::CREATED, Json(result)))
 }
@@ -160,12 +171,13 @@ async fn descriptor(
     let descriptor = state
         .db
         .resource_sessions()
-        .descriptor(
+        .descriptor_with_entitlement(
             context.credential(),
             context.client,
             id,
             value.revision,
             &digest,
+            state.entitlement(),
         )
         .await?;
     Ok(Json(

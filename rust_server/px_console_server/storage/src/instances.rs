@@ -2,8 +2,8 @@ use crate::{
     control,
     instance_model::{InstanceRow, PlacementCandidateRow},
     ApplicationInstance, ApplicationStore, ClientType, GuestStore, PlacementPreview,
-    PlacementPreviewRequest, ResourceCredential, ResourceOwner, RuntimeEpoch, StartApplication,
-    StoreError, TokenDigest,
+    PlacementPreviewRequest, ResourceCredential, ResourceOwner, RuntimeEntitlement, RuntimeEpoch,
+    StartApplication, StoreError, TokenDigest,
 };
 use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
@@ -49,12 +49,31 @@ impl InstanceStore {
     pub async fn close(&self) {
         self.pool.close().await;
     }
+    #[cfg(feature = "pg-integration")]
     pub async fn reserve(
         &self,
         credential: ResourceCredential<'_>,
         client: ClientType,
         epoch: RuntimeEpoch,
         request: &StartApplication,
+    ) -> Result<ApplicationInstance, StoreError> {
+        self.reserve_with_entitlement(
+            credential,
+            client,
+            epoch,
+            request,
+            RuntimeEntitlement::unrestricted_for_integration(),
+        )
+        .await
+    }
+
+    pub async fn reserve_with_entitlement(
+        &self,
+        credential: ResourceCredential<'_>,
+        client: ClientType,
+        epoch: RuntimeEpoch,
+        request: &StartApplication,
+        entitlement: RuntimeEntitlement,
     ) -> Result<ApplicationInstance, StoreError> {
         let hash = request.digest(client)?;
         let mut tx = self.pool.begin().await?;
@@ -63,7 +82,7 @@ impl InstanceStore {
         control::write_gate(&mut tx).await?;
         let subject = Self::authorize(&mut tx, credential, client).await?;
         let owner = subject.owner;
-        Self::visible(&mut tx, owner, request.application_id).await?;
+        let application = Self::visible(&mut tx, owner, request.application_id).await?;
         let (user, guest) = owner.columns();
         if let Some(existing) = sqlx::query_file_as!(
             InstanceRow,
@@ -81,6 +100,9 @@ impl InstanceStore {
             let result = existing.view()?;
             tx.commit().await?;
             return Ok(result);
+        }
+        if !entitlement.permits_application_kind(&application.kind) {
+            return Err(StoreError::LicenseRestriction);
         }
         let instance = sqlx::query_file_as!(
             InstanceRow,
@@ -250,14 +272,11 @@ impl InstanceStore {
         connection: &mut PgConnection,
         owner: ResourceOwner,
         application: Uuid,
-    ) -> Result<(), StoreError> {
+    ) -> Result<crate::ApplicationCard, StoreError> {
         let rows =
             ApplicationStore::visible(connection, owner.columns().0, None, 1, Some(application))
                 .await?;
-        if rows.is_empty() {
-            return Err(StoreError::Rejected);
-        }
-        Ok(())
+        rows.into_iter().next().ok_or(StoreError::Rejected)
     }
     pub(crate) async fn command(
         connection: &mut PgConnection,

@@ -4,11 +4,52 @@ use fixture::{config, node_report, request, token, Fixture};
 use px_console_store::{
     ApplicationInstance, ClientType, CommandOutcome, CommandReceipt, DeploymentTarget,
     DeviceAccess, NodeConnection, OpenResourceSession, ResourceCredential, ResourceSession,
-    ResourceSessionStore, SessionAccess, SessionTarget, StoreError, TokenDigest,
+    ResourceSessionStore, RuntimeEntitlement, SessionAccess, SessionTarget, StoreError,
+    TokenDigest,
 };
 use std::{env, sync::Arc, time::Duration};
 use tokio::sync::Barrier;
 use uuid::Uuid;
+
+#[tokio::test]
+async fn license_session_quota_and_feature_gate_new_grants() {
+    let (fixture, session_store, _node, user, instance, session) = opened().await;
+    let allowed = RuntimeEntitlement::new(8, 1, true, true, true).unwrap();
+    assert_eq!(
+        session_store
+            .open_with_entitlement(
+                ResourceCredential::User(&user),
+                ClientType::Android,
+                &open_request(instance.application_id, instance.id),
+                allowed,
+            )
+            .await,
+        Err(StoreError::LicenseRestriction)
+    );
+    let without_cloud = RuntimeEntitlement::new(8, 8, false, true, true).unwrap();
+    assert!(matches!(
+        session_store
+            .descriptor_with_entitlement(
+                ResourceCredential::User(&user),
+                ClientType::Android,
+                session.id,
+                session.revision,
+                &token(),
+                without_cloud,
+            )
+            .await,
+        Err(StoreError::LicenseRestriction)
+    ));
+    let descriptor_hash: Option<Vec<u8>> =
+        sqlx::query_scalar("SELECT descriptor_hash FROM pixels.resource_sessions WHERE id=$1")
+            .bind(session.id)
+            .fetch_one(&fixture.owner)
+            .await
+            .unwrap();
+    assert!(descriptor_hash.is_none());
+    session_store.close().await;
+    fixture.close().await;
+}
 
 #[tokio::test]
 async fn close_request_needs_node_proof_and_observer_policy_is_not_control_authority() {
@@ -911,6 +952,18 @@ async fn desktop_requires_device_acl_and_never_accepts_guest_or_admin_web() {
         )
         .await
         .unwrap();
+    let without_desktop = RuntimeEntitlement::new(8, 8, true, false, true).unwrap();
+    assert_eq!(
+        session_store
+            .open_with_entitlement(
+                ResourceCredential::User(&user),
+                ClientType::Android,
+                &req,
+                without_desktop,
+            )
+            .await,
+        Err(StoreError::LicenseRestriction)
+    );
     let session = session_store
         .open(ResourceCredential::User(&user), ClientType::Android, &req)
         .await

@@ -92,8 +92,9 @@ pub use instance_model::{
 };
 pub use instances::InstanceStore;
 pub use model::{
-    AuthenticatedSession, AvatarContent, ClientType, Credential, PasswordDigest, StoreError,
-    TokenDigest, UserAvatar, UserProfile, Username, MAX_AVATAR_BYTES,
+    AuthenticatedSession, AvatarContent, ClientType, Credential, PasswordDigest,
+    RuntimeEntitlement, StoreError, TokenDigest, UserAvatar, UserProfile, Username,
+    MAX_AVATAR_BYTES,
 };
 pub use node_model::{
     ManagedNodeProfile, ManagedNodeTelemetrySample, NodeConfiguration, NodeConnection,

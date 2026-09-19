@@ -3,7 +3,7 @@ use crate::{
     instances::AdmissionSubject,
     session_model::{SessionEndpoint, SessionRow},
     ClientType, InstanceStore, OpenResourceSession, ResourceCredential, ResourceDescriptor,
-    ResourceSession, SessionTarget, StoreError, TokenDigest,
+    ResourceSession, RuntimeEntitlement, SessionTarget, StoreError, TokenDigest,
 };
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -27,11 +27,28 @@ impl ResourceSessionStore {
         self.pool.close().await;
     }
 
+    #[cfg(feature = "pg-integration")]
     pub async fn open(
         &self,
         credential: ResourceCredential<'_>,
         client: ClientType,
         request: &OpenResourceSession,
+    ) -> Result<ResourceSession, StoreError> {
+        self.open_with_entitlement(
+            credential,
+            client,
+            request,
+            RuntimeEntitlement::unrestricted_for_integration(),
+        )
+        .await
+    }
+
+    pub async fn open_with_entitlement(
+        &self,
+        credential: ResourceCredential<'_>,
+        client: ClientType,
+        request: &OpenResourceSession,
+        entitlement: RuntimeEntitlement,
     ) -> Result<ResourceSession, StoreError> {
         let hash = request.digest(client)?;
         let mut tx = self.pool.begin().await?;
@@ -55,6 +72,18 @@ impl ResourceSessionStore {
             let result = existing.view()?;
             tx.commit().await?;
             return Ok(result);
+        }
+        Self::enforce_target_entitlement(&mut tx, request.target, entitlement).await?;
+        sqlx::query("SELECT pg_advisory_xact_lock(5788347791197331458)")
+            .execute(&mut *tx)
+            .await?;
+        let active_sessions: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM pixels.resource_sessions WHERE closed_at IS NULL",
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        if active_sessions >= i64::from(entitlement.max_sessions) {
+            return Err(StoreError::LicenseRestriction);
         }
         let endpoint = Self::endpoint(
             &mut tx,
@@ -136,6 +165,7 @@ impl ResourceSessionStore {
     }
     /// Composition root generates the random token and supplies only its digest here.
     /// Caller must not return any grant to the frontend until this transaction commits.
+    #[cfg(feature = "pg-integration")]
     pub async fn descriptor(
         &self,
         credential: ResourceCredential<'_>,
@@ -143,6 +173,26 @@ impl ResourceSessionStore {
         id: Uuid,
         expected_revision: i64,
         token: &TokenDigest,
+    ) -> Result<ResourceDescriptor, StoreError> {
+        self.descriptor_with_entitlement(
+            credential,
+            client,
+            id,
+            expected_revision,
+            token,
+            RuntimeEntitlement::unrestricted_for_integration(),
+        )
+        .await
+    }
+
+    pub async fn descriptor_with_entitlement(
+        &self,
+        credential: ResourceCredential<'_>,
+        client: ClientType,
+        id: Uuid,
+        expected_revision: i64,
+        token: &TokenDigest,
+        entitlement: RuntimeEntitlement,
     ) -> Result<ResourceDescriptor, StoreError> {
         let mut tx = self.pool.begin().await?;
         control::write_gate(&mut tx).await?;
@@ -154,6 +204,7 @@ impl ResourceSessionStore {
         {
             return Err(StoreError::Rejected);
         }
+        Self::enforce_target_entitlement(&mut tx, row.view()?.target, entitlement).await?;
         let endpoint = Self::live_endpoint(&mut tx, &row).await?;
         let issued = sqlx::query_file!(
             "queries/issue_resource_descriptor.sql",
@@ -177,6 +228,34 @@ impl ResourceSessionStore {
         };
         tx.commit().await?;
         Ok(result)
+    }
+
+    async fn enforce_target_entitlement(
+        connection: &mut sqlx::PgConnection,
+        target: SessionTarget,
+        entitlement: RuntimeEntitlement,
+    ) -> Result<(), StoreError> {
+        let permitted = match target {
+            SessionTarget::Desktop { .. } => entitlement.desktop,
+            SessionTarget::CloudApplication {
+                application_id,
+                instance_id,
+            } => {
+                let kind = sqlx::query_scalar::<_, String>(
+                    "SELECT kind FROM pixels.instances WHERE id=$1 AND application_id=$2 AND ended_at IS NULL",
+                )
+                .bind(instance_id)
+                .bind(application_id)
+                .fetch_optional(&mut *connection)
+                .await?
+                .ok_or(StoreError::Rejected)?;
+                entitlement.permits_application_kind(&kind)
+            }
+        };
+        if !permitted {
+            return Err(StoreError::LicenseRestriction);
+        }
+        Ok(())
     }
     pub async fn request_close(
         &self,

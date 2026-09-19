@@ -803,6 +803,20 @@ async fn issuance_retry_online_verification_and_revocation_are_one_new_contract(
     )
     .await;
     assert_eq!(first.0, StatusCode::OK);
+    let license_id: Uuid = first.1["license_id"].as_str().unwrap().parse().unwrap();
+    let pending = |license_id: Uuid| {
+        let owner = fixture.owner.clone();
+        async move {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT count(*) FROM pixels.license_notification_outbox WHERE license_id=$1 AND delivered_at IS NULL",
+            )
+            .bind(license_id)
+            .fetch_one(&owner)
+            .await
+            .unwrap()
+        }
+    };
+    assert_eq!(pending(license_id).await, 1);
     assert_eq!(
         first,
         call(
@@ -827,6 +841,7 @@ async fn issuance_retry_online_verification_and_revocation_are_one_new_contract(
         .0,
         StatusCode::OK
     );
+    assert_eq!(pending(license_id).await, 0);
     let mut wrong = verify.clone();
     wrong["deployment_id"] = json!(Uuid::new_v4());
     assert_eq!(
@@ -845,6 +860,7 @@ async fn issuance_retry_online_verification_and_revocation_are_one_new_contract(
     let renewed=call(&fixture.app,"POST","/api/auth/licenses/issue",Some(&token),json!({"request_id":Uuid::new_v4(),"request":{"operation":"renew","license_id":id,"expected_revision":1,"terms":terms}})).await;
     assert_eq!(renewed.0, StatusCode::OK);
     assert_eq!(renewed.1["revision"], 2);
+    assert_eq!(pending(license_id).await, 1);
     assert_eq!(
         call(
             &fixture.app,
@@ -857,6 +873,7 @@ async fn issuance_retry_online_verification_and_revocation_are_one_new_contract(
         .0,
         StatusCode::UNAUTHORIZED
     );
+    assert_eq!(pending(license_id).await, 0);
     let mut verify = verify;
     verify["wire"] = renewed.1["wire"].clone();
     assert_eq!(
@@ -871,6 +888,7 @@ async fn issuance_retry_online_verification_and_revocation_are_one_new_contract(
         .0,
         StatusCode::OK
     );
+    assert_eq!(pending(license_id).await, 0);
     assert_eq!(
         call(
             &fixture.app,
@@ -883,6 +901,7 @@ async fn issuance_retry_online_verification_and_revocation_are_one_new_contract(
         .0,
         StatusCode::OK
     );
+    assert_eq!(pending(license_id).await, 1);
     assert_eq!(
         call(
             &fixture.app,
@@ -895,6 +914,7 @@ async fn issuance_retry_online_verification_and_revocation_are_one_new_contract(
         .0,
         StatusCode::UNAUTHORIZED
     );
+    assert_eq!(pending(license_id).await, 0);
     let rows = call(
         &fixture.app,
         "GET",
