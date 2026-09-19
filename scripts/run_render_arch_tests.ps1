@@ -102,7 +102,10 @@ $unitTargets = @(
     "test_render_service_rpc_state",
     "test_logical_session_registry",
     "test_rtc_heartbeat_watchdog",
-    "test_voice_call_service"
+    "test_voice_call_service",
+    "test_game_process_identity",
+    "test_game_owned_process",
+    "test_game_display_power"
 )
 $lifecycleTargets = @(
     "test_captured_media_pipeline",

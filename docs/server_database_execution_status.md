@@ -963,6 +963,13 @@ TOML、明文凭据交接说明、Mongo 去重工具、旧发布/迁移脚本及
 通过证据，必须在后续 Linux 总门禁补跑，不能用静态 unit 校验替代。真实 Windows Console 子进程专项
 `pg-20260919-142415-56c41e17` 为 1/1 PASS，覆盖空三库启动、ready/静态资源及数据库 authority 丢失后的非零退出，隔离容器和卷已清理。
 
+Render 快速架构门禁现会先构建其注册的全部测试目标，不再遗漏 game process identity、owned process 和 display power 三项二进制。
+Opus 处理器的十轮 start/encode/stop 生命周期用例改为串行运行并使用 5 秒有界调度等待，避免把开发机 CTest 进程争用误判为组件故障；
+它仍逐轮验证工作线程启动、编码回调和停止完成。修复后的报告
+`build_official/cloud_node/reports/render-architecture/20260919-161644-quick` 为 ownership/readability 守卫 2/2、快速用例 19/19 PASS、
+0 FAIL。修复前的一次失败报告保留用于追踪，不作为通过证据；本结果只关闭日常 Render 快速门禁自身的完整性问题，不替代 DB2 公网链路或
+DB5 最终统一长测。
+
 ## 仍未通过的阶段出口
 
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。

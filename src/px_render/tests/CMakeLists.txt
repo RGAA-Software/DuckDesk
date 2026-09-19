@@ -294,6 +294,11 @@ set_tests_properties(
     rtc_heartbeat_watchdog
     PROPERTIES LABELS "render-unit")
 
+# The Opus processor test deliberately starts and joins a worker ten times.
+# Running it alone keeps the bounded scheduling assertion meaningful on busy
+# developer machines instead of measuring CTest process contention.
+set_tests_properties(opus_encoder_processor PROPERTIES RUN_SERIAL TRUE)
+
 set_property(TEST
     captured_media_pipeline
     ws_callback_workflow

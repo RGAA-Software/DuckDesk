@@ -34,25 +34,21 @@ std::shared_ptr<const CapturedAudioFrame> MakePcm() {
 TEST(OpusEncoderProcessorTest, TenStartEncodeStopRoundsAreComplete) {
     const auto bus = EncodedMediaBus::Create();
     const auto state = std::make_shared<EncodedState>();
-    const auto callback =
-        std::make_shared<EncodedMediaBus::EncodedAudioCallback>(
-            [state](const std::shared_ptr<const EncodedAudioFrame>& frame) {
-                std::lock_guard lock(state->mutex);
-                ++state->bus_packets;
-                state->frame_size = frame ? frame->frame_size : 0;
-                state->condition.notify_all();
-            });
+    const auto callback = std::make_shared<EncodedMediaBus::EncodedAudioCallback>([state](const std::shared_ptr<const EncodedAudioFrame>& frame) {
+        std::lock_guard lock(state->mutex);
+        ++state->bus_packets;
+        state->frame_size = frame ? frame->frame_size : 0;
+        state->condition.notify_all();
+    });
     const auto subscription = bus->SubscribeEncodedAudio(callback);
-    const auto processor = OpusEncoderProcessor::Create(
-        bus,
-        [state](const std::shared_ptr<const EncodedAudioFrame>& frame) {
-            if (!frame) {
-                return;
-            }
-            std::lock_guard lock(state->mutex);
-            ++state->network_packets;
-            state->condition.notify_all();
-        });
+    const auto processor = OpusEncoderProcessor::Create(bus, [state](const std::shared_ptr<const EncodedAudioFrame>& frame) {
+        if (!frame) {
+            return;
+        }
+        std::lock_guard lock(state->mutex);
+        ++state->network_packets;
+        state->condition.notify_all();
+    });
     ASSERT_TRUE(processor);
 
     for (std::uint64_t round = 0; round < 10; ++round) {
@@ -61,10 +57,9 @@ TEST(OpusEncoderProcessorTest, TenStartEncodeStopRoundsAreComplete) {
         bus->PublishCapturedAudio(MakePcm());
         {
             std::unique_lock lock(state->mutex);
-            ASSERT_TRUE(state->condition.wait_for(lock, 2s, [state, round] {
-                return state->bus_packets >= round + 1 &&
-                    state->network_packets >= round + 1;
-            })) << "round " << round;
+            ASSERT_TRUE(state->condition.wait_for(lock, 5s,
+                                                  [state, round] { return state->bus_packets >= round + 1 && state->network_packets >= round + 1; }))
+                << "round " << round;
             EXPECT_EQ(state->frame_size, 960U);
         }
         ASSERT_TRUE(processor->Stop());
