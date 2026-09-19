@@ -20,6 +20,9 @@ struct ClientLaunchConfig final {
     std::string remoteDeviceId{};
     std::string remotePlatform{};
     std::string remotePasswordHash{};
+    std::string frontendSessionId{};
+    std::int64_t frontendSessionRevision{};
+    std::shared_ptr<const px::SecretBuffer> frontendToken{};
     std::string nonce{};
     std::string instanceId{};
     std::string appKey{};
@@ -49,5 +52,7 @@ struct ClientLaunchConfig final {
 };
 
 [[nodiscard]] std::optional<ClientLaunchConfig> ParseClientLaunchEnvelope(std::string_view envelope);
+[[nodiscard]] std::string BuildClientMediaPath(const ClientLaunchConfig& config);
+[[nodiscard]] std::string BuildClientFileTransferPath(const ClientLaunchConfig& config);
 
-} // namespace px::client::imgui
+}  // namespace px::client::imgui

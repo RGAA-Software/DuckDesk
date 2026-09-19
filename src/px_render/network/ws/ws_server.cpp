@@ -15,6 +15,7 @@
 
 #include "app/app_messages.h"
 #include "app/win/ipc_peer_identity.h"
+#include "frontend_lease_renewal.h"
 #include "http_handler.h"
 #include "message_type_ids.h"
 #include "network/ws_media_router.h"
@@ -103,6 +104,10 @@ struct WsPasswordAdmission {
     int64_t expires_at_ms_ = 0;
     bool allow_observer_ = true;
     bool allow_takeover_ = true;
+    std::shared_ptr<WebSocketFrontendToken> frontend_token_{};
+    std::optional<ConsoleFrontendGrant> console_frontend_grant_{};
+    std::string descriptor_session_id_{};
+    std::int64_t descriptor_revision_{};
 };
 
 static void RejectWebSocketSession(std::shared_ptr<asio2::http_session> session,
@@ -184,6 +189,70 @@ static PxAwaitable<PxResult<WsPasswordAdmission>> AuthenticateWsPasswordAsync(
         .expires_at_ms_ = 0,
         .allow_observer_ = false,
         .allow_takeover_ = true,
+    });
+}
+
+static PxAwaitable<PxResult<WsPasswordAdmission>> AuthenticateWebSocketAsync(
+    std::weak_ptr<WsTransport> transport,
+    std::unordered_map<std::string, std::string> query_parameters,
+    std::string remote_address) {
+    const auto owner = transport.lock();
+    if (!owner) {
+        co_return PxResult<WsPasswordAdmission>::Failure(
+            MakePxAsyncError(PxAsyncErrorCode::kServiceStopped,
+                             "ws_frontend_auth", "transport is unavailable",
+                             true, "TRANSPORT_UNAVAILABLE"));
+    }
+    if (!owner->RequiresConsoleFrontendAdmission()) {
+        co_return co_await AuthenticateWsPasswordAsync(
+            std::move(transport), std::move(query_parameters),
+            std::move(remote_address));
+    }
+
+    auto descriptor = ConsumeWebSocketFrontendDescriptor(query_parameters);
+    if (!descriptor) {
+        co_return PxResult<WsPasswordAdmission>::Failure(MakePxAsyncError(
+            PxAsyncErrorCode::kInvalidArgument, "ws_frontend_auth",
+            "Console frontend descriptor is invalid", false,
+            "CONSOLE_FRONTEND_DESCRIPTOR_INVALID"));
+    }
+
+    auto admitted = co_await owner->AdmitFrontend(
+        ConsoleFrontendAdmissionRequest{
+            .request_id = GetUUID(),
+            .session_id = descriptor->session_id,
+            .revision = descriptor->revision,
+            .frontend_token = descriptor->token->Copy(),
+        },
+        std::chrono::steady_clock::now() + std::chrono::seconds(12));
+    if (!admitted.HasValue()) {
+        co_return PxResult<WsPasswordAdmission>::Failure(admitted.Error());
+    }
+    auto grant = admitted.TakeValue();
+    const auto settings = owner->Settings();
+    if (!IsAcceptedWebSocketFrontendGrant(*descriptor, settings.device_id, grant)) {
+        co_return PxResult<WsPasswordAdmission>::Failure(MakePxAsyncError(
+            PxAsyncErrorCode::kServiceRejected, "ws_frontend_auth",
+            "Console frontend identity was rejected", false,
+            "CONSOLE_FRONTEND_IDENTITY_MISMATCH"));
+    }
+    const bool controller = grant.access_role == "controller";
+    co_return PxResult<WsPasswordAdmission>::Success(WsPasswordAdmission{
+        .permissions_ = controller
+                            ? std::vector<std::string>{"view", "input", "clipboard", "file", "audio", "rdp"}
+                            : std::vector<std::string>{"view", "audio"},
+        .logical_session_id_ = grant.session_id,
+        .stream_id_ = descriptor->stream_id,
+        .join_mode_ = controller ? "control" : "observe",
+        .subject_id_ = grant.client_type + ":" + grant.session_id,
+        .expires_at_ms_ = CurrentSystemMilliseconds() +
+                          static_cast<std::int64_t>(grant.valid_for_ms),
+        .allow_observer_ = !controller,
+        .allow_takeover_ = false,
+        .frontend_token_ = descriptor->token,
+        .console_frontend_grant_ = std::move(grant),
+        .descriptor_session_id_ = descriptor->session_id,
+        .descriptor_revision_ = descriptor->revision,
     });
 }
 
@@ -409,6 +478,9 @@ bool WsServer::Start() {
             "recoverable=false");
         return false;
     }
+    frontend_lease_renewals_ =
+        std::make_shared<WebSocketFrontendLeaseRenewalCoordinator>(
+            transport_, async_scope_);
     http_handler_ = std::make_shared<HttpHandler>(transport_, async_scope_);
     auto weak_self = weak_from_this();
     server_ = std::make_shared<asio2::http_server>();
@@ -425,6 +497,9 @@ bool WsServer::Start() {
                     self->stream_routers_.Remove(socket_fd);
                 removed_stream_router.has_value()) {
                 const auto& router = removed_stream_router.value();
+                if (self->frontend_lease_renewals_) {
+                    self->frontend_lease_renewals_->Cancel(router->binding_id_);
+                }
                 self->UpdateUdpMediaAssociation(
                     router->udp_media_association_code_,
                     router->logical_session_id_, router->stream_id_, false,
@@ -445,6 +520,9 @@ bool WsServer::Start() {
             } else if (auto removed = self->ft_routers_.Remove(socket_fd);
                        removed.has_value()) {
                 const auto& router = removed.value();
+                if (self->frontend_lease_renewals_) {
+                    self->frontend_lease_renewals_->Cancel(router->binding_id_);
+                }
                 self->CloseLogicalSessionBinding(router->logical_session_id_,
                                                  router->binding_id_);
                 router->OnClose(session);
@@ -650,6 +728,7 @@ void WsServer::FinishStop() {
     }
     async_scope_.reset();
     http_handler_.reset();
+    frontend_lease_renewals_.reset();
     server_.reset();
     ws_data_.reset();
     user_proxy_router_.reset();
@@ -1434,19 +1513,20 @@ PxAwaitable<void> WsServer::OpenWebSocketAsync(
         co_return;
     }
     const auto transport = server->transport_;
-    auto authentication_result = co_await AuthenticateWsPasswordAsync(
+    auto authentication_result = co_await AuthenticateWebSocketAsync(
         transport, query_parameters, session->remote_address());
     if (!authentication_result.HasValue()) {
         const auto& error = authentication_result.Error();
         LOGW(
             "event=session.admit component=net_ws code={} "
-            "operation=password_auth outcome=rejected recoverable={} reason={}",
+            "operation=frontend_auth outcome=rejected recoverable={} reason={}",
             error.StableCode(), error.retryable, error.message);
         server->transport_performance_.ObserveDropped();
         RejectWebSocketSession(session, kWsAuthorizationRejectedSignal);
         co_return;
     }
     auto authentication = authentication_result.TakeValue();
+    query_parameters.erase("frontend_token");
     const bool rdp_requested =
         query_parameters.contains("rdp") && query_parameters.at("rdp") == "1";
     if (server->rdp_proxy_port_ != 0) {
@@ -1497,20 +1577,20 @@ PxAwaitable<void> WsServer::OpenWebSocketAsync(
         co_return;
     }
     const auto binding_id = std::format("ws:{}:{}", stream_id, socket_fd);
+    const LogicalSessionGrant logical_grant{
+        .logical_session_id = authentication.logical_session_id_,
+        .stream_id = authentication.stream_id_,
+        .subject_id = authentication.subject_id_,
+        .join_mode = authentication.join_mode_,
+        .expires_at_ms = authentication.expires_at_ms_,
+        .allow_observer = authentication.allow_observer_,
+        .allow_takeover = authentication.allow_takeover_,
+        .input_allowed =
+            std::ranges::find(authentication.permissions_, "input") !=
+            authentication.permissions_.end(),
+    };
     auto admission_result = co_await AdmitWsSessionAsync(
-        transport,
-        LogicalSessionGrant{
-            .logical_session_id = authentication.logical_session_id_,
-            .stream_id = authentication.stream_id_,
-            .subject_id = authentication.subject_id_,
-            .join_mode = authentication.join_mode_,
-            .expires_at_ms = authentication.expires_at_ms_,
-            .allow_observer = authentication.allow_observer_,
-            .allow_takeover = authentication.allow_takeover_,
-            .input_allowed =
-                std::ranges::find(authentication.permissions_, "input") !=
-                authentication.permissions_.end(),
-        },
+        transport, logical_grant,
         path == kUrlFileTransfer ? LogicalSessionTransport::kFileTransfer
                                  : LogicalSessionTransport::kWs,
         binding_id);
@@ -1548,6 +1628,26 @@ PxAwaitable<void> WsServer::OpenWebSocketAsync(
             transport, authentication.logical_session_id_, binding_id);
         co_return;
     }
+    if (authentication.console_frontend_grant_ &&
+        authentication.frontend_token_ && server->frontend_lease_renewals_) {
+        const std::weak_ptr<asio2::http_session> weak_session{session};
+        server->frontend_lease_renewals_->Start(
+            WebSocketFrontendLeaseIdentity{
+                .expected_grant = *authentication.console_frontend_grant_,
+                .logical_grant = logical_grant,
+                .descriptor_session_id = authentication.descriptor_session_id_,
+                .descriptor_revision = authentication.descriptor_revision_,
+                .binding_id = binding_id,
+                .terminate_transport = [weak_session] {
+                    if (const auto active_session = weak_session.lock()) {
+                        active_session->post_queued_event(
+                            [active_session] { active_session->stop(); });
+                    }
+                },
+            },
+            authentication.frontend_token_,
+            authentication.console_frontend_grant_->valid_for_ms);
+    }
     session->post_queued_event(
         [owner, transport, session, path = std::move(path),
          query_parameters = std::move(query_parameters),
@@ -1556,6 +1656,9 @@ PxAwaitable<void> WsServer::OpenWebSocketAsync(
             const auto active_server = owner.lock();
             if (!active_server || active_server->exiting_ ||
                 !session->is_started()) {
+                if (active_server && active_server->frontend_lease_renewals_) {
+                    active_server->frontend_lease_renewals_->Cancel(binding_id);
+                }
                 DispatchCloseLogicalSessionBinding(
                     transport, authentication.logical_session_id_, binding_id);
                 return;
@@ -1858,6 +1961,9 @@ void WsServer::CloseLogicalSessionBinding(const std::string& logical_session_id,
                                           const std::string& binding_id) {
     if (logical_session_id.empty() || binding_id.empty()) {
         return;
+    }
+    if (frontend_lease_renewals_) {
+        frontend_lease_renewals_->Cancel(binding_id);
     }
     const auto event = std::make_shared<CloseLogicalSessionBindingEvent>();
     event->logical_session_id_ = logical_session_id;

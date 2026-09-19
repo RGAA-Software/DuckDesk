@@ -56,10 +56,7 @@ bool ClientSession::InitializeRdp() {
     params.device_id_ = config_.localDeviceId;
     params.connection_nonce_ = config_.nonce;
     params.connection_instance_id_ = config_.instanceId;
-    params.media_path_ =
-        std::format("/media?stream_id={}&remote_device_id={}&visitor_device_id={}&safety_pwd_md5={}",
-                    px::UrlHelper::EncodeQueryComponent(config_.streamId), px::UrlHelper::EncodeQueryComponent(config_.remoteDeviceId),
-                    px::UrlHelper::EncodeQueryComponent(config_.localDeviceId), px::UrlHelper::EncodeQueryComponent(config_.remotePasswordHash));
+    params.media_path_ = BuildClientMediaPath(config_);
     rdpNetwork_ = std::make_shared<px::NetClient>(std::move(params), notifier_);
     const std::weak_ptr<ClientSession> weakSelf{shared_from_this()};
     rdpNetwork_->SetOnConnectCallback([weakSelf] {

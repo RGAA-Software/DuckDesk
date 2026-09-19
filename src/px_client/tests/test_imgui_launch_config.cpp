@@ -1,8 +1,8 @@
-#include "client_launch_config.h"
-
 #include <gtest/gtest.h>
 
 #include <string>
+
+#include "client_launch_config.h"
 
 namespace px::client::imgui {
 
@@ -57,6 +57,43 @@ TEST(ClientImguiLaunchConfigTest, RejectsLegacyCommandLineAndMissingPassword) {
     EXPECT_FALSE(ParseClientLaunchEnvelope(R"({"schema":1,"host":"127.0.0.1","port":4601})"));
 }
 
+TEST(ClientImguiLaunchConfigTest, ParsesConsoleFrontendDescriptorWithoutDevicePassword) {
+    const auto config = ParseClientLaunchEnvelope(R"({
+        "schema":1,"host":"render.example.test","port":4613,
+        "stream_id":"930ef9cc-5817-4b88-90a2-17fc4ecfbb2a","device_id":"windows-client",
+        "remote_device_id":"879557de-f121-4797-b824-00ddf9cf746e","connection_nonce":"nonce",
+        "connection_instance_id":"879557de-f121-4797-b824-00ddf9cf746e",
+        "frontend_session_id":"930ef9cc-5817-4b88-90a2-17fc4ecfbb2a","frontend_session_revision":2,
+        "frontend_token":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    })");
+    ASSERT_TRUE(config);
+    EXPECT_EQ(config->frontendSessionId, "930ef9cc-5817-4b88-90a2-17fc4ecfbb2a");
+    EXPECT_EQ(config->frontendSessionRevision, 2);
+    ASSERT_TRUE(config->frontendToken);
+    EXPECT_EQ(config->frontendToken->View(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    EXPECT_TRUE(config->remotePasswordHash.empty());
+    const auto mediaPath = BuildClientMediaPath(*config);
+    const auto fileTransferPath = BuildClientFileTransferPath(*config);
+    EXPECT_NE(mediaPath.find("session_id=930ef9cc-5817-4b88-90a2-17fc4ecfbb2a"), std::string::npos);
+    EXPECT_NE(mediaPath.find("session_revision=2"), std::string::npos);
+    EXPECT_NE(mediaPath.find("frontend_token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), std::string::npos);
+    EXPECT_EQ(mediaPath.find("safety_pwd_md5"), std::string::npos);
+    EXPECT_NE(fileTransferPath.find("frontend_token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), std::string::npos);
+}
+
+TEST(ClientImguiLaunchConfigTest, RejectsMismatchedConsoleFrontendSession) {
+    EXPECT_FALSE(ParseClientLaunchEnvelope(R"({
+        "schema":1,"host":"render.example.test","port":4613,"stream_id":"stream-a","device_id":"windows-client",
+        "remote_device_id":"instance","connection_nonce":"nonce","frontend_session_id":"stream-b","frontend_session_revision":2,
+        "frontend_token":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    })"));
+    EXPECT_FALSE(ParseClientLaunchEnvelope(R"({
+        "schema":1,"host":"render.example.test","port":4613,"stream_id":"stream-a","device_id":"windows-client",
+        "remote_device_id":"instance","remote_password_hash":"password-must-not-enable-downgrade","connection_nonce":"nonce",
+        "frontend_session_id":"stream-a","frontend_session_revision":2
+    })"));
+}
+
 TEST(ClientImguiLaunchConfigTest, ParsesProtectedRdpLaunch) {
     const auto config = ParseClientLaunchEnvelope(R"({
         "schema":1,"host":"127.0.0.1","port":5403,"stream_id":"rdp-1","device_id":"client-1",
@@ -73,4 +110,4 @@ TEST(ClientImguiLaunchConfigTest, ParsesProtectedRdpLaunch) {
     EXPECT_EQ(config->rdpPassword->View(), "a-secure-workspace-password-with-32-bytes");
 }
 
-} // namespace px::client::imgui
+}  // namespace px::client::imgui

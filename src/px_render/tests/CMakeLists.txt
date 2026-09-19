@@ -51,6 +51,12 @@ target_link_libraries(test_ws_realtime_media_queue
     PRIVATE net_ws GTest::gtest GTest::gtest_main)
 add_test(NAME ws_realtime_media_queue COMMAND test_ws_realtime_media_queue)
 
+add_executable(test_ws_frontend_admission
+    unit/test_ws_frontend_admission.cpp)
+target_link_libraries(test_ws_frontend_admission
+    PRIVATE net_ws render_architecture_core GTest::gtest GTest::gtest_main)
+add_test(NAME ws_frontend_admission COMMAND test_ws_frontend_admission)
+
 add_executable(test_media_recorder_sink
     unit/test_media_recorder_sink.cpp)
 target_link_libraries(test_media_recorder_sink
@@ -282,6 +288,7 @@ set_tests_properties(
     captured_media_pipeline
     network_transport_hub
     ws_callback_workflow
+    ws_frontend_admission
     ws_realtime_media_queue
     frame_resizer_processor
     frame_carrier_processor

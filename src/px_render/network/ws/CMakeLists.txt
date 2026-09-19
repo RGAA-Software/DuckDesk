@@ -4,6 +4,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(TRANSPORT_SRCS
+        ${CMAKE_CURRENT_SOURCE_DIR}/frontend_lease_renewal.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ws_transport.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ws_server.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ws_stream_router.cpp

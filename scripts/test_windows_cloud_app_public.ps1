@@ -2,7 +2,15 @@
 
 [CmdletBinding()]
 param(
-    [string]$ConsoleBase = 'https://39.71.45.66:4600',
+    [Parameter(Mandatory)]
+    [ValidateScript({
+        $candidate = $null
+        [Uri]::TryCreate($_, [UriKind]::Absolute, [ref]$candidate) -and
+            $candidate.Scheme -eq 'https' -and
+            -not $candidate.Query -and
+            -not $candidate.Fragment
+    })]
+    [string]$ConsoleBase,
     [string]$AppId = '',
     [switch]$Rdp,
     [ValidateRange(15, 180)]
@@ -12,14 +20,17 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$ConsoleBase = $ConsoleBase.TrimEnd('/')
 $repository = Split-Path $PSScriptRoot -Parent
 $clientPath = Join-Path $repository 'build_official/client/dist/px_client.exe'
 $buildClientPath = Join-Path $repository 'build_official/client/cmake/src/px_deps/px_client.exe'
 $credentialsPath = Join-Path $repository '.env/public_test_user.json'
-$licensePath = Join-Path $repository '.env/public_license.json'
 $clientLogPath = Join-Path (Split-Path $clientPath -Parent) 'px_logs/px_client.log'
 
-foreach ($path in @($clientPath, $buildClientPath, $credentialsPath, $licensePath)) {
+if ($Rdp) {
+    throw 'The PostgreSQL RDP descriptor does not yet carry the protected workspace bootstrap. RDP cannot be accepted with a fabricated or legacy password.'
+}
+foreach ($path in @($clientPath, $buildClientPath, $credentialsPath)) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         throw "Windows public acceptance input is missing: $path"
     }
@@ -30,32 +41,38 @@ if ((Get-FileHash -LiteralPath $clientPath -Algorithm SHA256).Hash -ne
 }
 
 $credentials = Get-Content -LiteralPath $credentialsPath -Raw | ConvertFrom-Json
-$license = Get-Content -LiteralPath $licensePath -Raw | ConvertFrom-Json
-$token = ''
-$instance = $null
-$client = $null
+$accessToken = ''
+$applicationInstance = $null
+$resourceSession = $null
+$clientProcess = $null
 $clientLogOffset = if (Test-Path -LiteralPath $clientLogPath) { (Get-Item -LiteralPath $clientLogPath).Length } else { 0L }
 
 function Invoke-ConsoleApi {
     param(
         [Parameter(Mandatory)]
         [string]$Path,
-        [ValidateSet('GET', 'POST')]
+        [ValidateSet('GET', 'POST', 'DELETE')]
         [string]$Method = 'GET',
         [object]$Body = $null,
-        [string]$AccessToken = ''
+        [string]$Token = '',
+        [switch]$UserResource
     )
 
-    $headers = @{ Accept = 'application/json'; Origin = $ConsoleBase }
-    if ($AccessToken) {
-        $headers.Authorization = "Bearer $AccessToken"
+    $headers = @{
+        Accept = 'application/json'
+        Origin = ([Uri]$ConsoleBase).GetLeftPart([UriPartial]::Authority)
+        'X-Pixels-Client-Type' = 'panel'
+    }
+    if ($Token) {
+        $headers.Authorization = "Bearer $Token"
+    }
+    if ($UserResource) {
+        $headers['X-Pixels-Subject-Kind'] = 'user'
     }
     $parameters = @{
         Uri = "$ConsoleBase$Path"
         Method = $Method
         Headers = $headers
-        SkipCertificateCheck = $true
-        NoProxy = $true
         TimeoutSec = 20
     }
     if ($null -ne $Body) {
@@ -63,14 +80,10 @@ function Invoke-ConsoleApi {
         $parameters.Body = $Body | ConvertTo-Json -Compress -Depth 12
     }
     try {
-        $response = Invoke-RestMethod @parameters
+        return Invoke-RestMethod @parameters
     } catch {
         throw "Console API request failed: method=$Method path=$Path; $($_.Exception.Message)"
     }
-    if ($response.code -ne 200) {
-        throw "Console API failed: path=$Path code=$($response.code)"
-    }
-    return $response.data
 }
 
 function Read-NewClientLog {
@@ -96,78 +109,88 @@ function Read-NewClientLog {
 }
 
 try {
-    $login = Invoke-ConsoleApi -Path '/api/v1/session/user/login' -Method POST -Body @{
-        username = $credentials.username
-        password = $credentials.password
-        client_type = 'panel'
+    $login = Invoke-ConsoleApi -Path '/api/console/sessions' -Method POST -Body @{
+        username = [string]$credentials.username
+        password = [string]$credentials.password
     }
-    $token = [string]$login.access_token
-    if (-not $token) {
-        throw 'Windows Panel login returned no access token.'
+    $accessToken = [string]$login.token
+    if ($accessToken -notmatch '^[0-9a-f]{64}$') {
+        throw 'Windows Panel login returned an invalid access token.'
     }
 
-    $applications = @(Invoke-ConsoleApi -Path '/api/v1/user/apps' -AccessToken $token)
+    $applications = @(Invoke-ConsoleApi -Path '/api/console/applications?limit=100' -Token $accessToken)
     $application = if ($AppId) {
-        $applications | Where-Object { $_.app_id -eq $AppId } | Select-Object -First 1
-    } elseif ($Rdp) {
-        $applications | Where-Object { $_.app_type -eq 'rdp' } | Select-Object -First 1
+        $applications | Where-Object { $_.id -eq $AppId } | Select-Object -First 1
     } else {
-        $applications | Where-Object { $_.app_type -eq 'webview' } | Select-Object -First 1
+        $applications | Where-Object { $_.kind -eq 'webview' } | Select-Object -First 1
     }
     if (-not $application -and -not $AppId) {
-        $application = $applications | Where-Object { $_.app_type -eq 'game-hook' } | Select-Object -First 1
+        $application = $applications | Where-Object { $_.kind -eq 'game_hook' } | Select-Object -First 1
     }
     if (-not $application) {
         throw 'No matching Windows cloud application is available to the test user.'
     }
 
-    $nonce = [guid]::NewGuid().ToString('N')
-    $encodedAppId = [Uri]::EscapeDataString([string]$application.app_id)
-    $instance = Invoke-ConsoleApi -Path "/api/v1/user/apps/$encodedAppId/start" -Method POST -Body @{
-        client_nonce = $nonce
-    } -AccessToken $token
+    $applicationInstance = Invoke-ConsoleApi -Path '/api/console/instances' -Method POST -Body @{
+        request_id = [guid]::NewGuid().ToString()
+        application_id = [string]$application.id
+        deployment_id = $null
+    } -Token $accessToken -UserResource
 
+    $encodedInstanceId = [Uri]::EscapeDataString([string]$applicationInstance.id)
     $startDeadline = [DateTime]::UtcNow.AddSeconds($StartTimeoutSeconds)
-    while ($instance.state -notin @('running', 'failed', 'stopped') -and [DateTime]::UtcNow -lt $startDeadline) {
+    while ($applicationInstance.state -notin @('running', 'failed', 'stopped') -and [DateTime]::UtcNow -lt $startDeadline) {
         Start-Sleep -Milliseconds 500
-        $instances = @(Invoke-ConsoleApi -Path '/api/v1/user/instances' -AccessToken $token)
-        $instance = $instances | Where-Object { $_.instance_id -eq $instance.instance_id } | Select-Object -First 1
-        if (-not $instance) {
-            throw 'The newly started cloud application disappeared from the user instance list.'
-        }
+        $applicationInstance = Invoke-ConsoleApi -Path "/api/console/instances/$encodedInstanceId" -Token $accessToken -UserResource
     }
-    if ($instance.state -ne 'running') {
-        throw "Cloud application did not enter running state: $($instance.state)"
+    if ($applicationInstance.state -ne 'running') {
+        throw "Cloud application did not enter running state: $($applicationInstance.state)"
     }
 
-    $encodedInstanceId = [Uri]::EscapeDataString([string]$instance.instance_id)
-    $descriptor = Invoke-ConsoleApi -Path "/api/v1/user/instances/$encodedInstanceId/native-connection" -Method POST -Body @{
-        view_only = $false
-        client_capability = if ($Rdp) { 'windows-rdp-v1' } else { 'pixels-imgui-v1' }
-    } -AccessToken $token
-    if (-not $descriptor.host -or -not $descriptor.device_id -or -not $descriptor.password_hash -or
-        [int]$descriptor.port -lt 4613 -or [int]$descriptor.port -gt 4998) {
-        throw 'Console returned an invalid current Native connection descriptor.'
-    }
-    if ($descriptor.PSObject.Properties['ticket']) {
-        throw 'Console returned a retired connection ticket in the Native descriptor.'
+    $resourceSession = Invoke-ConsoleApi -Path '/api/console/resource-sessions' -Method POST -Body @{
+        request_id = [guid]::NewGuid().ToString()
+        target = @{
+            kind = 'cloud_application'
+            application_id = [string]$application.id
+            instance_id = [string]$applicationInstance.id
+        }
+        access = 'controller'
+    } -Token $accessToken -UserResource
+
+    $encodedSessionId = [Uri]::EscapeDataString([string]$resourceSession.id)
+    $requestedSessionId = [string]$resourceSession.id
+    $descriptorResponse = Invoke-ConsoleApi -Path "/api/console/resource-sessions/$encodedSessionId/descriptor" -Method POST -Body @{
+        revision = [long]$resourceSession.revision
+    } -Token $accessToken -UserResource
+    $descriptor = $descriptorResponse.descriptor
+    $frontendToken = [string]$descriptorResponse.token
+    $resourceSession = $descriptor.session
+    if (-not $descriptor.host -or [int]$descriptor.port -lt 4613 -or [int]$descriptor.port -gt 4998 -or
+        $descriptor.transport -ne 'native' -or $descriptor.session.target.kind -ne 'cloud_application' -or
+        $descriptor.session.target.application_id -ne $application.id -or
+        $descriptor.session.target.instance_id -ne $applicationInstance.id -or
+        $descriptor.session.id -ne $requestedSessionId -or [long]$descriptor.session.revision -le 0 -or
+        $frontendToken -notmatch '^[0-9a-f]{64}$') {
+        throw 'Console returned an invalid PostgreSQL Native connection descriptor.'
     }
     if (-not (Test-NetConnection -ComputerName ([string]$descriptor.host) -Port ([int]$descriptor.port) -InformationLevel Quiet)) {
         throw 'The dynamic Render TCP endpoint is unreachable.'
     }
 
+    $connectionNonce = [guid]::NewGuid().ToString('N')
     $launch = @{
         schema = 1
         host = [string]$descriptor.host
         port = [int]$descriptor.port
-        stream_id = [string]$instance.instance_id
-        connection_instance_id = [string]$instance.instance_id
-        connection_nonce = $nonce
-        device_id = "windows_acceptance_$nonce"
-        remote_device_id = [string]$descriptor.device_id
-        remote_password_hash = [string]$descriptor.password_hash
+        stream_id = [string]$descriptor.session.id
+        connection_instance_id = [string]$applicationInstance.id
+        connection_nonce = $connectionNonce
+        device_id = "windows_acceptance_$connectionNonce"
+        remote_device_id = [string]$applicationInstance.id
+        frontend_session_id = [string]$descriptor.session.id
+        frontend_session_revision = [long]$descriptor.session.revision
+        frontend_token = $frontendToken
         mode = 'desktop'
-        appkey = [string]$license.appkey
         stream_name = 'Windows public cloud application acceptance'
         language = 'zh-CN'
         decoder = 'Auto'
@@ -177,31 +200,20 @@ try {
         force_tcp = $false
         force_relay = $false
         split_windows = $false
-        relay_host = [string]$descriptor.relay_host
-        relay_port = [int]$descriptor.relay_port
-        relay_remote_device_id = [string]$descriptor.signal_device_id
     }
-    $launchArgument = '--native-launch-stdin'
-    if ($Rdp) {
-        if (-not $descriptor.rdp) {
-            throw 'The RDP Native descriptor did not contain protected RDP configuration.'
-        }
-        $launch.rdp = $descriptor.rdp
-        $launch.nonce = $launch.connection_nonce
-        $launch.instance_id = $launch.connection_instance_id
-        $launchArgument = '--rdp-launch-stdin'
-    }
-    $startInfo = [Diagnostics.ProcessStartInfo]::new($clientPath, $launchArgument)
+    $startInfo = [Diagnostics.ProcessStartInfo]::new($clientPath, '--native-launch-stdin')
     $startInfo.WorkingDirectory = Split-Path $clientPath -Parent
     $startInfo.UseShellExecute = $false
     $startInfo.RedirectStandardInput = $true
     $startInfo.RedirectStandardOutput = $true
     $startInfo.RedirectStandardError = $true
-    $client = [Diagnostics.Process]::Start($startInfo)
-    $stdoutDrain = $client.StandardOutput.ReadToEndAsync()
-    $stderrDrain = $client.StandardError.ReadToEndAsync()
-    $client.StandardInput.Write(($launch | ConvertTo-Json -Compress -Depth 12))
-    $client.StandardInput.Close()
+    $clientProcess = [Diagnostics.Process]::Start($startInfo)
+    $stdoutDrain = $clientProcess.StandardOutput.ReadToEndAsync()
+    $stderrDrain = $clientProcess.StandardError.ReadToEndAsync()
+    $clientProcess.StandardInput.Write(($launch | ConvertTo-Json -Compress -Depth 12))
+    $clientProcess.StandardInput.Close()
+    $launch.frontend_token = ''
+    $frontendToken = ''
     $launch = $null
 
     $clientDeadline = [DateTime]::UtcNow.AddSeconds($ClientTimeoutSeconds)
@@ -209,37 +221,34 @@ try {
     $fileTransportReady = $false
     do {
         Start-Sleep -Milliseconds 500
-        $client.Refresh()
-        if ($client.HasExited) {
-            throw "Windows Client exited before acceptance completed: exit=$($client.ExitCode)"
+        $clientProcess.Refresh()
+        if ($clientProcess.HasExited) {
+            throw "Windows Client exited before acceptance completed: exit=$($clientProcess.ExitCode)"
         }
         $evidence = Read-NewClientLog
-        $frameReady = if ($Rdp) {
-            $evidence -match 'event=rdp\.frame\.progress published=[1-9][0-9]*'
-        } else {
-            $evidence -match 'Video frame came|Video frame stream reset|key frame'
-        }
-        $fileTransportReady = -not $Rdp -and $evidence -match 'File transfer connected|file transport|ft_data_channel|FT channel|file channel'
-    } while ((-not $frameReady -or $client.MainWindowHandle -eq [IntPtr]::Zero) -and [DateTime]::UtcNow -lt $clientDeadline)
+        $frameReady = $evidence -match 'Video frame came|Video frame stream reset|key frame'
+        $fileTransportReady = $evidence -match 'File transfer connected|file transport|ft_data_channel|FT channel|file channel'
+    } while ((-not $frameReady -or $clientProcess.MainWindowHandle -eq [IntPtr]::Zero) -and [DateTime]::UtcNow -lt $clientDeadline)
 
     if (-not $frameReady) {
         throw 'Windows Client did not decode a video frame before the deadline.'
     }
-    if ($client.MainWindowHandle -eq [IntPtr]::Zero) {
+    if ($clientProcess.MainWindowHandle -eq [IntPtr]::Zero) {
         throw 'Windows Client did not expose a workspace window before the deadline.'
     }
-    $qtModules = @($client.Modules | Where-Object { $_.ModuleName -match '^Qt\d' })
+    $qtModules = @($clientProcess.Modules | Where-Object { $_.ModuleName -match '^Qt\d' })
     if ($qtModules.Count -ne 0) {
         throw "Windows Client loaded $($qtModules.Count) Qt runtime modules."
     }
 
     [pscustomobject]@{
         Result = 'PASS'
-        Mode = if ($Rdp) { 'RDP' } else { 'Native' }
+        Mode = 'Native'
         Login = $true
-        AppId = [string]$application.app_id
-        AppType = [string]$application.app_type
-        InstanceState = [string]$instance.state
+        AppId = [string]$application.id
+        AppType = [string]$application.kind
+        InstanceState = [string]$applicationInstance.state
+        ResourceSessionId = [string]$resourceSession.id
         Endpoint = "$($descriptor.host):$($descriptor.port)"
         DynamicPortValid = $true
         TcpReachable = $true
@@ -250,25 +259,40 @@ try {
         ClientHash = (Get-FileHash -LiteralPath $clientPath -Algorithm SHA256).Hash
     }
 } finally {
-    if ($client -and -not $client.HasExited) {
-        $client.Kill()
-        [void]$client.WaitForExit(5000)
+    if ($clientProcess -and -not $clientProcess.HasExited) {
+        $clientProcess.Kill()
+        [void]$clientProcess.WaitForExit(5000)
     }
-    if ($instance -and $token) {
+    if ($resourceSession -and $accessToken) {
         try {
-            $encodedInstanceId = [Uri]::EscapeDataString([string]$instance.instance_id)
-            [void](Invoke-ConsoleApi -Path "/api/v1/user/instances/$encodedInstanceId/stop" -Method POST -Body @{
-                reason = 'windows_public_acceptance'
-            } -AccessToken $token)
+            $encodedSessionId = [Uri]::EscapeDataString([string]$resourceSession.id)
+            $currentSession = Invoke-ConsoleApi -Path "/api/console/resource-sessions/$encodedSessionId" -Token $accessToken -UserResource
+            [void](Invoke-ConsoleApi -Path "/api/console/resource-sessions/$encodedSessionId/close" -Method POST -Body @{
+                revision = [long]$currentSession.revision
+            } -Token $accessToken -UserResource)
+        } catch {
+            Write-Warning "Resource session cleanup failed: $($_.Exception.Message)"
+        }
+    }
+    if ($applicationInstance -and $accessToken) {
+        try {
+            $encodedInstanceId = [Uri]::EscapeDataString([string]$applicationInstance.id)
+            $currentInstance = Invoke-ConsoleApi -Path "/api/console/instances/$encodedInstanceId" -Token $accessToken -UserResource
+            if ($currentInstance.state -notin @('stopped', 'failed')) {
+                [void](Invoke-ConsoleApi -Path "/api/console/instances/$encodedInstanceId/stop" -Method POST -Body @{
+                    revision = [long]$currentInstance.revision
+                } -Token $accessToken -UserResource)
+            }
         } catch {
             Write-Warning "Cloud application cleanup failed: $($_.Exception.Message)"
         }
     }
-    if ($token) {
+    if ($accessToken) {
         try {
-            [void](Invoke-ConsoleApi -Path '/api/v1/session/user/logout' -Method POST -Body @{} -AccessToken $token)
+            [void](Invoke-ConsoleApi -Path '/api/console/session' -Method DELETE -Token $accessToken)
         } catch {
             Write-Warning "Windows test login cleanup failed: $($_.Exception.Message)"
         }
     }
+    $accessToken = ''
 }

@@ -35,6 +35,7 @@ class MsgClientHello;
 class PxLogicalSessionCapabilityUpdate;
 class PxAsyncRuntime;
 class PxAsyncScope;
+class WebSocketFrontendLeaseRenewalCoordinator;
 struct WsPasswordAdmission;
 struct LogicalSessionAdmission;
 
@@ -171,6 +172,7 @@ class WsServer : public std::enable_shared_from_this<WsServer> {
     // only its cancellable scope.
     std::shared_ptr<PxAsyncRuntime> async_runtime_{};
     std::shared_ptr<PxAsyncScope> async_scope_{};
+    std::shared_ptr<WebSocketFrontendLeaseRenewalCoordinator> frontend_lease_renewals_{};
     std::atomic_bool exiting_{false};
     render::TransportPerformanceWindow transport_performance_;
     render::RateLimitedLogGate warning_log_gate_{std::chrono::seconds(5), 64};

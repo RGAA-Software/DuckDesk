@@ -109,14 +109,8 @@ bool ClientSession::Initialize() {
     params->debug_ = config_.waitForDebugger;
     params->connection_nonce_ = config_.nonce;
     params->connection_instance_id_ = config_.instanceId;
-    params->media_path_ =
-        std::format("/media?only_audio=0&remote_device_id={}&stream_id={}&visitor_device_id={}&safety_pwd_md5={}",
-                    UrlHelper::EncodeQueryComponent(config_.remoteDeviceId), UrlHelper::EncodeQueryComponent(config_.streamId),
-                    UrlHelper::EncodeQueryComponent(config_.localDeviceId), UrlHelper::EncodeQueryComponent(config_.remotePasswordHash));
-    params->ft_path_ =
-        std::format("/file/transfer?remote_device_id={}&stream_id={}&visitor_device_id={}&safety_pwd_md5={}",
-                    UrlHelper::EncodeQueryComponent(config_.remoteDeviceId), UrlHelper::EncodeQueryComponent(config_.streamId),
-                    UrlHelper::EncodeQueryComponent(config_.localDeviceId), UrlHelper::EncodeQueryComponent(config_.remotePasswordHash));
+    params->media_path_ = BuildClientMediaPath(config_);
+    params->ft_path_ = BuildClientFileTransferPath(config_);
 
     if (!videoResources_ || !sdk_->Init(params, px::MakeWindowsVideoDecoderFactory(videoResources_))) {
         return false;
