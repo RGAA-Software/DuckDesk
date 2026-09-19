@@ -242,7 +242,7 @@ try {
         foreach ($item in @(
             @{Service='console';Crate='px_console_store';Path='rust_server/px_console_server/storage';Count=276},
             @{Service='desk';Crate='px_desk_server';Path='rust_server/px_desk_server';Count=9},
-            @{Service='auth';Crate='px_auth_store';Path='rust_server/px_auth_server/storage';Count=30}
+            @{Service='auth';Crate='px_auth_store';Path='rust_server/px_auth_server/storage';Count=34}
         )) {
             Use-Service $item.Service 'runtime'
             Set-LocalEnv 'DATABASE_URL' $env:PIXELS_DATABASE_URL
@@ -330,7 +330,7 @@ try {
         $suiteCounts['console-process'] = 1
         $suiteCounts['console-admin'] = 3
         $suiteCounts['schema_gate'] = 4
-        $suiteCounts['auth'] = 7
+        $suiteCounts['auth'] = 9
         $suiteCounts['auth-api'] = 9
         Set-LocalEnv 'SQLX_OFFLINE' 'true'
         Set-LocalEnv 'SQLX_OFFLINE_DIR' (Join-Path $repo 'rust_server/px_console_server/storage/.sqlx')
@@ -428,7 +428,7 @@ try {
     Add-Step 'ACCOUNTS: empty bootstrap, exact login binding, password/logout races and restricted identity privileges'
     $consoleUnit = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--lib','--target-dir',$targetDir)
     Write-Host $consoleUnit
-    Add-TestCases $consoleUnit 'native/console-ingress' 9
+    Add-TestCases $consoleUnit 'native/console-ingress' 13
     $nodeProtocolUnit = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_node_protocol','--lib','--target-dir',$targetDir)
     Write-Host $nodeProtocolUnit
     Add-TestCases $nodeProtocolUnit 'native/node-protocol' 1
@@ -547,7 +547,7 @@ try {
     $authCommitted = Join-Path $repo 'rust_server/px_auth_server/storage/.sqlx'
     $authExpected = @(Get-ChildItem -LiteralPath $authCommitted -Filter 'query-*.json' -File)
     $authActual = @(Get-ChildItem -LiteralPath $authMetadata -Filter 'query-*.json' -File)
-    if ($authExpected.Count -ne 30 -or $authActual.Count -ne 30) { throw 'Auth SQLx metadata must contain exactly 30 queries' }
+    if ($authExpected.Count -ne 34 -or $authActual.Count -ne 34) { throw 'Auth SQLx metadata must contain exactly 34 queries' }
     foreach ($expected in $authExpected) {
         $actual = Join-Path $authMetadata $expected.Name
         if (-not (Test-Path -LiteralPath $actual) -or (Get-FileHash -LiteralPath $expected.FullName).Hash -ne (Get-FileHash -LiteralPath $actual).Hash) {
@@ -556,11 +556,11 @@ try {
     }
     Set-LocalEnv 'SQLX_OFFLINE' 'true'
     Set-LocalEnv 'SQLX_OFFLINE_DIR' ''
-    Add-Step 'QUERY: 30 Auth queries compiled online; offline metadata matches'
+    Add-Step 'QUERY: 34 Auth queries compiled online; offline metadata matches'
     $authIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_auth_store','--features','pg-integration','--test','issuance','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $authIntegration
-    Add-TestCases $authIntegration 'native/auth-issuance' 7
-    Add-Step 'AUTH: transactional issuance, exact retry, concurrent CAS, revocation, denied writes and injected rollback'
+    Add-TestCases $authIntegration 'native/auth-issuance' 9
+    Add-Step 'AUTH: transactional issuance, ordered notification outbox, exact retry, concurrent CAS, revocation, denied writes and injected rollback'
     $authUnit = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_credentials','--lib','--target-dir',$targetDir)
     Add-TestCases $authUnit 'native/auth-security' 2
     $authApi = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_auth_server','--features','pg-integration','--test','postgres_api','--target-dir',$targetDir,'--','--test-threads=1')
@@ -712,7 +712,7 @@ try {
     $count = (Invoke-Checked 'docker' @('exec',$container,'psql','-X','-U','pixels_admin','-d','pixels_desk','-Atc','SELECT count(*) FROM pixels.pg_fixture')).Trim()
     if ([int]$count -lt 2) { throw 'Committed test data did not survive PostgreSQL restart' }
     Add-Step 'ENV: committed rows survive restart'
-    $tablesByService = @{console=@('users','login_sessions','user_groups','group_members','authorization_outbox','authorization_audit','devices','user_devices','group_device_grants','device_audit','applications','group_app_grants','application_events','guest_sessions','guest_blocks','guest_source_blocks','guest_events','control_runtime','control_runs','nodes','node_audit','application_deployments','deployment_audit','instances','instance_commands','instance_events','instance_admin_actions','rdp_workspaces','workspace_secrets','workspace_audit','resource_sessions','resource_session_events','resource_session_retirements'); auth=@('authors','author_sessions','customers','licenses','license_issuances','license_requests','license_audit'); desk=@('pg_fixture','feedback','versions','admin_sessions')}
+    $tablesByService = @{console=@('users','login_sessions','user_groups','group_members','authorization_outbox','authorization_audit','devices','user_devices','group_device_grants','device_audit','applications','group_app_grants','application_events','guest_sessions','guest_blocks','guest_source_blocks','guest_events','control_runtime','control_runs','nodes','node_audit','application_deployments','deployment_audit','instances','instance_commands','instance_events','instance_admin_actions','rdp_workspaces','workspace_secrets','workspace_audit','resource_sessions','resource_session_events','resource_session_retirements'); auth=@('authors','author_sessions','customers','licenses','license_issuances','license_requests','license_audit','license_notification_outbox'); desk=@('pg_fixture','feedback','versions','admin_sessions')}
     $tablesByService.console += @('file_transfers','file_transfer_events','recordings','recording_events')
     $tablesByService.console += @('saved_connections','saved_connection_events')
     $tablesByService.console += @('cache_roots','cache_runs','cache_runtime','recording_cache','cache_blobs','cache_events')

@@ -25,6 +25,13 @@ Console 只从环境读取配置；发行包不携带真实配置、证书、私
 | `PIXELS_CONSOLE_RECORDING_CACHE_BYTES` | 缓存字节上限，1 MiB–1 TiB；占用和预留容量均纳入限制 |
 | `PIXELS_CONSOLE_RECORDING_CACHE_DOWNLOADS` | 同时下载上限，1–32；超过上限直接拒绝而非无界排队 |
 | `PIXELS_CONSOLE_RECORDING_CACHE_TTL_SECONDS` | 非保留缓存有效期，60–604800 秒 |
+| `PIXELS_CONSOLE_DISTRIBUTION` | 必填 `official` 或 `customer`；不按缺失字段推断发行类型 |
+| `PIXELS_CONSOLE_MACHINE_SHA256` | 当前 Console 机器身份的 lowercase hex64，必须与许可证绑定一致 |
+| `PIXELS_CONSOLE_LICENSE_AUTHORITY_DEPLOYMENT_ID` | 预置的许可证签发 Auth deployment UUID，必须与信任根一致 |
+| `PIXELS_CONSOLE_LICENSE_TRUST_STORE` | 权限收紧、规范编码的 Auth 公钥信任根文件；不信任许可证或下载响应携带的 key |
+| `PIXELS_CONSOLE_LICENSE_FILE` | 唯一接受的 `PXLIC1` 许可证文件；不解析旧 deploy 字符串 |
+| `PIXELS_CONSOLE_LICENSE_STATE_DIRECTORY` | 数据库/备份之外的私有水位目录，保存 license revision、可信时间及 Auth recovery generation |
+| `PIXELS_CONSOLE_AUTH_VERIFY_URL` | 仅 Official 必填，固定为 HTTPS `/api/auth/licenses/verify`；Customer 必须完全不配置；本机开发可用 loopback HTTP |
 | `PIXELS_CONSOLE_LOCAL_DEVELOPMENT=1` | 仅显式本机开发：监听和 PG 都必须为 loopback，才允许无 TLS |
 
 配置缺失、未知格式、私有文件权限过宽、静态目录无效、数据库身份/schema/deployment 不匹配，都会在监听前失败。
@@ -40,10 +47,19 @@ Console 只从环境读取配置；发行包不携带真实配置、证书、私
    `PIXELS_CONSOLE_WORKSPACE_KEYS`。撤下 `PIXELS_CONSOLE_WORKSPACE_KEY` 这个仅生成工具使用的变量。
 4. 使用 owner DSN、`PIXELS_CONSOLE_INITIAL_USERNAME` 和私有 `PIXELS_CONSOLE_INITIAL_PASSWORD_FILE` 执行
    `px_console_admin bootstrap`。只允许全新空库成功一次，并发初始化只有一个胜者。
-5. 创建仅服务身份、SYSTEM、Administrators 可访问的空缓存目录，设置 `PIXELS_DEPLOYMENT_ID` 和
+5. 配置部署绑定的 `PXLIC1` 许可证、签发 Auth 的规范信任根及机器 hex64。创建仅服务身份、SYSTEM、Administrators 可访问的
+   独立空水位目录并设置 `PIXELS_CONSOLE_LICENSE_STATE_DIRECTORY`。Official 必须配置自己的 Auth HTTPS verify URL；Customer
+   必须不配置任何 Auth URL，也不能把官方路径作为可填服务器。首次有效验证会 create-new 水位，后续只能提高 revision/可信时间；
+   Auth recovery generation 改变时必须走恢复准入/轮换流程，进程不会自行重置水位。
+6. 创建仅服务身份、SYSTEM、Administrators 可访问的空缓存目录，设置 `PIXELS_DEPLOYMENT_ID` 和
    `PIXELS_CONSOLE_RECORDING_CACHE_DIRECTORY`，执行 `px_console_admin initialize-recording-cache`。工具只初始化空目录、写入
    deployment 身份且从不覆盖；复制其他部署的目录或手工创建标记都会被拒绝。
-6. 撤下 owner 和初始化口令，设置 runtime DSN、TLS、Origin、缓存限额及上表其余变量，启动 `px_console.exe`。
+7. 撤下 owner 和初始化口令，设置 runtime DSN、TLS、Origin、缓存限额及上表其余变量，启动 `px_console.exe`。
+
+Console 在打开数据库监听前完成许可证准入。Official 必须先由 Auth 数据库时钟在线确认当前 revision 且未撤销，再以本地受控信任根
+复核同一 wire；Customer 完全离线验签，因此只能以导入的许可证 revision/有效期和库外水位为界，不能宣称获知尚未导入的官方撤销。
+所有 API 请求和 readiness 在返回前后都会重查可信时间与到期时间，时钟回拨或到期立即 fail-closed。水位目录出现未知文件、
+不完整原子替换或 deployment/发行/机器/Auth generation 不一致时拒绝启动，不猜测修复。
 
 生产服务账号不能获得 owner、DDL、跨库或私钥目录外权限。密钥不写数据库、不随发行包分发、不因缺失自动生成。
 

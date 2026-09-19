@@ -9,6 +9,7 @@ mod guest_api;
 mod guest_source;
 mod history_api;
 mod identity;
+mod license;
 mod management;
 mod management_events;
 mod node_api;
@@ -35,6 +36,7 @@ use axum::{
 pub use config::{ConfigurationError, ConsoleLaunch, ConsoleLaunchConfig};
 use error::ApiError;
 pub use guest_source::GuestAdmission;
+pub use license::{LicenseAdmissionError, LicenseEntitlement, LicenseLaunchConfig};
 pub use policy::IngressPolicy;
 use px_console_store::{CacheOptions, CacheRuntime, ConsoleDatabase, RuntimeEpoch, WorkspaceVault};
 use px_pg::{DatabaseConfig, LeaseStatus, Service, ServiceLease};
@@ -61,6 +63,7 @@ pub(crate) struct StateData {
     recording_cache: Option<CacheRuntime>,
     uploads: Arc<recording_upload_api::UploadRegistry>,
     management_events: Arc<management_events::ManagementEvents>,
+    license: LicenseEntitlement,
 }
 impl StateData {
     fn active(&self) -> Result<(), ApiError> {
@@ -68,6 +71,9 @@ impl StateData {
             return Err(ApiError::Unavailable);
         }
         self.lease.check()?;
+        self.license
+            .validate_now()
+            .map_err(|_| ApiError::Unavailable)?;
         Ok(())
     }
 }
@@ -79,6 +85,7 @@ pub struct ConsoleRuntime {
     cache_expiration: Option<JoinHandle<()>>,
 }
 impl ConsoleRuntime {
+    #[cfg(feature = "pg-integration")]
     pub async fn activate(
         database: &DatabaseConfig,
         deployment: Uuid,
@@ -86,8 +93,18 @@ impl ConsoleRuntime {
         policy: IngressPolicy,
         guests: GuestAdmission,
     ) -> Result<Self, ApiError> {
-        Self::activate_inner(database, deployment, vault, policy, guests, None).await
+        Self::activate_inner(
+            database,
+            deployment,
+            vault,
+            policy,
+            guests,
+            None,
+            LicenseEntitlement::synthetic_for_integration(deployment),
+        )
+        .await
     }
+    #[cfg(feature = "pg-integration")]
     pub async fn activate_with_cache(
         database: &DatabaseConfig,
         deployment: Uuid,
@@ -104,6 +121,27 @@ impl ConsoleRuntime {
             policy,
             guests,
             Some((recording_cache_root, recording_cache_options)),
+            LicenseEntitlement::synthetic_for_integration(deployment),
+        )
+        .await
+    }
+    pub async fn activate_product_with_cache(
+        database: &DatabaseConfig,
+        deployment: Uuid,
+        vault: Arc<WorkspaceVault>,
+        policy: IngressPolicy,
+        guests: GuestAdmission,
+        recording_cache: (Arc<CacheRoot>, CacheOptions),
+        license: LicenseEntitlement,
+    ) -> Result<Self, ApiError> {
+        Self::activate_inner(
+            database,
+            deployment,
+            vault,
+            policy,
+            guests,
+            Some(recording_cache),
+            license,
         )
         .await
     }
@@ -114,6 +152,7 @@ impl ConsoleRuntime {
         policy: IngressPolicy,
         guests: GuestAdmission,
         recording_cache: Option<(Arc<CacheRoot>, CacheOptions)>,
+        license: LicenseEntitlement,
     ) -> Result<Self, ApiError> {
         if !guests.matches(deployment) {
             return Err(ApiError::Invalid);
@@ -171,6 +210,7 @@ impl ConsoleRuntime {
             recording_cache,
             uploads: recording_upload_api::UploadRegistry::new(),
             management_events: management_events::ManagementEvents::new(),
+            license,
         });
         let supervisor_cancellation = cancellation.clone();
         let supervisor = tokio::spawn(async move {

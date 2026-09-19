@@ -22,15 +22,16 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         guests,
         recording_cache_root,
         recording_cache_options,
+        license,
     } = ConsoleLaunchConfig::from_env()?.load().await?;
-    let runtime = ConsoleRuntime::activate_with_cache(
+    let runtime = ConsoleRuntime::activate_product_with_cache(
         &database,
         deployment,
         vault,
         policy,
         guests,
-        recording_cache_root,
-        recording_cache_options,
+        (recording_cache_root, recording_cache_options),
+        license,
     )
     .await?;
     let cancellation = runtime.cancellation_token();

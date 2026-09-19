@@ -141,6 +141,16 @@ impl LicenseStore {
         )
         .execute(&mut *tx)
         .await?;
+        sqlx::query_file!(
+            "queries/insert_license_notification.sql",
+            Uuid::new_v4(),
+            id,
+            revision,
+            action,
+            Some(issuance)
+        )
+        .execute(&mut *tx)
+        .await?;
         sqlx::query_file!("queries/complete_request.sql", actor, request_id, issuance)
             .execute(&mut *tx)
             .await?;

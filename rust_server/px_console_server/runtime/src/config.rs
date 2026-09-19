@@ -1,4 +1,6 @@
-use crate::{IngressPolicy, RuntimeSecrets, WorkspaceKeyFile};
+use crate::{
+    IngressPolicy, LicenseEntitlement, LicenseLaunchConfig, RuntimeSecrets, WorkspaceKeyFile,
+};
 use px_console_store::{CacheOptions, WorkspaceVault};
 use px_pg::{DatabaseConfig, Transport};
 use px_private_files::CacheRoot;
@@ -8,7 +10,7 @@ use uuid::Uuid;
 use zeroize::Zeroizing;
 
 #[derive(Debug, thiserror::Error)]
-#[error("invalid Console configuration (check database, deployment, listener, TLS, origin and private-key settings)")]
+#[error("invalid Console configuration (check database, deployment, listener, TLS, origin, license and private-key settings)")]
 pub struct ConfigurationError;
 
 #[derive(Deserialize)]
@@ -32,6 +34,7 @@ pub struct ConsoleLaunchConfig {
     workspace_keys: Vec<WorkspaceKeyFile>,
     recording_cache_directory: PathBuf,
     recording_cache_options: CacheOptions,
+    license: LicenseLaunchConfig,
 }
 
 pub struct ConsoleLaunch {
@@ -45,6 +48,7 @@ pub struct ConsoleLaunch {
     pub guests: crate::GuestAdmission,
     pub recording_cache_root: Arc<CacheRoot>,
     pub recording_cache_options: CacheOptions,
+    pub license: LicenseEntitlement,
 }
 
 impl ConsoleLaunchConfig {
@@ -135,6 +139,20 @@ impl ConsoleLaunchConfig {
         {
             return Err(ConfigurationError);
         }
+        let authority_deployment_id = required("PIXELS_CONSOLE_LICENSE_AUTHORITY_DEPLOYMENT_ID")?
+            .parse::<Uuid>()
+            .map_err(|_| ConfigurationError)?;
+        let license = LicenseLaunchConfig::new(
+            &required("PIXELS_CONSOLE_DISTRIBUTION")?,
+            required("PIXELS_CONSOLE_MACHINE_SHA256")?,
+            authority_deployment_id,
+            PathBuf::from(required("PIXELS_CONSOLE_LICENSE_TRUST_STORE")?),
+            PathBuf::from(required("PIXELS_CONSOLE_LICENSE_FILE")?),
+            PathBuf::from(required("PIXELS_CONSOLE_LICENSE_STATE_DIRECTORY")?),
+            get("PIXELS_CONSOLE_AUTH_VERIFY_URL").filter(|value| !value.is_empty()),
+            local,
+        )
+        .map_err(|_| ConfigurationError)?;
         Ok(Self {
             database,
             deployment,
@@ -149,6 +167,7 @@ impl ConsoleLaunchConfig {
             workspace_keys,
             recording_cache_directory,
             recording_cache_options,
+            license,
         })
     }
 
@@ -185,6 +204,11 @@ impl ConsoleLaunchConfig {
         .await
         .map_err(|_| ConfigurationError)?
         .map_err(|_| ConfigurationError)?;
+        let license = self
+            .license
+            .admit(self.deployment)
+            .await
+            .map_err(|_| ConfigurationError)?;
         Ok(ConsoleLaunch {
             database: self.database,
             deployment: self.deployment,
@@ -196,6 +220,7 @@ impl ConsoleLaunchConfig {
             guests,
             recording_cache_root,
             recording_cache_options: self.recording_cache_options,
+            license,
         })
     }
 }
@@ -276,6 +301,24 @@ mod tests {
                 "PIXELS_CONSOLE_RECORDING_CACHE_TTL_SECONDS".into(),
                 "86400".into(),
             ),
+            (
+                "PIXELS_CONSOLE_LICENSE_AUTHORITY_DEPLOYMENT_ID".into(),
+                Uuid::new_v4().to_string(),
+            ),
+            ("PIXELS_CONSOLE_DISTRIBUTION".into(), "customer".into()),
+            ("PIXELS_CONSOLE_MACHINE_SHA256".into(), "a".repeat(64)),
+            (
+                "PIXELS_CONSOLE_LICENSE_TRUST_STORE".into(),
+                "private/license-trust.json".into(),
+            ),
+            (
+                "PIXELS_CONSOLE_LICENSE_FILE".into(),
+                "private/console.license".into(),
+            ),
+            (
+                "PIXELS_CONSOLE_LICENSE_STATE_DIRECTORY".into(),
+                "private/license-state".into(),
+            ),
         ])
     }
 
@@ -302,5 +345,26 @@ mod tests {
         let mut missing = valid();
         missing.remove("PIXELS_CONSOLE_GUEST_SOURCE_KEY");
         assert!(parse(&missing).is_err());
+
+        let mut official = valid();
+        official.insert("PIXELS_CONSOLE_DISTRIBUTION".into(), "official".into());
+        assert!(parse(&official).is_err());
+        official.insert(
+            "PIXELS_CONSOLE_AUTH_VERIFY_URL".into(),
+            "http://127.0.0.1:8444/api/auth/licenses/verify".into(),
+        );
+        assert!(parse(&official).is_ok());
+        official.insert(
+            "PIXELS_CONSOLE_AUTH_VERIFY_URL".into(),
+            "http://127.0.0.1:20371/api/auth/licenses/verify".into(),
+        );
+        assert!(parse(&official).is_err());
+
+        let mut customer = valid();
+        customer.insert(
+            "PIXELS_CONSOLE_AUTH_VERIFY_URL".into(),
+            "https://auth.example.test/api/auth/licenses/verify".into(),
+        );
+        assert!(parse(&customer).is_err());
     }
 }

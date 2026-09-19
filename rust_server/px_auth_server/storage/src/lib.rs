@@ -1,9 +1,11 @@
 //! Auth-owned transactional license issuance. No HTTP, Mongo or process globals.
 mod issuance;
 mod model;
+mod notifications;
 mod operators;
 
 pub use model::{Activation, Customer, IssueRequest, IssuedLicense, LicenseTerms};
+pub use notifications::{LicenseNotification, NotificationFailure};
 pub use operators::{
     bootstrap_author, AuthorSummary, OperatorCredential, OperatorProfile, OperatorSession,
     OperatorStore,
@@ -176,6 +178,16 @@ impl LicenseStore {
             actor,
             license_id,
             next
+        )
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query_file!(
+            "queries/insert_license_notification.sql",
+            Uuid::new_v4(),
+            license_id,
+            next,
+            "revoked",
+            None::<Uuid>
         )
         .execute(&mut *tx)
         .await?;

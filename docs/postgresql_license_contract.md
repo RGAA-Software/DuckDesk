@@ -62,7 +62,15 @@ Rust ring 签发必须逐字节生成相同 wire，验证器必须接受该向�
 cargo test --locked --manifest-path rust_server/Cargo.toml -p px_license --test contract --target-dir .cache/pg-cargo
 ```
 
-Auth 已实现 PG 签发事实先提交、request_id 幂等、撤销事务与审计、新接口/管理网页；
+Auth 已实现 PG 签发事实先提交、request_id 幂等、撤销事务与审计、新接口/管理网页。
+签发、续期和吊销现在还会在同一事务写入 `license_notification_outbox`：每个许可证按 revision 严格顺序领取，
+30 秒租约使用每次领取的新 UUID，迟到 ACK 不能确认被重新领取的事件，失败只能按 1–300 秒有界重试。
+签发/续期事件引用已提交的精确 wire，吊销事件只携带更高 revision，不伪造空许可证；outbox 写入失败会回滚许可证、
+request、issuance 和 audit。领取租约是 Auth 内部执行器能力，不通过公共 HTTP API 暴露。
+
+目前完成的是事务 outbox 及内部领取/确认契约，不是通知已经送达 Console。后续投递执行器必须使用受认证的部署消费者，
+官方部署可消费官方 Auth；Customer 离线部署不得把官方地址作为可填服务器，也不能因无法即时收到官方撤销而声称实时撤销。
 使用及精确验收范围见 [Auth 配置](px_auth_server_runtime_config.md)与[状态](server_database_execution_status.md)。
-仍需 Console 新验证/本地水位与私有离线验证、全部消费者删除旧签名解析路径、恢复防回滚和通知 outbox。
+Console PostgreSQL 产品已接 `PXLIC1` 本地验签、Official Auth 在线当前性复核、Customer 禁止 Auth URL、库外原子水位及请求期到期/回拨门禁；
+仍需其他共享消费者删除旧签名解析路径、许可证额度/feature 的业务入口硬限制、恢复轮换实测和受认证通知投递执行器。
 这些未完成前不得把此库或 Auth 独立验收计为 DB3 完成。

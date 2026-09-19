@@ -14,6 +14,7 @@ px_pg = { path = "../../px_pg" }
 px_node_protocol = { path = "../../px_node_protocol" }
 px_private_files = { path = "../../px_private_files" }
 px_release_catalog = { path = "../../px_release_catalog" }
+px_license = { path = "../../px_auth_server/license" }
 axum = { version = "0.8.1", features = ["json", "ws"] }
 axum-server = { version = "0.8.0", features = ["tls-rustls-no-provider"] }
 futures-util = "0.3"
@@ -32,13 +33,17 @@ url = "2"
 thiserror = "2"
 chrono = { version = "0.4.42", features = ["serde"] }
 tracing = "0.1"
+fs2 = "0.4"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
 tokio-tungstenite = "0.28"
 sqlx = { version = "=0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "uuid"] }
 tempfile = "3"
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 
 [[test]]
 name = "identity_api"

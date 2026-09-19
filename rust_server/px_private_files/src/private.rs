@@ -93,6 +93,17 @@ pub fn verify_private_directory(path: &Path) -> Result<(), &'static str> {
 }
 
 pub fn read_private(path: &Path) -> Result<Zeroizing<Vec<u8>>, &'static str> {
+    read_private_bounded(path, 4096)
+}
+
+/// Reads explicitly provisioned private material with a caller-owned protocol limit.
+pub fn read_private_bounded(
+    path: &Path,
+    maximum_bytes: u64,
+) -> Result<Zeroizing<Vec<u8>>, &'static str> {
+    if maximum_bytes == 0 || maximum_bytes > 65536 {
+        return Err("invalid private material limit");
+    }
     let mut options = OpenOptions::new();
     options.read(true);
     #[cfg(windows)]
@@ -111,7 +122,7 @@ pub fn read_private(path: &Path) -> Result<Zeroizing<Vec<u8>>, &'static str> {
     let metadata = file
         .metadata()
         .map_err(|_| "private material unavailable")?;
-    if !metadata.is_file() || metadata.len() == 0 || metadata.len() > 4096 {
+    if !metadata.is_file() || metadata.len() == 0 || metadata.len() > maximum_bytes {
         return Err("invalid private material file");
     }
     #[cfg(windows)]
@@ -123,10 +134,10 @@ pub fn read_private(path: &Path) -> Result<Zeroizing<Vec<u8>>, &'static str> {
     }
     check_permissions(&file)?;
     let mut bytes = Zeroizing::new(Vec::new());
-    file.take(4097)
+    file.take(maximum_bytes + 1)
         .read_to_end(&mut bytes)
         .map_err(|_| "private material read failed")?;
-    if bytes.len() > 4096 {
+    if bytes.len() as u64 > maximum_bytes {
         return Err("private material size changed");
     }
     Ok(bytes)

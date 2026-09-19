@@ -1,4 +1,6 @@
-use px_auth_store::{Activation, AuthError, IssueRequest, LicenseStore, LicenseTerms};
+use px_auth_store::{
+    Activation, AuthError, IssueRequest, LicenseStore, LicenseTerms, NotificationFailure,
+};
 use px_license::{
     Distribution, Feature, LicenseSigner, LicenseVerifierSet, Mode, Product, VerifyContext,
 };
@@ -395,6 +397,229 @@ async fn renewal_cas_preserves_identity_and_revocation_never_reissues() {
     .await
     .unwrap();
     assert_eq!(revisions, vec![1, 2, 3]);
+    fixture.close().await;
+}
+
+#[tokio::test]
+async fn notification_outbox_orders_revisions_and_rejects_stale_delivery_acks() {
+    let fixture = Fixture::new("admin").await;
+    sqlx::query(
+        "UPDATE pixels.license_notification_outbox SET delivered_at=clock_timestamp(),lease_id=NULL,lease_until=NULL WHERE delivered_at IS NULL",
+    )
+    .execute(&fixture.owner)
+    .await
+    .unwrap();
+    let terms = fixture.terms().await;
+    let created = fixture
+        .store
+        .issue(
+            &fixture.token,
+            Uuid::new_v4(),
+            IssueRequest::Create {
+                terms: terms.clone(),
+            },
+        )
+        .await
+        .unwrap();
+    let renewed = fixture
+        .store
+        .issue(
+            &fixture.token,
+            Uuid::new_v4(),
+            IssueRequest::Renew {
+                license_id: created.license_id,
+                expected_revision: 1,
+                terms: terms.clone(),
+            },
+        )
+        .await
+        .unwrap();
+    fixture
+        .store
+        .revoke(&fixture.token, created.license_id, 2)
+        .await
+        .unwrap();
+
+    assert!(matches!(
+        fixture.store.claim_notifications(0).await,
+        Err(AuthError::Invalid)
+    ));
+    let (first_claim, competing_claim) = tokio::join!(
+        fixture.store.claim_notifications(1),
+        fixture.store.claim_notifications(1)
+    );
+    let mut claimed = first_claim.unwrap();
+    let mut competing = competing_claim.unwrap();
+    claimed.append(&mut competing);
+    assert_eq!(claimed.len(), 1);
+    let original = claimed.remove(0);
+    assert_eq!(original.license_id, created.license_id);
+    assert_eq!(original.revision, 1);
+    assert_eq!(original.action, "issued");
+    assert_eq!(original.deployment_id, terms.deployment_id);
+    assert_eq!(original.product, "pixels_console");
+    assert_eq!(original.distribution, "customer");
+    assert_eq!(original.machine_sha256, terms.machine_sha256);
+    assert_eq!(original.wire.as_deref(), Some(created.wire.as_str()));
+    assert_eq!(original.attempts, 1);
+    assert!(fixture
+        .store
+        .claim_notifications(100)
+        .await
+        .unwrap()
+        .is_empty());
+
+    sqlx::query(
+        "UPDATE pixels.license_notification_outbox SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1",
+    )
+    .bind(original.id)
+    .execute(&fixture.owner)
+    .await
+    .unwrap();
+    let reclaimed = fixture
+        .store
+        .claim_notifications(1)
+        .await
+        .unwrap()
+        .remove(0);
+    assert_eq!(reclaimed.id, original.id);
+    assert_ne!(reclaimed.lease_id, original.lease_id);
+    assert_eq!(reclaimed.attempts, 2);
+    assert!(fixture
+        .store
+        .complete_notification(original.id, original.lease_id)
+        .await
+        .is_err());
+    fixture
+        .store
+        .complete_notification(reclaimed.id, reclaimed.lease_id)
+        .await
+        .unwrap();
+
+    let renewal = fixture
+        .store
+        .claim_notifications(1)
+        .await
+        .unwrap()
+        .remove(0);
+    assert_eq!(renewal.revision, 2);
+    assert_eq!(renewal.action, "renewed");
+    assert_eq!(renewal.wire.as_deref(), Some(renewed.wire.as_str()));
+    assert!(fixture
+        .store
+        .retry_notification(
+            renewal.id,
+            renewal.lease_id,
+            0,
+            NotificationFailure::Unavailable
+        )
+        .await
+        .is_err());
+    fixture
+        .store
+        .retry_notification(
+            renewal.id,
+            renewal.lease_id,
+            1,
+            NotificationFailure::Rejected,
+        )
+        .await
+        .unwrap();
+    assert!(fixture
+        .store
+        .claim_notifications(1)
+        .await
+        .unwrap()
+        .is_empty());
+    sqlx::query(
+        "UPDATE pixels.license_notification_outbox SET available_at=clock_timestamp()-interval '1 second' WHERE id=$1",
+    )
+    .bind(renewal.id)
+    .execute(&fixture.owner)
+    .await
+    .unwrap();
+    let renewal_retry = fixture
+        .store
+        .claim_notifications(1)
+        .await
+        .unwrap()
+        .remove(0);
+    assert_eq!(renewal_retry.attempts, 2);
+    fixture
+        .store
+        .complete_notification(renewal_retry.id, renewal_retry.lease_id)
+        .await
+        .unwrap();
+
+    let revocation = fixture
+        .store
+        .claim_notifications(1)
+        .await
+        .unwrap()
+        .remove(0);
+    assert_eq!(revocation.revision, 3);
+    assert_eq!(revocation.action, "revoked");
+    assert!(revocation.wire.is_none());
+    fixture
+        .store
+        .complete_notification(revocation.id, revocation.lease_id)
+        .await
+        .unwrap();
+    assert!(fixture
+        .store
+        .claim_notifications(1)
+        .await
+        .unwrap()
+        .is_empty());
+    fixture.close().await;
+}
+
+#[tokio::test]
+async fn notification_failure_rolls_back_license_request_and_audit() {
+    let fixture = Fixture::new("admin").await;
+    let terms = fixture.terms().await;
+    let request = Uuid::new_v4();
+    let notifications_before: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM pixels.license_notification_outbox")
+            .fetch_one(&fixture.owner)
+            .await
+            .unwrap();
+    sqlx::query("REVOKE INSERT ON pixels.license_notification_outbox FROM pixels_auth_runtime")
+        .execute(&fixture.owner)
+        .await
+        .unwrap();
+    let result = fixture
+        .store
+        .issue(
+            &fixture.token,
+            request,
+            IssueRequest::Create {
+                terms: terms.clone(),
+            },
+        )
+        .await;
+    sqlx::query("GRANT INSERT ON pixels.license_notification_outbox TO pixels_auth_runtime")
+        .execute(&fixture.owner)
+        .await
+        .unwrap();
+    assert!(result.is_err());
+    let state: (i64, i64, i64, i64) = sqlx::query_as(
+        "SELECT (SELECT count(*) FROM pixels.licenses WHERE target_deployment=$1), \
+                (SELECT count(*) FROM pixels.license_requests WHERE author_id=$2), \
+                (SELECT count(*) FROM pixels.license_audit WHERE author_id=$2), \
+                (SELECT count(*) FROM pixels.license_notification_outbox)",
+    )
+    .bind(terms.deployment_id)
+    .bind(fixture.author)
+    .fetch_one(&fixture.owner)
+    .await
+    .unwrap();
+    assert_eq!(state, (0, 0, 0, notifications_before));
+    fixture
+        .store
+        .issue(&fixture.token, request, IssueRequest::Create { terms })
+        .await
+        .unwrap();
     fixture.close().await;
 }
 
