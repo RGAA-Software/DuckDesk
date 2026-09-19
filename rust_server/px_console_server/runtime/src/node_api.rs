@@ -346,7 +346,7 @@ async fn operation(
                     .instances()
                     .next_command(connection)
                     .await?
-                    .map(crate::node_wire::command)
+                    .map(|command| crate::node_wire::command(command, state.relay.as_ref()))
                     .map(Box::new),
             }),
             NodeRequest::AcknowledgeCommand { receipt, .. } => {

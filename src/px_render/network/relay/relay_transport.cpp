@@ -3,33 +3,39 @@
 #include <cstdlib>
 #include <utility>
 
-#include "px_render/network/relay/relay_transport_runtime.h"
 #include "px_render/modules/module_ids.h"
-
+#include "px_render/network/relay/relay_transport_runtime.h"
 
 namespace px {
 
-RelayTransport::RelayTransport(std::shared_ptr<PxAsyncRuntime> async_runtime)
-    : async_runtime_(std::move(async_runtime)) {}
+RelayTransport::RelayTransport(std::shared_ptr<PxAsyncRuntime> async_runtime) : async_runtime_(std::move(async_runtime)) {}
 
 std::string RelayTransport::Id() const { return kRelayTransportId; }
 std::string RelayTransport::Name() const { return "Net Relay"; }
 std::string RelayTransport::VersionName() const { return "1.2.0"; }
 uint32_t RelayTransport::VersionCode() const { return 120; }
-std::string RelayTransport::Description() const {
-    return "Network via relay server";
-}
+std::string RelayTransport::Description() const { return "Network via relay server"; }
 
 bool RelayTransport::Start(const RenderModuleConfiguration& configuration) {
     if (!RenderModule::Start(configuration)) {
         return false;
     }
+    FrontendAuthorizer frontend_authorizer;
+    LogicalLeaseRenewer logical_lease_renewer;
+    {
+        std::scoped_lock lock(frontend_services_mutex_);
+        frontend_authorizer = frontend_authorizer_;
+        logical_lease_renewer = logical_lease_renewer_;
+    }
     const auto runtime = RelayTransportRuntime::Create(RelayTransportRuntimeConfig{
         .relay_device_id = configuration.relay_device_id,
         .configured_host = configuration.relay_host,
         .configured_port = std::atoi(configuration.relay_port.c_str()),
+        .console_frontend_admission_required = configuration.app_mode != "desktop",
         .settings = settings_,
         .async_runtime = async_runtime_,
+        .frontend_authorizer = std::move(frontend_authorizer),
+        .logical_lease_renewer = std::move(logical_lease_renewer),
     });
     if (!runtime) {
         RenderModule::Stop();
@@ -49,31 +55,23 @@ bool RelayTransport::Destroy() {
     return RenderModule::Destroy();
 }
 
-void RelayTransport::Broadcast(
-    std::shared_ptr<Data> message, bool run_through) {
+void RelayTransport::Broadcast(std::shared_ptr<Data> message, bool run_through) {
     if (const auto runtime = runtime_.load()) {
         runtime->PostMedia(std::move(message), run_through);
     }
 }
 
-bool RelayTransport::SendToStream(
-    const std::string& stream_id, std::shared_ptr<Data> message,
-    bool run_through) {
+bool RelayTransport::SendToStream(const std::string& stream_id, std::shared_ptr<Data> message, bool run_through) {
     const auto runtime = runtime_.load();
-    return runtime && runtime->PostTargetMedia(
-        stream_id, std::move(message), run_through);
+    return runtime && runtime->PostTargetMedia(stream_id, std::move(message), run_through);
 }
 
-FileTransferSendResult RelayTransport::SendFileTransfer(
-    const std::string& stream_id, std::shared_ptr<Data> message,
-    bool run_through, const std::string& connection_instance_id) {
+FileTransferSendResult RelayTransport::SendFileTransfer(const std::string& stream_id, std::shared_ptr<Data> message, bool run_through,
+                                                        const std::string& connection_instance_id) {
     static_cast<void>(run_through);
     const auto runtime = runtime_.load();
-    return runtime
-        ? runtime->PostFileTransfer(
-              stream_id, std::move(message), connection_instance_id)
-        : FileTransferSendResult::Disconnected(
-              "relay runtime is not available");
+    return runtime ? runtime->PostFileTransfer(stream_id, std::move(message), connection_instance_id)
+                   : FileTransferSendResult::Disconnected("relay runtime is not available");
 }
 
 int RelayTransport::ConnectedClientCount() const {
@@ -88,9 +86,7 @@ bool RelayTransport::IsWorking() const {
     return runtime && runtime->IsWorking();
 }
 
-void RelayTransport::UpdateRouteInfo(const NetSyncInfo& info) {
-    route_info_ = info;
-}
+void RelayTransport::UpdateRouteInfo(const NetSyncInfo& info) { route_info_ = info; }
 
 void RelayTransport::UpdateSettings(const RenderModuleSettings& settings) {
     RenderModule::UpdateSettings(settings);
@@ -112,11 +108,9 @@ int64_t RelayTransport::QueuedFileTransferCount() const {
 bool RelayTransport::HasMediaCapacity() const noexcept { return true; }
 bool RelayTransport::HasFileTransferCapacity() const noexcept { return true; }
 
-std::vector<std::shared_ptr<PxConnectedClientInfo>>
-RelayTransport::ConnectedClients() const {
+std::vector<std::shared_ptr<PxConnectedClientInfo>> RelayTransport::ConnectedClients() const {
     const auto runtime = runtime_.load();
-    return runtime ? runtime->ConnectedClientInfo()
-                   : std::vector<std::shared_ptr<PxConnectedClientInfo>>{};
+    return runtime ? runtime->ConnectedClientInfo() : std::vector<std::shared_ptr<PxConnectedClientInfo>>{};
 }
 
 void RelayTransport::HandleMessageAck(const std::shared_ptr<NetMessageAck>& ack) {
@@ -125,4 +119,20 @@ void RelayTransport::HandleMessageAck(const std::shared_ptr<NetMessageAck>& ack)
     }
 }
 
-} // namespace px
+void RelayTransport::ConfigureFrontendAuthorizer(FrontendAuthorizer authorizer) {
+    std::scoped_lock lock(frontend_services_mutex_);
+    frontend_authorizer_ = authorizer;
+    if (const auto runtime = runtime_.load()) {
+        runtime->ConfigureFrontendAuthorizer(std::move(authorizer));
+    }
+}
+
+void RelayTransport::ConfigureLogicalLeaseRenewer(LogicalLeaseRenewer renewer) {
+    std::scoped_lock lock(frontend_services_mutex_);
+    logical_lease_renewer_ = renewer;
+    if (const auto runtime = runtime_.load()) {
+        runtime->ConfigureLogicalLeaseRenewer(std::move(renewer));
+    }
+}
+
+}  // namespace px

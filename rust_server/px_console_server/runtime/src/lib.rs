@@ -34,7 +34,7 @@ use axum::{
     routing::{get, patch, post},
     Router,
 };
-pub use config::{ConfigurationError, ConsoleLaunch, ConsoleLaunchConfig};
+pub use config::{ConfigurationError, ConsoleLaunch, ConsoleLaunchConfig, RelayEndpoint};
 use error::ApiError;
 pub use guest_source::GuestAdmission;
 pub use license::{LicenseAdmissionError, LicenseEntitlement, LicenseLaunchConfig, LicenseStatus};
@@ -68,6 +68,12 @@ pub(crate) struct StateData {
     uploads: Arc<recording_upload_api::UploadRegistry>,
     management_events: Arc<management_events::ManagementEvents>,
     license: LicenseEntitlement,
+    relay: Option<RelayEndpoint>,
+}
+
+pub struct RuntimeResources {
+    pub recording_cache: Option<(Arc<CacheRoot>, CacheOptions)>,
+    pub relay: Option<RelayEndpoint>,
 }
 impl StateData {
     fn active(&self) -> Result<(), ApiError> {
@@ -118,7 +124,10 @@ impl ConsoleRuntime {
             vault,
             policy,
             guests,
-            None,
+            RuntimeResources {
+                recording_cache: None,
+                relay: None,
+            },
             LicenseEntitlement::synthetic_for_integration(deployment),
         )
         .await
@@ -139,7 +148,10 @@ impl ConsoleRuntime {
             vault,
             policy,
             guests,
-            Some((recording_cache_root, recording_cache_options)),
+            RuntimeResources {
+                recording_cache: Some((recording_cache_root, recording_cache_options)),
+                relay: None,
+            },
             LicenseEntitlement::synthetic_for_integration(deployment),
         )
         .await
@@ -150,17 +162,11 @@ impl ConsoleRuntime {
         vault: Arc<WorkspaceVault>,
         policy: IngressPolicy,
         guests: GuestAdmission,
-        recording_cache: (Arc<CacheRoot>, CacheOptions),
+        resources: RuntimeResources,
         license: LicenseEntitlement,
     ) -> Result<Self, ApiError> {
         Self::activate_inner(
-            database,
-            deployment,
-            vault,
-            policy,
-            guests,
-            Some(recording_cache),
-            license,
+            database, deployment, vault, policy, guests, resources, license,
         )
         .await
     }
@@ -170,7 +176,7 @@ impl ConsoleRuntime {
         vault: Arc<WorkspaceVault>,
         policy: IngressPolicy,
         guests: GuestAdmission,
-        recording_cache: Option<(Arc<CacheRoot>, CacheOptions)>,
+        resources: RuntimeResources,
         license: LicenseEntitlement,
     ) -> Result<Self, ApiError> {
         if !guests.matches(deployment) {
@@ -199,7 +205,7 @@ impl ConsoleRuntime {
                 return Err(error);
             }
         };
-        let recording_cache = match recording_cache {
+        let recording_cache = match resources.recording_cache {
             Some((root, options)) => match db
                 .recording_cache()
                 .begin_runtime(root, epoch, options)
@@ -237,6 +243,7 @@ impl ConsoleRuntime {
             uploads: recording_upload_api::UploadRegistry::new(),
             management_events: management_events::ManagementEvents::new(),
             license,
+            relay: resources.relay,
         });
         let supervisor_cancellation = cancellation.clone();
         let supervisor = tokio::spawn(async move {

@@ -1,35 +1,8 @@
 #include "client_session.h"
 
-#include "client_audio_output.h"
-#include "ct_virtual_display_protocol.h"
-#include "px_client_sdk/platform/windows/windows_decoder_factory.h"
-#include "px_client_sdk/platform/windows/windows_video_resources.h"
-#include "px_client_sdk/sdk_messages.h"
-#include "px_client_sdk/sdk_params.h"
-#include "px_client_sdk/sdk_connection_params.h"
-#include "px_client_sdk/sdk_net_client.h"
-#include "px_client_sdk/sdk_recording_session.h"
-#include "px_client_sdk/sdk_statistics.h"
-#include "px_client_sdk/sdk_voice_call.h"
-#include "px_client_sdk/platform/voice_audio_endpoint_port.h"
-#include "px_client_sdk/thunder_sdk.h"
-#include "px_common/data.h"
-#include "px_common/md5.h"
-#include "px_common/message_notifier.h"
-#include "px_common/time_util.h"
-#include "px_common/url_helper.h"
-#include "px_message/proto_converter.h"
-#include "px_message/proto_message_maker.h"
-#include "px_message.pb.h"
-#include "px_ft_engine/ft_async_session.h"
-#include "px_ft_engine/ft_engine.h"
-#include "px_rdp/rdp_client_endpoint.h"
-#include "px_rdp/rdp_stream_packet.h"
-#include "rdp/rdp_session.h"
-
 #include <SDL3/SDL.h>
-#include <freerdp/input.h>
 #include <Windows.h>
+#include <freerdp/input.h>
 
 #include <algorithm>
 #include <array>
@@ -38,24 +11,52 @@
 #include <format>
 #include <utility>
 
+#include "client_audio_output.h"
+#include "ct_virtual_display_protocol.h"
+#include "px_client_sdk/platform/voice_audio_endpoint_port.h"
+#include "px_client_sdk/platform/windows/windows_decoder_factory.h"
+#include "px_client_sdk/platform/windows/windows_video_resources.h"
+#include "px_client_sdk/sdk_connection_params.h"
+#include "px_client_sdk/sdk_messages.h"
+#include "px_client_sdk/sdk_net_client.h"
+#include "px_client_sdk/sdk_params.h"
+#include "px_client_sdk/sdk_recording_session.h"
+#include "px_client_sdk/sdk_statistics.h"
+#include "px_client_sdk/sdk_voice_call.h"
+#include "px_client_sdk/thunder_sdk.h"
+#include "px_common/console_frontend_relay_credential.h"
+#include "px_common/data.h"
+#include "px_common/md5.h"
+#include "px_common/message_notifier.h"
+#include "px_common/time_util.h"
+#include "px_common/url_helper.h"
+#include "px_ft_engine/ft_async_session.h"
+#include "px_ft_engine/ft_engine.h"
+#include "px_message.pb.h"
+#include "px_message/proto_converter.h"
+#include "px_message/proto_message_maker.h"
+#include "px_rdp/rdp_client_endpoint.h"
+#include "px_rdp/rdp_stream_packet.h"
+#include "rdp/rdp_session.h"
+
 namespace px::client::imgui {
 namespace {
 
 std::string VoiceStatusText(const px::VoiceCallStatus& status) {
     switch (status.phase) {
-    case px::VoiceCallPhase::kIdle:
-        return status.supported ? "Ready" : "Unavailable";
-    case px::VoiceCallPhase::kOutgoingPending:
-        return "Calling";
-    case px::VoiceCallPhase::kIncomingPending:
-        return "Incoming call";
-    case px::VoiceCallPhase::kConnected:
-        return "Connected";
+        case px::VoiceCallPhase::kIdle:
+            return status.supported ? "Ready" : "Unavailable";
+        case px::VoiceCallPhase::kOutgoingPending:
+            return "Calling";
+        case px::VoiceCallPhase::kIncomingPending:
+            return "Incoming call";
+        case px::VoiceCallPhase::kConnected:
+            return "Connected";
     }
     return "Unavailable";
 }
 
-} // namespace
+}  // namespace
 
 std::shared_ptr<ClientSession> ClientSession::Create(ClientLaunchConfig config, std::shared_ptr<px::WindowsVideoResources> videoResources) {
     auto result = std::make_shared<ClientSession>(std::move(config), std::move(videoResources));
@@ -64,13 +65,10 @@ std::shared_ptr<ClientSession> ClientSession::Create(ClientLaunchConfig config, 
 
 ClientSession::ClientSession(ClientLaunchConfig config, std::shared_ptr<px::WindowsVideoResources> videoResources)
     : config_{std::move(config)}, videoResources_{std::move(videoResources)}, audio_{std::make_unique<ClientAudioOutput>()} {}
-ClientSession::~ClientSession() {
-    Stop();
-}
+ClientSession::~ClientSession() { Stop(); }
 
 bool ClientSession::Initialize() {
-    if (config_.rdp)
-        return InitializeRdp();
+    if (config_.rdp) return InitializeRdp();
     notifier_ = std::make_shared<px::MessageNotifier>();
     listener_ = notifier_->CreateListener(px::MessageExecutionLane::kControl);
     sdk_ = px::ThunderSdk::Make(notifier_);
@@ -104,7 +102,9 @@ bool ClientSession::Initialize() {
     params->relay_host_ = config_.relayHost;
     params->relay_port_ = config_.relayPort;
     params->relay_remote_device_id_ = config_.relayRemoteDeviceId.empty() ? remoteSignalId : config_.relayRemoteDeviceId;
-    params->remote_password_hash_ = config_.remotePasswordHash;
+    params->remote_password_hash_ = config_.forceRelay && config_.frontendToken
+                                        ? px::BuildConsoleFrontendRelayCredential(config_.frontendSessionRevision, config_.frontendToken->View())
+                                        : config_.remotePasswordHash;
     params->force_gdi_ = config_.forceGdiCapture;
     params->debug_ = config_.waitForDebugger;
     params->connection_nonce_ = config_.nonce;
@@ -166,8 +166,7 @@ bool ClientSession::Initialize() {
                         found->done = error.empty();
                         found->error = error;
                         found->bytesPerSecond = 0.0;
-                        if (found->done && found->totalBytes > 0U)
-                            found->completedBytes = found->totalBytes;
+                        if (found->done && found->totalBytes > 0U) found->completedBytes = found->totalBytes;
                     } else {
                         self->transferJobs_.push_back({.id = jobId, .fileNumber = fileNumber, .done = error.empty(), .error = error});
                     }
@@ -182,8 +181,7 @@ bool ClientSession::Initialize() {
             });
             engine->SetResponseCallback([weakSelf](const px::FileResponse& response) {
                 const auto self = weakSelf.lock();
-                if (!self)
-                    return;
+                if (!self) return;
                 if (!response.has_dir()) {
                     const std::scoped_lock lock{self->mutex_};
                     self->remoteFileOperationResult_ = {.success = response.has_done(),
@@ -192,16 +190,14 @@ bool ClientSession::Initialize() {
                 }
                 // Directory replies generated for transfer jobs carry that job's non-zero id.
                 // They initialize the writer and must not replace the browser's current path/list.
-                if (response.dir().id() != 0)
-                    return;
+                if (response.dir().id() != 0) return;
                 std::vector<ClientRemoteEntry> entries{};
                 entries.reserve(static_cast<std::size_t>(response.dir().entries_size()));
                 for (const auto& entry : response.dir().entries()) {
                     std::string entryPath{entry.abs_path()};
                     if (entryPath.empty()) {
                         entryPath = response.dir().path();
-                        if (!entryPath.empty() && !entryPath.ends_with('/') && !entryPath.ends_with('\\'))
-                            entryPath.push_back('/');
+                        if (!entryPath.empty() && !entryPath.ends_with('/') && !entryPath.ends_with('\\')) entryPath.push_back('/');
                         entryPath += entry.name();
                     }
                     entries.push_back({.name = entry.name(),
@@ -214,8 +210,7 @@ bool ClientSession::Initialize() {
                 }
                 const std::scoped_lock lock{self->mutex_};
                 self->remotePath_ = response.dir().path();
-                if (response.dir().path() == "/")
-                    self->remoteLocations_ = entries;
+                if (response.dir().path() == "/") self->remoteLocations_ = entries;
                 self->remoteEntries_ = std::move(entries);
             });
         });
@@ -237,8 +232,7 @@ bool ClientSession::Initialize() {
                                                     .post_task =
                                                         [weakSelf](std::function<void()> task) {
                                                             const auto self = weakSelf.lock();
-                                                            if (!self || !self->sdk_ || !task)
-                                                                return false;
+                                                            if (!self || !self->sdk_ || !task) return false;
                                                             self->sdk_->PostMiscTask(std::move(task));
                                                             return true;
                                                         },
@@ -269,41 +263,39 @@ bool ClientSession::Initialize() {
     });
     listener_->Listen<px::SdkMsgUdpMediaUnavailable>([weakSelf](const auto&) {
         if (const auto self = weakSelf.lock()) {
-            if (const auto voice = self->VoiceCall())
-                voice->SetTransportAvailable(false);
+            if (const auto voice = self->VoiceCall()) voice->SetTransportAvailable(false);
             self->SetState(ClientConnectionState::MediaUnavailable, "UDP audio/video is unavailable; control remains connected");
         }
     });
     listener_->Listen<px::SdkMsgUdpMediaAvailable>([weakSelf](const auto&) {
         if (const auto self = weakSelf.lock()) {
-            if (const auto voice = self->VoiceCall())
-                voice->SetTransportAvailable(true);
+            if (const auto voice = self->VoiceCall()) voice->SetTransportAvailable(true);
             self->SetState(ClientConnectionState::Connected, "Connected");
         }
     });
     listener_->Listen<px::SdkMsgWsConnectionRejected>([weakSelf](const px::SdkMsgWsConnectionRejected& event) {
         if (const auto self = weakSelf.lock()) {
             switch (event.rejection_) {
-            case px::WsControlRejection::kAuthorization:
-                self->SetState(ClientConnectionState::Rejected, "The device password was rejected", ClientConnectionFailure::Authorization);
-                break;
-            case px::WsControlRejection::kRemoteAccessDisabled:
-                self->SetState(ClientConnectionState::Rejected, "Remote access is disabled on the remote device",
-                               ClientConnectionFailure::RemoteAccessDisabled);
-                break;
-            case px::WsControlRejection::kOccupied:
-                self->SetState(ClientConnectionState::Rejected, "The device is in use. Please try again in a few seconds",
-                               ClientConnectionFailure::Occupied);
-                break;
-            case px::WsControlRejection::kSessionPolicy:
-                self->SetState(ClientConnectionState::Rejected, "The device policy does not allow this connection",
-                               ClientConnectionFailure::SessionPolicy);
-                break;
-            case px::WsControlRejection::kNone:
-            default:
-                self->SetState(ClientConnectionState::Rejected, "The remote control channel rejected the connection",
-                               ClientConnectionFailure::Transport);
-                break;
+                case px::WsControlRejection::kAuthorization:
+                    self->SetState(ClientConnectionState::Rejected, "The device password was rejected", ClientConnectionFailure::Authorization);
+                    break;
+                case px::WsControlRejection::kRemoteAccessDisabled:
+                    self->SetState(ClientConnectionState::Rejected, "Remote access is disabled on the remote device",
+                                   ClientConnectionFailure::RemoteAccessDisabled);
+                    break;
+                case px::WsControlRejection::kOccupied:
+                    self->SetState(ClientConnectionState::Rejected, "The device is in use. Please try again in a few seconds",
+                                   ClientConnectionFailure::Occupied);
+                    break;
+                case px::WsControlRejection::kSessionPolicy:
+                    self->SetState(ClientConnectionState::Rejected, "The device policy does not allow this connection",
+                                   ClientConnectionFailure::SessionPolicy);
+                    break;
+                case px::WsControlRejection::kNone:
+                default:
+                    self->SetState(ClientConnectionState::Rejected, "The remote control channel rejected the connection",
+                                   ClientConnectionFailure::Transport);
+                    break;
             }
         }
     });
@@ -321,12 +313,10 @@ bool ClientSession::Initialize() {
         std::vector<ClientResolution> resolutions{};
         monitors.reserve(static_cast<std::size_t>(message->config().monitors_info_size()));
         for (const auto& monitor : message->config().monitors_info()) {
-            if (!monitor.name().empty())
-                monitors.push_back(monitor.name());
+            if (!monitor.name().empty()) monitors.push_back(monitor.name());
             if (monitor.name() == message->config().capturing_monitor_name()) {
                 for (const auto& resolution : monitor.resolutions()) {
-                    if (resolution.width() > 0 && resolution.height() > 0)
-                        resolutions.push_back({resolution.width(), resolution.height()});
+                    if (resolution.width() > 0 && resolution.height() > 0) resolutions.push_back({resolution.width(), resolution.height()});
                 }
             }
         }
@@ -342,8 +332,7 @@ bool ClientSession::Initialize() {
             self->virtualDisplayCount_ = message->config().virtual_display_owned_count();
             self->virtualDisplayMaximum_ = message->config().virtual_display_max_count();
         }
-        if (const auto voice = self->VoiceCall())
-            voice->SetCapabilities(voiceAvailable, message->config().voice_call_requires_headset());
+        if (const auto voice = self->VoiceCall()) voice->SetCapabilities(voiceAvailable, message->config().voice_call_requires_headset());
         self->SetState(ClientConnectionState::Connected, "Connected");
     });
     sdk_->SetOnMonitorSwitchedCallback([weakSelf](const std::shared_ptr<px::Message>& message) {
@@ -353,8 +342,7 @@ bool ClientSession::Initialize() {
         }
         const std::scoped_lock lock{self->mutex_};
         self->monitorName_ = message->monitor_switched().name();
-        if (std::ranges::find(self->monitors_, self->monitorName_) == self->monitors_.end())
-            self->monitors_.push_back(self->monitorName_);
+        if (std::ranges::find(self->monitors_, self->monitorName_) == self->monitors_.end()) self->monitors_.push_back(self->monitorName_);
     });
     sdk_->SetOnVideoFrameDecodedCallback([weakSelf](const std::shared_ptr<px::RawImage>& image, const px::SdkCaptureMonitorInfo& info) {
         const auto self = weakSelf.lock();
@@ -385,8 +373,7 @@ bool ClientSession::Initialize() {
     });
     sdk_->SetOnCursorInfoCallback([weakSelf](const std::shared_ptr<px::Message>& message) {
         const auto self = weakSelf.lock();
-        if (!self || !message || !message->has_cursor_info_sync() || self->stopped_.load())
-            return;
+        if (!self || !message || !message->has_cursor_info_sync() || self->stopped_.load()) return;
         const auto& cursor = message->cursor_info_sync();
         const std::scoped_lock lock{self->mutex_};
         self->remoteCursor_ = {.received = true, .visible = cursor.visible(), .type = static_cast<std::uint32_t>(cursor.type())};
@@ -398,8 +385,7 @@ bool ClientSession::Initialize() {
                 const std::scoped_lock lock{self->mutex_};
                 enabled = self->audioEnabled_;
             }
-            if (enabled)
-                static_cast<void>(self->audio_->Write(data, samples, channels, bits));
+            if (enabled) static_cast<void>(self->audio_->Write(data, samples, channels, bits));
         }
     });
     sdk_->SetOnClipboardCallback([weakSelf](const std::shared_ptr<px::Message>& message) {
@@ -419,20 +405,17 @@ bool ClientSession::Initialize() {
     });
     sdk_->SetOnRawMessageCallback([weakSelf](const std::shared_ptr<px::Message>& message) {
         const auto self = weakSelf.lock();
-        if (!self || !message || self->stopped_.load())
-            return;
+        if (!self || !message || self->stopped_.load()) return;
         if (message->type() == px::kVoiceCallRequest || message->type() == px::kVoiceCallResponse || message->type() == px::kVoiceAudioConfig ||
             message->type() == px::kVoiceAudioFrame) {
-            if (const auto voice = self->VoiceCall())
-                voice->HandleMessage(message);
+            if (const auto voice = self->VoiceCall()) voice->HandleMessage(message);
             return;
         }
         if (message->type() == px::kVirtualDisplayResponse && message->has_virtual_display_response()) {
             const auto& response = message->virtual_display_response();
             const std::scoped_lock lock{self->mutex_};
             self->virtualDisplayCount_ = response.owned_display_count();
-            if (response.request_id() == self->virtualDisplayRequestId_)
-                self->virtualDisplayRequestId_.clear();
+            if (response.request_id() == self->virtualDisplayRequestId_) self->virtualDisplayRequestId_.clear();
             if (!response.accepted()) {
                 self->status_ = response.error_message().empty() ? "Virtual display operation failed" : response.error_message();
             }
@@ -440,8 +423,7 @@ bool ClientSession::Initialize() {
         }
         if (message->type() == px::kFileAction || message->type() == px::kFileResponse) {
             const auto fileTransfer = self->FileTransfer();
-            if (!fileTransfer)
-                return;
+            if (!fileTransfer) return;
             static_cast<void>(fileTransfer->Post("pixels-client-ft-inbound", [message](const auto& engine) {
                 if (message->type() == px::kFileAction && message->has_file_action()) {
                     engine->HandleFileAction(message->file_action(), message->stream_id());
@@ -458,8 +440,7 @@ bool ClientSession::Initialize() {
                 const std::scoped_lock lock{self->mutex_};
                 recording = self->recording_;
             }
-            if (recording)
-                static_cast<void>(recording->Submit(message));
+            if (recording) static_cast<void>(recording->Submit(message));
         }
     });
     sdk_->SetOnEncodedAudioFrameCallback([weakSelf](const std::shared_ptr<px::Message>& message) {
@@ -469,11 +450,10 @@ bool ClientSession::Initialize() {
                 const std::scoped_lock lock{self->mutex_};
                 recording = self->recording_;
             }
-            if (recording)
-                static_cast<void>(recording->Submit(message));
+            if (recording) static_cast<void>(recording->Submit(message));
         }
     });
 
     return true;
 }
-} // namespace px::client::imgui
+}  // namespace px::client::imgui

@@ -1,4 +1,4 @@
-use px_console_runtime::{ConsoleLaunch, ConsoleLaunchConfig, ConsoleRuntime};
+use px_console_runtime::{ConsoleLaunch, ConsoleLaunchConfig, ConsoleRuntime, RuntimeResources};
 use std::{io, time::Duration};
 use tokio_util::sync::CancellationToken;
 
@@ -22,6 +22,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         guests,
         recording_cache_root,
         recording_cache_options,
+        relay,
         license,
     } = ConsoleLaunchConfig::from_env()?.load().await?;
     let runtime = ConsoleRuntime::activate_product_with_cache(
@@ -30,7 +31,10 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         vault,
         policy,
         guests,
-        (recording_cache_root, recording_cache_options),
+        RuntimeResources {
+            recording_cache: Some((recording_cache_root, recording_cache_options)),
+            relay,
+        },
         license,
     )
     .await?;

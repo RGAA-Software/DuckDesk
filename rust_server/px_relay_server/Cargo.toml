@@ -1,0 +1,25 @@
+[package]
+name = "px_relay_server"
+version = "3.2.1"
+edition = "2021"
+rust-version = "1.88"
+
+[dependencies]
+axum = { version = "0.8.1", features = ["json", "ws"] }
+futures-util = "0.3"
+prost = "0.14.1"
+protocol = { path = "../../rust_base/protocol" }
+serde = { version = "1", features = ["derive"] }
+subtle = "2"
+tokio = { version = "1.43", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+http = "1"
+tokio-tungstenite = "0.28"
+
+[[bin]]
+name = "px_relay"
+path = "src/main.rs"

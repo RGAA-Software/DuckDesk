@@ -16,6 +16,11 @@ param(
     [string]$CertificateAuthority,
     [string]$AppId = '',
     [switch]$Rdp,
+    [switch]$ForceRelay,
+    [string]$RelayHost = '',
+    [ValidateRange(0, 65535)]
+    [int]$RelayPort = 0,
+    [switch]$ExerciseInput,
     [ValidateRange(15, 180)]
     [int]$StartTimeoutSeconds = 90,
     [ValidateRange(15, 180)]
@@ -28,6 +33,7 @@ $repository = Split-Path $PSScriptRoot -Parent
 $clientPath = Join-Path $repository 'build_official/client/dist/px_client.exe'
 $buildClientPath = Join-Path $repository 'build_official/client/cmake/src/px_deps/px_client.exe'
 $credentialsPath = Join-Path $repository '.env/public_test_user.json'
+$licensePath = Join-Path $repository '.env/public_license.json'
 $clientLogPath = Join-Path (Split-Path $clientPath -Parent) 'px_logs/px_client.log'
 $trustedRoot = [Security.Cryptography.X509Certificates.X509Certificate2]::CreateFromPem(
     [IO.File]::ReadAllText((Resolve-Path -LiteralPath $CertificateAuthority).Path))
@@ -52,17 +58,26 @@ foreach ($path in @($clientPath, $buildClientPath, $credentialsPath)) {
         throw "Windows public acceptance input is missing: $path"
     }
 }
+if ($ForceRelay -and ((-not $RelayHost) -or $RelayPort -eq 0 -or -not (Test-Path -LiteralPath $licensePath -PathType Leaf))) {
+    throw 'Forced Relay acceptance requires an explicit Relay host, port and public license input.'
+}
 if ((Get-FileHash -LiteralPath $clientPath -Algorithm SHA256).Hash -ne
     (Get-FileHash -LiteralPath $buildClientPath -Algorithm SHA256).Hash) {
     throw 'The Client product build and dist artifact hashes differ.'
 }
 
 $credentials = Get-Content -LiteralPath $credentialsPath -Raw | ConvertFrom-Json
+$relayAppKey = if ($ForceRelay) {
+    [string](Get-Content -LiteralPath $licensePath -Raw | ConvertFrom-Json).appkey
+} else {
+    ''
+}
 $accessToken = ''
 $applicationInstance = $null
 $resourceSession = $null
 $clientProcess = $null
 $clientLogOffset = if (Test-Path -LiteralPath $clientLogPath) { (Get-Item -LiteralPath $clientLogPath).Length } else { 0L }
+$relayBaseline = $null
 
 function Invoke-ConsoleApi {
     param(
@@ -139,6 +154,9 @@ function Read-NewClientLog {
 }
 
 try {
+    if ($ForceRelay) {
+        $relayBaseline = Invoke-RestMethod -Uri "http://${RelayHost}:$RelayPort/healthz" -TimeoutSec 10 -NoProxy
+    }
     $login = Invoke-ConsoleApi -Path '/api/console/sessions' -Method POST -Body @{
         username = [string]$credentials.username
         password = [string]$credentials.password
@@ -224,12 +242,16 @@ try {
         stream_name = 'Windows public cloud application acceptance'
         language = 'zh-CN'
         decoder = 'Auto'
+        appkey = $relayAppKey
         audio = $true
         clipboard = $true
         only_viewing = $false
         force_tcp = $false
-        force_relay = $false
+        force_relay = [bool]$ForceRelay
         split_windows = $false
+        relay_host = $RelayHost
+        relay_port = $RelayPort
+        relay_remote_device_id = if ($ForceRelay) { "server_$($applicationInstance.id)" } else { '' }
     }
     $startInfo = [Diagnostics.ProcessStartInfo]::new($clientPath, '--native-launch-stdin')
     $startInfo.WorkingDirectory = Split-Path $clientPath -Parent
@@ -271,9 +293,50 @@ try {
         throw "Windows Client loaded $($qtModules.Count) Qt runtime modules."
     }
 
+    if ($ExerciseInput) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class PixelsCloudInputProbe {
+    [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
+    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out Rect rect);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
+    [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint x, uint y, uint data, UIntPtr extra);
+}
+'@
+        $window = [PixelsCloudInputProbe+Rect]::new()
+        if (-not [PixelsCloudInputProbe]::GetWindowRect($clientProcess.MainWindowHandle, [ref]$window)) {
+            throw 'Windows Client workspace bounds could not be read for input acceptance.'
+        }
+        [void][PixelsCloudInputProbe]::SetForegroundWindow($clientProcess.MainWindowHandle)
+        $inputX = [int](($window.Left + $window.Right) / 2)
+        $inputY = [int](($window.Top + $window.Bottom) / 2)
+        [void][PixelsCloudInputProbe]::SetCursorPos($inputX, $inputY)
+        [PixelsCloudInputProbe]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
+        [PixelsCloudInputProbe]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
+    }
+
+    $relayEvidence = $null
+    if ($ForceRelay) {
+        $relayDeadline = [DateTime]::UtcNow.AddSeconds(10)
+        do {
+            Start-Sleep -Milliseconds 250
+            $relayEvidence = Invoke-RestMethod -Uri "http://${RelayHost}:$RelayPort/healthz" -TimeoutSec 5 -NoProxy
+        } while (($relayEvidence.rooms -lt 1 -or
+                $relayEvidence.remote_to_creator_payload_bytes -le $relayBaseline.remote_to_creator_payload_bytes -or
+                ($ExerciseInput -and $relayEvidence.creator_to_remote_payload_bytes -le $relayBaseline.creator_to_remote_payload_bytes)) -and
+            [DateTime]::UtcNow -lt $relayDeadline)
+        if ($relayEvidence.rooms -lt 1 -or
+            $relayEvidence.remote_to_creator_payload_bytes -le $relayBaseline.remote_to_creator_payload_bytes -or
+            ($ExerciseInput -and $relayEvidence.creator_to_remote_payload_bytes -le $relayBaseline.creator_to_remote_payload_bytes)) {
+            throw 'Relay did not prove the required active room and bidirectional payload flow.'
+        }
+    }
+
     [pscustomobject]@{
         Result = 'PASS'
-        Mode = 'Native'
+        Mode = if ($ForceRelay) { 'Native Relay' } else { 'Native Direct' }
         Login = $true
         AppId = [string]$application.id
         AppType = [string]$application.kind
@@ -285,6 +348,10 @@ try {
         WorkspaceReady = $true
         DecodedFrame = $frameReady
         FileTransportEvidence = $fileTransportReady
+        InputExercised = [bool]$ExerciseInput
+        RelayRoomReady = if ($relayEvidence) { $relayEvidence.rooms -ge 1 } else { $null }
+        RelayCreatorToRemoteBytes = if ($relayEvidence) { [long]$relayEvidence.creator_to_remote_payload_bytes } else { $null }
+        RelayRemoteToCreatorBytes = if ($relayEvidence) { [long]$relayEvidence.remote_to_creator_payload_bytes } else { $null }
         QtModuleCount = $qtModules.Count
         ClientHash = (Get-FileHash -LiteralPath $clientPath -Algorithm SHA256).Hash
     }
@@ -325,6 +392,7 @@ try {
         }
     }
     $accessToken = ''
+    $relayAppKey = ''
     $httpClient.Dispose()
     $httpHandler.Dispose()
     $trustedRoot.Dispose()

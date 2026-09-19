@@ -45,6 +45,7 @@ public:
     void SetOnRequestControlCallback(OnRelayRequestControl&& cbk);
     void SetOnPayloadSentCallback(PayloadSentCallback callback);
     void RespondToControl(const std::shared_ptr<px_relay::RelayMessage>& request, bool accepted, const std::string& message);
+    void RequestStopRelay(const std::string& room_id);
 
     void RelayProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg);
     void RelayProtoMessageToRooms(const std::vector<std::string>& room_ids, std::shared_ptr<Data> msg);

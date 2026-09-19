@@ -146,8 +146,15 @@ DB5短期功能出口通过后统一长测：Relay长连接、Direct Host重复�
   Cloud/Remote Render 与 RTC DLL 聚焦构建、dist 哈希和 3/3 RTC 测试均通过。
 - Relay 出站媒体与文件数据的统计已落在实际异步 WebSocket 写成功点，不再把排队当成发送成功；完整写入后按活跃 room 映射真实
   connection ID 并累计原始业务载荷。真实本机 WebSocket 写入回调和 Relay 重连/所有者生命周期 2/2 通过，Cloud/Remote Render
-  已重新发布且构建树/dist 哈希一致。该证据仍不覆盖公网 Relay 端到端、Relay 入站/音频、RDP/Native 完整双向计数或公网真实会话，
-  这些继续保留在 DB2 出口。
+  已重新发布且构建树/dist 哈希一致。
+- 新独立 `px_relay` 只保留既有数据房间和双向载荷转发，拒绝 notification/中央 RTC 信令类型；Console 通过显式三元配置向节点下发
+  Relay endpoint，Service/Render 保持规范实例身份。公网 Windows CloudApplication Native Relay 已真实通过房间准备、首帧解码、
+  工作区窗口、鼠标输入和双向业务字节，默认 Native Direct 同步回归通过。静态源的 room-prepared/首帧竞态已在 Render 状态机修复；
+  聚焦生命周期门禁 20/20 通过。该证据仍不覆盖 Relay 音频、文件独立 hash、断线重连/撤销、Web/Android、容量排空或统一长测。
+- Relay 的媒体与文件控制现必须持有当前 Console frontend grant；部署 appkey 不再能代替 CloudApplication session 授权。Render 校验
+  session/revision/token/instance/role，按 grant TTL 续租，撤销或续租失败即关房；未准入载荷丢弃，observer 无 input/clipboard/file。
+  Client 配置 8/8、Render 生命周期 20/20 与 focused build/hash 已通过；本轮安全制品因公网主机 WinRM/SSH 拒绝已登记机器凭据，
+  仍缺新的公网部署复验，不能沿用补丁前的公网证据冒充通过。
 
-尚未完成且不得被上述聚焦证据冒充：正式 Console 产品入口、真实公网 Windows/Web 首帧/音频/输入/重连/撤销、Relay 数据面真机回归、
+尚未完成且不得被上述聚焦证据冒充：真实公网 Web/Android 首帧/音频/输入/重连/撤销、Windows 剩余音频与撤销矩阵、Relay 剩余通道、
 Android CloudApplication 真机直连、安装包内容审计，以及所有 DB5 短测通过后的统一长测。

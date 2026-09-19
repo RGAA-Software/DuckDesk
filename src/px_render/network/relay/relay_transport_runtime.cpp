@@ -1,17 +1,23 @@
 #include "relay_transport_runtime.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdlib>
 #include <utility>
 
+#include "px_common/async_delay.h"
 #include "px_common/async_runtime.h"
 #include "px_common/client_id_extractor.h"
+#include "px_common/console_frontend_relay_credential.h"
 #include "px_common/data.h"
 #include "px_common/hardware.h"
 #include "px_common/ip_util.h"
 #include "px_common/log.h"
 #include "px_common/md5.h"
+#include "px_common/privacy_log.h"
+#include "px_common/secret_buffer.h"
 #include "px_common/time_util.h"
+#include "px_common/uuid.h"
 #include "px_common/ws_control_signal.h"
 #include "px_message.pb.h"
 #include "px_relay_client/relay_connected_info.h"
@@ -42,6 +48,21 @@ bool VerifyRelayDeviceCredential(const RenderModuleSettings& settings, const std
     }
     return (!settings.device_safety_password.empty() && settings.device_safety_password == password_hash) ||
            (!settings.device_random_password.empty() && MD5::Hex(settings.device_random_password) == password_hash);
+}
+
+std::int64_t CurrentSystemMilliseconds() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+}
+
+std::chrono::milliseconds FrontendRenewalDelay(const std::uint32_t valid_for_ms) {
+    return std::clamp(std::chrono::milliseconds(valid_for_ms / 3U), std::chrono::milliseconds(1000), std::chrono::milliseconds(10000));
+}
+
+bool HasSameFrontendIdentity(const ConsoleFrontendGrant& expected, const ConsoleFrontendGrant& renewed) {
+    return renewed.valid_for_ms > 0 && renewed.session_id == expected.session_id && renewed.revision == expected.revision &&
+           renewed.target_kind == expected.target_kind && renewed.device_id == expected.device_id &&
+           renewed.application_id == expected.application_id && renewed.instance_id == expected.instance_id &&
+           renewed.client_type == expected.client_type && renewed.access_role == expected.access_role;
 }
 
 void DispatchCloseLogicalSessionBinding(const RenderEventCallback& dispatcher, const std::string& logical_session_id, const std::string& binding_id) {
@@ -95,7 +116,10 @@ std::shared_ptr<RelayTransportRuntime> RelayTransportRuntime::Create(RelayTransp
     return std::make_shared<RelayTransportRuntime>(std::move(config));
 }
 
-RelayTransportRuntime::RelayTransportRuntime(RelayTransportRuntimeConfig config) : config_(std::move(config)) {}
+RelayTransportRuntime::RelayTransportRuntime(RelayTransportRuntimeConfig config) : config_(std::move(config)) {
+    frontend_authorizer_ = config_.frontend_authorizer;
+    logical_lease_renewer_ = config_.logical_lease_renewer;
+}
 
 RelayTransportRuntime::~RelayTransportRuntime() { Stop(); }
 
@@ -108,6 +132,13 @@ void RelayTransportRuntime::Start(const std::shared_ptr<RenderExecutionContext>&
 
     if (stopping_.load(std::memory_order_acquire)) {
         return;
+    }
+    if (config_.console_frontend_admission_required) {
+        frontend_scope_ = PxAsyncScope::Create(config_.async_runtime, PxAsyncLane::kControl);
+        if (!frontend_scope_) {
+            LOGE("event=module.start component=relay code=ASYNC_SCOPE_UNAVAILABLE operation=frontend_authorization outcome=failed");
+            return;
+        }
     }
     bool expected = false;
     if (!started_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
@@ -141,6 +172,15 @@ void RelayTransportRuntime::Stop() {
         return;
     }
 
+    CancelAllFrontendLeases();
+    const auto frontend_scope = std::exchange(frontend_scope_, {});
+    if (frontend_scope) {
+        frontend_scope->BeginStop();
+        if (!frontend_scope->IsScopeThread() && !frontend_scope->WaitFor(std::chrono::seconds(5))) {
+            LOGE("event=async.scope_drain component=relay code=ASYNC_SCOPE_DRAIN_TIMEOUT operation=frontend_authorization outcome=timeout");
+        }
+    }
+
     std::shared_ptr<MonitorControl> control;
     {
         std::lock_guard lock(lifecycle_mutex_);
@@ -170,6 +210,16 @@ void RelayTransportRuntime::Stop() {
         event_callback_ = {};
         execution_context_.reset();
     }
+}
+
+void RelayTransportRuntime::ConfigureFrontendAuthorizer(RelayFrontendAuthorizer authorizer) {
+    std::scoped_lock lock(frontend_services_mutex_);
+    frontend_authorizer_ = std::move(authorizer);
+}
+
+void RelayTransportRuntime::ConfigureLogicalLeaseRenewer(RelayLogicalLeaseRenewer renewer) {
+    std::scoped_lock lock(frontend_services_mutex_);
+    logical_lease_renewer_ = std::move(renewer);
 }
 
 void RelayTransportRuntime::WakeMonitor() {
@@ -208,6 +258,414 @@ void RelayTransportRuntime::UpdateSettings(const RenderModuleSettings& settings)
 RelayTransportRuntimeConfig RelayTransportRuntime::ConfigSnapshot() const {
     std::lock_guard lock(config_mutex_);
     return config_;
+}
+
+PxAwaitable<PxResult<ConsoleFrontendGrant>> RelayTransportRuntime::AuthorizeFrontend(ConsoleFrontendAdmissionRequest request,
+                                                                                     const std::chrono::steady_clock::time_point deadline) const {
+    RelayFrontendAuthorizer authorizer;
+    {
+        std::scoped_lock lock(frontend_services_mutex_);
+        authorizer = frontend_authorizer_;
+    }
+    if (!authorizer) {
+        std::fill(request.frontend_token.begin(), request.frontend_token.end(), '\0');
+        co_return PxResult<ConsoleFrontendGrant>::Failure(
+            MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected, "relay_frontend_admission", "Console frontend authorizer is unavailable", true));
+    }
+    co_return co_await authorizer(std::move(request), deadline);
+}
+
+bool RelayTransportRuntime::RenewLogicalLease(const LogicalSessionGrant& grant, const std::int64_t now_ms) const {
+    RelayLogicalLeaseRenewer renewer;
+    {
+        std::scoped_lock lock(frontend_services_mutex_);
+        renewer = logical_lease_renewer_;
+    }
+    return renewer && renewer(grant, now_ms);
+}
+
+PxAwaitable<void> RelayTransportRuntime::AuthorizeMediaControl(std::weak_ptr<RelayTransportRuntime> weak_runtime,
+                                                               std::weak_ptr<RelayServerSdk> weak_server, const std::uint64_t generation,
+                                                               std::shared_ptr<RelayMessage> message, std::string visitor_device_id,
+                                                               const std::int64_t revision, std::shared_ptr<const SecretBuffer> token) {
+    const auto runtime = weak_runtime.lock();
+    const auto server = weak_server.lock();
+    if (!runtime || !server || !message || !token || !runtime->IsCurrentMediaGeneration(generation)) {
+        co_return;
+    }
+    const auto& request = message->request_control();
+    auto admitted = co_await runtime->AuthorizeFrontend(
+        ConsoleFrontendAdmissionRequest{
+            .request_id = GetUUID(),
+            .session_id = request.stream_id(),
+            .revision = revision,
+            .frontend_token = std::string{token->View()},
+        },
+        std::chrono::steady_clock::now() + std::chrono::seconds(12));
+    if (!runtime->IsCurrentMediaGeneration(generation)) {
+        co_return;
+    }
+    if (!admitted.HasValue()) {
+        LOGW("event=session.admit component=relay code={} operation=console_frontend_auth outcome=rejected recoverable={} reason={}",
+             admitted.Error().StableCode(), admitted.Error().retryable, admitted.Error().message);
+        server->RespondToControl(message, false, "Console frontend authorization was rejected");
+        co_return;
+    }
+    auto grant = admitted.TakeValue();
+    const auto settings = runtime->ConfigSnapshot().settings;
+    if (grant.target_kind != "cloud_application" || grant.instance_id != settings.device_id || grant.session_id != request.stream_id() ||
+        grant.revision != revision || (grant.access_role != "controller" && grant.access_role != "observer") || grant.valid_for_ms == 0) {
+        LOGW(
+            "event=session.frontend_identity_mismatch component=relay code=CONSOLE_FRONTEND_IDENTITY_MISMATCH "
+            "operation=admit_frontend outcome=rejected recoverable=false session={} instance={}",
+            PrivacyLogId(request.stream_id()), PrivacyLogId(settings.device_id));
+        server->RespondToControl(message, false, "Console frontend identity was rejected");
+        co_return;
+    }
+    const bool controller = grant.access_role == "controller";
+    const auto expires_at_ms = CurrentSystemMilliseconds() + static_cast<std::int64_t>(grant.valid_for_ms);
+    auto logical_grant = LogicalSessionGrant{
+        .logical_session_id = grant.session_id,
+        .stream_id = request.stream_id(),
+        .subject_id = grant.client_type + ":" + grant.session_id,
+        .join_mode = controller ? "control" : "observe",
+        .expires_at_ms = expires_at_ms,
+        .allow_observer = !controller,
+        .allow_takeover = false,
+        .input_allowed = controller,
+    };
+    auto lease = FrontendLeaseRegistration{
+        .expected_grant = grant,
+        .logical_grant = logical_grant,
+        .room_id = request.room_id(),
+        .binding_id = "relay:" + request.room_id(),
+        .descriptor_revision = revision,
+        .token = std::move(token),
+    };
+    runtime->DispatchMediaAdmission(
+        weak_server, generation, message, std::move(visitor_device_id), std::move(logical_grant),
+        controller ? std::vector<std::string>{"view", "audio", "input", "clipboard", "file"} : std::vector<std::string>{"view", "audio"},
+        std::move(lease));
+}
+
+PxAwaitable<void> RelayTransportRuntime::AuthorizeFileTransferControl(std::weak_ptr<RelayTransportRuntime> weak_runtime,
+                                                                      std::weak_ptr<RelayServerSdk> weak_server, const std::uint64_t generation,
+                                                                      std::shared_ptr<RelayMessage> message, std::string visitor_device_id,
+                                                                      const std::int64_t revision, std::shared_ptr<const SecretBuffer> token) {
+    const auto runtime = weak_runtime.lock();
+    const auto server = weak_server.lock();
+    if (!runtime || !server || !message || !token || !runtime->IsCurrentFileTransferGeneration(generation)) {
+        co_return;
+    }
+    const auto& request = message->request_control();
+    auto admitted = co_await runtime->AuthorizeFrontend(
+        ConsoleFrontendAdmissionRequest{
+            .request_id = GetUUID(),
+            .session_id = request.stream_id(),
+            .revision = revision,
+            .frontend_token = std::string{token->View()},
+        },
+        std::chrono::steady_clock::now() + std::chrono::seconds(12));
+    if (!runtime->IsCurrentFileTransferGeneration(generation)) {
+        co_return;
+    }
+    if (!admitted.HasValue()) {
+        server->RespondToControl(message, false, "Console frontend authorization was rejected");
+        co_return;
+    }
+    auto grant = admitted.TakeValue();
+    const auto settings = runtime->ConfigSnapshot().settings;
+    if (grant.target_kind != "cloud_application" || grant.instance_id != settings.device_id || grant.session_id != request.stream_id() ||
+        grant.revision != revision || grant.access_role != "controller" || grant.valid_for_ms == 0) {
+        server->RespondToControl(message, false, "Console frontend file-transfer identity was rejected");
+        co_return;
+    }
+    const auto expires_at_ms = CurrentSystemMilliseconds() + static_cast<std::int64_t>(grant.valid_for_ms);
+    auto logical_grant = LogicalSessionGrant{
+        .logical_session_id = grant.session_id,
+        .stream_id = request.stream_id(),
+        .subject_id = grant.client_type + ":" + grant.session_id,
+        .join_mode = "control",
+        .expires_at_ms = expires_at_ms,
+        .allow_observer = false,
+        .allow_takeover = false,
+        .input_allowed = true,
+    };
+    auto lease = FrontendLeaseRegistration{
+        .expected_grant = grant,
+        .logical_grant = logical_grant,
+        .room_id = request.room_id(),
+        .binding_id = {},
+        .descriptor_revision = revision,
+        .token = std::move(token),
+        .file_transfer = true,
+    };
+    runtime->DispatchFileTransferAdmission(weak_server, generation, message, std::move(visitor_device_id), std::move(logical_grant),
+                                           std::move(lease));
+}
+
+void RelayTransportRuntime::DispatchMediaAdmission(std::weak_ptr<RelayServerSdk> weak_server, const std::uint64_t generation,
+                                                   const std::shared_ptr<RelayMessage>& message, std::string visitor_device_id,
+                                                   LogicalSessionGrant grant, std::vector<std::string> permissions,
+                                                   std::optional<FrontendLeaseRegistration> frontend_lease) {
+    if (!message || !message->has_request_control()) {
+        return;
+    }
+    const auto logical_session_id = grant.logical_session_id;
+    const auto binding_id = "relay:" + message->request_control().room_id();
+    const auto admission = std::make_shared<AdmitLogicalSessionEvent>();
+    admission->grant_ = std::move(grant);
+    admission->transport_ = LogicalSessionTransport::kRelay;
+    admission->binding_id_ = binding_id;
+    admission->takeover_ = false;
+    RenderEventCallback lifecycle_dispatcher;
+    {
+        std::lock_guard lock(sink_mutex_);
+        lifecycle_dispatcher = event_callback_;
+    }
+    const auto weak_self = weak_from_this();
+    admission->callback_ = [weak_self, weak_server, generation, message, logical_session_id, binding_id,
+                            visitor_device_id = std::move(visitor_device_id), permissions = std::move(permissions),
+                            frontend_lease = std::move(frontend_lease), lifecycle_dispatcher](const LogicalSessionAdmission& result) mutable {
+        const auto owner = weak_self.lock();
+        const auto server = weak_server.lock();
+        if (!owner || !server || !owner->IsCurrentMediaGeneration(generation)) {
+            if (result.code == LogicalSessionAdmissionCode::kAccepted) {
+                DispatchCloseLogicalSessionBinding(lifecycle_dispatcher, logical_session_id, binding_id);
+            }
+            return;
+        }
+        const auto& request = message->request_control();
+        if (result.code != LogicalSessionAdmissionCode::kAccepted) {
+            server->RespondToControl(message, false,
+                                     result.code == LogicalSessionAdmissionCode::kRemoteAccessDisabled ? std::string{kWsRemoteAccessDisabledSignal}
+                                     : result.code == LogicalSessionAdmissionCode::kOccupied
+                                         ? "remote controller is occupied; try again in a few seconds"
+                                         : "Relay session admission denied");
+            return;
+        }
+        if (!owner->StoreMediaRoute(
+                MediaRelayRouteInfo{
+                    .room_id = request.room_id(),
+                    .stream_id = request.stream_id(),
+                    .visitor_device_id = visitor_device_id,
+                    .connection_instance_id = binding_id,
+                    .logical_session_id = logical_session_id,
+                    .permissions = permissions,
+                    .created_timestamp = static_cast<int64_t>(TimeUtil::GetCurrentTimestamp()),
+                },
+                generation)) {
+            DispatchCloseLogicalSessionBinding(lifecycle_dispatcher, logical_session_id, binding_id);
+            server->RequestStopRelay(request.room_id());
+            server->RespondToControl(message, false, "Relay session stopped");
+            return;
+        }
+        if (frontend_lease && !owner->StartFrontendLease(std::move(*frontend_lease))) {
+            server->RequestStopRelay(request.room_id());
+            owner->CloseMediaRoute(request.room_id());
+            server->RespondToControl(message, false, "Relay frontend lease could not start");
+            return;
+        }
+        const auto capabilities = std::make_shared<ApplyLogicalSessionCapabilitiesEvent>();
+        capabilities->update_ = PxLogicalSessionCapabilityUpdate{.stream_id_ = request.stream_id(), .permissions_ = permissions};
+        owner->Emit(capabilities);
+        const auto streaming = std::make_shared<StreamingParametersRequestedEvent>();
+        streaming->stream_id_ = request.stream_id();
+        streaming->force_gdi_ = request.force_gdi();
+        owner->Emit(streaming);
+        server->RespondToControl(message, true, "ok");
+    };
+    Emit(admission);
+}
+
+void RelayTransportRuntime::DispatchFileTransferAdmission(std::weak_ptr<RelayServerSdk> weak_server, const std::uint64_t generation,
+                                                          const std::shared_ptr<RelayMessage>& message, std::string visitor_device_id,
+                                                          LogicalSessionGrant grant, std::optional<FrontendLeaseRegistration> frontend_lease) {
+    if (!message || !message->has_request_control()) {
+        return;
+    }
+    const auto room_id = message->request_control().room_id();
+    std::string binding_id;
+    {
+        std::scoped_lock lock(ft_route_mutex_);
+        auto [route_iterator, inserted] = ft_routes_.try_emplace(room_id);
+        auto& route = route_iterator->second;
+        if (inserted || route.connection_instance_id.empty()) {
+            route.connection_instance_id = room_id + "#" + std::to_string(++ft_route_generation_);
+        }
+        route.stream_id = message->request_control().stream_id();
+        route.visitor_device_id = std::move(visitor_device_id);
+        route.logical_session_id = grant.logical_session_id;
+        binding_id = route.connection_instance_id;
+    }
+    if (frontend_lease) {
+        frontend_lease->binding_id = binding_id;
+    }
+    const auto logical_session_id = grant.logical_session_id;
+    const auto admission = std::make_shared<AdmitLogicalSessionEvent>();
+    admission->grant_ = std::move(grant);
+    admission->transport_ = LogicalSessionTransport::kFileTransfer;
+    admission->binding_id_ = binding_id;
+    RenderEventCallback lifecycle_dispatcher;
+    {
+        std::scoped_lock lock(sink_mutex_);
+        lifecycle_dispatcher = event_callback_;
+    }
+    const auto weak_self = weak_from_this();
+    admission->callback_ = [weak_self, weak_server, generation, message, logical_session_id, binding_id, frontend_lease = std::move(frontend_lease),
+                            lifecycle_dispatcher](const LogicalSessionAdmission& result) mutable {
+        const auto runtime = weak_self.lock();
+        const auto server = weak_server.lock();
+        if (!runtime || !server || !runtime->IsCurrentFileTransferGeneration(generation)) {
+            if (result.code == LogicalSessionAdmissionCode::kAccepted) {
+                DispatchCloseLogicalSessionBinding(lifecycle_dispatcher, logical_session_id, binding_id);
+            }
+            return;
+        }
+        const auto room_id = message->request_control().room_id();
+        if (result.code != LogicalSessionAdmissionCode::kAccepted || (frontend_lease && !runtime->StartFrontendLease(std::move(*frontend_lease)))) {
+            runtime->CloseFileTransferRoute(room_id);
+            server->RequestStopRelay(room_id);
+            server->RespondToControl(message, false,
+                                     result.code == LogicalSessionAdmissionCode::kRemoteAccessDisabled
+                                         ? std::string{kWsRemoteAccessDisabledSignal}
+                                         : "Relay file-transfer session admission denied");
+            return;
+        }
+        {
+            std::scoped_lock lock(runtime->ft_route_mutex_);
+            const auto route = runtime->ft_routes_.find(room_id);
+            if (route == runtime->ft_routes_.end() || route->second.connection_instance_id != binding_id) {
+                DispatchCloseLogicalSessionBinding(lifecycle_dispatcher, logical_session_id, binding_id);
+                server->RequestStopRelay(room_id);
+                server->RespondToControl(message, false, "Relay file-transfer route stopped");
+                return;
+            }
+            route->second.authorized = true;
+        }
+        server->RespondToControl(message, true, "ok");
+    };
+    Emit(admission);
+}
+
+bool RelayTransportRuntime::StartFrontendLease(FrontendLeaseRegistration registration) {
+    if (!frontend_scope_ || !frontend_scope_->IsAccepting() || registration.room_id.empty() || !registration.token ||
+        registration.expected_grant.valid_for_ms == 0) {
+        return false;
+    }
+    const auto control = std::make_shared<FrontendLeaseControl>();
+    {
+        std::scoped_lock lock(frontend_leases_mutex_);
+        const auto existing = frontend_leases_.find(registration.room_id);
+        if (existing != frontend_leases_.end()) {
+            existing->second->current.store(false, std::memory_order_release);
+        }
+        frontend_leases_.insert_or_assign(registration.room_id, control);
+    }
+    const auto valid_for_ms = registration.expected_grant.valid_for_ms;
+    const auto room_id = registration.room_id;
+    const auto weak_self = weak_from_this();
+    if (!frontend_scope_->Spawn("relay-frontend-lease-renewal", [weak_self, control, registration = std::move(registration), valid_for_ms]() mutable {
+            return RunFrontendLease(weak_self, control, std::move(registration), valid_for_ms);
+        })) {
+        control->current.store(false, std::memory_order_release);
+        CancelFrontendLease(room_id);
+        return false;
+    }
+    return true;
+}
+
+PxAwaitable<void> RelayTransportRuntime::RunFrontendLease(std::weak_ptr<RelayTransportRuntime> weak_runtime,
+                                                          std::shared_ptr<FrontendLeaseControl> control, FrontendLeaseRegistration registration,
+                                                          std::uint32_t valid_for_ms) {
+    auto lease_deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(valid_for_ms);
+    auto delay = FrontendRenewalDelay(valid_for_ms);
+    for (;;) {
+        const auto waited = co_await WaitForAsyncDelay(delay, "relay_frontend_lease_delay");
+        const auto runtime = weak_runtime.lock();
+        if (!waited || !runtime || !control->current.load(std::memory_order_acquire)) {
+            co_return;
+        }
+        const auto now = std::chrono::steady_clock::now();
+        auto renewed = co_await runtime->AuthorizeFrontend(
+            ConsoleFrontendAdmissionRequest{
+                .request_id = GetUUID(),
+                .session_id = registration.expected_grant.session_id,
+                .revision = registration.descriptor_revision,
+                .frontend_token = std::string{registration.token->View()},
+            },
+            std::min(now + std::chrono::seconds(12), lease_deadline));
+        if (!control->current.load(std::memory_order_acquire)) {
+            co_return;
+        }
+        if (!renewed.HasValue()) {
+            const auto retry_time = std::chrono::steady_clock::now();
+            if (renewed.Error().retryable && retry_time < lease_deadline) {
+                delay = std::min(std::chrono::milliseconds(2000), std::chrono::duration_cast<std::chrono::milliseconds>(lease_deadline - retry_time));
+                continue;
+            }
+            runtime->TerminateFrontendLease(registration, control, renewed.Error().StableCode());
+            co_return;
+        }
+        const auto grant = renewed.TakeValue();
+        if (!HasSameFrontendIdentity(registration.expected_grant, grant)) {
+            runtime->TerminateFrontendLease(registration, control, "FRONTEND_LEASE_IDENTITY_CHANGED");
+            co_return;
+        }
+        auto renewed_logical_grant = registration.logical_grant;
+        const auto now_ms = CurrentSystemMilliseconds();
+        renewed_logical_grant.expires_at_ms = now_ms + static_cast<std::int64_t>(grant.valid_for_ms);
+        if (!runtime->RenewLogicalLease(renewed_logical_grant, now_ms)) {
+            runtime->TerminateFrontendLease(registration, control, "LOGICAL_LEASE_RENEWAL_REJECTED");
+            co_return;
+        }
+        lease_deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(grant.valid_for_ms);
+        delay = FrontendRenewalDelay(grant.valid_for_ms);
+    }
+}
+
+void RelayTransportRuntime::TerminateFrontendLease(const FrontendLeaseRegistration& registration,
+                                                   const std::shared_ptr<FrontendLeaseControl>& control, const std::string& reason) {
+    if (!control->current.exchange(false, std::memory_order_acq_rel)) {
+        return;
+    }
+    const auto server = registration.file_transfer ? FileTransferSdk() : MediaSdk();
+    if (server) {
+        server->RequestStopRelay(registration.room_id);
+    }
+    if (registration.file_transfer) {
+        CloseFileTransferRoute(registration.room_id);
+    } else {
+        CloseMediaRoute(registration.room_id);
+    }
+    LOGW("event=session.lease component=relay operation=renew outcome=revoked code=LOGICAL_LEASE_REVOKED recoverable=false session={} reason={}",
+         PrivacyLogId(registration.logical_grant.logical_session_id), reason);
+}
+
+void RelayTransportRuntime::CancelFrontendLease(const std::string& room_id) {
+    std::shared_ptr<FrontendLeaseControl> control;
+    {
+        std::scoped_lock lock(frontend_leases_mutex_);
+        const auto found = frontend_leases_.find(room_id);
+        if (found == frontend_leases_.end()) {
+            return;
+        }
+        control = std::move(found->second);
+        frontend_leases_.erase(found);
+    }
+    control->current.store(false, std::memory_order_release);
+}
+
+void RelayTransportRuntime::CancelAllFrontendLeases() {
+    std::unordered_map<std::string, std::shared_ptr<FrontendLeaseControl>> controls;
+    {
+        std::scoped_lock lock(frontend_leases_mutex_);
+        controls.swap(frontend_leases_);
+    }
+    for (const auto& [room_id, control] : controls) {
+        static_cast<void>(room_id);
+        control->current.store(false, std::memory_order_release);
+    }
 }
 
 bool RelayTransportRuntime::WaitFor(const std::shared_ptr<MonitorControl>& control, const std::chrono::milliseconds delay) {
@@ -381,86 +839,47 @@ void RelayTransportRuntime::ConnectMedia(const RelayTransportRuntimeConfig& conf
                  request.stream_id(), request.force_gdi());
             const auto server = weak_sdk.lock();
             const auto visitor_device_id = ExtractClientId(request.device_id());
-            const auto settings = self->ConfigSnapshot().settings;
+            const auto config = self->ConfigSnapshot();
             if (!server || request.stream_id().empty() || request.room_id().empty() || visitor_device_id.empty()) {
                 if (server) {
                     server->RespondToControl(message, false, "invalid Relay control request");
                 }
                 return;
             }
-            if (!VerifyRelayDeviceCredential(settings, request.safety_pwd_md5())) {
+            if (config.console_frontend_admission_required) {
+                auto credential = ParseConsoleFrontendRelayCredential(request.safety_pwd_md5());
+                message->mutable_request_control()->clear_safety_pwd_md5();
+                if (!credential || request.stream_id().empty()) {
+                    server->RespondToControl(message, false, "Console frontend credential was rejected");
+                    return;
+                }
+                const auto token = SecretBuffer::Take(std::move(credential->token));
+                const auto scope = self->frontend_scope_;
+                if (!scope || !scope->Spawn("relay-frontend-admission", [weak_self, weak_sdk, generation, message, visitor_device_id,
+                                                                         revision = credential->revision, token]() {
+                        return AuthorizeMediaControl(weak_self, weak_sdk, generation, message, visitor_device_id, revision, token);
+                    })) {
+                    server->RespondToControl(message, false, "Console frontend authorization is unavailable");
+                }
+                return;
+            }
+            if (!VerifyRelayDeviceCredential(config.settings, request.safety_pwd_md5())) {
                 server->RespondToControl(message, false, "device password was rejected");
                 return;
             }
             const auto logical_session_id = "relay-session:" + request.room_id();
-            const auto binding_id = "relay:" + request.room_id();
-            const auto permissions = std::vector<std::string>{"view", "audio", "input", "clipboard", "file"};
-            const auto admission = std::make_shared<AdmitLogicalSessionEvent>();
-            admission->grant_ = LogicalSessionGrant{
-                .logical_session_id = logical_session_id,
-                .stream_id = request.stream_id(),
-                .subject_id = visitor_device_id,
-                .join_mode = "control",
-                .expires_at_ms = 0,
-                .allow_observer = false,
-                .allow_takeover = false,
-                .input_allowed = true,
-            };
-            admission->transport_ = LogicalSessionTransport::kRelay;
-            admission->binding_id_ = binding_id;
-            admission->takeover_ = false;
-            RenderEventCallback lifecycle_dispatcher;
-            {
-                std::lock_guard lock(self->sink_mutex_);
-                lifecycle_dispatcher = self->event_callback_;
-            }
-            admission->callback_ = [weak_self, weak_sdk, generation, message, logical_session_id, binding_id, permissions,
-                                    lifecycle_dispatcher](const LogicalSessionAdmission& result) {
-                const auto owner = weak_self.lock();
-                const auto active_server = weak_sdk.lock();
-                if (!owner || !active_server || !owner->IsCurrentMediaGeneration(generation)) {
-                    if (result.code == LogicalSessionAdmissionCode::kAccepted) {
-                        DispatchCloseLogicalSessionBinding(lifecycle_dispatcher, logical_session_id, binding_id);
-                    }
-                    return;
-                }
-                const auto& accepted_control = message->request_control();
-                if (result.code != LogicalSessionAdmissionCode::kAccepted) {
-                    active_server->RespondToControl(
-                        message, false,
-                        result.code == LogicalSessionAdmissionCode::kRemoteAccessDisabled ? std::string{kWsRemoteAccessDisabledSignal}
-                        : result.code == LogicalSessionAdmissionCode::kOccupied ? "remote controller is occupied; try again in a few seconds"
-                                                                                : "Relay session admission denied");
-                    return;
-                }
-                if (!owner->StoreMediaRoute(
-                        MediaRelayRouteInfo{
-                            .room_id = accepted_control.room_id(),
-                            .stream_id = accepted_control.stream_id(),
-                            .visitor_device_id = ExtractClientId(accepted_control.device_id()),
-                            .connection_instance_id = binding_id,
-                            .logical_session_id = logical_session_id,
-                            .permissions = permissions,
-                            .created_timestamp = static_cast<int64_t>(TimeUtil::GetCurrentTimestamp()),
-                        },
-                        generation)) {
-                    DispatchCloseLogicalSessionBinding(lifecycle_dispatcher, logical_session_id, binding_id);
-                    active_server->RespondToControl(message, false, "Relay session stopped");
-                    return;
-                }
-                const auto capabilities = std::make_shared<ApplyLogicalSessionCapabilitiesEvent>();
-                capabilities->update_ = PxLogicalSessionCapabilityUpdate{
-                    .stream_id_ = accepted_control.stream_id(),
-                    .permissions_ = permissions,
-                };
-                owner->Emit(capabilities);
-                const auto streaming = std::make_shared<StreamingParametersRequestedEvent>();
-                streaming->stream_id_ = accepted_control.stream_id();
-                streaming->force_gdi_ = accepted_control.force_gdi();
-                owner->Emit(streaming);
-                active_server->RespondToControl(message, true, "ok");
-            };
-            self->Emit(admission);
+            self->DispatchMediaAdmission(weak_sdk, generation, message, visitor_device_id,
+                                         LogicalSessionGrant{
+                                             .logical_session_id = logical_session_id,
+                                             .stream_id = request.stream_id(),
+                                             .subject_id = visitor_device_id,
+                                             .join_mode = "control",
+                                             .expires_at_ms = 0,
+                                             .allow_observer = false,
+                                             .allow_takeover = false,
+                                             .input_allowed = true,
+                                         },
+                                         {"view", "audio", "input", "clipboard", "file"}, std::nullopt);
         });
     sdk->SetOnRoomPreparedCallback([weak_self, generation](const std::shared_ptr<RelayMessage>& message) {
         const auto self = weak_self.lock();
@@ -490,6 +909,13 @@ void RelayTransportRuntime::ConnectMedia(const RelayTransportRuntimeConfig& conf
             self->WakeMonitor();
             return;
         }
+        // A prepared room is already admitted and must be able to receive its
+        // first key frame. The peer's explicit resume request can arrive after
+        // a static source has emitted its only changed frame, so make readiness
+        // authoritative here and request a fresh key frame through the normal
+        // resumed-stream event.
+        self->paused_stream_.store(false, std::memory_order_release);
+        self->Emit(std::make_shared<RelayResumedEvent>());
         self->NotifyClientConnected(route ? route->connection_instance_id : room->conn_id_, room->creator_stream_id_,
                                     route ? route->visitor_device_id : ExtractClientId(prepared.device_id()),
                                     route ? route->logical_session_id : std::string{});
@@ -544,7 +970,7 @@ void RelayTransportRuntime::ConnectMedia(const RelayTransportRuntimeConfig& conf
         }
         const auto payload = Data::From(relay.payload());
         const auto route = self->FindMediaRouteByRoom(room_id);
-        if (route && !IsRelayPayloadAuthorized(payload, route->permissions)) {
+        if (!route || !IsRelayPayloadAuthorized(payload, route->permissions)) {
             LOGW("Drop Relay payload denied by the logical-session capability grant");
             return;
         }
@@ -612,71 +1038,45 @@ void RelayTransportRuntime::ConnectFileTransfer(const RelayTransportRuntimeConfi
         }
         const auto& request = message->request_control();
         const auto visitor_device_id = ExtractClientId(request.device_id().starts_with("ft_") ? request.device_id().substr(3) : request.device_id());
-        const auto settings = self->ConfigSnapshot().settings;
+        const auto config = self->ConfigSnapshot();
         if (request.stream_id().empty() || request.room_id().empty() || visitor_device_id.empty()) {
             server->RespondToControl(message, false, "invalid Relay file-transfer request");
             return;
         }
-        if (!VerifyRelayDeviceCredential(settings, request.safety_pwd_md5())) {
+        if (config.console_frontend_admission_required) {
+            auto credential = ParseConsoleFrontendRelayCredential(request.safety_pwd_md5());
+            message->mutable_request_control()->clear_safety_pwd_md5();
+            if (!credential) {
+                server->RespondToControl(message, false, "Console frontend credential was rejected");
+                return;
+            }
+            const auto token = SecretBuffer::Take(std::move(credential->token));
+            const auto scope = self->frontend_scope_;
+            if (!scope || !scope->Spawn("relay-file-transfer-frontend-admission", [weak_self, weak_sdk, generation, message, visitor_device_id,
+                                                                                   revision = credential->revision, token]() {
+                    return AuthorizeFileTransferControl(weak_self, weak_sdk, generation, message, visitor_device_id, revision, token);
+                })) {
+                server->RespondToControl(message, false, "Console frontend authorization is unavailable");
+            }
+            return;
+        }
+        if (!VerifyRelayDeviceCredential(config.settings, request.safety_pwd_md5())) {
             server->RespondToControl(message, false, "device password was rejected");
             return;
         }
         const auto logical_session_id = "relay-ft-session:" + request.room_id();
-        std::string binding_id;
-        {
-            std::lock_guard lock(self->ft_route_mutex_);
-            auto [route_it, inserted] = self->ft_routes_.try_emplace(request.room_id());
-            auto& route = route_it->second;
-            if (inserted || route.connection_instance_id.empty()) {
-                route.connection_instance_id = request.room_id() + "#" + std::to_string(++self->ft_route_generation_);
-            }
-            route.stream_id = request.stream_id();
-            route.visitor_device_id = visitor_device_id;
-            route.logical_session_id = logical_session_id;
-            binding_id = route.connection_instance_id;
-        }
-        const auto admission = std::make_shared<AdmitLogicalSessionEvent>();
-        admission->grant_ = LogicalSessionGrant{
-            .logical_session_id = logical_session_id,
-            .stream_id = request.stream_id(),
-            .subject_id = visitor_device_id,
-            .join_mode = "control",
-            .expires_at_ms = 0,
-            .allow_observer = false,
-            .allow_takeover = false,
-            .input_allowed = false,
-        };
-        admission->transport_ = LogicalSessionTransport::kFileTransfer;
-        admission->binding_id_ = binding_id;
-        RenderEventCallback lifecycle_dispatcher;
-        {
-            std::lock_guard lock(self->sink_mutex_);
-            lifecycle_dispatcher = self->event_callback_;
-        }
-        admission->callback_ = [weak_self, weak_sdk, generation, message, logical_session_id, binding_id,
-                                lifecycle_dispatcher](const LogicalSessionAdmission& result) {
-            const auto owner = weak_self.lock();
-            const auto active_server = weak_sdk.lock();
-            if (!owner || !active_server || !owner->IsCurrentFileTransferGeneration(generation)) {
-                if (result.code == LogicalSessionAdmissionCode::kAccepted) {
-                    DispatchCloseLogicalSessionBinding(lifecycle_dispatcher, logical_session_id, binding_id);
-                }
-                return;
-            }
-            if (result.code != LogicalSessionAdmissionCode::kAccepted) {
-                {
-                    std::lock_guard lock(owner->ft_route_mutex_);
-                    owner->ft_routes_.erase(message->request_control().room_id());
-                }
-                active_server->RespondToControl(message, false,
-                                                result.code == LogicalSessionAdmissionCode::kRemoteAccessDisabled
-                                                    ? std::string{kWsRemoteAccessDisabledSignal}
-                                                    : "Relay file-transfer session admission denied");
-                return;
-            }
-            active_server->RespondToControl(message, true, "ok");
-        };
-        self->Emit(admission);
+        self->DispatchFileTransferAdmission(weak_sdk, generation, message, visitor_device_id,
+                                            LogicalSessionGrant{
+                                                .logical_session_id = logical_session_id,
+                                                .stream_id = request.stream_id(),
+                                                .subject_id = visitor_device_id,
+                                                .join_mode = "control",
+                                                .expires_at_ms = 0,
+                                                .allow_observer = false,
+                                                .allow_takeover = false,
+                                                .input_allowed = false,
+                                            },
+                                            std::nullopt);
     });
     sdk->SetOnRelayProtoMessageCallback([weak_self, generation](const std::shared_ptr<RelayMessage>& message) {
         const auto self = weak_self.lock();
@@ -694,6 +1094,10 @@ void RelayTransportRuntime::ConnectFileTransfer(const RelayTransportRuntimeConfi
                 auto& route = route_it->second;
                 if (inserted || route.connection_instance_id.empty()) {
                     route.connection_instance_id = room_id + "#" + std::to_string(++self->ft_route_generation_);
+                }
+                if (!route.authorized) {
+                    LOGW("Drop Relay file-transfer payload without an admitted logical session");
+                    return;
                 }
                 if (route.has_recv_msg_index && relay.relay_msg_index() != route.last_recv_msg_index + 1) {
                     LOGE(
@@ -724,23 +1128,15 @@ void RelayTransportRuntime::ConnectFileTransfer(const RelayTransportRuntimeConfi
         } else if (type == RelayMessageType::kRelayRoomDestroyed) {
             const auto& destroyed = message->room_destroyed();
             FtRelayRouteInfo route;
-            bool found = false;
             {
                 std::lock_guard lock(self->ft_route_mutex_);
                 const auto current = self->ft_routes_.find(destroyed.room_id());
                 if (current != self->ft_routes_.end()) {
                     route = current->second;
-                    self->ft_routes_.erase(current);
-                    found = true;
                 }
             }
-            if (found) {
-                RenderEventCallback lifecycle_dispatcher;
-                {
-                    std::lock_guard lock(self->sink_mutex_);
-                    lifecycle_dispatcher = self->event_callback_;
-                }
-                DispatchCloseLogicalSessionBinding(lifecycle_dispatcher, route.logical_session_id, route.connection_instance_id);
+            if (!route.connection_instance_id.empty()) {
+                self->CloseFileTransferRoute(destroyed.room_id());
                 self->NotifyClientDisconnected(route.connection_instance_id, route.stream_id, route.visitor_device_id, route.created_timestamp);
             }
         }
@@ -794,6 +1190,7 @@ std::vector<std::string> RelayTransportRuntime::AuthorizedMediaRooms(const std::
 }
 
 void RelayTransportRuntime::CloseMediaRoute(const std::string& room_id) {
+    CancelFrontendLease(room_id);
     MediaRelayRouteInfo route;
     {
         std::lock_guard lock(media_route_mutex_);
@@ -812,6 +1209,26 @@ void RelayTransportRuntime::CloseMediaRoute(const std::string& room_id) {
     }
 }
 
+void RelayTransportRuntime::CloseFileTransferRoute(const std::string& room_id) {
+    CancelFrontendLease(room_id);
+    FtRelayRouteInfo route;
+    {
+        std::scoped_lock lock(ft_route_mutex_);
+        const auto current = ft_routes_.find(room_id);
+        if (current == ft_routes_.end()) {
+            return;
+        }
+        route = current->second;
+        ft_routes_.erase(current);
+    }
+    RenderEventCallback dispatcher;
+    {
+        std::scoped_lock lock(sink_mutex_);
+        dispatcher = event_callback_;
+    }
+    DispatchCloseLogicalSessionBinding(dispatcher, route.logical_session_id, route.connection_instance_id);
+}
+
 void RelayTransportRuntime::CloseAllMediaRoutes() {
     std::vector<std::string> room_ids;
     {
@@ -828,23 +1245,17 @@ void RelayTransportRuntime::CloseAllMediaRoutes() {
 }
 
 void RelayTransportRuntime::CloseAllFileTransferRoutes() {
-    std::vector<FtRelayRouteInfo> routes;
+    std::vector<std::string> room_ids;
     {
         std::lock_guard lock(ft_route_mutex_);
-        routes.reserve(ft_routes_.size());
+        room_ids.reserve(ft_routes_.size());
         for (const auto& [room_id, route] : ft_routes_) {
-            static_cast<void>(room_id);
-            routes.push_back(route);
+            static_cast<void>(route);
+            room_ids.push_back(room_id);
         }
-        ft_routes_.clear();
     }
-    for (const auto& route : routes) {
-        if (!route.logical_session_id.empty() && !route.connection_instance_id.empty()) {
-            const auto close = std::make_shared<CloseLogicalSessionBindingEvent>();
-            close->logical_session_id_ = route.logical_session_id;
-            close->binding_id_ = route.connection_instance_id;
-            Emit(close, true);
-        }
+    for (const auto& room_id : room_ids) {
+        CloseFileTransferRoute(room_id);
     }
 }
 

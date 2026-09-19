@@ -249,7 +249,8 @@ if(WIN32)
     target_link_directories(test_render_context_shutdown PRIVATE ${VCPKG_ROOT}/installed/x64-windows/lib)
     add_test(NAME render_context_shutdown COMMAND test_render_context_shutdown)
     set_tests_properties(render_context_shutdown PROPERTIES TIMEOUT 30 LABELS "render-lifecycle"
-        ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/dist")
+        ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:px_render>;PATH=path_list_prepend:$<TARGET_FILE_DIR:px_voice_apm>")
     add_executable(test_game_process_identity unit/test_game_process_identity.cpp)
     target_link_libraries(test_game_process_identity PRIVATE GTest::gtest GTest::gtest_main)
     add_test(NAME game_process_identity COMMAND test_game_process_identity)

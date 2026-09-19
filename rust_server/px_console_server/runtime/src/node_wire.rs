@@ -309,7 +309,10 @@ fn frontend_target(value: store::SessionTarget) -> wire::FrontendTarget {
     }
 }
 
-pub fn command(value: store::NodeCommand) -> wire::NodeCommand {
+pub fn command(
+    value: store::NodeCommand,
+    relay: Option<&crate::RelayEndpoint>,
+) -> wire::NodeCommand {
     wire::NodeCommand {
         id: value.id,
         instance_id: value.instance_id,
@@ -344,6 +347,11 @@ pub fn command(value: store::NodeCommand) -> wire::NodeCommand {
                     memory_reserve_bytes: reservation.memory_reserve_bytes,
                     compute_limit_per_mille: reservation.compute_limit_per_mille,
                     encoder_limit_per_mille: reservation.encoder_limit_per_mille,
+                }),
+                relay: relay.map(|endpoint| wire::RelayEndpoint {
+                    host: endpoint.host.clone(),
+                    port: endpoint.port,
+                    app_key: endpoint.app_key.clone(),
                 }),
             },
             store::NodeCommandAction::Stop => wire::NodeCommandAction::Stop,

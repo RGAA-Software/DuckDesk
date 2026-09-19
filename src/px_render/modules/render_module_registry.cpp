@@ -218,6 +218,21 @@ void RenderModuleRegistry::StartModules() {
     const auto relay_transport = std::make_shared<RelayTransport>(context_->GetAsyncRuntime());
     if (register_builtin(relay_transport, "net_relay")) {
         relay_transport_ = relay_transport;
+        relay_transport->ConfigureFrontendAuthorizer(
+            [weak_application](ConsoleFrontendAdmissionRequest request,
+                               const std::chrono::steady_clock::time_point deadline) -> PxAwaitable<PxResult<ConsoleFrontendGrant>> {
+                const auto application = weak_application.lock();
+                if (!application) {
+                    std::fill(request.frontend_token.begin(), request.frontend_token.end(), '\0');
+                    co_return PxResult<ConsoleFrontendGrant>::Failure(
+                        MakePxAsyncError(PxAsyncErrorCode::kServiceStopped, "frontend_admission", "Render application is unavailable"));
+                }
+                co_return co_await application->AdmitConsoleFrontend(std::move(request), deadline);
+            });
+        relay_transport->ConfigureLogicalLeaseRenewer([weak_sessions](const LogicalSessionGrant& grant, const std::int64_t now_ms) {
+            const auto sessions = weak_sessions.lock();
+            return sessions && sessions->RenewLease(grant, now_ms);
+        });
     }
 
     webrtc_transport_host_ = WebRtcTransportHost::Create();

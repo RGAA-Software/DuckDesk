@@ -276,6 +276,29 @@ void RelayServerSdk::RespondToControl(const std::shared_ptr<RelayMessage>& msg, 
     sub->set_under_control(accepted);
     auto resp_msg = rl_msg.SerializeAsString();
     this->PostBinMessage(resp_msg);
+    if (!accepted) {
+        RelayMessage stop_message;
+        stop_message.set_type(RelayMessageType::kRelayRequestStop);
+        auto& stop = *stop_message.mutable_request_stop();
+        stop.set_device_id(sdk_param_.device_id_);
+        stop.set_remote_device_id(rc.device_id());
+        stop.set_room_id(rc.room_id());
+        PostBinMessage(stop_message.SerializeAsString());
+    }
+}
+
+void RelayServerSdk::RequestStopRelay(const std::string& room_id) {
+    const auto room = GetRoomById(room_id);
+    if (!room || room->remote_device_id_.empty()) {
+        return;
+    }
+    RelayMessage message;
+    message.set_type(RelayMessageType::kRelayRequestStop);
+    auto& request = *message.mutable_request_stop();
+    request.set_device_id(sdk_param_.device_id_);
+    request.set_remote_device_id(room->remote_device_id_ == sdk_param_.device_id_ ? room->device_id_ : room->remote_device_id_);
+    request.set_room_id(room_id);
+    PostBinMessage(message.SerializeAsString());
 }
 
 void RelayServerSdk::OnRoomPrepared(const std::shared_ptr<RelayMessage>& msg) {

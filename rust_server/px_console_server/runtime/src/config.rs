@@ -20,6 +20,13 @@ struct KeySource {
     path: PathBuf,
 }
 
+#[derive(Clone)]
+pub struct RelayEndpoint {
+    pub host: String,
+    pub port: u16,
+    pub app_key: String,
+}
+
 pub struct ConsoleLaunchConfig {
     database: DatabaseConfig,
     deployment: Uuid,
@@ -34,6 +41,7 @@ pub struct ConsoleLaunchConfig {
     workspace_keys: Vec<WorkspaceKeyFile>,
     recording_cache_directory: PathBuf,
     recording_cache_options: CacheOptions,
+    relay: Option<RelayEndpoint>,
     license: LicenseLaunchConfig,
 }
 
@@ -48,6 +56,7 @@ pub struct ConsoleLaunch {
     pub guests: crate::GuestAdmission,
     pub recording_cache_root: Arc<CacheRoot>,
     pub recording_cache_options: CacheOptions,
+    pub relay: Option<RelayEndpoint>,
     pub license: LicenseEntitlement,
 }
 
@@ -139,6 +148,23 @@ impl ConsoleLaunchConfig {
         {
             return Err(ConfigurationError);
         }
+        let relay = match (
+            get("PIXELS_RELAY_PUBLIC_HOST").filter(|value| !value.is_empty()),
+            get("PIXELS_RELAY_PUBLIC_PORT").filter(|value| !value.is_empty()),
+            get("PIXELS_RELAY_APP_KEY").filter(|value| !value.is_empty()),
+        ) {
+            (None, None, None) => None,
+            (Some(host), Some(port), Some(app_key))
+                if valid_host(&host) && (16..=512).contains(&app_key.len()) =>
+            {
+                Some(RelayEndpoint {
+                    host,
+                    port: port.parse::<u16>().map_err(|_| ConfigurationError)?,
+                    app_key,
+                })
+            }
+            _ => return Err(ConfigurationError),
+        };
         let authority_deployment_id = required("PIXELS_CONSOLE_LICENSE_AUTHORITY_DEPLOYMENT_ID")?
             .parse::<Uuid>()
             .map_err(|_| ConfigurationError)?;
@@ -170,6 +196,7 @@ impl ConsoleLaunchConfig {
             workspace_keys,
             recording_cache_directory,
             recording_cache_options,
+            relay,
             license,
         })
     }
@@ -223,6 +250,7 @@ impl ConsoleLaunchConfig {
             guests,
             recording_cache_root,
             recording_cache_options: self.recording_cache_options,
+            relay: self.relay,
             license,
         })
     }
@@ -244,6 +272,14 @@ fn seconds(value: String) -> Result<Duration, ConfigurationError> {
 
 fn number<T: std::str::FromStr>(value: &str) -> Result<T, ConfigurationError> {
     value.parse().map_err(|_| ConfigurationError)
+}
+
+fn valid_host(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 253
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b':'))
 }
 
 #[cfg(test)]
@@ -348,6 +384,17 @@ mod tests {
         let mut missing = valid();
         missing.remove("PIXELS_CONSOLE_GUEST_SOURCE_KEY");
         assert!(parse(&missing).is_err());
+
+        let mut relay = valid();
+        relay.insert(
+            "PIXELS_RELAY_PUBLIC_HOST".into(),
+            "relay.example.test".into(),
+        );
+        relay.insert("PIXELS_RELAY_PUBLIC_PORT".into(), "4605".into());
+        relay.insert("PIXELS_RELAY_APP_KEY".into(), "deployment-relay-key".into());
+        assert!(parse(&relay).is_ok());
+        relay.remove("PIXELS_RELAY_APP_KEY");
+        assert!(parse(&relay).is_err());
 
         let mut official = valid();
         official.insert("PIXELS_CONSOLE_DISTRIBUTION".into(), "official".into());

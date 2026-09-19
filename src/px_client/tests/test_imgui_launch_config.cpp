@@ -3,6 +3,7 @@
 #include <string>
 
 #include "client_launch_config.h"
+#include "px_common/console_frontend_relay_credential.h"
 
 namespace px::client::imgui {
 
@@ -92,6 +93,16 @@ TEST(ClientImguiLaunchConfigTest, RejectsMismatchedConsoleFrontendSession) {
         "remote_device_id":"instance","remote_password_hash":"password-must-not-enable-downgrade","connection_nonce":"nonce",
         "frontend_session_id":"stream-a","frontend_session_revision":2
     })"));
+}
+
+TEST(ClientImguiLaunchConfigTest, BuildsVersionedRelayFrontendCredential) {
+    const auto encoded = BuildConsoleFrontendRelayCredential(7, "frontend-secret");
+    const auto decoded = ParseConsoleFrontendRelayCredential(encoded);
+    ASSERT_TRUE(decoded);
+    EXPECT_EQ(decoded->revision, 7);
+    EXPECT_EQ(decoded->token, "frontend-secret");
+    EXPECT_FALSE(ParseConsoleFrontendRelayCredential("frontend-secret"));
+    EXPECT_FALSE(ParseConsoleFrontendRelayCredential("px-console-frontend-v1|0|frontend-secret"));
 }
 
 TEST(ClientImguiLaunchConfigTest, ParsesProtectedRdpLaunch) {

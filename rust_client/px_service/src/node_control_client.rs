@@ -1082,6 +1082,7 @@ async fn execute_command_before_deadline(
             launch,
             install_root,
             gpu_reservation,
+            relay,
         } => {
             if matches!(launch, ApplicationLaunch::Rdp) {
                 return CommandOutcome::Absent;
@@ -1123,6 +1124,7 @@ async fn execute_command_before_deadline(
                 launch,
                 install_root.as_deref(),
                 gpu_reservation,
+                relay.as_ref(),
             ) {
                 Ok(request) => request,
                 Err(error) => {
@@ -1252,6 +1254,7 @@ fn start_request(
     launch: &ApplicationLaunch,
     install_root: Option<&str>,
     gpu_reservation: &GpuReservation,
+    relay: Option<&px_node_protocol::RelayEndpoint>,
 ) -> Result<StartAppRequest, String> {
     let (mode, executable, arguments, webview, bitrate, codec) = match launch {
         ApplicationLaunch::GameHook {
@@ -1310,10 +1313,20 @@ fn start_request(
         rdp_node_id: String::new(),
         rdp_account: None,
         device_id: command.instance_id.to_string(),
-        relay_device_id: String::new(),
-        relay_server_host: String::new(),
-        relay_server_port: 0,
-        relay_appkey: String::new(),
+        // Render owns the wire-level `server_` prefix. Keep the Service-to-Render
+        // identity canonical so the prefix is applied exactly once.
+        relay_device_id: relay
+            .map(|_| command.instance_id.to_string())
+            .unwrap_or_default(),
+        relay_server_host: relay
+            .map(|endpoint| endpoint.host.clone())
+            .unwrap_or_default(),
+        relay_server_port: relay
+            .map(|endpoint| i32::from(endpoint.port))
+            .unwrap_or_default(),
+        relay_appkey: relay
+            .map(|endpoint| endpoint.app_key.clone())
+            .unwrap_or_default(),
     })
 }
 
@@ -1543,6 +1556,7 @@ mod tests {
             },
             install_root: Some("D:\\Cloud Games".into()),
             gpu_reservation: None,
+            relay: None,
         });
         let NodeCommandAction::Start {
             port,
@@ -1559,6 +1573,7 @@ mod tests {
             launch,
             install_root.as_deref(),
             &gpu_reservation(),
+            None,
         )
         .unwrap();
         assert_eq!(request.request_id, command.launch_id.to_string());
@@ -1583,17 +1598,41 @@ mod tests {
             },
             install_root: None,
             gpu_reservation: None,
+            relay: Some(px_node_protocol::RelayEndpoint {
+                host: "relay.example.test".into(),
+                port: 4605,
+                app_key: "deployment-relay-key".into(),
+            }),
         });
-        let NodeCommandAction::Start { port, launch, .. } = &command.action else {
+        let NodeCommandAction::Start {
+            port,
+            launch,
+            relay,
+            ..
+        } = &command.action
+        else {
             unreachable!();
         };
         let reservation = gpu_reservation();
-        let request = start_request(&command, *port, launch, None, &reservation).unwrap();
+        let request =
+            start_request(&command, *port, launch, None, &reservation, relay.as_ref()).unwrap();
         assert_eq!(
             URL_SAFE_NO_PAD.decode(request.webview_url_b64).unwrap(),
             "https://example.com/云应用".as_bytes()
         );
-        assert!(start_request(&command, *port, launch, Some("D:\\wrong"), &reservation,).is_err());
+        assert!(start_request(
+            &command,
+            *port,
+            launch,
+            Some("D:\\wrong"),
+            &reservation,
+            relay.as_ref(),
+        )
+        .is_err());
+        assert_eq!(request.relay_device_id, command.instance_id.to_string());
+        assert_eq!(request.relay_server_host, "relay.example.test");
+        assert_eq!(request.relay_server_port, 4605);
+        assert_eq!(request.relay_appkey, "deployment-relay-key");
     }
 
     #[test]

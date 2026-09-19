@@ -15,8 +15,16 @@
 #include <vector>
 
 #include "architecture/modules/render_module.h"
+#include "px_common/async_result.h"
+#include "px_common/async_runtime.h"
 #include "px_common/file_transfer_send_result.h"
+#include "px_common/secret_buffer.h"
 #include "px_render/network/transport_types.h"
+#include "px_render/session/logical_session_registry.h"
+
+namespace px_relay {
+class RelayMessage;
+}
 
 namespace px {
 
@@ -26,14 +34,22 @@ class NetMessageAck;
 class PxConnectedClientInfo;
 class RenderExecutionContext;
 class PxAsyncRuntime;
+class PxAsyncScope;
 class RelayServerSdk;
+
+using RelayFrontendAuthorizer =
+    std::function<PxAwaitable<PxResult<ConsoleFrontendGrant>>(ConsoleFrontendAdmissionRequest, std::chrono::steady_clock::time_point)>;
+using RelayLogicalLeaseRenewer = std::function<bool(const LogicalSessionGrant&, std::int64_t)>;
 
 struct RelayTransportRuntimeConfig final {
     std::string relay_device_id;
     std::string configured_host;
     int configured_port = 0;
+    bool console_frontend_admission_required = false;
     RenderModuleSettings settings;
     std::shared_ptr<PxAsyncRuntime> async_runtime;
+    RelayFrontendAuthorizer frontend_authorizer;
+    RelayLogicalLeaseRenewer logical_lease_renewer;
 };
 
 class RelayTransportRuntime final : public std::enable_shared_from_this<RelayTransportRuntime> {
@@ -49,6 +65,8 @@ public:
     void Start(const std::shared_ptr<RenderExecutionContext>& context, RenderEventCallback event_callback);
     void Stop();
     void UpdateSettings(const RenderModuleSettings& settings);
+    void ConfigureFrontendAuthorizer(RelayFrontendAuthorizer authorizer);
+    void ConfigureLogicalLeaseRenewer(RelayLogicalLeaseRenewer renewer);
 
     void PostMedia(std::shared_ptr<Data> message, bool run_through);
     bool PostTargetMedia(const std::string& stream_id, std::shared_ptr<Data> message, bool run_through);
@@ -82,6 +100,7 @@ private:
         int64_t created_timestamp = 0;
         uint64_t last_recv_msg_index = 0;
         bool has_recv_msg_index = false;
+        bool authorized = false;
     };
 
     struct MediaRelayRouteInfo final {
@@ -94,6 +113,20 @@ private:
         int64_t created_timestamp = 0;
     };
 
+    struct FrontendLeaseControl final {
+        std::atomic_bool current{true};
+    };
+
+    struct FrontendLeaseRegistration final {
+        ConsoleFrontendGrant expected_grant{};
+        LogicalSessionGrant logical_grant{};
+        std::string room_id{};
+        std::string binding_id{};
+        std::int64_t descriptor_revision{};
+        std::shared_ptr<const SecretBuffer> token{};
+        bool file_transfer{false};
+    };
+
     static void Monitor(std::weak_ptr<RelayTransportRuntime> runtime, const std::shared_ptr<MonitorControl>& control);
     static bool WaitFor(const std::shared_ptr<MonitorControl>& control, std::chrono::milliseconds delay);
     void WakeMonitor();
@@ -103,6 +136,29 @@ private:
                       const std::vector<class RelayDeviceNetInfo>& net_info, int connect_count);
     void ConnectFileTransfer(const RelayTransportRuntimeConfig& config, const std::string& host, int port,
                              const std::vector<class RelayDeviceNetInfo>& net_info);
+    [[nodiscard]] PxAwaitable<PxResult<ConsoleFrontendGrant>> AuthorizeFrontend(ConsoleFrontendAdmissionRequest request,
+                                                                                std::chrono::steady_clock::time_point deadline) const;
+    [[nodiscard]] bool RenewLogicalLease(const LogicalSessionGrant& grant, std::int64_t now_ms) const;
+    static PxAwaitable<void> AuthorizeMediaControl(std::weak_ptr<RelayTransportRuntime> runtime, std::weak_ptr<RelayServerSdk> server,
+                                                   std::uint64_t generation, std::shared_ptr<px_relay::RelayMessage> message,
+                                                   std::string visitor_device_id, std::int64_t revision, std::shared_ptr<const SecretBuffer> token);
+    static PxAwaitable<void> AuthorizeFileTransferControl(std::weak_ptr<RelayTransportRuntime> runtime, std::weak_ptr<RelayServerSdk> server,
+                                                          std::uint64_t generation, std::shared_ptr<px_relay::RelayMessage> message,
+                                                          std::string visitor_device_id, std::int64_t revision,
+                                                          std::shared_ptr<const SecretBuffer> token);
+    void DispatchMediaAdmission(std::weak_ptr<RelayServerSdk> server, std::uint64_t generation,
+                                const std::shared_ptr<px_relay::RelayMessage>& message, std::string visitor_device_id, LogicalSessionGrant grant,
+                                std::vector<std::string> permissions, std::optional<FrontendLeaseRegistration> frontend_lease);
+    void DispatchFileTransferAdmission(std::weak_ptr<RelayServerSdk> server, std::uint64_t generation,
+                                       const std::shared_ptr<px_relay::RelayMessage>& message, std::string visitor_device_id,
+                                       LogicalSessionGrant grant, std::optional<FrontendLeaseRegistration> frontend_lease);
+    [[nodiscard]] bool StartFrontendLease(FrontendLeaseRegistration registration);
+    static PxAwaitable<void> RunFrontendLease(std::weak_ptr<RelayTransportRuntime> runtime, std::shared_ptr<FrontendLeaseControl> control,
+                                              FrontendLeaseRegistration registration, std::uint32_t valid_for_ms);
+    void TerminateFrontendLease(const FrontendLeaseRegistration& registration, const std::shared_ptr<FrontendLeaseControl>& control,
+                                const std::string& reason);
+    void CancelFrontendLease(const std::string& room_id);
+    void CancelAllFrontendLeases();
 
     std::shared_ptr<RelayServerSdk> MediaSdk() const;
     std::shared_ptr<RelayServerSdk> FileTransferSdk() const;
@@ -127,6 +183,7 @@ private:
     [[nodiscard]] std::optional<MediaRelayRouteInfo> FindMediaRouteByConnection(const std::string& connection_instance_id) const;
     [[nodiscard]] std::vector<std::string> AuthorizedMediaRooms(const std::shared_ptr<Data>& message, const std::string& stream_id = {}) const;
     void CloseMediaRoute(const std::string& room_id);
+    void CloseFileTransferRoute(const std::string& room_id);
     void CloseAllMediaRoutes();
     void CloseAllFileTransferRoutes();
 
@@ -142,6 +199,13 @@ private:
     mutable std::mutex sink_mutex_;
     std::shared_ptr<RenderExecutionContext> execution_context_;
     RenderEventCallback event_callback_;
+
+    mutable std::mutex frontend_services_mutex_{};
+    RelayFrontendAuthorizer frontend_authorizer_{};
+    RelayLogicalLeaseRenewer logical_lease_renewer_{};
+    std::shared_ptr<PxAsyncScope> frontend_scope_{};
+    std::mutex frontend_leases_mutex_{};
+    std::unordered_map<std::string, std::shared_ptr<FrontendLeaseControl>> frontend_leases_{};
 
     mutable std::mutex sdk_mutex_;
     std::shared_ptr<RelayServerSdk> relay_media_sdk_;

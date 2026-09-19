@@ -1,15 +1,15 @@
+#include <Windows.h>
+#include <gtest/gtest.h>
+
+#include <asio2/websocket/ws_server.hpp>
+#include <asio2/websocket/wss_server.hpp>
 #include <atomic>
 #include <chrono>
-#include <functional>
 #include <fstream>
+#include <functional>
 #include <iterator>
 #include <memory>
 #include <thread>
-
-#include <Windows.h>
-#include <asio2/websocket/ws_server.hpp>
-#include <asio2/websocket/wss_server.hpp>
-#include <gtest/gtest.h>
 
 #include "connection/sdk_websocket_reconnect.h"
 #include "connection/ws_connection.h"
@@ -41,24 +41,19 @@ std::shared_ptr<WssConnection> MakeSecureConnection(const std::shared_ptr<Messag
     return std::make_shared<WssConnection>(notifier, "127.0.0.1", port, "/sdk-secure-reconnect-test");
 }
 
+std::string ReadTestTlsFile(const std::string& path) {
+    std::ifstream input(path, std::ios::binary);
+    return {std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+}
+
 std::shared_ptr<asio2::wss_server> MakeSecureServer() {
-    std::ifstream input(PX_TEST_TLS_PEM, std::ios::binary);
-    const std::string pem{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
-    constexpr std::string_view key_begin = "-----BEGIN RSA PRIVATE KEY-----";
-    constexpr std::string_view key_end = "-----END RSA PRIVATE KEY-----";
-    constexpr std::string_view cert_begin = "-----BEGIN CERTIFICATE-----";
-    constexpr std::string_view cert_end = "-----END CERTIFICATE-----";
-    const auto key_first = pem.find(key_begin);
-    const auto key_last = pem.find(key_end);
-    const auto cert_first = pem.find(cert_begin);
-    const auto cert_last = pem.find(cert_end, cert_first);
-    if (key_first == std::string::npos || key_last == std::string::npos || cert_first == std::string::npos || cert_last == std::string::npos) {
+    const auto certificate = ReadTestTlsFile(PX_TEST_TLS_CERTIFICATE);
+    const auto private_key = ReadTestTlsFile(PX_TEST_TLS_PRIVATE_KEY);
+    if (certificate.empty() || private_key.empty()) {
         return {};
     }
-    const auto key = pem.substr(key_first, key_last + key_end.size() - key_first);
-    const auto certificate = pem.substr(cert_first, cert_last + cert_end.size() - cert_first);
     const auto server = std::make_shared<asio2::wss_server>();
-    server->set_cert_buffer({}, certificate, key, {});
+    server->set_cert_buffer({}, certificate, private_key, {});
     server->set_verify_mode(asio::ssl::verify_none);
     return server;
 }
@@ -262,5 +257,5 @@ TEST(SdkWebSocketReconnect, SessionRejectionReportsTerminalError) {
     }
 }
 
-} // namespace
-} // namespace px
+}  // namespace
+}  // namespace px

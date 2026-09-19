@@ -46,9 +46,18 @@ pub enum NodeCommandAction {
         launch: ApplicationLaunch,
         install_root: Option<String>,
         gpu_reservation: Option<GpuReservation>,
+        relay: Option<RelayEndpoint>,
     },
     #[serde(deserialize_with = "strict_empty::deserialize")]
     Stop,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RelayEndpoint {
+    pub host: String,
+    pub port: u16,
+    pub app_key: String,
 }
 
 #[derive(Serialize, Deserialize)]

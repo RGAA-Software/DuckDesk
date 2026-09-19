@@ -151,7 +151,8 @@ if(BUILD_TESTING AND NOT ANDROID)
         GTest::gtest_main
     )
     target_compile_definitions(test_sdk_websocket_reconnect PRIVATE
-        PX_TEST_TLS_PEM="${PX_SDK_REPOSITORY_ROOT}/rust_server/px_console_server/media/default.pem")
+        PX_TEST_TLS_CERTIFICATE="${PX_SDK_REPOSITORY_ROOT}/src/px_render/certificate.pem"
+        PX_TEST_TLS_PRIVATE_KEY="${PX_SDK_REPOSITORY_ROOT}/src/px_render/private.key")
     add_test(NAME sdk_websocket_reconnect COMMAND test_sdk_websocket_reconnect)
     set_tests_properties(sdk_websocket_reconnect PROPERTIES LABELS "render-lifecycle")
 endif()
