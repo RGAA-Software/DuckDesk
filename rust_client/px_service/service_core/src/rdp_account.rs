@@ -2,6 +2,23 @@
 
 use zeroize::Zeroizing;
 
+pub(crate) fn is_canonical_local_account_sid(value: &str) -> bool {
+    let Some(components) = value.strip_prefix("S-1-5-21-") else {
+        return false;
+    };
+    let components: Vec<_> = components.split('-').collect();
+    components.len() == 4
+        && components.iter().all(|component| {
+            !component.is_empty()
+                && component.len() <= 10
+                && (component.len() == 1 || !component.starts_with('0'))
+                && component
+                    .bytes()
+                    .all(|byte_value| byte_value.is_ascii_digit())
+                && component.parse::<u32>().is_ok()
+        })
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct RdpAccountSpec {
     pub workspace_id: String,
@@ -31,18 +48,18 @@ pub struct RdpAccountIdentity {
 
 impl RdpAccountSpec {
     pub fn validate(&self) -> Result<(), String> {
+        let account_suffix = self.account_name.strip_prefix("pxrdp_");
         if self.workspace_id.is_empty()
             || self.workspace_id.len() > 128
             || !self.workspace_id.bytes().all(|byte_value| {
                 byte_value.is_ascii_alphanumeric() || matches!(byte_value, b'-' | b'_')
             })
-            || !self.account_name.starts_with("prdp_")
-            || self.account_name.len() > 20
-            || self.account_name.len() < 8
-            || !self
-                .account_name
-                .bytes()
-                .all(|byte_value| byte_value.is_ascii_alphanumeric() || byte_value == b'_')
+            || !account_suffix.is_some_and(|suffix| {
+                suffix.len() == 14
+                    && suffix.bytes().all(|byte_value| {
+                        byte_value.is_ascii_digit() || (b'a'..=b'f').contains(&byte_value)
+                    })
+            })
             || self.password.len() < 32
             || self.password.len() > 256
             || self.password.contains('\0')
@@ -50,7 +67,7 @@ impl RdpAccountSpec {
             || self
                 .expected_sid
                 .as_ref()
-                .is_some_and(|sid| !sid.starts_with("S-1-5-21-"))
+                .is_some_and(|sid| !is_canonical_local_account_sid(sid))
         {
             return Err("RDP account configuration invalid".into());
         }
@@ -346,7 +363,7 @@ mod tests {
     fn sample() -> RdpAccountSpec {
         RdpAccountSpec {
             workspace_id: "workspace-1".into(),
-            account_name: "prdp_testaccount".into(),
+            account_name: "pxrdp_0123456789abcd".into(),
             password: Zeroizing::new("aA1!01234567890123456789012345678901".into()),
             credential_version: 1,
             expected_sid: None,

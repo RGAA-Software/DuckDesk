@@ -4,6 +4,21 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use zeroize::Zeroizing;
+
+fn serialize_secret<S>(value: &Zeroizing<String>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(value.as_str())
+}
+
+fn deserialize_secret<'de, D>(deserializer: D) -> Result<Zeroizing<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    String::deserialize(deserializer).map(Zeroizing::new)
+}
 
 pub const MAX_CONNECTIONS: usize = 128;
 pub const MAX_MESSAGE_BYTES: usize = 64 * 1024;
@@ -91,6 +106,23 @@ pub struct NodeCommand {
     pub lease_until: DateTime<Utc>,
     pub deadline: DateTime<Utc>,
     pub action: NodeCommandAction,
+}
+
+/// Decrypted only for an authenticated node holding this exact live RDP Start
+/// lease. Deliberately not Debug or Clone so credentials cannot enter generic
+/// command diagnostics or retry snapshots.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RdpWorkspaceCredential {
+    pub workspace_id: Uuid,
+    pub account_name: String,
+    pub credential_revision: u32,
+    pub expected_sid: Option<String>,
+    #[serde(
+        serialize_with = "serialize_secret",
+        deserialize_with = "deserialize_secret"
+    )]
+    pub password: Zeroizing<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -469,6 +501,18 @@ pub enum NodeRequest {
     PollCommand {
         request_id: u64,
     },
+    FetchRdpWorkspace {
+        request_id: u64,
+        command_id: Uuid,
+        lease_id: Uuid,
+    },
+    ConfirmRdpWorkspace {
+        request_id: u64,
+        command_id: Uuid,
+        lease_id: Uuid,
+        workspace_id: Uuid,
+        windows_sid: String,
+    },
     AcknowledgeCommand {
         request_id: u64,
         receipt: CommandReceipt,
@@ -539,6 +583,8 @@ impl NodeRequest {
             | Self::BeginReconciliation { request_id }
             | Self::Reconcile { request_id, .. }
             | Self::PollCommand { request_id }
+            | Self::FetchRdpWorkspace { request_id, .. }
+            | Self::ConfirmRdpWorkspace { request_id, .. }
             | Self::AcknowledgeCommand { request_id, .. }
             | Self::ReportDeployment { request_id, .. }
             | Self::ListDeployments { request_id, .. }
@@ -606,6 +652,14 @@ pub enum NodeResponse {
     Command {
         request_id: u64,
         command: Option<Box<NodeCommand>>,
+    },
+    RdpWorkspace {
+        request_id: u64,
+        workspace: RdpWorkspaceCredential,
+    },
+    RdpWorkspaceConfirmed {
+        request_id: u64,
+        workspace_id: Uuid,
     },
     CommandAcknowledged {
         request_id: u64,
@@ -690,6 +744,8 @@ impl NodeResponse {
             | Self::ReconciliationStarted { request_id, .. }
             | Self::Reconciled { request_id }
             | Self::Command { request_id, .. }
+            | Self::RdpWorkspace { request_id, .. }
+            | Self::RdpWorkspaceConfirmed { request_id, .. }
             | Self::CommandAcknowledged { request_id, .. }
             | Self::DeploymentReported { request_id }
             | Self::Deployments { request_id, .. }
@@ -744,7 +800,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn node_wire_is_tagged_strict_and_keeps_credentials_out_of_responses() {
+    fn node_wire_is_tagged_strict_and_keeps_credentials_out_of_ordinary_responses() {
         let request: NodeRequest =
             serde_json::from_str(r#"{"type":"authenticate","request_id":1,"node_token":"secret"}"#)
                 .unwrap();
@@ -752,6 +808,7 @@ mod tests {
         for invalid in [
             r#"{"type":"authenticate","request_id":1,"node_token":"secret","extra":1}"#,
             r#"{"type":"poll_command","request_id":1,"extra":1}"#,
+            r#"{"type":"fetch_rdp_workspace","request_id":1,"command_id":"00000000-0000-0000-0000-000000000000","lease_id":"00000000-0000-0000-0000-000000000000","extra":1}"#,
             r#"{"request_id":1}"#,
             r#"{"type":"unknown","request_id":1}"#,
             r#"{"type":"reconcile","request_id":1,"inventory":{"challenge_id":"00000000-0000-0000-0000-000000000000","runtimes":[{"instance_id":"00000000-0000-0000-0000-000000000000","launch_id":"00000000-0000-0000-0000-000000000000","port":1,"phase":"running","extra":1}]}}"#,
@@ -791,5 +848,32 @@ mod tests {
         .unwrap();
         assert!(!admitted.contains("token"));
         assert!(!admitted.contains("secret"));
+    }
+
+    #[test]
+    fn rdp_workspace_secret_exists_only_in_the_explicit_lease_response() {
+        let workspace_id = Uuid::from_u128(1);
+        let encoded = serde_json::to_string(&NodeResponse::RdpWorkspace {
+            request_id: 7,
+            workspace: RdpWorkspaceCredential {
+                workspace_id,
+                account_name: "pxrdp_0123456789abcd".into(),
+                credential_revision: 3,
+                expected_sid: Some("S-1-5-21-1-2-3-1001".into()),
+                password: Zeroizing::new("a-secure-workspace-password".into()),
+            },
+        })
+        .unwrap();
+        let decoded: NodeResponse = serde_json::from_str(&encoded).unwrap();
+        let NodeResponse::RdpWorkspace {
+            request_id,
+            workspace,
+        } = decoded
+        else {
+            panic!("expected RDP workspace response");
+        };
+        assert_eq!(request_id, 7);
+        assert_eq!(workspace.workspace_id, workspace_id);
+        assert_eq!(workspace.password.as_str(), "a-secure-workspace-password");
     }
 }

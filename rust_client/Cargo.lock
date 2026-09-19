@@ -2432,6 +2432,7 @@ dependencies = [
  "chrono",
  "serde",
  "uuid",
+ "zeroize",
 ]
 
 [[package]]

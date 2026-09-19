@@ -125,6 +125,7 @@ impl RdpDeployment {
 pub struct StagedRdpBootstrap {
     path: PathBuf,
     pub binding: RdpBootstrapBinding,
+    pub account_identity: crate::rdp_account::RdpAccountIdentity,
 }
 impl Drop for StagedRdpBootstrap {
     fn drop(&mut self) {
@@ -149,7 +150,7 @@ pub fn prepare_runtime(
     }
     let deployment = RdpDeployment::load(directory)?;
     let store = WorkspaceStore::open(&directory.join("workspaces"))?;
-    store.provision(spec, app_id, node_id, device_id)?;
+    let account_identity = store.provision(spec, app_id, node_id, device_id)?.account;
     let listener = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
         .map_err(|_| "RDP loopback port reservation failed".to_string())?;
     let proxy_port = listener
@@ -170,7 +171,11 @@ pub fn prepare_runtime(
     // Upstream binds itself; Render verifies listener ownership against its child
     // PID, so an intervening port bind cannot impersonate successful readiness.
     drop(listener);
-    Ok(StagedRdpBootstrap { path, binding })
+    Ok(StagedRdpBootstrap {
+        path,
+        binding,
+        account_identity,
+    })
 }
 
 #[cfg(test)]
@@ -188,7 +193,7 @@ mod tests {
     fn account() -> RdpAccountSpec {
         RdpAccountSpec {
             workspace_id: "workspace".into(),
-            account_name: "prdp_testaccount".into(),
+            account_name: "pxrdp_0123456789abcd".into(),
             password: Zeroizing::new("aA1!01234567890123456789012345678901".into()),
             credential_version: 1,
             expected_sid: None,
@@ -252,14 +257,24 @@ mod tests {
             target_certificate_sha256: "a".repeat(64),
             proxy_certificate_sha256: "b".repeat(64),
         };
+        let account_identity = crate::rdp_account::RdpAccountIdentity {
+            account_name: "pxrdp_0123456789abcd".into(),
+            sid: "S-1-5-21-1-2-3-1001".into(),
+            credential_version: 1,
+        };
         drop(StagedRdpBootstrap {
             path: path.clone(),
             binding: binding.clone(),
+            account_identity: account_identity.clone(),
         });
         assert!(!path.exists());
         assert!(!private_path.exists());
         // Missing files and repeated cleanup remain harmless.
-        drop(StagedRdpBootstrap { path, binding });
+        drop(StagedRdpBootstrap {
+            path,
+            binding,
+            account_identity,
+        });
         for file in preserved {
             assert_eq!(std::fs::read(&file).unwrap(), b"non-secret test fixture");
             std::fs::remove_file(file).unwrap();

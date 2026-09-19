@@ -569,6 +569,17 @@ impl ServiceRuntime {
             .and_then(|result| result);
             match prepared {
                 Ok(bootstrap) => {
+                    {
+                        let mut guard = runtime.lock().await;
+                        if let Err(error) = guard.app_registry.set_rdp_windows_sid(
+                            &instance_id,
+                            bootstrap.account_identity.sid.clone(),
+                        ) {
+                            guard.webview_ready_waiters.remove(&instance_id);
+                            let _ = guard.app_registry.mark_failed(&instance_id, error.clone());
+                            return Err(error);
+                        }
+                    }
                     launch
                         .args
                         .push(format!("--rdp_proxy_port={}", bootstrap.binding.proxy_port));

@@ -81,6 +81,7 @@ pub struct AppInstanceRecord {
     pub app_mode: String,
     pub rdp_workspace_id: String,
     pub rdp_node_id: String,
+    pub rdp_windows_sid: Option<String>,
     pub listen_port: u16,
     pub pid: Option<u32>,
     pub state: AppInstanceState,
@@ -670,6 +671,7 @@ impl AppInstanceRegistry {
                 .map(|account| account.workspace_id.clone())
                 .unwrap_or_default(),
             rdp_node_id: req.rdp_node_id.clone(),
+            rdp_windows_sid: None,
             listen_port: port,
             pid: None,
             state: AppInstanceState::Starting,
@@ -701,6 +703,18 @@ impl AppInstanceRegistry {
         rec.exit_detail = None;
         rec.state = AppInstanceState::Running;
         rec.error.clear();
+        Ok(())
+    }
+
+    pub fn set_rdp_windows_sid(&mut self, instance_id: &str, sid: String) -> Result<(), String> {
+        let record = self
+            .instances
+            .get_mut(instance_id)
+            .ok_or_else(|| format!("unknown instance_id {instance_id}"))?;
+        if record.app_mode != APP_MODE_RDP || !matches!(record.state, AppInstanceState::Starting) {
+            return Err("RDP SID can only be recorded during trusted startup".into());
+        }
+        record.rdp_windows_sid = Some(sid);
         Ok(())
     }
 
@@ -962,7 +976,7 @@ mod tests {
         req.rdp_node_id = "rdp-node".into();
         req.rdp_account = Some(crate::rdp_account::RdpAccountSpec {
             workspace_id: "workspace".into(),
-            account_name: "prdp_testaccount".into(),
+            account_name: "pxrdp_0123456789abcd".into(),
             password: zeroize::Zeroizing::new("aA1!01234567890123456789012345678901".into()),
             credential_version: 1,
             expected_sid: None,

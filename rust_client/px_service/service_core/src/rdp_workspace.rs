@@ -41,7 +41,7 @@ impl WorkspaceIdentity {
             || self.account.account_name != spec.account_name
             || self.account.credential_version == 0
             || self.account.credential_version > spec.credential_version
-            || !self.account.sid.starts_with("S-1-5-21-")
+            || !crate::rdp_account::is_canonical_local_account_sid(&self.account.sid)
         {
             return Err("RDP persisted workspace identity/version mismatch".into());
         }
@@ -139,7 +139,7 @@ impl WorkspaceStore {
         let account = provision(&checked_spec)?;
         if account.account_name != spec.account_name
             || account.credential_version != spec.credential_version
-            || !account.sid.starts_with("S-1-5-21-")
+            || !crate::rdp_account::is_canonical_local_account_sid(&account.sid)
             || checked_spec
                 .expected_sid
                 .as_ref()
@@ -577,7 +577,7 @@ mod tests {
     fn sample() -> RdpAccountSpec {
         RdpAccountSpec {
             workspace_id: "workspace-1".into(),
-            account_name: "prdp_testaccount".into(),
+            account_name: "pxrdp_0123456789abcd".into(),
             password: Zeroizing::new("aA1!01234567890123456789012345678901".into()),
             credential_version: 1,
             expected_sid: None,

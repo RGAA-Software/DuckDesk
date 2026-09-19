@@ -12,8 +12,8 @@ use px_node_protocol::{
     CommandReceipt, DeploymentAssignment, DeploymentObservation, DeploymentPreparation,
     GpuReservation, NodeCommand, NodeCommandAction, NodeReport, NodeRequest, NodeResponse,
     ObservedRuntime, ObservedRuntimePhase, OpenChannel, PreparationFailure, PreparationState,
-    RecordingCacheUpload, RelayEndpoint, RuntimeInventory, TelemetryBackfillSample,
-    TransferDirection, TransferProgress, VideoCodec, MAX_MESSAGE_BYTES,
+    RdpWorkspaceCredential, RecordingCacheUpload, RelayEndpoint, RuntimeInventory,
+    TelemetryBackfillSample, TransferDirection, TransferProgress, VideoCodec, MAX_MESSAGE_BYTES,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use service_core::{AppInstanceState, StartAppRequest};
@@ -433,7 +433,57 @@ async fn run_connection(
                 };
                 if let Some(command) = command {
                     let outcome = match session.validate_command(&command) {
-                        Ok(()) => execute_command(runtime, &command).await,
+                        Ok(()) => {
+                            let rdp_workspace = if matches!(
+                                &command.action,
+                                NodeCommandAction::Start {
+                                    launch: ApplicationLaunch::Rdp,
+                                    ..
+                                }
+                            ) {
+                                Some(fetch_rdp_workspace(&mut socket, &mut session, &command).await?)
+                            } else {
+                                None
+                            };
+                            let workspace_id = rdp_workspace.as_ref().map(|workspace| workspace.workspace_id);
+                            let mut outcome = execute_command(
+                                runtime,
+                                &command,
+                                rdp_workspace,
+                                authentication.identity,
+                            ).await;
+                            if matches!(outcome, CommandOutcome::Running { .. }) {
+                                if let Some(workspace_id) = workspace_id {
+                                    let windows_sid = {
+                                        let guard = runtime.lock().await;
+                                        guard.app_registry
+                                            .get(&command.instance_id.to_string())
+                                            .and_then(|record| record.rdp_windows_sid.clone())
+                                    };
+                                    let confirmed = match windows_sid {
+                                        Some(windows_sid) => confirm_rdp_workspace(
+                                            &mut socket,
+                                            &mut session,
+                                            &command,
+                                            workspace_id,
+                                            windows_sid,
+                                        ).await.is_ok(),
+                                        None => false,
+                                    };
+                                    if !confirmed {
+                                        warn!(command_id = %command.id, "RDP workspace identity confirmation failed");
+                                        if exact_launch_match(runtime, &command).await == Some(true) {
+                                            let _ = ServiceRuntime::stop_app_instance(
+                                                runtime,
+                                                &command.instance_id.to_string(),
+                                            ).await;
+                                        }
+                                        outcome = CommandOutcome::Unknown;
+                                    }
+                                }
+                            }
+                            outcome
+                        }
                         Err(error) => {
                             warn!(command_id = %command.id, %error, "node command rejected locally");
                             CommandOutcome::Unknown
@@ -1263,15 +1313,67 @@ async fn reconcile(
     }
 }
 
+async fn fetch_rdp_workspace(
+    socket: &mut NodeSocket,
+    session: &mut ProtocolSession,
+    command: &NodeCommand,
+) -> Result<RdpWorkspaceCredential, String> {
+    let request = NodeRequest::FetchRdpWorkspace {
+        request_id: session.request_id()?,
+        command_id: command.id,
+        lease_id: command.lease_id,
+    };
+    let expected = request.request_id();
+    match exchange(socket, request).await? {
+        NodeResponse::RdpWorkspace {
+            request_id,
+            workspace,
+        } if request_id == expected => Ok(workspace),
+        NodeResponse::Error { code, .. } => {
+            Err(format!("RDP workspace credential rejected: {code}"))
+        }
+        _ => Err("unexpected RDP workspace credential response".into()),
+    }
+}
+
+async fn confirm_rdp_workspace(
+    socket: &mut NodeSocket,
+    session: &mut ProtocolSession,
+    command: &NodeCommand,
+    workspace_id: Uuid,
+    windows_sid: String,
+) -> Result<(), String> {
+    let request = NodeRequest::ConfirmRdpWorkspace {
+        request_id: session.request_id()?,
+        command_id: command.id,
+        lease_id: command.lease_id,
+        workspace_id,
+        windows_sid,
+    };
+    let expected = request.request_id();
+    match exchange(socket, request).await? {
+        NodeResponse::RdpWorkspaceConfirmed {
+            request_id,
+            workspace_id: confirmed_workspace,
+        } if request_id == expected && confirmed_workspace == workspace_id => Ok(()),
+        NodeResponse::Error { code, .. } => {
+            Err(format!("RDP workspace confirmation rejected: {code}"))
+        }
+        _ => Err("unexpected RDP workspace confirmation response".into()),
+    }
+}
+
 async fn execute_command(
     runtime: &Arc<Mutex<ServiceRuntime>>,
     command: &NodeCommand,
+    rdp_workspace: Option<RdpWorkspaceCredential>,
+    identity: NodeControlIdentity,
 ) -> CommandOutcome {
     let deadline = std::cmp::min(command.lease_until, command.deadline);
     if deadline <= Utc::now() {
         return CommandOutcome::Unknown;
     }
-    let outcome = execute_command_before_deadline(runtime, command).await;
+    let outcome = execute_command_before_deadline(runtime, command, rdp_workspace, identity).await;
     if deadline > Utc::now() {
         return outcome;
     }
@@ -1292,6 +1394,8 @@ async fn execute_command(
 async fn execute_command_before_deadline(
     runtime: &Arc<Mutex<ServiceRuntime>>,
     command: &NodeCommand,
+    rdp_workspace: Option<RdpWorkspaceCredential>,
+    identity: NodeControlIdentity,
 ) -> CommandOutcome {
     match &command.action {
         NodeCommandAction::Start {
@@ -1301,16 +1405,20 @@ async fn execute_command_before_deadline(
             gpu_reservation,
             relay,
         } => {
-            if matches!(launch, ApplicationLaunch::Rdp) {
+            let rdp = matches!(launch, ApplicationLaunch::Rdp);
+            if rdp != rdp_workspace.is_some() {
+                warn!(command_id = %command.id, "node RDP workspace envelope mismatch");
                 return CommandOutcome::Absent;
             }
-            let Some(gpu_reservation) = gpu_reservation else {
-                warn!(command_id = %command.id, "node start command has no GPU reservation");
-                return CommandOutcome::Absent;
-            };
-            if let Err(error) = validate_gpu_reservation(gpu_reservation) {
-                warn!(command_id = %command.id, %error, "node GPU admission rejected the start command");
-                return CommandOutcome::Absent;
+            if !rdp {
+                let Some(gpu_reservation) = gpu_reservation else {
+                    warn!(command_id = %command.id, "node start command has no GPU reservation");
+                    return CommandOutcome::Absent;
+                };
+                if let Err(error) = validate_gpu_reservation(gpu_reservation) {
+                    warn!(command_id = %command.id, %error, "node GPU admission rejected the start command");
+                    return CommandOutcome::Absent;
+                }
             }
             let existing = {
                 let guard = runtime.lock().await;
@@ -1340,8 +1448,12 @@ async fn execute_command_before_deadline(
                 *port,
                 launch,
                 install_root.as_deref(),
-                gpu_reservation,
+                gpu_reservation.as_ref(),
                 relay.as_ref(),
+                StartSecurityContext {
+                    rdp_workspace,
+                    node_identity: identity,
+                },
             ) {
                 Ok(request) => request,
                 Err(error) => {
@@ -1465,13 +1577,19 @@ async fn exact_launch_match(
         .map(|record| record.request_id == launch_id)
 }
 
+struct StartSecurityContext {
+    rdp_workspace: Option<RdpWorkspaceCredential>,
+    node_identity: NodeControlIdentity,
+}
+
 fn start_request(
     command: &NodeCommand,
     port: u16,
     launch: &ApplicationLaunch,
     install_root: Option<&str>,
-    gpu_reservation: &GpuReservation,
+    gpu_reservation: Option<&GpuReservation>,
     relay: Option<&px_node_protocol::RelayEndpoint>,
+    security: StartSecurityContext,
 ) -> Result<StartAppRequest, String> {
     let (mode, executable, arguments, webview, bitrate, codec) = match launch {
         ApplicationLaunch::GameHook {
@@ -1494,7 +1612,14 @@ fn start_request(
             video.bitrate_kbps,
             video.codec,
         ),
-        ApplicationLaunch::Rdp => return Err("RDP workspace envelope is unavailable".into()),
+        ApplicationLaunch::Rdp => (
+            service_core::app_instance::APP_MODE_RDP,
+            String::new(),
+            String::new(),
+            String::new(),
+            1,
+            VideoCodec::H264,
+        ),
     };
     let install_root = match launch {
         ApplicationLaunch::GameHook { .. } => install_root
@@ -1506,6 +1631,20 @@ fn start_request(
         }
         _ => String::new(),
     };
+    let rdp_account =
+        security
+            .rdp_workspace
+            .map(|workspace| service_core::rdp_account::RdpAccountSpec {
+                workspace_id: workspace.workspace_id.to_string(),
+                account_name: workspace.account_name,
+                password: workspace.password,
+                credential_version: workspace.credential_revision,
+                expected_sid: workspace.expected_sid,
+            });
+    let rdp = matches!(launch, ApplicationLaunch::Rdp);
+    if rdp != rdp_account.is_some() || rdp != gpu_reservation.is_none() {
+        return Err("RDP workspace and GPU reservation boundary mismatch".into());
+    }
     Ok(StartAppRequest {
         request_id: command.launch_id.to_string(),
         instance_id: command.instance_id.to_string(),
@@ -1526,22 +1665,34 @@ fn start_request(
         websocket_enabled: true,
         app_mode: mode.into(),
         webview_url_b64: webview,
-        gpu_stable_key: Some(gpu_reservation.stable_key.clone()),
-        rdp_node_id: String::new(),
-        rdp_account: None,
-        device_id: command.instance_id.to_string(),
+        gpu_stable_key: gpu_reservation.map(|reservation| reservation.stable_key.clone()),
+        rdp_node_id: if rdp {
+            security.node_identity.node_id.to_string()
+        } else {
+            String::new()
+        },
+        rdp_account,
+        device_id: if rdp {
+            security.node_identity.device_id.to_string()
+        } else {
+            command.instance_id.to_string()
+        },
         // Render owns the wire-level `server_` prefix. Keep the Service-to-Render
         // identity canonical so the prefix is applied exactly once.
         relay_device_id: relay
+            .filter(|_| !rdp)
             .map(|_| command.instance_id.to_string())
             .unwrap_or_default(),
         relay_server_host: relay
+            .filter(|_| !rdp)
             .map(|endpoint| endpoint.host.clone())
             .unwrap_or_default(),
         relay_server_port: relay
+            .filter(|_| !rdp)
             .map(|endpoint| i32::from(endpoint.port))
             .unwrap_or_default(),
         relay_appkey: relay
+            .filter(|_| !rdp)
             .map(|endpoint| endpoint.app_key.clone())
             .unwrap_or_default(),
     })
@@ -1770,13 +1921,17 @@ mod tests {
 
     fn authenticated_session() -> ProtocolSession {
         let mut session = ProtocolSession::new();
-        session.identity = Some(NodeControlIdentity {
+        session.identity = Some(node_identity());
+        session
+    }
+
+    fn node_identity() -> NodeControlIdentity {
+        NodeControlIdentity {
             node_id: Uuid::new_v4(),
             device_id: Uuid::new_v4(),
             generation: 2,
             control_epoch: 3,
-        });
-        session
+        }
     }
 
     fn cloud_product() -> ProductDescriptor {
@@ -1918,8 +2073,12 @@ mod tests {
             *port,
             launch,
             install_root.as_deref(),
-            &gpu_reservation(),
+            Some(&gpu_reservation()),
             None,
+            StartSecurityContext {
+                rdp_workspace: None,
+                node_identity: node_identity(),
+            },
         )
         .unwrap();
         assert_eq!(request.request_id, command.launch_id.to_string());
@@ -1960,8 +2119,19 @@ mod tests {
             unreachable!();
         };
         let reservation = gpu_reservation();
-        let request =
-            start_request(&command, *port, launch, None, &reservation, relay.as_ref()).unwrap();
+        let request = start_request(
+            &command,
+            *port,
+            launch,
+            None,
+            Some(&reservation),
+            relay.as_ref(),
+            StartSecurityContext {
+                rdp_workspace: None,
+                node_identity: node_identity(),
+            },
+        )
+        .unwrap();
         assert_eq!(
             URL_SAFE_NO_PAD.decode(request.webview_url_b64).unwrap(),
             "https://example.com/云应用".as_bytes()
@@ -1971,14 +2141,87 @@ mod tests {
             *port,
             launch,
             Some("D:\\wrong"),
-            &reservation,
+            Some(&reservation),
             relay.as_ref(),
+            StartSecurityContext {
+                rdp_workspace: None,
+                node_identity: node_identity(),
+            },
         )
         .is_err());
         assert_eq!(request.relay_device_id, command.instance_id.to_string());
         assert_eq!(request.relay_server_host, "relay.example.test");
         assert_eq!(request.relay_server_port, 4605);
         assert_eq!(request.relay_appkey, "deployment-relay-key");
+    }
+
+    #[test]
+    fn rdp_conversion_requires_workspace_omits_gpu_and_uses_authenticated_node_identity() {
+        let command = command(NodeCommandAction::Start {
+            port: 4615,
+            launch: ApplicationLaunch::Rdp,
+            install_root: None,
+            gpu_reservation: None,
+            relay: Some(px_node_protocol::RelayEndpoint {
+                host: "relay.example.test".into(),
+                port: 4605,
+                app_key: "must-not-enter-rdp".into(),
+            }),
+        });
+        let NodeCommandAction::Start {
+            port,
+            launch,
+            relay,
+            ..
+        } = &command.action
+        else {
+            unreachable!();
+        };
+        let identity = node_identity();
+        let workspace_id = Uuid::new_v4();
+        let request = start_request(
+            &command,
+            *port,
+            launch,
+            None,
+            None,
+            relay.as_ref(),
+            StartSecurityContext {
+                rdp_workspace: Some(RdpWorkspaceCredential {
+                    workspace_id,
+                    account_name: "pxrdp_0123456789abcd".into(),
+                    credential_revision: 1,
+                    expected_sid: Some("S-1-5-21-1-2-3-1001".into()),
+                    password: zeroize::Zeroizing::new(
+                        "aA1!01234567890123456789012345678901".into(),
+                    ),
+                }),
+                node_identity: identity,
+            },
+        )
+        .unwrap();
+        assert_eq!(request.app_mode, service_core::app_instance::APP_MODE_RDP);
+        assert_eq!(request.rdp_node_id, identity.node_id.to_string());
+        assert_eq!(request.device_id, identity.device_id.to_string());
+        assert_eq!(
+            request.rdp_account.as_ref().unwrap().workspace_id,
+            workspace_id.to_string()
+        );
+        assert!(request.gpu_stable_key.is_none());
+        assert!(request.relay_server_host.is_empty());
+        assert!(start_request(
+            &command,
+            *port,
+            launch,
+            None,
+            None,
+            relay.as_ref(),
+            StartSecurityContext {
+                rdp_workspace: None,
+                node_identity: identity,
+            },
+        )
+        .is_err());
     }
 
     #[test]
@@ -2205,6 +2448,104 @@ mod tests {
                 ..
             }
         ));
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn rdp_workspace_operations_bind_the_secret_and_confirmation_to_one_lease() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let command = command(NodeCommandAction::Stop);
+        let expected_command_id = command.id;
+        let expected_lease_id = command.lease_id;
+        let expected_workspace_id = Uuid::new_v4();
+        let expected_windows_sid = "S-1-5-21-1-2-3-1001".to_string();
+        let server_windows_sid = expected_windows_sid.clone();
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(stream).await.unwrap();
+
+            let Message::Text(text) = socket.next().await.unwrap().unwrap() else {
+                panic!("expected RDP workspace request");
+            };
+            let request: NodeRequest = serde_json::from_str(&text).unwrap();
+            let NodeRequest::FetchRdpWorkspace {
+                request_id,
+                command_id,
+                lease_id,
+            } = request
+            else {
+                panic!("expected RDP workspace request");
+            };
+            assert_eq!(command_id, expected_command_id);
+            assert_eq!(lease_id, expected_lease_id);
+            socket
+                .send(Message::Text(
+                    serde_json::to_string(&NodeResponse::RdpWorkspace {
+                        request_id,
+                        workspace: RdpWorkspaceCredential {
+                            workspace_id: expected_workspace_id,
+                            account_name: "pxrdp_0123456789abcd".into(),
+                            credential_revision: 3,
+                            expected_sid: Some(server_windows_sid.clone()),
+                            password: zeroize::Zeroizing::new("a-secure-workspace-password".into()),
+                        },
+                    })
+                    .unwrap()
+                    .into(),
+                ))
+                .await
+                .unwrap();
+
+            let Message::Text(text) = socket.next().await.unwrap().unwrap() else {
+                panic!("expected RDP workspace confirmation");
+            };
+            let request: NodeRequest = serde_json::from_str(&text).unwrap();
+            let NodeRequest::ConfirmRdpWorkspace {
+                request_id,
+                command_id,
+                lease_id,
+                workspace_id,
+                windows_sid,
+            } = request
+            else {
+                panic!("expected RDP workspace confirmation");
+            };
+            assert_eq!(command_id, expected_command_id);
+            assert_eq!(lease_id, expected_lease_id);
+            assert_eq!(workspace_id, expected_workspace_id);
+            assert_eq!(windows_sid, server_windows_sid);
+            socket
+                .send(Message::Text(
+                    serde_json::to_string(&NodeResponse::RdpWorkspaceConfirmed {
+                        request_id,
+                        workspace_id,
+                    })
+                    .unwrap()
+                    .into(),
+                ))
+                .await
+                .unwrap();
+        });
+
+        let endpoint = format!("ws://{address}/api/console/node-control");
+        let (mut socket, _) = tokio_tungstenite::connect_async(endpoint).await.unwrap();
+        let mut session = authenticated_session();
+        let workspace = fetch_rdp_workspace(&mut socket, &mut session, &command)
+            .await
+            .unwrap();
+        assert_eq!(workspace.workspace_id, expected_workspace_id);
+        assert_eq!(workspace.account_name, "pxrdp_0123456789abcd");
+        assert_eq!(workspace.password.as_str(), "a-secure-workspace-password");
+        confirm_rdp_workspace(
+            &mut socket,
+            &mut session,
+            &command,
+            workspace.workspace_id,
+            expected_windows_sid,
+        )
+        .await
+        .unwrap();
         server.await.unwrap();
     }
 

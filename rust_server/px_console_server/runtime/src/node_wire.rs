@@ -2,6 +2,21 @@ use px_console_store as store;
 use px_node_protocol as wire;
 pub use px_node_protocol::{NodeRequest, NodeResponse, MAX_CONNECTIONS, MAX_MESSAGE_BYTES};
 
+pub fn rdp_workspace(
+    value: store::WorkspaceCredential,
+) -> Result<wire::RdpWorkspaceCredential, crate::error::ApiError> {
+    Ok(wire::RdpWorkspaceCredential {
+        workspace_id: value.workspace_id,
+        account_name: value.account_name,
+        credential_revision: value
+            .credential_revision
+            .try_into()
+            .map_err(|_| crate::error::ApiError::Unavailable)?,
+        expected_sid: value.windows_sid,
+        password: value.password,
+    })
+}
+
 pub fn report(value: wire::NodeReport) -> store::NodeReport {
     store::NodeReport {
         sequence: value.sequence,
@@ -336,26 +351,29 @@ pub fn command(
                 launch,
                 install_root,
                 gpu_reservation,
-            } => wire::NodeCommandAction::Start {
-                port,
-                launch: application(launch),
-                install_root,
-                gpu_reservation: gpu_reservation.map(|reservation| wire::GpuReservation {
-                    stable_key: reservation.stable_key,
-                    inventory_revision: reservation.inventory_revision,
-                    memory_bytes: reservation.memory_bytes,
-                    compute_per_mille: reservation.compute_per_mille,
-                    encoder_per_mille: reservation.encoder_per_mille,
-                    memory_reserve_bytes: reservation.memory_reserve_bytes,
-                    compute_limit_per_mille: reservation.compute_limit_per_mille,
-                    encoder_limit_per_mille: reservation.encoder_limit_per_mille,
-                }),
-                relay: relay.map(|endpoint| wire::RelayEndpoint {
-                    host: endpoint.host.clone(),
-                    port: endpoint.port,
-                    app_key: endpoint.app_key.clone(),
-                }),
-            },
+            } => {
+                let rdp = matches!(&launch, store::ApplicationLaunch::Rdp);
+                wire::NodeCommandAction::Start {
+                    port,
+                    launch: application(launch),
+                    install_root,
+                    gpu_reservation: gpu_reservation.map(|reservation| wire::GpuReservation {
+                        stable_key: reservation.stable_key,
+                        inventory_revision: reservation.inventory_revision,
+                        memory_bytes: reservation.memory_bytes,
+                        compute_per_mille: reservation.compute_per_mille,
+                        encoder_per_mille: reservation.encoder_per_mille,
+                        memory_reserve_bytes: reservation.memory_reserve_bytes,
+                        compute_limit_per_mille: reservation.compute_limit_per_mille,
+                        encoder_limit_per_mille: reservation.encoder_limit_per_mille,
+                    }),
+                    relay: relay.filter(|_| !rdp).map(|endpoint| wire::RelayEndpoint {
+                        host: endpoint.host.clone(),
+                        port: endpoint.port,
+                        app_key: endpoint.app_key.clone(),
+                    }),
+                }
+            }
             store::NodeCommandAction::Stop => wire::NodeCommandAction::Stop,
         },
     }

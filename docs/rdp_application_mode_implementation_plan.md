@@ -1,6 +1,6 @@
 # RDP 应用模式开发计划
 
-> 日期：2026-09-08，2026-09-20 更新。状态：WebSocket/proxy、初步输入、会话保留重连及 PostgreSQL Console→Panel 受保护工作区启动信封已经实现并通过本地短测；RDP 模式固定使用专用可靠通道，Panel 不显示且模型不继承 Native 的强制 TCP/Relay 偏好。完整功能与故障验收需在 Console 当前配置的公网 Windows 节点重新执行。
+> 日期：2026-09-08，2026-09-20 更新。状态：WebSocket/proxy、初步输入、会话保留重连、PostgreSQL Console→Service 租约工作区信封、Service 账号/SID 确认和 Console→Panel 受保护启动信封已经实现并通过本地短测；RDP 模式固定使用专用可靠通道，Panel 不显示且模型不继承 Native 的强制 TCP/Relay 偏好。完整功能与故障验收需在 Console 当前配置的公网 Windows 节点重新执行。
 > 用户确认单工作区单客户端设计。本文是后续实施入口；产品决策见
 > [RDP 模式设计第 0 节](rdp_application_mode_design.md#0-最新决策rdp-原生代理与会话保留)，
 > 已有实现以只读参考仓库 `D:/dolit/rdp` 的当前代码为准；旧功能盘点文档已不存在。
@@ -30,7 +30,8 @@
 
 使用 FreeRDP proxy 和 Windows 原生 SSPI。Console 自动提供所需凭证，无交互认证步骤；
 客户端仅在连接内存持有 Windows 凭证，不以“仅服务端可知 Windows 密码”为首版要求。
-接下来接通现有 WebSocket/RDP 适配，再接入 console 工作区调度、Service 账号与独占管理、Render 超时退出。
+现有 WebSocket/RDP 适配、Console 工作区调度、Service 账号/SID 与独占管理、Render 超时退出均已有实现；当前剩余工作是用最新
+Console、Service、Render 和 Client 制品在公网 Windows 节点完成产品级复验并关闭尚未通过的通道与故障矩阵。
 
 ```text
 Console：应用+节点工作区 / 凭证权威存储 / 登录或匿名自动准入
@@ -84,10 +85,11 @@ TCP 原型与后续 WebSocket 产品承载是验证阶段的差异，不是同�
 
 | 模块 | 已有落点 | 计划工作 |
 |---|---|---|
-| Console 应用/调度 | `rust_server/px_console_server/src/app_schedule/manager.rs` | 新增 Rdp 类型、节点能力、持久工作区引用、启动幂等、忙状态、版本检查 |
-| Web Console | `web/px_console/src/entity/app_schedule.ts`、`views/AppsView.vue` | RDP 应用配置、启动/进入/断开、工作区与连接状态分别显示；不显示 Windows 秘密 |
-| Console-Service 协议 | `src/px_deps/px_server_protocol/console_service.proto` | 增加类型明确的 RDP 配置/状态与能力；旧字段编号不复用，按项目流程生成 Rust/C++ 产物 |
-| Service 实例 | `rust_client/px_service/service_core/src/app_instance.rs` | RDP launch spec、模式校验、瞬态实例与持久工作区分离 |
+| Console 应用/调度 | `rust_server/px_console_server/storage/src/`、`runtime/src/` | RDP 类型、节点能力、持久工作区、原子占用、启动幂等和版本检查已落地；继续补公网可观测性与故障验收 |
+| Web Console | `web/px_console/src/` | RDP 应用配置、工作区与连接状态分别显示；不显示 Windows 秘密；继续补当前产品浏览器验收 |
+| Console→Service 节点协议 | `rust_server/px_node_protocol/`、`runtime/src/node_api.rs` | 已实现租约限定的工作区读取、SID 确认和严格消息；普通命令不携带秘密 |
+| Service→Render 协议 | `rust_base/protocol/`、`rust_client/px_service/` | 已实现类型明确的 RDP 启动配置、瞬态实例与持久工作区分离；不得恢复通用插件或旧兼容字段 |
+| Service 实例 | `rust_client/px_service/service_core/src/app_instance.rs` | 已实现 RDP launch spec、模式校验、SID 运行事实与精确 launch 生命周期；继续补真实故障矩阵 |
 | Service 进程生命周期 | `rust_client/px_service/src/service_host.rs` | 启停/故障回收只覆盖受管 Render/代理；排除已有游戏路径扫杀逻辑 |
 | Windows 账号与会话 | Service 下新增 `rdp_workspace`/Windows 适配模块 | 执行 console 账号/凭证版本、标准用户、SID、Session 核查、节点固定、启动失败恢复；不把 logoff 放入析构 |
 | Render 装配 | `src/px_render/rd_app.cpp`、`settings/rd_settings.*` | 模式分派、代理启动/停止、Ready 状态、沿用断连宽限；不启动采集/编码/RTMP 分支 |
@@ -241,6 +243,13 @@ Service Core 的 14 项 RDP 账号、工作区、部署和实例测试，Service
 `pg-20260920-053930-e4373942`，临时容器与卷均已清理。这只证明当前本地代码门禁，不代替公网 Windows 的真实桌面、双工作区、
 图形/音频/剪贴板、故障恢复和制品哈希验收。
 
+同日的节点执行增量把 RDP Start 从“工作区信封不可用”的拒绝分支改为完整闭环。Console 不把密码塞进通用命令，而要求已认证节点以当前
+`command_id + lease_id` 单独读取；Service 用该信封创建/复核规范 `pxrdp_` 标准账号，启动 RDP 实例，取得严格本地账号 SID 后再以同一
+租约确认。Console 确认成功后 Service 才 ACK Running；失败时停止精确 launch。RDP 不要求 GPU reservation，并主动丢弃 Relay 配置，
+其他模式的 GPU/Relay 行为不变。协议单测 2/2、Service 节点控制 15/15、严格 Clippy 通过；聚焦入口复跑仍为 14/14、30/30、6/6、
+11/11，最新 PostgreSQL 报告为 `pg-20260920-073236-bcc65364`、`pg-20260920-073330-aecd2cb3`。Cloud Node/Remote Service 制品及
+各自 dist 的 SHA-256 已同步复核。节点专属代理私钥、证书和 policy 仍由部署脚本单独下发，通用 dist 不携带；材料缺失时能力 fail-closed。
+
 ### 保留：最初的原型交接
 
 已完成独立 proxy 编译、原生 SSPI 连接、AVC444v2 桌面和原会话重连路径；demo 增加了自动凭证启动支持。
@@ -251,8 +260,9 @@ P0 已新增 `px_rdp_stream`：现有 `px::Message` 增加 `kRdpStream`，实现
 探针复用项目 asio2 实现及消息封装，但尚未接入产品 `WsServer/WsConnection` 的既有连接、准入和控制消息调度，
 不能把独立探针端口当作新增产品连接要求，也不能据此把 P0 全部门禁或 P1/P2 标为完成。
 旧 WebSocket 适配验证记录已经删除；后续结果直接更新本计划的当前验收矩阵。
-下一项是接入 SDK/Render 的既有 WebSocket 路由及受控实例绑定，随后迁入 Client Qt 6 RDP 工作区并完成真实画面验收；
-Console 凭证、Service 账号/节点独占与 Render 退出宽限仍按阶段实现。
+SDK/Render 既有 WebSocket 路由、Client Qt 6 RDP 工作区、Console 凭证和 Service 账号/SID 闭环均已有当前实现；下一项是在当前公网
+Windows 节点部署 Console/Service/Render 后复验真实画面、输入、音频、剪贴板、双工作区、撤销、故障恢复和退出宽限，未通过前不关闭
+P2–P7。
 公网测试节点禁止用 Administrator 登录 RDP；每批测试与收尾不超过 10 分钟。
 其余工程细节按上述默认方案实施，不因已确定的账号粒度、自动授权、TCP 可靠性再次等待产品确认。
 

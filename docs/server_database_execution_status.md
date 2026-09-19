@@ -1183,6 +1183,21 @@ Panel 解析信封后以 `SecretBuffer` 持有，按 `transport=rdp` 选择现�
 公网 Console 与节点制品尚未部署：`39.71.45.66` 的 WinRM 和 SSH 均可达，但登记管理员凭据分别在认证阶段返回 Access denied / Authentication
 failed；因此本条只关闭本地实现和短门禁，不宣称公网 RDP 图形、输入、音频、剪贴板或会话保留验收通过。
 
+RDP 节点执行链路随后补齐了上一增量遗漏的 Console→Service 工作区凭证边界。普通节点命令继续不携带密码；已认证节点只有持有当前
+RDP Start 的精确 `command_id + lease_id` 才能显式读取一次工作区信封。Service 以可清零缓冲接收密码，按规范 `pxrdp_` 加 14 位小写
+十六进制账号创建或复核标准用户，启动现有 RDP Render 后取得并严格校验本机账号 SID，再用同一命令租约回报 Console。只有 SID 确认成功
+后节点才提交 Running ACK；确认失败会停止该精确 launch 并回报 Unknown，不能把未确认账号暴露给 Panel。重复投递只接受同一 launch，
+不会按 PID、端口或账号名收养替代进程。RDP Start 明确不预约 GPU，也不会继承 Console Relay；Game Hook/Webview 仍保持 GPU 二次准入和
+原有 Relay 行为。
+
+本地新增协议秘密边界 2/2、Service 节点控制 15/15（含真实 WebSocket 的租约读取/确认）、严格 Client/Server Clippy 均通过；RDP 聚焦门禁
+仍为 Service Core 14/14、Service Host 30/30、工作区 6/6、资源会话 11/11，最新数据库报告是
+`pg-20260920-073236-bcc65364`、`pg-20260920-073330-aecd2cb3`。Console development `px_console.exe` build/output SHA-256 更新为
+`68C965CF7CCEA19E80F79DD08111433F2B47C033C432C1A9DED52C0285EC1607`；Cloud Node 与 Remote 的 `px_service.exe` build/stage/dist
+SHA-256 均为 `1EAE2300B43511E37F7E252B9AD265ACC6249C07F84993BE335CF353D2A1A014`。重新收集后的 development dist 分别以 315、77 件
+分发物通过清单 SHA-256 与产品依赖边界复核。节点专属 RDP policy、代理密钥和证书仍只能由部署流程提供，不进入通用产品 dist；缺少时节点
+继续上报 `rdp=false`。公网凭据阻塞未变化，因此本条也不冒充公网图形/输入验收。
+
 ## 仍未通过的阶段出口
 
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。
@@ -1194,7 +1209,7 @@ Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 W
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |
 | DB1-EXIT | 完成：Desk/Auth 产品服务与 PostgreSQL Console 正式 `px_console.exe` 均已接入；三者具有独立发行入口。Console 当前 3.2.21 发行、进程断库 fail-closed、真实浏览器和制品哈希已通过；后续能力缺口归 DB2–DB5，不再把旧 Mongo 组合根当产品入口 |
 | DB2-A | 身份/管理HTTP、本人资料/头像、密码计算/限流/Origin、访客HMAC/会话/公开目录、Saved Connections、本人实例列表、更新目录、访问/通道/传输历史及录像目录HTTP、严格配置、稳定私钥加载、独立初始化CLI、静态文件服务及进程生命周期已实现；Console用户门户及管理后台的当前目录/身份/状态入口均已切新bearer/主体API，源码不再保留旧`/api/v1`，正式PostgreSQL产品二进制和发行包已切换。部署绑定录像缓存、本人/管理员授权Range下载、Render完成段session归属、Windows Service真实字节生产、本人/管理下载页面、保留/释放/驱逐 Console 副本、真实浏览器空目录及公网本人有数据下载流程已接；节点源文件/缓存/浏览器下载大小和SHA-256一致，Direct Host观察者不再默认获得输入。仍需管理员在公网真实文件上的保留/释放/驱逐浏览器动作；视频墙延期，ZLM直播和RTC/TURN管理明确退役，不再作为待实现项 |
-| DB2-B/C/D | 设备/应用/节点/部署目录、user/guest资源入口、更新与历史元数据入口、Console节点WS及独立管理实时事件流已接；Windows Service已切到新节点协议并实现部署准备、调和、命令fencing、精确launch ACK、Render前端准入转发、实际媒体/RDP通道生命周期、遥测、DPAPI有界断线补报、唯一PCI身份的NVIDIA逐GPU指标、GPU预算/原子硬过滤/物理stable key运行时绑定与节点二次准入、只读调度预览/逐候选拒绝解释、数据库时钟对齐的有界服务端趋势/陈旧判断、录像session归属及通用录像字节上传。ZLM/Coturn/中央RTC signaling已归档移除，Windows/Web/Render/Service/Console的Direct Host活动代码和聚焦构建已接通；Direct Host WebRTC 已生产真实视频/数据载荷字节，并以5秒周期、单调sequence和最终终态累计上报；Relay出站媒体/文件数据只在底层WebSocket完整写成功后按真实connection累计，本机真实套接字与重连生命周期专项通过。独立纯数据 `px_relay` 已部署公网，Windows Native Relay 的动态实例、活动房间、首帧、窗口、输入及双向字节短测通过，默认 Direct 路径回归通过。Render真实文件引擎现已把操作UUID、实际总量/进度、单文件SHA-256或确定性多文件清单摘要经Service送入Console，真实payload单元测试、本机Service WebSocket桥及PostgreSQL 8组专项通过。仍需Relay音频、文件独立hash、断线重连/撤销和完整通道计数，Direct Host公网Web/音频/持续续租/撤销、Android直连、AMD/Intel逐GPU指标、管理实时流的公网高频/断库专项、RDP执行及计数、文件传输公网取消/重试/断线补报与客户端展示、无人值守更新及其余产品入口 |
+| DB2-B/C/D | 设备/应用/节点/部署目录、user/guest资源入口、更新与历史元数据入口、Console节点WS及独立管理实时事件流已接；Windows Service已切到新节点协议并实现部署准备、调和、命令fencing、精确launch ACK、Render前端准入转发、实际媒体/RDP通道生命周期、遥测、DPAPI有界断线补报、唯一PCI身份的NVIDIA逐GPU指标、GPU预算/原子硬过滤/物理stable key运行时绑定与节点二次准入、只读调度预览/逐候选拒绝解释、数据库时钟对齐的有界服务端趋势/陈旧判断、录像session归属及通用录像字节上传。ZLM/Coturn/中央RTC signaling已归档移除，Windows/Web/Render/Service/Console的Direct Host活动代码和聚焦构建已接通；Direct Host WebRTC 已生产真实视频/数据载荷字节，并以5秒周期、单调sequence和最终终态累计上报；Relay出站媒体/文件数据只在底层WebSocket完整写成功后按真实connection累计，本机真实套接字与重连生命周期专项通过。独立纯数据 `px_relay` 已部署公网，Windows Native Relay 的动态实例、活动房间、首帧、窗口、输入及双向字节短测通过，默认 Direct 路径回归通过。Render真实文件引擎现已把操作UUID、实际总量/进度、单文件SHA-256或确定性多文件清单摘要经Service送入Console，真实payload单元测试、本机Service WebSocket桥及PostgreSQL 8组专项通过。RDP 的 Console→Service 租约凭证、标准账号/SID 确认、无 GPU/Relay Start 和精确 launch 失败回收已通过本地短测。仍需Relay音频、文件独立hash、断线重连/撤销和完整通道计数，Direct Host公网Web/音频/持续续租/撤销、Android直连、AMD/Intel逐GPU指标、管理实时流的公网高频/断库专项、RDP公网执行与通道计数、文件传输公网取消/重试/断线补报与客户端展示、无人值守更新及其余产品入口 |
 | DB2-EXIT / DB3 | Windows 侧功能出口完成：Desk/Auth 独立产品、Auth 事务 outbox、Official 认证接触和 30/40 秒持续 currentness、Customer 私有离线、库外水位、额度/feature 事务门禁及管理员状态均已接；keyring/恢复代际/监督取消短测通过。Service 只消费 Console control epoch。旧授权、Mongo/Redis/旧 Console 组合根和可误用入口已归档，活动锁文件不含旧后端。Linux systemd unit 静态验证通过，但 Unix binary/SIGTERM 仍须随 DB4/DB5 Linux 总门禁形成动态证据；不建设运行时双后端 |
 | DB4 | 恢复集、保留、异机复制、恢复准入/执行/封印、三库写屏障/安全水位、外部见证、Auth keyring、pgBackRest/WAL/PITR、Windows SCM包及WSL2 systemd生命周期已实现。开发期仍需目标Linux发行版VM短测、Pixels外层签名/生产密钥托管、独立主机或对象仓库一次完整恢复、目标环境keyring/见证轮换及真实节点与Windows/RDP事实对账；连续7天窗口和自然周期稳定性统一放到DB5功能通过后的长测，不阻塞每个开发切片 |
 | DB5 | 公网 Windows CloudApplication 的 Native Direct/Relay、Android guest 与账号 CloudApplication Native Direct 首帧/启停清理短测已通过，公网录像本人下载也已通过；Windows Panel 的账号、目录、实例与显式资源 descriptor 已切当前 API 并完成公网 API 短测，主机设置旧设备自注册/appkey/加密接入串路径也已删除，Relay 部署配置改由已认证 Console→Service 节点控制下发。Official/Customer 签名 deployment identity 的服务端证书/描述/nonce证明协议、Console 启动交叉绑定、部署私钥和离线根/trust store/证书签发工具已实现；Android、Windows Service、Windows Panel 与 Web Client 已接凭据前验签、nonce证明和持久水位，Panel/Web 还实现 Official 固定端点、Customer 私有端点及按 origin+DeploymentId 隔离凭据。Windows 与 Android 双发行的一次预检/一次升版和独立沙箱编排均已实现并通过软件门禁；Windows 另已接 policy/trust、清单、安装器、Web bundle 注入与聚焦发布边界。两平台都缺正式 approved 身份/签名材料，尚未执行 release-only 双制品；Windows 安装/升级/卸载、Cloud Node/Remote Web 正式双发行与 Android 真机双发行仍未验收。原生 Client 不持有 Console 配置或账号凭据，使用 Panel 已验证后下发的会话 token，不重复建设 Console 门禁。Android Relay 的短期路由票据、客户端选择、真机持久化及同资源会话 descriptor 重签/安全 restart 已实现，但新 Console/Relay 尚未公网部署，不能记为首帧或真实续签通过；Android 设备 ACL 仍未验收。Web Client 已通过当前授权、ICE和DataChannel但公网无RTP，且远端仍托管旧Web资产，不能记为通过；部署被失效机器凭据阻塞。仍需Android Relay公网首帧/真实断线续签、Relay剩余通道、RDP/文件/更新、完整制品的自动退役媒体审计与正式安装包实物审计。全部短测通过后再统一长测 |

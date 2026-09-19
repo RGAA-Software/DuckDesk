@@ -18,7 +18,7 @@ use chrono::{DateTime, Utc};
 use futures_util::{SinkExt, StreamExt};
 use px_console_store::{
     NodeConfiguration, NodeConnection, NodeProduct, NodeTelemetryTrend, TelemetryHistoryCursor,
-    TelemetryTrendRequest,
+    TelemetryTrendRequest, WorkspaceCommandLease,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -358,6 +358,52 @@ async fn operation(
                     .map(|command| crate::node_wire::command(command, state.relay.as_ref()))
                     .map(Box::new),
             }),
+            NodeRequest::FetchRdpWorkspace {
+                command_id,
+                lease_id,
+                ..
+            } => {
+                let credential = state
+                    .db
+                    .workspaces()
+                    .credentials_for_start(
+                        connection,
+                        WorkspaceCommandLease {
+                            command_id,
+                            lease_id,
+                        },
+                    )
+                    .await?;
+                Ok(NodeResponse::RdpWorkspace {
+                    request_id,
+                    workspace: crate::node_wire::rdp_workspace(credential)?,
+                })
+            }
+            NodeRequest::ConfirmRdpWorkspace {
+                command_id,
+                lease_id,
+                workspace_id,
+                windows_sid,
+                ..
+            } => {
+                state
+                    .db
+                    .workspaces()
+                    .confirm_account(
+                        connection,
+                        WorkspaceCommandLease {
+                            command_id,
+                            lease_id,
+                        },
+                        workspace_id,
+                        &windows_sid,
+                    )
+                    .await?;
+                Ok(NodeResponse::RdpWorkspaceConfirmed {
+                    request_id,
+                    workspace_id,
+                })
+            }
             NodeRequest::AcknowledgeCommand { receipt, .. } => {
                 let instance = state
                     .db
@@ -580,9 +626,9 @@ fn management_event(message: &NodeRequest, node_id: Uuid) -> Option<(&'static st
         NodeRequest::Report { .. } | NodeRequest::ReportTelemetryBackfill { .. } => {
             Some(("nodes", Some(node_id)))
         }
-        NodeRequest::Reconcile { .. } | NodeRequest::AcknowledgeCommand { .. } => {
-            Some(("instances", Some(node_id)))
-        }
+        NodeRequest::Reconcile { .. }
+        | NodeRequest::AcknowledgeCommand { .. }
+        | NodeRequest::ConfirmRdpWorkspace { .. } => Some(("instances", Some(node_id))),
         NodeRequest::ReportDeployment { deployment_id, .. } => {
             Some(("deployments", Some(*deployment_id)))
         }
@@ -603,6 +649,7 @@ fn management_event(message: &NodeRequest, node_id: Uuid) -> Option<(&'static st
         NodeRequest::Authenticate { .. }
         | NodeRequest::BeginReconciliation { .. }
         | NodeRequest::PollCommand { .. }
+        | NodeRequest::FetchRdpWorkspace { .. }
         | NodeRequest::ListDeployments { .. }
         | NodeRequest::ListFrontends { .. }
         | NodeRequest::PollRecordingCache { .. } => None,
