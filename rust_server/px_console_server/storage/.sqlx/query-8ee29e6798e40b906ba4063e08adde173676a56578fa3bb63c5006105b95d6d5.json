@@ -1,0 +1,167 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.application_deployments AS d(\n id,application_id,node_id,kind,install_root,gpu_key,gpu_memory_bytes,gpu_compute_per_mille,gpu_encoder_per_mille,\n gpu_memory_reserve_bytes,gpu_compute_limit_per_mille,gpu_encoder_limit_per_mille,capacity,disabled,application_revision)\nSELECT $1,a.id,n.id,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,a.revision FROM pixels.applications a,pixels.nodes n,pixels.devices v\nWHERE a.id=$2 AND n.id=$3 AND a.kind=$4 AND a.deleted_at IS NULL AND n.deleted_at IS NULL\nAND v.id=n.device_id AND v.deleted_at IS NULL\nRETURNING d.id,d.application_id,d.node_id,d.kind,d.install_root,d.gpu_key,d.gpu_memory_bytes,d.gpu_compute_per_mille,d.gpu_encoder_per_mille,d.gpu_memory_reserve_bytes,d.gpu_compute_limit_per_mille,d.gpu_encoder_limit_per_mille,d.capacity,d.disabled,d.revision,d.application_revision,d.observed_state,d.observed_reason,d.observed_generation,d.observed_epoch,d.observed_endpoint_revision,d.observed_sequence,d.observed_at\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "application_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "node_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "install_root",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "gpu_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "gpu_memory_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "gpu_compute_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 8,
+        "name": "gpu_encoder_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 9,
+        "name": "gpu_memory_reserve_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "gpu_compute_limit_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 11,
+        "name": "gpu_encoder_limit_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 12,
+        "name": "capacity",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 13,
+        "name": "disabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 14,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 15,
+        "name": "application_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 16,
+        "name": "observed_state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
+        "name": "observed_reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 18,
+        "name": "observed_generation",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 19,
+        "name": "observed_epoch",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 20,
+        "name": "observed_endpoint_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 21,
+        "name": "observed_sequence",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 22,
+        "name": "observed_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Int8",
+        "Int2",
+        "Int2",
+        "Int8",
+        "Int2",
+        "Int2",
+        "Int4",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "8ee29e6798e40b906ba4063e08adde173676a56578fa3bb63c5006105b95d6d5"
+}

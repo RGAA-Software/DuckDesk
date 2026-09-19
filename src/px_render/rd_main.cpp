@@ -87,6 +87,7 @@ DEFINE_int32(language, 0, "");
 
 DEFINE_string(app_mode, "", "desktop | game-hook | webview | rdp; empty => settings.toml application.mode");
 DEFINE_string(app_instance_id, "", "Console application instance id");
+DEFINE_string(gpu_stable_key, "", "Console-selected physical GPU stable key");
 DEFINE_string(webview_url_b64, "", "Base64URL-encoded WebView entry URL (never log decoded value)");
 DEFINE_string(webview_instance_id, "", "Console WebView instance id");
 DEFINE_string(rdp_instance_id, "", "Console RDP runtime instance id");
@@ -218,6 +219,7 @@ void UpdateSettings(RdSettings& settings) {
     settings.webview_url_b64_ = FLAGS_webview_url_b64;
     settings.webview_instance_id_ = FLAGS_webview_instance_id;
     settings.app_instance_id_ = FLAGS_app_instance_id;
+    settings.gpu_stable_key_ = FLAGS_gpu_stable_key;
     settings.webview_width_ = std::clamp(FLAGS_webview_width, 320, 7680);
     settings.webview_height_ = std::clamp(FLAGS_webview_height, 240, 4320);
     settings.webview_gpu_ = FLAGS_webview_gpu;
@@ -280,7 +282,7 @@ int main(int argc, char** argv) {
     // CEF renderer/GPU/utility children re-enter px_render.exe. They must be
     // dispatched before gflags, dump handlers, singleton locks or service links.
 #if PX_CAPABILITY_WEBVIEW_HOST
-    if (const int cef_exit_code = ExecuteCefSubprocess(GetModuleHandleW(nullptr)); cef_exit_code >= 0) {
+    if (const int cef_exit_code = ExecuteCefSubprocess(reinterpret_cast<std::uintptr_t>(GetModuleHandleW(nullptr))); cef_exit_code >= 0) {
         return cef_exit_code;
     }
 #endif

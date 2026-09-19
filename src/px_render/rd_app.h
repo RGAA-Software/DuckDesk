@@ -319,6 +319,7 @@ protected:
     mutable std::mutex latest_game_hook_frame_mutex_;
     mutable std::optional<CaptureVideoFrame> latest_game_hook_frame_;
     mutable uint64_t latest_game_hook_replay_frame_index_ = 0;
+    mutable std::atomic_bool gpu_binding_reported_ = false;
 
     std::atomic_bool monitor_changed_ = false;
     std::atomic_uint32_t virtual_display_owned_count_ = 0;

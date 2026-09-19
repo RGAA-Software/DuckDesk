@@ -33,8 +33,53 @@ impl DeploymentTarget {
 pub struct DeploymentConfiguration {
     pub target: DeploymentTarget,
     pub gpu_key: Option<String>,
+    pub gpu_profile: Option<GpuResourceProfile>,
     pub capacity: u32,
     pub disabled: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GpuResourceProfile {
+    pub memory_bytes: u64,
+    pub compute_per_mille: u16,
+    pub encoder_per_mille: u16,
+    pub memory_reserve_bytes: u64,
+    pub compute_limit_per_mille: u16,
+    pub encoder_limit_per_mille: u16,
+}
+
+const MAX_GPU_MEMORY_BUDGET_BYTES: u64 = 16 * 1024 * 1024 * 1024 * 1024;
+
+impl GpuResourceProfile {
+    fn validate(&self) -> Result<(), StoreError> {
+        if self.memory_bytes == 0
+            || self.memory_bytes > MAX_GPU_MEMORY_BUDGET_BYTES
+            || self.memory_reserve_bytes > MAX_GPU_MEMORY_BUDGET_BYTES
+            || self
+                .memory_bytes
+                .checked_add(self.memory_reserve_bytes)
+                .is_none_or(|total| total > MAX_GPU_MEMORY_BUDGET_BYTES)
+            || !(1..=1000).contains(&self.compute_per_mille)
+            || !(self.compute_per_mille..=1000).contains(&self.compute_limit_per_mille)
+            || !(1..=1000).contains(&self.encoder_per_mille)
+            || !(self.encoder_per_mille..=1000).contains(&self.encoder_limit_per_mille)
+        {
+            return Err(StoreError::InvalidInput);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn database_values(&self) -> (i64, i16, i16, i64, i16, i16) {
+        (
+            self.memory_bytes as i64,
+            self.compute_per_mille as i16,
+            self.encoder_per_mille as i16,
+            self.memory_reserve_bytes as i64,
+            self.compute_limit_per_mille as i16,
+            self.encoder_limit_per_mille as i16,
+        )
+    }
 }
 impl DeploymentConfiguration {
     pub(crate) fn validate(&self) -> Result<(), StoreError> {
@@ -51,6 +96,13 @@ impl DeploymentConfiguration {
                 })
         }) {
             return Err(StoreError::InvalidInput);
+        }
+        match (&self.target, &self.gpu_profile) {
+            (DeploymentTarget::Rdp, None) if self.gpu_key.is_none() => {}
+            (DeploymentTarget::GameHook { .. } | DeploymentTarget::Webview, Some(profile)) => {
+                profile.validate()?;
+            }
+            _ => return Err(StoreError::InvalidInput),
         }
         if let Some(root) = self.target.root() {
             absolute_install_root(root)?;
@@ -144,6 +196,12 @@ pub struct DeploymentProfile {
     pub kind: String,
     pub install_root: Option<String>,
     pub gpu_key: Option<String>,
+    pub gpu_memory_bytes: Option<i64>,
+    pub gpu_compute_per_mille: Option<i16>,
+    pub gpu_encoder_per_mille: Option<i16>,
+    pub gpu_memory_reserve_bytes: Option<i64>,
+    pub gpu_compute_limit_per_mille: Option<i16>,
+    pub gpu_encoder_limit_per_mille: Option<i16>,
     pub capacity: i32,
     pub disabled: bool,
     pub revision: i64,
@@ -191,6 +249,14 @@ mod tests {
                 install_root: r"D:\游戏 目录".into(),
             },
             gpu_key: Some("GPU-001:0".into()),
+            gpu_profile: Some(GpuResourceProfile {
+                memory_bytes: 512 * 1024 * 1024,
+                compute_per_mille: 200,
+                encoder_per_mille: 250,
+                memory_reserve_bytes: 256 * 1024 * 1024,
+                compute_limit_per_mille: 900,
+                encoder_limit_per_mille: 900,
+            }),
             capacity: 4,
             disabled: false,
         };
@@ -216,6 +282,8 @@ mod tests {
         config.target = DeploymentTarget::Rdp;
         assert!(config.validate().is_err());
         config.capacity = 1;
+        config.gpu_key = None;
+        config.gpu_profile = None;
         assert!(config.validate().is_ok());
         config.gpu_key = Some("".into());
         assert!(config.validate().is_err());

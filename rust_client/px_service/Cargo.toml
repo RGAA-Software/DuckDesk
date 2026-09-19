@@ -34,6 +34,8 @@ winapi = { version = "0.3", features = [
 ] }
 windows = { version = "0.62.2", features = [
     "Win32_Foundation",
+    "Win32_Graphics_Dxgi",
+    "Win32_Graphics_Dxgi_Common",
     "Win32_Security",
     "Win32_Security_Authorization",
     "Win32_Security_Cryptography",

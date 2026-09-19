@@ -60,6 +60,7 @@ pub struct StartAppRequest {
     pub websocket_enabled: bool,
     pub app_mode: String,
     pub webview_url_b64: String,
+    pub gpu_stable_key: Option<String>,
     pub rdp_node_id: String,
     pub rdp_account: Option<crate::rdp_account::RdpAccountSpec>,
     pub device_id: String,
@@ -239,6 +240,9 @@ pub fn build_game_hook_launch_spec(
         format!("--network_listen_port={listen_port}"),
         format!("--device_id={}", req.device_id.trim()),
     ];
+    if let Some(gpu_stable_key) = &req.gpu_stable_key {
+        args.push(format!("--gpu_stable_key={gpu_stable_key}"));
+    }
     append_relay_arguments(&mut args, req);
     if let Some(view_info) = view {
         args.push(format!(
@@ -298,6 +302,9 @@ pub fn build_webview_launch_spec(
         format!("--webview_instance_id={}", req.instance_id),
         format!("--device_id={}", req.device_id.trim()),
     ];
+    if let Some(gpu_stable_key) = &req.gpu_stable_key {
+        args.push(format!("--gpu_stable_key={gpu_stable_key}"));
+    }
     append_relay_arguments(&mut args, req);
     Ok(RenderLaunchSpec {
         work_dir,
@@ -871,6 +878,10 @@ mod tests {
             app_id: "app-car".to_string(),
             app_mode: APP_MODE_GAME_HOOK.to_string(),
             webview_url_b64: String::new(),
+            gpu_stable_key: Some(
+                "pnp-sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    .into(),
+            ),
             rdp_node_id: String::new(),
             rdp_account: None,
             install_root: r"D:\apps\CarGame".to_string(),
@@ -941,6 +952,7 @@ mod tests {
         req.app_mode = APP_MODE_RDP.into();
         req.install_root.clear();
         req.game_exe_rel.clear();
+        req.gpu_stable_key = None;
         req.rdp_node_id = "rdp-node".into();
         req.rdp_account = Some(crate::rdp_account::RdpAccountSpec {
             workspace_id: "workspace".into(),
@@ -1031,6 +1043,10 @@ mod tests {
         assert!(spec
             .args
             .iter()
+            .any(|argument| argument == "--gpu_stable_key=pnp-sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+        assert!(spec
+            .args
+            .iter()
             .any(|argument| argument == "--relay_device_id=device-a__instance__i1"));
         assert!(spec
             .args
@@ -1106,6 +1122,10 @@ mod tests {
             .args
             .iter()
             .any(|arg| arg == &format!("--webview_url_b64={}", req.webview_url_b64)));
+        assert!(spec
+            .args
+            .iter()
+            .any(|argument| argument == "--gpu_stable_key=pnp-sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
         assert!(!spec.args.join(" ").contains(url));
 
         let mut registry = AppInstanceRegistry::new();

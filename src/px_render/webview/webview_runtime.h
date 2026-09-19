@@ -1,13 +1,14 @@
 #ifndef PX_WEBVIEW_RUNTIME_H
 #define PX_WEBVIEW_RUNTIME_H
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
 
+#include "ingress/application_text_service.h"
 #include "px_capture/capture_message.h"
 #include "px_message.pb.h"
-#include "ingress/application_text_service.h"
 
 namespace px {
 
@@ -23,6 +24,7 @@ struct WebViewRuntimeConfig {
     int frame_rate = 60;
     bool enable_audio = true;
     bool accelerated_paint = true;
+    std::string gpu_stable_key;
 };
 
 struct WebViewRuntimeCallbacks {
@@ -32,13 +34,13 @@ struct WebViewRuntimeCallbacks {
     std::function<void(const std::string&)> on_clipboard_text;
     std::function<void(const WebViewTextTarget&)> on_text_target;
     std::function<void(const std::string&)> on_failed;
-    std::function<void()> on_first_frame;
+    std::function<void(std::int64_t)> on_first_frame;
 };
 
 // Must be called before gflags or any application initialization. Returns a
 // non-negative process exit code for CEF renderer/GPU/utility children and -1
 // in the browser (root px_render) process.
-int ExecuteCefSubprocess(void* module_instance);
+int ExecuteCefSubprocess(std::uintptr_t module_instance);
 
 class WebViewRuntime {
 public:
@@ -48,10 +50,7 @@ public:
     WebViewRuntime(const WebViewRuntime&) = delete;
     WebViewRuntime& operator=(const WebViewRuntime&) = delete;
 
-    bool Start(void* module_instance,
-               const WebViewRuntimeConfig& config,
-               WebViewRuntimeCallbacks callbacks,
-               std::string& error);
+    bool Start(std::uintptr_t module_instance, const WebViewRuntimeConfig& config, WebViewRuntimeCallbacks callbacks, std::string& error);
     void Stop();
 
     void SetActive(bool active);
@@ -70,6 +69,6 @@ private:
     std::unique_ptr<Impl> impl_;
 };
 
-} // namespace px
+}  // namespace px
 
-#endif // PX_WEBVIEW_RUNTIME_H
+#endif  // PX_WEBVIEW_RUNTIME_H

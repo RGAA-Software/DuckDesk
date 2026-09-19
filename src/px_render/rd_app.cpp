@@ -1,7 +1,3 @@
-//
-// Created by RGAA on 2023-12-16.
-//
-
 #include "rd_app.h"
 
 #include <windows.h>
@@ -42,6 +38,7 @@
 #include "architecture/sources/dda/dda_capture_source.h"
 #include "architecture/sources/monitor_capture_source.h"
 #include "architecture/sources/was_audio_capture_source.h"
+#include "gpu/gpu_adapter_identity.h"
 #include "network/net_message_maker.h"
 #include "network/render_service_client.h"
 #include "network/resource_channel_reporter.h"
@@ -277,29 +274,29 @@ int RdApplication::Run() {
     if (record_directory.empty()) {
         record_directory = (std::filesystem::path(FolderUtil::GetProgramDataPath()) / L"px_render_records").string();
     }
-    media_recorder_sink_ = render::MediaRecorderSink::Create(encoded_media_bus_,
-                                                             render::MediaRecorderOptions{
-                                                                 .record_directory = std::move(record_directory),
-                                                                 .auto_enabled = settings_.record_auto_,
-                                                                 .max_segment_bytes = settings_.record_max_segment_bytes_,
-                                                                 .max_file_count = settings_.record_max_file_count_,
-                                                                 .queue_capacity = 512,
-                                                                 .on_segment_finalized =
-                                                                     [weak_application](const render::FinalizedRecordingSegment& segment) {
-                                                                         const auto application = weak_application.lock();
-                                                                         if (!application || !application->service_client_) {
-                                                                             return;
-                                                                         }
-                                                                         application->service_client_->NotifyRecordingFinalized(
-                                                                             segment.file_name,
-                                                                             segment.logical_session_id.value_or(std::string{}), segment.codec);
-                                                                     },
-                                                             },
-                                                             [weak_context] {
-                                                                 if (const auto context = weak_context.lock()) {
-                                                                     context->SendAppMessage(MsgInsertIDR{});
-                                                                 }
-                                                             });
+    media_recorder_sink_ =
+        render::MediaRecorderSink::Create(encoded_media_bus_,
+                                          render::MediaRecorderOptions{
+                                              .record_directory = std::move(record_directory),
+                                              .auto_enabled = settings_.record_auto_,
+                                              .max_segment_bytes = settings_.record_max_segment_bytes_,
+                                              .max_file_count = settings_.record_max_file_count_,
+                                              .queue_capacity = 512,
+                                              .on_segment_finalized =
+                                                  [weak_application](const render::FinalizedRecordingSegment& segment) {
+                                                      const auto application = weak_application.lock();
+                                                      if (!application || !application->service_client_) {
+                                                          return;
+                                                      }
+                                                      application->service_client_->NotifyRecordingFinalized(
+                                                          segment.file_name, segment.logical_session_id.value_or(std::string{}), segment.codec);
+                                                  },
+                                          },
+                                          [weak_context] {
+                                              if (const auto context = weak_context.lock()) {
+                                                  context->SendAppMessage(MsgInsertIDR{});
+                                              }
+                                          });
     pipeline_statistics_observer_ = render::PipelineStatisticsObserver::Create(encoded_media_bus_);
     frame_carrier_processor_ = render::FrameCarrierProcessor::Create(RdContext::GetCurrentExeFolder());
     frame_resizer_processor_ = render::FrameResizerProcessor::Create();
@@ -1461,6 +1458,7 @@ void RdApplication::StartWebView() {
         .frame_rate = settings_.encoder_.fps_,
         .enable_audio = settings_.capture_.enable_audio_,
         .accelerated_paint = settings_.webview_gpu_,
+        .gpu_stable_key = settings_.gpu_stable_key_,
     };
     WebViewRuntimeCallbacks callbacks{
         .on_video_frame =
@@ -1505,11 +1503,14 @@ void RdApplication::StartWebView() {
                 }
             },
         .on_first_frame =
-            [weak_self]() {
+            [weak_self](std::int64_t adapter_luid) {
                 LOGI("WebView first off-screen frame is ready");
                 if (const auto self = weak_self.lock(); self && self->service_client_) {
+                    const bool matches_selected_gpu =
+                        self->settings_.gpu_stable_key_.empty() || gpu::AdapterMatchesStableKey(adapter_luid, self->settings_.gpu_stable_key_);
                     self->service_client_->NotifyAppInstanceReady(self->settings_.webview_instance_id_, self->settings_.transmission_.listening_port_,
-                                                                  true, "");
+                                                                  matches_selected_gpu,
+                                                                  matches_selected_gpu ? "" : "GPU binding verification failed");
                 }
                 if (const auto self = weak_self.lock();
                     self && self->webview_runtime_ && !self->HasConnectedPeer() && !self->settings_.webview_smoke_test_) {
@@ -1518,7 +1519,7 @@ void RdApplication::StartWebView() {
             },
     };
     std::string error;
-    if (!webview_runtime_->Start(GetModuleHandleW(nullptr), config, std::move(callbacks), error)) {
+    if (!webview_runtime_->Start(reinterpret_cast<std::uintptr_t>(GetModuleHandleW(nullptr)), config, std::move(callbacks), error)) {
         init_failed_ = true;
         init_error_ = error.empty() ? "WebView runtime start failed" : error;
         LOGE("StartWebView failed: {}", init_error_);
@@ -1710,6 +1711,17 @@ void RdApplication::DeliverCapturedVideoFrame(const CaptureVideoFrame& frame) co
         return;
     }
     if (settings_.IsGameHookMode()) {
+        if (!settings_.gpu_stable_key_.empty()) {
+            const bool matches_selected_gpu = gpu::AdapterMatchesStableKey(frame.adapter_uid_, settings_.gpu_stable_key_);
+            if (!gpu_binding_reported_.exchange(true) && service_client_) {
+                service_client_->NotifyAppInstanceReady(settings_.app_instance_id_, settings_.transmission_.listening_port_, matches_selected_gpu,
+                                                        matches_selected_gpu ? "" : "GPU binding verification failed");
+            }
+            if (!matches_selected_gpu) {
+                LOGE("Game-hook frame was produced by a different GPU than the Console reservation");
+                return;
+            }
+        }
         std::lock_guard<std::mutex> lock(latest_game_hook_frame_mutex_);
         latest_game_hook_frame_ = frame;
         latest_game_hook_replay_frame_index_ = frame.frame_index_;

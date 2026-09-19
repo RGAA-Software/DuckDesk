@@ -127,6 +127,7 @@ impl TelemetryProbeState {
 pub struct NodeGpuTelemetry {
     pub stable_key: String,
     pub name: String,
+    pub runtime_binding_ready: bool,
     pub dedicated_memory_bytes: Option<u64>,
     pub used_memory_bytes: Option<u64>,
     pub utilization_per_mille: Option<u16>,
@@ -170,6 +171,7 @@ pub(crate) struct ValidatedNodeTelemetry {
 pub(crate) struct ValidatedNodeGpuTelemetry {
     pub stable_key: String,
     pub name: String,
+    pub runtime_binding_ready: bool,
     pub dedicated_memory_bytes: Option<i64>,
     pub used_memory_bytes: Option<i64>,
     pub utilization_per_mille: Option<i16>,
@@ -255,6 +257,7 @@ impl NodeTelemetry {
             gpus.push(ValidatedNodeGpuTelemetry {
                 stable_key: gpu.stable_key.clone(),
                 name: gpu.name.clone(),
+                runtime_binding_ready: gpu.runtime_binding_ready,
                 dedicated_memory_bytes,
                 used_memory_bytes,
                 utilization_per_mille: optional_i16(gpu.utilization_per_mille, 0, 1000)?,
@@ -324,6 +327,7 @@ pub struct NodeGpuProfile {
     pub stable_key: String,
     pub inventory_revision: i64,
     pub name: String,
+    pub runtime_binding_ready: bool,
     pub dedicated_memory_bytes: Option<i64>,
     pub used_memory_bytes: Option<i64>,
     pub utilization_per_mille: Option<i16>,
@@ -340,6 +344,7 @@ pub struct NodeGpuHistoryProfile {
     pub stable_key: String,
     pub inventory_revision: i64,
     pub name: String,
+    pub runtime_binding_ready: bool,
     pub dedicated_memory_bytes: Option<i64>,
     pub used_memory_bytes: Option<i64>,
     pub utilization_per_mille: Option<i16>,

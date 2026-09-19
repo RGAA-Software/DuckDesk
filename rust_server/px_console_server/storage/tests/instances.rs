@@ -5,9 +5,10 @@ use argon2::{
 use px_console_store::{
     ApplicationAccess, ApplicationDefinition, ApplicationLaunch, ApplicationSpec, ApplicationStore,
     ClientType, DeploymentConfiguration, DeploymentObservation, DeploymentProfile, DeploymentStore,
-    DeploymentTarget, DevicePlatform, DeviceStore, IdentityStore, NodeConnection, NodeProduct,
-    NodeReport, NodeStore, NodeTelemetry, PasswordDigest, PreparationState, StoreError,
-    TelemetryProbeState, TokenDigest, Username, VideoCodec, VideoSpec,
+    DeploymentTarget, DevicePlatform, DeviceStore, GpuResourceProfile, IdentityStore,
+    NodeConnection, NodeGpuTelemetry, NodeProduct, NodeReport, NodeStore, NodeTelemetry,
+    PasswordDigest, PreparationState, StoreError, TelemetryProbeState, TokenDigest, Username,
+    VideoCodec, VideoSpec,
 };
 use px_console_store::{
     GuestStore, InstanceStore, NodeConfiguration, OriginFingerprint, ResourceCredential,
@@ -54,10 +55,21 @@ fn settings(target: DeploymentTarget) -> DeploymentConfiguration {
         4
     };
     DeploymentConfiguration {
+        gpu_profile: (target != DeploymentTarget::Rdp).then_some(test_gpu_profile()),
         target,
         capacity,
         gpu_key: None,
         disabled: false,
+    }
+}
+fn test_gpu_profile() -> GpuResourceProfile {
+    GpuResourceProfile {
+        memory_bytes: 512 * 1024 * 1024,
+        compute_per_mille: 100,
+        encoder_per_mille: 100,
+        memory_reserve_bytes: 512 * 1024 * 1024,
+        compute_limit_per_mille: 900,
+        encoder_limit_per_mille: 900,
     }
 }
 fn node_report(sequence: u64) -> NodeReport {
@@ -71,21 +83,50 @@ fn node_report(sequence: u64) -> NodeReport {
         game_hook: true,
         webview: true,
         rdp: true,
-        telemetry: unavailable_telemetry(),
+        telemetry: test_telemetry(sequence),
     }
 }
-fn unavailable_telemetry() -> NodeTelemetry {
+fn gpu_report(sequence: u64, gpus: Vec<NodeGpuTelemetry>) -> NodeReport {
+    let mut report = node_report(sequence);
+    report.telemetry.gpu_inventory_revision = Some(sequence);
+    report.telemetry.gpus = gpus;
+    report
+}
+fn gpu(
+    stable_key: &str,
+    utilization_per_mille: Option<u16>,
+    encoder_utilization_per_mille: Option<u16>,
+) -> NodeGpuTelemetry {
+    NodeGpuTelemetry {
+        stable_key: stable_key.into(),
+        name: format!("Test GPU {stable_key}"),
+        runtime_binding_ready: true,
+        dedicated_memory_bytes: Some(8 * 1024 * 1024 * 1024),
+        used_memory_bytes: Some(1024 * 1024 * 1024),
+        utilization_per_mille,
+        encoder_utilization_per_mille,
+    }
+}
+fn test_telemetry(inventory_revision: u64) -> NodeTelemetry {
     NodeTelemetry {
         sampled_at: chrono::Utc::now(),
-        probe_state: TelemetryProbeState::Unavailable,
-        logical_processors: None,
-        cpu_utilization_per_mille: None,
-        memory_total_bytes: None,
-        memory_available_bytes: None,
-        disk_total_bytes: None,
-        disk_free_bytes: None,
-        gpu_inventory_revision: None,
-        gpus: Vec::new(),
+        probe_state: TelemetryProbeState::Ready,
+        logical_processors: Some(8),
+        cpu_utilization_per_mille: Some(100),
+        memory_total_bytes: Some(16 * 1024 * 1024 * 1024),
+        memory_available_bytes: Some(12 * 1024 * 1024 * 1024),
+        disk_total_bytes: Some(256 * 1024 * 1024 * 1024),
+        disk_free_bytes: Some(200 * 1024 * 1024 * 1024),
+        gpu_inventory_revision: Some(inventory_revision),
+        gpus: vec![NodeGpuTelemetry {
+            stable_key: "gpu-test-1".into(),
+            name: "Test GPU".into(),
+            runtime_binding_ready: true,
+            dedicated_memory_bytes: Some(8 * 1024 * 1024 * 1024),
+            used_memory_bytes: Some(1024 * 1024 * 1024),
+            utilization_per_mille: Some(100),
+            encoder_utilization_per_mille: Some(100),
+        }],
     }
 }
 fn observation(deployment: &DeploymentProfile, sequence: u64) -> DeploymentObservation {
@@ -331,6 +372,179 @@ fn request(app: Uuid) -> StartApplication {
         application_id: app,
         deployment_id: None,
     }
+}
+
+#[tokio::test]
+async fn pinned_gpu_admission_accounts_for_measured_and_pending_pressure() {
+    let fixture = Fixture::new().await;
+    let (connection, app, deployment) = fixture.prepared(DeploymentTarget::Webview, 4).await;
+    let mut configuration = settings(DeploymentTarget::Webview);
+    configuration.gpu_key = Some("gpu-idle".into());
+    configuration.gpu_profile = Some(GpuResourceProfile {
+        memory_bytes: 512 * 1024 * 1024,
+        compute_per_mille: 300,
+        encoder_per_mille: 200,
+        memory_reserve_bytes: 512 * 1024 * 1024,
+        compute_limit_per_mille: 600,
+        encoder_limit_per_mille: 600,
+    });
+    let deployment = fixture
+        .deployments
+        .configure(
+            &fixture.admin,
+            deployment.id,
+            deployment.revision,
+            &configuration,
+        )
+        .await
+        .unwrap();
+    fixture
+        .nodes
+        .report(
+            &connection,
+            &gpu_report(
+                2,
+                vec![
+                    gpu("gpu-busy", Some(350), Some(100)),
+                    gpu("gpu-idle", Some(100), Some(100)),
+                ],
+            ),
+        )
+        .await
+        .unwrap();
+    fixture
+        .deployments
+        .report(&connection, deployment.id, &observation(&deployment, 2))
+        .await
+        .unwrap();
+    sqlx::query("UPDATE pixels.nodes SET state='ready' WHERE id=$1")
+        .bind(connection.id())
+        .execute(&fixture.owner)
+        .await
+        .unwrap();
+    let user = fixture.session("user", ClientType::Android).await;
+    let first = fixture
+        .instances
+        .reserve(
+            ResourceCredential::User(&user),
+            ClientType::Android,
+            connection.epoch(),
+            &request(app.id),
+        )
+        .await
+        .unwrap();
+    let reserved: (String, i64, i64, i16, i16) = sqlx::query_as(
+        "SELECT gpu_key,gpu_inventory_revision,gpu_memory_reservation_bytes,gpu_compute_reservation_per_mille,gpu_encoder_reservation_per_mille FROM pixels.instances WHERE id=$1",
+    )
+    .bind(first.id)
+    .fetch_one(&fixture.owner)
+    .await
+    .unwrap();
+    assert_eq!(
+        reserved,
+        ("gpu-idle".into(), 2, 512 * 1024 * 1024, 300, 200)
+    );
+    assert_eq!(
+        fixture
+            .instances
+            .reserve(
+                ResourceCredential::User(&user),
+                ClientType::Android,
+                connection.epoch(),
+                &request(app.id),
+            )
+            .await
+            .unwrap_err(),
+        StoreError::NoCapacity
+    );
+    fixture.close().await;
+}
+
+#[tokio::test]
+async fn unpinned_multi_gpu_inventory_selects_a_concrete_adapter_binding() {
+    let fixture = Fixture::new().await;
+    let (connection, app, deployment) = fixture.prepared(DeploymentTarget::Webview, 2).await;
+    fixture
+        .nodes
+        .report(
+            &connection,
+            &gpu_report(
+                2,
+                vec![
+                    gpu("gpu-first", Some(100), Some(100)),
+                    gpu("gpu-second", Some(100), Some(100)),
+                ],
+            ),
+        )
+        .await
+        .unwrap();
+    fixture
+        .deployments
+        .report(&connection, deployment.id, &observation(&deployment, 2))
+        .await
+        .unwrap();
+    sqlx::query("UPDATE pixels.nodes SET state='ready' WHERE id=$1")
+        .bind(connection.id())
+        .execute(&fixture.owner)
+        .await
+        .unwrap();
+    let user = fixture.session("user", ClientType::Android).await;
+    let instance = fixture
+        .instances
+        .reserve(
+            ResourceCredential::User(&user),
+            ClientType::Android,
+            connection.epoch(),
+            &request(app.id),
+        )
+        .await
+        .unwrap();
+    let selected: String = sqlx::query_scalar("SELECT gpu_key FROM pixels.instances WHERE id=$1")
+        .bind(instance.id)
+        .fetch_one(&fixture.owner)
+        .await
+        .unwrap();
+    assert_eq!(selected, "gpu-first");
+    fixture.close().await;
+}
+
+#[tokio::test]
+async fn unknown_gpu_pressure_is_not_treated_as_free_capacity() {
+    let fixture = Fixture::new().await;
+    let (connection, app, deployment) = fixture.prepared(DeploymentTarget::Webview, 2).await;
+    fixture
+        .nodes
+        .report(
+            &connection,
+            &gpu_report(2, vec![gpu("gpu-unknown", Some(100), None)]),
+        )
+        .await
+        .unwrap();
+    fixture
+        .deployments
+        .report(&connection, deployment.id, &observation(&deployment, 2))
+        .await
+        .unwrap();
+    sqlx::query("UPDATE pixels.nodes SET state='ready' WHERE id=$1")
+        .bind(connection.id())
+        .execute(&fixture.owner)
+        .await
+        .unwrap();
+    let user = fixture.session("user", ClientType::Android).await;
+    assert_eq!(
+        fixture
+            .instances
+            .reserve(
+                ResourceCredential::User(&user),
+                ClientType::Android,
+                connection.epoch(),
+                &request(app.id),
+            )
+            .await
+            .unwrap_err(),
+        StoreError::NoCapacity
+    );
+    fixture.close().await;
 }
 
 struct Contender(std::process::Child);

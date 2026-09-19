@@ -1,6 +1,6 @@
 # 云应用业务管理与多 GPU 调度设计
 
-> 2026-09-16 · 目标设计，待实施。网页为离线模型，不连接真实机器。
+> 2026-09-19 · P3 资源预算、PostgreSQL 原子硬过滤和基于物理 GPU 稳定身份的实际 Render 绑定已实施；调度预览/拒绝解释仍待完成。网页拓扑仍为离线模型。
 > 关联：[服务架构](server_refactoring_plan.md)、[运维后台](service_operations_console_plan.md)、[网页模型](server_topology.html#business)。
 
 前置依赖：先完成 [PostgreSQL 数据库阶段 DB0–DB5](postgresql_database_migration_plan.md)，统一持久事务、任务/outbox 和幂等基线。
@@ -78,8 +78,16 @@ Android 对应现有 `RemoteSessionTarget.CloudApplication(appId, instanceId, co
 编码器数量/吞吐取自能力探测及验证配置，不写死显卡厂商的通用并发数字；编码会话空闲也不代表显存或 3D 有余量。
 
 当前实现进度（2026-09-19）：Windows Service 已对 NVIDIA 使用 NVML，并且只有 PCI vendor/device/subsystem 与 WMI 清单双向唯一时才填充
-显存、GPU 和编码器利用率；歧义或不可用保持未知。该数据已进入 Console latest、7 天历史、页面和阈值事件，但尚未接入本章 P3 的
-硬过滤/评分。AMD/Intel provider、编码会话预算和实际 Render GPU 绑定仍是后续出口，不能用节点总实例数替代。
+显存、GPU 和编码器利用率；歧义或不可用保持未知。Service 还会用 D3DKMT 将当前逻辑适配器反查到物理 PnP 身份；只有至少一个当前适配器能映射到
+同一稳定 key 时才上报 `runtime_binding_ready=true`。该数据已进入 Console latest、7 天历史、页面、阈值事件和 P3 首批原子硬过滤。
+迁移 0027 要求 Game Hook/WebView 部署显式配置单实例显存、GPU/编码器预算、安全余量和最大压力；预约把最终 GPU 身份、库存代际及预算
+固化到实例/节点命令，并使用 `max(measured, committed-running)+pending+request` 逐维拒绝超售。RDP 原生链路明确没有该 GPU 编码 profile。
+节点执行前会重新采样并校验代际、稳定身份、运行时映射能力、指标和余量。预约可在未固定 GPU 的多卡节点上原子选择具体物理卡，并将 stable key、
+inventory revision 和预算固化到 Start 命令；数据库和网络协议不保存易变的 DXGI LUID。WebView 在本进程枚举 DXGI 适配器，通过 D3DKMT 将每个
+LUID 反查为物理 PnP key，只允许匹配所选 stable key 的适配器打开 CEF 共享纹理；Game Hook 把首个捕获帧的实际 adapter UID 用同一路径反查后核验。
+两种模式都必须向 Service 回报首帧 Ready，落点不符、映射不可用或超时均启动失败，不会静默落到其他卡。一张物理 GPU 即使暴露多个逻辑适配器，
+它们也归并到同一物理 stable key，不会被误报成多张可独立预约的卡。
+因此逐卡数据库记账和多 GPU 实际绑定验证已经落地；调度预览/逐候选拒绝解释、AMD/Intel provider 仍是后续出口，不能用节点总实例数替代。
 CPU 百分比只在同一容量基准上比较，跨型号通过 profile/基准归一化；不同型号的 30% GPU 利用率不能直接排序。
 显存不能跨卡相加来满足单卡需求。跨卡采集/编码会消耗拷贝带宽，首版默认同卡，只允许显式验证的跨卡组合并记账。
 缺失关键能力/指标时显示 Unknown 并禁止自动新准入；显式静态保守预算模式须单独验证，不以缺失数据默认 0。
@@ -131,8 +139,8 @@ Console 用“资源快照 + 自身持久预约台账”作候选判断，关键
 
 ### 4.1 单机多显卡的实际绑定
 
-gpu_id 不能是易变化的 GPU 0/1 序号；结合厂商稳定标识或受保护硬件登记，使用当前 inventory revision 映射到运行期适配器。
-Windows LUID 只作当前枚举代际的跨 API 对应，不作为永久硬件身份；设备重启/驱动变化后重新核验映射。
+gpu_id 不能是易变化的 GPU 0/1 序号；当前 Windows 实现把规范化物理 PnP key 的 SHA-256 作为 stable key，并使用当前 inventory revision 映射到
+运行期适配器。Windows LUID 只在 Service/Render 进程内作为当前枚举代际的跨 API 对应，不进入持久模型或启动协议；设备重启/驱动变化后重新枚举。
 分别报告 requested/actual 的应用图形卡、采集卡和编码卡。选择 Render 编码卡不等于外部游戏或 CEF 自动跟随。
 
 - Game Hook：按应用支持的设备选择机制与采集观测验证；保持本次私有 Job AND 规范完整路径的所有权限制。
@@ -226,6 +234,24 @@ RDP owner 不可达应显示无法恢复，不在空机器复制同名用户冒�
 
 网页模型回归：在已安装 Console 开发依赖的工作区运行 `node docs/tests/server_topology.test.cjs`。
 默认使用本机 Chrome，其他路径可通过 `PIXELS_TEST_CHROME` 指定。测试离线页面，不代表真实节点/调度后端验收。
+
+### 6.1 2026-09-19 P3 首批实现证据
+
+- SQLx 元数据 `pg-20260919-085203-70161370` 从三套空库重新生成，共 268 份 Console 查询元数据。实例预约专项
+  `pg-20260919-085304-9f18dcd4` 为 14/14 PASS，覆盖固定 GPU 的实测与 pending 预算、未知编码器指标拒绝、物理 stable key 选卡及既有门禁。
+- 命令状态机 `pg-20260919-085514-84c609b3` 为 16/16 PASS；节点/部署分别为 `pg-20260919-085416-a29e121f` 9/9、
+  `pg-20260919-085618-4365a91b` 6/6；真实节点 WebSocket `pg-20260919-085715-d53b40c1` 为 1/1 PASS；目录/主体 API
+  `pg-20260919-090245-02ab41c7` 为 7/7 PASS。
+- Windows Service 全目标（含显式硬件用例）为 90/90 PASS；真实 RTX 3060 验证了 NVML、WMI 与多个逻辑 DXGI 适配器到同一物理 PnP stable key
+  的映射。Cloud Node/Remote build/stage/dist `px_service.exe` SHA-256 均为
+  `9DF69FB05B5D9146BBC18B187B8FBB260EDC15043881254B7DD7D9A673E85E97`，严格 Clippy 通过。
+- Cloud Node Render build/dist SHA-256 为 `41EDD79A409D7FDF95A685EDDC8517DD62C5EA146C69B36781BF660F875E3221`；Remote 为
+  `629CF629AC1704D9588A72BB60161129591FB1D0CF1B6F0083DB35D7447E3C09`。物理 GPU 身份硬件测试 1/1 PASS，相关运行时依赖逐文件哈希一致。
+- Console Web 类型检查、44/44 合同测试和生产构建通过；部署页面具有中英文预算配置，节点页显示运行时 GPU 绑定是否可验证。当前聚焦 Console
+  build/output `px_console.exe` SHA-256 均为 `0441DA4A0F24FB82ACCE5DF51D640C20DC1C8B44FD1C7D738BE028A3253A70A4`，严格 Clippy 通过。
+- 三库异机备份恢复专项 `pg-20260919-090416-b1a84fe9` 为 1/1 PASS，并按 Console schema 27 个迁移核验恢复结果。
+- Windows 全量短验收 `pg-20260919-092615-5418ce4c` 从三套空库完成 415/415 PASS，覆盖本批 PostgreSQL、API、真实 Chromium、
+  Web Client、断库恢复与最终三库恢复冒烟；公网 Windows/Android、Relay 和最终长测仍按 DB5 单独验收。
 
 设计借鉴 [Kubernetes 调度阶段](https://kubernetes.io/docs/concepts/scheduling-eviction/scheduling-framework/) 的过滤、评分和预约分离，
 不要求部署 Kubernetes。适配器映射参考 [Microsoft DXCore 标识说明](https://learn.microsoft.com/en-us/windows/win32/api/dxcore_interface/ne-dxcore_interface-dxcoreadapterproperty)；

@@ -61,6 +61,7 @@ fn telemetry_report(request_id: u64, sequence: u64, cpu_utilization_per_mille: u
                 "gpus":[{
                     "stable_key":"pnp-sha256:0123456789abcdef",
                     "name":"Synthetic GPU",
+                    "runtime_binding_ready":true,
                     "dedicated_memory_bytes":25769803776_u64,
                     "used_memory_bytes":8589934592_u64,
                     "utilization_per_mille":250,
@@ -170,6 +171,14 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
             "configuration":{
                 "target":{"kind":"webview"},
                 "gpu_key":null,
+                "gpu_profile":{
+                    "memory_bytes":1073741824_u64,
+                    "compute_per_mille":100,
+                    "encoder_per_mille":100,
+                    "memory_reserve_bytes":1073741824_u64,
+                    "compute_limit_per_mille":900,
+                    "encoder_limit_per_mille":900
+                },
                 "capacity":4,
                 "disabled":false
             }
@@ -275,6 +284,7 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
                     "gpus":[{
                         "stable_key":"pnp-sha256:0123456789abcdef",
                         "name":"Synthetic GPU",
+                        "runtime_binding_ready":true,
                         "dedicated_memory_bytes":25769803776_u64,
                         "used_memory_bytes":8589934592_u64,
                         "utilization_per_mille":250,

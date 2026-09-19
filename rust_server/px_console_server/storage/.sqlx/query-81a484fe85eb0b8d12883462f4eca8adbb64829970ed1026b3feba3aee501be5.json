@@ -1,0 +1,106 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT kind,install_root,executable_relative,arguments,entry_url,codec,bitrate_kbps,gpu_key,gpu_inventory_revision,\ngpu_memory_reservation_bytes,gpu_compute_reservation_per_mille,gpu_encoder_reservation_per_mille,gpu_memory_reserve_bytes,\ngpu_compute_limit_per_mille,gpu_encoder_limit_per_mille FROM pixels.instances WHERE id=$1\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "install_root",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "executable_relative",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "arguments",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "entry_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "codec",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "bitrate_kbps",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "gpu_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "gpu_inventory_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "gpu_memory_reservation_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "gpu_compute_reservation_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 11,
+        "name": "gpu_encoder_reservation_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 12,
+        "name": "gpu_memory_reserve_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 13,
+        "name": "gpu_compute_limit_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 14,
+        "name": "gpu_encoder_limit_per_mille",
+        "type_info": "Int2"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "81a484fe85eb0b8d12883462f4eca8adbb64829970ed1026b3feba3aee501be5"
+}

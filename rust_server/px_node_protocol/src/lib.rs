@@ -45,10 +45,23 @@ pub enum NodeCommandAction {
         port: u16,
         launch: ApplicationLaunch,
         install_root: Option<String>,
-        gpu_key: Option<String>,
+        gpu_reservation: Option<GpuReservation>,
     },
     #[serde(deserialize_with = "strict_empty::deserialize")]
     Stop,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GpuReservation {
+    pub stable_key: String,
+    pub inventory_revision: i64,
+    pub memory_bytes: i64,
+    pub compute_per_mille: i16,
+    pub encoder_per_mille: i16,
+    pub memory_reserve_bytes: i64,
+    pub compute_limit_per_mille: i16,
+    pub encoder_limit_per_mille: i16,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -94,18 +107,19 @@ pub enum TelemetryProbeState {
     Unavailable,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NodeGpuTelemetry {
     pub stable_key: String,
     pub name: String,
+    pub runtime_binding_ready: bool,
     pub dedicated_memory_bytes: Option<u64>,
     pub used_memory_bytes: Option<u64>,
     pub utilization_per_mille: Option<u16>,
     pub encoder_utilization_per_mille: Option<u16>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NodeTelemetry {
     pub sampled_at: DateTime<Utc>,

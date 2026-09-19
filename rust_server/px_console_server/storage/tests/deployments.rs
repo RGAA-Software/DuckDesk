@@ -5,10 +5,10 @@ use argon2::{
 use px_console_store::{
     ApplicationAccess, ApplicationDefinition, ApplicationLaunch, ApplicationSpec, ApplicationStore,
     ClientType, DeploymentConfiguration, DeploymentObservation, DeploymentProfile, DeploymentStore,
-    DeploymentTarget, DevicePlatform, DeviceStore, IdentityStore, NodeConnection,
-    NodeDeploymentPreparation, NodeProduct, NodeReport, NodeStore, NodeTelemetry, PasswordDigest,
-    PreparationFailure, PreparationState, StoreError, TelemetryProbeState, TokenDigest, Username,
-    VideoCodec, VideoSpec,
+    DeploymentTarget, DevicePlatform, DeviceStore, GpuResourceProfile, IdentityStore,
+    NodeConnection, NodeDeploymentPreparation, NodeProduct, NodeReport, NodeStore, NodeTelemetry,
+    PasswordDigest, PreparationFailure, PreparationState, StoreError, TelemetryProbeState,
+    TokenDigest, Username, VideoCodec, VideoSpec,
 };
 use px_pg::{DatabaseConfig, Transport};
 use std::{env, sync::OnceLock, time::Duration};
@@ -51,10 +51,21 @@ fn settings(target: DeploymentTarget) -> DeploymentConfiguration {
         4
     };
     DeploymentConfiguration {
+        gpu_profile: (target != DeploymentTarget::Rdp).then_some(test_gpu_profile()),
         target,
         capacity,
         gpu_key: None,
         disabled: false,
+    }
+}
+fn test_gpu_profile() -> GpuResourceProfile {
+    GpuResourceProfile {
+        memory_bytes: 512 * 1024 * 1024,
+        compute_per_mille: 100,
+        encoder_per_mille: 100,
+        memory_reserve_bytes: 512 * 1024 * 1024,
+        compute_limit_per_mille: 900,
+        encoder_limit_per_mille: 900,
     }
 }
 fn node_report(sequence: u64) -> NodeReport {

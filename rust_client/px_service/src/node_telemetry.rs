@@ -1,4 +1,6 @@
-use crate::node_gpu_telemetry::{enrich_nvidia_metrics, EnumeratedGpu};
+use crate::node_gpu_telemetry::{
+    enrich_nvidia_metrics, enrich_runtime_adapter_bindings, stable_gpu_key, EnumeratedGpu,
+};
 use chrono::Utc;
 use px_node_protocol::{NodeGpuTelemetry, NodeTelemetry, TelemetryProbeState};
 use serde::Deserialize;
@@ -102,6 +104,7 @@ fn sample_inner() -> Result<NodeTelemetry, String> {
                         telemetry: NodeGpuTelemetry {
                             stable_key: stable_gpu_key(&identity),
                             name,
+                            runtime_binding_ready: false,
                             dedicated_memory_bytes: None,
                             used_memory_bytes: None,
                             utilization_per_mille: None,
@@ -111,6 +114,7 @@ fn sample_inner() -> Result<NodeTelemetry, String> {
                 })
                 .collect::<Vec<_>>();
             enrich_nvidia_metrics(&mut enumerated_gpus);
+            enrich_runtime_adapter_bindings(&mut enumerated_gpus);
             let mut gpus = enumerated_gpus
                 .into_iter()
                 .map(|gpu| gpu.telemetry)
@@ -163,33 +167,19 @@ pub(crate) fn unavailable() -> NodeTelemetry {
     }
 }
 
-fn stable_gpu_key(identity: &str) -> String {
-    let digest = Sha256::digest(identity.as_bytes());
-    format!("pnp-sha256:{}", lowercase_hex(&digest))
-}
-
 fn gpu_inventory_revision(gpus: &[NodeGpuTelemetry]) -> u64 {
     let mut hasher = Sha256::new();
     for gpu in gpus {
         hasher.update(gpu.stable_key.as_bytes());
         hasher.update([0]);
         hasher.update(gpu.name.as_bytes());
+        hasher.update([u8::from(gpu.runtime_binding_ready)]);
         hasher.update([0xff]);
     }
     let digest = hasher.finalize();
     let mut prefix = [0_u8; 8];
     prefix.copy_from_slice(&digest[..8]);
     (u64::from_be_bytes(prefix) & u64::try_from(i64::MAX).expect("i64::MAX fits in u64")).max(1)
-}
-
-fn lowercase_hex(bytes: &[u8]) -> String {
-    const DIGITS: &[u8; 16] = b"0123456789abcdef";
-    let mut encoded = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        encoded.push(char::from(DIGITS[usize::from(byte >> 4)]));
-        encoded.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
-    }
-    encoded
 }
 
 #[cfg(test)]
@@ -234,6 +224,7 @@ mod tests {
             .iter()
             .find(|gpu| gpu.name.to_ascii_lowercase().contains("nvidia"))
             .expect("a physical NVIDIA adapter is required");
+        assert!(gpu.runtime_binding_ready);
         assert!(gpu.dedicated_memory_bytes.is_some());
         assert!(gpu.used_memory_bytes <= gpu.dedicated_memory_bytes);
         assert!(gpu.utilization_per_mille.is_some());
@@ -244,6 +235,7 @@ mod tests {
         NodeGpuTelemetry {
             stable_key: stable_key.to_string(),
             name: name.to_string(),
+            runtime_binding_ready: false,
             dedicated_memory_bytes: None,
             used_memory_bytes: None,
             utilization_per_mille: None,

@@ -68,6 +68,7 @@ function sample(
             stable_key: `gpu-${index}`,
             inventory_revision: 1,
             name: `GPU ${index}`,
+            runtime_binding_ready: true,
             dedicated_memory_bytes: 100,
             used_memory_bytes: 25,
             utilization_per_mille: utilization,

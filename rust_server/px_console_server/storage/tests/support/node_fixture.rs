@@ -6,9 +6,10 @@ use argon2::{
 use px_console_store::{
     ApplicationAccess, ApplicationDefinition, ApplicationLaunch, ApplicationSpec, ApplicationStore,
     ClientType, DeploymentConfiguration, DeploymentObservation, DeploymentProfile, DeploymentStore,
-    DeploymentTarget, DevicePlatform, DeviceStore, IdentityStore, NodeConnection, NodeProduct,
-    NodeReport, NodeStore, NodeTelemetry, PasswordDigest, PreparationState, StoreError,
-    TelemetryProbeState, TokenDigest, Username, VideoCodec, VideoSpec,
+    DeploymentTarget, DevicePlatform, DeviceStore, GpuResourceProfile, IdentityStore,
+    NodeConnection, NodeGpuTelemetry, NodeProduct, NodeReport, NodeStore, NodeTelemetry,
+    PasswordDigest, PreparationState, StoreError, TelemetryProbeState, TokenDigest, Username,
+    VideoCodec, VideoSpec,
 };
 use px_console_store::{
     ApplicationInstance, CommandOutcome, CommandReceipt, NodeCommand, NodeCommandAction,
@@ -59,10 +60,21 @@ pub fn settings(target: DeploymentTarget) -> DeploymentConfiguration {
         4
     };
     DeploymentConfiguration {
+        gpu_profile: (target != DeploymentTarget::Rdp).then_some(test_gpu_profile()),
         target,
         capacity,
         gpu_key: None,
         disabled: false,
+    }
+}
+fn test_gpu_profile() -> GpuResourceProfile {
+    GpuResourceProfile {
+        memory_bytes: 512 * 1024 * 1024,
+        compute_per_mille: 100,
+        encoder_per_mille: 100,
+        memory_reserve_bytes: 512 * 1024 * 1024,
+        compute_limit_per_mille: 900,
+        encoder_limit_per_mille: 900,
     }
 }
 pub fn node_report(sequence: u64) -> NodeReport {
@@ -76,7 +88,29 @@ pub fn node_report(sequence: u64) -> NodeReport {
         game_hook: true,
         webview: true,
         rdp: true,
-        telemetry: unavailable_telemetry(),
+        telemetry: test_telemetry(sequence),
+    }
+}
+fn test_telemetry(inventory_revision: u64) -> NodeTelemetry {
+    NodeTelemetry {
+        sampled_at: chrono::Utc::now(),
+        probe_state: TelemetryProbeState::Ready,
+        logical_processors: Some(8),
+        cpu_utilization_per_mille: Some(100),
+        memory_total_bytes: Some(16 * 1024 * 1024 * 1024),
+        memory_available_bytes: Some(12 * 1024 * 1024 * 1024),
+        disk_total_bytes: Some(256 * 1024 * 1024 * 1024),
+        disk_free_bytes: Some(200 * 1024 * 1024 * 1024),
+        gpu_inventory_revision: Some(inventory_revision),
+        gpus: vec![NodeGpuTelemetry {
+            stable_key: "gpu-test-1".into(),
+            name: "Test GPU".into(),
+            runtime_binding_ready: true,
+            dedicated_memory_bytes: Some(8 * 1024 * 1024 * 1024),
+            used_memory_bytes: Some(1024 * 1024 * 1024),
+            utilization_per_mille: Some(100),
+            encoder_utilization_per_mille: Some(100),
+        }],
     }
 }
 fn unavailable_telemetry() -> NodeTelemetry {

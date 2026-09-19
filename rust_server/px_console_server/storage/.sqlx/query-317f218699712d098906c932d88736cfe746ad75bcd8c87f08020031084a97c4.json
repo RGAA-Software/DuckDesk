@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT history.node_id,history.node_generation,history.report_sequence,history.stable_key,\n history.inventory_revision,history.name,history.dedicated_memory_bytes,history.used_memory_bytes,\n history.utilization_per_mille,history.encoder_utilization_per_mille,history.sampled_at,history.received_at\nFROM pixels.node_gpu_history AS history\nJOIN unnest($2::bigint[],$3::bigint[]) AS sample(node_generation,report_sequence)\n ON sample.node_generation=history.node_generation AND sample.report_sequence=history.report_sequence\nWHERE history.node_id=$1\nORDER BY history.received_at DESC,history.node_generation DESC,history.report_sequence DESC,history.stable_key\n",
+  "query": "SELECT history.node_id,history.node_generation,history.report_sequence,history.stable_key,\n history.inventory_revision,history.name,history.runtime_binding_ready,history.dedicated_memory_bytes,history.used_memory_bytes,\n history.utilization_per_mille,history.encoder_utilization_per_mille,history.sampled_at,history.received_at\nFROM pixels.node_gpu_history AS history\nJOIN unnest($2::bigint[],$3::bigint[]) AS sample(node_generation,report_sequence)\n ON sample.node_generation=history.node_generation AND sample.report_sequence=history.report_sequence\nWHERE history.node_id=$1\nORDER BY history.received_at DESC,history.node_generation DESC,history.report_sequence DESC,history.stable_key\n",
   "describe": {
     "columns": [
       {
@@ -35,31 +35,36 @@
       },
       {
         "ordinal": 6,
+        "name": "runtime_binding_ready",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
         "name": "dedicated_memory_bytes",
         "type_info": "Int8"
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "used_memory_bytes",
         "type_info": "Int8"
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "utilization_per_mille",
         "type_info": "Int2"
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "encoder_utilization_per_mille",
         "type_info": "Int2"
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "sampled_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "received_at",
         "type_info": "Timestamptz"
       }
@@ -78,6 +83,7 @@
       false,
       false,
       false,
+      false,
       true,
       true,
       true,
@@ -86,5 +92,5 @@
       false
     ]
   },
-  "hash": "7b30ae8cffe8bd4e69de88c51b9730c5515025c99a1a77cf6fee3de9c32955d1"
+  "hash": "317f218699712d098906c932d88736cfe746ad75bcd8c87f08020031084a97c4"
 }

@@ -129,6 +129,14 @@ describe("PostgreSQL managed catalog API", () => {
         const configuration: DeploymentConfiguration = {
             target: { kind: "game_hook", install_root: "D:\\Games\\Example" },
             gpu_key: "GPU-1:0",
+            gpu_profile: {
+                memory_bytes: 1073741824,
+                compute_per_mille: 200,
+                encoder_per_mille: 250,
+                memory_reserve_bytes: 536870912,
+                compute_limit_per_mille: 900,
+                encoder_limit_per_mille: 900,
+            },
             capacity: 2,
             disabled: false,
         };

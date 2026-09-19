@@ -28,10 +28,10 @@
 |---|---|---|---|---|
 | CM-IDENTITY | 管理员登录；用户、用户组管理 | 已迁移 | Console 管理身份 API；`LoginView`、`UserManager`、`GroupManager` | PostgreSQL 管理会话、角色/CAS、最后管理员、改密/退出和中英文 UI 合同持续通过；真实浏览器已覆盖登录及用户/组创建，不得回退 Cookie/CSRF |
 | CM-DASHBOARD | 资源总览、数量与近期状态 | 部分迁移 | `ResourcesView` + managed applications/nodes/deployments/sessions/recordings | 当前页面、登录后导航、进程重启数据保持及数据库失联 fail-closed/恢复已做真实浏览器验收；节点列表已展示 Service 最新快照，管理节点详情可查最近 100 条原始历史并绘制 CPU/内存/磁盘/GPU/编码器趋势，未知值以断点呈现；独立管理事件流会刷新资源视图；仍需服务端趋势聚合和陈旧时长 |
-| CM-DEVICE | 设备目录、在线状态、访问授权、设备详情 | 部分迁移 | managed device API + `DevicesList` | 目录及创建一次性注册凭据已做真实浏览器验收，轮换、启停/删除和用户/组 ACL 已接；真实 WMI latest 与 7 天原始历史已落 PostgreSQL 并进入管理节点详情，NVIDIA NVML 的 GPU 负载/显存/编码器指标按唯一 PCI 身份接入；AMD/Intel 指标、调度硬过滤及运维动作仍待闭环 |
+| CM-DEVICE | 设备目录、在线状态、访问授权、设备详情 | 部分迁移 | managed device API + `DevicesList` | 目录及创建一次性注册凭据已做真实浏览器验收，轮换、启停/删除和用户/组 ACL 已接；真实 WMI latest 与 7 天原始历史已落 PostgreSQL 并进入管理节点详情，NVIDIA NVML 的 GPU 负载/显存/编码器指标按唯一 PCI 身份接入，页面可见物理 GPU 的运行时绑定验证状态；AMD/Intel 指标及运维动作仍待闭环 |
 | CM-ONLINE | 在线连接列表、访问主体和会话状态 | 已迁移 | managed resource sessions + `OnlineConnection` | 分页、筛选、主体隔离、敏感 descriptor 不返回、真实节点连接/断开更新及浏览器展示通过 |
 | CM-CONNECTION | Service/Panel 连接、远程会话详情和会话事件 | 部分迁移 | managed visits/channels/transfers + `SecurityInternal` | 当前访问、通道、传输和录像历史已接，节点上报会实时刷新对应管理视图；仍需节点连接代际、命令/会话事件明细和业务数据陈旧时长 |
-| CM-APPLICATION | 应用、节点、部署配置与调度状态 | 已迁移 | managed application/node/deployment API + `AppsView` | 三种模式、显式 deployment target、CAS、节点 generation、容量/维护门禁和部署准备回归持续通过；管理员页面不冒充终端用户启动入口 |
+| CM-APPLICATION | 应用、节点、部署配置与调度状态 | 部分迁移 | managed application/node/deployment API + `AppsView` | 三种模式、显式 deployment target、CAS、节点 generation、容量/维护门禁持续通过；Game Hook/WebView 已增加版本化 GPU 预算、逐卡原子硬过滤、节点二次准入以及 Render 首帧到物理 GPU stable key 的核验，RDP 明确无 Render GPU profile；调度预览/逐候选拒绝原因和公网容量验收仍待完成 |
 | CM-RECORDING | 录像目录、直读/拉取、下载到本机或 Console、删除 | 部分迁移 | recording catalog + private cache/read-lease service + 管理/本人录像页 | Render 完成段、Service 登记/回传、Console 私有缓存、Range 下载、管理员与会话 owner 页面以及 Console 副本保留/释放/驱逐已接通；自动化覆盖 hash、并发、读取租约、撤销、CAS 和 pinned/在读拒绝。仍需真实公网录像与有数据浏览器下载/管理动作验收。旧 URL ticket 不恢复 |
 | CM-WALL | 多设备视频墙、分页、自动重连、每格媒体统计 | 待实现（延期） | 多个显式 observer 资源会话 + 多条 Direct Host WebRTC | 不阻塞本轮DB0–DB5；以后恢复时每格独立descriptor/lease并直接连接对应Render，不恢复ZLM或中央媒体转发，容量按浏览器与Render编码槽明确限制 |
 | CM-LIVE | 选择应用/节点/实例并通过ZLMediaKit观看直播流 | 明确退役 | `backup/`归档；不属于本轮活动产品 | 归档ZLM/RTMP/HLS/HTTP-FLV、Render live pusher、Console播放代理和短期播放ticket，并从构建/安装/路由/UI移除；录像及未来Direct Host observer不随之退役 |

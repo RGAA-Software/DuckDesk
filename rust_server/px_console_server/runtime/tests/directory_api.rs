@@ -1187,8 +1187,13 @@ async fn node_and_deployment_management_cannot_manufacture_readiness_or_change_t
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
-    let configuration =
-        json!({"target":{"kind":"rdp"},"gpu_key":null,"capacity":1,"disabled":false});
+    let configuration = json!({
+        "target":{"kind":"rdp"},
+        "gpu_key":null,
+        "gpu_profile":null,
+        "capacity":1,
+        "disabled":false
+    });
     let (status, deployment) = call(
         &router,
         "POST",
@@ -1204,7 +1209,7 @@ async fn node_and_deployment_management_cannot_manufacture_readiness_or_change_t
         "/api/console/managed/deployments/{}",
         deployment["id"].as_str().unwrap()
     );
-    let invalid = json!({"revision":1,"configuration":{"target":{"kind":"webview"},"gpu_key":null,"capacity":1,"disabled":false}});
+    let invalid = json!({"revision":1,"configuration":{"target":{"kind":"webview"},"gpu_key":null,"gpu_profile":null,"capacity":1,"disabled":false}});
     assert_ne!(
         call(&router, "PATCH", &path, "admin_web", Some(&admin), invalid)
             .await

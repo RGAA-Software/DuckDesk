@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO pixels.application_deployments AS d(id,application_id,node_id,kind,install_root,gpu_key,capacity,disabled,application_revision)\nSELECT $1,a.id,n.id,$4,$5,$6,$7,$8,a.revision FROM pixels.applications a,pixels.nodes n,pixels.devices v\nWHERE a.id=$2 AND n.id=$3 AND a.kind=$4 AND a.deleted_at IS NULL AND n.deleted_at IS NULL\nAND v.id=n.device_id AND v.deleted_at IS NULL\nRETURNING d.id,d.application_id,d.node_id,d.kind,d.install_root,d.gpu_key,d.capacity,d.disabled,d.revision,d.application_revision,d.observed_state,d.observed_reason,d.observed_generation,d.observed_epoch,d.observed_endpoint_revision,d.observed_sequence,d.observed_at\n",
+  "query": "SELECT d.id,d.application_id,d.node_id,d.kind,d.install_root,d.gpu_key,d.gpu_memory_bytes,d.gpu_compute_per_mille,d.gpu_encoder_per_mille,d.gpu_memory_reserve_bytes,d.gpu_compute_limit_per_mille,d.gpu_encoder_limit_per_mille,d.capacity,d.disabled,d.revision,d.application_revision,d.observed_state,d.observed_reason,d.observed_generation,d.observed_epoch,d.observed_endpoint_revision,d.observed_sequence,d.observed_at FROM pixels.application_deployments d WHERE d.id=$1 FOR UPDATE\n",
   "describe": {
     "columns": [
       {
@@ -35,70 +35,93 @@
       },
       {
         "ordinal": 6,
-        "name": "capacity",
-        "type_info": "Int4"
-      },
-      {
-        "ordinal": 7,
-        "name": "disabled",
-        "type_info": "Bool"
-      },
-      {
-        "ordinal": 8,
-        "name": "revision",
+        "name": "gpu_memory_bytes",
         "type_info": "Int8"
       },
       {
+        "ordinal": 7,
+        "name": "gpu_compute_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 8,
+        "name": "gpu_encoder_per_mille",
+        "type_info": "Int2"
+      },
+      {
         "ordinal": 9,
-        "name": "application_revision",
+        "name": "gpu_memory_reserve_bytes",
         "type_info": "Int8"
       },
       {
         "ordinal": 10,
-        "name": "observed_state",
-        "type_info": "Text"
+        "name": "gpu_compute_limit_per_mille",
+        "type_info": "Int2"
       },
       {
         "ordinal": 11,
-        "name": "observed_reason",
-        "type_info": "Text"
+        "name": "gpu_encoder_limit_per_mille",
+        "type_info": "Int2"
       },
       {
         "ordinal": 12,
-        "name": "observed_generation",
-        "type_info": "Int8"
+        "name": "capacity",
+        "type_info": "Int4"
       },
       {
         "ordinal": 13,
-        "name": "observed_epoch",
-        "type_info": "Int8"
+        "name": "disabled",
+        "type_info": "Bool"
       },
       {
         "ordinal": 14,
-        "name": "observed_endpoint_revision",
+        "name": "revision",
         "type_info": "Int8"
       },
       {
         "ordinal": 15,
-        "name": "observed_sequence",
+        "name": "application_revision",
         "type_info": "Int8"
       },
       {
         "ordinal": 16,
+        "name": "observed_state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
+        "name": "observed_reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 18,
+        "name": "observed_generation",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 19,
+        "name": "observed_epoch",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 20,
+        "name": "observed_endpoint_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 21,
+        "name": "observed_sequence",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 22,
         "name": "observed_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        "Uuid",
-        "Uuid",
-        "Text",
-        "Text",
-        "Text",
-        "Int4",
-        "Bool"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -106,6 +129,12 @@
       false,
       false,
       false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
       true,
       true,
       false,
@@ -121,5 +150,5 @@
       true
     ]
   },
-  "hash": "3881d7f384c660ef3d499678cd9bcc2b49bc1270976843ab9e73025b381f159c"
+  "hash": "7c333e4f46e237197b606f6aca8b6f3459b45583dec38eec1ed41c4dcbf97a51"
 }

@@ -262,6 +262,11 @@ useManagementRefresh(["nodes", "instances"], refresh);
                 >
                     <a-table-column :title="t('nodes.gpu')" data-index="name" />
                     <a-table-column :title="t('nodes.gpuStableKey')" data-index="stable_key" />
+                    <a-table-column :title="t('nodes.gpuRuntimeBinding')">
+                        <template #default="{ record: gpu }">{{
+                            gpu.runtime_binding_ready ? t("nodes.verified") : t("nodes.unverified")
+                        }}</template>
+                    </a-table-column>
                     <a-table-column :title="t('nodes.gpuMemory')">
                         <template #default="{ record: gpu }">{{
                             formatConsumed(gpu.dedicated_memory_bytes, gpu.used_memory_bytes)

@@ -8,8 +8,18 @@ export type DeploymentTarget =
 export interface DeploymentConfiguration {
     target: DeploymentTarget;
     gpu_key: string | null;
+    gpu_profile: GpuResourceProfile | null;
     capacity: number;
     disabled: boolean;
+}
+
+export interface GpuResourceProfile {
+    memory_bytes: number;
+    compute_per_mille: number;
+    encoder_per_mille: number;
+    memory_reserve_bytes: number;
+    compute_limit_per_mille: number;
+    encoder_limit_per_mille: number;
 }
 
 export interface ManagedDeployment {
@@ -19,6 +29,12 @@ export interface ManagedDeployment {
     kind: "game_hook" | "webview" | "rdp";
     install_root: string | null;
     gpu_key: string | null;
+    gpu_memory_bytes: number | null;
+    gpu_compute_per_mille: number | null;
+    gpu_encoder_per_mille: number | null;
+    gpu_memory_reserve_bytes: number | null;
+    gpu_compute_limit_per_mille: number | null;
+    gpu_encoder_limit_per_mille: number | null;
     capacity: number;
     disabled: boolean;
     revision: number;

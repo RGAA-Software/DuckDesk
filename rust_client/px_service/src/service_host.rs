@@ -433,6 +433,7 @@ impl ServiceRuntime {
         let app_mode = service_core::app_instance::normalized_app_mode(&req.app_mode)?;
         let is_webview = app_mode == service_core::app_instance::APP_MODE_WEBVIEW;
         let is_rdp = app_mode == service_core::app_instance::APP_MODE_RDP;
+        let requires_render_readiness = is_webview || is_rdp || req.gpu_stable_key.is_some();
         let rdp_account = req.rdp_account.clone();
         let rdp_device_id = req.device_id.clone();
         if is_rdp && rdp_account.is_none() {
@@ -460,7 +461,7 @@ impl ServiceRuntime {
             }
             let work_dir = guard.pick_app_work_dir()?;
             let record = guard.app_registry.begin_start(&work_dir, req)?.clone();
-            let ready_rx = if is_webview || is_rdp {
+            let ready_rx = if requires_render_readiness {
                 let (ready_tx, ready_rx) = oneshot::channel();
                 guard
                     .webview_ready_waiters
@@ -641,8 +642,8 @@ impl ServiceRuntime {
             ),
         }
 
-        // Game-hook must actually launch the game. WebView readiness is
-        // reported by its Render integration and does not have a game process.
+        // Game-hook must actually launch the game. Every Console application
+        // mode must also prove that its first usable frame/transport is ready.
         let game_path_str = game_path
             .as_ref()
             .map(|game_path| game_path.to_string_lossy().to_string())
@@ -669,16 +670,20 @@ impl ServiceRuntime {
                 Ok(Err(_)) => Some(
                     if is_rdp {
                         "RDP 代理 Ready 等待通道已关闭"
-                    } else {
+                    } else if is_webview {
                         "WebView Ready 等待通道已关闭"
+                    } else {
+                        "游戏首帧 Ready 等待通道已关闭"
                     }
                     .to_string(),
                 ),
                 Err(_) => Some(
                     if is_rdp {
                         "RDP 代理未在 20 秒内就绪"
-                    } else {
+                    } else if is_webview {
                         "WebView 在 20 秒内未产生可编码首帧"
+                    } else {
+                        "游戏未在 20 秒内产生目标 GPU 上的可编码首帧"
                     }
                     .to_string(),
                 ),
@@ -1975,6 +1980,7 @@ mod tests {
             app_id: "app-car".to_string(),
             app_mode: "game-hook".to_string(),
             webview_url_b64: String::new(),
+            gpu_stable_key: None,
             rdp_node_id: String::new(),
             rdp_account: None,
             install_root: install_root.to_string(),

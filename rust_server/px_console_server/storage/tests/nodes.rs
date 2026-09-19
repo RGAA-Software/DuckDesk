@@ -215,6 +215,7 @@ fn ready_telemetry() -> NodeTelemetry {
         gpus: vec![NodeGpuTelemetry {
             stable_key: "pnp-sha256:0123456789abcdef".into(),
             name: "Synthetic GPU".into(),
+            runtime_binding_ready: true,
             dedicated_memory_bytes: Some(24 * 1024 * 1024 * 1024),
             used_memory_bytes: Some(8 * 1024 * 1024 * 1024),
             utilization_per_mille: Some(250),

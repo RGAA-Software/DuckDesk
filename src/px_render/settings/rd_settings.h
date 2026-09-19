@@ -5,7 +5,9 @@
 #ifndef TC_APPLICATION_SETTINGS_H
 #define TC_APPLICATION_SETTINGS_H
 
+#include <cstdint>
 #include <map>
+#include <optional>
 #include <string>
 
 #include "architecture/config/incoming_access_policy.h"
@@ -234,6 +236,7 @@ public:
     std::string relay_device_id_;
     // Console application identity, distinct from a process/transport identifier.
     std::string app_instance_id_{};
+    std::string gpu_stable_key_{};
 
 private:
     const std::string kFullColorModeKey = "enable_full_color_mode";

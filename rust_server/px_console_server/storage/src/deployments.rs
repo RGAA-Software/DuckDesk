@@ -80,6 +80,10 @@ impl DeploymentStore {
         control::write_gate(&mut tx).await?;
         let actor = control::authorize(&mut tx, admin, true).await?;
         let capacity = i32::try_from(config.capacity).map_err(|_| StoreError::InvalidInput)?;
+        let gpu_values = config
+            .gpu_profile
+            .as_ref()
+            .map(crate::GpuResourceProfile::database_values);
         let result = sqlx::query_file_as!(
             DeploymentProfile,
             "queries/create_deployment.sql",
@@ -89,6 +93,12 @@ impl DeploymentStore {
             config.target.kind(),
             config.target.root(),
             config.gpu_key.as_deref(),
+            gpu_values.map(|values| values.0),
+            gpu_values.map(|values| values.1),
+            gpu_values.map(|values| values.2),
+            gpu_values.map(|values| values.3),
+            gpu_values.map(|values| values.4),
+            gpu_values.map(|values| values.5),
             capacity,
             config.disabled
         )
@@ -176,8 +186,18 @@ impl DeploymentStore {
         .await?
         .ok_or(StoreError::Rejected)?;
         let capacity = i32::try_from(config.capacity).map_err(|_| StoreError::InvalidInput)?;
+        let gpu_values = config
+            .gpu_profile
+            .as_ref()
+            .map(crate::GpuResourceProfile::database_values);
         if previous.install_root.as_deref() == config.target.root()
             && previous.gpu_key == config.gpu_key
+            && previous.gpu_memory_bytes == gpu_values.map(|values| values.0)
+            && previous.gpu_compute_per_mille == gpu_values.map(|values| values.1)
+            && previous.gpu_encoder_per_mille == gpu_values.map(|values| values.2)
+            && previous.gpu_memory_reserve_bytes == gpu_values.map(|values| values.3)
+            && previous.gpu_compute_limit_per_mille == gpu_values.map(|values| values.4)
+            && previous.gpu_encoder_limit_per_mille == gpu_values.map(|values| values.5)
             && previous.capacity == capacity
             && previous.disabled == config.disabled
             && previous.application_revision == app_revision
@@ -191,6 +211,12 @@ impl DeploymentStore {
             id,
             config.target.root(),
             config.gpu_key.as_deref(),
+            gpu_values.map(|values| values.0),
+            gpu_values.map(|values| values.1),
+            gpu_values.map(|values| values.2),
+            gpu_values.map(|values| values.3),
+            gpu_values.map(|values| values.4),
+            gpu_values.map(|values| values.5),
             capacity,
             config.disabled,
             config.target.kind()

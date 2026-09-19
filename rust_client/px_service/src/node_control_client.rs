@@ -6,8 +6,8 @@ use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
 use px_node_protocol::{
     ApplicationLaunch, ChannelKind, ChannelProgress, CommandOutcome, CommandReceipt,
-    DeploymentAssignment, DeploymentObservation, DeploymentPreparation, NodeCommand,
-    NodeCommandAction, NodeReport, NodeRequest, NodeResponse, ObservedRuntime,
+    DeploymentAssignment, DeploymentObservation, DeploymentPreparation, GpuReservation,
+    NodeCommand, NodeCommandAction, NodeReport, NodeRequest, NodeResponse, ObservedRuntime,
     ObservedRuntimePhase, OpenChannel, PreparationFailure, PreparationState, RecordingCacheUpload,
     RuntimeInventory, VideoCodec, MAX_MESSAGE_BYTES,
 };
@@ -675,6 +675,7 @@ async fn sync_deployments(
     endpoint_revision: i64,
     sequence: u64,
 ) -> Result<(), String> {
+    let telemetry = crate::node_telemetry::sample();
     let mut after = None;
     loop {
         let request = NodeRequest::ListDeployments {
@@ -701,7 +702,7 @@ async fn sync_deployments(
                 application_revision: deployment.application_revision,
                 endpoint_revision,
                 sequence,
-                status: preparation_state(product, &deployment),
+                status: preparation_state(product, &deployment, &telemetry),
             };
             let request = NodeRequest::ReportDeployment {
                 request_id: session.request_id()?,
@@ -726,6 +727,7 @@ async fn sync_deployments(
 fn preparation_state(
     product: &ProductDescriptor,
     deployment: &DeploymentAssignment,
+    telemetry: &px_node_protocol::NodeTelemetry,
 ) -> PreparationState {
     if deployment.disabled {
         return PreparationState::Pending;
@@ -742,7 +744,7 @@ fn preparation_state(
                     reason: PreparationFailure::UnsupportedMode,
                 };
             }
-            if gpu_key.is_some() {
+            if !gpu_binding_is_available(telemetry, gpu_key.as_deref()) {
                 return PreparationState::Failed {
                     reason: PreparationFailure::BindingUnverified,
                 };
@@ -762,7 +764,7 @@ fn preparation_state(
                 PreparationState::Failed {
                     reason: PreparationFailure::UnsupportedMode,
                 }
-            } else if gpu_key.is_some() {
+            } else if !gpu_binding_is_available(telemetry, gpu_key.as_deref()) {
                 PreparationState::Failed {
                     reason: PreparationFailure::BindingUnverified,
                 }
@@ -774,6 +776,24 @@ fn preparation_state(
             reason: PreparationFailure::UnsupportedMode,
         },
     }
+}
+
+fn gpu_binding_is_available(
+    telemetry: &px_node_protocol::NodeTelemetry,
+    requested_stable_key: Option<&str>,
+) -> bool {
+    if telemetry.gpu_inventory_revision.is_none() {
+        return false;
+    }
+    telemetry
+        .gpus
+        .iter()
+        .filter(|gpu| {
+            gpu.runtime_binding_ready
+                && requested_stable_key.is_none_or(|stable_key| gpu.stable_key == stable_key)
+        })
+        .count()
+        == 1
 }
 
 async fn reconcile(
@@ -876,9 +896,17 @@ async fn execute_command_before_deadline(
             port,
             launch,
             install_root,
-            gpu_key,
+            gpu_reservation,
         } => {
-            if gpu_key.is_some() || matches!(launch, ApplicationLaunch::Rdp) {
+            if matches!(launch, ApplicationLaunch::Rdp) {
+                return CommandOutcome::Absent;
+            }
+            let Some(gpu_reservation) = gpu_reservation else {
+                warn!(command_id = %command.id, "node start command has no GPU reservation");
+                return CommandOutcome::Absent;
+            };
+            if let Err(error) = validate_gpu_reservation(gpu_reservation) {
+                warn!(command_id = %command.id, %error, "node GPU admission rejected the start command");
                 return CommandOutcome::Absent;
             }
             let existing = {
@@ -904,7 +932,13 @@ async fn execute_command_before_deadline(
                 Some(_) => return CommandOutcome::Unknown,
                 None => {}
             }
-            let request = match start_request(command, *port, launch, install_root.as_deref()) {
+            let request = match start_request(
+                command,
+                *port,
+                launch,
+                install_root.as_deref(),
+                gpu_reservation,
+            ) {
                 Ok(request) => request,
                 Err(error) => {
                     warn!(command_id = %command.id, %error, "node start command is not executable");
@@ -952,6 +986,68 @@ async fn execute_command_before_deadline(
     }
 }
 
+fn validate_gpu_reservation(reservation: &GpuReservation) -> Result<(), String> {
+    validate_gpu_reservation_against(&crate::node_telemetry::sample(), reservation)
+}
+
+fn validate_gpu_reservation_against(
+    telemetry: &px_node_protocol::NodeTelemetry,
+    reservation: &GpuReservation,
+) -> Result<(), String> {
+    if reservation.inventory_revision < 1
+        || reservation.memory_bytes < 1
+        || reservation.compute_per_mille < 1
+        || reservation.encoder_per_mille < 1
+        || reservation.memory_reserve_bytes < 0
+        || reservation.compute_limit_per_mille < reservation.compute_per_mille
+        || reservation.compute_limit_per_mille > 1000
+        || reservation.encoder_limit_per_mille < reservation.encoder_per_mille
+        || reservation.encoder_limit_per_mille > 1000
+    {
+        return Err("GPU reservation values are invalid".into());
+    }
+    if telemetry.gpu_inventory_revision != u64::try_from(reservation.inventory_revision).ok() {
+        return Err("GPU inventory revision changed".into());
+    }
+    let mut matching_gpus = telemetry
+        .gpus
+        .iter()
+        .filter(|gpu| gpu.stable_key == reservation.stable_key);
+    let gpu = matching_gpus
+        .next()
+        .ok_or_else(|| "reserved GPU is no longer present".to_string())?;
+    if matching_gpus.next().is_some() || !gpu.runtime_binding_ready {
+        return Err("GPU binding cannot be proven for this inventory".into());
+    }
+    let total_memory = gpu
+        .dedicated_memory_bytes
+        .and_then(|value| i64::try_from(value).ok())
+        .ok_or_else(|| "GPU memory capacity is unknown".to_string())?;
+    let used_memory = gpu
+        .used_memory_bytes
+        .and_then(|value| i64::try_from(value).ok())
+        .ok_or_else(|| "GPU memory use is unknown".to_string())?;
+    let required_memory = used_memory
+        .checked_add(reservation.memory_bytes)
+        .and_then(|value| value.checked_add(reservation.memory_reserve_bytes))
+        .ok_or_else(|| "GPU memory reservation overflowed".to_string())?;
+    let projected_compute = i64::from(
+        gpu.utilization_per_mille
+            .ok_or_else(|| "GPU pressure is unknown".to_string())?,
+    ) + i64::from(reservation.compute_per_mille);
+    let projected_encoder = i64::from(
+        gpu.encoder_utilization_per_mille
+            .ok_or_else(|| "GPU encoder pressure is unknown".to_string())?,
+    ) + i64::from(reservation.encoder_per_mille);
+    if required_memory > total_memory
+        || projected_compute > i64::from(reservation.compute_limit_per_mille)
+        || projected_encoder > i64::from(reservation.encoder_limit_per_mille)
+    {
+        return Err("GPU reservation no longer fits current capacity".into());
+    }
+    Ok(())
+}
+
 async fn exact_launch_match(
     runtime: &Arc<Mutex<ServiceRuntime>>,
     command: &NodeCommand,
@@ -970,6 +1066,7 @@ fn start_request(
     port: u16,
     launch: &ApplicationLaunch,
     install_root: Option<&str>,
+    gpu_reservation: &GpuReservation,
 ) -> Result<StartAppRequest, String> {
     let (mode, executable, arguments, webview, bitrate, codec) = match launch {
         ApplicationLaunch::GameHook {
@@ -1024,6 +1121,7 @@ fn start_request(
         websocket_enabled: true,
         app_mode: mode.into(),
         webview_url_b64: webview,
+        gpu_stable_key: Some(gpu_reservation.stable_key.clone()),
         rdp_node_id: String::new(),
         rdp_account: None,
         device_id: command.instance_id.to_string(),
@@ -1155,6 +1253,62 @@ mod tests {
         }
     }
 
+    fn gpu_reservation() -> GpuReservation {
+        GpuReservation {
+            stable_key: "gpu-1".into(),
+            inventory_revision: 7,
+            memory_bytes: 1024,
+            compute_per_mille: 200,
+            encoder_per_mille: 200,
+            memory_reserve_bytes: 1024,
+            compute_limit_per_mille: 800,
+            encoder_limit_per_mille: 800,
+        }
+    }
+
+    fn gpu_telemetry() -> px_node_protocol::NodeTelemetry {
+        px_node_protocol::NodeTelemetry {
+            sampled_at: Utc::now(),
+            probe_state: px_node_protocol::TelemetryProbeState::Ready,
+            logical_processors: Some(8),
+            cpu_utilization_per_mille: Some(100),
+            memory_total_bytes: Some(16_384),
+            memory_available_bytes: Some(8_192),
+            disk_total_bytes: Some(16_384),
+            disk_free_bytes: Some(8_192),
+            gpu_inventory_revision: Some(7),
+            gpus: vec![px_node_protocol::NodeGpuTelemetry {
+                stable_key: "gpu-1".into(),
+                name: "Test GPU".into(),
+                runtime_binding_ready: true,
+                dedicated_memory_bytes: Some(8_192),
+                used_memory_bytes: Some(2_048),
+                utilization_per_mille: Some(200),
+                encoder_utilization_per_mille: Some(100),
+            }],
+        }
+    }
+
+    #[test]
+    fn gpu_reservation_rechecks_identity_revision_metrics_and_headroom() {
+        let reservation = gpu_reservation();
+        let telemetry = gpu_telemetry();
+        assert!(validate_gpu_reservation_against(&telemetry, &reservation).is_ok());
+        let mut changed_revision = telemetry.clone();
+        changed_revision.gpu_inventory_revision = Some(8);
+        assert!(validate_gpu_reservation_against(&changed_revision, &reservation).is_err());
+        let mut unknown_encoder = telemetry.clone();
+        unknown_encoder.gpus[0].encoder_utilization_per_mille = None;
+        assert!(validate_gpu_reservation_against(&unknown_encoder, &reservation).is_err());
+        let mut second_gpu = telemetry.clone();
+        let mut additional_gpu = second_gpu.gpus[0].clone();
+        additional_gpu.stable_key = "gpu-2".into();
+        second_gpu.gpus.push(additional_gpu);
+        assert!(validate_gpu_reservation_against(&second_gpu, &reservation).is_ok());
+        second_gpu.gpus[1].stable_key = "gpu-1".into();
+        assert!(validate_gpu_reservation_against(&second_gpu, &reservation).is_err());
+    }
+
     #[test]
     fn request_ids_are_strictly_increasing_and_authentication_is_bound() {
         let mut session = ProtocolSession::new();
@@ -1203,7 +1357,7 @@ mod tests {
                 },
             },
             install_root: Some("D:\\Cloud Games".into()),
-            gpu_key: None,
+            gpu_reservation: None,
         });
         let NodeCommandAction::Start {
             port,
@@ -1214,7 +1368,14 @@ mod tests {
         else {
             unreachable!();
         };
-        let request = start_request(&command, *port, launch, install_root.as_deref()).unwrap();
+        let request = start_request(
+            &command,
+            *port,
+            launch,
+            install_root.as_deref(),
+            &gpu_reservation(),
+        )
+        .unwrap();
         assert_eq!(request.request_id, command.launch_id.to_string());
         assert_eq!(request.game_exe_rel, "游戏 目录\\game.exe");
         assert_eq!(request.game_arguments, "--name \"two words\"");
@@ -1236,22 +1397,24 @@ mod tests {
                 },
             },
             install_root: None,
-            gpu_key: None,
+            gpu_reservation: None,
         });
         let NodeCommandAction::Start { port, launch, .. } = &command.action else {
             unreachable!();
         };
-        let request = start_request(&command, *port, launch, None).unwrap();
+        let reservation = gpu_reservation();
+        let request = start_request(&command, *port, launch, None, &reservation).unwrap();
         assert_eq!(
             URL_SAFE_NO_PAD.decode(request.webview_url_b64).unwrap(),
             "https://example.com/云应用".as_bytes()
         );
-        assert!(start_request(&command, *port, launch, Some("D:\\wrong")).is_err());
+        assert!(start_request(&command, *port, launch, Some("D:\\wrong"), &reservation,).is_err());
     }
 
     #[test]
     fn deployment_preparation_is_fail_closed_and_checks_real_files() {
         let product = cloud_product();
+        let telemetry = gpu_telemetry();
         let executable = std::env::current_exe().unwrap();
         let game = DeploymentAssignment {
             id: Uuid::new_v4(),
@@ -1270,7 +1433,7 @@ mod tests {
             },
         };
         assert!(matches!(
-            preparation_state(&product, &game),
+            preparation_state(&product, &game, &telemetry),
             PreparationState::Ready
         ));
         let missing = DeploymentAssignment {
@@ -1282,7 +1445,7 @@ mod tests {
             ..game
         };
         assert!(matches!(
-            preparation_state(&product, &missing),
+            preparation_state(&product, &missing, &telemetry),
             PreparationState::Failed {
                 reason: PreparationFailure::MissingFiles
             }
@@ -1296,7 +1459,7 @@ mod tests {
             preparation: DeploymentPreparation::Rdp { gpu_key: None },
         };
         assert!(matches!(
-            preparation_state(&product, &rdp),
+            preparation_state(&product, &rdp, &telemetry),
             PreparationState::Failed {
                 reason: PreparationFailure::UnsupportedMode
             }

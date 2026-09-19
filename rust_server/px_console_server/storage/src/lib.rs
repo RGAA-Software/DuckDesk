@@ -69,12 +69,15 @@ pub use cache_model::{
     CacheAttempt, CacheCredential, CacheOptions, CacheProfile, CacheReadLease, CacheRuntime,
     CachedFile,
 };
-pub use command_model::{CommandOutcome, CommandReceipt, NodeCommand, NodeCommandAction};
+pub use command_model::{
+    CommandOutcome, CommandReceipt, GpuReservation, NodeCommand, NodeCommandAction,
+};
 pub use control::{ControlStore, ManagedUser, Role};
 pub use database::{ConsoleDatabase, PoolStatus};
 pub use deployment_model::{
     DeploymentConfiguration, DeploymentObservation, DeploymentProfile, DeploymentTarget,
-    NodeDeploymentAssignment, NodeDeploymentPreparation, PreparationFailure, PreparationState,
+    GpuResourceProfile, NodeDeploymentAssignment, NodeDeploymentPreparation, PreparationFailure,
+    PreparationState,
 };
 pub use deployments::DeploymentStore;
 pub use devices::{DeviceAccess, DeviceIdentity, DevicePlatform, DeviceProfile, DeviceStore};

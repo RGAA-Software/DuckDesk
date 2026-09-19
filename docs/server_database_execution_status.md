@@ -833,6 +833,27 @@ NVML 不可用或单项查询失败时相应字段继续为 NULL。86 项 Servic
 0–100% 坐标；未知或越界数据形成断点，不做零值或插值。Console Web 类型检查、44/44 合同测试和生产构建通过，
 `scripts_build/build_console_web.bat` 已同步 `output/px_console/dev/static` 并逐文件验证 SHA-256。该展示不替代服务端聚合、P3 调度硬过滤或公网验收。
 
+P3 首批资源预约随后落地。全新 schema 的迁移 0027 不迁移任何开发数据，并在发现既有部署/实例时直接拒绝；Game Hook/WebView
+部署现在必须提供显存、GPU/编码器单实例预算、安全余量和最大压力，RDP profile 必须为空。预约事务逐卡使用
+`max(measured, committed-running)+pending+request` 硬过滤，并把物理 GPU stable key、库存代际及预算快照写入实例和 Start 命令；未知指标、过期库存、
+超限或运行时映射不可验证均 fail-closed。节点执行前再次采样验证。多 GPU 节点可原子选择具体物理卡；WebView 在进程内把 DXGI LUID 通过
+D3DKMT 反查到所选 PnP stable key 后才打开 CEF 共享纹理，Game Hook 对实际捕获首帧做同样反查，两者必须返回匹配的 Ready，否则精确启动失败。
+LUID 不进入 PostgreSQL 或节点命令；同一物理卡暴露的多个逻辑适配器不会被误记为多张可预约 GPU。
+
+SQLx 元数据报告 `pg-20260919-085203-70161370` 通过；实例预约 `pg-20260919-085304-9f18dcd4` 为 14/14，命令
+`pg-20260919-085514-84c609b3` 为 16/16，节点/部署分别为 `pg-20260919-085416-a29e121f` 9/9、
+`pg-20260919-085618-4365a91b` 6/6，节点 WS `pg-20260919-085715-d53b40c1` 为 1/1，目录 API
+`pg-20260919-090245-02ab41c7` 为 7/7，三库恢复 `pg-20260919-090416-b1a84fe9` 为 1/1。Service 含物理 NVIDIA 硬件测试
+90/90 通过；Cloud Node/Remote Service 哈希均为 `9DF69FB05B5D9146BBC18B187B8FBB260EDC15043881254B7DD7D9A673E85E97`。
+Cloud Node/Remote Render 哈希分别为 `41EDD79A409D7FDF95A685EDDC8517DD62C5EA146C69B36781BF660F875E3221`、
+`629CF629AC1704D9588A72BB60161129591FB1D0CF1B6F0083DB35D7447E3C09`，物理 GPU 身份硬件测试 1/1 通过。Console build/output
+哈希均为 `0441DA4A0F24FB82ACCE5DF51D640C20DC1C8B44FD1C7D738BE028A3253A70A4`，Web 44/44 通过并完成静态资源哈希同步。
+
+本批 Windows 全量短验收 `pg-20260919-092615-5418ce4c` 从三套空库执行并以 415/415 PASS、0 FAIL 完成。范围覆盖三库迁移与
+权限/schema gate、268 条 Console SQLx、备份及异机恢复、Console/Auth/Desk 存储和 API、数据库断线恢复、真实 Chromium 管理流程、
+Web Client 合同、最终三库恢复冒烟和测试源哈希不变；隔离容器与数据卷已清理。该报告明确不包含 Linux、正式公网 Windows/Android、Relay
+数据转发或最终长测，因此不把 DB2–DB5 尚未通过的产品出口改写为完成。
+
 ## 仍未通过的阶段出口
 
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。
@@ -844,7 +865,7 @@ Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 W
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |
 | DB1-EXIT | 完成：Desk/Auth 产品服务与 PostgreSQL Console 正式 `px_console.exe` 均已接入；三者具有独立发行入口。Console 当前 3.2.21 发行、进程断库 fail-closed、真实浏览器和制品哈希已通过；后续能力缺口归 DB2–DB5，不再把旧 Mongo 组合根当产品入口 |
 | DB2-A | 身份/管理HTTP、本人资料/头像、密码计算/限流/Origin、访客HMAC/会话/公开目录、Saved Connections、本人实例列表、更新目录、访问/通道/传输历史及录像目录HTTP、严格配置、稳定私钥加载、独立初始化CLI、静态文件服务及进程生命周期已实现；Console用户门户及管理后台的当前目录/身份/状态入口均已切新bearer/主体API，源码不再保留旧`/api/v1`，正式PostgreSQL产品二进制和发行包已切换。部署绑定录像缓存、本人/管理员授权Range下载、Render完成段session归属、Windows Service真实字节生产、本人/管理下载页面、保留/释放/驱逐 Console 副本及真实浏览器空目录流程已接；Direct Host观察者不再默认获得输入。仍需公网真实录像有数据浏览器流程；视频墙延期，ZLM直播和RTC/TURN管理明确退役，不再作为待实现项 |
-| DB2-B/C/D | 设备/应用/节点/部署目录、user/guest资源入口、更新与历史元数据入口、Console节点WS及独立管理实时事件流已接；Windows Service已切到新节点协议并实现部署准备、调和、命令fencing、精确launch ACK、Render前端准入转发、实际媒体/RDP通道生命周期、遥测、唯一PCI身份的NVIDIA逐GPU指标、录像session归属及通用录像字节上传。ZLM/Coturn/中央RTC signaling已归档移除，Windows/Web/Render/Service/Console的Direct Host活动代码和聚焦构建已接通。仍需Relay既有数据真机回归、公网首帧/输入/音频与持续续租/撤销、Android直连、AMD/Intel逐GPU指标、趋势/断线补报、管理实时流的公网高频/断库专项、GPU硬过滤评分与RDP执行、周期通道指标、文件传输字节生产、无人值守更新及其余产品入口 |
+| DB2-B/C/D | 设备/应用/节点/部署目录、user/guest资源入口、更新与历史元数据入口、Console节点WS及独立管理实时事件流已接；Windows Service已切到新节点协议并实现部署准备、调和、命令fencing、精确launch ACK、Render前端准入转发、实际媒体/RDP通道生命周期、遥测、唯一PCI身份的NVIDIA逐GPU指标、GPU预算/原子硬过滤/物理stable key运行时绑定与节点二次准入、录像session归属及通用录像字节上传。ZLM/Coturn/中央RTC signaling已归档移除，Windows/Web/Render/Service/Console的Direct Host活动代码和聚焦构建已接通。仍需Relay既有数据真机回归、公网首帧/输入/音频与持续续租/撤销、Android直连、AMD/Intel逐GPU指标、服务端趋势/断线补报、管理实时流的公网高频/断库专项、调度预览/逐候选拒绝解释、RDP执行、周期通道指标、文件传输字节生产、无人值守更新及其余产品入口 |
 | DB2-EXIT / DB3 | Desk/Auth 独立产品流程已验证；Console 与共享消费者仍待去 Mongo、接新签发/验证及库外水位，Auth 通知 outbox 尚未接通；不建设运行时双后端 |
 | DB4 | 恢复集、保留、异机复制、恢复准入/执行/封印、三库写屏障/安全水位、外部见证、Auth keyring、pgBackRest/WAL/PITR、Windows SCM包及WSL2 systemd生命周期已实现。开发期仍需目标Linux发行版VM短测、Pixels外层签名/生产密钥托管、独立主机或对象仓库一次完整恢复、目标环境keyring/见证轮换及真实节点与Windows/RDP事实对账；连续7天窗口和自然周期稳定性统一放到DB5功能通过后的长测，不阻塞每个开发切片 |
 | DB5 | 全新环境服务端—Windows Client/Web Client—Render/Service—Relay—Android功能回归及完整制品验收；必须证明Direct Host与Relay分别正常且安装包不含ZLM/Coturn，先短测通过，最后统一长测 |

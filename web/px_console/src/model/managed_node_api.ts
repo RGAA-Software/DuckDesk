@@ -23,6 +23,7 @@ export interface NodeGpuTelemetry {
     stable_key: string;
     inventory_revision: number;
     name: string;
+    runtime_binding_ready: boolean;
     dedicated_memory_bytes: number | null;
     used_memory_bytes: number | null;
     utilization_per_mille: number | null;
