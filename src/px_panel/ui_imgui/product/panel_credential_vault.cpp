@@ -9,7 +9,7 @@ namespace px::panel::product {
 namespace {
 
 class CredentialHandle final {
-  public:
+public:
     explicit CredentialHandle(PCREDENTIALW value) : value_{value} {}
     ~CredentialHandle() {
         if (value_) {
@@ -19,12 +19,10 @@ class CredentialHandle final {
     CredentialHandle(const CredentialHandle&) = delete;
     CredentialHandle& operator=(const CredentialHandle&) = delete;
 
-    [[nodiscard]] const CREDENTIALW& Value() const {
-        return *value_;
-    }
+    [[nodiscard]] const CREDENTIALW& Value() const { return *value_; }
 
-  private:
-    PCREDENTIALW value_{}; // NOLINT(pixels-raw-pointer-boundary): owned WinCred allocation wrapped immediately
+private:
+    PCREDENTIALW value_{};  // NOLINT(pixels-raw-pointer-boundary): owned WinCred allocation wrapped immediately
 };
 
 std::wstring Utf8ToWide(const std::string& value) {
@@ -41,15 +39,18 @@ std::wstring Utf8ToWide(const std::string& value) {
                : std::wstring{};
 }
 
-} // namespace
+}  // namespace
 
-std::shared_ptr<PanelCredentialVault> PanelCredentialVault::Create() {
-    return std::make_shared<PanelCredentialVault>();
+std::shared_ptr<PanelCredentialVault> PanelCredentialVault::Create(std::string credentialNamespace) {
+    if (credentialNamespace.empty()) return {};
+    return std::make_shared<PanelCredentialVault>(std::move(credentialNamespace));
 }
+
+PanelCredentialVault::PanelCredentialVault(std::string credentialNamespace) : credentialNamespace_{std::move(credentialNamespace)} {}
 
 std::optional<std::string> PanelCredentialVault::Read(const std::string& target) const {
     const auto credentialTarget = CredentialTarget(target);
-    PCREDENTIALW credential{}; // NOLINT(pixels-raw-pointer-boundary): WinCred output parameter, wrapped on the next statement
+    PCREDENTIALW credential{};  // NOLINT(pixels-raw-pointer-boundary): WinCred output parameter, wrapped on the next statement
     if (credentialTarget.empty() || !CredReadW(credentialTarget.c_str(), CRED_TYPE_GENERIC, 0, &credential)) {
         return std::nullopt;
     }
@@ -83,8 +84,8 @@ void PanelCredentialVault::Delete(const std::string& target) const {
     }
 }
 
-std::wstring PanelCredentialVault::CredentialTarget(const std::string& target) {
-    return Utf8ToWide("Pixels.RemoteDevice." + target);
+std::wstring PanelCredentialVault::CredentialTarget(const std::string& target) const {
+    return Utf8ToWide("Pixels." + credentialNamespace_ + "." + target);
 }
 
-} // namespace px::panel::product
+}  // namespace px::panel::product

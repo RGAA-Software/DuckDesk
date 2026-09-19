@@ -81,7 +81,7 @@ std::optional<std::size_t> CountIpv6Groups(const std::string_view text, const bo
             groupCount += 2;
         } else {
             if (group.size() > 4 || !std::ranges::all_of(group, [](const unsigned char character) { return std::isxdigit(character) != 0; })) {
-        return std::nullopt;
+                return std::nullopt;
             }
             ++groupCount;
         }
@@ -157,18 +157,15 @@ std::optional<ConsoleEndpoint> ParseHttpsConsoleAddress(std::string value) {
 
 std::map<std::string, int> ReadNodePortOverrides(const std::filesystem::path& path) {
     std::ifstream input{path};
-    if (!input)
-        return {};
+    if (!input) return {};
     std::map<std::string, int> values{};
     std::string section{};
     std::string line{};
     while (std::getline(input, line)) {
         const auto comment = line.find('#');
-        if (comment != std::string::npos)
-            line.resize(comment);
+        if (comment != std::string::npos) line.resize(comment);
         const auto first = line.find_first_not_of(" \t\r\n");
-        if (first == std::string::npos)
-            continue;
+        if (first == std::string::npos) continue;
         const auto last = line.find_last_not_of(" \t\r\n");
         line = line.substr(first, last - first + 1);
         if (line.front() == '[' && line.back() == ']') {
@@ -176,39 +173,43 @@ std::map<std::string, int> ReadNodePortOverrides(const std::filesystem::path& pa
             continue;
         }
         const auto separator = line.find('=');
-        if (separator == std::string::npos)
-            continue;
+        if (separator == std::string::npos) continue;
         std::string key{line.substr(0, separator)};
         key.erase(std::remove_if(key.begin(), key.end(), [](const unsigned char value) { return std::isspace(value) != 0; }), key.end());
         std::string text{line.substr(separator + 1)};
         text.erase(std::remove_if(text.begin(), text.end(), [](const unsigned char value) { return std::isspace(value) != 0; }), text.end());
         int value{};
         const auto result = std::from_chars(text.data(), text.data() + text.size(), value);
-        if (result.ec == std::errc{} && result.ptr == text.data() + text.size())
-            values[section + "." + key] = value;
+        if (result.ec == std::errc{} && result.ptr == text.data() + text.size()) values[section + "." + key] = value;
     }
     return values;
 }
 
-} // namespace
+}  // namespace
+
+std::optional<ConsoleEndpoint> ParseConsoleHttpsOrigin(std::string value) { return ParseHttpsConsoleAddress(std::move(value)); }
 
 bool ConsoleEndpoint::IsValid() const { return !baseUrl.empty() && !host.empty() && port > 0 && port <= 65535; }
 
-std::shared_ptr<PanelConfigStore> PanelConfigStore::Create(const std::filesystem::path& executableDirectory) {
+std::shared_ptr<PanelConfigStore> PanelConfigStore::Create(const std::filesystem::path& executableDirectory, std::string fixedConsoleAddress) {
     const auto preferences = SharedPreference::Instance();
     const auto dataDirectory = std::filesystem::path{FolderUtil::GetProgramDataPath()} / "px_data";
-    if (!preferences->Init(dataDirectory, "pixels.dat"))
-        return {};
-    return std::make_shared<PanelConfigStore>(preferences, executableDirectory);
+    if (!preferences->Init(dataDirectory, "pixels.dat")) return {};
+    return std::make_shared<PanelConfigStore>(preferences, executableDirectory, std::move(fixedConsoleAddress));
 }
 
-PanelConfigStore::PanelConfigStore(std::shared_ptr<SharedPreference> preferences, std::filesystem::path executableDirectory)
-    : preferences_{std::move(preferences)}, executableDirectory_{std::move(executableDirectory)} {}
+PanelConfigStore::PanelConfigStore(std::shared_ptr<SharedPreference> preferences, std::filesystem::path executableDirectory,
+                                   std::string fixedConsoleAddress)
+    : preferences_{std::move(preferences)},
+      executableDirectory_{std::move(executableDirectory)},
+      fixedConsoleAddress_{std::move(fixedConsoleAddress)} {}
 
-std::optional<ConsoleEndpoint> PanelConfigStore::ParseConsoleAddress(const std::string& value) const { return ParseHttpsConsoleAddress(value); }
+std::optional<ConsoleEndpoint> PanelConfigStore::ParseConsoleAddress(const std::string& value) const { return ParseConsoleHttpsOrigin(value); }
 
 std::optional<ConsoleEndpoint> PanelConfigStore::Console() const { return ParseConsoleAddress(ConsoleAddress()); }
-std::string PanelConfigStore::ConsoleAddress() const { return Read(preferences_, "console_server_url"); }
+std::string PanelConfigStore::ConsoleAddress() const {
+    return fixedConsoleAddress_.empty() ? Read(preferences_, "console_server_url") : fixedConsoleAddress_;
+}
 PanelIdentity PanelConfigStore::Identity() const {
     return {.deviceId = Read(preferences_, "device_id"),
             .deviceName = Read(preferences_, "device_name"),
@@ -260,17 +261,11 @@ ui::SettingsSnapshot PanelConfigStore::Settings() const {
     return result;
 }
 
-bool PanelConfigStore::ShowTemporaryPassword() const {
-    return ReadBool(preferences_, "display_random_pwd", true);
-}
+bool PanelConfigStore::ShowTemporaryPassword() const { return ReadBool(preferences_, "display_random_pwd", true); }
 
-bool PanelConfigStore::IncomingRemoteAccessEnabled() const {
-    return ReadBool(preferences_, "incoming_remote_access_enabled", true);
-}
+bool PanelConfigStore::IncomingRemoteAccessEnabled() const { return ReadBool(preferences_, "incoming_remote_access_enabled", true); }
 
-bool PanelConfigStore::DeviceNameIsCustom() const {
-    return ReadBool(preferences_, "device_name_custom", false);
-}
+bool PanelConfigStore::DeviceNameIsCustom() const { return ReadBool(preferences_, "device_name_custom", false); }
 
 bool PanelConfigStore::RemoteDeviceHidden(const std::string& deviceId) const {
     return !deviceId.empty() && ReadBool(preferences_, "panel_remote_device_hidden:" + deviceId, false);
@@ -279,8 +274,7 @@ bool PanelConfigStore::RemoteDeviceHidden(const std::string& deviceId) const {
 std::optional<RemoteDevicePreference> PanelConfigStore::LoadRemoteDevicePreference(const std::string& deviceId) const {
     try {
         const std::string value{Read(preferences_, "panel_remote_device:" + deviceId)};
-        if (value.empty())
-            return std::nullopt;
+        if (value.empty()) return std::nullopt;
         const auto root = nlohmann::json::parse(value);
         return RemoteDevicePreference{.name = root.value("name", std::string{}),
                                       .audio = root.value("audio", true),
@@ -301,8 +295,7 @@ std::optional<RemoteDevicePreference> PanelConfigStore::LoadRemoteDevicePreferen
 std::vector<RemoteDeviceHistory> PanelConfigStore::LoadRemoteDeviceHistory() const {
     std::vector<RemoteDeviceHistory> result{};
     preferences_->Visit([&result](const std::string& key, const std::string& value) {
-        if (!key.starts_with("panel_remote_device_history:"))
-            return;
+        if (!key.starts_with("panel_remote_device_history:")) return;
         try {
             const auto root = nlohmann::json::parse(value);
             RemoteDeviceHistory item{.deviceId = root.value("device_id", std::string{}),
@@ -310,8 +303,7 @@ std::vector<RemoteDeviceHistory> PanelConfigStore::LoadRemoteDeviceHistory() con
                                      .host = root.value("host", std::string{}),
                                      .port = root.value("port", 0),
                                      .lastConnectedAt = root.value("last_connected_at", std::int64_t{})};
-            if (!item.deviceId.empty())
-                result.push_back(std::move(item));
+            if (!item.deviceId.empty()) result.push_back(std::move(item));
         } catch (...) {
         }
     });
@@ -322,8 +314,7 @@ std::vector<RemoteDeviceHistory> PanelConfigStore::LoadRemoteDeviceHistory() con
 CloudApplicationPreference PanelConfigStore::LoadCloudApplicationPreference(const std::string& applicationId) const {
     try {
         const std::string value{Read(preferences_, "panel_cloud_application:" + applicationId)};
-        if (value.empty())
-            return {};
+        if (value.empty()) return {};
         const auto root = nlohmann::json::parse(value);
         return {.forceTcp = root.value("force_tcp", false), .forceRelay = root.value("force_relay", false)};
     } catch (...) {
@@ -332,7 +323,10 @@ CloudApplicationPreference PanelConfigStore::LoadCloudApplicationPreference(cons
 }
 
 bool PanelConfigStore::SaveNetwork(const std::string& consoleAddress, const ConsoleEndpoint& endpoint) {
-    if (!endpoint.IsValid() || consoleAddress != endpoint.baseUrl) return false;
+    if (!endpoint.IsValid() || consoleAddress != endpoint.baseUrl || (!fixedConsoleAddress_.empty() && consoleAddress != fixedConsoleAddress_)) {
+        return false;
+    }
+    if (!fixedConsoleAddress_.empty()) return true;
     const std::scoped_lock lock{mutex_};
     return preferences_->Put("console_server_url", consoleAddress);
 }
@@ -344,8 +338,7 @@ bool PanelConfigStore::SaveIdentity(const PanelIdentity& identity) {
 }
 
 bool PanelConfigStore::SaveCustomDeviceName(const std::string& deviceName) {
-    if (deviceName.empty())
-        return false;
+    if (deviceName.empty()) return false;
     const std::scoped_lock lock{mutex_};
     return preferences_->Put("device_name", deviceName) && preferences_->Put("device_name_custom", "true");
 }
@@ -374,9 +367,7 @@ bool PanelConfigStore::SaveController(const ui::ControllerSettings& settings) {
 bool PanelConfigStore::SaveDisconnectAutoLock(const bool enabled) {
     return preferences_->Put("disconnect_auto_lock_screen", enabled ? "true" : "false");
 }
-bool PanelConfigStore::SaveSecurityPasswordHash(const std::string& hash) {
-    return preferences_->Put("device_safety_pwd", hash);
-}
+bool PanelConfigStore::SaveSecurityPasswordHash(const std::string& hash) { return preferences_->Put("device_safety_pwd", hash); }
 bool PanelConfigStore::SaveLanguage(const ::px::ui::Language language) {
     return preferences_->Put("panel_ui_language", language == ::px::ui::Language::English ? "en" : "zh-CN");
 }
@@ -386,16 +377,13 @@ bool PanelConfigStore::SaveTheme(const ::px::ui::Theme theme) {
 bool PanelConfigStore::SaveEnhancedVisualEffects(const bool enabled) {
     return preferences_->Put("panel_ui_enhanced_effects", enabled ? "true" : "false");
 }
-bool PanelConfigStore::SaveShowTemporaryPassword(const bool visible) {
-    return preferences_->Put("display_random_pwd", visible ? "true" : "false");
-}
+bool PanelConfigStore::SaveShowTemporaryPassword(const bool visible) { return preferences_->Put("display_random_pwd", visible ? "true" : "false"); }
 bool PanelConfigStore::SaveIncomingRemoteAccessEnabled(const bool enabled) {
     return preferences_->Put("incoming_remote_access_enabled", enabled ? "true" : "false");
 }
 
 bool PanelConfigStore::SaveRemoteDevicePreference(const std::string& deviceId, const RemoteDevicePreference& preference) {
-    if (deviceId.empty())
-        return false;
+    if (deviceId.empty()) return false;
     const nlohmann::json root{{"name", preference.name},
                               {"audio", preference.audio},
                               {"clipboard", preference.clipboard},
@@ -415,8 +403,7 @@ bool PanelConfigStore::DeleteRemoteDevicePreference(const std::string& deviceId)
 }
 
 bool PanelConfigStore::SaveRemoteDeviceHistory(const RemoteDeviceHistory& device) {
-    if (device.deviceId.empty())
-        return false;
+    if (device.deviceId.empty()) return false;
     const nlohmann::json root{{"device_id", device.deviceId},
                               {"name", device.name},
                               {"host", device.host},
@@ -434,15 +421,13 @@ bool PanelConfigStore::HideRemoteDevice(const std::string& deviceId) {
 }
 
 bool PanelConfigStore::UnhideRemoteDevice(const std::string& deviceId) {
-    if (deviceId.empty())
-        return false;
+    if (deviceId.empty()) return false;
     static_cast<void>(preferences_->Remove("panel_remote_device_hidden:" + deviceId));
     return true;
 }
 
 bool PanelConfigStore::SaveCloudApplicationPreference(const std::string& applicationId, const CloudApplicationPreference& preference) {
-    if (applicationId.empty())
-        return false;
+    if (applicationId.empty()) return false;
     const nlohmann::json root{{"force_tcp", preference.forceTcp}, {"force_relay", preference.forceRelay}};
     return preferences_->Put("panel_cloud_application:" + applicationId, root.dump());
 }
@@ -458,15 +443,10 @@ void PanelConfigStore::Clear() {
             key.starts_with("panel_remote_device_hidden:") || key.starts_with("panel_cloud_application:"))
             preferenceKeys.push_back(key);
     });
-    for (const auto& key : preferenceKeys)
-        static_cast<void>(preferences_->Remove(key));
+    for (const auto& key : preferenceKeys) static_cast<void>(preferences_->Remove(key));
 }
 
-std::filesystem::path PanelConfigStore::ExecutableDirectory() const {
-    return executableDirectory_;
-}
-std::filesystem::path PanelConfigStore::DataDirectory() const {
-    return std::filesystem::path{FolderUtil::GetProgramDataPath()} / "px_data";
-}
+std::filesystem::path PanelConfigStore::ExecutableDirectory() const { return executableDirectory_; }
+std::filesystem::path PanelConfigStore::DataDirectory() const { return std::filesystem::path{FolderUtil::GetProgramDataPath()} / "px_data"; }
 
-} // namespace px::panel::product
+}  // namespace px::panel::product

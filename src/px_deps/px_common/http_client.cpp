@@ -6,10 +6,12 @@
 #include <cpr/redirect.h>
 #include <cpr/session.h>
 
+#include <algorithm>
 #include <asio2/asio2.hpp>
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "log.h"
 
@@ -54,6 +56,27 @@ HttpResponse ToHttpResponse(const cpr::Response& response) {
         .error_message = response.error.message,
     };
 }
+
+void ConfigureBoundedResponse(cpr::Session& session, std::string& response_body, const std::size_t response_body_limit,
+                              bool& response_body_limit_exceeded) {
+    session.SetWriteCallback(
+        cpr::WriteCallback{[&response_body, response_body_limit, &response_body_limit_exceeded](const std::string_view& chunk, intptr_t) {
+            if (chunk.size() > response_body_limit - response_body.size()) {
+                response_body_limit_exceeded = true;
+                return false;
+            }
+            response_body.append(chunk);
+            return true;
+        }});
+}
+
+HttpResponse ToBoundedHttpResponse(cpr::Response response, std::string response_body, const bool response_body_limit_exceeded) {
+    if (response_body_limit_exceeded) {
+        return {.status = 0, .body = {}, .error_code = 23, .error_message = "HTTP response body limit exceeded"};
+    }
+    response.text = std::move(response_body);
+    return ToHttpResponse(response);
+}
 }  // namespace
 
 std::shared_ptr<HttpClient> HttpClient::Make(const std::string& host, int port, const std::string& path, int timeout_ms) {
@@ -86,9 +109,7 @@ HttpClient::HttpClient(const std::string& host, int port, const std::string& pat
     this->port_ = port;
     this->path = path;
     this->ssl_ = ssl;
-    // Console servers use self-signed certificates; disable peer verification
-    // so HTTPS requests don't fail on certificate validation.
-    this->verify_ssl_ = false;
+    this->verify_ssl_ = ssl;
     this->timeout_ms_ = timeout_ms;
 }
 
@@ -111,6 +132,7 @@ HttpResponse HttpClient::Request(const std::map<std::string, std::string>& query
     cpr::Url url{url_path};
     cpr::Session session;
     session.SetUrl(url);
+    session.SetRedirect(cpr::Redirect{false});
     session.SetBody(body);
     session.SetVerifySsl(verify_ssl_);
     if (!ConfigurePrivateCa(session, trusted_ca_file_)) {
@@ -124,10 +146,12 @@ HttpResponse HttpClient::Request(const std::map<std::string, std::string>& query
         session.SetHeader(ToCprHeader(headers_));
     }
     session.SetParameters(params);
-
-    cpr::Response response = session.Get();
+    std::string responseBody{};
+    bool responseBodyLimitExceeded{};
+    ConfigureBoundedResponse(session, responseBody, response_body_limit_, responseBodyLimitExceeded);
+    auto response = session.Get();
     req_path_ = response.url.str();
-    return ToHttpResponse(response);
+    return ToBoundedHttpResponse(std::move(response), std::move(responseBody), responseBodyLimitExceeded);
 }
 
 HttpResponse HttpClient::Post() {
@@ -146,6 +170,7 @@ HttpResponse HttpClient::Post(const std::map<std::string, std::string>& query, c
     cpr::Url url{url_path};
     cpr::Session session;
     session.SetUrl(url);
+    session.SetRedirect(cpr::Redirect{false});
     session.SetVerifySsl(verify_ssl_);
     if (!ConfigurePrivateCa(session, trusted_ca_file_)) {
         return PrivateCaConfigurationError();
@@ -163,10 +188,12 @@ HttpResponse HttpClient::Post(const std::map<std::string, std::string>& query, c
         session.SetHeader(ToCprHeader(headers));
     }
     session.SetParameters(params);
-
-    cpr::Response response = session.Post();
+    std::string responseBody{};
+    bool responseBodyLimitExceeded{};
+    ConfigureBoundedResponse(session, responseBody, response_body_limit_, responseBodyLimitExceeded);
+    auto response = session.Post();
     req_path_ = response.url.str();
-    return ToHttpResponse(response);
+    return ToBoundedHttpResponse(std::move(response), std::move(responseBody), responseBodyLimitExceeded);
 }
 
 HttpResponse HttpClient::Patch(const std::map<std::string, std::string>& query, const std::string& body, const std::string content_type) {
@@ -178,6 +205,7 @@ HttpResponse HttpClient::Patch(const std::map<std::string, std::string>& query, 
     auto url_path = std::format("{}{}:{}{}", ssl_ ? "https://" : "http://", host_, port_, path);
     cpr::Session session;
     session.SetUrl(cpr::Url{url_path});
+    session.SetRedirect(cpr::Redirect{false});
     session.SetVerifySsl(verify_ssl_);
     if (!ConfigurePrivateCa(session, trusted_ca_file_)) {
         return PrivateCaConfigurationError();
@@ -210,6 +238,7 @@ HttpResponse HttpClient::Put(const std::map<std::string, std::string>& query, co
     const auto url_path = std::format("{}{}:{}{}", ssl_ ? "https://" : "http://", host_, port_, path);
     cpr::Session session;
     session.SetUrl(cpr::Url{url_path});
+    session.SetRedirect(cpr::Redirect{false});
     session.SetVerifySsl(verify_ssl_);
     if (!ConfigurePrivateCa(session, trusted_ca_file_)) {
         return PrivateCaConfigurationError();
@@ -242,6 +271,7 @@ HttpResponse HttpClient::Delete(const std::map<std::string, std::string>& query)
     const auto url_path = std::format("{}{}:{}{}", ssl_ ? "https://" : "http://", host_, port_, path);
     cpr::Session session;
     session.SetUrl(cpr::Url{url_path});
+    session.SetRedirect(cpr::Redirect{false});
     session.SetVerifySsl(verify_ssl_);
     if (!ConfigurePrivateCa(session, trusted_ca_file_)) {
         return PrivateCaConfigurationError();
@@ -287,6 +317,7 @@ HttpResponse HttpClient::PostMultiPart(const std::map<std::string, std::string>&
     cpr::Url url{url_path};
     cpr::Session session;
     session.SetUrl(url);
+    session.SetRedirect(cpr::Redirect{false});
     session.SetVerifySsl(verify_ssl_);
     if (!ConfigurePrivateCa(session, trusted_ca_file_)) {
         return PrivateCaConfigurationError();
@@ -336,6 +367,7 @@ HttpResponse HttpClient::PutMultiPart(const std::map<std::string, std::string>& 
     auto url_path = std::format("{}{}:{}{}", ssl_ ? "https://" : "http://", host_, port_, path);
     cpr::Session session;
     session.SetUrl(cpr::Url{url_path});
+    session.SetRedirect(cpr::Redirect{false});
     session.SetVerifySsl(verify_ssl_);
     if (!ConfigurePrivateCa(session, trusted_ca_file_)) {
         return PrivateCaConfigurationError();
@@ -384,6 +416,7 @@ HttpResponse HttpClient::Download(const std::string& path, HttpDownloadOptions o
     LOGI("Download: {}", path.c_str());
     cpr::Session session;
     session.SetUrl(cpr::Url{path});
+    session.SetRedirect(cpr::Redirect{false});
     session.SetVerifySsl(options.verify_ssl);
     session.SetTimeout(cpr::Timeout{options.timeout_ms});
     if (!options.headers.empty()) {
@@ -425,6 +458,8 @@ void HttpClient::SetTrustedCaFile(std::string path) {
     trusted_ca_file_ = std::move(path);
     verify_ssl_ = true;
 }
+
+void HttpClient::SetResponseBodyLimit(const std::size_t response_body_limit) { response_body_limit_ = std::max<std::size_t>(1, response_body_limit); }
 
 void HttpClient::SetCancellationSignal(std::shared_ptr<std::atomic_bool> cancellation_signal) {
     cancellation_signal_ = std::move(cancellation_signal);

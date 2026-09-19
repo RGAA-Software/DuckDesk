@@ -12,6 +12,7 @@ struct PortRange final {
 
 struct NetworkSettingsDraft final {
     std::string consoleAddress{};
+    bool consoleAddressEditable{true};
     std::optional<int> consolePort{};
     int serviceManagementPort{4603};
     int desktopConnectionPort{4601};
@@ -20,4 +21,4 @@ struct NetworkSettingsDraft final {
     int panelListeningPort{4999};
 };
 
-} // namespace px::panel::ui
+}  // namespace px::panel::ui

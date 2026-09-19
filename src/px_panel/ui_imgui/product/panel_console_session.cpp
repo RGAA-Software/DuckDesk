@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <format>
+#include <string_view>
 #include <utility>
 
 #include "px_common/shared_preference.h"
@@ -27,54 +28,83 @@ std::wstring Utf8ToWide(const std::string& value) {
 
 }  // namespace
 
-std::shared_ptr<PanelConsoleSession> PanelConsoleSession::Create(const std::shared_ptr<PanelConfigStore>& config) {
-    auto session = std::make_shared<PanelConsoleSession>(config);
+std::shared_ptr<PanelConsoleSession> PanelConsoleSession::Create(const std::shared_ptr<PanelConfigStore>& config,
+                                                                 const std::shared_ptr<PanelDeploymentIdentityGate>& deploymentIdentity) {
+    auto session = std::make_shared<PanelConsoleSession>(config, deploymentIdentity);
     const auto preferences = SharedPreference::Instance();
     session->userId_ = preferences->Get("console_user:uid");
     session->username_ = preferences->Get("console_user:username");
     session->avatarPath_ = preferences->Get("console_user:avatar_path");
+    session->accountConsoleAddress_ = preferences->Get("console_user:console_address");
+    session->accountDeploymentId_ = preferences->Get("console_user:deployment_id");
     return session;
 }
 
-PanelConsoleSession::PanelConsoleSession(std::shared_ptr<PanelConfigStore> config) : config_{std::move(config)} {}
+PanelConsoleSession::PanelConsoleSession(std::shared_ptr<PanelConfigStore> config, std::shared_ptr<PanelDeploymentIdentityGate> deploymentIdentity)
+    : config_{std::move(config)}, deploymentIdentity_{std::move(deploymentIdentity)} {}
 
 ui::AccountSnapshot PanelConsoleSession::Account() const {
-    const std::scoped_lock lock{mutex_};
-    return {.loggedIn = !userId_.empty() && !username_.empty() && !ReadAccessToken().empty(),
-            .username = username_,
-            .avatarPath = avatarPath_,
-            .operation = accountOperation_};
+    std::string userId{};
+    std::string username{};
+    std::string avatarPath{};
+    std::string accountConsoleAddress{};
+    std::string accountDeploymentId{};
+    ui::AccountOperationState operation{};
+    {
+        const std::scoped_lock lock{mutex_};
+        userId = userId_;
+        username = username_;
+        avatarPath = avatarPath_;
+        accountConsoleAddress = accountConsoleAddress_;
+        accountDeploymentId = accountDeploymentId_;
+        operation = accountOperation_;
+    }
+    const auto endpoint = config_->Console();
+    const bool loggedIn = endpoint && endpoint->baseUrl == accountConsoleAddress && !userId.empty() && !username.empty() &&
+                          !accountDeploymentId.empty() && !ReadAccessToken(*endpoint, accountDeploymentId).empty();
+    return {.loggedIn = loggedIn, .username = std::move(username), .avatarPath = std::move(avatarPath), .operation = operation};
 }
 
 bool PanelConsoleSession::Login(const std::string& username, const std::string& password) {
     const auto endpoint = config_->Console();
     if (!endpoint) return false;
+    const auto deployment = VerifyEndpoint(*endpoint);
+    if (!deployment) return false;
     auto result = px_console::ConsoleUserApi::Login(endpoint->host, endpoint->port, username, password);
-    if (!result || !result.value().user || !WriteAccessToken(result.value().access_token)) return false;
+    if (!result || !result.value().user || !WriteAccessToken(*endpoint, deployment->deploymentId, result.value().access_token)) return false;
     const auto preferences = SharedPreference::Instance();
     {
         const std::scoped_lock lock{mutex_};
         userId_ = result.value().user->uid_;
         username_ = result.value().user->username_;
         avatarPath_ = result.value().user->avatar_path_;
+        accountConsoleAddress_ = endpoint->baseUrl;
+        accountDeploymentId_ = deployment->deploymentId;
         guestToken_.clear();
+        guestConsoleAddress_.clear();
+        guestDeploymentId_.clear();
     }
     return preferences->Put("console_user:uid", result.value().user->uid_) &&
            preferences->Put("console_user:username", result.value().user->username_) &&
-           preferences->Put("console_user:avatar_path", result.value().user->avatar_path_);
+           preferences->Put("console_user:avatar_path", result.value().user->avatar_path_) &&
+           preferences->Put("console_user:console_address", endpoint->baseUrl) &&
+           preferences->Put("console_user:deployment_id", deployment->deploymentId);
 }
 
 bool PanelConsoleSession::Register(const std::string& username, const std::string& password) {
     const auto endpoint = config_->Console();
-    if (!endpoint) return false;
+    if (!endpoint || !VerifyEndpoint(*endpoint)) return false;
     const auto result = px_console::ConsoleUserApi::Register(endpoint->host, endpoint->port, username, password);
     return result.has_value() && Login(username, password);
 }
 
 bool PanelConsoleSession::UpdateProfile(const std::string& username) {
     const auto endpoint = config_->Console();
-    const auto token = ReadAccessToken();
-    if (!endpoint || token.empty() || username.empty()) return false;
+    if (!endpoint || username.empty()) return false;
+    const auto deployment = VerifyEndpoint(*endpoint);
+    if (!deployment) return false;
+    const auto token = ReadAccessToken(*endpoint, deployment->deploymentId);
+    if (token.empty()) return false;
     const auto result = px_console::ConsoleUserApi::UpdateProfile(endpoint->host, endpoint->port, token, username);
     if (!result || !result.value()) return false;
     {
@@ -86,29 +116,24 @@ bool PanelConsoleSession::UpdateProfile(const std::string& username) {
 
 bool PanelConsoleSession::UpdatePassword(const std::string& currentPassword, const std::string& newPassword) {
     const auto endpoint = config_->Console();
-    const auto token = ReadAccessToken();
-    if (!endpoint || token.empty() || currentPassword.empty() || newPassword.empty()) return false;
+    if (!endpoint || currentPassword.empty() || newPassword.empty()) return false;
+    const auto deployment = VerifyEndpoint(*endpoint);
+    if (!deployment) return false;
+    const auto token = ReadAccessToken(*endpoint, deployment->deploymentId);
+    if (token.empty()) return false;
     const auto result = px_console::ConsoleUserApi::UpdatePassword(endpoint->host, endpoint->port, token, currentPassword, newPassword);
     if (!result || !result.value()) return false;
-    DeleteAccessToken();
-    const auto preferences = SharedPreference::Instance();
-    static_cast<void>(preferences->Remove("console_user:uid"));
-    static_cast<void>(preferences->Remove("console_user:username"));
-    static_cast<void>(preferences->Remove("console_user:avatar_path"));
-    {
-        const std::scoped_lock lock{mutex_};
-        userId_.clear();
-        username_.clear();
-        avatarPath_.clear();
-        guestToken_.clear();
-    }
+    ClearLocalAccount();
     return true;
 }
 
 bool PanelConsoleSession::UpdateAvatar(const std::string& imagePath) {
     const auto endpoint = config_->Console();
-    const auto token = ReadAccessToken();
-    if (!endpoint || token.empty() || imagePath.empty()) return false;
+    if (!endpoint || imagePath.empty()) return false;
+    const auto deployment = VerifyEndpoint(*endpoint);
+    if (!deployment) return false;
+    const auto token = ReadAccessToken(*endpoint, deployment->deploymentId);
+    if (token.empty()) return false;
     const auto result = px_console::ConsoleUserApi::UpdateAvatar(endpoint->host, endpoint->port, token, imagePath);
     if (!result || !result.value()) return false;
     {
@@ -120,21 +145,19 @@ bool PanelConsoleSession::UpdateAvatar(const std::string& imagePath) {
 
 bool PanelConsoleSession::Logout() {
     const auto endpoint = config_->Console();
-    const auto token = ReadAccessToken();
-    const bool remoteResult = endpoint && !token.empty() && px_console::ConsoleUserApi::Logout(endpoint->host, endpoint->port, token).has_value();
-    DeleteAccessToken();
-    const auto preferences = SharedPreference::Instance();
-    static_cast<void>(preferences->Remove("console_user:uid"));
-    static_cast<void>(preferences->Remove("console_user:username"));
-    static_cast<void>(preferences->Remove("console_user:avatar_path"));
+    const auto deployment = endpoint ? VerifyEndpoint(*endpoint) : std::nullopt;
+    const auto token = deployment ? ReadAccessToken(*endpoint, deployment->deploymentId) : std::string{};
+    const bool remoteResult = deployment && !token.empty() && px_console::ConsoleUserApi::Logout(endpoint->host, endpoint->port, token).has_value();
+    ClearLocalAccount();
+    return remoteResult || token.empty();
+}
+
+void PanelConsoleSession::ForgetAccountIfDeploymentChanged(const std::string& consoleAddress, const std::string& deploymentId) {
     {
         const std::scoped_lock lock{mutex_};
-        userId_.clear();
-        username_.clear();
-        avatarPath_.clear();
-        guestToken_.clear();
+        if (accountConsoleAddress_ == consoleAddress && accountDeploymentId_ == deploymentId) return;
     }
-    return remoteResult || token.empty();
+    ClearLocalAccount();
 }
 
 void PanelConsoleSession::SetAccountOperation(const ui::AccountOperationState operation) {
@@ -144,8 +167,11 @@ void PanelConsoleSession::SetAccountOperation(const ui::AccountOperationState op
 
 std::vector<std::shared_ptr<px_console::ConsoleUserDevice>> PanelConsoleSession::QueryDevices() {
     const auto endpoint = config_->Console();
-    const auto token = ReadAccessToken();
-    if (!endpoint || token.empty()) return {};
+    if (!endpoint) return {};
+    const auto deployment = VerifyEndpoint(*endpoint);
+    if (!deployment) return {};
+    const auto token = ReadAccessToken(*endpoint, deployment->deploymentId);
+    if (token.empty()) return {};
     auto result = px_console::ConsoleUserDeviceApi::QueryUserBindDevices(endpoint->host, endpoint->port, token);
     return result ? result.value() : std::vector<std::shared_ptr<px_console::ConsoleUserDevice>>{};
 }
@@ -153,8 +179,11 @@ std::vector<std::shared_ptr<px_console::ConsoleUserDevice>> PanelConsoleSession:
 std::optional<px_console::ConsoleNativeDeviceConnection> PanelConsoleSession::QueryNativeDeviceConnection(const std::string& deviceId,
                                                                                                           const bool viewOnly) {
     const auto endpoint = config_->Console();
-    const auto token = ReadAccessToken();
-    if (!endpoint || token.empty()) return std::nullopt;
+    if (!endpoint) return std::nullopt;
+    const auto deployment = VerifyEndpoint(*endpoint);
+    if (!deployment) return std::nullopt;
+    const auto token = ReadAccessToken(*endpoint, deployment->deploymentId);
+    if (token.empty()) return std::nullopt;
     auto result = px_console::ConsoleUserDeviceApi::QueryNativeConnection(endpoint->host, endpoint->port, token, deviceId, viewOnly);
     return result ? std::optional{std::move(result.value())} : std::nullopt;
 }
@@ -162,7 +191,7 @@ std::optional<px_console::ConsoleNativeDeviceConnection> PanelConsoleSession::Qu
 std::vector<px_console::ConsoleUserApplication> PanelConsoleSession::QueryApplications() {
     const auto endpoint = config_->Console();
     if (!endpoint) return {};
-    auto [token, guest] = ResourceToken();
+    auto [token, guest] = ResourceToken(*endpoint);
     if (token.empty()) return {};
     auto result = px_console::ConsoleUserAppApi::QueryApps(endpoint->host, endpoint->port, token, guest);
     if (!result) {
@@ -189,7 +218,7 @@ px::Result<px_console::ConsoleUserAppInstance, px_console::ConsoleApiError> Pane
                                                                                                                   const std::string& nonce) {
     const auto endpoint = config_->Console();
     if (!endpoint) return std::unexpected{px_console::ConsoleApiError::kInvalidHostAddress};
-    auto [token, guest] = ResourceToken();
+    auto [token, guest] = ResourceToken(*endpoint);
     if (token.empty()) return std::unexpected{px_console::ConsoleApiError::kAuthenticationRequired};
     return px_console::ConsoleUserAppApi::StartApp(endpoint->host, endpoint->port, token, appId, nonce, guest);
 }
@@ -198,7 +227,7 @@ px::Result<px_console::ConsoleNativeApplicationConnection, px_console::ConsoleAp
     const std::string& instanceId, const bool viewOnly, const std::string& requestId) {
     const auto endpoint = config_->Console();
     if (!endpoint) return std::unexpected{px_console::ConsoleApiError::kInvalidHostAddress};
-    auto [token, guest] = ResourceToken();
+    auto [token, guest] = ResourceToken(*endpoint);
     if (token.empty()) return std::unexpected{px_console::ConsoleApiError::kAuthenticationRequired};
     return px_console::ConsoleUserAppApi::QueryNativeConnection(endpoint->host, endpoint->port, token, instanceId, viewOnly, requestId, guest);
 }
@@ -206,7 +235,7 @@ px::Result<px_console::ConsoleNativeApplicationConnection, px_console::ConsoleAp
 bool PanelConsoleSession::CloseResourceConnection(const std::string& sessionId, const std::int64_t sessionRevision) {
     const auto endpoint = config_->Console();
     if (!endpoint) return false;
-    auto [token, guest] = ResourceToken();
+    auto [token, guest] = ResourceToken(*endpoint);
     return !token.empty() &&
            px_console::ClosePanelResourceConnection(endpoint->host, endpoint->port, token, guest, sessionId, sessionRevision).value_or(false);
 }
@@ -214,43 +243,60 @@ bool PanelConsoleSession::CloseResourceConnection(const std::string& sessionId, 
 bool PanelConsoleSession::StopApplication(const std::string& instanceId) {
     const auto endpoint = config_->Console();
     if (!endpoint) return false;
-    auto [token, guest] = ResourceToken();
+    auto [token, guest] = ResourceToken(*endpoint);
     return !token.empty() && px_console::ConsoleUserAppApi::StopInstance(endpoint->host, endpoint->port, token, instanceId, guest).has_value();
 }
 
-std::tuple<std::string, bool> PanelConsoleSession::ResourceToken() {
-    if (auto token = ReadAccessToken(); !token.empty()) return {std::move(token), false};
-    const auto endpoint = config_->Console();
-    if (!endpoint) return {{}, true};
+std::optional<px_console::VerifiedDeploymentIdentity> PanelConsoleSession::VerifyEndpoint(const ConsoleEndpoint& endpoint) {
+    if (!deploymentIdentity_) return std::nullopt;
+    const auto identity = deploymentIdentity_->VerifySelected(endpoint.baseUrl, endpoint.host, endpoint.port);
+    return identity ? std::optional{*identity} : std::nullopt;
+}
+
+std::tuple<std::string, bool> PanelConsoleSession::ResourceToken(const ConsoleEndpoint& endpoint) {
+    const auto deployment = VerifyEndpoint(endpoint);
+    if (!deployment) return {{}, true};
+    if (auto token = ReadAccessToken(endpoint, deployment->deploymentId); !token.empty()) return {std::move(token), false};
     {
         const std::scoped_lock lock{mutex_};
+        if (guestConsoleAddress_ != endpoint.baseUrl || guestDeploymentId_ != deployment->deploymentId) {
+            guestToken_.clear();
+            guestConsoleAddress_.clear();
+            guestDeploymentId_.clear();
+        }
         if (!guestToken_.empty()) return {guestToken_, true};
     }
     const auto nonce = std::format("{}-{}", GetCurrentProcessId(), GetTickCount64());
-    auto result = px_console::ConsoleUserAppApi::CreateGuestSession(endpoint->host, endpoint->port, nonce);
+    auto result = px_console::ConsoleUserAppApi::CreateGuestSession(endpoint.host, endpoint.port, nonce);
     if (!result) return {{}, true};
     const std::scoped_lock lock{mutex_};
-    if (guestToken_.empty()) guestToken_ = result.value();
+    if (guestToken_.empty()) {
+        guestToken_ = result.value();
+        guestConsoleAddress_ = endpoint.baseUrl;
+        guestDeploymentId_ = deployment->deploymentId;
+    }
     return {guestToken_, true};
 }
 
-std::wstring PanelConsoleSession::CredentialTarget() const {
-    const auto endpoint = config_->Console();
-    return Utf8ToWide(endpoint ? std::format("Pixels.Console.UserSession.{}:{}", endpoint->host, endpoint->port)
-                               : std::string{"Pixels.Console.UserSession.Unconfigured"});
+std::wstring PanelConsoleSession::CredentialTarget(const ConsoleEndpoint& endpoint, const std::string& deploymentId) const {
+    return Utf8ToWide(std::format("Pixels.Console.UserSession.{}.{}:{}", deploymentId, endpoint.host, endpoint.port));
 }
 
-std::string PanelConsoleSession::ReadAccessToken() const {
+std::string PanelConsoleSession::ReadAccessToken(const ConsoleEndpoint& endpoint, const std::string& deploymentId) const {
+    {
+        const std::scoped_lock lock{mutex_};
+        if (accountConsoleAddress_ != endpoint.baseUrl || accountDeploymentId_ != deploymentId) return {};
+    }
     PCREDENTIALW credential{};  // NOLINT(pixels-raw-pointer-boundary): WinCred output parameter, immediately freed
-    const auto target = CredentialTarget();
+    const auto target = CredentialTarget(endpoint, deploymentId);
     if (!CredReadW(target.c_str(), CRED_TYPE_GENERIC, 0, &credential)) return {};
     const std::string token{reinterpret_cast<const char*>(credential->CredentialBlob), credential->CredentialBlobSize};
     CredFree(credential);
     return token;
 }
 
-bool PanelConsoleSession::WriteAccessToken(const std::string& token) const {
-    auto target = CredentialTarget();
+bool PanelConsoleSession::WriteAccessToken(const ConsoleEndpoint& endpoint, const std::string& deploymentId, const std::string& token) const {
+    auto target = CredentialTarget(endpoint, deploymentId);
     CREDENTIALW credential{};
     credential.Type = CRED_TYPE_GENERIC;
     credential.TargetName = target.data();
@@ -261,9 +307,35 @@ bool PanelConsoleSession::WriteAccessToken(const std::string& token) const {
     return CredWriteW(&credential, 0) != FALSE;
 }
 
-void PanelConsoleSession::DeleteAccessToken() const {
-    const auto target = CredentialTarget();
+void PanelConsoleSession::DeleteAccessToken(const std::string& consoleAddress, const std::string& deploymentId) const {
+    const auto endpoint = config_->ParseConsoleAddress(consoleAddress);
+    if (!endpoint || deploymentId.empty()) return;
+    const auto target = CredentialTarget(*endpoint, deploymentId);
     static_cast<void>(CredDeleteW(target.c_str(), CRED_TYPE_GENERIC, 0));
+}
+
+void PanelConsoleSession::ClearLocalAccount() {
+    std::string consoleAddress{};
+    std::string deploymentId{};
+    {
+        const std::scoped_lock lock{mutex_};
+        consoleAddress = accountConsoleAddress_;
+        deploymentId = accountDeploymentId_;
+        userId_.clear();
+        username_.clear();
+        avatarPath_.clear();
+        accountConsoleAddress_.clear();
+        accountDeploymentId_.clear();
+        guestToken_.clear();
+        guestConsoleAddress_.clear();
+        guestDeploymentId_.clear();
+    }
+    DeleteAccessToken(consoleAddress, deploymentId);
+    const auto preferences = SharedPreference::Instance();
+    for (const std::string_view key :
+         {"console_user:uid", "console_user:username", "console_user:avatar_path", "console_user:console_address", "console_user:deployment_id"}) {
+        static_cast<void>(preferences->Remove(std::string{key}));
+    }
 }
 
 }  // namespace px::panel::product

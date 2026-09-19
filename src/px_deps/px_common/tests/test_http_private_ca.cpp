@@ -1,12 +1,17 @@
+#include <Windows.h>
 #include <gtest/gtest.h>
 
-#include <Windows.h>
 #include <array>
 #include <string>
 
 #include "px_common/http_client.h"
 
 namespace {
+
+TEST(HttpPrivateCa, HttpsEnablesSystemPeerVerificationByDefault) {
+    EXPECT_TRUE(px::HttpClient::MakeSSL("console.example.com", 443, "/health/ready")->IsPeerVerificationEnabled());
+    EXPECT_FALSE(px::HttpClient::Make("127.0.0.1", 8080, "/health/ready")->IsPeerVerificationEnabled());
+}
 
 std::string TestCa(bool invalid = false) {
     std::array<char, 32768> path{};
@@ -58,4 +63,4 @@ TEST(HttpPrivateCa, WrongHostnameIsRejectedEvenWithCorrectRoot) {
     CheckMethods("127.0.0.2", ca, false);
 }
 
-} // namespace
+}  // namespace

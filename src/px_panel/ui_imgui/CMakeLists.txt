@@ -58,6 +58,7 @@ add_executable(px_panel WIN32
     product/panel_running_pipe.cpp
     product/render_api.cpp
     product/panel_credential_vault.cpp
+    product/panel_deployment_identity_gate.cpp
     product/panel_audit_store.cpp
     product/panel_config_store.cpp
     product/panel_console_session.cpp

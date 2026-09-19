@@ -3,6 +3,7 @@
 #include <cpr/error.h>
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -61,6 +62,7 @@ public:
     static HttpResponse Download(const std::string& url, HttpDownloadOptions options);
     void SetVerifySsl(bool verify_ssl);
     void SetTrustedCaFile(std::string path);
+    void SetResponseBodyLimit(std::size_t response_body_limit);
     [[nodiscard]] bool IsPeerVerificationEnabled() const noexcept { return ssl_ && verify_ssl_; }
     void SetCancellationSignal(std::shared_ptr<std::atomic_bool> cancellation_signal);
     void SetHeader(const std::string& key, const std::string& value);
@@ -74,6 +76,7 @@ private:
     std::string path;
     bool ssl_ = false;
     bool verify_ssl_ = false;
+    std::size_t response_body_limit_{8 * 1024 * 1024};
     std::string trusted_ca_file_{};
     int timeout_ms_ = 3000;
     std::string req_path_;

@@ -25,6 +25,8 @@ struct ConsoleEndpoint final {
     [[nodiscard]] bool IsValid() const;
 };
 
+[[nodiscard]] std::optional<ConsoleEndpoint> ParseConsoleHttpsOrigin(std::string value);
+
 struct PanelIdentity final {
     std::string deviceId{};
     std::string deviceName{};
@@ -70,10 +72,10 @@ struct CloudApplicationPreference final {
 };
 
 class PanelConfigStore final {
-  public:
-    static std::shared_ptr<PanelConfigStore> Create(const std::filesystem::path& executableDirectory);
+public:
+    static std::shared_ptr<PanelConfigStore> Create(const std::filesystem::path& executableDirectory, std::string fixedConsoleAddress = {});
 
-    PanelConfigStore(std::shared_ptr<SharedPreference> preferences, std::filesystem::path executableDirectory);
+    PanelConfigStore(std::shared_ptr<SharedPreference> preferences, std::filesystem::path executableDirectory, std::string fixedConsoleAddress = {});
 
     [[nodiscard]] std::optional<ConsoleEndpoint> ParseConsoleAddress(const std::string& value) const;
     [[nodiscard]] std::optional<ConsoleEndpoint> Console() const;
@@ -113,10 +115,11 @@ class PanelConfigStore final {
     [[nodiscard]] std::filesystem::path ExecutableDirectory() const;
     [[nodiscard]] std::filesystem::path DataDirectory() const;
 
-  private:
+private:
     std::shared_ptr<SharedPreference> preferences_{};
     std::filesystem::path executableDirectory_{};
+    std::string fixedConsoleAddress_{};
     mutable std::mutex mutex_{};
 };
 
-} // namespace px::panel::product
+}  // namespace px::panel::product

@@ -48,7 +48,7 @@ std::string DisplayPort(const std::optional<int> port) { return port.has_value()
 
 std::string DisplayRange(const PortRange range) { return std::to_string(range.first) + "-" + std::to_string(range.last); }
 
-} // namespace
+}  // namespace
 
 NetworkPageAction NetworkSettingsPage::Draw(const px::ui::Localizer& localizer) {
     const auto text = [&localizer](const px::ui::TextId id) { return localizer.Text(id); };
@@ -59,7 +59,8 @@ NetworkPageAction NetworkSettingsPage::Draw(const px::ui::Localizer& localizer) 
 
     px::ui::FieldLabel(text(px::ui::TextId::ConsoleAddress));
     px::ui::FieldDescription(text(px::ui::TextId::ConsoleAddressHint));
-    static_cast<void>(px::ui::TextField({"console-address"}, draft_.consoleAddress, "https://console.example.com"));
+    static_cast<void>(
+        px::ui::TextField({"console-address"}, draft_.consoleAddress, "https://console.example.com", {.readOnly = !draft_.consoleAddressEditable}));
     if (ImGui::IsItemDeactivatedAfterEdit()) {
         return NetworkPageAction::ConsoleAddressChanged;
     }
@@ -94,7 +95,8 @@ NetworkPageAction NetworkSettingsPage::Draw(const px::ui::Localizer& localizer) 
     }
 
     ImGui::Spacing();
-    if (px::ui::ActionButton({"network-save"}, text(px::ui::TextId::Save), {.width = px::ui::Scale(150.0F)})) {
+    if (px::ui::ActionButton({"network-save"}, text(px::ui::TextId::Save),
+                             {.width = px::ui::Scale(150.0F), .disabled = !draft_.consoleAddressEditable})) {
         return NetworkPageAction::SaveRequested;
     }
     ImGui::SameLine();
@@ -113,4 +115,4 @@ void NetworkSettingsPage::SetDraft(NetworkSettingsDraft draft) { draft_ = std::m
 
 void NetworkSettingsPage::SetStatus(const px::ui::TextId status) noexcept { status_ = status; }
 
-} // namespace px::panel::ui
+}  // namespace px::panel::ui
