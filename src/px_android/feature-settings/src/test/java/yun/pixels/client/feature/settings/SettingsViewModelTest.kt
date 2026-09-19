@@ -114,11 +114,30 @@ class SettingsViewModelTest {
         assertNull(viewModel.uiState.value.profile)
         assertEquals(false, viewModel.uiState.value.confirmEndpointChange)
     }
+
+    @Test
+    fun officialEndpointCannotBeEditedOrSaved() = runTest(dispatcher) {
+        val repository = FakeAccountRepository(initialEndpoint = "https://official.example.com", endpointEditable = false)
+        val viewModel = SettingsViewModel(repository)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+        advanceUntilIdle()
+
+        viewModel.onAction(SettingsAction.ConsoleEndpointChanged("https://private.example.com"))
+        viewModel.onAction(SettingsAction.SaveEndpoint)
+        viewModel.onAction(SettingsAction.TestEndpoint)
+        advanceUntilIdle()
+
+        assertEquals(false, viewModel.uiState.value.endpointEditable)
+        assertEquals("https://official.example.com", viewModel.uiState.value.consoleEndpoint)
+        assertEquals(emptyList<String>(), repository.savedEndpoints)
+        assertEquals(emptyList<String>(), repository.testedEndpoints)
+    }
 }
 
 private class FakeAccountRepository(
     private val loginResult: AccountResult<AccountSession>? = null,
     initialEndpoint: String? = null,
+    override val endpointEditable: Boolean = true,
 ) : ConsoleSessionRepository {
     private val mutableState = MutableStateFlow<AccountState>(AccountState.SignedOut)
     override val state: StateFlow<AccountState> = mutableState
@@ -126,6 +145,7 @@ private class FakeAccountRepository(
     override val endpoint: StateFlow<ConsoleEndpoint?> = mutableEndpoint
     var lastLoginEndpoint: String? = null
     val savedEndpoints = mutableListOf<String>()
+    val testedEndpoints = mutableListOf<String>()
 
     fun signIn(endpoint: String, username: String) {
         mutableEndpoint.value = ConsoleEndpoint(endpoint)
@@ -163,7 +183,10 @@ private class FakeAccountRepository(
         return AccountResult.Success(value)
     }
 
-    override suspend fun testEndpoint(endpoint: String): AccountResult<ConsoleEndpoint> = AccountResult.Success(ConsoleEndpoint(endpoint))
+    override suspend fun testEndpoint(endpoint: String): AccountResult<ConsoleEndpoint> {
+        testedEndpoints += endpoint
+        return AccountResult.Success(ConsoleEndpoint(endpoint))
+    }
 
     override suspend fun register(username: String, password: String): AccountResult<AccountSession> =
         login(mutableEndpoint.value?.baseUrl.orEmpty(), username, password)

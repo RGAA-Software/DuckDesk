@@ -94,4 +94,9 @@ User-Agent 或配置字符串绕过。
 - `POST /.well-known/pixels/challenge` 只接受当前 descriptor revision，证明绑定 32 字节随机 nonce 且过期/重放失败。
 - 通用 Server/客户端安装包清单中不存在 `px_deployment_authority`、厂商根私钥或部署私钥。
 
-客户端验签、水位持久化以及 Official/Customer 独立发行仍按 DB5/P0 验收；完成前，服务端协议通过不等于发行隔离通过。
+Android 已把验签、nonce 持有证明和 deployment/certificate/descriptor/trust 单调水位接到所有凭据请求前；损坏水位、身份切换或任一水位
+回退均 fail-closed。Official 固定编译时 deployment UUID 与 HTTPS Console origin，设置页不提供编辑；Customer 使用独立 applicationId、
+独立输出沙箱且只接受 `private` 身份，首次成功证明后固定 deployment。两类 APK/AAB 构建都要求规范公开 trust store，并校验文件
+`trust_epoch` 与显式最低水位一致。正式批准的 trust store、Official UUID/URL 和签名材料未配置时不得生成发行包。
+
+Windows、Web、Service 的同等消费以及 Android 正式双发行制品/真机验收仍按 DB5/P0 继续；Android 代码门禁通过不等于全部发行隔离完成。

@@ -1,6 +1,10 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
+    [ValidateSet('official', 'customer')]
+    [string]$Distribution,
+
+    [Parameter(Mandatory = $true)]
     [ValidateSet('debug', 'release')]
     [string]$Configuration,
 
@@ -13,8 +17,10 @@ Set-StrictMode -Version Latest
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $androidRoot = Join-Path $repoRoot 'src\px_android'
-$androidBuildRoot = Join-Path $repoRoot 'build_official\android\gradle'
-$androidNativeRoot = Join-Path $repoRoot 'build_official\android\native'
+$androidProductRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot "build_official\android\$Distribution"))
+$expectedAndroidRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot 'build_official\android'))
+$androidBuildRoot = Join-Path $androidProductRoot 'gradle'
+$androidNativeRoot = Join-Path $androidProductRoot 'native'
 $gradle = Join-Path $androidRoot 'gradlew.bat'
 $versionTool = Join-Path $repoRoot 'set_product_version.py'
 
@@ -49,8 +55,42 @@ if ($Configuration -eq 'release' -and $Action) {
 if ($Action -eq 'install' -and -not (Get-Command adb -ErrorAction SilentlyContinue)) {
     throw 'adb is required for build_android_product.bat debug install.'
 }
+if (-not $androidProductRoot.StartsWith($expectedAndroidRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Refusing to clean outside the Android product root: $androidProductRoot"
+}
+$trustStorePath = [Environment]::GetEnvironmentVariable('PIXELS_DEPLOYMENT_TRUST_STORE_FILE')
+if ([string]::IsNullOrWhiteSpace($trustStorePath) -or -not (Test-Path -LiteralPath $trustStorePath -PathType Leaf)) {
+    throw 'PIXELS_DEPLOYMENT_TRUST_STORE_FILE must identify the approved canonical public trust store.'
+}
+if ($Distribution -eq 'official') {
+    if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('PIXELS_EXPECTED_DEPLOYMENT_ID')) -or
+        [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('PIXELS_OFFICIAL_CONSOLE_URL'))) {
+        throw 'Official builds require PIXELS_EXPECTED_DEPLOYMENT_ID and PIXELS_OFFICIAL_CONSOLE_URL.'
+    }
+} elseif (-not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('PIXELS_EXPECTED_DEPLOYMENT_ID')) -or
+    -not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('PIXELS_OFFICIAL_CONSOLE_URL'))) {
+    throw 'Customer builds must not configure PIXELS_EXPECTED_DEPLOYMENT_ID or PIXELS_OFFICIAL_CONSOLE_URL.'
+}
+$env:PIXELS_DISTRIBUTION = $Distribution
+$env:PIXELS_VALIDATE_DISTRIBUTION = '1'
+Push-Location $androidRoot
+try {
+    & $gradle ':app:validateDistributionConfiguration' '--quiet'
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Android distribution identity preflight failed; existing artifacts and version were not changed.'
+    }
+} finally {
+    Pop-Location
+    Remove-Item Env:PIXELS_VALIDATE_DISTRIBUTION -ErrorAction SilentlyContinue
+}
 
-& (Join-Path $PSScriptRoot 'clean_product_outputs.ps1') -Product android
+if ([IO.Directory]::Exists($androidProductRoot)) {
+    Write-Host "Removing generated Android $Distribution output: $androidProductRoot"
+    [IO.Directory]::Delete($androidProductRoot, $true)
+} elseif ([IO.File]::Exists($androidProductRoot)) {
+    throw "Expected an Android product directory but found a file: $androidProductRoot"
+}
+[IO.Directory]::CreateDirectory($androidProductRoot) | Out-Null
 
 $versionOutput = @(& python $versionTool --product android --bump --json 2>&1)
 if ($LASTEXITCODE -ne 0) {
@@ -71,7 +111,7 @@ $env:PIXELS_GIT_REVISION = $revision
 $env:PIXELS_ANDROID_BUILD_ROOT = $androidBuildRoot
 $env:PIXELS_ANDROID_NATIVE_ROOT = $androidNativeRoot
 
-Write-Host "Building Pixels Android $($env:PIXELS_VERSION_NAME) ($($env:PIXELS_VERSION_CODE)) $Configuration."
+Write-Host "Building Pixels Android $Distribution $($env:PIXELS_VERSION_NAME) ($($env:PIXELS_VERSION_CODE)) $Configuration."
 
 if ($Configuration -eq 'release') {
     & (Join-Path $androidRoot 'scripts\build_release.ps1')
@@ -107,9 +147,9 @@ if (-not (Test-Path -LiteralPath $apkPath -PathType Leaf)) {
     throw "Debug APK is missing: $apkPath"
 }
 
-$distRoot = Join-Path $repoRoot 'build_official\android\dist'
+$distRoot = Join-Path $androidProductRoot 'dist'
 New-Item -ItemType Directory -Path $distRoot -Force | Out-Null
-$destination = Join-Path $distRoot "Pixels-$($env:PIXELS_VERSION_NAME)-debug-arm64-v8a.apk"
+$destination = Join-Path $distRoot "Pixels-$Distribution-$($env:PIXELS_VERSION_NAME)-debug-arm64-v8a.apk"
 $temporaryDestination = "$destination.tmp"
 Copy-Item -LiteralPath $apkPath -Destination $temporaryDestination -Force
 Move-Item -LiteralPath $temporaryDestination -Destination $destination -Force

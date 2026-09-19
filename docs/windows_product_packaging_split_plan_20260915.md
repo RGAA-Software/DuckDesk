@@ -101,7 +101,7 @@ python set_product_version.py --product android --bump
 “每次构建递增”以产品构建入口为边界，不以编译器进程、Gradle 子任务或 CMake target 数量计数：
 
 - `build_cloud_node.bat`、`build_client_product.bat`、`build_remote_product.bat` 每次调用分别只提升自己的版本一次；
-- Android 的 `build_android_product.bat debug|release` 每次调用只提升 Android 版本一次，然后把新值同时传给该次 Gradle 的 `versionName` 和 `versionCode`；
+- Android 的 `build_android_product.bat official|customer debug|release` 每次调用只提升 Android 版本一次，然后把新值同时传给该次 Gradle 的 `versionName` 和 `versionCode`；
 - 同一次 Android 调用中的 lint、单元测试、`assemble`、`bundle` 和 `install` 子任务共享同一个已提升版本，不得各自再次提升；
 - Android Studio 同步、Gradle 配置、纯测试、lint、`core-native` 构建以及 `scripts_build/build_cpp_*.bat` 定向 C++ 构建不产生完整产品包，因此不提升产品版本；
 - 直接执行会生成 APK/AAB 的 Gradle 任务时必须由产品构建入口提供版本环境，禁止继续静默使用 `versionCode=1`、`versionName=1.0.0` 默认值；
@@ -192,7 +192,7 @@ scripts_build/build_remote_product.bat
 
 ### 5.1 Android 产品构建入口
 
-Android 使用独立入口 `scripts_build/build_android_product.bat debug|release`。该入口必须：
+Android 使用独立入口 `scripts_build/build_android_product.bat official|customer debug|release`。该入口必须：
 
 1. 调用版本工具，只提升 `packaging/products/android.toml` 一次；
 2. 读取提升后的 `product_version`、`product_version_code` 和当前 Git revision；
@@ -496,7 +496,7 @@ PixelsRemote_<version>_Setup.exe
 
 ### Android
 
-- 连续两次调用 `build_android_product.bat debug` 时，Android `product_version` 和 `product_version_code` 每次各提升一次，后一次 `versionCode` 严格大于前一次；
+- 连续两次调用 `build_android_product.bat official debug` 时，Android `product_version` 和 `product_version_code` 每次各提升一次，后一次 `versionCode` 严格大于前一次；
 - 单次入口内的 lint、测试、APK、AAB 或 install 子任务共享同一个版本，不发生多次提升；
 - Release 构建与 Debug 构建使用同一个 Android 独立版本序列，每次完整产品构建均消耗一个新版本；
 - APK/AAB 的 Gradle metadata、应用内版本展示和 Android 发布清单与 `packaging/products/android.toml` 一致；

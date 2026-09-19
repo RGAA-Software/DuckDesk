@@ -96,9 +96,10 @@ Customer 只接受 `private`，Official 只接受 `official`。不能只检查 J
 
 随后客户端向 `POST /.well-known/pixels/challenge` 发送 32 字节随机数的规范 base64url nonce 和刚验证的 descriptor revision；Console 返回
 最长 30 秒的 `proof_wire`。客户端验证同一 deployment 公钥、nonce、revision 和有效期后，才可发送用户名、密码、Cookie、节点 token 或
-其他凭据。旧 revision、旧 trust epoch、过期证书/描述/证明、未知字段、非规范编码、篡改签名和错误发行全部 fail-closed。当前切片先交付
-服务端协议与密码学合同；Windows/Android/Web 客户端消费、发行内置信任根、配置水位持久化和 official/customer 独立构建仍按 DB5/P0
-继续实施，不能把发现接口存在本身记为发行隔离完成。
+其他凭据。旧 revision、旧 trust epoch、过期证书/描述/证明、未知字段、非规范编码、篡改签名和错误发行全部 fail-closed。Android 已消费
+该协议并在账号/guest/所有 bearer 请求前验证，持久化 deployment/certificate/descriptor/trust 单调水位；Official 固定端点、Customer
+私有端点及两种独立 applicationId/输出沙箱也已落到构建入口。Windows/Web/Service 的同等消费、正式发行材料和跨端验收仍按 DB5/P0
+继续实施，不能把服务端发现接口或 Android 聚焦测试单独记为发行隔离完成。
 
 生产服务账号不能获得 owner、DDL、跨库或私钥目录外权限。密钥不写数据库、不随发行包分发、不因缺失自动生成。
 

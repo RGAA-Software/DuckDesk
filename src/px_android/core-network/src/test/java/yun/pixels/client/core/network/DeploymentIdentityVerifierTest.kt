@@ -14,6 +14,12 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.test.runTest
+import yun.pixels.client.core.domain.account.AccountResult
+import yun.pixels.client.core.domain.account.DeploymentIdentityWatermark
+import yun.pixels.client.core.domain.account.DeploymentIdentityWatermarkState
+import yun.pixels.client.core.domain.account.DeploymentIdentityWatermarkStore
 
 class DeploymentIdentityVerifierTest {
     @Test
@@ -53,6 +59,73 @@ class DeploymentIdentityVerifierTest {
         val duplicate = JSONObject(String(fixture.trustStoreBytes, StandardCharsets.UTF_8))
         duplicate.getJSONArray("trusted_keys").put(duplicate.getJSONArray("trusted_keys").getJSONObject(0))
         assertNull(DeploymentTrustStore.parse(duplicate.toString().toByteArray(StandardCharsets.UTF_8)))
+    }
+
+    @Test
+    fun credentialsAreSentOnlyAfterIdentityAndNonceProof() = runTest {
+        val fixture = Fixture()
+        val requests = mutableListOf<Pair<String, String?>>()
+        val executor = ConsoleRequestExecutor { _, path, _, _, _, body ->
+            requests += path to body?.toString()
+            when (path) {
+                "/.well-known/pixels" -> HttpResponse(200, fixture.identityJson)
+                "/.well-known/pixels/challenge" -> {
+                    val nonce = body!!.getString("nonce")
+                    HttpResponse(200, JSONObject().put("proof_wire", fixture.challengeWire(nonce)).toString())
+                }
+                "/api/console/sessions" -> HttpResponse(
+                    200,
+                    "{\"token\":\"token\",\"expires_at\":\"2030-01-01T00:00:00Z\",\"profile\":{\"id\":\"user-1\",\"username\":\"alice\",\"avatar_url\":null}}",
+                )
+                else -> HttpResponse(404, "{}")
+            }
+        }
+        val configuration = DeploymentIdentityConfiguration.createForTesting(fixture.trustStoreBytes, fixture.policy)!!
+        val watermarkStore = MemoryWatermarkStore()
+        val client = ConsoleApiClient(Dispatchers.Unconfined, executor, configuration, watermarkStore) { NOW }
+
+        val result = client.login("https://console.example", "alice", "secret-password")
+
+        assertTrue(result is AccountResult.Success)
+        assertTrue(requests.map { it.first } == listOf("/.well-known/pixels", "/.well-known/pixels/challenge", "/api/console/sessions"))
+        assertFalse(requests[0].second.orEmpty().contains("secret-password"))
+        assertFalse(requests[1].second.orEmpty().contains("secret-password"))
+        assertTrue(requests[2].second.orEmpty().contains("secret-password"))
+        assertTrue(watermarkStore.state is DeploymentIdentityWatermarkState.Present)
+    }
+
+    @Test
+    fun persistedWatermarkRejectsRollbackBeforeCredentials() = runTest {
+        val fixture = Fixture()
+        val requests = mutableListOf<String>()
+        val executor = ConsoleRequestExecutor { _, path, _, _, _, _ ->
+            requests += path
+            when (path) {
+                "/.well-known/pixels" -> HttpResponse(200, fixture.identityJson)
+                else -> HttpResponse(500, "{}")
+            }
+        }
+        val watermarkStore = MemoryWatermarkStore(
+            DeploymentIdentityWatermarkState.Present(
+                DeploymentIdentityWatermark(
+                    "9c08feb1-af71-4fab-a6b8-bbd99b3552ba",
+                    "private",
+                    2,
+                    5,
+                    3,
+                ),
+            ),
+        )
+        val configuration = DeploymentIdentityConfiguration.createForTesting(
+            fixture.trustStoreBytes,
+            fixture.policy.copy(expectedDeploymentId = null),
+        )!!
+        val client = ConsoleApiClient(Dispatchers.Unconfined, executor, configuration, watermarkStore) { NOW }
+
+        val result = client.login("https://console.example", "alice", "secret-password")
+
+        assertTrue(result is AccountResult.Failure)
+        assertTrue(requests == listOf("/.well-known/pixels"))
     }
 
     private class Fixture {
@@ -108,14 +181,15 @@ class DeploymentIdentityVerifierTest {
             .put("certificate_wire", certificateWire)
             .put("descriptor_wire", descriptorWire)
             .toString()
-        val challengeWire = wire(
+        val challengeWire = challengeWire(nonce)
+        fun challengeWire(nonceValue: String): String = wire(
             "PXDP1",
             "Pixels-Deployment-Challenge-v1\u0000",
             JSONObject()
                 .put("schema_version", 1)
                 .put("deployment_id", deploymentId.toString())
                 .put("descriptor_revision", 4)
-                .put("nonce", nonce)
+                .put("nonce", nonceValue)
                 .put("issued_at", NOW)
                 .put("expires_at", NOW + 30)
                 .toString(),
@@ -153,5 +227,16 @@ class DeploymentIdentityVerifierTest {
             MessageDigest.getInstance("SHA-256").digest(bytes).toHex()
 
         private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it.toInt() and 0xff) }
+    }
+}
+
+private class MemoryWatermarkStore(
+    var state: DeploymentIdentityWatermarkState = DeploymentIdentityWatermarkState.Empty,
+) : DeploymentIdentityWatermarkStore {
+    override fun load(): DeploymentIdentityWatermarkState = state
+
+    override fun save(watermark: DeploymentIdentityWatermark): Boolean {
+        state = DeploymentIdentityWatermarkState.Present(watermark)
+        return true
     }
 }

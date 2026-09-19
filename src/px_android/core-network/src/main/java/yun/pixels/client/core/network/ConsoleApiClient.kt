@@ -3,6 +3,8 @@ package yun.pixels.client.core.network
 import java.net.URI
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.security.SecureRandom
+import java.util.Base64
 import java.time.Instant
 import java.util.UUID
 import javax.net.ssl.HttpsURLConnection
@@ -17,6 +19,9 @@ import yun.pixels.client.core.domain.account.AccountProfile
 import yun.pixels.client.core.domain.account.AccountResult
 import yun.pixels.client.core.domain.account.AccountSession
 import yun.pixels.client.core.domain.account.ConsoleEndpoint
+import yun.pixels.client.core.domain.account.DeploymentIdentityWatermark
+import yun.pixels.client.core.domain.account.DeploymentIdentityWatermarkState
+import yun.pixels.client.core.domain.account.DeploymentIdentityWatermarkStore
 import yun.pixels.client.core.domain.account.GuestSession
 import yun.pixels.client.core.domain.account.RemoteApplication
 import yun.pixels.client.core.domain.account.RemoteApplicationAccess
@@ -44,27 +49,46 @@ interface ConsoleAccountApi {
 class ConsoleApiClient private constructor(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val requestExecutor: ConsoleRequestExecutor,
+    private val deploymentIdentityGate: DeploymentIdentityGate?,
     @Suppress("UNUSED_PARAMETER") constructorMarker: Unit,
 ) : ConsoleAccountApi, ConsoleApplicationApi {
-    constructor(ioDispatcher: CoroutineDispatcher = Dispatchers.IO) : this(
+    constructor(
+        deploymentIdentity: DeploymentIdentityConfiguration,
+        deploymentIdentityWatermarkStore: DeploymentIdentityWatermarkStore,
+        ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    ) : this(
         ioDispatcher,
         ConsoleRequestExecutor(::executeHttpsRequest),
+        DeploymentIdentityGate(
+            deploymentIdentity,
+            ConsoleRequestExecutor(::executeHttpsRequest),
+            deploymentIdentityWatermarkStore,
+        ),
         Unit,
     )
 
-    internal constructor(ioDispatcher: CoroutineDispatcher, requestExecutor: ConsoleRequestExecutor) : this(
+    internal constructor(
+        ioDispatcher: CoroutineDispatcher,
+        requestExecutor: ConsoleRequestExecutor,
+        deploymentIdentity: DeploymentIdentityConfiguration? = null,
+        deploymentIdentityWatermarkStore: DeploymentIdentityWatermarkStore? = null,
+        nowEpochSeconds: () -> Long = { System.currentTimeMillis() / 1_000 },
+    ) : this(
         ioDispatcher,
         requestExecutor,
+        deploymentIdentity?.let { DeploymentIdentityGate(it, requestExecutor, deploymentIdentityWatermarkStore, nowEpochSeconds) },
         Unit,
     )
 
     override suspend fun testEndpoint(endpointInput: String): AccountResult<ConsoleEndpoint> = withContext(ioDispatcher) {
         val endpoint = normalizeEndpoint(endpointInput) ?: return@withContext failure(AccountFailure.InvalidEndpoint)
+        if (!verifyDeployment(endpoint)) return@withContext failure(AccountFailure.UntrustedDeployment)
         val response = request(endpoint, "/health/ready", "GET") ?: return@withContext failure(AccountFailure.NetworkUnavailable)
         if (response.status in 200..299) AccountResult.Success(endpoint) else failure(accountFailure(response))
     }
 
     override suspend fun guestSession(endpoint: ConsoleEndpoint): AccountResult<GuestSession> = withContext(ioDispatcher) {
+        if (!verifyDeployment(endpoint)) return@withContext failure(AccountFailure.UntrustedDeployment)
         request(endpoint, "/api/console/guest-sessions", "POST", body = JSONObject())?.parseObject { payload ->
             val token = payload.requiredString("token") ?: return@parseObject invalidResponse()
             val session = payload.optJSONObject("session") ?: return@parseObject invalidResponse()
@@ -75,6 +99,7 @@ class ConsoleApiClient private constructor(
 
     override suspend fun register(endpoint: ConsoleEndpoint, username: String, password: String): AccountResult<AccountProfile> =
         withContext(ioDispatcher) {
+            if (!verifyDeployment(endpoint)) return@withContext failure(AccountFailure.UntrustedDeployment)
             request(
                 endpoint,
                 "/api/console/accounts",
@@ -86,6 +111,7 @@ class ConsoleApiClient private constructor(
     override suspend fun login(endpointInput: String, username: String, password: String): AccountResult<AccountSession> =
         withContext(ioDispatcher) {
             val endpoint = normalizeEndpoint(endpointInput) ?: return@withContext failure(AccountFailure.InvalidEndpoint)
+            if (!verifyDeployment(endpoint)) return@withContext failure(AccountFailure.UntrustedDeployment)
             val response = request(
                 endpoint,
                 "/api/console/sessions",
@@ -351,7 +377,78 @@ class ConsoleApiClient private constructor(
         bearerToken: String? = null,
         subjectKind: String? = null,
         body: JSONObject? = null,
-    ): HttpResponse? = requestExecutor.execute(endpoint, path, method, bearerToken, subjectKind, body)
+    ): HttpResponse? {
+        if (bearerToken != null && deploymentIdentityGate != null && !verifyDeployment(endpoint)) {
+            return HttpResponse(UNTRUSTED_DEPLOYMENT_STATUS, "{\"code\":\"untrusted_deployment\"}")
+        }
+        return requestExecutor.execute(endpoint, path, method, bearerToken, subjectKind, body)
+    }
+
+    private fun verifyDeployment(endpoint: ConsoleEndpoint): Boolean = deploymentIdentityGate?.verify(endpoint) == true
+}
+
+private class DeploymentIdentityGate(
+    private val configuration: DeploymentIdentityConfiguration,
+    private val requestExecutor: ConsoleRequestExecutor,
+    private val watermarkStore: DeploymentIdentityWatermarkStore?,
+    private val nowEpochSeconds: () -> Long = { System.currentTimeMillis() / 1_000 },
+) {
+    private val random = SecureRandom()
+    private var cachedEndpoint: ConsoleEndpoint? = null
+    private var verifiedUntil = 0L
+
+    @Synchronized
+    fun verify(endpoint: ConsoleEndpoint): Boolean {
+        val now = nowEpochSeconds()
+        if (cachedEndpoint == endpoint && verifiedUntil > now) return true
+        val identityResponse = requestExecutor.execute(endpoint, "/.well-known/pixels", "GET", null, null, null) ?: return false
+        if (identityResponse.status !in 200..299) return false
+        val identity = configuration.verifier.verifyIdentity(identityResponse.body, configuration.policy, now) ?: return false
+        val candidateWatermark = identity.toWatermark()
+        if (!watermarkAllows(candidateWatermark)) return false
+        val nonce = Base64.getUrlEncoder().withoutPadding().encodeToString(ByteArray(32).also(random::nextBytes))
+        val challengeResponse = requestExecutor.execute(
+            endpoint,
+            "/.well-known/pixels/challenge",
+            "POST",
+            null,
+            null,
+            JSONObject().put("nonce", nonce).put("descriptor_revision", identity.descriptorRevision),
+        ) ?: return false
+        if (challengeResponse.status !in 200..299) return false
+        val proofWire = runCatching { JSONObject(challengeResponse.body).strictProofWire() }.getOrNull() ?: return false
+        if (!configuration.verifier.verifyChallenge(identity, proofWire, nonce, nowEpochSeconds())) return false
+        if (watermarkStore?.save(candidateWatermark) == false) return false
+        cachedEndpoint = endpoint
+        verifiedUntil = minOf(identity.descriptorExpiresAt, now + DEPLOYMENT_IDENTITY_CACHE_SECONDS)
+        return verifiedUntil > now
+    }
+
+    private fun watermarkAllows(candidate: DeploymentIdentityWatermark): Boolean = when (val state = watermarkStore?.load()) {
+        null, DeploymentIdentityWatermarkState.Empty -> true
+        DeploymentIdentityWatermarkState.Invalid -> false
+        is DeploymentIdentityWatermarkState.Present -> {
+            val stored = state.watermark
+            candidate.deploymentId == stored.deploymentId &&
+                candidate.deploymentKind == stored.deploymentKind &&
+                candidate.certificateVersion >= stored.certificateVersion &&
+                candidate.descriptorRevision >= stored.descriptorRevision &&
+                candidate.trustEpoch >= stored.trustEpoch
+        }
+    }
+}
+
+private fun VerifiedDeploymentIdentity.toWatermark(): DeploymentIdentityWatermark = DeploymentIdentityWatermark(
+    deploymentId.toString(),
+    deploymentKind.wireValue,
+    certificateVersion,
+    descriptorRevision,
+    trustEpoch,
+)
+
+private fun JSONObject.strictProofWire(): String? {
+    if (keys().asSequence().toSet() != setOf("proof_wire")) return null
+    return opt("proof_wire") as? String
 }
 
 internal data class OpenedResourceSession(val sessionId: String, val revision: Long)
@@ -404,6 +501,7 @@ internal fun accountFailure(response: HttpResponse): AccountFailure {
         "rate_limited" -> AccountFailure.RateLimited
         "not_found" -> AccountFailure.NotFound
         "conflict" -> AccountFailure.InstanceBusy
+        "untrusted_deployment" -> AccountFailure.UntrustedDeployment
         "unavailable", "internal" -> AccountFailure.ServerError
         "invalid_input" -> AccountFailure.InvalidResponse
         else -> when (response.status) {
@@ -614,3 +712,5 @@ private const val CONNECT_TIMEOUT_MILLIS = 5_000
 private const val READ_TIMEOUT_MILLIS = 8_000
 private const val SUBJECT_USER = "user"
 private const val SUBJECT_GUEST = "guest"
+private const val UNTRUSTED_DEPLOYMENT_STATUS = 495
+private const val DEPLOYMENT_IDENTITY_CACHE_SECONDS = 15L

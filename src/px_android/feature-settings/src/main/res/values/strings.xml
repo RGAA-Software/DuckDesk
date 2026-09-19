@@ -3,6 +3,7 @@
     <string name="account_title">Pixels account</string>
     <string name="console_title">PX Console</string>
     <string name="console_endpoint">Console address</string>
+    <string name="official_console_endpoint">This official build uses the verified Pixels Console.</string>
     <string name="username">Username</string>
     <string name="password">Password</string>
     <string name="confirm_password">Confirm password</string>
@@ -30,6 +31,7 @@
     <string name="export_diagnostics">Export diagnostics</string>
     <string name="close">Close</string>
     <string name="error_invalid_endpoint">Enter a valid HTTPS Console address.</string>
+    <string name="error_untrusted_deployment">The Console deployment identity could not be verified.</string>
     <string name="error_invalid_credentials">The username or password is incorrect.</string>
     <string name="error_authentication_required">Your session expired. Sign in again.</string>
     <string name="error_forbidden">This account is not allowed to sign in.</string>

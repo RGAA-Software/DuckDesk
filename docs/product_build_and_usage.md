@@ -14,7 +14,7 @@ build_official/
 ├── cloud_node/{cmake,cargo,web,rdp_policy,dist,installer,reports}/
 ├── client/{cmake,cargo,dist,installer,reports}/
 ├── remote/{cmake,cargo,web,rdp_policy,dist,installer,reports}/
-└── android/{gradle,native,dist,reports}/
+└── android/{official,customer}/{gradle,native,dist,reports}/
 ```
 
 - `cmake`：该 Windows 产品专属 CMake/Ninja 构建树。
@@ -74,9 +74,12 @@ scripts_build\build_remote_product.bat
 ### 2.3 完整构建 Android
 
 ```bat
-scripts_build\build_android_product.bat debug
-scripts_build\build_android_product.bat debug install
-scripts_build\build_android_product.bat release
+scripts_build\build_android_product.bat official debug
+scripts_build\build_android_product.bat official debug install
+scripts_build\build_android_product.bat official release
+scripts_build\build_android_product.bat customer debug
+scripts_build\build_android_product.bat customer debug install
+scripts_build\build_android_product.bat customer release
 ```
 
 - `debug`：执行 lint、单元测试并生成完整 Debug APK。
@@ -84,6 +87,10 @@ scripts_build\build_android_product.bat release
 - `release`：生成签名 APK、AAB、mapping、native symbols、LGPL relink 材料和发布清单。
 
 Android 每次调用也会先删除旧 Android 沙箱并只提升 Android 版本一次。
+
+`official` 固定编译时的 HTTPS Console origin 与 deployment UUID，设置页不提供服务器编辑；`customer` 使用独立 applicationId 和输出沙箱，
+不允许编入 Official 的 UUID/URL，只接受用户填写且签名类别为 `private` 的部署。两类构建都必须内置同一审批后的公开 trust store，并显式设置
+`PIXELS_DEPLOYMENT_CERTIFICATE_VERSION`、`PIXELS_DESCRIPTOR_REVISION`、`PIXELS_DEPLOYMENT_TRUST_EPOCH` 最低水位。
 
 Release 必须使用上述统一入口，不能直接调用 Gradle 的 `assembleRelease`/`bundleRelease`。流水线从当前 Android native 构建实际产生的对象自动生成 LGPL relink kit，并根据 `VCPKG_ROOT`（默认 `C:\source\vcpkg`）中已安装的 SPDX 清单锁定和校验 FFmpeg n6.1 对应源码；不再手工提供旧源码包或旧 relink 包。正式签名来自被 Git 忽略的 `src/px_android/keystore.properties`，也可由完整的 `PIXELS_*` 签名变量提供。
 
@@ -128,13 +135,13 @@ build_official/<product>/installer/<version>/
 Debug APK 位于：
 
 ```text
-build_official/android/dist/Pixels-<version>-debug-arm64-v8a.apk
+build_official/android/<official|customer>/dist/Pixels-<distribution>-<version>-debug-arm64-v8a.apk
 ```
 
 Release 产物位于：
 
 ```text
-build_official/android/dist/<version>/
+build_official/android/<official|customer>/dist/<version>/
 ```
 
 该目录包含签名 APK、AAB、R8 mapping、native debug symbols、FFmpeg 对应源码、LGPL relink kit、第三方 notices 和记录全部 SHA-256、签名证书及 native Build ID 的 `release-manifest.json`。只有这些文件全部验证成功后，版本目录才会原子发布。
@@ -142,7 +149,7 @@ build_official/android/dist/<version>/
 手工覆盖安装：
 
 ```bat
-adb install -r build_official\android\dist\Pixels-<version>-debug-arm64-v8a.apk
+adb install -r build_official\android\official\dist\Pixels-official-<version>-debug-arm64-v8a.apk
 ```
 
 不要先卸载应用，否则会触发重新授权并丢失应用数据。

@@ -13,6 +13,7 @@ data class SettingsUiState(
     val endpointTesting: Boolean = false,
     val endpointTested: Boolean = false,
     val endpointEdited: Boolean = false,
+    val endpointEditable: Boolean = true,
     val confirmEndpointChange: Boolean = false,
     val profile: AccountProfile? = null,
     val failure: AccountFailure? = null,

@@ -57,6 +57,7 @@ data class ResourceRelayEndpoint(
 
 enum class AccountFailure {
     InvalidEndpoint,
+    UntrustedDeployment,
     InvalidCredentials,
     AuthenticationRequired,
     Forbidden,
@@ -119,6 +120,8 @@ interface AccountRepository {
 
 interface ConsoleSessionRepository : AccountRepository {
     val endpoint: StateFlow<ConsoleEndpoint?>
+    val endpointEditable: Boolean
+        get() = true
 
     suspend fun saveEndpoint(endpoint: String): AccountResult<ConsoleEndpoint>
 

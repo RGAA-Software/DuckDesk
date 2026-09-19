@@ -22,7 +22,10 @@ class ConsoleSessionCoordinator(
     private val endpointStore: ConsoleEndpointStore,
     private val sessionStore: AccountSessionStore,
     private val now: () -> Long = System::currentTimeMillis,
+    fixedEndpoint: String? = null,
 ) : ConsoleSessionRepository {
+    private val officialEndpoint = fixedEndpoint?.let(::normalizeEndpoint)
+    private val invalidFixedEndpoint = fixedEndpoint != null && officialEndpoint == null
     private val mutableState = MutableStateFlow<AccountState>(AccountState.Loading)
     private val mutableEndpoint = MutableStateFlow<ConsoleEndpoint?>(null)
     private val guestMutex = Mutex()
@@ -30,9 +33,13 @@ class ConsoleSessionCoordinator(
 
     override val state: StateFlow<AccountState> = mutableState.asStateFlow()
     override val endpoint: StateFlow<ConsoleEndpoint?> = mutableEndpoint.asStateFlow()
+    override val endpointEditable: Boolean = officialEndpoint == null
 
     override suspend fun restore() {
-        val endpoint = endpointStore.load()
+        check(!invalidFixedEndpoint) { "Official Console endpoint is invalid" }
+        val storedEndpoint = endpointStore.load()
+        val endpoint = officialEndpoint ?: storedEndpoint
+        if (officialEndpoint != null && storedEndpoint != officialEndpoint) endpointStore.save(officialEndpoint)
         mutableEndpoint.value = endpoint
         val session = sessionStore.load()?.takeIf {
             endpoint != null && it.endpoint == endpoint && it.expiresAtEpochMillis > now()
@@ -44,6 +51,9 @@ class ConsoleSessionCoordinator(
     override suspend fun saveEndpoint(endpoint: String): AccountResult<ConsoleEndpoint> {
         val normalized = normalizeEndpoint(endpoint)
             ?: return AccountResult.Failure(AccountFailure.InvalidEndpoint)
+        if (officialEndpoint != null && normalized != officialEndpoint) {
+            return AccountResult.Failure(AccountFailure.InvalidEndpoint)
+        }
         if (mutableEndpoint.value != normalized) {
             sessionStore.clear()
             guestMutex.withLock { guestSession = null }
@@ -54,7 +64,12 @@ class ConsoleSessionCoordinator(
         return AccountResult.Success(normalized)
     }
 
-    override suspend fun testEndpoint(endpoint: String): AccountResult<ConsoleEndpoint> = api.testEndpoint(endpoint)
+    override suspend fun testEndpoint(endpoint: String): AccountResult<ConsoleEndpoint> =
+        if (officialEndpoint != null && normalizeEndpoint(endpoint) != officialEndpoint) {
+            AccountResult.Failure(AccountFailure.InvalidEndpoint)
+        } else {
+            api.testEndpoint(endpoint)
+        }
 
     override suspend fun login(endpoint: String, username: String, password: String): AccountResult<AccountSession> {
         val saved = saveEndpoint(endpoint)

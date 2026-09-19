@@ -31,8 +31,60 @@ internal data class VerifiedDeploymentIdentity(
     val deploymentId: UUID,
     val deploymentKind: DeploymentKind,
     val deploymentPublicKey: ByteArray,
+    val certificateVersion: Long,
     val descriptorRevision: Long,
+    val trustEpoch: Long,
+    val descriptorExpiresAt: Long,
 )
+
+class DeploymentIdentityConfiguration private constructor(
+    internal val verifier: DeploymentIdentityVerifier,
+    internal val policy: DeploymentVerificationPolicy,
+) {
+    companion object {
+        fun create(
+            canonicalTrustStore: ByteArray,
+            expectedKind: String,
+            expectedDeploymentId: String?,
+            minimumCertificateVersion: Long,
+            minimumDescriptorRevision: Long,
+            minimumTrustEpoch: Long,
+            clientBuild: Long,
+            protocolVersion: Int,
+        ): DeploymentIdentityConfiguration? {
+            val trustStore = DeploymentTrustStore.parse(canonicalTrustStore) ?: return null
+            val deploymentKind = when (expectedKind) {
+                DeploymentKind.Official.wireValue -> DeploymentKind.Official
+                DeploymentKind.Private.wireValue -> DeploymentKind.Private
+                else -> return null
+            }
+            val deploymentId = expectedDeploymentId?.takeIf { it.isNotEmpty() }?.let {
+                runCatching { UUID.fromString(it) }.getOrNull()?.takeIf { identifier -> identifier != ZERO_UUID && identifier.toString() == it }
+                    ?: return null
+            }
+            val policy = DeploymentVerificationPolicy(
+                deploymentKind,
+                deploymentId,
+                minimumCertificateVersion,
+                minimumDescriptorRevision,
+                minimumTrustEpoch,
+                clientBuild,
+                protocolVersion,
+            )
+            if (!policy.isValid() || deploymentKind == DeploymentKind.Official && deploymentId == null) return null
+            return DeploymentIdentityConfiguration(DeploymentIdentityVerifier(trustStore, JcaEd25519Verifier.android()), policy)
+        }
+
+        internal fun createForTesting(
+            canonicalTrustStore: ByteArray,
+            policy: DeploymentVerificationPolicy,
+        ): DeploymentIdentityConfiguration? {
+            val trustStore = DeploymentTrustStore.parse(canonicalTrustStore) ?: return null
+            if (!policy.isValid()) return null
+            return DeploymentIdentityConfiguration(DeploymentIdentityVerifier(trustStore, JcaEd25519Verifier()), policy)
+        }
+    }
+}
 
 internal class DeploymentTrustStore private constructor(
     val trustEpoch: Long,
@@ -143,7 +195,10 @@ internal class DeploymentIdentityVerifier(
                 certificate.deploymentId,
                 certificate.deploymentKind,
                 certificate.deploymentPublicKey,
+                certificate.certificateVersion,
                 descriptor.descriptorRevision,
+                descriptor.trustEpoch,
+                descriptor.expiresAt,
             )
         }.getOrNull()
 

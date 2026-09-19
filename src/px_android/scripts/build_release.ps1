@@ -18,11 +18,15 @@ if ([string]::IsNullOrWhiteSpace($androidNativeRoot)) {
 $expectedVersionName = [Environment]::GetEnvironmentVariable('PIXELS_VERSION_NAME')
 $expectedVersionCodeText = [Environment]::GetEnvironmentVariable('PIXELS_VERSION_CODE')
 $expectedCompany = [Environment]::GetEnvironmentVariable('PIXELS_COMPANY')
+$expectedDistribution = [Environment]::GetEnvironmentVariable('PIXELS_DISTRIBUTION')
 if ($expectedVersionName -notmatch '^\d+\.\d+\.\d+$' -or $expectedVersionCodeText -notmatch '^\d+$') {
     throw 'Run scripts_build\build_android_product.bat release so the independent Android product version is assigned first.'
 }
 if ($expectedCompany -ne 'Pixels') {
     throw 'PIXELS_COMPANY must be Pixels and must come from the Android product manifest.'
+}
+if ($expectedDistribution -notin @('official', 'customer')) {
+    throw 'PIXELS_DISTRIBUTION must be official or customer and must come from the Android product build entry point.'
 }
 $expectedVersionCode = [int]$expectedVersionCodeText
 if ($expectedVersionCode -le 0) {
@@ -452,6 +456,7 @@ $artifactMetadata = $publishedArtifacts | ForEach-Object {
 }
 $manifest = [ordered]@{
     product = 'Pixels Android'
+    distribution = $expectedDistribution
     company = $expectedCompany
     applicationId = [string]$metadata.applicationId
     versionName = $versionName

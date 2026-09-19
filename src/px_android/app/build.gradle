@@ -1,5 +1,12 @@
 import java.util.Properties
 import java.util.Locale
+import java.util.Base64
+import java.util.UUID
+import java.net.URI
+import java.util.HexFormat
+import java.security.MessageDigest
+import java.nio.charset.StandardCharsets
+import groovy.json.JsonSlurper
 
 plugins {
     id 'com.android.application'
@@ -27,6 +34,48 @@ def releaseSigningReady = [releaseStorePath, releaseStorePassword, releaseKeyAli
 def pixelsVersionCodeInput = System.getenv('PIXELS_VERSION_CODE')?.trim()
 def pixelsVersionNameInput = System.getenv('PIXELS_VERSION_NAME')?.trim()
 def pixelsCompanyInput = System.getenv('PIXELS_COMPANY')?.trim()
+def deploymentDistribution = System.getenv('PIXELS_DISTRIBUTION')?.trim()
+def deploymentTrustStorePath = System.getenv('PIXELS_DEPLOYMENT_TRUST_STORE_FILE')?.trim()
+def deploymentTrustStoreFile = deploymentTrustStorePath ? file(deploymentTrustStorePath) : null
+def deploymentTrustStoreBase64 = deploymentTrustStoreFile?.isFile() ? Base64.encoder.encodeToString(deploymentTrustStoreFile.bytes) : ''
+def expectedDeploymentId = System.getenv('PIXELS_EXPECTED_DEPLOYMENT_ID')?.trim() ?: ''
+def officialConsoleUrl = System.getenv('PIXELS_OFFICIAL_CONSOLE_URL')?.trim() ?: ''
+def deploymentCertificateVersionInput = System.getenv('PIXELS_DEPLOYMENT_CERTIFICATE_VERSION')?.trim()
+def deploymentDescriptorRevisionInput = System.getenv('PIXELS_DESCRIPTOR_REVISION')?.trim()
+def deploymentTrustEpochInput = System.getenv('PIXELS_DEPLOYMENT_TRUST_EPOCH')?.trim()
+def deploymentCertificateVersion = deploymentCertificateVersionInput ?: '1'
+def deploymentDescriptorRevision = deploymentDescriptorRevisionInput ?: '1'
+def deploymentTrustEpoch = deploymentTrustEpochInput ?: '1'
+def positiveDeploymentVersion = { String value -> value ==~ /[1-9][0-9]*/ }
+def canonicalTrustEpoch = { File trustStoreFile ->
+    try {
+        byte[] bytes = trustStoreFile.bytes
+        def parsed = new JsonSlurper().parse(bytes, StandardCharsets.UTF_8.name())
+        if (!(parsed instanceof Map) || parsed.keySet() != ['schema_version', 'trust_epoch', 'trusted_keys'] as Set) return null
+        if (parsed.schema_version != 1 || !(parsed.trust_epoch instanceof Number) || parsed.trust_epoch.longValue() <= 0 ||
+            parsed.trust_epoch.doubleValue() != parsed.trust_epoch.longValue().doubleValue()) return null
+        if (!(parsed.trusted_keys instanceof List) || parsed.trusted_keys.size() < 1 || parsed.trusted_keys.size() > 16) return null
+        def previousKeyId = null
+        def canonicalKeys = []
+        for (def trustedKey : parsed.trusted_keys) {
+            if (!(trustedKey instanceof Map) || trustedKey.keySet() != ['key_id', 'public_key_hex'] as Set) return null
+            def keyId = trustedKey.key_id
+            def publicKeyHex = trustedKey.public_key_hex
+            if (!(keyId instanceof String) || !(publicKeyHex instanceof String) ||
+                !(keyId ==~ /[0-9a-f]{64}/) || !(publicKeyHex ==~ /[0-9a-f]{64}/) ||
+                previousKeyId != null && previousKeyId >= keyId) return null
+            byte[] publicKey = HexFormat.of().parseHex(publicKeyHex)
+            def computedKeyId = HexFormat.of().formatHex(MessageDigest.getInstance('SHA-256').digest(publicKey))
+            if (computedKeyId != keyId || publicKey.every { it == 0 }) return null
+            canonicalKeys += "{\"key_id\":\"${keyId}\",\"public_key_hex\":\"${publicKeyHex}\"}"
+            previousKeyId = keyId
+        }
+        def canonical = "{\"schema_version\":1,\"trust_epoch\":${parsed.trust_epoch.longValue()},\"trusted_keys\":[${canonicalKeys.join(',')}]}"
+        return Arrays.equals(bytes, canonical.getBytes(StandardCharsets.UTF_8)) ? parsed.trust_epoch.longValue() : null
+    } catch (Exception ignored) {
+        return null
+    }
+}
 def hasExplicitProductVersion = pixelsVersionCodeInput && pixelsVersionNameInput
 def requestedArtifactTask = gradle.startParameter.taskNames.any { requestedTask ->
     def taskName = requestedTask.tokenize(':').last().toLowerCase(Locale.ROOT)
@@ -35,6 +84,7 @@ def requestedArtifactTask = gradle.startParameter.taskNames.any { requestedTask 
         taskName == 'install' || taskName.startsWith('install') ||
         taskName == 'package' || taskName.startsWith('package')
 }
+def requestedDistributionValidation = requestedArtifactTask || System.getenv('PIXELS_VALIDATE_DISTRIBUTION') == '1'
 if (requestedArtifactTask && !hasExplicitProductVersion) {
     throw new GradleException(
         'APK/AAB tasks require PIXELS_VERSION_NAME and PIXELS_VERSION_CODE from scripts_build/build_android_product.bat.'
@@ -42,6 +92,61 @@ if (requestedArtifactTask && !hasExplicitProductVersion) {
 }
 if (requestedArtifactTask && pixelsCompanyInput != 'Pixels') {
     throw new GradleException('APK/AAB tasks require PIXELS_COMPANY=Pixels from the Android product manifest.')
+}
+if (requestedDistributionValidation && !(deploymentDistribution in ['official', 'customer'])) {
+    throw new GradleException('APK/AAB tasks require PIXELS_DISTRIBUTION=official or customer.')
+}
+if (requestedDistributionValidation && !deploymentTrustStoreFile?.isFile()) {
+    throw new GradleException('APK/AAB tasks require PIXELS_DEPLOYMENT_TRUST_STORE_FILE with the approved canonical public trust store.')
+}
+if (requestedDistributionValidation && ![
+    deploymentCertificateVersionInput,
+    deploymentDescriptorRevisionInput,
+    deploymentTrustEpochInput,
+].every(positiveDeploymentVersion)) {
+    throw new GradleException(
+        'APK/AAB tasks require positive integer PIXELS_DEPLOYMENT_CERTIFICATE_VERSION, PIXELS_DESCRIPTOR_REVISION and ' +
+            'PIXELS_DEPLOYMENT_TRUST_EPOCH values.'
+    )
+}
+if (requestedDistributionValidation) {
+    def trustEpoch = canonicalTrustEpoch(deploymentTrustStoreFile)
+    if (trustEpoch == null || trustEpoch.toString() != deploymentTrustEpoch) {
+        throw new GradleException(
+            'PIXELS_DEPLOYMENT_TRUST_STORE_FILE must be canonical and its trust_epoch must equal PIXELS_DEPLOYMENT_TRUST_EPOCH.'
+        )
+    }
+}
+if (requestedDistributionValidation && deploymentDistribution == 'official' && (!expectedDeploymentId || !officialConsoleUrl)) {
+    throw new GradleException('Official APK/AAB tasks require PIXELS_EXPECTED_DEPLOYMENT_ID and PIXELS_OFFICIAL_CONSOLE_URL.')
+}
+if (requestedDistributionValidation && deploymentDistribution == 'official') {
+    def canonicalDeploymentId = null
+    try {
+        canonicalDeploymentId = UUID.fromString(expectedDeploymentId).toString()
+    } catch (IllegalArgumentException ignored) {
+        // The common error below deliberately does not echo untrusted build input.
+    }
+    if (canonicalDeploymentId != expectedDeploymentId) {
+        throw new GradleException('PIXELS_EXPECTED_DEPLOYMENT_ID must be a canonical non-nil UUID.')
+    }
+    if (canonicalDeploymentId == '00000000-0000-0000-0000-000000000000') {
+        throw new GradleException('PIXELS_EXPECTED_DEPLOYMENT_ID must not be the nil UUID.')
+    }
+    def parsedOfficialConsoleUrl = null
+    try {
+        parsedOfficialConsoleUrl = new URI(officialConsoleUrl)
+    } catch (Exception ignored) {
+        // The common error below deliberately does not echo untrusted build input.
+    }
+    if (parsedOfficialConsoleUrl == null || parsedOfficialConsoleUrl.scheme != 'https' || !parsedOfficialConsoleUrl.host ||
+        parsedOfficialConsoleUrl.userInfo || parsedOfficialConsoleUrl.query || parsedOfficialConsoleUrl.fragment ||
+        !(parsedOfficialConsoleUrl.path in ['', '/'])) {
+        throw new GradleException('PIXELS_OFFICIAL_CONSOLE_URL must be an HTTPS origin without credentials, path, query or fragment.')
+    }
+}
+if (requestedDistributionValidation && deploymentDistribution == 'customer' && (expectedDeploymentId || officialConsoleUrl)) {
+    throw new GradleException('Customer APK/AAB tasks must not configure the official deployment ID or official Console URL.')
 }
 def pixelsVersionCode = (pixelsVersionCodeInput ?: '1').toInteger()
 def pixelsVersionName = pixelsVersionNameInput ?: '1.0.0'
@@ -53,18 +158,30 @@ if (pixelsVersionCode <= 0 || !(pixelsVersionName ==~ /[0-9]+\.[0-9]+\.[0-9]+(?:
     throw new GradleException('PIXELS_VERSION_CODE must be positive and PIXELS_VERSION_NAME must use semantic version syntax.')
 }
 
+tasks.register('validateDistributionConfiguration') {
+    group = 'verification'
+    description = 'Validates Android distribution identity inputs without producing an artifact.'
+}
+
 android {
     namespace = 'yun.pixels.client'
     compileSdk = 37
 
     defaultConfig {
-        applicationId = 'yun.pixels.client'
+        applicationId = deploymentDistribution == 'customer' ? 'yun.pixels.client.customer' : 'yun.pixels.client'
         minSdk = 31
         targetSdk = 37
         versionCode = pixelsVersionCode
         versionName = pixelsVersionName
         buildConfigField 'String', 'GIT_REVISION', "\"${pixelsGitRevision}\""
         buildConfigField 'String', 'COMPANY', "\"${pixelsCompany}\""
+        buildConfigField 'String', 'DEPLOYMENT_DISTRIBUTION', "\"${deploymentDistribution ?: ''}\""
+        buildConfigField 'String', 'DEPLOYMENT_TRUST_STORE_BASE64', "\"${deploymentTrustStoreBase64}\""
+        buildConfigField 'String', 'EXPECTED_DEPLOYMENT_ID', "\"${expectedDeploymentId}\""
+        buildConfigField 'String', 'OFFICIAL_CONSOLE_URL', "\"${officialConsoleUrl}\""
+        buildConfigField 'long', 'MINIMUM_DEPLOYMENT_CERTIFICATE_VERSION', "${deploymentCertificateVersion}L"
+        buildConfigField 'long', 'MINIMUM_DESCRIPTOR_REVISION', "${deploymentDescriptorRevision}L"
+        buildConfigField 'long', 'DEPLOYMENT_TRUST_EPOCH', "${deploymentTrustEpoch}L"
 
         testInstrumentationRunner = 'androidx.test.runner.AndroidJUnitRunner'
 

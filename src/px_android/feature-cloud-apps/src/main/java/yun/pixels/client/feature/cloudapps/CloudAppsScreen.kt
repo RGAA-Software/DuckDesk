@@ -177,6 +177,7 @@ private fun RemoteApplicationInstance.State.labelResource() = when (this) {
 
 private fun AccountFailure.labelResource() = when (this) {
     AccountFailure.InvalidEndpoint -> R.string.error_invalid_endpoint
+    AccountFailure.UntrustedDeployment -> R.string.error_untrusted_deployment
     AccountFailure.InvalidCredentials -> R.string.error_credentials
     AccountFailure.AuthenticationRequired -> R.string.error_auth
     AccountFailure.Forbidden -> R.string.error_forbidden

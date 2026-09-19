@@ -12,7 +12,7 @@ scripts_build\build_all_products.bat
 scripts_build\build_official.bat cloud_node
 scripts_build\build_official.bat client
 scripts_build\build_official.bat remote
-scripts_build\build_android_product.bat release
+scripts_build\build_android_product.bat official release
 ```
 
 上述入口每次都先删除目标产品的旧沙箱，独立升版一次，再构建完整产物。日常 C++ 聚焦验证才使用：

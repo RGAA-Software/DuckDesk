@@ -130,6 +130,11 @@ private enum class InformationDialog { Privacy, OpenSource }
 
 @Composable
 private fun ConsoleEndpointForm(state: SettingsUiState, onAction: (SettingsAction) -> Unit) {
+    if (!state.endpointEditable) {
+        Text(stringResource(R.string.official_console_endpoint), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(state.consoleEndpoint, style = MaterialTheme.typography.bodyLarge)
+        return
+    }
     OutlinedTextField(
         value = state.consoleEndpoint,
         onValueChange = { onAction(SettingsAction.ConsoleEndpointChanged(it)) },
@@ -217,6 +222,7 @@ private fun SignedInAccount(state: SettingsUiState, onAction: (SettingsAction) -
 
 private fun AccountFailure.labelResource(): Int = when (this) {
     AccountFailure.InvalidEndpoint -> R.string.error_invalid_endpoint
+    AccountFailure.UntrustedDeployment -> R.string.error_untrusted_deployment
     AccountFailure.InvalidCredentials -> R.string.error_invalid_credentials
     AccountFailure.AuthenticationRequired -> R.string.error_authentication_required
     AccountFailure.Forbidden -> R.string.error_forbidden

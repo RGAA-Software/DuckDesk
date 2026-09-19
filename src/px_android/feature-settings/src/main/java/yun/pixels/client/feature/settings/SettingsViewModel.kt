@@ -15,9 +15,13 @@ import yun.pixels.client.core.domain.account.AccountState
 import yun.pixels.client.core.domain.account.ConsoleEndpoint
 
 class SettingsViewModel(private val accountRepository: ConsoleSessionRepository) : ViewModel() {
-    private val form = MutableStateFlow(SettingsUiState())
+    private val form = MutableStateFlow(SettingsUiState(endpointEditable = accountRepository.endpointEditable))
     val uiState = combine(form, accountRepository.state, accountRepository.endpoint, ::deriveUiState)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState())
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            SettingsUiState(endpointEditable = accountRepository.endpointEditable),
+        )
 
     private fun deriveUiState(
         formState: SettingsUiState,
@@ -42,13 +46,15 @@ class SettingsViewModel(private val accountRepository: ConsoleSessionRepository)
 
     fun onAction(action: SettingsAction) {
         when (action) {
-            is SettingsAction.ConsoleEndpointChanged -> form.update {
-                it.copy(
-                    consoleEndpoint = action.value,
-                    endpointEdited = true,
-                    endpointTested = false,
-                    failure = null,
-                )
+            is SettingsAction.ConsoleEndpointChanged -> if (accountRepository.endpointEditable) {
+                form.update {
+                    it.copy(
+                        consoleEndpoint = action.value,
+                        endpointEdited = true,
+                        endpointTested = false,
+                        failure = null,
+                    )
+                }
             }
             is SettingsAction.UsernameChanged -> form.update { it.copy(username = action.value, failure = null) }
             is SettingsAction.PasswordChanged -> form.update { it.copy(password = action.value, failure = null) }
@@ -68,6 +74,7 @@ class SettingsViewModel(private val accountRepository: ConsoleSessionRepository)
     }
 
     private fun saveEndpoint() {
+        if (!accountRepository.endpointEditable) return
         val request = currentUiState()
         val endpoint = request.consoleEndpoint
         if (endpoint.isBlank()) return
@@ -80,6 +87,7 @@ class SettingsViewModel(private val accountRepository: ConsoleSessionRepository)
     }
 
     private fun saveEndpointNow() {
+        if (!accountRepository.endpointEditable) return
         val endpoint = currentUiState().consoleEndpoint
         if (endpoint.isBlank()) return
         viewModelScope.launch {
@@ -99,6 +107,7 @@ class SettingsViewModel(private val accountRepository: ConsoleSessionRepository)
     }
 
     private fun testEndpoint() {
+        if (!accountRepository.endpointEditable) return
         val endpoint = currentUiState().consoleEndpoint
         if (endpoint.isBlank()) return
         viewModelScope.launch {

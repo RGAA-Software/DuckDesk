@@ -65,6 +65,7 @@
     <string name="saving">Saving…</string>
     <string name="cancel">Cancel</string>
     <string name="account_error_invalid_endpoint">The Console address is invalid.</string>
+    <string name="account_error_untrusted_deployment">The Console deployment identity could not be verified.</string>
     <string name="account_error_invalid_credentials">The username or password is incorrect.</string>
     <string name="account_error_authentication_required">Your session expired. Sign in again.</string>
     <string name="account_error_forbidden">This account cannot access the requested device.</string>
