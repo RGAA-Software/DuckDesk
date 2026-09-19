@@ -374,6 +374,10 @@ function scrollToSolutions() {
     display: block;
 }
 
+.hero-copy h1 span {
+    transform: translateY(-20px);
+}
+
 .hero-copy h1 strong {
     color: var(--primary);
     font-weight: 750;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
@@ -18,6 +18,7 @@ import pixelsLogo from '@/assets/pixels-logo-45.svg'
 
 type PixelsTheme = 'light' | 'dark'
 type SolutionKey = 'remote' | 'gaming' | 'rendering'
+type NavigationKey = 'home' | 'solutions' | 'downloads' | 'docs' | 'pricing' | 'about'
 
 interface SolutionMenuItem {
     key: SolutionKey
@@ -49,6 +50,17 @@ const solutionMenuItems: SolutionMenuItem[] = [
         icon: IconCube3dSphere,
     },
 ]
+
+const activeNavigation = computed<NavigationKey>(() => {
+    const currentPath = router.currentRoute.value.path
+
+    if (currentPath.startsWith('/solutions/')) return 'solutions'
+    if (currentPath === '/downloads') return 'downloads'
+    if (currentPath === '/docs') return 'docs'
+    if (currentPath === '/pricing') return 'pricing'
+    if (currentPath === '/about') return 'about'
+    return 'home'
+})
 
 function applyTheme(nextTheme: PixelsTheme) {
     theme.value = nextTheme
@@ -89,6 +101,18 @@ function navigateToDocs() {
     menuVisible.value = false
     solutionsMenuVisible.value = false
     void router.push('/docs')
+}
+
+function navigateToAbout() {
+    menuVisible.value = false
+    solutionsMenuVisible.value = false
+    void router.push('/about')
+}
+
+function navigateToPricing() {
+    menuVisible.value = false
+    solutionsMenuVisible.value = false
+    void router.push('/pricing')
 }
 
 function openContact() {
@@ -139,15 +163,22 @@ onBeforeUnmount(() => {
       <div class="site-shell header-inner">
         <button class="brand" type="button" aria-label="PIXELS" @click="navigateTo()">
           <img :src="pixelsLogo" alt="">
-          <span>PIXELS</span>
+          <span>PI<b class="brand-accent">X</b>ELS</span>
         </button>
 
         <nav class="desktop-nav" :aria-label="t('nav.home')">
-          <button type="button" @click="navigateTo()">{{ t('nav.home') }}</button>
+          <button
+            type="button"
+            :class="{ active: activeNavigation === 'home' }"
+            @click="navigateTo()"
+          >
+            {{ t('nav.home') }}
+          </button>
           <div class="solutions-menu-host desktop-solutions-menu">
             <button
               class="solutions-trigger"
               type="button"
+              :class="{ active: activeNavigation === 'solutions' }"
               :aria-expanded="solutionsMenuVisible"
               aria-haspopup="menu"
               @click.stop="solutionsMenuVisible = !solutionsMenuVisible"
@@ -181,11 +212,33 @@ onBeforeUnmount(() => {
               </div>
             </Transition>
           </div>
-          <button type="button" @click="navigateToDownloads">
+          <button
+            type="button"
+            :class="{ active: activeNavigation === 'downloads' }"
+            @click="navigateToDownloads"
+          >
             {{ t('site.nav.downloads') }}
           </button>
-          <button type="button" @click="navigateToDocs">
+          <button
+            type="button"
+            :class="{ active: activeNavigation === 'docs' }"
+            @click="navigateToDocs"
+          >
             {{ t('site.nav.docs') }}
+          </button>
+          <button
+            type="button"
+            :class="{ active: activeNavigation === 'pricing' }"
+            @click="navigateToPricing"
+          >
+            {{ t('site.nav.pricing') }}
+          </button>
+          <button
+            type="button"
+            :class="{ active: activeNavigation === 'about' }"
+            @click="navigateToAbout"
+          >
+            {{ t('site.nav.about') }}
           </button>
         </nav>
 
@@ -222,11 +275,18 @@ onBeforeUnmount(() => {
 
       <div v-if="menuVisible" class="mobile-panel">
         <nav class="mobile-nav">
-          <button type="button" @click="navigateTo()">{{ t('nav.home') }}</button>
+          <button
+            type="button"
+            :class="{ active: activeNavigation === 'home' }"
+            @click="navigateTo()"
+          >
+            {{ t('nav.home') }}
+          </button>
           <div class="solutions-menu-host mobile-solutions-menu">
             <button
               class="mobile-solutions-trigger"
               type="button"
+              :class="{ active: activeNavigation === 'solutions' }"
               :aria-expanded="solutionsMenuVisible"
               @click.stop="solutionsMenuVisible = !solutionsMenuVisible"
             >
@@ -250,11 +310,33 @@ onBeforeUnmount(() => {
               </button>
             </div>
           </div>
-          <button type="button" @click="navigateToDownloads">
+          <button
+            type="button"
+            :class="{ active: activeNavigation === 'downloads' }"
+            @click="navigateToDownloads"
+          >
             {{ t('site.nav.downloads') }}
           </button>
-          <button type="button" @click="navigateToDocs">
+          <button
+            type="button"
+            :class="{ active: activeNavigation === 'docs' }"
+            @click="navigateToDocs"
+          >
             {{ t('site.nav.docs') }}
+          </button>
+          <button
+            type="button"
+            :class="{ active: activeNavigation === 'pricing' }"
+            @click="navigateToPricing"
+          >
+            {{ t('site.nav.pricing') }}
+          </button>
+          <button
+            type="button"
+            :class="{ active: activeNavigation === 'about' }"
+            @click="navigateToAbout"
+          >
+            {{ t('site.nav.about') }}
           </button>
         </nav>
         <div class="mobile-tools">
@@ -281,7 +363,7 @@ onBeforeUnmount(() => {
         <div class="footer-brand">
           <div class="brand">
             <img :src="pixelsLogo" alt="">
-            <span>PIXELS</span>
+            <span>PI<b class="brand-accent">X</b>ELS</span>
           </div>
           <p>{{ t('site.footer.description') }}</p>
           <strong>{{ t('site.footer.tagline') }}</strong>
@@ -308,6 +390,12 @@ onBeforeUnmount(() => {
           </button>
           <button type="button" @click="navigateToDocs">
             {{ t('site.nav.docs') }}
+          </button>
+          <button type="button" @click="navigateToPricing">
+            {{ t('site.nav.pricing') }}
+          </button>
+          <button type="button" @click="navigateToAbout">
+            {{ t('site.nav.about') }}
           </button>
           <button type="button" @click="openContact">
             {{ t('site.nav.support') }}
@@ -390,11 +478,20 @@ onBeforeUnmount(() => {
 .brand span {
     display: inline-flex;
     align-items: center;
+    color: color-mix(in srgb, var(--foreground) 82%, var(--background));
     font-family: "10 Pixel", sans-serif;
-    font-size: 22px;
+    font-size: 24px;
     font-weight: 700;
     letter-spacing: 0.08em;
     line-height: 1;
+    transform: translateY(3px);
+    -webkit-text-stroke: 0.4px currentColor;
+}
+
+.brand-accent {
+    color: #087e74;
+    font-weight: inherit;
+    -webkit-text-stroke-color: #087e74;
 }
 
 .desktop-nav {
@@ -534,6 +631,34 @@ onBeforeUnmount(() => {
 .desktop-nav button:hover,
 .footer-column button:hover {
     color: var(--primary);
+}
+
+.desktop-nav > button,
+.solutions-trigger {
+    position: relative;
+}
+
+.desktop-nav > button.active,
+.solutions-trigger.active {
+    color: var(--primary);
+    font-weight: 750;
+}
+
+.desktop-nav > button.active::after,
+.solutions-trigger.active::after {
+    position: absolute;
+    bottom: -17px;
+    left: 50%;
+    width: 30px;
+    height: 2px;
+    border-radius: 2px 2px 0 0;
+    background: var(--primary);
+    content: '';
+    transform: translateX(-50%);
+}
+
+.solutions-trigger.active::after {
+    left: calc(50% - 10px);
 }
 
 .header-actions {
@@ -703,6 +828,12 @@ onBeforeUnmount(() => {
         color: var(--foreground);
         text-align: left;
         font: 600 15px var(--font-ui);
+    }
+
+    .mobile-nav > button.active,
+    .mobile-solutions-trigger.active {
+        color: var(--primary);
+        font-weight: 750;
     }
 
     .mobile-solutions-trigger {
