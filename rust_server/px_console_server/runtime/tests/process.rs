@@ -362,6 +362,6 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
     let output = process.take().wait_with_output().unwrap();
     assert!(!output.status.success());
     let stderr = String::from_utf8(output.stderr).unwrap();
-    assert!(stderr.contains("database authority was lost"));
+    assert!(stderr.contains("runtime authority was lost"));
     assert!(!stderr.contains(password.as_str()));
 }

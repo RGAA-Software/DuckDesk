@@ -36,6 +36,9 @@ Console 只从环境读取配置；发行包不携带真实配置、证书、私
 
 配置缺失、未知格式、私有文件权限过宽、静态目录无效、数据库身份/schema/deployment 不匹配，都会在监听前失败。
 数据库 authority 丢失后当前进程终止；监督器可以启动新进程，但同一进程不会重新取得权威继续服务。
+Linux 发行使用包内 `deploy/systemd/pixels-console@.service`：非零退出由 systemd 在 5 秒后重启，正常 SIGTERM 则有界关闭监听、任务和连接池，
+不会被当成崩溃重启。实例 `%i` 是 deployment UUID；私有环境文件固定在 `/etc/pixels/%i/console.env`，可写运行状态固定在
+`/var/lib/pixels/%i/console`。不要再套一层进程守护器，也不要把密钥值写入 unit 文件。
 
 ## 全新部署
 
@@ -118,7 +121,8 @@ sequence 和 present 状态，重连时重新向当前 generation 报告，文�
 ## 升级与回退
 
 先停止准入并等待请求收敛，停止 Console 以释放共享 schema 锁，完成三库协调备份，再由 owner 运行新包的 `px_db migrate console`。
-新 release 与旧 release 并列放置，监督器只切换可执行文件和 `static` 路径；私有配置及密钥路径保持在包外。
+新 release 与旧 release 并列放置，监督器只切换可执行文件和 `static` 路径；私有配置及密钥路径保持在包外。Linux unit 只在非零
+退出时重启，因此数据库 lease、许可证在线 currentness 或其他运行权威失效会触发新进程重新完成全部启动门禁；正常维护停止不会自启。
 启动后检查 ready、管理员登录、节点重连及关键目录。若迁移已经执行，不能只换回旧二进制；必须按恢复计划恢复匹配的三库、密钥与
 外部见证后再启动旧 release。开发中的产品不提供旧 schema、旧 API 或旧配置兼容层。
 

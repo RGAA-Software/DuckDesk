@@ -244,33 +244,7 @@ impl ConsoleRuntime {
                 }
             }
         });
-        let license_supervisor = state.license.online_refresh_interval().map(|refresh_period| {
-            let license_state = state.clone();
-            let license_cancellation = cancellation.clone();
-            tokio::spawn(async move {
-                let mut freshness_check = tokio::time::interval(Duration::from_secs(1));
-                freshness_check.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-                let mut refresh = tokio::time::interval_at(
-                    tokio::time::Instant::now() + refresh_period,
-                    refresh_period,
-                );
-                refresh.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-                loop {
-                    tokio::select! {
-                        biased;
-                        _=license_cancellation.cancelled()=>break,
-                        _=freshness_check.tick()=>if license_state.license.validate_now().is_err(){
-                            tracing::error!("official license authority freshness expired");
-                            license_cancellation.cancel();
-                            break;
-                        },
-                        _=refresh.tick()=>if let Err(error)=license_state.license.refresh_online().await{
-                            tracing::warn!(%error, "official license authority refresh failed");
-                        },
-                    }
-                }
-            })
-        });
+        let license_supervisor = state.license.spawn_online_supervisor(cancellation.clone());
         let telemetry_state = state.clone();
         let telemetry_cancellation = cancellation.clone();
         let telemetry_retention = tokio::spawn(async move {

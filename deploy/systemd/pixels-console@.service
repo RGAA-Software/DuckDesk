@@ -1,0 +1,36 @@
+[Unit]
+Description=Pixels Console for deployment %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pixels-console
+Group=pixels-console
+EnvironmentFile=/etc/pixels/%i/console.env
+ExecStart=/opt/pixels/current/bin/px_console
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+KillMode=mixed
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadOnlyPaths=/etc/pixels/%i
+ReadWritePaths=/var/lib/pixels/%i/console
+
+[Install]
+WantedBy=multi-user.target

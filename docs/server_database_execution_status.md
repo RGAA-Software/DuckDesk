@@ -931,6 +931,14 @@ TOML、明文凭据交接说明、Mongo 去重工具、旧发布/迁移脚本及
 `Cargo.lock` 不再包含 `mongodb`、`redis`、`px_auth_mgr` 或旧 `px_console_server` 包，工作区全目标严格 Clippy 通过。归档 RTC
 脚本不是删除 Direct Host 功能：DB5 必须以当前 resource-session/descriptor 流重建真实跨端用例，旧脚本不得作为通过证据。
 
+许可证恢复/监督专项把 Console runtime 单元门禁提升为 15/15：同一 Auth recovery generation 内完成新旧 key 并存、新 key 签发、
+旧 key 撤下及水位连续推进；generation 改变时旧水位明确拒绝，只有恢复审批后切换到新的私有水位根和新许可证才可启动。Official
+在线监督任务现在由生产 `spawn_online_supervisor` 唯一实现并被测试直接调用；失去 40 秒新鲜度会取消 runtime，主进程以非零状态报告
+`runtime authority was lost`。Linux 发行新增 `pixels-console@.service`，仅非零退出 5 秒重启，正常 SIGTERM 有界关闭；unit 已用
+`systemd-analyze verify` 通过，Windows 全目标严格 Clippy 和打包脚本语法通过。WSL Unix 编译因 crates.io 索引持续低速超时未形成
+通过证据，必须在后续 Linux 总门禁补跑，不能用静态 unit 校验替代。真实 Windows Console 子进程专项
+`pg-20260919-142415-56c41e17` 为 1/1 PASS，覆盖空三库启动、ready/静态资源及数据库 authority 丢失后的非零退出，隔离容器和卷已清理。
+
 ## 仍未通过的阶段出口
 
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。
@@ -943,7 +951,7 @@ Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 W
 | DB1-EXIT | 完成：Desk/Auth 产品服务与 PostgreSQL Console 正式 `px_console.exe` 均已接入；三者具有独立发行入口。Console 当前 3.2.21 发行、进程断库 fail-closed、真实浏览器和制品哈希已通过；后续能力缺口归 DB2–DB5，不再把旧 Mongo 组合根当产品入口 |
 | DB2-A | 身份/管理HTTP、本人资料/头像、密码计算/限流/Origin、访客HMAC/会话/公开目录、Saved Connections、本人实例列表、更新目录、访问/通道/传输历史及录像目录HTTP、严格配置、稳定私钥加载、独立初始化CLI、静态文件服务及进程生命周期已实现；Console用户门户及管理后台的当前目录/身份/状态入口均已切新bearer/主体API，源码不再保留旧`/api/v1`，正式PostgreSQL产品二进制和发行包已切换。部署绑定录像缓存、本人/管理员授权Range下载、Render完成段session归属、Windows Service真实字节生产、本人/管理下载页面、保留/释放/驱逐 Console 副本及真实浏览器空目录流程已接；Direct Host观察者不再默认获得输入。仍需公网真实录像有数据浏览器流程；视频墙延期，ZLM直播和RTC/TURN管理明确退役，不再作为待实现项 |
 | DB2-B/C/D | 设备/应用/节点/部署目录、user/guest资源入口、更新与历史元数据入口、Console节点WS及独立管理实时事件流已接；Windows Service已切到新节点协议并实现部署准备、调和、命令fencing、精确launch ACK、Render前端准入转发、实际媒体/RDP通道生命周期、遥测、DPAPI有界断线补报、唯一PCI身份的NVIDIA逐GPU指标、GPU预算/原子硬过滤/物理stable key运行时绑定与节点二次准入、只读调度预览/逐候选拒绝解释、数据库时钟对齐的有界服务端趋势/陈旧判断、录像session归属及通用录像字节上传。ZLM/Coturn/中央RTC signaling已归档移除，Windows/Web/Render/Service/Console的Direct Host活动代码和聚焦构建已接通。仍需Relay既有数据真机回归、公网首帧/输入/音频与持续续租/撤销、Android直连、AMD/Intel逐GPU指标、管理实时流的公网高频/断库专项、RDP执行、周期通道指标、文件传输字节生产、无人值守更新及其余产品入口 |
-| DB2-EXIT / DB3 | Desk/Auth 独立产品流程已验证；Auth 事务 outbox、Official 认证接触确认、30/40 秒持续 currentness、Customer 私有离线、库外水位、额度/feature 事务硬门禁及管理员状态均已接。Service 明确只消费 Console control epoch，不复制许可证解析，旧授权依赖已删除。非产品旧 Console crate、Mongo/Redis/旧签名源码及可误用入口已完整归档，活动服务端锁文件不再含旧后端。仍需 Auth/Console keyring 与水位恢复轮换实测及正式监督器部署联动后关闭 DB3；不建设运行时双后端 |
+| DB2-EXIT / DB3 | Windows 侧功能出口完成：Desk/Auth 独立产品、Auth 事务 outbox、Official 认证接触和 30/40 秒持续 currentness、Customer 私有离线、库外水位、额度/feature 事务门禁及管理员状态均已接；keyring/恢复代际/监督取消短测通过。Service 只消费 Console control epoch。旧授权、Mongo/Redis/旧 Console 组合根和可误用入口已归档，活动锁文件不含旧后端。Linux systemd unit 静态验证通过，但 Unix binary/SIGTERM 仍须随 DB4/DB5 Linux 总门禁形成动态证据；不建设运行时双后端 |
 | DB4 | 恢复集、保留、异机复制、恢复准入/执行/封印、三库写屏障/安全水位、外部见证、Auth keyring、pgBackRest/WAL/PITR、Windows SCM包及WSL2 systemd生命周期已实现。开发期仍需目标Linux发行版VM短测、Pixels外层签名/生产密钥托管、独立主机或对象仓库一次完整恢复、目标环境keyring/见证轮换及真实节点与Windows/RDP事实对账；连续7天窗口和自然周期稳定性统一放到DB5功能通过后的长测，不阻塞每个开发切片 |
 | DB5 | 全新环境服务端—Windows Client/Web Client—Render/Service—Relay—Android功能回归及完整制品验收；必须证明Direct Host与Relay分别正常且安装包不含ZLM/Coturn，先短测通过，最后统一长测 |
 | DB-HA / P1–P7 | 独立主机 HA、正式发行隔离、授权/连接服务、升级、运维与真实容量/稳定性验收 |

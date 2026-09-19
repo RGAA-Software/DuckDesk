@@ -12,6 +12,8 @@ use std::{
     },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
+use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
 use url::Url;
 use uuid::Uuid;
 
@@ -283,6 +285,37 @@ impl LicenseEntitlement {
             Some(online) => online.refresh().await,
             None => Ok(()),
         }
+    }
+
+    pub(crate) fn spawn_online_supervisor(
+        &self,
+        cancellation: CancellationToken,
+    ) -> Option<JoinHandle<()>> {
+        let refresh_period = self.online_refresh_interval()?;
+        let entitlement = self.clone();
+        Some(tokio::spawn(async move {
+            let mut freshness_check = tokio::time::interval(Duration::from_secs(1));
+            freshness_check.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            let mut refresh = tokio::time::interval_at(
+                tokio::time::Instant::now() + refresh_period,
+                refresh_period,
+            );
+            refresh.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            loop {
+                tokio::select! {
+                    biased;
+                    _=cancellation.cancelled()=>break,
+                    _=freshness_check.tick()=>if entitlement.validate_now().is_err(){
+                        tracing::error!("official license authority freshness expired");
+                        cancellation.cancel();
+                        break;
+                    },
+                    _=refresh.tick()=>if let Err(error)=entitlement.refresh_online().await{
+                        tracing::warn!(%error, "official license authority refresh failed");
+                    },
+                }
+            }
+        }))
     }
 
     pub fn status(&self) -> LicenseStatus {
@@ -699,6 +732,7 @@ mod tests {
         _temporary: tempfile::TempDir,
         deployment_id: Uuid,
         authority_deployment_id: Uuid,
+        recovery_generation: Uuid,
         machine_sha256: String,
         state_directory: PathBuf,
         trust_store_file: PathBuf,
@@ -740,6 +774,7 @@ mod tests {
                 _temporary: temporary,
                 deployment_id: Uuid::new_v4(),
                 authority_deployment_id,
+                recovery_generation,
                 machine_sha256: "a".repeat(64),
                 state_directory,
                 trust_store_file,
@@ -752,10 +787,20 @@ mod tests {
         }
 
         fn write_license(&self, revision: i64, distribution: Distribution) {
+            self.write_license_with(revision, distribution, &self.signer, self.license_id);
+        }
+
+        fn write_license_with(
+            &self,
+            revision: i64,
+            distribution: Distribution,
+            signer: &LicenseSigner,
+            license_id: Uuid,
+        ) {
             let now = current_unix_time().unwrap();
             let payload = LicensePayload {
                 schema: 1,
-                license_id: self.license_id,
+                license_id,
                 deployment_id: self.deployment_id,
                 product: Product::PixelsConsole,
                 distribution,
@@ -768,9 +813,9 @@ mod tests {
                 max_devices: 4,
                 max_sessions: 8,
                 features: vec![Feature::CloudApplications, Feature::Desktop, Feature::Rdp],
-                key_id: self.signer.key_id(),
+                key_id: signer.key_id(),
             };
-            let wire = self.signer.sign(&payload).unwrap();
+            let wire = signer.sign(&payload).unwrap();
             if self.license_file.exists() {
                 fs::write(&self.license_file, wire).unwrap();
             } else {
@@ -779,13 +824,17 @@ mod tests {
         }
 
         fn config(&self) -> LicenseLaunchConfig {
+            self.config_with_state(self.state_directory.clone())
+        }
+
+        fn config_with_state(&self, state_directory: PathBuf) -> LicenseLaunchConfig {
             LicenseLaunchConfig::new(
                 "customer",
                 self.machine_sha256.clone(),
                 self.authority_deployment_id,
                 self.trust_store_file.clone(),
                 self.license_file.clone(),
-                self.state_directory.clone(),
+                state_directory,
                 None,
                 true,
             )
@@ -825,6 +874,118 @@ mod tests {
         assert!(fixture.config().admit(fixture.deployment_id).await.is_err());
         fs::write(fixture.state_directory.join("unexpected"), b"x").unwrap();
         assert!(fixture.config().admit(fixture.deployment_id).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn keyring_rotation_keeps_watermark_and_withdraws_the_old_key() {
+        let fixture = Fixture::new();
+        fixture.config().admit(fixture.deployment_id).await.unwrap();
+        let replacement_key =
+            ring::signature::Ed25519KeyPair::generate_pkcs8(&ring::rand::SystemRandom::new())
+                .unwrap();
+        let replacement_signer = LicenseSigner::from_pkcs8(replacement_key.as_ref()).unwrap();
+        let rotating_trust_store = LicenseTrustStore::new(
+            fixture.authority_deployment_id,
+            fixture.recovery_generation,
+            replacement_signer.public_key().try_into().unwrap(),
+            [fixture.signer.public_key().try_into().unwrap()],
+        )
+        .unwrap();
+        fs::write(
+            &fixture.trust_store_file,
+            rotating_trust_store.canonical_bytes().unwrap(),
+        )
+        .unwrap();
+        fixture.write_license_with(
+            2,
+            Distribution::Customer,
+            &replacement_signer,
+            fixture.license_id,
+        );
+        let rotated = fixture.config().admit(fixture.deployment_id).await.unwrap();
+        assert_eq!(rotated.payload.revision, 2);
+        assert_eq!(rotated.payload.key_id, replacement_signer.key_id());
+
+        let withdrawn_trust_store = LicenseTrustStore::new(
+            fixture.authority_deployment_id,
+            fixture.recovery_generation,
+            replacement_signer.public_key().try_into().unwrap(),
+            [],
+        )
+        .unwrap();
+        fs::write(
+            &fixture.trust_store_file,
+            withdrawn_trust_store.canonical_bytes().unwrap(),
+        )
+        .unwrap();
+        fixture.write_license_with(
+            3,
+            Distribution::Customer,
+            &fixture.signer,
+            fixture.license_id,
+        );
+        assert!(fixture.config().admit(fixture.deployment_id).await.is_err());
+        fixture.write_license_with(
+            3,
+            Distribution::Customer,
+            &replacement_signer,
+            fixture.license_id,
+        );
+        assert_eq!(
+            fixture
+                .config()
+                .admit(fixture.deployment_id)
+                .await
+                .unwrap()
+                .payload
+                .revision,
+            3
+        );
+    }
+
+    #[tokio::test]
+    async fn recovery_generation_requires_a_new_approved_watermark_root() {
+        let fixture = Fixture::new();
+        fixture.config().admit(fixture.deployment_id).await.unwrap();
+        let recovered_key =
+            ring::signature::Ed25519KeyPair::generate_pkcs8(&ring::rand::SystemRandom::new())
+                .unwrap();
+        let recovered_signer = LicenseSigner::from_pkcs8(recovered_key.as_ref()).unwrap();
+        let recovered_trust_store = LicenseTrustStore::new(
+            fixture.authority_deployment_id,
+            Uuid::new_v4(),
+            recovered_signer.public_key().try_into().unwrap(),
+            [],
+        )
+        .unwrap();
+        fs::write(
+            &fixture.trust_store_file,
+            recovered_trust_store.canonical_bytes().unwrap(),
+        )
+        .unwrap();
+        let recovered_license_id = Uuid::new_v4();
+        fixture.write_license_with(
+            1,
+            Distribution::Customer,
+            &recovered_signer,
+            recovered_license_id,
+        );
+        assert!(fixture.config().admit(fixture.deployment_id).await.is_err());
+
+        let recovered_state_directory = fixture
+            .state_directory
+            .parent()
+            .unwrap()
+            .join("recovered-state");
+        fs::create_dir(&recovered_state_directory).unwrap();
+        make_private(&recovered_state_directory);
+        let recovered = fixture
+            .config_with_state(recovered_state_directory)
+            .admit(fixture.deployment_id)
+            .await
+            .unwrap();
+        assert_eq!(recovered.payload.license_id, recovered_license_id);
+        assert_eq!(recovered.payload.revision, 1);
     }
 
     #[tokio::test]
@@ -882,6 +1043,14 @@ mod tests {
             Ordering::Release,
         );
         assert!(entitlement.validate_now().is_err());
+        let cancellation = CancellationToken::new();
+        let supervisor = entitlement
+            .spawn_online_supervisor(cancellation.clone())
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(1), cancellation.cancelled())
+            .await
+            .unwrap();
+        supervisor.await.unwrap();
     }
 
     #[test]

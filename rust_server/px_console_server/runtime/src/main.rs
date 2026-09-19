@@ -71,14 +71,30 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     runtime.shutdown().await;
     server_result?;
     if authority_lost {
-        return Err(io::Error::other("Console database authority was lost").into());
+        return Err(io::Error::other("Console runtime authority was lost").into());
     }
     Ok(())
 }
 
+#[cfg(windows)]
 async fn wait_for_shutdown(cancellation: CancellationToken) {
     tokio::select! {
         _ = cancellation.cancelled() => {}
         _ = tokio::signal::ctrl_c() => {}
+    }
+}
+
+#[cfg(unix)]
+async fn wait_for_shutdown(cancellation: CancellationToken) {
+    use tokio::signal::unix::{signal, SignalKind};
+
+    let Ok(mut terminate) = signal(SignalKind::terminate()) else {
+        cancellation.cancel();
+        return;
+    };
+    tokio::select! {
+        _ = cancellation.cancelled() => {}
+        _ = tokio::signal::ctrl_c() => {}
+        _ = terminate.recv() => {}
     }
 }

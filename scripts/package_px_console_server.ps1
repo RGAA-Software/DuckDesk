@@ -69,6 +69,10 @@ try {
     )) {
         Copy-VerifiedFile (Join-Path $repositoryRoot "docs/$documentName") (Join-Path $releaseDirectory $documentName)
     }
+    $systemdDirectory = Join-Path $releaseDirectory 'deploy/systemd'
+    New-Item -ItemType Directory -Path $systemdDirectory | Out-Null
+    Copy-VerifiedFile (Join-Path $repositoryRoot 'deploy/systemd/pixels-console@.service') `
+        (Join-Path $systemdDirectory 'pixels-console@.service')
 
     $releaseMetadata = [ordered]@{
         product = 'px_console'
@@ -76,6 +80,7 @@ try {
         version = $version
         database = 'postgresql'
         configuration = 'environment'
+        supervision = @('systemd')
         includes_secrets = $false
     }
     [IO.File]::WriteAllText(
