@@ -322,6 +322,10 @@ cd src/px_android
   直连公网动态端口 4613、收到 H.264 1920×1080 首媒体并初始化 MediaCodec；随后结束远控、停止实例、确认恢复“可以启动”并注销账号。
 - 本记录关闭账号 CloudApplication Direct 短链路，不冒充设备 ACL、Android Relay、文件、音频、撤销/续租或最终统一长测。
 
+设备 ACL 的可重复公网短测入口为 `scripts/test_android_device_acl_public.py`。它使用临时 Android 账号依次证明授权前不可见、显式 user ACL
+授权后目录和详情可见、撤销后重新隐藏；结束时恢复设备原始 users/groups ACL 并删除临时账号。该脚本必须使用现有公网测试平台的管理员凭据，
+不能生成或硬编码管理员身份；脚本存在不等于真机/公网验收已经通过。
+
 ## 12. 2026-09-19 Android Relay 路由切片
 
 - 云应用卡片复用同一连接偏好编辑器，增加“自动/直连/Relay”显式路径。选择按 `cloud-app:<application_id>` 保存；`Automatic` 当前等同

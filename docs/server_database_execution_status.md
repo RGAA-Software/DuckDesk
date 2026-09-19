@@ -1134,6 +1134,11 @@ DataChannel 和公网 UDP peer 连接，令牌也从可见 URL 移除；但公�
 同步进 Cloud Node dist，5 个文件 hash 一致，并为 SSH 聚焦部署器增加原子 Web 目录发布；公网 WinRM 与 SSH 均可达，但登记机器凭据都在
 认证阶段拒绝，故无法部署当前 Render/Web 制品复验。失败实例和资源会话均已清理；该项保持 DB5 未通过，不用 peer connected 冒充视频通过。
 
+Android 设备 ACL 已增加独立公网短测入口：用临时 Android 账号验证授权前目录/详情拒绝、显式 user ACL 后可见、撤销后重新拒绝，并在
+`finally` 中恢复设备原 users/groups ACL、删除临时账号和注销管理员会话。脚本语法、参数入口通过；USB 设备 `e2b3b128` 在线，现装
+`1.0.10-debug` 正常运行但处于登出状态。当前工作区没有公网测试平台管理员凭据，故本轮没有执行会改变真实 ACL 的测试，也不把入口存在
+写成真机验收通过。
+
 ## 仍未通过的阶段出口
 
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。

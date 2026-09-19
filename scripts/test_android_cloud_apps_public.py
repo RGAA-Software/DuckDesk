@@ -15,7 +15,9 @@ from typing import Any
 
 
 class ApiError(RuntimeError):
-    pass
+    def __init__(self, message: str, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
 
 
 class ConsoleClient:
@@ -60,7 +62,7 @@ class ConsoleClient:
                 content = response.read()
         except urllib.error.HTTPError as error:
             detail = error.read().decode("utf-8", errors="replace")
-            raise ApiError(f"{method} {path} returned HTTP {error.code}: {detail[:300]}") from error
+            raise ApiError(f"{method} {path} returned HTTP {error.code}: {detail[:300]}", error.code) from error
         except (OSError, ValueError) as error:
             raise ApiError(f"{method} {path} failed: {error}") from error
         if not content:
