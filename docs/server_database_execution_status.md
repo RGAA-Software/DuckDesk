@@ -1032,7 +1032,7 @@ H.264 1920×1080 MediaCodec，退出远控、停止实例后恢复“可以启�
 Android Relay 客户端切片现已完成本地实现和短门禁。Console descriptor 只向当前资源会话签发最长 300 秒、HMAC 防篡改并绑定
 session UUID 与目标 device/instance UUID 的 `admission_ticket`；部署级 `PIXELS_RELAY_APP_KEY` 不进入本次 Android 用户 DTO、DataStore 或 APK。
 Relay 在 WebSocket upgrade 前验证票据期限和目标路由，Render 随后仍以 frontend token 向 Console 做权威会话/角色准入，二者不能互相替代。
-共享凭据 3/3、Relay 4/4（含合法票据、篡改/错目标拒绝和既有双向转发）、Console 15/15、严格 Clippy，以及真实 PostgreSQL 节点控制
+独立 Relay 准入票据 1/1、Relay 4/4（含合法票据、篡改/错目标拒绝和既有双向转发）、Console 15/15、严格 Clippy，以及真实 PostgreSQL 节点控制
 报告 `pg-20260919-233340-c48eec6f` 1/1 均通过并完成隔离卷清理。Android 全模块测试、Lint、arm64 Native 和从清洁输出执行的
 454/454 task 完整 Debug 构建通过；1.0.8 已用 `adb install -r` 覆盖安装至 Xiaomi 22021211RC，APK SHA-256 为
 `3805209B164975B338CF4C8265E401403D9C4F80B680B9388CD67341AD2F693D`。真机已验证云应用卡片的连接偏好入口、自动/直连/Relay 三种路径及

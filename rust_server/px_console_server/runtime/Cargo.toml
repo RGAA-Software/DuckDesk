@@ -13,6 +13,7 @@ px_credentials = { path = "../../px_credentials" }
 px_pg = { path = "../../px_pg" }
 px_node_protocol = { path = "../../px_node_protocol" }
 px_private_files = { path = "../../px_private_files" }
+px_relay_admission = { path = "../../px_relay_admission" }
 px_release_catalog = { path = "../../px_release_catalog" }
 px_license = { path = "../../px_auth_server/license" }
 axum = { version = "0.8.1", features = ["json", "ws"] }

@@ -84,7 +84,7 @@ async fn accepts_only_a_current_ticket_bound_to_the_frontend_route() {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    let ticket = px_credentials::issue_relay_admission(
+    let ticket = px_relay_admission::issue(
         b"test-relay-app-key",
         session_id,
         remote_resource_id,

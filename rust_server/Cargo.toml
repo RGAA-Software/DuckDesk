@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "px_credentials",
+    "px_relay_admission",
     "px_node_protocol",
     "px_console_server/runtime",
     "px_release_catalog",

@@ -3,7 +3,7 @@ mod fixture;
 
 use fixture::{call, login, register, resource_call, start_with_cache_and_relay, PASSWORD};
 use futures_util::{SinkExt, StreamExt};
-use px_credentials::verify_relay_admission;
+use px_relay_admission::verify;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::{net::SocketAddr, time::Duration};
@@ -533,7 +533,7 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
         .as_str()
         .and_then(|value| Uuid::parse_str(value).ok())
         .expect("resource instance id");
-    assert!(verify_relay_admission(
+    assert!(verify(
         b"isolated-relay-app-key",
         relay_admission,
         session_id,

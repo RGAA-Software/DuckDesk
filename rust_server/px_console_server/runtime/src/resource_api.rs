@@ -189,7 +189,7 @@ async fn descriptor(
             u64::try_from(chrono::Utc::now().timestamp()).map_err(|_| ApiError::Unavailable)?;
         let expires_at_unix_seconds =
             u64::try_from(descriptor.expires_at.timestamp()).map_err(|_| ApiError::Unavailable)?;
-        let admission_ticket = px_credentials::issue_relay_admission(
+        let admission_ticket = px_relay_admission::issue(
             endpoint.app_key.as_bytes(),
             descriptor.session.id,
             remote_resource_id,

@@ -157,7 +157,7 @@ DB5短期功能出口通过后统一长测：Relay长连接、Direct Host重复�
   仍缺新的公网部署复验，不能沿用补丁前的公网证据冒充通过。
 - Android/Console 进一步把 Relay WebSocket 建连从部署 appkey 改为最长 300 秒的资源会话准入票据，绑定 session 与实际目标资源；Relay
   在 upgrade 前验签和校验目标路由，Render 的 frontend grant 是其后的第二道独立门禁。部署 appkey 不进入 Android DTO/APK。
-  Relay 4/4、共享凭据 3/3、Console 15/15、严格 Clippy、真实 PG node-control 1/1 和 Android 1.0.8 清洁构建/真机路径持久化均通过；
+  Relay 4/4、独立 Relay 准入票据 1/1、Console 15/15、严格 Clippy、真实 PG node-control 1/1 和 Android 1.0.8 清洁构建/真机路径持久化均通过；
   新服务端尚未公网部署，所以 Android Relay 仍不得记为端到端通过。
 
 尚未完成且不得被上述聚焦证据冒充：真实公网 Web/Android 首帧/音频/输入/重连/撤销、Windows 剩余音频与撤销矩阵、Relay 剩余通道、

@@ -121,7 +121,7 @@ fn authorized_admission(config: &RelayConfig, query: &RelayQuery) -> bool {
     else {
         return false;
     };
-    px_credentials::verify_relay_admission(
+    px_relay_admission::verify(
         &config.app_key,
         &query.appkey,
         session_id,
