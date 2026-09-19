@@ -12,7 +12,6 @@ members = [
     "px_auth_server/storage",
     "px_desk_server",
     "px_auth_server",
-    "px_console_server",
     "builder",
 ]
 resolver = "2"
