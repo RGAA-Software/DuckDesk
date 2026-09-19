@@ -10,6 +10,7 @@ path = "src/main.rs"
 [dependencies]
 px_base = { path = "../../rust_base/px_base" }
 px_node_protocol = { path = "../../rust_server/px_node_protocol" }
+px_deployment_identity = { path = "../../rust_server/px_deployment_identity" }
 protocol = { path = "../../rust_base/protocol" }
 service_core = { path = "./service_core" }
 prost = "0.14.1"
@@ -59,4 +60,5 @@ uuid = { version = "1", features = ["v4", "serde"] }
 zeroize = "1.8"
 
 [dev-dependencies]
+ring = "0.17"
 tempfile = "3"

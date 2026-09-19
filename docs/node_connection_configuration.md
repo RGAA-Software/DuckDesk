@@ -13,37 +13,52 @@ Console 管理员先创建设备和节点。创建节点接口只在响应中返
 在目标 Windows 节点以管理员身份打开 PowerShell，把该 token、Console 节点入口和当前节点的可访问主机名/IP 通过标准输入交给 Service：
 
 ```powershell
-$configuration = @{
-    schema_version = 1
+$trustStore = Get-Content -LiteralPath '.\deployment-trust.json' -Raw | ConvertFrom-Json
+$configuration = [ordered]@{
+    schema_version = 2
     endpoint = "wss://console.example.com/api/console/node-control"
     node_token = "<Console 返回的 64 字符小写十六进制 token>"
     public_host = "render-01.example.com"
+    deployment_id = "<Console deployment UUID>"
+    deployment_kind = "private"
+    deployment_trust_store = $trustStore
+    minimum_certificate_version = 1
+    minimum_descriptor_revision = 1
+    minimum_trust_epoch = $trustStore.trust_epoch
 } | ConvertTo-Json -Compress
 
 $configuration | & .\px_service.exe --configure-node-control
+$configuration = $null
 ```
 
-配置成功后重启 Pixels Service。不要把 JSON 保存为普通文件，不要把 token 放在命令行、TOML、脚本日志或安装包中。
+`deployment-trust.json` 是经批准的公开信任材料，不含厂商或部署私钥；仍须从安装介质/维护包取得，不能从待连接的 Console
+自行下载并建立信任。`deployment_kind` 对 Pixels 自营平台使用 `official`，客户私有部署只使用 `private`。三项最低水位都必须是正整数，
+`minimum_trust_epoch` 必须与 trust store 一致。
+
+配置成功后重启 Pixels Service。不要把含 token 的配置 JSON 保存为普通文件，不要把 token 放在命令行、TOML、脚本日志或安装包中。
 若需要撤销本机身份，先在 Console 轮换/删除节点凭据，再以管理员运行：
 
 ```powershell
 .\px_service.exe --clear-node-control
 ```
 
-本机副本位于 Service 数据根下独立的 `node-control` 目录；目录只允许 SYSTEM 和 Administrators，内容使用 machine-scope
-Windows DPAPI 加密。加载时拒绝 reparse point、宽权限目录、未知字段、未知 schema、非法 token 和歧义地址。
+本机配置与部署身份水位位于 Service 数据根下独立的 `node-control` 目录；目录只允许 SYSTEM 和 Administrators，内容使用 machine-scope
+Windows DPAPI 加密。加载时拒绝 reparse point、宽权限目录、未知字段、未知 schema、非法 token 和歧义地址。schema 1 已直接退役，
+不会导入或兼容；`--clear-node-control` 是管理员显式清除配置和身份水位后重新接入另一个部署的唯一入口。
 
 ## 2. 地址约束
 
 - `endpoint` 必须是精确的 `/api/console/node-control` WebSocket URL。生产只允许 `wss://`；`ws://` 仅允许 loopback 开发测试。
-- endpoint 不允许 userinfo、query、fragment；token 只在 WebSocket 首个严格 JSON 消息中发送。
+- endpoint 不允许 userinfo、query、fragment。Service 先在相同 origin 取得并验签 `/.well-known/pixels`，再完成随机 32 字节 nonce
+  持有证明和本机单调水位检查；全部成功并持久化后才建立节点 WebSocket、在首个严格 JSON 消息中发送 token。身份请求禁止重定向，
+  响应按 64 KiB 上限流式读取；失败不会把节点凭据发送给未验证平台。
 - `public_host` 必填，只能是可用的主机名、IPv4 或 IPv6，不含 scheme、凭据、路径或端口，也不能是 unspecified/multicast/broadcast 地址。
 - `public_host` 指向当前 Render 节点，不是 Console。当前实现要求公网映射端口与节点监听端口相同；异号映射尚未交付。
 - 节点凭据轮换会使旧连接代际失效。新 token 不与旧 token 并行有效，更新本机配置并重启 Service 后才恢复接入。
 
-Console 已提供签名部署证书、短期平台描述和 nonce 持有证明的服务端协议；正式版与私有部署版还必须在 Service 侧消费并持久化对应水位：
-Official 只接受官方平台，Customer 不得连接官方平台。该客户端门禁与发行内置信任根仍属于后续实现，当前管理员配置命令、TLS 校验或
-发现接口自身都不能替代这项商业验收。
+Service 已消费签名部署证书、短期平台描述和 nonce 持有证明，并持久化 deployment ID/kind、certificate version、descriptor revision、
+trust epoch 五项水位；身份切换、类别切换、损坏记录或任一回退均 fail-closed。节点部署信任材料由受控安装/维护流程提供，不能把管理员
+任意输入根信任当成 Official/Customer 访问端发行隔离的替代品；Windows Client 与 Web 的独立发行门禁仍按 DB5/P0 实施。
 
 ## 3. 高级监听配置
 
@@ -91,4 +106,6 @@ RDP workspace 凭据 envelope 与 GPU 绑定尚未进入新 wire，节点当前�
 - 断线重连先对账；过期 lease、旧 epoch/generation/revision 和重复 request ID 不执行。
 - Start/Stop 使用稳定 instance/launch 身份；已停止实例的 Stop 幂等，复用 PID/端口的其他进程不受影响。
 - machine DPAPI 文件不含 token 明文，目录 ACL 变化或 reparse point 会 fail closed。
-- Official/Customer 部署身份隔离、RDP workspace、GPU、多卡负载与公网实机仍分别留证，不以单元测试代替。
+- 错误 deployment/kind/根/签名/nonce、过期描述、旧 certificate/descriptor/trust 水位均在 node token 发送前被拒绝；只有管理员显式清除
+  节点配置和水位后才能切换部署。
+- Windows Client/Web 的 Official/Customer 发行隔离、RDP workspace、GPU、多卡负载与公网实机仍分别留证，不以 Service 单元测试代替。

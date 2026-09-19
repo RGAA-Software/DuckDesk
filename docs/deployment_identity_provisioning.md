@@ -99,4 +99,7 @@ Android 已把验签、nonce 持有证明和 deployment/certificate/descriptor/t
 独立输出沙箱且只接受 `private` 身份，首次成功证明后固定 deployment。两类 APK/AAB 构建都要求规范公开 trust store，并校验文件
 `trust_epoch` 与显式最低水位一致。正式批准的 trust store、Official UUID/URL 和签名材料未配置时不得生成发行包。
 
-Windows、Web、Service 的同等消费以及 Android 正式双发行制品/真机验收仍按 DB5/P0 继续；Android 代码门禁通过不等于全部发行隔离完成。
+Windows Service 已在节点 token 发送前验证同源签名身份和在线 nonce 证明，并以 machine-scope DPAPI 持久化 deployment/kind 与三项单调
+水位；旧配置 schema 不兼容，显式清除节点配置同时清除身份水位。其 approved trust store 与预期 deployment 由受控节点安装/维护流程
+配置，不能从待验证 Console 自举。Windows Client、Web 的同等消费以及 Android 正式双发行制品/真机验收仍按 DB5/P0 继续；
+Android/Service 代码门禁通过不等于全部发行隔离完成。

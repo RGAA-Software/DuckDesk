@@ -1,3 +1,4 @@
+use px_deployment_identity::{DeploymentIdentityVerifier, DeploymentKind, DeploymentTrustStore};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::io::{self, Read};
@@ -8,6 +9,7 @@ use zeroize::{Zeroize, Zeroizing};
 const CONFIG_DIRECTORY: &str = "node-control";
 const CONFIG_FILE: &str = "configuration.dpapi";
 const TELEMETRY_BACKLOG_FILE: &str = "telemetry-backlog.dpapi";
+const DEPLOYMENT_IDENTITY_WATERMARK_FILE: &str = "deployment-identity-watermark.dpapi";
 const MAX_INPUT_BYTES: u64 = 16 * 1024;
 const MAX_TELEMETRY_BACKLOG_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_TELEMETRY_BACKLOG_SAMPLES: usize = 240;
@@ -17,6 +19,12 @@ pub struct NodeControlConfiguration {
     pub endpoint: String,
     pub node_token: Zeroizing<String>,
     pub public_host: String,
+    pub deployment_id: Uuid,
+    pub deployment_kind: DeploymentKind,
+    pub deployment_trust_store: DeploymentTrustStore,
+    pub minimum_certificate_version: u64,
+    pub minimum_descriptor_revision: u64,
+    pub minimum_trust_epoch: u64,
 }
 
 impl Clone for NodeControlConfiguration {
@@ -25,6 +33,12 @@ impl Clone for NodeControlConfiguration {
             endpoint: self.endpoint.clone(),
             node_token: Zeroizing::new(self.node_token.to_string()),
             public_host: self.public_host.clone(),
+            deployment_id: self.deployment_id,
+            deployment_kind: self.deployment_kind,
+            deployment_trust_store: self.deployment_trust_store.clone(),
+            minimum_certificate_version: self.minimum_certificate_version,
+            minimum_descriptor_revision: self.minimum_descriptor_revision,
+            minimum_trust_epoch: self.minimum_trust_epoch,
         }
     }
 }
@@ -34,6 +48,12 @@ impl PartialEq for NodeControlConfiguration {
         self.endpoint == other.endpoint
             && self.node_token.as_str() == other.node_token.as_str()
             && self.public_host == other.public_host
+            && self.deployment_id == other.deployment_id
+            && self.deployment_kind == other.deployment_kind
+            && self.deployment_trust_store == other.deployment_trust_store
+            && self.minimum_certificate_version == other.minimum_certificate_version
+            && self.minimum_descriptor_revision == other.minimum_descriptor_revision
+            && self.minimum_trust_epoch == other.minimum_trust_epoch
     }
 }
 
@@ -46,6 +66,12 @@ struct StoredConfiguration {
     endpoint: String,
     node_token: String,
     public_host: String,
+    deployment_id: Uuid,
+    deployment_kind: DeploymentKind,
+    deployment_trust_store: DeploymentTrustStore,
+    minimum_certificate_version: u64,
+    minimum_descriptor_revision: u64,
+    minimum_trust_epoch: u64,
 }
 
 impl Drop for StoredConfiguration {
@@ -60,17 +86,29 @@ struct StoredConfigurationRef<'a> {
     endpoint: &'a str,
     node_token: &'a str,
     public_host: &'a str,
+    deployment_id: Uuid,
+    deployment_kind: DeploymentKind,
+    deployment_trust_store: &'a DeploymentTrustStore,
+    minimum_certificate_version: u64,
+    minimum_descriptor_revision: u64,
+    minimum_trust_epoch: u64,
 }
 
 impl StoredConfiguration {
     fn into_runtime(mut self) -> Result<NodeControlConfiguration, String> {
-        if self.schema_version != 1 {
+        if self.schema_version != 2 {
             return Err("unsupported node-control configuration schema".into());
         }
         let runtime = NodeControlConfiguration {
             endpoint: std::mem::take(&mut self.endpoint),
             node_token: Zeroizing::new(std::mem::take(&mut self.node_token)),
             public_host: std::mem::take(&mut self.public_host),
+            deployment_id: self.deployment_id,
+            deployment_kind: self.deployment_kind,
+            deployment_trust_store: self.deployment_trust_store.clone(),
+            minimum_certificate_version: self.minimum_certificate_version,
+            minimum_descriptor_revision: self.minimum_descriptor_revision,
+            minimum_trust_epoch: self.minimum_trust_epoch,
         };
         runtime.validate()?;
         Ok(runtime)
@@ -81,7 +119,69 @@ impl NodeControlConfiguration {
     pub fn validate(&self) -> Result<(), String> {
         validate_endpoint(&self.endpoint)?;
         validate_token(&self.node_token)?;
-        validate_public_host(&self.public_host)
+        validate_public_host(&self.public_host)?;
+        if self.deployment_id.is_nil()
+            || self.minimum_certificate_version == 0
+            || self.minimum_descriptor_revision == 0
+            || self.minimum_trust_epoch == 0
+            || self.deployment_trust_store.trust_epoch != self.minimum_trust_epoch
+            || DeploymentIdentityVerifier::new(&self.deployment_trust_store).is_err()
+        {
+            return Err("node-control deployment identity configuration is invalid".into());
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct DeploymentIdentityWatermark {
+    schema_version: u32,
+    pub deployment_id: Uuid,
+    pub deployment_kind: DeploymentKind,
+    pub certificate_version: u64,
+    pub descriptor_revision: u64,
+    pub trust_epoch: u64,
+}
+
+impl DeploymentIdentityWatermark {
+    pub(crate) fn new(
+        deployment_id: Uuid,
+        deployment_kind: DeploymentKind,
+        certificate_version: u64,
+        descriptor_revision: u64,
+        trust_epoch: u64,
+    ) -> Result<Self, String> {
+        let watermark = Self {
+            schema_version: 1,
+            deployment_id,
+            deployment_kind,
+            certificate_version,
+            descriptor_revision,
+            trust_epoch,
+        };
+        watermark.validate()?;
+        Ok(watermark)
+    }
+
+    fn validate(&self) -> Result<(), String> {
+        if self.schema_version != 1
+            || self.deployment_id.is_nil()
+            || self.certificate_version == 0
+            || self.descriptor_revision == 0
+            || self.trust_epoch == 0
+        {
+            return Err("protected deployment identity watermark is invalid".into());
+        }
+        Ok(())
+    }
+
+    pub(crate) fn allows(&self, candidate: &Self) -> bool {
+        self.deployment_id == candidate.deployment_id
+            && self.deployment_kind == candidate.deployment_kind
+            && candidate.certificate_version >= self.certificate_version
+            && candidate.descriptor_revision >= self.descriptor_revision
+            && candidate.trust_epoch >= self.trust_epoch
     }
 }
 
@@ -89,6 +189,7 @@ impl NodeControlConfiguration {
 pub struct NodeControlStore {
     directory: PathBuf,
     file_path: PathBuf,
+    identity_watermark_path: PathBuf,
 }
 
 impl NodeControlStore {
@@ -96,6 +197,7 @@ impl NodeControlStore {
         let directory = data_root.join(CONFIG_DIRECTORY);
         Self {
             file_path: directory.join(CONFIG_FILE),
+            identity_watermark_path: directory.join(DEPLOYMENT_IDENTITY_WATERMARK_FILE),
             directory,
         }
     }
@@ -121,10 +223,16 @@ impl NodeControlStore {
         configuration.validate()?;
         platform::ensure_private_directory(&self.directory)?;
         let stored = StoredConfigurationRef {
-            schema_version: 1,
+            schema_version: 2,
             endpoint: &configuration.endpoint,
             node_token: configuration.node_token.as_str(),
             public_host: &configuration.public_host,
+            deployment_id: configuration.deployment_id,
+            deployment_kind: configuration.deployment_kind,
+            deployment_trust_store: &configuration.deployment_trust_store,
+            minimum_certificate_version: configuration.minimum_certificate_version,
+            minimum_descriptor_revision: configuration.minimum_descriptor_revision,
+            minimum_trust_epoch: configuration.minimum_trust_epoch,
         };
         let mut plaintext = serde_json::to_vec(&stored)
             .map_err(|_| "cannot serialize node-control configuration".to_string())?;
@@ -142,16 +250,60 @@ impl NodeControlStore {
             return Ok(());
         }
         platform::ensure_private_directory(&self.directory)?;
-        match std::fs::remove_file(&self.file_path) {
-            Ok(()) => Ok(()),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-            Err(_) => Err("cannot remove protected node-control configuration".into()),
+        for path in [&self.file_path, &self.identity_watermark_path] {
+            match std::fs::remove_file(path) {
+                Ok(()) => {}
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(_) => return Err("cannot remove protected node-control state".into()),
+            }
         }
+        Ok(())
+    }
+
+    pub(crate) fn load_identity_watermark(
+        &self,
+    ) -> Result<Option<DeploymentIdentityWatermark>, String> {
+        if !self.identity_watermark_path.exists() {
+            return Ok(None);
+        }
+        platform::ensure_private_directory(&self.directory)?;
+        reject_reparse_point(&self.identity_watermark_path)?;
+        let encrypted = std::fs::read(&self.identity_watermark_path)
+            .map_err(|_| "cannot read protected deployment identity watermark".to_string())?;
+        let mut plaintext = platform::unseal(&encrypted)?;
+        let decoded = serde_json::from_slice::<DeploymentIdentityWatermark>(&plaintext);
+        plaintext.zeroize();
+        let watermark =
+            decoded.map_err(|_| "invalid protected deployment identity watermark".to_string())?;
+        watermark.validate()?;
+        Ok(Some(watermark))
+    }
+
+    pub(crate) fn save_identity_watermark(
+        &self,
+        watermark: &DeploymentIdentityWatermark,
+    ) -> Result<(), String> {
+        watermark.validate()?;
+        platform::ensure_private_directory(&self.directory)?;
+        let mut plaintext = serde_json::to_vec(watermark)
+            .map_err(|_| "cannot serialize deployment identity watermark".to_string())?;
+        let encrypted = platform::seal(&plaintext);
+        plaintext.zeroize();
+        let encrypted = encrypted?;
+        let pending = self.identity_watermark_path.with_extension("dpapi.pending");
+        std::fs::write(&pending, encrypted)
+            .map_err(|_| "cannot write protected deployment identity watermark".to_string())?;
+        platform::replace_file(&pending, &self.identity_watermark_path)
     }
 
     #[cfg(test)]
     fn file_path(&self) -> &Path {
         &self.file_path
+    }
+
+    #[cfg(test)]
+    fn identity_watermark_path(&self) -> &Path {
+        &self.identity_watermark_path
     }
 }
 
@@ -669,6 +821,12 @@ mod tests {
             endpoint: "wss://console.example.com/api/console/node-control".into(),
             node_token: Zeroizing::new("a".repeat(64)),
             public_host: "render.example.com".into(),
+            deployment_id: Uuid::parse_str("9c08feb1-af71-4fab-a6b8-bbd99b3552ba").unwrap(),
+            deployment_kind: DeploymentKind::Private,
+            deployment_trust_store: DeploymentTrustStore::new(3, [[1_u8; 32]]).unwrap(),
+            minimum_certificate_version: 2,
+            minimum_descriptor_revision: 4,
+            minimum_trust_epoch: 3,
         }
     }
 
@@ -713,6 +871,65 @@ mod tests {
         }
     }
 
+    #[test]
+    fn configuration_rejects_retired_schema_and_inconsistent_trust_watermarks() {
+        let configured = configuration();
+        let retired = StoredConfiguration {
+            schema_version: 1,
+            endpoint: configured.endpoint.clone(),
+            node_token: configured.node_token.to_string(),
+            public_host: configured.public_host.clone(),
+            deployment_id: configured.deployment_id,
+            deployment_kind: configured.deployment_kind,
+            deployment_trust_store: configured.deployment_trust_store.clone(),
+            minimum_certificate_version: configured.minimum_certificate_version,
+            minimum_descriptor_revision: configured.minimum_descriptor_revision,
+            minimum_trust_epoch: configured.minimum_trust_epoch,
+        };
+        assert!(retired.into_runtime().is_err());
+
+        let mut inconsistent = configured;
+        inconsistent.minimum_trust_epoch += 1;
+        assert!(inconsistent.validate().is_err());
+    }
+
+    #[test]
+    fn deployment_watermark_rejects_identity_change_and_rollback() {
+        let configured = configuration();
+        let current = DeploymentIdentityWatermark::new(
+            configured.deployment_id,
+            configured.deployment_kind,
+            2,
+            4,
+            3,
+        )
+        .unwrap();
+        let advanced = DeploymentIdentityWatermark::new(
+            configured.deployment_id,
+            configured.deployment_kind,
+            3,
+            5,
+            4,
+        )
+        .unwrap();
+        assert!(current.allows(&advanced));
+
+        let rolled_back = DeploymentIdentityWatermark::new(
+            configured.deployment_id,
+            configured.deployment_kind,
+            2,
+            3,
+            3,
+        )
+        .unwrap();
+        assert!(!current.allows(&rolled_back));
+
+        let other_deployment =
+            DeploymentIdentityWatermark::new(Uuid::new_v4(), configured.deployment_kind, 3, 5, 4)
+                .unwrap();
+        assert!(!current.allows(&other_deployment));
+    }
+
     #[cfg(windows)]
     #[test]
     fn protected_configuration_round_trip_does_not_store_plain_token() {
@@ -725,12 +942,21 @@ mod tests {
         let store = NodeControlStore::new(directory.clone());
         let value = configuration();
         store.save(&value).unwrap();
-        assert_eq!(store.load().unwrap(), Some(value));
+        assert_eq!(store.load().unwrap(), Some(value.clone()));
         let encrypted = std::fs::read(store.file_path()).unwrap();
         assert!(!encrypted
             .windows(64)
             .any(|bytes| bytes
                 == b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+        let watermark =
+            DeploymentIdentityWatermark::new(value.deployment_id, value.deployment_kind, 2, 4, 3)
+                .unwrap();
+        store.save_identity_watermark(&watermark).unwrap();
+        assert_eq!(store.load_identity_watermark().unwrap(), Some(watermark));
+        assert!(
+            !String::from_utf8_lossy(&std::fs::read(store.identity_watermark_path()).unwrap())
+                .contains("9c08feb1-af71-4fab-a6b8-bbd99b3552ba")
+        );
         store.clear().unwrap();
         std::fs::remove_dir(directory.join(CONFIG_DIRECTORY)).unwrap();
         std::fs::remove_dir(directory).unwrap();

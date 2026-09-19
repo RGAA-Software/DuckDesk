@@ -2795,6 +2795,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "px_deployment_identity"
+version = "3.2.9"
+dependencies = [
+ "base64 0.22.1",
+ "hex",
+ "ring",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.18",
+ "uuid",
+]
+
+[[package]]
 name = "px_node_protocol"
 version = "0.1.0"
 dependencies = [
@@ -2815,9 +2829,11 @@ dependencies = [
  "prost 0.14.4",
  "protocol",
  "px_base",
+ "px_deployment_identity",
  "px_node_protocol",
  "rand 0.9.4",
  "reqwest",
+ "ring",
  "rustls 0.23.40",
  "serde",
  "serde_json",
