@@ -18,10 +18,8 @@ cargo test --release -p service_core rdp
 if errorlevel 1 exit /b %errorlevel%
 cargo test --release -p px_service service_host::tests
 if errorlevel 1 exit /b %errorlevel%
-cargo test --release -p px_service rdp_authorization::tests
+cd /d "%RDP_REPO%" || exit /b 2
+pwsh.exe -NoProfile -File "%RDP_REPO%\scripts\server_validation\postgres.ps1" TestSuite -Suite workspaces
 if errorlevel 1 exit /b %errorlevel%
-cd /d "%RDP_REPO%\rust_server" || exit /b 2
-cargo test --release -p px_console_server app_schedule::
-if errorlevel 1 exit /b %errorlevel%
-cargo test --release -p px_console_server rdp_session_authorization::
+pwsh.exe -NoProfile -File "%RDP_REPO%\scripts\server_validation\postgres.ps1" TestSuite -Suite sessions
 exit /b %errorlevel%
