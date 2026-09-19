@@ -592,6 +592,15 @@ public:
         });
     }
 
+    void RequestFrame() {
+        auto self = CefRefPtr<WebViewClient>(this);
+        PostToCefUi([self] {
+            if (self->browser_) {
+                self->browser_->GetHost()->Invalidate(PET_VIEW);
+            }
+        });
+    }
+
     void SendMouse(const MouseEvent& event) {
         auto self = CefRefPtr<WebViewClient>(this);
         PostToCefUi([self, event] { self->SendMouseOnUi(event); });
@@ -1302,6 +1311,10 @@ void WebViewRuntime::Stop() { impl_->Stop(); }
 
 void WebViewRuntime::SetActive(bool active) {
     if (impl_->client_) impl_->client_->SetActive(active);
+}
+
+void WebViewRuntime::RequestFrame() {
+    if (impl_->client_) impl_->client_->RequestFrame();
 }
 
 void WebViewRuntime::SendMouseEvent(const MouseEvent& event) {

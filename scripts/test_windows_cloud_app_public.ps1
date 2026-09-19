@@ -11,6 +11,9 @@ param(
             -not $candidate.Fragment
     })]
     [string]$ConsoleBase,
+    [Parameter(Mandatory)]
+    [ValidateScript({ Test-Path -LiteralPath $_ -PathType Leaf })]
+    [string]$CertificateAuthority,
     [string]$AppId = '',
     [switch]$Rdp,
     [ValidateRange(15, 180)]
@@ -26,6 +29,20 @@ $clientPath = Join-Path $repository 'build_official/client/dist/px_client.exe'
 $buildClientPath = Join-Path $repository 'build_official/client/cmake/src/px_deps/px_client.exe'
 $credentialsPath = Join-Path $repository '.env/public_test_user.json'
 $clientLogPath = Join-Path (Split-Path $clientPath -Parent) 'px_logs/px_client.log'
+$trustedRoot = [Security.Cryptography.X509Certificates.X509Certificate2]::CreateFromPem(
+    [IO.File]::ReadAllText((Resolve-Path -LiteralPath $CertificateAuthority).Path))
+$certificatePolicy = [Security.Cryptography.X509Certificates.X509ChainPolicy]::new()
+$certificatePolicy.TrustMode =
+    [Security.Cryptography.X509Certificates.X509ChainTrustMode]::CustomRootTrust
+[void]$certificatePolicy.CustomTrustStore.Add($trustedRoot)
+$certificatePolicy.RevocationMode =
+    [Security.Cryptography.X509Certificates.X509RevocationMode]::NoCheck
+$certificatePolicy.VerificationFlags =
+    [Security.Cryptography.X509Certificates.X509VerificationFlags]::NoFlag
+$httpHandler = [Net.Http.SocketsHttpHandler]::new()
+$httpHandler.SslOptions.CertificateChainPolicy = $certificatePolicy
+$httpClient = [Net.Http.HttpClient]::new($httpHandler)
+$httpClient.Timeout = [TimeSpan]::FromSeconds(20)
 
 if ($Rdp) {
     throw 'The PostgreSQL RDP descriptor does not yet carry the protected workspace bootstrap. RDP cannot be accepted with a fabricated or legacy password.'
@@ -58,31 +75,44 @@ function Invoke-ConsoleApi {
         [switch]$UserResource
     )
 
-    $headers = @{
-        Accept = 'application/json'
-        Origin = ([Uri]$ConsoleBase).GetLeftPart([UriPartial]::Authority)
-        'X-Pixels-Client-Type' = 'panel'
-    }
-    if ($Token) {
-        $headers.Authorization = "Bearer $Token"
-    }
-    if ($UserResource) {
-        $headers['X-Pixels-Subject-Kind'] = 'user'
-    }
-    $parameters = @{
-        Uri = "$ConsoleBase$Path"
-        Method = $Method
-        Headers = $headers
-        TimeoutSec = 20
-    }
-    if ($null -ne $Body) {
-        $parameters.ContentType = 'application/json'
-        $parameters.Body = $Body | ConvertTo-Json -Compress -Depth 12
-    }
+    $request = [Net.Http.HttpRequestMessage]::new(
+        [Net.Http.HttpMethod]::new($Method),
+        "$ConsoleBase$Path")
     try {
-        return Invoke-RestMethod @parameters
+        [void]$request.Headers.TryAddWithoutValidation('Accept', 'application/json')
+        [void]$request.Headers.TryAddWithoutValidation(
+            'Origin',
+            ([Uri]$ConsoleBase).GetLeftPart([UriPartial]::Authority))
+        [void]$request.Headers.TryAddWithoutValidation('X-Pixels-Client-Type', 'panel')
+        if ($Token) {
+            $request.Headers.Authorization = [Net.Http.Headers.AuthenticationHeaderValue]::new('Bearer', $Token)
+        }
+        if ($UserResource) {
+            [void]$request.Headers.TryAddWithoutValidation('X-Pixels-Subject-Kind', 'user')
+        }
+        if ($null -ne $Body) {
+            $request.Content = [Net.Http.StringContent]::new(
+                ($Body | ConvertTo-Json -Compress -Depth 12),
+                [Text.Encoding]::UTF8,
+                'application/json')
+        }
+        $response = $httpClient.Send($request)
+        try {
+            $content = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+            if (-not $response.IsSuccessStatusCode) {
+                throw "HTTP $([int]$response.StatusCode)"
+            }
+            if ([string]::IsNullOrWhiteSpace($content)) {
+                return $null
+            }
+            return $content | ConvertFrom-Json
+        } finally {
+            $response.Dispose()
+        }
     } catch {
         throw "Console API request failed: method=$Method path=$Path; $($_.Exception.Message)"
+    } finally {
+        $request.Dispose()
     }
 }
 
@@ -295,4 +325,7 @@ try {
         }
     }
     $accessToken = ''
+    $httpClient.Dispose()
+    $httpHandler.Dispose()
+    $trustedRoot.Dispose()
 }

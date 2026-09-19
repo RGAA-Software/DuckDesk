@@ -39,6 +39,7 @@ pub struct LicenseLaunchConfig {
     license_file: PathBuf,
     watermark_directory: PathBuf,
     auth_verify_url: Option<Url>,
+    auth_verify_ca: Option<PathBuf>,
 }
 
 #[derive(Clone)]
@@ -63,6 +64,7 @@ pub struct LicenseStatus {
 }
 
 struct OnlineLicenseMonitor {
+    client: reqwest::Client,
     url: Url,
     wire: String,
     consumer_deployment_id: Uuid,
@@ -119,6 +121,7 @@ impl LicenseLaunchConfig {
         license_file: PathBuf,
         watermark_directory: PathBuf,
         auth_verify_url: Option<String>,
+        auth_verify_ca: Option<PathBuf>,
         local_development: bool,
     ) -> Result<Self, LicenseAdmissionError> {
         let distribution = match distribution {
@@ -129,16 +132,17 @@ impl LicenseLaunchConfig {
         if authority_deployment_id.is_nil() || !valid_hash(&machine_sha256) {
             return Err(LicenseAdmissionError);
         }
-        let auth_verify_url = match (distribution, auth_verify_url) {
-            (Distribution::Official, Some(value)) => {
-                let url = Url::parse(&value).map_err(|_| LicenseAdmissionError)?;
-                validate_official_url(&url, local_development)?;
-                Some(url)
-            }
-            (Distribution::Official, None) => return Err(LicenseAdmissionError),
-            (Distribution::Customer, None) => None,
-            (Distribution::Customer, Some(_)) => return Err(LicenseAdmissionError),
-        };
+        let (auth_verify_url, auth_verify_ca) =
+            match (distribution, auth_verify_url, auth_verify_ca) {
+                (Distribution::Official, Some(value), certificate_authority) => {
+                    let url = Url::parse(&value).map_err(|_| LicenseAdmissionError)?;
+                    validate_official_url(&url, local_development)?;
+                    (Some(url), certificate_authority)
+                }
+                (Distribution::Official, None, _) => return Err(LicenseAdmissionError),
+                (Distribution::Customer, None, None) => (None, None),
+                (Distribution::Customer, _, _) => return Err(LicenseAdmissionError),
+            };
         Ok(Self {
             distribution,
             machine_sha256,
@@ -147,6 +151,7 @@ impl LicenseLaunchConfig {
             license_file,
             watermark_directory,
             auth_verify_url,
+            auth_verify_ca,
         })
     }
 
@@ -184,9 +189,14 @@ impl LicenseLaunchConfig {
         let last_trusted_time = previous
             .as_ref()
             .map_or(0, |watermark| watermark.last_trusted_time);
-        let online = match &self.auth_verify_url {
-            Some(url) => Some(
+        let online_client = match &self.auth_verify_url {
+            Some(_) => Some(build_online_client(self.auth_verify_ca.as_deref())?),
+            None => None,
+        };
+        let online = match (&self.auth_verify_url, &online_client) {
+            (Some(url), Some(client)) => Some(
                 verify_online(
+                    client,
                     url,
                     &wire,
                     consumer_deployment_id,
@@ -195,7 +205,8 @@ impl LicenseLaunchConfig {
                 )
                 .await?,
             ),
-            None => None,
+            (None, None) => None,
+            _ => return Err(LicenseAdmissionError),
         };
         let trusted_at = online
             .as_ref()
@@ -237,22 +248,26 @@ impl LicenseLaunchConfig {
         };
         state.persist(&watermark)?;
         let local_admission_time = current_unix_time()?;
-        let online_monitor = self.auth_verify_url.map(|url| {
-            Arc::new(OnlineLicenseMonitor {
-                url,
-                wire,
-                consumer_deployment_id,
-                distribution: self.distribution,
-                machine_sha256: watermark.machine_sha256.clone(),
-                license_id: payload.license_id,
-                revision: payload.revision,
-                watermark_store: state,
-                watermark: Mutex::new(watermark.clone()),
-                refresh_lock: tokio::sync::Mutex::new(()),
-                last_authoritative_time: AtomicI64::new(watermark.last_trusted_time),
-                last_success_local_time: AtomicI64::new(local_admission_time),
-            })
-        });
+        let online_monitor = self
+            .auth_verify_url
+            .zip(online_client)
+            .map(|(url, client)| {
+                Arc::new(OnlineLicenseMonitor {
+                    client,
+                    url,
+                    wire,
+                    consumer_deployment_id,
+                    distribution: self.distribution,
+                    machine_sha256: watermark.machine_sha256.clone(),
+                    license_id: payload.license_id,
+                    revision: payload.revision,
+                    watermark_store: state,
+                    watermark: Mutex::new(watermark.clone()),
+                    refresh_lock: tokio::sync::Mutex::new(()),
+                    last_authoritative_time: AtomicI64::new(watermark.last_trusted_time),
+                    last_success_local_time: AtomicI64::new(local_admission_time),
+                })
+            });
         Ok(LicenseEntitlement {
             payload,
             trusted_at: watermark.last_trusted_time,
@@ -305,13 +320,15 @@ impl LicenseEntitlement {
                 tokio::select! {
                     biased;
                     _=cancellation.cancelled()=>break,
-                    _=freshness_check.tick()=>if entitlement.validate_now().is_err(){
+                    _=freshness_check.tick()=>if let Err(error)=entitlement.validate_now(){
                         tracing::error!("official license authority freshness expired");
+                        eprintln!("Official license authority freshness expired: {error}");
                         cancellation.cancel();
                         break;
                     },
                     _=refresh.tick()=>if let Err(error)=entitlement.refresh_online().await{
                         tracing::warn!(%error, "official license authority refresh failed");
+                        eprintln!("Official license authority refresh failed: {error}");
                     },
                 }
             }
@@ -389,6 +406,7 @@ impl OnlineLicenseMonitor {
     async fn refresh(&self) -> Result<(), LicenseAdmissionError> {
         let _refresh = self.refresh_lock.lock().await;
         let response = verify_online(
+            &self.client,
             &self.url,
             &self.wire,
             self.consumer_deployment_id,
@@ -433,17 +451,13 @@ impl OnlineLicenseMonitor {
 }
 
 async fn verify_online(
+    client: &reqwest::Client,
     url: &Url,
     wire: &str,
     deployment_id: Uuid,
     distribution: Distribution,
     machine_sha256: &str,
 ) -> Result<OnlineVerificationResponse, LicenseAdmissionError> {
-    let client = reqwest::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .timeout(Duration::from_secs(5))
-        .build()
-        .map_err(|_| LicenseAdmissionError)?;
     let response = client
         .post(url.clone())
         .json(&OnlineVerificationRequest {
@@ -472,13 +486,30 @@ async fn verify_online(
     serde_json::from_slice::<OnlineVerificationResponse>(&bytes).map_err(|_| LicenseAdmissionError)
 }
 
+fn build_online_client(
+    certificate_authority_path: Option<&Path>,
+) -> Result<reqwest::Client, LicenseAdmissionError> {
+    let mut builder = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(Duration::from_secs(5));
+    if let Some(path) = certificate_authority_path {
+        let bytes = fs::read(path).map_err(|_| LicenseAdmissionError)?;
+        if bytes.is_empty() || bytes.len() > 65536 {
+            return Err(LicenseAdmissionError);
+        }
+        let certificate =
+            reqwest::Certificate::from_pem(&bytes).map_err(|_| LicenseAdmissionError)?;
+        builder = builder.add_root_certificate(certificate);
+    }
+    builder.build().map_err(|_| LicenseAdmissionError)
+}
+
 fn validate_official_url(url: &Url, local_development: bool) -> Result<(), LicenseAdmissionError> {
     if url.username() != ""
         || url.password().is_some()
         || url.query().is_some()
         || url.fragment().is_some()
         || url.path() != "/api/auth/licenses/verify"
-        || url.port() == Some(20371)
     {
         return Err(LicenseAdmissionError);
     }
@@ -836,6 +867,7 @@ mod tests {
                 self.license_file.clone(),
                 state_directory,
                 None,
+                None,
                 true,
             )
             .unwrap()
@@ -1022,6 +1054,7 @@ mod tests {
             fixture.license_file.clone(),
             fixture.state_directory.clone(),
             Some(format!("http://{address}/api/auth/licenses/verify")),
+            None,
             true,
         )
         .unwrap();
@@ -1064,6 +1097,7 @@ mod tests {
             fixture.license_file.clone(),
             fixture.state_directory.clone(),
             Some("https://auth.example.test/api/auth/licenses/verify".into()),
+            None,
             false,
         )
         .is_ok());
@@ -1075,17 +1109,7 @@ mod tests {
             fixture.license_file.clone(),
             fixture.state_directory.clone(),
             Some("https://auth.example.test/api/auth/licenses/verify".into()),
-            false,
-        )
-        .is_err());
-        assert!(LicenseLaunchConfig::new(
-            "official",
-            fixture.machine_sha256.clone(),
-            fixture.authority_deployment_id,
-            fixture.trust_store_file.clone(),
-            fixture.license_file.clone(),
-            fixture.state_directory.clone(),
-            Some("https://auth.example.test:20371/api/auth/licenses/verify".into()),
+            None,
             false,
         )
         .is_err());

@@ -2667,7 +2667,13 @@ void RdApplication::HandleForceGdiEvent(bool force_gdi) {
 }
 
 void RdApplication::RequestStaticDesktopFrame() {
-    if (settings_.IsWebViewMode() || settings_.IsGameHookMode()) {
+    if (settings_.IsWebViewMode()) {
+        if (webview_runtime_) {
+            webview_runtime_->RequestFrame();
+        }
+        return;
+    }
+    if (settings_.IsGameHookMode()) {
         return;
     }
     const auto dda = std::dynamic_pointer_cast<DdaCaptureSource>(dda_capture_source_);

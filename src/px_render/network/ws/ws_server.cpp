@@ -231,6 +231,13 @@ static PxAwaitable<PxResult<WsPasswordAdmission>> AuthenticateWebSocketAsync(
     auto grant = admitted.TakeValue();
     const auto settings = owner->Settings();
     if (!IsAcceptedWebSocketFrontendGrant(*descriptor, settings.device_id, grant)) {
+        LOGW(
+            "event=session.frontend_identity_mismatch component=net_ws code=CONSOLE_FRONTEND_IDENTITY_MISMATCH "
+            "operation=admit_frontend outcome=rejected recoverable=false target_kind_match={} instance_match={} role_match={} "
+            "session_match={} revision_match={} lease_valid={} expected_instance={} grant_instance={}",
+            grant.target_kind == "cloud_application", grant.instance_id == settings.device_id,
+            grant.access_role == "controller" || grant.access_role == "observer", grant.session_id == descriptor->session_id,
+            grant.revision == descriptor->revision, grant.valid_for_ms > 0, PrivacyLogId(settings.device_id), PrivacyLogId(grant.instance_id));
         co_return PxResult<WsPasswordAdmission>::Failure(MakePxAsyncError(
             PxAsyncErrorCode::kServiceRejected, "ws_frontend_auth",
             "Console frontend identity was rejected", false,

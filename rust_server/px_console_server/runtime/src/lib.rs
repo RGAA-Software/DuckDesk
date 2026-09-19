@@ -213,6 +213,13 @@ impl ConsoleRuntime {
             },
             None => None,
         };
+        // Database and cache admission can legitimately consume most of the online-license
+        // freshness window. Reconfirm currentness after all startup dependencies are ready so
+        // only an actual runtime authority outage starts the fail-closed deadline.
+        if license.online_refresh_interval().is_some() && license.refresh_online().await.is_err() {
+            db.close().await;
+            return Err(ApiError::Unavailable);
+        }
         let cancellation = CancellationToken::new();
         let state = Arc::new(StateData {
             db,

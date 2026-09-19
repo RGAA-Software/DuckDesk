@@ -54,6 +54,7 @@ public:
     void Stop();
 
     void SetActive(bool active);
+    void RequestFrame();
     void SendMouseEvent(const MouseEvent& event);
     void SendKeyEvent(const KeyEvent& event);
     void SendTextInput(const TextInput& event);

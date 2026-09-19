@@ -465,6 +465,12 @@ void WsPanelClient::ParseNetMessage(const std::string& msg) {
         if (m.type() == pxrp::RpMessageType::kSyncPanelInfo) {
             const auto& sub = m.sync_panel_info();
             auto& settings = settings_.get();
+            if (settings.IncomingAccessProduct() != IncomingAccessProductKind::kDesktop) {
+                LOGI("event=panel.settings component=render_panel operation=ignore product_kind={} outcome=success "
+                     "reason=console_managed_instance",
+                     static_cast<int>(settings.IncomingAccessProduct()));
+                return;
+            }
             settings.device_id_ = sub.device_id();
             settings.device_random_pwd_ = sub.device_random_pwd();
             settings.device_safety_pwd_ = sub.device_safety_pwd();

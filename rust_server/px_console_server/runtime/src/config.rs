@@ -150,6 +150,9 @@ impl ConsoleLaunchConfig {
             PathBuf::from(required("PIXELS_CONSOLE_LICENSE_FILE")?),
             PathBuf::from(required("PIXELS_CONSOLE_LICENSE_STATE_DIRECTORY")?),
             get("PIXELS_CONSOLE_AUTH_VERIFY_URL").filter(|value| !value.is_empty()),
+            get("PIXELS_CONSOLE_AUTH_VERIFY_CA")
+                .filter(|value| !value.is_empty())
+                .map(PathBuf::from),
             local,
         )
         .map_err(|_| ConfigurationError)?;
@@ -355,16 +358,21 @@ mod tests {
         );
         assert!(parse(&official).is_ok());
         official.insert(
-            "PIXELS_CONSOLE_AUTH_VERIFY_URL".into(),
-            "http://127.0.0.1:20371/api/auth/licenses/verify".into(),
+            "PIXELS_CONSOLE_AUTH_VERIFY_CA".into(),
+            "private/auth-ca.pem".into(),
         );
-        assert!(parse(&official).is_err());
-
+        assert!(parse(&official).is_ok());
         let mut customer = valid();
         customer.insert(
             "PIXELS_CONSOLE_AUTH_VERIFY_URL".into(),
             "https://auth.example.test/api/auth/licenses/verify".into(),
         );
         assert!(parse(&customer).is_err());
+        let mut customer_with_ca = valid();
+        customer_with_ca.insert(
+            "PIXELS_CONSOLE_AUTH_VERIFY_CA".into(),
+            "private/auth-ca.pem".into(),
+        );
+        assert!(parse(&customer_with_ca).is_err());
     }
 }

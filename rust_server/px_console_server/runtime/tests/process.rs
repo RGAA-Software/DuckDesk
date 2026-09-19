@@ -250,6 +250,7 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
         license_path.clone(),
         license_state_directory.clone(),
         None,
+        None,
         true,
     )
     .unwrap()

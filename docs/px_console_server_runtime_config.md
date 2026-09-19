@@ -32,6 +32,7 @@ Console 只从环境读取配置；发行包不携带真实配置、证书、私
 | `PIXELS_CONSOLE_LICENSE_FILE` | 唯一接受的 `PXLIC1` 许可证文件；不解析旧 deploy 字符串 |
 | `PIXELS_CONSOLE_LICENSE_STATE_DIRECTORY` | 数据库/备份之外的私有水位目录，保存 license revision、可信时间及 Auth recovery generation |
 | `PIXELS_CONSOLE_AUTH_VERIFY_URL` | 仅 Official 必填，固定为 HTTPS `/api/auth/licenses/verify`；Customer 必须完全不配置；本机开发可用 loopback HTTP |
+| `PIXELS_CONSOLE_AUTH_VERIFY_CA` | Official 可选的 Auth 私有 CA PEM；存在时只加入该 HTTPS 客户端的信任根，仍执行主机名与证书链校验；Customer 禁止配置 |
 | `PIXELS_CONSOLE_LOCAL_DEVELOPMENT=1` | 仅显式本机开发：监听和 PG 都必须为 loopback，才允许无 TLS |
 
 配置缺失、未知格式、私有文件权限过宽、静态目录无效、数据库身份/schema/deployment 不匹配，都会在监听前失败。

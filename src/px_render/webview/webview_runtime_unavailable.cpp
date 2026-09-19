@@ -18,6 +18,7 @@ bool WebViewRuntime::Start(std::uintptr_t, const WebViewRuntimeConfig&, WebViewR
 
 void WebViewRuntime::Stop() {}
 void WebViewRuntime::SetActive(bool) {}
+void WebViewRuntime::RequestFrame() {}
 void WebViewRuntime::SendMouseEvent(const MouseEvent&) {}
 void WebViewRuntime::SendKeyEvent(const KeyEvent&) {}
 void WebViewRuntime::SendTextInput(const TextInput&) {}
