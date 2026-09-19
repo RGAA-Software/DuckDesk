@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE pixels.file_transfers SET sequence=$2,transferred_bytes=$3,state=$4,reason=$5,\nreceived_sha256=$6,report_hash=$7,revision=revision+1,updated_at=clock_timestamp(),\nended_at=CASE WHEN $4 IN ('completed','failed','cancelled') THEN clock_timestamp() ELSE NULL END\nWHERE id=$1 AND state='active' RETURNING id,session_id,node_id,node_generation,control_epoch,request_hash,expected_sha256,report_hash,direction,file_name,total_bytes,transferred_bytes,state,reason,sequence,revision,created_at,updated_at,ended_at\n",
+  "query": "UPDATE pixels.file_transfers SET sequence=$2,transferred_bytes=$3,state=$4,reason=$5,\nexpected_sha256=CASE WHEN $4='completed' THEN COALESCE(expected_sha256,$6) ELSE expected_sha256 END,\nreceived_sha256=$6,report_hash=$7,revision=revision+1,updated_at=clock_timestamp(),\nended_at=CASE WHEN $4 IN ('completed','failed','cancelled') THEN clock_timestamp() ELSE NULL END\nWHERE id=$1 AND state='active' RETURNING id,session_id,node_id,node_generation,control_epoch,request_hash,expected_sha256,report_hash,direction,file_name,total_bytes,transferred_bytes,state,reason,sequence,revision,created_at,updated_at,ended_at\n",
   "describe": {
     "columns": [
       {
@@ -117,7 +117,7 @@
       false,
       false,
       false,
-      false,
+      true,
       true,
       false,
       false,
@@ -132,5 +132,5 @@
       true
     ]
   },
-  "hash": "2e5a3889a360f34123c1b6085e3ad8195a5d7652fa041a3c5fdeaed332bf7601"
+  "hash": "c6a1090a5cc315ac5054dcb9ee8c0736069b27b8afd0bd778008421c24f59cac"
 }

@@ -9,7 +9,7 @@ CREATE TABLE pixels.file_transfers (
  direction TEXT NOT NULL CHECK (direction IN ('to_node','from_node')),
  file_name TEXT NOT NULL CHECK (octet_length(file_name)>=1 AND octet_length(file_name)<=255),
  total_bytes BIGINT NOT NULL CHECK (total_bytes>=0),
- expected_sha256 BYTEA NOT NULL CHECK (octet_length(expected_sha256)=32),
+ expected_sha256 BYTEA CHECK (octet_length(expected_sha256)=32),
  received_sha256 BYTEA CHECK (octet_length(received_sha256)=32),
  transferred_bytes BIGINT NOT NULL DEFAULT 0 CHECK (transferred_bytes>=0 AND transferred_bytes<=total_bytes),
  state TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active','completed','failed','cancelled','unknown')),
@@ -25,7 +25,7 @@ CREATE TABLE pixels.file_transfers (
  CHECK ((report_hash IS NULL)=(sequence=0)),
  CHECK ((ended_at IS NOT NULL)=(state IN ('completed','failed','cancelled'))),
  CHECK ((state IN ('active','completed'))=(reason IS NULL)),
- CHECK (state<>'completed' OR (transferred_bytes=total_bytes AND received_sha256=expected_sha256 AND received_sha256 IS NOT NULL)),
+ CHECK (state<>'completed' OR (transferred_bytes=total_bytes AND received_sha256 IS NOT NULL AND expected_sha256=received_sha256)),
  CHECK ((received_sha256 IS NOT NULL)=(state='completed'))
 );
 CREATE INDEX file_transfers_session ON pixels.file_transfers(session_id,id);
@@ -41,4 +41,4 @@ CREATE TABLE pixels.file_transfer_events (
  UNIQUE(transfer_id,revision)
 );
 GRANT SELECT,INSERT ON pixels.file_transfers,pixels.file_transfer_events TO pixels_console_runtime;
-GRANT UPDATE(received_sha256,transferred_bytes,state,reason,sequence,report_hash,revision,updated_at,ended_at) ON pixels.file_transfers TO pixels_console_runtime;
+GRANT UPDATE(expected_sha256,received_sha256,transferred_bytes,state,reason,sequence,report_hash,revision,updated_at,ended_at) ON pixels.file_transfers TO pixels_console_runtime;

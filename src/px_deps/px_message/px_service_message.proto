@@ -22,6 +22,10 @@ enum ServiceMessageType {
   kSrvResourceChannelReportResult = 17;
   kSrvRecordingFinalized = 18;
   kSrvRecordingFinalizedResult = 19;
+  kSrvFileTransferBeginRequest = 20;
+  kSrvFileTransferBeginResult = 21;
+  kSrvFileTransferReportRequest = 22;
+  kSrvFileTransferReportResult = 23;
 }
 
 enum VirtualDisplayOperation {
@@ -211,6 +215,51 @@ message MsgRecordingFinalizedResult {
   string error_code = 3;
 }
 
+enum ServiceFileTransferDirection {
+  kServiceFileTransferToNode = 0;
+  kServiceFileTransferFromNode = 1;
+}
+
+enum ServiceFileTransferOutcome {
+  kServiceFileTransferProgress = 0;
+  kServiceFileTransferCompleted = 1;
+  kServiceFileTransferTransportLost = 2;
+  kServiceFileTransferHashMismatch = 3;
+  kServiceFileTransferPolicyRevoked = 4;
+  kServiceFileTransferIoError = 5;
+  kServiceFileTransferSourceChanged = 6;
+  kServiceFileTransferCancelled = 7;
+}
+
+message MsgFileTransferBeginRequest {
+  string request_id = 1;
+  string transfer_request_id = 2;
+  string session_id = 3;
+  ServiceFileTransferDirection direction = 4;
+  string file_name = 5;
+  uint64 total_bytes = 6;
+  bytes expected_sha256 = 7;
+}
+
+message MsgFileTransferReportRequest {
+  string request_id = 1;
+  string transfer_id = 2;
+  uint64 sequence = 3;
+  uint64 transferred_bytes = 4;
+  ServiceFileTransferOutcome outcome = 5;
+  bytes received_sha256 = 6;
+}
+
+message MsgFileTransferResult {
+  string request_id = 1;
+  bool accepted = 2;
+  string error_code = 3;
+  string transfer_id = 4;
+  string state = 5;
+  int64 sequence = 6;
+  int64 revision = 7;
+}
+
 message ServiceMessage {
   ServiceMessageType type = 1;
   MsgStartServer start_server = 2;
@@ -233,4 +282,8 @@ message ServiceMessage {
   MsgResourceChannelReportResult resource_channel_report_result = 19;
   MsgRecordingFinalized recording_finalized = 20;
   MsgRecordingFinalizedResult recording_finalized_result = 21;
+  MsgFileTransferBeginRequest file_transfer_begin_request = 22;
+  MsgFileTransferResult file_transfer_begin_result = 23;
+  MsgFileTransferReportRequest file_transfer_report_request = 24;
+  MsgFileTransferResult file_transfer_report_result = 25;
 }

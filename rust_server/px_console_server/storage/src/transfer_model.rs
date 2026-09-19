@@ -25,7 +25,7 @@ pub struct BeginFileTransfer {
     pub direction: TransferDirection,
     pub file_name: String,
     pub total_bytes: u64,
-    pub expected_sha256: [u8; 32],
+    pub expected_sha256: Option<[u8; 32]>,
 }
 impl BeginFileTransfer {
     pub(crate) fn validate(&self) -> Result<([u8; 32], i64), StoreError> {
@@ -42,7 +42,13 @@ impl BeginFileTransfer {
         digest.update(self.file_name.as_bytes());
         digest.update([0]);
         digest.update(total.to_be_bytes());
-        digest.update(self.expected_sha256);
+        match self.expected_sha256 {
+            Some(expected_sha256) => {
+                digest.update([1]);
+                digest.update(expected_sha256);
+            }
+            None => digest.update([0]),
+        }
         Ok((digest.finalize().into(), total))
     }
 }
@@ -155,7 +161,7 @@ pub(crate) struct TransferRow {
     pub node_generation: i64,
     pub control_epoch: i64,
     pub request_hash: Vec<u8>,
-    pub expected_sha256: Vec<u8>,
+    pub expected_sha256: Option<Vec<u8>>,
     pub report_hash: Option<Vec<u8>>,
     pub direction: String,
     pub file_name: String,
@@ -218,7 +224,7 @@ mod tests {
             direction: TransferDirection::ToNode,
             file_name: "empty.bin".into(),
             total_bytes: 0,
-            expected_sha256: [0; 32],
+            expected_sha256: None,
         };
         assert!(begin.validate().is_ok());
         begin.total_bytes = u64::MAX;

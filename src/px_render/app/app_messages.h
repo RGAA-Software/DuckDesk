@@ -237,6 +237,17 @@ public:
     std::int64_t revision_ = 0;
 };
 
+class MsgFileTransferServiceResult {
+public:
+    std::string request_id_;
+    bool accepted_ = false;
+    std::string error_code_;
+    std::string transfer_id_;
+    std::string state_;
+    std::int64_t sequence_ = 0;
+    std::int64_t revision_ = 0;
+};
+
 // Sent once after a display-topology refresh has produced an encoded frame.
 class MsgCaptureTopologyFirstFrame {
 public:

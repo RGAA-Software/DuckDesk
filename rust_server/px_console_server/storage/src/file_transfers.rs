@@ -76,7 +76,10 @@ impl FileTransferStore {
             request.direction.name(),
             request.file_name,
             total,
-            request.expected_sha256.as_slice()
+            request
+                .expected_sha256
+                .as_ref()
+                .map(|value| value.as_slice())
         )
         .fetch_one(&mut *tx)
         .await?;
@@ -134,15 +137,20 @@ impl FileTransferStore {
             }
             ResourceSessionStore::live_endpoint(&mut tx, &session).await?;
         }
-        if checked.state == "completed"
-            && (checked.bytes != previous.total_bytes
-                || checked
+        if checked.state == "completed" {
+            if checked.bytes != previous.total_bytes || checked.received.is_none() {
+                return Err(StoreError::Rejected);
+            }
+            if let Some(expected_sha256) = previous.expected_sha256.as_ref() {
+                if checked
                     .received
                     .as_ref()
                     .map(|received_hash| received_hash.as_slice())
-                    != Some(previous.expected_sha256.as_slice()))
-        {
-            return Err(StoreError::Rejected);
+                    != Some(expected_sha256.as_slice())
+                {
+                    return Err(StoreError::Rejected);
+                }
+            }
         }
         let row = sqlx::query_file_as!(
             TransferRow,

@@ -860,15 +860,21 @@ pub fn build_web_client_url(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU16, Ordering};
+
+    static NEXT_TEST_PORT: AtomicU16 = AtomicU16::new(20_000);
 
     fn free_port_range(count: u16) -> u16 {
-        (20_000_u16..40_000_u16)
-            .find(|start| {
-                start
-                    .checked_add(count - 1)
-                    .is_some_and(|end| (*start..=end).all(port_bindable))
-            })
-            .expect("no contiguous test port range is available")
+        for _ in 0..10_000 {
+            let start = NEXT_TEST_PORT.fetch_add(count, Ordering::Relaxed);
+            if start
+                .checked_add(count - 1)
+                .is_some_and(|end| end < 40_000 && (start..=end).all(port_bindable))
+            {
+                return start;
+            }
+        }
+        panic!("no disjoint contiguous test port range is available");
     }
 
     fn sample_req(instance_id: &str, port: i32) -> StartAppRequest {

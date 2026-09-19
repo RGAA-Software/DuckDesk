@@ -1,0 +1,69 @@
+#ifndef PX_FILE_TRANSFER_REPORTER_H
+#define PX_FILE_TRANSFER_REPORTER_H
+
+#include <array>
+#include <cstdint>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <unordered_map>
+
+#include "px_common/async_runtime.h"
+
+namespace px {
+
+class PxAsyncRuntime;
+class PxAsyncScope;
+class RenderServiceClient;
+
+namespace render {
+struct FileTransferAuditBegin;
+struct FileTransferAuditEnd;
+struct FileTransferAuditProgress;
+}  // namespace render
+
+class FileTransferReporter final : public std::enable_shared_from_this<FileTransferReporter> {
+public:
+    static std::shared_ptr<FileTransferReporter> Create(const std::shared_ptr<PxAsyncRuntime>& runtime,
+                                                        const std::shared_ptr<RenderServiceClient>& service_client);
+    FileTransferReporter(std::shared_ptr<PxAsyncScope> scope, std::weak_ptr<RenderServiceClient> service_client);
+
+    FileTransferReporter(const FileTransferReporter&) = delete;
+    FileTransferReporter& operator=(const FileTransferReporter&) = delete;
+
+    void Begin(const render::FileTransferAuditBegin& audit);
+    void Progress(const render::FileTransferAuditProgress& audit);
+    void End(const render::FileTransferAuditEnd& audit);
+    void Stop();
+
+private:
+    struct Activity final {
+        std::string transfer_request_id{};
+        std::string logical_session_id{};
+        std::string file_name{};
+        std::string transfer_id{};
+        int direction{};
+        int terminal_outcome{};
+        std::uint64_t total_bytes{};
+        std::uint64_t transferred_bytes{};
+        std::uint64_t sequence{};
+        std::optional<std::array<std::uint8_t, 32>> verified_sha256{};
+        bool terminal_requested{};
+    };
+
+    static bool IsCanonicalUuid(const std::string& value);
+    static PxAwaitable<void> BeginAsync(std::weak_ptr<FileTransferReporter> reporter, std::shared_ptr<Activity> activity);
+    static PxAwaitable<void> ReportLoopAsync(std::weak_ptr<FileTransferReporter> reporter, std::shared_ptr<Activity> activity);
+    void RemoveIfCurrent(const std::shared_ptr<Activity>& activity);
+
+    std::shared_ptr<PxAsyncScope> scope_{};
+    std::weak_ptr<RenderServiceClient> service_client_{};
+    std::mutex activities_mutex_{};
+    std::unordered_map<std::string, std::shared_ptr<Activity>> activities_{};
+    bool stopping_{};
+};
+
+}  // namespace px
+
+#endif  // PX_FILE_TRANSFER_REPORTER_H

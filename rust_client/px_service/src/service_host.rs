@@ -343,6 +343,9 @@ impl ServiceRuntime {
             Command::OpenResourceChannel { .. } | Command::ReportResourceChannel { .. } => Err(
                 "resource channel operations must use the asynchronous service path".to_string(),
             ),
+            Command::BeginFileTransfer { .. } | Command::ReportFileTransfer { .. } => {
+                Err("file transfer operations must use the asynchronous service path".to_string())
+            }
             Command::RecordingFinalized { .. } => {
                 Err("recording completion must use the authenticated recording path".to_string())
             }

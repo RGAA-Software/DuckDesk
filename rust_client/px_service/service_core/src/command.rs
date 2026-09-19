@@ -51,6 +51,23 @@ pub enum Command {
         session_id: String,
         codec: String,
     },
+    BeginFileTransfer {
+        request_id: String,
+        transfer_request_id: String,
+        session_id: String,
+        direction: crate::proto::ServiceFileTransferDirection,
+        file_name: String,
+        total_bytes: u64,
+        expected_sha256: Vec<u8>,
+    },
+    ReportFileTransfer {
+        request_id: String,
+        transfer_id: String,
+        sequence: u64,
+        transferred_bytes: u64,
+        outcome: crate::proto::ServiceFileTransferOutcome,
+        received_sha256: Vec<u8>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -180,6 +197,41 @@ pub fn dispatch_message(bytes: &[u8]) -> Result<DispatchResult, String> {
         ServiceMessageType::RecordingFinalizedResult => {
             return Err("recording_finalized_result is outbound only".to_string())
         }
+        ServiceMessageType::FileTransferBeginRequest => {
+            let request = message
+                .file_transfer_begin_request
+                .ok_or("missing file_transfer_begin_request payload")?;
+            Command::BeginFileTransfer {
+                request_id: request.request_id,
+                transfer_request_id: request.transfer_request_id,
+                session_id: request.session_id,
+                direction: crate::proto::ServiceFileTransferDirection::try_from(request.direction)
+                    .map_err(|_| "unknown file transfer direction")?,
+                file_name: request.file_name,
+                total_bytes: request.total_bytes,
+                expected_sha256: request.expected_sha256,
+            }
+        }
+        ServiceMessageType::FileTransferBeginResult => {
+            return Err("file_transfer_begin_result is outbound only".to_string())
+        }
+        ServiceMessageType::FileTransferReportRequest => {
+            let request = message
+                .file_transfer_report_request
+                .ok_or("missing file_transfer_report_request payload")?;
+            Command::ReportFileTransfer {
+                request_id: request.request_id,
+                transfer_id: request.transfer_id,
+                sequence: request.sequence,
+                transferred_bytes: request.transferred_bytes,
+                outcome: crate::proto::ServiceFileTransferOutcome::try_from(request.outcome)
+                    .map_err(|_| "unknown file transfer outcome")?,
+                received_sha256: request.received_sha256,
+            }
+        }
+        ServiceMessageType::FileTransferReportResult => {
+            return Err("file_transfer_report_result is outbound only".to_string())
+        }
     };
     Ok(DispatchResult { command })
 }
@@ -188,10 +240,12 @@ pub fn dispatch_message(bytes: &[u8]) -> Result<DispatchResult, String> {
 mod tests {
     use super::*;
     use crate::proto::{
-        encode_service_message, MsgAuthInfo, MsgFrontendAdmissionRequest, MsgHeartBeat,
+        encode_service_message, MsgAuthInfo, MsgFileTransferBeginRequest,
+        MsgFileTransferReportRequest, MsgFrontendAdmissionRequest, MsgHeartBeat,
         MsgReqCtrlAltDelete, MsgResourceChannelOpenRequest, MsgResourceChannelReportRequest,
         MsgRestartServer, MsgStartServer, MsgVirtualDisplayRequest, ResourceChannelKind,
-        ResourceChannelOutcome, ServiceMessage,
+        ResourceChannelOutcome, ServiceFileTransferDirection, ServiceFileTransferOutcome,
+        ServiceMessage,
     };
 
     #[test]
@@ -420,6 +474,59 @@ mod tests {
                 received_bytes: 25,
                 elapsed_ms: 500,
                 outcome: ResourceChannelOutcome::TransportLost,
+            }
+        );
+    }
+
+    #[test]
+    fn dispatch_file_transfer_operations() {
+        let begin = encode_service_message(&ServiceMessage {
+            r#type: ServiceMessageType::FileTransferBeginRequest as i32,
+            file_transfer_begin_request: Some(MsgFileTransferBeginRequest {
+                request_id: "begin-1".into(),
+                transfer_request_id: "01994ddb-b930-7480-a15d-0a5176d1cc61".into(),
+                session_id: "01994ddb-b930-7480-a15d-0a5176d1cc62".into(),
+                direction: ServiceFileTransferDirection::ToNode as i32,
+                file_name: "payload.bin".into(),
+                total_bytes: 1024,
+                expected_sha256: vec![7; 32],
+            }),
+            ..Default::default()
+        });
+        assert_eq!(
+            dispatch_message(&begin).unwrap().command,
+            Command::BeginFileTransfer {
+                request_id: "begin-1".into(),
+                transfer_request_id: "01994ddb-b930-7480-a15d-0a5176d1cc61".into(),
+                session_id: "01994ddb-b930-7480-a15d-0a5176d1cc62".into(),
+                direction: ServiceFileTransferDirection::ToNode,
+                file_name: "payload.bin".into(),
+                total_bytes: 1024,
+                expected_sha256: vec![7; 32],
+            }
+        );
+
+        let report = encode_service_message(&ServiceMessage {
+            r#type: ServiceMessageType::FileTransferReportRequest as i32,
+            file_transfer_report_request: Some(MsgFileTransferReportRequest {
+                request_id: "report-1".into(),
+                transfer_id: "01994ddb-b930-7480-a15d-0a5176d1cc63".into(),
+                sequence: 4,
+                transferred_bytes: 1024,
+                outcome: ServiceFileTransferOutcome::Completed as i32,
+                received_sha256: vec![7; 32],
+            }),
+            ..Default::default()
+        });
+        assert_eq!(
+            dispatch_message(&report).unwrap().command,
+            Command::ReportFileTransfer {
+                request_id: "report-1".into(),
+                transfer_id: "01994ddb-b930-7480-a15d-0a5176d1cc63".into(),
+                sequence: 4,
+                transferred_bytes: 1024,
+                outcome: ServiceFileTransferOutcome::Completed,
+                received_sha256: vec![7; 32],
             }
         );
     }

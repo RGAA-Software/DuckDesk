@@ -5,6 +5,7 @@
 #ifndef PX_RENDER_SERVICE_CLIENT_H
 #define PX_RENDER_SERVICE_CLIENT_H
 
+#include <array>
 #include <asio2/websocket/wss_client.hpp>
 #include <atomic>
 #include <chrono>
@@ -12,6 +13,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -31,47 +33,44 @@ template <typename Client>
 class PxReconnectAdapterSlot;
 template <typename T>
 class PxAsyncMailbox;
-class RenderServiceClient
-    : public std::enable_shared_from_this<RenderServiceClient> {
+class RenderServiceClient : public std::enable_shared_from_this<RenderServiceClient> {
 public:
     explicit RenderServiceClient(const std::shared_ptr<RdApplication>& app);
     ~RenderServiceClient();
     void Start();
     void Exit();
-    [[nodiscard]] static PxAwaitable<PxResult<void>> StopAsync(
-        std::shared_ptr<RenderServiceClient> owner,
-        std::chrono::steady_clock::time_point deadline);
+    [[nodiscard]] static PxAwaitable<PxResult<void>> StopAsync(std::shared_ptr<RenderServiceClient> owner,
+                                                               std::chrono::steady_clock::time_point deadline);
     bool IsAlive() const;
     void PostNetMessage(const std::string& msg);
-    void NotifyAppInstanceReady(const std::string& instance_id, int listen_port,
-                                bool ok, const std::string& error);
-    void NotifyRecordingFinalized(std::string file_name,
-                                  std::string logical_session_id,
-                                  std::string codec);
-    void RequestVirtualDisplay(
-        const std::string& request_id, int operation, uint32_t width,
-        uint32_t height, uint32_t refresh_hz,
-        std::function<void(const MsgVirtualDisplayServiceResult&)>&& callback);
-    PxAwaitable<PxResult<MsgVirtualDisplayServiceResult>>
-    RequestVirtualDisplayAsync(std::string request_id, int operation,
-                               uint32_t width, uint32_t height,
-                               uint32_t refresh_hz,
-                               std::chrono::steady_clock::time_point deadline);
-    PxAwaitable<PxResult<MsgFrontendAdmissionServiceResult>>
-    RequestFrontendAdmissionAsync(
-        std::string request_id, std::string session_id, std::int64_t revision,
-        std::string frontend_token,
-        std::chrono::steady_clock::time_point deadline);
-    PxAwaitable<PxResult<MsgResourceChannelServiceResult>>
-    RequestResourceChannelOpenAsync(
-        std::string request_id, std::string source_id, std::string session_id,
-        int channel_kind, std::chrono::steady_clock::time_point deadline);
-    PxAwaitable<PxResult<MsgResourceChannelServiceResult>>
-    RequestResourceChannelReportAsync(
-        std::string request_id, std::string channel_id, std::uint64_t sequence,
-        std::uint64_t sent_bytes, std::uint64_t received_bytes,
-        std::uint64_t elapsed_ms, int outcome,
-        std::chrono::steady_clock::time_point deadline);
+    void NotifyAppInstanceReady(const std::string& instance_id, int listen_port, bool ok, const std::string& error);
+    void NotifyRecordingFinalized(std::string file_name, std::string logical_session_id, std::string codec);
+    void RequestVirtualDisplay(const std::string& request_id, int operation, uint32_t width, uint32_t height, uint32_t refresh_hz,
+                               std::function<void(const MsgVirtualDisplayServiceResult&)>&& callback);
+    PxAwaitable<PxResult<MsgVirtualDisplayServiceResult>> RequestVirtualDisplayAsync(std::string request_id, int operation, uint32_t width,
+                                                                                     uint32_t height, uint32_t refresh_hz,
+                                                                                     std::chrono::steady_clock::time_point deadline);
+    PxAwaitable<PxResult<MsgFrontendAdmissionServiceResult>> RequestFrontendAdmissionAsync(std::string request_id, std::string session_id,
+                                                                                           std::int64_t revision, std::string frontend_token,
+                                                                                           std::chrono::steady_clock::time_point deadline);
+    PxAwaitable<PxResult<MsgResourceChannelServiceResult>> RequestResourceChannelOpenAsync(std::string request_id, std::string source_id,
+                                                                                           std::string session_id, int channel_kind,
+                                                                                           std::chrono::steady_clock::time_point deadline);
+    PxAwaitable<PxResult<MsgResourceChannelServiceResult>> RequestResourceChannelReportAsync(std::string request_id, std::string channel_id,
+                                                                                             std::uint64_t sequence, std::uint64_t sent_bytes,
+                                                                                             std::uint64_t received_bytes, std::uint64_t elapsed_ms,
+                                                                                             int outcome,
+                                                                                             std::chrono::steady_clock::time_point deadline);
+    PxAwaitable<PxResult<MsgFileTransferServiceResult>> RequestFileTransferBeginAsync(std::string request_id, std::string transfer_request_id,
+                                                                                      std::string session_id, int direction, std::string file_name,
+                                                                                      std::uint64_t total_bytes,
+                                                                                      std::optional<std::array<std::uint8_t, 32>> expected_sha256,
+                                                                                      std::chrono::steady_clock::time_point deadline);
+    PxAwaitable<PxResult<MsgFileTransferServiceResult>> RequestFileTransferReportAsync(std::string request_id, std::string transfer_id,
+                                                                                       std::uint64_t sequence, std::uint64_t transferred_bytes,
+                                                                                       int outcome,
+                                                                                       std::optional<std::array<std::uint8_t, 32>> received_sha256,
+                                                                                       std::chrono::steady_clock::time_point deadline);
 
 private:
     struct PendingRecording final {
@@ -99,9 +98,8 @@ private:
     void FinishStop();
     void ScheduleDeferredExit();
     [[nodiscard]] AsyncStateSnapshot SnapshotAsyncState() const;
-    static PxAwaitable<void> RunIncomingMessageLoop(
-        std::weak_ptr<RenderServiceClient> weak_client,
-        std::shared_ptr<PxAsyncMailbox<std::string>> mailbox);
+    static PxAwaitable<void> RunIncomingMessageLoop(std::weak_ptr<RenderServiceClient> weak_client,
+                                                    std::shared_ptr<PxAsyncMailbox<std::string>> mailbox);
 
 private:
     std::shared_ptr<RdStatistics> statistics_{};

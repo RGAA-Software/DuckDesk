@@ -271,6 +271,58 @@ async fn handle_connection(
                     });
                     None
                 }
+                service_core::command::Command::BeginFileTransfer {
+                    request_id,
+                    transfer_request_id,
+                    session_id,
+                    direction,
+                    file_name,
+                    total_bytes,
+                    expected_sha256,
+                } => {
+                    let operation_runtime = runtime.clone();
+                    let operation_tx = tx.clone();
+                    tokio::spawn(async move {
+                        let request = FileTransferBeginRequest {
+                            request_id,
+                            transfer_request_id,
+                            session_id,
+                            direction,
+                            file_name,
+                            total_bytes,
+                            expected_sha256,
+                        };
+                        let response =
+                            process_file_transfer_begin(operation_runtime, request).await;
+                        let _ = operation_tx.send(encode_service_message(&response));
+                    });
+                    None
+                }
+                service_core::command::Command::ReportFileTransfer {
+                    request_id,
+                    transfer_id,
+                    sequence,
+                    transferred_bytes,
+                    outcome,
+                    received_sha256,
+                } => {
+                    let operation_runtime = runtime.clone();
+                    let operation_tx = tx.clone();
+                    tokio::spawn(async move {
+                        let request = FileTransferReportRequest {
+                            request_id,
+                            transfer_id,
+                            sequence,
+                            transferred_bytes,
+                            outcome,
+                            received_sha256,
+                        };
+                        let response =
+                            process_file_transfer_report(operation_runtime, request).await;
+                        let _ = operation_tx.send(encode_service_message(&response));
+                    });
+                    None
+                }
                 command => {
                     let mut guard = runtime.lock().await;
                     match guard.handle_command(command) {
@@ -295,6 +347,257 @@ async fn handle_connection(
     drop(tx);
     let _ = writer.await;
     Ok(())
+}
+
+fn file_transfer_service_message(
+    message_type: service_core::ServiceMessageType,
+    result: service_core::MsgFileTransferResult,
+) -> service_core::ServiceMessage {
+    let mut message = service_core::ServiceMessage {
+        r#type: message_type as i32,
+        ..Default::default()
+    };
+    match message_type {
+        service_core::ServiceMessageType::FileTransferBeginResult => {
+            message.file_transfer_begin_result = Some(result);
+        }
+        service_core::ServiceMessageType::FileTransferReportResult => {
+            message.file_transfer_report_result = Some(result);
+        }
+        _ => unreachable!("file transfer response requires a result message type"),
+    }
+    message
+}
+
+struct FileTransferBeginRequest {
+    request_id: String,
+    transfer_request_id: String,
+    session_id: String,
+    direction: service_core::ServiceFileTransferDirection,
+    file_name: String,
+    total_bytes: u64,
+    expected_sha256: Vec<u8>,
+}
+
+async fn process_file_transfer_begin(
+    runtime: Arc<Mutex<ServiceRuntime>>,
+    request: FileTransferBeginRequest,
+) -> service_core::ServiceMessage {
+    let mut response = service_core::MsgFileTransferResult {
+        request_id: request.request_id,
+        ..Default::default()
+    };
+    let parsed = (|| {
+        if response.request_id.is_empty()
+            || request.file_name.is_empty()
+            || request.file_name == "."
+            || request.file_name == ".."
+            || request.file_name.contains('/')
+            || request.file_name.contains('\\')
+        {
+            return Err(());
+        }
+        let transfer_request_id =
+            uuid::Uuid::parse_str(&request.transfer_request_id).map_err(|_| ())?;
+        let session_id = uuid::Uuid::parse_str(&request.session_id).map_err(|_| ())?;
+        let expected_sha256 = if request.expected_sha256.is_empty() {
+            None
+        } else {
+            Some(request.expected_sha256.try_into().map_err(|_| ())?)
+        };
+        if transfer_request_id.is_nil() || session_id.is_nil() {
+            return Err(());
+        }
+        let direction = match request.direction {
+            service_core::ServiceFileTransferDirection::ToNode => {
+                px_node_protocol::TransferDirection::ToNode
+            }
+            service_core::ServiceFileTransferDirection::FromNode => {
+                px_node_protocol::TransferDirection::FromNode
+            }
+        };
+        Ok((transfer_request_id, session_id, expected_sha256, direction))
+    })();
+    let (transfer_request_id, session_id, expected_sha256, direction) = match parsed {
+        Ok(values) => values,
+        Err(()) => {
+            response.error_code = "INVALID_REQUEST".into();
+            return file_transfer_service_message(
+                service_core::ServiceMessageType::FileTransferBeginResult,
+                response,
+            );
+        }
+    };
+    let node_control_sender = runtime.lock().await.node_control_sender.clone();
+    let (completion, result) = tokio::sync::oneshot::channel();
+    let operation = crate::node_control_client::NodeControlOperation::BeginFileTransfer {
+        transfer_request_id,
+        session_id,
+        direction,
+        file_name: request.file_name,
+        total_bytes: request.total_bytes,
+        expected_sha256,
+        completion,
+    };
+    if node_control_sender.try_send(operation).is_err() {
+        response.error_code = "NODE_CONTROL_UNAVAILABLE".into();
+        return file_transfer_service_message(
+            service_core::ServiceMessageType::FileTransferBeginResult,
+            response,
+        );
+    }
+    let receipt = match tokio::time::timeout(std::time::Duration::from_secs(12), result).await {
+        Ok(Ok(Ok(receipt))) => receipt,
+        Ok(Ok(Err(_))) => {
+            response.error_code = "TRANSFER_REJECTED".into();
+            return file_transfer_service_message(
+                service_core::ServiceMessageType::FileTransferBeginResult,
+                response,
+            );
+        }
+        Ok(Err(_)) | Err(_) => {
+            response.error_code = "NODE_CONTROL_UNAVAILABLE".into();
+            return file_transfer_service_message(
+                service_core::ServiceMessageType::FileTransferBeginResult,
+                response,
+            );
+        }
+    };
+    response.accepted = true;
+    response.transfer_id = receipt.transfer_id.to_string();
+    response.state = receipt.state;
+    response.sequence = receipt.sequence;
+    response.revision = receipt.revision;
+    file_transfer_service_message(
+        service_core::ServiceMessageType::FileTransferBeginResult,
+        response,
+    )
+}
+
+struct FileTransferReportRequest {
+    request_id: String,
+    transfer_id: String,
+    sequence: u64,
+    transferred_bytes: u64,
+    outcome: service_core::ServiceFileTransferOutcome,
+    received_sha256: Vec<u8>,
+}
+
+async fn process_file_transfer_report(
+    runtime: Arc<Mutex<ServiceRuntime>>,
+    request: FileTransferReportRequest,
+) -> service_core::ServiceMessage {
+    let mut response = service_core::MsgFileTransferResult {
+        request_id: request.request_id,
+        ..Default::default()
+    };
+    let parsed = (|| {
+        let transfer_id = uuid::Uuid::parse_str(&request.transfer_id).map_err(|_| ())?;
+        if response.request_id.is_empty() || transfer_id.is_nil() || request.sequence == 0 {
+            return Err(());
+        }
+        let no_digest = || request.received_sha256.is_empty().then_some(()).ok_or(());
+        let outcome = match request.outcome {
+            service_core::ServiceFileTransferOutcome::Progress => {
+                no_digest()?;
+                px_node_protocol::TransferOutcome::Progress
+            }
+            service_core::ServiceFileTransferOutcome::Completed => {
+                let received_sha256: [u8; 32] =
+                    request.received_sha256.try_into().map_err(|_| ())?;
+                px_node_protocol::TransferOutcome::Completed { received_sha256 }
+            }
+            service_core::ServiceFileTransferOutcome::TransportLost => {
+                no_digest()?;
+                px_node_protocol::TransferOutcome::Failed {
+                    reason: px_node_protocol::TransferFailure::TransportLost,
+                }
+            }
+            service_core::ServiceFileTransferOutcome::HashMismatch => {
+                no_digest()?;
+                px_node_protocol::TransferOutcome::Failed {
+                    reason: px_node_protocol::TransferFailure::HashMismatch,
+                }
+            }
+            service_core::ServiceFileTransferOutcome::PolicyRevoked => {
+                no_digest()?;
+                px_node_protocol::TransferOutcome::Failed {
+                    reason: px_node_protocol::TransferFailure::PolicyRevoked,
+                }
+            }
+            service_core::ServiceFileTransferOutcome::IoError => {
+                no_digest()?;
+                px_node_protocol::TransferOutcome::Failed {
+                    reason: px_node_protocol::TransferFailure::IoError,
+                }
+            }
+            service_core::ServiceFileTransferOutcome::SourceChanged => {
+                no_digest()?;
+                px_node_protocol::TransferOutcome::Failed {
+                    reason: px_node_protocol::TransferFailure::SourceChanged,
+                }
+            }
+            service_core::ServiceFileTransferOutcome::Cancelled => {
+                no_digest()?;
+                px_node_protocol::TransferOutcome::Cancelled
+            }
+        };
+        Ok((transfer_id, outcome))
+    })();
+    let (transfer_id, outcome) = match parsed {
+        Ok(values) => values,
+        Err(()) => {
+            response.error_code = "INVALID_REQUEST".into();
+            return file_transfer_service_message(
+                service_core::ServiceMessageType::FileTransferReportResult,
+                response,
+            );
+        }
+    };
+    let node_control_sender = runtime.lock().await.node_control_sender.clone();
+    let (completion, result) = tokio::sync::oneshot::channel();
+    let operation = crate::node_control_client::NodeControlOperation::ReportFileTransfer {
+        transfer_id,
+        progress: px_node_protocol::TransferProgress {
+            sequence: request.sequence,
+            transferred_bytes: request.transferred_bytes,
+            outcome,
+        },
+        completion,
+    };
+    if node_control_sender.try_send(operation).is_err() {
+        response.error_code = "NODE_CONTROL_UNAVAILABLE".into();
+        return file_transfer_service_message(
+            service_core::ServiceMessageType::FileTransferReportResult,
+            response,
+        );
+    }
+    let receipt = match tokio::time::timeout(std::time::Duration::from_secs(12), result).await {
+        Ok(Ok(Ok(receipt))) => receipt,
+        Ok(Ok(Err(_))) => {
+            response.error_code = "TRANSFER_REJECTED".into();
+            return file_transfer_service_message(
+                service_core::ServiceMessageType::FileTransferReportResult,
+                response,
+            );
+        }
+        Ok(Err(_)) | Err(_) => {
+            response.error_code = "NODE_CONTROL_UNAVAILABLE".into();
+            return file_transfer_service_message(
+                service_core::ServiceMessageType::FileTransferReportResult,
+                response,
+            );
+        }
+    };
+    response.accepted = true;
+    response.transfer_id = receipt.transfer_id.to_string();
+    response.state = receipt.state;
+    response.sequence = receipt.sequence;
+    response.revision = receipt.revision;
+    file_transfer_service_message(
+        service_core::ServiceMessageType::FileTransferReportResult,
+        response,
+    )
 }
 
 fn process_recording_finalized(

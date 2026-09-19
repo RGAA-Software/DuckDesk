@@ -7,13 +7,14 @@ mod generated {
 }
 
 pub use generated::{
-    MsgAppInstanceReady, MsgAuthInfo, MsgFrontendAdmissionRequest, MsgFrontendAdmissionResult,
-    MsgHeartBeat, MsgHeartBeatResp, MsgRecordingFinalized, MsgRecordingFinalizedResult,
-    MsgReqCtrlAltDelete, MsgResourceChannelOpenRequest, MsgResourceChannelOpenResult,
-    MsgResourceChannelReportRequest, MsgResourceChannelReportResult, MsgRestartServer,
-    MsgStartServer, MsgStopServer, MsgVirtualDisplayRequest, MsgVirtualDisplayResult, RenderStatus,
-    ResourceChannelKind, ResourceChannelOutcome, ServiceMessage, ServiceMessageType,
-    VirtualDisplayOperation,
+    MsgAppInstanceReady, MsgAuthInfo, MsgFileTransferBeginRequest, MsgFileTransferReportRequest,
+    MsgFileTransferResult, MsgFrontendAdmissionRequest, MsgFrontendAdmissionResult, MsgHeartBeat,
+    MsgHeartBeatResp, MsgRecordingFinalized, MsgRecordingFinalizedResult, MsgReqCtrlAltDelete,
+    MsgResourceChannelOpenRequest, MsgResourceChannelOpenResult, MsgResourceChannelReportRequest,
+    MsgResourceChannelReportResult, MsgRestartServer, MsgStartServer, MsgStopServer,
+    MsgVirtualDisplayRequest, MsgVirtualDisplayResult, RenderStatus, ResourceChannelKind,
+    ResourceChannelOutcome, ServiceFileTransferDirection, ServiceFileTransferOutcome,
+    ServiceMessage, ServiceMessageType, VirtualDisplayOperation,
 };
 
 // prost only derives PartialEq; all MsgAuthInfo fields are scalar so Eq is sound
@@ -40,6 +41,28 @@ impl ServiceMessageType {
     pub const ResourceChannelReportResult: Self = Self::KSrvResourceChannelReportResult;
     pub const RecordingFinalized: Self = Self::KSrvRecordingFinalized;
     pub const RecordingFinalizedResult: Self = Self::KSrvRecordingFinalizedResult;
+    pub const FileTransferBeginRequest: Self = Self::KSrvFileTransferBeginRequest;
+    pub const FileTransferBeginResult: Self = Self::KSrvFileTransferBeginResult;
+    pub const FileTransferReportRequest: Self = Self::KSrvFileTransferReportRequest;
+    pub const FileTransferReportResult: Self = Self::KSrvFileTransferReportResult;
+}
+
+#[allow(non_upper_case_globals)]
+impl ServiceFileTransferDirection {
+    pub const ToNode: Self = Self::KServiceFileTransferToNode;
+    pub const FromNode: Self = Self::KServiceFileTransferFromNode;
+}
+
+#[allow(non_upper_case_globals)]
+impl ServiceFileTransferOutcome {
+    pub const Progress: Self = Self::KServiceFileTransferProgress;
+    pub const Completed: Self = Self::KServiceFileTransferCompleted;
+    pub const TransportLost: Self = Self::KServiceFileTransferTransportLost;
+    pub const HashMismatch: Self = Self::KServiceFileTransferHashMismatch;
+    pub const PolicyRevoked: Self = Self::KServiceFileTransferPolicyRevoked;
+    pub const IoError: Self = Self::KServiceFileTransferIoError;
+    pub const SourceChanged: Self = Self::KServiceFileTransferSourceChanged;
+    pub const Cancelled: Self = Self::KServiceFileTransferCancelled;
 }
 
 #[allow(non_upper_case_globals)]

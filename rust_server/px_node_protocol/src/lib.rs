@@ -357,7 +357,8 @@ pub struct BeginFileTransfer {
     pub direction: TransferDirection,
     pub file_name: String,
     pub total_bytes: u64,
-    pub expected_sha256: [u8; 32],
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_sha256: Option<[u8; 32]>,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]

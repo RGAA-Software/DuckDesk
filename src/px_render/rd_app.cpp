@@ -39,6 +39,7 @@
 #include "architecture/sources/monitor_capture_source.h"
 #include "architecture/sources/was_audio_capture_source.h"
 #include "gpu/gpu_adapter_identity.h"
+#include "network/file_transfer_reporter.h"
 #include "network/net_message_maker.h"
 #include "network/render_service_client.h"
 #include "network/resource_channel_reporter.h"
@@ -387,6 +388,11 @@ int RdApplication::Run() {
                 application->ReportFileTransferAuditBegin(audit);
             }
         },
+        [weak_application](const render::FileTransferAuditProgress& audit) {
+            if (const auto application = weak_application.lock()) {
+                application->ReportFileTransferAuditProgress(audit);
+            }
+        },
         [weak_application](const render::FileTransferAuditEnd& audit) {
             if (const auto application = weak_application.lock()) {
                 application->ReportFileTransferAuditEnd(audit);
@@ -619,6 +625,7 @@ int RdApplication::Run() {
     // connect to service
     LOGI("Will connect the service!");
     service_client_ = std::make_shared<RenderServiceClient>(shared_from_this());
+    file_transfer_reporter_ = FileTransferReporter::Create(context_->GetAsyncRuntime(), service_client_);
     resource_channel_reporter_ = ResourceChannelReporter::Create(context_->GetAsyncRuntime(), service_client_);
 
     // connect panel
@@ -2133,6 +2140,9 @@ void RdApplication::RequestRestartMe() const {
 }
 
 void RdApplication::ReportFileTransferAuditBegin(const render::FileTransferAuditBegin& audit) {
+    if (file_transfer_reporter_) {
+        file_transfer_reporter_->Begin(audit);
+    }
     const std::weak_ptr<RdApplication> weak_application = weak_from_this();
     PostGlobalTask([weak_application, audit] {
         const auto application = weak_application.lock();
@@ -2151,7 +2161,16 @@ void RdApplication::ReportFileTransferAuditBegin(const render::FileTransferAudit
     });
 }
 
+void RdApplication::ReportFileTransferAuditProgress(const render::FileTransferAuditProgress& audit) {
+    if (file_transfer_reporter_) {
+        file_transfer_reporter_->Progress(audit);
+    }
+}
+
 void RdApplication::ReportFileTransferAuditEnd(const render::FileTransferAuditEnd& audit) {
+    if (file_transfer_reporter_) {
+        file_transfer_reporter_->End(audit);
+    }
     const std::weak_ptr<RdApplication> weak_application = weak_from_this();
     PostGlobalTask([weak_application, audit] {
         const auto application = weak_application.lock();
@@ -2745,6 +2764,9 @@ void RdApplication::Exit() {
         module_registry_->StopRouting();
     }
     if (ws_panel_client_ || service_client_ || module_registry_) {
+        if (file_transfer_reporter_) {
+            file_transfer_reporter_->Stop();
+        }
         if (resource_channel_reporter_) {
             resource_channel_reporter_->Stop();
         }

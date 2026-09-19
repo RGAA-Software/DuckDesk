@@ -5,11 +5,12 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
 use px_node_protocol::{
-    ApplicationLaunch, ChannelKind, ChannelProgress, CommandOutcome, CommandReceipt,
-    DeploymentAssignment, DeploymentObservation, DeploymentPreparation, GpuReservation,
-    NodeCommand, NodeCommandAction, NodeReport, NodeRequest, NodeResponse, ObservedRuntime,
-    ObservedRuntimePhase, OpenChannel, PreparationFailure, PreparationState, RecordingCacheUpload,
-    RuntimeInventory, TelemetryBackfillSample, VideoCodec, MAX_MESSAGE_BYTES,
+    ApplicationLaunch, BeginFileTransfer, ChannelKind, ChannelProgress, CommandOutcome,
+    CommandReceipt, DeploymentAssignment, DeploymentObservation, DeploymentPreparation,
+    GpuReservation, NodeCommand, NodeCommandAction, NodeReport, NodeRequest, NodeResponse,
+    ObservedRuntime, ObservedRuntimePhase, OpenChannel, PreparationFailure, PreparationState,
+    RecordingCacheUpload, RuntimeInventory, TelemetryBackfillSample, TransferDirection,
+    TransferProgress, VideoCodec, MAX_MESSAGE_BYTES,
 };
 use service_core::{AppInstanceState, StartAppRequest};
 use tokio::net::TcpStream;
@@ -70,11 +71,33 @@ pub(crate) enum NodeControlOperation {
         progress: ChannelProgress,
         completion: oneshot::Sender<Result<NodeChannelReceipt, String>>,
     },
+    BeginFileTransfer {
+        transfer_request_id: Uuid,
+        session_id: Uuid,
+        direction: TransferDirection,
+        file_name: String,
+        total_bytes: u64,
+        expected_sha256: Option<[u8; 32]>,
+        completion: oneshot::Sender<Result<NodeFileTransferReceipt, String>>,
+    },
+    ReportFileTransfer {
+        transfer_id: Uuid,
+        progress: TransferProgress,
+        completion: oneshot::Sender<Result<NodeFileTransferReceipt, String>>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct NodeChannelReceipt {
     pub channel_id: Uuid,
+    pub state: String,
+    pub sequence: i64,
+    pub revision: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct NodeFileTransferReceipt {
+    pub transfer_id: Uuid,
     pub state: String,
     pub sequence: i64,
     pub revision: i64,
@@ -640,6 +663,94 @@ async fn execute_operation(
             let _ = completion.send(result);
             if reset_connection {
                 return Err("node-control protocol failed while reporting resource channel".into());
+            }
+            Ok(())
+        }
+        NodeControlOperation::BeginFileTransfer {
+            transfer_request_id,
+            session_id,
+            direction,
+            file_name,
+            total_bytes,
+            expected_sha256,
+            completion,
+        } => {
+            let request = NodeRequest::BeginFileTransfer {
+                request_id: session.request_id()?,
+                transfer: BeginFileTransfer {
+                    transfer_request_id,
+                    session_id,
+                    direction,
+                    file_name,
+                    total_bytes,
+                    expected_sha256,
+                },
+            };
+            let expected = request.request_id();
+            let (result, reset_connection) = match exchange(socket, request).await {
+                Ok(NodeResponse::FileTransferStarted {
+                    request_id,
+                    transfer_id,
+                    state,
+                    sequence,
+                    revision,
+                }) if request_id == expected => (
+                    Ok(NodeFileTransferReceipt {
+                        transfer_id,
+                        state,
+                        sequence,
+                        revision,
+                    }),
+                    false,
+                ),
+                Ok(NodeResponse::Error { code, .. }) => {
+                    (Err(format!("file transfer begin rejected: {code}")), false)
+                }
+                Ok(_) => (Err("unexpected file transfer begin response".into()), true),
+                Err(error) => (Err(error), true),
+            };
+            let _ = completion.send(result);
+            if reset_connection {
+                return Err("node-control protocol failed while beginning file transfer".into());
+            }
+            Ok(())
+        }
+        NodeControlOperation::ReportFileTransfer {
+            transfer_id,
+            progress,
+            completion,
+        } => {
+            let request = NodeRequest::ReportFileTransfer {
+                request_id: session.request_id()?,
+                transfer_id,
+                progress,
+            };
+            let expected = request.request_id();
+            let (result, reset_connection) = match exchange(socket, request).await {
+                Ok(NodeResponse::FileTransferReported {
+                    request_id,
+                    transfer_id,
+                    state,
+                    sequence,
+                    revision,
+                }) if request_id == expected => (
+                    Ok(NodeFileTransferReceipt {
+                        transfer_id,
+                        state,
+                        sequence,
+                        revision,
+                    }),
+                    false,
+                ),
+                Ok(NodeResponse::Error { code, .. }) => {
+                    (Err(format!("file transfer report rejected: {code}")), false)
+                }
+                Ok(_) => (Err("unexpected file transfer report response".into()), true),
+                Err(error) => (Err(error), true),
+            };
+            let _ = completion.send(result);
+            if reset_connection {
+                return Err("node-control protocol failed while reporting file transfer".into());
             }
             Ok(())
         }
@@ -1793,6 +1904,136 @@ mod tests {
         let reported = report_result.await.unwrap().unwrap();
         assert_eq!(reported.channel_id, channel_id);
         assert_eq!(reported.state, "closed");
+        assert_eq!(reported.sequence, 1);
+        assert_eq!(reported.revision, 2);
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn file_transfer_operations_use_real_websocket_and_preserve_digest() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let transfer_request_id = Uuid::new_v4();
+        let session_id = Uuid::new_v4();
+        let transfer_id = Uuid::new_v4();
+        let expected_sha256 = [11_u8; 32];
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(stream).await.unwrap();
+            let Message::Text(text) = socket.next().await.unwrap().unwrap() else {
+                panic!("expected file transfer begin request");
+            };
+            let request: NodeRequest = serde_json::from_str(&text).unwrap();
+            let NodeRequest::BeginFileTransfer {
+                request_id,
+                transfer,
+            } = request
+            else {
+                panic!("expected file transfer begin request");
+            };
+            assert_eq!(transfer.transfer_request_id, transfer_request_id);
+            assert_eq!(transfer.session_id, session_id);
+            assert!(matches!(transfer.direction, TransferDirection::ToNode));
+            assert_eq!(transfer.file_name, "payload.bin");
+            assert_eq!(transfer.total_bytes, 4096);
+            assert_eq!(transfer.expected_sha256, Some(expected_sha256));
+            socket
+                .send(Message::Text(
+                    serde_json::to_string(&NodeResponse::FileTransferStarted {
+                        request_id,
+                        transfer_id,
+                        state: "active".into(),
+                        sequence: 0,
+                        revision: 1,
+                    })
+                    .unwrap()
+                    .into(),
+                ))
+                .await
+                .unwrap();
+
+            let Message::Text(text) = socket.next().await.unwrap().unwrap() else {
+                panic!("expected file transfer report request");
+            };
+            let request: NodeRequest = serde_json::from_str(&text).unwrap();
+            let NodeRequest::ReportFileTransfer {
+                request_id,
+                transfer_id: actual_transfer_id,
+                progress,
+            } = request
+            else {
+                panic!("expected file transfer report request");
+            };
+            assert_eq!(actual_transfer_id, transfer_id);
+            assert_eq!(progress.sequence, 1);
+            assert_eq!(progress.transferred_bytes, 4096);
+            assert!(matches!(
+                progress.outcome,
+                px_node_protocol::TransferOutcome::Completed { received_sha256 }
+                    if received_sha256 == expected_sha256
+            ));
+            socket
+                .send(Message::Text(
+                    serde_json::to_string(&NodeResponse::FileTransferReported {
+                        request_id,
+                        transfer_id,
+                        state: "completed".into(),
+                        sequence: 1,
+                        revision: 2,
+                    })
+                    .unwrap()
+                    .into(),
+                ))
+                .await
+                .unwrap();
+        });
+
+        let endpoint = format!("ws://{address}/api/console/node-control");
+        let (mut socket, _) = tokio_tungstenite::connect_async(endpoint).await.unwrap();
+        let mut session = ProtocolSession::new();
+        let (begin_completion, begin_result) = oneshot::channel();
+        execute_operation(
+            &mut socket,
+            &mut session,
+            NodeControlOperation::BeginFileTransfer {
+                transfer_request_id,
+                session_id,
+                direction: TransferDirection::ToNode,
+                file_name: "payload.bin".into(),
+                total_bytes: 4096,
+                expected_sha256: Some(expected_sha256),
+                completion: begin_completion,
+            },
+        )
+        .await
+        .unwrap();
+        let begun = begin_result.await.unwrap().unwrap();
+        assert_eq!(begun.transfer_id, transfer_id);
+        assert_eq!(begun.state, "active");
+        assert_eq!(begun.sequence, 0);
+        assert_eq!(begun.revision, 1);
+
+        let (report_completion, report_result) = oneshot::channel();
+        execute_operation(
+            &mut socket,
+            &mut session,
+            NodeControlOperation::ReportFileTransfer {
+                transfer_id,
+                progress: TransferProgress {
+                    sequence: 1,
+                    transferred_bytes: 4096,
+                    outcome: px_node_protocol::TransferOutcome::Completed {
+                        received_sha256: expected_sha256,
+                    },
+                },
+                completion: report_completion,
+            },
+        )
+        .await
+        .unwrap();
+        let reported = report_result.await.unwrap().unwrap();
+        assert_eq!(reported.transfer_id, transfer_id);
+        assert_eq!(reported.state, "completed");
         assert_eq!(reported.sequence, 1);
         assert_eq!(reported.revision, 2);
         server.await.unwrap();

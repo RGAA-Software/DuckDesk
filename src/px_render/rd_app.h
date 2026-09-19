@@ -56,6 +56,7 @@ class ServerCast;
 class AppSharedInfo;
 class Message;
 class CaptureVideoFrame;
+class FileTransferReporter;
 class ResourceChannelReporter;
 class VigemController;
 class VigemDriverManager;
@@ -92,6 +93,7 @@ class EncodedMediaBus;
 class FileTransferService;
 struct FileTransferAuditBegin;
 struct FileTransferAuditEnd;
+struct FileTransferAuditProgress;
 class FrameDebuggerObserver;
 class FrameCarrierProcessor;
 class FrameResizerProcessor;
@@ -214,6 +216,7 @@ private:
     void InitConnectionLifecycle();
     void RequestRestartMe() const;
     void ReportFileTransferAuditBegin(const render::FileTransferAuditBegin& audit);
+    void ReportFileTransferAuditProgress(const render::FileTransferAuditProgress& audit);
     void ReportFileTransferAuditEnd(const render::FileTransferAuditEnd& audit);
 
     bool SwitchGdiCapture();
@@ -284,6 +287,7 @@ protected:
     std::vector<double> fft_right_;
 
     std::shared_ptr<px::RenderServiceClient> service_client_ = nullptr;
+    std::shared_ptr<FileTransferReporter> file_transfer_reporter_{};
     std::shared_ptr<ResourceChannelReporter> resource_channel_reporter_{};
 
     std::shared_ptr<WinDesktopManager> desktop_mgr_ = nullptr;

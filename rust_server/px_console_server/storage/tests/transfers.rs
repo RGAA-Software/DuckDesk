@@ -266,7 +266,7 @@ fn begin(session: Uuid) -> BeginFileTransfer {
         direction: TransferDirection::ToNode,
         file_name: "合成文件 sample.bin".into(),
         total_bytes: 1024,
-        expected_sha256: [71; 32],
+        expected_sha256: Some([71; 32]),
     }
 }
 fn progress(sequence: u64, bytes: u64) -> TransferProgress {
@@ -360,6 +360,41 @@ async fn transfer_creation_and_reports_are_idempotent_monotonic_and_hash_verifie
         .report(&node, record.id, &progress(3, 1024))
         .await
         .is_err());
+    let mut observed_hash_request = begin(session);
+    observed_hash_request.expected_sha256 = None;
+    let observed_hash_record = transfer_store
+        .begin(&node, &observed_hash_request)
+        .await
+        .unwrap();
+    let observed_hash = [73; 32];
+    let observed_hash_completed = TransferProgress {
+        sequence: 1,
+        transferred_bytes: 1024,
+        outcome: TransferOutcome::Completed {
+            received_sha256: observed_hash,
+        },
+    };
+    assert_eq!(
+        transfer_store
+            .report(
+                &node,
+                observed_hash_record.id,
+                &observed_hash_completed
+            )
+            .await
+            .unwrap()
+            .state,
+        "completed"
+    );
+    let (stored_expected, stored_received): (Vec<u8>, Vec<u8>) = sqlx::query_as(
+        "SELECT expected_sha256,received_sha256 FROM pixels.file_transfers WHERE id=$1",
+    )
+    .bind(observed_hash_record.id)
+    .fetch_one(&fixture.owner)
+    .await
+    .unwrap();
+    assert_eq!(stored_expected, observed_hash);
+    assert_eq!(stored_received, observed_hash);
     transfer_store.close().await;
     session_store.close().await;
     fixture.close().await;
