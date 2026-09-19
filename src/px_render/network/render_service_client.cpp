@@ -760,7 +760,7 @@ void RenderServiceClient::NotifyRecordingFinalized(std::string file_name, std::s
         return;
     }
     PendingRecording pending{
-        .event_id = GetUUID(),
+        .event_id = GetCanonicalUUID(),
         .file_name = std::move(file_name),
         .logical_session_id = std::move(logical_session_id),
         .codec = std::move(codec),

@@ -838,6 +838,17 @@ resource session 所关联录像；`/user/recordings` 提供中英文列表、�
 `pg-20260919-061208-281ccc68` 为 1/1，覆盖上传、Range 下载、缓存列表、保留、pinned 拒绝、释放、驱逐、物理删除及删除后下载拒绝；
 Console Web 类型检查与 40/40 合同测试通过。CM-RECORDING 余项收敛为公网真实录像的有数据浏览器下载/管理动作，不再包含未接 API/UI。
 
+2026-09-19 公网真实录像短测关闭了本人有数据流程。Render 录像完成事件改用标准 UUID，避免 Service 对短 UUID 正确执行
+`INVALID_EVENT_ID` 拒绝；Service 的 HTTP 数据面与控制面现在统一使用系统原生根证书，私有部署 CA 不再只对节点 WSS 生效而在录像上传时
+失败。公网 WebView CloudApplication 会话 `af14cb21-b1ed-4538-975f-23aeea8ff70e` 实际生成 H.264 MP4，节点源文件、Console 缓存和
+Chrome 下载文件均为 44,875 字节，SHA-256 均为
+`40E5B15C1EE934E545D75C3270D4F83B1934D7B5EEB94E62B8645C2C23A05E17`，并校验 MP4 `ftyp` 头。浏览器从真实用户登录、本人录像
+列表、缓存请求走到下载，1/1 PASS；指定 CA 临时进入 CurrentUser 根存储，测试后移除，没有关闭 TLS 校验。Cloud Node Service 的
+target/stage/dist 与公网安装文件 SHA-256 均为
+`3DDE160C0C797F08CBD4044F46017D0133B11B7D2B8E7FEF9B73154D1DABF64E`，服务替换后保持 Running；Render build/dist 与公网安装文件
+SHA-256 均为 `C87F6C6EAA7203792FC3C1E716A304C19AFA9A5E6333E95E6AC0153D853AE347`。本人公网有数据流程由此关闭；管理员公网真实文件上的
+保留/释放/驱逐浏览器动作仍需单独短测，不能把本结果扩大为整个 DB2 完成。
+
 Console 管理实时链随后建立独立 `/api/console/managed/events` WebSocket，不复用节点控制或旧 website 通道。浏览器升级握手不接受 URL/
 Header bearer，必须同源并在 5 秒内发送首条认证消息；admin/viewer 会话在每次事件和 15 秒心跳时重新核验。进程内事件窗有 1024 项，
 使用单调 sequence、cursor 和随机 `stream_id`；进程重启、未来/过旧游标及广播落后都会显式要求 HTTP 全量快照，不伪造持久重放。
@@ -980,7 +991,7 @@ Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 W
 |---|---|
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |
 | DB1-EXIT | 完成：Desk/Auth 产品服务与 PostgreSQL Console 正式 `px_console.exe` 均已接入；三者具有独立发行入口。Console 当前 3.2.21 发行、进程断库 fail-closed、真实浏览器和制品哈希已通过；后续能力缺口归 DB2–DB5，不再把旧 Mongo 组合根当产品入口 |
-| DB2-A | 身份/管理HTTP、本人资料/头像、密码计算/限流/Origin、访客HMAC/会话/公开目录、Saved Connections、本人实例列表、更新目录、访问/通道/传输历史及录像目录HTTP、严格配置、稳定私钥加载、独立初始化CLI、静态文件服务及进程生命周期已实现；Console用户门户及管理后台的当前目录/身份/状态入口均已切新bearer/主体API，源码不再保留旧`/api/v1`，正式PostgreSQL产品二进制和发行包已切换。部署绑定录像缓存、本人/管理员授权Range下载、Render完成段session归属、Windows Service真实字节生产、本人/管理下载页面、保留/释放/驱逐 Console 副本及真实浏览器空目录流程已接；Direct Host观察者不再默认获得输入。仍需公网真实录像有数据浏览器流程；视频墙延期，ZLM直播和RTC/TURN管理明确退役，不再作为待实现项 |
+| DB2-A | 身份/管理HTTP、本人资料/头像、密码计算/限流/Origin、访客HMAC/会话/公开目录、Saved Connections、本人实例列表、更新目录、访问/通道/传输历史及录像目录HTTP、严格配置、稳定私钥加载、独立初始化CLI、静态文件服务及进程生命周期已实现；Console用户门户及管理后台的当前目录/身份/状态入口均已切新bearer/主体API，源码不再保留旧`/api/v1`，正式PostgreSQL产品二进制和发行包已切换。部署绑定录像缓存、本人/管理员授权Range下载、Render完成段session归属、Windows Service真实字节生产、本人/管理下载页面、保留/释放/驱逐 Console 副本、真实浏览器空目录及公网本人有数据下载流程已接；节点源文件/缓存/浏览器下载大小和SHA-256一致，Direct Host观察者不再默认获得输入。仍需管理员在公网真实文件上的保留/释放/驱逐浏览器动作；视频墙延期，ZLM直播和RTC/TURN管理明确退役，不再作为待实现项 |
 | DB2-B/C/D | 设备/应用/节点/部署目录、user/guest资源入口、更新与历史元数据入口、Console节点WS及独立管理实时事件流已接；Windows Service已切到新节点协议并实现部署准备、调和、命令fencing、精确launch ACK、Render前端准入转发、实际媒体/RDP通道生命周期、遥测、DPAPI有界断线补报、唯一PCI身份的NVIDIA逐GPU指标、GPU预算/原子硬过滤/物理stable key运行时绑定与节点二次准入、只读调度预览/逐候选拒绝解释、数据库时钟对齐的有界服务端趋势/陈旧判断、录像session归属及通用录像字节上传。ZLM/Coturn/中央RTC signaling已归档移除，Windows/Web/Render/Service/Console的Direct Host活动代码和聚焦构建已接通；Direct Host WebRTC 已生产真实视频/数据载荷字节，并以5秒周期、单调sequence和最终终态累计上报；Relay出站媒体/文件数据只在底层WebSocket完整写成功后按真实connection累计，本机真实套接字与重连生命周期专项通过。Render真实文件引擎现已把操作UUID、实际总量/进度、单文件SHA-256或确定性多文件清单摘要经Service送入Console，真实payload单元测试、本机Service WebSocket桥及PostgreSQL 8组专项通过。仍需Relay既有数据公网真机回归及入站/音频等完整双向计数、公网首帧/输入/音频与持续续租/撤销、Android直连、AMD/Intel逐GPU指标、管理实时流的公网高频/断库专项、RDP执行及计数、文件传输公网双端独立hash/取消/重试/断线补报与客户端展示、无人值守更新及其余产品入口 |
 | DB2-EXIT / DB3 | Windows 侧功能出口完成：Desk/Auth 独立产品、Auth 事务 outbox、Official 认证接触和 30/40 秒持续 currentness、Customer 私有离线、库外水位、额度/feature 事务门禁及管理员状态均已接；keyring/恢复代际/监督取消短测通过。Service 只消费 Console control epoch。旧授权、Mongo/Redis/旧 Console 组合根和可误用入口已归档，活动锁文件不含旧后端。Linux systemd unit 静态验证通过，但 Unix binary/SIGTERM 仍须随 DB4/DB5 Linux 总门禁形成动态证据；不建设运行时双后端 |
 | DB4 | 恢复集、保留、异机复制、恢复准入/执行/封印、三库写屏障/安全水位、外部见证、Auth keyring、pgBackRest/WAL/PITR、Windows SCM包及WSL2 systemd生命周期已实现。开发期仍需目标Linux发行版VM短测、Pixels外层签名/生产密钥托管、独立主机或对象仓库一次完整恢复、目标环境keyring/见证轮换及真实节点与Windows/RDP事实对账；连续7天窗口和自然周期稳定性统一放到DB5功能通过后的长测，不阻塞每个开发切片 |

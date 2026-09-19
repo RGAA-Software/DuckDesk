@@ -23,6 +23,11 @@ namespace px
     static std::string GetUUIDInMD5() {
         return MD5::Hex(GetUUID());
     }
+
+    inline std::string GetCanonicalUUID() {
+        px::uuid generated_uuid{};
+        return generated_uuid.generate().str();
+    }
 }
 
 #endif //TC_APPLICATION_UUID_H

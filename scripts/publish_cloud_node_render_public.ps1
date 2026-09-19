@@ -7,14 +7,28 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repository = Split-Path $PSScriptRoot -Parent
-$source = Join-Path $repository 'build_official/cloud_node/dist/px_render.exe'
 $machineFile = Join-Path $repository '.env/test_machine.md'
 $installDirectory = 'C:\Program Files\Pixels Cloud Node'
-$target = Join-Path $installDirectory 'px_render.exe'
-$staged = Join-Path $installDirectory 'px_render.staged.exe'
-
-if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
-    throw "Render artifact is missing: $source"
+$artifacts = @(
+    [pscustomobject]@{
+        Name = 'px_render.exe'
+        SourcePath = Join-Path $repository 'build_official/cloud_node/dist/px_render.exe'
+        TargetPath = Join-Path $installDirectory 'px_render.exe'
+        StagedPath = Join-Path $installDirectory 'px_render.staged.exe'
+    },
+    [pscustomobject]@{
+        Name = 'px_render_rtc.dll'
+        SourcePath = Join-Path $repository 'build_official/cloud_node/dist/px_render_rtc.dll'
+        TargetPath = Join-Path $installDirectory 'px_render_rtc.dll'
+        StagedPath = Join-Path $installDirectory 'px_render_rtc.staged.dll'
+    }
+)
+foreach ($artifact in $artifacts) {
+    if (-not (Test-Path -LiteralPath $artifact.SourcePath -PathType Leaf)) {
+        throw "Render artifact is missing: $($artifact.SourcePath)"
+    }
+    $artifact | Add-Member -NotePropertyName ExpectedHash -NotePropertyValue (
+        (Get-FileHash -LiteralPath $artifact.SourcePath -Algorithm SHA256).Hash)
 }
 
 $machineText = Get-Content -LiteralPath $machineFile -Raw -Encoding UTF8
@@ -24,7 +38,6 @@ if (-not $password -or -not $machineName) {
     throw 'Public test host machine-qualified credential is incomplete.'
 }
 
-$expectedHash = (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash
 $credential = [pscredential]::new(
     "$machineName\Administrator",
     (ConvertTo-SecureString $password -AsPlainText -Force)
@@ -35,16 +48,37 @@ $session = $null
 try {
     Set-Item -LiteralPath $trustedHostsPath -Value $ComputerName -Force
     $session = New-PSSession -ComputerName $ComputerName -Credential $credential
-    Copy-Item -LiteralPath $source -Destination $staged -ToSession $session -Force
-    Invoke-Command -Session $session -ArgumentList $expectedHash, $target, $staged, $installDirectory -ScriptBlock {
-        param($expectedHash, $target, $staged, $installDirectory)
+    foreach ($artifact in $artifacts) {
+        Copy-Item -LiteralPath $artifact.SourcePath -Destination $artifact.StagedPath -ToSession $session -Force
+    }
+    $renderHash = $artifacts[0].ExpectedHash
+    $renderRtcHash = $artifacts[1].ExpectedHash
+    Invoke-Command -Session $session -ArgumentList $renderHash, $renderRtcHash, $installDirectory -ScriptBlock {
+        param($renderHash, $renderRtcHash, $installDirectory)
 
         $ErrorActionPreference = 'Stop'
-        if ((Get-FileHash -LiteralPath $staged -Algorithm SHA256).Hash -ne $expectedHash) {
-            throw 'Staged Render hash mismatch.'
+        $artifacts = @(
+            [pscustomobject]@{
+                Name = 'px_render.exe'
+                TargetPath = Join-Path $installDirectory 'px_render.exe'
+                StagedPath = Join-Path $installDirectory 'px_render.staged.exe'
+                ExpectedHash = $renderHash
+            },
+            [pscustomobject]@{
+                Name = 'px_render_rtc.dll'
+                TargetPath = Join-Path $installDirectory 'px_render_rtc.dll'
+                StagedPath = Join-Path $installDirectory 'px_render_rtc.staged.dll'
+                ExpectedHash = $renderRtcHash
+            }
+        )
+        foreach ($artifact in $artifacts) {
+            if ((Get-FileHash -LiteralPath $artifact.StagedPath -Algorithm SHA256).Hash -ne $artifact.ExpectedHash) {
+                throw "Staged Render artifact hash mismatch: $($artifact.Name)"
+            }
         }
 
-        $backup = Join-Path $installDirectory ('px_render.before-' + [DateTime]::UtcNow.ToString('yyyyMMddHHmmss') + '.exe')
+        $backupDirectory = Join-Path $installDirectory ('render-runtime-before-' + [DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))
+        [void](New-Item -ItemType Directory -Path $backupDirectory)
         $serviceWasRunning = (Get-Service -Name 'px_service').Status -eq [ServiceProcess.ServiceControllerStatus]::Running
         try {
             if ($serviceWasRunning) {
@@ -54,24 +88,31 @@ try {
                     [TimeSpan]::FromSeconds(20))
             }
             foreach ($process in @(Get-CimInstance Win32_Process | Where-Object {
-                $_.Name -eq 'px_render.exe' -and $_.ExecutablePath -eq $target
+                $_.Name -eq 'px_render.exe' -and $_.ExecutablePath -eq (Join-Path $installDirectory 'px_render.exe')
             })) {
                 Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
             }
-            Copy-Item -LiteralPath $target -Destination $backup -Force
-            Copy-Item -LiteralPath $staged -Destination $target -Force
-            if ((Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash -ne $expectedHash) {
-                throw 'Installed Render hash mismatch.'
+            foreach ($artifact in $artifacts) {
+                Copy-Item -LiteralPath $artifact.TargetPath -Destination (Join-Path $backupDirectory $artifact.Name) -Force
+                Copy-Item -LiteralPath $artifact.StagedPath -Destination $artifact.TargetPath -Force
+                if ((Get-FileHash -LiteralPath $artifact.TargetPath -Algorithm SHA256).Hash -ne $artifact.ExpectedHash) {
+                    throw "Installed Render artifact hash mismatch: $($artifact.Name)"
+                }
             }
         }
         catch {
-            if (Test-Path -LiteralPath $backup -PathType Leaf) {
-                Copy-Item -LiteralPath $backup -Destination $target -Force
+            foreach ($artifact in $artifacts) {
+                $backupPath = Join-Path $backupDirectory $artifact.Name
+                if (Test-Path -LiteralPath $backupPath -PathType Leaf) {
+                    Copy-Item -LiteralPath $backupPath -Destination $artifact.TargetPath -Force
+                }
             }
             throw
         }
         finally {
-            Remove-Item -LiteralPath $staged -Force -ErrorAction SilentlyContinue
+            foreach ($artifact in $artifacts) {
+                Remove-Item -LiteralPath $artifact.StagedPath -Force -ErrorAction SilentlyContinue
+            }
             if ($serviceWasRunning -and (Get-Service -Name 'px_service').Status -ne [ServiceProcess.ServiceControllerStatus]::Running) {
                 Start-Service -Name 'px_service'
                 (Get-Service -Name 'px_service').WaitForStatus(
@@ -81,9 +122,14 @@ try {
         }
 
         [pscustomobject]@{
-            Hash = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash
+            Artifacts = @($artifacts | ForEach-Object {
+                [pscustomobject]@{
+                    Name = $_.Name
+                    Hash = (Get-FileHash -LiteralPath $_.TargetPath -Algorithm SHA256).Hash
+                }
+            })
             ServiceState = (Get-Service -Name 'px_service').Status.ToString()
-            RecoverableBackup = $backup
+            RecoverableBackup = $backupDirectory
         }
     }
 }

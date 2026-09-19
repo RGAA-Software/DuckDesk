@@ -6,11 +6,25 @@
 
 #include "network/render_service_rpc_state.h"
 #include "px_common/async_runtime.h"
+#include "px_common/uuid.h"
 
 namespace px {
 namespace {
 
 using namespace std::chrono_literals;
+
+TEST(RenderServiceRpcState, CanonicalUuidMatchesServiceProtocolIdentity) {
+    const auto identifier = GetCanonicalUUID();
+    ASSERT_EQ(identifier.size(), 36U);
+    for (std::size_t index{}; index < identifier.size(); ++index) {
+        if (index == 8U || index == 13U || index == 18U || index == 23U) {
+            EXPECT_EQ(identifier[index], '-');
+            continue;
+        }
+        const auto value = identifier[index];
+        EXPECT_TRUE((value >= '0' && value <= '9') || (value >= 'a' && value <= 'f')) << "index=" << index;
+    }
+}
 
 template <typename T>
 PxAwaitable<void> AwaitServiceOperation(std::shared_ptr<PxAsyncOneShot<T>> operation, std::shared_ptr<std::promise<PxResult<T>>> completion) {
