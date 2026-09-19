@@ -1143,6 +1143,13 @@ Android 设备 ACL 已增加独立公网短测入口：用临时 Android 账号�
 Release APK/AAB 发布在落盘后逐项检查 ZIP entry，同样失败关闭。相关 Python 门禁合计 11/11、两份 PowerShell 解析通过；当前三个 Windows
 development dist 和已安装来源的 `Pixels-1.0.10-debug-arm64-v8a.apk` 实物扫描通过。正式双发行尚未生成，故仍保留正式安装包实物审计出口。
 
+Relay 数据面的本地安全与计量门禁随后收紧：房间只有在远端明确接受控制并进入 prepared 状态后才允许转发 payload；同一方向的首个
+`relay_msg_index` 可以从任意非负值开始，后续必须严格递增 1，并拒绝负数、重复/乱序索引及同一消息重复 room，避免重复扇出和重放。
+连接被同 device 的新 generation 替换时会销毁旧房间，旧 generation 的迟到 disconnect 不能删除新连接或新房间。Relay 健康统计现在把
+接收成功的合法 payload 计入 uploaded，只在目标 WebSocket sink 的 `send` 成功后计入 forwarded 和方向字节，排队成功不再冒充实际发送成功。
+`px_relay_server` 单元及真实 WebSocket 回归 6/6、严格 Clippy 均通过。本轮没有部署公网制品；公网音频、文件独立 hash、真实断线重连、
+在线撤销与容量排空仍保留为产品验收项，不能用这些本地门禁替代。
+
 ## 仍未通过的阶段出口
 
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。

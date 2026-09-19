@@ -1,9 +1,11 @@
+use crate::state::{ConnectionHandle, RelayRegistry};
 use crate::{config::RelayConfig, server::router};
 use futures_util::{SinkExt, StreamExt};
 use prost::Message as ProstMessage;
 use protocol::px_relay::{
-    RelayCreateRoomMessage, RelayHello, RelayMessage, RelayMessageType, RelayNotificationMessage,
-    RelayRequestControlMessage, RelayRequestControlRespMessage, RelayTargetMessage,
+    RelayCreateRoomMessage, RelayErrorCode, RelayHello, RelayMessage, RelayMessageType,
+    RelayNotificationMessage, RelayRequestControlMessage, RelayRequestControlRespMessage,
+    RelayTargetMessage,
 };
 use std::{
     net::SocketAddr,
@@ -17,6 +19,147 @@ use tokio_tungstenite::{
 };
 
 type TestSocket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
+
+fn connection_handle(
+    generation: uuid::Uuid,
+) -> (
+    ConnectionHandle,
+    tokio::sync::mpsc::Receiver<crate::state::OutboundMessage>,
+) {
+    let (sender, receiver) = tokio::sync::mpsc::channel(16);
+    (
+        ConnectionHandle {
+            generation,
+            sender,
+            authorized_remote_device_id: None,
+        },
+        receiver,
+    )
+}
+
+fn assert_relay_error(
+    result: Result<Vec<crate::state::Delivery>, RelayErrorCode>,
+    expected: RelayErrorCode,
+) {
+    match result {
+        Err(actual) => assert_eq!(actual, expected),
+        Ok(_) => panic!("relay operation unexpectedly succeeded"),
+    }
+}
+
+#[test]
+fn payload_requires_acceptance_monotonic_sequence_and_completed_delivery_accounting() {
+    let mut registry = RelayRegistry::default();
+    let (creator, _creator_receiver) = connection_handle(uuid::Uuid::new_v4());
+    let (remote, _remote_receiver) = connection_handle(uuid::Uuid::new_v4());
+    registry.register("creator".into(), creator, 4).unwrap();
+    registry.register("remote".into(), remote, 4).unwrap();
+    let (room, _) = registry
+        .create_room("creator", "creator", "remote", "Creator", "stream", 4)
+        .unwrap();
+
+    assert_relay_error(
+        registry.forward_payload(
+            "creator",
+            "creator",
+            std::slice::from_ref(&room.id),
+            7,
+            4,
+            vec![1, 2, 3, 4],
+        ),
+        RelayErrorCode::KRelayCodeRejectControl,
+    );
+    registry
+        .accept_control_response("remote", &room.id, "creator", "remote", vec![5], true)
+        .unwrap();
+    let deliveries = registry
+        .forward_payload(
+            "creator",
+            "creator",
+            std::slice::from_ref(&room.id),
+            7,
+            4,
+            vec![1, 2, 3, 4],
+        )
+        .unwrap();
+    let before_delivery = registry.snapshot();
+    assert_eq!(before_delivery.uploaded_payload_bytes, 4);
+    assert_eq!(before_delivery.forwarded_payload_bytes, 0);
+    assert_eq!(before_delivery.creator_to_remote_payload_bytes, 0);
+    registry.record_forwarded_payload(deliveries[0].outbound.accounting.unwrap());
+    let after_delivery = registry.snapshot();
+    assert_eq!(after_delivery.forwarded_payload_bytes, 4);
+    assert_eq!(after_delivery.creator_to_remote_payload_bytes, 4);
+
+    assert_relay_error(
+        registry.forward_payload(
+            "creator",
+            "creator",
+            std::slice::from_ref(&room.id),
+            7,
+            4,
+            vec![1, 2, 3, 4],
+        ),
+        RelayErrorCode::KRelayCodeRejectControl,
+    );
+    assert_relay_error(
+        registry.forward_payload(
+            "creator",
+            "creator",
+            &[room.id.clone(), room.id.clone()],
+            8,
+            4,
+            vec![1, 2, 3, 4],
+        ),
+        RelayErrorCode::KRelayCodeRejectControl,
+    );
+
+    let reverse = registry
+        .forward_payload(
+            "remote",
+            "remote",
+            std::slice::from_ref(&room.id),
+            0,
+            3,
+            vec![6, 7, 8],
+        )
+        .unwrap();
+    registry.record_forwarded_payload(reverse[0].outbound.accounting.unwrap());
+    let final_snapshot = registry.snapshot();
+    assert_eq!(final_snapshot.uploaded_payload_bytes, 7);
+    assert_eq!(final_snapshot.forwarded_payload_bytes, 7);
+    assert_eq!(final_snapshot.remote_to_creator_payload_bytes, 3);
+}
+
+#[test]
+fn replacement_connection_fences_stale_disconnect_and_removes_old_rooms() {
+    let mut registry = RelayRegistry::default();
+    let render_generation = uuid::Uuid::new_v4();
+    let first_client_generation = uuid::Uuid::new_v4();
+    let replacement_generation = uuid::Uuid::new_v4();
+    let (render, _render_receiver) = connection_handle(render_generation);
+    let (first_client, _first_client_receiver) = connection_handle(first_client_generation);
+    registry.register("render".into(), render, 4).unwrap();
+    registry.register("client".into(), first_client, 4).unwrap();
+    registry
+        .create_room("client", "client", "render", "Client", "old", 4)
+        .unwrap();
+
+    let (replacement, _replacement_receiver) = connection_handle(replacement_generation);
+    let replacement_deliveries = registry.register("client".into(), replacement, 4).unwrap();
+    assert_eq!(replacement_deliveries.len(), 1);
+    assert_eq!(registry.snapshot().rooms, 0);
+    registry
+        .create_room("client", "client", "render", "Client", "new", 4)
+        .unwrap();
+
+    assert!(registry
+        .disconnect("client", first_client_generation)
+        .is_empty());
+    let snapshot = registry.snapshot();
+    assert_eq!(snapshot.connections, 2);
+    assert_eq!(snapshot.rooms, 1);
+}
 
 async fn start_server() -> (SocketAddr, JoinHandle<()>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();

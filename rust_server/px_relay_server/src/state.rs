@@ -11,7 +11,7 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct ConnectionHandle {
     pub generation: Uuid,
-    pub sender: mpsc::Sender<Message>,
+    pub sender: mpsc::Sender<OutboundMessage>,
     pub authorized_remote_device_id: Option<String>,
 }
 
@@ -22,7 +22,20 @@ pub struct RelayRoom {
     pub remote_device_id: String,
     pub creator_device_name: String,
     pub creator_stream_id: String,
-    pub last_message_index: Option<i64>,
+    pub accepted: bool,
+    pub creator_last_message_index: Option<i64>,
+    pub remote_last_message_index: Option<i64>,
+}
+
+pub struct OutboundMessage {
+    pub message: Message,
+    pub accounting: Option<PayloadDeliveryAccounting>,
+}
+
+#[derive(Clone, Copy)]
+pub struct PayloadDeliveryAccounting {
+    pub payload_bytes: u64,
+    pub creator_to_remote: bool,
 }
 
 #[derive(Default)]
@@ -109,7 +122,7 @@ impl RelayRegistry {
         device_name: &str,
         stream_id: &str,
         max_rooms: usize,
-    ) -> Result<(RelayRoom, mpsc::Sender<Message>), RelayErrorCode> {
+    ) -> Result<(RelayRoom, mpsc::Sender<OutboundMessage>), RelayErrorCode> {
         if connection_device_id != requested_device_id
             || remote_device_id.is_empty()
             || connection_device_id == remote_device_id
@@ -140,7 +153,9 @@ impl RelayRegistry {
             remote_device_id: remote_device_id.to_string(),
             creator_device_name: device_name.to_string(),
             creator_stream_id: stream_id.to_string(),
-            last_message_index: None,
+            accepted: false,
+            creator_last_message_index: None,
+            remote_last_message_index: None,
         };
         self.rooms.insert(room.id.clone(), room.clone());
         self.device_rooms
@@ -176,7 +191,7 @@ impl RelayRegistry {
     }
 
     pub fn accept_control_response(
-        &self,
+        &mut self,
         connection_device_id: &str,
         room_id: &str,
         creator_device_id: &str,
@@ -184,19 +199,25 @@ impl RelayRegistry {
         encoded_response: Vec<u8>,
         accepted: bool,
     ) -> Result<Vec<Delivery>, RelayErrorCode> {
-        let room = self.authorize_room(connection_device_id, room_id)?;
+        let room = self.authorize_room(connection_device_id, room_id)?.clone();
         if connection_device_id != room.remote_device_id
             || creator_device_id != room.creator_device_id
             || remote_device_id != room.remote_device_id
         {
             return Err(RelayErrorCode::KRelayCodeRejectControl);
         }
-        let creator = self
+        let creator_sender = self
             .connections
             .get(creator_device_id)
-            .ok_or(RelayErrorCode::KRelayCodeClientNotFound)?;
-        let mut deliveries = vec![Delivery::raw(creator.sender.clone(), encoded_response)];
+            .ok_or(RelayErrorCode::KRelayCodeClientNotFound)?
+            .sender
+            .clone();
+        let mut deliveries = vec![Delivery::raw(creator_sender.clone(), encoded_response)];
         if accepted {
+            self.rooms
+                .get_mut(room_id)
+                .ok_or(RelayErrorCode::KRelayCodeCreateRoomFailed)?
+                .accepted = true;
             let prepared = RelayMessage {
                 r#type: RelayMessageType::KRelayRoomPrepared as i32,
                 room_prepared: Some(protocol::px_relay::RelayRoomPreparedMessage {
@@ -209,7 +230,7 @@ impl RelayRegistry {
                 }),
                 ..Default::default()
             };
-            deliveries.push(Delivery::binary(creator.sender.clone(), prepared.clone()));
+            deliveries.push(Delivery::binary(creator_sender, prepared.clone()));
             let remote = self
                 .connections
                 .get(remote_device_id)
@@ -232,39 +253,75 @@ impl RelayRegistry {
             return Err(RelayErrorCode::KRelayCodeRejectControl);
         }
         let mut senders = Vec::with_capacity(room_ids.len());
+        let mut unique_room_ids = HashSet::with_capacity(room_ids.len());
         for room_id in room_ids {
+            if !unique_room_ids.insert(room_id) {
+                return Err(RelayErrorCode::KRelayCodeRejectControl);
+            }
             let room = self.authorize_room(connection_device_id, room_id)?;
+            if !room.accepted || message_index < 0 {
+                return Err(RelayErrorCode::KRelayCodeRejectControl);
+            }
+            let previous_message_index = if room.creator_device_id == connection_device_id {
+                room.creator_last_message_index
+            } else {
+                room.remote_last_message_index
+            };
+            if previous_message_index
+                .is_some_and(|previous| message_index != previous.saturating_add(1))
+            {
+                return Err(RelayErrorCode::KRelayCodeRejectControl);
+            }
             let peer_device_id = room.peer(connection_device_id).to_string();
             let target = self
                 .connections
                 .get(&peer_device_id)
                 .ok_or(RelayErrorCode::KRelayCodeRemoteClientNotFound)?;
-            senders.push(target.sender.clone());
+            senders.push((
+                target.sender.clone(),
+                room.creator_device_id == connection_device_id,
+            ));
         }
         for room_id in room_ids {
             if let Some(room) = self.rooms.get_mut(room_id) {
-                room.last_message_index = Some(message_index);
                 if room.creator_device_id == connection_device_id {
-                    self.creator_to_remote_payload_bytes = self
-                        .creator_to_remote_payload_bytes
-                        .saturating_add(payload_bytes as u64);
+                    room.creator_last_message_index = Some(message_index);
                 } else {
-                    self.remote_to_creator_payload_bytes = self
-                        .remote_to_creator_payload_bytes
-                        .saturating_add(payload_bytes as u64);
+                    room.remote_last_message_index = Some(message_index);
                 }
             }
         }
         self.uploaded_payload_bytes = self
             .uploaded_payload_bytes
             .saturating_add(payload_bytes as u64);
-        self.forwarded_payload_bytes = self
-            .forwarded_payload_bytes
-            .saturating_add((payload_bytes as u64).saturating_mul(senders.len() as u64));
         Ok(senders
             .into_iter()
-            .map(|sender| Delivery::raw(sender, encoded_message.clone()))
+            .map(|(sender, creator_to_remote)| {
+                Delivery::payload(
+                    sender,
+                    encoded_message.clone(),
+                    PayloadDeliveryAccounting {
+                        payload_bytes: payload_bytes as u64,
+                        creator_to_remote,
+                    },
+                )
+            })
             .collect())
+    }
+
+    pub fn record_forwarded_payload(&mut self, accounting: PayloadDeliveryAccounting) {
+        self.forwarded_payload_bytes = self
+            .forwarded_payload_bytes
+            .saturating_add(accounting.payload_bytes);
+        if accounting.creator_to_remote {
+            self.creator_to_remote_payload_bytes = self
+                .creator_to_remote_payload_bytes
+                .saturating_add(accounting.payload_bytes);
+        } else {
+            self.remote_to_creator_payload_bytes = self
+                .remote_to_creator_payload_bytes
+                .saturating_add(accounting.payload_bytes);
+        }
     }
 
     pub fn stop_room(
@@ -349,19 +406,36 @@ impl RelayRoom {
 }
 
 pub struct Delivery {
-    pub sender: mpsc::Sender<Message>,
-    pub message: Message,
+    pub sender: mpsc::Sender<OutboundMessage>,
+    pub outbound: OutboundMessage,
 }
 
 impl Delivery {
-    pub fn binary(sender: mpsc::Sender<Message>, message: RelayMessage) -> Self {
+    pub fn binary(sender: mpsc::Sender<OutboundMessage>, message: RelayMessage) -> Self {
         Self::raw(sender, message.encode_to_vec())
     }
 
-    pub fn raw(sender: mpsc::Sender<Message>, payload: Vec<u8>) -> Self {
+    pub fn raw(sender: mpsc::Sender<OutboundMessage>, payload: Vec<u8>) -> Self {
         Self {
             sender,
-            message: Message::Binary(payload.into()),
+            outbound: OutboundMessage {
+                message: Message::Binary(payload.into()),
+                accounting: None,
+            },
+        }
+    }
+
+    pub fn payload(
+        sender: mpsc::Sender<OutboundMessage>,
+        payload: Vec<u8>,
+        accounting: PayloadDeliveryAccounting,
+    ) -> Self {
+        Self {
+            sender,
+            outbound: OutboundMessage {
+                message: Message::Binary(payload.into()),
+                accounting: Some(accounting),
+            },
         }
     }
 }

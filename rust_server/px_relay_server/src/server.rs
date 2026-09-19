@@ -1,6 +1,6 @@
 use crate::{
     config::RelayConfig,
-    state::{relay_error, ConnectionHandle, Delivery, RelayRegistry},
+    state::{relay_error, ConnectionHandle, Delivery, OutboundMessage, RelayRegistry},
 };
 use axum::{
     extract::{
@@ -154,11 +154,20 @@ fn valid_identity(value: &str) -> bool {
 async fn serve_connection(state: RelayServerState, query: RelayQuery, socket: WebSocket) {
     let generation = Uuid::new_v4();
     let (mut websocket_sender, mut websocket_receiver) = socket.split();
-    let (outbound_sender, mut outbound_receiver) = mpsc::channel(state.config.outbound_queue);
+    let (outbound_sender, mut outbound_receiver) =
+        mpsc::channel::<OutboundMessage>(state.config.outbound_queue);
+    let writer_state = state.clone();
     let writer = tokio::spawn(async move {
-        while let Some(message) = outbound_receiver.recv().await {
-            if websocket_sender.send(message).await.is_err() {
+        while let Some(outbound) = outbound_receiver.recv().await {
+            if websocket_sender.send(outbound.message).await.is_err() {
                 break;
+            }
+            if let Some(accounting) = outbound.accounting {
+                writer_state
+                    .registry
+                    .lock()
+                    .await
+                    .record_forwarded_payload(accounting);
             }
         }
     });
@@ -176,7 +185,12 @@ async fn serve_connection(state: RelayServerState, query: RelayQuery, socket: We
         )
     };
     let Ok(replacement_deliveries) = replacement_deliveries else {
-        let _ = outbound_sender.send(Message::Close(None)).await;
+        let _ = outbound_sender
+            .send(OutboundMessage {
+                message: Message::Close(None),
+                accounting: None,
+            })
+            .await;
         let _ = writer.await;
         return;
     };
@@ -201,7 +215,14 @@ async fn serve_connection(state: RelayServerState, query: RelayQuery, socket: We
                 }
             }
             Message::Ping(payload) => {
-                if outbound_sender.send(Message::Pong(payload)).await.is_err() {
+                if outbound_sender
+                    .send(OutboundMessage {
+                        message: Message::Pong(payload),
+                        accounting: None,
+                    })
+                    .await
+                    .is_err()
+                {
                     break;
                 }
             }
@@ -223,7 +244,7 @@ async fn serve_connection(state: RelayServerState, query: RelayQuery, socket: We
 async fn process_binary(
     state: &RelayServerState,
     connection_device_id: &str,
-    own_sender: mpsc::Sender<Message>,
+    own_sender: mpsc::Sender<OutboundMessage>,
     encoded_message: Vec<u8>,
 ) -> Result<(), ()> {
     let decoded = RelayMessage::decode(encoded_message.as_slice()).map_err(|_| ())?;
@@ -369,9 +390,12 @@ async fn process_binary(
         Err(code) => {
             state.registry.lock().await.mark_drop();
             let _ = own_sender
-                .send(Message::Binary(
-                    relay_error(code, message_type).encode_to_vec().into(),
-                ))
+                .send(OutboundMessage {
+                    message: Message::Binary(
+                        relay_error(code, message_type).encode_to_vec().into(),
+                    ),
+                    accounting: None,
+                })
                 .await;
             Err(())
         }
@@ -380,7 +404,7 @@ async fn process_binary(
 
 async fn deliver(state: &RelayServerState, deliveries: Vec<Delivery>) {
     for delivery in deliveries {
-        if delivery.sender.try_send(delivery.message).is_err() {
+        if delivery.sender.try_send(delivery.outbound).is_err() {
             state.registry.lock().await.mark_drop();
         }
     }
