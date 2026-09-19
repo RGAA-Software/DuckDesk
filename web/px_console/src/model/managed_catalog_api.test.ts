@@ -18,6 +18,7 @@ import {
     type DeploymentConfiguration,
     type ManagedDeployment,
 } from "./managed_deployment_api";
+import { previewPlacement, type PlacementPreview } from "./managed_scheduling_api";
 
 vi.mock("@/http", () => ({
     default: {
@@ -167,5 +168,36 @@ describe("PostgreSQL managed catalog API", () => {
                 configuration,
             },
         );
+    });
+
+    it("requests a read-only placement preview with an explicit optional deployment", async () => {
+        const preview: PlacementPreview = {
+            application_id: "application-id",
+            evaluated_at: "2026-09-19T01:00:00Z",
+            candidates: [
+                {
+                    rank: null,
+                    deployment_id: "deployment-id",
+                    node_id: "node-id",
+                    gpu_key: "pnp-sha256:gpu",
+                    eligible: false,
+                    dominant_pressure_per_mille: 950,
+                    average_pressure_per_mille: 700,
+                    node_slots: 2,
+                    deployment_slots: 1,
+                    gpu_memory_headroom_bytes: -1,
+                    gpu_compute_headroom_per_mille: 50,
+                    gpu_encoder_headroom_per_mille: 100,
+                    rejection_reasons: ["gpu_memory_exhausted"],
+                },
+            ],
+        };
+        vi.mocked(axiosHttp.post).mockResolvedValue({ data: preview } as never);
+
+        await expect(previewPlacement("application-id", "deployment-id")).resolves.toEqual(preview);
+        expect(axiosHttp.post).toHaveBeenCalledWith("/api/console/managed/scheduling/preview", {
+            application_id: "application-id",
+            deployment_id: "deployment-id",
+        });
     });
 });

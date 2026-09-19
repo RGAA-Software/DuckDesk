@@ -7,8 +7,8 @@ use px_console_store::{
     ClientType, DeploymentConfiguration, DeploymentObservation, DeploymentProfile, DeploymentStore,
     DeploymentTarget, DevicePlatform, DeviceStore, GpuResourceProfile, IdentityStore,
     NodeConnection, NodeGpuTelemetry, NodeProduct, NodeReport, NodeStore, NodeTelemetry,
-    PasswordDigest, PreparationState, StoreError, TelemetryProbeState, TokenDigest, Username,
-    VideoCodec, VideoSpec,
+    PasswordDigest, PlacementPreviewRequest, PlacementRejectionReason, PreparationState,
+    StoreError, TelemetryProbeState, TokenDigest, Username, VideoCodec, VideoSpec,
 };
 use px_console_store::{
     GuestStore, InstanceStore, NodeConfiguration, OriginFingerprint, ResourceCredential,
@@ -544,6 +544,76 @@ async fn unknown_gpu_pressure_is_not_treated_as_free_capacity() {
             .unwrap_err(),
         StoreError::NoCapacity
     );
+    fixture.close().await;
+}
+
+#[tokio::test]
+async fn placement_preview_explains_current_candidates_without_reserving_capacity() {
+    let fixture = Fixture::new().await;
+    let (connection, app, deployment) = fixture.prepared(DeploymentTarget::Webview, 2).await;
+    let request = PlacementPreviewRequest {
+        application_id: app.id,
+        deployment_id: None,
+    };
+
+    let ready = fixture
+        .instances
+        .preview_placement(&fixture.admin, connection.epoch(), &request)
+        .await
+        .unwrap();
+    assert_eq!(ready.application_id, app.id);
+    assert_eq!(ready.candidates.len(), 1);
+    assert_eq!(ready.candidates[0].rank, Some(1));
+    assert!(ready.candidates[0].eligible);
+    assert_eq!(ready.candidates[0].deployment_id, deployment.id);
+    assert_eq!(ready.candidates[0].gpu_key.as_deref(), Some("gpu-test-1"));
+    assert!(ready.candidates[0].rejection_reasons.is_empty());
+    assert_eq!(fixture.count(connection.id()).await, 0);
+
+    sqlx::query("UPDATE pixels.nodes SET draining=true WHERE id=$1")
+        .bind(connection.id())
+        .execute(&fixture.owner)
+        .await
+        .unwrap();
+    let draining = fixture
+        .instances
+        .preview_placement(&fixture.admin, connection.epoch(), &request)
+        .await
+        .unwrap();
+    assert!(!draining.candidates[0].eligible);
+    assert_eq!(draining.candidates[0].rank, None);
+    assert_eq!(
+        draining.candidates[0].rejection_reasons,
+        vec![PlacementRejectionReason::NodeDraining]
+    );
+
+    sqlx::query("UPDATE pixels.nodes SET draining=false WHERE id=$1")
+        .bind(connection.id())
+        .execute(&fixture.owner)
+        .await
+        .unwrap();
+    sqlx::query(
+        "UPDATE pixels.node_gpu_latest SET encoder_utilization_per_mille=NULL WHERE node_id=$1",
+    )
+    .bind(connection.id())
+    .execute(&fixture.owner)
+    .await
+    .unwrap();
+    let unknown_metrics = fixture
+        .instances
+        .preview_placement(&fixture.admin, connection.epoch(), &request)
+        .await
+        .unwrap();
+    assert_eq!(
+        unknown_metrics.candidates[0].rejection_reasons,
+        vec![PlacementRejectionReason::GpuMetricsUnknown]
+    );
+    assert_eq!(
+        unknown_metrics.candidates[0].gpu_encoder_headroom_per_mille,
+        None
+    );
+    assert_eq!(fixture.count(connection.id()).await, 0);
+
     fixture.close().await;
 }
 

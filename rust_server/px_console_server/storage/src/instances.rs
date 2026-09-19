@@ -1,6 +1,9 @@
 use crate::{
-    control, instance_model::InstanceRow, ApplicationInstance, ApplicationStore, ClientType,
-    GuestStore, ResourceCredential, ResourceOwner, RuntimeEpoch, StartApplication, StoreError,
+    control,
+    instance_model::{InstanceRow, PlacementCandidateRow},
+    ApplicationInstance, ApplicationStore, ClientType, GuestStore, PlacementPreview,
+    PlacementPreviewRequest, ResourceCredential, ResourceOwner, RuntimeEpoch, StartApplication,
+    StoreError, TokenDigest,
 };
 use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
@@ -103,6 +106,59 @@ impl InstanceStore {
         let result = instance.view()?;
         tx.commit().await?;
         Ok(result)
+    }
+
+    pub async fn preview_placement(
+        &self,
+        admin: &TokenDigest,
+        epoch: RuntimeEpoch,
+        request: &PlacementPreviewRequest,
+    ) -> Result<PlacementPreview, StoreError> {
+        request.validate()?;
+        let mut tx = self.pool.begin().await?;
+        control::read_gate(&mut tx).await?;
+        control::authorize(&mut tx, admin, false).await?;
+        let metadata = sqlx::query_file!(
+            "queries/placement_preview_application_exists.sql",
+            request.application_id
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        if !metadata.exists {
+            return Err(StoreError::NotFound);
+        }
+        let rows = sqlx::query_file_as!(
+            PlacementCandidateRow,
+            "queries/preview_placement.sql",
+            request.application_id,
+            request.deployment_id,
+            epoch.0
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+        let evaluated_at = rows
+            .first()
+            .map(|row| row.evaluated_at)
+            .unwrap_or(metadata.evaluated_at);
+        let mut eligible_rank = 0_u32;
+        let mut candidates = Vec::with_capacity(rows.len());
+        for row in rows {
+            let rank = if row.eligible {
+                eligible_rank = eligible_rank
+                    .checked_add(1)
+                    .ok_or(StoreError::Database(px_pg::DatabaseError::Operation))?;
+                Some(eligible_rank)
+            } else {
+                None
+            };
+            candidates.push(row.view(rank)?);
+        }
+        tx.commit().await?;
+        Ok(PlacementPreview {
+            application_id: request.application_id,
+            evaluated_at,
+            candidates,
+        })
     }
     pub async fn get(
         &self,

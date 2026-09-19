@@ -342,6 +342,70 @@ async function run() {
   assert.equal(await page.evaluate(() => sessionStorage.getItem("pixels.admin_web.token")), administratorToken);
   console.log("PASS console-browser/navigation-language-theme");
 
+  const previewNode = await api(
+    "/api/console/managed/nodes",
+    "POST",
+    { device_id: device.device.id, product: "cloud_node", max_instances: 4 },
+    administratorToken,
+  );
+  assert.equal(previewNode.status, 201);
+  const previewApplicationName = `Preview application ${randomUUID()}`;
+  const previewApplication = await api(
+    "/api/console/managed/applications",
+    "POST",
+    {
+      name: previewApplicationName,
+      access: "public",
+      launch: {
+        kind: "webview",
+        entry_url: "https://example.test/preview",
+        video: { codec: "h264", bitrate_kbps: 8000 },
+      },
+      allow_observer: false,
+      allow_takeover: false,
+      disabled: false,
+    },
+    administratorToken,
+  );
+  assert.equal(previewApplication.status, 201);
+  const previewDeployment = await api(
+    "/api/console/managed/deployments",
+    "POST",
+    {
+      application_id: previewApplication.body.id,
+      node_id: previewNode.body.node.id,
+      configuration: {
+        target: { kind: "webview" },
+        gpu_key: null,
+        gpu_profile: {
+          memory_bytes: 536870912,
+          compute_per_mille: 100,
+          encoder_per_mille: 100,
+          memory_reserve_bytes: 536870912,
+          compute_limit_per_mille: 900,
+          encoder_limit_per_mille: 900,
+        },
+        capacity: 2,
+        disabled: false,
+      },
+    },
+    administratorToken,
+  );
+  assert.equal(previewDeployment.status, 201);
+  await page.goto(baseUrl + "/apps");
+  const schedulingCard = page.locator(".ant-card").filter({ hasText: "Scheduling preview and rejection reasons" });
+  await schedulingCard.getByText("Scheduling preview and rejection reasons", { exact: true }).waitFor();
+  await schedulingCard.getByText(previewApplicationName, { exact: true }).waitFor();
+  const placementRequested = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/console/managed/scheduling/preview") && response.request().method() === "POST",
+  );
+  await schedulingCard.getByRole("button", { name: "Preview placement", exact: true }).click();
+  assert.equal((await placementRequested).status(), 200);
+  await schedulingCard.getByText("Node not ready", { exact: true }).waitFor();
+  await schedulingCard.getByText("Node disconnected", { exact: true }).waitFor();
+  console.log("PASS console-browser/scheduling-preview-rejections");
+
   await stopServer();
   await page.getByText("Reconnecting", { exact: true }).waitFor();
   await startServer();

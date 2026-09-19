@@ -1,6 +1,6 @@
 # 云应用业务管理与多 GPU 调度设计
 
-> 2026-09-19 · P3 资源预算、PostgreSQL 原子硬过滤和基于物理 GPU 稳定身份的实际 Render 绑定已实施；调度预览/拒绝解释仍待完成。网页拓扑仍为离线模型。
+> 2026-09-19 · P3 资源预算、PostgreSQL 原子硬过滤、基于物理 GPU 稳定身份的实际 Render 绑定，以及只读调度预览/逐候选拒绝解释均已实施。网页拓扑仍为离线模型。
 > 关联：[服务架构](server_refactoring_plan.md)、[运维后台](service_operations_console_plan.md)、[网页模型](server_topology.html#business)。
 
 前置依赖：先完成 [PostgreSQL 数据库阶段 DB0–DB5](postgresql_database_migration_plan.md)，统一持久事务、任务/outbox 和幂等基线。
@@ -87,7 +87,9 @@ inventory revision 和预算固化到 Start 命令；数据库和网络协议不
 LUID 反查为物理 PnP key，只允许匹配所选 stable key 的适配器打开 CEF 共享纹理；Game Hook 把首个捕获帧的实际 adapter UID 用同一路径反查后核验。
 两种模式都必须向 Service 回报首帧 Ready，落点不符、映射不可用或超时均启动失败，不会静默落到其他卡。一张物理 GPU 即使暴露多个逻辑适配器，
 它们也归并到同一物理 stable key，不会被误报成多张可独立预约的卡。
-因此逐卡数据库记账和多 GPU 实际绑定验证已经落地；调度预览/逐候选拒绝解释、AMD/Intel provider 仍是后续出口，不能用节点总实例数替代。
+因此逐卡数据库记账和多 GPU 实际绑定验证已经落地。管理员可从应用页调用只读预览，按当前库存、观测、预约和部署状态查看每个
+节点/GPU 候选的预计余量、稳定排序及结构化拒绝原因；预览不创建预约，也不替代正式预约事务的二次校验。AMD/Intel provider 仍是后续出口，
+不能用节点总实例数替代。
 CPU 百分比只在同一容量基准上比较，跨型号通过 profile/基准归一化；不同型号的 30% GPU 利用率不能直接排序。
 显存不能跨卡相加来满足单卡需求。跨卡采集/编码会消耗拷贝带宽，首版默认同卡，只允许显式验证的跨卡组合并记账。
 缺失关键能力/指标时显示 Unknown 并禁止自动新准入；显式静态保守预算模式须单独验证，不以缺失数据默认 0。
@@ -196,7 +198,7 @@ DB0–DB5 至 P4 仅一个活动 Console；P5 才引入升级用新旧双实例�
 |---|---|
 | 应用目录 | 分类/模式、图标、ACL、发布状态、默认规格；创建不可变配置版本并发布 |
 | 部署与规格 | 机器池、各机器安装版本、资源需求、绑定验证结果、独占/共享、数据/存档归属、停止策略 |
-| 调度预览 | 选择应用/规格/候选池，逐机器逐 GPU 展示预计余量、排名、硬过滤原因；预览不保证后续预约成功 |
+| 调度预览 | `AppsView` 选择应用后调用 `/api/console/managed/scheduling/preview`，逐节点/逐 GPU 展示预计余量、排名及结构化硬过滤原因；接口只读且仅限管理员，预览不保证后续预约成功 |
 | 机器与 GPU | 单机多卡展开、当前/预约/保底资源、压力趋势、代际、实际绑定、维护与故障 |
 | 资源池与批次 | 机器接入、按应用就绪容量、下载/验证、先行批次、最低剩余容量、失败暂停、安全退役及数据阻塞原因 |
 | 实例/工作区 | Application→Deployment→Machine/GPU→Instance→Session 关联；RDP 工作区保留/busy 独立展示 |
@@ -235,7 +237,7 @@ RDP owner 不可达应显示无法恢复，不在空机器复制同名用户冒�
 网页模型回归：在已安装 Console 开发依赖的工作区运行 `node docs/tests/server_topology.test.cjs`。
 默认使用本机 Chrome，其他路径可通过 `PIXELS_TEST_CHROME` 指定。测试离线页面，不代表真实节点/调度后端验收。
 
-### 6.1 2026-09-19 P3 首批实现证据
+### 6.1 2026-09-19 P3 实现证据
 
 - SQLx 元数据 `pg-20260919-085203-70161370` 从三套空库重新生成，共 268 份 Console 查询元数据。实例预约专项
   `pg-20260919-085304-9f18dcd4` 为 14/14 PASS，覆盖固定 GPU 的实测与 pending 预算、未知编码器指标拒绝、物理 stable key 选卡及既有门禁。
@@ -250,8 +252,14 @@ RDP owner 不可达应显示无法恢复，不在空机器复制同名用户冒�
 - Console Web 类型检查、44/44 合同测试和生产构建通过；部署页面具有中英文预算配置，节点页显示运行时 GPU 绑定是否可验证。当前聚焦 Console
   build/output `px_console.exe` SHA-256 均为 `0441DA4A0F24FB82ACCE5DF51D640C20DC1C8B44FD1C7D738BE028A3253A70A4`，严格 Clippy 通过。
 - 三库异机备份恢复专项 `pg-20260919-090416-b1a84fe9` 为 1/1 PASS，并按 Console schema 27 个迁移核验恢复结果。
-- Windows 全量短验收 `pg-20260919-092615-5418ce4c` 从三套空库完成 415/415 PASS，覆盖本批 PostgreSQL、API、真实 Chromium、
+- Windows 全量短验收 `pg-20260919-101132-c975fede` 从三套空库完成 417/417 PASS，覆盖本批 PostgreSQL、API、真实 Chromium、
   Web Client、断库恢复与最终三库恢复冒烟；公网 Windows/Android、Relay 和最终长测仍按 DB5 单独验收。
+- 调度预览 SQLx 从空库重新生成 270 份 Console 查询元数据（`pg-20260919-095659-649ec2d9`）；实例专项
+  `pg-20260919-095743-5d59163d` 为 15/15 PASS，目录 API `pg-20260919-095843-01f3ca7b` 为 7/7 PASS。用例证明未知指标保持
+  `null`、维护/断线等原因按候选返回，并且预览前后预约数为零。
+- Console Web 类型检查、45/45 合同测试及生产构建通过；真实 Chromium `pg-20260919-100752-038bfb6e` 已在应用页验证
+  `Node not ready`、`Node disconnected` 两项拒绝原因。当前 Console build/output `px_console.exe` SHA-256 均为
+  `FF92E90F5805F1C8BF155F58FCF5AC8AFA05EDC308D1B5A0ABB0F78634078A24`。
 
 设计借鉴 [Kubernetes 调度阶段](https://kubernetes.io/docs/concepts/scheduling-eviction/scheduling-framework/) 的过滤、评分和预约分离，
 不要求部署 Kubernetes。适配器映射参考 [Microsoft DXCore 标识说明](https://learn.microsoft.com/en-us/windows/win32/api/dxcore_interface/ne-dxcore_interface-dxcoreadapterproperty)；

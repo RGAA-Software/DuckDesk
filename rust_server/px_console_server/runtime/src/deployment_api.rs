@@ -9,7 +9,7 @@ use axum::{
     routing::{get, patch},
     Json, Router,
 };
-use px_console_store::DeploymentConfiguration;
+use px_console_store::{DeploymentConfiguration, PlacementPreview, PlacementPreviewRequest};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -21,6 +21,10 @@ pub(crate) fn routes() -> Router<Arc<StateData>> {
             get(managed).post(create),
         )
         .route("/api/console/managed/deployments/{id}", patch(configure))
+        .route(
+            "/api/console/managed/scheduling/preview",
+            axum::routing::post(preview),
+        )
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -91,4 +95,22 @@ async fn configure(
             )
             .await?
     )))
+}
+
+async fn preview(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    Input(input): Input<PlacementPreviewRequest>,
+) -> Result<Json<PlacementPreview>, ApiError> {
+    Ok(Json(
+        state
+            .db
+            .instances()
+            .preview_placement(
+                &request::administrator(&state, &headers)?,
+                state.epoch,
+                &input,
+            )
+            .await?,
+    ))
 }

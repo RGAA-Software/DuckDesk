@@ -1205,6 +1205,38 @@ async fn node_and_deployment_management_cannot_manufacture_readiness_or_change_t
     .await;
     assert_eq!(status, StatusCode::CREATED, "{deployment}");
     assert_eq!(deployment["observed_state"], "pending");
+    let preview_request = json!({"application_id":app["id"],"deployment_id":deployment["id"]});
+    assert_eq!(
+        call(
+            &router,
+            "POST",
+            "/api/console/managed/scheduling/preview",
+            "admin_web",
+            None,
+            preview_request.clone()
+        )
+        .await
+        .0,
+        StatusCode::UNAUTHORIZED
+    );
+    let (status, preview) = call(
+        &router,
+        "POST",
+        "/api/console/managed/scheduling/preview",
+        "admin_web",
+        Some(&admin),
+        preview_request,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{preview}");
+    assert_eq!(preview["application_id"], app["id"]);
+    assert_eq!(preview["candidates"].as_array().unwrap().len(), 1);
+    assert_eq!(preview["candidates"][0]["eligible"], false);
+    assert!(preview["candidates"][0]["rejection_reasons"]
+        .as_array()
+        .unwrap()
+        .contains(&json!("node_disconnected")));
+    assert!(!preview.to_string().contains("token"));
     let path = format!(
         "/api/console/managed/deployments/{}",
         deployment["id"].as_str().unwrap()

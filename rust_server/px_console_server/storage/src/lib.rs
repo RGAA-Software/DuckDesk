@@ -87,7 +87,8 @@ pub use guest_events::GuestEvent;
 pub use guests::{GuestBlockReason, GuestSession, GuestStore, ManagedGuest, OriginFingerprint};
 pub use identity::IdentityStore;
 pub use instance_model::{
-    ApplicationInstance, ResourceCredential, ResourceOwner, StartApplication,
+    ApplicationInstance, PlacementCandidate, PlacementPreview, PlacementPreviewRequest,
+    PlacementRejectionReason, ResourceCredential, ResourceOwner, StartApplication,
 };
 pub use instances::InstanceStore;
 pub use model::{

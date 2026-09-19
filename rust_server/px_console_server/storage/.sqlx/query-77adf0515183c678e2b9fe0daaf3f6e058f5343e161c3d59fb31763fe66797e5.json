@@ -1,0 +1,96 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH raw_candidates AS (\n SELECT\n  d.id AS deployment_id,\n  d.node_id,\n  COALESCE(g.stable_key,d.gpu_key) AS gpu_key,\n  a.disabled AS application_disabled,\n  a.deleted_at IS NOT NULL AS application_deleted,\n  d.disabled AS deployment_disabled,\n  n.disabled AS node_disabled,\n  n.draining AS node_draining,\n  n.deleted_at IS NOT NULL AS node_deleted,\n  v.disabled AS device_disabled,\n  v.deleted_at IS NOT NULL AS device_deleted,\n  n.state,\n  n.connection_hash IS NOT NULL AS node_connected,\n  n.last_seen,\n  n.control_epoch,\n  n.public_host,\n  n.report_sequence,\n  n.generation,\n  n.endpoint_revision,\n  n.game_hook,\n  n.webview,\n  n.rdp,\n  n.max_instances::bigint-node_usage.used AS node_slots,\n  d.capacity::bigint-deployment_usage.used AS deployment_slots,\n  available.port IS NOT NULL AS port_available,\n  rdp_usage.used>0 AS rdp_workspace_busy,\n  d.kind,\n  d.revision AS deployment_revision,\n  d.application_revision AS deployment_application_revision,\n  a.revision AS application_revision,\n  d.observed_state,\n  d.observed_generation,\n  d.observed_epoch,\n  d.observed_endpoint_revision,\n  t.node_id IS NOT NULL AND t.node_generation=n.generation AND t.report_sequence=n.report_sequence\n   AND t.probe_state IN ('ready','partial') AND t.gpu_inventory_revision IS NOT NULL AS gpu_inventory_current,\n  g.stable_key IS NOT NULL AS gpu_present,\n  d.gpu_key IS NOT NULL AS gpu_pinned,\n  g.runtime_binding_ready,\n  g.dedicated_memory_bytes,\n  g.used_memory_bytes,\n  g.utilization_per_mille,\n  g.encoder_utilization_per_mille,\n  d.gpu_memory_bytes,\n  d.gpu_compute_per_mille,\n  d.gpu_encoder_per_mille,\n  d.gpu_memory_reserve_bytes,\n  d.gpu_compute_limit_per_mille,\n  d.gpu_encoder_limit_per_mille,\n  gpu_usage.running_memory,\n  gpu_usage.pending_memory,\n  gpu_usage.running_compute,\n  gpu_usage.pending_compute,\n  gpu_usage.running_encoder,\n  gpu_usage.pending_encoder\n FROM pixels.application_deployments d\n JOIN pixels.applications a ON a.id=d.application_id\n JOIN pixels.nodes n ON n.id=d.node_id\n JOIN pixels.devices v ON v.id=n.device_id\n LEFT JOIN pixels.node_telemetry_latest t ON t.node_id=n.id\n LEFT JOIN pixels.node_gpu_latest g ON d.kind<>'rdp' AND g.node_id=n.id\n  AND g.inventory_revision=t.gpu_inventory_revision AND (d.gpu_key IS NULL OR g.stable_key=d.gpu_key)\n CROSS JOIN LATERAL (\n  SELECT count(*) AS used FROM pixels.instances i WHERE i.node_id=n.id AND i.ended_at IS NULL\n ) node_usage\n CROSS JOIN LATERAL (\n  SELECT count(*) AS used FROM pixels.instances i WHERE i.deployment_id=d.id AND i.ended_at IS NULL\n ) deployment_usage\n LEFT JOIN LATERAL (\n  SELECT p AS port FROM generate_series(n.application_port_start,n.application_port_end) p\n  WHERE NOT EXISTS(\n   SELECT 1 FROM pixels.instances i WHERE i.node_id=n.id AND i.port=p AND i.ended_at IS NULL\n  ) ORDER BY p LIMIT 1\n ) available ON TRUE\n CROSS JOIN LATERAL (\n  SELECT count(*) AS used FROM pixels.instances i\n  WHERE i.application_id=a.id AND i.node_id=n.id AND i.ended_at IS NULL\n ) rdp_usage\n CROSS JOIN LATERAL (\n  SELECT\n   COALESCE(sum(i.gpu_memory_reservation_bytes) FILTER(WHERE i.state IN ('running','stopping','reconcile_required')),0)::bigint AS running_memory,\n   COALESCE(sum(i.gpu_memory_reservation_bytes) FILTER(WHERE i.state IN ('reserved','starting')),0)::bigint AS pending_memory,\n   COALESCE(sum(i.gpu_compute_reservation_per_mille) FILTER(WHERE i.state IN ('running','stopping','reconcile_required')),0)::bigint AS running_compute,\n   COALESCE(sum(i.gpu_compute_reservation_per_mille) FILTER(WHERE i.state IN ('reserved','starting')),0)::bigint AS pending_compute,\n   COALESCE(sum(i.gpu_encoder_reservation_per_mille) FILTER(WHERE i.state IN ('running','stopping','reconcile_required')),0)::bigint AS running_encoder,\n   COALESCE(sum(i.gpu_encoder_reservation_per_mille) FILTER(WHERE i.state IN ('reserved','starting')),0)::bigint AS pending_encoder\n  FROM pixels.instances i WHERE i.node_id=n.id AND i.gpu_key=g.stable_key AND i.ended_at IS NULL\n ) gpu_usage\n WHERE a.id=$1 AND ($2::uuid IS NULL OR d.id=$2)\n), measured_candidates AS (\n SELECT raw_candidates.*,\n  CASE WHEN kind='rdp' OR dedicated_memory_bytes IS NULL OR used_memory_bytes IS NULL THEN NULL ELSE\n   dedicated_memory_bytes-gpu_memory_reserve_bytes-\n   GREATEST(used_memory_bytes,running_memory)-pending_memory-gpu_memory_bytes END AS gpu_memory_headroom_bytes,\n  CASE WHEN kind='rdp' OR utilization_per_mille IS NULL THEN NULL ELSE\n   gpu_compute_limit_per_mille::bigint-GREATEST(utilization_per_mille::bigint,running_compute)-pending_compute-gpu_compute_per_mille END\n   AS gpu_compute_headroom_per_mille,\n  CASE WHEN kind='rdp' OR encoder_utilization_per_mille IS NULL THEN NULL ELSE\n   gpu_encoder_limit_per_mille::bigint-GREATEST(encoder_utilization_per_mille::bigint,running_encoder)-pending_encoder-gpu_encoder_per_mille END\n   AS gpu_encoder_headroom_per_mille,\n  CASE WHEN kind='rdp' THEN 0::bigint\n   WHEN dedicated_memory_bytes IS NULL OR used_memory_bytes IS NULL OR utilization_per_mille IS NULL OR encoder_utilization_per_mille IS NULL\n    THEN NULL\n   ELSE GREATEST(\n    ((GREATEST(used_memory_bytes,running_memory)+pending_memory+gpu_memory_bytes)*1000)/\n     NULLIF(dedicated_memory_bytes-gpu_memory_reserve_bytes,0),\n    ((GREATEST(utilization_per_mille::bigint,running_compute)+pending_compute+gpu_compute_per_mille)*1000)/\n     NULLIF(gpu_compute_limit_per_mille,0),\n    ((GREATEST(encoder_utilization_per_mille::bigint,running_encoder)+pending_encoder+gpu_encoder_per_mille)*1000)/\n     NULLIF(gpu_encoder_limit_per_mille,0))\n  END AS dominant_pressure_per_mille,\n  CASE WHEN kind='rdp' THEN 0::bigint\n   WHEN dedicated_memory_bytes IS NULL OR used_memory_bytes IS NULL OR utilization_per_mille IS NULL OR encoder_utilization_per_mille IS NULL\n    THEN NULL\n   ELSE (\n    ((GREATEST(used_memory_bytes,running_memory)+pending_memory+gpu_memory_bytes)*1000)/\n     NULLIF(dedicated_memory_bytes-gpu_memory_reserve_bytes,0)+\n    ((GREATEST(utilization_per_mille::bigint,running_compute)+pending_compute+gpu_compute_per_mille)*1000)/\n     NULLIF(gpu_compute_limit_per_mille,0)+\n    ((GREATEST(encoder_utilization_per_mille::bigint,running_encoder)+pending_encoder+gpu_encoder_per_mille)*1000)/\n     NULLIF(gpu_encoder_limit_per_mille,0))/3\n  END AS average_pressure_per_mille\n FROM raw_candidates\n), evaluated_candidates AS (\n SELECT measured_candidates.*,\n  array_remove(ARRAY[\n   CASE WHEN application_disabled THEN 'application_disabled' END,\n   CASE WHEN application_deleted THEN 'application_deleted' END,\n   CASE WHEN deployment_disabled THEN 'deployment_disabled' END,\n   CASE WHEN node_disabled THEN 'node_disabled' END,\n   CASE WHEN node_draining THEN 'node_draining' END,\n   CASE WHEN node_deleted THEN 'node_deleted' END,\n   CASE WHEN device_disabled THEN 'device_disabled' END,\n   CASE WHEN device_deleted THEN 'device_deleted' END,\n   CASE WHEN state<>'ready' THEN 'node_not_ready' END,\n   CASE WHEN NOT node_connected THEN 'node_disconnected' END,\n   CASE WHEN last_seen IS NULL OR last_seen<=clock_timestamp()-interval '30 seconds' THEN 'node_stale' END,\n   CASE WHEN control_epoch IS DISTINCT FROM $3 OR $3<>(SELECT epoch FROM pixels.control_runtime) THEN 'control_epoch_mismatch' END,\n   CASE WHEN public_host IS NULL THEN 'public_endpoint_missing' END,\n   CASE WHEN report_sequence=0 THEN 'inventory_missing' END,\n   CASE WHEN observed_state<>'ready' THEN 'deployment_not_ready' END,\n   CASE WHEN observed_generation IS DISTINCT FROM generation THEN 'deployment_generation_mismatch' END,\n   CASE WHEN observed_epoch IS DISTINCT FROM control_epoch THEN 'deployment_epoch_mismatch' END,\n   CASE WHEN observed_endpoint_revision IS DISTINCT FROM endpoint_revision THEN 'deployment_endpoint_revision_mismatch' END,\n   CASE WHEN deployment_application_revision<>application_revision THEN 'deployment_revision_mismatch' END,\n   CASE WHEN NOT ((kind='game_hook' AND game_hook) OR (kind='webview' AND webview) OR (kind='rdp' AND rdp)) THEN 'capability_missing' END,\n   CASE WHEN node_slots<=0 THEN 'node_capacity_exhausted' END,\n   CASE WHEN deployment_slots<=0 THEN 'deployment_capacity_exhausted' END,\n   CASE WHEN NOT port_available THEN 'port_unavailable' END,\n   CASE WHEN kind='rdp' AND rdp_workspace_busy THEN 'rdp_workspace_busy' END,\n   CASE WHEN kind<>'rdp' AND NOT gpu_inventory_current THEN 'gpu_inventory_unavailable' END,\n   CASE WHEN kind<>'rdp' AND gpu_inventory_current AND gpu_pinned AND NOT gpu_present THEN 'pinned_gpu_missing' END,\n   CASE WHEN kind<>'rdp' AND gpu_inventory_current AND NOT gpu_pinned AND NOT gpu_present THEN 'gpu_inventory_unavailable' END,\n   CASE WHEN kind<>'rdp' AND gpu_inventory_current AND gpu_present AND NOT runtime_binding_ready THEN 'gpu_binding_unavailable' END,\n   CASE WHEN kind<>'rdp' AND gpu_inventory_current AND gpu_present AND\n    (dedicated_memory_bytes IS NULL OR used_memory_bytes IS NULL OR utilization_per_mille IS NULL OR encoder_utilization_per_mille IS NULL)\n    THEN 'gpu_metrics_unknown' END,\n   CASE WHEN kind<>'rdp' AND gpu_memory_headroom_bytes<0 THEN 'gpu_memory_exhausted' END,\n   CASE WHEN kind<>'rdp' AND gpu_compute_headroom_per_mille<0 THEN 'gpu_compute_exhausted' END,\n   CASE WHEN kind<>'rdp' AND gpu_encoder_headroom_per_mille<0 THEN 'gpu_encoder_exhausted' END\n  ]::text[],NULL) AS rejection_reasons\n FROM measured_candidates\n)\nSELECT\n statement_timestamp() AS \"evaluated_at!\",\n deployment_id AS \"deployment_id!\",\n node_id AS \"node_id!\",\n gpu_key,\n cardinality(rejection_reasons)=0 AS \"eligible!\",\n dominant_pressure_per_mille,\n average_pressure_per_mille,\n node_slots AS \"node_slots!\",\n deployment_slots AS \"deployment_slots!\",\n gpu_memory_headroom_bytes,\n gpu_compute_headroom_per_mille,\n gpu_encoder_headroom_per_mille,\n rejection_reasons AS \"rejection_reasons!\"\nFROM evaluated_candidates\nORDER BY cardinality(rejection_reasons)=0 DESC,dominant_pressure_per_mille NULLS LAST,\n average_pressure_per_mille NULLS LAST,node_slots DESC,deployment_slots DESC,node_id,deployment_id,gpu_key NULLS FIRST\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "evaluated_at!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 1,
+        "name": "deployment_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "node_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "gpu_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "eligible!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "dominant_pressure_per_mille",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "average_pressure_per_mille",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "node_slots!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "deployment_slots!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "gpu_memory_headroom_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "gpu_compute_headroom_per_mille",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "gpu_encoder_headroom_per_mille",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "rejection_reasons!",
+        "type_info": "TextArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      false,
+      false,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "77adf0515183c678e2b9fe0daaf3f6e058f5343e161c3d59fb31763fe66797e5"
+}
