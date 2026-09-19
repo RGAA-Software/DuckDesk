@@ -7,6 +7,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $androidRoot = Split-Path -Parent $PSScriptRoot
+$repositoryRoot = [IO.Path]::GetFullPath((Join-Path $androidRoot '..\..'))
 $androidBuildRoot = [Environment]::GetEnvironmentVariable('PIXELS_ANDROID_BUILD_ROOT')
 if ([string]::IsNullOrWhiteSpace($androidBuildRoot)) {
     throw 'PIXELS_ANDROID_BUILD_ROOT must be assigned by scripts_build\build_android_product.bat.'
@@ -262,6 +263,11 @@ $apkDestination = Join-Path $artifactRoot "Pixels-$versionName-arm64-v8a.apk"
 $bundleDestination = Join-Path $artifactRoot "Pixels-$versionName.aab"
 Copy-Item -LiteralPath $apkPath -Destination $apkDestination -Force
 Copy-Item -LiteralPath $bundlePath -Destination $bundleDestination -Force
+$retiredMediaAudit = Join-Path $repositoryRoot 'scripts\audit_android_retired_media.py'
+& python $retiredMediaAudit $apkDestination $bundleDestination
+if ($LASTEXITCODE -ne 0) {
+    throw 'Published Android APK/AAB contains a retired central media artifact or could not be audited.'
+}
 
 $publishedArtifacts = @($apkDestination, $bundleDestination)
 $ffmpegSourceDestination = Join-Path $artifactRoot 'ffmpeg-corresponding-source.tar.gz'

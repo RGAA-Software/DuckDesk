@@ -1139,6 +1139,10 @@ Android 设备 ACL 已增加独立公网短测入口：用临时 Android 账号�
 `1.0.10-debug` 正常运行但处于登出状态。当前工作区没有公网测试平台管理员凭据，故本轮没有执行会改变真实 ACL 的测试，也不把入口存在
 写成真机验收通过。
 
+退役中央媒体制品审计现覆盖 Windows 和 Android：Windows 产品 dist 拒绝已知 ZLMediaKit/Coturn 文件名及组件目录；Android Debug 发布与
+Release APK/AAB 发布在落盘后逐项检查 ZIP entry，同样失败关闭。相关 Python 门禁合计 11/11、两份 PowerShell 解析通过；当前三个 Windows
+development dist 和已安装来源的 `Pixels-1.0.10-debug-arm64-v8a.apk` 实物扫描通过。正式双发行尚未生成，故仍保留正式安装包实物审计出口。
+
 ## 仍未通过的阶段出口
 
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。

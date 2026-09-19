@@ -201,6 +201,11 @@ $destinationHash = Get-Sha256File -Path $destination
 if ($sourceHash -ne $destinationHash) {
     throw 'Published Android debug APK hash does not match the Gradle artifact.'
 }
+$retiredMediaAudit = Join-Path $repoRoot 'scripts\audit_android_retired_media.py'
+& python $retiredMediaAudit $destination
+if ($LASTEXITCODE -ne 0) {
+    throw 'Published Android debug APK contains a retired central media artifact or could not be audited.'
+}
 
 if ($Action -eq 'install') {
     & adb install -r $destination

@@ -100,7 +100,7 @@ scripts_build\build_android_product.bat release
 - `debug`：执行 lint、单元测试并生成完整 Debug APK。
 - `debug install`：使用 `adb install -r` 覆盖安装，不卸载现有应用。
 - `release`：一次预检和一次升版后，为 Official/Customer 生成同版本的签名 APK、AAB、mapping、native symbols、LGPL relink 材料和发布清单；
-  只有两边均通过才生成根 `release-matrix.json`。
+  每份 APK/AAB 的 ZIP 条目还必须通过 ZLMediaKit/Coturn 退役组件审计，只有两边均通过才生成根 `release-matrix.json`。
 
 单发行 Debug 每次调用先删除自己的旧沙箱并提升 Android 版本一次；正式 Release 先同时预检两个发行，再删除整个 Android 输出，且只提升
 Android 版本一次。任何缺失的身份、签名或 FFmpeg 合规输入都会在清理和升版前失败。旧的单发行 Release 调用不再提供兼容入口。
