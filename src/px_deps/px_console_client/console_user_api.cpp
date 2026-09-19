@@ -1,219 +1,147 @@
-//
-// Created by RGAA on 31/10/2025.
-//
-
 #include "console_user_api.h"
-#include "console_http_client.h"
+
+#include <algorithm>
+#include <cctype>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <nlohmann/json.hpp>
-#include "px_common/log.h"
-#include "px_common/http_client.h"
-#include "px_common/http_base_op.h"
-#include "px_common/thread.h"
-#include "px_common/message_notifier.h"
-#include "px_common/hardware.h"
-#include "px_common/ip_util.h"
-#include "px_common/base64.h"
-#include "px_common/uuid.h"
-#include "console_device.h"
+#include <string_view>
+
 #include "console_api.h"
+#include "console_http_client.h"
+#include "px_common/http_client.h"
+#include "px_common/log.h"
 
-// login
-const std::string kLogin = "/api/v1/session/user/login";
+namespace px_console {
+namespace {
 
-const std::string kRegister = "/api/v1/user/register";
+using nlohmann::json;
 
-// logout
-const std::string kLogout = "/api/v1/session/user/logout";
+constexpr std::string_view kAccountsPath{"/api/console/accounts"};
+constexpr std::string_view kSessionsPath{"/api/console/sessions"};
+constexpr std::string_view kSessionPath{"/api/console/session"};
+constexpr std::string_view kProfilePath{"/api/console/profile"};
+constexpr std::string_view kAvatarPath{"/api/console/profile/avatar"};
+constexpr std::string_view kPasswordPath{"/api/console/password"};
 
-const std::string kUpdateSelfProfile = "/api/v1/user/me";
-
-// update avatar
-const std::string kUpdateSelfAvatar = "/api/v1/user/me/avatar";
-
-// update password
-const std::string kUpdateSelfPassword = "/api/v1/user/me/password";
-
-
-using namespace nlohmann;
-
-namespace px_console
-{
-
-    px::Result<ConsoleUserPtr, ConsoleApiError> ConsoleUserApi::Register(
-        const std::string& host,
-        int port,
-        const std::string& guest_access_token,
-        const std::string& username,
-        const std::string& password) {
-        auto client = MakeConsoleHttpClient(host, port, kRegister);
-        client->SetHeader("Authorization", "Bearer " + guest_access_token);
-        const auto response = client->Post({}, json{
-            {kUserName, username},
-            {kUserPassword, password},
-        }.dump(), "application/json");
-        LOGI("Register, status:{}, address-> {}:{}, user-> {}",
-             response.status, host, port, username);
-        if (response.status != 200 || response.body.empty()) {
-            LOGE("Register failed: {}", response.status);
-            return TcErr(ToConsoleUserApiError(response));
-        }
-        try {
-            auto user = ConsoleUser::FromObj(json::parse(response.body).at("data"));
-            if (!user) return TcErr(ConsoleApiError::kParseJsonFailed);
-            return user;
-        }
-        catch (const std::exception& error) {
-            LOGE("Register parse failed: {}", error.what());
-            return TcErr(ConsoleApiError::kParseJsonFailed);
-        }
-    }
-
-    // login
-    px::Result<ConsoleUserLoginResult, ConsoleApiError> ConsoleUserApi::Login(const std::string& host,
-                                                             int port,
-                                                             const std::string& username,
-                                                             const std::string& password) {
-        auto client = MakeConsoleHttpClient(host, port, kLogin);
-
-        json obj;
-        obj[kUserName] = username;
-        obj[kUserPassword] = password;
-        obj["client_type"] = "panel";
-
-        auto resp = client->Post({}, obj.dump(), "application/json");
-
-        LOGI("Login, status:{}, address-> {}:{}, user-> {}",
-             resp.status, host, port, username);
-        if (resp.status != 200 || resp.body.empty()) {
-            LOGE("Login failed: {}", resp.status);
-            return TcErr(ToConsoleUserApiError(resp));
-        }
-
-        try {
-            auto data = json::parse(resp.body)["data"];
-            ConsoleUserLoginResult result;
-            result.user = ConsoleUser::FromObj(data["profile"]);
-            result.access_token = data["access_token"].get<std::string>();
-            result.expires_at = data["expires_at"].get<int64_t>();
-            result.absolute_expires_at = data["absolute_expires_at"].get<int64_t>();
-            if (!result.user || result.access_token.empty()) {
-                return TcErr(ConsoleApiError::kParseJsonFailed);
-            }
-            return result;
-        }
-        catch(std::exception& e) {
-            LOGE("Parse json failed: {}", e.what());
-            return TcErr(ConsoleApiError::kParseJsonFailed);
-        }
-    }
-
-    // logout
-    px::Result<bool, ConsoleApiError> ConsoleUserApi::Logout(const std::string& host,
-                                                              int port,
-                                                              const std::string& access_token) {
-        auto client = MakeConsoleHttpClient(host, port, kLogout);
-
-        client->SetHeader("Authorization", "Bearer " + access_token);
-        auto resp = client->Post({}, "{}", "application/json");
-        if (resp.status != 200 || resp.body.empty()) {
-            LOGE("Logout failed: {}", resp.status);
-            return TcErr(ToConsoleUserApiError(resp));
-        }
-
-        try {
-            return json::parse(resp.body)["data"].get<bool>();
-        }
-        catch(std::exception& e) {
-            LOGE("Logout Parse json failed: {}", e.what());
-            return TcErr(ConsoleApiError::kParseJsonFailed);
-        }
-    }
-
-    px::Result<ConsoleUserPtr, ConsoleApiError> ConsoleUserApi::UpdateProfile(const std::string& host,
-                                                                 int port,
-                                                                 const std::string& access_token,
-                                                                 const std::string& username) {
-        auto client = MakeConsoleHttpClient(host, port, kUpdateSelfProfile);
-        client->SetHeader("Authorization", "Bearer " + access_token);
-        json obj;
-        obj[kUserName] = username;
-        auto resp = client->Patch({}, obj.dump(), "application/json");
-        if (resp.status != 200 || resp.body.empty()) {
-            LOGE("Update failed: {}", resp.status);
-            return TcErr(ToConsoleUserApiError(resp));
-        }
-
-        try {
-            auto data = json::parse(resp.body)["data"];
-            return ConsoleUser::FromObj(data);
-        }
-        catch(std::exception& e) {
-            LOGE("Update Parse json failed: {}", e.what());
-            return TcErr(ConsoleApiError::kParseJsonFailed);
-        }
-    }
-
-    px::Result<ConsoleUserLoginResult, ConsoleApiError> ConsoleUserApi::UpdatePassword(const std::string& host,
-                                                                      int port,
-                                                                      const std::string& access_token,
-                                                                      const std::string& old_password,
-                                                                      const std::string& new_password) {
-        auto client = MakeConsoleHttpClient(host, port, kUpdateSelfPassword);
-        client->SetHeader("Authorization", "Bearer " + access_token);
-
-        json obj;
-        obj["current_password"] = old_password;
-        obj["new_password"] = new_password;
-        auto resp = client->Post({}, obj.dump(), "application/json");
-        if (resp.status != 200 || resp.body.empty()) {
-            LOGE("Update failed: {}", resp.status);
-            return TcErr(ToConsoleUserApiError(resp));
-        }
-
-        try {
-            auto data = json::parse(resp.body)["data"];
-            ConsoleUserLoginResult result;
-            result.user = ConsoleUser::FromObj(data["profile"]);
-            result.access_token = data["access_token"].get<std::string>();
-            result.expires_at = data["expires_at"].get<int64_t>();
-            result.absolute_expires_at = data["absolute_expires_at"].get<int64_t>();
-            if (!result.user || result.access_token.empty()) {
-                return TcErr(ConsoleApiError::kParseJsonFailed);
-            }
-            return result;
-        }
-        catch(std::exception& e) {
-            LOGE("Update Parse json failed: {}", e.what());
-            return TcErr(ConsoleApiError::kParseJsonFailed);
-        }
-    }
-
-    px::Result<ConsoleUserPtr, ConsoleApiError> ConsoleUserApi::UpdateAvatar(const std::string& host,
-                                                                    int port,
-                                                                    const std::string& access_token,
-                                                                    const std::string& avatar_path) {
-        auto client = MakeConsoleHttpClient(host, port, kUpdateSelfAvatar);
-        client->SetHeader("Authorization", "Bearer " + access_token);
-        std::map<std::string, std::string> form_parts = {};
-        std::map<std::string, std::string> file_parts = {
-            {"file", avatar_path}
-        };
-        auto resp = client->PutMultiPart({}, form_parts, file_parts);
-
-        LOGI("Update Avatar, status:{}, address-> {}:{}", resp.status, host, port);
-        if (resp.status != 200 || resp.body.empty()) {
-            LOGE("Update Avatar failed: {}", resp.status);
-            return TcErr(ToConsoleUserApiError(resp));
-        }
-
-        try {
-            auto data = json::parse(resp.body)["data"];
-            return ConsoleUser::FromObj(data);
-        }
-        catch(std::exception& e) {
-            LOGE("Parse json failed: {}", e.what());
-            return TcErr(ConsoleApiError::kParseJsonFailed);
-        }
-    }
-
+template <typename Value>
+px::Result<Value, ConsoleApiError> HttpError(const std::string_view operation, const px::HttpResponse& response) {
+    const auto error = ToConsoleUserApiError(response);
+    const auto message = ConsoleApiLastErrorMessage();
+    LOGE("{} failed: HTTP {}, transport: {}, message: {}", operation, response.status, response.error_code, message.empty() ? "<empty>" : message);
+    return TcErr(error);
 }
+
+px::Result<ConsoleUserPtr, ConsoleApiError> ParseUser(const std::string_view operation, const px::HttpResponse& response, const int expected_status) {
+    if (response.status != expected_status || response.body.empty()) {
+        return HttpError<ConsoleUserPtr>(operation, response);
+    }
+    try {
+        auto user = ConsoleUser::FromObj(json::parse(response.body));
+        return user ? px::Result<ConsoleUserPtr, ConsoleApiError>{std::move(user)} : TcErr(ConsoleApiError::kParseJsonFailed);
+    } catch (const std::exception& error) {
+        LOGE("{} response parsing failed: {}", operation, error.what());
+        return TcErr(ConsoleApiError::kParseJsonFailed);
+    }
+}
+
+px::Result<ConsoleUserPtr, ConsoleApiError> QueryProfile(const std::string& host, const int port, const std::string& access_token) {
+    const auto client = MakeConsoleHttpClient(host, port, std::string{kSessionPath});
+    SetPanelRequestHeaders(client, access_token);
+    return ParseUser("QueryProfile", client->Request(), 200);
+}
+
+std::string AvatarMediaType(const std::filesystem::path& path) {
+    auto extension = path.extension().string();
+    std::ranges::transform(extension, extension.begin(), [](const unsigned char character) { return static_cast<char>(std::tolower(character)); });
+    if (extension == ".png") {
+        return "image/png";
+    }
+    if (extension == ".webp") {
+        return "image/webp";
+    }
+    return extension == ".jpg" || extension == ".jpeg" ? "image/jpeg" : std::string{};
+}
+
+}  // namespace
+
+px::Result<ConsoleUserPtr, ConsoleApiError> ConsoleUserApi::Register(const std::string& host, const int port, const std::string& username,
+                                                                     const std::string& password) {
+    const auto client = MakeConsoleHttpClient(host, port, std::string{kAccountsPath});
+    SetPanelRequestHeaders(client);
+    const auto response = client->Post({}, json{{"username", username}, {"password", password}}.dump(), "application/json");
+    return ParseUser("Register", response, 201);
+}
+
+px::Result<ConsoleUserLoginResult, ConsoleApiError> ConsoleUserApi::Login(const std::string& host, const int port, const std::string& username,
+                                                                          const std::string& password) {
+    const auto client = MakeConsoleHttpClient(host, port, std::string{kSessionsPath});
+    SetPanelRequestHeaders(client);
+    const auto response = client->Post({}, json{{"username", username}, {"password", password}}.dump(), "application/json");
+    if (response.status != 200 || response.body.empty()) {
+        return HttpError<ConsoleUserLoginResult>("Login", response);
+    }
+    try {
+        const auto payload = json::parse(response.body);
+        ConsoleUserLoginResult result{.user = ConsoleUser::FromObj(payload.at("profile")),
+                                      .access_token = payload.value("token", ""),
+                                      .expires_at = 0,
+                                      .absolute_expires_at = 0};
+        if (!result.user || result.access_token.empty()) {
+            return TcErr(ConsoleApiError::kParseJsonFailed);
+        }
+        return result;
+    } catch (const std::exception& error) {
+        LOGE("Login response parsing failed: {}", error.what());
+        return TcErr(ConsoleApiError::kParseJsonFailed);
+    }
+}
+
+px::Result<bool, ConsoleApiError> ConsoleUserApi::Logout(const std::string& host, const int port, const std::string& access_token) {
+    const auto client = MakeConsoleHttpClient(host, port, std::string{kSessionPath});
+    SetPanelRequestHeaders(client, access_token);
+    const auto response = client->Delete();
+    return response.status == 204 ? px::Result<bool, ConsoleApiError>{true} : HttpError<bool>("Logout", response);
+}
+
+px::Result<ConsoleUserPtr, ConsoleApiError> ConsoleUserApi::UpdateProfile(const std::string& host, const int port, const std::string& access_token,
+                                                                          const std::string& username) {
+    const auto current = QueryProfile(host, port, access_token);
+    if (!current) {
+        return TcErr(current.error());
+    }
+    const auto client = MakeConsoleHttpClient(host, port, std::string{kProfilePath});
+    SetPanelRequestHeaders(client, access_token);
+    const auto response = client->Patch({}, json{{"username", username}, {"revision", current.value()->version_}}.dump(), "application/json");
+    return ParseUser("UpdateProfile", response, 200);
+}
+
+px::Result<bool, ConsoleApiError> ConsoleUserApi::UpdatePassword(const std::string& host, const int port, const std::string& access_token,
+                                                                 const std::string& old_password, const std::string& new_password) {
+    const auto client = MakeConsoleHttpClient(host, port, std::string{kPasswordPath});
+    SetPanelRequestHeaders(client, access_token);
+    const auto response = client->Patch({}, json{{"current_password", old_password}, {"new_password", new_password}}.dump(), "application/json");
+    return response.status == 204 ? px::Result<bool, ConsoleApiError>{true} : HttpError<bool>("UpdatePassword", response);
+}
+
+px::Result<ConsoleUserPtr, ConsoleApiError> ConsoleUserApi::UpdateAvatar(const std::string& host, const int port, const std::string& access_token,
+                                                                         const std::string& avatar_path) {
+    const auto current = QueryProfile(host, port, access_token);
+    if (!current) {
+        return TcErr(current.error());
+    }
+    const std::filesystem::path path{avatar_path};
+    const auto media_type = AvatarMediaType(path);
+    std::ifstream file{path, std::ios::binary};
+    if (media_type.empty() || !file) {
+        return TcErr(ConsoleApiError::kInvalidParams);
+    }
+    const std::string body{std::istreambuf_iterator<char>{file}, std::istreambuf_iterator<char>{}};
+    const auto client = MakeConsoleHttpClient(host, port, std::string{kAvatarPath});
+    SetPanelRequestHeaders(client, access_token);
+    const auto response = client->Put({{"revision", std::to_string(current.value()->version_)}}, body, media_type);
+    return ParseUser("UpdateAvatar", response, 200);
+}
+
+}  // namespace px_console

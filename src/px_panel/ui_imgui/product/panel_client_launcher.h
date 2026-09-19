@@ -1,15 +1,14 @@
 #pragma once
 
-#include "panel_config_store.h"
-
-#include "px_common/secret_buffer.h"
-#include "px_ui/device_platform.h"
-
 #include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <unordered_map>
+
+#include "panel_config_store.h"
+#include "px_common/secret_buffer.h"
+#include "px_ui/device_platform.h"
 
 namespace px::panel::product {
 
@@ -30,9 +29,13 @@ struct NativeLaunchRequest final {
     int directPort{};
     std::string directStreamId{};
     std::string remotePasswordHash{};
+    std::string frontendSessionId{};
+    std::int64_t frontendSessionRevision{};
+    std::shared_ptr<const px::SecretBuffer> frontendToken{};
     std::string relayHost{};
     int relayPort{};
     std::string relayRemoteDeviceId{};
+    std::string relayAdmissionTicket{};
     std::shared_ptr<const px::SecretBuffer> rdpConfiguration{};
     bool viewOnly{};
     bool forceTcp{};
@@ -48,7 +51,7 @@ struct NativeLaunchRequest final {
 };
 
 class PanelClientLauncher final {
-  public:
+public:
     static std::shared_ptr<PanelClientLauncher> Create(const std::shared_ptr<PanelConfigStore>& config);
     explicit PanelClientLauncher(std::shared_ptr<PanelConfigStore> config);
     ~PanelClientLauncher();
@@ -57,7 +60,7 @@ class PanelClientLauncher final {
     bool Stop(const std::string& streamId);
     void StopAll();
 
-  private:
+private:
     struct Process;
     [[nodiscard]] bool LaunchNative(const NativeLaunchRequest& request, const std::string& host, int port);
     [[nodiscard]] bool LaunchRdp(const NativeLaunchRequest& request, const std::string& host, int port);
@@ -67,4 +70,4 @@ class PanelClientLauncher final {
     std::unordered_map<std::string, std::shared_ptr<Process>> processes_{};
 };
 
-} // namespace px::panel::product
+}  // namespace px::panel::product

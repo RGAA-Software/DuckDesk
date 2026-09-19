@@ -7,7 +7,7 @@
 #include <vector>
 
 #include "console_errors.h"
-#include "console_user_device_api.h"
+#include "console_resource_api.h"
 #include "px_common/expected.h"
 #include "px_common/secret_buffer.h"
 
@@ -19,6 +19,7 @@ struct ConsoleUserAppInstance {
     std::string state;
     std::string error_code;
     bool reconnectable = false;
+    std::int64_t revision{};
 };
 
 struct ConsoleUserApplication {
@@ -31,24 +32,22 @@ struct ConsoleUserApplication {
     std::shared_ptr<ConsoleUserAppInstance> running_instance;
 };
 
-// Stable connection metadata for a native client. Authorization is the
-// authenticated Console account/guest request plus the Render password; this
-// object is not a bearer capability and is not redeemed or renewed.
 struct ConsoleNativeApplicationConnection final {
     std::string host{};
     int port{};
     std::string device_id{};
     std::string instance_id{};
     std::string app_type{};
-    std::string password_hash{};
-    std::string signal_device_id{};
+    std::string session_id{};
+    std::int64_t session_revision{};
+    std::shared_ptr<const px::SecretBuffer> frontend_token{};
     std::string relay_host{};
     int relay_port{};
-    std::shared_ptr<const px::SecretBuffer> rdp_configuration{};
+    std::string relay_admission_ticket{};
 };
 
 class ConsoleUserAppApi {
-  public:
+public:
     static px::Result<std::string, ConsoleApiError> CreateGuestSession(const std::string& host, int port, const std::string& client_nonce);
 
     static px::Result<std::vector<ConsoleUserApplication>, ConsoleApiError> QueryApps(const std::string& host, int port,
@@ -61,13 +60,14 @@ class ConsoleUserAppApi {
                                                                         const std::string& app_id, const std::string& client_nonce,
                                                                         bool guest = false);
 
-    static px::Result<ConsoleNativeApplicationConnection, ConsoleApiError>
-    QueryNativeConnection(const std::string& host, int port, const std::string& access_token, const std::string& instance_id,
-                          bool view_only, bool guest = false);
+    static px::Result<ConsoleNativeApplicationConnection, ConsoleApiError> QueryNativeConnection(const std::string& host, int port,
+                                                                                                 const std::string& access_token,
+                                                                                                 const std::string& instance_id, bool view_only,
+                                                                                                 const std::string& request_id, bool guest = false);
 
     static px::Result<ConsoleUserAppInstance, ConsoleApiError> StopInstance(const std::string& host, int port, const std::string& access_token,
                                                                             const std::string& instance_id, bool guest = false);
 };
 
-} // namespace px_console
+}  // namespace px_console
 #endif

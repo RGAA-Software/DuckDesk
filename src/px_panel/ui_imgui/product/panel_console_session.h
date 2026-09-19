@@ -1,11 +1,5 @@
 #pragma once
 
-#include "account_port.h"
-#include "panel_config_store.h"
-
-#include "px_console_client/console_user_app_api.h"
-#include "px_console_client/console_user_device_api.h"
-
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -13,10 +7,15 @@
 #include <tuple>
 #include <vector>
 
+#include "account_port.h"
+#include "panel_config_store.h"
+#include "px_console_client/console_user_app_api.h"
+#include "px_console_client/console_user_device_api.h"
+
 namespace px::panel::product {
 
 class PanelConsoleSession final {
-  public:
+public:
     static std::shared_ptr<PanelConsoleSession> Create(const std::shared_ptr<PanelConfigStore>& config);
 
     explicit PanelConsoleSession(std::shared_ptr<PanelConfigStore> config);
@@ -31,15 +30,17 @@ class PanelConsoleSession final {
     void SetAccountOperation(ui::AccountOperationState operation);
 
     [[nodiscard]] std::vector<std::shared_ptr<px_console::ConsoleUserDevice>> QueryDevices();
-    [[nodiscard]] std::optional<px_console::ConsoleNativeDeviceConnection> QueryNativeDeviceConnection(const std::string& deviceId);
+    [[nodiscard]] std::optional<px_console::ConsoleNativeDeviceConnection> QueryNativeDeviceConnection(const std::string& deviceId,
+                                                                                                       bool viewOnly = false);
     [[nodiscard]] std::vector<px_console::ConsoleUserApplication> QueryApplications();
     [[nodiscard]] px::Result<px_console::ConsoleUserAppInstance, px_console::ConsoleApiError> StartApplication(const std::string& appId,
                                                                                                                const std::string& nonce);
-    [[nodiscard]] px::Result<px_console::ConsoleNativeApplicationConnection, px_console::ConsoleApiError>
-    QueryNativeApplicationConnection(const std::string& instanceId, bool viewOnly);
+    [[nodiscard]] px::Result<px_console::ConsoleNativeApplicationConnection, px_console::ConsoleApiError> QueryNativeApplicationConnection(
+        const std::string& instanceId, bool viewOnly, const std::string& requestId);
+    bool CloseResourceConnection(const std::string& sessionId, std::int64_t sessionRevision);
     bool StopApplication(const std::string& instanceId);
 
-  private:
+private:
     [[nodiscard]] std::tuple<std::string, bool> ResourceToken();
     [[nodiscard]] std::wstring CredentialTarget() const;
     [[nodiscard]] std::string ReadAccessToken() const;
@@ -55,4 +56,4 @@ class PanelConsoleSession final {
     ui::AccountOperationState accountOperation_{ui::AccountOperationState::Idle};
 };
 
-} // namespace px::panel::product
+}  // namespace px::panel::product

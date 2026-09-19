@@ -1,11 +1,3 @@
-#include "panel_product_runtime.h"
-#include "panel_credential_vault.h"
-
-#include "px_common/md5.h"
-#include "px_common/uuid.h"
-#include "px_console_client/console_errors.h"
-#include "render_api.h"
-
 #include <chrono>
 #include <mutex>
 #include <string_view>
@@ -13,26 +5,24 @@
 #include <unordered_map>
 #include <utility>
 
+#include "panel_product_runtime.h"
+#include "px_common/uuid.h"
+#include "px_console_client/console_errors.h"
+
 namespace px::panel::product {
 namespace {
 
 ui::CloudApplicationKind ResolveApplicationKind(const std::string_view appType) noexcept {
-    if (appType == "game-hook" || appType == "game")
-        return ui::CloudApplicationKind::Game;
-    if (appType == "webview")
-        return ui::CloudApplicationKind::WebView;
-    if (appType == "rdp")
-        return ui::CloudApplicationKind::Rdp;
+    if (appType == "game_hook") return ui::CloudApplicationKind::Game;
+    if (appType == "webview") return ui::CloudApplicationKind::WebView;
+    if (appType == "rdp") return ui::CloudApplicationKind::Rdp;
     return ui::CloudApplicationKind::Remote;
 }
 
 class ProductCloudApplicationsPort final : public ui::CloudApplicationsPort, public std::enable_shared_from_this<ProductCloudApplicationsPort> {
-  public:
-    explicit ProductCloudApplicationsPort(std::shared_ptr<PanelProductRuntime> runtime)
-        : runtime_{std::move(runtime)}, credentialVault_{PanelCredentialVault::Create()} {}
-    void Initialize() {
-        Refresh();
-    }
+public:
+    explicit ProductCloudApplicationsPort(std::shared_ptr<PanelProductRuntime> runtime) : runtime_{std::move(runtime)} {}
+    void Initialize() { Refresh(); }
 
     std::vector<ui::CloudApplicationCard> Snapshot() override {
         const std::scoped_lock lock{mutex_};
@@ -45,8 +35,7 @@ class ProductCloudApplicationsPort final : public ui::CloudApplicationsPort, pub
         static_cast<void>(runtime_->Worker()->Post([runtime, weakSelf] {
             const auto applications = runtime->Console()->QueryApplications();
             const auto self = weakSelf.lock();
-            if (!self)
-                return;
+            if (!self) return;
             std::vector<ui::CloudApplicationCard> cards{};
             std::unordered_map<std::string, std::string> instances{};
             std::unordered_map<std::string, std::pair<bool, bool>> preferences{};
@@ -66,8 +55,7 @@ class ProductCloudApplicationsPort final : public ui::CloudApplicationsPort, pub
                                  .rdpMode = application.app_type == "rdp",
                                  .forceTcp = forceTcp,
                                  .forceRelay = forceRelay});
-                if (application.running_instance)
-                    instances[application.app_id] = application.running_instance->instance_id;
+                if (application.running_instance) instances[application.app_id] = application.running_instance->instance_id;
             }
             const std::scoped_lock lock{self->mutex_};
             self->cards_ = std::move(cards);
@@ -81,11 +69,9 @@ class ProductCloudApplicationsPort final : public ui::CloudApplicationsPort, pub
         {
             const std::scoped_lock lock{mutex_};
             const auto found = std::ranges::find(cards_, streamId, &ui::CloudApplicationCard::streamId);
-            if (found == cards_.end())
-                return;
+            if (found == cards_.end()) return;
             card = *found;
-            if (const auto instance = instanceIds_.find(streamId); instance != instanceIds_.end())
-                existingInstance = instance->second;
+            if (const auto instance = instanceIds_.find(streamId); instance != instanceIds_.end()) existingInstance = instance->second;
         }
         const auto runtime = runtime_;
         const std::weak_ptr<ProductCloudApplicationsPort> weakSelf{shared_from_this()};
@@ -98,8 +84,7 @@ class ProductCloudApplicationsPort final : public ui::CloudApplicationsPort, pub
         static_cast<void>(
             runtime_->Worker()->Post([runtime, weakSelf, card = std::move(card), existingInstance = std::move(existingInstance), viewOnly] {
                 const auto self = weakSelf.lock();
-                if (!self)
-                    return;
+                if (!self) return;
                 const std::string nonce{GetUUID()};
                 std::string instanceId{existingInstance};
                 std::string instanceState{existingInstance.empty() ? std::string{} : card.instanceState};
@@ -150,10 +135,10 @@ class ProductCloudApplicationsPort final : public ui::CloudApplicationsPort, pub
                                     "The application did not become ready within 45 seconds. It may still be starting on the Render node.");
                     return;
                 }
-                auto connection = runtime->Console()->QueryNativeApplicationConnection(instanceId, viewOnly);
+                auto connection = runtime->Console()->QueryNativeApplicationConnection(instanceId, viewOnly, nonce);
                 for (int attempt{}; !connection && attempt < 40; ++attempt) {
                     std::this_thread::sleep_for(std::chrono::milliseconds{500});
-                    connection = runtime->Console()->QueryNativeApplicationConnection(instanceId, viewOnly);
+                    connection = runtime->Console()->QueryNativeApplicationConnection(instanceId, viewOnly, nonce);
                 }
                 if (!connection) {
                     self->SetInstanceState(card.streamId, "running");
@@ -162,69 +147,43 @@ class ProductCloudApplicationsPort final : public ui::CloudApplicationsPort, pub
                                     serverMessage.empty() ? px_console::ConsoleApiErrorAsString(connection.error()) : serverMessage);
                     return;
                 }
+                const auto sessionId = connection->session_id;
                 PendingLaunch launch{.card = card,
                                      .connection = std::move(connection.value()),
                                      .instanceId = instanceId,
                                      .nonce = nonce,
-                                     .sessionId = "app-" + GetUUID(),
+                                     .sessionId = sessionId,
                                      .viewOnly = viewOnly};
-                const auto password = self->credentialVault_->Read("device:" + launch.connection.device_id);
-                if (password) {
-                    self->Launch(std::move(launch), *password);
-                } else {
-                    const std::scoped_lock lock{self->mutex_};
-                    self->pendingLaunch_ = std::move(launch);
-                }
+                self->Launch(std::move(launch));
             }));
     }
 
-    std::optional<ui::CloudApplicationPasswordRequest> PendingPasswordRequest() const override {
-        const std::scoped_lock lock{mutex_};
-        if (!pendingLaunch_)
-            return std::nullopt;
-        return ui::CloudApplicationPasswordRequest{pendingLaunch_->card.streamId, pendingLaunch_->card.name};
-    }
+    std::optional<ui::CloudApplicationPasswordRequest> PendingPasswordRequest() const override { return std::nullopt; }
 
-    void SubmitPassword(const std::string& streamId, std::string password) override {
-        std::optional<PendingLaunch> launch{};
-        {
-            const std::scoped_lock lock{mutex_};
-            if (!pendingLaunch_ || pendingLaunch_->card.streamId != streamId)
-                return;
-            launch = std::move(pendingLaunch_);
-            pendingLaunch_.reset();
-        }
-        Launch(std::move(*launch), std::move(password));
-    }
+    void SubmitPassword(const std::string& /*streamId*/, std::string /*password*/) override {}
 
-    void CancelPassword(const std::string& streamId) override {
-        const std::scoped_lock lock{mutex_};
-        if (pendingLaunch_ && pendingLaunch_->card.streamId == streamId)
-            pendingLaunch_.reset();
-    }
+    void CancelPassword(const std::string& /*streamId*/) override {}
 
     void Stop(const std::string& streamId) override {
         std::string instanceId{};
-        std::string sessionId{};
+        ActiveSession activeSession{};
         {
             const std::scoped_lock lock{mutex_};
-            if (const auto found = instanceIds_.find(streamId); found != instanceIds_.end())
-                instanceId = found->second;
-            if (const auto found = activeSessions_.find(streamId); found != activeSessions_.end())
-                sessionId = found->second;
+            if (const auto found = instanceIds_.find(streamId); found != instanceIds_.end()) instanceId = found->second;
+            if (const auto found = activeSessions_.find(streamId); found != activeSessions_.end()) activeSession = found->second;
         }
         const auto runtime = runtime_;
         const std::weak_ptr<ProductCloudApplicationsPort> weakSelf{shared_from_this()};
         static_cast<void>(
-            runtime_->Worker()->Post([runtime, weakSelf, streamId, instanceId = std::move(instanceId), sessionId = std::move(sessionId)] {
-                if (!sessionId.empty())
-                    static_cast<void>(runtime->Launcher()->Stop(sessionId));
+            runtime_->Worker()->Post([runtime, weakSelf, streamId, instanceId = std::move(instanceId), activeSession = std::move(activeSession)] {
+                if (!activeSession.id.empty()) {
+                    static_cast<void>(runtime->Console()->CloseResourceConnection(activeSession.id, activeSession.revision));
+                    static_cast<void>(runtime->Launcher()->Stop(activeSession.id));
+                }
                 const bool stopped = !instanceId.empty() && runtime->Console()->StopApplication(instanceId);
                 const auto self = weakSelf.lock();
-                if (!self)
-                    return;
-                if (!stopped)
-                    runtime->Notify(true, "Application failed", "Console did not stop the application");
+                if (!self) return;
+                if (!stopped) runtime->Notify(true, "Application failed", "Console did not stop the application");
                 const std::scoped_lock lock{self->mutex_};
                 self->instanceIds_.erase(streamId);
                 self->activeSessions_.erase(streamId);
@@ -234,14 +193,15 @@ class ProductCloudApplicationsPort final : public ui::CloudApplicationsPort, pub
             }));
     }
 
-    void SetForceTcp(const std::string& streamId, const bool enabled) override {
-        SetPreference(streamId, enabled, false);
-    }
-    void SetForceRelay(const std::string& streamId, const bool enabled) override {
-        SetPreference(streamId, false, enabled);
-    }
+    void SetForceTcp(const std::string& streamId, const bool enabled) override { SetPreference(streamId, enabled, false); }
+    void SetForceRelay(const std::string& streamId, const bool enabled) override { SetPreference(streamId, false, enabled); }
 
-  private:
+private:
+    struct ActiveSession final {
+        std::string id{};
+        std::int64_t revision{};
+    };
+
     struct PendingLaunch final {
         ui::CloudApplicationCard card{};
         px_console::ConsoleNativeApplicationConnection connection{};
@@ -251,47 +211,39 @@ class ProductCloudApplicationsPort final : public ui::CloudApplicationsPort, pub
         bool viewOnly{};
     };
 
-    void Launch(PendingLaunch launch, std::string password) {
+    void Launch(PendingLaunch launch) {
         const auto runtime = runtime_;
-        const auto vault = credentialVault_;
         const std::weak_ptr<ProductCloudApplicationsPort> weakSelf{shared_from_this()};
-        static_cast<void>(runtime_->Worker()->Post([runtime, vault, weakSelf, launch = std::move(launch), password = std::move(password)]() mutable {
-            const std::string passwordHash{MD5::Hex(password)};
-            if (!launch.connection.rdp_configuration) {
-                const auto verified = RenderApi::VerifySecurityPassword(launch.connection.host, launch.connection.port, passwordHash);
-                if (!verified) {
-                    runtime->Notify(
-                        true, "Application failed",
-                        "The application is running, but its Render control endpoint could not verify the password. The saved password was kept.");
-                    return;
+        static_cast<void>(runtime_->Worker()->Post([runtime, weakSelf, launch = std::move(launch)]() mutable {
+            if (launch.card.forceRelay &&
+                (launch.connection.relay_host.empty() || launch.connection.relay_port <= 0 || launch.connection.relay_admission_ticket.empty())) {
+                if (const auto self = weakSelf.lock()) {
+                    self->SetInstanceState(launch.card.streamId, "running");
                 }
-                if (!verified.value()) {
-                    vault->Delete("device:" + launch.connection.device_id);
-                    runtime->Notify(true, "Application failed",
-                                    "The Render device rejected this password. Enter the current password shown on that device and retry.");
-                    return;
-                }
-            }
-            const bool launched = runtime->Launcher()->Launch(
-                {.connectionKind = launch.connection.rdp_configuration ? NativeConnectionKind::Rdp : NativeConnectionKind::IpDirect,
-                 .displayName = launch.card.name,
-                 .remoteDeviceId = launch.connection.device_id,
-                 .instanceId = launch.instanceId,
-                 .nonce = launch.nonce,
-                 .directHost = launch.connection.host,
-                 .directPort = launch.connection.port,
-                 .directStreamId = launch.sessionId,
-                 .remotePasswordHash = passwordHash,
-                 .relayHost = launch.connection.relay_host,
-                 .relayPort = launch.connection.relay_port,
-                 .relayRemoteDeviceId = launch.connection.signal_device_id,
-                 .rdpConfiguration = launch.connection.rdp_configuration,
-                 .viewOnly = launch.viewOnly,
-                 .forceTcp = launch.card.forceTcp,
-                 .forceRelay = launch.card.forceRelay});
-            const auto self = weakSelf.lock();
-            if (!self)
+                runtime->Notify(true, "Application failed", "Console did not issue a Relay route for this resource session.");
                 return;
+            }
+            const bool launched = runtime->Launcher()->Launch({.connectionKind = NativeConnectionKind::IpDirect,
+                                                               .displayName = launch.card.name,
+                                                               .remoteDeviceId = launch.connection.device_id,
+                                                               .instanceId = launch.instanceId,
+                                                               .nonce = launch.nonce,
+                                                               .directHost = launch.connection.host,
+                                                               .directPort = launch.connection.port,
+                                                               .directStreamId = launch.sessionId,
+                                                               .remotePasswordHash = {},
+                                                               .frontendSessionId = launch.connection.session_id,
+                                                               .frontendSessionRevision = launch.connection.session_revision,
+                                                               .frontendToken = launch.connection.frontend_token,
+                                                               .relayHost = launch.connection.relay_host,
+                                                               .relayPort = launch.connection.relay_port,
+                                                               .relayRemoteDeviceId = "server_" + launch.connection.device_id,
+                                                               .relayAdmissionTicket = launch.connection.relay_admission_ticket,
+                                                               .viewOnly = launch.viewOnly,
+                                                               .forceTcp = launch.card.forceTcp,
+                                                               .forceRelay = launch.card.forceRelay});
+            const auto self = weakSelf.lock();
+            if (!self) return;
             if (!launched) {
                 self->SetInstanceState(launch.card.streamId, "running");
                 runtime->Notify(
@@ -299,11 +251,9 @@ class ProductCloudApplicationsPort final : public ui::CloudApplicationsPort, pub
                     "The application is running and authorization succeeded, but px_client could not start. Check the local installation.");
                 return;
             }
-            if (!password.empty())
-                static_cast<void>(vault->Write("device:" + launch.connection.device_id, password));
             const std::scoped_lock lock{self->mutex_};
             self->instanceIds_[launch.card.streamId] = launch.instanceId;
-            self->activeSessions_[launch.card.streamId] = launch.sessionId;
+            self->activeSessions_[launch.card.streamId] = ActiveSession{.id = launch.sessionId, .revision = launch.connection.session_revision};
             if (const auto found = std::ranges::find(self->cards_, launch.card.streamId, &ui::CloudApplicationCard::streamId);
                 found != self->cards_.end()) {
                 found->instanceState = "running";
@@ -332,16 +282,14 @@ class ProductCloudApplicationsPort final : public ui::CloudApplicationsPort, pub
     }
 
     std::shared_ptr<PanelProductRuntime> runtime_{};
-    std::shared_ptr<PanelCredentialVault> credentialVault_{};
     mutable std::mutex mutex_{};
     std::vector<ui::CloudApplicationCard> cards_{};
     std::unordered_map<std::string, std::pair<bool, bool>> preferences_{};
     std::unordered_map<std::string, std::string> instanceIds_{};
-    std::unordered_map<std::string, std::string> activeSessions_{};
-    std::optional<PendingLaunch> pendingLaunch_{};
+    std::unordered_map<std::string, ActiveSession> activeSessions_{};
 };
 
-} // namespace
+}  // namespace
 
 std::shared_ptr<ui::CloudApplicationsPort> CreateProductCloudApplicationsPort(const std::shared_ptr<PanelProductRuntime>& runtime) {
     auto result = std::make_shared<ProductCloudApplicationsPort>(runtime);
@@ -349,4 +297,4 @@ std::shared_ptr<ui::CloudApplicationsPort> CreateProductCloudApplicationsPort(co
     return result;
 }
 
-} // namespace px::panel::product
+}  // namespace px::panel::product

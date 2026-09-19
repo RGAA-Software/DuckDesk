@@ -1,202 +1,227 @@
 #include "console_user_app_api.h"
 
-#include <algorithm>
 #include <format>
+#include <map>
 #include <nlohmann/json.hpp>
 #include <string_view>
 
-#include "console_http_client.h"
 #include "console_api.h"
-#include "console_user.h"
+#include "console_http_client.h"
 #include "px_common/http_client.h"
 #include "px_common/log.h"
-
-using nlohmann::json;
-using namespace px;
+#include "px_common/uuid.h"
 
 namespace px_console {
 namespace {
 
-constexpr auto kResponseData = "data";
+using nlohmann::json;
 
-ConsoleUserAppInstance ParseInstance(const json& data) {
-    ConsoleUserAppInstance instance;
-    instance.instance_id = data.value("instance_id", "");
-    instance.app_id = data.value("app_id", "");
-    instance.state = data.value("state", "");
-    // A successful instance has no error code. Console represents that state as
-    // JSON null, while nlohmann::json::value() only applies its default when
-    // the key is absent and throws when the key exists with a null value.
-    // Treat both a missing key and null as the expected empty error code.
-    if (const auto error_code = data.find("error_code"); error_code != data.end() && !error_code->is_null()) {
-        instance.error_code = error_code->get<std::string>();
-    }
-    instance.reconnectable = data.value("reconnectable", false);
-    return instance;
-}
-
-template <typename T> px::Result<T, ConsoleApiError> HttpError(std::string_view operation, const px::HttpResponse& response) {
+template <typename Value>
+px::Result<Value, ConsoleApiError> HttpError(const std::string_view operation, const px::HttpResponse& response) {
     const auto error = ToConsoleUserApiError(response);
     const auto message = ConsoleApiLastErrorMessage();
     LOGE("{} failed: HTTP {}, transport: {}, message: {}", operation, response.status, response.error_code, message.empty() ? "<empty>" : message);
     return TcErr(error);
 }
 
-} // namespace
+ConsoleUserAppInstance ParseInstance(const json& payload) {
+    const auto state = payload.value("state", "");
+    return {.instance_id = payload.value("id", ""),
+            .app_id = payload.value("application_id", ""),
+            .state = state,
+            .error_code = {},
+            .reconnectable = state == "running",
+            .revision = payload.value("revision", 0LL)};
+}
 
-px::Result<std::vector<ConsoleUserAppInstance>, ConsoleApiError>
-ConsoleUserAppApi::QueryInstances(const std::string& host, int port, const std::string& access_token, const bool guest) {
-    const auto client = MakeConsoleHttpClient(host, port, guest ? "/api/v1/public/instances" : "/api/v1/user/instances", 3000);
-    client->SetHeader("Authorization", "Bearer " + access_token);
+px::Result<json, ConsoleApiError> QueryInstance(const std::string& host, const int port, const std::string& access_token,
+                                                const std::string& instance_id, const bool guest) {
+    const auto client = MakeConsoleHttpClient(host, port, std::format("/api/console/instances/{}", instance_id), 5'000);
+    SetPanelRequestHeaders(client, access_token, guest ? "guest" : "user");
     const auto response = client->Request();
     if (response.status != 200 || response.body.empty()) {
-        return HttpError<std::vector<ConsoleUserAppInstance>>("QueryInstances", response);
+        return HttpError<json>("QueryInstance", response);
     }
     try {
-        std::vector<ConsoleUserAppInstance> instances{};
-        for (const auto& item : json::parse(response.body).at(kResponseData)) {
-            auto instance = ParseInstance(item);
-            if (!instance.instance_id.empty() && !instance.app_id.empty()) {
-                instances.push_back(std::move(instance));
-            }
-        }
-        return instances;
+        return json::parse(response.body);
     } catch (const std::exception& error) {
-        LOGE("QueryInstances parse failed: {}", error.what());
+        LOGE("QueryInstance response parsing failed: {}", error.what());
         return TcErr(ConsoleApiError::kParseJsonFailed);
     }
 }
 
-px::Result<std::string, ConsoleApiError> ConsoleUserAppApi::CreateGuestSession(const std::string& host, int port, const std::string& client_nonce) {
-    const auto client = MakeConsoleHttpClient(host, port, "/api/v1/session/guest", 3000);
-    const auto response = client->Post({}, json{{"client_nonce", client_nonce}, {"client_type", "panel"}}.dump(), "application/json");
-    if (response.status != 200 || response.body.empty()) {
+px::Result<std::vector<json>, ConsoleApiError> QueryPages(const std::string& host, const int port, const std::string& path,
+                                                          const std::string& access_token, const bool guest, const bool resource_request) {
+    std::vector<json> rows{};
+    std::string after{};
+    for (int page{}; page < 100; ++page) {
+        const auto client = MakeConsoleHttpClient(host, port, path, 5'000);
+        SetPanelRequestHeaders(client, access_token, resource_request ? (guest ? "guest" : "user") : "");
+        std::map<std::string, std::string> query{{"limit", "100"}};
+        if (!after.empty()) {
+            query.emplace("after", after);
+        }
+        const auto response = client->Request(query);
+        if (response.status != 200 || response.body.empty()) {
+            return HttpError<std::vector<json>>("QueryPages", response);
+        }
+        try {
+            const auto payload = json::parse(response.body);
+            if (!payload.is_array()) {
+                return TcErr(ConsoleApiError::kParseJsonFailed);
+            }
+            for (const auto& row : payload) {
+                rows.push_back(row);
+            }
+            if (payload.size() < 100) {
+                return rows;
+            }
+            after = payload.back().value("id", "");
+            if (after.empty()) {
+                return TcErr(ConsoleApiError::kParseJsonFailed);
+            }
+        } catch (const std::exception& error) {
+            LOGE("Paged Console response parsing failed: {}", error.what());
+            return TcErr(ConsoleApiError::kParseJsonFailed);
+        }
+    }
+    return TcErr(ConsoleApiError::kInternalError);
+}
+
+}  // namespace
+
+px::Result<std::vector<ConsoleUserAppInstance>, ConsoleApiError> ConsoleUserAppApi::QueryInstances(const std::string& host, const int port,
+                                                                                                   const std::string& access_token,
+                                                                                                   const bool guest) {
+    const auto rows = QueryPages(host, port, "/api/console/instances", access_token, guest, true);
+    if (!rows) {
+        return TcErr(rows.error());
+    }
+    std::vector<ConsoleUserAppInstance> instances{};
+    for (const auto& row : rows.value()) {
+        auto instance = ParseInstance(row);
+        if (instance.instance_id.empty() || instance.app_id.empty() || instance.revision <= 0) {
+            return TcErr(ConsoleApiError::kParseJsonFailed);
+        }
+        instances.push_back(std::move(instance));
+    }
+    return instances;
+}
+
+px::Result<std::string, ConsoleApiError> ConsoleUserAppApi::CreateGuestSession(const std::string& host, const int port,
+                                                                               const std::string& /*client_nonce*/) {
+    const auto client = MakeConsoleHttpClient(host, port, "/api/console/guest-sessions", 3'000);
+    SetPanelRequestHeaders(client);
+    const auto response = client->Post({}, "{}", "application/json");
+    if (response.status != 201 || response.body.empty()) {
         return HttpError<std::string>("CreateGuestSession", response);
     }
     try {
-        const auto token = json::parse(response.body).at(kResponseData).value("access_token", "");
-        if (token.empty())
+        const auto token = json::parse(response.body).value("token", "");
+        return token.empty() ? px::Result<std::string, ConsoleApiError>{TcErr(ConsoleApiError::kParseJsonFailed)}
+                             : px::Result<std::string, ConsoleApiError>{token};
+    } catch (const std::exception& error) {
+        LOGE("CreateGuestSession response parsing failed: {}", error.what());
+        return TcErr(ConsoleApiError::kParseJsonFailed);
+    }
+}
+
+px::Result<std::vector<ConsoleUserApplication>, ConsoleApiError> ConsoleUserAppApi::QueryApps(const std::string& host, const int port,
+                                                                                              const std::string& access_token, const bool guest) {
+    const auto path = guest ? "/api/console/guest/applications" : "/api/console/applications";
+    const auto rows = QueryPages(host, port, path, access_token, guest, false);
+    if (!rows) {
+        return TcErr(rows.error());
+    }
+    std::vector<ConsoleUserApplication> applications{};
+    for (const auto& application_row : rows.value()) {
+        ConsoleUserApplication application{.app_id = application_row.value("id", ""),
+                                           .app_type = application_row.value("kind", ""),
+                                           .name = application_row.value("name", ""),
+                                           .access_mode = application_row.value("access_mode", ""),
+                                           .cover_url = {},
+                                           .version = application_row.value("revision", 0LL)};
+        if (application.app_id.empty() || application.name.empty() || application.app_type.empty() || application.version <= 0) {
             return TcErr(ConsoleApiError::kParseJsonFailed);
-        return token;
-    } catch (const std::exception& error) {
-        LOGE("CreateGuestSession parse failed: {}", error.what());
-        return TcErr(ConsoleApiError::kParseJsonFailed);
-    }
-}
-
-px::Result<std::vector<ConsoleUserApplication>, ConsoleApiError> ConsoleUserAppApi::QueryApps(const std::string& host, int port,
-                                                                                              const std::string& access_token, bool guest) {
-    const auto client = MakeConsoleHttpClient(host, port, guest ? "/api/v1/public/apps" : "/api/v1/user/apps", 3000);
-    client->SetHeader("Authorization", "Bearer " + access_token);
-    const auto response = client->Request();
-    if (response.status != 200 || response.body.empty()) {
-        return HttpError<std::vector<ConsoleUserApplication>>("QueryApps", response);
-    }
-    try {
-        const auto data = json::parse(response.body).at(kResponseData);
-        std::vector<ConsoleUserApplication> apps;
-        for (const auto& item : data) {
-            ConsoleUserApplication app;
-            app.app_id = item.value("app_id", "");
-            app.name = item.value("name", "");
-            app.access_mode = item.value("access_mode", "public");
-            app.app_type = item.value("app_type", "");
-            app.cover_url = item.value("cover_url", "");
-            app.version = item.value("version", 0LL);
-            if (item.contains("running_instance") && !item["running_instance"].is_null()) {
-                app.running_instance = std::make_shared<ConsoleUserAppInstance>(ParseInstance(item["running_instance"]));
-            }
-            if (!app.app_id.empty())
-                apps.push_back(std::move(app));
         }
-        return apps;
-    } catch (const std::exception& error) {
-        LOGE("QueryApps parse failed: {}", error.what());
-        return TcErr(ConsoleApiError::kParseJsonFailed);
+        applications.push_back(std::move(application));
     }
+    return applications;
 }
 
-px::Result<ConsoleUserAppInstance, ConsoleApiError> ConsoleUserAppApi::StartApp(const std::string& host, int port, const std::string& access_token,
-                                                                                const std::string& app_id, const std::string& client_nonce,
-                                                                                bool guest) {
-    const auto path = guest ? std::format("/api/v1/public/apps/{}/start", app_id) : std::format("/api/v1/user/apps/{}/start", app_id);
-    const auto client = MakeConsoleHttpClient(host, port, path, 30000);
-    client->SetHeader("Authorization", "Bearer " + access_token);
-    const auto response = client->Post({}, json{{"client_nonce", client_nonce}}.dump(), "application/json");
-    // Console returns 200 when an idempotent start reuses an instance and 202
-    // while a newly scheduled instance is starting. Both are successful.
-    if ((response.status != 200 && response.status != 202) || response.body.empty()) {
+px::Result<ConsoleUserAppInstance, ConsoleApiError> ConsoleUserAppApi::StartApp(const std::string& host, const int port,
+                                                                                const std::string& access_token, const std::string& app_id,
+                                                                                const std::string& client_nonce, const bool guest) {
+    const auto client = MakeConsoleHttpClient(host, port, "/api/console/instances", 30'000);
+    SetPanelRequestHeaders(client, access_token, guest ? "guest" : "user");
+    const auto response =
+        client->Post({}, json{{"request_id", client_nonce}, {"application_id", app_id}, {"deployment_id", nullptr}}.dump(), "application/json");
+    if (response.status != 201 || response.body.empty()) {
         return HttpError<ConsoleUserAppInstance>("StartApp", response);
     }
     try {
-        return ParseInstance(json::parse(response.body).at(kResponseData));
+        auto result = ParseInstance(json::parse(response.body));
+        return result.instance_id.empty() || result.app_id != app_id || result.revision <= 0
+                   ? px::Result<ConsoleUserAppInstance, ConsoleApiError>{TcErr(ConsoleApiError::kParseJsonFailed)}
+                   : px::Result<ConsoleUserAppInstance, ConsoleApiError>{std::move(result)};
     } catch (const std::exception& error) {
-        LOGE("StartApp parse failed: {}", error.what());
+        LOGE("StartApp response parsing failed: {}", error.what());
         return TcErr(ConsoleApiError::kParseJsonFailed);
     }
 }
 
-px::Result<ConsoleNativeApplicationConnection, ConsoleApiError>
-ConsoleUserAppApi::QueryNativeConnection(const std::string& host, const int port, const std::string& access_token,
-                                         const std::string& instance_id, const bool view_only, const bool guest) {
-    const auto path = guest ? std::format("/api/v1/public/instances/{}/native-connection", instance_id)
-                            : std::format("/api/v1/user/instances/{}/native-connection", instance_id);
-    const auto client = MakeConsoleHttpClient(host, port, path, 5'000);
-    client->SetHeader("Authorization", "Bearer " + access_token);
-    auto response = client->Post({}, json{{"view_only", view_only}, {"client_capability", "windows-rdp-v1"}}.dump(), "application/json");
-    if (response.status != 200 || response.body.empty()) {
-        return HttpError<ConsoleNativeApplicationConnection>("QueryNativeConnection", response);
+px::Result<ConsoleNativeApplicationConnection, ConsoleApiError> ConsoleUserAppApi::QueryNativeConnection(
+    const std::string& host, const int port, const std::string& access_token, const std::string& instance_id, const bool view_only,
+    const std::string& request_id, const bool guest) {
+    const auto instance = QueryInstance(host, port, access_token, instance_id, guest);
+    if (!instance) {
+        return TcErr(instance.error());
     }
-    try {
-        auto data = json::parse(response.body).at(kResponseData);
-        OPENSSL_cleanse(response.body.data(), response.body.size());
-        response.body.clear();
-        ConsoleNativeApplicationConnection result{.host = data.value("host", ""),
-                                                  .port = data.value("port", 0),
-                                                  .device_id = data.value("device_id", ""),
-                                                  .instance_id = data.value("instance_id", ""),
-                                                  .app_type = data.value("app_type", ""),
-                                                  .password_hash = data.value("password_hash", ""),
-                                                  .signal_device_id = data.value("signal_device_id", ""),
-                                                  .relay_host = data.value("relay_host", ""),
-                                                  .relay_port = data.value("relay_port", 0)};
-        if (data.contains("rdp") && !data.at("rdp").is_null()) {
-            auto& rdp = data.at("rdp");
-            if (rdp.value("schema", 0) != 1 || rdp.value("instance_id", "") != instance_id || !rdp.at("password").is_string()) {
-                return TcErr(ConsoleApiError::kParseJsonFailed);
-            }
-            result.rdp_configuration = SecretBuffer::Take(rdp.dump());
-            auto& password = rdp.at("password").get_ref<std::string&>();
-            OPENSSL_cleanse(password.data(), password.size());
-            rdp.clear();
-        }
-        if (result.host.empty() || result.port <= 0 || result.port > 65'535 || result.device_id.empty() || result.instance_id != instance_id) {
-            return TcErr(ConsoleApiError::kParseJsonFailed);
-        }
-        return result;
-    } catch (const std::exception&) {
-        if (!response.body.empty()) OPENSSL_cleanse(response.body.data(), response.body.size());
-        LOGE("QueryNativeConnection response parsing failed");
+    const auto application_id = instance->value("application_id", "");
+    if (application_id.empty()) {
         return TcErr(ConsoleApiError::kParseJsonFailed);
     }
+    const auto resource = OpenPanelResourceConnection(
+        host, port, access_token, guest,
+        {.kind = ConsoleResourceTargetKind::CloudApplication, .application_id = application_id, .instance_id = instance_id}, view_only, request_id);
+    if (!resource) {
+        return TcErr(resource.error());
+    }
+    return ConsoleNativeApplicationConnection{.host = resource->host,
+                                              .port = resource->port,
+                                              .device_id = resource->remote_resource_id,
+                                              .instance_id = instance_id,
+                                              .app_type = {},
+                                              .session_id = resource->session_id,
+                                              .session_revision = resource->session_revision,
+                                              .frontend_token = resource->frontend_token,
+                                              .relay_host = resource->relay_host,
+                                              .relay_port = resource->relay_port,
+                                              .relay_admission_ticket = resource->relay_admission_ticket};
 }
 
-px::Result<ConsoleUserAppInstance, ConsoleApiError>
-ConsoleUserAppApi::StopInstance(const std::string& host, int port, const std::string& access_token, const std::string& instance_id, bool guest) {
-    const auto path =
-        guest ? std::format("/api/v1/public/instances/{}/stop", instance_id) : std::format("/api/v1/user/instances/{}/stop", instance_id);
-    const auto client = MakeConsoleHttpClient(host, port, path, 5000);
-    client->SetHeader("Authorization", "Bearer " + access_token);
-    const auto response = client->Post({}, "{}", "application/json");
+px::Result<ConsoleUserAppInstance, ConsoleApiError> ConsoleUserAppApi::StopInstance(const std::string& host, const int port,
+                                                                                    const std::string& access_token, const std::string& instance_id,
+                                                                                    const bool guest) {
+    const auto current = QueryInstance(host, port, access_token, instance_id, guest);
+    if (!current) {
+        return TcErr(current.error());
+    }
+    const auto revision = current->value("revision", 0LL);
+    const auto client = MakeConsoleHttpClient(host, port, std::format("/api/console/instances/{}/stop", instance_id), 5'000);
+    SetPanelRequestHeaders(client, access_token, guest ? "guest" : "user");
+    const auto response = client->Post({}, json{{"revision", revision}}.dump(), "application/json");
     if (response.status != 200 || response.body.empty()) {
         return HttpError<ConsoleUserAppInstance>("StopInstance", response);
     }
     try {
-        return ParseInstance(json::parse(response.body).at(kResponseData));
+        auto result = ParseInstance(json::parse(response.body));
+        return result.instance_id == instance_id ? px::Result<ConsoleUserAppInstance, ConsoleApiError>{std::move(result)}
+                                                 : px::Result<ConsoleUserAppInstance, ConsoleApiError>{TcErr(ConsoleApiError::kParseJsonFailed)};
     } catch (const std::exception& error) {
-        LOGE("StopInstance parse failed: {}", error.what());
+        LOGE("StopInstance response parsing failed: {}", error.what());
         return TcErr(ConsoleApiError::kParseJsonFailed);
     }
 }
 
-} // namespace px_console
+}  // namespace px_console

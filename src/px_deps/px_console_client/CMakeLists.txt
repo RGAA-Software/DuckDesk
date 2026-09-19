@@ -13,6 +13,7 @@ set(SRCS
     console_event.cpp
     console_event_api.cpp
     console_http_client.cpp
+    console_resource_api.cpp
 )
 
 add_library(${PROJECT_NAME} ${SRCS})

@@ -8,22 +8,22 @@
 #include <memory>
 #include <string>
 
-namespace px
-{
-    class HttpClient;
+namespace px {
+class HttpClient;
 }
 
-namespace px_console
-{
+namespace px_console {
 
-    // whether the Console server requires ssl(https), default true for old deployments.
-    // the panel process syncs this switch from PxSettings(console_ssl_enable).
-    void SetConsoleSslEnabled(bool enabled);
-    bool IsConsoleSslEnabled();
+// whether the Console server requires ssl(https), default true for old deployments.
+// the panel process syncs this switch from PxSettings(console_ssl_enable).
+void SetConsoleSslEnabled(bool enabled);
+bool IsConsoleSslEnabled();
 
-    // Make an HTTPS client to Console. The legacy setting cannot downgrade it.
-    std::shared_ptr<px::HttpClient> MakeConsoleHttpClient(const std::string& host, int port, const std::string& path, int timeout_ms = 2000);
+// Make an HTTPS client to Console. The legacy setting cannot downgrade it.
+std::shared_ptr<px::HttpClient> MakeConsoleHttpClient(const std::string& host, int port, const std::string& path, int timeout_ms = 2000);
+void SetPanelRequestHeaders(const std::shared_ptr<px::HttpClient>& client, const std::string& access_token = {},
+                            const std::string& subject_kind = {});
 
-}
+}  // namespace px_console
 
-#endif //PIXELSPREMIUM_CONSOLE_HTTP_CLIENT_H
+#endif  // PIXELSPREMIUM_CONSOLE_HTTP_CLIENT_H
