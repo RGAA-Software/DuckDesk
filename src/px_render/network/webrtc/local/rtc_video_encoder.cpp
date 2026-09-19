@@ -297,6 +297,9 @@ int32_t RtcSharedVideoEncoder::Encode(
     webrtc::CodecSpecificInfo codec_specific;
     codec_specific.codecType = webrtc::VideoCodecType::kVideoCodecH264;
     auto cb_result = encoded_image_callback_->get().OnEncodedImage(encodedImage, &codec_specific);
+    if (cb_result.error == webrtc::EncodedImageCallback::Result::OK) {
+        server_->RecordResourceTraffic(static_cast<std::uint64_t>(encodedImage.size()), 0);
+    }
     static std::atomic_uint64_t sent_frames = 0;
     if (++sent_frames % 300 == 1 || cb_result.error != webrtc::EncodedImageCallback::Result::OK) {
         LOGI(

@@ -49,6 +49,7 @@ void RenderEventIngress::ProcessWebRtcEvent(const std::string& source_id, const 
                 network_event->transport_type_ = value.transport_type;
                 network_event->channel_type_ = value.channel_type;
                 network_event->connection_instance_id_ = value.connection_instance_id;
+                network_event->resource_connection_id_ = value.resource_connection_id;
                 owner.network_ingress_->ProcessNetEvent(network_event, source_id);
             } else if constexpr (std::is_same_v<Event, WebRtcClientConnectedEvent>) {
                 auto connected = std::make_shared<ClientConnectedEvent>();
@@ -117,6 +118,8 @@ void RenderEventIngress::ProcessWebRtcEvent(const std::string& source_id, const 
                         encoder->Reconfigure(value.monitor_name, value.bits_per_second, value.frames_per_second);
                     }
                 });
+            } else if constexpr (std::is_same_v<Event, WebRtcTrafficEvent>) {
+                owner.app_->RecordConsoleResourceTraffic(source_id + ":" + value.connection_id, value.sent_bytes, value.received_bytes);
             }
         },
         event);

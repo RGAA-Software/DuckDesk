@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <limits>
 
 #include "network/render_service_client.h"
 #include "px_common/async_runtime.h"
@@ -50,6 +51,19 @@ void ResourceChannelReporter::Open(std::string connection_key, std::string logic
     }
 }
 
+void ResourceChannelReporter::RecordTraffic(const std::string& connection_key, const std::uint64_t sent_bytes, const std::uint64_t received_bytes) {
+    const auto saturating_add = [](const std::uint64_t current, const std::uint64_t increment) {
+        return increment > std::numeric_limits<std::uint64_t>::max() - current ? std::numeric_limits<std::uint64_t>::max() : current + increment;
+    };
+    std::scoped_lock lock(activities_mutex_);
+    const auto current = activities_.find(connection_key);
+    if (stopping_ || current == activities_.end() || current->second->close_requested) {
+        return;
+    }
+    current->second->sent_bytes = saturating_add(current->second->sent_bytes, sent_bytes);
+    current->second->received_bytes = saturating_add(current->second->received_bytes, received_bytes);
+}
+
 void ResourceChannelReporter::Close(const std::string& connection_key, const int outcome) {
     std::shared_ptr<Activity> activity;
     {
@@ -61,14 +75,6 @@ void ResourceChannelReporter::Close(const std::string& connection_key, const int
         activity = current->second;
         activity->close_requested = true;
         activity->close_outcome = outcome;
-        if (activity->channel_id.empty() || activity->report_started) {
-            return;
-        }
-        activity->report_started = true;
-    }
-    const auto weak_reporter = weak_from_this();
-    if (!scope_ || !scope_->Spawn("resource-channel-close", [weak_reporter, activity]() { return ReportCloseAsync(weak_reporter, activity); })) {
-        RemoveIfCurrent(activity);
     }
 }
 
@@ -118,7 +124,6 @@ PxAwaitable<void> ResourceChannelReporter::OpenAsync(std::weak_ptr<ResourceChann
         owner->RemoveIfCurrent(activity);
         co_return;
     }
-    bool report_close = false;
     {
         std::scoped_lock lock(owner->activities_mutex_);
         const auto current = owner->activities_.find(activity->connection_key);
@@ -126,40 +131,88 @@ PxAwaitable<void> ResourceChannelReporter::OpenAsync(std::weak_ptr<ResourceChann
             co_return;
         }
         activity->channel_id = result.Value().channel_id_;
-        report_close = activity->close_requested && !activity->report_started;
-        activity->report_started = report_close;
     }
     LOGI(
         "event=resource_channel.open component=render outcome=success "
         "session={} channel={}",
         activity->logical_session_id, activity->channel_id);
-    if (report_close) {
-        co_await ReportCloseAsync(reporter, activity);
-    }
+    co_await ReportLoopAsync(reporter, activity);
 }
 
-PxAwaitable<void> ResourceChannelReporter::ReportCloseAsync(std::weak_ptr<ResourceChannelReporter> reporter, std::shared_ptr<Activity> activity) {
-    const auto owner = reporter.lock();
-    const auto service_client = owner ? owner->service_client_.lock() : nullptr;
-    if (!owner || !service_client) {
-        co_return;
+PxAwaitable<void> ResourceChannelReporter::ReportLoopAsync(std::weak_ptr<ResourceChannelReporter> reporter, std::shared_ptr<Activity> activity) {
+    const auto executor = co_await asio::this_coro::executor;
+    auto timer = std::make_shared<asio::steady_timer>(executor);
+    for (;;) {
+        bool closing_before_wait{};
+        {
+            const auto owner = reporter.lock();
+            if (!owner) {
+                co_return;
+            }
+            std::scoped_lock lock(owner->activities_mutex_);
+            const auto current = owner->activities_.find(activity->connection_key);
+            if (owner->stopping_ || current == owner->activities_.end() || current->second != activity) {
+                co_return;
+            }
+            closing_before_wait = activity->close_requested;
+        }
+        if (!closing_before_wait) {
+            timer->expires_after(std::chrono::seconds(5));
+            asio::error_code wait_error;
+            co_await timer->async_wait(asio::redirect_error(asio::use_awaitable, wait_error));
+            const auto cancellation = co_await asio::this_coro::cancellation_state;
+            if (wait_error || cancellation.cancelled() != asio::cancellation_type::none) {
+                co_return;
+            }
+        }
+
+        bool closing{};
+        int outcome{static_cast<int>(ResourceChannelOutcome::kResourceChannelProgress)};
+        std::uint64_t sequence{};
+        std::uint64_t sent_bytes{};
+        std::uint64_t received_bytes{};
+        std::uint64_t elapsed_ms{};
+        {
+            const auto owner = reporter.lock();
+            if (!owner) {
+                co_return;
+            }
+            std::scoped_lock lock(owner->activities_mutex_);
+            const auto current = owner->activities_.find(activity->connection_key);
+            if (owner->stopping_ || current == owner->activities_.end() || current->second != activity) {
+                co_return;
+            }
+            closing = activity->close_requested;
+            if (closing) {
+                outcome = activity->close_outcome;
+            }
+            sequence = ++activity->sequence;
+            sent_bytes = activity->sent_bytes;
+            received_bytes = activity->received_bytes;
+            const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - activity->started_at);
+            elapsed_ms = static_cast<std::uint64_t>(std::max<std::int64_t>(0, static_cast<std::int64_t>(elapsed.count())));
+        }
+
+        const auto owner = reporter.lock();
+        const auto service_client = owner ? owner->service_client_.lock() : nullptr;
+        if (!owner || !service_client) {
+            co_return;
+        }
+        auto result = co_await service_client->RequestResourceChannelReportAsync(GetUUID(), activity->channel_id, sequence, sent_bytes,
+                                                                                 received_bytes, elapsed_ms, outcome,
+                                                                                 std::chrono::steady_clock::now() + std::chrono::seconds(12));
+        if (!result.HasValue() || !result.Value().accepted_) {
+            LOGW("event=resource_channel.report component=render outcome=failed channel={} code={}", activity->channel_id,
+                 result.HasValue() ? result.Value().error_code_ : result.Error().StableCode());
+        } else {
+            LOGI("event=resource_channel.report component=render outcome=success channel={} state={} sent_bytes={} received_bytes={}",
+                 activity->channel_id, result.Value().state_, sent_bytes, received_bytes);
+        }
+        if (closing) {
+            owner->RemoveIfCurrent(activity);
+            co_return;
+        }
     }
-    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - activity->started_at);
-    auto result = co_await service_client->RequestResourceChannelReportAsync(
-        GetUUID(), activity->channel_id, 1, 0, 0, static_cast<std::uint64_t>(std::max<std::int64_t>(0, static_cast<std::int64_t>(elapsed.count()))),
-        activity->close_outcome, std::chrono::steady_clock::now() + std::chrono::seconds(12));
-    if (!result.HasValue() || !result.Value().accepted_) {
-        LOGW(
-            "event=resource_channel.close component=render outcome=failed "
-            "channel={} code={}",
-            activity->channel_id, result.HasValue() ? result.Value().error_code_ : result.Error().StableCode());
-    } else {
-        LOGI(
-            "event=resource_channel.close component=render outcome=success "
-            "channel={} state={}",
-            activity->channel_id, result.Value().state_);
-    }
-    owner->RemoveIfCurrent(activity);
 }
 
 void ResourceChannelReporter::RemoveIfCurrent(const std::shared_ptr<Activity>& activity) {

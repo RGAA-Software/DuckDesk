@@ -133,6 +133,36 @@ TEST(WebRtcTransportLifecycle, ImmediateTerminalEventCanStopFromItsCallback) {
     runtime->Join();
 }
 
+TEST(WebRtcTransportLifecycle, TrafficEventPreservesConnectionAndByteDeltas) {
+    const auto runtime = PxAsyncRuntime::Create({.worker_threads = 1});
+    ASSERT_TRUE(runtime->Start());
+    auto context = WebRtcExecutionContext::Create(runtime, "webrtc-traffic-event-test");
+    ASSERT_TRUE(context);
+    const auto completion = std::make_shared<std::promise<WebRtcTrafficEvent>>();
+    auto future = completion->get_future();
+    context->SetEventCallback([completion](const WebRtcEvent& event) {
+        if (const auto traffic = std::get_if<WebRtcTrafficEvent>(&event)) {
+            completion->set_value(*traffic);
+        }
+    });
+
+    context->Publish(WebRtcTrafficEvent{
+        .connection_id = "resource-connection",
+        .sent_bytes = 4096,
+        .received_bytes = 512,
+    });
+    ASSERT_EQ(future.wait_for(2s), std::future_status::ready);
+    const auto traffic = future.get();
+    EXPECT_EQ(traffic.connection_id, "resource-connection");
+    EXPECT_EQ(traffic.sent_bytes, 4096U);
+    EXPECT_EQ(traffic.received_bytes, 512U);
+    context->BeginStop();
+    EXPECT_TRUE(context->StopAndWait(2s));
+    context.reset();
+    runtime->RequestDrain();
+    runtime->Join();
+}
+
 TEST(WebRtcTransportLifecycle, QueuedEventsAreSafeWhenCallbackIsUnregisteredDuringStop) {
     const auto runtime = PxAsyncRuntime::Create({.worker_threads = 1});
     ASSERT_TRUE(runtime->Start());

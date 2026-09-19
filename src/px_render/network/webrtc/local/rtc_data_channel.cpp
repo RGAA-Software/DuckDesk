@@ -3,15 +3,16 @@
 //
 
 #include "rtc_data_channel.h"
-#include "px_common/log.h"
+
 #include "px_common/data.h"
-#include "rtc_server.h"
+#include "px_common/log.h"
+#include "px_common/md5.h"
 #include "px_common/net_tlv_header.h"
 #include "px_common/time_util.h"
-#include "px_render/network/webrtc/webrtc_execution_context.h"
-#include "webrtc_local_transport.h"
-#include "px_common/md5.h"
 #include "px_common/uuid.h"
+#include "px_render/network/webrtc/webrtc_execution_context.h"
+#include "rtc_server.h"
+#include "webrtc_local_transport.h"
 
 namespace px {
 
@@ -26,9 +27,7 @@ RtcDataChannel::RtcDataChannel(const std::string& name, const std::shared_ptr<Rt
     this->created_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
 }
 
-RtcDataChannel::~RtcDataChannel() {
-    this->data_channel_->UnregisterObserver();
-}
+RtcDataChannel::~RtcDataChannel() { this->data_channel_->UnregisterObserver(); }
 
 void RtcDataChannel::OnStateChange() {
     if (data_channel_->state() == webrtc::DataChannelInterface::kOpen) {
@@ -188,13 +187,9 @@ void RtcDataChannel::OnBufferedAmountChange(uint64_t sent_data_size) {
     }
 }
 
-bool RtcDataChannel::IsConnected() {
-    return connected_;
-}
+bool RtcDataChannel::IsConnected() { return connected_; }
 
-void RtcDataChannel::SetOnDataCallback(OnDataCallback&& cbk) {
-    data_cbk_ = cbk;
-}
+void RtcDataChannel::SetOnDataCallback(OnDataCallback&& cbk) { data_cbk_ = cbk; }
 
 void RtcDataChannel::SendData(std::shared_ptr<Data> msg) {
     if (!connected_) {
@@ -245,6 +240,9 @@ void RtcDataChannel::SendData(std::shared_ptr<Data> msg) {
             }
             // TODO: Notify
         } else {
+            if (const auto rtc_server = rtc_server_.lock()) {
+                rtc_server->RecordResourceTraffic(static_cast<std::uint64_t>(buffer.size()), 0);
+            }
             --pending_data_count_;
         }
 
@@ -311,6 +309,9 @@ void RtcDataChannel::SendData(std::shared_ptr<Data> msg) {
                 }
                 // TODO: Notify
             } else {
+                if (const auto rtc_server = rtc_server_.lock()) {
+                    rtc_server->RecordResourceTraffic(static_cast<std::uint64_t>(buffer.size()), 0);
+                }
                 --pending_data_count_;
             }
         }
@@ -319,9 +320,7 @@ void RtcDataChannel::SendData(std::shared_ptr<Data> msg) {
     // LOGI("send pending count: {}", pending_data_count_);
 }
 
-int RtcDataChannel::GetPendingDataCount() {
-    return pending_data_count_;
-}
+int RtcDataChannel::GetPendingDataCount() { return pending_data_count_; }
 
 bool RtcDataChannel::HasEnoughBufferForQueuingMessages() {
     return data_channel_ && data_channel_->state() == webrtc::DataChannelInterface::DataState::kOpen &&
@@ -365,13 +364,9 @@ void RtcDataChannel::NotifyFileTransferClosed() {
     }
 }
 
-bool RtcDataChannel::IsMediaChannel() {
-    return name_ == "media_data_channel";
-}
+bool RtcDataChannel::IsMediaChannel() { return name_ == "media_data_channel"; }
 
-bool RtcDataChannel::IsFtChannel() {
-    return name_ == "ft_data_channel";
-}
+bool RtcDataChannel::IsFtChannel() { return name_ == "ft_data_channel"; }
 
 void RtcDataChannel::Close() {
     LOGI("DataChannel will close!");
@@ -384,4 +379,4 @@ void RtcDataChannel::Close() {
     }
 }
 
-} // namespace px
+}  // namespace px

@@ -2461,6 +2461,13 @@ void RdApplication::CloseConsoleResourceChannel(const std::string& connection_ke
     }
 }
 
+void RdApplication::RecordConsoleResourceTraffic(const std::string& connection_key, const std::uint64_t sent_bytes,
+                                                 const std::uint64_t received_bytes) {
+    if (resource_channel_reporter_) {
+        resource_channel_reporter_->RecordTraffic(connection_key, sent_bytes, received_bytes);
+    }
+}
+
 void RdApplication::UpdateVirtualDisplayStatus(const MsgVirtualDisplayServiceResult& result) {
     if (!result.accepted_) {
         LOGW("Ignore failed virtual display status: request={}, code={}", result.request_id_, result.error_code_);

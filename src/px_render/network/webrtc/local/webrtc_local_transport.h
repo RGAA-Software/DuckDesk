@@ -49,7 +49,7 @@ public:
     [[nodiscard]] std::shared_ptr<WebRtcExecutionContext> GetContext() const;
     void QueueEvent(WebRtcEvent event, bool immediate = false) const;
     void DispatchClientEvent(bool direct, const TransportChannel& channel_type, std::shared_ptr<Data> message,
-                             const std::string& connection_instance_id = {});
+                             const std::string& connection_instance_id = {}, const std::string& resource_connection_id = {});
     void NotifyTerminal(const std::string& conn_id, const std::shared_ptr<RtcServer>& target);
     [[nodiscard]] std::vector<CaptureMonitorInfo> GetRtcTrackMonitors();
     void EnableAllMonitorCapture();

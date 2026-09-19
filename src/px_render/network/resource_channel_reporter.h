@@ -26,6 +26,7 @@ public:
     ResourceChannelReporter& operator=(const ResourceChannelReporter&) = delete;
 
     void Open(std::string connection_key, std::string logical_session_id, int channel_kind);
+    void RecordTraffic(const std::string& connection_key, std::uint64_t sent_bytes, std::uint64_t received_bytes);
     void Close(const std::string& connection_key, int outcome);
     void Stop();
 
@@ -38,13 +39,15 @@ private:
         std::chrono::steady_clock::time_point started_at{};
         int channel_kind{};
         int close_outcome{};
+        std::uint64_t sequence{};
+        std::uint64_t sent_bytes{};
+        std::uint64_t received_bytes{};
         bool close_requested{};
-        bool report_started{};
     };
 
     static bool IsCanonicalUuid(const std::string& value);
     static PxAwaitable<void> OpenAsync(std::weak_ptr<ResourceChannelReporter> reporter, std::shared_ptr<Activity> activity);
-    static PxAwaitable<void> ReportCloseAsync(std::weak_ptr<ResourceChannelReporter> reporter, std::shared_ptr<Activity> activity);
+    static PxAwaitable<void> ReportLoopAsync(std::weak_ptr<ResourceChannelReporter> reporter, std::shared_ptr<Activity> activity);
     void RemoveIfCurrent(const std::shared_ptr<Activity>& activity);
 
     std::shared_ptr<PxAsyncScope> scope_{};

@@ -55,7 +55,7 @@ void WebRtcLocalRuntime::QueueEvent(WebRtcEvent event, const bool immediate) con
 }
 
 void WebRtcLocalRuntime::DispatchClientEvent(bool direct, const TransportChannel& channel_type, std::shared_ptr<Data> message,
-                                             const std::string& connection_instance_id) {
+                                             const std::string& connection_instance_id, const std::string& resource_connection_id) {
     QueueEvent(
         WebRtcNetClientEvent{
             .immediate = direct,
@@ -64,6 +64,7 @@ void WebRtcLocalRuntime::DispatchClientEvent(bool direct, const TransportChannel
             .transport_type = TransportKind::kWebRtc,
             .channel_type = channel_type,
             .connection_instance_id = connection_instance_id,
+            .resource_connection_id = resource_connection_id,
         },
         direct);
 }

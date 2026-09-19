@@ -115,6 +115,7 @@ public:
     [[nodiscard]] std::shared_ptr<FileTransferWritableSignal> AcquireFtWritableSignal();
 
     void On100msTimeout();
+    void RecordResourceTraffic(std::uint64_t sent_bytes, std::uint64_t received_bytes);
     void OnMediaDataChannelOpened();
     void OnClientHeartbeat();
 
@@ -225,6 +226,9 @@ private:
     RtcHeartbeatWatchdog heartbeat_watchdog_{};
     // 断开事件去重:见 EmitClientDisconnectedEvent
     std::atomic_bool disconnect_event_sent_ = false;
+    std::atomic_uint64_t pending_resource_sent_bytes_{};
+    std::atomic_uint64_t pending_resource_received_bytes_{};
+    std::atomic_int64_t last_resource_traffic_report_ms_{};
 
     // 视频轨布局:offer 只有 1 条 video m-line(web/旧客户端)时为 false,
     // 保持单动态 track 旧行为(跟随切屏);>=2 条(新 Windows 客户端)时为 true。

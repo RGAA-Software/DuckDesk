@@ -9,6 +9,7 @@
 #include <chrono>
 #include <format>
 #include <functional>
+#include <limits>
 #include <mutex>
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -37,6 +38,17 @@ constexpr int kHeartbeatMessageType = wire::kHeartBeat;
 
 int64_t CurrentSteadyMilliseconds() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+void SaturatingAtomicAdd(std::atomic_uint64_t& total, const std::uint64_t increment) {
+    auto current = total.load(std::memory_order_relaxed);
+    for (;;) {
+        const auto available = std::numeric_limits<std::uint64_t>::max() - current;
+        const auto updated = increment > available ? std::numeric_limits<std::uint64_t>::max() : current + increment;
+        if (total.compare_exchange_weak(current, updated, std::memory_order_relaxed)) {
+            return;
+        }
+    }
 }
 
 // A clocked, discard-only ADM. WebRTC's kDummyAudio ADM never asks the
@@ -538,7 +550,7 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
                     return;
                 }
                 locked->runtime_->DispatchClientEvent(false, application_text ? TransportChannel::kReliableControl : TransportChannel::kMedia,
-                                                      std::move(payload_msg), std::string("rtc-local:") + locked->stream_id_);
+                                                      std::move(payload_msg), std::string("rtc-local:") + locked->stream_id_, locked->connection_id_);
             });
         } else if (name == "ft_data_channel") {
             if (!server->HasPermission("file")) {
@@ -555,7 +567,8 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
                     return;
                 }
                 auto payload_msg = Data::From(data);
-                locked->runtime_->DispatchClientEvent(true, TransportChannel::kFileTransfer, std::move(payload_msg), locked->connection_id_);
+                locked->runtime_->DispatchClientEvent(true, TransportChannel::kFileTransfer, std::move(payload_msg), locked->connection_id_,
+                                                      locked->connection_id_);
             });
         } else if (name == "input_data_channel") {
             if (!server->HasPermission("input")) {
@@ -577,7 +590,7 @@ bool RtcServer::Start(const std::string& stream_id, const std::string& offer_sdp
                 }
                 auto payload_msg = Data::From(data);
                 locked->runtime_->DispatchClientEvent(true, TransportChannel::kMedia, std::move(payload_msg),
-                                                      std::string("rtc-local:") + locked->stream_id_);
+                                                      std::string("rtc-local:") + locked->stream_id_, locked->connection_id_);
             });
         } else if (name == "ping_data_channel") {
             // 诊断通道:RtcDataChannel::OnMessage 里收到即原样回显
@@ -1074,6 +1087,24 @@ void RtcServer::On100msTimeout() {
     if (ft_data_channel_ && !exit_) {
         ft_data_channel_->On100msTimeout();
     }
+    auto previous_report_ms = last_resource_traffic_report_ms_.load();
+    if (!connection_id_.empty() && steady_now_ms - previous_report_ms >= 1000 &&
+        last_resource_traffic_report_ms_.compare_exchange_strong(previous_report_ms, steady_now_ms)) {
+        const auto sent_bytes = pending_resource_sent_bytes_.exchange(0);
+        const auto received_bytes = pending_resource_received_bytes_.exchange(0);
+        if (sent_bytes != 0 || received_bytes != 0) {
+            QueueEvent(WebRtcTrafficEvent{
+                .connection_id = connection_id_,
+                .sent_bytes = sent_bytes,
+                .received_bytes = received_bytes,
+            });
+        }
+    }
+}
+
+void RtcServer::RecordResourceTraffic(const std::uint64_t sent_bytes, const std::uint64_t received_bytes) {
+    SaturatingAtomicAdd(pending_resource_sent_bytes_, sent_bytes);
+    SaturatingAtomicAdd(pending_resource_received_bytes_, received_bytes);
 }
 
 std::string RtcServer::GetAnswerSdp() { return answer_sdp_; }

@@ -82,6 +82,13 @@ struct WebRtcNetClientEvent final {
     TransportKind transport_type{TransportKind::kWebRtc};
     TransportChannel channel_type{};
     std::string connection_instance_id;
+    std::string resource_connection_id;
+};
+
+struct WebRtcTrafficEvent final {
+    std::string connection_id;
+    std::uint64_t sent_bytes{};
+    std::uint64_t received_bytes{};
 };
 
 struct WebRtcClientConnectedEvent final {
@@ -131,8 +138,9 @@ struct WebRtcConfigureEncoderEvent final {
     std::uint32_t frames_per_second{0};
 };
 
-using WebRtcEvent = std::variant<WebRtcNetClientEvent, WebRtcClientConnectedEvent, WebRtcClientDisconnectedEvent, WebRtcFileTransferDisconnectedEvent,
-                                 WebRtcVoicePcmEvent, WebRtcInsertIdrEvent, WebRtcSelectCaptureMonitorEvent, WebRtcConfigureEncoderEvent>;
+using WebRtcEvent =
+    std::variant<WebRtcNetClientEvent, WebRtcClientConnectedEvent, WebRtcClientDisconnectedEvent, WebRtcFileTransferDisconnectedEvent,
+                 WebRtcVoicePcmEvent, WebRtcInsertIdrEvent, WebRtcSelectCaptureMonitorEvent, WebRtcConfigureEncoderEvent, WebRtcTrafficEvent>;
 
 using WebRtcEventCallback = std::function<void(const WebRtcEvent&)>;
 

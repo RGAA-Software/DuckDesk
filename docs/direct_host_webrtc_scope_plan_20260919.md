@@ -141,6 +141,10 @@ DB5短期功能出口通过后统一长测：Relay长连接、Direct Host重复�
   固定间隔重连、授权撤销重验、管理写入与节点上报失效通知，以及相关页面自动刷新均已接通。真实节点/PG报告为
   `pg-20260919-063411-302a299c`，真实 Chromium 外部写入刷新与进程重启重连报告为 `pg-20260919-063531-2fcb06ab`；公网高频与
   断库页面专项仍未完成，因此功能矩阵保持部分迁移。
+- Render 的资源通道生产者已补齐 Direct Host WebRTC 真实载荷计数：成功编码视频、成功数据通道发送和收到的数据通道载荷按实际
+  connection ID 汇总，以 5 秒周期、单调 sequence 和累计字节通过 Render→Service→Console 上报，断开终态携带最后累计值。
+  Cloud/Remote Render 与 RTC DLL 聚焦构建、dist 哈希和 3/3 RTC 测试均通过。该证据不覆盖音频 RTP、Relay/RDP/Native 完整双向
+  计数或公网真实会话，这些仍保留在 DB2 出口。
 
 尚未完成且不得被上述聚焦证据冒充：正式 Console 产品入口、真实公网 Windows/Web 首帧/音频/输入/重连/撤销、Relay 数据面真机回归、
 Android CloudApplication 真机直连、安装包内容审计，以及所有 DB5 短测通过后的统一长测。

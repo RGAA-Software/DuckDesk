@@ -52,6 +52,7 @@ struct NetworkClientEvent final {
     TransportChannel channel_type_{TransportChannel::kMedia};
     std::function<void(const std::shared_ptr<NetMessageAck>&)> ack_callback_;
     std::string connection_instance_id_;
+    std::string resource_connection_id_;
 };
 
 struct UdpVoiceFrameEvent final {
@@ -146,8 +147,7 @@ using RenderEvent =
                  std::shared_ptr<CursorUpdatedEvent>, std::shared_ptr<RelayPausedEvent>, std::shared_ptr<RelayResumedEvent>,
                  std::shared_ptr<PanelStreamMessageEvent>, std::shared_ptr<RelayAliveEvent>, std::shared_ptr<StreamingParametersRequestedEvent>,
                  std::shared_ptr<AdmitLogicalSessionEvent>, std::shared_ptr<CloseLogicalSessionBindingEvent>,
-                 std::shared_ptr<ApplyLogicalSessionCapabilitiesEvent>,
-                 std::shared_ptr<DataSentEvent>, std::shared_ptr<GameTextReplyEvent>>;
+                 std::shared_ptr<ApplyLogicalSessionCapabilitiesEvent>, std::shared_ptr<DataSentEvent>, std::shared_ptr<GameTextReplyEvent>>;
 
 struct RenderEventEnvelope final {
     std::string source_id;
@@ -158,4 +158,4 @@ struct RenderEventEnvelope final {
 
 using RenderEventCallback = std::function<void(const RenderEventEnvelope&)>;
 
-} // namespace px
+}  // namespace px
