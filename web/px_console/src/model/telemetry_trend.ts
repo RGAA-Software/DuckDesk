@@ -1,4 +1,4 @@
-import type { NodeTelemetryHistory } from "@/model/managed_node_api.ts";
+import type { NodeTelemetryHistory, NodeTelemetryTrendPoint } from "@/model/managed_node_api.ts";
 
 export interface TelemetryTrendPoint {
     sampledAt: string;
@@ -22,6 +22,19 @@ export function buildTelemetryTrend(
             gpu: maximumPerMille(sample.gpus.map(gpu => gpu.utilization_per_mille)),
             encoder: maximumPerMille(sample.gpus.map(gpu => gpu.encoder_utilization_per_mille)),
         }));
+}
+
+export function buildAggregatedTelemetryTrend(
+    points: readonly NodeTelemetryTrendPoint[],
+): TelemetryTrendPoint[] {
+    return points.map(point => ({
+        sampledAt: point.bucket_start,
+        cpu: aggregateValue(point.sample_count, point.cpu_average_per_mille),
+        memory: aggregateValue(point.sample_count, point.memory_average_per_mille),
+        disk: aggregateValue(point.sample_count, point.disk_average_per_mille),
+        gpu: aggregateValue(point.sample_count, point.gpu_average_per_mille),
+        encoder: aggregateValue(point.sample_count, point.encoder_average_per_mille),
+    }));
 }
 
 export function trendSegments(
@@ -48,6 +61,10 @@ export function trendSegments(
 
 function boundedPerMille(value: number | null): number | null {
     return value !== null && Number.isInteger(value) && value >= 0 && value <= 1000 ? value : null;
+}
+
+function aggregateValue(sampleCount: number, value: number | null): number | null {
+    return Number.isInteger(sampleCount) && sampleCount > 0 ? boundedPerMille(value) : null;
 }
 
 function usedPerMille(total: number | null, available: number | null): number | null {

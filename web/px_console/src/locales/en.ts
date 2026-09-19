@@ -219,7 +219,13 @@ export default {
         telemetryState: "Telemetry state",
         telemetryStates: { ready: "Ready", partial: "Partial", unavailable: "Unavailable" },
         trendDescription:
-            "Recent node CPU, memory, disk, GPU, and encoder utilization trends. Gaps represent unknown measurements.",
+            "Server-aggregated node CPU, memory, disk, GPU, and encoder utilization trends. Gaps represent missing or unknown measurements.",
+        trendCoverage: "{known}/{total} known",
+        trendFresh: "Latest accepted sample is current ({age} old)",
+        trendStale: "Latest accepted sample is stale ({age} old)",
+        ageSeconds: "{value}s",
+        ageMinutes: "{value}m",
+        ageHours: "{value}h",
         trendSeries: {
             cpu: "CPU",
             disk: "Disk",

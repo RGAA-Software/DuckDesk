@@ -10,12 +10,14 @@ import {
     configureManagedNode,
     createManagedNode,
     deleteManagedNode,
+    getManagedNodeTelemetryTrend,
     listManagedNodeTelemetry,
     listManagedNodes,
     rotateManagedNodeCredential,
     type ManagedNode,
     type NodeTelemetry,
     type NodeTelemetryHistory,
+    type NodeTelemetryTrend,
     type NodeProduct,
 } from "@/model/managed_node_api";
 
@@ -39,6 +41,7 @@ const telemetryHistoryOpen = ref(false);
 const telemetryHistoryLoading = ref(false);
 const telemetryHistoryNode = ref<ManagedNode>();
 const telemetryHistory = ref<NodeTelemetryHistory[]>([]);
+const telemetryTrend = ref<NodeTelemetryTrend>();
 
 const availableDevices = computed(() => {
     const assigned = new Set(nodes.value.map(node => node.device_id));
@@ -51,14 +54,14 @@ const availableDevices = computed(() => {
 
 async function refresh() {
     loading.value = true;
-    try {
-        [nodes.value, devices.value] = await Promise.all([
-            listManagedNodes(),
-            listManagedDevices(),
-        ]);
-    } finally {
+    const [managedNodes, managedDevices] = await Promise.all([
+        listManagedNodes(),
+        listManagedDevices(),
+    ]).finally(() => {
         loading.value = false;
-    }
+    });
+    nodes.value = managedNodes;
+    devices.value = managedDevices;
 }
 
 function create() {
@@ -93,13 +96,17 @@ function showCredential(token: string) {
 async function showTelemetryHistory(node: ManagedNode) {
     telemetryHistoryNode.value = node;
     telemetryHistory.value = [];
+    telemetryTrend.value = undefined;
     telemetryHistoryOpen.value = true;
     telemetryHistoryLoading.value = true;
-    try {
-        telemetryHistory.value = await listManagedNodeTelemetry(node.id);
-    } finally {
+    const [history, trend] = await Promise.all([
+        listManagedNodeTelemetry(node.id),
+        getManagedNodeTelemetryTrend(node.id),
+    ]).finally(() => {
         telemetryHistoryLoading.value = false;
-    }
+    });
+    telemetryHistory.value = history;
+    telemetryTrend.value = trend;
 }
 
 async function save() {
@@ -108,22 +115,25 @@ async function save() {
         return;
     }
     saving.value = true;
-    try {
-        if (editing.value) {
-            await configureManagedNode(editing.value, {
-                draining: form.draining,
-                disabled: form.disabled,
-                max_instances: form.maxInstances,
-            });
-        } else {
-            const result = await createManagedNode(form.deviceId, form.product, form.maxInstances);
-            showCredential(result.node_token);
-        }
-        editorOpen.value = false;
-        await refresh();
-    } finally {
+    await persistNode().finally(() => {
         saving.value = false;
+    });
+}
+
+async function persistNode() {
+    if (editing.value) {
+        await configureManagedNode(editing.value, {
+            draining: form.draining,
+            disabled: form.disabled,
+            max_instances: form.maxInstances,
+        });
     }
+    if (!editing.value) {
+        const result = await createManagedNode(form.deviceId, form.product, form.maxInstances);
+        showCredential(result.node_token);
+    }
+    editorOpen.value = false;
+    await refresh();
 }
 
 function rotateCredential(node: ManagedNode) {
@@ -200,6 +210,13 @@ function formatTimestamp(timestamp: string | undefined): string {
 
 function telemetryHistoryKey(sample: NodeTelemetryHistory): string {
     return `${sample.node_generation}:${sample.report_sequence}`;
+}
+
+function formatAge(seconds: number | null | undefined): string {
+    if (seconds === null || seconds === undefined) return t("nodes.unknown");
+    if (seconds < 60) return t("nodes.ageSeconds", { value: seconds });
+    if (seconds < 3600) return t("nodes.ageMinutes", { value: Math.floor(seconds / 60) });
+    return t("nodes.ageHours", { value: Math.floor(seconds / 3600) });
 }
 
 onMounted(refresh);
@@ -410,7 +427,18 @@ useManagementRefresh(["nodes", "instances"], refresh);
         width="1100px"
     >
         <a-alert type="info" show-icon :message="t('nodes.historyNotice')" />
-        <TelemetryTrendChart :samples="telemetryHistory" />
+        <a-alert
+            v-if="telemetryTrend"
+            :type="telemetryTrend.stale ? 'warning' : 'success'"
+            show-icon
+            :message="
+                t(telemetryTrend.stale ? 'nodes.trendStale' : 'nodes.trendFresh', {
+                    age: formatAge(telemetryTrend.latest_age_seconds),
+                })
+            "
+            style="margin-top: 12px"
+        />
+        <TelemetryTrendChart :trend="telemetryTrend" />
         <a-table
             :data-source="telemetryHistory"
             :loading="telemetryHistoryLoading"

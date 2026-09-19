@@ -53,7 +53,7 @@ Windows 目录/API 五项专项 `pg-20260917-111216-5acb856e` 通过；其中验
 该完整报告之后的 Console 组合根增量已加入严格环境配置和正式私有文件装载：生产数据库固定 full TLS 校验，
 显式 deployment/listen/TLS/origin/生命周期/开关，工作区密钥与访客来源密钥必须由权限检查后的文件提供；
 缺失、重复、非 32 字节或活动 key 不匹配均在监听前失败，不生成临时 fallback。开发 HTTP 只允许 loopback，
-监听端口明确拒绝退役的 20371。该增量的四项单元测试与全目标 Clippy 已通过，但尚未做新的完整跨平台回归。
+监听端口明确拒绝所有已退役端口。该增量的四项单元测试与全目标 Clippy 已通过，但尚未做新的完整跨平台回归。
 
 新 Console 节点控制入口 `/api/console/node-control` 已接入实际 WebSocket：首帧凭据认证在 5 秒内完成，
 每次连接由服务器生成不可从 wire 恢复的 connection key/generation；64 KiB 消息、128 个连接、来源频率、
@@ -831,7 +831,23 @@ NVML 不可用或单项查询失败时相应字段继续为 NULL。86 项 Servic
 
 管理节点原始遥测随后补齐浏览器趋势展示：最近 100 条样本按采样时间排序，CPU、已用内存、已用磁盘、GPU 与编码器利用率共用
 0–100% 坐标；未知或越界数据形成断点，不做零值或插值。Console Web 类型检查、44/44 合同测试和生产构建通过，
-`scripts_build/build_console_web.bat` 已同步 `output/px_console/dev/static` 并逐文件验证 SHA-256。该展示不替代服务端聚合、P3 调度硬过滤或公网验收。
+`scripts_build/build_console_web.bat` 已同步 `output/px_console/dev/static` 并逐文件验证 SHA-256。该阶段的浏览器侧原始趋势当时尚未替代
+服务端聚合、P3 调度硬过滤或公网验收；后续切片已分别补齐前两项。
+
+节点遥测服务端趋势切片在 PostgreSQL 内完成有界聚合。管理 API 支持 5 分钟至 7 天窗口、30 至 3600 秒桶宽且最多 288 桶，
+按数据库时钟对齐桶边界；空桶和未知指标保持显式缺口，不用零值或插值掩盖缺测。结果同时返回最新样本时间、年龄、30 秒陈旧判断，
+以及 CPU、内存、磁盘、GPU、编码器的已知/总样本覆盖率。节点页面同时保留原始历史用于诊断，并消费服务端聚合用于趋势展示。
+SQLx PrepareQueries `pg-20260919-105428-4029c368` 已从全新 schema 生成并核对 272 条 Console 元数据；节点存储专项
+`pg-20260919-105507-36c9beed` 为 10/10，Directory API 专项 `pg-20260919-105605-6740880` 为 7/7；真实 Chromium 专项
+`pg-20260919-110140-6a7e7da6` 已覆盖空历史、未知覆盖率及陈旧展示，Console Web 类型检查和 47/47 合同测试通过。该切片关闭
+“服务端趋势/陈旧时长”缺口，不代替断线补报、公网高频反压或公网节点验收。
+
+切片收尾的完整开发门禁 `pg-20260919-110826-239844db` 为 419/419 PASS、0 FAIL、0 SKIP。它从全新三库执行迁移、在线及离线
+SQLx、Console/Auth/Desk 存储与进程测试、四套 Web 合同、Console/Auth/Desk 真实 Chromium、数据库失联 fail-closed/恢复、三库备份
+和异机恢复，并在结束时确认登记源码哈希不变且清理隔离容器与卷。`scripts_build/build_px_console_server.bat` 已完成开发发行构建，
+`output/px_console/dev/px_console.exe` SHA-256 为
+`A39A5881E0038727E411C83F252C1076A92C45D4F553A2686375290A4DB9A417`；Web 构建同步脚本逐文件核对静态资源摘要。
+该短测基线完成本切片验收，报告 scope 仍明确保留 DB2–DB5 的公网产品、断线补报和最终统一长测出口。
 
 P3 首批资源预约随后落地。全新 schema 的迁移 0027 不迁移任何开发数据，并在发现既有部署/实例时直接拒绝；Game Hook/WebView
 部署现在必须提供显存、GPU/编码器单实例预算、安全余量和最大压力，RDP profile 必须为空。预约事务逐卡使用
@@ -876,7 +892,7 @@ Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 W
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |
 | DB1-EXIT | 完成：Desk/Auth 产品服务与 PostgreSQL Console 正式 `px_console.exe` 均已接入；三者具有独立发行入口。Console 当前 3.2.21 发行、进程断库 fail-closed、真实浏览器和制品哈希已通过；后续能力缺口归 DB2–DB5，不再把旧 Mongo 组合根当产品入口 |
 | DB2-A | 身份/管理HTTP、本人资料/头像、密码计算/限流/Origin、访客HMAC/会话/公开目录、Saved Connections、本人实例列表、更新目录、访问/通道/传输历史及录像目录HTTP、严格配置、稳定私钥加载、独立初始化CLI、静态文件服务及进程生命周期已实现；Console用户门户及管理后台的当前目录/身份/状态入口均已切新bearer/主体API，源码不再保留旧`/api/v1`，正式PostgreSQL产品二进制和发行包已切换。部署绑定录像缓存、本人/管理员授权Range下载、Render完成段session归属、Windows Service真实字节生产、本人/管理下载页面、保留/释放/驱逐 Console 副本及真实浏览器空目录流程已接；Direct Host观察者不再默认获得输入。仍需公网真实录像有数据浏览器流程；视频墙延期，ZLM直播和RTC/TURN管理明确退役，不再作为待实现项 |
-| DB2-B/C/D | 设备/应用/节点/部署目录、user/guest资源入口、更新与历史元数据入口、Console节点WS及独立管理实时事件流已接；Windows Service已切到新节点协议并实现部署准备、调和、命令fencing、精确launch ACK、Render前端准入转发、实际媒体/RDP通道生命周期、遥测、唯一PCI身份的NVIDIA逐GPU指标、GPU预算/原子硬过滤/物理stable key运行时绑定与节点二次准入、只读调度预览/逐候选拒绝解释、录像session归属及通用录像字节上传。ZLM/Coturn/中央RTC signaling已归档移除，Windows/Web/Render/Service/Console的Direct Host活动代码和聚焦构建已接通。仍需Relay既有数据真机回归、公网首帧/输入/音频与持续续租/撤销、Android直连、AMD/Intel逐GPU指标、服务端趋势/断线补报、管理实时流的公网高频/断库专项、RDP执行、周期通道指标、文件传输字节生产、无人值守更新及其余产品入口 |
+| DB2-B/C/D | 设备/应用/节点/部署目录、user/guest资源入口、更新与历史元数据入口、Console节点WS及独立管理实时事件流已接；Windows Service已切到新节点协议并实现部署准备、调和、命令fencing、精确launch ACK、Render前端准入转发、实际媒体/RDP通道生命周期、遥测、唯一PCI身份的NVIDIA逐GPU指标、GPU预算/原子硬过滤/物理stable key运行时绑定与节点二次准入、只读调度预览/逐候选拒绝解释、数据库时钟对齐的有界服务端趋势/陈旧判断、录像session归属及通用录像字节上传。ZLM/Coturn/中央RTC signaling已归档移除，Windows/Web/Render/Service/Console的Direct Host活动代码和聚焦构建已接通。仍需Relay既有数据真机回归、公网首帧/输入/音频与持续续租/撤销、Android直连、AMD/Intel逐GPU指标、断线遥测补报、管理实时流的公网高频/断库专项、RDP执行、周期通道指标、文件传输字节生产、无人值守更新及其余产品入口 |
 | DB2-EXIT / DB3 | Desk/Auth 独立产品流程已验证；Console 与共享消费者仍待去 Mongo、接新签发/验证及库外水位，Auth 通知 outbox 尚未接通；不建设运行时双后端 |
 | DB4 | 恢复集、保留、异机复制、恢复准入/执行/封印、三库写屏障/安全水位、外部见证、Auth keyring、pgBackRest/WAL/PITR、Windows SCM包及WSL2 systemd生命周期已实现。开发期仍需目标Linux发行版VM短测、Pixels外层签名/生产密钥托管、独立主机或对象仓库一次完整恢复、目标环境keyring/见证轮换及真实节点与Windows/RDP事实对账；连续7天窗口和自然周期稳定性统一放到DB5功能通过后的长测，不阻塞每个开发切片 |
 | DB5 | 全新环境服务端—Windows Client/Web Client—Render/Service—Relay—Android功能回归及完整制品验收；必须证明Direct Host与Relay分别正常且安装包不含ZLM/Coturn，先短测通过，最后统一长测 |

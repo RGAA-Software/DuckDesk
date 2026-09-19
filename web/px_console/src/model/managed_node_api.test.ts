@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import axiosHttp from "@/http";
-import { listManagedNodeTelemetry, type NodeTelemetryHistory } from "./managed_node_api";
+import {
+    getManagedNodeTelemetryTrend,
+    listManagedNodeTelemetry,
+    type NodeTelemetryHistory,
+} from "./managed_node_api";
 
 vi.mock("@/http", () => ({
     default: {
@@ -47,6 +51,20 @@ describe("PostgreSQL managed node telemetry API", () => {
                     before_sequence: cursor.report_sequence,
                 },
             },
+        );
+    });
+
+    it("requests a bounded server-side trend window", async () => {
+        const nodeId = "00000000-0000-0000-0000-000000000001";
+        vi.mocked(axiosHttp.get).mockResolvedValue({
+            data: { node_id: nodeId, points: [] },
+        } as never);
+
+        await getManagedNodeTelemetryTrend(nodeId, 120, 300);
+
+        expect(axiosHttp.get).toHaveBeenCalledWith(
+            `/api/console/managed/nodes/${nodeId}/telemetry/trend`,
+            { params: { window_minutes: 120, bucket_seconds: 300 } },
         );
     });
 });

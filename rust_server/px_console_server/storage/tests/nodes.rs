@@ -6,7 +6,7 @@ use px_console_store::{
     ClientType, DevicePlatform, DeviceStore, IdentityStore, NodeConfiguration, NodeGpuTelemetry,
     NodeProduct, NodeProfile, NodeReport, NodeStore, NodeTelemetry, PasswordDigest, StoreError,
     TelemetryAlertFilter, TelemetryAlertMetric, TelemetryAlertPolicy, TelemetryAlertStore,
-    TelemetryProbeState, TokenDigest, Username,
+    TelemetryProbeState, TelemetryTrendRequest, TokenDigest, Username,
 };
 use px_pg::{DatabaseConfig, Transport};
 use std::{env, sync::OnceLock, time::Duration};
@@ -26,6 +26,21 @@ async fn telemetry_alerts_require_consecutive_samples_and_preserve_acknowledgeme
 {
     let fixture = Fixture::new().await;
     let (node, key) = fixture.node().await;
+    let empty_trend = fixture
+        .nodes
+        .telemetry_trend(
+            &fixture.admin,
+            node.id,
+            TelemetryTrendRequest {
+                window_minutes: 60,
+                bucket_seconds: 60,
+            },
+        )
+        .await
+        .unwrap();
+    assert!(empty_trend.stale);
+    assert!(empty_trend.latest_received_at.is_none());
+    assert_eq!(empty_trend.points.len(), 61);
     let epoch = fixture.nodes.begin_runtime().await.unwrap();
     let connection = fixture
         .nodes
@@ -442,6 +457,123 @@ async fn latest_machine_and_gpu_telemetry_is_generation_fenced_replaced_and_expl
         fixture.nodes.report(&connection, &incomplete).await,
         Err(StoreError::InvalidInput)
     ));
+    fixture.close().await;
+}
+
+#[tokio::test]
+async fn telemetry_trend_aggregates_on_database_time_and_keeps_unknown_samples_visible() {
+    let fixture = Fixture::new().await;
+    let (node, key) = fixture.node().await;
+    let epoch = fixture.nodes.begin_runtime().await.unwrap();
+    let connection = fixture
+        .nodes
+        .open_connection(epoch, &key, &token())
+        .await
+        .unwrap();
+    for (sequence, cpu_utilization) in [(1, Some(200)), (2, None), (3, Some(800))] {
+        let mut current_report = report(sequence);
+        if let Some(cpu_utilization) = cpu_utilization {
+            current_report.telemetry = ready_telemetry();
+            current_report.telemetry.cpu_utilization_per_mille = Some(cpu_utilization);
+        }
+        fixture
+            .nodes
+            .report(&connection, &current_report)
+            .await
+            .unwrap();
+    }
+    sqlx::query(
+        "UPDATE pixels.node_telemetry_history SET received_at=clock_timestamp()-make_interval(secs => CASE report_sequence WHEN 1 THEN 65 WHEN 2 THEN 35 ELSE 5 END) WHERE node_id=$1",
+    )
+    .bind(node.id)
+    .execute(&fixture.owner)
+    .await
+    .unwrap();
+    sqlx::query(
+        "UPDATE pixels.node_gpu_history AS gpu SET received_at=telemetry.received_at FROM pixels.node_telemetry_history AS telemetry WHERE gpu.node_id=telemetry.node_id AND gpu.node_generation=telemetry.node_generation AND gpu.report_sequence=telemetry.report_sequence AND gpu.node_id=$1",
+    )
+    .bind(node.id)
+    .execute(&fixture.owner)
+    .await
+    .unwrap();
+
+    let trend = fixture
+        .nodes
+        .telemetry_trend(
+            &fixture.admin,
+            node.id,
+            TelemetryTrendRequest {
+                window_minutes: 5,
+                bucket_seconds: 30,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(trend.node_id, node.id);
+    assert_eq!(trend.window_seconds, 300);
+    assert_eq!(trend.bucket_seconds, 30);
+    assert!(!trend.stale);
+    assert!(trend
+        .latest_age_seconds
+        .is_some_and(|age| (4..=10).contains(&age)));
+    assert_eq!(
+        trend
+            .points
+            .iter()
+            .map(|point| point.sample_count)
+            .sum::<i64>(),
+        3
+    );
+    let populated = trend
+        .points
+        .iter()
+        .filter(|point| point.sample_count > 0)
+        .collect::<Vec<_>>();
+    assert_eq!(populated.len(), 3);
+    assert!(populated.iter().any(|point| {
+        point.sample_count == 1
+            && point.cpu_known_samples == 0
+            && point.cpu_average_per_mille.is_none()
+    }));
+    assert_eq!(
+        populated
+            .iter()
+            .filter_map(|point| point.cpu_average_per_mille)
+            .collect::<Vec<_>>(),
+        vec![200, 800]
+    );
+    assert!(fixture
+        .nodes
+        .telemetry_trend(
+            &fixture.admin,
+            Uuid::new_v4(),
+            TelemetryTrendRequest {
+                window_minutes: 5,
+                bucket_seconds: 30,
+            },
+        )
+        .await
+        .is_err());
+    for invalid in [
+        TelemetryTrendRequest {
+            window_minutes: 1,
+            bucket_seconds: 30,
+        },
+        TelemetryTrendRequest {
+            window_minutes: 5,
+            bucket_seconds: 31,
+        },
+        TelemetryTrendRequest {
+            window_minutes: 10_080,
+            bucket_seconds: 30,
+        },
+    ] {
+        assert!(fixture
+            .nodes
+            .telemetry_trend(&fixture.admin, node.id, invalid)
+            .await
+            .is_err());
+    }
     fixture.close().await;
 }
 

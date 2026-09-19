@@ -16,7 +16,10 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use futures_util::{SinkExt, StreamExt};
-use px_console_store::{NodeConfiguration, NodeConnection, NodeProduct, TelemetryHistoryCursor};
+use px_console_store::{
+    NodeConfiguration, NodeConnection, NodeProduct, NodeTelemetryTrend, TelemetryHistoryCursor,
+    TelemetryTrendRequest,
+};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
@@ -40,6 +43,10 @@ pub(crate) fn routes() -> Router<Arc<StateData>> {
         .route(
             "/api/console/managed/nodes/{id}/telemetry",
             get(telemetry_history),
+        )
+        .route(
+            "/api/console/managed/nodes/{id}/telemetry/trend",
+            get(telemetry_trend),
         )
         .route("/api/console/managed/nodes/{id}/credential", post(rotate))
 }
@@ -92,6 +99,25 @@ async fn telemetry_history(
             )
             .await?
     )))
+}
+
+async fn telemetry_trend(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    Path(node_id): Path<Uuid>,
+    Query(trend_request): Query<TelemetryTrendRequest>,
+) -> Result<Json<NodeTelemetryTrend>, ApiError> {
+    Ok(Json(
+        state
+            .db
+            .nodes()
+            .telemetry_trend(
+                &request::administrator(&state, &headers)?,
+                node_id,
+                trend_request,
+            )
+            .await?,
+    ))
 }
 
 async fn upgrade(

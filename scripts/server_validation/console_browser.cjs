@@ -406,6 +406,28 @@ async function run() {
   await schedulingCard.getByText("Node disconnected", { exact: true }).waitFor();
   console.log("PASS console-browser/scheduling-preview-rejections");
 
+  const nodeCard = page.locator(".ant-card").filter({ hasText: "Node identities and status" });
+  const previewNodeRow = nodeCard.getByRole("row").filter({ hasText: deviceName });
+  const rawTelemetryRequested = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === `/api/console/managed/nodes/${previewNode.body.node.id}/telemetry` &&
+      response.request().method() === "GET",
+  );
+  const trendRequested = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname ===
+        `/api/console/managed/nodes/${previewNode.body.node.id}/telemetry/trend` &&
+      response.request().method() === "GET",
+  );
+  await previewNodeRow.getByRole("button", { name: "History", exact: true }).click();
+  assert.equal((await rawTelemetryRequested).status(), 200);
+  assert.equal((await trendRequested).status(), 200);
+  const telemetryDialog = page.getByRole("dialog", { name: `Telemetry history — ${deviceName}` });
+  await telemetryDialog.getByText("Latest accepted sample is stale (Unknown old)", { exact: true }).waitFor();
+  await telemetryDialog.getByText("0/0 known", { exact: true }).first().waitFor();
+  await telemetryDialog.locator("button.ant-modal-close").click();
+  console.log("PASS console-browser/server-telemetry-trend");
+
   await stopServer();
   await page.getByText("Reconnecting", { exact: true }).waitFor();
   await startServer();

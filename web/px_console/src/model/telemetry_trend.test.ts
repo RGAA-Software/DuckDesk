@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import type { NodeTelemetryHistory } from "@/model/managed_node_api.ts";
-import { buildTelemetryTrend, trendSegments } from "@/model/telemetry_trend.ts";
+import type { NodeTelemetryHistory, NodeTelemetryTrendPoint } from "@/model/managed_node_api.ts";
+import {
+    buildAggregatedTelemetryTrend,
+    buildTelemetryTrend,
+    trendSegments,
+} from "@/model/telemetry_trend.ts";
 
 describe("telemetry trends", () => {
     it("orders accepted samples and derives bounded machine and peak GPU pressure", () => {
@@ -37,7 +41,64 @@ describe("telemetry trends", () => {
         ]);
         expect(trendSegments([null, 200, null], 100, 100)).toEqual([]);
     });
+
+    it("preserves empty and unknown server buckets instead of inventing zero utilization", () => {
+        expect(
+            buildAggregatedTelemetryTrend([
+                aggregatePoint("2026-09-19T00:00:00Z", 0, 0, null),
+                aggregatePoint("2026-09-19T00:01:00Z", 2, 0, null),
+                aggregatePoint("2026-09-19T00:02:00Z", 2, 2, 425),
+            ]),
+        ).toEqual([
+            {
+                sampledAt: "2026-09-19T00:00:00Z",
+                cpu: null,
+                memory: null,
+                disk: null,
+                gpu: null,
+                encoder: null,
+            },
+            {
+                sampledAt: "2026-09-19T00:01:00Z",
+                cpu: null,
+                memory: null,
+                disk: null,
+                gpu: null,
+                encoder: null,
+            },
+            {
+                sampledAt: "2026-09-19T00:02:00Z",
+                cpu: 425,
+                memory: 425,
+                disk: 425,
+                gpu: 425,
+                encoder: 425,
+            },
+        ]);
+    });
 });
+
+function aggregatePoint(
+    bucketStart: string,
+    sampleCount: number,
+    knownSamples: number,
+    average: number | null,
+): NodeTelemetryTrendPoint {
+    return {
+        bucket_start: bucketStart,
+        sample_count: sampleCount,
+        cpu_known_samples: knownSamples,
+        cpu_average_per_mille: average,
+        memory_known_samples: knownSamples,
+        memory_average_per_mille: average,
+        disk_known_samples: knownSamples,
+        disk_average_per_mille: average,
+        gpu_known_samples: knownSamples,
+        gpu_average_per_mille: average,
+        encoder_known_samples: knownSamples,
+        encoder_average_per_mille: average,
+    };
+}
 
 function sample(
     sampledAt: string,

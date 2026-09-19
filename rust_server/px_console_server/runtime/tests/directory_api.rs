@@ -1276,6 +1276,49 @@ async fn node_and_deployment_management_cannot_manufacture_readiness_or_change_t
         .to_string()
         .contains(node["node_token"].as_str().unwrap()));
     assert!(!list.to_string().contains("credential_hash"));
+    let trend_path = format!(
+        "/api/console/managed/nodes/{node_id}/telemetry/trend?window_minutes=60&bucket_seconds=60"
+    );
+    assert_eq!(
+        call(&router, "GET", &trend_path, "admin_web", None, Value::Null)
+            .await
+            .0,
+        StatusCode::UNAUTHORIZED
+    );
+    let (status, trend) = call(
+        &router,
+        "GET",
+        &trend_path,
+        "admin_web",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{trend}");
+    assert_eq!(trend["node_id"], node["node"]["id"]);
+    assert_eq!(trend["stale"], true);
+    assert_eq!(trend["latest_received_at"], Value::Null);
+    assert_eq!(trend["points"].as_array().unwrap().len(), 61);
+    assert!(trend["points"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|point| point["sample_count"] == 0));
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            &format!(
+                "/api/console/managed/nodes/{node_id}/telemetry/trend?window_minutes=1&bucket_seconds=30"
+            ),
+            "admin_web",
+            Some(&admin),
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
     let path = format!("/api/console/managed/nodes/{node_id}");
     assert_eq!(call(&router,"PATCH",&path,"admin_web",Some(&admin),json!({"revision":1,"configuration":{"draining":true,"disabled":false,"max_instances":2}})).await.0,StatusCode::OK);
     assert_eq!(call(&router,"PATCH",&path,"admin_web",Some(&admin),json!({"revision":1,"configuration":{"draining":false,"disabled":false,"max_instances":4}})).await.0,StatusCode::FORBIDDEN);

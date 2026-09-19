@@ -1,7 +1,8 @@
 use crate::{
     control, ManagedNodeProfile, ManagedNodeTelemetrySample, NodeConfiguration, NodeConnection,
     NodeGpuHistoryProfile, NodeGpuProfile, NodeProduct, NodeProfile, NodeReport,
-    NodeTelemetryProfile, RuntimeEpoch, StoreError, TelemetryHistoryCursor, TokenDigest,
+    NodeTelemetryProfile, NodeTelemetryTrend, NodeTelemetryTrendPoint, RuntimeEpoch, StoreError,
+    TelemetryHistoryCursor, TelemetryTrendRequest, TokenDigest,
 };
 use sqlx::{PgConnection, PgPool};
 use std::collections::HashMap;
@@ -217,6 +218,49 @@ impl NodeStore {
                 telemetry: sample,
             })
             .collect())
+    }
+    pub async fn telemetry_trend(
+        &self,
+        admin: &TokenDigest,
+        node_id: Uuid,
+        request: TelemetryTrendRequest,
+    ) -> Result<NodeTelemetryTrend, StoreError> {
+        let (window_seconds, bucket_seconds) = request.validated_seconds()?;
+        let mut tx = self.pool.begin().await?;
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+            .execute(&mut *tx)
+            .await?;
+        control::read_gate(&mut tx).await?;
+        control::authorize(&mut tx, admin, false).await?;
+        let summary = sqlx::query_file_as!(
+            crate::node_model::NodeTelemetryTrendSummaryRow,
+            "queries/managed_node_telemetry_trend_summary.sql",
+            node_id
+        )
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(StoreError::NotFound)?;
+        let points = sqlx::query_file_as!(
+            NodeTelemetryTrendPoint,
+            "queries/managed_node_telemetry_trend.sql",
+            node_id,
+            summary.evaluated_at,
+            window_seconds,
+            bucket_seconds
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        Ok(NodeTelemetryTrend {
+            node_id: summary.node_id,
+            evaluated_at: summary.evaluated_at,
+            window_seconds,
+            bucket_seconds,
+            latest_received_at: summary.latest_received_at,
+            latest_age_seconds: summary.latest_age_seconds,
+            stale: summary.stale,
+            points,
+        })
     }
     /// Runtime maintenance only. Each call deletes a bounded batch older than the fixed
     /// seven-day raw-sample window; GPU rows follow through the sample foreign key.

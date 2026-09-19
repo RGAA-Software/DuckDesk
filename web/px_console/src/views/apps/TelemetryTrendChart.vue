@@ -2,19 +2,24 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 
-import type { NodeTelemetryHistory } from "@/model/managed_node_api.ts";
-import { buildTelemetryTrend, trendSegments } from "@/model/telemetry_trend.ts";
+import type { NodeTelemetryTrend } from "@/model/managed_node_api.ts";
+import { buildAggregatedTelemetryTrend, trendSegments } from "@/model/telemetry_trend.ts";
 
-const props = defineProps<{ samples: NodeTelemetryHistory[] }>();
+const props = defineProps<{ trend?: NodeTelemetryTrend }>();
 const { locale, t } = useI18n();
 const width = 900;
 const height = 220;
 const seriesKeys = ["cpu", "memory", "disk", "gpu", "encoder"] as const;
-const points = computed(() => buildTelemetryTrend(props.samples));
+const points = computed(() => buildAggregatedTelemetryTrend(props.trend?.points ?? []));
 const series = computed(() =>
     seriesKeys.map(key => ({
         key,
         label: t(`nodes.trendSeries.${key}`),
+        known: (props.trend?.points ?? []).reduce(
+            (total, point) => total + point[`${key}_known_samples`],
+            0,
+        ),
+        total: (props.trend?.points ?? []).reduce((total, point) => total + point.sample_count, 0),
         segments: trendSegments(
             points.value.map(point => point[key]),
             width,
@@ -40,6 +45,9 @@ function formatTimestamp(value: string | undefined): string {
         <div class="legend">
             <span v-for="item in series" :key="item.key" class="legend-item">
                 <i :class="`swatch swatch-${item.key}`"></i>{{ item.label }}
+                <small>{{
+                    t("nodes.trendCoverage", { known: item.known, total: item.total })
+                }}</small>
             </span>
         </div>
         <svg

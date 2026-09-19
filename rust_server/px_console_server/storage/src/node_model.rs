@@ -360,6 +360,67 @@ pub struct ManagedNodeTelemetrySample {
     pub gpus: Vec<NodeGpuHistoryProfile>,
 }
 
+#[derive(Debug, Clone, Copy, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TelemetryTrendRequest {
+    pub window_minutes: u32,
+    pub bucket_seconds: u32,
+}
+
+impl TelemetryTrendRequest {
+    pub(crate) fn validated_seconds(self) -> Result<(i64, i64), StoreError> {
+        let window_seconds = i64::from(self.window_minutes)
+            .checked_mul(60)
+            .ok_or(StoreError::InvalidInput)?;
+        let bucket_seconds = i64::from(self.bucket_seconds);
+        if !(5..=10_080).contains(&self.window_minutes)
+            || !(30..=3_600).contains(&self.bucket_seconds)
+            || window_seconds % bucket_seconds != 0
+            || !(2..=288).contains(&(window_seconds / bucket_seconds))
+        {
+            return Err(StoreError::InvalidInput);
+        }
+        Ok((window_seconds, bucket_seconds))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, sqlx::FromRow)]
+pub struct NodeTelemetryTrendPoint {
+    pub bucket_start: DateTime<Utc>,
+    pub sample_count: i64,
+    pub cpu_known_samples: i64,
+    pub cpu_average_per_mille: Option<i16>,
+    pub memory_known_samples: i64,
+    pub memory_average_per_mille: Option<i16>,
+    pub disk_known_samples: i64,
+    pub disk_average_per_mille: Option<i16>,
+    pub gpu_known_samples: i64,
+    pub gpu_average_per_mille: Option<i16>,
+    pub encoder_known_samples: i64,
+    pub encoder_average_per_mille: Option<i16>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct NodeTelemetryTrend {
+    pub node_id: Uuid,
+    pub evaluated_at: DateTime<Utc>,
+    pub window_seconds: i64,
+    pub bucket_seconds: i64,
+    pub latest_received_at: Option<DateTime<Utc>>,
+    pub latest_age_seconds: Option<i64>,
+    pub stale: bool,
+    pub points: Vec<NodeTelemetryTrendPoint>,
+}
+
+#[derive(sqlx::FromRow)]
+pub(crate) struct NodeTelemetryTrendSummaryRow {
+    pub node_id: Uuid,
+    pub evaluated_at: DateTime<Utc>,
+    pub latest_received_at: Option<DateTime<Utc>>,
+    pub latest_age_seconds: Option<i64>,
+    pub stale: bool,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct TelemetryHistoryCursor {
     pub received_at: DateTime<Utc>,

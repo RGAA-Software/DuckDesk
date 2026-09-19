@@ -205,7 +205,14 @@ export default {
         title: "节点身份与状态",
         telemetryState: "遥测状态",
         telemetryStates: { ready: "完整", partial: "部分可用", unavailable: "不可用" },
-        trendDescription: "节点近期 CPU、内存、磁盘、GPU 和编码器利用率趋势；断点表示指标未知。",
+        trendDescription:
+            "服务端聚合的节点 CPU、内存、磁盘、GPU 和编码器利用率趋势；断点表示无样本或指标未知。",
+        trendCoverage: "已知 {known}/{total}",
+        trendFresh: "最新已接受样本有效（距今 {age}）",
+        trendStale: "最新已接受样本已过期（距今 {age}）",
+        ageSeconds: "{value} 秒",
+        ageMinutes: "{value} 分钟",
+        ageHours: "{value} 小时",
         trendSeries: {
             cpu: "CPU",
             disk: "磁盘",

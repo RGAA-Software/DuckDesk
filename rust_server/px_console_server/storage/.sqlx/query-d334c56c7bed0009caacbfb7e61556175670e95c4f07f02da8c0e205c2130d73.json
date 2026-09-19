@@ -1,0 +1,91 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH bounds AS (\n    SELECT\n        $1::uuid AS node_id,\n        $2::timestamptz AS evaluated_at,\n        $3::bigint AS window_seconds,\n        $4::bigint AS bucket_seconds\n),\naligned AS (\n    SELECT\n        node_id,\n        evaluated_at,\n        bucket_seconds,\n        to_timestamp(\n            floor(EXTRACT(EPOCH FROM evaluated_at - window_seconds * INTERVAL '1 second') / bucket_seconds)\n            * bucket_seconds\n        ) AS first_bucket,\n        to_timestamp(floor(EXTRACT(EPOCH FROM evaluated_at) / bucket_seconds) * bucket_seconds) AS last_bucket\n    FROM bounds\n),\nbuckets AS (\n    SELECT\n        aligned.node_id,\n        aligned.evaluated_at,\n        aligned.bucket_seconds,\n        generate_series(\n            aligned.first_bucket,\n            aligned.last_bucket,\n            aligned.bucket_seconds * INTERVAL '1 second'\n        ) AS bucket_start\n    FROM aligned\n),\ngpu_samples AS (\n    SELECT\n        history.node_id,\n        history.node_generation,\n        history.report_sequence,\n        max(history.utilization_per_mille) AS gpu_utilization_per_mille,\n        max(history.encoder_utilization_per_mille) AS encoder_utilization_per_mille\n    FROM pixels.node_gpu_history AS history\n    CROSS JOIN aligned\n    WHERE history.node_id = aligned.node_id\n      AND history.received_at >= aligned.first_bucket\n      AND history.received_at < aligned.last_bucket + aligned.bucket_seconds * INTERVAL '1 second'\n    GROUP BY history.node_id, history.node_generation, history.report_sequence\n),\nsamples AS (\n    SELECT\n        telemetry.node_id,\n        to_timestamp(\n            floor(EXTRACT(EPOCH FROM telemetry.received_at) / aligned.bucket_seconds)\n            * aligned.bucket_seconds\n        ) AS bucket_start,\n        telemetry.cpu_utilization_per_mille,\n        CASE\n            WHEN telemetry.memory_total_bytes > 0 THEN round(\n                (telemetry.memory_total_bytes - telemetry.memory_available_bytes)::numeric * 1000\n                / telemetry.memory_total_bytes\n            )::smallint\n            ELSE NULL\n        END AS memory_utilization_per_mille,\n        CASE\n            WHEN telemetry.disk_total_bytes > 0 THEN round(\n                (telemetry.disk_total_bytes - telemetry.disk_free_bytes)::numeric * 1000\n                / telemetry.disk_total_bytes\n            )::smallint\n            ELSE NULL\n        END AS disk_utilization_per_mille,\n        gpu_samples.gpu_utilization_per_mille,\n        gpu_samples.encoder_utilization_per_mille\n    FROM pixels.node_telemetry_history AS telemetry\n    CROSS JOIN aligned\n    LEFT JOIN gpu_samples\n      ON gpu_samples.node_id = telemetry.node_id\n     AND gpu_samples.node_generation = telemetry.node_generation\n     AND gpu_samples.report_sequence = telemetry.report_sequence\n    WHERE telemetry.node_id = aligned.node_id\n      AND telemetry.received_at >= aligned.first_bucket\n      AND telemetry.received_at < aligned.last_bucket + aligned.bucket_seconds * INTERVAL '1 second'\n)\nSELECT\n    buckets.bucket_start AS \"bucket_start!\",\n    count(samples.node_id)::bigint AS \"sample_count!\",\n    count(samples.cpu_utilization_per_mille)::bigint AS \"cpu_known_samples!\",\n    round(avg(samples.cpu_utilization_per_mille))::smallint AS cpu_average_per_mille,\n    count(samples.memory_utilization_per_mille)::bigint AS \"memory_known_samples!\",\n    round(avg(samples.memory_utilization_per_mille))::smallint AS memory_average_per_mille,\n    count(samples.disk_utilization_per_mille)::bigint AS \"disk_known_samples!\",\n    round(avg(samples.disk_utilization_per_mille))::smallint AS disk_average_per_mille,\n    count(samples.gpu_utilization_per_mille)::bigint AS \"gpu_known_samples!\",\n    round(avg(samples.gpu_utilization_per_mille))::smallint AS gpu_average_per_mille,\n    count(samples.encoder_utilization_per_mille)::bigint AS \"encoder_known_samples!\",\n    round(avg(samples.encoder_utilization_per_mille))::smallint AS encoder_average_per_mille\nFROM buckets\nLEFT JOIN samples\n  ON samples.node_id = buckets.node_id\n AND samples.bucket_start = buckets.bucket_start\nGROUP BY buckets.bucket_start\nORDER BY buckets.bucket_start\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "bucket_start!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 1,
+        "name": "sample_count!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "cpu_known_samples!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "cpu_average_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 4,
+        "name": "memory_known_samples!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "memory_average_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 6,
+        "name": "disk_known_samples!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "disk_average_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 8,
+        "name": "gpu_known_samples!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "gpu_average_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 10,
+        "name": "encoder_known_samples!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "encoder_average_per_mille",
+        "type_info": "Int2"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "d334c56c7bed0009caacbfb7e61556175670e95c4f07f02da8c0e205c2130d73"
+}

@@ -41,6 +41,32 @@ export interface NodeTelemetryHistory extends NodeTelemetry {
     gpus: NodeGpuTelemetryHistory[];
 }
 
+export interface NodeTelemetryTrendPoint {
+    bucket_start: string;
+    sample_count: number;
+    cpu_known_samples: number;
+    cpu_average_per_mille: number | null;
+    memory_known_samples: number;
+    memory_average_per_mille: number | null;
+    disk_known_samples: number;
+    disk_average_per_mille: number | null;
+    gpu_known_samples: number;
+    gpu_average_per_mille: number | null;
+    encoder_known_samples: number;
+    encoder_average_per_mille: number | null;
+}
+
+export interface NodeTelemetryTrend {
+    node_id: string;
+    evaluated_at: string;
+    window_seconds: number;
+    bucket_seconds: number;
+    latest_received_at: string | null;
+    latest_age_seconds: number | null;
+    stale: boolean;
+    points: NodeTelemetryTrendPoint[];
+}
+
 export interface ManagedNode {
     id: string;
     device_id: string;
@@ -102,6 +128,18 @@ export async function listManagedNodeTelemetry(
                 before_sequence: before?.report_sequence,
             },
         },
+    );
+    return response.data;
+}
+
+export async function getManagedNodeTelemetryTrend(
+    nodeId: string,
+    windowMinutes = 60,
+    bucketSeconds = 60,
+): Promise<NodeTelemetryTrend> {
+    const response = await axiosHttp.get<NodeTelemetryTrend>(
+        `/api/console/managed/nodes/${encodeURIComponent(nodeId)}/telemetry/trend`,
+        { params: { window_minutes: windowMinutes, bucket_seconds: bucketSeconds } },
     );
     return response.data;
 }
