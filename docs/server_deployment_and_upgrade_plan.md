@@ -169,7 +169,8 @@ TLS 证书轮换或域名更换不自动创建新 DeploymentId；恢复/克隆�
 许可证 distribution、部署证书类别、公私钥匹配、certificate version 与 trust epoch。平台描述最长 300 秒，在线证明最长 30 秒，
 请求 nonce 必须是 32 字节规范 base64url。已实现描述中的固定相对 Console API 路径、协议范围、最低客户端 build、认证与注册策略；
 Broker/Relay/更新端点仍须通过后续认证响应安全下发，不能用当前相对路径集合冒充目标模型全部完成。Windows、Android、Web、Service 的
-验签和水位持久化、Official/Customer 发行内置信任根与独立构建、显式离线签发工具仍属于 DB5/P0，完成前发行隔离不得判定通过。
+验签和水位持久化、Official/Customer 发行内置信任根与独立构建仍属于 DB5/P0，完成前发行隔离不得判定通过。部署私钥生成、离线根/trust
+store 建立及证书签发工具已实现，操作与隔离边界见[部署身份离线签发与安装](deployment_identity_provisioning.md)。
 
 ### 3.3 Customer 禁止官方平台的准确边界
 

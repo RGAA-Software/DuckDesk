@@ -1,0 +1,15 @@
+[package]
+name = "px_deployment_authority"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+hex = "0.4"
+px_deployment_identity = { path = "../px_deployment_identity" }
+px_private_files = { path = "../px_private_files" }
+ring = "0.17"
+uuid = "1"
+zeroize = "1.8"
+
+[dev-dependencies]
+tempfile = "3"

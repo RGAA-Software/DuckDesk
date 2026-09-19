@@ -2,6 +2,10 @@ use px_console_store::{initialize_administrator, PasswordDigest, Username};
 use px_pg::{DatabaseConfig, Transport};
 use px_private_files::{private, CacheRoot};
 use rand::RngCore;
+use ring::{
+    rand::SystemRandom,
+    signature::{Ed25519KeyPair, KeyPair},
+};
 use std::{env, path::PathBuf};
 use uuid::Uuid;
 use zeroize::Zeroizing;
@@ -19,9 +23,28 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     match arguments.as_slice() {
         [command] if command == "bootstrap" => bootstrap().await,
         [command] if command == "generate-secrets" => generate_secrets(),
+        [command] if command == "generate-deployment-key" => generate_deployment_key(),
         [command] if command == "initialize-recording-cache" => initialize_recording_cache(),
-        _ => Err("usage: px_console_admin <bootstrap|generate-secrets|initialize-recording-cache>; explicit provisioning only; configuration via environment".into()),
+        _ => Err("usage: px_console_admin <bootstrap|generate-secrets|generate-deployment-key|initialize-recording-cache>; explicit provisioning only; configuration via environment".into()),
     }
+}
+
+fn generate_deployment_key() -> Result<(), Box<dyn std::error::Error>> {
+    let signing_key_path = PathBuf::from(env::var("PIXELS_CONSOLE_DEPLOYMENT_SIGNING_KEY")?);
+    let signing_key_document = Zeroizing::new(
+        Ed25519KeyPair::generate_pkcs8(&SystemRandom::new())
+            .map_err(|_| "deployment key generation failed")?
+            .as_ref()
+            .to_vec(),
+    );
+    let signing_key = Ed25519KeyPair::from_pkcs8(&signing_key_document)
+        .map_err(|_| "generated deployment key is invalid")?;
+    private::create_private(&signing_key_path, &signing_key_document)?;
+    println!(
+        "deployment_public_key_hex={}",
+        hex::encode(signing_key.public_key().as_ref())
+    );
+    Ok(())
 }
 
 fn initialize_recording_cache() -> Result<(), Box<dyn std::error::Error>> {

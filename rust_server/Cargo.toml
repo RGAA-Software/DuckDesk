@@ -4,6 +4,7 @@ members = [
     "px_relay_admission",
     "px_node_protocol",
     "px_deployment_identity",
+    "px_deployment_authority",
     "px_console_server/runtime",
     "px_release_catalog",
     "px_private_files",

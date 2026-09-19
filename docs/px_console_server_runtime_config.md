@@ -62,9 +62,11 @@ Linux 发行使用包内 `deploy/systemd/pixels-console@.service`：非零退出
    独立空水位目录并设置 `PIXELS_CONSOLE_LICENSE_STATE_DIRECTORY`。Official 必须配置自己的 Auth HTTPS verify URL；Customer
    必须不配置任何 Auth URL，也不能把官方路径作为可填服务器。首次有效验证会 create-new 水位，后续只能提高 revision/可信时间；
    Auth recovery generation 改变时必须走恢复准入/轮换流程，进程不会自行重置水位。
-6. 由受控离线签发流程为同一 `PIXELS_DEPLOYMENT_ID` 签发部署证书并配置部署私钥、部署根信任文件和四个单调版本变量。
+6. 先用 `px_console_admin generate-deployment-key` 在目标部署 create-new 部署私钥，再由不进入任何产品安装包的离线
+   `px_deployment_authority` 为同一 `PIXELS_DEPLOYMENT_ID` 签发部署证书；配置证书、部署私钥、部署根信任文件和四个单调版本变量。
    `official` 许可证必须匹配 `official` 部署证书，`customer` 必须匹配 `private`；数据库 UUID、证书 UUID、私钥公钥或 trust epoch
    任一不一致都在监听前失败。部署证书与商业许可证是两套独立 wire，不得共用密钥或把许可证当平台身份证明。
+   完整的根初始化、轮换和验收见[部署身份离线签发与安装](deployment_identity_provisioning.md)。
 7. 创建仅服务身份、SYSTEM、Administrators 可访问的空缓存目录，设置 `PIXELS_DEPLOYMENT_ID` 和
    `PIXELS_CONSOLE_RECORDING_CACHE_DIRECTORY`，执行 `px_console_admin initialize-recording-cache`。工具只初始化空目录、写入
    deployment 身份且从不覆盖；复制其他部署的目录或手工创建标记都会被拒绝。
