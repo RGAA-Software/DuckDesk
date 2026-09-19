@@ -51,7 +51,7 @@ Cloud Node 与 Remote 的 Official/Customer Web Client 也是发行绑定制品�
 3. 只递增目标产品自己的版本号一次；
 4. 从干净目录分别构建同版本 Official 与 Customer 的全部 C++、Rust、Web、RDP 产物；
 5. 用严格白名单重新生成两套完整 `dist`，分别写入签名身份 policy/trust 公共材料；
-6. 校验 product、distribution、制品清单和 SHA-256；
+6. 校验 product、distribution、制品清单、SHA-256，并拒绝任何 ZLMediaKit/Coturn 退役文件名或组件目录；
 7. 分别生成支持覆盖安装、同发行升级和卸载的安装包。跨 Official/Customer 覆盖会要求先卸载。
 
 在仓库根目录 `D:\GoCloud\GammaRayPremium` 执行。不要从旧目录复制文件拼装产品。

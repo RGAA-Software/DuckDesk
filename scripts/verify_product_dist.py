@@ -25,6 +25,18 @@ RETIRED_RDP_FILES = {
     "proxy-pixels-policy-plugin.dll",
     "pixels-rdp-sdk.json",
 }
+RETIRED_CENTRAL_MEDIA_FILES = {
+    "coturn.exe",
+    "libmk_api.dll",
+    "mediaserver.exe",
+    "mk_api.dll",
+    "px_media.exe",
+    "px_turn.exe",
+    "turnserver.conf",
+    "turnserver.exe",
+    "zlmediakit.exe",
+}
+RETIRED_CENTRAL_MEDIA_DIRECTORIES = {"coturn", "zlmediakit"}
 REQUIRED_RDP_CLIENT_FILES = {
     "px_rdp_client.dll",
     "px_rdp_core.dll",
@@ -124,7 +136,19 @@ def pe_dependencies(dumpbin: Path, path: Path) -> set[str]:
     }
 
 
+def verify_retired_central_media_absent(actual_files: set[str]) -> None:
+    retired_paths = []
+    for relative in actual_files:
+        path = Path(relative)
+        normalized_parts = {part.lower() for part in path.parts}
+        if path.name.lower() in RETIRED_CENTRAL_MEDIA_FILES or normalized_parts & RETIRED_CENTRAL_MEDIA_DIRECTORIES:
+            retired_paths.append(relative)
+    if retired_paths:
+        raise RuntimeError(f"distribution contains retired ZLMediaKit/Coturn artifacts: {sorted(retired_paths)}")
+
+
 def verify_windows_product_boundary(dist_dir: Path, product: str, actual_files: set[str]) -> None:
+    verify_retired_central_media_absent(actual_files)
     lower_files = {relative.lower() for relative in actual_files}
     retired = {Path(relative).name.lower() for relative in actual_files} & RETIRED_RDP_FILES
     if retired:
