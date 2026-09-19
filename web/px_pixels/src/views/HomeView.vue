@@ -70,10 +70,6 @@ function scrollToSolutions() {
 
       <div class="page-shell hero-layout">
         <div class="hero-copy">
-          <div class="hero-kicker">
-            <span class="live-dot" />
-            PIXELS CLOUD EXPERIENCE
-          </div>
           <h1>
             <span>{{ t('site.hero.titleLead') }}</span>
             <strong>{{ t('site.hero.titleAccent') }}</strong>
@@ -109,7 +105,6 @@ function scrollToSolutions() {
 
     <section id="solutions" class="section page-shell solutions-section">
       <div class="section-heading centered-heading">
-        <span>{{ t('site.solutions.eyebrow') }}</span>
         <h2>{{ t('site.solutions.title') }}</h2>
         <p>{{ t('site.solutions.description') }}</p>
       </div>
@@ -198,7 +193,6 @@ function scrollToSolutions() {
     <section id="capabilities" class="capabilities-section">
       <div class="page-shell capabilities-layout">
         <div class="section-heading capabilities-heading">
-          <span>{{ t('site.capabilities.eyebrow') }}</span>
           <h2>{{ t('site.capabilities.title') }}</h2>
           <p>{{ t('site.capabilities.description') }}</p>
         </div>
@@ -226,7 +220,6 @@ function scrollToSolutions() {
       <div class="page-shell platform-layout">
         <div class="platform-copy">
           <div class="section-heading">
-            <span>{{ t('site.platform.eyebrow') }}</span>
             <h2>{{ t('site.platform.title') }}</h2>
             <p>{{ t('site.platform.description') }}</p>
           </div>
@@ -244,7 +237,6 @@ function scrollToSolutions() {
     <section class="section journey-section">
       <div class="page-shell">
         <div class="section-heading journey-heading">
-          <span>{{ t('site.journey.eyebrow') }}</span>
           <h2>{{ t('site.journey.title') }}</h2>
         </div>
         <ol class="journey-list">
@@ -361,8 +353,6 @@ function scrollToSolutions() {
     z-index: 3;
 }
 
-.hero-kicker,
-.section-heading > span,
 .cta-copy > span {
     display: flex;
     align-items: center;
@@ -373,16 +363,8 @@ function scrollToSolutions() {
     text-transform: uppercase;
 }
 
-.live-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--primary-bright);
-    box-shadow: 0 0 0 5px rgba(0, 154, 89, 0.12);
-}
-
 .hero-copy h1 {
-    margin: 24px 0 22px;
+    margin: 0 0 22px;
     font: 750 clamp(52px, 5.2vw, 78px) / 1.04 var(--font-ui);
     letter-spacing: -0.065em;
 }
@@ -528,6 +510,11 @@ function scrollToSolutions() {
     align-items: center;
     flex-direction: column;
     text-align: center;
+}
+
+.centered-heading h2 {
+    max-width: none;
+    white-space: nowrap;
 }
 
 .solution-stack {
@@ -1015,20 +1002,19 @@ function scrollToSolutions() {
 }
 
 .capabilities-layout {
-    display: grid;
-    grid-template-columns: 0.72fr 1.28fr;
-    align-items: start;
-    gap: 75px;
+    display: block;
 }
 
 .capabilities-heading {
-    position: sticky;
-    top: 130px;
+    position: static;
+    max-width: 720px;
+    margin: 0 auto 52px;
+    text-align: center;
 }
 
 .capability-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
     overflow: hidden;
     border: 1px solid var(--border);
     border-radius: 20px !important;
@@ -1072,13 +1058,15 @@ function scrollToSolutions() {
 
 .capability-grid h3 {
     margin: 25px 0 9px;
-    font-size: 17px;
+    font-size: 22px;
+    font-weight: 750;
+    letter-spacing: -0.025em;
 }
 
 .capability-grid p {
     margin: 0;
     color: var(--muted-foreground);
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.7;
 }
 
@@ -1129,7 +1117,12 @@ function scrollToSolutions() {
 }
 
 .journey-heading {
-    max-width: 700px;
+    max-width: none;
+}
+
+.journey-heading h2 {
+    max-width: none;
+    white-space: nowrap;
 }
 
 .journey-list {
@@ -1304,6 +1297,10 @@ function scrollToSolutions() {
     .platform-layout {
         gap: 45px;
     }
+
+    .capability-grid {
+        grid-template-columns: 1fr 1fr;
+    }
 }
 
 @media (max-width: 820px) {
@@ -1445,6 +1442,14 @@ function scrollToSolutions() {
         font-size: 34px;
     }
 
+    .centered-heading h2 {
+        font-size: clamp(20px, 5.8vw, 30px);
+    }
+
+    .journey-heading h2 {
+        font-size: clamp(20px, 5.8vw, 28px);
+    }
+
     .solution-copy {
         padding: 38px 28px;
     }
@@ -1565,6 +1570,17 @@ function scrollToSolutions() {
 
     .capability-grid article {
         min-height: 190px;
+        padding: 24px;
+    }
+
+    .capability-grid article > span {
+        top: 24px;
+        right: 24px;
+    }
+
+    .capability-grid h3 {
+        margin-top: 22px;
+        font-size: 20px;
     }
 
     .platform-mesh {

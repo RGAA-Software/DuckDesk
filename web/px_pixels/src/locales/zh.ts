@@ -32,7 +32,7 @@ export default {
         ],
         solutions: {
             eyebrow: "核心业务",
-            title: "一套平台，承载三种关键业务",
+            title: "通用计算平台，承载多种关键业务",
             description: "从个人桌面到 GPU 密集型应用，以统一的连接、访问与运营能力交付更自由的算力体验。",
             remote: { title: "远程桌面" },
             game: { title: "云游戏" },
@@ -60,6 +60,33 @@ export default {
                     points: ["GPU 算力池化", "任务与资源可见", "面向专业工作流"],
                 },
             ],
+        },
+        solutionPages: {
+            eyebrow: "PIXELS 解决方案",
+            status: "独立产品页面正在建设",
+            back: "返回首页",
+            contact: "咨询解决方案",
+            roadmapTitle: "页面内容准备中",
+            roadmapDescription: "后续将在这里提供产品能力、部署架构、适用场景与交付方式。",
+            stages: ["产品能力", "部署架构", "交付与支持"],
+            remote: {
+                title: "远程桌面",
+                menuDescription: "安全连接远端工作空间",
+                headline: "从任意屏幕，安全进入你的工作空间",
+                description: "面向个人与团队的低延迟远程访问能力，统一承载桌面、应用、权限与会话。",
+            },
+            gaming: {
+                title: "云游戏",
+                menuDescription: "将高性能游戏带到轻量终端",
+                headline: "让高性能游戏不再受终端限制",
+                description: "通过云端图形算力、实时音视频传输与会话调度，将游戏体验交付到不同终端。",
+            },
+            rendering: {
+                title: "云渲染",
+                menuDescription: "连接专业应用与图形算力",
+                headline: "为专业内容生产弹性连接图形算力",
+                description: "面向设计、可视化与内容生产工作流，集中组织渲染应用、GPU 节点和任务资源。",
+            },
         },
         platform: {
             eyebrow: "平台能力",

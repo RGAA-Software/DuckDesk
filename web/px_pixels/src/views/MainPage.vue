@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
     IconArrowUpRight,
+    IconChevronDown,
+    IconCube3dSphere,
+    IconDeviceDesktop,
+    IconDeviceGamepad2,
     IconMenu2,
     IconMoon,
     IconSun,
@@ -13,12 +17,38 @@ import ContactUs from '@/components/ContactUs.vue'
 import pixelsLogo from '@/assets/pixels-logo-45.svg'
 
 type PixelsTheme = 'light' | 'dark'
+type SolutionKey = 'remote' | 'gaming' | 'rendering'
+
+interface SolutionMenuItem {
+    key: SolutionKey
+    path: string
+    icon: Component
+}
 
 const { locale, t } = useI18n()
 const router = useRouter()
 const contactVisible = ref(false)
 const menuVisible = ref(false)
+const solutionsMenuVisible = ref(false)
 const theme = ref<PixelsTheme>('light')
+
+const solutionMenuItems: SolutionMenuItem[] = [
+    {
+        key: 'remote',
+        path: '/solutions/remote-desktop',
+        icon: IconDeviceDesktop,
+    },
+    {
+        key: 'gaming',
+        path: '/solutions/cloud-gaming',
+        icon: IconDeviceGamepad2,
+    },
+    {
+        key: 'rendering',
+        path: '/solutions/cloud-rendering',
+        icon: IconCube3dSphere,
+    },
+]
 
 function applyTheme(nextTheme: PixelsTheme) {
     theme.value = nextTheme
@@ -39,34 +69,67 @@ function toggleLanguage() {
 
 function navigateTo(hash = '') {
     menuVisible.value = false
+    solutionsMenuVisible.value = false
     void router.push({ path: '/main', hash })
+}
+
+function navigateToSolution(solutionPath: string) {
+    menuVisible.value = false
+    solutionsMenuVisible.value = false
+    void router.push(solutionPath)
 }
 
 function navigateToDownloads() {
     menuVisible.value = false
+    solutionsMenuVisible.value = false
     void router.push('/downloads')
 }
 
 function navigateToDocs() {
     menuVisible.value = false
+    solutionsMenuVisible.value = false
     void router.push('/docs')
 }
 
 function openContact() {
     menuVisible.value = false
+    solutionsMenuVisible.value = false
     contactVisible.value = true
+}
+
+function closeSolutionsMenu(pointerEvent: PointerEvent) {
+    const pointerTarget = pointerEvent.target
+    if (!(pointerTarget instanceof Node)) return
+
+    const clickedInsideMenu = Array.from(
+        document.querySelectorAll('.solutions-menu-host'),
+    ).some((menuHost) => menuHost.contains(pointerTarget))
+
+    if (!clickedInsideMenu) solutionsMenuVisible.value = false
+}
+
+function closeSolutionsMenuWithKeyboard(keyboardEvent: KeyboardEvent) {
+    if (keyboardEvent.key === 'Escape') solutionsMenuVisible.value = false
 }
 
 watch(
     () => router.currentRoute.value.fullPath,
     () => {
         menuVisible.value = false
+        solutionsMenuVisible.value = false
     },
 )
 
 onMounted(() => {
     applyTheme(localStorage.getItem('pixels-theme') === 'dark' ? 'dark' : 'light')
     document.documentElement.lang = locale.value === 'zh' ? 'zh-CN' : 'en'
+    document.addEventListener('pointerdown', closeSolutionsMenu)
+    document.addEventListener('keydown', closeSolutionsMenuWithKeyboard)
+})
+
+onBeforeUnmount(() => {
+    document.removeEventListener('pointerdown', closeSolutionsMenu)
+    document.removeEventListener('keydown', closeSolutionsMenuWithKeyboard)
 })
 </script>
 
@@ -81,15 +144,43 @@ onMounted(() => {
 
         <nav class="desktop-nav" :aria-label="t('nav.home')">
           <button type="button" @click="navigateTo()">{{ t('nav.home') }}</button>
-          <button type="button" @click="navigateTo('#solutions')">
-            {{ t('site.nav.solutions') }}
-          </button>
-          <button type="button" @click="navigateTo('#capabilities')">
-            {{ t('site.capabilities.eyebrow') }}
-          </button>
-          <button type="button" @click="navigateTo('#platform')">
-            {{ t('site.nav.platform') }}
-          </button>
+          <div class="solutions-menu-host desktop-solutions-menu">
+            <button
+              class="solutions-trigger"
+              type="button"
+              :aria-expanded="solutionsMenuVisible"
+              aria-haspopup="menu"
+              @click.stop="solutionsMenuVisible = !solutionsMenuVisible"
+            >
+              {{ t('site.nav.solutions') }}
+              <IconChevronDown
+                :class="{ rotated: solutionsMenuVisible }"
+                :size="15"
+                :stroke-width="1.8"
+              />
+            </button>
+            <Transition name="solutions-dropdown">
+              <div v-if="solutionsMenuVisible" class="solutions-dropdown" role="menu">
+                <button
+                  v-for="(solutionItem, solutionIndex) in solutionMenuItems"
+                  :key="solutionItem.key"
+                  type="button"
+                  role="menuitem"
+                  @click="navigateToSolution(solutionItem.path)"
+                >
+                  <span class="dropdown-number">0{{ solutionIndex + 1 }}</span>
+                  <span class="dropdown-icon">
+                    <component :is="solutionItem.icon" :size="21" :stroke-width="1.6" />
+                  </span>
+                  <span class="dropdown-copy">
+                    <strong>{{ t(`site.solutionPages.${solutionItem.key}.title`) }}</strong>
+                    <small>{{ t(`site.solutionPages.${solutionItem.key}.menuDescription`) }}</small>
+                  </span>
+                  <IconArrowUpRight :size="16" :stroke-width="1.7" />
+                </button>
+              </div>
+            </Transition>
+          </div>
           <button type="button" @click="navigateToDownloads">
             {{ t('site.nav.downloads') }}
           </button>
@@ -132,15 +223,33 @@ onMounted(() => {
       <div v-if="menuVisible" class="mobile-panel">
         <nav class="mobile-nav">
           <button type="button" @click="navigateTo()">{{ t('nav.home') }}</button>
-          <button type="button" @click="navigateTo('#solutions')">
-            {{ t('site.nav.solutions') }}
-          </button>
-          <button type="button" @click="navigateTo('#capabilities')">
-            {{ t('site.capabilities.eyebrow') }}
-          </button>
-          <button type="button" @click="navigateTo('#platform')">
-            {{ t('site.nav.platform') }}
-          </button>
+          <div class="solutions-menu-host mobile-solutions-menu">
+            <button
+              class="mobile-solutions-trigger"
+              type="button"
+              :aria-expanded="solutionsMenuVisible"
+              @click.stop="solutionsMenuVisible = !solutionsMenuVisible"
+            >
+              {{ t('site.nav.solutions') }}
+              <IconChevronDown
+                :class="{ rotated: solutionsMenuVisible }"
+                :size="16"
+                :stroke-width="1.8"
+              />
+            </button>
+            <div v-if="solutionsMenuVisible" class="mobile-solution-links">
+              <button
+                v-for="solutionItem in solutionMenuItems"
+                :key="solutionItem.key"
+                type="button"
+                @click="navigateToSolution(solutionItem.path)"
+              >
+                <component :is="solutionItem.icon" :size="18" :stroke-width="1.6" />
+                {{ t(`site.solutionPages.${solutionItem.key}.title`) }}
+                <IconArrowUpRight :size="14" :stroke-width="1.7" />
+              </button>
+            </div>
+          </div>
           <button type="button" @click="navigateToDownloads">
             {{ t('site.nav.downloads') }}
           </button>
@@ -179,14 +288,14 @@ onMounted(() => {
         </div>
         <div class="footer-column">
           <span>{{ t('site.nav.solutions') }}</span>
-          <button type="button" @click="navigateTo('#solutions')">
-            {{ t('site.solutions.remote.title') }}
+          <button type="button" @click="navigateToSolution('/solutions/remote-desktop')">
+            {{ t('site.solutionPages.remote.title') }}
           </button>
-          <button type="button" @click="navigateTo('#solutions')">
-            {{ t('site.solutions.game.title') }}
+          <button type="button" @click="navigateToSolution('/solutions/cloud-gaming')">
+            {{ t('site.solutionPages.gaming.title') }}
           </button>
-          <button type="button" @click="navigateTo('#solutions')">
-            {{ t('site.solutions.render.title') }}
+          <button type="button" @click="navigateToSolution('/solutions/cloud-rendering')">
+            {{ t('site.solutionPages.rendering.title') }}
           </button>
         </div>
         <div class="footer-column">
@@ -311,6 +420,115 @@ onMounted(() => {
     height: 38px;
     align-items: center;
     line-height: 1;
+}
+
+.desktop-solutions-menu {
+    position: relative;
+    display: flex;
+    align-self: stretch;
+    align-items: center;
+}
+
+.solutions-trigger {
+    gap: 5px;
+}
+
+.solutions-trigger svg,
+.mobile-solutions-trigger svg {
+    transition: transform 180ms ease;
+}
+
+.solutions-trigger svg.rotated,
+.mobile-solutions-trigger svg.rotated {
+    transform: rotate(180deg);
+}
+
+.solutions-dropdown {
+    position: absolute;
+    z-index: 60;
+    top: calc(100% - 7px);
+    left: -18px;
+    display: grid;
+    width: 390px;
+    padding: 9px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--card) 96%, transparent);
+    box-shadow: 0 24px 64px rgba(15, 23, 42, 0.16);
+    backdrop-filter: blur(20px) saturate(150%);
+}
+
+.desktop-nav .solutions-dropdown button {
+    display: grid;
+    min-height: 76px;
+    height: auto;
+    grid-template-columns: 24px 42px 1fr 18px;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 13px;
+    border-radius: 11px;
+    color: var(--foreground);
+    text-align: left;
+}
+
+.desktop-nav .solutions-dropdown button:hover {
+    background: var(--accent);
+}
+
+.dropdown-number {
+    align-self: start;
+    padding-top: 4px;
+    color: var(--muted-foreground);
+    font: 10px var(--font-tech);
+}
+
+.dropdown-icon {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    border-radius: 11px;
+    background: var(--accent);
+    color: var(--primary);
+}
+
+.dropdown-copy {
+    display: grid;
+    min-width: 0;
+    gap: 5px;
+}
+
+.dropdown-copy strong {
+    color: var(--foreground);
+    font-size: 14px;
+    font-weight: 720;
+}
+
+.dropdown-copy small {
+    overflow: hidden;
+    color: var(--muted-foreground);
+    font-size: 11px;
+    line-height: 1.45;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.solutions-dropdown > button > svg {
+    color: var(--muted-foreground);
+}
+
+.solutions-dropdown-enter-active,
+.solutions-dropdown-leave-active {
+    transition:
+        opacity 160ms ease,
+        transform 160ms ease;
+    transform-origin: top left;
+}
+
+.solutions-dropdown-enter-from,
+.solutions-dropdown-leave-to {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.985);
 }
 
 .desktop-nav button:hover,
@@ -485,6 +703,41 @@ onMounted(() => {
         color: var(--foreground);
         text-align: left;
         font: 600 15px var(--font-ui);
+    }
+
+    .mobile-solutions-trigger {
+        display: flex;
+        width: 100%;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .mobile-solution-links {
+        display: grid;
+        gap: 6px;
+        padding: 7px 0 10px 14px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .mobile-nav .mobile-solution-links button {
+        display: grid;
+        grid-template-columns: 28px 1fr 16px;
+        align-items: center;
+        gap: 9px;
+        padding: 11px 12px;
+        border: 0;
+        border-radius: 9px;
+        background: var(--secondary);
+        color: var(--secondary-foreground);
+        font-size: 13px;
+    }
+
+    .mobile-solution-links button > svg:first-child {
+        color: var(--primary);
+    }
+
+    .mobile-solution-links button > svg:last-child {
+        color: var(--muted-foreground);
     }
 
     .mobile-tools {

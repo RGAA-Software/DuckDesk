@@ -30,6 +30,21 @@ const router = createRouter({
           component: () => import('@/views/DownloadsView.vue'),
         },
         {
+          path: 'solutions/remote-desktop',
+          component: () => import('@/views/SolutionPlaceholderView.vue'),
+          props: { solutionKey: 'remote' },
+        },
+        {
+          path: 'solutions/cloud-gaming',
+          component: () => import('@/views/SolutionPlaceholderView.vue'),
+          props: { solutionKey: 'gaming' },
+        },
+        {
+          path: 'solutions/cloud-rendering',
+          component: () => import('@/views/SolutionPlaceholderView.vue'),
+          props: { solutionKey: 'rendering' },
+        },
+        {
           path: 'price',
           component: () => import('@/views/PriceView.vue'),
         },

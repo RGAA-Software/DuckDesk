@@ -32,7 +32,7 @@ export default {
         ],
         solutions: {
             eyebrow: "CORE BUSINESS",
-            title: "One platform for three critical workloads",
+            title: "General compute for key workloads",
             description: "From personal desktops to GPU-intensive applications, deliver a more flexible compute experience through one access, connection, and operations layer.",
             remote: { title: "Remote desktop" },
             game: { title: "Cloud gaming" },
@@ -61,6 +61,33 @@ export default {
                 },
             ],
         },
+        solutionPages: {
+            eyebrow: "PIXELS SOLUTION",
+            status: "The dedicated product page is in progress",
+            back: "Back to home",
+            contact: "Talk to our team",
+            roadmapTitle: "Product content is being prepared",
+            roadmapDescription: "This page will cover capabilities, deployment architecture, use cases, and delivery options.",
+            stages: ["Capabilities", "Architecture", "Delivery and support"],
+            remote: {
+                title: "Remote desktop",
+                menuDescription: "Secure access to remote workspaces",
+                headline: "Enter your workspace securely from any screen",
+                description: "Low-latency remote access for individuals and teams, bringing desktops, apps, permissions, and sessions into one experience.",
+            },
+            gaming: {
+                title: "Cloud gaming",
+                menuDescription: "Bring high-performance games to light endpoints",
+                headline: "High-performance games without endpoint limits",
+                description: "Deliver games across devices through cloud graphics compute, real-time media transport, and session orchestration.",
+            },
+            rendering: {
+                title: "Cloud rendering",
+                menuDescription: "Connect professional apps to graphics compute",
+                headline: "Elastic graphics compute for professional content",
+                description: "Organize rendering applications, GPU nodes, and task resources for design, visualization, and content-production workflows.",
+            },
+        },
         platform: {
             eyebrow: "PLATFORM CAPABILITIES",
             title: "Connect devices, people, and compute as one",
@@ -84,7 +111,7 @@ export default {
         },
         journey: {
             eyebrow: "GET STARTED",
-            title: "A clear path from requirements to cloud experience",
+            title: "A clear path to the cloud",
             steps: ["Plan your people, apps, and compute resources", "Deploy and connect PIXELS nodes", "Enter a workspace securely from any endpoint"],
         },
         downloads: {
