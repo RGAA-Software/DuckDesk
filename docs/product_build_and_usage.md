@@ -88,17 +88,18 @@ scripts_build\build_remote_product.bat
 ```bat
 scripts_build\build_android_product.bat official debug
 scripts_build\build_android_product.bat official debug install
-scripts_build\build_android_product.bat official release
 scripts_build\build_android_product.bat customer debug
 scripts_build\build_android_product.bat customer debug install
-scripts_build\build_android_product.bat customer release
+scripts_build\build_android_product.bat release
 ```
 
 - `debug`：执行 lint、单元测试并生成完整 Debug APK。
 - `debug install`：使用 `adb install -r` 覆盖安装，不卸载现有应用。
-- `release`：生成签名 APK、AAB、mapping、native symbols、LGPL relink 材料和发布清单。
+- `release`：一次预检和一次升版后，为 Official/Customer 生成同版本的签名 APK、AAB、mapping、native symbols、LGPL relink 材料和发布清单；
+  只有两边均通过才生成根 `release-matrix.json`。
 
-Android 每次调用也会先删除旧 Android 沙箱并只提升 Android 版本一次。
+单发行 Debug 每次调用先删除自己的旧沙箱并提升 Android 版本一次；正式 Release 先同时预检两个发行，再删除整个 Android 输出，且只提升
+Android 版本一次。任何缺失的身份、签名或 FFmpeg 合规输入都会在清理和升版前失败。旧的单发行 Release 调用不再提供兼容入口。
 
 `official` 固定编译时的 HTTPS Console origin 与 deployment UUID，设置页不提供服务器编辑；`customer` 使用独立 applicationId 和输出沙箱，
 不允许编入 Official 的 UUID/URL，只接受用户填写且签名类别为 `private` 的部署。两类构建都必须内置同一审批后的公开 trust store，并显式设置

@@ -85,6 +85,7 @@ def requestedArtifactTask = gradle.startParameter.taskNames.any { requestedTask 
         taskName == 'package' || taskName.startsWith('package')
 }
 def requestedDistributionValidation = requestedArtifactTask || System.getenv('PIXELS_VALIDATE_DISTRIBUTION') == '1'
+def requestedReleaseValidation = System.getenv('PIXELS_VALIDATE_RELEASE') == '1'
 if (requestedArtifactTask && !hasExplicitProductVersion) {
     throw new GradleException(
         'APK/AAB tasks require PIXELS_VERSION_NAME and PIXELS_VERSION_CODE from scripts_build/build_android_product.bat.'
@@ -148,6 +149,14 @@ if (requestedDistributionValidation && deploymentDistribution == 'official') {
 if (requestedDistributionValidation && deploymentDistribution == 'customer' && (expectedDeploymentId || officialConsoleUrl)) {
     throw new GradleException('Customer APK/AAB tasks must not configure the official deployment ID or official Console URL.')
 }
+if (requestedReleaseValidation && !releaseSigningReady) {
+    throw new GradleException(
+        'Android release preflight requires complete signing credentials and the approved signing certificate SHA-256.'
+    )
+}
+if (requestedReleaseValidation && !rootProject.file(releaseStorePath).isFile()) {
+    throw new GradleException('Android release preflight cannot read the configured keystore file.')
+}
 def pixelsVersionCode = (pixelsVersionCodeInput ?: '1').toInteger()
 def pixelsVersionName = pixelsVersionNameInput ?: '1.0.0'
 def pixelsCompany = pixelsCompanyInput ?: 'Pixels'
@@ -161,6 +170,11 @@ if (pixelsVersionCode <= 0 || !(pixelsVersionName ==~ /[0-9]+\.[0-9]+\.[0-9]+(?:
 tasks.register('validateDistributionConfiguration') {
     group = 'verification'
     description = 'Validates Android distribution identity inputs without producing an artifact.'
+}
+
+tasks.register('validateReleaseConfiguration') {
+    group = 'verification'
+    description = 'Validates Android distribution and release signing inputs without producing an artifact.'
 }
 
 android {

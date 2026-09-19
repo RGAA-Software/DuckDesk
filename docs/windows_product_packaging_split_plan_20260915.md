@@ -101,7 +101,8 @@ python set_product_version.py --product android --bump
 “每次构建递增”以产品构建入口为边界，不以编译器进程、Gradle 子任务或 CMake target 数量计数：
 
 - `build_cloud_node.bat`、`build_client_product.bat`、`build_remote_product.bat` 每次调用分别只提升自己的版本一次；
-- Android 的 `build_android_product.bat official|customer debug|release` 每次调用只提升 Android 版本一次，然后把新值同时传给该次 Gradle 的 `versionName` 和 `versionCode`；
+- Android 的 `build_android_product.bat official|customer debug` 每次调用提升 Android 版本一次；正式
+  `build_android_product.bat release` 在一次事务中只升版一次，并把同一 `versionName`/`versionCode` 传给 Official 与 Customer；
 - 同一次 Android 调用中的 lint、单元测试、`assemble`、`bundle` 和 `install` 子任务共享同一个已提升版本，不得各自再次提升；
 - Android Studio 同步、Gradle 配置、纯测试、lint、`core-native` 构建以及 `scripts_build/build_cpp_*.bat` 定向 C++ 构建不产生完整产品包，因此不提升产品版本；
 - 直接执行会生成 APK/AAB 的 Gradle 任务时必须由产品构建入口提供版本环境，禁止继续静默使用 `versionCode=1`、`versionName=1.0.0` 默认值；
@@ -192,14 +193,17 @@ scripts_build/build_remote_product.bat
 
 ### 5.1 Android 产品构建入口
 
-Android 使用独立入口 `scripts_build/build_android_product.bat official|customer debug|release`。该入口必须：
+Android 使用独立入口 `scripts_build/build_android_product.bat official|customer debug [install]` 与
+`scripts_build/build_android_product.bat release`。正式 Release 入口必须：
 
-1. 调用版本工具，只提升 `packaging/products/android.toml` 一次；
-2. 读取提升后的 `product_version`、`product_version_code` 和当前 Git revision；
-3. 为同一次 Gradle 调用设置 `PIXELS_VERSION_NAME`、`PIXELS_VERSION_CODE`、`PIXELS_GIT_REVISION`；
-4. Debug 生成可覆盖安装的 arm64 APK；Release 复用现有签名、LGPL source/relink、APK/AAB 和原子发布门禁；
-5. 从 Gradle `output-metadata.json` 反查 APK/AAB 版本，必须与 Android 产品清单完全一致；
-6. 生成包含 Android 产品版本、Git revision、APK/AAB SHA-256、签名证书指纹和 native ELF Build ID 的发布清单。
+1. 在清理和升版前同时预检 Official/Customer 身份材料、签名与 FFmpeg 合规输入；
+2. 调用版本工具，只提升 `packaging/products/android.toml` 一次；
+3. 读取提升后的 `product_version`、`product_version_code` 和当前 Git revision；
+4. 向两个隔离的 Gradle 构建传入完全相同的 `PIXELS_VERSION_NAME`、`PIXELS_VERSION_CODE`、`PIXELS_GIT_REVISION`；
+5. 复用现有签名、LGPL source/relink、APK/AAB 和原子发布门禁；
+6. 从 Gradle `output-metadata.json` 反查 APK/AAB 版本，必须与 Android 产品清单完全一致；
+7. 分别生成包含 Android 产品版本、Git revision、APK/AAB SHA-256、签名证书指纹和 native ELF Build ID 的发布清单；
+8. 两边均验证成功后生成 `build_official/android/release-matrix.json`，任何单边结果都不能宣称完整发布。
 
 现有 `src/px_android/scripts/build_release.ps1` 必须接入上述版本入口或成为其内部实现，不能继续依赖调用者手工设置版本。`src/px_android/app/build.gradle` 在生成 APK/AAB 的任务中必须拒绝缺少显式版本输入；Gradle 的纯测试、lint、IDE sync 和 library/native focused 构建可以继续不触发产品版本变化。
 

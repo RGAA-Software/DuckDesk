@@ -17,12 +17,14 @@
 ```bat
 scripts_build\build_android_product.bat official debug
 scripts_build\build_android_product.bat official debug install
-scripts_build\build_android_product.bat official release
 scripts_build\build_android_product.bat customer debug
-scripts_build\build_android_product.bat customer release
+scripts_build\build_android_product.bat customer debug install
+scripts_build\build_android_product.bat release
 ```
 
-每次调用只删除所选发行类型的旧沙箱、独立提升 Android 版本，并构建完整目标。`debug install` 使用 `adb install -r` 覆盖安装，不卸载应用或清除用户数据。
+Debug 每次调用只删除所选发行类型的旧沙箱、独立提升 Android 版本，并构建完整目标；`debug install` 使用 `adb install -r` 覆盖安装，不卸载应用或
+清除用户数据。Release 在任何清理和升版前同时预检两种发行，随后只提升 Android 版本一次，并用同一版本构建隔离的 Official/Customer
+完整制品；旧的单发行 Release 入口不再支持。只有两份 release manifest 均通过才生成 `build_official/android/release-matrix.json`。
 构建前必须配置 `PIXELS_DEPLOYMENT_TRUST_STORE_FILE` 以及三个最低安全水位。Official 还必须配置
 `PIXELS_EXPECTED_DEPLOYMENT_ID`、`PIXELS_OFFICIAL_CONSOLE_URL`，应用内不提供地址编辑；Customer 禁止携带这两个 Official 参数，要求用户填写
 私有部署地址，并只接受签名类别为 `private` 的部署。

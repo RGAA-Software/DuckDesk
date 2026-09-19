@@ -13,7 +13,7 @@ scripts_build\build_all_products.bat
 scripts_build\build_official.bat cloud_node
 scripts_build\build_official.bat client
 scripts_build\build_official.bat remote
-scripts_build\build_android_product.bat official release
+scripts_build\build_android_product.bat release
 ```
 
 上述 Windows 入口每次都先完成两种发行的身份材料预检，再删除目标产品旧沙箱、独立升版一次，并构建 Official/Customer 两套完整产物。

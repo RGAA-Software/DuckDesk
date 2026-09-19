@@ -14,6 +14,8 @@
 - Focused development builds use `build_official\<product>\{cmake,dist}` with `PX_DISTRIBUTION=development`. Release-only full builds produce both
   `build_official\<product>\official\...` and `build_official\<product>\customer\...` in one version transaction; do not copy either flavor back into
   the development dist or treat a development dist as an installable Official/Customer package.
+- Android Debug builds remain distribution-specific for short device checks. Android Release uses `scripts_build\build_android_product.bat release` and
+  must preflight and build Official plus Customer with one shared Android version; a single-flavor Release is not a supported product build.
 
 # Project-wide modern C++ ownership and asynchronous safety
 

@@ -9,7 +9,15 @@ param(
     [string]$Configuration,
 
     [ValidateSet('', 'install')]
-    [string]$Action = ''
+    [string]$Action = '',
+
+    [switch]$PreflightOnly,
+
+    [string]$AssignedVersionName = '',
+
+    [int]$AssignedVersionCode = 0,
+
+    [string]$AssignedCompany = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -52,6 +60,21 @@ if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
 if ($Configuration -eq 'release' -and $Action) {
     throw 'The install action is only supported for debug builds.'
 }
+if ($PreflightOnly -and $Action) {
+    throw 'Preflight-only validation cannot install an Android package.'
+}
+$hasAssignedVersion = -not [string]::IsNullOrWhiteSpace($AssignedVersionName) -or $AssignedVersionCode -ne 0 -or
+    -not [string]::IsNullOrWhiteSpace($AssignedCompany)
+if ($hasAssignedVersion -and
+    ([string]::IsNullOrWhiteSpace($AssignedVersionName) -or $AssignedVersionCode -le 0 -or [string]::IsNullOrWhiteSpace($AssignedCompany))) {
+    throw 'Assigned Android version name, code and company must be supplied together.'
+}
+if ($PreflightOnly -and $hasAssignedVersion) {
+    throw 'Preflight-only validation does not accept an assigned Android version.'
+}
+if ($Configuration -eq 'release' -and -not $PreflightOnly -and -not $hasAssignedVersion) {
+    throw 'Android release builds require the matrix-assigned version; use build_android_product.bat release.'
+}
 if ($Action -eq 'install' -and -not (Get-Command adb -ErrorAction SilentlyContinue)) {
     throw 'adb is required for build_android_product.bat debug install.'
 }
@@ -73,15 +96,24 @@ if ($Distribution -eq 'official') {
 }
 $env:PIXELS_DISTRIBUTION = $Distribution
 $env:PIXELS_VALIDATE_DISTRIBUTION = '1'
+if ($Configuration -eq 'release') {
+    $env:PIXELS_VALIDATE_RELEASE = '1'
+}
 Push-Location $androidRoot
 try {
-    & $gradle ':app:validateDistributionConfiguration' '--quiet'
+    $validationTask = if ($Configuration -eq 'release') { ':app:validateReleaseConfiguration' } else { ':app:validateDistributionConfiguration' }
+    & $gradle $validationTask '--quiet'
     if ($LASTEXITCODE -ne 0) {
         throw 'Android distribution identity preflight failed; existing artifacts and version were not changed.'
     }
 } finally {
     Pop-Location
     Remove-Item Env:PIXELS_VALIDATE_DISTRIBUTION -ErrorAction SilentlyContinue
+    Remove-Item Env:PIXELS_VALIDATE_RELEASE -ErrorAction SilentlyContinue
+}
+if ($PreflightOnly) {
+    Write-Host "Validated Android $Distribution distribution inputs without changing artifacts or version."
+    exit 0
 }
 
 if ([IO.Directory]::Exists($androidProductRoot)) {
@@ -92,11 +124,22 @@ if ([IO.Directory]::Exists($androidProductRoot)) {
 }
 [IO.Directory]::CreateDirectory($androidProductRoot) | Out-Null
 
-$versionOutput = @(& python $versionTool --product android --bump --json 2>&1)
+$versionArguments = @('--product', 'android', '--json')
+if ($hasAssignedVersion) {
+    $versionArguments += '--show'
+} else {
+    $versionArguments += '--bump'
+}
+$versionOutput = @(& python $versionTool @versionArguments 2>&1)
 if ($LASTEXITCODE -ne 0) {
     throw "Unable to assign the Android product version: $($versionOutput -join [Environment]::NewLine)"
 }
 $version = ($versionOutput -join [Environment]::NewLine) | ConvertFrom-Json
+if ($hasAssignedVersion -and
+    ([string]$version.product_version -ne $AssignedVersionName -or [int]$version.product_version_code -ne $AssignedVersionCode -or
+        [string]$version.company -ne $AssignedCompany)) {
+    throw 'The assigned Android release version no longer matches the product manifest.'
+}
 $env:PIXELS_VERSION_NAME = [string]$version.product_version
 $env:PIXELS_VERSION_CODE = [string]$version.product_version_code
 $env:PIXELS_COMPANY = [string]$version.company
