@@ -156,6 +156,11 @@ void RenderEventIngress::ProcessRenderEvent(const RenderEventEnvelope& envelope)
                 }
             } else if constexpr (std::is_same_v<Event, DataSentEvent>) {
                 owner.stat_->AppendMediaBytes(static_cast<std::int64_t>(event->size_));
+            } else if constexpr (std::is_same_v<Event, ResourceTrafficEvent>) {
+                if (!event->connection_id_.empty()) {
+                    owner.app_->RecordConsoleResourceTraffic(envelope.source_id + ":" + event->connection_id_, event->sent_bytes_,
+                                                             event->received_bytes_);
+                }
             } else if constexpr (std::is_same_v<Event, PanelStreamMessageEvent>) {
                 const auto weak_self = owner.weak_from_this();
                 owner.app_->PostGlobalTask([weak_self, event]() {

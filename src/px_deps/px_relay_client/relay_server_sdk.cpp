@@ -3,15 +3,17 @@
 //
 
 #include "relay_server_sdk.h"
-#include "relay_ws_client.h"
-#include "relay_message.pb.h"
-#include "relay_room.h"
-#include "px_common/time_util.h"
-#include "px_common/md5.h"
+
+#include <utility>
+
 #include "px_common/data.h"
+#include "px_common/md5.h"
+#include "px_common/time_util.h"
 #include "px_common/uuid.h"
 #include "relay_connected_info.h"
-#include <utility>
+#include "relay_message.pb.h"
+#include "relay_room.h"
+#include "relay_ws_client.h"
 
 using namespace px_relay;
 
@@ -75,37 +77,23 @@ void RelayServerSdk::SetOnRelayProtoMessageCallback(std::function<void(const std
     });
 }
 
-void RelayServerSdk::SetOnRelayHelloCallback(OnRelayServerHello&& cbk) {
-    hello_cbk_ = cbk;
-}
+void RelayServerSdk::SetOnRelayHelloCallback(OnRelayServerHello&& cbk) { hello_cbk_ = cbk; }
 
-void RelayServerSdk::SetOnRelayHeartbeatCallback(OnRelayServerHeartbeat&& cbk) {
-    heartbeat_cbk_ = cbk;
-}
+void RelayServerSdk::SetOnRelayHeartbeatCallback(OnRelayServerHeartbeat&& cbk) { heartbeat_cbk_ = cbk; }
 
-void RelayServerSdk::SetOnRoomPreparedCallback(OnRelayRoomPrepared&& cbk) {
-    room_prepared_cbk_ = cbk;
-}
+void RelayServerSdk::SetOnRoomPreparedCallback(OnRelayRoomPrepared&& cbk) { room_prepared_cbk_ = cbk; }
 
-void RelayServerSdk::SetOnRoomDestroyedCallback(OnRelayRoomDestroyed&& cbk) {
-    room_destroyed_cbk_ = cbk;
-}
+void RelayServerSdk::SetOnRoomDestroyedCallback(OnRelayRoomDestroyed&& cbk) { room_destroyed_cbk_ = cbk; }
 
-void RelayServerSdk::SetOnRequestPauseStreamCallback(OnRelayRequestPausedStream&& cbk) {
-    pause_stream_cbk_ = cbk;
-}
+void RelayServerSdk::SetOnRequestPauseStreamCallback(OnRelayRequestPausedStream&& cbk) { pause_stream_cbk_ = cbk; }
 
-void RelayServerSdk::SetOnRequestResumeStreamCallback(OnRelayRequestResumeStream&& cbk) {
-    resume_stream_cbk_ = cbk;
-}
+void RelayServerSdk::SetOnRequestResumeStreamCallback(OnRelayRequestResumeStream&& cbk) { resume_stream_cbk_ = cbk; }
 
-void RelayServerSdk::SetOnNotificationCallback(OnRelayNotification&& cbk) {
-    notification_cbk_ = cbk;
-}
+void RelayServerSdk::SetOnNotificationCallback(OnRelayNotification&& cbk) { notification_cbk_ = cbk; }
 
-void RelayServerSdk::SetOnRequestControlCallback(OnRelayRequestControl&& cbk) {
-    req_control_cbk_ = cbk;
-}
+void RelayServerSdk::SetOnRequestControlCallback(OnRelayRequestControl&& cbk) { req_control_cbk_ = cbk; }
+
+void RelayServerSdk::SetOnPayloadSentCallback(PayloadSentCallback callback) { payload_sent_callback_ = std::move(callback); }
 
 void RelayServerSdk::RelayProtoMessage(const std::string& stream_id, std::shared_ptr<Data> msg) {
     std::lock_guard<std::mutex> guard(relay_mtx_);
@@ -137,7 +125,20 @@ void RelayServerSdk::RelayProtoMessage(const std::string& stream_id, std::shared
             return;
         }
 
-        self->PostBinMessage(rl_msg.SerializeAsString());
+        std::vector<std::string> active_room_ids;
+        active_room_ids.reserve(static_cast<std::size_t>(room_ids->size()));
+        for (const auto& room_id : *room_ids) {
+            active_room_ids.push_back(room_id);
+        }
+        const auto payload_bytes = msg->Size();
+        const auto weak_sdk = std::weak_ptr<RelayServerSdk>(self);
+        self->PostBinMessage(rl_msg.SerializeAsString(),
+                             [weak_sdk, active_room_ids = std::move(active_room_ids), payload_bytes](const bool succeeded, const std::size_t) {
+                                 const auto sdk = weak_sdk.lock();
+                                 if (succeeded && sdk && sdk->payload_sent_callback_) {
+                                     sdk->payload_sent_callback_(active_room_ids, payload_bytes);
+                                 }
+                             });
     });
 }
 
@@ -167,13 +168,28 @@ void RelayServerSdk::RelayProtoMessageToRooms(const std::vector<std::string>& re
             return;
         }
         relay.set_payload(msg->AsString());
-        self->PostBinMessage(relay_message.SerializeAsString());
+        std::vector<std::string> active_room_ids;
+        active_room_ids.reserve(static_cast<std::size_t>(relay.room_ids_size()));
+        for (const auto& room_id : relay.room_ids()) {
+            active_room_ids.push_back(room_id);
+        }
+        const auto payload_bytes = msg->Size();
+        const auto weak_sdk = std::weak_ptr<RelayServerSdk>(self);
+        self->PostBinMessage(relay_message.SerializeAsString(),
+                             [weak_sdk, active_room_ids = std::move(active_room_ids), payload_bytes](const bool succeeded, const std::size_t) {
+                                 const auto sdk = weak_sdk.lock();
+                                 if (succeeded && sdk && sdk->payload_sent_callback_) {
+                                     sdk->payload_sent_callback_(active_room_ids, payload_bytes);
+                                 }
+                             });
     });
 }
 
-void RelayServerSdk::PostBinMessage(const std::string& msg) {
+void RelayServerSdk::PostBinMessage(const std::string& msg, std::function<void(bool, std::size_t)> completion) {
     if (ws_client_) {
-        ws_client_->PostBinaryMessage(msg);
+        ws_client_->PostBinaryMessage(msg, std::move(completion));
+    } else if (completion) {
+        completion(false, 0);
     }
 }
 
@@ -237,9 +253,7 @@ std::shared_ptr<RelayMessage> RelayServerSdk::ProcessProtoMessage(std::shared_pt
     return rl_msg;
 }
 
-void RelayServerSdk::OnRequestControl(const std::shared_ptr<RelayMessage>& msg) {
-    RespondToControl(msg, true, "ok");
-}
+void RelayServerSdk::OnRequestControl(const std::shared_ptr<RelayMessage>& msg) { RespondToControl(msg, true, "ok"); }
 
 void RelayServerSdk::RespondToControl(const std::shared_ptr<RelayMessage>& msg, const bool accepted, const std::string& response_message) {
     if (!msg || !msg->has_request_control()) {
@@ -296,25 +310,17 @@ void RelayServerSdk::OnRoomDestroyed(const std::shared_ptr<RelayMessage>& msg) {
     LOGI("** OnRoomDestroyed: {}", rd.room_id());
 }
 
-bool RelayServerSdk::IsAlive() {
-    return ws_client_ && ws_client_->IsAlive();
-}
+bool RelayServerSdk::IsAlive() { return ws_client_ && ws_client_->IsAlive(); }
 
-std::uint64_t RelayServerSdk::ConnectionGeneration() const {
-    return ws_client_ ? ws_client_->ConnectionGeneration() : 0;
-}
+std::uint64_t RelayServerSdk::ConnectionGeneration() const { return ws_client_ ? ws_client_->ConnectionGeneration() : 0; }
 
-int64_t RelayServerSdk::GetQueuingMsgCount() {
-    return ws_client_->GetQueuingMsgCount();
-}
+int64_t RelayServerSdk::GetQueuingMsgCount() { return ws_client_->GetQueuingMsgCount(); }
 
 std::shared_ptr<FileTransferWritableSignal> RelayServerSdk::AcquireFileTransferWritableSignal() {
     return ws_client_ ? ws_client_->AcquireFileTransferWritableSignal() : std::shared_ptr<FileTransferWritableSignal>{};
 }
 
-bool RelayServerSdk::HasRelayRooms() {
-    return rooms_.Size() > 0;
-}
+bool RelayServerSdk::HasRelayRooms() { return rooms_.Size() > 0; }
 
 std::shared_ptr<RelayRoom> RelayServerSdk::GetRoomById(const std::string& room_id) {
     if (auto r = rooms_.TryGet(room_id); r.has_value()) {
@@ -341,4 +347,4 @@ std::vector<std::shared_ptr<RelayConnectedClientInfo>> RelayServerSdk::GetConnec
     return clients_info;
 }
 
-} // namespace px
+}  // namespace px

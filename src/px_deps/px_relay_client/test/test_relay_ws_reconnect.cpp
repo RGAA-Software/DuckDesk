@@ -1,12 +1,13 @@
+#include <Windows.h>
+#include <gtest/gtest.h>
+
+#include <asio2/websocket/ws_server.hpp>
 #include <atomic>
 #include <chrono>
 #include <functional>
+#include <future>
 #include <memory>
 #include <thread>
-
-#include <Windows.h>
-#include <asio2/websocket/ws_server.hpp>
-#include <gtest/gtest.h>
 
 #include "px_common/async_runtime.h"
 #include "px_relay_client/relay_ws_client.h"
@@ -98,5 +99,32 @@ TEST(RelayWsReconnect, StopFromReadyCallbackDrainsAndAllowsRestart) {
     runtime->Join();
 }
 
-} // namespace
-} // namespace px
+TEST(RelayWsReconnect, BinarySendCompletionReportsConfirmedWireBytes) {
+    const auto runtime = PxAsyncRuntime::Create({.worker_threads = 1});
+    ASSERT_TRUE(runtime);
+    ASSERT_TRUE(runtime->Start());
+    const auto port = 64000 + static_cast<int>(GetCurrentProcessId() % 1000);
+    const auto server = std::make_shared<asio2::ws_server>();
+    ASSERT_TRUE(server->start("127.0.0.1", port));
+    const auto client = MakeClient(runtime, port);
+    client->Start();
+    ASSERT_TRUE(WaitUntil([client] { return client->IsAlive(); }, 5s));
+
+    const auto completion = std::make_shared<std::promise<std::pair<bool, std::size_t>>>();
+    auto completed = completion->get_future();
+    client->PostBinaryMessage("payload", [completion](const bool succeeded, const std::size_t bytes_sent) {
+        completion->set_value({succeeded, bytes_sent});
+    });
+    ASSERT_EQ(completed.wait_for(3s), std::future_status::ready);
+    const auto [succeeded, bytes_sent] = completed.get();
+    EXPECT_TRUE(succeeded);
+    EXPECT_EQ(bytes_sent, 7U);
+
+    client->Stop();
+    server->stop();
+    runtime->RequestDrain();
+    runtime->Join();
+}
+
+}  // namespace
+}  // namespace px

@@ -4,8 +4,8 @@
 #include <cstdlib>
 #include <utility>
 
-#include "px_common/client_id_extractor.h"
 #include "px_common/async_runtime.h"
+#include "px_common/client_id_extractor.h"
 #include "px_common/data.h"
 #include "px_common/hardware.h"
 #include "px_common/ip_util.h"
@@ -13,15 +13,15 @@
 #include "px_common/md5.h"
 #include "px_common/time_util.h"
 #include "px_common/ws_control_signal.h"
+#include "px_message.pb.h"
 #include "px_relay_client/relay_connected_info.h"
 #include "px_relay_client/relay_room.h"
 #include "px_relay_client/relay_server_sdk.h"
 #include "px_relay_client/relay_server_sdk_param.h"
-#include "px_render/architecture/runtime/render_execution_context.h"
 #include "px_render/architecture/events/render_event.h"
+#include "px_render/architecture/runtime/render_execution_context.h"
 #include "px_render/modules/module_ids.h"
 #include "relay_message.pb.h"
-#include "px_message.pb.h"
 
 using namespace px_relay;
 
@@ -63,33 +63,33 @@ bool IsRelayPayloadAuthorized(const std::shared_ptr<Data>& payload, const std::v
         return false;
     }
     switch (message.type()) {
-    case MessageType::kKeyEvent:
-    case MessageType::kMouseEvent:
-    case MessageType::kGamepadState:
-    case MessageType::kReqCtrlAltDelete:
-    case MessageType::kTextInput:
-        return HasRelayPermission(permissions, "input");
-    case MessageType::kClipboardInfo:
-    case MessageType::kClipboardInfoResp:
-    case MessageType::kClipboardReqAtBegin:
-    case MessageType::kClipboardReqBuffer:
-    case MessageType::kClipboardReqAtEnd:
-    case MessageType::kClipboardRespBuffer:
-        return HasRelayPermission(permissions, "clipboard");
-    case MessageType::kFileAction:
-    case MessageType::kFileResponse:
-        return HasRelayPermission(permissions, "file");
-    case MessageType::kVoiceCallRequest:
-    case MessageType::kVoiceCallResponse:
-    case MessageType::kVoiceAudioConfig:
-    case MessageType::kVoiceAudioFrame:
-        return HasRelayPermission(permissions, "audio");
-    default:
-        return HasRelayPermission(permissions, "view");
+        case MessageType::kKeyEvent:
+        case MessageType::kMouseEvent:
+        case MessageType::kGamepadState:
+        case MessageType::kReqCtrlAltDelete:
+        case MessageType::kTextInput:
+            return HasRelayPermission(permissions, "input");
+        case MessageType::kClipboardInfo:
+        case MessageType::kClipboardInfoResp:
+        case MessageType::kClipboardReqAtBegin:
+        case MessageType::kClipboardReqBuffer:
+        case MessageType::kClipboardReqAtEnd:
+        case MessageType::kClipboardRespBuffer:
+            return HasRelayPermission(permissions, "clipboard");
+        case MessageType::kFileAction:
+        case MessageType::kFileResponse:
+            return HasRelayPermission(permissions, "file");
+        case MessageType::kVoiceCallRequest:
+        case MessageType::kVoiceCallResponse:
+        case MessageType::kVoiceAudioConfig:
+        case MessageType::kVoiceAudioFrame:
+            return HasRelayPermission(permissions, "audio");
+        default:
+            return HasRelayPermission(permissions, "view");
     }
 }
 
-} // namespace
+}  // namespace
 
 std::shared_ptr<RelayTransportRuntime> RelayTransportRuntime::Create(RelayTransportRuntimeConfig config) {
     return std::make_shared<RelayTransportRuntime>(std::move(config));
@@ -97,9 +97,7 @@ std::shared_ptr<RelayTransportRuntime> RelayTransportRuntime::Create(RelayTransp
 
 RelayTransportRuntime::RelayTransportRuntime(RelayTransportRuntimeConfig config) : config_(std::move(config)) {}
 
-RelayTransportRuntime::~RelayTransportRuntime() {
-    Stop();
-}
+RelayTransportRuntime::~RelayTransportRuntime() { Stop(); }
 
 void RelayTransportRuntime::Start(const std::shared_ptr<RenderExecutionContext>& context, RenderEventCallback event_callback) {
     {
@@ -200,8 +198,9 @@ void RelayTransportRuntime::UpdateSettings(const RenderModuleSettings& settings)
     }
     if (connection_changed && started_) {
         need_reconnect_ = true;
-        LOGW("event=transport.configuration_changed component=relay operation=schedule_reconnect "
-             "code=RELAY_CONFIGURATION_CHANGED outcome=pending recoverable=true");
+        LOGW(
+            "event=transport.configuration_changed component=relay operation=schedule_reconnect "
+            "code=RELAY_CONFIGURATION_CHANGED outcome=pending recoverable=true");
     }
     WakeMonitor();
 }
@@ -252,8 +251,9 @@ void RelayTransportRuntime::Monitor(std::weak_ptr<RelayTransportRuntime> runtime
         }
 
         if (self->need_reconnect_.exchange(false)) {
-            LOGW("event=transport.connection_replaced component=relay operation=apply_configuration "
-                 "code=RELAY_CONFIGURATION_CHANGED outcome=restarting recoverable=true");
+            LOGW(
+                "event=transport.connection_replaced component=relay operation=apply_configuration "
+                "code=RELAY_CONFIGURATION_CHANGED outcome=restarting recoverable=true");
             self->ReleaseConnections();
             if (!WaitFor(control, std::chrono::milliseconds(500))) {
                 break;
@@ -328,9 +328,7 @@ void RelayTransportRuntime::SetFileTransferSdk(std::shared_ptr<RelayServerSdk> s
     relay_ft_sdk_ = std::move(sdk);
 }
 
-bool RelayTransportRuntime::IsCurrentMediaGeneration(uint64_t generation) const {
-    return !stopping_ && media_generation_.load() == generation;
-}
+bool RelayTransportRuntime::IsCurrentMediaGeneration(uint64_t generation) const { return !stopping_ && media_generation_.load() == generation; }
 
 bool RelayTransportRuntime::IsCurrentFileTransferGeneration(uint64_t generation) const {
     return !stopping_ && file_transfer_generation_.load() == generation;
@@ -365,6 +363,11 @@ void RelayTransportRuntime::ConnectMedia(const RelayTransportRuntimeConfig& conf
     sdk->SetOnRelayHeartbeatCallback([weak_self, generation](const std::string& device_id, int64_t) {
         if (const auto self = weak_self.lock(); self && self->IsCurrentMediaGeneration(generation)) {
             self->ReportRelayAlive(device_id);
+        }
+    });
+    sdk->SetOnPayloadSentCallback([weak_self, generation](const std::vector<std::string>& room_ids, const std::size_t payload_bytes) {
+        if (const auto self = weak_self.lock(); self && self->IsCurrentMediaGeneration(generation)) {
+            self->ReportMediaPayloadSent(room_ids, payload_bytes);
         }
     });
     sdk->SetOnRequestControlCallback(
@@ -471,16 +474,18 @@ void RelayTransportRuntime::ConnectMedia(const RelayTransportRuntimeConfig& conf
             return;
         }
         if (room->creator_stream_id_.empty()) {
-            LOGE("event=transport.protocol_error component=relay code=RELAY_CREATOR_STREAM_MISSING "
-                 "operation=prepare_room outcome=reconnecting recoverable=true");
+            LOGE(
+                "event=transport.protocol_error component=relay code=RELAY_CREATOR_STREAM_MISSING "
+                "operation=prepare_room outcome=reconnecting recoverable=true");
             self->need_reconnect_ = true;
             self->WakeMonitor();
             return;
         }
         const auto route = self->FindMediaRouteByRoom(prepared.room_id());
         if (route && route->stream_id != room->creator_stream_id_) {
-            LOGE("event=transport.protocol_error component=relay code=RELAY_TICKET_STREAM_MISMATCH "
-                 "operation=prepare_room outcome=disconnect recoverable=false");
+            LOGE(
+                "event=transport.protocol_error component=relay code=RELAY_TICKET_STREAM_MISMATCH "
+                "operation=prepare_room outcome=disconnect recoverable=false");
             self->need_reconnect_ = true;
             self->WakeMonitor();
             return;
@@ -498,9 +503,10 @@ void RelayTransportRuntime::ConnectMedia(const RelayTransportRuntimeConfig& conf
         const auto media_sdk = self->MediaSdk();
         const auto room = media_sdk ? media_sdk->GetRoomById(destroyed.room_id()) : std::shared_ptr<RelayRoom>{};
         if (!room) {
-            LOGE("event=transport.protocol_error component=relay code=RELAY_ROOM_NOT_FOUND operation=destroy_room "
-                 "outcome=ignored recoverable=true room={}",
-                 destroyed.room_id());
+            LOGE(
+                "event=transport.protocol_error component=relay code=RELAY_ROOM_NOT_FOUND operation=destroy_room "
+                "outcome=ignored recoverable=true room={}",
+                destroyed.room_id());
             return;
         }
         const auto route = self->FindMediaRouteByRoom(destroyed.room_id());
@@ -590,6 +596,11 @@ void RelayTransportRuntime::ConnectFileTransfer(const RelayTransportRuntimeConfi
     sdk->SetOnRelayHeartbeatCallback([weak_self, generation](const std::string& id, int64_t) {
         if (const auto self = weak_self.lock(); self && self->IsCurrentFileTransferGeneration(generation)) {
             self->ReportRelayAlive(id);
+        }
+    });
+    sdk->SetOnPayloadSentCallback([weak_self, generation](const std::vector<std::string>& room_ids, const std::size_t payload_bytes) {
+        if (const auto self = weak_self.lock(); self && self->IsCurrentFileTransferGeneration(generation)) {
+            self->ReportFileTransferPayloadSent(room_ids, payload_bytes);
         }
     });
     sdk->SetOnRequestControlCallback([weak_self, weak_sdk = std::weak_ptr<RelayServerSdk>{sdk},
@@ -685,9 +696,10 @@ void RelayTransportRuntime::ConnectFileTransfer(const RelayTransportRuntimeConfi
                     route.connection_instance_id = room_id + "#" + std::to_string(++self->ft_route_generation_);
                 }
                 if (route.has_recv_msg_index && relay.relay_msg_index() != route.last_recv_msg_index + 1) {
-                    LOGE("event=transport.sequence_gap component=relay_ft code=RELAY_FT_SEQUENCE_GAP operation=receive "
-                         "outcome=accepted recoverable=true room={} current={} last={}",
-                         room_id, relay.relay_msg_index(), route.last_recv_msg_index);
+                    LOGE(
+                        "event=transport.sequence_gap component=relay_ft code=RELAY_FT_SEQUENCE_GAP operation=receive "
+                        "outcome=accepted recoverable=true room={} current={} last={}",
+                        room_id, relay.relay_msg_index(), route.last_recv_msg_index);
                 }
                 route.last_recv_msg_index = relay.relay_msg_index();
                 route.has_recv_msg_index = true;
@@ -754,8 +766,8 @@ std::optional<RelayTransportRuntime::MediaRelayRouteInfo> RelayTransportRuntime:
     return route == media_routes_.end() ? std::nullopt : std::optional<MediaRelayRouteInfo>{route->second};
 }
 
-std::optional<RelayTransportRuntime::MediaRelayRouteInfo>
-RelayTransportRuntime::FindMediaRouteByConnection(const std::string& connection_instance_id) const {
+std::optional<RelayTransportRuntime::MediaRelayRouteInfo> RelayTransportRuntime::FindMediaRouteByConnection(
+    const std::string& connection_instance_id) const {
     std::lock_guard lock(media_route_mutex_);
     const auto route = std::find_if(media_routes_.begin(), media_routes_.end(), [&connection_instance_id](const auto& entry) {
         return entry.second.connection_instance_id == connection_instance_id;
@@ -932,6 +944,44 @@ void RelayTransportRuntime::ReportSentDataSize(std::size_t size) {
     Emit(event);
 }
 
+void RelayTransportRuntime::ReportMediaPayloadSent(const std::vector<std::string>& room_ids, const std::size_t payload_bytes) {
+    for (const auto& room_id : room_ids) {
+        const auto route = FindMediaRouteByRoom(room_id);
+        if (route) {
+            ReportConnectionTraffic(route->connection_instance_id, static_cast<std::uint64_t>(payload_bytes), 0);
+        }
+    }
+}
+
+void RelayTransportRuntime::ReportFileTransferPayloadSent(const std::vector<std::string>& room_ids, const std::size_t payload_bytes) {
+    std::vector<std::string> connection_ids;
+    {
+        std::lock_guard lock(ft_route_mutex_);
+        connection_ids.reserve(room_ids.size());
+        for (const auto& room_id : room_ids) {
+            const auto route = ft_routes_.find(room_id);
+            if (route != ft_routes_.end() && !route->second.connection_instance_id.empty()) {
+                connection_ids.push_back(route->second.connection_instance_id);
+            }
+        }
+    }
+    for (const auto& connection_id : connection_ids) {
+        ReportConnectionTraffic(connection_id, static_cast<std::uint64_t>(payload_bytes), 0);
+    }
+}
+
+void RelayTransportRuntime::ReportConnectionTraffic(const std::string& connection_id, const std::uint64_t sent_bytes,
+                                                    const std::uint64_t received_bytes) {
+    if (connection_id.empty() || (sent_bytes == 0 && received_bytes == 0)) {
+        return;
+    }
+    const auto event = std::make_shared<ResourceTrafficEvent>();
+    event->connection_id_ = connection_id;
+    event->sent_bytes_ = sent_bytes;
+    event->received_bytes_ = received_bytes;
+    Emit(event);
+}
+
 void RelayTransportRuntime::PostMedia(std::shared_ptr<Data> message, bool run_through) {
     if (!message || !IsWorking() || (paused_stream_ && !run_through)) {
         return;
@@ -1031,9 +1081,7 @@ int64_t RelayTransportRuntime::QueuingFileTransferMessageCount() const {
     return sdk ? sdk->GetQueuingMsgCount() : 0;
 }
 
-std::uint64_t RelayTransportRuntime::MediaChannelInstanceGeneration() const {
-    return media_generation_.load(std::memory_order_acquire);
-}
+std::uint64_t RelayTransportRuntime::MediaChannelInstanceGeneration() const { return media_generation_.load(std::memory_order_acquire); }
 
 std::uint64_t RelayTransportRuntime::MediaConnectionAttemptGeneration() const {
     const auto sdk = MediaSdk();
@@ -1069,4 +1117,4 @@ void RelayTransportRuntime::OnMessageAck(const std::shared_ptr<NetMessageAck>& a
     last_ack_ = ack;
 }
 
-} // namespace px
+}  // namespace px

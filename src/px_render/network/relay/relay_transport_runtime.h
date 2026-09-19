@@ -14,8 +14,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "px_common/file_transfer_send_result.h"
 #include "architecture/modules/render_module.h"
+#include "px_common/file_transfer_send_result.h"
 #include "px_render/network/transport_types.h"
 
 namespace px {
@@ -37,7 +37,7 @@ struct RelayTransportRuntimeConfig final {
 };
 
 class RelayTransportRuntime final : public std::enable_shared_from_this<RelayTransportRuntime> {
-  public:
+public:
     static std::shared_ptr<RelayTransportRuntime> Create(RelayTransportRuntimeConfig config);
 
     explicit RelayTransportRuntime(RelayTransportRuntimeConfig config);
@@ -63,7 +63,7 @@ class RelayTransportRuntime final : public std::enable_shared_from_this<RelayTra
     [[nodiscard]] std::vector<std::shared_ptr<PxConnectedClientInfo>> ConnectedClientInfo() const;
     void OnMessageAck(const std::shared_ptr<NetMessageAck>& ack);
 
-  private:
+private:
     struct MonitorControl final {
         std::mutex mutex{};
         std::condition_variable wake_condition{};
@@ -119,6 +119,9 @@ class RelayTransportRuntime final : public std::enable_shared_from_this<RelayTra
                                   int64_t begin_timestamp, const std::string& logical_session_id = {});
     void ReportRelayAlive(const std::string& device_id);
     void ReportSentDataSize(std::size_t size);
+    void ReportMediaPayloadSent(const std::vector<std::string>& room_ids, std::size_t payload_bytes);
+    void ReportFileTransferPayloadSent(const std::vector<std::string>& room_ids, std::size_t payload_bytes);
+    void ReportConnectionTraffic(const std::string& connection_id, std::uint64_t sent_bytes, std::uint64_t received_bytes);
     [[nodiscard]] bool StoreMediaRoute(MediaRelayRouteInfo route, uint64_t generation);
     [[nodiscard]] std::optional<MediaRelayRouteInfo> FindMediaRouteByRoom(const std::string& room_id) const;
     [[nodiscard]] std::optional<MediaRelayRouteInfo> FindMediaRouteByConnection(const std::string& connection_instance_id) const;
@@ -157,6 +160,6 @@ class RelayTransportRuntime final : public std::enable_shared_from_this<RelayTra
     std::shared_ptr<NetMessageAck> last_ack_;
 };
 
-} // namespace px
+}  // namespace px
 
-#endif // PX_RENDER_RELAY_TRANSPORT_RUNTIME_H
+#endif  // PX_RENDER_RELAY_TRANSPORT_RUNTIME_H

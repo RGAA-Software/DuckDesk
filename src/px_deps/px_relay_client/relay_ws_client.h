@@ -6,29 +6,33 @@
 #define PX_RELAY_WS_CLIENT_H
 
 #include <atomic>
-#include <memory>
-#include <string>
 #include <functional>
+#include <memory>
 #include <mutex>
-#include "relay_callbacks.h"
-#include "relay_net_client.h"
-#include "relay_device_info.h"
-#include "relay_client_sdk_param.h"
+#include <string>
+
 #include "px_common/file_transfer_send_result.h"
+#include "relay_callbacks.h"
+#include "relay_client_sdk_param.h"
+#include "relay_device_info.h"
+#include "relay_net_client.h"
 
 namespace asio2 {
 class ws_client;
 class timer;
-} // namespace asio2
+}  // namespace asio2
 
 namespace px {
 class PxAsyncRuntime;
 class PxAsyncScope;
 class PxReconnectSupervisor;
-template <typename Client> class PxReconnectAdapterSlot;
+template <typename Client>
+class PxReconnectAdapterSlot;
 
 class RelayWsClient : public std::enable_shared_from_this<RelayWsClient>, public RelayNetClient {
-  public:
+public:
+    using BinarySendCompletion = std::function<void(bool succeeded, std::size_t bytes_sent)>;
+
     explicit RelayWsClient(const std::string& host, int port, const std::string& device_id, const std::string& device_name,
                            const std::string& stream_id, const std::string& appkey, bool force_gdi, const std::string& remote_device_id,
                            std::shared_ptr<PxAsyncRuntime> runtime = {});
@@ -36,6 +40,7 @@ class RelayWsClient : public std::enable_shared_from_this<RelayWsClient>, public
     void Start() override;
     void Stop() override;
     void PostBinaryMessage(const std::string& msg) override;
+    void PostBinaryMessage(const std::string& msg, BinarySendCompletion completion);
     void PostReliableBinaryMessage(std::string msg, std::function<void(bool)> completion) override;
     void SyncDeviceId(const std::string& device_id) override;
     int64_t GetQueuingMsgCount() override;
@@ -45,13 +50,13 @@ class RelayWsClient : public std::enable_shared_from_this<RelayWsClient>, public
     void PostNetTask(std::function<void()>&& task) override;
     [[nodiscard]] std::shared_ptr<FileTransferWritableSignal> AcquireFileTransferWritableSignal() override;
 
-  private:
+private:
     void SendHello();
     void HeartBeat();
     void FinishStop();
     void ScheduleDeferredStop();
 
-  private:
+private:
     std::string host_;
     int port_{0};
     std::string device_id_;
@@ -82,6 +87,6 @@ class RelayWsClient : public std::enable_shared_from_this<RelayWsClient>, public
     void NotifyFileTransferClosed();
 };
 
-} // namespace px
+}  // namespace px
 
-#endif // PX_RELAY_WS_CLIENT_H
+#endif  // PX_RELAY_WS_CLIENT_H

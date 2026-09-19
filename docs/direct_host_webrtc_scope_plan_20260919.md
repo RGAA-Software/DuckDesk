@@ -143,8 +143,11 @@ DB5短期功能出口通过后统一长测：Relay长连接、Direct Host重复�
   断库页面专项仍未完成，因此功能矩阵保持部分迁移。
 - Render 的资源通道生产者已补齐 Direct Host WebRTC 真实载荷计数：成功编码视频、成功数据通道发送和收到的数据通道载荷按实际
   connection ID 汇总，以 5 秒周期、单调 sequence 和累计字节通过 Render→Service→Console 上报，断开终态携带最后累计值。
-  Cloud/Remote Render 与 RTC DLL 聚焦构建、dist 哈希和 3/3 RTC 测试均通过。该证据不覆盖音频 RTP、Relay/RDP/Native 完整双向
-  计数或公网真实会话，这些仍保留在 DB2 出口。
+  Cloud/Remote Render 与 RTC DLL 聚焦构建、dist 哈希和 3/3 RTC 测试均通过。
+- Relay 出站媒体与文件数据的统计已落在实际异步 WebSocket 写成功点，不再把排队当成发送成功；完整写入后按活跃 room 映射真实
+  connection ID 并累计原始业务载荷。真实本机 WebSocket 写入回调和 Relay 重连/所有者生命周期 2/2 通过，Cloud/Remote Render
+  已重新发布且构建树/dist 哈希一致。该证据仍不覆盖公网 Relay 端到端、Relay 入站/音频、RDP/Native 完整双向计数或公网真实会话，
+  这些继续保留在 DB2 出口。
 
 尚未完成且不得被上述聚焦证据冒充：正式 Console 产品入口、真实公网 Windows/Web 首帧/音频/输入/重连/撤销、Relay 数据面真机回归、
 Android CloudApplication 真机直连、安装包内容审计，以及所有 DB5 短测通过后的统一长测。

@@ -87,6 +87,12 @@ struct ClientDisconnectedEvent final {
     bool preserve_reconnect_grace_{true};
 };
 
+struct ResourceTrafficEvent final {
+    std::string connection_id_;
+    std::uint64_t sent_bytes_{};
+    std::uint64_t received_bytes_{};
+};
+
 struct KeyFrameRequestEvent final {
     std::string monitor_name_;
 };
@@ -147,7 +153,8 @@ using RenderEvent =
                  std::shared_ptr<CursorUpdatedEvent>, std::shared_ptr<RelayPausedEvent>, std::shared_ptr<RelayResumedEvent>,
                  std::shared_ptr<PanelStreamMessageEvent>, std::shared_ptr<RelayAliveEvent>, std::shared_ptr<StreamingParametersRequestedEvent>,
                  std::shared_ptr<AdmitLogicalSessionEvent>, std::shared_ptr<CloseLogicalSessionBindingEvent>,
-                 std::shared_ptr<ApplyLogicalSessionCapabilitiesEvent>, std::shared_ptr<DataSentEvent>, std::shared_ptr<GameTextReplyEvent>>;
+                 std::shared_ptr<ApplyLogicalSessionCapabilitiesEvent>, std::shared_ptr<DataSentEvent>, std::shared_ptr<GameTextReplyEvent>,
+                 std::shared_ptr<ResourceTrafficEvent>>;
 
 struct RenderEventEnvelope final {
     std::string source_id;
