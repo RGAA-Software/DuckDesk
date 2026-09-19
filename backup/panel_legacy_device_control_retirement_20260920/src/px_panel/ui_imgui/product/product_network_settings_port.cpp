@@ -1,21 +1,25 @@
+#include "panel_product_runtime.h"
+#include "panel_device_name.h"
+
+#include "px_console_client/console_device.h"
+#include "px_console_client/console_device_api.h"
+
 #include <algorithm>
 #include <mutex>
 #include <optional>
 #include <utility>
 
-#include "panel_product_runtime.h"
-#include "px_console_client/console_api.h"
-
 namespace px::panel::product {
 namespace {
 
 bool ValidPublicAddress(const std::string& value) {
-    if (value.empty()) return true;
+    if (value.empty())
+        return true;
     return !value.contains("://") && value.find_first_of(" /\\?#@") == std::string::npos && value != "0.0.0.0" && value != "::";
 }
 
 class ProductNetworkSettingsPort final : public ui::NetworkSettingsPort, public std::enable_shared_from_this<ProductNetworkSettingsPort> {
-public:
+  public:
     explicit ProductNetworkSettingsPort(std::shared_ptr<PanelProductRuntime> runtime) : runtime_{std::move(runtime)} {
         const auto ports = runtime_->Config()->Ports();
         state_.settings = {.authorizationInfo = runtime_->Config()->Authorization(),
@@ -58,9 +62,10 @@ public:
         const auto runtime = runtime_;
         const std::weak_ptr<ProductNetworkSettingsPort> weakSelf{shared_from_this()};
         static_cast<void>(runtime_->Worker()->Post([runtime, weakSelf, endpoint = *endpoint] {
-            const auto result = px_console::QueryConsoleReady(endpoint.host, endpoint.port);
+            const auto result = px_console::ConsoleDeviceApi::Ping(endpoint.host, endpoint.port, endpoint.appKey);
             const auto self = weakSelf.lock();
-            if (!self) return;
+            if (!self)
+                return;
             if (result && result.value())
                 self->SetFailure(ui::NetworkOperation::Verified, {});
             else
@@ -88,11 +93,37 @@ public:
         static_cast<void>(runtime_->Worker()->Post([runtime, weakSelf, authorizationInfo = std::move(authorizationInfo),
                                                     nodePublicAddress = std::move(nodePublicAddress), endpoint = *endpoint] {
             if (!runtime->Config()->SaveNetwork(authorizationInfo, nodePublicAddress, endpoint)) {
-                if (const auto self = weakSelf.lock()) self->SetFailure(ui::NetworkOperation::Failed, "Unable to save network settings");
+                if (const auto self = weakSelf.lock())
+                    self->SetFailure(ui::NetworkOperation::Failed, "Unable to save network settings");
                 return;
             }
+            auto identity = runtime->Config()->Identity();
+            bool identityReady = !identity.deviceId.empty();
+            if (identityReady) {
+                const auto queried = px_console::ConsoleDeviceApi::QueryDevice(endpoint.host, endpoint.port, endpoint.appKey, identity.deviceId);
+                identityReady = queried.has_value() && queried.value();
+            }
+            if (!identityReady) {
+                const auto created =
+                    px_console::ConsoleDeviceApi::RequestNewDevice(endpoint.host, endpoint.port, endpoint.appKey, BuildDefaultDeviceName(), "");
+                if (!created || !created.value()) {
+                    if (const auto self = weakSelf.lock())
+                        self->SetFailure(ui::NetworkOperation::Failed, "Device registration failed");
+                    return;
+                }
+                identity = {.deviceId = created.value()->device_id_,
+                            .deviceName = created.value()->device_name_,
+                            .randomPassword = created.value()->gen_random_pwd_,
+                            .securityPasswordHash = identity.securityPasswordHash};
+                if (!runtime->Config()->SaveIdentity(identity)) {
+                    if (const auto self = weakSelf.lock())
+                        self->SetFailure(ui::NetworkOperation::Failed, "Unable to save device identity");
+                    return;
+                }
+            }
             const auto self = weakSelf.lock();
-            if (!self) return;
+            if (!self)
+                return;
             {
                 const std::scoped_lock lock{self->mutex_};
                 self->state_.settings.authorizationInfo = std::move(authorizationInfo);
@@ -107,13 +138,16 @@ public:
 
     void RestartRender() override {
         const auto service = runtime_->Service();
-        if (!service || !service->RestartRender()) runtime_->Notify(true, "Pixels", "Render service is not connected");
+        if (!service || !service->RestartRender())
+            runtime_->Notify(true, "Pixels", "Render service is not connected");
         Acknowledge();
     }
 
-    void Acknowledge() override { SetFailure(ui::NetworkOperation::Idle, {}); }
+    void Acknowledge() override {
+        SetFailure(ui::NetworkOperation::Idle, {});
+    }
 
-private:
+  private:
     void ApplyEndpoint(const std::optional<ConsoleEndpoint>& endpoint) {
         const std::scoped_lock lock{mutex_};
         ApplyEndpointLocked(endpoint);
@@ -133,10 +167,10 @@ private:
     ui::NetworkSettingsState state_{};
 };
 
-}  // namespace
+} // namespace
 
 std::shared_ptr<ui::NetworkSettingsPort> CreateProductNetworkSettingsPort(const std::shared_ptr<PanelProductRuntime>& runtime) {
     return std::make_shared<ProductNetworkSettingsPort>(runtime);
 }
 
-}  // namespace px::panel::product
+} // namespace px::panel::product

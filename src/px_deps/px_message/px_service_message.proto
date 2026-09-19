@@ -88,6 +88,12 @@ message MsgHeartBeat {
 message MsgHeartBeatResp {
   int64 index = 1;
   RenderStatus render_status = 2;
+  // Present only after Service authenticates its configured Console node.
+  string node_id = 3;
+  string device_id = 4;
+  int64 node_generation = 5;
+  int64 control_epoch = 6;
+  bool node_control_ready = 7;
 }
 
 message MsgReqCtrlAltDelete {

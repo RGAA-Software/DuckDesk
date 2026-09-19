@@ -28,6 +28,7 @@ impl RuntimeEpoch {
 #[derive(Debug, Clone)]
 pub struct NodeConnection {
     pub(crate) id: Uuid,
+    pub(crate) device_id: Uuid,
     pub(crate) generation: i64,
     pub(crate) epoch: RuntimeEpoch,
     pub(crate) key: TokenDigest,
@@ -35,6 +36,9 @@ pub struct NodeConnection {
 impl NodeConnection {
     pub fn id(&self) -> Uuid {
         self.id
+    }
+    pub fn device_id(&self) -> Uuid {
+        self.device_id
     }
     pub fn generation(&self) -> i64 {
         self.generation

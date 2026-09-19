@@ -50,6 +50,7 @@ pub struct ServiceRuntime {
     pub(crate) node_control_sender: mpsc::Sender<crate::node_control_client::NodeControlOperation>,
     pub(crate) node_control_receiver:
         Option<mpsc::Receiver<crate::node_control_client::NodeControlOperation>>,
+    pub(crate) node_control_identity: Option<crate::node_control_client::NodeControlIdentity>,
     stop_tx: broadcast::Sender<()>,
 }
 
@@ -134,6 +135,7 @@ impl ServiceRuntime {
             ipc_token: URL_SAFE_NO_PAD.encode(ipc_bytes),
             node_control_sender,
             node_control_receiver: Some(node_control_receiver),
+            node_control_identity: None,
             stop_tx,
         }
     }
@@ -328,7 +330,18 @@ impl ServiceRuntime {
                         warn!(%from, %error, "ignore invalid Render logical-session snapshot");
                     }
                 }
-                Ok(Some(self.state.heartbeat_response(index)))
+                let mut response = self.state.heartbeat_response(index);
+                if let (Some(identity), Some(heartbeat)) = (
+                    self.node_control_identity,
+                    response.heart_beat_resp.as_mut(),
+                ) {
+                    heartbeat.node_id = identity.node_id.to_string();
+                    heartbeat.device_id = identity.device_id.to_string();
+                    heartbeat.node_generation = identity.generation;
+                    heartbeat.control_epoch = identity.control_epoch;
+                    heartbeat.node_control_ready = true;
+                }
+                Ok(Some(response))
             }
             Command::CtrlAltDelete { .. } => {
                 self.windows_actions.send_ctrl_alt_delete()?;
@@ -1680,6 +1693,14 @@ mod tests {
             "D:/px_render.exe",
             "--app_mode=desktop",
         )]);
+        let node_id = uuid::Uuid::new_v4();
+        let device_id = uuid::Uuid::new_v4();
+        runtime.node_control_identity = Some(crate::node_control_client::NodeControlIdentity {
+            node_id,
+            device_id,
+            generation: 7,
+            control_epoch: 11,
+        });
         runtime.sync_process_state().unwrap();
         let response = runtime
             .handle_command(Command::HeartBeat {
@@ -1689,10 +1710,16 @@ mod tests {
             })
             .unwrap()
             .unwrap();
+        let heartbeat = response.heart_beat_resp.unwrap();
         assert_eq!(
-            response.heart_beat_resp.unwrap().render_status_enum(),
+            heartbeat.render_status_enum(),
             Some(service_core::RenderStatus::Working)
         );
+        assert!(heartbeat.node_control_ready);
+        assert_eq!(heartbeat.node_id, node_id.to_string());
+        assert_eq!(heartbeat.device_id, device_id.to_string());
+        assert_eq!(heartbeat.node_generation, 7);
+        assert_eq!(heartbeat.control_epoch, 11);
     }
 
     #[test]

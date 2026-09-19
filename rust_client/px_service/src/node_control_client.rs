@@ -42,15 +42,16 @@ const COMMAND_POLL: Duration = Duration::from_secs(1);
 const REPORT_INTERVAL: Duration = Duration::from_secs(15);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct ConnectionIdentity {
-    node_id: Uuid,
-    generation: i64,
-    control_epoch: i64,
+pub(crate) struct NodeControlIdentity {
+    pub node_id: Uuid,
+    pub device_id: Uuid,
+    pub generation: i64,
+    pub control_epoch: i64,
 }
 
 struct ProtocolSession {
     next_request_id: u64,
-    identity: Option<ConnectionIdentity>,
+    identity: Option<NodeControlIdentity>,
 }
 
 pub(crate) enum NodeControlOperation {
@@ -131,16 +132,23 @@ impl ProtocolSession {
         &mut self,
         expected_request_id: u64,
         response: NodeResponse,
-    ) -> Result<ConnectionIdentity, String> {
+    ) -> Result<NodeControlIdentity, String> {
         match response {
             NodeResponse::Authenticated {
                 request_id,
                 node_id,
+                device_id,
                 generation,
                 control_epoch,
-            } if request_id == expected_request_id && generation > 0 && control_epoch > 0 => {
-                let identity = ConnectionIdentity {
+            } if request_id == expected_request_id
+                && !node_id.is_nil()
+                && !device_id.is_nil()
+                && generation > 0
+                && control_epoch > 0 =>
+            {
+                let identity = NodeControlIdentity {
                     node_id,
+                    device_id,
                     generation,
                     control_epoch,
                 };
@@ -213,7 +221,7 @@ pub async fn node_control_loop(
                 .node
                 .set_access_host(configuration.public_host.clone())?;
         }
-        match run_connection(
+        let connection_result = run_connection(
             &runtime,
             &configuration,
             &product,
@@ -222,8 +230,9 @@ pub async fn node_control_loop(
             &mut stop_rx,
             &mut operations,
         )
-        .await
-        {
+        .await;
+        runtime.lock().await.node_control_identity = None;
+        match connection_result {
             Ok(ConnectionEnd::Stopped) => return Ok(()),
             Err(error) => {
                 warn!(%error, "node-control connection ended");
@@ -281,8 +290,10 @@ async fn run_connection(
     let authentication_id = authentication.request_id();
     let response = exchange(&mut socket, authentication).await?;
     let identity = session.accept_authentication(authentication_id, response)?;
+    runtime.lock().await.node_control_identity = Some(identity);
     info!(
         node_id = %identity.node_id,
+        device_id = %identity.device_id,
         generation = identity.generation,
         control_epoch = identity.control_epoch,
         "node-control authenticated"
@@ -1431,8 +1442,9 @@ mod tests {
 
     fn authenticated_session() -> ProtocolSession {
         let mut session = ProtocolSession::new();
-        session.identity = Some(ConnectionIdentity {
+        session.identity = Some(NodeControlIdentity {
             node_id: Uuid::new_v4(),
+            device_id: Uuid::new_v4(),
             generation: 2,
             control_epoch: 3,
         });
@@ -1513,18 +1525,21 @@ mod tests {
         let request = session.authenticate(&"a".repeat(64)).unwrap();
         assert_eq!(request.request_id(), 1);
         let node_id = Uuid::new_v4();
+        let device_id = Uuid::new_v4();
         let identity = session
             .accept_authentication(
                 1,
                 NodeResponse::Authenticated {
                     request_id: 1,
                     node_id,
+                    device_id,
                     generation: 4,
                     control_epoch: 5,
                 },
             )
             .unwrap();
         assert_eq!(identity.node_id, node_id);
+        assert_eq!(identity.device_id, device_id);
         assert_eq!(session.request_id().unwrap(), 2);
     }
 
@@ -1695,6 +1710,7 @@ mod tests {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let node_id = Uuid::new_v4();
+        let device_id = Uuid::new_v4();
         let server = tokio::spawn(async move {
             let (stream, _) = listener.accept().await.unwrap();
             let mut socket = tokio_tungstenite::accept_async(stream).await.unwrap();
@@ -1710,6 +1726,7 @@ mod tests {
                     serde_json::to_string(&NodeResponse::Authenticated {
                         request_id: 1,
                         node_id,
+                        device_id,
                         generation: 2,
                         control_epoch: 3,
                     })

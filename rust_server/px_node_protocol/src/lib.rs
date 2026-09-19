@@ -580,6 +580,7 @@ pub enum NodeResponse {
     Authenticated {
         request_id: u64,
         node_id: Uuid,
+        device_id: Uuid,
         generation: i64,
         control_epoch: i64,
     },
@@ -761,6 +762,7 @@ mod tests {
         let response = serde_json::to_string(&NodeResponse::Authenticated {
             request_id: 1,
             node_id: Uuid::nil(),
+            device_id: Uuid::nil(),
             generation: 2,
             control_epoch: 3,
         })

@@ -300,6 +300,7 @@ impl NodeStore {
         tx.commit().await?;
         Ok(NodeConnection {
             id: node.id,
+            device_id: node.device_id,
             generation: node.generation,
             epoch,
             key: connection_key.clone(),

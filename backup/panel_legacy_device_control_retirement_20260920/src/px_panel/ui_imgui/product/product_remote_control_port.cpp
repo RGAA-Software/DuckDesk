@@ -17,10 +17,13 @@
 #include "panel_connection_input.h"
 #include "panel_connection_links.h"
 #include "panel_credential_vault.h"
+#include "panel_device_registration.h"
 #include "panel_product_runtime.h"
 #include "px_common/http_client.h"
+#include "px_common/md5.h"
 #include "px_common/uuid.h"
-#include "px_console_client/console_api.h"
+#include "px_console_client/console_device.h"
+#include "px_console_client/console_device_api.h"
 #include "px_console_client/console_user_device.h"
 #include "render_api.h"
 
@@ -98,6 +101,8 @@ public:
     }
     void Initialize() {
         showPassword_.store(runtime_->Config()->ShowTemporaryPassword(), std::memory_order_release);
+        const auto runtime = runtime_;
+        static_cast<void>(runtime_->Worker()->Post([runtime] { static_cast<void>(EnsurePanelDeviceRegistration(runtime)); }));
         RefreshDevices();
         const std::weak_ptr<ProductRemoteControlPort> weakSelf{shared_from_this()};
         const auto loopState = refreshLoopState_;
@@ -159,28 +164,49 @@ public:
         deviceName = deviceName.substr(first, last - first + 1);
         const auto runtime = runtime_;
         static_cast<void>(runtime_->Worker()->Post([runtime, deviceName = std::move(deviceName)] {
+            const auto endpoint = runtime->Config()->Console();
+            const auto identity = runtime->Config()->Identity();
+            if (!endpoint || identity.deviceId.empty()) {
+                runtime->Notify(true, "Device name", "The management service is not configured. The device name was not changed.");
+                return;
+            }
+            const auto updated = px_console::ConsoleDeviceApi::UpdateDeviceName(endpoint->host, endpoint->port, endpoint->appKey, identity.deviceId,
+                                                                                deviceName, MD5::Hex(identity.randomPassword));
+            if (!updated || !updated.value()) {
+                runtime->Notify(true, "Device name", "The management service rejected the new device name. Nothing was changed locally.");
+                return;
+            }
             if (!runtime->Config()->SaveCustomDeviceName(deviceName)) {
-                runtime->Notify(true, "Device name", "The local device name could not be saved.");
+                static_cast<void>(px_console::ConsoleDeviceApi::UpdateDeviceName(endpoint->host, endpoint->port, endpoint->appKey, identity.deviceId,
+                                                                                 identity.deviceName, MD5::Hex(identity.randomPassword)));
+                runtime->Notify(true, "Device name", "The local device name could not be saved; the management change was rolled back.");
                 return;
             }
-            if (const auto service = runtime->Service(); service && !service->RestartRender()) {
-                runtime->Notify(true, "Device name", "The name was saved, but the Render service could not be restarted.");
-                return;
-            }
-            runtime->Notify(false, "Device name", "Local device name updated.");
+            static_cast<void>(runtime->Service()->RestartRender());
+            runtime->Notify(false, "Device name", "Device name updated locally and on the management service.");
         }));
     }
     void Refresh() override { RefreshDevices(); }
     void RefreshTemporaryPassword() override {
         const auto runtime = runtime_;
         static_cast<void>(runtime_->Worker()->Post([runtime] {
+            const auto endpoint = runtime->Config()->Console();
             auto identity = runtime->Config()->Identity();
-            identity.randomPassword = px::GetUUID();
+            if (!endpoint || identity.deviceId.empty()) {
+                runtime->Notify(true, "Password", "The management service is not configured. The temporary password was not changed.");
+                return;
+            }
+            const auto updated = px_console::ConsoleDeviceApi::UpdateRandomPwd(endpoint->host, endpoint->port, endpoint->appKey, identity.deviceId);
+            if (!updated || !updated.value() || updated.value()->gen_random_pwd_.empty()) {
+                runtime->Notify(true, "Password", "The management service could not refresh the temporary password.");
+                return;
+            }
+            identity.randomPassword = updated.value()->gen_random_pwd_;
             if (!runtime->Config()->SaveIdentity(identity)) {
                 runtime->Notify(true, "Password", "The new temporary password could not be saved locally.");
                 return;
             }
-            if (const auto service = runtime->Service(); service && !service->RestartRender()) {
+            if (!runtime->Service()->RestartRender()) {
                 runtime->Notify(true, "Password", "The password was updated, but the Render service could not be restarted.");
                 return;
             }
@@ -657,7 +683,7 @@ private:
             const auto endpoint = runtime->Config()->Console();
             bool managerOnline{};
             if (endpoint) {
-                const auto ping = px_console::QueryConsoleReady(endpoint->host, endpoint->port);
+                const auto ping = px_console::ConsoleDeviceApi::Ping(endpoint->host, endpoint->port, endpoint->appKey);
                 managerOnline = ping && ping.value();
             }
             auto devices = runtime->Console()->QueryDevices();
@@ -673,13 +699,13 @@ private:
             std::unordered_set<std::string> consoleDeviceIds{};
             const auto history = runtime->Config()->LoadRemoteDeviceHistory();
             for (const auto& binding : devices) {
-                if (!binding || binding->device_id_.empty() || !consoleDeviceIds.insert(binding->device_id_).second) continue;
+                if (!binding || !binding->device_ || binding->device_id_.empty() || !consoleDeviceIds.insert(binding->device_id_).second) continue;
                 if (runtime->Config()->RemoteDeviceHidden(binding->device_id_)) continue;
                 ui::RemoteDeviceCard card{.streamId = "console-device-" + binding->device_id_,
-                                          .name = binding->device_name_,
+                                          .name = binding->device_->device_name_,
                                           .deviceId = binding->device_id_,
-                                          .platform = px::ui::ParseDevicePlatform(binding->platform_),
-                                          .online = !binding->disabled_,
+                                          .platform = px::ui::ParseDevicePlatform(binding->device_->platform_),
+                                          .online = binding->device_->active_,
                                           .audio = true,
                                           .clipboard = true};
                 if (const auto connected = std::ranges::find(history, binding->device_id_, &RemoteDeviceHistory::deviceId);
@@ -687,6 +713,11 @@ private:
                     card.lastConnectedAt = connected->lastConnectedAt;
                     card.host = connected->host;
                     card.port = connected->port;
+                }
+                const auto parsedLink = ParseConnectionInput(binding->device_->desktop_link_, runtime->Config()->Ports().desktop);
+                if (parsedLink && !parsedLink->hosts.empty()) {
+                    card.host = parsedLink->hosts.front();
+                    card.port = parsedLink->port;
                 }
                 if (const auto saved = runtime->Config()->LoadRemoteDevicePreference(binding->device_id_)) {
                     card.name = saved->name.empty() ? card.name : saved->name;

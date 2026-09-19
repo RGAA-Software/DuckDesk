@@ -152,6 +152,7 @@ mod tests {
             heart_beat_resp: Some(MsgHeartBeatResp {
                 index: 99,
                 render_status: RenderStatus::Working as i32,
+                ..Default::default()
             }),
             ..Default::default()
         };

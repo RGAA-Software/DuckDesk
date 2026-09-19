@@ -226,6 +226,7 @@ async fn session(mut socket: WebSocket, state: Arc<StateData>) {
         &NodeResponse::Authenticated {
             request_id,
             node_id: connection.id(),
+            device_id: connection.device_id(),
             generation: connection.generation(),
             control_epoch: connection.epoch().value(),
         },

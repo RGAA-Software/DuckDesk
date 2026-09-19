@@ -156,6 +156,7 @@ impl ServiceState {
                 } else {
                     RenderStatus::Stopped as i32
                 },
+                ..Default::default()
             }),
             ..Default::default()
         }

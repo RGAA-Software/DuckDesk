@@ -1,62 +1,21 @@
-//
-// Created by RGAA on 12/12/2025.
-//
+#pragma once
 
-#ifndef PIXELSPREMIUM_CONSOLE_API_H
-#define PIXELSPREMIUM_CONSOLE_API_H
-
-#include <map>
-#include <string>
-#include <vector>
-#include <tuple>
+#include <atomic>
 #include <memory>
+#include <string>
 
-#include "px_common/expected.h"
 #include "console_errors.h"
+#include "px_common/expected.h"
 
-namespace px
-{
-    class HttpResponse;
+namespace px {
+class HttpResponse;
 }
 
-namespace px_console
-{
+namespace px_console {
 
-    // Console error responses carry a business code in their JSON body.  The
-    // HTTP status alone is not sufficient (for example DeviceNotFound is sent
-    // as HTTP 400 with business code 602).
-    ConsoleApiError ToConsoleApiError(const px::HttpResponse& response);
+[[nodiscard]] ConsoleApiError ToConsoleUserApiError(const px::HttpResponse& response);
 
-    // User and guest endpoints use normal HTTP authentication semantics, while
-    // the Console control endpoints use 401/403 for app-key and quota errors.
-    ConsoleApiError ToConsoleUserApiError(const px::HttpResponse& response);
+[[nodiscard]] px::Result<bool, ConsoleApiError> QueryConsoleReady(const std::string& host, int port,
+                                                                  const std::shared_ptr<std::atomic_bool>& cancellation = {});
 
-    // Alive Connections
-    class AliveConnections {
-    public:
-        int total_ = 0;
-        int relay_ = 0;
-    };
-
-    // Available New Connection
-    class AvailableNewConnection {
-    public:
-        bool available_ = false;
-    };
-
-    // Api
-    class ConsoleApi {
-    public:
-        // query alive connections
-        static px::Result<AliveConnections, ConsoleApiError>
-        QueryAliveConnections(const std::string& host, int port, const std::string& appkey);
-
-        // query available new connection
-        static px::Result<AvailableNewConnection, ConsoleApiError>
-        QueryAvailableNewConnection(const std::string& host, int port, const std::string& appkey);
-
-    };
-
-}
-
-#endif //PIXELSPREMIUM_CONSOLE_API_H
+}  // namespace px_console

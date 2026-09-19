@@ -6,8 +6,6 @@
 
 #include <nlohmann/json.hpp>
 
-#include "console_device.h"
-#include "console_user.h"
 #include "px_common/log.h"
 
 using namespace nlohmann;
@@ -26,27 +24,19 @@ std::shared_ptr<ConsoleUserDevice> ConsoleUserDevice::FromJson(const std::string
 
 std::shared_ptr<ConsoleUserDevice> ConsoleUserDevice::FromObj(const json& device_profile) {
     try {
-        auto ud = std::make_shared<ConsoleUserDevice>();
-        ud->uid_.clear();
-        ud->device_id_ = device_profile.value("id", "");
-        ud->created_ts_ = device_profile.value("created_ts", 0LL);
-        ud->created_ts_readable_ = device_profile.value("created_ts_readable", "");
-        if (device_profile.contains("user") && device_profile.contains("device")) {
-            ud->user_ = ConsoleUser::FromObj(device_profile["user"]);
-            ud->device_ = ConsoleDevice::FromObj(device_profile["device"]);
-        } else {
-            // Current Console device summaries deliberately have no endpoint or password.
-            ud->device_ = std::make_shared<ConsoleDevice>();
-            ud->device_->device_id_ = ud->device_id_;
-            ud->device_->device_name_ = device_profile.value("name", "");
-            ud->device_->platform_ = device_profile.value("platform", "");
-            ud->device_->active_ = !device_profile.value("disabled", true);
-            ud->device_->last_update_timestamp_ = 0;
-        }
-        if (ud->device_id_.empty() || !ud->device_) {
+        auto device = std::make_shared<ConsoleUserDevice>();
+        device->device_id_ = device_profile.value("id", "");
+        device->public_code_ = device_profile.value("public_code", "");
+        device->device_name_ = device_profile.value("name", "");
+        device->platform_ = device_profile.value("platform", "");
+        device->disabled_ = device_profile.value("disabled", true);
+        device->revision_ = device_profile.value("revision", 0LL);
+        device->registered_at_ = device_profile.value("registered_at", "");
+        if (device->device_id_.empty() || device->public_code_.empty() || device->device_name_.empty() || device->platform_.empty() ||
+            device->revision_ <= 0 || device->registered_at_.empty()) {
             return nullptr;
         }
-        return ud;
+        return device;
     } catch (const std::exception& error) {
         LOGE("ConsoleUserDevice parse failed: {}", error.what());
         return nullptr;
@@ -56,23 +46,13 @@ std::shared_ptr<ConsoleUserDevice> ConsoleUserDevice::FromObj(const json& device
 std::string ConsoleUserDevice::Dump() {
     std::ostringstream oss;
     oss << std::left;
-    oss << std::setw(22) << "uid:" << uid_ << "\n";
     oss << std::setw(22) << "device_id:" << device_id_ << "\n";
-    oss << std::setw(22) << "created_ts:" << created_ts_ << "\n";
-    oss << std::setw(22) << "created_ts_readable:" << created_ts_readable_ << "\n";
-    if (user_) {
-        oss << "User:" << std::endl;
-        oss << user_->Dump();
-    } else {
-        oss << "No User" << std::endl;
-    }
-
-    if (device_) {
-        oss << "Device:" << std::endl;
-        oss << device_->Dump();
-    } else {
-        oss << "No Device" << std::endl;
-    }
+    oss << std::setw(22) << "public_code:" << public_code_ << "\n";
+    oss << std::setw(22) << "name:" << device_name_ << "\n";
+    oss << std::setw(22) << "platform:" << platform_ << "\n";
+    oss << std::setw(22) << "disabled:" << disabled_ << "\n";
+    oss << std::setw(22) << "revision:" << revision_ << "\n";
+    oss << std::setw(22) << "registered_at:" << registered_at_ << "\n";
     return oss.str();
 }
 
