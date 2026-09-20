@@ -144,13 +144,16 @@ DB5短期功能出口通过后统一长测：Relay长连接、Direct Host重复�
 - Render 的资源通道生产者已补齐 Direct Host WebRTC 真实载荷计数：成功编码视频、成功数据通道发送和收到的数据通道载荷按实际
   connection ID 汇总，以 5 秒周期、单调 sequence 和累计字节通过 Render→Service→Console 上报，断开终态携带最后累计值。
   Cloud/Remote Render 与 RTC DLL 聚焦构建、dist 哈希和 3/3 RTC 测试均通过。
-- Relay 出站媒体与文件数据的统计已落在实际异步 WebSocket 写成功点，不再把排队当成发送成功；完整写入后按活跃 room 映射真实
-  connection ID 并累计原始业务载荷。真实本机 WebSocket 写入回调和 Relay 重连/所有者生命周期 2/2 通过，Cloud/Remote Render
-  已重新发布且构建树/dist 哈希一致。
+- Relay 的物理路由现按实际业务载荷惰性建立独立媒体、音频和文件逻辑通道；独立文件路由在完成授权准入后建立文件通道。入站只累计
+  已接收业务载荷，出站统计落在实际异步 WebSocket 写成功点，不把排队当成发送成功。房间销毁、主动停止、授权撤销、连接替换和准入
+  故障分别保留五类终态，独立文件路由关闭仍通知文件引擎清理。分类 3/3、Render 生命周期 21/21、严格 Clippy 和 PostgreSQL
+  节点控制 2/2 通过，报告为 `pg-20260920-092436-f389ae5b`；Cloud/Remote Render build/dist SHA-256 分别为
+  `75489A21E7FA2C01366A3DA65287ADD87BC589290AD0ACC341436E8C362A09F8`、
+  `E83D6C66103FA744A63BBCC052F18F7F68A968CBDB50DF775C8CCEFF3B5D1DB5`，315/77 件 development dist 复核通过。
 - 新独立 `px_relay` 只保留既有数据房间和双向载荷转发，拒绝 notification/中央 RTC 信令类型；Console 通过显式三元配置向节点下发
   Relay endpoint，Service/Render 保持规范实例身份。公网 Windows CloudApplication Native Relay 已真实通过房间准备、首帧解码、
   工作区窗口、鼠标输入和双向业务字节，默认 Native Direct 同步回归通过。静态源的 room-prepared/首帧竞态已在 Render 状态机修复；
-  聚焦生命周期门禁 20/20 通过。该证据仍不覆盖 Relay 音频、文件独立 hash、断线重连/撤销、Web/Android、容量排空或统一长测。
+  聚焦生命周期门禁通过。该证据仍不覆盖 Relay 公网音频、文件独立 hash、真实断线重连/撤销、Web/Android、容量排空或统一长测。
 - Relay 的媒体与文件控制现必须持有当前 Console frontend grant；部署 appkey 不再能代替 CloudApplication session 授权。Render 校验
   session/revision/token/instance/role，按 grant TTL 续租，撤销或续租失败即关房；未准入载荷丢弃，observer 无 input/clipboard/file。
   Client 配置 8/8、Render 生命周期 20/20 与 focused build/hash 已通过；本轮安全制品因公网主机 WinRM/SSH 拒绝已登记机器凭据，
@@ -164,5 +167,6 @@ DB5短期功能出口通过后统一长测：Relay长连接、Direct Host重复�
   454/454 task 和覆盖安装通过，APK SHA-256 为 `3B7F875C1C7ABE8F1667A4F85B78A346CDBB97A5404FFA20DED002238BD142BD`。
   该项关闭本地实现门禁，不替代新 Console/Relay 公网部署后的真实 Relay 票据重连。
 
-尚未完成且不得被上述聚焦证据冒充：真实公网 Web/Android 首帧/音频/输入/重连/撤销、Windows 剩余音频与撤销矩阵、Relay 剩余通道、
+尚未完成且不得被上述聚焦证据冒充：真实公网 Web/Android 首帧/音频/输入/重连/撤销、Windows 剩余音频与撤销矩阵、Relay 公网音频、
+文件独立 hash 与真实断线重连/撤销、
 Android CloudApplication Relay 真机首帧与真实票据续签、安装包内容审计，以及所有 DB5 短测通过后的统一长测。

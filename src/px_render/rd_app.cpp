@@ -2469,8 +2469,19 @@ void RdApplication::OpenConsoleResourceChannel(std::string connection_key, std::
     if (!resource_channel_reporter_) {
         return;
     }
-    const auto protocol_kind =
-        channel_kind == ConsoleResourceChannelKind::kRdp ? ResourceChannelKind::kResourceChannelRdp : ResourceChannelKind::kResourceChannelMedia;
+    const auto protocol_kind = [channel_kind] {
+        switch (channel_kind) {
+            case ConsoleResourceChannelKind::kMedia:
+                return ResourceChannelKind::kResourceChannelMedia;
+            case ConsoleResourceChannelKind::kAudio:
+                return ResourceChannelKind::kResourceChannelAudio;
+            case ConsoleResourceChannelKind::kFile:
+                return ResourceChannelKind::kResourceChannelFile;
+            case ConsoleResourceChannelKind::kRdp:
+                return ResourceChannelKind::kResourceChannelRdp;
+        }
+        return ResourceChannelKind::kResourceChannelMedia;
+    }();
     resource_channel_reporter_->Open(std::move(connection_key), std::move(logical_session_id), static_cast<int>(protocol_kind));
 }
 

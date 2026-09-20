@@ -61,10 +61,6 @@ class ResourceChannelReporter;
 class VigemController;
 class VigemDriverManager;
 
-enum class ConsoleResourceChannelKind {
-    kMedia,
-    kRdp,
-};
 class RdStatistics;
 class WsPanelClient;
 class RenderModuleRegistry;

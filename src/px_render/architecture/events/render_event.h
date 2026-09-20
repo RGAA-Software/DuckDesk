@@ -94,6 +94,23 @@ struct ResourceTrafficEvent final {
     std::uint64_t received_bytes_{};
 };
 
+struct ResourceChannelOpenedEvent final {
+    std::string connection_id_;
+    std::string logical_session_id_;
+    ConsoleResourceChannelKind channel_kind_{ConsoleResourceChannelKind::kMedia};
+};
+
+struct ResourceChannelClosedEvent final {
+    std::string connection_id_;
+    ResourceChannelCloseOutcome outcome_{ResourceChannelCloseOutcome::kPeerClosed};
+};
+
+struct FileTransferRouteDisconnectedEvent final {
+    std::string logical_session_id_;
+    std::string stream_id_;
+    std::string connection_id_;
+};
+
 struct KeyFrameRequestEvent final {
     std::string monitor_name_;
 };
@@ -155,7 +172,8 @@ using RenderEvent =
                  std::shared_ptr<PanelStreamMessageEvent>, std::shared_ptr<RelayAliveEvent>, std::shared_ptr<StreamingParametersRequestedEvent>,
                  std::shared_ptr<AdmitLogicalSessionEvent>, std::shared_ptr<CloseLogicalSessionBindingEvent>,
                  std::shared_ptr<ApplyLogicalSessionCapabilitiesEvent>, std::shared_ptr<DataSentEvent>, std::shared_ptr<GameTextReplyEvent>,
-                 std::shared_ptr<ResourceTrafficEvent>>;
+                 std::shared_ptr<ResourceTrafficEvent>, std::shared_ptr<ResourceChannelOpenedEvent>, std::shared_ptr<ResourceChannelClosedEvent>,
+                 std::shared_ptr<FileTransferRouteDisconnectedEvent>>;
 
 struct RenderEventEnvelope final {
     std::string source_id;

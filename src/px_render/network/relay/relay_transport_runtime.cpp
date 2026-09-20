@@ -28,6 +28,7 @@
 #include "px_render/architecture/runtime/render_execution_context.h"
 #include "px_render/modules/module_ids.h"
 #include "relay_message.pb.h"
+#include "relay_resource_channel.h"
 
 using namespace px_relay;
 
@@ -203,8 +204,7 @@ void RelayTransportRuntime::Stop() {
         }
     }
 
-    ReleaseConnections();
-    CloseAllMediaRoutes();
+    ReleaseConnections(ResourceChannelCloseOutcome::kUserStopped);
     {
         std::lock_guard lock(sink_mutex_);
         event_callback_ = {};
@@ -462,7 +462,7 @@ void RelayTransportRuntime::DispatchMediaAdmission(std::weak_ptr<RelayServerSdk>
         }
         if (frontend_lease && !owner->StartFrontendLease(std::move(*frontend_lease))) {
             server->RequestStopRelay(request.room_id());
-            owner->CloseMediaRoute(request.room_id());
+            owner->CloseMediaRoute(request.room_id(), ResourceChannelCloseOutcome::kIoError);
             server->RespondToControl(message, false, "Relay frontend lease could not start");
             return;
         }
@@ -524,7 +524,7 @@ void RelayTransportRuntime::DispatchFileTransferAdmission(std::weak_ptr<RelaySer
         }
         const auto room_id = message->request_control().room_id();
         if (result.code != LogicalSessionAdmissionCode::kAccepted || (frontend_lease && !runtime->StartFrontendLease(std::move(*frontend_lease)))) {
-            runtime->CloseFileTransferRoute(room_id);
+            runtime->CloseFileTransferRoute(room_id, ResourceChannelCloseOutcome::kIoError);
             server->RequestStopRelay(room_id);
             server->RespondToControl(message, false,
                                      result.code == LogicalSessionAdmissionCode::kRemoteAccessDisabled
@@ -543,6 +543,7 @@ void RelayTransportRuntime::DispatchFileTransferAdmission(std::weak_ptr<RelaySer
             }
             route->second.authorized = true;
         }
+        runtime->OpenFileTransferResourceChannel(room_id);
         server->RespondToControl(message, true, "ok");
     };
     Emit(admission);
@@ -634,9 +635,9 @@ void RelayTransportRuntime::TerminateFrontendLease(const FrontendLeaseRegistrati
         server->RequestStopRelay(registration.room_id);
     }
     if (registration.file_transfer) {
-        CloseFileTransferRoute(registration.room_id);
+        CloseFileTransferRoute(registration.room_id, ResourceChannelCloseOutcome::kPolicyRevoked);
     } else {
-        CloseMediaRoute(registration.room_id);
+        CloseMediaRoute(registration.room_id, ResourceChannelCloseOutcome::kPolicyRevoked);
     }
     LOGW("event=session.lease component=relay operation=renew outcome=revoked code=LOGICAL_LEASE_REVOKED recoverable=false session={} reason={}",
          PrivacyLogId(registration.logical_grant.logical_session_id), reason);
@@ -712,7 +713,7 @@ void RelayTransportRuntime::Monitor(std::weak_ptr<RelayTransportRuntime> runtime
             LOGW(
                 "event=transport.connection_replaced component=relay operation=apply_configuration "
                 "code=RELAY_CONFIGURATION_CHANGED outcome=restarting recoverable=true");
-            self->ReleaseConnections();
+            self->ReleaseConnections(ResourceChannelCloseOutcome::kTransportLost);
             if (!WaitFor(control, std::chrono::milliseconds(500))) {
                 break;
             }
@@ -749,7 +750,7 @@ void RelayTransportRuntime::Monitor(std::weak_ptr<RelayTransportRuntime> runtime
     control->stopped_condition.notify_all();
 }
 
-void RelayTransportRuntime::ReleaseConnections() {
+void RelayTransportRuntime::ReleaseConnections(const ResourceChannelCloseOutcome outcome) {
     ++media_generation_;
     ++file_transfer_generation_;
     auto media_sdk = MediaSdk();
@@ -762,8 +763,8 @@ void RelayTransportRuntime::ReleaseConnections() {
     if (ft_sdk) {
         ft_sdk->Stop();
     }
-    CloseAllMediaRoutes();
-    CloseAllFileTransferRoutes();
+    CloseAllMediaRoutes(outcome);
+    CloseAllFileTransferRoutes(outcome);
 }
 
 std::shared_ptr<RelayServerSdk> RelayTransportRuntime::MediaSdk() const {
@@ -823,9 +824,9 @@ void RelayTransportRuntime::ConnectMedia(const RelayTransportRuntimeConfig& conf
             self->ReportRelayAlive(device_id);
         }
     });
-    sdk->SetOnPayloadSentCallback([weak_self, generation](const std::vector<std::string>& room_ids, const std::size_t payload_bytes) {
+    sdk->SetOnPayloadSentCallback([weak_self, generation](const std::vector<std::string>& room_ids, const std::shared_ptr<const Data>& payload) {
         if (const auto self = weak_self.lock(); self && self->IsCurrentMediaGeneration(generation)) {
-            self->ReportMediaPayloadSent(room_ids, payload_bytes);
+            self->ReportMediaPayloadSent(room_ids, payload);
         }
     });
     sdk->SetOnRequestControlCallback(
@@ -916,9 +917,11 @@ void RelayTransportRuntime::ConnectMedia(const RelayTransportRuntimeConfig& conf
         // resumed-stream event.
         self->paused_stream_.store(false, std::memory_order_release);
         self->Emit(std::make_shared<RelayResumedEvent>());
-        self->NotifyClientConnected(route ? route->connection_instance_id : room->conn_id_, room->creator_stream_id_,
-                                    route ? route->visitor_device_id : ExtractClientId(prepared.device_id()),
-                                    route ? route->logical_session_id : std::string{});
+        const auto activated_route = self->ActivateMediaRoute(prepared.room_id());
+        if (activated_route) {
+            self->NotifyClientConnected(activated_route->connection_instance_id, activated_route->stream_id, activated_route->visitor_device_id,
+                                        activated_route->logical_session_id);
+        }
     });
     sdk->SetOnRoomDestroyedCallback([weak_self, generation](const std::shared_ptr<RelayMessage>& message) {
         const auto self = weak_self.lock();
@@ -935,12 +938,7 @@ void RelayTransportRuntime::ConnectMedia(const RelayTransportRuntimeConfig& conf
                 destroyed.room_id());
             return;
         }
-        const auto route = self->FindMediaRouteByRoom(destroyed.room_id());
-        self->NotifyClientDisconnected(route ? route->connection_instance_id : room->conn_id_, room->creator_stream_id_,
-                                       route ? route->visitor_device_id : ExtractClientId(destroyed.device_id()),
-                                       route ? route->created_timestamp : room->created_timestamp_,
-                                       route ? route->logical_session_id : std::string{});
-        self->CloseMediaRoute(destroyed.room_id());
+        self->CloseMediaRoute(destroyed.room_id(), ResourceChannelCloseOutcome::kPeerClosed);
         if (!media_sdk->HasRelayRooms()) {
             self->paused_stream_ = true;
         }
@@ -974,15 +972,8 @@ void RelayTransportRuntime::ConnectMedia(const RelayTransportRuntimeConfig& conf
             LOGW("Drop Relay payload denied by the logical-session capability grant");
             return;
         }
-        std::string connection_id;
-        if (route) {
-            connection_id = route->connection_instance_id;
-        } else if (const auto media_sdk = self->MediaSdk()) {
-            if (const auto room = media_sdk->GetRoomById(room_id)) {
-                connection_id = room->conn_id_;
-            }
-        }
-        self->EmitNetMessage(payload, TransportChannel::kMedia, std::move(connection_id), false);
+        const auto resource_connection_id = self->ResolveMediaResourceConnection(room_id, payload);
+        self->EmitNetMessage(payload, TransportChannel::kMedia, route->connection_instance_id, resource_connection_id, false);
     });
     sdk->SetOnNotificationCallback([weak_self, generation](const std::shared_ptr<RelayMessage>& message) {
         if (const auto self = weak_self.lock(); self && self->IsCurrentMediaGeneration(generation)) {
@@ -1024,9 +1015,9 @@ void RelayTransportRuntime::ConnectFileTransfer(const RelayTransportRuntimeConfi
             self->ReportRelayAlive(id);
         }
     });
-    sdk->SetOnPayloadSentCallback([weak_self, generation](const std::vector<std::string>& room_ids, const std::size_t payload_bytes) {
+    sdk->SetOnPayloadSentCallback([weak_self, generation](const std::vector<std::string>& room_ids, const std::shared_ptr<const Data>& payload) {
         if (const auto self = weak_self.lock(); self && self->IsCurrentFileTransferGeneration(generation)) {
-            self->ReportFileTransferPayloadSent(room_ids, payload_bytes);
+            self->ReportFileTransferPayloadSent(room_ids, payload);
         }
     });
     sdk->SetOnRequestControlCallback([weak_self, weak_sdk = std::weak_ptr<RelayServerSdk>{sdk},
@@ -1110,7 +1101,7 @@ void RelayTransportRuntime::ConnectFileTransfer(const RelayTransportRuntimeConfi
                 connection_id = route.connection_instance_id;
             }
             const auto& payload = relay.payload();
-            self->EmitNetMessage(Data::From(payload), TransportChannel::kFileTransfer, std::move(connection_id), true);
+            self->EmitNetMessage(Data::From(payload), TransportChannel::kFileTransfer, connection_id, connection_id, true);
         } else if (type == RelayMessageType::kRelayRoomPrepared) {
             const auto& prepared = message->room_prepared();
             std::lock_guard lock(self->ft_route_mutex_);
@@ -1136,8 +1127,7 @@ void RelayTransportRuntime::ConnectFileTransfer(const RelayTransportRuntimeConfi
                 }
             }
             if (!route.connection_instance_id.empty()) {
-                self->CloseFileTransferRoute(destroyed.room_id());
-                self->NotifyClientDisconnected(route.connection_instance_id, route.stream_id, route.visitor_device_id, route.created_timestamp);
+                self->CloseFileTransferRoute(destroyed.room_id(), ResourceChannelCloseOutcome::kPeerClosed);
             }
         }
     });
@@ -1171,6 +1161,56 @@ std::optional<RelayTransportRuntime::MediaRelayRouteInfo> RelayTransportRuntime:
     return route == media_routes_.end() ? std::nullopt : std::optional<MediaRelayRouteInfo>{route->second};
 }
 
+std::optional<RelayTransportRuntime::MediaRelayRouteInfo> RelayTransportRuntime::ActivateMediaRoute(const std::string& room_id) {
+    std::lock_guard lock(media_route_mutex_);
+    const auto route = media_routes_.find(room_id);
+    if (route == media_routes_.end() || route->second.client_connected) {
+        return std::nullopt;
+    }
+    route->second.client_connected = true;
+    return route->second;
+}
+
+std::string RelayTransportRuntime::ResolveMediaResourceConnection(const std::string& room_id, const std::shared_ptr<const Data>& payload) {
+    const auto channel_kind = RelayResourceChannel::Classify(payload);
+    MediaRelayRouteInfo route;
+    bool open_channel{false};
+    {
+        std::lock_guard lock(media_route_mutex_);
+        const auto current = media_routes_.find(room_id);
+        if (current == media_routes_.end() || !current->second.client_connected) {
+            return {};
+        }
+        route = current->second;
+        if (channel_kind == ConsoleResourceChannelKind::kAudio && !current->second.audio_channel_opened) {
+            current->second.audio_channel_opened = true;
+            open_channel = true;
+        } else if (channel_kind == ConsoleResourceChannelKind::kFile && !current->second.file_channel_opened) {
+            current->second.file_channel_opened = true;
+            open_channel = true;
+        }
+    }
+    const auto resource_connection_id = RelayResourceChannel::ConnectionId(route.connection_instance_id, channel_kind);
+    if (open_channel) {
+        NotifyResourceChannelOpened(resource_connection_id, route.logical_session_id, channel_kind);
+    }
+    return resource_connection_id;
+}
+
+void RelayTransportRuntime::OpenFileTransferResourceChannel(const std::string& room_id) {
+    FtRelayRouteInfo route;
+    {
+        std::scoped_lock lock(ft_route_mutex_);
+        const auto current = ft_routes_.find(room_id);
+        if (current == ft_routes_.end() || !current->second.authorized || current->second.resource_channel_opened) {
+            return;
+        }
+        current->second.resource_channel_opened = true;
+        route = current->second;
+    }
+    NotifyResourceChannelOpened(route.connection_instance_id, route.logical_session_id, ConsoleResourceChannelKind::kFile);
+}
+
 std::vector<std::string> RelayTransportRuntime::AuthorizedMediaRooms(const std::shared_ptr<Data>& message, const std::string& stream_id) const {
     std::vector<std::string> room_ids;
     const auto sdk = MediaSdk();
@@ -1189,7 +1229,7 @@ std::vector<std::string> RelayTransportRuntime::AuthorizedMediaRooms(const std::
     return room_ids;
 }
 
-void RelayTransportRuntime::CloseMediaRoute(const std::string& room_id) {
+void RelayTransportRuntime::CloseMediaRoute(const std::string& room_id, const ResourceChannelCloseOutcome outcome) {
     CancelFrontendLease(room_id);
     MediaRelayRouteInfo route;
     {
@@ -1201,6 +1241,16 @@ void RelayTransportRuntime::CloseMediaRoute(const std::string& room_id) {
         route = current->second;
         media_routes_.erase(current);
     }
+    if (route.client_connected) {
+        NotifyClientDisconnected(route.connection_instance_id, route.stream_id, route.visitor_device_id, route.created_timestamp,
+                                 route.logical_session_id, outcome);
+    }
+    if (route.audio_channel_opened) {
+        NotifyResourceChannelClosed(RelayResourceChannel::ConnectionId(route.connection_instance_id, ConsoleResourceChannelKind::kAudio), outcome);
+    }
+    if (route.file_channel_opened) {
+        NotifyResourceChannelClosed(RelayResourceChannel::ConnectionId(route.connection_instance_id, ConsoleResourceChannelKind::kFile), outcome);
+    }
     if (!route.logical_session_id.empty()) {
         const auto close = std::make_shared<CloseLogicalSessionBindingEvent>();
         close->logical_session_id_ = route.logical_session_id;
@@ -1209,7 +1259,7 @@ void RelayTransportRuntime::CloseMediaRoute(const std::string& room_id) {
     }
 }
 
-void RelayTransportRuntime::CloseFileTransferRoute(const std::string& room_id) {
+void RelayTransportRuntime::CloseFileTransferRoute(const std::string& room_id, const ResourceChannelCloseOutcome outcome) {
     CancelFrontendLease(room_id);
     FtRelayRouteInfo route;
     {
@@ -1221,6 +1271,12 @@ void RelayTransportRuntime::CloseFileTransferRoute(const std::string& room_id) {
         route = current->second;
         ft_routes_.erase(current);
     }
+    if (route.resource_channel_opened) {
+        NotifyResourceChannelClosed(route.connection_instance_id, outcome);
+    }
+    if (route.authorized) {
+        NotifyFileTransferRouteDisconnected(route.logical_session_id, route.stream_id, route.connection_instance_id);
+    }
     RenderEventCallback dispatcher;
     {
         std::scoped_lock lock(sink_mutex_);
@@ -1229,7 +1285,7 @@ void RelayTransportRuntime::CloseFileTransferRoute(const std::string& room_id) {
     DispatchCloseLogicalSessionBinding(dispatcher, route.logical_session_id, route.connection_instance_id);
 }
 
-void RelayTransportRuntime::CloseAllMediaRoutes() {
+void RelayTransportRuntime::CloseAllMediaRoutes(const ResourceChannelCloseOutcome outcome) {
     std::vector<std::string> room_ids;
     {
         std::lock_guard lock(media_route_mutex_);
@@ -1240,11 +1296,11 @@ void RelayTransportRuntime::CloseAllMediaRoutes() {
         }
     }
     for (const auto& room_id : room_ids) {
-        CloseMediaRoute(room_id);
+        CloseMediaRoute(room_id, outcome);
     }
 }
 
-void RelayTransportRuntime::CloseAllFileTransferRoutes() {
+void RelayTransportRuntime::CloseAllFileTransferRoutes(const ResourceChannelCloseOutcome outcome) {
     std::vector<std::string> room_ids;
     {
         std::lock_guard lock(ft_route_mutex_);
@@ -1255,13 +1311,16 @@ void RelayTransportRuntime::CloseAllFileTransferRoutes() {
         }
     }
     for (const auto& room_id : room_ids) {
-        CloseFileTransferRoute(room_id);
+        CloseFileTransferRoute(room_id, outcome);
     }
 }
 
 void RelayTransportRuntime::Emit(RenderEvent event, const bool directly) {
-    const auto is_close = std::holds_alternative<std::shared_ptr<CloseLogicalSessionBindingEvent>>(event);
-    if (stopping_ && !is_close) {
+    const auto is_terminal = std::holds_alternative<std::shared_ptr<CloseLogicalSessionBindingEvent>>(event) ||
+                             std::holds_alternative<std::shared_ptr<ClientDisconnectedEvent>>(event) ||
+                             std::holds_alternative<std::shared_ptr<ResourceChannelClosedEvent>>(event) ||
+                             std::holds_alternative<std::shared_ptr<FileTransferRouteDisconnectedEvent>>(event);
+    if (stopping_ && !is_terminal) {
         return;
     }
     RenderEventCallback callback;
@@ -1278,14 +1337,14 @@ void RelayTransportRuntime::Emit(RenderEvent event, const bool directly) {
         .source_id = kRelayTransportId,
         .payload = std::move(event),
     });
-    if (directly || !context) {
+    if (directly || !context || (stopping_ && is_terminal)) {
         callback(*envelope);
         return;
     }
     const auto weak_self = weak_from_this();
-    static_cast<void>(context->Post([weak_self, envelope]() {
+    static_cast<void>(context->Post([weak_self, envelope, is_terminal]() {
         const auto self = weak_self.lock();
-        if (!self || self->stopping_) {
+        if (!self || (self->stopping_ && !is_terminal)) {
             return;
         }
         RenderEventCallback queued_callback;
@@ -1300,7 +1359,7 @@ void RelayTransportRuntime::Emit(RenderEvent event, const bool directly) {
 }
 
 void RelayTransportRuntime::EmitNetMessage(std::shared_ptr<Data> message, const TransportChannel& channel, std::string connection_instance_id,
-                                           bool directly) {
+                                           std::string resource_connection_id, const bool directly) {
     const auto event = std::make_shared<NetworkClientEvent>();
     event->is_proto_ = true;
     event->socket_fd_ = 0;
@@ -1308,6 +1367,7 @@ void RelayTransportRuntime::EmitNetMessage(std::shared_ptr<Data> message, const 
     event->channel_type_ = channel;
     event->message_ = std::move(message);
     event->connection_instance_id_ = std::move(connection_instance_id);
+    event->resource_connection_id_ = std::move(resource_connection_id);
     const auto weak_self = weak_from_this();
     event->ack_callback_ = [weak_self](const std::shared_ptr<NetMessageAck>& ack) {
         if (const auto self = weak_self.lock()) {
@@ -1330,8 +1390,8 @@ void RelayTransportRuntime::NotifyClientConnected(const std::string& connection_
 }
 
 void RelayTransportRuntime::NotifyClientDisconnected(const std::string& connection_id, const std::string& stream_id,
-                                                     const std::string& visitor_device_id, int64_t begin_timestamp,
-                                                     const std::string& logical_session_id) {
+                                                     const std::string& visitor_device_id, const int64_t begin_timestamp,
+                                                     const std::string& logical_session_id, const ResourceChannelCloseOutcome outcome) {
     const auto event = std::make_shared<ClientDisconnectedEvent>();
     event->logical_session_id_ = logical_session_id;
     event->connection_id_ = connection_id;
@@ -1340,7 +1400,33 @@ void RelayTransportRuntime::NotifyClientDisconnected(const std::string& connecti
     event->visitor_device_id_ = visitor_device_id;
     event->end_timestamp_ = static_cast<int64_t>(TimeUtil::GetCurrentTimestamp());
     event->duration_ = event->end_timestamp_ - begin_timestamp;
+    event->resource_channel_close_outcome_ = outcome;
     Emit(event);
+}
+
+void RelayTransportRuntime::NotifyResourceChannelOpened(const std::string& connection_id, const std::string& logical_session_id,
+                                                        const ConsoleResourceChannelKind channel_kind) {
+    const auto event = std::make_shared<ResourceChannelOpenedEvent>();
+    event->connection_id_ = connection_id;
+    event->logical_session_id_ = logical_session_id;
+    event->channel_kind_ = channel_kind;
+    Emit(event, true);
+}
+
+void RelayTransportRuntime::NotifyResourceChannelClosed(const std::string& connection_id, const ResourceChannelCloseOutcome outcome) {
+    const auto event = std::make_shared<ResourceChannelClosedEvent>();
+    event->connection_id_ = connection_id;
+    event->outcome_ = outcome;
+    Emit(event, true);
+}
+
+void RelayTransportRuntime::NotifyFileTransferRouteDisconnected(const std::string& logical_session_id, const std::string& stream_id,
+                                                                const std::string& connection_id) {
+    const auto event = std::make_shared<FileTransferRouteDisconnectedEvent>();
+    event->logical_session_id_ = logical_session_id;
+    event->stream_id_ = stream_id;
+    event->connection_id_ = connection_id;
+    Emit(event, true);
 }
 
 void RelayTransportRuntime::ReportRelayAlive(const std::string& device_id) {
@@ -1355,29 +1441,35 @@ void RelayTransportRuntime::ReportSentDataSize(std::size_t size) {
     Emit(event);
 }
 
-void RelayTransportRuntime::ReportMediaPayloadSent(const std::vector<std::string>& room_ids, const std::size_t payload_bytes) {
+void RelayTransportRuntime::ReportMediaPayloadSent(const std::vector<std::string>& room_ids, const std::shared_ptr<const Data>& payload) {
+    if (!payload) {
+        return;
+    }
     for (const auto& room_id : room_ids) {
-        const auto route = FindMediaRouteByRoom(room_id);
-        if (route) {
-            ReportConnectionTraffic(route->connection_instance_id, static_cast<std::uint64_t>(payload_bytes), 0);
+        const auto connection_id = ResolveMediaResourceConnection(room_id, payload);
+        if (!connection_id.empty()) {
+            ReportConnectionTraffic(connection_id, static_cast<std::uint64_t>(payload->Size()), 0);
         }
     }
 }
 
-void RelayTransportRuntime::ReportFileTransferPayloadSent(const std::vector<std::string>& room_ids, const std::size_t payload_bytes) {
+void RelayTransportRuntime::ReportFileTransferPayloadSent(const std::vector<std::string>& room_ids, const std::shared_ptr<const Data>& payload) {
+    if (!payload) {
+        return;
+    }
     std::vector<std::string> connection_ids;
     {
         std::lock_guard lock(ft_route_mutex_);
         connection_ids.reserve(room_ids.size());
         for (const auto& room_id : room_ids) {
             const auto route = ft_routes_.find(room_id);
-            if (route != ft_routes_.end() && !route->second.connection_instance_id.empty()) {
+            if (route != ft_routes_.end() && route->second.resource_channel_opened && !route->second.connection_instance_id.empty()) {
                 connection_ids.push_back(route->second.connection_instance_id);
             }
         }
     }
     for (const auto& connection_id : connection_ids) {
-        ReportConnectionTraffic(connection_id, static_cast<std::uint64_t>(payload_bytes), 0);
+        ReportConnectionTraffic(connection_id, static_cast<std::uint64_t>(payload->Size()), 0);
     }
 }
 

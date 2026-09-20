@@ -27,7 +27,7 @@ class FileTransferWritableSignal;
 
 class RelayServerSdk : public std::enable_shared_from_this<RelayServerSdk> {
 public:
-    using PayloadSentCallback = std::function<void(const std::vector<std::string>& room_ids, std::size_t payload_bytes)>;
+    using PayloadSentCallback = std::function<void(const std::vector<std::string>& room_ids, const std::shared_ptr<const Data>& payload)>;
 
     explicit RelayServerSdk(const RelayServerSdkParam& param);
     void Start();

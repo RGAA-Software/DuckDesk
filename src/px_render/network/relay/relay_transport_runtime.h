@@ -101,6 +101,7 @@ private:
         uint64_t last_recv_msg_index = 0;
         bool has_recv_msg_index = false;
         bool authorized = false;
+        bool resource_channel_opened = false;
     };
 
     struct MediaRelayRouteInfo final {
@@ -111,6 +112,9 @@ private:
         std::string logical_session_id;
         std::vector<std::string> permissions;
         int64_t created_timestamp = 0;
+        bool client_connected = false;
+        bool audio_channel_opened = false;
+        bool file_channel_opened = false;
     };
 
     struct FrontendLeaseControl final {
@@ -131,7 +135,7 @@ private:
     static bool WaitFor(const std::shared_ptr<MonitorControl>& control, std::chrono::milliseconds delay);
     void WakeMonitor();
     RelayTransportRuntimeConfig ConfigSnapshot() const;
-    void ReleaseConnections();
+    void ReleaseConnections(ResourceChannelCloseOutcome outcome);
     void ConnectMedia(const RelayTransportRuntimeConfig& config, const std::string& host, int port,
                       const std::vector<class RelayDeviceNetInfo>& net_info, int connect_count);
     void ConnectFileTransfer(const RelayTransportRuntimeConfig& config, const std::string& host, int port,
@@ -168,24 +172,32 @@ private:
     [[nodiscard]] bool IsCurrentFileTransferGeneration(uint64_t generation) const;
 
     void Emit(RenderEvent event, bool directly = false);
-    void EmitNetMessage(std::shared_ptr<Data> message, const TransportChannel& channel, std::string connection_instance_id, bool directly);
+    void EmitNetMessage(std::shared_ptr<Data> message, const TransportChannel& channel, std::string connection_instance_id,
+                        std::string resource_connection_id, bool directly);
     void NotifyClientConnected(const std::string& connection_id, const std::string& stream_id, const std::string& visitor_device_id,
                                const std::string& logical_session_id);
     void NotifyClientDisconnected(const std::string& connection_id, const std::string& stream_id, const std::string& visitor_device_id,
-                                  int64_t begin_timestamp, const std::string& logical_session_id = {});
+                                  int64_t begin_timestamp, const std::string& logical_session_id, ResourceChannelCloseOutcome outcome);
+    void NotifyResourceChannelOpened(const std::string& connection_id, const std::string& logical_session_id,
+                                     ConsoleResourceChannelKind channel_kind);
+    void NotifyResourceChannelClosed(const std::string& connection_id, ResourceChannelCloseOutcome outcome);
+    void NotifyFileTransferRouteDisconnected(const std::string& logical_session_id, const std::string& stream_id, const std::string& connection_id);
     void ReportRelayAlive(const std::string& device_id);
     void ReportSentDataSize(std::size_t size);
-    void ReportMediaPayloadSent(const std::vector<std::string>& room_ids, std::size_t payload_bytes);
-    void ReportFileTransferPayloadSent(const std::vector<std::string>& room_ids, std::size_t payload_bytes);
+    void ReportMediaPayloadSent(const std::vector<std::string>& room_ids, const std::shared_ptr<const Data>& payload);
+    void ReportFileTransferPayloadSent(const std::vector<std::string>& room_ids, const std::shared_ptr<const Data>& payload);
     void ReportConnectionTraffic(const std::string& connection_id, std::uint64_t sent_bytes, std::uint64_t received_bytes);
     [[nodiscard]] bool StoreMediaRoute(MediaRelayRouteInfo route, uint64_t generation);
     [[nodiscard]] std::optional<MediaRelayRouteInfo> FindMediaRouteByRoom(const std::string& room_id) const;
     [[nodiscard]] std::optional<MediaRelayRouteInfo> FindMediaRouteByConnection(const std::string& connection_instance_id) const;
     [[nodiscard]] std::vector<std::string> AuthorizedMediaRooms(const std::shared_ptr<Data>& message, const std::string& stream_id = {}) const;
-    void CloseMediaRoute(const std::string& room_id);
-    void CloseFileTransferRoute(const std::string& room_id);
-    void CloseAllMediaRoutes();
-    void CloseAllFileTransferRoutes();
+    [[nodiscard]] std::optional<MediaRelayRouteInfo> ActivateMediaRoute(const std::string& room_id);
+    [[nodiscard]] std::string ResolveMediaResourceConnection(const std::string& room_id, const std::shared_ptr<const Data>& payload);
+    void OpenFileTransferResourceChannel(const std::string& room_id);
+    void CloseMediaRoute(const std::string& room_id, ResourceChannelCloseOutcome outcome);
+    void CloseFileTransferRoute(const std::string& room_id, ResourceChannelCloseOutcome outcome);
+    void CloseAllMediaRoutes(ResourceChannelCloseOutcome outcome);
+    void CloseAllFileTransferRoutes(ResourceChannelCloseOutcome outcome);
 
     mutable std::mutex lifecycle_mutex_;
     std::shared_ptr<MonitorControl> monitor_control_{};

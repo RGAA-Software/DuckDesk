@@ -161,6 +161,24 @@ void RenderEventIngress::ProcessRenderEvent(const RenderEventEnvelope& envelope)
                     owner.app_->RecordConsoleResourceTraffic(envelope.source_id + ":" + event->connection_id_, event->sent_bytes_,
                                                              event->received_bytes_);
                 }
+            } else if constexpr (std::is_same_v<Event, ResourceChannelOpenedEvent>) {
+                if (!event->connection_id_.empty()) {
+                    owner.app_->OpenConsoleResourceChannel(envelope.source_id + ":" + event->connection_id_, event->logical_session_id_,
+                                                           event->channel_kind_);
+                }
+            } else if constexpr (std::is_same_v<Event, ResourceChannelClosedEvent>) {
+                if (!event->connection_id_.empty()) {
+                    owner.app_->CloseConsoleResourceChannel(envelope.source_id + ":" + event->connection_id_, event->outcome_);
+                }
+            } else if constexpr (std::is_same_v<Event, FileTransferRouteDisconnectedEvent>) {
+                if (const auto service = owner.context_->GetFileTransferService()) {
+                    service->HandleRouteDisconnected(FileTransferRouteDisconnected{
+                        .logical_session_id = event->logical_session_id_,
+                        .stream_id = event->stream_id_,
+                        .transport_id = envelope.source_id,
+                        .connection_id = event->connection_id_,
+                    });
+                }
             } else if constexpr (std::is_same_v<Event, PanelStreamMessageEvent>) {
                 const auto weak_self = owner.weak_from_this();
                 owner.app_->PostGlobalTask([weak_self, event]() {

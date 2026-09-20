@@ -130,13 +130,13 @@ void RelayServerSdk::RelayProtoMessage(const std::string& stream_id, std::shared
         for (const auto& room_id : *room_ids) {
             active_room_ids.push_back(room_id);
         }
-        const auto payload_bytes = msg->Size();
+        const std::shared_ptr<const Data> sent_payload = msg;
         const auto weak_sdk = std::weak_ptr<RelayServerSdk>(self);
         self->PostBinMessage(rl_msg.SerializeAsString(),
-                             [weak_sdk, active_room_ids = std::move(active_room_ids), payload_bytes](const bool succeeded, const std::size_t) {
+                             [weak_sdk, active_room_ids = std::move(active_room_ids), sent_payload](const bool succeeded, const std::size_t) {
                                  const auto sdk = weak_sdk.lock();
                                  if (succeeded && sdk && sdk->payload_sent_callback_) {
-                                     sdk->payload_sent_callback_(active_room_ids, payload_bytes);
+                                     sdk->payload_sent_callback_(active_room_ids, sent_payload);
                                  }
                              });
     });
@@ -173,13 +173,13 @@ void RelayServerSdk::RelayProtoMessageToRooms(const std::vector<std::string>& re
         for (const auto& room_id : relay.room_ids()) {
             active_room_ids.push_back(room_id);
         }
-        const auto payload_bytes = msg->Size();
+        const std::shared_ptr<const Data> sent_payload = msg;
         const auto weak_sdk = std::weak_ptr<RelayServerSdk>(self);
         self->PostBinMessage(relay_message.SerializeAsString(),
-                             [weak_sdk, active_room_ids = std::move(active_room_ids), payload_bytes](const bool succeeded, const std::size_t) {
+                             [weak_sdk, active_room_ids = std::move(active_room_ids), sent_payload](const bool succeeded, const std::size_t) {
                                  const auto sdk = weak_sdk.lock();
                                  if (succeeded && sdk && sdk->payload_sent_callback_) {
-                                     sdk->payload_sent_callback_(active_room_ids, payload_bytes);
+                                     sdk->payload_sent_callback_(active_room_ids, sent_payload);
                                  }
                              });
     });

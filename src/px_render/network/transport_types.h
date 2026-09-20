@@ -29,6 +29,13 @@ enum class ResourceChannelCloseOutcome {
     kIoError,
 };
 
+enum class ConsoleResourceChannelKind {
+    kMedia,
+    kAudio,
+    kFile,
+    kRdp,
+};
+
 class NetMessageAck {
 public:
     std::uint64_t send_time_{0};

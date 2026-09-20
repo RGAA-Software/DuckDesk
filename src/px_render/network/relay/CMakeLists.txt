@@ -4,6 +4,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(TRANSPORT_SRCS
+        ${CMAKE_CURRENT_SOURCE_DIR}/relay_resource_channel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/relay_transport.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/relay_transport_runtime.cpp
 )

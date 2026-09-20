@@ -25,6 +25,7 @@ where
         + futures_util::Stream<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>
         + Unpin,
 {
+    let request_for_error = request.clone();
     socket
         .send(Message::Text(request.to_string().into()))
         .await
@@ -34,7 +35,12 @@ where
         .unwrap()
         .unwrap()
         .unwrap();
-    serde_json::from_str(message.to_text().unwrap()).unwrap()
+    let response_text = message
+        .to_text()
+        .unwrap_or_else(|error| panic!("non-text node response for {request_for_error}: {error}"));
+    serde_json::from_str(response_text).unwrap_or_else(|error| {
+        panic!("invalid node response for {request_for_error}: {error}; response={response_text:?}")
+    })
 }
 
 fn telemetry_report(request_id: u64, sequence: u64, cpu_utilization_per_mille: u16) -> Value {
@@ -607,12 +613,76 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     assert_eq!(closed_channel["type"], "channel_reported");
     assert_eq!(closed_channel["state"], "closed");
 
+    let opened_audio_channel = exchange(
+        &mut socket,
+        json!({
+            "type":"open_channel",
+            "request_id":13,
+            "channel":{
+                "source_id":Uuid::new_v4(),
+                "session_id":resource_session["id"],
+                "kind":"audio"
+            }
+        }),
+    )
+    .await;
+    assert_eq!(opened_audio_channel["type"], "channel_opened");
+    let closed_audio_channel = exchange(
+        &mut socket,
+        json!({
+            "type":"report_channel",
+            "request_id":14,
+            "channel_id":opened_audio_channel["channel_id"],
+            "progress":{
+                "sequence":1,
+                "sent_bytes":480,
+                "received_bytes":160,
+                "elapsed_ms":500,
+                "outcome":{"kind":"failed","reason":"policy_revoked"}
+            }
+        }),
+    )
+    .await;
+    assert_eq!(closed_audio_channel["state"], "failed");
+
+    let opened_file_channel = exchange(
+        &mut socket,
+        json!({
+            "type":"open_channel",
+            "request_id":15,
+            "channel":{
+                "source_id":Uuid::new_v4(),
+                "session_id":resource_session["id"],
+                "kind":"file"
+            }
+        }),
+    )
+    .await;
+    assert_eq!(opened_file_channel["type"], "channel_opened");
+    let closed_file_channel = exchange(
+        &mut socket,
+        json!({
+            "type":"report_channel",
+            "request_id":16,
+            "channel_id":opened_file_channel["channel_id"],
+            "progress":{
+                "sequence":1,
+                "sent_bytes":4096,
+                "received_bytes":128,
+                "elapsed_ms":900,
+                "outcome":{"kind":"failed","reason":"transport_lost"}
+            }
+        }),
+    )
+    .await;
+    assert_eq!(closed_file_channel["state"], "failed");
+
     let expected_file_hash = vec![7_u8; 32];
     let started_transfer = exchange(
         &mut socket,
         json!({
             "type":"begin_file_transfer",
-            "request_id":13,
+            "request_id":17,
             "transfer":{
                 "transfer_request_id":Uuid::new_v4(),
                 "session_id":resource_session["id"],
@@ -629,7 +699,7 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
         &mut socket,
         json!({
             "type":"report_file_transfer",
-            "request_id":14,
+            "request_id":18,
             "transfer_id":started_transfer["transfer_id"],
             "progress":{
                 "sequence":1,
@@ -649,7 +719,7 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
         &mut socket,
         json!({
             "type":"report_recording",
-            "request_id":15,
+            "request_id":19,
             "recording":{
                 "source_id":recording_source_id,
                 "source_sha256":recording_sha256,
@@ -708,9 +778,37 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
         Value::Null,
     )
     .await;
-    assert_eq!(owned_channels.as_array().unwrap().len(), 1);
-    assert_eq!(owned_channels[0]["id"], opened_channel["channel_id"]);
-    assert_eq!(owned_channels[0]["state"], "closed");
+    let owned_channels = owned_channels.as_array().unwrap();
+    assert_eq!(owned_channels.len(), 3);
+    for (opened, kind, state, sent_bytes, received_bytes, close_reason) in [
+        (&opened_channel, "media", "closed", 1200, 340, "peer_closed"),
+        (
+            &opened_audio_channel,
+            "audio",
+            "failed",
+            480,
+            160,
+            "policy_revoked",
+        ),
+        (
+            &opened_file_channel,
+            "file",
+            "failed",
+            4096,
+            128,
+            "transport_lost",
+        ),
+    ] {
+        let channel = owned_channels
+            .iter()
+            .find(|channel| channel["id"] == opened["channel_id"])
+            .expect("owned channel");
+        assert_eq!(channel["kind"], kind);
+        assert_eq!(channel["state"], state);
+        assert_eq!(channel["sent_bytes"], sent_bytes);
+        assert_eq!(channel["received_bytes"], received_bytes);
+        assert_eq!(channel["reason"], close_reason);
+    }
     let (_, owned_transfers) = resource_call(
         &router,
         "GET",
@@ -750,7 +848,7 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     assert_eq!(cache_profile["state"], "fetching");
     let upload_list = exchange(
         &mut socket,
-        json!({"type":"poll_recording_cache","request_id":16,"after":null,"limit":4}),
+        json!({"type":"poll_recording_cache","request_id":20,"after":null,"limit":4}),
     )
     .await;
     assert_eq!(upload_list["type"], "recording_cache_uploads");
@@ -894,7 +992,7 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
         &mut socket,
         json!({
             "type":"begin_frontend_retirement",
-            "request_id":17,
+            "request_id":21,
             "session_id":resource_session["id"]
         }),
     )
@@ -904,7 +1002,7 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
         &mut socket,
         json!({
             "type":"finish_frontend_retirement",
-            "request_id":18,
+            "request_id":22,
             "session_id":resource_session["id"],
             "challenge_id":retirement["retirement"]["challenge_id"]
         }),
@@ -928,7 +1026,7 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
         &mut socket,
         json!({
             "type":"report_telemetry_backfill",
-            "request_id":19,
+            "request_id":23,
             "samples":[{
                 "sample_id":backfill_sample_id,
                 "telemetry":{
@@ -949,13 +1047,13 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     .await;
     assert_eq!(backfilled["type"], "telemetry_backfilled");
     assert_eq!(backfilled["sample_ids"], json!([backfill_sample_id]));
-    let stop_command = exchange(&mut socket, json!({"type":"poll_command","request_id":20})).await;
+    let stop_command = exchange(&mut socket, json!({"type":"poll_command","request_id":24})).await;
     assert_eq!(stop_command["command"]["action"]["kind"], "stop");
     let stopped = exchange(
         &mut socket,
         json!({
             "type":"acknowledge_command",
-            "request_id":21,
+            "request_id":25,
             "receipt":{
                 "command_id":stop_command["command"]["id"],
                 "lease_id":stop_command["command"]["lease_id"],
@@ -970,10 +1068,10 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     assert_eq!(stopped["state"], "stopped");
 
     let sequence_error =
-        exchange(&mut socket, json!({"type":"poll_command","request_id":21})).await;
+        exchange(&mut socket, json!({"type":"poll_command","request_id":25})).await;
     assert_eq!(
         sequence_error,
-        json!({"type":"error","request_id":21,"code":"invalid_sequence"})
+        json!({"type":"error","request_id":25,"code":"invalid_sequence"})
     );
     let closed = tokio::time::timeout(Duration::from_secs(5), socket.next())
         .await
