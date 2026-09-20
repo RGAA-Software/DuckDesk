@@ -309,7 +309,8 @@ try {
                 'console-browser/server-telemetry-trend',
                 'console-browser/management-realtime-refresh-reconnect',
                 'console-process/restart-preserves-session-data','console-process/database-outage-fails-closed-and-recovers',
-                'console-browser/logout-revokes','console-browser/user-recordings-empty-state')) {
+                'console-browser/logout-revokes','console-browser/user-recordings-empty-state',
+                'console-browser/user-file-transfers-empty-state')) {
                 if (-not $consoleBrowser.Contains("PASS $case")) { throw "Console functional assertion missing: $case" }
                 Add-Step "CONSOLE/$case"
             }
@@ -616,7 +617,8 @@ try {
         'console-browser/server-telemetry-trend',
         'console-browser/management-realtime-refresh-reconnect',
         'console-process/restart-preserves-session-data','console-process/database-outage-fails-closed-and-recovers',
-        'console-browser/logout-revokes','console-browser/user-recordings-empty-state')) {
+        'console-browser/logout-revokes','console-browser/user-recordings-empty-state',
+        'console-browser/user-file-transfers-empty-state')) {
         if (-not $consoleBrowser.Contains("PASS $case")) { throw "Console functional assertion missing: $case" }
         Add-Step "CONSOLE/$case"
     }
