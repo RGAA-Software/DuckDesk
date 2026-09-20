@@ -1294,6 +1294,13 @@ instrumentation 安装；改用 10011 临时 Debug 升级包后已排除降级�
 Gradle connected runner 在首次失败后的自动清理移除了设备上原 Debug 包，随后已停止使用其自动安装/清理流程并强制返回桌面；恢复 USB 安装权限后
 应使用手动覆盖安装主 APK/测试 APK和 `am instrument` 执行，禁止卸载或清除应用数据。
 
+Console 的真实浏览器门禁随后把取消后重试落成两条独立事实：同一资源会话、同一文件名的第一条 transfer 在 4 MB 时取消，第二条使用新的
+transfer request UUID 和 transfer ID 完成 12 MB；owner API 和本人活动页必须同时显示 Cancelled/Completed，旧终态不得被新任务覆盖。
+报告 `pg-20260920-110559-1f5edbea` 在隔离 PostgreSQL、真实 node-control WebSocket、原生 Console 和 Chromium 上 15/15 通过，并再次覆盖
+Console 重启、数据库中断 fail-closed/恢复、用户重新登录后的对账；源码 hash 稳定，容器和卷已清理。PostgreSQL 总门禁中 Web Client 的
+预期计数也从过期的 59 修正为当前 63，防止后续完整验收因旧测试基数误判。该证据关闭服务端取消后重试的审计不可变性与浏览器展示缺口，
+仍不替代公网真实字节传输、客户端取消动作、两端独立 hash 和主机重启故障注入。
+
 ## 仍未通过的阶段出口
 
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。

@@ -311,7 +311,9 @@ try {
                 'console-process/restart-preserves-session-data','console-process/database-outage-fails-closed-and-recovers',
                 'console-browser/logout-revokes','console-browser/user-recordings-empty-state',
                 'console-protocol/completed-file-transfer-fixture',
-                'console-browser/user-file-transfers-completed-state')) {
+                'console-protocol/cancelled-file-transfer-remains-terminal-after-retry',
+                'console-browser/user-file-transfers-completed-state',
+                'console-browser/user-file-transfers-cancelled-retry-state')) {
                 if (-not $consoleBrowser.Contains("PASS $case")) { throw "Console functional assertion missing: $case" }
                 Add-Step "CONSOLE/$case"
             }
@@ -620,13 +622,15 @@ try {
         'console-process/restart-preserves-session-data','console-process/database-outage-fails-closed-and-recovers',
         'console-browser/logout-revokes','console-browser/user-recordings-empty-state',
         'console-protocol/completed-file-transfer-fixture',
-        'console-browser/user-file-transfers-completed-state')) {
+        'console-protocol/cancelled-file-transfer-remains-terminal-after-retry',
+        'console-browser/user-file-transfers-completed-state',
+        'console-browser/user-file-transfers-cancelled-retry-state')) {
         if (-not $consoleBrowser.Contains("PASS $case")) { throw "Console functional assertion missing: $case" }
         Add-Step "CONSOLE/$case"
     }
     Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_web_client'),'run','build') | Out-Null
     $webClientUnit = Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_web_client'),'test')
-    if ($webClientUnit -notmatch 'Tests\s+59 passed' -or $webClientUnit -notmatch 'voice_call_state: 19 assertions passed') {
+    if ($webClientUnit -notmatch 'Tests\s+63 passed' -or $webClientUnit -notmatch 'voice_call_state: 19 assertions passed') {
         throw 'Web Client descriptor/media contract tests missing'
     }
     Add-Step 'WEB-CLIENT: Direct Host policy, Console descriptor forwarding, token redaction, media/control and voice contracts'

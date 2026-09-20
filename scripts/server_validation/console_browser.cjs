@@ -409,9 +409,10 @@ async function nodeExchange(socket, request) {
   return response;
 }
 
-async function seedCompletedFileTransfer(node, application, deployment, username) {
+async function seedRetriedFileTransfer(node, application, deployment, username) {
   const fileName = `browser-transfer-${randomUUID()}.bin`;
   const totalBytes = 12 * 1024 * 1024;
+  const cancelledBytes = 4 * 1024 * 1024;
   const expectedSha256 = [...createHash("sha256").update("browser-transfer-payload").digest()];
   const socket = await connectNode(node.body.node_token);
   let requestId = 1;
@@ -541,7 +542,7 @@ async function seedCompletedFileTransfer(node, application, deployment, username
       frontend_token: descriptor.body.token,
     });
     assert.equal(admitted.type, "frontend_admitted");
-    const transfer = await exchange({
+    const cancelledTransfer = await exchange({
       type: "begin_file_transfer",
       transfer: {
         transfer_request_id: randomUUID(),
@@ -552,10 +553,33 @@ async function seedCompletedFileTransfer(node, application, deployment, username
         expected_sha256: expectedSha256,
       },
     });
-    assert.equal(transfer.type, "file_transfer_started");
+    assert.equal(cancelledTransfer.type, "file_transfer_started");
+    const cancelled = await exchange({
+      type: "report_file_transfer",
+      transfer_id: cancelledTransfer.transfer_id,
+      progress: {
+        sequence: 1,
+        transferred_bytes: cancelledBytes,
+        outcome: { kind: "cancelled" },
+      },
+    });
+    assert.equal(cancelled.state, "cancelled");
+    const retriedTransfer = await exchange({
+      type: "begin_file_transfer",
+      transfer: {
+        transfer_request_id: randomUUID(),
+        session_id: resourceSession.body.id,
+        direction: "from_node",
+        file_name: fileName,
+        total_bytes: totalBytes,
+        expected_sha256: expectedSha256,
+      },
+    });
+    assert.equal(retriedTransfer.type, "file_transfer_started");
+    assert.notEqual(retriedTransfer.transfer_id, cancelledTransfer.transfer_id);
     const completed = await exchange({
       type: "report_file_transfer",
-      transfer_id: transfer.transfer_id,
+      transfer_id: retriedTransfer.transfer_id,
       progress: {
         sequence: 1,
         transferred_bytes: totalBytes,
@@ -572,15 +596,19 @@ async function seedCompletedFileTransfer(node, application, deployment, username
       "user",
     );
     assert.equal(transfers.status, 200);
-    const persistedTransfer = transfers.body.find((candidate) => candidate.id === transfer.transfer_id);
-    assert.equal(persistedTransfer.file_name, fileName);
-    assert.equal(persistedTransfer.transferred_bytes, totalBytes);
-    assert.equal(persistedTransfer.state, "completed");
+    const persistedCancelled = transfers.body.find((candidate) => candidate.id === cancelledTransfer.transfer_id);
+    assert.equal(persistedCancelled.file_name, fileName);
+    assert.equal(persistedCancelled.transferred_bytes, cancelledBytes);
+    assert.equal(persistedCancelled.state, "cancelled");
+    const persistedRetry = transfers.body.find((candidate) => candidate.id === retriedTransfer.transfer_id);
+    assert.equal(persistedRetry.file_name, fileName);
+    assert.equal(persistedRetry.transferred_bytes, totalBytes);
+    assert.equal(persistedRetry.state, "completed");
   }
   finally {
     socket.close(1000, "browser fixture complete");
   }
-  return { fileName, totalBytes };
+  return { cancelledBytes, fileName, totalBytes };
 }
 
 async function run() {
@@ -794,13 +822,14 @@ async function run() {
   await telemetryDialog.locator("button.ant-modal-close").click();
   console.log("PASS console-browser/server-telemetry-trend");
 
-  const transferFixture = await seedCompletedFileTransfer(
+  const transferFixture = await seedRetriedFileTransfer(
     previewNode,
     previewApplication,
     previewDeployment,
     createdUsername,
   );
   console.log("PASS console-protocol/completed-file-transfer-fixture");
+  console.log("PASS console-protocol/cancelled-file-transfer-remains-terminal-after-retry");
 
   await stopServer();
   await page.getByText("Reconnecting", { exact: true }).waitFor();
@@ -867,13 +896,20 @@ async function run() {
       { exact: true },
     )
     .waitFor();
-  const transferRow = page.getByRole("row").filter({ hasText: transferFixture.fileName });
-  await transferRow.getByText(transferFixture.fileName, { exact: true }).waitFor();
-  await transferRow.getByText("Download from node", { exact: true }).waitFor();
-  await transferRow.getByText("Completed", { exact: true }).waitFor();
-  await transferRow.getByText("12.00 MB / 12.00 MB", { exact: true }).waitFor();
+  const transferRows = page.getByRole("row").filter({ hasText: transferFixture.fileName });
+  const completedTransferRow = transferRows.filter({ hasText: "Completed" });
+  await completedTransferRow.getByText(transferFixture.fileName, { exact: true }).waitFor();
+  await completedTransferRow.getByText("Download from node", { exact: true }).waitFor();
+  await completedTransferRow.getByText("Completed", { exact: true }).waitFor();
+  await completedTransferRow.getByText("12.00 MB / 12.00 MB", { exact: true }).waitFor();
+  const cancelledTransferRow = transferRows.filter({ hasText: "Cancelled" });
+  await cancelledTransferRow.getByText(transferFixture.fileName, { exact: true }).waitFor();
+  await cancelledTransferRow.getByText("Download from node", { exact: true }).waitFor();
+  await cancelledTransferRow.getByText("Cancelled", { exact: true }).waitFor();
+  await cancelledTransferRow.getByText("4.00 MB / 12.00 MB", { exact: true }).waitFor();
   assert.equal(new URL(page.url()).pathname, "/user/activity");
   console.log("PASS console-browser/user-file-transfers-completed-state");
+  console.log("PASS console-browser/user-file-transfers-cancelled-retry-state");
   assert.deepEqual(pageErrors, []);
   assert.deepEqual(externalRequests, []);
   assert.ok(!serverOutput.includes(initialPassword) && !serverOutput.includes(createdUserPassword));

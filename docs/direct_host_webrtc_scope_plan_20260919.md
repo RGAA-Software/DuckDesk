@@ -182,6 +182,9 @@ DB5短期功能出口通过后统一长测：Relay长连接、Direct Host重复�
   两端独立字节 hash 和主机重启故障注入仍待 DB5。
 - Android 文件重试已在新 native job 启动前清空旧覆盖确认、排队、进度、速度和错误状态；专项 instrumentation 测试已编译，App JVM 5/5
   与 Lint 通过。Xiaomi HyperOS 的 USB 安装权限仍以 `INSTALL_FAILED_USER_RESTRICTED` 拒绝测试包，故真机专项保持未通过，不以编译替代。
+- Console 文件传输门禁已验证取消任务与新 transfer ID 重试形成两条不可变审计事实；隔离 PostgreSQL、真实 node-control、原生 Console 与
+  Chromium 的 15/15 报告为 `pg-20260920-110559-1f5edbea`，旧 Cancelled/4 MB 与新 Completed/12 MB 在重启和断库恢复后仍并存。
+  该合成协议证据不替代公网客户端动作、真实字节 hash 或主机重启故障注入。
 - Android/Console 进一步把 Relay WebSocket 建连从部署 appkey 改为最长 300 秒的资源会话准入票据，绑定 session 与实际目标资源；Relay
   在 upgrade 前验签和校验目标路由，Render 的 frontend grant 是其后的第二道独立门禁。部署 appkey 不进入 Android DTO/APK。
   Relay 4/4、独立 Relay 准入票据 1/1、Console 15/15、严格 Clippy、真实 PG node-control 1/1 和 Android 1.0.8 清洁构建/真机路径持久化均通过；
