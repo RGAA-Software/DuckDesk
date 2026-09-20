@@ -31,10 +31,12 @@ class RdpTcpBridge final : public std::enable_shared_from_this<RdpTcpBridge> {
     using SendCompletion = std::function<void(bool)>;
     using Send = std::function<void(std::shared_ptr<Data>, SendCompletion)>;
     using Closed = std::function<void(BridgeCloseReason)>;
+    using Traffic = std::function<void(std::size_t sent_bytes, std::size_t received_bytes)>;
 
     [[nodiscard]] static std::shared_ptr<RdpTcpBridge> Create(asio::any_io_executor executor, StreamBinding binding, Send send, Closed closed,
-                                                              BridgeOptions options = {});
-    RdpTcpBridge(ConstructionKey, asio::any_io_executor executor, StreamBinding binding, Send send, Closed closed, BridgeOptions options);
+                                                              Traffic traffic = {}, BridgeOptions options = {});
+    RdpTcpBridge(ConstructionKey, asio::any_io_executor executor, StreamBinding binding, Send send, Closed closed, Traffic traffic,
+                 BridgeOptions options);
     ~RdpTcpBridge();
 
     // Only a composition-root selected loopback port may be used; no client-supplied remote target.
@@ -50,12 +52,13 @@ class RdpTcpBridge final : public std::enable_shared_from_this<RdpTcpBridge> {
     void WriteNext();
     void Finish(BridgeCloseReason reason, bool notify_peer);
     [[nodiscard]] bool OnPacket(const std::shared_ptr<const Data>& wire);
-    void OnSent(std::uint64_t send_id, bool success);
+    [[nodiscard]] bool OnSent(std::uint64_t send_id, bool success);
 
     asio::strand<asio::any_io_executor> strand_;
     StreamBinding binding_{};
     Send send_{};
     Closed closed_{};
+    Traffic traffic_{};
     BridgeOptions options_{};
     std::shared_ptr<asio::ip::tcp::socket> socket_{};
     asio::steady_timer deadline_;

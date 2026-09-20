@@ -73,7 +73,7 @@ std::shared_ptr<RdpClientEndpoint> RdpClientEndpoint::Create(asio::any_io_execut
                 });
             }
         },
-        options);
+        {}, options);
     if (!self->bridge_) {
         return {};
     }

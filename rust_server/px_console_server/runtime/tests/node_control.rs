@@ -1326,6 +1326,74 @@ async fn rdp_start_fetches_one_leased_workspace_confirms_sid_and_issues_no_relay
         "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     );
 
+    let admitted = exchange(
+        &mut socket,
+        json!({
+            "type":"admit_frontend",
+            "request_id":11,
+            "session_id":resource_session["id"],
+            "revision":descriptor["descriptor"]["session"]["revision"],
+            "frontend_token":descriptor["token"]
+        }),
+    )
+    .await;
+    assert_eq!(admitted["type"], "frontend_admitted", "{admitted}");
+    assert_eq!(admitted["grant"]["access_role"], "controller");
+
+    let opened_channel = exchange(
+        &mut socket,
+        json!({
+            "type":"open_channel",
+            "request_id":12,
+            "channel":{
+                "source_id":Uuid::new_v4(),
+                "session_id":resource_session["id"],
+                "kind":"rdp"
+            }
+        }),
+    )
+    .await;
+    assert_eq!(opened_channel["type"], "channel_opened", "{opened_channel}");
+    assert_eq!(opened_channel["state"], "active");
+    let closed_channel = exchange(
+        &mut socket,
+        json!({
+            "type":"report_channel",
+            "request_id":13,
+            "channel_id":opened_channel["channel_id"],
+            "progress":{
+                "sequence":1,
+                "sent_bytes":4096,
+                "received_bytes":2048,
+                "elapsed_ms":750,
+                "outcome":{"kind":"closed","reason":"peer_closed"}
+            }
+        }),
+    )
+    .await;
+    assert_eq!(closed_channel["type"], "channel_reported");
+    assert_eq!(closed_channel["state"], "closed");
+    let (channels_status, channels) = resource_call(
+        &router,
+        "GET",
+        &format!(
+            "/api/console/activity/channels?session={}&limit=100",
+            resource_session["id"].as_str().unwrap()
+        ),
+        "panel",
+        Some(&user),
+        Some("user"),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(channels_status.as_u16(), 200, "{channels}");
+    assert_eq!(channels.as_array().unwrap().len(), 1);
+    assert_eq!(channels[0]["id"], opened_channel["channel_id"]);
+    assert_eq!(channels[0]["kind"], "rdp");
+    assert_eq!(channels[0]["state"], "closed");
+    assert_eq!(channels[0]["sent_bytes"], 4096);
+    assert_eq!(channels[0]["received_bytes"], 2048);
+
     socket.close(None).await.unwrap();
     server_stop.cancel();
     server.await.unwrap().unwrap();

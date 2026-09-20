@@ -249,6 +249,13 @@ bool WsStreamRouter::StartRdp(asio::any_io_executor executor, const std::uint16_
                     }
                 });
             }
+        },
+        [weak](const std::size_t sent_bytes, const std::size_t received_bytes) {
+            const auto self = weak.lock();
+            const auto transport = self && self->ws_data_ ? self->ws_data_->transport_.lock() : nullptr;
+            if (self && transport) {
+                transport->ReportResourceTraffic(self->connection_id_, sent_bytes, received_bytes);
+            }
         });
     if (!rdp_bridge_) {
         return false;

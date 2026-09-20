@@ -370,6 +370,8 @@ struct Observer final {
     std::weak_ptr<RdpTcpBridge> bridge{};
     bool delay_send{false};
     bool stop_in_callback{false};
+    std::uint64_t sent_bytes{};
+    std::uint64_t received_bytes{};
 };
 
 std::shared_ptr<RdpTcpBridge> MakeBridge(const std::shared_ptr<asio::io_context>& io, const std::shared_ptr<Observer>& observer,
@@ -398,6 +400,12 @@ std::shared_ptr<RdpTcpBridge> MakeBridge(const std::shared_ptr<asio::io_context>
                 if (const auto owner = current->bridge.lock()) {
                     owner->Stop(); // shutdown from notification must be idempotent
                 }
+            }
+        },
+        [weak](const std::size_t sent_bytes, const std::size_t received_bytes) {
+            if (const auto current = weak.lock()) {
+                current->sent_bytes += sent_bytes;
+                current->received_bytes += received_bytes;
             }
         },
         options);
@@ -480,6 +488,8 @@ TEST(RdpBridge, BinaryFragmentsArriveInOrderWithoutEnvelopeBytes) {
     ASSERT_TRUE(PumpUntil(io, [bridge, peer = sockets.peer] { return bridge->PendingBytes() == 0 && peer->available() == 8; }));
     EXPECT_EQ(ReadAvailable(sockets.peer), std::string("one\0two\xff", 8));
     EXPECT_EQ(bridge->PendingBytes(), 0);
+    EXPECT_EQ(observer->sent_bytes, 0);
+    EXPECT_EQ(observer->received_bytes, 8);
     bridge->Stop();
     Pump(io);
     ASSERT_EQ(observer->closed.size(), 1);
@@ -504,6 +514,7 @@ TEST(RdpBridge, OutboundReadWaitsForWebSocketWriteCompletion) {
     const auto completed = std::move(observer->delayed);
     completed(true);
     completed(true); // duplicate completion cannot start a second read
+    ASSERT_TRUE(PumpUntil(io, [observer] { return observer->sent_bytes == 5; }));
     ASSERT_TRUE(PumpUntil(io, [observer] { return observer->packets.size() == 2; }));
     ASSERT_EQ(observer->packets.size(), 2);
     EXPECT_EQ(observer->packets.back().payload->AsString(), "second");
@@ -625,6 +636,7 @@ TEST(RdpBridge, FailedSendClosesInsteadOfSilentlyDroppingBytes) {
     Pump(io);
     ASSERT_EQ(observer->closed.size(), 1);
     EXPECT_EQ(observer->closed.front(), BridgeCloseReason::kSendFailed);
+    EXPECT_EQ(observer->sent_bytes, 0);
 }
 
 TEST(RdpBridge, LoopbackConnectFlushesDataQueuedBeforeConnect) {

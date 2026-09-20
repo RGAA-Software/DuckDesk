@@ -85,6 +85,7 @@ public:
                                        TransportChannel channel_type,
                                        std::shared_ptr<Data> message,
                                        std::string connection_instance_id = {});
+    void ReportResourceTraffic(const std::string& connection_id, std::uint64_t sent_bytes, std::uint64_t received_bytes);
     using NetworkBroadcaster =
         std::function<void(const std::shared_ptr<Data>&, bool)>;
     using FileTransferBroadcaster = std::function<void(

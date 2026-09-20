@@ -258,6 +258,14 @@ Service Core 的 14 项 RDP 账号、工作区、部署和实例测试，Service
 `2756AC6D2AC8FCC7259592F040244AA1307FA4E410AA370ECF9AD4D31DAA7345`；三套 Client、两套 Render 与两套 RDP policy 的 build/dist
 逐项哈希一致，41/315/77 件 development dist 均通过清单和产品边界验证。
 
+RDP 通道统计随后从“通道能打开/关闭”推进到真实 I/O 字节事实。桥接器只在 Render→Client 的可靠 WebSocket 写成功后累计 sent bytes，
+只在 Client→Render 的 payload 完整写入本机代理 TCP 后累计 received bytes；排队、失败、超时和重复 completion 不记账。该事实沿现有
+Render→Service→Console 资源通道上报链写入，不增加 RDP 专用旁路。C++ 桥接 33/33、路由关闭 1/1 通过；PostgreSQL 产品集成用例通过
+frontend admission 后打开 `rdp` 通道、上报 4096/2048 字节并从 Panel 本人历史精确回读，节点控制 2/2 报告为
+`pg-20260920-081629-98fc8fb1`。Cloud Node/Remote Render build/dist SHA-256 分别为
+`B462E932A0DD305EDBEF645DCD3A9CDB047ECB4AB83FA845ECB140C19FFCA678`、
+`CC764F1B7A8F8E3E31CC379B7115C9AC7BEACEB4BDAE2132DE026BC522EA07B2`。公网 Windows 验收仍需确认真实流量、撤销、断线和最终终态。
+
 ### 保留：最初的原型交接
 
 已完成独立 proxy 编译、原生 SSPI 连接、AVC444v2 桌面和原会话重连路径；demo 增加了自动凭证启动支持。

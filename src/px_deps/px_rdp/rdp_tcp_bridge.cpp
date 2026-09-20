@@ -16,17 +16,19 @@ void CloseSocket(const std::shared_ptr<asio::ip::tcp::socket>& socket) {
 } // namespace
 
 std::shared_ptr<RdpTcpBridge> RdpTcpBridge::Create(asio::any_io_executor executor, StreamBinding binding, Send send, Closed closed,
-                                                   BridgeOptions options) {
+                                                   Traffic traffic, BridgeOptions options) {
     if (!binding.IsValid() || !send || !closed || options.max_pending_bytes < kMaxWireBytes || options.max_pending_bytes > 16 * 1024 * 1024 ||
         options.connect_timeout <= std::chrono::milliseconds::zero() || options.send_timeout <= std::chrono::milliseconds::zero()) {
         return {};
     }
-    return std::make_shared<RdpTcpBridge>(ConstructionKey{}, std::move(executor), std::move(binding), std::move(send), std::move(closed), options);
+    return std::make_shared<RdpTcpBridge>(ConstructionKey{}, std::move(executor), std::move(binding), std::move(send), std::move(closed),
+                                          std::move(traffic), options);
 }
 
-RdpTcpBridge::RdpTcpBridge(ConstructionKey, asio::any_io_executor executor, StreamBinding binding, Send send, Closed closed, BridgeOptions options)
+RdpTcpBridge::RdpTcpBridge(ConstructionKey, asio::any_io_executor executor, StreamBinding binding, Send send, Closed closed, Traffic traffic,
+                           BridgeOptions options)
     : strand_(asio::make_strand(std::move(executor))), binding_(std::move(binding)), send_(std::move(send)), closed_(std::move(closed)),
-      options_(options), deadline_(strand_) {}
+      traffic_(std::move(traffic)), options_(options), deadline_(strand_) {}
 
 RdpTcpBridge::~RdpTcpBridge() {
     // Keep the socket alive through serialized close, never capture this in deferred destruction.
@@ -176,11 +178,13 @@ void RdpTcpBridge::ReadNext() {
                                      }
                                  });
                                  try {
-                                     self->send_(wire, [weak, send_id](const bool success) {
+                                     self->send_(wire, [weak, send_id, count](const bool success) {
                                          if (const auto current = weak.lock()) {
-                                             asio::post(current->strand_, [weak, send_id, success] {
+                                             asio::post(current->strand_, [weak, send_id, count, success] {
                                                  if (const auto owner = weak.lock()) {
-                                                     owner->OnSent(send_id, success);
+                                                     if (owner->OnSent(send_id, success) && owner->traffic_) {
+                                                         owner->traffic_(count, 0);
+                                                     }
                                                  }
                                              });
                                          }
@@ -191,17 +195,18 @@ void RdpTcpBridge::ReadNext() {
                              }));
 }
 
-void RdpTcpBridge::OnSent(const std::uint64_t send_id, const bool success) {
+bool RdpTcpBridge::OnSent(const std::uint64_t send_id, const bool success) {
     if (finished_ || !sending_ || send_id != send_id_) {
-        return;
+        return false;
     }
     sending_ = false;
     deadline_.cancel();
     if (!success) {
         Finish(BridgeCloseReason::kSendFailed, false);
-        return;
+        return false;
     }
     ReadNext();
+    return true;
 }
 
 void RdpTcpBridge::WriteNext() {
@@ -223,6 +228,9 @@ void RdpTcpBridge::WriteNext() {
                           }
                           self->pending_bytes_.fetch_sub(self->incoming_.front().reservation);
                           self->incoming_.pop_front();
+                          if (self->traffic_) {
+                              self->traffic_(0, count);
+                          }
                           self->WriteNext();
                       }));
 }

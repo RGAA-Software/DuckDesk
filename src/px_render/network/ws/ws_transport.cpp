@@ -482,6 +482,18 @@ void WsTransport::ReceiveClientEventImmediately(
     EmitEventImmediately(event);
 }
 
+void WsTransport::ReportResourceTraffic(const std::string& connection_id, const std::uint64_t sent_bytes,
+                                        const std::uint64_t received_bytes) {
+    if (connection_id.empty() || (sent_bytes == 0 && received_bytes == 0)) {
+        return;
+    }
+    auto event = std::make_shared<ResourceTrafficEvent>();
+    event->connection_id_ = connection_id;
+    event->sent_bytes_ = sent_bytes;
+    event->received_bytes_ = received_bytes;
+    EmitEvent(event);
+}
+
 void WsTransport::HandleMessageAck(const std::shared_ptr<NetMessageAck>& ack) {
     // LOGI("OnMessage ack, type: {}, channel: {}, resp time: {}",
     // ack->msg_type_, (int)ack->ch_type_, ack->resp_time_);
