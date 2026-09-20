@@ -372,10 +372,31 @@ export class FileTransferClient {
     for (const [id, job] of this.jobs) {
       if (job.state !== 'running' && job.state !== 'pending') {
         this.jobs.delete(id)
+        this.uploadJobs.delete(id)
+        this.downloadJobs.delete(id)
         this.speedSamples.delete(id)
       }
     }
     this.emitJobs()
+  }
+
+  retry(id: number): FtJob | null {
+    const previousJob = this.jobs.get(id)
+    if (!previousJob || (previousJob.state !== 'error' && previousJob.state !== 'cancelled')) return null
+    const previousUpload = this.uploadJobs.get(id)
+    if (previousUpload) {
+      return this.upload(
+        previousUpload.items,
+        previousUpload.remoteTo,
+        previousJob.displayName,
+        false,
+      )
+    }
+    const previousDownload = this.downloadJobs.get(id)
+    if (previousDownload) {
+      return this.download(previousDownload.remoteFrom, previousJob.displayName)
+    }
+    return null
   }
 
   // ---------- 目录操作 ----------

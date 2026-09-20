@@ -201,6 +201,7 @@ export default {
     speed: 'Speed',
     state: 'Status',
     cancel: 'Cancel',
+    retry: 'Retry',
     stateRunning: 'Transferring',
     stateDone: 'Done',
     stateCancelled: 'Cancelled',

@@ -60,6 +60,7 @@ export function useFileTransfer() {
   // 会话内下载续传缓存:跨断线重连保留(新 client 复用),刷新页面即丢(plan §2 阶段 4.3)
   const resumeStore = new Map<string, { data: Uint8Array; size: number; mtime: number }>()
   const sinks = new Map<number, SinkState>()
+  const retrySinks = new Map<number, DownloadSink>()
 
   const ftReady = ref(false)
   const ftPath = ref('/')
@@ -99,6 +100,8 @@ export function useFileTransfer() {
             if (transferSink.memory) {
               if (job.state === 'done') transferSink.memory.resolve(transferSink.memory.files)
               else transferSink.memory.reject(new Error(job.error || job.state))
+            } else if (job.state === 'error' || job.state === 'cancelled') {
+              retrySinks.set(job.id, transferSink.sink)
             } else if (
               transferSink.sink.type === 'browser' &&
               transferSink.zipEntries.length > 0 &&
@@ -133,6 +136,7 @@ export function useFileTransfer() {
     ftClient?.failAll(reason)
     ftClient = null
     sinks.clear()
+    retrySinks.clear()
     ftReady.value = false
     ftJobs.value = []
   }
@@ -358,7 +362,20 @@ export function useFileTransfer() {
     ftClient?.cancel(job.id)
   }
 
+  function retryJob(job: FtJob) {
+    const retriedJob = ftClient?.retry(job.id)
+    if (!retriedJob) return
+    const retrySink = retrySinks.get(job.id)
+    if (retrySink) {
+      retrySinks.delete(job.id)
+      sinks.set(retriedJob.id, { sink: retrySink, zipEntries: [] })
+    }
+  }
+
   function clearFinished() {
+    for (const job of ftClient?.getJobs() ?? []) {
+      if (job.state !== 'running' && job.state !== 'pending') retrySinks.delete(job.id)
+    }
     ftClient?.clearFinishedJobs()
   }
 
@@ -419,6 +436,7 @@ export function useFileTransfer() {
     downloadRemote,
     downloadToMemory,
     cancelJob,
+    retryJob,
     clearFinished,
     setOverwriteStrategy,
     createFolder,

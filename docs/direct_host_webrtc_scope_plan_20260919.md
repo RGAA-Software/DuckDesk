@@ -174,6 +174,9 @@ DB5短期功能出口通过后统一长测：Relay长连接、Direct Host重复�
   隔离 PostgreSQL、真实 node-control 协议、原生 Console 和实际 Chromium 的 13/13 门禁已验证带 SHA-256 完成态事实在 Console 重启、
   数据库中断恢复后的本人页面文件名、方向、状态和进度，报告为 `pg-20260920-103212-db6b664d`；公网双端真实字节 hash、取消/重试与
   主机重启故障注入仍待 DB5。
+- Web Client 现与 Windows/Android 一样保留取消能力，并补齐失败/取消后的重试按钮；重试生成新 job ID 和新审计事实，不篡改旧终态，
+  清除完成任务同步释放底层状态。Web Client 63/63 与生产构建通过，Cloud Node/Remote development Web build/dist JS SHA-256 均为
+  `734B0686371CED03C7A7825028DA8B4CF32BEF71A6772FEE65F31AFD9BF51219`；公网动作及字节对账仍待 DB5。
 - Android/Console 进一步把 Relay WebSocket 建连从部署 appkey 改为最长 300 秒的资源会话准入票据，绑定 session 与实际目标资源；Relay
   在 upgrade 前验签和校验目标路由，Render 的 frontend grant 是其后的第二道独立门禁。部署 appkey 不进入 Android DTO/APK。
   Relay 4/4、独立 Relay 准入票据 1/1、Console 15/15、严格 Clippy、真实 PG node-control 1/1 和 Android 1.0.8 清洁构建/真机路径持久化均通过；

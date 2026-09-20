@@ -76,4 +76,58 @@ describe('FileTransferClient await ordering', () => {
     expect(dc.send).toHaveBeenCalled()
     client.failAll('test complete')
   })
+
+  it('retries a cancelled upload as a distinct clean job and releases cleared state', () => {
+    const sentPackets: ArrayBuffer[] = []
+    const dc = {
+      readyState: 'open',
+      bufferedAmount: 0,
+      send: vi.fn((packet: ArrayBuffer) => sentPackets.push(packet)),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      bufferedAmountLowThreshold: 0,
+    } as unknown as RTCDataChannel
+    const client = new FileTransferClient({
+      dc,
+      deviceId: 'retry-device',
+      streamId: 'retry-stream',
+    })
+    const file = new File(['Pixels retry payload'], 'retry.txt', {
+      type: 'text/plain',
+      lastModified: 1_700_000_000_000,
+    })
+    const original = client.upload([{
+      name: '',
+      file,
+      size: file.size,
+      modifiedTime: Math.floor(file.lastModified / 1000),
+    }], 'C:/Users/Public/Documents/retry.txt', 'retry.txt')
+
+    client.cancel(original.id)
+    const retried = client.retry(original.id)
+
+    expect(retried).not.toBeNull()
+    expect(retried!.id).not.toBe(original.id)
+    expect(retried).toMatchObject({
+      state: 'running',
+      fileNum: 0,
+      finishedSize: 0,
+      transferred: 0,
+      skippedCount: 0,
+    })
+    expect(client.getJobs().find((job) => job.id === original.id)?.state).toBe('cancelled')
+    const messages = sentPackets.map((packet) => decodeMessage(unpackTlv(packet)!.payload))
+    const controlActions = messages
+      .map((message) => message.fileAction)
+      .filter((action) => action?.receive || action?.cancel)
+    expect(controlActions).toHaveLength(3)
+    expect(controlActions[0]?.receive?.id).toBe(original.id)
+    expect(controlActions[1]?.cancel?.id).toBe(original.id)
+    expect(controlActions[2]?.receive?.id).toBe(retried!.id)
+
+    client.clearFinishedJobs()
+    expect(client.getJobs().some((job) => job.id === original.id)).toBe(false)
+    expect(client.retry(original.id)).toBeNull()
+    client.failAll('test complete')
+  })
 })

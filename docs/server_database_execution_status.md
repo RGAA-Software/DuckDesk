@@ -1272,6 +1272,13 @@ CloudApplication 会话、frontend admission、文件传输开始授权和带 SH
 “审计历史不是可恢复任务队列”的边界说明。同一报告继续覆盖会话保持、断库 fail-closed/恢复和退出撤销。该证据关闭合成完成态事实的
 真实浏览器对账缺口；公网两端对真实文件字节的独立 hash、取消/重试与主机重启故障注入仍属于 DB5。
 
+Web Client 文件任务现补齐失败/取消后的显式重试。重试创建全新 job ID，重新走 Render 文件引擎与 Console 审计授权，不复用旧审计事实；
+上传保留原 `File` 输入但从头启动，下载保留目标 sink，失败时仍可使用既有会话内续传缓存，显式取消保持清除续传缓存的既有语义。
+清除完成任务会同时释放上传/下载状态，不再只删列表行。中英文 Retry/重试入口已接，协议测试覆盖 `receive(old) → cancel(old) → receive(new)`；
+Web Client 全量 Vitest 63/63 和生产构建通过。Cloud Node/Remote development Web 构建树与 dist 的 JS SHA-256 四份一致为
+`734B0686371CED03C7A7825028DA8B4CF32BEF71A6772FEE65F31AFD9BF51219`，产品清单分别 315/315、77/77 通过。本条关闭 Web 重试代码缺口，
+不替代公网真实文件取消、失败后重试、两端独立 hash 与主机重启故障注入。
+
 ## 仍未通过的阶段出口
 
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。

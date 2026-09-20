@@ -664,7 +664,7 @@ function fmtSpeed(bytesPerSecond: number): string {
                 </span>
               </template>
             </el-table-column>
-            <el-table-column :label="t('ft.actions')" width="70">
+            <el-table-column :label="t('ft.actions')" width="120">
               <template #default="{ row }">
                 <el-button
                   v-if="row.state === 'running' || row.state === 'pending'"
@@ -674,6 +674,15 @@ function fmtSpeed(bytesPerSecond: number): string {
                   @click="ft.cancelJob(row)"
                 >
                   {{ t('ft.cancel') }}
+                </el-button>
+                <el-button
+                  v-else-if="row.state === 'error' || row.state === 'cancelled'"
+                  size="small"
+                  link
+                  type="primary"
+                  @click="ft.retryJob(row)"
+                >
+                  {{ t('ft.retry') }}
                 </el-button>
               </template>
             </el-table-column>

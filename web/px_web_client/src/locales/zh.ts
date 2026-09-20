@@ -201,6 +201,7 @@ export default {
     speed: '速度',
     state: '状态',
     cancel: '取消',
+    retry: '重试',
     stateRunning: '传输中',
     stateDone: '完成',
     stateCancelled: '已取消',
