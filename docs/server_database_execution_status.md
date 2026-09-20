@@ -1279,6 +1279,14 @@ Web Client 全量 Vitest 63/63 和生产构建通过。Cloud Node/Remote develop
 `734B0686371CED03C7A7825028DA8B4CF32BEF71A6772FEE65F31AFD9BF51219`，产品清单分别 315/315、77/77 通过。本条关闭 Web 重试代码缺口，
 不替代公网真实文件取消、失败后重试、两端独立 hash 与主机重启故障注入。
 
+Windows Client 的嵌入式文件传输面板也已补齐失败任务的 Resume 入口，与原独立文件传输窗口保持一致。恢复成功仍由文件引擎生成新的
+job ID，因此后续授权和审计是新事实；会话层同时修正了进度回调先于同步返回时的重复行、旧行已被 UI 清理时的越界删除，以及无回调竞态下
+沿用旧速度/文件序号的问题。Cloud Node、Client、Remote 三套聚焦 Client 构建及各自 6 个测试程序均通过，构建树/dist 的 `px_client.exe`
+SHA-256 分别一致为 `7B987D3416FEB268071C62C54848A1524455DCD8DF43B6BE902D3F5663CDFB2F`、
+`464BD529ABADD40150FE357D4F64712FD859311D5548C1535B1561E00904DC3E`、
+`6042ED86C351A95C6120451B1280407988EA748D08ED6CC6A82A4E34FDD1256E`。本条关闭 Windows 两种文件面板的重试入口一致性和已知竞态，
+仍不替代公网真实失败/取消后恢复、两端独立 hash 与主机重启故障注入。
+
 ## 仍未通过的阶段出口
 
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。

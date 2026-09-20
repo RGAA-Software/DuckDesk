@@ -145,7 +145,12 @@ void ClientFileTransferPanel::Draw(const std::shared_ptr<ClientSession>& session
         ImGui::SameLine();
         const std::string speed{FormatTransferSpeed(job.bytesPerSecond)};
         ImGui::TextUnformatted(speed.c_str());
-        if (!job.done) {
+        if (!job.error.empty()) {
+            ImGui::SameLine();
+            if (px::ui::ActionButton({"resume-transfer"}, text(ClientText::Resume),
+                                     {.variant = px::ui::ButtonVariant::Outline, .size = px::ui::WidgetSize::Xs}))
+                static_cast<void>(session->ResumeTransfer(job.id));
+        } else if (!job.done) {
             ImGui::SameLine();
             if (px::ui::ActionButton({"cancel-transfer"}, text(ClientText::Cancel),
                                      {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Xs}))

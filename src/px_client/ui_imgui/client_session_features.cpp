@@ -212,12 +212,26 @@ bool ClientSession::ResumeTransfer(const std::int32_t jobId) {
         std::chrono::seconds{2});
     if (!completed || result->load() <= 0)
         return false;
+    const std::int32_t resumedJobId{result->load()};
     const std::scoped_lock lock{mutex_};
-    transferJobs_.erase(std::ranges::find(transferJobs_, jobId, &ClientTransferJob::id));
-    job.id = result->load();
+    const auto previous = std::ranges::find(transferJobs_, jobId, &ClientTransferJob::id);
+    if (previous != transferJobs_.end()) transferJobs_.erase(previous);
+    const auto resumed = std::ranges::find(transferJobs_, resumedJobId, &ClientTransferJob::id);
+    if (resumed != transferJobs_.end()) {
+        resumed->name = job.name;
+        resumed->sourcePath = job.sourcePath;
+        resumed->destinationDirectory = job.destinationDirectory;
+        resumed->download = job.download;
+        if (resumed->totalBytes == 0U) resumed->totalBytes = job.totalBytes;
+        if (resumed->fileCount == 0) resumed->fileCount = job.fileCount;
+        return true;
+    }
+    job.id = resumedJobId;
     job.done = false;
     job.error.clear();
     job.completedBytes = 0U;
+    job.bytesPerSecond = 0.0;
+    job.fileNumber = 0;
     transferJobs_.push_back(std::move(job));
     return true;
 }

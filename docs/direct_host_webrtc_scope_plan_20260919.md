@@ -177,6 +177,9 @@ DB5短期功能出口通过后统一长测：Relay长连接、Direct Host重复�
 - Web Client 现与 Windows/Android 一样保留取消能力，并补齐失败/取消后的重试按钮；重试生成新 job ID 和新审计事实，不篡改旧终态，
   清除完成任务同步释放底层状态。Web Client 63/63 与生产构建通过，Cloud Node/Remote development Web build/dist JS SHA-256 均为
   `734B0686371CED03C7A7825028DA8B4CF32BEF71A6772FEE65F31AFD9BF51219`；公网动作及字节对账仍待 DB5。
+- Windows Client 的嵌入式文件面板已补齐与独立窗口一致的失败任务 Resume，并修正恢复时新 job 的进度回调与 UI 清理竞态；新 job 继续形成
+  独立审计事实。Cloud Node/Client/Remote 三套聚焦构建与每套 6 个测试程序通过，build/dist 可执行文件 SHA-256 均一致；公网恢复动作、
+  两端独立字节 hash 和主机重启故障注入仍待 DB5。
 - Android/Console 进一步把 Relay WebSocket 建连从部署 appkey 改为最长 300 秒的资源会话准入票据，绑定 session 与实际目标资源；Relay
   在 upgrade 前验签和校验目标路由，Render 的 frontend grant 是其后的第二道独立门禁。部署 appkey 不进入 Android DTO/APK。
   Relay 4/4、独立 Relay 准入票据 1/1、Console 15/15、严格 Clippy、真实 PG node-control 1/1 和 Android 1.0.8 清洁构建/真机路径持久化均通过；
