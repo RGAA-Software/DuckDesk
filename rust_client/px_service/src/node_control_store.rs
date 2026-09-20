@@ -9,10 +9,13 @@ use zeroize::{Zeroize, Zeroizing};
 const CONFIG_DIRECTORY: &str = "node-control";
 const CONFIG_FILE: &str = "configuration.dpapi";
 const TELEMETRY_BACKLOG_FILE: &str = "telemetry-backlog.dpapi";
+const FILE_TRANSFER_OUTBOX_FILE: &str = "file-transfer-outbox.dpapi";
 const DEPLOYMENT_IDENTITY_WATERMARK_FILE: &str = "deployment-identity-watermark.dpapi";
 const MAX_INPUT_BYTES: u64 = 16 * 1024;
 const MAX_TELEMETRY_BACKLOG_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_TELEMETRY_BACKLOG_SAMPLES: usize = 240;
+const MAX_FILE_TRANSFER_OUTBOX_BYTES: u64 = 8 * 1024 * 1024;
+const MAX_FILE_TRANSFER_OUTBOX_REPORTS: usize = 4096;
 
 #[derive(Debug)]
 pub struct NodeControlConfiguration {
@@ -444,6 +447,269 @@ impl TelemetryBacklogStore {
     fn file_path(&self) -> &Path {
         &self.file_path
     }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum StoredFileTransferOutcome {
+    Progress,
+    Completed { received_sha256: [u8; 32] },
+    Failed { reason: StoredFileTransferFailure },
+    Cancelled,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum StoredFileTransferFailure {
+    TransportLost,
+    HashMismatch,
+    PolicyRevoked,
+    IoError,
+    SourceChanged,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct StoredFileTransferReport {
+    pub transfer_id: Uuid,
+    pub sequence: u64,
+    pub transferred_bytes: u64,
+    outcome: StoredFileTransferOutcome,
+}
+
+impl StoredFileTransferReport {
+    fn new(transfer_id: Uuid, progress: &px_node_protocol::TransferProgress) -> Self {
+        let outcome = match progress.outcome {
+            px_node_protocol::TransferOutcome::Progress => StoredFileTransferOutcome::Progress,
+            px_node_protocol::TransferOutcome::Completed { received_sha256 } => {
+                StoredFileTransferOutcome::Completed { received_sha256 }
+            }
+            px_node_protocol::TransferOutcome::Failed { reason } => {
+                StoredFileTransferOutcome::Failed {
+                    reason: match reason {
+                        px_node_protocol::TransferFailure::TransportLost => {
+                            StoredFileTransferFailure::TransportLost
+                        }
+                        px_node_protocol::TransferFailure::HashMismatch => {
+                            StoredFileTransferFailure::HashMismatch
+                        }
+                        px_node_protocol::TransferFailure::PolicyRevoked => {
+                            StoredFileTransferFailure::PolicyRevoked
+                        }
+                        px_node_protocol::TransferFailure::IoError => {
+                            StoredFileTransferFailure::IoError
+                        }
+                        px_node_protocol::TransferFailure::SourceChanged => {
+                            StoredFileTransferFailure::SourceChanged
+                        }
+                    },
+                }
+            }
+            px_node_protocol::TransferOutcome::Cancelled => StoredFileTransferOutcome::Cancelled,
+        };
+        Self {
+            transfer_id,
+            sequence: progress.sequence,
+            transferred_bytes: progress.transferred_bytes,
+            outcome,
+        }
+    }
+
+    pub fn progress(&self) -> px_node_protocol::TransferProgress {
+        let outcome = match self.outcome {
+            StoredFileTransferOutcome::Progress => px_node_protocol::TransferOutcome::Progress,
+            StoredFileTransferOutcome::Completed { received_sha256 } => {
+                px_node_protocol::TransferOutcome::Completed { received_sha256 }
+            }
+            StoredFileTransferOutcome::Failed { reason } => {
+                px_node_protocol::TransferOutcome::Failed {
+                    reason: match reason {
+                        StoredFileTransferFailure::TransportLost => {
+                            px_node_protocol::TransferFailure::TransportLost
+                        }
+                        StoredFileTransferFailure::HashMismatch => {
+                            px_node_protocol::TransferFailure::HashMismatch
+                        }
+                        StoredFileTransferFailure::PolicyRevoked => {
+                            px_node_protocol::TransferFailure::PolicyRevoked
+                        }
+                        StoredFileTransferFailure::IoError => {
+                            px_node_protocol::TransferFailure::IoError
+                        }
+                        StoredFileTransferFailure::SourceChanged => {
+                            px_node_protocol::TransferFailure::SourceChanged
+                        }
+                    },
+                }
+            }
+            StoredFileTransferOutcome::Cancelled => px_node_protocol::TransferOutcome::Cancelled,
+        };
+        px_node_protocol::TransferProgress {
+            sequence: self.sequence,
+            transferred_bytes: self.transferred_bytes,
+            outcome,
+        }
+    }
+
+    fn terminal(&self) -> bool {
+        !matches!(self.outcome, StoredFileTransferOutcome::Progress)
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct StoredFileTransferOutbox {
+    schema_version: u32,
+    reports: Vec<StoredFileTransferReport>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct FileTransferOutboxStore {
+    directory: PathBuf,
+    file_path: PathBuf,
+}
+
+impl FileTransferOutboxStore {
+    pub fn new(data_root: PathBuf) -> Self {
+        let directory = data_root.join(CONFIG_DIRECTORY);
+        Self {
+            file_path: directory.join(FILE_TRANSFER_OUTBOX_FILE),
+            directory,
+        }
+    }
+
+    pub fn append(
+        &self,
+        transfer_id: Uuid,
+        progress: &px_node_protocol::TransferProgress,
+    ) -> Result<(), String> {
+        if transfer_id.is_nil()
+            || progress.sequence == 0
+            || i64::try_from(progress.sequence).is_err()
+        {
+            return Err("file transfer outbox report is invalid".into());
+        }
+        let candidate = StoredFileTransferReport::new(transfer_id, progress);
+        let mut reports = self.load_all()?;
+        if reports.iter().any(|report| report == &candidate) {
+            return Ok(());
+        }
+        if reports.len() >= MAX_FILE_TRANSFER_OUTBOX_REPORTS {
+            return Err("file transfer outbox capacity is exhausted".into());
+        }
+        if let Some(previous) = reports
+            .iter()
+            .rev()
+            .find(|report| report.transfer_id == transfer_id)
+        {
+            if previous.terminal()
+                || candidate.sequence <= previous.sequence
+                || candidate.transferred_bytes < previous.transferred_bytes
+            {
+                return Err("file transfer outbox report is not monotonic".into());
+            }
+        }
+        reports.push(candidate);
+        self.save_all(&reports)
+    }
+
+    pub fn pending(&self, limit: usize) -> Result<Vec<StoredFileTransferReport>, String> {
+        if limit == 0 || limit > 32 {
+            return Err("file transfer outbox batch limit is invalid".into());
+        }
+        Ok(self.load_all()?.into_iter().take(limit).collect())
+    }
+
+    pub fn acknowledge(&self, transfer_id: Uuid, sequence: u64) -> Result<(), String> {
+        let mut reports = self.load_all()?;
+        let original_length = reports.len();
+        reports.retain(|report| report.transfer_id != transfer_id || report.sequence != sequence);
+        if reports.len() == original_length {
+            return Ok(());
+        }
+        self.save_all(&reports)
+    }
+
+    pub fn reject_transfer(&self, transfer_id: Uuid) -> Result<usize, String> {
+        let mut reports = self.load_all()?;
+        let original_length = reports.len();
+        reports.retain(|report| report.transfer_id != transfer_id);
+        let removed = original_length - reports.len();
+        if removed != 0 {
+            self.save_all(&reports)?;
+        }
+        Ok(removed)
+    }
+
+    fn load_all(&self) -> Result<Vec<StoredFileTransferReport>, String> {
+        if !self.file_path.exists() {
+            return Ok(Vec::new());
+        }
+        platform::ensure_private_directory(&self.directory)?;
+        reject_reparse_point(&self.file_path)?;
+        let metadata = std::fs::metadata(&self.file_path)
+            .map_err(|_| "cannot inspect protected file transfer outbox".to_string())?;
+        if metadata.len() == 0 || metadata.len() > MAX_FILE_TRANSFER_OUTBOX_BYTES {
+            return Err("protected file transfer outbox size is invalid".into());
+        }
+        let encrypted = std::fs::read(&self.file_path)
+            .map_err(|_| "cannot read protected file transfer outbox".to_string())?;
+        let mut plaintext = platform::unseal(&encrypted)?;
+        let decoded = serde_json::from_slice::<StoredFileTransferOutbox>(&plaintext);
+        plaintext.zeroize();
+        let outbox = decoded.map_err(|_| "invalid protected file transfer outbox".to_string())?;
+        if outbox.schema_version != 1 || outbox.reports.len() > MAX_FILE_TRANSFER_OUTBOX_REPORTS {
+            return Err("unsupported protected file transfer outbox".into());
+        }
+        validate_file_transfer_reports(&outbox.reports)?;
+        Ok(outbox.reports)
+    }
+
+    fn save_all(&self, reports: &[StoredFileTransferReport]) -> Result<(), String> {
+        platform::ensure_private_directory(&self.directory)?;
+        let mut plaintext = serde_json::to_vec(&StoredFileTransferOutbox {
+            schema_version: 1,
+            reports: reports.to_vec(),
+        })
+        .map_err(|_| "cannot serialize file transfer outbox".to_string())?;
+        if plaintext.len() as u64 > MAX_FILE_TRANSFER_OUTBOX_BYTES {
+            plaintext.zeroize();
+            return Err("file transfer outbox capacity is exhausted".into());
+        }
+        let encrypted = platform::seal(&plaintext);
+        plaintext.zeroize();
+        let encrypted = encrypted?;
+        let pending = self.file_path.with_extension("dpapi.pending");
+        std::fs::write(&pending, encrypted)
+            .map_err(|_| "cannot write protected file transfer outbox".to_string())?;
+        platform::replace_file(&pending, &self.file_path)
+    }
+
+    #[cfg(test)]
+    fn file_path(&self) -> &Path {
+        &self.file_path
+    }
+}
+
+fn validate_file_transfer_reports(reports: &[StoredFileTransferReport]) -> Result<(), String> {
+    let mut latest = std::collections::HashMap::<Uuid, (u64, u64, bool)>::new();
+    let valid = reports.iter().all(|report| {
+        if report.transfer_id.is_nil()
+            || report.sequence == 0
+            || i64::try_from(report.sequence).is_err()
+        {
+            return false;
+        }
+        let previous = latest.entry(report.transfer_id).or_insert((0, 0, false));
+        if previous.2 || report.sequence <= previous.0 || report.transferred_bytes < previous.1 {
+            return false;
+        }
+        *previous = (report.sequence, report.transferred_bytes, report.terminal());
+        true
+    });
+    valid
+        .then_some(())
+        .ok_or_else(|| "protected file transfer outbox ordering is invalid".to_string())
 }
 
 pub fn configure_from_stdin() -> Result<(), String> {
@@ -991,6 +1257,67 @@ mod tests {
         assert!(store.pending(4).unwrap().is_empty());
 
         std::fs::remove_file(store.file_path()).unwrap();
+        std::fs::remove_dir(directory.join(CONFIG_DIRECTORY)).unwrap();
+        std::fs::remove_dir(directory).unwrap();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn protected_file_transfer_outbox_survives_restart_and_enforces_order() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!("pixels_file_transfer_outbox_{nonce}"));
+        std::fs::create_dir(&directory).unwrap();
+        let transfer_id = Uuid::new_v4();
+        let store = FileTransferOutboxStore::new(directory.clone());
+        let progress = px_node_protocol::TransferProgress {
+            sequence: 1,
+            transferred_bytes: 512,
+            outcome: px_node_protocol::TransferOutcome::Progress,
+        };
+        store.append(transfer_id, &progress).unwrap();
+        store.append(transfer_id, &progress).unwrap();
+
+        let reopened = FileTransferOutboxStore::new(directory.clone());
+        let pending = reopened.pending(32).unwrap();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].transfer_id, transfer_id);
+        assert_eq!(pending[0].sequence, 1);
+        assert!(
+            !String::from_utf8_lossy(&std::fs::read(reopened.file_path()).unwrap())
+                .contains(&transfer_id.to_string())
+        );
+
+        reopened
+            .append(
+                transfer_id,
+                &px_node_protocol::TransferProgress {
+                    sequence: 2,
+                    transferred_bytes: 1024,
+                    outcome: px_node_protocol::TransferOutcome::Completed {
+                        received_sha256: [7_u8; 32],
+                    },
+                },
+            )
+            .unwrap();
+        assert!(reopened
+            .append(
+                transfer_id,
+                &px_node_protocol::TransferProgress {
+                    sequence: 3,
+                    transferred_bytes: 1024,
+                    outcome: px_node_protocol::TransferOutcome::Progress,
+                },
+            )
+            .is_err());
+        reopened.acknowledge(transfer_id, 1).unwrap();
+        assert_eq!(reopened.pending(32).unwrap().len(), 1);
+        assert_eq!(reopened.reject_transfer(transfer_id).unwrap(), 1);
+        assert!(reopened.pending(32).unwrap().is_empty());
+
+        std::fs::remove_file(reopened.file_path()).unwrap();
         std::fs::remove_dir(directory.join(CONFIG_DIRECTORY)).unwrap();
         std::fs::remove_dir(directory).unwrap();
     }

@@ -13,7 +13,7 @@ use px_node_protocol::{
     GpuReservation, NodeCommand, NodeCommandAction, NodeReport, NodeRequest, NodeResponse,
     ObservedRuntime, ObservedRuntimePhase, OpenChannel, PreparationFailure, PreparationState,
     RdpWorkspaceCredential, RecordingCacheUpload, RelayEndpoint, RuntimeInventory,
-    TelemetryBackfillSample, TransferDirection, TransferProgress, VideoCodec, MAX_MESSAGE_BYTES,
+    TelemetryBackfillSample, TransferDirection, VideoCodec, MAX_MESSAGE_BYTES,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use service_core::{AppInstanceState, StartAppRequest};
@@ -30,7 +30,8 @@ use uuid::Uuid;
 use zeroize::Zeroize;
 
 use crate::node_control_store::{
-    DeploymentIdentityWatermark, NodeControlConfiguration, NodeControlStore, TelemetryBacklogStore,
+    DeploymentIdentityWatermark, FileTransferOutboxStore, NodeControlConfiguration,
+    NodeControlStore, TelemetryBacklogStore,
 };
 use crate::product_descriptor::ProductDescriptor;
 use crate::recording_inventory::RecordingInventory;
@@ -103,11 +104,7 @@ pub(crate) enum NodeControlOperation {
         expected_sha256: Option<[u8; 32]>,
         completion: oneshot::Sender<Result<NodeFileTransferReceipt, String>>,
     },
-    ReportFileTransfer {
-        transfer_id: Uuid,
-        progress: TransferProgress,
-        completion: oneshot::Sender<Result<NodeFileTransferReceipt, String>>,
-    },
+    FileTransferReportsQueued,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -218,10 +215,11 @@ pub async fn node_control_loop(
     recording_inventory: Arc<std::sync::Mutex<RecordingInventory>>,
 ) -> Result<(), String> {
     let product = ProductDescriptor::load_for_current_executable()?;
-    let (store, mut stop_rx, mut operations) = {
+    let (store, file_transfer_outbox, mut stop_rx, mut operations) = {
         let mut guard = runtime.lock().await;
         (
             NodeControlStore::new(guard.config.data_root.clone()),
+            guard.file_transfer_outbox.clone(),
             guard.subscribe_stop(),
             guard
                 .node_control_receiver
@@ -259,6 +257,7 @@ pub async fn node_control_loop(
             product: &product,
             recording_inventory: &recording_inventory,
             telemetry_backlog: &telemetry_backlog,
+            file_transfer_outbox: &file_transfer_outbox,
         };
         let connection_result =
             run_connection(&runtime, &connection_context, &mut stop_rx, &mut operations).await;
@@ -299,6 +298,7 @@ struct NodeConnectionContext<'a> {
     product: &'a ProductDescriptor,
     recording_inventory: &'a Arc<std::sync::Mutex<RecordingInventory>>,
     telemetry_backlog: &'a TelemetryBacklogStore,
+    file_transfer_outbox: &'a Arc<std::sync::Mutex<FileTransferOutboxStore>>,
 }
 
 async fn run_connection(
@@ -311,6 +311,7 @@ async fn run_connection(
     let product = context.product;
     let recording_inventory = context.recording_inventory;
     let telemetry_backlog = context.telemetry_backlog;
+    let file_transfer_outbox = context.file_transfer_outbox;
     let http = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .timeout(EXCHANGE_TIMEOUT)
@@ -369,6 +370,7 @@ async fn run_connection(
     )
     .await?;
     sync_telemetry_backlog(&mut socket, &mut session, telemetry_backlog, 4).await?;
+    sync_file_transfer_reports(&mut socket, &mut session, file_transfer_outbox).await?;
     sync_deployments(&mut socket, &mut session, product, endpoint_revision, 1).await?;
     reconcile(&mut socket, &mut session, runtime).await?;
     let inventory_for_connection = recording_inventory.clone();
@@ -408,6 +410,7 @@ async fn run_connection(
                     report_sequence,
                 ).await?;
                 sync_telemetry_backlog(&mut socket, &mut session, telemetry_backlog, 4).await?;
+                sync_file_transfer_reports(&mut socket, &mut session, file_transfer_outbox).await?;
                 sync_deployments(
                     &mut socket,
                     &mut session,
@@ -505,7 +508,11 @@ async fn run_connection(
                 let Some(operation) = operation else {
                     return Err("node-control operation channel closed".into());
                 };
-                execute_operation(&mut socket, &mut session, operation).await?;
+                if matches!(operation, NodeControlOperation::FileTransferReportsQueued) {
+                    sync_file_transfer_reports(&mut socket, &mut session, file_transfer_outbox).await?;
+                } else {
+                    execute_operation(&mut socket, &mut session, operation).await?;
+                }
             }
             completed = upload_tasks.join_next(), if !upload_tasks.is_empty() => {
                 match completed {
@@ -953,46 +960,79 @@ async fn execute_operation(
             }
             Ok(())
         }
-        NodeControlOperation::ReportFileTransfer {
-            transfer_id,
-            progress,
-            completion,
-        } => {
-            let request = NodeRequest::ReportFileTransfer {
-                request_id: session.request_id()?,
-                transfer_id,
-                progress,
-            };
-            let expected = request.request_id();
-            let (result, reset_connection) = match exchange(socket, request).await {
-                Ok(NodeResponse::FileTransferReported {
-                    request_id,
-                    transfer_id,
-                    state,
-                    sequence,
-                    revision,
-                }) if request_id == expected => (
-                    Ok(NodeFileTransferReceipt {
-                        transfer_id,
-                        state,
-                        sequence,
-                        revision,
-                    }),
-                    false,
-                ),
-                Ok(NodeResponse::Error { code, .. }) => {
-                    (Err(format!("file transfer report rejected: {code}")), false)
-                }
-                Ok(_) => (Err("unexpected file transfer report response".into()), true),
-                Err(error) => (Err(error), true),
-            };
-            let _ = completion.send(result);
-            if reset_connection {
-                return Err("node-control protocol failed while reporting file transfer".into());
-            }
-            Ok(())
+        NodeControlOperation::FileTransferReportsQueued => {
+            Err("file transfer outbox notification was not intercepted".into())
         }
     }
+}
+
+async fn sync_file_transfer_reports(
+    socket: &mut NodeSocket,
+    session: &mut ProtocolSession,
+    outbox: &Arc<std::sync::Mutex<FileTransferOutboxStore>>,
+) -> Result<(), String> {
+    let outbox_for_read = outbox.clone();
+    let reports = tokio::task::spawn_blocking(move || {
+        outbox_for_read
+            .lock()
+            .map_err(|_| "file transfer outbox lock is unavailable".to_string())?
+            .pending(32)
+    })
+    .await
+    .map_err(|_| "file transfer outbox read task failed".to_string())??;
+
+    let mut rejected_transfers = std::collections::HashSet::new();
+    for report in reports {
+        let transfer_id = report.transfer_id;
+        if rejected_transfers.contains(&transfer_id) {
+            continue;
+        }
+        let sequence = report.sequence;
+        let expected_sequence = i64::try_from(sequence)
+            .map_err(|_| "file transfer outbox sequence is invalid".to_string())?;
+        let request = NodeRequest::ReportFileTransfer {
+            request_id: session.request_id()?,
+            transfer_id,
+            progress: report.progress(),
+        };
+        let expected_request_id = request.request_id();
+        match exchange(socket, request).await? {
+            NodeResponse::FileTransferReported {
+                request_id,
+                transfer_id: confirmed_transfer_id,
+                sequence: confirmed_sequence,
+                ..
+            } if request_id == expected_request_id
+                && confirmed_transfer_id == transfer_id
+                && confirmed_sequence == expected_sequence =>
+            {
+                let outbox_for_acknowledgement = outbox.clone();
+                tokio::task::spawn_blocking(move || {
+                    outbox_for_acknowledgement
+                        .lock()
+                        .map_err(|_| "file transfer outbox lock is unavailable".to_string())?
+                        .acknowledge(transfer_id, sequence)
+                })
+                .await
+                .map_err(|_| "file transfer outbox acknowledgement task failed".to_string())??;
+            }
+            NodeResponse::Error { code, .. } => {
+                let outbox_for_rejection = outbox.clone();
+                let removed = tokio::task::spawn_blocking(move || {
+                    outbox_for_rejection
+                        .lock()
+                        .map_err(|_| "file transfer outbox lock is unavailable".to_string())?
+                        .reject_transfer(transfer_id)
+                })
+                .await
+                .map_err(|_| "file transfer outbox rejection task failed".to_string())??;
+                rejected_transfers.insert(transfer_id);
+                warn!(%transfer_id, %code, removed, "file transfer outbox reports rejected by Console");
+            }
+            _ => return Err("unexpected file transfer report response".into()),
+        }
+    }
+    Ok(())
 }
 
 async fn report(
@@ -1780,7 +1820,7 @@ mod tests {
         DeploymentIdentitySigner, DeploymentKind, DeploymentTrustStore, PlatformDescriptor,
         RegistrationPolicy,
     };
-    use px_node_protocol::VideoSpec;
+    use px_node_protocol::{TransferProgress, VideoSpec};
     use ring::{
         rand::SystemRandom,
         signature::{Ed25519KeyPair, KeyPair},
@@ -2755,6 +2795,7 @@ mod tests {
         server.await.unwrap();
     }
 
+    #[cfg(windows)]
     #[tokio::test]
     async fn file_transfer_operations_use_real_websocket_and_preserve_digest() {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -2859,30 +2900,134 @@ mod tests {
         assert_eq!(begun.sequence, 0);
         assert_eq!(begun.revision, 1);
 
-        let (report_completion, report_result) = oneshot::channel();
-        execute_operation(
-            &mut socket,
-            &mut session,
-            NodeControlOperation::ReportFileTransfer {
+        let temporary = tempfile::tempdir().unwrap();
+        let outbox = Arc::new(std::sync::Mutex::new(FileTransferOutboxStore::new(
+            temporary.path().to_path_buf(),
+        )));
+        outbox
+            .lock()
+            .unwrap()
+            .append(
                 transfer_id,
-                progress: TransferProgress {
+                &TransferProgress {
                     sequence: 1,
                     transferred_bytes: 4096,
                     outcome: px_node_protocol::TransferOutcome::Completed {
                         received_sha256: expected_sha256,
                     },
                 },
-                completion: report_completion,
-            },
-        )
-        .await
-        .unwrap();
-        let reported = report_result.await.unwrap().unwrap();
-        assert_eq!(reported.transfer_id, transfer_id);
-        assert_eq!(reported.state, "completed");
-        assert_eq!(reported.sequence, 1);
-        assert_eq!(reported.revision, 2);
+            )
+            .unwrap();
+        sync_file_transfer_reports(&mut socket, &mut session, &outbox)
+            .await
+            .unwrap();
+        assert!(outbox.lock().unwrap().pending(32).unwrap().is_empty());
         server.await.unwrap();
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn file_transfer_outbox_retries_exact_report_after_response_loss() {
+        let temporary = tempfile::tempdir().unwrap();
+        let transfer_id = Uuid::new_v4();
+        let outbox = Arc::new(std::sync::Mutex::new(FileTransferOutboxStore::new(
+            temporary.path().to_path_buf(),
+        )));
+        outbox
+            .lock()
+            .unwrap()
+            .append(
+                transfer_id,
+                &TransferProgress {
+                    sequence: 4,
+                    transferred_bytes: 8192,
+                    outcome: px_node_protocol::TransferOutcome::Cancelled,
+                },
+            )
+            .unwrap();
+
+        let first_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let first_address = first_listener.local_addr().unwrap();
+        let first_server = tokio::spawn(async move {
+            let (stream, _) = first_listener.accept().await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(stream).await.unwrap();
+            let Message::Text(text) = socket.next().await.unwrap().unwrap() else {
+                panic!("expected persisted file transfer report");
+            };
+            let request: NodeRequest = serde_json::from_str(&text).unwrap();
+            let NodeRequest::ReportFileTransfer {
+                transfer_id: actual_transfer_id,
+                progress,
+                ..
+            } = request
+            else {
+                panic!("expected persisted file transfer report");
+            };
+            assert_eq!(actual_transfer_id, transfer_id);
+            assert_eq!(progress.sequence, 4);
+            assert!(matches!(
+                progress.outcome,
+                px_node_protocol::TransferOutcome::Cancelled
+            ));
+            socket.close(None).await.unwrap();
+        });
+        let (mut first_socket, _) =
+            tokio_tungstenite::connect_async(format!("ws://{first_address}"))
+                .await
+                .unwrap();
+        let mut first_session = ProtocolSession::new();
+        assert!(
+            sync_file_transfer_reports(&mut first_socket, &mut first_session, &outbox)
+                .await
+                .is_err()
+        );
+        first_server.await.unwrap();
+        assert_eq!(outbox.lock().unwrap().pending(32).unwrap().len(), 1);
+
+        let second_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let second_address = second_listener.local_addr().unwrap();
+        let second_server = tokio::spawn(async move {
+            let (stream, _) = second_listener.accept().await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(stream).await.unwrap();
+            let Message::Text(text) = socket.next().await.unwrap().unwrap() else {
+                panic!("expected retried file transfer report");
+            };
+            let request: NodeRequest = serde_json::from_str(&text).unwrap();
+            let NodeRequest::ReportFileTransfer {
+                request_id,
+                transfer_id: actual_transfer_id,
+                progress,
+            } = request
+            else {
+                panic!("expected retried file transfer report");
+            };
+            assert_eq!(actual_transfer_id, transfer_id);
+            assert_eq!(progress.sequence, 4);
+            socket
+                .send(Message::Text(
+                    serde_json::to_string(&NodeResponse::FileTransferReported {
+                        request_id,
+                        transfer_id,
+                        state: "cancelled".into(),
+                        sequence: 4,
+                        revision: 5,
+                    })
+                    .unwrap()
+                    .into(),
+                ))
+                .await
+                .unwrap();
+        });
+        let (mut second_socket, _) =
+            tokio_tungstenite::connect_async(format!("ws://{second_address}"))
+                .await
+                .unwrap();
+        let mut second_session = ProtocolSession::new();
+        sync_file_transfer_reports(&mut second_socket, &mut second_session, &outbox)
+            .await
+            .unwrap();
+        second_server.await.unwrap();
+        assert!(outbox.lock().unwrap().pending(32).unwrap().is_empty());
     }
 
     #[tokio::test]

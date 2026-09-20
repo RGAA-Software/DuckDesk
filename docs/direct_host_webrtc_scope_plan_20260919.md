@@ -161,7 +161,14 @@ DB5短期功能出口通过后统一长测：Relay长连接、Direct Host重复�
 - 文件传输审计在 Render 活跃期间现以固定间隔重试开始请求，并冻结每个待确认进度/终态快照的 sequence、字节、outcome 和 digest；只有
   收到匹配 transfer ID/sequence 的权威确认才推进或删除终态。快照 3/3、文件服务回归 2/2、Render 生命周期 22/22 通过，Cloud/Remote
   Render build/dist SHA-256 分别为 `498FA24C3BB789E42C0254AB5F51984A39069E3207C10B013198911F7377267E`、
-  `1CAC0B3523AB47D219A0ED6CD4074141DE3CD456FE12E72F293303D873AD7A59`。跨 Render 进程/主机重启的持久 outbox 与公网断线对账仍待完成。
+  `1CAC0B3523AB47D219A0ED6CD4074141DE3CD456FE12E72F293303D873AD7A59`。
+- 已授权文件传输的进度/终态现先进入 Windows Service 的 LocalMachine DPAPI 加密有界 outbox，原子落盘成功才向 Render 返回
+  `accepted/queued`；开始传输仍须 Console 在线授权，不把本机排队当作授权。Service 在通知、节点重连和 15 秒周期按原 transfer ID、
+  sequence、字节、outcome 和 digest 排空，权威确认后精确删除；回包丢失保留原报告重试，确定性拒绝清除同 transfer 的依赖报告并记录。
+  Service 全量单元测试 101/101、严格 Clippy 及 DPAPI 重开/回包丢失专项通过。代码层已关闭跨 Render 进程和 Service 重启补报缺口；
+  Cloud Node/Remote 聚焦 release Service 构建与 development dist 的 SHA-256 均为
+  `631823710EAC30D39DDC70B77B6A4B6149706215B873C472FC6E01D3632C82ED`。主机重启实物故障注入、公网取消/重试和 Console 历史对账仍待
+  DB5 短测。
 - Android/Console 进一步把 Relay WebSocket 建连从部署 appkey 改为最长 300 秒的资源会话准入票据，绑定 session 与实际目标资源；Relay
   在 upgrade 前验签和校验目标路由，Render 的 frontend grant 是其后的第二道独立门禁。部署 appkey 不进入 Android DTO/APK。
   Relay 4/4、独立 Relay 准入票据 1/1、Console 15/15、严格 Clippy、真实 PG node-control 1/1 和 Android 1.0.8 清洁构建/真机路径持久化均通过；

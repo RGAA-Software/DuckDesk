@@ -52,6 +52,8 @@ pub struct ServiceRuntime {
         Option<mpsc::Receiver<crate::node_control_client::NodeControlOperation>>,
     pub(crate) node_control_identity: Option<crate::node_control_client::NodeControlIdentity>,
     pub(crate) node_control_relay: Option<px_node_protocol::RelayEndpoint>,
+    pub(crate) file_transfer_outbox:
+        Arc<std::sync::Mutex<crate::node_control_store::FileTransferOutboxStore>>,
     stop_tx: broadcast::Sender<()>,
 }
 
@@ -162,6 +164,9 @@ impl ServiceRuntime {
             config.node.applications.port_end,
         );
         let (node_control_sender, node_control_receiver) = mpsc::channel(128);
+        let file_transfer_outbox = Arc::new(std::sync::Mutex::new(
+            crate::node_control_store::FileTransferOutboxStore::new(config.data_root.clone()),
+        ));
         Self {
             config,
             storage,
@@ -182,6 +187,7 @@ impl ServiceRuntime {
             node_control_receiver: Some(node_control_receiver),
             node_control_identity: None,
             node_control_relay: None,
+            file_transfer_outbox,
             stop_tx,
         }
     }

@@ -496,6 +496,7 @@ async fn process_file_transfer_report(
         if response.request_id.is_empty() || transfer_id.is_nil() || request.sequence == 0 {
             return Err(());
         }
+        let response_sequence = i64::try_from(request.sequence).map_err(|_| ())?;
         let no_digest = || request.received_sha256.is_empty().then_some(()).ok_or(());
         let outcome = match request.outcome {
             service_core::ServiceFileTransferOutcome::Progress => {
@@ -542,9 +543,9 @@ async fn process_file_transfer_report(
                 px_node_protocol::TransferOutcome::Cancelled
             }
         };
-        Ok((transfer_id, outcome))
+        Ok((transfer_id, outcome, response_sequence))
     })();
-    let (transfer_id, outcome) = match parsed {
+    let (transfer_id, outcome, response_sequence) = match parsed {
         Ok(values) => values,
         Err(()) => {
             response.error_code = "INVALID_REQUEST".into();
@@ -554,46 +555,38 @@ async fn process_file_transfer_report(
             );
         }
     };
-    let node_control_sender = runtime.lock().await.node_control_sender.clone();
-    let (completion, result) = tokio::sync::oneshot::channel();
-    let operation = crate::node_control_client::NodeControlOperation::ReportFileTransfer {
-        transfer_id,
-        progress: px_node_protocol::TransferProgress {
-            sequence: request.sequence,
-            transferred_bytes: request.transferred_bytes,
-            outcome,
-        },
-        completion,
+    let (node_control_sender, file_transfer_outbox) = {
+        let guard = runtime.lock().await;
+        (
+            guard.node_control_sender.clone(),
+            guard.file_transfer_outbox.clone(),
+        )
     };
-    if node_control_sender.try_send(operation).is_err() {
-        response.error_code = "NODE_CONTROL_UNAVAILABLE".into();
+    let progress = px_node_protocol::TransferProgress {
+        sequence: request.sequence,
+        transferred_bytes: request.transferred_bytes,
+        outcome,
+    };
+    let persist_result = tokio::task::spawn_blocking(move || {
+        file_transfer_outbox
+            .lock()
+            .map_err(|_| "file transfer outbox lock is unavailable".to_string())?
+            .append(transfer_id, &progress)
+    })
+    .await;
+    if !matches!(persist_result, Ok(Ok(()))) {
+        response.error_code = "AUDIT_QUEUE_UNAVAILABLE".into();
         return file_transfer_service_message(
             service_core::ServiceMessageType::FileTransferReportResult,
             response,
         );
     }
-    let receipt = match tokio::time::timeout(std::time::Duration::from_secs(12), result).await {
-        Ok(Ok(Ok(receipt))) => receipt,
-        Ok(Ok(Err(_))) => {
-            response.error_code = "TRANSFER_REJECTED".into();
-            return file_transfer_service_message(
-                service_core::ServiceMessageType::FileTransferReportResult,
-                response,
-            );
-        }
-        Ok(Err(_)) | Err(_) => {
-            response.error_code = "NODE_CONTROL_UNAVAILABLE".into();
-            return file_transfer_service_message(
-                service_core::ServiceMessageType::FileTransferReportResult,
-                response,
-            );
-        }
-    };
+    let _ = node_control_sender
+        .try_send(crate::node_control_client::NodeControlOperation::FileTransferReportsQueued);
     response.accepted = true;
-    response.transfer_id = receipt.transfer_id.to_string();
-    response.state = receipt.state;
-    response.sequence = receipt.sequence;
-    response.revision = receipt.revision;
+    response.transfer_id = transfer_id.to_string();
+    response.state = "queued".into();
+    response.sequence = response_sequence;
     file_transfer_service_message(
         service_core::ServiceMessageType::FileTransferReportResult,
         response,
@@ -1169,6 +1162,48 @@ mod tests {
         assert!(!result.accepted);
         assert_eq!(result.error_code, "INVALID_SESSION_ID");
         assert!(inventory.lock().unwrap().scan().unwrap().is_empty());
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn file_transfer_report_is_durable_before_render_is_acknowledged() {
+        let temporary = tempfile::tempdir().unwrap();
+        std::fs::create_dir(temporary.path().join("data")).unwrap();
+        std::fs::create_dir(temporary.path().join("logs")).unwrap();
+        let config = ServiceConfig::new(
+            4603,
+            temporary.path().join("data"),
+            temporary.path().join("logs"),
+        );
+        let runtime = Arc::new(Mutex::new(ServiceRuntime::new(
+            config,
+            StdArc::new(MockProcessManager::new()),
+            StdArc::new(MockActions),
+        )));
+        let transfer_id = uuid::Uuid::new_v4();
+        let response = process_file_transfer_report(
+            runtime.clone(),
+            FileTransferReportRequest {
+                request_id: "render-report-1".into(),
+                transfer_id: transfer_id.to_string(),
+                sequence: 3,
+                transferred_bytes: 2048,
+                outcome: service_core::ServiceFileTransferOutcome::TransportLost,
+                received_sha256: Vec::new(),
+            },
+        )
+        .await;
+        let result = response.file_transfer_report_result.unwrap();
+        assert!(result.accepted);
+        assert_eq!(result.transfer_id, transfer_id.to_string());
+        assert_eq!(result.state, "queued");
+        assert_eq!(result.sequence, 3);
+
+        let outbox = runtime.lock().await.file_transfer_outbox.clone();
+        let pending = outbox.lock().unwrap().pending(32).unwrap();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].transfer_id, transfer_id);
+        assert_eq!(pending[0].sequence, 3);
     }
 
     #[test]
