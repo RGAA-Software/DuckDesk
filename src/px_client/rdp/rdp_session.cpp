@@ -119,8 +119,8 @@ bool SessionSecret::IsValid() const noexcept {
     return bytes.size() >= 32 && bytes.size() <= 256 && std::ranges::none_of(bytes, [](char byte) { return byte == '\0'; });
 }
 bool SessionConfiguration::IsValid() const noexcept {
-    return loopbackPort != 0 && SafeName(account) && account.starts_with("prdp_") && account.size() >= 8 && account.size() <= 20 &&
-           SafeName(domain) && domain.size() <= 15 && password && password->IsValid() && ValidSize(desktop) &&
+    return loopbackPort != 0 && IsWorkspaceAccount(account) && SafeName(domain) && domain.size() <= 15 && password && password->IsValid() &&
+           ValidSize(desktop) &&
            proxyCertificateSha256.size() == 64 && std::ranges::all_of(proxyCertificateSha256, [](unsigned char byte) {
                return (byte >= '0' && byte <= '9') || (byte >= 'a' && byte <= 'f') || (byte >= 'A' && byte <= 'F');
            });

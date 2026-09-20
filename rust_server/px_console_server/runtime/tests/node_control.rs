@@ -1,7 +1,9 @@
 #[path = "support/runtime_fixture.rs"]
 mod fixture;
 
-use fixture::{call, login, register, resource_call, start_with_cache_and_relay, PASSWORD};
+use fixture::{
+    call, login, register, resource_call, start_with_cache_and_relay, start_with_relay, PASSWORD,
+};
 use futures_util::{SinkExt, StreamExt};
 use px_relay_admission::verify;
 use serde_json::{json, Value};
@@ -1064,6 +1066,267 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
         "pnp-sha256:0123456789abcdef"
     );
 
+    server_stop.cancel();
+    server.await.unwrap().unwrap();
+    runtime.shutdown().await;
+}
+
+#[tokio::test]
+async fn rdp_start_fetches_one_leased_workspace_confirms_sid_and_issues_no_relay() {
+    let runtime = start_with_relay().await;
+    let router = runtime.router();
+    let admin = login(&router, "initial-admin", PASSWORD, "admin_web").await;
+    let (device_status, device) = call(
+        &router,
+        "POST",
+        "/api/console/managed/devices",
+        "admin_web",
+        Some(&admin),
+        json!({"name":format!("rdp-node-{}", Uuid::new_v4()),"platform":"windows"}),
+    )
+    .await;
+    assert_eq!(device_status.as_u16(), 201, "{device}");
+    let (node_status, node) = call(
+        &router,
+        "POST",
+        "/api/console/managed/nodes",
+        "admin_web",
+        Some(&admin),
+        json!({"device_id":device["device"]["id"],"product":"cloud_node","max_instances":1}),
+    )
+    .await;
+    assert_eq!(node_status.as_u16(), 201, "{node}");
+    let (application_status, application) = call(
+        &router,
+        "POST",
+        "/api/console/managed/applications",
+        "admin_web",
+        Some(&admin),
+        json!({
+            "name":format!("rdp-application-{}", Uuid::new_v4()),
+            "launch":{"kind":"rdp"},
+            "access":"public",
+            "allow_observer":false,
+            "allow_takeover":false,
+            "disabled":false
+        }),
+    )
+    .await;
+    assert_eq!(application_status.as_u16(), 201, "{application}");
+    let (deployment_status, deployment) = call(
+        &router,
+        "POST",
+        "/api/console/managed/deployments",
+        "admin_web",
+        Some(&admin),
+        json!({
+            "application_id":application["id"],
+            "node_id":node["node"]["id"],
+            "configuration":{
+                "target":{"kind":"rdp"},
+                "gpu_key":null,
+                "gpu_profile":null,
+                "capacity":1,
+                "disabled":false
+            }
+        }),
+    )
+    .await;
+    assert_eq!(deployment_status.as_u16(), 201, "{deployment}");
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server_stop = CancellationToken::new();
+    let shutdown_signal = server_stop.clone();
+    let server_router = router.clone();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            server_router.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .with_graceful_shutdown(shutdown_signal.cancelled_owned())
+        .await
+    });
+    let base = format!("ws://{address}/api/console/node-control");
+    let (mut socket, _) = connect_async(&base).await.unwrap();
+    let authenticated = exchange(
+        &mut socket,
+        json!({"type":"authenticate","request_id":1,"node_token":node["node_token"]}),
+    )
+    .await;
+    assert_eq!(authenticated["type"], "authenticated");
+    let report = exchange(&mut socket, telemetry_report(2, 1, 100)).await;
+    assert_eq!(report["type"], "reported");
+    let assignments = exchange(
+        &mut socket,
+        json!({"type":"list_deployments","request_id":3,"after":null,"limit":50}),
+    )
+    .await;
+    assert_eq!(assignments["deployments"].as_array().unwrap().len(), 1);
+    assert_eq!(assignments["deployments"][0]["preparation"]["kind"], "rdp");
+    let deployment_report = exchange(
+        &mut socket,
+        json!({
+            "type":"report_deployment",
+            "request_id":4,
+            "deployment_id":deployment["id"],
+            "observation":{
+                "deployment_revision":deployment["revision"],
+                "application_revision":deployment["application_revision"],
+                "endpoint_revision":report["endpoint_revision"],
+                "sequence":1,
+                "status":{"state":"ready"}
+            }
+        }),
+    )
+    .await;
+    assert_eq!(deployment_report["type"], "deployment_reported");
+    let challenge = exchange(
+        &mut socket,
+        json!({"type":"begin_reconciliation","request_id":5}),
+    )
+    .await;
+    let reconciled = exchange(
+        &mut socket,
+        json!({
+            "type":"reconcile",
+            "request_id":6,
+            "inventory":{"challenge_id":challenge["challenge"]["id"],"runtimes":[]}
+        }),
+    )
+    .await;
+    assert_eq!(reconciled["type"], "reconciled");
+
+    let username = register(&router).await;
+    let user = login(&router, &username, PASSWORD, "panel").await;
+    let (instance_status, instance) = resource_call(
+        &router,
+        "POST",
+        "/api/console/instances",
+        "panel",
+        Some(&user),
+        Some("user"),
+        json!({
+            "request_id":Uuid::new_v4(),
+            "application_id":application["id"],
+            "deployment_id":deployment["id"]
+        }),
+    )
+    .await;
+    assert_eq!(instance_status.as_u16(), 201, "{instance}");
+    let start_command = exchange(&mut socket, json!({"type":"poll_command","request_id":7})).await;
+    assert_eq!(start_command["command"]["action"]["launch"]["kind"], "rdp");
+    assert!(start_command["command"]["action"]["gpu_reservation"].is_null());
+    assert!(start_command["command"]["action"]["relay"].is_null());
+    assert!(!start_command.to_string().contains("password"));
+
+    let workspace = exchange(
+        &mut socket,
+        json!({
+            "type":"fetch_rdp_workspace",
+            "request_id":8,
+            "command_id":start_command["command"]["id"],
+            "lease_id":start_command["command"]["lease_id"]
+        }),
+    )
+    .await;
+    assert_eq!(workspace["type"], "rdp_workspace");
+    assert_eq!(
+        workspace["workspace"]["account_name"]
+            .as_str()
+            .unwrap()
+            .len(),
+        20
+    );
+    assert!(workspace["workspace"]["account_name"]
+        .as_str()
+        .unwrap()
+        .starts_with("pxrdp_"));
+    assert!(workspace["workspace"]["password"].as_str().unwrap().len() >= 32);
+    let workspace_password = workspace["workspace"]["password"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let windows_sid = "S-1-5-21-1-2-3-1001";
+    let confirmed = exchange(
+        &mut socket,
+        json!({
+            "type":"confirm_rdp_workspace",
+            "request_id":9,
+            "command_id":start_command["command"]["id"],
+            "lease_id":start_command["command"]["lease_id"],
+            "workspace_id":workspace["workspace"]["workspace_id"],
+            "windows_sid":windows_sid
+        }),
+    )
+    .await;
+    assert_eq!(confirmed["type"], "rdp_workspace_confirmed");
+    let running = exchange(
+        &mut socket,
+        json!({
+            "type":"acknowledge_command",
+            "request_id":10,
+            "receipt":{
+                "command_id":start_command["command"]["id"],
+                "lease_id":start_command["command"]["lease_id"],
+                "instance_id":start_command["command"]["instance_id"],
+                "launch_id":start_command["command"]["launch_id"],
+                "instance_revision":start_command["command"]["instance_revision"],
+                "outcome":{"result":"running","port":start_command["command"]["action"]["port"]}
+            }
+        }),
+    )
+    .await;
+    assert_eq!(running["state"], "running");
+
+    let (session_status, resource_session) = resource_call(
+        &router,
+        "POST",
+        "/api/console/resource-sessions",
+        "panel",
+        Some(&user),
+        Some("user"),
+        json!({
+            "request_id":Uuid::new_v4(),
+            "target":{
+                "kind":"cloud_application",
+                "application_id":application["id"],
+                "instance_id":instance["id"]
+            },
+            "access":"controller"
+        }),
+    )
+    .await;
+    assert_eq!(session_status.as_u16(), 201, "{resource_session}");
+    let (descriptor_status, descriptor) = resource_call(
+        &router,
+        "POST",
+        &format!(
+            "/api/console/resource-sessions/{}/descriptor",
+            resource_session["id"].as_str().unwrap()
+        ),
+        "panel",
+        Some(&user),
+        Some("user"),
+        json!({"revision":resource_session["revision"]}),
+    )
+    .await;
+    assert_eq!(descriptor_status.as_u16(), 200, "{descriptor}");
+    assert_eq!(descriptor["descriptor"]["transport"], "rdp");
+    assert!(descriptor["relay"].is_null());
+    assert_eq!(descriptor["rdp"]["schema"], 1);
+    assert_eq!(
+        descriptor["rdp"]["account_name"],
+        workspace["workspace"]["account_name"]
+    );
+    assert_eq!(descriptor["rdp"]["domain"], "RDP-NODE");
+    assert_eq!(descriptor["rdp"]["password"], workspace_password);
+    assert_eq!(
+        descriptor["rdp"]["proxy_certificate_sha256"],
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    );
+
+    socket.close(None).await.unwrap();
     server_stop.cancel();
     server.await.unwrap().unwrap();
     runtime.shutdown().await;

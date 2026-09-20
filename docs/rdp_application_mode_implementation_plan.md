@@ -250,6 +250,14 @@ Service Core 的 14 项 RDP 账号、工作区、部署和实例测试，Service
 11/11，最新 PostgreSQL 报告为 `pg-20260920-073236-bcc65364`、`pg-20260920-073330-aecd2cb3`。Cloud Node/Remote Service 制品及
 各自 dist 的 SHA-256 已同步复核。节点专属代理私钥、证书和 policy 仍由部署脚本单独下发，通用 dist 不携带；材料缺失时能力 fail-closed。
 
+随后完成了真实启动路径的身份一致性审计：Client 与代理策略不再接受历史 `prdp_`，只接受 `pxrdp_` 加 14 位小写十六进制的规范账号；
+代理继续对 Windows 返回的账号/域做大小写不敏感的精确匹配，不提供旧格式兼容。Console 对 `transport=rdp` 的资源描述符不再签发 Relay
+票据。新增 PostgreSQL 产品集成用例通过真实节点 WebSocket 串起部署准备、RDP Start、租约凭证读取、SID 确认、Running ACK、Panel
+资源会话与受保护描述符，并验证通用命令不含密码、Start/descriptor 均无 Relay。节点控制 2/2 报告为
+`pg-20260920-075615-d51b089d`，C++ RDP 流/策略测试 33/33、Console 严格 Clippy 均通过。最新 Console development 制品 SHA-256 为
+`2756AC6D2AC8FCC7259592F040244AA1307FA4E410AA370ECF9AD4D31DAA7345`；三套 Client、两套 Render 与两套 RDP policy 的 build/dist
+逐项哈希一致，41/315/77 件 development dist 均通过清单和产品边界验证。
+
 ### 保留：最初的原型交接
 
 已完成独立 proxy 编译、原生 SSPI 连接、AVC444v2 桌面和原会话重连路径；demo 增加了自动凭证启动支持。

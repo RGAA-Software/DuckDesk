@@ -6,7 +6,9 @@
 
 namespace px::rdp {
 
-[[nodiscard]] bool IsWorkspacePeer(std::string_view expected_user, std::string_view expected_domain, std::string_view user, std::string_view domain);
+[[nodiscard]] bool IsWorkspaceAccount(std::string_view account);
+[[nodiscard]] bool IsWorkspacePeer(
+    std::string_view expected_user, std::string_view expected_domain, std::string_view user, std::string_view domain);
 [[nodiscard]] bool IsAllowedStaticChannel(std::string_view name);
 [[nodiscard]] bool IsAllowedDynamicChannel(std::string_view name);
 enum class DeviceChannelDirection { kClientToServer, kServerToClient };

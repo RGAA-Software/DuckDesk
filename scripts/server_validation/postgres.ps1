@@ -326,7 +326,7 @@ try {
         $suiteCounts = @{unit=19;identity=12;control=8;devices=9;applications=8;guests=9;nodes=11;deployments=6;instances=16;commands=16;workspaces=6;database=2;sessions=11;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=17;activity=8;updates=7;desk=7;catalog=4;lease=6;postgres=14;accounts=9}
         $suiteCounts['console-api'] = 6
         $suiteCounts['directory-api'] = 7
-        $suiteCounts['node-control'] = 1
+        $suiteCounts['node-control'] = 2
         $suiteCounts['console-process'] = 1
         $suiteCounts['console-admin'] = 3
         $suiteCounts['schema_gate'] = 4

@@ -143,11 +143,15 @@ TEST(RdpStreamPacket, OpenAssignsValidBindingButCannotBeInjectedIntoActiveByteSt
 }
 
 TEST(RdpProxyPolicy, OnlyExactManagedLocalIdentityIsAdmitted) {
-    EXPECT_TRUE(IsWorkspacePeer("prdp_account", "NODE", "PRDP_ACCOUNT", "node"));
-    EXPECT_FALSE(IsWorkspacePeer("prdp_account", "NODE", "Administrator", "NODE"));
-    EXPECT_FALSE(IsWorkspacePeer("prdp_account", "NODE", "prdp_other", "NODE"));
-    EXPECT_FALSE(IsWorkspacePeer("prdp_account", "NODE", "prdp_account", "DOMAIN"));
-    EXPECT_FALSE(IsWorkspacePeer("prdp_account", "NODE", "prdp_account", ""));
+    EXPECT_TRUE(IsWorkspaceAccount("pxrdp_0123456789abcd"));
+    EXPECT_FALSE(IsWorkspaceAccount("prdp_0123456789abcd"));
+    EXPECT_FALSE(IsWorkspaceAccount("pxrdp_0123456789ABCd"));
+    EXPECT_FALSE(IsWorkspaceAccount("pxrdp_0123456789abc"));
+    EXPECT_TRUE(IsWorkspacePeer("pxrdp_0123456789abcd", "NODE", "PXRDP_0123456789ABCD", "node"));
+    EXPECT_FALSE(IsWorkspacePeer("pxrdp_0123456789abcd", "NODE", "Administrator", "NODE"));
+    EXPECT_FALSE(IsWorkspacePeer("pxrdp_0123456789abcd", "NODE", "pxrdp_0123456789abce", "NODE"));
+    EXPECT_FALSE(IsWorkspacePeer("pxrdp_0123456789abcd", "NODE", "pxrdp_0123456789abcd", "DOMAIN"));
+    EXPECT_FALSE(IsWorkspacePeer("pxrdp_0123456789abcd", "NODE", "pxrdp_0123456789abcd", ""));
     EXPECT_FALSE(IsWorkspacePeer("Administrator", "NODE", "Administrator", "NODE"));
 }
 

@@ -138,6 +138,28 @@ pub async fn start_with_cache_and_relay() -> (ConsoleRuntime, tempfile::TempDir)
     (runtime, directory)
 }
 
+pub async fn start_with_relay() -> ConsoleRuntime {
+    initialize().await;
+    ConsoleRuntime::activate_with_resources(
+        &config("RUNTIME"),
+        deployment(),
+        vault(),
+        policy(),
+        guests(),
+        RuntimeResources {
+            recording_cache: None,
+            relay: Some(RelayEndpoint {
+                host: "relay.example.test".into(),
+                port: 4605,
+                app_key: "isolated-relay-app-key".into(),
+            }),
+            deployment_identity: None,
+        },
+    )
+    .await
+    .unwrap()
+}
+
 async fn initialize() {
     static INIT: tokio::sync::OnceCell<()> = tokio::sync::OnceCell::const_new();
     INIT.get_or_init(|| async {

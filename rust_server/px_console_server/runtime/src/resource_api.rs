@@ -235,7 +235,9 @@ async fn descriptor(
     } else {
         None
     };
-    let relay = if let Some(endpoint) = state.relay.as_ref() {
+    let relay = if descriptor.transport == "rdp" {
+        None
+    } else if let Some(endpoint) = state.relay.as_ref() {
         let remote_resource_id = match descriptor.session.target {
             SessionTarget::Desktop { device_id } => device_id,
             SessionTarget::CloudApplication { instance_id, .. } => instance_id,

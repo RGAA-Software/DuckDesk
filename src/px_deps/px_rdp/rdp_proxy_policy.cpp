@@ -25,9 +25,17 @@ bool IsHex(unsigned char value) {
 }
 } // namespace
 
+bool IsWorkspaceAccount(std::string_view account) {
+    constexpr std::string_view prefix{"pxrdp_"};
+    return account.size() == 20 && account.starts_with(prefix) &&
+           std::ranges::all_of(account.substr(prefix.size()), [](unsigned char byte) {
+               return (byte >= '0' && byte <= '9') || (byte >= 'a' && byte <= 'f');
+           });
+}
+
 bool IsWorkspacePeer(std::string_view expected_user, std::string_view expected_domain, std::string_view user, std::string_view domain) {
-    return expected_user.starts_with("prdp_") && expected_user.size() >= 8 && expected_user.size() <= 20 && !expected_domain.empty() &&
-           expected_domain.size() <= 255 && EqualAscii(expected_user, user) && EqualAscii(expected_domain, domain);
+    return IsWorkspaceAccount(expected_user) && !expected_domain.empty() && expected_domain.size() <= 255 &&
+           EqualAscii(expected_user, user) && EqualAscii(expected_domain, domain);
 }
 
 bool IsAllowedStaticChannel(std::string_view name) {

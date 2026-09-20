@@ -1198,6 +1198,18 @@ SHA-256 均为 `1EAE2300B43511E37F7E252B9AD265ACC6249C07F84993BE335CF353D2A1A014
 分发物通过清单 SHA-256 与产品依赖边界复核。节点专属 RDP policy、代理密钥和证书仍只能由部署流程提供，不进入通用产品 dist；缺少时节点
 继续上报 `rdp=false`。公网凭据阻塞未变化，因此本条也不冒充公网图形/输入验收。
 
+RDP 身份与授权边界复核又发现 Client/代理策略仍接受历史 `prdp_` 前缀，会与 Console/Service 已生成的规范账号发生确定性冲突。活动实现现已
+统一为严格的 `pxrdp_` 加 14 位小写十六进制，不保留旧前缀兼容；代理只对已配置账号和 Windows 域做大小写不敏感的精确身份匹配。Console
+资源描述符也不再为 `transport=rdp` 签发无用途的 Relay 票据。新增 PostgreSQL 产品集成用例通过真实节点 WebSocket 完成部署准备、RDP Start、
+租约工作区读取、SID 确认、Running ACK、Panel 资源会话和受保护描述符，并断言命令与描述符均无 Relay，节点控制现为 2/2，报告
+`pg-20260920-075615-d51b089d`；C++ RDP 流/策略测试为 33/33，Console 严格 Clippy 通过。最新 Console development
+`px_console.exe` SHA-256 为 `2756AC6D2AC8FCC7259592F040244AA1307FA4E410AA370ECF9AD4D31DAA7345`。Client、Cloud Node、Remote
+三套 `px_client.exe` 的 build/dist SHA-256 分别为 `839A48D06CE1B39BF7CE00618CB5B4268CBC004D5F36780C52DE821E1551C872`、
+`F3A13EDC2C010E04024889D368D6203752EF58BFF594F7F6777D6E2C9EF5EDE8`、
+`D1728F7AAF90EA0CF3D1D187A5BBA91C1A9C0EB816210EC19711F081887B12D2`；Cloud Node/Remote 的 Render 与 RDP policy 也逐项通过
+build/dist SHA-256 一致检查。重新收集的 development dist 为 41、315、77 件，全部通过清单和产品依赖边界验证。本条关闭本地账号前缀与
+多余 Relay 授权缺口；公网节点凭据仍阻塞真实桌面验收。
+
 ## 仍未通过的阶段出口
 
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。
