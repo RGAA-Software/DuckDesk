@@ -338,20 +338,249 @@ async function startServer() {
   assert.equal(baseUrl, expectedBaseUrl);
 }
 
-async function api(route, method = "GET", body, token) {
+async function api(route, method = "GET", body, token, clientType = "admin_web", subjectKind) {
   const response = await fetch(baseUrl + route, {
     method,
     headers: {
       "content-type": "application/json",
-      "x-pixels-client-type": "admin_web",
+      "x-pixels-client-type": clientType,
       origin: baseUrl,
       ...(token ? { authorization: `Bearer ${token}` } : {}),
+      ...(subjectKind ? { "x-pixels-subject-kind": subjectKind } : {}),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
     signal: AbortSignal.timeout(22000),
   });
   const text = await response.text();
   return { status: response.status, body: text ? JSON.parse(text) : null };
+}
+
+async function connectNode(nodeToken) {
+  const socket = new WebSocket(`${baseUrl.replace("http://", "ws://")}/api/console/node-control`);
+  await timeLimit(
+    new Promise((resolve, reject) => {
+      socket.addEventListener("open", resolve, { once: true });
+      socket.addEventListener("error", () => reject(new Error("Node WebSocket connection failed")), { once: true });
+    }),
+    5000,
+    "Node WebSocket connection timeout",
+  );
+  const authenticated = await nodeExchange(socket, {
+    type: "authenticate",
+    request_id: 1,
+    node_token: nodeToken,
+  });
+  assert.equal(authenticated.type, "authenticated");
+  return socket;
+}
+
+async function nodeExchange(socket, request) {
+  const responsePromise = new Promise((resolve, reject) => {
+    const onMessage = (event) => {
+      cleanup();
+      try {
+        resolve(JSON.parse(String(event.data)));
+      }
+      catch (error) {
+        reject(error);
+      }
+    };
+    const onClose = () => {
+      cleanup();
+      reject(new Error("Node WebSocket closed before responding"));
+    };
+    const onError = () => {
+      cleanup();
+      reject(new Error("Node WebSocket exchange failed"));
+    };
+    const cleanup = () => {
+      socket.removeEventListener("message", onMessage);
+      socket.removeEventListener("close", onClose);
+      socket.removeEventListener("error", onError);
+    };
+    socket.addEventListener("message", onMessage);
+    socket.addEventListener("close", onClose);
+    socket.addEventListener("error", onError);
+  });
+  socket.send(JSON.stringify(request));
+  const response = await timeLimit(responsePromise, 5000, `Node request timed out: ${request.type}`);
+  assert.equal(response.request_id, request.request_id);
+  assert.notEqual(response.type, "error", JSON.stringify(response));
+  return response;
+}
+
+async function seedCompletedFileTransfer(node, application, deployment, username) {
+  const fileName = `browser-transfer-${randomUUID()}.bin`;
+  const totalBytes = 12 * 1024 * 1024;
+  const expectedSha256 = [...createHash("sha256").update("browser-transfer-payload").digest()];
+  const socket = await connectNode(node.body.node_token);
+  let requestId = 1;
+  const exchange = (request) => nodeExchange(socket, { ...request, request_id: ++requestId });
+  try {
+    const nodeReport = await exchange({
+      type: "report",
+      report: {
+        sequence: 1,
+        product_version_code: 1,
+        public_host: "browser-node.example.test",
+        desktop_port: 4601,
+        application_port_start: 4613,
+        application_port_end: 4998,
+        game_hook: true,
+        webview: true,
+        rdp: true,
+        rdp_domain: "BROWSER-NODE",
+        rdp_proxy_certificate_sha256: "b".repeat(64),
+        telemetry: {
+          sampled_at: new Date().toISOString(),
+          probe_state: "ready",
+          logical_processors: 16,
+          cpu_utilization_per_mille: 200,
+          memory_total_bytes: 64 * 1024 * 1024 * 1024,
+          memory_available_bytes: 48 * 1024 * 1024 * 1024,
+          disk_total_bytes: 2 * 1024 * 1024 * 1024 * 1024,
+          disk_free_bytes: 1024 * 1024 * 1024 * 1024,
+          gpu_inventory_revision: 1,
+          gpus: [{
+            stable_key: "pnp-sha256:browser-validation-gpu",
+            name: "Browser validation GPU",
+            runtime_binding_ready: true,
+            dedicated_memory_bytes: 24 * 1024 * 1024 * 1024,
+            used_memory_bytes: 2 * 1024 * 1024 * 1024,
+            utilization_per_mille: 100,
+            encoder_utilization_per_mille: 50,
+          }],
+        },
+      },
+    });
+    assert.equal(nodeReport.type, "reported");
+    const deploymentReport = await exchange({
+      type: "report_deployment",
+      deployment_id: deployment.body.id,
+      observation: {
+        deployment_revision: deployment.body.revision,
+        application_revision: deployment.body.application_revision,
+        endpoint_revision: nodeReport.endpoint_revision,
+        sequence: 1,
+        status: { state: "ready" },
+      },
+    });
+    assert.equal(deploymentReport.type, "deployment_reported");
+    const reconciliation = await exchange({ type: "begin_reconciliation" });
+    assert.equal(reconciliation.type, "reconciliation_started");
+    const reconciled = await exchange({
+      type: "reconcile",
+      inventory: { challenge_id: reconciliation.challenge.id, runtimes: [] },
+    });
+    assert.equal(reconciled.type, "reconciled");
+
+    const userLogin = await api(
+      "/api/console/sessions",
+      "POST",
+      { username, password: createdUserPassword },
+      undefined,
+      "user_web",
+    );
+    assert.equal(userLogin.status, 200);
+    assert.match(userLogin.body.token, /^[a-f0-9]{64}$/);
+    const userToken = userLogin.body.token;
+    const instance = await api(
+      "/api/console/instances",
+      "POST",
+      { request_id: randomUUID(), application_id: application.body.id, deployment_id: deployment.body.id },
+      userToken,
+      "user_web",
+      "user",
+    );
+    assert.equal(instance.status, 201, JSON.stringify(instance.body));
+    const startCommand = await exchange({ type: "poll_command" });
+    assert.equal(startCommand.type, "command");
+    assert.equal(startCommand.command.action.kind, "start");
+    const commandAcknowledgement = await exchange({
+      type: "acknowledge_command",
+      receipt: {
+        command_id: startCommand.command.id,
+        lease_id: startCommand.command.lease_id,
+        instance_id: startCommand.command.instance_id,
+        launch_id: startCommand.command.launch_id,
+        instance_revision: startCommand.command.instance_revision,
+        outcome: { result: "running", port: startCommand.command.action.port },
+      },
+    });
+    assert.equal(commandAcknowledgement.state, "running");
+    const resourceSession = await api(
+      "/api/console/resource-sessions",
+      "POST",
+      {
+        request_id: randomUUID(),
+        target: {
+          kind: "cloud_application",
+          application_id: application.body.id,
+          instance_id: instance.body.id,
+        },
+        access: "controller",
+      },
+      userToken,
+      "user_web",
+      "user",
+    );
+    assert.equal(resourceSession.status, 201, JSON.stringify(resourceSession.body));
+    const descriptor = await api(
+      `/api/console/resource-sessions/${resourceSession.body.id}/descriptor`,
+      "POST",
+      { revision: resourceSession.body.revision },
+      userToken,
+      "user_web",
+      "user",
+    );
+    assert.equal(descriptor.status, 200, JSON.stringify(descriptor.body));
+    const admitted = await exchange({
+      type: "admit_frontend",
+      session_id: resourceSession.body.id,
+      revision: descriptor.body.descriptor.session.revision,
+      frontend_token: descriptor.body.token,
+    });
+    assert.equal(admitted.type, "frontend_admitted");
+    const transfer = await exchange({
+      type: "begin_file_transfer",
+      transfer: {
+        transfer_request_id: randomUUID(),
+        session_id: resourceSession.body.id,
+        direction: "from_node",
+        file_name: fileName,
+        total_bytes: totalBytes,
+        expected_sha256: expectedSha256,
+      },
+    });
+    assert.equal(transfer.type, "file_transfer_started");
+    const completed = await exchange({
+      type: "report_file_transfer",
+      transfer_id: transfer.transfer_id,
+      progress: {
+        sequence: 1,
+        transferred_bytes: totalBytes,
+        outcome: { kind: "completed", received_sha256: expectedSha256 },
+      },
+    });
+    assert.equal(completed.state, "completed");
+    const transfers = await api(
+      "/api/console/file-transfers?limit=100",
+      "GET",
+      undefined,
+      userToken,
+      "user_web",
+      "user",
+    );
+    assert.equal(transfers.status, 200);
+    const persistedTransfer = transfers.body.find((candidate) => candidate.id === transfer.transfer_id);
+    assert.equal(persistedTransfer.file_name, fileName);
+    assert.equal(persistedTransfer.transferred_bytes, totalBytes);
+    assert.equal(persistedTransfer.state, "completed");
+  }
+  finally {
+    socket.close(1000, "browser fixture complete");
+  }
+  return { fileName, totalBytes };
 }
 
 async function run() {
@@ -565,6 +794,14 @@ async function run() {
   await telemetryDialog.locator("button.ant-modal-close").click();
   console.log("PASS console-browser/server-telemetry-trend");
 
+  const transferFixture = await seedCompletedFileTransfer(
+    previewNode,
+    previewApplication,
+    previewDeployment,
+    createdUsername,
+  );
+  console.log("PASS console-protocol/completed-file-transfer-fixture");
+
   await stopServer();
   await page.getByText("Reconnecting", { exact: true }).waitFor();
   await startServer();
@@ -630,8 +867,13 @@ async function run() {
       { exact: true },
     )
     .waitFor();
+  const transferRow = page.getByRole("row").filter({ hasText: transferFixture.fileName });
+  await transferRow.getByText(transferFixture.fileName, { exact: true }).waitFor();
+  await transferRow.getByText("Download from node", { exact: true }).waitFor();
+  await transferRow.getByText("Completed", { exact: true }).waitFor();
+  await transferRow.getByText("12.00 MB / 12.00 MB", { exact: true }).waitFor();
   assert.equal(new URL(page.url()).pathname, "/user/activity");
-  console.log("PASS console-browser/user-file-transfers-empty-state");
+  console.log("PASS console-browser/user-file-transfers-completed-state");
   assert.deepEqual(pageErrors, []);
   assert.deepEqual(externalRequests, []);
   assert.ok(!serverOutput.includes(initialPassword) && !serverOutput.includes(createdUserPassword));
