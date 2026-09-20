@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, type Component } from 'vue'
+import { computed, ref, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
@@ -9,17 +9,38 @@ import {
     IconCategory,
     IconCheck,
     IconChevronDown,
+    IconDeviceGamepad2,
     IconDevices,
     IconHeadset,
+    IconLayersLinked,
     IconStack2,
+    IconX,
 } from '@tabler/icons-vue'
+import ContactUs from '@/components/ContactUs.vue'
+import PricingCalculatorView from '@/views/PricingCalculatorView.vue'
 import pixelsLogo from '@/assets/pixels-logo-45.svg'
 
-interface PricingPlan {
+type BillingTerm = 'annual' | 'perpetual'
+type PersonalEdition = 'commercial' | 'free'
+
+interface RemotePricingPlan {
     name: string
     audience: string
-    priceLabel: string
-    priceNote: string
+    streams: string
+    annualPrice: string
+    perpetualPrice: string
+    annualNote: string
+    perpetualNote: string
+    features: string[]
+    featured?: boolean
+    enterprise?: boolean
+    plus?: boolean
+}
+
+interface CloudProduct {
+    name: string
+    label: string
+    description: string
     features: string[]
 }
 
@@ -35,6 +56,12 @@ interface PricingFaq {
 
 const { t, tm } = useI18n()
 const router = useRouter()
+const selectedBilling = ref<BillingTerm>('annual')
+const selectedPersonalEdition = ref<PersonalEdition>('commercial')
+const calculatorVisible = ref(false)
+const contactVisible = ref(false)
+const contactTitle = ref('')
+const contactContent = ref('')
 
 const dimensionIcons: Component[] = [
     IconCategory,
@@ -43,7 +70,24 @@ const dimensionIcons: Component[] = [
     IconHeadset,
 ]
 
-const pricingPlans = computed(() => tm('site.pricing.plans') as PricingPlan[])
+const remotePlans = computed(
+    () => tm('site.pricing.plans') as RemotePricingPlan[],
+)
+const freePersonalPlan = computed(
+    () => tm('site.pricing.freePersonalPlan') as RemotePricingPlan,
+)
+const displayedRemotePlans = computed(() =>
+    remotePlans.value.map((pricingPlan, planIndex) => {
+        if (planIndex === 0 && selectedPersonalEdition.value === 'free') {
+            return freePersonalPlan.value
+        }
+
+        return pricingPlan
+    }),
+)
+const cloudProducts = computed(
+    () => tm('site.pricing.cloudProducts') as CloudProduct[],
+)
 const pricingDimensions = computed(
     () => tm('site.pricing.dimensions') as PricingDimension[],
 )
@@ -55,16 +99,80 @@ const comparisonRows = computed(
 )
 const pricingFaqs = computed(() => tm('site.pricing.faqs') as PricingFaq[])
 
-function viewPrivateDeployment() {
-    void router.push('/about')
+function openCalculator() {
+    calculatorVisible.value = true
 }
 
-function openCalculator() {
-    void router.push('/pricing/calculator')
+function scrollToRemotePlans() {
+    document.getElementById('remote-plans')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+    })
+}
+
+function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
+    if (planIndex === 0 && selectedPersonalEdition.value === 'free') {
+        void router.push('/downloads')
+        return
+    }
+
+    const billingLabel = t(`site.pricing.${selectedBilling.value}Billing`)
+    const price =
+        selectedBilling.value === 'annual'
+            ? plan.annualPrice
+            : plan.perpetualPrice
+    const planLabel =
+        planIndex === 0
+            ? `${plan.name} · ${t('site.pricing.commercialEdition')}`
+            : plan.name
+    contactTitle.value = t('site.pricing.contactTitle')
+    contactContent.value = [
+        `${t('site.pricing.contactPlan')}: ${planLabel}`,
+        `${t('site.pricing.contactCapacity')}: ${plan.streams}`,
+        `${t('site.pricing.contactLicense')}: ${billingLabel}`,
+        `${t('site.pricing.contactPrice')}: ${price}`,
+    ].join('\n')
+    contactVisible.value = true
 }
 </script>
 
 <template>
+  <ContactUs
+    v-model="contactVisible"
+    :initial-title="contactTitle"
+    :initial-content="contactContent"
+    initial-consult-type="enterprise"
+  />
+
+  <el-dialog
+    v-model="calculatorVisible"
+    align-center
+    append-to-body
+    destroy-on-close
+    :close-on-click-modal="false"
+    :close-on-press-escape="false"
+    :show-close="false"
+    class="pixels-calculator-dialog"
+    modal-class="pixels-calculator-overlay"
+  >
+    <template #header>
+      <div class="calculator-dialog-header">
+        <div>
+          <img :src="pixelsLogo" alt="">
+          <span>{{ t('pricingCalculator.title') }}</span>
+        </div>
+        <button
+          type="button"
+          :aria-label="t('consult.cancel')"
+          @click="calculatorVisible = false"
+        >
+          <IconX :size="21" :stroke-width="1.8" />
+        </button>
+      </div>
+    </template>
+    <PricingCalculatorView embedded />
+  </el-dialog>
+
   <div class="pricing-page">
     <section class="pricing-hero">
       <div class="hero-grid" aria-hidden="true" />
@@ -78,11 +186,11 @@ function openCalculator() {
             <i />{{ t('site.pricing.notice') }}
           </span>
           <div class="hero-actions">
-            <button class="button-primary" type="button" @click="openCalculator">
+            <button class="button-primary" type="button" @click="scrollToRemotePlans">
               {{ t('site.pricing.primaryAction') }}
               <IconArrowUpRight :size="17" :stroke-width="1.9" />
             </button>
-            <button class="button-secondary" type="button" @click="viewPrivateDeployment">
+            <button class="button-secondary" type="button" @click="openCalculator">
               {{ t('site.pricing.secondaryAction') }}
               <IconArrowRight :size="17" :stroke-width="1.9" />
             </button>
@@ -118,30 +226,97 @@ function openCalculator() {
       </div>
     </section>
 
-    <section class="section plans-section">
+    <section id="remote-plans" class="section plans-section">
       <div class="page-shell">
         <div class="section-heading centered-heading">
           <h2>{{ t('site.pricing.plansTitle') }}</h2>
           <p>{{ t('site.pricing.plansDescription') }}</p>
         </div>
 
+        <div class="billing-toggle" role="group" :aria-label="t('site.pricing.plansTitle')">
+          <button
+            type="button"
+            :class="{ active: selectedBilling === 'annual' }"
+            @click="selectedBilling = 'annual'"
+          >
+            {{ t('site.pricing.annualBilling') }}
+          </button>
+          <button
+            type="button"
+            :class="{ active: selectedBilling === 'perpetual' }"
+            @click="selectedBilling = 'perpetual'"
+          >
+            {{ t('site.pricing.perpetualBilling') }}
+          </button>
+        </div>
+
         <div class="plans-grid">
           <article
-            v-for="(pricingPlan, planIndex) in pricingPlans"
-            :key="pricingPlan.name"
+            v-for="(pricingPlan, planIndex) in displayedRemotePlans"
+            :key="`${planIndex}-${pricingPlan.name}`"
             class="plan-card"
+            :class="{
+              featured: pricingPlan.featured,
+              enterprise: pricingPlan.enterprise,
+              plus: pricingPlan.plus,
+            }"
           >
+            <span v-if="pricingPlan.featured" class="recommended-badge">
+              {{ t('site.pricing.recommended') }}
+            </span>
+            <span v-else-if="pricingPlan.enterprise" class="recommended-badge">
+              {{ t('site.pricing.enterpriseBadge') }}
+            </span>
+            <span v-else-if="pricingPlan.plus" class="recommended-badge">
+              {{ t('site.pricing.plusBadge') }}
+            </span>
             <div class="plan-heading">
-              <span>PRODUCT 0{{ planIndex + 1 }}</span>
+              <span>REMOTE 0{{ planIndex + 1 }}</span>
               <h3>{{ pricingPlan.name }}</h3>
               <p>{{ pricingPlan.audience }}</p>
             </div>
-            <div class="plan-price">
-              <strong>{{ pricingPlan.priceLabel }}</strong>
-              <span>{{ pricingPlan.priceNote }}</span>
+            <div class="plan-edition-slot">
+              <div
+                v-if="planIndex === 0"
+                class="personal-edition-toggle"
+                role="group"
+                :aria-label="t('site.pricing.personalEditionLabel')"
+              >
+                <button
+                  type="button"
+                  :class="{ active: selectedPersonalEdition === 'commercial' }"
+                  :aria-pressed="selectedPersonalEdition === 'commercial'"
+                  @click="selectedPersonalEdition = 'commercial'"
+                >
+                  {{ t('site.pricing.commercialEdition') }}
+                </button>
+                <button
+                  type="button"
+                  :class="{ active: selectedPersonalEdition === 'free' }"
+                  :aria-pressed="selectedPersonalEdition === 'free'"
+                  @click="selectedPersonalEdition = 'free'"
+                >
+                  {{ t('site.pricing.freeEdition') }}
+                </button>
+              </div>
             </div>
-            <button type="button" @click="openCalculator">
-              {{ t('site.pricing.quoteAction') }}
+            <div class="plan-price">
+              <small>{{ pricingPlan.streams }}</small>
+              <strong>
+                {{ selectedBilling === 'annual'
+                  ? pricingPlan.annualPrice
+                  : pricingPlan.perpetualPrice }}
+              </strong>
+              <span>
+                {{ selectedBilling === 'annual'
+                  ? pricingPlan.annualNote
+                  : pricingPlan.perpetualNote }}
+              </span>
+            </div>
+            <button type="button" @click="consultRemotePlan(pricingPlan, planIndex)">
+              {{ planIndex === 0 && selectedPersonalEdition === 'free'
+                ? t('site.pricing.freeAction')
+                : t('site.pricing.quoteAction') }}
               <IconArrowUpRight :size="16" :stroke-width="1.8" />
             </button>
             <div class="plan-features">
@@ -153,6 +328,44 @@ function openCalculator() {
                 </li>
               </ul>
             </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section cloud-pricing-section">
+      <div class="page-shell">
+        <div class="section-heading cloud-heading">
+          <h2>{{ t('site.pricing.cloudTitle') }}</h2>
+          <p>{{ t('site.pricing.cloudDescription') }}</p>
+        </div>
+        <div class="cloud-products-grid">
+          <article
+            v-for="(cloudProduct, productIndex) in cloudProducts"
+            :key="cloudProduct.name"
+          >
+            <div class="cloud-product-icon">
+              <IconDeviceGamepad2
+                v-if="productIndex === 0"
+                :size="29"
+                :stroke-width="1.45"
+              />
+              <IconLayersLinked v-else :size="29" :stroke-width="1.45" />
+            </div>
+            <div class="cloud-product-copy">
+              <span>{{ cloudProduct.label }}</span>
+              <h3>{{ cloudProduct.name }}</h3>
+              <p>{{ cloudProduct.description }}</p>
+              <ul>
+                <li v-for="feature in cloudProduct.features" :key="feature">
+                  <IconCheck :size="14" :stroke-width="2" />{{ feature }}
+                </li>
+              </ul>
+            </div>
+            <button type="button" @click="openCalculator">
+              {{ t('site.pricing.cloudAction') }}
+              <IconArrowUpRight :size="17" :stroke-width="1.8" />
+            </button>
           </article>
         </div>
       </div>
@@ -241,7 +454,7 @@ function openCalculator() {
         <p>{{ t('site.pricing.closingDescription') }}</p>
       </div>
       <button type="button" @click="openCalculator">
-        {{ t('site.pricing.primaryAction') }}
+        {{ t('site.pricing.cloudAction') }}
         <IconArrowUpRight :size="18" :stroke-width="1.9" />
       </button>
     </section>
@@ -264,6 +477,90 @@ function openCalculator() {
     overflow: hidden;
     background: var(--background);
     color: var(--foreground);
+}
+
+.calculator-dialog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+}
+
+.calculator-dialog-header > div {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+}
+
+.calculator-dialog-header img {
+    width: 27px;
+    height: 27px;
+}
+
+.calculator-dialog-header span {
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 750;
+}
+
+.calculator-dialog-header > button {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 auto;
+    place-items: center;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.calculator-dialog-header > button:hover {
+    background: var(--bg2);
+    color: var(--text);
+}
+
+:global(.pixels-calculator-dialog) {
+    display: flex;
+    width: min(1500px, 96vw) !important;
+    height: min(900px, calc(100vh - 48px));
+    max-height: calc(100vh - 48px);
+    flex-direction: column;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden;
+    border: 1px solid var(--line) !important;
+    border-radius: 20px !important;
+    background: var(--panel) !important;
+    box-shadow: 0 32px 100px rgba(9, 9, 11, 0.28) !important;
+}
+
+:global(.pixels-calculator-dialog .el-dialog__header) {
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 15px 18px;
+    border-bottom: 1px solid var(--line);
+}
+
+:global(.pixels-calculator-dialog .el-dialog__body) {
+    min-height: 0;
+    flex: 1 1 auto;
+    padding: 0;
+    overflow: hidden;
+}
+
+:global(.pixels-calculator-overlay) {
+    padding: 0;
+    overflow: hidden;
+}
+
+:global(.pixels-calculator-overlay .el-overlay-dialog) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    overflow: hidden;
 }
 
 .page-shell {
@@ -507,9 +804,40 @@ function openCalculator() {
     text-align: center;
 }
 
+.plans-section .page-shell {
+    width: min(1400px, calc(100% - 48px));
+}
+
+.billing-toggle {
+    display: flex;
+    width: fit-content;
+    margin: 0 auto 28px;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--secondary);
+}
+
+.billing-toggle button {
+    min-height: 38px;
+    padding: 0 18px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    font: 700 12px var(--font-ui);
+}
+
+.billing-toggle button.active {
+    background: var(--card);
+    box-shadow: 0 5px 18px rgba(15, 23, 42, 0.08);
+    color: var(--primary);
+}
+
 .plans-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     align-items: stretch;
     gap: 18px;
 }
@@ -529,6 +857,11 @@ function openCalculator() {
 .plan-card.featured {
     border-color: var(--primary);
     box-shadow: 0 24px 60px rgba(0, 127, 73, 0.13);
+}
+
+.plan-card.enterprise,
+.plan-card.plus {
+    border-color: color-mix(in srgb, var(--primary) 50%, var(--border));
 }
 
 .recommended-badge {
@@ -563,25 +896,76 @@ function openCalculator() {
     line-height: 1.7;
 }
 
+.plan-edition-slot {
+    display: flex;
+    min-height: 36px;
+    align-items: center;
+    margin-top: 18px;
+}
+
+.personal-edition-toggle {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 3px;
+    padding: 3px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--secondary);
+}
+
+.personal-edition-toggle button {
+    min-width: 0;
+    min-height: 28px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    font: 700 11px var(--font-ui);
+}
+
+.personal-edition-toggle button.active {
+    background: var(--card);
+    box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
+    color: var(--primary);
+}
+
 .plan-price {
     display: grid;
     min-height: 112px;
+    grid-template-rows: 16px 34px 18px;
     align-content: center;
     gap: 8px;
-    margin: 26px -34px 0;
+    margin: 18px -34px 0;
     padding: 0 34px;
     border-block: 1px solid var(--border);
     background: var(--secondary);
 }
 
+.plan-price small {
+    display: block;
+    height: 16px;
+    color: var(--primary);
+    font: 700 11px / 16px var(--font-ui);
+    letter-spacing: 0;
+}
+
 .plan-price strong {
+    display: block;
+    height: 34px;
     font-size: 23px;
     font-weight: 760;
+    line-height: 34px;
 }
 
 .plan-price span {
+    display: block;
+    height: 18px;
     color: var(--muted-foreground);
     font-size: 12px;
+    line-height: 18px;
 }
 
 .plan-card > button {
@@ -599,7 +983,9 @@ function openCalculator() {
     font: 700 13px var(--font-ui);
 }
 
-.featured > button {
+.featured > button,
+.enterprise > button,
+.plus > button {
     border-color: var(--primary);
     background: var(--primary);
     color: var(--primary-foreground);
@@ -641,6 +1027,100 @@ function openCalculator() {
     border-radius: 50%;
     background: var(--accent);
     color: var(--primary);
+}
+
+.cloud-pricing-section {
+    border-top: 1px solid var(--border);
+    background:
+        radial-gradient(circle at 80% 20%, rgba(0, 154, 89, 0.12), transparent 28%),
+        var(--secondary);
+}
+
+.cloud-heading {
+    max-width: 760px;
+    margin-bottom: 46px;
+}
+
+.cloud-products-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+}
+
+.cloud-products-grid article {
+    display: grid;
+    min-height: 370px;
+    grid-template-columns: 62px 1fr;
+    grid-template-rows: 1fr auto;
+    gap: 24px;
+    padding: 38px;
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    background: color-mix(in srgb, var(--card) 96%, transparent);
+    box-shadow: 0 22px 54px rgba(15, 23, 42, 0.055);
+}
+
+.cloud-product-icon {
+    display: grid;
+    width: 56px;
+    height: 56px;
+    place-items: center;
+    border-radius: 15px;
+    background: var(--accent);
+    color: var(--primary);
+}
+
+.cloud-product-copy > span {
+    color: var(--primary);
+    font: 700 10px var(--font-tech);
+    letter-spacing: 0.13em;
+}
+
+.cloud-product-copy h3 {
+    margin: 14px 0 12px;
+    font-size: 27px;
+    font-weight: 760;
+}
+
+.cloud-product-copy p {
+    margin: 0;
+    color: var(--muted-foreground);
+    font-size: 13px;
+    line-height: 1.75;
+}
+
+.cloud-product-copy ul {
+    display: grid;
+    gap: 11px;
+    margin: 24px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.cloud-product-copy li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.cloud-product-copy li svg {
+    color: var(--primary);
+}
+
+.cloud-products-grid article > button {
+    display: inline-flex;
+    min-height: 44px;
+    grid-column: 1 / -1;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 1px solid var(--primary);
+    border-radius: 10px;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    cursor: pointer;
+    font: 700 13px var(--font-ui);
 }
 
 .dimensions-section {
@@ -715,7 +1195,7 @@ function openCalculator() {
 .comparison-header,
 .comparison-row {
     display: grid;
-    grid-template-columns: 1.25fr repeat(3, 1fr);
+    grid-template-columns: 1.15fr repeat(5, 1fr);
     align-items: center;
 }
 
@@ -727,11 +1207,11 @@ function openCalculator() {
 
 .comparison-header > *,
 .comparison-row > * {
-    padding-inline: 24px;
+    padding-inline: 14px;
 }
 
 .comparison-header strong {
-    font-size: 12px;
+    font-size: 11px;
 }
 
 .comparison-row {
@@ -740,7 +1220,7 @@ function openCalculator() {
 }
 
 .comparison-row > strong {
-    font-size: 13px;
+    font-size: 11px;
 }
 
 .comparison-row > span {
@@ -899,7 +1379,11 @@ function openCalculator() {
     }
 
     .plans-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .plan-card.plus {
+        grid-column: 1 / -1;
     }
 
     .plan-heading p {
@@ -933,6 +1417,49 @@ function openCalculator() {
 
     .section {
         padding-block: 84px;
+    }
+
+    .cloud-products-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .comparison-header {
+        display: none;
+    }
+
+    .comparison-row {
+        grid-template-columns: 1fr;
+        gap: 16px;
+        padding: 24px;
+    }
+
+    .comparison-header > *,
+    .comparison-row > * {
+        padding: 0;
+    }
+
+    .comparison-row > strong {
+        font-size: 17px;
+    }
+
+    .comparison-row > span {
+        display: grid;
+        grid-template-columns: 18px 1fr;
+        font-size: 13px;
+    }
+
+    .comparison-row small {
+        display: block;
+        grid-column: 1 / -1;
+        color: var(--muted-foreground);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .comparison-row > span:not(:last-child) {
+        display: block;
     }
 
     .faq-layout {
@@ -972,6 +1499,32 @@ function openCalculator() {
 
     .dimensions-grid {
         grid-template-columns: 1fr;
+    }
+
+    .plans-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .plan-card.plus {
+        grid-column: auto;
+    }
+
+    .billing-toggle {
+        width: 100%;
+    }
+
+    .billing-toggle button {
+        flex: 1;
+    }
+
+    .cloud-products-grid article {
+        min-height: 0;
+        grid-template-columns: 1fr;
+        padding: 28px 24px;
+    }
+
+    .cloud-products-grid article > button {
+        grid-column: auto;
     }
 
     .dimensions-grid article {

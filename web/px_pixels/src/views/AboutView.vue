@@ -401,7 +401,7 @@ function viewSolutions() {
 
 .brand-core strong {
     bottom: 25px;
-    font: 700 13px "10 Pixel", sans-serif;
+    font: 700 13px var(--font-brand);
     letter-spacing: 0.1em;
 }
 

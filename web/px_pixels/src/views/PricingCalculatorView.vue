@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
     IconArrowLeft,
     IconArrowRight,
     IconBuildingSkyscraper,
     IconCheck,
     IconCopy,
-    IconDeviceDesktop,
     IconDeviceGamepad2,
     IconFileInvoice,
     IconLayersLinked,
@@ -42,12 +41,21 @@ interface ChoiceCard {
     icon: Component
 }
 
+const props = withDefaults(
+    defineProps<{
+        embedded?: boolean
+    }>(),
+    {
+        embedded: false,
+    },
+)
+
 const { locale, t, tm } = useI18n()
 const route = useRoute()
+const router = useRouter()
 
-const productKeys: ProductKey[] = ['remote', 'gaming', 'rendering']
+const productKeys: ProductKey[] = ['gaming', 'rendering']
 const productIcons: Record<ProductKey, Component> = {
-    remote: IconDeviceDesktop,
     gaming: IconDeviceGamepad2,
     rendering: IconLayersLinked,
 }
@@ -84,6 +92,7 @@ const oemBrandingChoices: ChoiceCard[] = [
 ]
 
 const currentStep = ref(0)
+const calculatorRoot = ref<HTMLElement>()
 const contactVisible = ref(false)
 const feedbackMessage = ref('')
 const validationMessage = ref('')
@@ -94,8 +103,7 @@ const selection = reactive<PricingSelection>({
     licenseTerm: 'annual',
     currency: locale.value === 'en' ? 'USD' : 'CNY',
     quantities: {
-        remote: 5,
-        gaming: 0,
+        gaming: 5,
         rendering: 0,
     },
     delivery: 'self',
@@ -199,7 +207,14 @@ function openStep(stepIndex: number) {
     }
     currentStep.value = stepIndex
     validationMessage.value = ''
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    if (props.embedded) {
+        calculatorRoot.value
+            ?.closest('.el-dialog__body')
+            ?.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+    else {
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
 }
 
 function nextStep() {
@@ -347,6 +362,9 @@ function restoreSharedSelection() {
 
 function buildShareUrl(): string {
     const shareUrl = new URL(window.location.href)
+    if (props.embedded) {
+        shareUrl.pathname = router.resolve('/pricing/calculator').path
+    }
     shareUrl.search = ''
     shareUrl.searchParams.set('usage', selection.usage)
     shareUrl.searchParams.set('term', selection.licenseTerm)
@@ -367,7 +385,9 @@ function printEstimate() {
     window.print()
 }
 
-onMounted(restoreSharedSelection)
+onMounted(() => {
+    if (!props.embedded) restoreSharedSelection()
+})
 </script>
 
 <template>
@@ -378,7 +398,11 @@ onMounted(restoreSharedSelection)
     initial-consult-type="enterprise"
   />
 
-  <div class="calculator-page">
+  <div
+    ref="calculatorRoot"
+    class="calculator-page"
+    :class="{ embedded }"
+  >
     <div class="calculator-grid-background" aria-hidden="true" />
 
     <header class="calculator-hero">
@@ -664,99 +688,105 @@ onMounted(restoreSharedSelection)
                   <p>{{ t('pricingCalculator.resultDescription') }}</p>
                 </div>
 
-                <div class="result-amounts">
-                  <article class="primary-total">
-                    <span>{{ primaryAmountLabel }}</span>
-                    <strong>{{ money(estimate.firstYearAmount) }}</strong>
-                    <small>{{ t('pricingCalculator.formalQuote') }} · {{ selection.currency }}</small>
-                  </article>
-                  <article>
-                    <span>{{ t('pricingCalculator.secondYear') }}</span>
-                    <strong>{{ money(estimate.secondYearAmount) }}</strong>
-                    <small>{{ t('pricingCalculator.secondYearDescription') }}</small>
-                  </article>
-                </div>
+                <div class="result-main-grid">
+                  <div class="result-primary-column">
+                    <div class="result-amounts">
+                      <article class="primary-total">
+                        <span>{{ primaryAmountLabel }}</span>
+                        <strong>{{ money(estimate.firstYearAmount) }}</strong>
+                        <small>{{ t('pricingCalculator.formalQuote') }} · {{ selection.currency }}</small>
+                      </article>
+                      <article>
+                        <span>{{ t('pricingCalculator.secondYear') }}</span>
+                        <strong>{{ money(estimate.secondYearAmount) }}</strong>
+                        <small>{{ t('pricingCalculator.secondYearDescription') }}</small>
+                      </article>
+                    </div>
 
-                <div class="result-breakdown">
-                  <div class="breakdown-heading">
-                    <strong>{{ t('pricingCalculator.licenseSubtotal') }}</strong>
-                    <span>{{ money(estimate.licenseAmount) }}</span>
+                    <div class="result-breakdown">
+                      <div class="breakdown-heading">
+                        <strong>{{ t('pricingCalculator.licenseSubtotal') }}</strong>
+                        <span>{{ money(estimate.licenseAmount) }}</span>
+                      </div>
+                      <div
+                        v-for="productLine in estimate.productLines"
+                        :key="productLine.product"
+                        class="breakdown-row"
+                      >
+                        <span>
+                          {{ t(`pricingCalculator.products.${productLine.product}.title`) }}
+                          <small>{{ productLine.quantity }} Streams × {{ money(productLine.unitPrice) }}</small>
+                        </span>
+                        <strong>{{ money(productLine.amount) }}</strong>
+                      </div>
+                      <div v-if="estimate.oemMinimumAdjustmentAmount" class="breakdown-row">
+                        <span>
+                          {{ t('pricingCalculator.oemMinimumAdjustment') }}
+                          <small>{{ t('pricingCalculator.oem.annualMinimum') }}</small>
+                        </span>
+                        <strong>{{ money(estimate.oemMinimumAdjustmentAmount) }}</strong>
+                      </div>
+                      <div class="breakdown-row">
+                        <span>{{ t('pricingCalculator.deliverySubtotal') }}<small>{{ deliveryLabel }}</small></span>
+                        <strong v-if="!estimate.requiresDeliveryAssessment">{{ money(estimate.deliveryAmount) }}</strong>
+                        <strong v-else>{{ t('pricingCalculator.pendingAssessment') }}</strong>
+                      </div>
+                      <div class="breakdown-row">
+                        <span>{{ t('pricingCalculator.brandingSubtotal') }}<small>{{ brandingLabel }}</small></span>
+                        <strong>{{ money(estimate.brandingAmount) }}</strong>
+                      </div>
+                      <div v-if="estimate.coreMaintenanceAmount" class="breakdown-row future-row">
+                        <span>{{ t('pricingCalculator.coreMaintenance') }}<small>{{ t('pricingCalculator.secondYear') }}</small></span>
+                        <strong>{{ money(estimate.coreMaintenanceAmount) }}</strong>
+                      </div>
+                      <div v-if="estimate.brandingMaintenanceAmount" class="breakdown-row future-row">
+                        <span>{{ t('pricingCalculator.brandingMaintenance') }}<small>{{ t('pricingCalculator.secondYear') }}</small></span>
+                        <strong>{{ money(estimate.brandingMaintenanceAmount) }}</strong>
+                      </div>
+                    </div>
                   </div>
-                  <div
-                    v-for="productLine in estimate.productLines"
-                    :key="productLine.product"
-                    class="breakdown-row"
-                  >
-                    <span>
-                      {{ t(`pricingCalculator.products.${productLine.product}.title`) }}
-                      <small>{{ productLine.quantity }} Streams × {{ money(productLine.unitPrice) }}</small>
-                    </span>
-                    <strong>{{ money(productLine.amount) }}</strong>
-                  </div>
-                  <div v-if="estimate.oemMinimumAdjustmentAmount" class="breakdown-row">
-                    <span>
-                      {{ t('pricingCalculator.oemMinimumAdjustment') }}
-                      <small>{{ t('pricingCalculator.oem.annualMinimum') }}</small>
-                    </span>
-                    <strong>{{ money(estimate.oemMinimumAdjustmentAmount) }}</strong>
-                  </div>
-                  <div class="breakdown-row">
-                    <span>{{ t('pricingCalculator.deliverySubtotal') }}<small>{{ deliveryLabel }}</small></span>
-                    <strong v-if="!estimate.requiresDeliveryAssessment">{{ money(estimate.deliveryAmount) }}</strong>
-                    <strong v-else>{{ t('pricingCalculator.pendingAssessment') }}</strong>
-                  </div>
-                  <div class="breakdown-row">
-                    <span>{{ t('pricingCalculator.brandingSubtotal') }}<small>{{ brandingLabel }}</small></span>
-                    <strong>{{ money(estimate.brandingAmount) }}</strong>
-                  </div>
-                  <div v-if="estimate.coreMaintenanceAmount" class="breakdown-row future-row">
-                    <span>{{ t('pricingCalculator.coreMaintenance') }}<small>{{ t('pricingCalculator.secondYear') }}</small></span>
-                    <strong>{{ money(estimate.coreMaintenanceAmount) }}</strong>
-                  </div>
-                  <div v-if="estimate.brandingMaintenanceAmount" class="breakdown-row future-row">
-                    <span>{{ t('pricingCalculator.brandingMaintenance') }}<small>{{ t('pricingCalculator.secondYear') }}</small></span>
-                    <strong>{{ money(estimate.brandingMaintenanceAmount) }}</strong>
-                  </div>
-                </div>
 
-                <div v-if="estimate.requiresDeliveryAssessment || estimate.requiresCustomizationAssessment" class="assessment-warning">
-                  <IconSparkles :size="19" :stroke-width="1.7" />
-                  {{ t('pricingCalculator.assessmentWarning') }}
-                </div>
+                  <div class="result-secondary-column">
+                    <div v-if="estimate.requiresDeliveryAssessment || estimate.requiresCustomizationAssessment" class="assessment-warning">
+                      <IconSparkles :size="19" :stroke-width="1.7" />
+                      {{ t('pricingCalculator.assessmentWarning') }}
+                    </div>
 
-                <div class="sales-note">
-                  <div><IconWorld :size="23" :stroke-width="1.55" /></div>
-                  <span>
-                    <strong>{{ t('pricingCalculator.noDiscountTitle') }}</strong>
-                    <p>{{ t('pricingCalculator.noDiscountDescription') }}</p>
-                  </span>
-                </div>
+                    <div class="sales-note">
+                      <div><IconWorld :size="23" :stroke-width="1.55" /></div>
+                      <span>
+                        <strong>{{ t('pricingCalculator.noDiscountTitle') }}</strong>
+                        <p>{{ t('pricingCalculator.noDiscountDescription') }}</p>
+                      </span>
+                    </div>
 
-                <div class="excluded-box">
-                  <strong>{{ t('pricingCalculator.excludedTitle') }}</strong>
-                  <ul>
-                    <li v-for="excludedItem in (tm('pricingCalculator.excludedItems') as string[])" :key="excludedItem">
-                      <IconMinus :size="13" :stroke-width="2" />{{ excludedItem }}
-                    </li>
-                  </ul>
-                </div>
+                    <div class="excluded-box">
+                      <strong>{{ t('pricingCalculator.excludedTitle') }}</strong>
+                      <ul>
+                        <li v-for="excludedItem in (tm('pricingCalculator.excludedItems') as string[])" :key="excludedItem">
+                          <IconMinus :size="13" :stroke-width="2" />{{ excludedItem }}
+                        </li>
+                      </ul>
+                    </div>
 
-                <p class="estimate-notice">{{ t('pricingCalculator.estimateNotice') }}</p>
+                    <p class="estimate-notice">{{ t('pricingCalculator.estimateNotice') }}</p>
 
-                <div class="result-actions">
-                  <button class="result-action primary" type="button" @click="contactVisible = true">
-                    {{ t('pricingCalculator.contact') }}
-                    <IconArrowRight :size="17" :stroke-width="1.9" />
-                  </button>
-                  <button class="result-action" type="button" @click="copyValue(buildEstimateText(), t('pricingCalculator.copied'))">
-                    <IconCopy :size="17" :stroke-width="1.7" />{{ t('pricingCalculator.copy') }}
-                  </button>
-                  <button class="result-action" type="button" @click="copyValue(buildShareUrl(), t('pricingCalculator.linkCopied'))">
-                    <IconLink :size="17" :stroke-width="1.7" />{{ t('pricingCalculator.copyLink') }}
-                  </button>
-                  <button class="result-action" type="button" @click="printEstimate">
-                    <IconPrinter :size="17" :stroke-width="1.7" />{{ t('pricingCalculator.print') }}
-                  </button>
+                    <div class="result-actions">
+                      <button class="result-action primary" type="button" @click="contactVisible = true">
+                        {{ t('pricingCalculator.contact') }}
+                        <IconArrowRight :size="17" :stroke-width="1.9" />
+                      </button>
+                      <button class="result-action" type="button" @click="copyValue(buildEstimateText(), t('pricingCalculator.copied'))">
+                        <IconCopy :size="17" :stroke-width="1.7" />{{ t('pricingCalculator.copy') }}
+                      </button>
+                      <button class="result-action" type="button" @click="copyValue(buildShareUrl(), t('pricingCalculator.linkCopied'))">
+                        <IconLink :size="17" :stroke-width="1.7" />{{ t('pricingCalculator.copyLink') }}
+                      </button>
+                      <button class="result-action" type="button" @click="printEstimate">
+                        <IconPrinter :size="17" :stroke-width="1.7" />{{ t('pricingCalculator.print') }}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </template>
             </div>
@@ -839,6 +869,310 @@ onMounted(restoreSharedSelection)
     overflow: hidden;
     background: var(--background);
     color: var(--foreground);
+}
+
+.calculator-page.embedded {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.embedded .calculator-hero {
+    padding: 10px 0;
+}
+
+.embedded .calculator-shell {
+    width: min(1320px, calc(100% - 32px));
+}
+
+.embedded .hero-inner {
+    justify-content: flex-end;
+}
+
+.embedded .hero-copy {
+    display: none;
+}
+
+.embedded .catalog-control {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: auto 180px auto;
+    align-items: center;
+    gap: 14px;
+    padding: 7px 10px 7px 14px;
+    border-radius: 11px;
+    box-shadow: none;
+}
+
+.embedded .catalog-control small {
+    justify-self: end;
+}
+
+.embedded .calculator-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 18px;
+    padding-bottom: 14px;
+}
+
+.embedded .stepper button {
+    min-height: 62px;
+    grid-template-columns: 24px 1fr;
+    gap: 2px 7px;
+    padding: 8px 10px;
+}
+
+.embedded .stepper button > span {
+    width: 24px;
+    height: 24px;
+}
+
+.embedded .step-panel {
+    display: flex;
+    height: min(625px, calc(100vh - 250px));
+    min-height: 0;
+    flex-direction: column;
+    padding: 24px 28px;
+}
+
+.embedded .step-content {
+    min-height: 0;
+    flex: 1 1 auto;
+}
+
+.embedded .step-heading {
+    margin-bottom: 16px;
+}
+
+.embedded .step-heading h2 {
+    margin: 6px 0;
+    font-size: clamp(24px, 2.2vw, 30px);
+}
+
+.embedded .step-heading p {
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.embedded .choice-card {
+    padding: 17px;
+}
+
+.embedded .choice-icon {
+    width: 42px;
+    height: 42px;
+    margin-bottom: 13px;
+}
+
+.embedded .choice-card > p {
+    min-height: 36px;
+    margin-top: 7px;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.embedded .choice-card > ul {
+    gap: 6px;
+    margin-top: 12px;
+    padding-top: 12px;
+}
+
+.embedded .choice-card > ul li {
+    font-size: 10px;
+}
+
+.embedded .tall-card {
+    min-height: 218px;
+}
+
+.embedded .license-card {
+    min-height: 190px;
+}
+
+.embedded .license-card > small,
+.embedded .compact-card > small {
+    padding-top: 12px;
+}
+
+.embedded .example-note {
+    margin: -7px 0 12px;
+    font-size: 10px;
+}
+
+.embedded .product-selection-list {
+    gap: 8px;
+}
+
+.embedded .product-toggle {
+    min-height: 76px;
+    padding: 10px 14px;
+}
+
+.embedded .quantity-editor {
+    padding: 8px 14px;
+}
+
+.embedded .compact-card,
+.embedded .branding-grid .compact-card {
+    min-height: 176px;
+}
+
+.embedded .branding-grid {
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.embedded .three-columns {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.embedded .step-navigation {
+    margin-top: 14px;
+    padding-top: 12px;
+}
+
+.embedded .back-button,
+.embedded .next-button {
+    min-height: 36px;
+}
+
+.embedded .estimate-sidebar {
+    position: static;
+}
+
+.embedded .summary-header {
+    height: 46px;
+}
+
+.embedded .summary-total {
+    gap: 5px;
+    padding: 16px 18px;
+}
+
+.embedded .summary-total strong {
+    font-size: 24px;
+}
+
+.embedded .summary-meta {
+    padding: 8px 18px;
+}
+
+.embedded .summary-meta div {
+    padding: 4px 0;
+}
+
+.embedded .summary-products {
+    padding: 12px 18px;
+}
+
+.embedded .summary-products > div {
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.embedded .summary-recurring {
+    padding: 12px 18px;
+}
+
+.embedded .summary-note {
+    padding: 10px 18px;
+}
+
+.embedded .result-heading {
+    margin-bottom: 12px;
+}
+
+.embedded .result-main-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.08fr) minmax(250px, 0.92fr);
+    gap: 12px;
+}
+
+.embedded .result-primary-column,
+.embedded .result-secondary-column {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.embedded .result-amounts {
+    gap: 8px;
+}
+
+.embedded .result-amounts article {
+    min-height: 88px;
+    gap: 4px;
+    padding: 12px;
+}
+
+.embedded .result-amounts strong {
+    font-size: 23px;
+}
+
+.embedded .result-breakdown {
+    margin-top: 0;
+}
+
+.embedded .breakdown-heading,
+.embedded .breakdown-row {
+    gap: 12px;
+    padding: 8px 12px;
+}
+
+.embedded .breakdown-row > span {
+    gap: 2px;
+    font-size: 11px;
+}
+
+.embedded .assessment-warning,
+.embedded .sales-note,
+.embedded .excluded-box,
+.embedded .estimate-notice,
+.embedded .result-actions {
+    margin-top: 0;
+}
+
+.embedded .assessment-warning,
+.embedded .sales-note {
+    padding: 11px;
+}
+
+.embedded .sales-note > div {
+    width: 34px;
+    height: 34px;
+}
+
+.embedded .sales-note p {
+    margin-top: 2px;
+    font-size: 10px;
+    line-height: 1.4;
+}
+
+.embedded .excluded-box {
+    padding: 11px 13px;
+}
+
+.embedded .excluded-box ul {
+    gap: 5px 10px;
+    margin-top: 7px;
+}
+
+.embedded .estimate-notice {
+    font-size: 9px;
+    line-height: 1.45;
+}
+
+.embedded .result-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+}
+
+.embedded .result-action {
+    min-height: 34px;
+    padding-inline: 9px;
+    font-size: 10px;
 }
 
 .calculator-grid-background {
@@ -1870,6 +2204,14 @@ onMounted(restoreSharedSelection)
 }
 
 @media (max-width: 1080px) {
+    .embedded .calculator-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .embedded .estimate-sidebar {
+        display: none;
+    }
+
     .calculator-layout {
         grid-template-columns: minmax(0, 1fr) 290px;
     }

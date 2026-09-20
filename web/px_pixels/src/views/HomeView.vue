@@ -552,7 +552,7 @@ function scrollToSolutions() {
 
 .solution-number {
     color: var(--primary);
-    font-family: "10 Pixel", sans-serif;
+    font-family: var(--font-brand);
     font-size: 14px;
     font-weight: 700;
     letter-spacing: 0.08em;

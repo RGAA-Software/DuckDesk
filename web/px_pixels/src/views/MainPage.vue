@@ -479,7 +479,7 @@ onBeforeUnmount(() => {
     display: inline-flex;
     align-items: center;
     color: color-mix(in srgb, var(--foreground) 82%, var(--background));
-    font-family: "10 Pixel", sans-serif;
+    font-family: var(--font-brand);
     font-size: 24px;
     font-weight: 700;
     letter-spacing: 0.08em;

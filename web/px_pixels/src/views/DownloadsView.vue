@@ -484,7 +484,7 @@ function scrollToPackages() {
 .constellation-core img,
 .constellation-core span { transform: rotate(-45deg); }
 .constellation-core img { width: 53px; height: 53px; }
-.constellation-core span { margin-top: -26px; color: var(--primary); font: 700 10px "10 Pixel", var(--font-tech); }
+.constellation-core span { margin-top: -26px; color: var(--primary); font: 700 10px var(--font-brand); }
 
 .constellation-product {
     position: absolute;
@@ -555,7 +555,7 @@ function scrollToPackages() {
 
 .package-panel.reversed .package-copy { order: 2; }
 .package-copy { display: flex; align-items: flex-start; justify-content: center; flex-direction: column; padding: 48px 56px; }
-.package-number { color: var(--tone); font: 700 14px "10 Pixel", sans-serif; letter-spacing: 0.08em; }
+.package-number { color: var(--tone); font: 700 14px var(--font-brand); letter-spacing: 0.08em; }
 .package-title { display: flex; align-items: center; gap: 15px; margin: 22px 0 15px; }
 .package-icon { display: grid; width: 52px; height: 52px; place-items: center; border-radius: 14px; background: var(--tone-soft); color: var(--tone); }
 .package-title small { color: var(--tone); font: 700 10px var(--font-tech); letter-spacing: 0.08em; text-transform: uppercase; }

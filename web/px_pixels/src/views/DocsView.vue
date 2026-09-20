@@ -457,7 +457,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', focusDocumentationSe
 .sheet-product { display: grid; min-height: 82px; grid-template-columns: 52px 1fr 72px; align-items: center; gap: 13px; padding: 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--card); }
 .sheet-icon { display: grid; width: 48px; height: 48px; place-items: center; border-radius: 13px; background: var(--tone-soft); color: var(--tone); }
 .sheet-product div { display: grid; gap: 5px; }
-.sheet-product small { color: var(--tone); font: 700 8px "10 Pixel", var(--font-tech); }
+.sheet-product small { color: var(--tone); font: 700 8px var(--font-brand); }
 .sheet-product strong { font-size: 13px; }
 .sheet-lines { display: grid; gap: 6px; }
 .sheet-lines i { height: 4px; border-radius: 4px; background: var(--border); }
@@ -477,7 +477,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', focusDocumentationSe
 .index-grid button { display: grid; min-height: 112px; grid-template-columns: 28px 42px 1fr auto; align-items: center; gap: 13px; padding: 22px 32px; border: 0; border-right: 1px solid var(--border); background: transparent; color: var(--foreground); cursor: pointer; text-align: left; }
 .index-grid button:first-child { padding-left: 0; }
 .index-grid button:last-child { border-right: 0; }
-.index-number { color: var(--tone); font: 700 11px "10 Pixel", var(--font-tech); }
+.index-number { color: var(--tone); font: 700 11px var(--font-brand); }
 .index-icon { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 11px; background: var(--tone-soft); color: var(--tone); }
 .index-copy { display: grid; gap: 4px; }
 .index-copy strong { font-size: 14px; }
@@ -494,7 +494,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', focusDocumentationSe
 .docs-panel.reversed { grid-template-columns: 1.14fr .86fr; }
 .docs-panel.reversed .docs-copy { order: 2; }
 .docs-copy { display: flex; align-items: flex-start; justify-content: center; flex-direction: column; padding: 48px 52px; }
-.product-number { color: var(--tone); font: 700 14px "10 Pixel", sans-serif; letter-spacing: .08em; }
+.product-number { color: var(--tone); font: 700 14px var(--font-brand); letter-spacing: .08em; }
 .product-title { display: flex; align-items: center; gap: 15px; margin: 22px 0 15px; }
 .product-title > span { display: grid; width: 52px; height: 52px; place-items: center; border-radius: 14px; background: var(--tone-soft); color: var(--tone); }
 .product-title small { color: var(--tone); font: 700 9px var(--font-tech); letter-spacing: .08em; text-transform: uppercase; }
@@ -503,7 +503,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', focusDocumentationSe
 .quick-label { display: flex; align-items: center; gap: 8px; margin-top: 25px; color: var(--tone); font-size: 12px; font-weight: 750; }
 .docs-copy ol { display: grid; gap: 10px; margin: 15px 0 0; padding: 0; list-style: none; }
 .docs-copy li { display: grid; grid-template-columns: 26px 1fr; align-items: center; gap: 9px; font-size: 12px; line-height: 1.5; }
-.docs-copy li span { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 8px; background: var(--tone-soft); color: var(--tone); font: 700 8px "10 Pixel", var(--font-tech); }
+.docs-copy li span { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 8px; background: var(--tone-soft); color: var(--tone); font: 700 8px var(--font-brand); }
 
 .docs-visual { position: relative; min-height: 520px; overflow: hidden; isolation: isolate; background: linear-gradient(145deg, var(--tone-soft), #eefbf5 52%, #eef3ff); }
 .visual-grid { z-index: -1; background-size: 30px 30px; mask-image: linear-gradient(135deg, transparent 2%, black 24%, black 72%, transparent 96%); }

@@ -7,7 +7,7 @@ import type {
     ProductKey,
 } from './types'
 
-const productKeys: ProductKey[] = ['remote', 'gaming', 'rendering']
+const productKeys: ProductKey[] = ['gaming', 'rendering']
 
 function roundMoney(amount: number): number {
     return Math.round(amount)

@@ -124,6 +124,7 @@ async function confirm() {
     <el-dialog
         v-model="visible"
         align-center
+        append-to-body
         :show-close="false"
         class="pixels-contact-dialog !max-w-[92vw] !w-140"
     >

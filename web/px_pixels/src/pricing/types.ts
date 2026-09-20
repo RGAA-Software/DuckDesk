@@ -1,7 +1,7 @@
 export type PricingCurrency = 'CNY' | 'USD'
 export type PricingUsage = 'internal' | 'oem'
 export type LicenseTerm = 'annual' | 'perpetual'
-export type ProductKey = 'remote' | 'gaming' | 'rendering'
+export type ProductKey = 'gaming' | 'rendering'
 export type DeliveryKey = 'self' | 'remote' | 'custom'
 export type BrandingKey = 'pixels' | 'basic' | 'full' | 'custom'
 
