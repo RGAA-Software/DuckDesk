@@ -44,6 +44,7 @@ set(SRCS
         network/net_message_maker.cpp
         network/server_cast.cpp
         network/render_service_client.cpp
+        network/file_transfer_report_delivery.cpp
         network/file_transfer_reporter.cpp
         network/resource_channel_reporter.cpp
         app/encoder_thread.cpp

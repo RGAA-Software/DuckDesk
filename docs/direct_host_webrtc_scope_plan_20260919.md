@@ -158,6 +158,10 @@ DB5短期功能出口通过后统一长测：Relay长连接、Direct Host重复�
   session/revision/token/instance/role，按 grant TTL 续租，撤销或续租失败即关房；未准入载荷丢弃，observer 无 input/clipboard/file。
   Client 配置 8/8、Render 生命周期 20/20 与 focused build/hash 已通过；本轮安全制品因公网主机 WinRM/SSH 拒绝已登记机器凭据，
   仍缺新的公网部署复验，不能沿用补丁前的公网证据冒充通过。
+- 文件传输审计在 Render 活跃期间现以固定间隔重试开始请求，并冻结每个待确认进度/终态快照的 sequence、字节、outcome 和 digest；只有
+  收到匹配 transfer ID/sequence 的权威确认才推进或删除终态。快照 3/3、文件服务回归 2/2、Render 生命周期 22/22 通过，Cloud/Remote
+  Render build/dist SHA-256 分别为 `498FA24C3BB789E42C0254AB5F51984A39069E3207C10B013198911F7377267E`、
+  `1CAC0B3523AB47D219A0ED6CD4074141DE3CD456FE12E72F293303D873AD7A59`。跨 Render 进程/主机重启的持久 outbox 与公网断线对账仍待完成。
 - Android/Console 进一步把 Relay WebSocket 建连从部署 appkey 改为最长 300 秒的资源会话准入票据，绑定 session 与实际目标资源；Relay
   在 upgrade 前验签和校验目标路由，Render 的 frontend grant 是其后的第二道独立门禁。部署 appkey 不进入 Android DTO/APK。
   Relay 4/4、独立 Relay 准入票据 1/1、Console 15/15、严格 Clippy、真实 PG node-control 1/1 和 Android 1.0.8 清洁构建/真机路径持久化均通过；

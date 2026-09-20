@@ -81,33 +81,33 @@ void FileTransferReporter::Begin(const render::FileTransferAuditBegin& audit) {
 void FileTransferReporter::Progress(const render::FileTransferAuditProgress& audit) {
     std::scoped_lock lock(activities_mutex_);
     const auto current = activities_.find(audit.transfer_request_id);
-    if (stopping_ || current == activities_.end() || current->second->terminal_requested) {
+    if (stopping_ || current == activities_.end() || current->second->delivery.TerminalRequested()) {
         return;
     }
-    current->second->transferred_bytes = std::min(audit.transferred_bytes, current->second->total_bytes);
+    current->second->delivery.RecordProgress(std::min(audit.transferred_bytes, current->second->total_bytes));
 }
 
 void FileTransferReporter::End(const render::FileTransferAuditEnd& audit) {
     std::scoped_lock lock(activities_mutex_);
     const auto current = activities_.find(audit.transfer_request_id);
-    if (stopping_ || current == activities_.end() || current->second->terminal_requested) {
+    if (stopping_ || current == activities_.end() || current->second->delivery.TerminalRequested()) {
         return;
     }
     auto& activity = *current->second;
-    activity.transferred_bytes = std::min(audit.transferred_bytes, activity.total_bytes);
-    activity.terminal_outcome = ProtocolOutcome(audit.console_outcome);
-    activity.verified_sha256 = audit.verified_sha256;
-    if (activity.terminal_outcome == ServiceFileTransferOutcome::kServiceFileTransferCompleted) {
-        if (!activity.verified_sha256) {
-            activity.terminal_outcome = ServiceFileTransferOutcome::kServiceFileTransferIoError;
-        } else if (activity.transferred_bytes != activity.total_bytes) {
-            activity.terminal_outcome = ServiceFileTransferOutcome::kServiceFileTransferSourceChanged;
-            activity.verified_sha256.reset();
+    const auto transferred_bytes = std::min(audit.transferred_bytes, activity.total_bytes);
+    auto terminal_outcome = ProtocolOutcome(audit.console_outcome);
+    auto verified_sha256 = audit.verified_sha256;
+    if (terminal_outcome == ServiceFileTransferOutcome::kServiceFileTransferCompleted) {
+        if (!verified_sha256) {
+            terminal_outcome = ServiceFileTransferOutcome::kServiceFileTransferIoError;
+        } else if (transferred_bytes != activity.total_bytes) {
+            terminal_outcome = ServiceFileTransferOutcome::kServiceFileTransferSourceChanged;
+            verified_sha256.reset();
         }
     } else {
-        activity.verified_sha256.reset();
+        verified_sha256.reset();
     }
-    activity.terminal_requested = true;
+    activity.delivery.RecordTerminal(transferred_bytes, terminal_outcome, std::move(verified_sha256));
 }
 
 void FileTransferReporter::Stop() {
@@ -139,28 +139,54 @@ bool FileTransferReporter::IsCanonicalUuid(const std::string& value) {
     return true;
 }
 
+bool FileTransferReporter::IsTransientFailure(const PxResult<MsgFileTransferServiceResult>& result) {
+    if (!result.HasValue()) {
+        return result.Error().retryable;
+    }
+    return !result.Value().accepted_ && result.Value().error_code_ == "NODE_CONTROL_UNAVAILABLE";
+}
+
 PxAwaitable<void> FileTransferReporter::BeginAsync(std::weak_ptr<FileTransferReporter> reporter, std::shared_ptr<Activity> activity) {
-    const auto owner = reporter.lock();
-    const auto service_client = owner ? owner->service_client_.lock() : nullptr;
-    if (!owner || !service_client) {
-        co_return;
-    }
-    auto result = co_await service_client->RequestFileTransferBeginAsync(GetUUID(), activity->transfer_request_id, activity->logical_session_id,
-                                                                         activity->direction, activity->file_name, activity->total_bytes,
-                                                                         std::nullopt, std::chrono::steady_clock::now() + std::chrono::seconds(12));
-    if (!result.HasValue() || !result.Value().accepted_ || !IsCanonicalUuid(result.Value().transfer_id_) || result.Value().state_ != "active") {
-        LOGW("event=file_transfer.begin component=render outcome=failed session={} code={}", activity->logical_session_id,
-             result.HasValue() ? result.Value().error_code_ : result.Error().StableCode());
-        owner->RemoveIfCurrent(activity);
-        co_return;
-    }
-    {
-        std::scoped_lock lock(owner->activities_mutex_);
-        const auto current = owner->activities_.find(activity->transfer_request_id);
-        if (owner->stopping_ || current == owner->activities_.end() || current->second != activity) {
+    const auto executor = co_await asio::this_coro::executor;
+    auto retry_timer = std::make_shared<asio::steady_timer>(executor);
+    for (;;) {
+        const auto owner = reporter.lock();
+        const auto service_client = owner ? owner->service_client_.lock() : nullptr;
+        if (!owner || !service_client) {
             co_return;
         }
-        activity->transfer_id = result.Value().transfer_id_;
+        {
+            std::scoped_lock lock(owner->activities_mutex_);
+            const auto current = owner->activities_.find(activity->transfer_request_id);
+            if (owner->stopping_ || current == owner->activities_.end() || current->second != activity) {
+                co_return;
+            }
+        }
+        auto result = co_await service_client->RequestFileTransferBeginAsync(
+            GetUUID(), activity->transfer_request_id, activity->logical_session_id, activity->direction, activity->file_name, activity->total_bytes,
+            std::nullopt, std::chrono::steady_clock::now() + std::chrono::seconds(12));
+        if (result.HasValue() && result.Value().accepted_ && IsCanonicalUuid(result.Value().transfer_id_) && result.Value().state_ == "active") {
+            std::scoped_lock lock(owner->activities_mutex_);
+            const auto current = owner->activities_.find(activity->transfer_request_id);
+            if (owner->stopping_ || current == owner->activities_.end() || current->second != activity) {
+                co_return;
+            }
+            activity->transfer_id = result.Value().transfer_id_;
+            break;
+        }
+        LOGW("event=file_transfer.begin component=render outcome=failed session={} code={}", activity->logical_session_id,
+             result.HasValue() ? result.Value().error_code_ : result.Error().StableCode());
+        if (!IsTransientFailure(result)) {
+            owner->RemoveIfCurrent(activity);
+            co_return;
+        }
+        retry_timer->expires_after(std::chrono::seconds(1));
+        asio::error_code wait_error{};
+        co_await retry_timer->async_wait(asio::redirect_error(asio::use_awaitable, wait_error));
+        const auto cancellation = co_await asio::this_coro::cancellation_state;
+        if (wait_error || cancellation.cancelled() != asio::cancellation_type::none) {
+            co_return;
+        }
     }
     LOGI("event=file_transfer.begin component=render outcome=success session={} transfer={} total_bytes={}", activity->logical_session_id,
          activity->transfer_id, activity->total_bytes);
@@ -171,7 +197,7 @@ PxAwaitable<void> FileTransferReporter::ReportLoopAsync(std::weak_ptr<FileTransf
     const auto executor = co_await asio::this_coro::executor;
     auto timer = std::make_shared<asio::steady_timer>(executor);
     for (;;) {
-        bool terminal_before_wait{};
+        bool wait_before_report{};
         {
             const auto owner = reporter.lock();
             if (!owner) {
@@ -182,9 +208,9 @@ PxAwaitable<void> FileTransferReporter::ReportLoopAsync(std::weak_ptr<FileTransf
             if (owner->stopping_ || current == owner->activities_.end() || current->second != activity) {
                 co_return;
             }
-            terminal_before_wait = activity->terminal_requested;
+            wait_before_report = !activity->delivery.TerminalRequested() && !activity->delivery.HasPendingSnapshot();
         }
-        if (!terminal_before_wait) {
+        if (wait_before_report) {
             timer->expires_after(std::chrono::seconds(1));
             asio::error_code wait_error{};
             co_await timer->async_wait(asio::redirect_error(asio::use_awaitable, wait_error));
@@ -194,11 +220,7 @@ PxAwaitable<void> FileTransferReporter::ReportLoopAsync(std::weak_ptr<FileTransf
             }
         }
 
-        bool terminal{};
-        int outcome{ServiceFileTransferOutcome::kServiceFileTransferProgress};
-        std::uint64_t sequence{};
-        std::uint64_t transferred_bytes{};
-        std::optional<std::array<std::uint8_t, 32>> verified_sha256{};
+        std::optional<FileTransferReportSnapshot> report_snapshot{};
         {
             const auto owner = reporter.lock();
             if (!owner) {
@@ -209,11 +231,14 @@ PxAwaitable<void> FileTransferReporter::ReportLoopAsync(std::weak_ptr<FileTransf
             if (owner->stopping_ || current == owner->activities_.end() || current->second != activity) {
                 co_return;
             }
-            terminal = activity->terminal_requested;
-            outcome = terminal ? activity->terminal_outcome : outcome;
-            sequence = ++activity->sequence;
-            transferred_bytes = activity->transferred_bytes;
-            verified_sha256 = activity->verified_sha256;
+            report_snapshot = activity->delivery.PrepareSnapshot(ServiceFileTransferOutcome::kServiceFileTransferProgress);
+        }
+        if (!report_snapshot) {
+            LOGE("event=file_transfer.report component=render outcome=failed transfer={} code=REPORT_SEQUENCE_EXHAUSTED", activity->transfer_id);
+            if (const auto owner = reporter.lock()) {
+                owner->RemoveIfCurrent(activity);
+            }
+            co_return;
         }
 
         const auto owner = reporter.lock();
@@ -221,17 +246,38 @@ PxAwaitable<void> FileTransferReporter::ReportLoopAsync(std::weak_ptr<FileTransf
         if (!owner || !service_client) {
             co_return;
         }
-        auto result =
-            co_await service_client->RequestFileTransferReportAsync(GetUUID(), activity->transfer_id, sequence, transferred_bytes, outcome,
-                                                                    verified_sha256, std::chrono::steady_clock::now() + std::chrono::seconds(12));
-        if (!result.HasValue() || !result.Value().accepted_) {
+        auto result = co_await service_client->RequestFileTransferReportAsync(
+            GetUUID(), activity->transfer_id, report_snapshot->sequence, report_snapshot->transferred_bytes, report_snapshot->outcome,
+            report_snapshot->verified_sha256, std::chrono::steady_clock::now() + std::chrono::seconds(12));
+        const bool accepted = result.HasValue() && result.Value().accepted_ && result.Value().transfer_id_ == activity->transfer_id &&
+                              result.Value().sequence_ == report_snapshot->sequence;
+        if (!accepted) {
             LOGW("event=file_transfer.report component=render outcome=failed transfer={} code={}", activity->transfer_id,
                  result.HasValue() ? result.Value().error_code_ : result.Error().StableCode());
+            if (!IsTransientFailure(result)) {
+                owner->RemoveIfCurrent(activity);
+                co_return;
+            }
+            timer->expires_after(std::chrono::seconds(1));
+            asio::error_code wait_error{};
+            co_await timer->async_wait(asio::redirect_error(asio::use_awaitable, wait_error));
+            const auto cancellation = co_await asio::this_coro::cancellation_state;
+            if (wait_error || cancellation.cancelled() != asio::cancellation_type::none) {
+                co_return;
+            }
         } else {
+            {
+                std::scoped_lock lock(owner->activities_mutex_);
+                const auto current = owner->activities_.find(activity->transfer_request_id);
+                if (owner->stopping_ || current == owner->activities_.end() || current->second != activity ||
+                    !activity->delivery.Accept(report_snapshot->sequence)) {
+                    co_return;
+                }
+            }
             LOGI("event=file_transfer.report component=render outcome=success transfer={} state={} transferred_bytes={}", activity->transfer_id,
-                 result.Value().state_, transferred_bytes);
+                 result.Value().state_, report_snapshot->transferred_bytes);
         }
-        if (terminal) {
+        if (accepted && report_snapshot->terminal) {
             owner->RemoveIfCurrent(activity);
             co_return;
         }

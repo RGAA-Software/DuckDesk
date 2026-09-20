@@ -9,6 +9,8 @@
 #include <string>
 #include <unordered_map>
 
+#include "network/file_transfer_report_delivery.h"
+#include "px_common/async_result.h"
 #include "px_common/async_runtime.h"
 
 namespace px {
@@ -16,6 +18,7 @@ namespace px {
 class PxAsyncRuntime;
 class PxAsyncScope;
 class RenderServiceClient;
+class MsgFileTransferServiceResult;
 
 namespace render {
 struct FileTransferAuditBegin;
@@ -44,15 +47,12 @@ private:
         std::string file_name{};
         std::string transfer_id{};
         int direction{};
-        int terminal_outcome{};
         std::uint64_t total_bytes{};
-        std::uint64_t transferred_bytes{};
-        std::uint64_t sequence{};
-        std::optional<std::array<std::uint8_t, 32>> verified_sha256{};
-        bool terminal_requested{};
+        FileTransferReportDelivery delivery{};
     };
 
     static bool IsCanonicalUuid(const std::string& value);
+    static bool IsTransientFailure(const PxResult<MsgFileTransferServiceResult>& result);
     static PxAwaitable<void> BeginAsync(std::weak_ptr<FileTransferReporter> reporter, std::shared_ptr<Activity> activity);
     static PxAwaitable<void> ReportLoopAsync(std::weak_ptr<FileTransferReporter> reporter, std::shared_ptr<Activity> activity);
     void RemoveIfCurrent(const std::shared_ptr<Activity>& activity);

@@ -219,6 +219,12 @@ add_executable(test_relay_resource_channel unit/test_relay_resource_channel.cpp)
 target_link_libraries(test_relay_resource_channel PRIVATE net_relay render_architecture_core GTest::gtest GTest::gtest_main)
 add_test(NAME relay_resource_channel COMMAND test_relay_resource_channel)
 
+add_executable(test_file_transfer_report_delivery
+    unit/test_file_transfer_report_delivery.cpp
+    ../network/file_transfer_report_delivery.cpp)
+target_link_libraries(test_file_transfer_report_delivery PRIVATE GTest::gtest GTest::gtest_main)
+add_test(NAME file_transfer_report_delivery COMMAND test_file_transfer_report_delivery)
+
 add_executable(test_webrtc_transport_lifecycle
         test_webrtc_transport_lifecycle.cpp
         ../network/webrtc/webrtc_execution_context.cpp
@@ -323,6 +329,7 @@ set_property(TEST
     udp_transport_shutdown
     relay_transport_reconnect_owner
     relay_resource_channel
+    file_transfer_report_delivery
     webrtc_transport_lifecycle
     APPEND PROPERTY LABELS "render-lifecycle")
 
