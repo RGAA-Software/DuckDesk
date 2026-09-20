@@ -1257,6 +1257,13 @@ transfer 的终态”代码缺口；主机重启实物故障注入、公网取�
 Cloud Node/Remote 的聚焦 release Service 构建均通过，构建树与各自 development dist 的 `px_service.exe` SHA-256 一致为
 `631823710EAC30D39DDC70B77B6A4B6149706215B873C472FC6E01D3632C82ED`；未运行 release-only 全量构建或升版。
 
+Console 本人活动页现已接入 owner-scoped `/api/console/file-transfers`，与管理员历史保持权限分离；页面按文件名/会话、状态筛选并展示
+方向、单调进度、终态原因和更新时间，中英文目录保持一致，同时明确审计历史不是可恢复任务队列。新增 API 合同 2/2，Console 全量 Vitest
+49/49、类型检查、变更文件 ESLint 和生产构建通过；Vitest 也已明确排除 `e2e-public/**`，不再把 Playwright 公网用例误载为单元测试。
+聚焦静态资源已发布到 `output/px_console/dev/static` 并逐文件 hash 复核，其中 JS 为
+`3E540DC357700E648E423520FE7E53953C7456FB4EB1EC88409CF59A839A1C88`。这关闭客户端“无本人传输历史展示”的实现缺口，但公网真实用户
+浏览器与实际传输对账仍保留在 DB5。
+
 ## 仍未通过的阶段出口
 
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。

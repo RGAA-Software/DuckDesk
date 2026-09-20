@@ -1,4 +1,4 @@
-import type { AxiosInstance } from "axios";
+import { AxiosError, type AxiosInstance } from "axios";
 import { hasUserToken, publicHttp, setUserToken, userHttp, userResourceHttp } from "./http";
 
 export interface UserProfile {
@@ -77,6 +77,23 @@ export interface RecordingCacheView {
     size_bytes: number;
     received_bytes: number;
     updated_at: string;
+}
+
+export interface FileTransferView {
+    id: string;
+    session_id: string;
+    node_id: string;
+    direction: "to_node" | "from_node";
+    file_name: string;
+    total_bytes: number;
+    transferred_bytes: number;
+    state: "active" | "completed" | "failed" | "cancelled";
+    reason: string | null;
+    sequence: number;
+    revision: number;
+    created_at: string;
+    updated_at: string;
+    ended_at: string | null;
 }
 
 interface DeviceRecord {
@@ -235,8 +252,9 @@ export async function queryUser(): Promise<UserProfile | null> {
     if (!hasUserToken()) return null;
     try {
         return (await userHttp.get<UserProfile>("/api/console/session")).data;
-    } catch (error: any) {
-        if (error?.response?.status === 401 || error?.response?.status === 403) {
+    }
+    catch (error: unknown) {
+        if (error instanceof AxiosError && [401, 403].includes(error.response?.status ?? 0)) {
             setUserToken("");
             return null;
         }
@@ -247,7 +265,8 @@ export async function queryUser(): Promise<UserProfile | null> {
 export async function logoutUser() {
     try {
         await userHttp.delete("/api/console/session");
-    } finally {
+    }
+    finally {
         setUserToken("");
     }
 }
@@ -332,6 +351,20 @@ export async function getInstancesPage(page = 1, pageSize = 10, keyword = "", st
                 instance.instance_id.toLocaleLowerCase().includes(normalized)),
     );
     return pageOf(instances, page, pageSize);
+}
+
+export async function getFileTransfersPage(page = 1, pageSize = 10, keyword = "", state = "") {
+    const normalized = keyword.trim().toLocaleLowerCase();
+    const transfers = (
+        await collectPages<FileTransferView>(userResourceHttp, "/api/console/file-transfers")
+    ).filter(
+        transfer =>
+            (!state || transfer.state === state) &&
+            (!normalized ||
+                transfer.file_name.toLocaleLowerCase().includes(normalized) ||
+                transfer.session_id.toLocaleLowerCase().includes(normalized)),
+    );
+    return pageOf(transfers, page, pageSize);
 }
 
 export async function getRecordingsPage(page = 1, pageSize = 10, keyword = "") {

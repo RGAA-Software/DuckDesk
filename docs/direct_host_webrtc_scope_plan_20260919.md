@@ -169,6 +169,9 @@ DB5短期功能出口通过后统一长测：Relay长连接、Direct Host重复�
   Cloud Node/Remote 聚焦 release Service 构建与 development dist 的 SHA-256 均为
   `631823710EAC30D39DDC70B77B6A4B6149706215B873C472FC6E01D3632C82ED`。主机重启实物故障注入、公网取消/重试和 Console 历史对账仍待
   DB5 短测。
+- Console 本人活动页已接 owner-scoped 文件传输历史，提供中英文方向、状态、进度、终态原因、筛选和分页；页面明确区分审计历史与
+  可恢复任务队列。新增合同 2/2、Console 全量 Vitest 49/49、类型检查、ESLint、生产构建和 development static 逐文件 hash 均通过；
+  公网实际传输后的本人浏览器对账仍待 DB5。
 - Android/Console 进一步把 Relay WebSocket 建连从部署 appkey 改为最长 300 秒的资源会话准入票据，绑定 session 与实际目标资源；Relay
   在 upgrade 前验签和校验目标路由，Render 的 frontend grant 是其后的第二道独立门禁。部署 appkey 不进入 Android DTO/APK。
   Relay 4/4、独立 Relay 准入票据 1/1、Console 15/15、严格 Clippy、真实 PG node-control 1/1 和 Android 1.0.8 清洁构建/真机路径持久化均通过；
