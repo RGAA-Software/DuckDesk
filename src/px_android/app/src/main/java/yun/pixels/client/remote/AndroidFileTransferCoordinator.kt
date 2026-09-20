@@ -159,8 +159,16 @@ class AndroidFileTransferCoordinator(
         if (state !in setOf(FileTransferState.Failed, FileTransferState.Cancelled)) return
         active.nativeJobId?.let { taskIdsByJob.remove(JobKey(active.sessionId, it)) }
         active.nativeJobId = null
+        active.awaitingFileNumber = null
         active.cancelRequested = false
         active.running = false
+        active.scheduled = false
+        active.lastFileNumber = 0
+        active.lastFileCount = 0
+        active.lastTotalBytes = 0
+        active.lastCompletedBytes = 0
+        active.lastSpeed = 0.0
+        active.lastError = ""
         if (active.direction == FileTransferDirection.Download) {
             cleanupStaging(active)
             active.stagingDirectory.mkdirs()

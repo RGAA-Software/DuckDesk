@@ -1287,6 +1287,13 @@ SHA-256 分别一致为 `7B987D3416FEB268071C62C54848A1524455DCD8DF43B6BE902D3F5
 `6042ED86C351A95C6120451B1280407988EA748D08ED6CC6A82A4E34FDD1256E`。本条关闭 Windows 两种文件面板的重试入口一致性和已知竞态，
 仍不替代公网真实失败/取消后恢复、两端独立 hash 与主机重启故障注入。
 
+Android 文件传输重试现会在启动新 native job 前清空旧覆盖确认、排队标记、进度、速度和错误缓存，避免把失败 job 的展示事实带入新 job。
+新增真机协调器测试覆盖“进度 → 失败 → 重试”，要求 native job ID 前进且新运行态从零开始；测试 APK 的 Kotlin/Java 编译、App JVM 单测
+5/5 和 Lint 已通过。连接的 Xiaomi HyperOS 设备先后以 `INSTALL_FAILED_VERSION_DOWNGRADE` 和 `INSTALL_FAILED_USER_RESTRICTED` 拒绝
+instrumentation 安装；改用 10011 临时 Debug 升级包后已排除降级原因，但 USB 安装仍未获系统放行，因此不能把该用例记为真机通过。
+Gradle connected runner 在首次失败后的自动清理移除了设备上原 Debug 包，随后已停止使用其自动安装/清理流程并强制返回桌面；恢复 USB 安装权限后
+应使用手动覆盖安装主 APK/测试 APK和 `am instrument` 执行，禁止卸载或清除应用数据。
+
 ## 仍未通过的阶段出口
 
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。
