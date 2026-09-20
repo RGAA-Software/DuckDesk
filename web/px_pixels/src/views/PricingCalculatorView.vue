@@ -29,7 +29,6 @@ import { priceCatalog } from '@/pricing/catalog'
 import type {
     BrandingKey,
     DeliveryKey,
-    LicenseTerm,
     PricingCurrency,
     PricingSelection,
     PricingUsage,
@@ -61,7 +60,6 @@ const productIcons: Record<ProductKey, Component> = {
 }
 const stepIcons: Component[] = [
     IconBuildingSkyscraper,
-    IconFileInvoice,
     IconStack2,
     IconServerCog,
     IconPalette,
@@ -70,10 +68,6 @@ const stepIcons: Component[] = [
 const usageChoices: ChoiceCard[] = [
     { key: 'internal', icon: IconBuildingSkyscraper },
     { key: 'oem', icon: IconWorld },
-]
-const licenseChoices: ChoiceCard[] = [
-    { key: 'annual', icon: IconFileInvoice },
-    { key: 'perpetual', icon: IconStack2 },
 ]
 const deliveryChoices: ChoiceCard[] = [
     { key: 'self', icon: IconStack2 },
@@ -100,11 +94,10 @@ let feedbackTimer: ReturnType<typeof setTimeout> | undefined
 
 const selection = reactive<PricingSelection>({
     usage: 'internal',
-    licenseTerm: 'annual',
     currency: locale.value === 'en' ? 'USD' : 'CNY',
     quantities: {
-        gaming: 5,
-        rendering: 0,
+        gaming: 1,
+        rendering: 1,
     },
     delivery: 'self',
     branding: 'pixels',
@@ -126,19 +119,11 @@ const brandingChoices = computed(() =>
         ? oemBrandingChoices
         : internalBrandingChoices,
 )
-const primaryAmountLabel = computed(() =>
-    selection.licenseTerm === 'perpetual' && selection.usage === 'internal'
-        ? t('pricingCalculator.firstPurchase')
-        : t('pricingCalculator.firstYear'),
-)
+const primaryAmountLabel = computed(() => t('pricingCalculator.firstYear'))
 const usageLabel = computed(() =>
     t(`pricingCalculator.${selection.usage}.title`),
 )
-const termLabel = computed(() =>
-    selection.usage === 'oem'
-        ? t('pricingCalculator.annual.title')
-        : t(`pricingCalculator.${selection.licenseTerm}.title`),
-)
+const termLabel = computed(() => t('pricingCalculator.annual.title'))
 const deliveryLabel = computed(() =>
     t(`pricingCalculator.delivery.${selection.delivery}.title`),
 )
@@ -157,14 +142,8 @@ const contactContent = computed(() => buildEstimateText())
 function selectUsage(usage: PricingUsage) {
     selection.usage = usage
     if (usage === 'oem') {
-        selection.licenseTerm = 'annual'
         selection.branding = 'pixels'
     }
-}
-
-function selectLicenseTerm(licenseTerm: LicenseTerm) {
-    if (selection.usage === 'oem') return
-    selection.licenseTerm = licenseTerm
 }
 
 function toggleProduct(product: ProductKey) {
@@ -177,9 +156,14 @@ function toggleProduct(product: ProductKey) {
 
 function updateQuantity(product: ProductKey, nextQuantity: number) {
     if (selection.quantities[product] === 0) return
+    if (!Number.isFinite(nextQuantity) || nextQuantity <= 0) {
+        selection.quantities[product] = 0
+        return
+    }
+
     selection.quantities[product] = Math.max(
         currencyCatalog.value.minimumStreams,
-        Math.floor(nextQuantity || currencyCatalog.value.minimumStreams),
+        Math.floor(nextQuantity),
     )
 }
 
@@ -196,13 +180,13 @@ function selectBranding(branding: BrandingKey) {
 }
 
 function canOpenStep(stepIndex: number): boolean {
-    return stepIndex < 5 || hasProducts.value
+    return stepIndex < 4 || hasProducts.value
 }
 
 function openStep(stepIndex: number) {
     if (!canOpenStep(stepIndex)) {
         validationMessage.value = t('pricingCalculator.selectProduct')
-        currentStep.value = 2
+        currentStep.value = 1
         return
     }
     currentStep.value = stepIndex
@@ -218,11 +202,11 @@ function openStep(stepIndex: number) {
 }
 
 function nextStep() {
-    if (currentStep.value === 2 && !hasProducts.value) {
+    if (currentStep.value === 1 && !hasProducts.value) {
         validationMessage.value = t('pricingCalculator.selectProduct')
         return
     }
-    openStep(Math.min(currentStep.value + 1, 5))
+    openStep(Math.min(currentStep.value + 1, 4))
 }
 
 function previousStep() {
@@ -234,8 +218,7 @@ function money(amount: number): string {
 }
 
 function productUnitPrice(product: ProductKey): number {
-    const term = selection.usage === 'oem' ? 'annual' : selection.licenseTerm
-    return currencyCatalog.value.products[product][term]
+    return currencyCatalog.value.products[product]
 }
 
 function deliveryPrice(delivery: string): string {
@@ -315,13 +298,11 @@ function queryValue(value: unknown): string | undefined {
 
 function restoreSharedSelection() {
     const usage = queryValue(route.query.usage)
-    const term = queryValue(route.query.term)
     const currency = queryValue(route.query.currency)
     const delivery = queryValue(route.query.delivery)
     const branding = queryValue(route.query.branding)
 
     if (usage === 'internal' || usage === 'oem') selectUsage(usage)
-    if (term === 'annual' || term === 'perpetual') selectLicenseTerm(term)
     if (currency === 'CNY' || currency === 'USD') selection.currency = currency
     if (delivery === 'self' || delivery === 'remote' || delivery === 'custom') {
         selection.delivery = delivery
@@ -356,7 +337,7 @@ function restoreSharedSelection() {
     }
 
     if (queryValue(route.query.result) === '1' && hasProducts.value) {
-        currentStep.value = 5
+        currentStep.value = 4
     }
 }
 
@@ -367,7 +348,6 @@ function buildShareUrl(): string {
     }
     shareUrl.search = ''
     shareUrl.searchParams.set('usage', selection.usage)
-    shareUrl.searchParams.set('term', selection.licenseTerm)
     shareUrl.searchParams.set('currency', selection.currency)
     shareUrl.searchParams.set('delivery', selection.delivery)
     shareUrl.searchParams.set('branding', selection.branding)
@@ -462,9 +442,9 @@ onMounted(() => {
         </nav>
 
         <div class="step-mobile-progress">
-          <span>{{ t('pricingCalculator.stepOf', { current: currentStep + 1, total: 6 }) }}</span>
+          <span>{{ t('pricingCalculator.stepOf', { current: currentStep + 1, total: 5 }) }}</span>
           <strong>{{ stepLabels[currentStep] }}</strong>
-          <i><b :style="{ width: `${((currentStep + 1) / 6) * 100}%` }" /></i>
+          <i><b :style="{ width: `${((currentStep + 1) / 5) * 100}%` }" /></i>
         </div>
 
         <div class="step-panel">
@@ -507,48 +487,7 @@ onMounted(() => {
 
               <template v-else-if="currentStep === 1">
                 <div class="step-heading">
-                  <span>02 / LICENSE</span>
-                  <h2>{{ t('pricingCalculator.licenseTitle') }}</h2>
-                  <p>{{ t('pricingCalculator.licenseDescription') }}</p>
-                </div>
-                <div v-if="selection.usage === 'oem'" class="oem-license-banner">
-                  <span><IconWorld :size="23" :stroke-width="1.6" /></span>
-                  <div>
-                    <strong>{{ t('pricingCalculator.annual.title') }}</strong>
-                    <p>{{ t('pricingCalculator.oemAnnualOnly') }}</p>
-                  </div>
-                  <IconCheck :size="20" :stroke-width="2" />
-                </div>
-                <div v-else class="choice-grid two-columns">
-                  <button
-                    v-for="licenseChoice in licenseChoices"
-                    :key="licenseChoice.key"
-                    type="button"
-                    class="choice-card license-card"
-                    :class="{ selected: selection.licenseTerm === licenseChoice.key }"
-                    @click="selectLicenseTerm(licenseChoice.key as LicenseTerm)"
-                  >
-                    <span class="selection-check">
-                      <IconCheck :size="13" :stroke-width="2.3" />
-                    </span>
-                    <span class="choice-icon">
-                      <component :is="licenseChoice.icon" :size="26" :stroke-width="1.5" />
-                    </span>
-                    <div class="choice-title-row">
-                      <strong>{{ t(`pricingCalculator.${licenseChoice.key}.title`) }}</strong>
-                      <em v-if="licenseChoice.key === 'annual'">
-                        {{ t('pricingCalculator.annual.badge') }}
-                      </em>
-                    </div>
-                    <p>{{ t(`pricingCalculator.${licenseChoice.key}.description`) }}</p>
-                    <small>{{ t(`pricingCalculator.${licenseChoice.key}.note`) }}</small>
-                  </button>
-                </div>
-              </template>
-
-              <template v-else-if="currentStep === 2">
-                <div class="step-heading">
-                  <span>03 / PRODUCTS</span>
+                  <span>02 / PRODUCTS</span>
                   <h2>{{ t('pricingCalculator.productsTitle') }}</h2>
                   <p>{{ t('pricingCalculator.productsDescription') }}</p>
                 </div>
@@ -579,11 +518,7 @@ onMounted(() => {
                       </span>
                       <span class="product-price">
                         <b>{{ money(productUnitPrice(product)) }}</b>
-                        <small>
-                          {{ selection.licenseTerm === 'perpetual' && selection.usage === 'internal'
-                            ? t('pricingCalculator.perStreamPerpetual')
-                            : t('pricingCalculator.perStreamYear') }}
-                        </small>
+                        <small>{{ t('pricingCalculator.perStreamYear') }}</small>
                       </span>
                       <span class="large-check"><IconCheck :size="16" :stroke-width="2.2" /></span>
                     </button>
@@ -601,7 +536,7 @@ onMounted(() => {
                           :value="selection.quantities[product]"
                           type="number"
                           inputmode="numeric"
-                          :min="currencyCatalog.minimumStreams"
+                          :min="0"
                           :aria-label="t('pricingCalculator.customQuantity')"
                           @input="updateQuantity(product, Number(($event.target as HTMLInputElement).value))"
                         >
@@ -625,9 +560,9 @@ onMounted(() => {
                 </p>
               </template>
 
-              <template v-else-if="currentStep === 3">
+              <template v-else-if="currentStep === 2">
                 <div class="step-heading">
-                  <span>04 / DELIVERY</span>
+                  <span>03 / DELIVERY</span>
                   <h2>{{ t('pricingCalculator.deliveryTitle') }}</h2>
                   <p>{{ t('pricingCalculator.deliveryDescription') }}</p>
                 </div>
@@ -651,9 +586,9 @@ onMounted(() => {
                 </div>
               </template>
 
-              <template v-else-if="currentStep === 4">
+              <template v-else-if="currentStep === 3">
                 <div class="step-heading">
-                  <span>05 / BRAND</span>
+                  <span>04 / BRAND</span>
                   <h2>{{ t('pricingCalculator.brandingTitle') }}</h2>
                   <p>{{ t('pricingCalculator.brandingDescription') }}</p>
                 </div>
@@ -683,7 +618,7 @@ onMounted(() => {
 
               <template v-else>
                 <div class="step-heading result-heading">
-                  <span>06 / ESTIMATE</span>
+                  <span>05 / ESTIMATE</span>
                   <h2>{{ t('pricingCalculator.resultTitle') }}</h2>
                   <p>{{ t('pricingCalculator.resultDescription') }}</p>
                 </div>
@@ -734,10 +669,6 @@ onMounted(() => {
                       <div class="breakdown-row">
                         <span>{{ t('pricingCalculator.brandingSubtotal') }}<small>{{ brandingLabel }}</small></span>
                         <strong>{{ money(estimate.brandingAmount) }}</strong>
-                      </div>
-                      <div v-if="estimate.coreMaintenanceAmount" class="breakdown-row future-row">
-                        <span>{{ t('pricingCalculator.coreMaintenance') }}<small>{{ t('pricingCalculator.secondYear') }}</small></span>
-                        <strong>{{ money(estimate.coreMaintenanceAmount) }}</strong>
                       </div>
                       <div v-if="estimate.brandingMaintenanceAmount" class="breakdown-row future-row">
                         <span>{{ t('pricingCalculator.brandingMaintenance') }}<small>{{ t('pricingCalculator.secondYear') }}</small></span>
@@ -792,18 +723,18 @@ onMounted(() => {
             </div>
           </Transition>
 
-          <div v-if="currentStep < 5" class="step-navigation">
+          <div v-if="currentStep < 4" class="step-navigation">
             <button v-if="currentStep > 0" type="button" class="back-button" @click="previousStep">
               <IconArrowLeft :size="17" :stroke-width="1.8" />{{ t('pricingCalculator.previous') }}
             </button>
             <span v-else />
             <button type="button" class="next-button" @click="nextStep">
-              {{ currentStep === 4 ? t('pricingCalculator.viewResult') : t('pricingCalculator.next') }}
+              {{ currentStep === 3 ? t('pricingCalculator.viewResult') : t('pricingCalculator.next') }}
               <IconArrowRight :size="17" :stroke-width="1.9" />
             </button>
           </div>
           <div v-else class="step-navigation edit-navigation">
-            <button type="button" class="back-button" @click="openStep(2)">
+            <button type="button" class="back-button" @click="openStep(1)">
               <IconArrowLeft :size="17" :stroke-width="1.8" />{{ t('pricingCalculator.edit') }}
             </button>
           </div>
@@ -986,11 +917,6 @@ onMounted(() => {
     min-height: 218px;
 }
 
-.embedded .license-card {
-    min-height: 190px;
-}
-
-.embedded .license-card > small,
 .embedded .compact-card > small {
     padding-top: 12px;
 }
@@ -1508,8 +1434,7 @@ onMounted(() => {
     margin-bottom: 28px;
 }
 
-.choice-card > strong,
-.choice-title-row strong {
+.choice-card > strong {
     font-size: 17px;
     font-weight: 750;
 }
@@ -1547,67 +1472,12 @@ onMounted(() => {
     min-height: 320px;
 }
 
-.license-card {
-    min-height: 270px;
-}
-
-.choice-title-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.choice-title-row em {
-    padding: 5px 8px;
-    border-radius: 7px;
-    background: var(--primary);
-    color: #fff;
-    font-size: 9px;
-    font-style: normal;
-    font-weight: 700;
-}
-
-.license-card > small,
 .compact-card > small {
     margin-top: auto;
     padding-top: 26px;
     color: var(--primary);
     font-size: 11px;
     font-weight: 700;
-}
-
-.oem-license-banner {
-    display: grid;
-    grid-template-columns: 54px 1fr 30px;
-    align-items: center;
-    gap: 18px;
-    padding: 27px;
-    border: 1px solid var(--primary);
-    border-radius: 16px;
-    background: linear-gradient(120deg, var(--primary-soft), var(--card));
-    color: var(--primary);
-}
-
-.oem-license-banner > span {
-    display: grid;
-    width: 54px;
-    height: 54px;
-    place-items: center;
-    border-radius: 14px;
-    background: var(--primary);
-    color: #fff;
-}
-
-.oem-license-banner strong {
-    color: var(--foreground);
-    font-size: 18px;
-}
-
-.oem-license-banner p {
-    margin: 7px 0 0;
-    color: var(--muted-foreground);
-    font-size: 13px;
-    line-height: 1.6;
 }
 
 .example-note {
@@ -2356,8 +2226,7 @@ onMounted(() => {
         grid-template-columns: 1fr;
     }
 
-    .tall-card,
-    .license-card {
+    .tall-card {
         min-height: 0;
     }
 

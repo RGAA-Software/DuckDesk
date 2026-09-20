@@ -33,7 +33,6 @@ export function normalizeQuantity(
 
 export function calculatePricing(selection: PricingSelection): PricingEstimate {
     const catalog = priceCatalog.currencies[selection.currency]
-    const licenseTerm = selection.usage === 'oem' ? 'annual' : selection.licenseTerm
 
     const productLines = productKeys.flatMap((product) => {
         const quantity = normalizeQuantity(
@@ -42,7 +41,7 @@ export function calculatePricing(selection: PricingSelection): PricingEstimate {
         )
         if (quantity === 0) return []
 
-        const unitPrice = catalog.products[product][licenseTerm]
+        const unitPrice = catalog.products[product]
         return [{ product, quantity, unitPrice, amount: unitPrice * quantity }]
     })
 
@@ -96,7 +95,6 @@ export function calculatePricing(selection: PricingSelection): PricingEstimate {
             firstYearAmount: oneTimeAmount + recurringLicenseAmount,
             secondYearAmount:
                 recurringLicenseAmount + brandingMaintenanceAmount,
-            coreMaintenanceAmount: 0,
             brandingMaintenanceAmount,
             recurringLicenseAmount,
             oemMinimumAdjustmentAmount,
@@ -117,36 +115,7 @@ export function calculatePricing(selection: PricingSelection): PricingEstimate {
               )
             : 0
 
-    if (licenseTerm === 'annual') {
-        const oneTimeAmount = deliveryAmount + brandingAmount
-        return {
-            catalogVersion: priceCatalog.version,
-            effectiveFrom: priceCatalog.effectiveFrom,
-            currency: selection.currency,
-            productLines,
-            licenseAmount: baseLicenseAmount,
-            deliveryAmount,
-            brandingAmount,
-            oneTimeAmount,
-            firstYearAmount: baseLicenseAmount + oneTimeAmount,
-            secondYearAmount:
-                baseLicenseAmount + brandingMaintenanceAmount,
-            coreMaintenanceAmount: 0,
-            brandingMaintenanceAmount,
-            recurringLicenseAmount: baseLicenseAmount,
-            oemMinimumAdjustmentAmount: 0,
-            requiresDeliveryAssessment,
-            requiresCustomizationAssessment,
-            isStartingEstimate:
-                requiresDeliveryAssessment || requiresCustomizationAssessment,
-        }
-    }
-
-    const coreMaintenanceAmount = Math.max(
-        roundMoney(baseLicenseAmount * catalog.maintenance.perpetualRate),
-        catalog.maintenance.perpetualMinimum,
-    )
-    const oneTimeAmount = baseLicenseAmount + deliveryAmount + brandingAmount
+    const oneTimeAmount = deliveryAmount + brandingAmount
     return {
         catalogVersion: priceCatalog.version,
         effectiveFrom: priceCatalog.effectiveFrom,
@@ -156,11 +125,10 @@ export function calculatePricing(selection: PricingSelection): PricingEstimate {
         deliveryAmount,
         brandingAmount,
         oneTimeAmount,
-        firstYearAmount: oneTimeAmount,
-        secondYearAmount: coreMaintenanceAmount + brandingMaintenanceAmount,
-        coreMaintenanceAmount,
+        firstYearAmount: baseLicenseAmount + oneTimeAmount,
+        secondYearAmount: baseLicenseAmount + brandingMaintenanceAmount,
         brandingMaintenanceAmount,
-        recurringLicenseAmount: 0,
+        recurringLicenseAmount: baseLicenseAmount,
         oemMinimumAdjustmentAmount: 0,
         requiresDeliveryAssessment,
         requiresCustomizationAssessment,

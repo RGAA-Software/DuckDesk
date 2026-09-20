@@ -1,36 +1,30 @@
 <script setup lang="ts">
-import { computed, ref, type Component } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
-    IconArrowRight,
     IconArrowUpRight,
-    IconBroadcast,
-    IconCategory,
     IconCheck,
     IconChevronDown,
     IconDeviceGamepad2,
-    IconDevices,
-    IconHeadset,
     IconLayersLinked,
+    IconSettings,
     IconStack2,
     IconX,
 } from '@tabler/icons-vue'
 import ContactUs from '@/components/ContactUs.vue'
 import PricingCalculatorView from '@/views/PricingCalculatorView.vue'
+import RemoteOemCalculator from '@/views/RemoteOemCalculator.vue'
 import pixelsLogo from '@/assets/pixels-logo-45.svg'
 
-type BillingTerm = 'annual' | 'perpetual'
 type PersonalEdition = 'commercial' | 'free'
 
 interface RemotePricingPlan {
     name: string
     audience: string
     streams: string
-    annualPrice: string
-    perpetualPrice: string
-    annualNote: string
-    perpetualNote: string
+    price: string
+    note: string
     features: string[]
     featured?: boolean
     enterprise?: boolean
@@ -44,11 +38,6 @@ interface CloudProduct {
     features: string[]
 }
 
-interface PricingDimension {
-    title: string
-    description: string
-}
-
 interface PricingFaq {
     question: string
     answer: string
@@ -56,19 +45,12 @@ interface PricingFaq {
 
 const { t, tm } = useI18n()
 const router = useRouter()
-const selectedBilling = ref<BillingTerm>('annual')
 const selectedPersonalEdition = ref<PersonalEdition>('commercial')
 const calculatorVisible = ref(false)
+const remoteOemCalculatorVisible = ref(false)
 const contactVisible = ref(false)
 const contactTitle = ref('')
 const contactContent = ref('')
-
-const dimensionIcons: Component[] = [
-    IconCategory,
-    IconBroadcast,
-    IconDevices,
-    IconHeadset,
-]
 
 const remotePlans = computed(
     () => tm('site.pricing.plans') as RemotePricingPlan[],
@@ -88,26 +70,14 @@ const displayedRemotePlans = computed(() =>
 const cloudProducts = computed(
     () => tm('site.pricing.cloudProducts') as CloudProduct[],
 )
-const pricingDimensions = computed(
-    () => tm('site.pricing.dimensions') as PricingDimension[],
-)
-const comparisonHeadings = computed(
-    () => tm('site.pricing.compareHeadings') as string[],
-)
-const comparisonRows = computed(
-    () => tm('site.pricing.compareRows') as string[][],
-)
 const pricingFaqs = computed(() => tm('site.pricing.faqs') as PricingFaq[])
 
 function openCalculator() {
     calculatorVisible.value = true
 }
 
-function scrollToRemotePlans() {
-    document.getElementById('remote-plans')?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
-    })
+function openRemoteOemCalculator() {
+    remoteOemCalculatorVisible.value = true
 }
 
 function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
@@ -116,11 +86,6 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
         return
     }
 
-    const billingLabel = t(`site.pricing.${selectedBilling.value}Billing`)
-    const price =
-        selectedBilling.value === 'annual'
-            ? plan.annualPrice
-            : plan.perpetualPrice
     const planLabel =
         planIndex === 0
             ? `${plan.name} · ${t('site.pricing.commercialEdition')}`
@@ -129,8 +94,8 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
     contactContent.value = [
         `${t('site.pricing.contactPlan')}: ${planLabel}`,
         `${t('site.pricing.contactCapacity')}: ${plan.streams}`,
-        `${t('site.pricing.contactLicense')}: ${billingLabel}`,
-        `${t('site.pricing.contactPrice')}: ${price}`,
+        `${t('site.pricing.contactLicense')}: ${t('site.pricing.annualBilling')}`,
+        `${t('site.pricing.contactPrice')}: ${plan.price}`,
     ].join('\n')
     contactVisible.value = true
 }
@@ -173,81 +138,47 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
     <PricingCalculatorView embedded />
   </el-dialog>
 
-  <div class="pricing-page">
-    <section class="pricing-hero">
-      <div class="hero-grid" aria-hidden="true" />
-      <div class="hero-glow" aria-hidden="true" />
-      <div class="page-shell hero-layout">
-        <div class="hero-copy">
-          <span class="hero-eyebrow">{{ t('site.pricing.eyebrow') }}</span>
-          <h1>{{ t('site.pricing.title') }}</h1>
-          <p>{{ t('site.pricing.description') }}</p>
-          <span class="pricing-notice">
-            <i />{{ t('site.pricing.notice') }}
-          </span>
-          <div class="hero-actions">
-            <button class="button-primary" type="button" @click="scrollToRemotePlans">
-              {{ t('site.pricing.primaryAction') }}
-              <IconArrowUpRight :size="17" :stroke-width="1.9" />
-            </button>
-            <button class="button-secondary" type="button" @click="openCalculator">
-              {{ t('site.pricing.secondaryAction') }}
-              <IconArrowRight :size="17" :stroke-width="1.9" />
-            </button>
-          </div>
+  <el-dialog
+    v-model="remoteOemCalculatorVisible"
+    align-center
+    append-to-body
+    destroy-on-close
+    :close-on-click-modal="false"
+    :close-on-press-escape="false"
+    :show-close="false"
+    class="pixels-calculator-dialog pixels-remote-oem-dialog"
+    modal-class="pixels-calculator-overlay"
+  >
+    <template #header>
+      <div class="calculator-dialog-header">
+        <div>
+          <img :src="pixelsLogo" alt="">
+          <span>{{ t('remoteOemCalculator.title') }}</span>
         </div>
-
-        <div class="quote-visual" aria-hidden="true">
-          <div class="quote-header">
-            <span>PIXELS / LICENSE SCOPE</span>
-            <img :src="pixelsLogo" alt="">
-          </div>
-          <div class="quote-body">
-            <div
-              v-for="(pricingDimension, dimensionIndex) in pricingDimensions"
-              :key="pricingDimension.title"
-              class="quote-row"
-            >
-              <span>0{{ dimensionIndex + 1 }}</span>
-              <component
-                :is="dimensionIcons[dimensionIndex]"
-                :size="20"
-                :stroke-width="1.6"
-              />
-              <strong>{{ pricingDimension.title }}</strong>
-              <i :style="{ '--progress': `${48 + dimensionIndex * 14}%` }" />
-            </div>
-          </div>
-          <div class="quote-footer">
-            <span><i />PRIVATE DEPLOYMENT</span>
-            <small>CONFIGURED FOR YOUR SCOPE</small>
-          </div>
-        </div>
+        <button
+          type="button"
+          :aria-label="t('consult.cancel')"
+          @click="remoteOemCalculatorVisible = false"
+        >
+          <IconX :size="21" :stroke-width="1.8" />
+        </button>
       </div>
-    </section>
+    </template>
+    <RemoteOemCalculator />
+  </el-dialog>
+
+  <div class="pricing-page">
+    <div class="deployment-notice-wrap" role="note">
+      <strong class="plan-deployment-notice">
+        {{ t('site.pricing.deploymentNotice') }}
+      </strong>
+    </div>
 
     <section id="remote-plans" class="section plans-section">
       <div class="page-shell">
         <div class="section-heading centered-heading">
           <h2>{{ t('site.pricing.plansTitle') }}</h2>
           <p>{{ t('site.pricing.plansDescription') }}</p>
-        </div>
-
-        <div class="billing-toggle" role="group" :aria-label="t('site.pricing.plansTitle')">
-          <button
-            type="button"
-            :class="{ active: selectedBilling === 'annual' }"
-            @click="selectedBilling = 'annual'"
-          >
-            {{ t('site.pricing.annualBilling') }}
-          </button>
-          <button
-            type="button"
-            :class="{ active: selectedBilling === 'perpetual' }"
-            @click="selectedBilling = 'perpetual'"
-          >
-            {{ t('site.pricing.perpetualBilling') }}
-          </button>
         </div>
 
         <div class="plans-grid">
@@ -302,16 +233,8 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
             </div>
             <div class="plan-price">
               <small>{{ pricingPlan.streams }}</small>
-              <strong>
-                {{ selectedBilling === 'annual'
-                  ? pricingPlan.annualPrice
-                  : pricingPlan.perpetualPrice }}
-              </strong>
-              <span>
-                {{ selectedBilling === 'annual'
-                  ? pricingPlan.annualNote
-                  : pricingPlan.perpetualNote }}
-              </span>
+              <strong>{{ pricingPlan.price }}</strong>
+              <span>{{ pricingPlan.note }}</span>
             </div>
             <button type="button" @click="consultRemotePlan(pricingPlan, planIndex)">
               {{ planIndex === 0 && selectedPersonalEdition === 'free'
@@ -350,7 +273,12 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
                 :size="29"
                 :stroke-width="1.45"
               />
-              <IconLayersLinked v-else :size="29" :stroke-width="1.45" />
+              <IconLayersLinked
+                v-else-if="productIndex === 1"
+                :size="29"
+                :stroke-width="1.45"
+              />
+              <IconSettings v-else :size="29" :stroke-width="1.45" />
             </div>
             <div class="cloud-product-copy">
               <span>{{ cloudProduct.label }}</span>
@@ -362,68 +290,16 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
                 </li>
               </ul>
             </div>
-            <button type="button" @click="openCalculator">
-              {{ t('site.pricing.cloudAction') }}
+            <button
+              type="button"
+              @click="productIndex === 2 ? openRemoteOemCalculator() : openCalculator()"
+            >
+              {{ productIndex === 2
+                ? t('site.pricing.remoteOemAction')
+                : t('site.pricing.cloudAction') }}
               <IconArrowUpRight :size="17" :stroke-width="1.8" />
             </button>
           </article>
-        </div>
-      </div>
-    </section>
-
-    <section class="section dimensions-section">
-      <div class="page-shell">
-        <div class="section-heading dimensions-heading">
-          <h2>{{ t('site.pricing.dimensionsTitle') }}</h2>
-          <p>{{ t('site.pricing.dimensionsDescription') }}</p>
-        </div>
-        <div class="dimensions-grid">
-          <article
-            v-for="(pricingDimension, dimensionIndex) in pricingDimensions"
-            :key="pricingDimension.title"
-          >
-            <span>0{{ dimensionIndex + 1 }}</span>
-            <div>
-              <component
-                :is="dimensionIcons[dimensionIndex]"
-                :size="24"
-                :stroke-width="1.55"
-              />
-            </div>
-            <h3>{{ pricingDimension.title }}</h3>
-            <p>{{ pricingDimension.description }}</p>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <section class="section comparison-section">
-      <div class="page-shell">
-        <div class="section-heading comparison-heading">
-          <h2>{{ t('site.pricing.compareTitle') }}</h2>
-        </div>
-        <div class="comparison-table">
-          <div class="comparison-header">
-            <strong v-for="heading in comparisonHeadings" :key="heading">
-              {{ heading }}
-            </strong>
-          </div>
-          <div
-            v-for="comparisonRow in comparisonRows"
-            :key="comparisonRow[0]"
-            class="comparison-row"
-          >
-            <strong>{{ comparisonRow[0] }}</strong>
-            <span v-for="(cellValue, cellIndex) in comparisonRow.slice(1)" :key="cellIndex">
-              <small>{{ comparisonHeadings[cellIndex + 1] }}</small>
-              <IconCheck
-                v-if="cellValue !== '—'"
-                :size="15"
-                :stroke-width="2"
-              />
-              {{ cellValue }}
-            </span>
-          </div>
         </div>
       </div>
     </section>
@@ -447,17 +323,6 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
       </div>
     </section>
 
-    <section class="page-shell final-cta">
-      <div class="cta-grid" aria-hidden="true" />
-      <div class="cta-copy">
-        <h2>{{ t('site.pricing.closingTitle') }}</h2>
-        <p>{{ t('site.pricing.closingDescription') }}</p>
-      </div>
-      <button type="button" @click="openCalculator">
-        {{ t('site.pricing.cloudAction') }}
-        <IconArrowUpRight :size="18" :stroke-width="1.9" />
-      </button>
-    </section>
   </div>
 </template>
 
@@ -578,8 +443,7 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
         linear-gradient(180deg, var(--background), color-mix(in srgb, var(--accent) 48%, var(--background)));
 }
 
-.hero-grid,
-.cta-grid {
+.hero-grid {
     position: absolute;
     inset: 0;
     background-image:
@@ -658,8 +522,7 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
     margin-top: 30px;
 }
 
-.hero-actions button,
-.final-cta > button {
+.hero-actions button {
     display: inline-flex;
     min-height: 46px;
     align-items: center;
@@ -783,15 +646,13 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
     padding: 120px 0;
 }
 
-.section-heading h2,
-.cta-copy h2 {
+.section-heading h2 {
     margin: 0 0 18px;
     font: 730 clamp(34px, 3.6vw, 50px) / 1.14 var(--font-ui);
     letter-spacing: -0.052em;
 }
 
-.section-heading p,
-.cta-copy p {
+.section-heading p {
     margin: 0;
     color: var(--muted-foreground);
     font-size: 14px;
@@ -804,35 +665,71 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
     text-align: center;
 }
 
+.deployment-notice-wrap {
+    padding: 56px 24px 0;
+    text-align: center;
+}
+
+.plan-deployment-notice {
+    position: relative;
+    display: block;
+    width: fit-content;
+    margin: 0 auto;
+    padding: 7px 14px;
+    overflow: hidden;
+    border-radius: 8px;
+    color: var(--amber, #d6a542);
+    font-size: clamp(17px, 1.8vw, 25px);
+    font-weight: 800;
+    line-height: 1.35;
+}
+
+.plan-deployment-notice::before {
+    position: absolute;
+    inset: 0;
+    background:
+        repeating-linear-gradient(
+                90deg,
+                currentcolor 0 8px,
+                transparent 8px 12px,
+                currentcolor 12px 14px,
+                transparent 14px 18px
+            )
+            top left / 18px 2px repeat-x,
+        repeating-linear-gradient(
+                90deg,
+                currentcolor 0 8px,
+                transparent 8px 12px,
+                currentcolor 12px 14px,
+                transparent 14px 18px
+            )
+            bottom left / 18px 2px repeat-x,
+        repeating-linear-gradient(
+                180deg,
+                currentcolor 0 8px,
+                transparent 8px 12px,
+                currentcolor 12px 14px,
+                transparent 14px 18px
+            )
+            top left / 2px 18px repeat-y,
+        repeating-linear-gradient(
+                180deg,
+                currentcolor 0 8px,
+                transparent 8px 12px,
+                currentcolor 12px 14px,
+                transparent 14px 18px
+            )
+            top right / 2px 18px repeat-y;
+    content: "";
+    pointer-events: none;
+}
+
 .plans-section .page-shell {
     width: min(1400px, calc(100% - 48px));
 }
 
-.billing-toggle {
-    display: flex;
-    width: fit-content;
-    margin: 0 auto 28px;
-    padding: 4px;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    background: var(--secondary);
-}
-
-.billing-toggle button {
-    min-height: 38px;
-    padding: 0 18px;
-    border: 0;
-    border-radius: 8px;
-    background: transparent;
-    color: var(--muted-foreground);
-    cursor: pointer;
-    font: 700 12px var(--font-ui);
-}
-
-.billing-toggle button.active {
-    background: var(--card);
-    box-shadow: 0 5px 18px rgba(15, 23, 42, 0.08);
-    color: var(--primary);
+.plans-section {
+    padding-top: 52px;
 }
 
 .plans-grid {
@@ -1038,22 +935,23 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
 
 .cloud-heading {
     max-width: 760px;
-    margin-bottom: 46px;
+    margin: 0 auto 46px;
+    text-align: center;
 }
 
 .cloud-products-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 20px;
 }
 
 .cloud-products-grid article {
     display: grid;
     min-height: 370px;
-    grid-template-columns: 62px 1fr;
+    grid-template-columns: 56px 1fr;
     grid-template-rows: 1fr auto;
     gap: 24px;
-    padding: 38px;
+    padding: 30px;
     border: 1px solid var(--border);
     border-radius: 22px;
     background: color-mix(in srgb, var(--card) 96%, transparent);
@@ -1121,128 +1019,6 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
     color: var(--primary-foreground);
     cursor: pointer;
     font: 700 13px var(--font-ui);
-}
-
-.dimensions-section {
-    border-block: 1px solid var(--border);
-    background: var(--secondary);
-}
-
-.dimensions-heading {
-    max-width: 720px;
-    margin-bottom: 50px;
-}
-
-.dimensions-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    overflow: hidden;
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    background: var(--border);
-    gap: 1px;
-}
-
-.dimensions-grid article {
-    position: relative;
-    min-height: 250px;
-    padding: 30px;
-    background: var(--card);
-}
-
-.dimensions-grid article > span {
-    position: absolute;
-    top: 30px;
-    right: 30px;
-    color: var(--muted-foreground);
-    font: 10px var(--font-tech);
-}
-
-.dimensions-grid article > div {
-    display: grid;
-    width: 44px;
-    height: 44px;
-    place-items: center;
-    border-radius: 11px;
-    background: var(--accent);
-    color: var(--primary);
-}
-
-.dimensions-grid h3 {
-    margin: 42px 0 12px;
-    font-size: 19px;
-    font-weight: 750;
-}
-
-.dimensions-grid p {
-    margin: 0;
-    color: var(--muted-foreground);
-    font-size: 13px;
-    line-height: 1.75;
-}
-
-.comparison-heading {
-    margin-bottom: 48px;
-}
-
-.comparison-table {
-    overflow: hidden;
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    background: var(--card);
-}
-
-.comparison-header,
-.comparison-row {
-    display: grid;
-    grid-template-columns: 1.15fr repeat(5, 1fr);
-    align-items: center;
-}
-
-.comparison-header {
-    min-height: 62px;
-    background: var(--foreground);
-    color: var(--background);
-}
-
-.comparison-header > *,
-.comparison-row > * {
-    padding-inline: 14px;
-}
-
-.comparison-header strong {
-    font-size: 11px;
-}
-
-.comparison-row {
-    min-height: 78px;
-    border-top: 1px solid var(--border);
-}
-
-.comparison-row > strong {
-    font-size: 11px;
-}
-
-.comparison-row > span {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    color: var(--muted-foreground);
-    font-size: 13px;
-}
-
-.comparison-row > span:last-child {
-    color: var(--foreground);
-    font-weight: 650;
-}
-
-.comparison-row svg {
-    flex: 0 0 auto;
-    color: var(--primary);
-}
-
-.comparison-row small {
-    display: none;
 }
 
 .faq-section {
@@ -1322,42 +1098,6 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
     line-height: 1.8;
 }
 
-.final-cta {
-    position: relative;
-    display: flex;
-    min-height: 330px;
-    align-items: center;
-    justify-content: space-between;
-    gap: 55px;
-    margin-block: 120px;
-    padding: 62px 68px;
-    overflow: hidden;
-    border-radius: 24px;
-    background: linear-gradient(125deg, #052e22, #007f49 70%, #009a59);
-    color: #ffffff;
-}
-
-.cta-copy,
-.final-cta > button {
-    position: relative;
-    z-index: 1;
-}
-
-.cta-copy {
-    max-width: 700px;
-}
-
-.cta-copy p {
-    color: rgba(255, 255, 255, 0.7);
-}
-
-.final-cta > button {
-    flex: 0 0 auto;
-    border: 0;
-    background: #ffffff;
-    color: #006b3d;
-}
-
 :global(html[data-theme='dark'] .pricing-page) {
     --background: #09090b;
     --foreground: #fafafa;
@@ -1390,9 +1130,6 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
         min-height: 0;
     }
 
-    .dimensions-grid {
-        grid-template-columns: 1fr 1fr;
-    }
 }
 
 @media (max-width: 820px) {
@@ -1423,45 +1160,6 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
         grid-template-columns: 1fr;
     }
 
-    .comparison-header {
-        display: none;
-    }
-
-    .comparison-row {
-        grid-template-columns: 1fr;
-        gap: 16px;
-        padding: 24px;
-    }
-
-    .comparison-header > *,
-    .comparison-row > * {
-        padding: 0;
-    }
-
-    .comparison-row > strong {
-        font-size: 17px;
-    }
-
-    .comparison-row > span {
-        display: grid;
-        grid-template-columns: 18px 1fr;
-        font-size: 13px;
-    }
-
-    .comparison-row small {
-        display: block;
-        grid-column: 1 / -1;
-        color: var(--muted-foreground);
-        font-size: 10px;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-    }
-
-    .comparison-row > span:not(:last-child) {
-        display: block;
-    }
-
     .faq-layout {
         grid-template-columns: 1fr;
         gap: 42px;
@@ -1471,12 +1169,6 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
         position: static;
     }
 
-    .final-cta {
-        align-items: flex-start;
-        flex-direction: column;
-        margin-block: 84px;
-        padding: 48px 38px;
-    }
 }
 
 @media (max-width: 560px) {
@@ -1497,24 +1189,12 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
         display: none;
     }
 
-    .dimensions-grid {
-        grid-template-columns: 1fr;
-    }
-
     .plans-grid {
         grid-template-columns: 1fr;
     }
 
     .plan-card.plus {
         grid-column: auto;
-    }
-
-    .billing-toggle {
-        width: 100%;
-    }
-
-    .billing-toggle button {
-        flex: 1;
     }
 
     .cloud-products-grid article {
@@ -1527,48 +1207,6 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
         grid-column: auto;
     }
 
-    .dimensions-grid article {
-        min-height: 220px;
-    }
-
-    .comparison-header {
-        display: none;
-    }
-
-    .comparison-row {
-        grid-template-columns: 1fr;
-        gap: 16px;
-        padding: 24px;
-    }
-
-    .comparison-header > *,
-    .comparison-row > * {
-        padding: 0;
-    }
-
-    .comparison-row > strong {
-        font-size: 17px;
-    }
-
-    .comparison-row > span {
-        display: grid;
-        grid-template-columns: 18px 1fr;
-    }
-
-    .comparison-row small {
-        display: block;
-        grid-column: 1 / -1;
-        color: var(--muted-foreground);
-        font-size: 10px;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-    }
-
-    .comparison-row > span:not(:last-child) {
-        display: block;
-    }
-
     .faq-list summary {
         grid-template-columns: 28px 1fr 20px;
         padding-inline: 20px;
@@ -1579,8 +1217,5 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
         margin-left: 48px;
     }
 
-    .final-cta {
-        padding: 40px 26px;
-    }
 }
 </style>

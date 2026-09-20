@@ -1,16 +1,16 @@
 import type { PriceCatalog } from './types'
 
 export const priceCatalog: PriceCatalog = {
-    version: '2026.09-public-2',
+    version: '2026.09-public-4',
     effectiveFrom: '2026-09-20',
     currencies: {
         CNY: {
             currency: 'CNY',
             locale: 'zh-CN',
-            minimumStreams: 5,
+            minimumStreams: 1,
             products: {
-                gaming: { annual: 2680_00, perpetual: 9380_00 },
-                rendering: { annual: 1980_00, perpetual: 6980_00 },
+                gaming: 2680_00,
+                rendering: 1980_00,
             },
             delivery: {
                 remote: 9800_00,
@@ -26,8 +26,6 @@ export const priceCatalog: PriceCatalog = {
                 streamMultiplier: 1.5,
             },
             maintenance: {
-                perpetualRate: 0.2,
-                perpetualMinimum: 9800_00,
                 brandingRate: 0.15,
                 brandingMinimum: 8000_00,
                 oemRate: 0.15,
@@ -36,10 +34,10 @@ export const priceCatalog: PriceCatalog = {
         USD: {
             currency: 'USD',
             locale: 'en-US',
-            minimumStreams: 5,
+            minimumStreams: 1,
             products: {
-                gaming: { annual: 379_00, perpetual: 1319_00 },
-                rendering: { annual: 279_00, perpetual: 979_00 },
+                gaming: 379_00,
+                rendering: 279_00,
             },
             delivery: {
                 remote: 1390_00,
@@ -55,8 +53,6 @@ export const priceCatalog: PriceCatalog = {
                 streamMultiplier: 1.5,
             },
             maintenance: {
-                perpetualRate: 0.2,
-                perpetualMinimum: 1390_00,
                 brandingRate: 0.15,
                 brandingMinimum: 1120_00,
                 oemRate: 0.15,

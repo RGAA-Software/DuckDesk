@@ -1,20 +1,14 @@
 export type PricingCurrency = 'CNY' | 'USD'
 export type PricingUsage = 'internal' | 'oem'
-export type LicenseTerm = 'annual' | 'perpetual'
 export type ProductKey = 'gaming' | 'rendering'
 export type DeliveryKey = 'self' | 'remote' | 'custom'
 export type BrandingKey = 'pixels' | 'basic' | 'full' | 'custom'
-
-export interface ProductPrice {
-    annual: number
-    perpetual: number
-}
 
 export interface CurrencyCatalog {
     currency: PricingCurrency
     locale: string
     minimumStreams: number
-    products: Record<ProductKey, ProductPrice>
+    products: Record<ProductKey, number>
     delivery: {
         remote: number
     }
@@ -29,8 +23,6 @@ export interface CurrencyCatalog {
         streamMultiplier: number
     }
     maintenance: {
-        perpetualRate: number
-        perpetualMinimum: number
         brandingRate: number
         brandingMinimum: number
         oemRate: number
@@ -45,7 +37,6 @@ export interface PriceCatalog {
 
 export interface PricingSelection {
     usage: PricingUsage
-    licenseTerm: LicenseTerm
     currency: PricingCurrency
     quantities: Record<ProductKey, number>
     delivery: DeliveryKey
@@ -70,7 +61,6 @@ export interface PricingEstimate {
     oneTimeAmount: number
     firstYearAmount: number
     secondYearAmount: number
-    coreMaintenanceAmount: number
     brandingMaintenanceAmount: number
     recurringLicenseAmount: number
     oemMinimumAdjustmentAmount: number

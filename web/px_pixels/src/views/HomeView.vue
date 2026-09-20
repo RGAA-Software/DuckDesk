@@ -39,7 +39,7 @@ interface Capability {
     description: string
 }
 
-const { t, tm } = useI18n()
+const { locale, t, tm } = useI18n()
 const contactVisible = ref(false)
 const solutions = computed(() => tm('site.solutions.cards') as Solution[])
 const metrics = computed(() => tm('site.metrics') as Metric[])
@@ -62,7 +62,7 @@ function scrollToSolutions() {
 
 <template>
   <ContactUs v-model="contactVisible" />
-  <div class="home-page">
+  <div class="home-page" :class="{ 'is-english': locale === 'en' }">
     <section class="hero-section">
       <div class="hero-grid" aria-hidden="true" />
       <div class="hero-glow" aria-hidden="true" />
@@ -381,6 +381,16 @@ function scrollToSolutions() {
 .hero-copy h1 strong {
     color: var(--primary);
     font-weight: 750;
+}
+
+.home-page.is-english .hero-copy h1 {
+    font-size: clamp(44px, 4.3vw, 60px);
+    line-height: 1.03;
+    letter-spacing: -0.055em;
+}
+
+.home-page.is-english .hero-copy h1 span {
+    transform: translateY(-12px);
 }
 
 .hero-copy > p {
