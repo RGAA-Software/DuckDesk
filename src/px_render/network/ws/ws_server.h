@@ -23,6 +23,7 @@
 #include "px_common/concurrent_hashmap.h"
 #include "px_common/file_transfer_send_result.h"
 #include "px_rdp/rdp_frontend_lease.h"
+#include "px_render/network/transport_types.h"
 
 namespace px {
 class WsStreamRouter;
@@ -124,17 +125,13 @@ class WsServer : public std::enable_shared_from_this<WsServer> {
                            http::web_request& req, http::web_response& rep)>&&
             callback);
 
-    void NotifyMediaClientConnected(const std::string& conn_id,
-                                    const std::string& stream_id,
-                                    const std::string& visitor_device_id,
+    void NotifyMediaClientConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id,
                                     const std::string& logical_session_id);
-    void NotifyMediaClientDisConnected(
-        const std::string& conn_id, const std::string& stream_id,
-        const std::string& visitor_device_id, int64_t begin_timestamp,
-        const std::string& connection_instance_id = {},
-        const std::string& logical_session_id = {});
-    void CloseLogicalSessionBinding(const std::string& logical_session_id,
-                                    const std::string& binding_id);
+    void NotifyMediaClientDisConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id,
+                                       int64_t begin_timestamp, const std::string& connection_instance_id = {},
+                                       const std::string& logical_session_id = {},
+                                       ResourceChannelCloseOutcome resource_channel_close_outcome = ResourceChannelCloseOutcome::kPeerClosed);
+    void CloseLogicalSessionBinding(const std::string& logical_session_id, const std::string& binding_id);
     void UpdateUdpMediaAssociation(const std::string& association_code,
                                    const std::string& logical_session_id,
                                    const std::string& stream_id, bool force_gdi,

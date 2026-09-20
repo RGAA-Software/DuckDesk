@@ -2474,9 +2474,24 @@ void RdApplication::OpenConsoleResourceChannel(std::string connection_key, std::
     resource_channel_reporter_->Open(std::move(connection_key), std::move(logical_session_id), static_cast<int>(protocol_kind));
 }
 
-void RdApplication::CloseConsoleResourceChannel(const std::string& connection_key) {
+void RdApplication::CloseConsoleResourceChannel(const std::string& connection_key, const ResourceChannelCloseOutcome outcome) {
     if (resource_channel_reporter_) {
-        resource_channel_reporter_->Close(connection_key, static_cast<int>(ResourceChannelOutcome::kResourceChannelPeerClosed));
+        const auto service_outcome = [outcome] {
+            switch (outcome) {
+                case ResourceChannelCloseOutcome::kPeerClosed:
+                    return ResourceChannelOutcome::kResourceChannelPeerClosed;
+                case ResourceChannelCloseOutcome::kUserStopped:
+                    return ResourceChannelOutcome::kResourceChannelUserStopped;
+                case ResourceChannelCloseOutcome::kTransportLost:
+                    return ResourceChannelOutcome::kResourceChannelTransportLost;
+                case ResourceChannelCloseOutcome::kPolicyRevoked:
+                    return ResourceChannelOutcome::kResourceChannelPolicyRevoked;
+                case ResourceChannelCloseOutcome::kIoError:
+                    return ResourceChannelOutcome::kResourceChannelIoError;
+            }
+            return ResourceChannelOutcome::kResourceChannelIoError;
+        }();
+        resource_channel_reporter_->Close(connection_key, static_cast<int>(service_outcome));
     }
 }
 

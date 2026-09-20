@@ -46,12 +46,14 @@ namespace px
         void PostReliableBinaryMessage(std::shared_ptr<Data> data, std::function<void(bool)> completion);
         // Called only by WsServer after password authentication and exclusive admission, on the session executor.
         [[nodiscard]] bool StartRdp(asio::any_io_executor executor, std::uint16_t proxy_port, std::function<void()> release,
-                                   std::function<void()> closed);
+                                    std::function<void()> closed);
         void RevokeRdp();
-        void PostBinaryMessage(const std::string &data) override;
-        void PostTextMessage(const std::string& data) override;
-        [[nodiscard]] FileTransferSendResult TryPostFileTransferMessage(
-            const std::shared_ptr<Data>& data);
+        void MarkResourceUserStopped();
+        void MarkResourceTransportLost();
+        [[nodiscard]] ResourceChannelCloseOutcome ResourceCloseOutcome() const noexcept;
+        void PostBinaryMessage(const std::string& binary_message) override;
+        void PostTextMessage(const std::string& text_message) override;
+        [[nodiscard]] FileTransferSendResult TryPostFileTransferMessage(const std::shared_ptr<Data>& file_transfer_message);
         void SetUdpMediaFallbackCallback(std::function<void()> callback);
 
     private:
@@ -60,9 +62,9 @@ namespace px
         std::shared_ptr<rdp::RdpTcpBridge> rdp_bridge_{};
         std::function<void()> rdp_release_{};
         std::atomic_bool rdp_mode_{false};
+        std::atomic<ResourceChannelCloseOutcome> rdp_close_outcome_{ResourceChannelCloseOutcome::kPeerClosed};
         WsRealtimeMediaQueueBudget realtime_media_budget_{};
-        [[nodiscard]] std::shared_ptr<FileTransferWritableSignal>
-        AcquireWritableSignal();
+        [[nodiscard]] std::shared_ptr<FileTransferWritableSignal> AcquireWritableSignal();
         void NotifyWritable();
         void NotifyClosed();
 

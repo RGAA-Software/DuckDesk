@@ -85,6 +85,7 @@ struct ClientDisconnectedEvent final {
     std::int64_t end_timestamp_{0};
     std::int64_t duration_{0};
     bool preserve_reconnect_grace_{true};
+    ResourceChannelCloseOutcome resource_channel_close_outcome_{ResourceChannelCloseOutcome::kPeerClosed};
 };
 
 struct ResourceTrafficEvent final {

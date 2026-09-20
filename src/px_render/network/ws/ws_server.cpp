@@ -507,17 +507,13 @@ bool WsServer::Start() {
                 if (self->frontend_lease_renewals_) {
                     self->frontend_lease_renewals_->Cancel(router->binding_id_);
                 }
-                self->UpdateUdpMediaAssociation(
-                    router->udp_media_association_code_,
-                    router->logical_session_id_, router->stream_id_, false,
-                    true);
-                self->CloseLogicalSessionBinding(router->logical_session_id_,
-                                                 router->binding_id_);
+                self->UpdateUdpMediaAssociation(router->udp_media_association_code_, router->logical_session_id_, router->stream_id_, false, true);
+                self->CloseLogicalSessionBinding(router->logical_session_id_, router->binding_id_);
+                router->MarkResourceTransportLost();
                 router->OnClose(session);
-                self->NotifyMediaClientDisConnected(
-                    router->connection_id_, router->stream_id_,
-                    router->visitor_device_id_, router->created_timestamp_,
-                    router->binding_id_, router->logical_session_id_);
+                self->NotifyMediaClientDisConnected(router->connection_id_, router->stream_id_, router->visitor_device_id_,
+                                                    router->created_timestamp_, router->binding_id_, router->logical_session_id_,
+                                                    router->ResourceCloseOutcome());
                 LOGI(
                     "event=session.close component=net_ws outcome=removed "
                     "device={}",
@@ -716,6 +712,20 @@ std::shared_ptr<PxAsyncScope> WsServer::BeginStop() {
     if (exiting_.exchange(true)) {
         return async_scope_;
     }
+    const auto weak_self = weak_from_this();
+    stream_routers_.ApplyAll([weak_self](const std::uint64_t&, const std::shared_ptr<WsStreamRouter>& router) {
+        const auto self = weak_self.lock();
+        if (!self || !router) {
+            return;
+        }
+        if (self->frontend_lease_renewals_) {
+            self->frontend_lease_renewals_->Cancel(router->binding_id_);
+        }
+        router->MarkResourceUserStopped();
+        self->CloseLogicalSessionBinding(router->logical_session_id_, router->binding_id_);
+        self->NotifyMediaClientDisConnected(router->connection_id_, router->stream_id_, router->visitor_device_id_, router->created_timestamp_,
+                                            router->binding_id_, router->logical_session_id_, router->ResourceCloseOutcome());
+    });
     const auto server = server_;
     if (server && !server->is_stopped()) {
         server->post([server] {
@@ -1752,9 +1762,7 @@ void WsServer::FinalizeWebSocketOpen(
                         self->rdp_frontend_.Release(generation);
                     }
                 },
-                [weak, socket_fd,
-                 weak_router = std::weak_ptr<WsStreamRouter>{router},
-                 weak_session = std::weak_ptr<asio2::http_session>{session}] {
+                [weak, socket_fd, weak_router = std::weak_ptr<WsStreamRouter>{router}, weak_session = std::weak_ptr<asio2::http_session>{session}] {
                     const auto self = weak.lock();
                     const auto route = weak_router.lock();
                     auto client = weak_session.lock();
@@ -1772,16 +1780,13 @@ void WsServer::FinalizeWebSocketOpen(
                         return;
                     }
                     route->OnClose(client);
-                    self->CloseLogicalSessionBinding(route->logical_session_id_,
-                                                     route->binding_id_);
-                    self->NotifyMediaClientDisConnected(
-                        route->connection_id_, route->stream_id_,
-                        route->visitor_device_id_, route->created_timestamp_,
-                        route->binding_id_, route->logical_session_id_);
+                    self->CloseLogicalSessionBinding(route->logical_session_id_, route->binding_id_);
+                    self->NotifyMediaClientDisConnected(route->connection_id_, route->stream_id_, route->visitor_device_id_,
+                                                        route->created_timestamp_, route->binding_id_, route->logical_session_id_,
+                                                        route->ResourceCloseOutcome());
                 });
             stream_routers_.Insert(socket_fd, router);
-            NotifyMediaClientConnected(router->connection_id_, stream_id,
-                                       visitor_device_id, router->logical_session_id_);
+            NotifyMediaClientConnected(router->connection_id_, stream_id, visitor_device_id, router->logical_session_id_);
             if (!started) {
                 session->stop();
             }
@@ -1923,14 +1928,10 @@ void WsServer::AddWebsocketRouter(const std::string& path) {
                                 router->udp_media_association_code_,
                                 router->logical_session_id_, router->stream_id_,
                                 false, true);
-                            self->CloseLogicalSessionBinding(
-                                router->logical_session_id_,
-                                router->binding_id_);
-                            self->NotifyMediaClientDisConnected(
-                                router->connection_id_, router->stream_id_,
-                                router->visitor_device_id_,
-                                router->created_timestamp_, router->binding_id_,
-                                router->logical_session_id_);
+                            self->CloseLogicalSessionBinding(router->logical_session_id_, router->binding_id_);
+                            self->NotifyMediaClientDisConnected(router->connection_id_, router->stream_id_, router->visitor_device_id_,
+                                                                router->created_timestamp_, router->binding_id_, router->logical_session_id_,
+                                                                router->ResourceCloseOutcome());
                             LOGI(
                                 "event=session.close component=net_ws "
                                 "outcome=removed "
@@ -2140,11 +2141,10 @@ void WsServer::NotifyMediaClientConnected(
         PrivacyLogId(stream_id), PrivacyLogId(visitor_device_id));
 }
 
-void WsServer::NotifyMediaClientDisConnected(
-    const std::string& conn_id, const std::string& stream_id,
-    const std::string& visitor_device_id, const int64_t begin_timestamp,
-    const std::string& connection_instance_id,
-    const std::string& logical_session_id) {
+void WsServer::NotifyMediaClientDisConnected(const std::string& conn_id, const std::string& stream_id, const std::string& visitor_device_id,
+                                             const int64_t begin_timestamp, const std::string& connection_instance_id,
+                                             const std::string& logical_session_id,
+                                             const ResourceChannelCloseOutcome resource_channel_close_outcome) {
     auto event = std::make_shared<ClientDisconnectedEvent>();
     event->connection_id_ = conn_id;
     event->connection_instance_id_ = connection_instance_id;
@@ -2153,6 +2153,7 @@ void WsServer::NotifyMediaClientDisConnected(
     event->visitor_device_id_ = visitor_device_id;
     event->end_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
     event->duration_ = event->end_timestamp_ - begin_timestamp;
+    event->resource_channel_close_outcome_ = resource_channel_close_outcome;
     if (const auto transport = transport_.lock()) {
         transport->EmitEvent(event);
     }

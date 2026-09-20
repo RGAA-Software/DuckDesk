@@ -3,16 +3,38 @@
 //
 
 #include "ws_stream_router.h"
+
 #include "px_common/data.h"
 #include "px_common/log.h"
 #include "px_common/privacy_log.h"
+#include "px_common/reliable_websocket_send.h"
 #include "px_common/thread_util.h"
 #include "px_common/ws_control_signal.h"
-#include "px_common/reliable_websocket_send.h"
-#include "ws_transport.h"
 #include "px_message.pb.h"
+#include "ws_transport.h"
 
 namespace px {
+namespace {
+
+ResourceChannelCloseOutcome MapRdpCloseOutcome(const rdp::BridgeCloseReason reason) {
+    switch (reason) {
+        case rdp::BridgeCloseReason::kPeerClosed:
+            return ResourceChannelCloseOutcome::kPeerClosed;
+        case rdp::BridgeCloseReason::kTcpClosed:
+        case rdp::BridgeCloseReason::kConnectFailed:
+        case rdp::BridgeCloseReason::kTimedOut:
+        case rdp::BridgeCloseReason::kSendFailed:
+            return ResourceChannelCloseOutcome::kTransportLost;
+        case rdp::BridgeCloseReason::kInvalidPacket:
+        case rdp::BridgeCloseReason::kQueueFull:
+            return ResourceChannelCloseOutcome::kIoError;
+        case rdp::BridgeCloseReason::kStopped:
+            return ResourceChannelCloseOutcome::kUserStopped;
+    }
+    return ResourceChannelCloseOutcome::kIoError;
+}
+
+}  // namespace
 
 WsStreamRouter::~WsStreamRouter() {
     if (rdp_bridge_) {
@@ -221,6 +243,7 @@ bool WsStreamRouter::StartRdp(asio::any_io_executor executor, const std::uint16_
         }
         return false;
     }
+    rdp_close_outcome_.store(ResourceChannelCloseOutcome::kPeerClosed);
     rdp_release_ = std::move(release);
     const rdp::StreamBinding binding{.connection_id = GetUUID(), .generation = 1};
     const auto weak = weak_from_this();
@@ -234,7 +257,10 @@ bool WsStreamRouter::StartRdp(asio::any_io_executor executor, const std::uint16_
                 completion(false);
             }
         },
-        [weak_session, closed = std::move(closed)](rdp::BridgeCloseReason reason) {
+        [weak, weak_session, closed = std::move(closed)](rdp::BridgeCloseReason reason) {
+            if (const auto self = weak.lock(); self && reason != rdp::BridgeCloseReason::kStopped) {
+                self->rdp_close_outcome_.store(MapRdpCloseOutcome(reason));
+            }
             if (const auto session = weak_session.lock()) {
                 session->post([weak_session, closed, reason] {
                     if (const auto active = weak_session.lock()) {
@@ -273,11 +299,11 @@ bool WsStreamRouter::StartRdp(asio::any_io_executor executor, const std::uint16_
     return true;
 }
 
-void WsStreamRouter::PostBinaryMessage(const std::string& data) {
-    this->PostBinaryMessage(Data::From(data));
+void WsStreamRouter::PostBinaryMessage(const std::string& binary_message) {
+    this->PostBinaryMessage(Data::From(binary_message));
 }
 
-void WsStreamRouter::PostTextMessage(const std::string& data) {
+void WsStreamRouter::PostTextMessage(const std::string& text_message) {
     if (rdp_mode_.load() || !session_ || !session_->is_started()) {
         return;
     }
@@ -293,7 +319,7 @@ void WsStreamRouter::PostTextMessage(const std::string& data) {
     session_->ws_stream().text(true);
     queuing_message_count_++;
     auto weak_self = weak_from_this();
-    session_->async_send(data, [weak_self](size_t byte_sent) {
+    session_->async_send(text_message, [weak_self](size_t byte_sent) {
         auto self = weak_self.lock();
         if (!self) {
             return;
@@ -308,14 +334,14 @@ void WsStreamRouter::PostTextMessage(const std::string& data) {
     });
 }
 
-FileTransferSendResult WsStreamRouter::TryPostFileTransferMessage(const std::shared_ptr<Data>& data) {
+FileTransferSendResult WsStreamRouter::TryPostFileTransferMessage(const std::shared_ptr<Data>& file_transfer_message) {
     if (rdp_mode_.load()) {
         return FileTransferSendResult::Disconnected("Host file transfer is unavailable in RDP mode");
     }
     if (!file_allowed_.load()) {
         return FileTransferSendResult::Disconnected("WebSocket control session has no file-transfer capability");
     }
-    if (!data) {
+    if (!file_transfer_message) {
         return FileTransferSendResult::TransportError("WebSocket file-transfer payload is empty");
     }
     if (!session_ || !session_->is_started()) {
@@ -324,15 +350,14 @@ FileTransferSendResult WsStreamRouter::TryPostFileTransferMessage(const std::sha
     if (GetQueuingMsgCount() >= kMaxFileTransferQueuedMessages) {
         return FileTransferSendResult::Busy("WebSocket control queue is full", AcquireWritableSignal());
     }
-    PostBinaryMessage(data);
+    PostBinaryMessage(file_transfer_message);
     return FileTransferSendResult::Accepted();
 }
 
-void WsStreamRouter::SetUdpMediaFallbackCallback(std::function<void()> callback) {
-    udp_media_fallback_callback_ = std::move(callback);
-}
+void WsStreamRouter::SetUdpMediaFallbackCallback(std::function<void()> callback) { udp_media_fallback_callback_ = std::move(callback); }
 
 void WsStreamRouter::RevokeRdp() {
+    rdp_close_outcome_.store(ResourceChannelCloseOutcome::kPolicyRevoked);
     std::weak_ptr<asio2::http_session> weak_session{};
     {
         std::lock_guard lock(reliable_session_mutex_);
@@ -346,6 +371,18 @@ void WsStreamRouter::RevokeRdp() {
         });
     }
 }
+
+void WsStreamRouter::MarkResourceTransportLost() {
+    auto expected = ResourceChannelCloseOutcome::kPeerClosed;
+    static_cast<void>(rdp_close_outcome_.compare_exchange_strong(expected, ResourceChannelCloseOutcome::kTransportLost));
+}
+
+void WsStreamRouter::MarkResourceUserStopped() {
+    auto expected = ResourceChannelCloseOutcome::kPeerClosed;
+    static_cast<void>(rdp_close_outcome_.compare_exchange_strong(expected, ResourceChannelCloseOutcome::kUserStopped));
+}
+
+ResourceChannelCloseOutcome WsStreamRouter::ResourceCloseOutcome() const noexcept { return rdp_close_outcome_.load(); }
 
 std::shared_ptr<FileTransferWritableSignal> WsStreamRouter::AcquireWritableSignal() {
     std::shared_ptr<FileTransferWritableSignal> signal;
@@ -383,4 +420,4 @@ void WsStreamRouter::NotifyClosed() {
         signal->Close();
     }
 }
-} // namespace px
+}  // namespace px

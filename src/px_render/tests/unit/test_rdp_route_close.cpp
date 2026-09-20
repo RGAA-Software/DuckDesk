@@ -71,11 +71,30 @@ TEST(RdpRouteClose, ProtocolCloseReleasesSeatBeforeWebSocketDisconnect) {
         EXPECT_TRUE(probe->opened.load());
         EXPECT_EQ(probe->protocol_closed.load(), 1);
         EXPECT_EQ(probe->released.load(), 1);
+        EXPECT_EQ(router->ResourceCloseOutcome(), ResourceChannelCloseOutcome::kPeerClosed);
         client->stop();
         server->stop();
         proxy->stop();
         EXPECT_EQ(probe->released.load(), 1);
     }
 }
-} // namespace
-} // namespace px
+
+TEST(RdpRouteClose, RevocationWinsOverAFollowingTransportLoss) {
+    const auto router = WsStreamRouter::Make(std::make_shared<WsData>(), false, "test-visitor", "test-stream");
+    router->RevokeRdp();
+    router->MarkResourceTransportLost();
+    EXPECT_EQ(router->ResourceCloseOutcome(), ResourceChannelCloseOutcome::kPolicyRevoked);
+}
+
+TEST(RdpRouteClose, IntentionalStopIsClassifiedUnlessAStrongerReasonAlreadyExists) {
+    const auto stopped = WsStreamRouter::Make(std::make_shared<WsData>(), false, "test-visitor", "test-stream");
+    stopped->MarkResourceUserStopped();
+    EXPECT_EQ(stopped->ResourceCloseOutcome(), ResourceChannelCloseOutcome::kUserStopped);
+
+    const auto revoked = WsStreamRouter::Make(std::make_shared<WsData>(), false, "test-visitor", "test-stream");
+    revoked->RevokeRdp();
+    revoked->MarkResourceUserStopped();
+    EXPECT_EQ(revoked->ResourceCloseOutcome(), ResourceChannelCloseOutcome::kPolicyRevoked);
+}
+}  // namespace
+}  // namespace px

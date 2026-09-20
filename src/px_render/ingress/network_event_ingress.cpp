@@ -446,7 +446,7 @@ void NetworkEventIngress::ProcessClientConnectedEvent(const std::shared_ptr<Clie
 void NetworkEventIngress::ProcessClientDisConnectedEvent(const std::shared_ptr<ClientDisconnectedEvent>& event, const std::string& source_id) {
     const auto resource_connection_key = ResourceChannelConnectionKey(source_id, event->connection_id_, event->stream_id_);
     if (!resource_connection_key.empty()) {
-        app_->CloseConsoleResourceChannel(resource_connection_key);
+        app_->CloseConsoleResourceChannel(resource_connection_key, event->resource_channel_close_outcome_);
     }
     if (const auto media_bus = context_->GetEncodedMediaBus()) {
         media_bus->PublishClientDisconnected(render::MediaClientDisconnected{

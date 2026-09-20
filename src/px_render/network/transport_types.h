@@ -21,6 +21,14 @@ enum class TransportChannel {
     kReliableControl,
 };
 
+enum class ResourceChannelCloseOutcome {
+    kPeerClosed,
+    kUserStopped,
+    kTransportLost,
+    kPolicyRevoked,
+    kIoError,
+};
+
 class NetMessageAck {
 public:
     std::uint64_t send_time_{0};

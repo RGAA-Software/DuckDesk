@@ -266,6 +266,12 @@ frontend admission 后打开 `rdp` 通道、上报 4096/2048 字节并从 Panel 
 `B462E932A0DD305EDBEF645DCD3A9CDB047ECB4AB83FA845ECB140C19FFCA678`、
 `CC764F1B7A8F8E3E31CC379B7115C9AC7BEACEB4BDAE2132DE026BC522EA07B2`。公网 Windows 验收仍需确认真实流量、撤销、断线和最终终态。
 
+关闭原因也已接入同一通道终态：正常远端关闭为 `peer_closed`，Render 主动停止为 `user_stopped`，授权撤销为 `policy_revoked`，网络/连接/
+超时/发送故障为 `transport_lost`，非法包与队列溢出为 `io_error`。强原因通过原子状态保留，撤销不会被后续 socket 断开覆盖；Render 停止会在
+关闭网络适配器前为活动路由产生最终状态。路由关闭/分类 3/3、前端准入 4/4 通过；最新 Cloud Node/Remote Render build/dist SHA-256 为
+`3A6769A16FA22A1111B2A1D650AB38AF15C313BB14EB613A0330E55265DDB16B`、
+`FB47D5AFED82909111F1F4AF75E938C45D4143F3A876CBEFF9626CF0B90CBE21`。公网验收仍需实际制造并核对五类终态。
+
 ### 保留：最初的原型交接
 
 已完成独立 proxy 编译、原生 SSPI 连接、AVC444v2 桌面和原会话重连路径；demo 增加了自动凭证启动支持。
