@@ -409,11 +409,15 @@ async function nodeExchange(socket, request) {
   return response;
 }
 
-async function seedRetriedFileTransfer(node, application, deployment, username) {
+async function seedRetriedFileTransfer(node, application, deployment, username, administratorToken) {
   const fileName = `browser-transfer-${randomUUID()}.bin`;
   const totalBytes = 12 * 1024 * 1024;
   const cancelledBytes = 4 * 1024 * 1024;
   const expectedSha256 = [...createHash("sha256").update("browser-transfer-payload").digest()];
+  const recordingBytes = Buffer.from("browser recording cache payload");
+  const recordingFileName = `browser-recording-${randomUUID()}.mp4`;
+  const recordingSourceId = randomUUID();
+  const recordingSha256 = [...createHash("sha256").update(recordingBytes).digest()];
   const socket = await connectNode(node.body.node_token);
   let requestId = 1;
   const exchange = (request) => nodeExchange(socket, { ...request, request_id: ++requestId });
@@ -604,11 +608,60 @@ async function seedRetriedFileTransfer(node, application, deployment, username) 
     assert.equal(persistedRetry.file_name, fileName);
     assert.equal(persistedRetry.transferred_bytes, totalBytes);
     assert.equal(persistedRetry.state, "completed");
+
+    const recording = await exchange({
+      type: "report_recording",
+      recording: {
+        source_id: recordingSourceId,
+        source_sha256: recordingSha256,
+        session_id: resourceSession.body.id,
+        file_name: recordingFileName,
+        size_bytes: recordingBytes.length,
+        modified_unix_ms: Date.now(),
+        codec: "h264",
+        sequence: 1,
+        present: true,
+      },
+    });
+    assert.equal(recording.type, "recording_reported");
+    const cacheRequest = await api(
+      `/api/console/managed/recordings/${recording.recording_id}/cache`,
+      "POST",
+      null,
+      administratorToken,
+    );
+    assert.equal(cacheRequest.status, 200, JSON.stringify(cacheRequest.body));
+    assert.equal(cacheRequest.body.state, "fetching");
+    const cacheUploads = await exchange({ type: "poll_recording_cache", after: null, limit: 4 });
+    assert.equal(cacheUploads.type, "recording_cache_uploads");
+    assert.equal(cacheUploads.uploads.length, 1);
+    const cacheUpload = cacheUploads.uploads[0];
+    assert.equal(cacheUpload.recording_id, recording.recording_id);
+    const uploaded = await fetch(baseUrl + cacheUpload.upload_path, {
+      method: "PUT",
+      headers: {
+        authorization: `Bearer ${cacheUpload.upload_token}`,
+        "content-type": "application/octet-stream",
+      },
+      body: recordingBytes,
+      signal: AbortSignal.timeout(22000),
+    });
+    assert.equal(uploaded.status, 201);
+    const publishedCache = await uploaded.json();
+    assert.equal(publishedCache.state, "ready");
+    assert.equal(publishedCache.pinned, false);
+    assert.equal(publishedCache.size_bytes, recordingBytes.length);
+    return {
+      cancelledBytes,
+      fileName,
+      recordingFileName,
+      recordingId: recording.recording_id,
+      totalBytes,
+    };
   }
   finally {
     socket.close(1000, "browser fixture complete");
   }
-  return { cancelledBytes, fileName, totalBytes };
 }
 
 async function run() {
@@ -827,9 +880,40 @@ async function run() {
     previewApplication,
     previewDeployment,
     createdUsername,
+    administratorToken,
   );
   console.log("PASS console-protocol/completed-file-transfer-fixture");
   console.log("PASS console-protocol/cancelled-file-transfer-remains-terminal-after-retry");
+  console.log("PASS console-protocol/recording-cache-ready-fixture");
+
+  const cacheBeforeUi = await api("/api/console/managed/recording-cache?limit=100", "GET", undefined, administratorToken);
+  assert.equal(cacheBeforeUi.status, 200);
+  const readyCache = cacheBeforeUi.body.find((candidate) => candidate.recording_id === transferFixture.recordingId);
+  assert.equal(readyCache?.state, "ready", JSON.stringify(cacheBeforeUi.body));
+  const managedRecordingsRequested = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === "/api/console/managed/recordings" && response.request().method() === "GET",
+  );
+  const managedRecordingCacheRequested = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === "/api/console/managed/recording-cache" && response.request().method() === "GET",
+  );
+  await page.goto(baseUrl + "/security-internal");
+  assert.equal((await managedRecordingsRequested).status(), 200);
+  assert.equal((await managedRecordingCacheRequested).status(), 200);
+  await page.getByRole("tab", { name: "Recording metadata", exact: true }).click();
+  const recordingRow = page.getByRole("row").filter({ hasText: transferFixture.recordingFileName });
+  await recordingRow.getByText(transferFixture.recordingFileName, { exact: true }).waitFor();
+  await recordingRow.getByText("ready", { exact: true }).waitFor();
+  await recordingRow.getByRole("button", { name: "Retain", exact: true }).click();
+  await page.getByText("The cache copy will be retained.", { exact: true }).waitFor();
+  await recordingRow.getByRole("button", { name: "Release", exact: true }).waitFor();
+  assert.equal(await recordingRow.getByRole("button", { name: "Evict copy", exact: true }).isDisabled(), true);
+  await recordingRow.getByRole("button", { name: "Release", exact: true }).click();
+  await page.getByText("The cache copy is no longer retained.", { exact: true }).waitFor();
+  await recordingRow.getByRole("button", { name: "Evict copy", exact: true }).click();
+  await page.getByRole("button", { name: "OK", exact: true }).click();
+  await page.getByText("The Console cache copy was removed.", { exact: true }).waitFor();
+  await recordingRow.getByText("Not cached", { exact: true }).waitFor();
+  console.log("PASS console-browser/managed-recording-retain-release-evict");
 
   await stopServer();
   await page.getByText("Reconnecting", { exact: true }).waitFor();

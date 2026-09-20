@@ -312,6 +312,8 @@ try {
                 'console-browser/logout-revokes','console-browser/user-recordings-empty-state',
                 'console-protocol/completed-file-transfer-fixture',
                 'console-protocol/cancelled-file-transfer-remains-terminal-after-retry',
+                'console-protocol/recording-cache-ready-fixture',
+                'console-browser/managed-recording-retain-release-evict',
                 'console-browser/user-file-transfers-completed-state',
                 'console-browser/user-file-transfers-cancelled-retry-state')) {
                 if (-not $consoleBrowser.Contains("PASS $case")) { throw "Console functional assertion missing: $case" }
@@ -623,6 +625,8 @@ try {
         'console-browser/logout-revokes','console-browser/user-recordings-empty-state',
         'console-protocol/completed-file-transfer-fixture',
         'console-protocol/cancelled-file-transfer-remains-terminal-after-retry',
+        'console-protocol/recording-cache-ready-fixture',
+        'console-browser/managed-recording-retain-release-evict',
         'console-browser/user-file-transfers-completed-state',
         'console-browser/user-file-transfers-cancelled-retry-state')) {
         if (-not $consoleBrowser.Contains("PASS $case")) { throw "Console functional assertion missing: $case" }
