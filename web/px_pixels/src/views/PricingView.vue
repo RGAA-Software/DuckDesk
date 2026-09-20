@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, type Component } from 'vue'
+import { computed, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
@@ -13,7 +13,6 @@ import {
     IconHeadset,
     IconStack2,
 } from '@tabler/icons-vue'
-import ContactUs from '@/components/ContactUs.vue'
 import pixelsLogo from '@/assets/pixels-logo-45.svg'
 
 interface PricingPlan {
@@ -36,7 +35,6 @@ interface PricingFaq {
 
 const { t, tm } = useI18n()
 const router = useRouter()
-const contactVisible = ref(false)
 
 const dimensionIcons: Component[] = [
     IconCategory,
@@ -60,10 +58,13 @@ const pricingFaqs = computed(() => tm('site.pricing.faqs') as PricingFaq[])
 function viewPrivateDeployment() {
     void router.push('/about')
 }
+
+function openCalculator() {
+    void router.push('/pricing/calculator')
+}
 </script>
 
 <template>
-  <ContactUs v-model="contactVisible" />
   <div class="pricing-page">
     <section class="pricing-hero">
       <div class="hero-grid" aria-hidden="true" />
@@ -77,7 +78,7 @@ function viewPrivateDeployment() {
             <i />{{ t('site.pricing.notice') }}
           </span>
           <div class="hero-actions">
-            <button class="button-primary" type="button" @click="contactVisible = true">
+            <button class="button-primary" type="button" @click="openCalculator">
               {{ t('site.pricing.primaryAction') }}
               <IconArrowUpRight :size="17" :stroke-width="1.9" />
             </button>
@@ -139,7 +140,7 @@ function viewPrivateDeployment() {
               <strong>{{ pricingPlan.priceLabel }}</strong>
               <span>{{ pricingPlan.priceNote }}</span>
             </div>
-            <button type="button" @click="contactVisible = true">
+            <button type="button" @click="openCalculator">
               {{ t('site.pricing.quoteAction') }}
               <IconArrowUpRight :size="16" :stroke-width="1.8" />
             </button>
@@ -239,7 +240,7 @@ function viewPrivateDeployment() {
         <h2>{{ t('site.pricing.closingTitle') }}</h2>
         <p>{{ t('site.pricing.closingDescription') }}</p>
       </div>
-      <button type="button" @click="contactVisible = true">
+      <button type="button" @click="openCalculator">
         {{ t('site.pricing.primaryAction') }}
         <IconArrowUpRight :size="18" :stroke-width="1.9" />
       </button>

@@ -57,7 +57,7 @@ const activeNavigation = computed<NavigationKey>(() => {
     if (currentPath.startsWith('/solutions/')) return 'solutions'
     if (currentPath === '/downloads') return 'downloads'
     if (currentPath === '/docs') return 'docs'
-    if (currentPath === '/pricing') return 'pricing'
+    if (currentPath.startsWith('/pricing')) return 'pricing'
     if (currentPath === '/about') return 'about'
     return 'home'
 })

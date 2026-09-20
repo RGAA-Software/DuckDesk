@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { ElNotification } from "element-plus";
 import type { FormInstance, FormRules } from "element-plus";
@@ -48,6 +48,9 @@ const rules = computed<FormRules<Consult>>(() => ({
 // 父组件传入的 v-model
 const props = defineProps<{
     modelValue: boolean;
+    initialTitle?: string;
+    initialContent?: string;
+    initialConsultType?: string;
 }>();
 
 const emit = defineEmits<{
@@ -59,6 +62,18 @@ const visible = computed({
     get: () => props.modelValue,
     set: val => emit("update:modelValue", val),
 });
+
+watch(
+    () => props.modelValue,
+    isVisible => {
+        if (!isVisible) return;
+        if (props.initialTitle) consult.value.title = props.initialTitle;
+        if (props.initialContent) consult.value.content = props.initialContent;
+        if (props.initialConsultType) {
+            consult.value.consultType = props.initialConsultType;
+        }
+    },
+);
 
 const close = () => {
     visible.value = false;
