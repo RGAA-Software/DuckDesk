@@ -1432,9 +1432,10 @@ WinTrust provider chain 提取实际签名证书并精确比对，安装完成�
 Ed25519 私钥；初始 root 强制 2–5 把 root key 且门限至少 2，targets/snapshot/timestamp 三角色密钥彼此及 root 隔离。发布读取严格
 `ReleaseSpec` 与精确制品，验证大小/SHA-256、root 自签和到期层级；追加发布重新验证上一仓库全部元数据及每个历史目标字节，自动递增三角色
 版本并拒绝复用 target name。完整候选在随机 staging 内生成，由 `tough` 安全到期模式重新加载并实际取回新目标后才以新目录提交，永不原位
-覆盖；`publication.json` 固定 root/release 摘要和角色版本。3/3 单元测试覆盖多 root 门限/不覆盖、两代发布与历史保留、篡改制品、错误角色 key
-及目标名复用，严格 Clippy 通过；统一验收入口报告 `pg-20260921-184610-e8da787b` 同为 3/3，源码 hash 冻结且隔离容器/卷已清理。它只生成
-不可变候选，不上传或切换线上仓库；正式发布同步、root 轮换、审批私钥托管和正式安装包矩阵仍保持门禁。
+覆盖；`publication.json` 固定 root/release 摘要和角色版本。root 轮换随后加入严格 `N+1`、新到期晚于当前 root、旧/新门限交叉签名和双向验证，
+不能用新 key 自签后跳断既有客户端信任链。4/4 单元测试覆盖多 root 门限/不覆盖、旧新门限轮换、两代发布与历史保留、历史/当前制品篡改、
+错误角色 key 及目标名复用，严格 Clippy 通过。它只生成不可变候选，不上传或切换线上仓库；正式公网同步、轮换发布与水位观察、审批私钥托管和
+正式安装包矩阵仍保持门禁。统一验收入口报告 `pg-20260921-185807-efd50255` 为 4/4，源码 hash 冻结且隔离容器/卷已清理。
 
 Windows 安装包到 TUF 的输入边界也已去除人工字段拼装：`prepare_windows_update_release.py` 要求调用方外部给出审批证书 DER SHA-256，复用正式
 安装包验证器重新核对 manifest、文件 hash、Authenticode、时间戳和 signer pin，再生成固定

@@ -123,6 +123,7 @@ PowerShell 独立复核签名状态、签名者 SHA-256 与时间戳；任一项
 ```bat
 cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority -- generate-key
 cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority -- create-root
+cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority -- rotate-root
 cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority -- publish
 ```
 
@@ -134,6 +135,12 @@ cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority
 - `PIXELS_TUF_ROOT_THRESHOLD`、`PIXELS_TUF_ROOT_VERSION`、`PIXELS_TUF_ROOT_EXPIRES_AT`；
 - `PIXELS_TUF_TARGETS_SIGNING_KEY`、`PIXELS_TUF_SNAPSHOT_SIGNING_KEY`、`PIXELS_TUF_TIMESTAMP_SIGNING_KEY`；
 - `PIXELS_TUF_ROOT_OUTPUT`：不存在的输出文件，时间使用带时区的 RFC 3339。
+
+`rotate-root` 额外要求 `PIXELS_TUF_CURRENT_ROOT_FILE` 和旧 root 私钥绝对路径 JSON 数组
+`PIXELS_TUF_CURRENT_ROOT_SIGNING_KEYS`；其余 root/角色 key、门限、到期和输出变量代表新根。版本只能由工具在当前版本上加一，新到期时间必须
+晚于当前 root。输出必须同时达到旧 root 门限和新 root 门限，工具会分别用旧、新 root 验证后才创建；只持新 key 生成的自签 root 会被拒绝。
+将轮换 root 作为 `<version>.root.json` 与仓库元数据按版本顺序发布并等待客户端水位推进后，才能离线撤去旧 key；不能用新 root 直接替换
+客户端内置的初始 root。
 
 `publish` 需要上述三个在线角色私钥，以及 `PIXELS_TUF_ROOT_FILE`、`PIXELS_RELEASE_SPEC_FILE`、`PIXELS_RELEASE_ARTIFACT`、
 `PIXELS_TUF_REPOSITORY_OUTPUT`、三个 `PIXELS_TUF_*_EXPIRES_AT`。追加发布时还必须给出 `PIXELS_TUF_PREVIOUS_REPOSITORY`。工具验证 root 自签门限、

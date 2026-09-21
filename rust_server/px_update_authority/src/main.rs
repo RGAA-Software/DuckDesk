@@ -1,7 +1,7 @@
 use jiff::Timestamp;
 use px_update_authority::{
-    create_initial_root, generate_signing_key, publish_repository, RepositoryPublication,
-    RootCreation,
+    create_initial_root, generate_signing_key, publish_repository, rotate_root,
+    RepositoryPublication, RootCreation, RootRotation,
 };
 use std::env;
 use std::path::PathBuf;
@@ -33,6 +33,24 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             })
             .await
         }
+        [command] if command == "rotate-root" => {
+            rotate_root(&RootRotation {
+                current_root_path: required_path("PIXELS_TUF_CURRENT_ROOT_FILE")?,
+                current_root_signing_key_paths: required_path_array(
+                    "PIXELS_TUF_CURRENT_ROOT_SIGNING_KEYS",
+                )?,
+                new_root_signing_key_paths: required_path_array(
+                    "PIXELS_TUF_ROOT_SIGNING_KEYS",
+                )?,
+                new_root_signature_threshold: required("PIXELS_TUF_ROOT_THRESHOLD")?.parse()?,
+                new_targets_signing_key_path: required_path("PIXELS_TUF_TARGETS_SIGNING_KEY")?,
+                new_snapshot_signing_key_path: required_path("PIXELS_TUF_SNAPSHOT_SIGNING_KEY")?,
+                new_timestamp_signing_key_path: required_path("PIXELS_TUF_TIMESTAMP_SIGNING_KEY")?,
+                expires_at: required_timestamp("PIXELS_TUF_ROOT_EXPIRES_AT")?,
+                output_path: required_path("PIXELS_TUF_ROOT_OUTPUT")?,
+            })
+            .await
+        }
         [command] if command == "publish" => {
             publish_repository(&RepositoryPublication {
                 root_path: required_path("PIXELS_TUF_ROOT_FILE")?,
@@ -49,7 +67,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             })
             .await
         }
-        _ => Err("usage: px_update_authority <generate-key|create-root|publish>; offline explicit provisioning only; configuration via environment".into()),
+        _ => Err("usage: px_update_authority <generate-key|create-root|rotate-root|publish>; offline explicit provisioning only; configuration via environment".into()),
     }
 }
 

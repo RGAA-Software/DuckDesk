@@ -38,6 +38,19 @@ pub struct RootCreation {
 }
 
 #[derive(Debug, Clone)]
+pub struct RootRotation {
+    pub current_root_path: PathBuf,
+    pub current_root_signing_key_paths: Vec<PathBuf>,
+    pub new_root_signing_key_paths: Vec<PathBuf>,
+    pub new_root_signature_threshold: u64,
+    pub new_targets_signing_key_path: PathBuf,
+    pub new_snapshot_signing_key_path: PathBuf,
+    pub new_timestamp_signing_key_path: PathBuf,
+    pub expires_at: Timestamp,
+    pub output_path: PathBuf,
+}
+
+#[derive(Debug, Clone)]
 pub struct RepositoryPublication {
     pub root_path: PathBuf,
     pub targets_signing_key_path: PathBuf,
@@ -111,29 +124,139 @@ pub async fn create_initial_root(configuration: &RootCreation) -> AuthorityResul
     let targets_source = load_private_key_source(&configuration.targets_signing_key_path)?;
     let snapshot_source = load_private_key_source(&configuration.snapshot_signing_key_path)?;
     let timestamp_source = load_private_key_source(&configuration.timestamp_signing_key_path)?;
+    let root = build_root(
+        &root_sources,
+        configuration.root_signature_threshold,
+        targets_source.as_ref(),
+        snapshot_source.as_ref(),
+        timestamp_source.as_ref(),
+        NonZeroU64::new(configuration.version).ok_or("TUF root version must be positive")?,
+        configuration.expires_at,
+    )
+    .await?;
+    let unsigned_root = Signed {
+        signed: root.clone(),
+        signatures: Vec::new(),
+    };
+    let signed_root = SignedRole::new(
+        root,
+        &KeyHolder::Root(unsigned_root.signed),
+        &root_sources,
+        &SystemRandom::new(),
+    )
+    .await?;
+    let parsed_root: Signed<Root> = serde_json::from_slice(signed_root.buffer())?;
+    parsed_root.signed.verify_role(&parsed_root)?;
+    write_new_public_file(&configuration.output_path, signed_root.buffer())?;
+    Ok(())
+}
 
+pub async fn rotate_root(configuration: &RootRotation) -> AuthorityResult<()> {
+    validate_root_rotation(configuration)?;
+    let current_root_bytes = read_bounded(&configuration.current_root_path, MAXIMUM_ROOT_BYTES)?;
+    let current_root: Signed<Root> = serde_json::from_slice(&current_root_bytes)?;
+    current_root.signed.verify_role(&current_root)?;
+    if current_root.signed.consistent_snapshot {
+        return Err("Pixels update repositories require non-prefixed target paths".into());
+    }
+    let current_root_threshold = current_root
+        .signed
+        .roles
+        .get(&RoleType::Root)
+        .ok_or("current TUF root role is missing")?
+        .threshold
+        .get();
+    if u64::try_from(configuration.current_root_signing_key_paths.len())? < current_root_threshold {
+        return Err("insufficient current root signing keys for rotation".into());
+    }
+    if current_root.signed.expires <= Timestamp::now() {
+        return Err("current TUF root metadata is expired".into());
+    }
+    if configuration.expires_at <= current_root.signed.expires {
+        return Err("rotated TUF root expiration must advance".into());
+    }
+    let next_root_version = next_version(current_root.signed.version)?;
+    let expected_output_name = format!("{}.root.json", next_root_version.get());
+    if configuration
+        .output_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        != Some(expected_output_name.as_str())
+    {
+        return Err(format!("rotated TUF root output must be named {expected_output_name}").into());
+    }
+    let current_root_sources =
+        load_private_key_sources(&configuration.current_root_signing_key_paths)?;
+    let new_root_sources = load_private_key_sources(&configuration.new_root_signing_key_paths)?;
+    let new_targets_source = load_private_key_source(&configuration.new_targets_signing_key_path)?;
+    let new_snapshot_source =
+        load_private_key_source(&configuration.new_snapshot_signing_key_path)?;
+    let new_timestamp_source =
+        load_private_key_source(&configuration.new_timestamp_signing_key_path)?;
+    let new_root = build_root(
+        &new_root_sources,
+        configuration.new_root_signature_threshold,
+        new_targets_source.as_ref(),
+        new_snapshot_source.as_ref(),
+        new_timestamp_source.as_ref(),
+        next_root_version,
+        configuration.expires_at,
+    )
+    .await?;
+    let current_authorized_root = SignedRole::new(
+        new_root.clone(),
+        &KeyHolder::Root(current_root.signed.clone()),
+        &current_root_sources,
+        &SystemRandom::new(),
+    )
+    .await?;
+    let rotated_root = SignedRole::new(
+        new_root.clone(),
+        &KeyHolder::Root(new_root),
+        &new_root_sources,
+        &SystemRandom::new(),
+    )
+    .await?
+    .add_old_signatures(current_authorized_root.signed().signatures.clone())?;
+    let parsed_rotated_root: Signed<Root> = serde_json::from_slice(rotated_root.buffer())?;
+    current_root.signed.verify_role(&parsed_rotated_root)?;
+    parsed_rotated_root
+        .signed
+        .verify_role(&parsed_rotated_root)?;
+    write_new_public_file(&configuration.output_path, rotated_root.buffer())?;
+    Ok(())
+}
+
+async fn build_root(
+    root_sources: &[Box<dyn KeySource>],
+    root_signature_threshold: u64,
+    targets_source: &dyn KeySource,
+    snapshot_source: &dyn KeySource,
+    timestamp_source: &dyn KeySource,
+    version: NonZeroU64,
+    expires_at: Timestamp,
+) -> AuthorityResult<Root> {
     let mut keys = HashMap::new();
     let mut root_key_ids = Vec::new();
-    for root_source in &root_sources {
+    for root_source in root_sources {
         let signing_key = root_source.as_sign().await?;
         let public_key = signing_key.tuf_key();
         let key_id = public_key.key_id()?;
         keys.insert(key_id.clone(), public_key);
         root_key_ids.push(key_id);
     }
-    let targets_key_id = insert_role_key(&mut keys, targets_source.as_ref()).await?;
-    let snapshot_key_id = insert_role_key(&mut keys, snapshot_source.as_ref()).await?;
-    let timestamp_key_id = insert_role_key(&mut keys, timestamp_source.as_ref()).await?;
+    let targets_key_id = insert_role_key(&mut keys, targets_source).await?;
+    let snapshot_key_id = insert_role_key(&mut keys, snapshot_source).await?;
+    let timestamp_key_id = insert_role_key(&mut keys, timestamp_source).await?;
     if keys.len() != root_sources.len() + 3 {
         return Err("TUF root, targets, snapshot, and timestamp keys must all be distinct".into());
     }
-
     let mut roles = HashMap::new();
     roles.insert(
         RoleType::Root,
         RoleKeys {
             keyids: root_key_ids,
-            threshold: NonZeroU64::new(configuration.root_signature_threshold)
+            threshold: NonZeroU64::new(root_signature_threshold)
                 .ok_or("TUF root threshold must be positive")?,
             _extra: HashMap::new(),
         },
@@ -152,31 +275,15 @@ pub async fn create_initial_root(configuration: &RootCreation) -> AuthorityResul
             },
         );
     }
-    let root = Root {
+    Ok(Root {
         spec_version: "1.0.0".into(),
         consistent_snapshot: false,
-        version: NonZeroU64::new(configuration.version)
-            .ok_or("TUF root version must be positive")?,
-        expires: configuration.expires_at,
+        version,
+        expires: expires_at,
         keys,
         roles,
         _extra: HashMap::new(),
-    };
-    let unsigned_root = Signed {
-        signed: root.clone(),
-        signatures: Vec::new(),
-    };
-    let signed_root = SignedRole::new(
-        root,
-        &KeyHolder::Root(unsigned_root.signed),
-        &root_sources,
-        &SystemRandom::new(),
-    )
-    .await?;
-    let parsed_root: Signed<Root> = serde_json::from_slice(signed_root.buffer())?;
-    parsed_root.signed.verify_role(&parsed_root)?;
-    write_new_public_file(&configuration.output_path, signed_root.buffer())?;
-    Ok(())
+    })
 }
 
 pub async fn publish_repository(configuration: &RepositoryPublication) -> AuthorityResult<()> {
@@ -448,6 +555,29 @@ fn validate_root_creation(configuration: &RootCreation) -> AuthorityResult<()> {
     Ok(())
 }
 
+fn validate_root_rotation(configuration: &RootRotation) -> AuthorityResult<()> {
+    if configuration.output_path.exists() {
+        return Err("rotated TUF root output already exists and will not be overwritten".into());
+    }
+    if configuration.current_root_signing_key_paths.is_empty()
+        || configuration.current_root_signing_key_paths.len() > 5
+        || configuration.new_root_signing_key_paths.len() < 2
+        || configuration.new_root_signing_key_paths.len() > 5
+        || configuration.new_root_signature_threshold < 2
+        || configuration.new_root_signature_threshold
+            > u64::try_from(configuration.new_root_signing_key_paths.len())?
+        || configuration.expires_at <= Timestamp::now()
+    {
+        return Err("TUF root rotation requires current keys, 2-5 new keys, a new threshold >= 2, and a future expiration".into());
+    }
+    let output_parent = require_explicit_parent(&configuration.output_path)?;
+    reject_symbolic_link(output_parent)?;
+    if !output_parent.is_dir() {
+        return Err("rotated TUF root output parent does not exist".into());
+    }
+    Ok(())
+}
+
 fn validate_publication_configuration(
     configuration: &RepositoryPublication,
 ) -> AuthorityResult<()> {
@@ -620,7 +750,9 @@ fn sync_regular_files(root: &Path) -> AuthorityResult<()> {
 fn write_new_public_file(path: &Path, bytes: &[u8]) -> AuthorityResult<()> {
     let mut output = OpenOptions::new().write(true).create_new(true).open(path)?;
     output.write_all(bytes)?;
-    output.write_all(b"\n")?;
+    if !bytes.ends_with(b"\n") {
+        output.write_all(b"\n")?;
+    }
     output.sync_all()?;
     Ok(())
 }
@@ -794,6 +926,58 @@ mod tests {
         };
         assert!(create_initial_root(&duplicate_creation).await.is_err());
         assert_eq!(std::fs::read(&fixture.root_path).unwrap(), root_bytes);
+    }
+
+    #[tokio::test]
+    async fn root_rotation_requires_old_and_new_thresholds() {
+        let fixture = AuthorityFixture::new().await;
+        let next_key_directory = fixture.directory().join("next-keys");
+        std::fs::create_dir(&next_key_directory).unwrap();
+        make_private_directory(&next_key_directory);
+        let next_root_key_paths = vec![
+            next_key_directory.join("root-one.pk8"),
+            next_key_directory.join("root-two.pk8"),
+            next_key_directory.join("root-three.pk8"),
+        ];
+        let next_targets_key_path = next_key_directory.join("targets.pk8");
+        let next_snapshot_key_path = next_key_directory.join("snapshot.pk8");
+        let next_timestamp_key_path = next_key_directory.join("timestamp.pk8");
+        for key_path in next_root_key_paths.iter().chain([
+            &next_targets_key_path,
+            &next_snapshot_key_path,
+            &next_timestamp_key_path,
+        ]) {
+            generate_signing_key(key_path).unwrap();
+        }
+        let rotated_root_path = fixture.directory().join("2.root.json");
+        let rotation = RootRotation {
+            current_root_path: fixture.root_path.clone(),
+            current_root_signing_key_paths: fixture.root_key_paths.clone(),
+            new_root_signing_key_paths: next_root_key_paths,
+            new_root_signature_threshold: 2,
+            new_targets_signing_key_path: next_targets_key_path,
+            new_snapshot_signing_key_path: next_snapshot_key_path,
+            new_timestamp_signing_key_path: next_timestamp_key_path,
+            expires_at: Timestamp::now() + SignedDuration::from_hours(24 * 730),
+            output_path: rotated_root_path.clone(),
+        };
+        rotate_root(&rotation).await.unwrap();
+        let current_root: Signed<Root> =
+            serde_json::from_slice(&std::fs::read(&fixture.root_path).unwrap()).unwrap();
+        let rotated_root: Signed<Root> =
+            serde_json::from_slice(&std::fs::read(&rotated_root_path).unwrap()).unwrap();
+        current_root.signed.verify_role(&rotated_root).unwrap();
+        rotated_root.signed.verify_role(&rotated_root).unwrap();
+        assert_eq!(rotated_root.signed.version.get(), 2);
+        assert!(rotated_root.signatures.len() >= 4);
+
+        let insufficient_current_keys = RootRotation {
+            current_root_signing_key_paths: vec![fixture.root_key_paths[0].clone()],
+            output_path: fixture.directory().join("rejected-root.json"),
+            ..rotation
+        };
+        assert!(rotate_root(&insufficient_current_keys).await.is_err());
+        assert!(!insufficient_current_keys.output_path.exists());
     }
 
     #[tokio::test]
