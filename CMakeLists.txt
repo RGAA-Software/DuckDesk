@@ -9,18 +9,44 @@ if(NOT PX_PRODUCT STREQUAL "cloud_node" AND NOT PX_PRODUCT STREQUAL "client" AND
     message(FATAL_ERROR "PX_PRODUCT must be cloud_node, client, or remote; got '${PX_PRODUCT}'")
 endif()
 
-set(PX_DISTRIBUTION "development" CACHE STRING "Pixels distribution: development, official, or customer")
-set_property(CACHE PX_DISTRIBUTION PROPERTY STRINGS development official customer)
-if(NOT PX_DISTRIBUTION STREQUAL "development" AND NOT PX_DISTRIBUTION STREQUAL "official" AND NOT PX_DISTRIBUTION STREQUAL "customer")
-    message(FATAL_ERROR "PX_DISTRIBUTION must be development, official, or customer; got '${PX_DISTRIBUTION}'")
+find_program(PX_PYTHON_EXECUTABLE NAMES python python3 REQUIRED)
+set(PX_DISTRIBUTION "development" CACHE STRING "Pixels distribution: development, official, customer, or oem")
+set_property(CACHE PX_DISTRIBUTION PROPERTY STRINGS development official customer oem)
+if(NOT PX_DISTRIBUTION STREQUAL "development" AND NOT PX_DISTRIBUTION STREQUAL "official" AND
+   NOT PX_DISTRIBUTION STREQUAL "customer" AND NOT PX_DISTRIBUTION STREQUAL "oem")
+    message(FATAL_ERROR "PX_DISTRIBUTION must be development, official, customer, or oem; got '${PX_DISTRIBUTION}'")
+endif()
+
+set(PX_OEM_RELEASE_PROFILE "" CACHE FILEPATH "Immutable OEM release identity profile")
+if(PX_DISTRIBUTION STREQUAL "oem")
+    if(PX_OEM_RELEASE_PROFILE STREQUAL "" OR NOT EXISTS "${PX_OEM_RELEASE_PROFILE}")
+        message(FATAL_ERROR "OEM builds require PX_OEM_RELEASE_PROFILE")
+    endif()
+    execute_process(
+        COMMAND "${PX_PYTHON_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/scripts/oem_release_profile.py"
+                --profile "${PX_OEM_RELEASE_PROFILE}" --product "${PX_PRODUCT}" --cmake
+        RESULT_VARIABLE PX_OEM_PROFILE_RESULT
+        OUTPUT_VARIABLE PX_OEM_PROFILE_CMAKE
+        ERROR_VARIABLE PX_OEM_PROFILE_ERROR)
+    if(NOT PX_OEM_PROFILE_RESULT EQUAL 0)
+        message(FATAL_ERROR "Unable to load OEM release profile: ${PX_OEM_PROFILE_ERROR}")
+    endif()
+    cmake_language(EVAL CODE "${PX_OEM_PROFILE_CMAKE}")
+elseif(NOT PX_OEM_RELEASE_PROFILE STREQUAL "")
+    message(FATAL_ERROR "Development, Official, and Customer builds must not configure PX_OEM_RELEASE_PROFILE")
 endif()
 
 if(PX_DISTRIBUTION STREQUAL "development")
     set(PX_PRODUCT_BUILD_RELATIVE "build_official/${PX_PRODUCT}")
     set(PX_PRODUCT_BUILD_ROOT "${CMAKE_SOURCE_DIR}/build_official/${PX_PRODUCT}")
 else()
-    set(PX_PRODUCT_BUILD_RELATIVE "build_official/${PX_PRODUCT}/${PX_DISTRIBUTION}")
-    set(PX_PRODUCT_BUILD_ROOT "${CMAKE_SOURCE_DIR}/build_official/${PX_PRODUCT}/${PX_DISTRIBUTION}")
+    if(PX_DISTRIBUTION STREQUAL "oem")
+        set(PX_PRODUCT_BUILD_RELATIVE "build_official/${PX_PRODUCT}/oem/${PX_OEM_ID}")
+        set(PX_PRODUCT_BUILD_ROOT "${CMAKE_SOURCE_DIR}/build_official/${PX_PRODUCT}/oem/${PX_OEM_ID}")
+    else()
+        set(PX_PRODUCT_BUILD_RELATIVE "build_official/${PX_PRODUCT}/${PX_DISTRIBUTION}")
+        set(PX_PRODUCT_BUILD_ROOT "${CMAKE_SOURCE_DIR}/build_official/${PX_PRODUCT}/${PX_DISTRIBUTION}")
+    endif()
 endif()
 set(PX_EXPECTED_BINARY_DIR "${PX_PRODUCT_BUILD_ROOT}/cmake")
 cmake_path(NORMAL_PATH PX_EXPECTED_BINARY_DIR)
@@ -32,15 +58,14 @@ if(NOT PX_ACTUAL_BINARY_DIR_LOWER STREQUAL PX_EXPECTED_BINARY_DIR_LOWER)
         "Pixels product builds are isolated. Configure ${PX_PRODUCT} only in ${PX_EXPECTED_BINARY_DIR}; got ${PX_ACTUAL_BINARY_DIR}")
 endif()
 
-set(PX_DEPLOYMENT_POLICY_DIR "" CACHE PATH "Prepared deployment policy directory for an official/customer release")
+set(PX_DEPLOYMENT_POLICY_DIR "" CACHE PATH "Prepared deployment policy directory for a release build")
 if(NOT PX_DISTRIBUTION STREQUAL "development")
     if(PX_DEPLOYMENT_POLICY_DIR STREQUAL "" OR NOT EXISTS "${PX_DEPLOYMENT_POLICY_DIR}/deployment-policy.json" OR
        NOT EXISTS "${PX_DEPLOYMENT_POLICY_DIR}/deployment-trust.json")
-        message(FATAL_ERROR "Official/customer builds require a prepared PX_DEPLOYMENT_POLICY_DIR")
+        message(FATAL_ERROR "Release builds require a prepared PX_DEPLOYMENT_POLICY_DIR")
     endif()
 endif()
 
-find_program(PX_PYTHON_EXECUTABLE NAMES python python3 REQUIRED)
 set(PX_PRODUCT_MANIFEST_PATH "${CMAKE_SOURCE_DIR}/packaging/products/${PX_PRODUCT}.toml")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${PX_PRODUCT_MANIFEST_PATH}")
 execute_process(
@@ -56,6 +81,12 @@ endif()
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/generated")
 file(WRITE "${CMAKE_BINARY_DIR}/generated/pixels_product.cmake" "${PX_PRODUCT_MANIFEST_CMAKE}\n")
 include("${CMAKE_BINARY_DIR}/generated/pixels_product.cmake")
+if(PX_DISTRIBUTION STREQUAL "oem")
+    set(PX_PRODUCT_COMPANY "${PX_OEM_COMPANY}")
+    set(PX_PRODUCT_ICON_SOURCE "${PX_OEM_ICON}")
+else()
+    set(PX_PRODUCT_ICON_SOURCE "${CMAKE_SOURCE_DIR}/src/px_panel/icon.ico")
+endif()
 string(REPLACE "." ";" PX_PRODUCT_VERSION_PARTS "${PX_PRODUCT_VERSION}")
 list(GET PX_PRODUCT_VERSION_PARTS 0 PX_PRODUCT_VERSION_MAJOR)
 list(GET PX_PRODUCT_VERSION_PARTS 1 PX_PRODUCT_VERSION_MINOR)
@@ -71,7 +102,7 @@ configure_file(
     "${PX_PRODUCT_GENERATED_DIR}/icon.rc"
     @ONLY)
 configure_file(
-    "${CMAKE_SOURCE_DIR}/src/px_panel/icon.ico"
+    "${PX_PRODUCT_ICON_SOURCE}"
     "${PX_PRODUCT_GENERATED_DIR}/icon.ico"
     COPYONLY)
 execute_process(
@@ -82,11 +113,27 @@ execute_process(
 if(NOT PX_GIT_REVISION_RESULT EQUAL 0 OR PX_GIT_REVISION STREQUAL "")
     message(FATAL_ERROR "Unable to resolve the Git revision for the product build stamp")
 endif()
+if(PX_DISTRIBUTION STREQUAL "development")
+    set(PX_BUILD_RELEASE_NAMESPACE_JSON "null")
+    set(PX_BUILD_OEM_ID_JSON "null")
+    set(PX_BUILD_OEM_PROFILE_SHA256_JSON "null")
+elseif(PX_DISTRIBUTION STREQUAL "oem")
+    set(PX_BUILD_RELEASE_NAMESPACE_JSON "\"${PX_OEM_RELEASE_NAMESPACE}\"")
+    set(PX_BUILD_OEM_ID_JSON "\"${PX_OEM_ID}\"")
+    set(PX_BUILD_OEM_PROFILE_SHA256_JSON "\"${PX_OEM_PROFILE_SHA256}\"")
+else()
+    set(PX_BUILD_RELEASE_NAMESPACE_JSON "\"pixels.${PX_DISTRIBUTION}\"")
+    set(PX_BUILD_OEM_ID_JSON "null")
+    set(PX_BUILD_OEM_PROFILE_SHA256_JSON "null")
+endif()
 file(WRITE "${PX_PRODUCT_BUILD_ROOT}/product-build.json"
     "{\n"
-    "  \"schema_version\": 1,\n"
+    "  \"schema_version\": 2,\n"
     "  \"product\": \"${PX_PRODUCT_NAME}\",\n"
     "  \"distribution\": \"${PX_DISTRIBUTION}\",\n"
+    "  \"release_namespace\": ${PX_BUILD_RELEASE_NAMESPACE_JSON},\n"
+    "  \"oem_id\": ${PX_BUILD_OEM_ID_JSON},\n"
+    "  \"oem_profile_sha256\": ${PX_BUILD_OEM_PROFILE_SHA256_JSON},\n"
     "  \"edition\": \"${PX_PRODUCT_EDITION}\",\n"
     "  \"company\": \"${PX_PRODUCT_COMPANY}\",\n"
     "  \"product_version\": \"${PX_PRODUCT_VERSION}\",\n"
@@ -542,6 +589,9 @@ function(pixels_add_product_packaging target product)
     set(PX_COLLECT_DISTRIBUTION_ARGUMENTS --distribution "${PX_DISTRIBUTION}")
     if(NOT PX_DISTRIBUTION STREQUAL "development")
         list(APPEND PX_COLLECT_DISTRIBUTION_ARGUMENTS --deployment-policy-dir "${PX_DEPLOYMENT_POLICY_DIR}")
+    endif()
+    if(PX_DISTRIBUTION STREQUAL "oem")
+        list(APPEND PX_COLLECT_DISTRIBUTION_ARGUMENTS --oem-profile "${PX_OEM_RELEASE_PROFILE}")
     endif()
     add_custom_command(TARGET ${target} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/setup" "${CMAKE_BINARY_DIR}/setup"

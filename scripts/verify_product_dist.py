@@ -219,6 +219,13 @@ def verify_distribution_identity(dist_dir: Path, manifest: dict[str, object], ac
     trust_path = "resources/deployment/deployment-trust.json"
     update_root_path = "resources/update/root.json"
     if distribution == "development":
+        if (
+            manifest.get("release_namespace") is not None
+            or manifest.get("oem_id") is not None
+            or manifest.get("oem_profile_sha256") is not None
+            or manifest.get("company") != "Pixels"
+        ):
+            raise RuntimeError("development distribution contains a release or OEM identity")
         if manifest.get("signer_certificate_sha256") is not None:
             raise RuntimeError("development distribution must not declare a release signer")
         if {policy_path, trust_path, update_root_path} & actual_files:
@@ -262,6 +269,7 @@ def verify_distribution_identity(dist_dir: Path, manifest: dict[str, object], ac
         raise RuntimeError("packaged deployment policy does not match the product distribution")
     manifest_namespace = manifest.get("release_namespace")
     manifest_oem_id = manifest.get("oem_id")
+    manifest_oem_profile_sha256 = manifest.get("oem_profile_sha256")
     expected_namespace = f"pixels.{distribution}" if distribution != "oem" else f"oem.{manifest_oem_id}"
     valid_oem_id = (
         isinstance(manifest_oem_id, str)
@@ -276,6 +284,16 @@ def verify_distribution_identity(dist_dir: Path, manifest: dict[str, object], ac
         or policy.get("oem_id") != manifest_oem_id
         or (distribution != "oem" and manifest_oem_id is not None)
         or (distribution == "oem" and not valid_oem_id)
+        or (distribution != "oem" and manifest_oem_profile_sha256 is not None)
+        or (
+            distribution == "oem"
+            and (
+                not isinstance(manifest_oem_profile_sha256, str)
+                or re.fullmatch(r"[0-9A-F]{64}", manifest_oem_profile_sha256) is None
+                or manifest.get("company") == "Pixels"
+            )
+        )
+        or (distribution in {"official", "customer"} and manifest.get("company") != "Pixels")
     ):
         raise RuntimeError("packaged deployment policy has the wrong release domain")
     if distribution == "official" and (
@@ -305,6 +323,8 @@ def main() -> int:
     product_manifest_path = dist_dir / "product-manifest.json"
     sums_path = dist_dir / "sha256sums.json"
     product_manifest = json.loads(product_manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(product_manifest, dict) or product_manifest.get("schema_version") != 3:
+        raise RuntimeError("product manifest must use schema 3")
     sums = json.loads(sums_path.read_text(encoding="utf-8"))
     manifest_sums = {item["path"]: item["sha256"] for item in product_manifest["artifacts"]}
     if sums != manifest_sums:

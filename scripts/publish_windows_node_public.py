@@ -313,9 +313,12 @@ def main() -> int:
                     "Focused public publish requires a valid current product installation; run the product installer first"
                 ) from error
             expected_identity = {
-                "schema_version": 2,
+                "schema_version": 3,
                 "product": args.product,
                 "distribution": args.distribution,
+                "release_namespace": None if args.distribution == "development" else f"pixels.{args.distribution}",
+                "oem_id": None,
+                "oem_profile_sha256": None,
                 "company": "Pixels",
             }
             actual_identity = {key: installed_descriptor.get(key) for key in expected_identity}

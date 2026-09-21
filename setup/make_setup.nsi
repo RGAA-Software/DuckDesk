@@ -20,45 +20,113 @@ Unicode true
 !endif
 !if "${DISTRIBUTION}" != "official"
 !if "${DISTRIBUTION}" != "customer"
-    !error "DISTRIBUTION must be official or customer"
+!if "${DISTRIBUTION}" != "oem"
+    !error "DISTRIBUTION must be official, customer, or oem"
+!endif
 !endif
 !endif
 !ifndef COMPANY
     !error "COMPANY is required"
 !endif
+!ifndef PUBLISHER_NAME
+    !error "PUBLISHER_NAME is required"
+!endif
+!ifndef RELEASE_NAMESPACE
+    !error "RELEASE_NAMESPACE is required"
+!endif
+!ifndef OEM_ID
+    !error "OEM_ID is required, using an empty value for Pixels distributions"
+!endif
+!if "${DISTRIBUTION}" == "official"
 !if "${COMPANY}" != "Pixels"
-    !error "COMPANY must be Pixels"
+    !error "Official COMPANY must be Pixels"
+!endif
+!if "${RELEASE_NAMESPACE}" != "pixels.official"
+    !error "Official RELEASE_NAMESPACE must be pixels.official"
+!endif
+!if "${OEM_ID}" != ""
+    !error "Official OEM_ID must be empty"
+!endif
+!else if "${DISTRIBUTION}" == "customer"
+!if "${COMPANY}" != "Pixels"
+    !error "Customer COMPANY must be Pixels"
+!endif
+!if "${RELEASE_NAMESPACE}" != "pixels.customer"
+    !error "Customer RELEASE_NAMESPACE must be pixels.customer"
+!endif
+!if "${OEM_ID}" != ""
+    !error "Customer OEM_ID must be empty"
+!endif
+!else
+!if "${COMPANY}" == "Pixels"
+    !error "OEM COMPANY must not impersonate Pixels"
+!endif
+!if "${OEM_ID}" == ""
+    !error "OEM_ID is required for OEM installers"
+!endif
+!if "${RELEASE_NAMESPACE}" != "oem.${OEM_ID}"
+    !error "OEM RELEASE_NAMESPACE must exactly match oem.OEM_ID"
+!endif
+!ifndef OEM_PRODUCT_NAME
+    !error "OEM_PRODUCT_NAME is required"
+!endif
+!ifndef OEM_INSTALL_DIRECTORY_NAME
+    !error "OEM_INSTALL_DIRECTORY_NAME is required"
+!endif
+!ifndef OEM_UNINSTALL_KEY
+    !error "OEM_UNINSTALL_KEY is required"
+!endif
+!ifndef OEM_INSTALLER_BASENAME
+    !error "OEM_INSTALLER_BASENAME is required"
+!endif
+!ifndef OEM_ICON
+    !error "OEM_ICON is required"
+!endif
 !endif
 
 !if "${PRODUCT_ID}" == "cloud_node"
-    !define PRODUCT_NAME "Pixels Cloud Node"
-    !define INSTALLER_BASENAME "PixelsCloudNode"
-    !define INSTALL_DIR "$PROGRAMFILES64\Pixels Cloud Node"
-    !define UNINSTALL_KEY "PixelsCloudNode"
     !define PRODUCT_MARKER "cloud_node"
     !define OTHER_PRODUCT_ONE_KEY "PixelsClient"
     !define OTHER_PRODUCT_TWO_KEY "PixelsRemote"
     !define HAS_HOST 1
 !else if "${PRODUCT_ID}" == "client"
-    !define PRODUCT_NAME "Pixels Client"
-    !define INSTALLER_BASENAME "PixelsClient"
-    !define INSTALL_DIR "$PROGRAMFILES64\Pixels Client"
-    !define UNINSTALL_KEY "PixelsClient"
     !define PRODUCT_MARKER "client"
     !define OTHER_PRODUCT_ONE_KEY "PixelsCloudNode"
     !define OTHER_PRODUCT_TWO_KEY "PixelsRemote"
     !define HAS_HOST 0
 !else if "${PRODUCT_ID}" == "remote"
-    !define PRODUCT_NAME "Pixels Remote"
-    !define INSTALLER_BASENAME "PixelsRemote"
-    !define INSTALL_DIR "$PROGRAMFILES64\Pixels Remote"
-    !define UNINSTALL_KEY "PixelsRemote"
     !define PRODUCT_MARKER "remote"
     !define OTHER_PRODUCT_ONE_KEY "PixelsCloudNode"
     !define OTHER_PRODUCT_TWO_KEY "PixelsClient"
     !define HAS_HOST 1
 !else
     !error "PRODUCT_ID must be cloud_node, client, or remote"
+!endif
+
+!if "${DISTRIBUTION}" == "oem"
+    !define PRODUCT_NAME "${OEM_PRODUCT_NAME}"
+    !define INSTALLER_BASENAME "${OEM_INSTALLER_BASENAME}"
+    !define INSTALL_DIR "$PROGRAMFILES64\${OEM_INSTALL_DIRECTORY_NAME}"
+    !define UNINSTALL_KEY "${OEM_UNINSTALL_KEY}"
+    !define PRODUCT_ICON "${OEM_ICON}"
+!else if "${PRODUCT_ID}" == "cloud_node"
+    !define PRODUCT_NAME "Pixels Cloud Node"
+    !define INSTALLER_BASENAME "PixelsCloudNode"
+    !define INSTALL_DIR "$PROGRAMFILES64\Pixels Cloud Node"
+    !define UNINSTALL_KEY "PixelsCloudNode"
+    !define PRODUCT_ICON "..\src\px_panel\icon.ico"
+!else if "${PRODUCT_ID}" == "client"
+    !define PRODUCT_NAME "Pixels Client"
+    !define INSTALLER_BASENAME "PixelsClient"
+    !define INSTALL_DIR "$PROGRAMFILES64\Pixels Client"
+    !define UNINSTALL_KEY "PixelsClient"
+    !define PRODUCT_ICON "..\src\px_panel\icon.ico"
+!else
+    !define PRODUCT_NAME "Pixels Remote"
+    !define INSTALLER_BASENAME "PixelsRemote"
+    !define INSTALL_DIR "$PROGRAMFILES64\Pixels Remote"
+    !define UNINSTALL_KEY "PixelsRemote"
+    !define PRODUCT_ICON "..\src\px_panel\icon.ico"
 !endif
 
 !if ${HAS_HOST} == 1
@@ -80,6 +148,7 @@ OutFile "${OUTPUT_DIR}\${INSTALLER_BASENAME}_${DISTRIBUTION}_${PRODUCT_VERSION}_
 !ifndef UNINSTALL_SIGN_COMMAND
     !error "UNINSTALL_SIGN_COMMAND is required"
 !endif
+
 !uninstfinalize '${UNINSTALL_SIGN_COMMAND}' = 0
 
 InstallDir "${INSTALL_DIR}"
@@ -95,8 +164,8 @@ VIAddVersionKey /LANG=1033 "FileDescription" "${PRODUCT_NAME} Setup"
 VIAddVersionKey /LANG=1033 "LegalCopyright" "Copyright (C) ${COMPANY}"
 
 ;--------------------------------
-!define MUI_ICON "..\src\px_panel\icon.ico"
-!define MUI_UNICON "..\src\px_panel\icon.ico"
+!define MUI_ICON "${PRODUCT_ICON}"
+!define MUI_UNICON "${PRODUCT_ICON}"
 
 !define MUI_HEADERIMAGE
 !define MUI_HEADERIMAGE_BITMAP "image\header.bmp"
@@ -224,14 +293,24 @@ update_cache_ready:
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "QuietUninstallString" "$\"$INSTDIR\Uninstall.exe$\" /S"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\${APPNAME}.exe"
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "Publisher" "${COMPANY}"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "Publisher" "${PUBLISHER_NAME}"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "DisplayVersion" "${PRODUCT_VERSION}"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "Distribution" "${DISTRIBUTION}"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "ReleaseNamespace" "${RELEASE_NAMESPACE}"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "OemId" "${OEM_ID}"
     WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "NoModify" 1
     WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "NoRepair" 1
 
+    WriteRegStr HKLM "Software\Pixels\ProductOwner" "ProductId" "${PRODUCT_ID}"
+    WriteRegStr HKLM "Software\Pixels\ProductOwner" "Distribution" "${DISTRIBUTION}"
+    WriteRegStr HKLM "Software\Pixels\ProductOwner" "ReleaseNamespace" "${RELEASE_NAMESPACE}"
+    WriteRegStr HKLM "Software\Pixels\ProductOwner" "OemId" "${OEM_ID}"
+    WriteRegStr HKLM "Software\Pixels\ProductOwner" "InstallLocation" "$INSTDIR"
+    WriteRegStr HKLM "Software\Pixels\ProductOwner" "UninstallKey" "${UNINSTALL_KEY}"
+    WriteRegStr HKLM "Software\Pixels\ProductOwner" "DisplayName" "${PRODUCT_NAME}"
+
     FileOpen $R0 "$INSTDIR\product-edition.txt" w
-    FileWrite $R0 "${PRODUCT_MARKER}$\r$\n${PRODUCT_VERSION}$\r$\n${COMPANY}$\r$\n"
+    FileWrite $R0 "${PRODUCT_MARKER}$\r$\n${PRODUCT_VERSION}$\r$\n${COMPANY}$\r$\n${RELEASE_NAMESPACE}$\r$\n${OEM_ID}$\r$\n"
     FileClose $R0
 
     ; Set the app to run as administrator
@@ -281,6 +360,7 @@ parsec_vdd_uninstall_ok:
     ; Delete registry entries
     SetRegView 32
     DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}"
+    Call un.ReleaseProductOwner
     SetRegView 64
     DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}"
 !if ${HAS_HOST} == 1
@@ -302,6 +382,11 @@ Function .onInit
     ${EndIf}
     SetRegView 64
     SetShellVarContext all
+
+    ; A shared ownership record makes every current Official, Customer and OEM
+    ; package mutually exclusive even though each OEM has independent uninstall
+    ; keys and installation directories.
+    Call CheckGlobalProductOwner
 
     ; Reuse a same-product custom installation directory for upgrades and
     ; covering installs. Accept the old 32-bit uninstall-registry view once,
@@ -351,15 +436,21 @@ Function ResolveExistingInstallDirectory
     SetRegView 64
     ReadRegStr $R0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "InstallLocation"
     ReadRegStr $R1 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "Distribution"
+    ReadRegStr $R2 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "ReleaseNamespace"
+    ReadRegStr $R3 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "OemId"
     StrCmp $R0 "" resolve_existing_32 resolve_existing_found
 resolve_existing_32:
     SetRegView 32
     ReadRegStr $R0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "InstallLocation"
     ReadRegStr $R1 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "Distribution"
+    ReadRegStr $R2 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "ReleaseNamespace"
+    ReadRegStr $R3 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${UNINSTALL_KEY}" "OemId"
     SetRegView 64
 resolve_existing_found:
     StrCmp $R0 "" resolve_existing_done
-    StrCmp $R1 "${DISTRIBUTION}" resolve_existing_distribution_ok resolve_existing_legacy
+    StrCmp $R1 "${DISTRIBUTION}" 0 resolve_existing_legacy
+    StrCmp $R2 "${RELEASE_NAMESPACE}" 0 resolve_existing_legacy
+    StrCmp $R3 "${OEM_ID}" resolve_existing_distribution_ok resolve_existing_legacy
 resolve_existing_distribution_ok:
     IfFileExists "$R0\product-edition.txt" 0 resolve_existing_legacy
     StrCpy $INSTDIR $R0
@@ -368,6 +459,42 @@ resolve_existing_legacy:
     StrCpy $R9 "${UNINSTALL_KEY}$\r$\n$R0"
     Call AbortLegacyProduct
 resolve_existing_done:
+FunctionEnd
+
+Function CheckGlobalProductOwner
+    SetRegView 64
+    ReadRegStr $R0 HKLM "Software\Pixels\ProductOwner" "ProductId"
+    StrCmp $R0 "" product_owner_done
+    ReadRegStr $R1 HKLM "Software\Pixels\ProductOwner" "Distribution"
+    ReadRegStr $R2 HKLM "Software\Pixels\ProductOwner" "ReleaseNamespace"
+    ReadRegStr $R3 HKLM "Software\Pixels\ProductOwner" "OemId"
+    ReadRegStr $R4 HKLM "Software\Pixels\ProductOwner" "InstallLocation"
+    ReadRegStr $R5 HKLM "Software\Pixels\ProductOwner" "UninstallKey"
+    ReadRegStr $R6 HKLM "Software\Pixels\ProductOwner" "DisplayName"
+    StrCmp $R0 "${PRODUCT_ID}" 0 product_owner_conflict
+    StrCmp $R1 "${DISTRIBUTION}" 0 product_owner_conflict
+    StrCmp $R2 "${RELEASE_NAMESPACE}" 0 product_owner_conflict
+    StrCmp $R3 "${OEM_ID}" 0 product_owner_conflict
+    StrCmp $R5 "${UNINSTALL_KEY}" 0 product_owner_conflict
+    ReadRegStr $R7 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\$R5" "InstallLocation"
+    StrCmp $R7 $R4 0 product_owner_conflict
+    IfFileExists "$R4\product-edition.txt" product_owner_done product_owner_conflict
+product_owner_conflict:
+    StrCmp $R6 "" 0 +2
+        StrCpy $R6 "unowned product installation"
+    StrCpy $R9 "$R6$\r$\n$R4"
+    Call AbortConflictingProduct
+product_owner_done:
+FunctionEnd
+
+Function un.ReleaseProductOwner
+    SetRegView 64
+    ReadRegStr $R0 HKLM "Software\Pixels\ProductOwner" "UninstallKey"
+    ReadRegStr $R1 HKLM "Software\Pixels\ProductOwner" "InstallLocation"
+    StrCmp $R0 "${UNINSTALL_KEY}" 0 release_product_owner_done
+    StrCmp $R1 "$INSTDIR" 0 release_product_owner_done
+    DeleteRegKey HKLM "Software\Pixels\ProductOwner"
+release_product_owner_done:
 FunctionEnd
 
 Function AbortConflictingProduct

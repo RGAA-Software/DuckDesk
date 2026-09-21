@@ -1,3 +1,4 @@
+import hashlib
 import json
 import sys
 import tempfile
@@ -13,22 +14,35 @@ SIGNER_PIN = "A" * 64
 
 
 class WindowsUpdateReleaseTests(unittest.TestCase):
-    def create_release(self, root: Path) -> Path:
+    def create_release(
+        self,
+        root: Path,
+        *,
+        distribution: str = "official",
+        release_namespace: str = "pixels.official",
+        oem_id: str | None = None,
+        company: str = "Pixels",
+        installer_basename: str = "PixelsCloudNode",
+        oem_profile_sha256: str | None = None,
+    ) -> Path:
         release_directory = root / "release"
         release_directory.mkdir()
-        installer_name = "PixelsCloudNode_official_3.3.80_Setup.exe"
+        installer_name = f"{installer_basename}_{distribution}_3.3.80_Setup.exe"
         installer_path = release_directory / installer_name
         installer_path.write_bytes(b"signed installer fixture")
-        import hashlib
-
         installer_sha256 = hashlib.sha256(installer_path.read_bytes()).hexdigest().upper()
         (release_directory / "installer-manifest.json").write_text(
             json.dumps(
                 {
-                    "schema_version": 2,
+                    "schema_version": 3,
                     "product": "cloud_node",
-                    "distribution": "official",
-                    "company": "Pixels",
+                    "distribution": distribution,
+                    "release_namespace": release_namespace,
+                    "oem_id": oem_id,
+                    "company": company,
+                    "publisher_name": company,
+                    "installer_basename": installer_basename,
+                    "oem_profile_sha256": oem_profile_sha256,
                     "product_version": "3.3.80",
                     "product_version_code": 30380,
                     "git_revision": "a" * 40,
@@ -69,6 +83,33 @@ class WindowsUpdateReleaseTests(unittest.TestCase):
                 "windows/cloud_node/official/stable/x86_64/30380/PixelsCloudNode_official_3.3.80_Setup.exe",
             )
             self.assertEqual(release_spec["size_bytes"], len(b"signed installer fixture"))
+
+    def test_oem_target_name_and_catalog_identity_include_the_oem_domain(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            release_directory = self.create_release(
+                Path(temporary_directory),
+                distribution="oem",
+                release_namespace="oem.acme-cloud",
+                oem_id="acme-cloud",
+                company="Acme Systems",
+                installer_basename="AcmeCloudNode",
+                oem_profile_sha256="C" * 64,
+            )
+            release_spec, verified_release = build_release_spec(
+                release_directory,
+                SIGNER_PIN,
+                "https://updates.acme.example/metadata/",
+                "https://updates.acme.example/targets/",
+                "stable",
+                lambda _installer_path, _signer_pin: None,
+            )
+            self.assertEqual(verified_release.oem_id, "acme-cloud")
+            self.assertEqual(release_spec["target"]["release_namespace"], "oem.acme-cloud")
+            self.assertEqual(release_spec["target"]["oem_id"], "acme-cloud")
+            self.assertEqual(
+                release_spec["target_name"],
+                "windows/cloud_node/oem/acme-cloud/stable/x86_64/30380/AcmeCloudNode_oem_3.3.80_Setup.exe",
+            )
 
     def test_signer_urls_and_output_are_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

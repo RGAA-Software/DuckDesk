@@ -1620,8 +1620,16 @@ Client、Cloud Node、Remote 的 `px_panel.exe` build/dist SHA-256 分别为
 namespace、品牌、Windows 三产品安装身份、Windows/Android 签名证书固定值、独立 Android applicationId、Windows/Android/Web 品牌资源摘要、
 deployment trust store 摘要和 TUF 初始 root 摘要。Windows OEM policy 预检不再接受裸 OEM ID，并在写出任何策略前核对实际 trust store/root
 字节；Official/Customer 反向拒绝 OEM profile。资源缺失/篡改、目录逃逸、Pixels 品牌或 applicationId 冒充、重复安装身份和跨根替换均失败关闭。
-聚焦 Python 测试 13/13 通过。该切片只关闭“OEM 构建输入可互相矛盾”的前置缺口；完整 CMake/Web/Android/NSIS 消费、OEM 独立签名发布和
-安装生命周期仍未完成，构建入口保持关闭。
+聚焦 Python 测试 13/13 通过。该首切片只关闭“OEM 构建输入可互相矛盾”的前置缺口；其后的 Windows 接线证据见下一段，Web/Android/OEM
+独立签名发布和安装生命周期仍未完成，构建入口保持关闭。
+
+同日 Windows OEM 接线第二切片把 profile 贯穿 CMake、dist、NSIS、installer verifier 和 Windows TUF ReleaseSpec：输出目录加入 OEM ID 隔离，
+产品水位 schema 2 与 dist/installer schema 3 携带精确 namespace/OEM/profile 摘要，OEM PE 使用 profile 公司名和图标，签名前核对证书固定值；
+安装器使用 OEM 独立显示名/目录/卸载键/basename，并以共享 owner 记录拒绝任意其他 Pixels/OEM 产品共存，只允许完全相同安装身份覆盖。
+升级对比同时要求 namespace、OEM、公司、publisher、basename 和 profile 摘要不变，TUF target 路径显式包含 OEM ID。聚焦 Python 回归目前
+36/36 通过，Official 与 OEM 两条 NSIS 预处理/卸载器编译均成功；Client development Panel 聚焦重配构建通过，build/dist SHA-256 仍为
+`DA1770D1A65627B4FB11DF4320350731420C2273C14E55CBA741FCFE6DDB8CE4`。该切片未运行 release-only 构建，也未开放 OEM 入口；Windows UI/Web
+品牌替换、Android、正式密钥/TUF 发布和真实安装生命周期仍是后续门禁。
 
 | 阶段 | 当前未完成项 |
 |---|---|

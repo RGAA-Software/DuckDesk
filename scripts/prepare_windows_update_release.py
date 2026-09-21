@@ -50,10 +50,10 @@ def immutable_target_name(release: VerifiedInstallerRelease, channel: str) -> st
         "windows",
         release.product,
         release.distribution,
-        channel,
-        "x86_64",
-        str(release.product_version_code),
     ]
+    if release.oem_id is not None:
+        components.append(release.oem_id)
+    components.extend([channel, "x86_64", str(release.product_version_code)])
     if any(TARGET_COMPONENT.fullmatch(component) is None for component in components):
         raise RuntimeError("installer identity cannot form a canonical immutable TUF target name")
     installer_path = Path(release.installer_path)
@@ -80,18 +80,12 @@ def build_release_spec(
         signature_verifier=signature_verifier,
         expected_signer_sha256=approved_signer_sha256,
     )
-    release_namespace = {
-        "official": "pixels.official",
-        "customer": "pixels.customer",
-    }.get(verified_release.distribution)
-    if release_namespace is None:
-        raise RuntimeError("installer distribution has no approved release namespace")
     release_spec: dict[str, object] = {
         "target": {
             "product": verified_release.product,
             "distribution": verified_release.distribution,
-            "release_namespace": release_namespace,
-            "oem_id": None,
+            "release_namespace": verified_release.release_namespace,
+            "oem_id": verified_release.oem_id,
             "channel": channel,
             "os": "windows",
             "architecture": "x86_64",

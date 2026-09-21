@@ -6,7 +6,7 @@ rem runs npm, invokes Cargo, collects the complete dist tree, or builds servers.
 rem Usage: scripts\build_cpp_target.bat target [target ...]
 rem Required environment: CPP_PRODUCT. Focused builds use the development tree
 rem at build_official\<product>\cmake. Release orchestration sets
-rem CPP_DISTRIBUTION=official|customer and uses a nested flavor tree.
+rem CPP_DISTRIBUTION=official|customer|oem and uses a nested flavor tree.
 
 cd /d "%~dp0\.."
 if "%~1"=="" (
@@ -27,8 +27,8 @@ pwsh.exe -NoProfile -File "%~dp0check_cpp_readable_names.ps1"
 if errorlevel 1 exit /b %errorlevel%
 set "BUILD_DISTRIBUTION=%CPP_DISTRIBUTION%"
 if not defined BUILD_DISTRIBUTION set "BUILD_DISTRIBUTION=development"
-if /I not "%BUILD_DISTRIBUTION%"=="development" if /I not "%BUILD_DISTRIBUTION%"=="official" if /I not "%BUILD_DISTRIBUTION%"=="customer" (
-    echo ERROR: CPP_DISTRIBUTION must be development, official, or customer.
+if /I not "%BUILD_DISTRIBUTION%"=="development" if /I not "%BUILD_DISTRIBUTION%"=="official" if /I not "%BUILD_DISTRIBUTION%"=="customer" if /I not "%BUILD_DISTRIBUTION%"=="oem" (
+    echo ERROR: CPP_DISTRIBUTION must be development, official, customer, or oem.
     exit /b 2
 )
 if /I "%BUILD_DISTRIBUTION%"=="development" (

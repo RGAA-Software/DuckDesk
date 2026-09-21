@@ -11,7 +11,7 @@ from pathlib import Path
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY_ROOT / "scripts"))
 
-from oem_release_profile import load_oem_release_profile  # noqa: E402
+from oem_release_profile import emit_cmake, load_oem_release_profile  # noqa: E402
 
 
 class OemReleaseProfileTest(unittest.TestCase):
@@ -91,6 +91,9 @@ class OemReleaseProfileTest(unittest.TestCase):
         self.assertEqual(profile.company_name, "North Star Ltd.")
         self.assertEqual(profile.android_application_id, "com.northstar.cloud.client")
         self.assertRegex(profile.profile_sha256, r"^[0-9a-f]{64}$")
+        cmake_variables = emit_cmake(profile, "client")
+        self.assertIn("set(PX_OEM_ID [[north-star]])", cmake_variables)
+        self.assertIn("set(PX_OEM_PRODUCT_NAME [[North Star Client]])", cmake_variables)
 
     def test_rejects_pixels_brand_and_application_identity(self) -> None:
         profile = self.valid_profile()

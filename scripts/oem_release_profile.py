@@ -3,9 +3,11 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -207,6 +209,8 @@ def load_oem_release_profile(path: Path) -> OemReleaseProfile:
     if not isinstance(windows_icon, dict):
         raise RuntimeError("OEM Windows icon asset is invalid")
     windows_icon_path = validate_asset(resolved_path.parent, windows_icon, "Windows icon")
+    if windows_icon_path.suffix.lower() != ".ico":
+        raise RuntimeError("OEM Windows icon must be an .ico file")
     windows_products = validate_windows_products(windows)
 
     android = require_object(
@@ -222,7 +226,9 @@ def load_oem_release_profile(path: Path) -> OemReleaseProfile:
         android_asset = android.get(asset_field)
         if not isinstance(android_asset, dict):
             raise RuntimeError(f"OEM Android {asset_field} asset is invalid")
-        validate_asset(resolved_path.parent, android_asset, f"Android {asset_field}")
+        android_asset_path = validate_asset(resolved_path.parent, android_asset, f"Android {asset_field}")
+        if android_asset_path.suffix.lower() != ".png":
+            raise RuntimeError(f"OEM Android {asset_field} must be a .png file")
 
     web = require_object(profile_document, "web", {"application_name", "icon"})
     web_application_name = require_text(web, "application_name")
@@ -250,3 +256,48 @@ def load_oem_release_profile(path: Path) -> OemReleaseProfile:
         profile_sha256=sha256_bytes(profile_bytes),
         document=profile_document,
     )
+
+
+def cmake_bracket(value: str) -> str:
+    if "]]" in value:
+        raise RuntimeError("OEM release profile value cannot be represented in generated CMake")
+    return f"[[{value}]]"
+
+
+def emit_cmake(profile: OemReleaseProfile, product: str) -> str:
+    if product not in OEM_PRODUCTS:
+        raise RuntimeError(f"unsupported OEM Windows product: {product}")
+    product_identity = profile.windows_products[product]
+    variables = {
+        "PX_OEM_ID": profile.oem_id,
+        "PX_OEM_RELEASE_NAMESPACE": profile.release_namespace,
+        "PX_OEM_COMPANY": profile.company_name,
+        "PX_OEM_APPLICATION_NAME": profile.application_name,
+        "PX_OEM_ICON": profile.windows_icon_path.as_posix(),
+        "PX_OEM_PROFILE_SHA256": profile.profile_sha256,
+        "PX_OEM_PRODUCT_NAME": product_identity.product_name,
+    }
+    return "\n".join(f"set({variable_name} {cmake_bracket(variable_value)})" for variable_name, variable_value in variables.items()) + "\n"
+
+
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--profile", type=Path, required=True)
+    parser.add_argument("--product", choices=OEM_PRODUCTS, required=True)
+    parser.add_argument("--cmake", action="store_true", required=True)
+    return parser.parse_args()
+
+
+def main() -> int:
+    arguments = parse_arguments()
+    profile = load_oem_release_profile(arguments.profile)
+    sys.stdout.write(emit_cmake(profile, arguments.product))
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except RuntimeError as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        raise SystemExit(1) from None

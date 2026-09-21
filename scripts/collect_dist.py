@@ -16,8 +16,10 @@ import uuid
 from pathlib import Path
 
 try:
+    from scripts.oem_release_profile import OemReleaseProfile, load_oem_release_profile
     from scripts.windows_release_signing import load_configuration, preflight, sign_file
 except ModuleNotFoundError:
+    from oem_release_profile import OemReleaseProfile, load_oem_release_profile
     from windows_release_signing import load_configuration, preflight, sign_file
 
 
@@ -159,6 +161,10 @@ def write_distribution_manifests(
     staging_dir: Path,
     owned_pe: list[str],
     signer_certificate_sha256: str | None,
+    release_namespace: str | None,
+    oem_id: str | None,
+    company: str,
+    oem_profile_sha256: str | None,
 ) -> None:
     revision = subprocess.run(
         ["git", "-C", source_dir, "rev-parse", "--short=12", "HEAD"],
@@ -172,15 +178,15 @@ def write_distribution_manifests(
         if path.is_file() and path.name not in GENERATED_MANIFESTS
     }
     licenses = sorted(path for path in hashes if "license" in path.lower() or path.endswith("SOURCE.md"))
-    release_namespace = None if distribution == "development" else f"pixels.{distribution}"
     manifest = {
         "schema_version": 3,
         "product": product_config["product"],
         "distribution": distribution,
         "release_namespace": release_namespace,
-        "oem_id": None,
+        "oem_id": oem_id,
+        "oem_profile_sha256": oem_profile_sha256,
         "edition": product_config["edition"],
-        "company": product_config["company"],
+        "company": company,
         "product_version": product_config["product_version"],
         "product_version_code": product_config["product_version_code"],
         "capabilities": product_config["capabilities"],
@@ -263,8 +269,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--build-dir", required=True, type=Path, help="Product CMake binary directory")
     parser.add_argument("--source-dir", required=True, type=Path, help="Repository source root")
     parser.add_argument("--product", choices=("cloud_node", "client", "remote"), required=True)
-    parser.add_argument("--distribution", choices=("development", "official", "customer"), required=True)
+    parser.add_argument("--distribution", choices=("development", "official", "customer", "oem"), required=True)
     parser.add_argument("--deployment-policy-dir", type=Path)
+    parser.add_argument("--oem-profile", type=Path)
     parser.add_argument("--dist-dir", required=True, type=Path)
     return parser.parse_args()
 
@@ -274,9 +281,27 @@ def main() -> int:
     build_dir = args.build_dir.resolve()
     source_dir = args.source_dir.resolve()
     final_dir = args.dist_dir.resolve()
+    if args.distribution == "oem":
+        if args.oem_profile is None:
+            raise RuntimeError("OEM distributions require --oem-profile")
+        oem_profile: OemReleaseProfile | None = load_oem_release_profile(args.oem_profile)
+        release_namespace: str | None = oem_profile.release_namespace
+        oem_id: str | None = oem_profile.oem_id
+        company = oem_profile.company_name
+        oem_profile_sha256: str | None = oem_profile.profile_sha256.upper()
+    else:
+        if args.oem_profile is not None:
+            raise RuntimeError("Development, Official, and Customer distributions must not receive --oem-profile")
+        oem_profile = None
+        release_namespace = None if args.distribution == "development" else f"pixels.{args.distribution}"
+        oem_id = None
+        company = "Pixels"
+        oem_profile_sha256 = None
     product_root = build_dir.parent
     expected_product_root = (source_dir / "build_official" / args.product).resolve()
-    if args.distribution != "development":
+    if args.distribution == "oem":
+        expected_product_root = (expected_product_root / "oem" / oem_id).resolve()
+    elif args.distribution != "development":
         expected_product_root = (expected_product_root / args.distribution).resolve()
     if build_dir.name != "cmake" or product_root != expected_product_root:
         raise RuntimeError(
@@ -297,16 +322,24 @@ def main() -> int:
     with (product_root / "product-build.json").open("r", encoding="utf-8") as source:
         build_stamp = json.load(source)
     expected_stamp = {
+        "schema_version": 2,
         "product": args.product,
         "distribution": args.distribution,
+        "release_namespace": release_namespace,
+        "oem_id": oem_id,
+        "oem_profile_sha256": oem_profile.profile_sha256 if oem_profile is not None else None,
         "edition": product_config["edition"],
-        "company": product_config["company"],
+        "company": company,
         "product_version": product_config["product_version"],
         "product_version_code": product_config["product_version_code"],
         "cmake_binary_dir": (
             f"build_official/{args.product}/cmake"
             if args.distribution == "development"
-            else f"build_official/{args.product}/{args.distribution}/cmake"
+            else (
+                f"build_official/{args.product}/oem/{oem_id}/cmake"
+                if args.distribution == "oem"
+                else f"build_official/{args.product}/{args.distribution}/cmake"
+            )
         ),
     }
     actual_stamp = {key: build_stamp.get(key) for key in expected_stamp}
@@ -336,7 +369,7 @@ def main() -> int:
             raise RuntimeError("development distributions must not accept release deployment policy inputs")
     else:
         if args.deployment_policy_dir is None:
-            raise RuntimeError("official/customer distributions require --deployment-policy-dir")
+            raise RuntimeError("release distributions require --deployment-policy-dir")
         policy_directory = args.deployment_policy_dir.resolve()
         expected_policy_directory = product_root / "deployment"
         if policy_directory != expected_policy_directory:
@@ -352,6 +385,11 @@ def main() -> int:
         copy_file(update_root_source, staging_dir / "resources" / "update" / "root.json", staging_dir)
         signing_configuration = load_configuration()
         preflight(signing_configuration)
+        if (
+            oem_profile is not None
+            and signing_configuration.certificate_sha256.lower() != oem_profile.windows_signer_certificate_sha256
+        ):
+            raise RuntimeError("Windows signing certificate does not match the OEM release profile")
         for relative_path in owned_pe:
             sign_file(staging_dir / relative_path, signing_configuration)
         signer_certificate_sha256 = signing_configuration.certificate_sha256
@@ -362,6 +400,10 @@ def main() -> int:
         staging_dir,
         owned_pe,
         signer_certificate_sha256,
+        release_namespace,
+        oem_id,
+        company,
+        oem_profile_sha256,
     )
     publish_staging_directory(staging_dir, final_dir)
     atexit.unregister(cleanup)

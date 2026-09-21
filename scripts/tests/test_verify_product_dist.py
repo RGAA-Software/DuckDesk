@@ -63,6 +63,10 @@ class DevelopmentManifestRefreshTest(unittest.TestCase):
                         "schema_version": 3,
                         "product": "client",
                         "distribution": "development",
+                        "release_namespace": None,
+                        "oem_id": None,
+                        "oem_profile_sha256": None,
+                        "company": "Pixels",
                         "artifacts": [{"path": "px_client.exe", "sha256": "STALE"}],
                     }
                 ),
@@ -140,6 +144,8 @@ class DistributionUpdateTrustAuditTest(unittest.TestCase):
                 "distribution": "customer",
                 "release_namespace": "pixels.customer",
                 "oem_id": None,
+                "oem_profile_sha256": None,
+                "company": "Pixels",
                 "owned_pe": ["px_client.exe"],
                 "signer_certificate_sha256": "A" * 64,
             }
@@ -158,7 +164,13 @@ class DistributionUpdateTrustAuditTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "signer pin"):
                 VERIFY_PRODUCT_DIST.verify_distribution_identity(
                     distribution,
-                    {"distribution": "official"},
+                    {
+                        "distribution": "official",
+                        "release_namespace": "pixels.official",
+                        "oem_id": None,
+                        "oem_profile_sha256": None,
+                        "company": "Pixels",
+                    },
                     actual_files,
                 )
 
@@ -195,6 +207,8 @@ class DistributionUpdateTrustAuditTest(unittest.TestCase):
                 "distribution": "customer",
                 "release_namespace": "pixels.customer",
                 "oem_id": None,
+                "oem_profile_sha256": None,
+                "company": "Pixels",
                 "owned_pe": ["px_client.exe"],
                 "signer_certificate_sha256": "A" * 64,
             }
@@ -207,7 +221,13 @@ class DistributionUpdateTrustAuditTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "update trust"):
                 VERIFY_PRODUCT_DIST.verify_distribution_identity(
                     Path(temporary_directory),
-                    {"distribution": "development"},
+                    {
+                        "distribution": "development",
+                        "release_namespace": None,
+                        "oem_id": None,
+                        "oem_profile_sha256": None,
+                        "company": "Pixels",
+                    },
                     {"resources/update/root.json"},
                 )
 
@@ -239,6 +259,8 @@ class DistributionUpdateTrustAuditTest(unittest.TestCase):
                 "distribution": "oem",
                 "release_namespace": "oem.acme-cloud",
                 "oem_id": "acme-cloud",
+                "oem_profile_sha256": "B" * 64,
+                "company": "Acme Systems",
                 "owned_pe": ["px_client.exe"],
                 "signer_certificate_sha256": "A" * 64,
             }

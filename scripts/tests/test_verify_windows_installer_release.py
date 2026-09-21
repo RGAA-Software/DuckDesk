@@ -27,23 +27,35 @@ class WindowsInstallerReleaseVerificationTests(unittest.TestCase):
         product: str = "client",
         distribution: str = "official",
         signer_pin: str = SIGNER_PIN,
+        oem_id: str | None = None,
+        company: str = "Pixels",
+        publisher_name: str | None = None,
+        installer_basename: str | None = None,
+        oem_profile_sha256: str | None = None,
     ) -> Path:
         release_directory = parent_directory / f"{product}-{distribution}-{version}"
         release_directory.mkdir()
-        product_basename = {
+        pixels_product_basename = {
             "cloud_node": "PixelsCloudNode",
             "client": "PixelsClient",
             "remote": "PixelsRemote",
         }[product]
-        installer_name = f"{product_basename}_{distribution}_{version}_Setup.exe"
+        selected_installer_basename = installer_basename or pixels_product_basename
+        release_namespace = f"oem.{oem_id}" if distribution == "oem" else f"pixels.{distribution}"
+        installer_name = f"{selected_installer_basename}_{distribution}_{version}_Setup.exe"
         installer_path = release_directory / installer_name
         installer_path.write_bytes(f"signed installer {product} {distribution} {version}".encode("utf-8"))
         installer_sha256 = hashlib.sha256(installer_path.read_bytes()).hexdigest().upper()
         manifest = {
-            "schema_version": 2,
+            "schema_version": 3,
             "product": product,
             "distribution": distribution,
-            "company": "Pixels",
+            "release_namespace": release_namespace,
+            "oem_id": oem_id,
+            "company": company,
+            "publisher_name": publisher_name or company,
+            "installer_basename": selected_installer_basename,
+            "oem_profile_sha256": oem_profile_sha256,
             "product_version": version,
             "product_version_code": version_code,
             "git_revision": "1" * 40,
@@ -110,6 +122,41 @@ class WindowsInstallerReleaseVerificationTests(unittest.TestCase):
             )
 
             with self.assertRaisesRegex(RuntimeError, "distributions do not match"):
+                validate_upgrade_pair(
+                    previous_directory,
+                    current_directory,
+                    self.accept_signature,
+                    approved_signer_transition=(SIGNER_PIN, SIGNER_PIN),
+                )
+
+    def test_oem_release_is_domain_bound_and_rejects_cross_oem_upgrade(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            release_root = Path(temporary_directory)
+            previous_directory = self.create_release(
+                release_root,
+                "3.3.72",
+                30372,
+                distribution="oem",
+                oem_id="acme-cloud",
+                company="Acme Systems",
+                installer_basename="AcmeClient",
+                oem_profile_sha256="C" * 64,
+            )
+            current_directory = self.create_release(
+                release_root,
+                "3.3.73",
+                30373,
+                distribution="oem",
+                oem_id="other-cloud",
+                company="Other Systems",
+                installer_basename="OtherClient",
+                oem_profile_sha256="D" * 64,
+            )
+            verified_release = validate_release_directory(previous_directory, self.accept_signature)
+            self.assertEqual(verified_release.release_namespace, "oem.acme-cloud")
+            self.assertEqual(verified_release.oem_id, "acme-cloud")
+
+            with self.assertRaisesRegex(RuntimeError, "release and installation identities do not match"):
                 validate_upgrade_pair(
                     previous_directory,
                     current_directory,
@@ -201,9 +248,11 @@ class WindowsInstallerReleaseVerificationTests(unittest.TestCase):
                     }
                 )
             product_manifest = {
-                "schema_version": 2,
+                "schema_version": 3,
                 "product": "client",
                 "distribution": "official",
+                "release_namespace": "pixels.official",
+                "oem_id": None,
                 "company": "Pixels",
                 "product_version": "3.3.72",
                 "product_version_code": 30372,
@@ -217,7 +266,7 @@ class WindowsInstallerReleaseVerificationTests(unittest.TestCase):
             (install_directory / "sha256sums.json").write_text(json.dumps(artifact_hashes), encoding="utf-8")
             (install_directory / "licenses.json").write_text(json.dumps({"files": []}), encoding="utf-8")
             (install_directory / "product-edition.txt").write_text(
-                "client\n3.3.72\nPixels\n",
+                "client\n3.3.72\nPixels\npixels.official\n\n",
                 encoding="utf-8",
             )
             (install_directory / "Uninstall.exe").write_bytes(b"uninstaller")

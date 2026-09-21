@@ -24,6 +24,7 @@ from windows_release_signing import (  # noqa: E402
     preflight,
     sign_file,
 )
+from oem_release_profile import OemReleaseProfile, OemWindowsProductIdentity, load_oem_release_profile  # noqa: E402
 
 
 PRODUCTS = ("cloud_node", "client", "remote")
@@ -77,7 +78,8 @@ RETIRED_RDP_NAMES = {
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--product", required=True, choices=PRODUCTS)
-    parser.add_argument("--distribution", required=True, choices=("official", "customer"))
+    parser.add_argument("--distribution", required=True, choices=("official", "customer", "oem"))
+    parser.add_argument("--oem-profile", type=Path, help="Immutable OEM release profile; required only for OEM builds")
     parser.add_argument("--dist-dir", type=Path, help="Verified product dist directory")
     parser.add_argument("--output-root", type=Path, help="Installer output root")
     parser.add_argument("--preflight-only", action="store_true")
@@ -110,7 +112,17 @@ def load_product_config(repo_root: Path, product: str) -> dict[str, object]:
     return config
 
 
-def validate_dist(repo_root: Path, product: str, distribution: str, dist_dir: Path, config: dict[str, object]) -> dict[str, object]:
+def validate_dist(
+    repo_root: Path,
+    product: str,
+    distribution: str,
+    release_namespace: str,
+    oem_id: str | None,
+    company: str,
+    oem_profile_sha256: str | None,
+    dist_dir: Path,
+    config: dict[str, object],
+) -> dict[str, object]:
     if not dist_dir.is_dir():
         raise RuntimeError(f"product dist folder not found: {dist_dir}")
     subprocess.run(
@@ -121,7 +133,10 @@ def validate_dist(repo_root: Path, product: str, distribution: str, dist_dir: Pa
     expected_identity = {
         "product": product,
         "distribution": distribution,
-        "company": config["company"],
+        "release_namespace": release_namespace,
+        "oem_id": oem_id,
+        "company": company,
+        "oem_profile_sha256": oem_profile_sha256,
         "product_version": config["product_version"],
         "product_version_code": config["product_version_code"],
     }
@@ -243,24 +258,67 @@ def create_installer(
     version: str,
     version_code: int,
     company: str,
+    publisher_name: str,
+    release_namespace: str,
+    oem_id: str | None,
+    product_identity: OemWindowsProductIdentity | None,
+    icon_path: Path | None,
     uninstaller_sign_command: str,
 ) -> Path:
+    definition_values = {
+        "OUTPUT_DIR": str(staging_dir),
+        "PRODUCT_ID": product,
+        "DISTRIBUTION": distribution,
+        "RELEASE_NAMESPACE": release_namespace,
+        "OEM_ID": oem_id or "",
+        "PRODUCT_VERSION": version,
+        "PRODUCT_VERSION_CODE": str(version_code),
+        "COMPANY": company,
+        "PUBLISHER_NAME": publisher_name,
+        "UNINSTALL_SIGN_COMMAND": uninstaller_sign_command,
+    }
+    if product_identity is not None:
+        definition_values.update(
+            {
+                "OEM_PRODUCT_NAME": product_identity.product_name,
+                "OEM_INSTALL_DIRECTORY_NAME": product_identity.install_directory_name,
+                "OEM_UNINSTALL_KEY": product_identity.uninstall_key,
+                "OEM_INSTALLER_BASENAME": product_identity.installer_basename,
+                "OEM_ICON": str(icon_path),
+            }
+        )
+    profile_definition_names = {
+        "COMPANY",
+        "PUBLISHER_NAME",
+        "OEM_PRODUCT_NAME",
+        "OEM_INSTALL_DIRECTORY_NAME",
+        "OEM_UNINSTALL_KEY",
+        "OEM_INSTALLER_BASENAME",
+        "OEM_ICON",
+    }
+    for definition_name, definition_value in definition_values.items():
+        empty_oem_id = definition_name == "OEM_ID" and not definition_value
+        has_line_break = any(character in definition_value for character in ("\r", "\n"))
+        has_unsafe_profile_character = definition_name in profile_definition_names and any(
+            character in definition_value for character in ('"', "$")
+        )
+        if (not definition_value and not empty_oem_id) or has_line_break or has_unsafe_profile_character:
+            raise RuntimeError(f"installer definition cannot be represented safely: {definition_name}")
+    makensis_arguments = [
+        str(makensis),
+        *(f"/D{definition_name}={definition_value}" for definition_name, definition_value in definition_values.items()),
+        str(setup_dir / "make_setup.nsi"),
+    ]
     subprocess.run(
-        [
-            str(makensis),
-            f"/DOUTPUT_DIR={staging_dir}",
-            f"/DPRODUCT_ID={product}",
-            f"/DDISTRIBUTION={distribution}",
-            f"/DPRODUCT_VERSION={version}",
-            f"/DPRODUCT_VERSION_CODE={version_code}",
-            f"/DCOMPANY={company}",
-            f"/DUNINSTALL_SIGN_COMMAND={uninstaller_sign_command}",
-            str(setup_dir / "make_setup.nsi"),
-        ],
+        makensis_arguments,
         cwd=setup_dir,
         check=True,
     )
-    basename = {"cloud_node": "PixelsCloudNode", "client": "PixelsClient", "remote": "PixelsRemote"}[product]
+    basename = (
+        product_identity.installer_basename
+        if product_identity is not None
+        else {"cloud_node": "PixelsCloudNode", "client": "PixelsClient", "remote": "PixelsRemote"}[product]
+    )
     installer = staging_dir / f"{basename}_{distribution}_{version}_Setup.exe"
     if not installer.is_file():
         raise RuntimeError(f"NSIS did not create expected installer: {installer}")
@@ -272,24 +330,60 @@ def main() -> int:
     setup_dir = Path(__file__).resolve().parent
     repo_root = setup_dir.parent
     config = load_product_config(repo_root, args.product)
+    if args.distribution == "oem":
+        if args.oem_profile is None:
+            raise RuntimeError("OEM installers require --oem-profile")
+        oem_profile: OemReleaseProfile | None = load_oem_release_profile(args.oem_profile)
+        release_namespace = oem_profile.release_namespace
+        oem_id: str | None = oem_profile.oem_id
+        company = oem_profile.company_name
+        publisher_name = oem_profile.windows_publisher_name
+        product_identity: OemWindowsProductIdentity | None = oem_profile.windows_products[args.product]
+        icon_path: Path | None = oem_profile.windows_icon_path
+    else:
+        if args.oem_profile is not None:
+            raise RuntimeError("Official and Customer installers must not receive --oem-profile")
+        oem_profile = None
+        release_namespace = f"pixels.{args.distribution}"
+        oem_id = None
+        company = str(config["company"])
+        publisher_name = company
+        product_identity = None
+        icon_path = None
     signing_configuration = load_configuration()
     preflight(signing_configuration)
+    if (
+        oem_profile is not None
+        and signing_configuration.certificate_sha256.lower() != oem_profile.windows_signer_certificate_sha256
+    ):
+        raise RuntimeError("Windows signing certificate does not match the OEM release profile")
     tool_config = load_tool_config(setup_dir)
     makensis = find_nsis(tool_config.get("nsis_dir_path"), repo_root)
     validate_pinned_nsis(repo_root, makensis)
     if args.preflight_only:
         print("Windows installer signing and pinned toolchain preflight passed.")
         return 0
-    expected_dist_dir = (repo_root / "build_official" / args.product / args.distribution / "dist").resolve()
+    distribution_directory = Path("oem") / oem_id if oem_id is not None else Path(args.distribution)
+    expected_dist_dir = (repo_root / "build_official" / args.product / distribution_directory / "dist").resolve()
     dist_dir = (args.dist_dir or expected_dist_dir).resolve()
     if dist_dir != expected_dist_dir:
         raise RuntimeError(f"installer input must be the isolated product dist {expected_dist_dir}; got {dist_dir}")
-    manifest = validate_dist(repo_root, args.product, args.distribution, dist_dir, config)
+    manifest = validate_dist(
+        repo_root,
+        args.product,
+        args.distribution,
+        release_namespace,
+        oem_id,
+        company,
+        oem_profile.profile_sha256.upper() if oem_profile is not None else None,
+        dist_dir,
+        config,
+    )
     if args.validate_only:
         print(f"Validated installer input: {args.product}/{args.distribution} {config['product_version']} ({dist_dir})")
         return 0
 
-    expected_output_root = (repo_root / "build_official" / args.product / args.distribution / "installer").resolve()
+    expected_output_root = (repo_root / "build_official" / args.product / distribution_directory / "installer").resolve()
     output_root = (args.output_root or expected_output_root).resolve()
     if output_root != expected_output_root:
         raise RuntimeError(f"installer output must be the isolated product directory {expected_output_root}; got {output_root}")
@@ -309,15 +403,29 @@ def main() -> int:
             args.distribution,
             str(config["product_version"]),
             int(config["product_version_code"]),
-            str(config["company"]),
+            company,
+            publisher_name,
+            release_namespace,
+            oem_id,
+            product_identity,
+            icon_path,
             nsis_finalize_command(signing_configuration),
         )
         sign_file(installer, signing_configuration)
         release_manifest = {
-            "schema_version": 2,
+            "schema_version": 3,
             "product": args.product,
             "distribution": args.distribution,
-            "company": config["company"],
+            "release_namespace": release_namespace,
+            "oem_id": oem_id,
+            "company": company,
+            "publisher_name": publisher_name,
+            "installer_basename": (
+                product_identity.installer_basename
+                if product_identity is not None
+                else {"cloud_node": "PixelsCloudNode", "client": "PixelsClient", "remote": "PixelsRemote"}[args.product]
+            ),
+            "oem_profile_sha256": oem_profile.profile_sha256.upper() if oem_profile is not None else None,
             "product_version": config["product_version"],
             "product_version_code": config["product_version_code"],
             "git_revision": manifest["git_revision"],

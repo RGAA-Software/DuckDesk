@@ -18,6 +18,13 @@ Windows/Android/Web 品牌图标及逐件 SHA-256、deployment trust store SHA-2
 Customer 构建反向拒绝该变量，避免 OEM 配置污染 Pixels 双发行矩阵。完整 OEM 编译入口只有在这些字段实际贯穿 CMake、Web、Android 和安装器后
 才会开放。
 
+Windows 底层发行链现已继续接线，但仍不构成公开入口：CMake/`collect_dist.py`/NSIS 共同消费同一 profile，OEM 输出固定隔离到
+`build_official/<product>/oem/<oem_id>/`，CMake 产品水位使用 schema 2，dist 与 installer manifest 使用 schema 3 并携带精确发行域和
+profile SHA-256；OEM 公司名、图标、产品显示名、安装目录、卸载键、安装包 basename 与签名证书固定值不能在后段覆盖。安装器用共享受保护
+owner 记录维持三个 Windows 产品及所有发行互斥，同时同一 product/domain/install identity 才允许覆盖安装。installer release verifier 和
+TUF ReleaseSpec 也把 OEM ID 纳入升级相等性和不可变 target 路径。Web/Android 的完整品牌资源和正式 OEM 编排尚未完成，所以不要直接调用这些
+底层参数生成交付包。
+
 旧的根 CMake 树、公共 `build_official/dist`、共享 Rust 编译产物、`build_client.bat`、旧端口和旧节点测试方案均已退役，不提供兼容入口。
 
 ## 1. 产品与目录
@@ -349,7 +356,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts_build\clean_product_
 
 - 构建命令返回 0；
 - `product-build.json` 与目标产品、版本和 CMake 目录一致；
-- `dist/product-manifest.json` 使用 schema 3，与产品清单一致，并强制携带 distribution、release_namespace 和 nullable oem_id；
+- `dist/product-manifest.json` 使用 schema 3，与产品清单一致，并强制携带 distribution、release_namespace、nullable oem_id 和 nullable
+  oem_profile_sha256；
 - `dist/artifact-manifest.json` 中全部 SHA-256 校验通过；
 - Windows 两种发行使用同一产品版本，安装包分别位于 `<official|customer>/installer/<version>`；
 - 正式发布候选在专用 Windows 验收机完成对应的新旧签名安装包生命周期报告；

@@ -24,9 +24,12 @@ PRODUCT_BASENAMES = {
     "client": "PixelsClient",
     "remote": "PixelsRemote",
 }
-VALID_DISTRIBUTIONS = {"official", "customer"}
+VALID_DISTRIBUTIONS = {"official", "customer", "oem"}
 HEX_SHA256 = re.compile(r"^[0-9A-F]{64}$")
 SEMANTIC_VERSION = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
+OEM_ID = re.compile(r"^[a-z0-9](?:[a-z0-9-]{1,30}[a-z0-9])$")
+INSTALLER_BASENAME = re.compile(r"^[A-Za-z][A-Za-z0-9._-]{2,63}$")
+RESERVED_OEM_IDS = {"pixels", "official", "customer", "oem"}
 
 
 @dataclass(frozen=True)
@@ -36,6 +39,12 @@ class VerifiedInstallerRelease:
     installer_sha256: str
     product: str
     distribution: str
+    release_namespace: str
+    oem_id: str | None
+    company: str
+    publisher_name: str
+    installer_basename: str
+    oem_profile_sha256: str | None
     product_version: str
     product_version_code: int
     signer_certificate_sha256: str
@@ -102,6 +111,13 @@ def require_positive_integer(manifest: dict[str, object], field_name: str) -> in
     return field_value
 
 
+def require_nullable_string(manifest: dict[str, object], field_name: str) -> str | None:
+    field_value = manifest.get(field_name)
+    if field_value is not None and (not isinstance(field_value, str) or not field_value):
+        raise RuntimeError(f"installer manifest field must be a non-empty string or null: {field_name}")
+    return field_value
+
+
 def parse_product_version(version: str) -> tuple[int, int, int]:
     version_match = SEMANTIC_VERSION.fullmatch(version)
     if version_match is None:
@@ -129,12 +145,35 @@ def validate_release_directory(
         raise RuntimeError(f"installer release directory does not exist: {resolved_directory}")
     manifest_path = resolved_directory / "installer-manifest.json"
     manifest = read_json_object(manifest_path)
-    if manifest.get("schema_version") != 2:
+    expected_manifest_fields = {
+        "schema_version",
+        "product",
+        "distribution",
+        "release_namespace",
+        "oem_id",
+        "company",
+        "publisher_name",
+        "installer_basename",
+        "oem_profile_sha256",
+        "product_version",
+        "product_version_code",
+        "git_revision",
+        "signer_certificate_sha256",
+        "payload_manifest_sha256",
+        "payload_artifact_count",
+        "installer",
+    }
+    if manifest.get("schema_version") != 3 or set(manifest) != expected_manifest_fields:
         raise RuntimeError(f"unsupported installer manifest schema: {manifest.get('schema_version')}")
 
     product = require_string(manifest, "product")
     distribution = require_string(manifest, "distribution")
+    release_namespace = require_string(manifest, "release_namespace")
+    oem_id = require_nullable_string(manifest, "oem_id")
     company = require_string(manifest, "company")
+    publisher_name = require_string(manifest, "publisher_name")
+    installer_basename = require_string(manifest, "installer_basename")
+    oem_profile_sha256 = require_nullable_string(manifest, "oem_profile_sha256")
     product_version = require_string(manifest, "product_version")
     product_version_code = require_positive_integer(manifest, "product_version_code")
     git_revision = require_string(manifest, "git_revision")
@@ -156,8 +195,34 @@ def validate_release_directory(
         raise RuntimeError(f"unsupported Windows product in installer manifest: {product}")
     if distribution not in VALID_DISTRIBUTIONS:
         raise RuntimeError(f"unsupported distribution in installer manifest: {distribution}")
-    if company != "Pixels":
-        raise RuntimeError(f"installer company must be Pixels, got: {company}")
+    if INSTALLER_BASENAME.fullmatch(installer_basename) is None:
+        raise RuntimeError("installer basename must be a safe ASCII identity")
+    expected_pixels_basename = PRODUCT_BASENAMES[product]
+    if distribution == "official":
+        expected_release_identity = ("pixels.official", None)
+    elif distribution == "customer":
+        expected_release_identity = ("pixels.customer", None)
+    else:
+        if (
+            oem_id is None
+            or OEM_ID.fullmatch(oem_id) is None
+            or oem_id in RESERVED_OEM_IDS
+            or "--" in oem_id
+            or release_namespace != f"oem.{oem_id}"
+        ):
+            raise RuntimeError("OEM installer manifest has an invalid release namespace or OEM ID")
+        expected_release_identity = (release_namespace, oem_id)
+    if (release_namespace, oem_id) != expected_release_identity:
+        raise RuntimeError("installer manifest release namespace does not match its distribution")
+    if distribution in {"official", "customer"}:
+        if company != "Pixels" or installer_basename != expected_pixels_basename or oem_profile_sha256 is not None:
+            raise RuntimeError("Pixels installer identity contains OEM branding or profile data")
+        if publisher_name != "Pixels":
+            raise RuntimeError("Pixels installer publisher must be Pixels")
+    else:
+        if company == "Pixels" or oem_profile_sha256 is None:
+            raise RuntimeError("OEM installer identity must use an independent company and profile")
+        oem_profile_sha256 = validate_sha256(oem_profile_sha256, "oem_profile_sha256")
 
     version_components = parse_product_version(product_version)
     expected_version_code = version_components[0] * 10000 + version_components[1] * 100 + version_components[2]
@@ -173,7 +238,7 @@ def validate_release_directory(
     installer_name = require_string(installer_entry, "path")
     if Path(installer_name).name != installer_name:
         raise RuntimeError("installer manifest path must be a file name without directories")
-    expected_installer_name = f"{PRODUCT_BASENAMES[product]}_{distribution}_{product_version}_Setup.exe"
+    expected_installer_name = f"{installer_basename}_{distribution}_{product_version}_Setup.exe"
     if installer_name != expected_installer_name:
         raise RuntimeError(
             f"installer file name mismatch: expected={expected_installer_name}, actual={installer_name}"
@@ -198,6 +263,12 @@ def validate_release_directory(
         installer_sha256=actual_installer_sha256,
         product=product,
         distribution=distribution,
+        release_namespace=release_namespace,
+        oem_id=oem_id,
+        company=company,
+        publisher_name=publisher_name,
+        installer_basename=installer_basename,
+        oem_profile_sha256=oem_profile_sha256,
         product_version=product_version,
         product_version_code=product_version_code,
         signer_certificate_sha256=signer_certificate_sha256,
@@ -233,6 +304,15 @@ def validate_upgrade_pair(
         raise RuntimeError("upgrade pair products do not match")
     if previous_release.distribution != current_release.distribution:
         raise RuntimeError("upgrade pair distributions do not match")
+    if (
+        previous_release.release_namespace != current_release.release_namespace
+        or previous_release.oem_id != current_release.oem_id
+        or previous_release.company != current_release.company
+        or previous_release.publisher_name != current_release.publisher_name
+        or previous_release.installer_basename != current_release.installer_basename
+        or previous_release.oem_profile_sha256 != current_release.oem_profile_sha256
+    ):
+        raise RuntimeError("upgrade pair release and installation identities do not match")
     if expected_product is not None and current_release.product != expected_product:
         raise RuntimeError(
             f"upgrade pair does not match the externally requested product: expected={expected_product}, actual={current_release.product}"
@@ -251,6 +331,8 @@ def validate_upgrade_pair(
         "schema_version": 1,
         "product": current_release.product,
         "distribution": current_release.distribution,
+        "release_namespace": current_release.release_namespace,
+        "oem_id": current_release.oem_id,
         "signer_transition": {
             "previous": previous_release.signer_certificate_sha256,
             "current": current_release.signer_certificate_sha256,
@@ -287,10 +369,12 @@ def validate_installed_product(
         )
     product_manifest = read_json_object(product_manifest_path)
     expected_identity = {
-        "schema_version": 2,
+        "schema_version": 3,
         "product": verified_release.product,
         "distribution": verified_release.distribution,
-        "company": "Pixels",
+        "release_namespace": verified_release.release_namespace,
+        "oem_id": verified_release.oem_id,
+        "company": verified_release.company,
         "product_version": verified_release.product_version,
         "product_version_code": verified_release.product_version_code,
         "signer_certificate_sha256": verified_release.signer_certificate_sha256,
@@ -367,7 +451,13 @@ def validate_installed_product(
         raise RuntimeError(f"installed product file set mismatch: missing={missing_files}, extra={extra_files}")
 
     edition_lines = (resolved_install_directory / "product-edition.txt").read_text(encoding="utf-8-sig").splitlines()
-    expected_edition_lines = [verified_release.product, verified_release.product_version, "Pixels"]
+    expected_edition_lines = [
+        verified_release.product,
+        verified_release.product_version,
+        verified_release.company,
+        verified_release.release_namespace,
+        verified_release.oem_id or "",
+    ]
     if edition_lines != expected_edition_lines:
         raise RuntimeError(
             f"installed product marker mismatch: expected={expected_edition_lines}, actual={edition_lines}"
@@ -386,6 +476,8 @@ def validate_installed_product(
         "schema_version": 1,
         "product": verified_release.product,
         "distribution": verified_release.distribution,
+        "release_namespace": verified_release.release_namespace,
+        "oem_id": verified_release.oem_id,
         "product_version": verified_release.product_version,
         "install_directory": str(resolved_install_directory),
         "payload_manifest_sha256": actual_payload_manifest_sha256,
