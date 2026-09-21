@@ -173,6 +173,8 @@ build_official/<product>/<official|customer>/installer/<version>/
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate_windows_installer_lifecycle.ps1 `
+    -ExpectedProduct client `
+    -ExpectedDistribution official `
     -PreviousReleaseDirectory build_official/client/official/installer/<old-version> `
     -CurrentReleaseDirectory build_official/client/official/installer/<new-version> `
     -ConflictReleaseDirectory build_official/remote/official/installer/<current-version> `
@@ -181,7 +183,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate_windows_ins
     -ReportPath build_official/client/reports/official-installer-lifecycle.json
 ```
 
-该命令强制从命令行接收两个外部审批的证书 SHA-256，拒绝把相邻 manifest 的自我声明当成信任根，并验证两个安装器的 schema、产品/发行、
+该命令强制从命令行接收预期产品、预期发行和两个外部审批的证书 SHA-256，拒绝把相邻 manifest 的自我声明当成信任根，也拒绝用另一个
+合法签名的 Pixels 产品/发行替换目标；随后验证两个安装器的 schema、产品/发行、
 严格递增版本、安装器 SHA-256、Authenticode 状态和时间戳。无证书轮换时两个审批值相同，续期时分别给出旧值和新值；默认绝不安装或
 卸载。只有在专用、已提升权限且确认三个 Pixels 产品和 `px_service` 均不存在的干净 Windows 验收机上，才增加
 `-ExecuteLifecycle`。执行态依次验证旧版安装、同发行升级、同版覆盖、安装目录精确文件集及逐件 hash、自研 PE 与卸载器签名、Service 产品

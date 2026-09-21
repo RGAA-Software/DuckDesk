@@ -445,9 +445,10 @@ Windows 正式发行链现要求构建机证书存储中的明确代码签名证
 严格校验的 dist，退役旧 `Nsis7z`/`nsProcess` 与额外压缩层。正式证书尚未提供，所以该链目前只完成软件门禁、工具实编和缺输入失败关闭，
 仍不得把语法构建或旧的未签名安装包计作正式签名实物矩阵。
 
-安装包生命周期矩阵已有正式执行入口 `scripts/validate_windows_installer_lifecycle.ps1`。默认只读预检两个版本目录：要求 schema 2、同产品、
+安装包生命周期矩阵已有正式执行入口 `scripts/validate_windows_installer_lifecycle.ps1`。调用者必须从外部指定目标 product/distribution，默认
+只读预检两个版本目录：要求 schema 2、同产品、
 同发行、版本严格递增，并独立验证 Setup 的内容摘要、Authenticode 和时间戳。旧/新证书 SHA-256 都是外部必填输入：未轮换时两值相同，
-证书续期时分别传入经审核的旧/新固定值；相邻 manifest 的自我声明不能批准签名者或轮换。只有显式
+证书续期时分别传入经审核的旧/新固定值；相邻 manifest 的自我声明不能批准签名者、轮换、产品或发行。只有显式
 `-ExecuteLifecycle`、管理员权限和三产品/`px_service` 全部不存在的干净专用 Windows 验收机才能进入变更阶段；顺序固定为旧版安装、升级、
 同版覆盖、卸载。每个已安装阶段重新核对 payload manifest 摘要、精确文件集、全部 artifact hash、自研 PE/Uninstall 签名、注册表版本和
 Service 边界，失败保留现场和阶段报告，不自动清理后掩盖问题。六组 product×distribution 的正式报告及更新执行器的断网/安装失败/回滚失败

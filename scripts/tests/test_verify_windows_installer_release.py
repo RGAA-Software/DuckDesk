@@ -74,6 +74,8 @@ class WindowsInstallerReleaseVerificationTests(unittest.TestCase):
                 current_directory,
                 self.accept_signature,
                 approved_signer_transition=(SIGNER_PIN, SIGNER_PIN),
+                expected_product="client",
+                expected_distribution="official",
             )
 
             self.assertEqual(previous_release.product_version, "3.3.72")
@@ -149,6 +151,32 @@ class WindowsInstallerReleaseVerificationTests(unittest.TestCase):
                     current_directory,
                     self.accept_signature,
                     approved_signer_transition=(SIGNER_PIN, SIGNER_PIN),
+                )
+
+    def test_upgrade_pair_rejects_a_validly_signed_but_unrequested_product(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            release_root = Path(temporary_directory)
+            previous_directory = self.create_release(
+                release_root,
+                "3.3.72",
+                30372,
+                product="remote",
+            )
+            current_directory = self.create_release(
+                release_root,
+                "3.3.73",
+                30373,
+                product="remote",
+            )
+
+            with self.assertRaisesRegex(RuntimeError, "externally requested product"):
+                validate_upgrade_pair(
+                    previous_directory,
+                    current_directory,
+                    self.accept_signature,
+                    approved_signer_transition=(SIGNER_PIN, SIGNER_PIN),
+                    expected_product="client",
+                    expected_distribution="official",
                 )
 
     def test_installed_product_requires_exact_payload_and_signed_owned_files(self) -> None:

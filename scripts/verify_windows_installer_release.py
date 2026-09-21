@@ -56,6 +56,8 @@ def parse_arguments() -> argparse.Namespace:
     pair_parser = subcommands.add_parser("pair", help="Verify one same-channel upgrade pair")
     pair_parser.add_argument("--previous", type=Path, required=True)
     pair_parser.add_argument("--current", type=Path, required=True)
+    pair_parser.add_argument("--expected-product", choices=tuple(PRODUCT_BASENAMES), required=True)
+    pair_parser.add_argument("--expected-distribution", choices=tuple(VALID_DISTRIBUTIONS), required=True)
     pair_parser.add_argument("--previous-signer-sha256", required=True)
     pair_parser.add_argument("--current-signer-sha256", required=True)
     pair_parser.add_argument("--output", type=Path)
@@ -210,6 +212,8 @@ def validate_upgrade_pair(
     current_directory: Path,
     signature_verifier: Callable[[Path, str], None] = verify_file,
     approved_signer_transition: tuple[str, str] | None = None,
+    expected_product: str | None = None,
+    expected_distribution: str | None = None,
 ) -> dict[str, object]:
     if approved_signer_transition is None:
         raise RuntimeError("upgrade pair requires externally approved previous and current signer pins")
@@ -229,6 +233,15 @@ def validate_upgrade_pair(
         raise RuntimeError("upgrade pair products do not match")
     if previous_release.distribution != current_release.distribution:
         raise RuntimeError("upgrade pair distributions do not match")
+    if expected_product is not None and current_release.product != expected_product:
+        raise RuntimeError(
+            f"upgrade pair does not match the externally requested product: expected={expected_product}, actual={current_release.product}"
+        )
+    if expected_distribution is not None and current_release.distribution != expected_distribution:
+        raise RuntimeError(
+            "upgrade pair does not match the externally requested distribution: "
+            f"expected={expected_distribution}, actual={current_release.distribution}"
+        )
     if current_release.product_version_code <= previous_release.product_version_code:
         raise RuntimeError(
             "current installer version must be newer than the previous installer version: "
@@ -416,6 +429,8 @@ def main() -> int:
             arguments.previous_signer_sha256,
             arguments.current_signer_sha256,
         ),
+        expected_product=arguments.expected_product,
+        expected_distribution=arguments.expected_distribution,
     )
     write_result(matrix, arguments.output)
     return 0

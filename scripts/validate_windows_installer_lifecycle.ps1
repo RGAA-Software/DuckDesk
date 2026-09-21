@@ -1,5 +1,13 @@
 param(
     [Parameter(Mandatory = $true)]
+    [ValidateSet("cloud_node", "client", "remote")]
+    [string]$ExpectedProduct,
+
+    [Parameter(Mandatory = $true)]
+    [ValidateSet("official", "customer")]
+    [string]$ExpectedDistribution,
+
+    [Parameter(Mandatory = $true)]
     [ValidateScript({ Test-Path -LiteralPath $_ -PathType Container })]
     [string]$PreviousReleaseDirectory,
 
@@ -252,6 +260,10 @@ $releaseVerificationArguments.Add("--previous")
 $releaseVerificationArguments.Add([System.IO.Path]::GetFullPath($PreviousReleaseDirectory))
 $releaseVerificationArguments.Add("--current")
 $releaseVerificationArguments.Add([System.IO.Path]::GetFullPath($CurrentReleaseDirectory))
+$releaseVerificationArguments.Add("--expected-product")
+$releaseVerificationArguments.Add($ExpectedProduct)
+$releaseVerificationArguments.Add("--expected-distribution")
+$releaseVerificationArguments.Add($ExpectedDistribution)
 $releaseVerificationArguments.Add("--output")
 $releaseVerificationArguments.Add($matrixPath)
 $releaseVerificationArguments.Add("--previous-signer-sha256")
