@@ -371,7 +371,7 @@ pub async fn publish_repository(configuration: &RepositoryPublication) -> Author
     Ok(())
 }
 
-fn validate_immutable_target_name(release: &ReleaseSpec) -> AuthorityResult<()> {
+pub(crate) fn validate_immutable_target_name(release: &ReleaseSpec) -> AuthorityResult<()> {
     let mut expected_components = vec![
         release.target.os.name().to_owned(),
         release.target.product.name().to_owned(),
@@ -608,7 +608,7 @@ async fn load_repository_editor(
     ))
 }
 
-fn validate_repository_release_domain(
+pub(crate) fn validate_repository_release_domain(
     repository: &tough::Repository,
     expected_target: &ReleaseQuery,
 ) -> AuthorityResult<()> {

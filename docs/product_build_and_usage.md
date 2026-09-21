@@ -232,7 +232,8 @@ python scripts\prepare_windows_update_release.py ^
 `promote-filesystem` 用于部署主机上的本地或挂载式静态源站目录，不执行 SSH、对象存储 API 或 CDN 刷新。必须提供绝对路径
 `PIXELS_TUF_CANDIDATE_REPOSITORY`、`PIXELS_TUF_LIVE_REPOSITORY`，以及审批系统在传输外独立固定的候选
 `publication.json` 小写 SHA-256：`PIXELS_TUF_APPROVED_PUBLICATION_SHA256`。首次发布先在 live 同父目录复制并完整验签，再用目录重命名提交；后续只接受
-三个在线角色版本各加一、历史目标不变且 root 链相同或追加一个合法根的下一代候选。执行器先发布不可变 targets/root，再逐文件原子切换
+三个在线角色版本各加一、历史目标不变且 root 链相同或追加一个合法根的下一代候选。promotion 会独立复核 manifest target 的不可变路径，并检查
+候选内所有签名 target 都属于 manifest 的精确发行域，因此由其他工具或误用同一角色 key 产生的混域候选也不能上线。执行器先发布不可变 targets/root，再逐文件原子切换
 `targets.json`、`snapshot.json`，最后切换 `timestamp.json` 和审计清单。切换前写入持久 `promotion.pending.json`；进程或主机在任一步中断后，必须用
 同一候选和同一审批 SHA 续跑，另一候选会 fail closed。成功后执行器重新从初始根加载线上目录、验证全部目标并删除 journal。
 

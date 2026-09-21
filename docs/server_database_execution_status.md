@@ -1701,6 +1701,10 @@ Console PostgreSQL 发布目录随后补齐 OEM 发行域实库覆盖：Official
 输出目录，随后追加同 OEM 新版本仍正常保留历史并发布。该规则允许同一发行域的多产品仓库，但禁止 Official/Customer/其他 OEM 被逐次混入。
 authority 全部 6/6 与严格 Clippy 再次通过；正式密钥和正式仓库的运营验收仍未因此冒充完成。
 
+`promote-filesystem` 随后接入相同的不可变 target 路径和全仓发行域验证，不再隐含信任候选一定来自本进程的 `publish`。因此即使其他工具持有同一在线
+角色 key 并生成了密码学有效但跨域的候选，promotion 也会在写 live 目录或 journal 前拒绝。authority 全部 6/6 和严格 Clippy 通过；这是代码门禁，
+没有替代带外审批 SHA、正式密钥保管或真实源站发布演练。
+
 | 阶段 | 当前未完成项 |
 |---|---|
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |

@@ -343,6 +343,8 @@ fn validate_manifest(
         .release
         .validate()
         .map_err(|_| "TUF publication manifest contains an invalid release")?;
+    crate::validate_immutable_target_name(&manifest.release)?;
+    crate::validate_repository_release_domain(repository, &manifest.release.target)?;
     manifest
         .created_at
         .parse::<Timestamp>()
