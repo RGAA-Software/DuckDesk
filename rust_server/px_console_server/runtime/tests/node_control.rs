@@ -1,6 +1,7 @@
 #[path = "support/runtime_fixture.rs"]
 mod fixture;
 
+use axum::http::StatusCode;
 use fixture::{
     call, login, register, resource_call, start_with_cache_and_relay, start_with_relay, PASSWORD,
 };
@@ -1374,6 +1375,27 @@ async fn node_update_check_uses_authenticated_product_and_console_distribution()
     assert_eq!(current["type"], "update_checked");
     assert!(current["offer"].is_null());
     assert_eq!(current["repository"]["release_id"], approved["id"]);
+    let (trust_status, trust_summary) = call(
+        &router,
+        "GET",
+        &format!(
+            "/api/console/managed/updates/{}/node-trust",
+            approved["id"].as_str().unwrap()
+        ),
+        "admin_web",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(trust_status, StatusCode::OK, "{trust_summary}");
+    assert_eq!(trust_summary["required_root_version"], 1);
+    assert_eq!(trust_summary["confirmed_node_count"], 1);
+    assert_eq!(
+        trust_summary["unknown_or_behind_node_count"]
+            .as_i64()
+            .unwrap(),
+        trust_summary["eligible_node_count"].as_i64().unwrap() - 1
+    );
     socket.close(None).await.unwrap();
     server_stop.cancel();
     server.await.unwrap().unwrap();

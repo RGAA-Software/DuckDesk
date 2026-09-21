@@ -94,6 +94,26 @@ pub struct NodeUpdateTrust {
     pub observed_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct NodeUpdateTrustSummary {
+    pub release_id: Uuid,
+    pub repository_publication_sha256: String,
+    pub required_root_version: i64,
+    pub eligible_node_count: i64,
+    pub confirmed_node_count: i64,
+    pub unknown_or_behind_node_count: i64,
+    pub minimum_confirmed_root_version: Option<i64>,
+    pub oldest_confirmation_at: Option<DateTime<Utc>>,
+}
+
+#[derive(sqlx::FromRow)]
+pub(crate) struct NodeUpdateTrustSummaryRow {
+    pub eligible_node_count: i64,
+    pub confirmed_node_count: i64,
+    pub minimum_confirmed_root_version: Option<i64>,
+    pub oldest_confirmation_at: Option<DateTime<Utc>>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpdateTrustObservation {
     pub release_id: Uuid,

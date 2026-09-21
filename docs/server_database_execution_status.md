@@ -1469,7 +1469,9 @@ Console 前端精确计数仍停在 47 而实际为 49；`BETWEEN` CHECK 经 Pos
 `repository_publication_sha256`、ReleaseSpec 一并作为不可变登记和幂等事实。节点检查现在即使没有更高 build 也返回已批准仓库，Windows Service 会独立
 刷新 TUF 元数据并在成功达到要求根版本后回报；Console 只接受精确 release/publication/root 组合，并把节点水位单调写入
 `pixels.node_update_trust`。伪造 publication、错误根版本及倒退报告均拒绝。聚焦证据：authority/protocol 10 项、Service 更新相关 14 项、
-Console updates 11 项、directory API 7 项、node-control 3 项全部通过；SQLx Console 离线查询数由 284 增至 285。该增量证明软件闭环，正式旧根退役仍须
+Console updates 11 项、directory API 7 项、node-control 3 项全部通过；SQLx Console 离线查询数现为 287。管理端可通过
+`GET /api/console/managed/updates/{id}/node-trust` 查看应纳管、已确认、未知/落后、最低确认根版本和最早确认时间；聚合包含未删除的离线/禁用节点，并拒绝
+跨 Official/Customer 发行域查询。该增量证明软件闭环，正式旧根退役仍须
 在正式签名发布材料和实际纳管节点集合上检查未知/离线/落后节点，不能以仓库下发代替真实水位。
 
 新增商业边界已经冻结但尚未冒充实现：Pixels Official、Pixels Customer 私有部署和具体 OEM 是三个不同更新信任域。OEM 必须绑定唯一

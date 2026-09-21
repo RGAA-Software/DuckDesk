@@ -10,7 +10,8 @@ use axum::{
     Json, Router,
 };
 use px_console_store::UpdateDecision;
-use px_release_catalog::{ReleaseQuery, ReleaseSpec};
+use px_license::Distribution as LicenseDistribution;
+use px_release_catalog::{Distribution, ReleaseQuery, ReleaseSpec};
 use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -19,6 +20,10 @@ pub(crate) fn routes() -> Router<Arc<StateData>> {
     Router::new()
         .route("/api/console/managed/updates", get(managed).post(register))
         .route("/api/console/managed/updates/{id}", patch(decide))
+        .route(
+            "/api/console/managed/updates/{id}/node-trust",
+            get(node_trust),
+        )
         .route("/api/console/updates/latest", get(latest))
 }
 
@@ -91,6 +96,24 @@ async fn decide(
                 input.revision,
                 input.decision,
             )
+            .await?,
+    ))
+}
+
+async fn node_trust(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+) -> Result<Json<px_console_store::NodeUpdateTrustSummary>, ApiError> {
+    let distribution = match state.license.payload.distribution {
+        LicenseDistribution::Official => Distribution::Official,
+        LicenseDistribution::Customer => Distribution::Customer,
+    };
+    Ok(Json(
+        state
+            .db
+            .updates()
+            .node_trust_summary(&request::administrator(&state, &headers)?, id, distribution)
             .await?,
     ))
 }

@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n    count(*) AS \"eligible_node_count!\",\n    count(*) FILTER (WHERE trust.trusted_root_version >= $2) AS \"confirmed_node_count!\",\n    min(trust.trusted_root_version) FILTER (WHERE trust.trusted_root_version >= $2) AS minimum_confirmed_root_version,\n    min(trust.observed_at) FILTER (WHERE trust.trusted_root_version >= $2) AS oldest_confirmation_at\nFROM pixels.nodes AS node\nLEFT JOIN pixels.node_update_trust AS trust ON trust.node_id=node.id\nWHERE node.product=$1 AND node.deleted_at IS NULL\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "eligible_node_count!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "confirmed_node_count!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "minimum_confirmed_root_version",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "oldest_confirmation_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "3f7e80eb4c0eca3abc5bf4bc4b99d9b114a539776498e40fbe13a279e25b8833"
+}

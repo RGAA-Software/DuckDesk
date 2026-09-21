@@ -263,6 +263,22 @@ async fn authenticated_node_receives_the_approved_repository_and_records_real_ro
     .await
     .unwrap();
     assert_eq!(trusted_root_version, REPOSITORY_ROOT_VERSION);
+    let trust_summary = update_store
+        .node_trust_summary(&fixture.admin, approved.id, Distribution::Customer)
+        .await
+        .unwrap();
+    assert_eq!(trust_summary.release_id, approved.id);
+    assert_eq!(trust_summary.required_root_version, REPOSITORY_ROOT_VERSION);
+    assert!(trust_summary.eligible_node_count >= 1);
+    assert_eq!(trust_summary.confirmed_node_count, 1);
+    assert_eq!(
+        trust_summary.unknown_or_behind_node_count,
+        trust_summary.eligible_node_count - 1
+    );
+    assert!(update_store
+        .node_trust_summary(&fixture.admin, approved.id, Distribution::Official)
+        .await
+        .is_err());
     let mut wrong_observation = observation.clone();
     wrong_observation.repository_publication_sha256 = "d".repeat(64);
     assert!(update_store

@@ -638,6 +638,8 @@ Windows 先功能验收，再 Android；使用配置的公网测试节点及独�
 datastore 执行防回滚和安全有效期校验。authority 生成的 Console 登记请求同时固定 `publication.json` 摘要与末端 root version；节点只有实际验签
 达到该版本才回报确认。Console 按节点保存单调信任水位，错误发布身份和倒退报告 fail closed。删除旧 root、提高最小可信根或开始只由新根授权的发布前，
 运维必须以当前应纳管节点集合的真实水位为依据；未知、离线或落后节点不能被成功下发这一事实冒充已完成轮换。
+Console 的 `GET /api/console/managed/updates/{id}/node-trust` 返回当前发行域内的应纳管、确认及未知/落后数量；分母包含未删除的离线和禁用节点。
+只有未知/落后为零且最低确认根版本达标时，才可进入旧根退役的下一道人工审批，接口本身不得触发删除或改变客户端最小根。
 - 排空需要应用及入口共同参与，参考 [Kubernetes 终止与连接排空说明](https://kubernetes.io/docs/tutorials/services/pods-and-endpoint-termination-flow/)；本计划不要求采用 Kubernetes。
 - Job 最后句柄关闭的行为参考 [Microsoft Job Objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects)。
 - Android 更新要区分下载与安装/重启，参考 [Android 应用内更新](https://developer.android.com/guide/playcore/in-app-updates)；Play 流程不作为私有离线部署的前置依赖。

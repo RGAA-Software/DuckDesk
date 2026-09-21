@@ -189,6 +189,8 @@ python scripts\prepare_windows_update_release.py ^
 `promotion.pending.json` 的源站，重新从初始根验证元数据和全部目标，再排他生成可直接作为登记请求体的 JSON；重复执行不会覆盖已有审批文件。
 不要手工补 `repository_root_version`。节点更新检查始终携带当前已批准仓库描述，即使已安装 build 等于最新 build；Service 仍会用本机初始根、持久
 TUF datastore 和安全有效期策略刷新元数据。只有实际验签达到登记根版本后才向 Console 回报该发布代际的信任事实，包下载与激活仍是另一条门禁。
+管理员可查询 `GET /api/console/managed/updates/{id}/node-trust`。只有 `unknown_or_behind_node_count=0` 且最低确认版本达到要求，才具备继续评估旧根退役的
+必要条件；这不是自动退役授权。统计包含所有未删除的同产品节点（包括离线和禁用节点），并拒绝查询当前 Console 发行域之外的发布记录。
 
 ### 2.3 完整构建 Android
 

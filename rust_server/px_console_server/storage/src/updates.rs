@@ -1,10 +1,13 @@
 use crate::{
     control,
-    update_model::{NodeUpdateActivationRow, NodeUpdateTaskRow, UpdateRow},
-    ClientType, NodeUpdateActivation, NodeUpdateCompletion, NodeUpdateTrust, StoreError,
-    TokenDigest, UpdateActivationOutcome, UpdateDecision, UpdateRelease, UpdateTrustObservation,
+    update_model::{
+        NodeUpdateActivationRow, NodeUpdateTaskRow, NodeUpdateTrustSummaryRow, UpdateRow,
+    },
+    ClientType, NodeUpdateActivation, NodeUpdateCompletion, NodeUpdateTrust,
+    NodeUpdateTrustSummary, StoreError, TokenDigest, UpdateActivationOutcome, UpdateDecision,
+    UpdateRelease, UpdateTrustObservation,
 };
-use px_release_catalog::{ReleaseQuery, ReleaseSpec};
+use px_release_catalog::{Distribution, Product, ReleaseQuery, ReleaseSpec};
 use sha2::{Digest, Sha256};
 use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
@@ -158,6 +161,58 @@ impl UpdateStore {
             .map(UpdateRow::view)
             .collect::<Result<Vec<_>, _>>()?;
         tx.commit().await?;
+        Ok(result)
+    }
+
+    pub async fn node_trust_summary(
+        &self,
+        token: &TokenDigest,
+        release_id: Uuid,
+        expected_distribution: Distribution,
+    ) -> Result<NodeUpdateTrustSummary, StoreError> {
+        if release_id.is_nil() {
+            return Err(StoreError::InvalidInput);
+        }
+        let mut transaction = self.pool.begin().await?;
+        control::read_gate(&mut transaction).await?;
+        control::authorize(&mut transaction, token, false).await?;
+        let release = sqlx::query_file_as!(UpdateRow, "queries/update_release.sql", release_id)
+            .fetch_optional(&mut *transaction)
+            .await?
+            .ok_or(StoreError::Rejected)?
+            .view()?;
+        if release.artifact.target.distribution != expected_distribution
+            || !matches!(
+                release.artifact.target.product,
+                Product::CloudNode | Product::Remote
+            )
+        {
+            return Err(StoreError::Rejected);
+        }
+        let summary = sqlx::query_file_as!(
+            NodeUpdateTrustSummaryRow,
+            "queries/node_update_trust_summary.sql",
+            release.artifact.target.product.name(),
+            release.repository_root_version
+        )
+        .fetch_one(&mut *transaction)
+        .await?;
+        let unknown_or_behind_node_count = summary
+            .eligible_node_count
+            .checked_sub(summary.confirmed_node_count)
+            .filter(|count| *count >= 0)
+            .ok_or(StoreError::Rejected)?;
+        let result = NodeUpdateTrustSummary {
+            release_id: release.id,
+            repository_publication_sha256: release.repository_publication_sha256,
+            required_root_version: release.repository_root_version,
+            eligible_node_count: summary.eligible_node_count,
+            confirmed_node_count: summary.confirmed_node_count,
+            unknown_or_behind_node_count,
+            minimum_confirmed_root_version: summary.minimum_confirmed_root_version,
+            oldest_confirmation_at: summary.oldest_confirmation_at,
+        };
+        transaction.commit().await?;
         Ok(result)
     }
     pub async fn latest(

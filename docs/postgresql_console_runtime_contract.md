@@ -70,7 +70,7 @@ Auth/Desk 的多个池可同时持有共享锁，不套用 Console 的单活动�
 | 传输/录像/连接/访问历史 | FileTransferStore、RecordingStore、ActivityStore | 原生产者/原登录/当前授权复查；去密、稳定游标；历史记录不当作当前在线事实 |
 | 缓存/Range 播放 | RecordingCacheStore + 私有文件证明 | 有界阻塞 IO、配额/读租约、真实 hash/物理锁、撤权停止；缺失/损坏文件不得继续显示可播放 |
 | 具名连接设置 | SavedConnectionStore | 本人+终端隔离、明确资源目标；设置不能保存授权或覆盖服务器 endpoint |
-| 更新目录 | UpdateStore + px_release_catalog | 管理登记/审批/撤回；平台身份；制品、仓库 publication SHA-256 与 root version 不可变；节点实际验签水位单调落库；目录存在不代表已验签/可安装 |
+| 更新目录 | UpdateStore + px_release_catalog | 管理登记/审批/撤回；平台身份；制品、仓库 publication SHA-256 与 root version 不可变；节点实际验签水位单调落库，并提供含离线节点的发行域内聚合；目录存在不代表已验签/可安装 |
 
 管理员初始化是独立本机工具，仅允许全新空库初始化一次，使用明确 owner 身份；业务账号不建表、不自升管理员。
 业务监听前验证初始化完成；不能让公开注册抢占首个管理身份。初始化竞争和进程中断必须有真实 PG 测试。
