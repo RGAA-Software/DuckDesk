@@ -27,6 +27,20 @@ pub struct RepositoryPromotion {
     pub approved_publication_sha256: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct ConsoleRegistrationPreparation {
+    pub live_repository_path: PathBuf,
+    pub request_id: uuid::Uuid,
+    pub output_path: PathBuf,
+}
+
+#[derive(Debug, Serialize)]
+struct ConsoleRegistration {
+    request_id: String,
+    repository_publication_sha256: String,
+    artifact: ReleaseSpec,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct PublicationManifest {
@@ -56,6 +70,54 @@ struct VerifiedPublication {
     targets_version: u64,
     snapshot_version: u64,
     timestamp_version: u64,
+    release: ReleaseSpec,
+}
+
+pub async fn prepare_console_registration(
+    configuration: &ConsoleRegistrationPreparation,
+) -> AuthorityResult<()> {
+    if !configuration.live_repository_path.is_absolute()
+        || !configuration.live_repository_path.is_dir()
+        || !configuration.output_path.is_absolute()
+        || configuration.request_id.is_nil()
+        || configuration
+            .output_path
+            .starts_with(&configuration.live_repository_path)
+    {
+        return Err("Console registration preparation requires a live repository, non-nil request ID, and separate absolute output path".into());
+    }
+    reject_symbolic_link(&configuration.live_repository_path)?;
+    if configuration
+        .live_repository_path
+        .join(PROMOTION_JOURNAL_NAME)
+        .exists()
+    {
+        return Err("cannot prepare Console registration while TUF promotion is pending".into());
+    }
+    let output_parent = configuration
+        .output_path
+        .parent()
+        .ok_or("Console registration output does not have a parent")?;
+    if !output_parent.is_dir() {
+        return Err("Console registration output parent does not exist".into());
+    }
+    reject_symbolic_link(output_parent)?;
+    if configuration.output_path.exists() {
+        return Err(
+            "Console registration output already exists and will not be overwritten".into(),
+        );
+    }
+
+    let live_publication = verify_publication(&configuration.live_repository_path).await?;
+    let registration = ConsoleRegistration {
+        request_id: configuration.request_id.to_string(),
+        repository_publication_sha256: live_publication.publication_sha256,
+        artifact: live_publication.release,
+    };
+    let mut registration_bytes = serde_json::to_vec_pretty(&registration)?;
+    registration_bytes.push(b'\n');
+    write_new_file(&configuration.output_path, &registration_bytes)?;
+    sync_parent_directory(&configuration.output_path)
 }
 
 pub async fn promote_repository(configuration: &RepositoryPromotion) -> AuthorityResult<()> {
@@ -242,6 +304,7 @@ async fn verify_publication(repository_path: &Path) -> AuthorityResult<VerifiedP
     let publication_sha256 = hex::encode(Sha256::digest(&publication_bytes));
     let manifest: PublicationManifest = serde_json::from_slice(&publication_bytes)?;
     validate_manifest(&manifest, &root_chain, &repository, &targets)?;
+    let release = manifest.release.clone();
     let root_versions_and_sha256 = root_chain
         .iter()
         .map(|root_entry| {
@@ -259,6 +322,7 @@ async fn verify_publication(repository_path: &Path) -> AuthorityResult<VerifiedP
         targets_version: repository.targets().signed.version.get(),
         snapshot_version: repository.snapshot().signed.version.get(),
         timestamp_version: repository.timestamp().signed.version.get(),
+        release,
     })
 }
 

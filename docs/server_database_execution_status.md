@@ -1438,12 +1438,14 @@ Ed25519 私钥；初始 root 强制 2–5 把 root key 且门限至少 2，targe
 历史目标/根不可变、固定 metadata 切换顺序、持久 journal 中断续跑及提交后整库复验；它不持有 SSH/云厂商凭据，也不冒充 CDN 原子刷新。
 6/6 单元测试覆盖多 root 门限/不覆盖、旧新门限轮换、轮换后追加与初始根验证、两代发布与历史保留、历史/当前制品篡改、错误角色 key、目标名复用，
 以及首次/增量源站发布、错误审批拒绝和中断续跑，严格 Clippy 通过。对象存储/CDN 适配、轮换水位观察、审批私钥托管和正式安装包矩阵仍保持门禁。
-统一验收入口报告 `pg-20260921-191955-876e5c3a` 为 6/6，源码 hash 冻结且隔离容器/卷已清理。
+统一验收入口报告 `pg-20260921-200226-859d647d` 为 6/6，源码 hash 冻结且隔离容器/卷已清理。
 
 源站到 Console 审批目录的审计交接随后收紧：全新 Console schema、登记 API 和 `UpdateRelease` 现在强制保存精确
 `repository_publication_sha256`，并把该值与 ReleaseSpec 共同纳入 request 幂等摘要；缺失、非小写 SHA-256、相同 request ID 偷换仓库代际及 runtime
 改写均 fail closed。SQLx 三库元数据从全新 schema 重新生成；更新存储 11/11、Console 目录 API 7/7、节点控制 3/3 分别通过报告
 `pg-20260921-195421-d124f99f`、`pg-20260921-195528-633ac7a0`、`pg-20260921-195658-a76ca473`，两 crate 离线 check 和严格 Clippy 通过。
+随后增加 `prepare-console-registration`，从已完成且无 pending journal 的源站重新验证整库，按外部非零 request ID 排他导出精确 Console 请求体；
+测试同时覆盖中断中的源站拒绝、成功导出字段一致和输出不覆盖，更新权威仍为 6/6。
 
 Windows 安装包到 TUF 的输入边界也已去除人工字段拼装：`prepare_windows_update_release.py` 要求调用方外部给出审批证书 DER SHA-256，复用正式
 安装包验证器重新核对 manifest、文件 hash、Authenticode、时间戳和 signer pin，再生成固定

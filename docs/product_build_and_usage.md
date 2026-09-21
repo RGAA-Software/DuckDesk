@@ -126,6 +126,7 @@ cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority
 cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority -- rotate-root
 cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority -- publish
 cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority -- promote-filesystem
+cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority -- prepare-console-registration
 ```
 
 `generate-key` 每次只通过 `PIXELS_TUF_KEY_OUTPUT` 创建一个新 Ed25519 PKCS#8 私钥，父目录必须已经按生产私钥目录限制权限，已有文件绝不覆盖。
@@ -181,6 +182,10 @@ python scripts\prepare_windows_update_release.py ^
 源站发布成功后，调用 `/api/console/managed/updates` 登记同一 `publication.json` 中的 `release`，请求体除 `request_id` 和 `artifact` 外必须包含
 `repository_publication_sha256`，其值就是上述带外审批的小写 SHA-256。Console 将它作为不可变发布事实保存并与制品正文共同计算幂等摘要；同一
 `request_id` 不能换成另一仓库代际。登记仍只产生 `pending`，管理员应在源站验证和业务审批后显式 approve；不能把登记成功视为 TUF 验签或安装授权。
+
+不要人工拼装该请求。`prepare-console-registration` 要求 `PIXELS_TUF_LIVE_REPOSITORY`、非零 UUID
+`PIXELS_TUF_CONSOLE_REQUEST_ID` 和位于仓库外、尚不存在的绝对路径 `PIXELS_TUF_CONSOLE_REGISTRATION_OUTPUT`。工具拒绝仍有
+`promotion.pending.json` 的源站，重新从初始根验证元数据和全部目标，再排他生成可直接作为登记请求体的 JSON；重复执行不会覆盖已有审批文件。
 
 ### 2.3 完整构建 Android
 

@@ -437,6 +437,8 @@ CDN 缓存失效适配仍是选定正式基础设施后的部署层任务，不�
 Console 发布登记同时要求源站 `publication.json` 的精确 SHA-256，并把它和 ReleaseSpec 一起纳入 `request_id` 幂等摘要及不可变数据库事实。
 同一请求不能在保留制品字段时偷换仓库代际，runtime 也无权改写该固定值；审批/撤回事件因此可追溯到具体已发布候选。该摘要是审计绑定，不能替代
 客户端对 TUF 元数据、目标文件和平台代码签名的独立验证。
+登记请求由 `px_update_authority prepare-console-registration` 从无 pending journal 的已完成源站导出；它重新验证整库并排他写文件，操作员不抄写
+ReleaseSpec 或 publication SHA。生成请求不自动调用 Console、更不自动 approve，管理身份、变更审批和审计责任仍留在 Console 管理流程。
 
 当前实现基线使用 `tough` 的 TUF 1.0 客户端。Console 的已认证节点连接根据节点登记产品与 Console 许可证发行类型在服务端派生
 `product/distribution/stable/windows/x86_64`，节点只提交当前 build，不能传入或降级目标维度。目录只返回严格更新、最新且已审批的版本；

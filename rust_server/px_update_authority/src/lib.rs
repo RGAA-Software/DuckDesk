@@ -19,7 +19,10 @@ use url::Url;
 use zeroize::Zeroizing;
 
 mod promotion;
-pub use promotion::{promote_repository, RepositoryPromotion};
+pub use promotion::{
+    prepare_console_registration, promote_repository, ConsoleRegistrationPreparation,
+    RepositoryPromotion,
+};
 
 pub type AuthorityResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -1409,10 +1412,22 @@ mod tests {
         )
         .unwrap();
 
+        let console_request_id = uuid::Uuid::new_v4();
+        let console_registration_path = fixture.directory().join("console-registration.json");
+        let registration_preparation = ConsoleRegistrationPreparation {
+            live_repository_path: live_repository_path.clone(),
+            request_id: console_request_id,
+            output_path: console_registration_path.clone(),
+        };
+        assert!(prepare_console_registration(&registration_preparation)
+            .await
+            .is_err());
+        assert!(!console_registration_path.exists());
+
         promote_repository(&RepositoryPromotion {
             candidate_repository_path: second_candidate_path,
             live_repository_path: live_repository_path.clone(),
-            approved_publication_sha256: second_publication_sha256,
+            approved_publication_sha256: second_publication_sha256.clone(),
         })
         .await
         .unwrap();
@@ -1421,6 +1436,26 @@ mod tests {
             load_test_repository(&fixture.root_path, &live_repository_path).await;
         assert_eq!(promoted_repository.timestamp().signed.version.get(), 2);
         assert_eq!(promoted_repository.targets().signed.targets.len(), 2);
+        prepare_console_registration(&registration_preparation)
+            .await
+            .unwrap();
+        let console_registration: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&console_registration_path).unwrap()).unwrap();
+        assert_eq!(
+            console_registration["request_id"],
+            console_request_id.to_string()
+        );
+        assert_eq!(
+            console_registration["repository_publication_sha256"],
+            second_publication_sha256
+        );
+        assert_eq!(
+            console_registration["artifact"],
+            serde_json::to_value(second_release).unwrap()
+        );
+        assert!(prepare_console_registration(&registration_preparation)
+            .await
+            .is_err());
     }
 
     #[tokio::test]
