@@ -513,6 +513,8 @@ Console PostgreSQL 发布目录也已通过 OEM A/OEM B 同产品、同平台、
 追加发布还必须先验签历史仓库内每个 target 的 Pixels 身份，并要求全部历史 target 与新发布具有完全相同的
 `distribution/release_namespace/oem_id`。仓库可在同一发行域内服务多个产品，但不能通过追加操作逐步混入另一个 OEM 或 Pixels 发行。
 promotion 是独立门禁，不能假设候选必由本仓库 authority 生成；上线前必须再次执行相同的不可变路径和全仓发行域校验。
+不可变路径派生属于共享 release catalog 契约，authority、promotion 和各安装消费者必须调用同一实现。Windows Service 在接受 Console offer 与下载准备
+两个边界都执行该校验；后续 Android/Client 消费器也必须复用对应契约语义，不能只把 target name 当普通安全相对路径。
 
 下载可恢复，完整包先验证再解压；防路径穿越、链接逃逸、超大解压、符号链接/重解析点替换和校验后替换。
 高权限安装辅助进程只接受受保护的已验证 staging 及类型化任务，不执行 UI/服务器传来的任意命令或任意路径。

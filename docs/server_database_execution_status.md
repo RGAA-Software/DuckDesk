@@ -1705,6 +1705,12 @@ authority 全部 6/6 与严格 Clippy 再次通过；正式密钥和正式仓库
 角色 key 并生成了密码学有效但跨域的候选，promotion 也会在写 live 目录或 journal 前拒绝。authority 全部 6/6 和严格 Clippy 通过；这是代码门禁，
 没有替代带外审批 SHA、正式密钥保管或真实源站发布演练。
 
+不可变 target 规则现已从 authority 私有实现下沉到共享 `px_release_catalog`，覆盖 Windows、Linux 和 Android 的
+`os/product/distribution/[oem_id/]channel/architecture/build/file`。authority、promotion 与 Windows Service 使用同一方法；Service 在接受 Console offer
+和准备 TUF 下载两处都先验证路径，合法签名元数据也不能让错域路径进入 prepared。release catalog 6/6、authority 6/6、Service 124 PASS（另 1 项物理
+NVIDIA 按设计忽略），三包严格 Clippy 通过。Cloud Node/Remote 聚焦 development Service 构建已同步，build/stage/dist 的 `px_service.exe` SHA-256
+均为 `98060E9287954990C5C99944990A1687B6757917A73D02D6341532A0BFF1AE2D`，完整 dist 清单分别为 313/76 件且复核通过。
+
 | 阶段 | 当前未完成项 |
 |---|---|
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |

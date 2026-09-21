@@ -170,6 +170,32 @@ impl ReleaseSpec {
             && platform_signer_valid;
         valid.then_some(()).ok_or(InvalidRelease)
     }
+
+    pub fn validate_immutable_target_name(&self) -> Result<(), InvalidRelease> {
+        self.validate()?;
+        let mut expected_components = vec![
+            self.target.os.name().to_owned(),
+            self.target.product.name().to_owned(),
+            self.target.distribution.name().to_owned(),
+        ];
+        if let Some(oem_id) = &self.target.oem_id {
+            expected_components.push(oem_id.clone());
+        }
+        expected_components.extend([
+            self.target.channel.name().to_owned(),
+            self.target.architecture.name().to_owned(),
+            self.build_number.to_string(),
+        ]);
+        let actual_components: Vec<&str> = self.target_name.split('/').collect();
+        let prefix_matches = actual_components.len() == expected_components.len() + 1
+            && actual_components.iter().zip(&expected_components).all(
+                |(actual_component, expected_component)| {
+                    *actual_component == expected_component.as_str()
+                },
+            );
+        prefix_matches.then_some(()).ok_or(InvalidRelease)
+    }
+
     pub fn digest(&self) -> Result<[u8; 32], InvalidRelease> {
         self.validate()?;
         let bytes = serde_json::to_vec(self).map_err(|_| InvalidRelease)?;
@@ -324,6 +350,31 @@ mod tests {
             release_spec.target.release_namespace = release_namespace.into();
             release_spec.target.oem_id = oem_id.map(str::to_owned);
             assert_eq!(release_spec.validate().is_ok(), valid);
+        }
+    }
+
+    #[test]
+    fn immutable_target_names_bind_every_release_dimension() {
+        let mut release_spec = spec();
+        release_spec.target_name =
+            "linux/server/customer/stable/x86_64/32/pixels-server.tar.gz".into();
+        release_spec.validate_immutable_target_name().unwrap();
+
+        release_spec.target.distribution = Distribution::Oem;
+        release_spec.target.release_namespace = "oem.acme-cloud".into();
+        release_spec.target.oem_id = Some("acme-cloud".into());
+        release_spec.target_name =
+            "linux/server/oem/acme-cloud/stable/x86_64/32/acme-server.tar.gz".into();
+        release_spec.validate_immutable_target_name().unwrap();
+
+        for wrong_target_name in [
+            "linux/server/customer/stable/x86_64/32/acme-server.tar.gz",
+            "linux/server/oem/north-star/stable/x86_64/32/acme-server.tar.gz",
+            "linux/server/oem/acme-cloud/preview/x86_64/32/acme-server.tar.gz",
+            "linux/server/oem/acme-cloud/stable/x86_64/33/acme-server.tar.gz",
+        ] {
+            release_spec.target_name = wrong_target_name.into();
+            assert!(release_spec.validate_immutable_target_name().is_err());
         }
     }
     #[test]

@@ -1390,7 +1390,7 @@ async fn check_update(
     if let Some(offer) = &offer {
         if offer.release_id.is_nil()
             || offer.policy_revision < 2
-            || offer.artifact.validate().is_err()
+            || offer.artifact.validate_immutable_target_name().is_err()
             || offer.artifact.target != expected_target
             || offer.artifact.build_number <= current_build_number
             || repository.as_ref().is_none_or(|approved_repository| {
@@ -3205,7 +3205,8 @@ mod tests {
                         version: "3.3.68".into(),
                         metadata_base_url: "https://downloads.example.test/metadata/".into(),
                         targets_base_url: "https://downloads.example.test/targets/".into(),
-                        target_name: "cloud-node.exe".into(),
+                        target_name:
+                            "windows/cloud_node/official/stable/x86_64/30368/cloud-node.exe".into(),
                         sha256: "a".repeat(64),
                         platform_signer_sha256: Some("b".repeat(64)),
                         size_bytes: 4096,

@@ -328,7 +328,9 @@ pub async fn publish_repository(configuration: &RepositoryPublication) -> Author
     release
         .validate()
         .map_err(|_| "release specification is invalid")?;
-    validate_immutable_target_name(&release)?;
+    release
+        .validate_immutable_target_name()
+        .map_err(|_| "TUF target name does not match the immutable release identity")?;
     verify_artifact(&configuration.artifact_path, &release)?;
 
     let targets_source = load_private_key_source(&configuration.targets_signing_key_path)?;
@@ -368,33 +370,6 @@ pub async fn publish_repository(configuration: &RepositoryPublication) -> Author
             configuration.output_path.display()
         )
     })?;
-    Ok(())
-}
-
-pub(crate) fn validate_immutable_target_name(release: &ReleaseSpec) -> AuthorityResult<()> {
-    let mut expected_components = vec![
-        release.target.os.name().to_owned(),
-        release.target.product.name().to_owned(),
-        release.target.distribution.name().to_owned(),
-    ];
-    if let Some(oem_id) = &release.target.oem_id {
-        expected_components.push(oem_id.clone());
-    }
-    expected_components.extend([
-        release.target.channel.name().to_owned(),
-        release.target.architecture.name().to_owned(),
-        release.build_number.to_string(),
-    ]);
-    let actual_components: Vec<&str> = release.target_name.split('/').collect();
-    let prefix_matches = actual_components.len() == expected_components.len() + 1
-        && actual_components.iter().zip(&expected_components).all(
-            |(actual_component, expected_component)| {
-                *actual_component == expected_component.as_str()
-            },
-        );
-    if !prefix_matches {
-        return Err("TUF target name does not match the immutable release identity".into());
-    }
     Ok(())
 }
 

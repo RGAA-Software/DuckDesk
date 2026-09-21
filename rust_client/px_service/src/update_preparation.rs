@@ -171,7 +171,9 @@ fn validate_repository(repository: &NodeUpdateRepository) -> Result<(), String> 
 }
 
 fn validate_offer(offer: &NodeUpdateOffer) -> Result<(), String> {
-    if offer.release_id.is_nil() || offer.policy_revision < 2 || offer.artifact.validate().is_err()
+    if offer.release_id.is_nil()
+        || offer.policy_revision < 2
+        || offer.artifact.validate_immutable_target_name().is_err()
     {
         return Err("update offer is invalid".into());
     }
@@ -328,7 +330,8 @@ mod tests {
             version: "3.3.68".into(),
             metadata_base_url: "https://updates.example.test/metadata/".into(),
             targets_base_url: "https://updates.example.test/targets/".into(),
-            target_name: "cloud-node/PixelsCloudNode.exe".into(),
+            target_name: "windows/cloud_node/official/stable/x86_64/30368/PixelsCloudNode.exe"
+                .into(),
             sha256: "a".repeat(64),
             platform_signer_sha256: Some("b".repeat(64)),
             size_bytes: 4096,
@@ -385,6 +388,15 @@ mod tests {
         wrong_oem.target.release_namespace = "oem.north-star".into();
         wrong_oem.target.oem_id = Some("north-star".into());
         assert!(validate_signed_target(&wrong_oem, &target).is_err());
+        let mut wrong_target_name = release.clone();
+        wrong_target_name.target_name =
+            "windows/cloud_node/oem/north-star/stable/x86_64/30368/PixelsCloudNode.exe".into();
+        assert!(validate_offer(&NodeUpdateOffer {
+            release_id: uuid::Uuid::new_v4(),
+            policy_revision: 2,
+            artifact: wrong_target_name,
+        })
+        .is_err());
         let mut wrong_digest = release.clone();
         wrong_digest.sha256 = "b".repeat(64);
         assert!(validate_signed_target(&wrong_digest, &target).is_err());
