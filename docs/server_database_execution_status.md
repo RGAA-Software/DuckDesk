@@ -1685,6 +1685,12 @@ SHA-256 均为 `3BC759CB09C4075CF4B44DAF98BC3B69BA0333EB506B3EF29D8B1DB87C7670A5
 `px_update_authority` 6/6、`px_service` 124 PASS（另 1 项物理 NVIDIA 按设计忽略），两包严格 Clippy 均通过。这里使用的仅是测试夹具密钥，
 因此关闭的是代码级独立 TUF 与跨 OEM 拒绝门禁，不代表已完成正式密钥审批、正式仓库发布、Console 登记/批准或真实签名包激活。
 
+Console PostgreSQL 发布目录随后补齐 OEM 发行域实库覆盖：Official、Customer 与 OEM 现对全部受支持产品/平台/通道执行同一组登记、审批和精确查询；
+两个不同 OEM 可以持有相同产品、平台、通道及 build number，但 `oem.acme-cloud/acme-cloud` 与 `oem.north-star/north-star`
+分别返回各自批准记录，不会因 build 相同串线。Docker 空库聚焦 `updates` 报告
+`pg-20260922-042948-bb5264ca` 为 11/11 PASS，执行期间源码哈希不变、隔离容器和卷已清理，`px_console_store` 全目标严格 Clippy 通过。
+首轮测试曾因测试 build 小于同套件先前时间戳 build 而按设计返回更高版本，修正夹具为严格更高 build 后通过；未改动产品查询语义。
+
 | 阶段 | 当前未完成项 |
 |---|---|
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |

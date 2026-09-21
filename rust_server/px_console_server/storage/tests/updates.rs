@@ -13,11 +13,11 @@ const REPOSITORY_PUBLICATION_SHA256: &str =
     "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
 const REPOSITORY_ROOT_VERSION: i64 = 1;
 
-fn pixels_release_namespace(distribution: Distribution) -> String {
+fn release_domain(distribution: Distribution) -> (String, Option<String>) {
     match distribution {
-        Distribution::Official => "pixels.official".into(),
-        Distribution::Customer => "pixels.customer".into(),
-        Distribution::Oem => unreachable!("OEM tests must provide an explicit namespace"),
+        Distribution::Official => ("pixels.official".into(), None),
+        Distribution::Customer => ("pixels.customer".into(), None),
+        Distribution::Oem => ("oem.acme-cloud".into(), Some("acme-cloud".into())),
     }
 }
 
@@ -124,14 +124,19 @@ async fn all_product_platform_flavor_channel_dimensions_are_independent() {
             Architecture::Aarch64,
         ),
     ] {
-        for distribution in [Distribution::Official, Distribution::Customer] {
+        for distribution in [
+            Distribution::Official,
+            Distribution::Customer,
+            Distribution::Oem,
+        ] {
             for channel in [Channel::Stable, Channel::Preview] {
                 let mut release_spec = base.clone();
+                let (release_namespace, oem_id) = release_domain(distribution);
                 release_spec.target = ReleaseQuery {
                     product,
                     distribution,
-                    release_namespace: pixels_release_namespace(distribution),
-                    oem_id: None,
+                    release_namespace,
+                    oem_id,
                     channel,
                     os,
                     architecture,
@@ -169,6 +174,61 @@ async fn all_product_platform_flavor_channel_dimensions_are_independent() {
             }
         }
     }
+
+    let shared_build_number = base.build_number.checked_add(1).unwrap();
+    let mut acme_release = base.clone();
+    acme_release.build_number = shared_build_number;
+    acme_release.target.distribution = Distribution::Oem;
+    acme_release.target.release_namespace = "oem.acme-cloud".into();
+    acme_release.target.oem_id = Some("acme-cloud".into());
+    let mut north_star_release = acme_release.clone();
+    north_star_release.target.release_namespace = "oem.north-star".into();
+    north_star_release.target.oem_id = Some("north-star".into());
+    let mut approved_releases = Vec::new();
+    for release_spec in [&acme_release, &north_star_release] {
+        let pending_release = update_store
+            .register(
+                &fixture.admin,
+                Uuid::new_v4(),
+                REPOSITORY_PUBLICATION_SHA256,
+                REPOSITORY_ROOT_VERSION,
+                release_spec,
+            )
+            .await
+            .unwrap();
+        approved_releases.push(
+            update_store
+                .decide(
+                    &fixture.admin,
+                    pending_release.id,
+                    pending_release.revision,
+                    UpdateDecision::Approve,
+                )
+                .await
+                .unwrap(),
+        );
+    }
+    assert_ne!(approved_releases[0].id, approved_releases[1].id);
+    assert_eq!(
+        update_store
+            .latest(&fixture.admin, ClientType::AdminWeb, &acme_release.target)
+            .await
+            .unwrap()
+            .id,
+        approved_releases[0].id
+    );
+    assert_eq!(
+        update_store
+            .latest(
+                &fixture.admin,
+                ClientType::AdminWeb,
+                &north_star_release.target,
+            )
+            .await
+            .unwrap()
+            .id,
+        approved_releases[1].id
+    );
     update_store.close().await;
     fixture.close().await;
 }
