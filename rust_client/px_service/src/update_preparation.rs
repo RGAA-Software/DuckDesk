@@ -335,6 +335,16 @@ mod tests {
         }
     }
 
+    fn oem_release() -> ReleaseSpec {
+        let mut release = release();
+        release.target.distribution = Distribution::Oem;
+        release.target.release_namespace = "oem.acme-cloud".into();
+        release.target.oem_id = Some("acme-cloud".into());
+        release.target_name =
+            "cloud_node/oem/acme-cloud/stable/windows/x86_64/30368/PixelsCloudNode.exe".into();
+        release
+    }
+
     fn signed_target(release: &ReleaseSpec) -> Target {
         let mut custom = HashMap::new();
         custom.insert(
@@ -360,15 +370,21 @@ mod tests {
 
     #[test]
     fn signed_tuf_target_must_match_every_approved_release_dimension() {
-        let release = release();
+        let release = oem_release();
         let target = signed_target(&release);
         validate_signed_target(&release, &target).unwrap();
         let mut wrong_build = release.clone();
         wrong_build.build_number += 1;
         assert!(validate_signed_target(&wrong_build, &target).is_err());
         let mut wrong_distribution = release.clone();
-        wrong_distribution.target.distribution = Distribution::Customer;
+        wrong_distribution.target.distribution = Distribution::Official;
+        wrong_distribution.target.release_namespace = "pixels.official".into();
+        wrong_distribution.target.oem_id = None;
         assert!(validate_signed_target(&wrong_distribution, &target).is_err());
+        let mut wrong_oem = release.clone();
+        wrong_oem.target.release_namespace = "oem.north-star".into();
+        wrong_oem.target.oem_id = Some("north-star".into());
+        assert!(validate_signed_target(&wrong_oem, &target).is_err());
         let mut wrong_digest = release.clone();
         wrong_digest.sha256 = "b".repeat(64);
         assert!(validate_signed_target(&wrong_digest, &target).is_err());
@@ -400,7 +416,8 @@ mod tests {
         let key_path = repository_root.path().join("test-signing-key.pk8");
         let metadata_directory = repository_root.path().join("metadata");
         let targets_directory = repository_root.path().join("targets");
-        let target_name = TargetName::new("cloud-node/PixelsCloudNode.exe").unwrap();
+        let approved_release = oem_release();
+        let target_name = TargetName::new(approved_release.target_name.clone()).unwrap();
         let target_path = targets_directory.join(target_name.raw());
         let target_bytes = b"signed Pixels Cloud Node update";
         tokio::fs::create_dir_all(target_path.parent().unwrap())
@@ -417,7 +434,7 @@ mod tests {
         let keys: Vec<Box<dyn KeySource>> = vec![Box::new(LocalKeySource { path: key_path })];
         write_test_root(&root_path, &keys).await;
 
-        let mut approved_release = release();
+        let mut approved_release = approved_release;
         approved_release.size_bytes = i64::try_from(target_bytes.len()).unwrap();
         approved_release.sha256 = hex::encode(Sha256::digest(target_bytes));
         let mut target = Target::from_path(&target_path).await.unwrap();
@@ -474,6 +491,28 @@ mod tests {
             tokio::fs::read(&prepared.artifact_path).await.unwrap(),
             target_bytes
         );
+
+        let mut cross_oem_release = approved_release.clone();
+        cross_oem_release.target.release_namespace = "oem.north-star".into();
+        cross_oem_release.target.oem_id = Some("north-star".into());
+        cross_oem_release.validate().unwrap();
+        let cross_oem_offer = NodeUpdateOffer {
+            release_id: offer.release_id,
+            policy_revision: offer.policy_revision,
+            artifact: cross_oem_release,
+        };
+        let cross_oem_error = synchronize_from_repository_urls(
+            &repository_descriptor,
+            Some(&cross_oem_offer),
+            tokio::fs::read(&root_path).await.unwrap(),
+            &repository_root.path().join("cross-oem-state"),
+            Url::from_directory_path(&metadata_directory).unwrap(),
+            Url::from_directory_path(&targets_directory).unwrap(),
+        )
+        .await
+        .unwrap_err();
+        assert!(cross_oem_error.contains("release identity does not match"));
+
         let metadata_only = synchronize_from_repository_urls(
             &repository_descriptor,
             None,

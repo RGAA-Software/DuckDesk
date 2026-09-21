@@ -996,6 +996,19 @@ mod tests {
             }
         }
 
+        fn oem_release(
+            &self,
+            build_number: i64,
+            target_name: &str,
+            artifact: &[u8],
+        ) -> ReleaseSpec {
+            let mut release = self.release(build_number, target_name, artifact);
+            release.target.distribution = Distribution::Oem;
+            release.target.release_namespace = "oem.acme-cloud".into();
+            release.target.oem_id = Some("acme-cloud".into());
+            release
+        }
+
         fn publication(
             &self,
             release_spec_path: PathBuf,
@@ -1204,9 +1217,9 @@ mod tests {
         let first_artifact = b"first signed installer";
         let first_artifact_path = fixture.directory().join("first-installer.exe");
         std::fs::write(&first_artifact_path, first_artifact).unwrap();
-        let first_release = fixture.release(
+        let first_release = fixture.oem_release(
             30380,
-            "cloud_node/official/stable/windows/x86_64/30380/installer.exe",
+            "cloud_node/oem/acme-cloud/stable/windows/x86_64/30380/installer.exe",
             first_artifact,
         );
         let first_spec_path = fixture.directory().join("first-release.json");
@@ -1240,16 +1253,19 @@ mod tests {
         );
         assert_eq!(
             first_target.custom["pixels"]["target"]["release_namespace"],
-            "pixels.official"
+            "oem.acme-cloud"
         );
-        assert!(first_target.custom["pixels"]["target"]["oem_id"].is_null());
+        assert_eq!(
+            first_target.custom["pixels"]["target"]["oem_id"],
+            "acme-cloud"
+        );
 
         let second_artifact = b"second signed installer";
         let second_artifact_path = fixture.directory().join("second-installer.exe");
         std::fs::write(&second_artifact_path, second_artifact).unwrap();
-        let second_release = fixture.release(
+        let second_release = fixture.oem_release(
             30381,
-            "cloud_node/official/stable/windows/x86_64/30381/installer.exe",
+            "cloud_node/oem/acme-cloud/stable/windows/x86_64/30381/installer.exe",
             second_artifact,
         );
         let second_spec_path = fixture.directory().join("second-release.json");
@@ -1290,7 +1306,7 @@ mod tests {
         let reused_artifact_path = fixture.directory().join("reused-installer.exe");
         std::fs::write(&reused_artifact_path, b"reused name bytes").unwrap();
         let reused_release =
-            fixture.release(30382, &first_release.target_name, b"reused name bytes");
+            fixture.oem_release(30382, &first_release.target_name, b"reused name bytes");
         let reused_spec_path = fixture.directory().join("reused-release.json");
         std::fs::write(
             &reused_spec_path,

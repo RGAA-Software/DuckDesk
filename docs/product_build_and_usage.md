@@ -5,7 +5,8 @@
 
 Pixels 发布矩阵只生成 `official` 与 `customer`。OEM 是独立发行线，不得通过修改现有 Customer 的名称、图标、URL 或清单后交付；现有双发行
 矩阵继续保持两项。Windows 与 Android 均已有独立 OEM 构建入口，Android、Web 与 Windows 原生 Panel/Client 均已消费 profile 品牌，但 OEM 商业交付仍
-保持关闭，直到独立 TUF 正式发布、激活任务和跨 Official/Customer/其他 OEM 的完整拒绝矩阵全部通过。
+保持关闭，直到使用审批密钥的独立 TUF 正式发布、激活任务和跨 Official/Customer/其他 OEM 的完整实物拒绝矩阵全部通过。测试夹具已经覆盖 OEM
+target 的权威签发、Service 验签/准备，以及同一制品替换成另一合法 OEM 身份时的安装前拒绝；该代码证据不能代替正式密钥、正式仓库和签名安装包验收。
 服务端发布目录、Auth `PXLIC2` 许可证和 `PXDC2/PXDD2` 部署身份已经能够签名表达并隔离 `oem.<oem_id>`；Windows Service、Panel、Web 与
 Android 的消费者也会精确拒绝发行域替换。独立 OEM 构建入口只生成待验收候选，不会发布 TUF、激活节点或开放商业交付；这些身份能力不能用于
 手工拼装 OEM 包，也不改变 Pixels 双发行构建命令。

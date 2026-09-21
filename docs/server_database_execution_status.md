@@ -1677,6 +1677,14 @@ product/distribution/namespace/OEM/profile/company；重启收敛、安装后 ma
 SHA-256 均为 `3BC759CB09C4075CF4B44DAF98BC3B69BA0333EB506B3EF29D8B1DB87C7670A5`，dist 清单分别刷新为 313/76 件。该证据关闭代码门禁，正式 OEM
 签名包的 TUF 发布、Console 登记/审批和真实节点激活仍需审批材料后执行。
 
+同日补齐独立 OEM TUF 代码链的正反向验收：发布权威使用测试密钥发布
+`cloud_node/oem/acme-cloud/...`，经自验签后确认 `pixels.target` 完整携带
+`distribution=oem`、`release_namespace=oem.acme-cloud` 和 `oem_id=acme-cloud`；Service
+从该仓库完成元数据验签、目标下载、内容复核和原子准备。把同一 Console offer 的发行身份改为另一个合法 OEM
+`oem.north-star/north-star`，即使复用相同 release ID、target 名、build、摘要和目标字节，也会在准备安装前因签名发行身份不一致而失败关闭。
+`px_update_authority` 6/6、`px_service` 124 PASS（另 1 项物理 NVIDIA 按设计忽略），两包严格 Clippy 均通过。这里使用的仅是测试夹具密钥，
+因此关闭的是代码级独立 TUF 与跨 OEM 拒绝门禁，不代表已完成正式密钥审批、正式仓库发布、Console 登记/批准或真实签名包激活。
+
 | 阶段 | 当前未完成项 |
 |---|---|
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |
