@@ -1,8 +1,8 @@
 use crate::{
     control,
     update_model::{NodeUpdateActivationRow, NodeUpdateTaskRow, UpdateRow},
-    ClientType, NodeUpdateActivation, NodeUpdateCompletion, StoreError, TokenDigest,
-    UpdateActivationOutcome, UpdateDecision, UpdateRelease,
+    ClientType, NodeUpdateActivation, NodeUpdateCompletion, NodeUpdateTrust, StoreError,
+    TokenDigest, UpdateActivationOutcome, UpdateDecision, UpdateRelease, UpdateTrustObservation,
 };
 use px_release_catalog::{ReleaseQuery, ReleaseSpec};
 use sha2::{Digest, Sha256};
@@ -33,15 +33,20 @@ impl UpdateStore {
         token: &TokenDigest,
         request_id: Uuid,
         repository_publication_sha256: &str,
+        repository_root_version: i64,
         artifact: &ReleaseSpec,
     ) -> Result<UpdateRelease, StoreError> {
-        if request_id.is_nil() || !valid_sha256(repository_publication_sha256) {
+        if request_id.is_nil()
+            || !valid_sha256(repository_publication_sha256)
+            || repository_root_version < 1
+        {
             return Err(StoreError::InvalidInput);
         }
         let artifact_digest = artifact.digest().map_err(|_| StoreError::InvalidInput)?;
         let mut request_digest = Sha256::new();
         request_digest.update(artifact_digest);
         request_digest.update(repository_publication_sha256.as_bytes());
+        request_digest.update(repository_root_version.to_be_bytes());
         let request_hash: [u8; 32] = request_digest.finalize().into();
         let mut tx = self.pool.begin().await?;
         control::write_gate(&mut tx).await?;
@@ -83,6 +88,7 @@ impl UpdateStore {
             artifact.target_name,
             artifact.sha256,
             repository_publication_sha256,
+            repository_root_version,
             artifact.platform_signer_sha256,
             artifact.size_bytes
         )
@@ -188,19 +194,27 @@ impl UpdateStore {
         tx.commit().await?;
         Ok(result)
     }
-    pub async fn latest_for_node(
+    pub async fn check_for_node(
         &self,
         node: &crate::NodeConnection,
         target: &ReleaseQuery,
         current_build_number: i64,
+        trust_observation: Option<&UpdateTrustObservation>,
     ) -> Result<Option<UpdateRelease>, StoreError> {
         target.validate().map_err(|_| StoreError::InvalidInput)?;
         if current_build_number < 1 || target.product.name() != node.product().name() {
             return Err(StoreError::Rejected);
         }
         let mut tx = self.pool.begin().await?;
-        control::read_gate(&mut tx).await?;
+        if trust_observation.is_some() {
+            control::write_gate(&mut tx).await?;
+        } else {
+            control::read_gate(&mut tx).await?;
+        }
         crate::node_lifecycle::authorize(&mut tx, node).await?;
+        if let Some(observation) = trust_observation {
+            Self::record_trust_observation(&mut tx, node, target, observation).await?;
+        }
         let row = sqlx::query_file_as!(
             UpdateRow,
             "queries/latest_update.sql",
@@ -212,14 +226,51 @@ impl UpdateStore {
         )
         .fetch_optional(&mut *tx)
         .await?;
-        let result = match row {
-            Some(row) if row.state == "approved" && row.build_number > current_build_number => {
-                Some(row.view()?)
-            }
-            _ => None,
-        };
+        let result = row
+            .filter(|candidate| candidate.state == "approved")
+            .map(UpdateRow::view)
+            .transpose()?;
         tx.commit().await?;
         Ok(result)
+    }
+
+    async fn record_trust_observation(
+        transaction: &mut PgConnection,
+        node: &crate::NodeConnection,
+        target: &ReleaseQuery,
+        observation: &UpdateTrustObservation,
+    ) -> Result<NodeUpdateTrust, StoreError> {
+        if observation.release_id.is_nil()
+            || !valid_sha256(&observation.repository_publication_sha256)
+            || observation.root_version < 1
+        {
+            return Err(StoreError::InvalidInput);
+        }
+        let release =
+            sqlx::query_file_as!(UpdateRow, "queries/lock_update.sql", observation.release_id)
+                .fetch_optional(&mut *transaction)
+                .await?
+                .ok_or(StoreError::Rejected)?
+                .view()?;
+        if release.state == "pending"
+            || release.artifact.target != *target
+            || release.repository_publication_sha256 != observation.repository_publication_sha256
+            || release.repository_root_version != observation.root_version
+        {
+            return Err(StoreError::Rejected);
+        }
+        sqlx::query_file_as!(
+            NodeUpdateTrust,
+            "queries/record_node_update_trust.sql",
+            node.id,
+            observation.release_id,
+            node.generation,
+            observation.repository_publication_sha256,
+            observation.root_version
+        )
+        .fetch_optional(&mut *transaction)
+        .await?
+        .ok_or(StoreError::Rejected)
     }
     pub async fn begin_activation(
         &self,

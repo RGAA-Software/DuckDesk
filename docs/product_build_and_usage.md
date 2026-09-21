@@ -180,12 +180,15 @@ python scripts\prepare_windows_update_release.py ^
 同一候选和同一审批 SHA 续跑，另一候选会 fail closed。成功后执行器重新从初始根加载线上目录、验证全部目标并删除 journal。
 
 源站发布成功后，调用 `/api/console/managed/updates` 登记同一 `publication.json` 中的 `release`，请求体除 `request_id` 和 `artifact` 外必须包含
-`repository_publication_sha256`，其值就是上述带外审批的小写 SHA-256。Console 将它作为不可变发布事实保存并与制品正文共同计算幂等摘要；同一
-`request_id` 不能换成另一仓库代际。登记仍只产生 `pending`，管理员应在源站验证和业务审批后显式 approve；不能把登记成功视为 TUF 验签或安装授权。
+`repository_publication_sha256` 与 `repository_root_version`。前者是上述带外审批的小写 SHA-256，后者是工具从已验证的完整 root 链取得的末端版本；
+二者均作为不可变发布事实保存并与制品正文共同计算幂等摘要，同一 `request_id` 不能偷换仓库代际或根版本。登记仍只产生 `pending`，管理员应在
+源站验证和业务审批后显式 approve；不能把登记成功视为 TUF 验签或安装授权。
 
 不要人工拼装该请求。`prepare-console-registration` 要求 `PIXELS_TUF_LIVE_REPOSITORY`、非零 UUID
 `PIXELS_TUF_CONSOLE_REQUEST_ID` 和位于仓库外、尚不存在的绝对路径 `PIXELS_TUF_CONSOLE_REGISTRATION_OUTPUT`。工具拒绝仍有
 `promotion.pending.json` 的源站，重新从初始根验证元数据和全部目标，再排他生成可直接作为登记请求体的 JSON；重复执行不会覆盖已有审批文件。
+不要手工补 `repository_root_version`。节点更新检查始终携带当前已批准仓库描述，即使已安装 build 等于最新 build；Service 仍会用本机初始根、持久
+TUF datastore 和安全有效期策略刷新元数据。只有实际验签达到登记根版本后才向 Console 回报该发布代际的信任事实，包下载与激活仍是另一条门禁。
 
 ### 2.3 完整构建 Android
 

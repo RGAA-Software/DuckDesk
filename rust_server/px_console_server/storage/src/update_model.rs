@@ -23,6 +23,7 @@ pub struct UpdateRelease {
     pub id: Uuid,
     pub artifact: ReleaseSpec,
     pub repository_publication_sha256: String,
+    pub repository_root_version: i64,
     pub state: String,
     pub revision: i64,
     pub created_at: DateTime<Utc>,
@@ -44,6 +45,7 @@ pub(crate) struct UpdateRow {
     pub target_name: String,
     pub sha256: String,
     pub repository_publication_sha256: String,
+    pub repository_root_version: i64,
     pub platform_signer_sha256: Option<String>,
     pub size_bytes: i64,
     pub state: String,
@@ -79,6 +81,24 @@ pub struct NodeUpdateCompletion {
     pub state: String,
     pub revision: i64,
     pub error_code: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct NodeUpdateTrust {
+    pub node_id: Uuid,
+    pub release_id: Uuid,
+    pub node_generation: i64,
+    pub repository_publication_sha256: String,
+    pub trusted_root_version: i64,
+    pub revision: i64,
+    pub observed_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UpdateTrustObservation {
+    pub release_id: Uuid,
+    pub repository_publication_sha256: String,
+    pub root_version: i64,
 }
 
 #[derive(sqlx::FromRow)]
@@ -140,6 +160,7 @@ impl UpdateRow {
             id: self.id,
             artifact,
             repository_publication_sha256: self.repository_publication_sha256,
+            repository_root_version: self.repository_root_version,
             state: self.state,
             revision: self.revision,
             created_at: self.created_at,

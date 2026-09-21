@@ -27,6 +27,7 @@ pub(crate) fn routes() -> Router<Arc<StateData>> {
 struct NewRelease {
     request_id: Uuid,
     repository_publication_sha256: String,
+    repository_root_version: i64,
     artifact: ReleaseSpec,
 }
 
@@ -42,6 +43,7 @@ async fn register(
             &request::administrator(&state, &headers)?,
             input.request_id,
             &input.repository_publication_sha256,
+            input.repository_root_version,
             &input.artifact,
         )
         .await?;

@@ -38,6 +38,7 @@ pub struct ConsoleRegistrationPreparation {
 struct ConsoleRegistration {
     request_id: String,
     repository_publication_sha256: String,
+    repository_root_version: u64,
     artifact: ReleaseSpec,
 }
 
@@ -109,9 +110,15 @@ pub async fn prepare_console_registration(
     }
 
     let live_publication = verify_publication(&configuration.live_repository_path).await?;
+    let repository_root_version = live_publication
+        .root_versions_and_sha256
+        .last()
+        .ok_or("verified TUF repository does not contain a root")?
+        .0;
     let registration = ConsoleRegistration {
         request_id: configuration.request_id.to_string(),
         repository_publication_sha256: live_publication.publication_sha256,
+        repository_root_version,
         artifact: live_publication.release,
     };
     let mut registration_bytes = serde_json::to_vec_pretty(&registration)?;

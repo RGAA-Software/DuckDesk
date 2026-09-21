@@ -18,6 +18,7 @@ CREATE TABLE pixels.update_releases (
         AND target_name !~ '(^/|\\|[[:space:]]|(^|/)\.\.?(/|$)|/$)'),
     sha256 TEXT NOT NULL CHECK (sha256 ~ '^[a-f0-9]{64}$'),
     repository_publication_sha256 TEXT NOT NULL CHECK (repository_publication_sha256 ~ '^[a-f0-9]{64}$'),
+    repository_root_version BIGINT NOT NULL CHECK (repository_root_version > 0),
     platform_signer_sha256 TEXT,
     size_bytes BIGINT NOT NULL CHECK (size_bytes > 0 AND size_bytes <= 1099511627776),
     state TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending','approved','withdrawn')),
@@ -76,3 +77,17 @@ CREATE UNIQUE INDEX node_update_tasks_active ON pixels.node_update_tasks(node_id
 CREATE INDEX node_update_tasks_recent ON pixels.node_update_tasks(node_id,created_at DESC,id DESC);
 GRANT SELECT,INSERT ON pixels.node_update_tasks TO pixels_console_runtime;
 GRANT UPDATE(state,revision,error_code,updated_at,completed_at) ON pixels.node_update_tasks TO pixels_console_runtime;
+
+CREATE TABLE pixels.node_update_trust (
+    node_id UUID PRIMARY KEY REFERENCES pixels.nodes(id),
+    release_id UUID NOT NULL REFERENCES pixels.update_releases(id),
+    node_generation BIGINT NOT NULL CHECK (node_generation > 0),
+    repository_publication_sha256 TEXT NOT NULL CHECK (repository_publication_sha256 ~ '^[a-f0-9]{64}$'),
+    trusted_root_version BIGINT NOT NULL CHECK (trusted_root_version > 0),
+    revision BIGINT NOT NULL DEFAULT 1 CHECK (revision > 0),
+    observed_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
+);
+CREATE INDEX node_update_trust_release ON pixels.node_update_trust(release_id,node_id);
+GRANT SELECT,INSERT ON pixels.node_update_trust TO pixels_console_runtime;
+GRANT UPDATE(release_id,node_generation,repository_publication_sha256,trusted_root_version,revision,observed_at)
+    ON pixels.node_update_trust TO pixels_console_runtime;

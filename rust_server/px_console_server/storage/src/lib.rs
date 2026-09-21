@@ -133,8 +133,8 @@ pub use transfer_model::{
     TransferProgress,
 };
 pub use update_model::{
-    NodeUpdateActivation, NodeUpdateCompletion, UpdateActivationOutcome, UpdateDecision,
-    UpdateRelease,
+    NodeUpdateActivation, NodeUpdateCompletion, NodeUpdateTrust, UpdateActivationOutcome,
+    UpdateDecision, UpdateRelease, UpdateTrustObservation,
 };
 pub use updates::UpdateStore;
 pub use workspace_model::{WorkspaceCommandLease, WorkspaceCredential, WorkspaceProfile};

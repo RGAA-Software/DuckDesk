@@ -633,6 +633,11 @@ Windows 先功能验收，再 Android；使用配置的公网测试节点及独�
 - [Prometheus 概述](https://prometheus.io/docs/introduction/overview/)：指标采集与告警，不承担业务预约或容器编排。
 - [Kubernetes 概述](https://kubernetes.io/docs/concepts/overview/) 与 [Windows 容器说明](https://kubernetes.io/docs/concepts/windows/intro/)：编排职责与平台边界；Windows 容器支持不是本项目桌面运行模式已验证的证据。
 - 更新信任根、元数据一致性及防回滚/冻结参考 [TUF 规范](https://theupdateframework.github.io/specification/latest/)。
+
+根轮换发布不能等待下一次产品升版“顺带安装”。每次节点更新检查都返回当前已批准 TUF 仓库描述；Service 在没有新 target 时也刷新元数据，使用持久
+datastore 执行防回滚和安全有效期校验。authority 生成的 Console 登记请求同时固定 `publication.json` 摘要与末端 root version；节点只有实际验签
+达到该版本才回报确认。Console 按节点保存单调信任水位，错误发布身份和倒退报告 fail closed。删除旧 root、提高最小可信根或开始只由新根授权的发布前，
+运维必须以当前应纳管节点集合的真实水位为依据；未知、离线或落后节点不能被成功下发这一事实冒充已完成轮换。
 - 排空需要应用及入口共同参与，参考 [Kubernetes 终止与连接排空说明](https://kubernetes.io/docs/tutorials/services/pods-and-endpoint-termination-flow/)；本计划不要求采用 Kubernetes。
 - Job 最后句柄关闭的行为参考 [Microsoft Job Objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects)。
 - Android 更新要区分下载与安装/重启，参考 [Android 应用内更新](https://developer.android.com/guide/playcore/in-app-updates)；Play 流程不作为私有离线部署的前置依赖。

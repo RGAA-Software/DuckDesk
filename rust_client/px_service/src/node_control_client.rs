@@ -12,9 +12,10 @@ use px_node_protocol::{
     ApplicationLaunch, BeginFileTransfer, ChannelKind, ChannelProgress, CommandOutcome,
     CommandReceipt, DeploymentAssignment, DeploymentObservation, DeploymentPreparation,
     GpuReservation, NodeCommand, NodeCommandAction, NodeReport, NodeRequest, NodeResponse,
-    NodeUpdateOffer, ObservedRuntime, ObservedRuntimePhase, OpenChannel, PreparationFailure,
-    PreparationState, RdpWorkspaceCredential, RecordingCacheUpload, RelayEndpoint,
-    RuntimeInventory, TelemetryBackfillSample, TransferDirection, VideoCodec, MAX_MESSAGE_BYTES,
+    NodeUpdateOffer, NodeUpdateRepository, NodeUpdateTrustObservation, ObservedRuntime,
+    ObservedRuntimePhase, OpenChannel, PreparationFailure, PreparationState,
+    RdpWorkspaceCredential, RecordingCacheUpload, RelayEndpoint, RuntimeInventory,
+    TelemetryBackfillSample, TransferDirection, VideoCodec, MAX_MESSAGE_BYTES,
 };
 use px_release_catalog::{
     Architecture, Channel, Distribution, OperatingSystem, Product, ReleaseQuery,
@@ -68,6 +69,11 @@ pub(crate) struct NodeControlIdentity {
 struct NodeControlAuthentication {
     identity: NodeControlIdentity,
     relay: Option<RelayEndpoint>,
+}
+
+struct NodeUpdateCheck {
+    repository: Option<NodeUpdateRepository>,
+    offer: Option<NodeUpdateOffer>,
 }
 
 struct PendingFrontendRetirement {
@@ -407,10 +413,17 @@ async fn run_connection(
     .await?;
     let mut update_tasks = JoinSet::new();
     let mut preparing_release_id = None;
-    let update_offer = refresh_update_offer(&mut socket, &mut session, runtime, product).await?;
-    schedule_update_preparation(
-        update_offer,
+    let mut update_trust_observation = None;
+    let update_check = refresh_update_offer(
+        &mut socket,
+        &mut session,
         runtime,
+        product,
+        update_trust_observation.as_ref(),
+    )
+    .await?;
+    schedule_update_synchronization(
+        update_check,
         &mut update_tasks,
         &mut preparing_release_id,
         &trusted_update_root,
@@ -499,10 +512,15 @@ async fn run_connection(
                 ).await?;
             }
             _ = update_checks.tick() => {
-                let update_offer = refresh_update_offer(&mut socket, &mut session, runtime, product).await?;
-                schedule_update_preparation(
-                    update_offer,
+                let update_check = refresh_update_offer(
+                    &mut socket,
+                    &mut session,
                     runtime,
+                    product,
+                    update_trust_observation.as_ref(),
+                ).await?;
+                schedule_update_synchronization(
+                    update_check,
                     &mut update_tasks,
                     &mut preparing_release_id,
                     &trusted_update_root,
@@ -634,22 +652,46 @@ async fn run_connection(
             }
             completed = update_tasks.join_next(), if !update_tasks.is_empty() => {
                 match completed {
-                    Some(Ok((release_id, Ok(prepared)))) => {
+                    Some(Ok((release_id, Ok(synchronization)))) => {
                         if preparing_release_id == Some(release_id) {
                             preparing_release_id = None;
                         }
+                        update_trust_observation = Some(synchronization.trust_observation);
                         {
                             let mut runtime_guard = runtime.lock().await;
-                            if runtime_guard.node_control_update_offer.as_ref().map(|offer| offer.release_id) == Some(release_id) {
-                                info!(
-                                    %release_id,
-                                    version = %prepared.version,
-                                    build_number = prepared.build_number,
-                                    path = %prepared.artifact_path.display(),
-                                    "TUF-verified update is staged; activation eligibility will now be checked"
-                                );
-                                runtime_guard.node_control_prepared_update = Some(prepared);
+                            if runtime_guard
+                                .node_control_update_offer
+                                .as_ref()
+                                .map(|offer| offer.release_id)
+                                == Some(release_id)
+                            {
+                                if let Some(prepared) = synchronization.prepared_update {
+                                    info!(
+                                        %release_id,
+                                        version = %prepared.version,
+                                        build_number = prepared.build_number,
+                                        path = %prepared.artifact_path.display(),
+                                        "TUF-verified update is staged; activation eligibility will now be checked"
+                                    );
+                                    runtime_guard.node_control_prepared_update = Some(prepared);
+                                }
                             }
+                        }
+                        let update_check = refresh_update_offer(
+                            &mut socket,
+                            &mut session,
+                            runtime,
+                            product,
+                            update_trust_observation.as_ref(),
+                        ).await?;
+                        if update_check.repository.as_ref().map(|repository| repository.release_id) != Some(release_id) {
+                            schedule_update_synchronization(
+                                update_check,
+                                &mut update_tasks,
+                                &mut preparing_release_id,
+                                &trusted_update_root,
+                                &update_data_root,
+                            ).await;
                         }
                         try_activate_prepared_update(
                             &mut socket,
@@ -1272,36 +1314,71 @@ async fn check_update(
     socket: &mut NodeSocket,
     session: &mut ProtocolSession,
     product: &ProductDescriptor,
-) -> Result<Option<NodeUpdateOffer>, String> {
+    trust_observation: Option<&NodeUpdateTrustObservation>,
+) -> Result<NodeUpdateCheck, String> {
     let Some(expected_target) = expected_update_target(product)? else {
-        return Ok(None);
+        return Ok(NodeUpdateCheck {
+            repository: None,
+            offer: None,
+        });
     };
     let current_build_number = i64::from(product.product_version_code);
     let request = NodeRequest::CheckUpdate {
         request_id: session.request_id()?,
         current_build_number,
+        trust_observation: trust_observation.cloned(),
     };
     let expected_request_id = request.request_id();
-    let offer = match exchange(socket, request).await? {
-        NodeResponse::UpdateChecked { request_id, offer } if request_id == expected_request_id => {
-            offer
-        }
+    let (repository, offer) = match exchange(socket, request).await? {
+        NodeResponse::UpdateChecked {
+            request_id,
+            repository,
+            offer,
+        } if request_id == expected_request_id => (repository, offer),
         NodeResponse::Error { code, .. } => {
             return Err(format!("node update check rejected: {code}"));
         }
         _ => return Err("unexpected node update check response".into()),
     };
+    if let Some(repository) = &repository {
+        let valid_publication_sha = repository.repository_publication_sha256.len() == 64
+            && repository
+                .repository_publication_sha256
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte));
+        let metadata_url = url::Url::parse(&repository.metadata_base_url);
+        let targets_url = url::Url::parse(&repository.targets_base_url);
+        if repository.release_id.is_nil()
+            || repository.root_version == 0
+            || !valid_publication_sha
+            || !metadata_url
+                .as_ref()
+                .is_ok_and(|url| url.scheme() == "https")
+            || !targets_url
+                .as_ref()
+                .is_ok_and(|url| url.scheme() == "https")
+        {
+            return Err("Console returned an invalid update repository".into());
+        }
+    } else if offer.is_some() {
+        return Err("Console returned an update offer without its TUF repository".into());
+    }
     if let Some(offer) = &offer {
         if offer.release_id.is_nil()
             || offer.policy_revision < 2
             || offer.artifact.validate().is_err()
             || offer.artifact.target != expected_target
             || offer.artifact.build_number <= current_build_number
+            || repository.as_ref().is_none_or(|approved_repository| {
+                approved_repository.release_id != offer.release_id
+                    || approved_repository.metadata_base_url != offer.artifact.metadata_base_url
+                    || approved_repository.targets_base_url != offer.artifact.targets_base_url
+            })
         {
             return Err("Console returned an invalid node update offer".into());
         }
     }
-    Ok(offer)
+    Ok(NodeUpdateCheck { repository, offer })
 }
 
 async fn refresh_update_offer(
@@ -1309,9 +1386,10 @@ async fn refresh_update_offer(
     session: &mut ProtocolSession,
     runtime: &Arc<Mutex<ServiceRuntime>>,
     product: &ProductDescriptor,
-) -> Result<Option<NodeUpdateOffer>, String> {
-    let offer = check_update(socket, session, product).await?;
-    if let Some(update) = &offer {
+    trust_observation: Option<&NodeUpdateTrustObservation>,
+) -> Result<NodeUpdateCheck, String> {
+    let update_check = check_update(socket, session, product, trust_observation).await?;
+    if let Some(update) = &update_check.offer {
         info!(
             release_id = %update.release_id,
             version = %update.artifact.version,
@@ -1319,46 +1397,41 @@ async fn refresh_update_offer(
             "approved node update is available; activation remains blocked until package signature verification"
         );
     }
-    runtime.lock().await.node_control_update_offer = offer.clone();
-    Ok(offer)
+    runtime.lock().await.node_control_update_offer = update_check.offer.clone();
+    Ok(update_check)
 }
 
-async fn schedule_update_preparation(
-    offer: Option<NodeUpdateOffer>,
-    runtime: &Arc<Mutex<ServiceRuntime>>,
+async fn schedule_update_synchronization(
+    update_check: NodeUpdateCheck,
     tasks: &mut JoinSet<(
         Uuid,
-        Result<crate::update_preparation::PreparedUpdate, String>,
+        Result<crate::update_preparation::RepositorySynchronization, String>,
     )>,
     preparing_release_id: &mut Option<Uuid>,
     trusted_root_path: &std::path::Path,
     update_data_root: &std::path::Path,
 ) {
-    let Some(offer) = offer else {
+    let Some(repository) = update_check.repository else {
         return;
     };
-    let already_prepared = runtime
-        .lock()
-        .await
-        .node_control_prepared_update
-        .as_ref()
-        .is_some_and(|prepared| {
-            prepared.release_id == offer.release_id
-                && prepared.policy_revision == offer.policy_revision
-                && prepared.build_number == offer.artifact.build_number
-        });
-    if already_prepared || *preparing_release_id == Some(offer.release_id) {
+    if *preparing_release_id == Some(repository.release_id) {
         return;
     }
     if preparing_release_id.is_some() {
         tasks.abort_all();
     }
-    let release_id = offer.release_id;
+    let release_id = repository.release_id;
+    let offer = update_check.offer;
     let trusted_root_path = trusted_root_path.to_path_buf();
     let update_data_root = update_data_root.to_path_buf();
     tasks.spawn(async move {
-        let result =
-            crate::update_preparation::prepare(&offer, &trusted_root_path, &update_data_root).await;
+        let result = crate::update_preparation::synchronize(
+            &repository,
+            offer.as_ref(),
+            &trusted_root_path,
+            &update_data_root,
+        )
+        .await;
         (release_id, result)
     });
     *preparing_release_id = Some(release_id);
@@ -3026,16 +3099,26 @@ mod tests {
             let NodeRequest::CheckUpdate {
                 request_id,
                 current_build_number,
+                trust_observation,
             } = request
             else {
                 panic!("expected update check");
             };
             assert_eq!(request_id, 1);
             assert_eq!(current_build_number, 30367);
+            assert!(trust_observation.is_none());
+            let release_id = Uuid::new_v4();
             let response = NodeResponse::UpdateChecked {
                 request_id,
+                repository: Some(NodeUpdateRepository {
+                    release_id,
+                    repository_publication_sha256: "c".repeat(64),
+                    root_version: 1,
+                    metadata_base_url: "https://downloads.example.test/metadata/".into(),
+                    targets_base_url: "https://downloads.example.test/targets/".into(),
+                }),
                 offer: Some(NodeUpdateOffer {
-                    release_id: Uuid::new_v4(),
+                    release_id,
                     policy_revision: 2,
                     artifact: px_release_catalog::ReleaseSpec {
                         target: ReleaseQuery {
@@ -3067,10 +3150,11 @@ mod tests {
             .await
             .unwrap();
         let mut session = ProtocolSession::new();
-        let offer = check_update(&mut socket, &mut session, &cloud_product())
+        let update_check = check_update(&mut socket, &mut session, &cloud_product(), None)
             .await
-            .unwrap()
             .unwrap();
+        let offer = update_check.offer.unwrap();
+        assert_eq!(update_check.repository.unwrap().root_version, 1);
         assert_eq!(offer.artifact.build_number, 30368);
         server.await.unwrap();
     }

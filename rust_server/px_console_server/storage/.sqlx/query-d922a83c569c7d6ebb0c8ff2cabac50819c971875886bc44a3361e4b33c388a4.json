@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id,request_hash,product,distribution,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,repository_publication_sha256,platform_signer_sha256,size_bytes,state,revision,created_at,updated_at FROM pixels.update_releases WHERE registered_by=$1 AND request_id=$2\n",
+  "query": "UPDATE pixels.update_releases SET state=$2,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 RETURNING id,request_hash,product,distribution,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,repository_publication_sha256,repository_root_version,platform_signer_sha256,size_bytes,state,revision,created_at,updated_at\n",
   "describe": {
     "columns": [
       {
@@ -75,31 +75,36 @@
       },
       {
         "ordinal": 14,
+        "name": "repository_root_version",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 15,
         "name": "platform_signer_sha256",
         "type_info": "Text"
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "size_bytes",
         "type_info": "Int8"
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "state",
         "type_info": "Text"
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "revision",
         "type_info": "Int8"
       },
       {
-        "ordinal": 18,
+        "ordinal": 19,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 19,
+        "ordinal": 20,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
@@ -107,10 +112,11 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Uuid"
+        "Text"
       ]
     },
     "nullable": [
+      false,
       false,
       false,
       false,
@@ -133,5 +139,5 @@
       false
     ]
   },
-  "hash": "8f341e4ec3254322da32a812dda9f425ac1c4496651e9bb3171fa167f60e0f47"
+  "hash": "d922a83c569c7d6ebb0c8ff2cabac50819c971875886bc44a3361e4b33c388a4"
 }

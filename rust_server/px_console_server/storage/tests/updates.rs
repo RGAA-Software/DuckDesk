@@ -1,13 +1,17 @@
 #[path = "support/node_fixture.rs"]
 mod fixture;
 use fixture::{config, token, Fixture};
-use px_console_store::{ClientType, DeploymentTarget, UpdateDecision, UpdateRelease, UpdateStore};
+use px_console_store::{
+    ClientType, DeploymentTarget, UpdateDecision, UpdateRelease, UpdateStore,
+    UpdateTrustObservation,
+};
 use px_release_catalog::*;
 use std::env;
 use uuid::Uuid;
 
 const REPOSITORY_PUBLICATION_SHA256: &str =
     "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+const REPOSITORY_ROOT_VERSION: i64 = 1;
 
 fn spec() -> ReleaseSpec {
     ReleaseSpec {
@@ -56,6 +60,7 @@ async fn approved_cloud_node_release(
             &fixture.admin,
             Uuid::new_v4(),
             REPOSITORY_PUBLICATION_SHA256,
+            REPOSITORY_ROOT_VERSION,
             &release_spec,
         )
         .await
@@ -126,6 +131,7 @@ async fn all_product_platform_flavor_channel_dimensions_are_independent() {
                         &fixture.admin,
                         Uuid::new_v4(),
                         REPOSITORY_PUBLICATION_SHA256,
+                        REPOSITORY_ROOT_VERSION,
                         &release_spec,
                     )
                     .await
@@ -154,7 +160,7 @@ async fn all_product_platform_flavor_channel_dimensions_are_independent() {
 }
 
 #[tokio::test]
-async fn authenticated_node_sees_only_a_newer_approved_release_for_its_product() {
+async fn authenticated_node_receives_the_approved_repository_and_records_real_root_trust() {
     let fixture = Fixture::new().await;
     let update_store = store().await;
     let (connection, _) = fixture.connected().await;
@@ -171,19 +177,35 @@ async fn authenticated_node_sees_only_a_newer_approved_release_for_its_product()
             &fixture.admin,
             Uuid::new_v4(),
             REPOSITORY_PUBLICATION_SHA256,
+            REPOSITORY_ROOT_VERSION,
             &release_spec,
         )
         .await
         .unwrap();
     assert!(update_store
-        .latest_for_node(
+        .check_for_node(
             &connection,
             &release_spec.target,
-            release_spec.build_number - 1
+            release_spec.build_number - 1,
+            None,
         )
         .await
         .unwrap()
         .is_none());
+    let premature_observation = UpdateTrustObservation {
+        release_id: release.id,
+        repository_publication_sha256: REPOSITORY_PUBLICATION_SHA256.into(),
+        root_version: REPOSITORY_ROOT_VERSION,
+    };
+    assert!(update_store
+        .check_for_node(
+            &connection,
+            &release_spec.target,
+            release_spec.build_number,
+            Some(&premature_observation),
+        )
+        .await
+        .is_err());
     let approved = update_store
         .decide(
             &fixture.admin,
@@ -194,41 +216,136 @@ async fn authenticated_node_sees_only_a_newer_approved_release_for_its_product()
         .await
         .unwrap();
     let offer = update_store
-        .latest_for_node(
+        .check_for_node(
             &connection,
             &release_spec.target,
             release_spec.build_number - 1,
+            None,
         )
         .await
         .unwrap()
         .unwrap();
     assert_eq!(offer.id, approved.id);
     assert_eq!(offer.artifact, release_spec);
-    assert!(update_store
-        .latest_for_node(&connection, &release_spec.target, release_spec.build_number)
+    assert_eq!(
+        update_store
+            .check_for_node(
+                &connection,
+                &release_spec.target,
+                release_spec.build_number,
+                None,
+            )
+            .await
+            .unwrap()
+            .unwrap()
+            .id,
+        approved.id
+    );
+    let observation = UpdateTrustObservation {
+        release_id: approved.id,
+        repository_publication_sha256: REPOSITORY_PUBLICATION_SHA256.into(),
+        root_version: REPOSITORY_ROOT_VERSION,
+    };
+    update_store
+        .check_for_node(
+            &connection,
+            &release_spec.target,
+            release_spec.build_number,
+            Some(&observation),
+        )
         .await
-        .unwrap()
-        .is_none());
+        .unwrap();
+    let trusted_root_version: i64 = sqlx::query_scalar(
+        "SELECT trusted_root_version FROM pixels.node_update_trust WHERE node_id=$1",
+    )
+    .bind(connection.id())
+    .fetch_one(&fixture.owner)
+    .await
+    .unwrap();
+    assert_eq!(trusted_root_version, REPOSITORY_ROOT_VERSION);
+    let mut wrong_observation = observation.clone();
+    wrong_observation.repository_publication_sha256 = "d".repeat(64);
+    assert!(update_store
+        .check_for_node(
+            &connection,
+            &release_spec.target,
+            release_spec.build_number,
+            Some(&wrong_observation),
+        )
+        .await
+        .is_err());
+    let mut next_release_spec = release_spec.clone();
+    next_release_spec.build_number += 1;
+    next_release_spec.version = "3.2.10".into();
+    let next_publication_sha256 = "e".repeat(64);
+    let next_release = update_store
+        .register(
+            &fixture.admin,
+            Uuid::new_v4(),
+            &next_publication_sha256,
+            2,
+            &next_release_spec,
+        )
+        .await
+        .unwrap();
+    let next_release = update_store
+        .decide(
+            &fixture.admin,
+            next_release.id,
+            next_release.revision,
+            UpdateDecision::Approve,
+        )
+        .await
+        .unwrap();
+    let next_observation = UpdateTrustObservation {
+        release_id: next_release.id,
+        repository_publication_sha256: next_publication_sha256,
+        root_version: 2,
+    };
+    update_store
+        .check_for_node(
+            &connection,
+            &next_release_spec.target,
+            next_release_spec.build_number,
+            Some(&next_observation),
+        )
+        .await
+        .unwrap();
+    assert!(update_store
+        .check_for_node(
+            &connection,
+            &release_spec.target,
+            release_spec.build_number,
+            Some(&observation),
+        )
+        .await
+        .is_err());
     let mut wrong_product = release_spec.target;
     wrong_product.product = Product::Remote;
     assert!(update_store
-        .latest_for_node(&connection, &wrong_product, release_spec.build_number - 1)
+        .check_for_node(
+            &connection,
+            &wrong_product,
+            release_spec.build_number - 1,
+            None,
+        )
         .await
         .is_err());
     update_store
         .decide(
             &fixture.admin,
-            approved.id,
-            approved.revision,
+            next_release.id,
+            next_release.revision,
             UpdateDecision::Withdraw,
         )
         .await
         .unwrap();
     assert!(update_store
-        .latest_for_node(
+        .check_for_node(
             &connection,
             &release_spec.target,
-            release_spec.build_number - 1
+            release_spec.build_number - 1,
+            None,
         )
         .await
         .unwrap()
@@ -253,6 +370,7 @@ async fn concurrent_registration_retries_bind_body_and_never_reverse_withdrawal(
                     &token,
                     request,
                     REPOSITORY_PUBLICATION_SHA256,
+                    REPOSITORY_ROOT_VERSION,
                     &release_spec,
                 )
                 .await
@@ -284,6 +402,7 @@ async fn concurrent_registration_retries_bind_body_and_never_reverse_withdrawal(
             &fixture.admin,
             request,
             REPOSITORY_PUBLICATION_SHA256,
+            REPOSITORY_ROOT_VERSION,
             &changed,
         )
         .await
@@ -294,6 +413,17 @@ async fn concurrent_registration_retries_bind_body_and_never_reverse_withdrawal(
             &fixture.admin,
             request,
             &different_publication_sha256,
+            REPOSITORY_ROOT_VERSION,
+            &release_spec,
+        )
+        .await
+        .is_err());
+    assert!(update_store
+        .register(
+            &fixture.admin,
+            request,
+            REPOSITORY_PUBLICATION_SHA256,
+            REPOSITORY_ROOT_VERSION + 1,
             &release_spec,
         )
         .await
@@ -303,6 +433,7 @@ async fn concurrent_registration_retries_bind_body_and_never_reverse_withdrawal(
             &fixture.admin,
             Uuid::new_v4(),
             REPOSITORY_PUBLICATION_SHA256,
+            REPOSITORY_ROOT_VERSION,
             &release_spec,
         )
         .await
@@ -316,6 +447,7 @@ async fn concurrent_registration_retries_bind_body_and_never_reverse_withdrawal(
             &fixture.admin,
             request,
             REPOSITORY_PUBLICATION_SHA256,
+            REPOSITORY_ROOT_VERSION,
             &release_spec,
         )
         .await
@@ -336,6 +468,7 @@ async fn concurrent_policy_cas_and_admin_identity_are_checked_on_every_write() {
             &fixture.admin,
             Uuid::new_v4(),
             REPOSITORY_PUBLICATION_SHA256,
+            REPOSITORY_ROOT_VERSION,
             &release_spec,
         )
         .await
@@ -349,6 +482,7 @@ async fn concurrent_policy_cas_and_admin_identity_are_checked_on_every_write() {
                 denied,
                 Uuid::new_v4(),
                 REPOSITORY_PUBLICATION_SHA256,
+                REPOSITORY_ROOT_VERSION,
                 &spec(),
             )
             .await
@@ -422,6 +556,7 @@ async fn event_failure_rolls_back_registration_and_approval_and_runtime_cannot_r
             &fixture.admin,
             request,
             REPOSITORY_PUBLICATION_SHA256,
+            REPOSITORY_ROOT_VERSION,
             &release_spec,
         )
         .await;
@@ -442,6 +577,7 @@ async fn event_failure_rolls_back_registration_and_approval_and_runtime_cannot_r
             &fixture.admin,
             request,
             REPOSITORY_PUBLICATION_SHA256,
+            REPOSITORY_ROOT_VERSION,
             &release_spec,
         )
         .await
@@ -463,6 +599,7 @@ async fn event_failure_rolls_back_registration_and_approval_and_runtime_cannot_r
             &fixture.admin,
             request,
             REPOSITORY_PUBLICATION_SHA256,
+            REPOSITORY_ROOT_VERSION,
             &release_spec,
         )
         .await
@@ -494,6 +631,7 @@ async fn newest_unapproved_or_withdrawn_build_never_falls_back_and_pages_are_bou
             &fixture.admin,
             Uuid::new_v4(),
             REPOSITORY_PUBLICATION_SHA256,
+            REPOSITORY_ROOT_VERSION,
             &release_spec,
         )
         .await
@@ -521,6 +659,7 @@ async fn newest_unapproved_or_withdrawn_build_never_falls_back_and_pages_are_bou
             &fixture.admin,
             Uuid::new_v4(),
             REPOSITORY_PUBLICATION_SHA256,
+            REPOSITORY_ROOT_VERSION,
             &release_spec,
         )
         .await
@@ -611,6 +750,7 @@ async fn malformed_release_metadata_has_no_side_effects_and_database_enforces_pl
                 &fixture.admin,
                 Uuid::new_v4(),
                 REPOSITORY_PUBLICATION_SHA256,
+                REPOSITORY_ROOT_VERSION,
                 &bad,
             )
             .await
@@ -621,6 +761,7 @@ async fn malformed_release_metadata_has_no_side_effects_and_database_enforces_pl
             &fixture.admin,
             Uuid::nil(),
             REPOSITORY_PUBLICATION_SHA256,
+            REPOSITORY_ROOT_VERSION,
             &release_spec,
         )
         .await
@@ -631,11 +772,22 @@ async fn malformed_release_metadata_has_no_side_effects_and_database_enforces_pl
                 &fixture.admin,
                 Uuid::new_v4(),
                 &invalid_publication_sha256,
+                REPOSITORY_ROOT_VERSION,
                 &release_spec,
             )
             .await
             .is_err());
     }
+    assert!(update_store
+        .register(
+            &fixture.admin,
+            Uuid::new_v4(),
+            REPOSITORY_PUBLICATION_SHA256,
+            0,
+            &release_spec,
+        )
+        .await
+        .is_err());
     let after: i64 = sqlx::query_scalar("SELECT count(*) FROM pixels.update_releases")
         .fetch_one(&fixture.owner)
         .await
@@ -646,6 +798,7 @@ async fn malformed_release_metadata_has_no_side_effects_and_database_enforces_pl
             &fixture.admin,
             Uuid::new_v4(),
             REPOSITORY_PUBLICATION_SHA256,
+            REPOSITORY_ROOT_VERSION,
             &release_spec,
         )
         .await
@@ -682,6 +835,7 @@ async fn restarts_preserve_policy_and_closed_pool_never_reports_success() {
             &fixture.admin,
             request,
             REPOSITORY_PUBLICATION_SHA256,
+            REPOSITORY_ROOT_VERSION,
             &release_spec,
         )
         .await
@@ -696,6 +850,7 @@ async fn restarts_preserve_policy_and_closed_pool_never_reports_success() {
             &fixture.admin,
             request,
             REPOSITORY_PUBLICATION_SHA256,
+            REPOSITORY_ROOT_VERSION,
             &release_spec,
         )
         .await
@@ -710,6 +865,7 @@ async fn restarts_preserve_policy_and_closed_pool_never_reports_success() {
             &fixture.admin,
             request,
             REPOSITORY_PUBLICATION_SHA256,
+            REPOSITORY_ROOT_VERSION,
             &release_spec,
         )
         .await

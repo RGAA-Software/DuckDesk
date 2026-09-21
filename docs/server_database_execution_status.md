@@ -1465,6 +1465,13 @@ Console 前端精确计数仍停在 47 而实际为 49；`BETWEEN` CHECK 经 Pos
 现直接采用稳定的上下界比较形式。节点控制测试辅助往返在连续容器/编译负载下也由无上下文的 5 秒等待改为带请求诊断的 15 秒测试上限；
 生产节点协议截止策略未被放宽。该报告证明本地软件组合基线，不替代正式签名新旧安装包故障注入或公网实机工作流。
 
+2026-09-21 更新信任根闭环增量：authority 的 Console 登记请求新增从完整已验证 root 链取得的 `repository_root_version`；Console 将它与
+`repository_publication_sha256`、ReleaseSpec 一并作为不可变登记和幂等事实。节点检查现在即使没有更高 build 也返回已批准仓库，Windows Service 会独立
+刷新 TUF 元数据并在成功达到要求根版本后回报；Console 只接受精确 release/publication/root 组合，并把节点水位单调写入
+`pixels.node_update_trust`。伪造 publication、错误根版本及倒退报告均拒绝。聚焦证据：authority/protocol 10 项、Service 更新相关 14 项、
+Console updates 11 项、directory API 7 项、node-control 3 项全部通过；SQLx Console 离线查询数由 284 增至 285。该增量证明软件闭环，正式旧根退役仍须
+在正式签名发布材料和实际纳管节点集合上检查未知/离线/落后节点，不能以仓库下发代替真实水位。
+
 新增商业边界已经冻结但尚未冒充实现：Pixels Official、Pixels Customer 私有部署和具体 OEM 是三个不同更新信任域。OEM 必须绑定唯一
 `oem_id/release_namespace`、品牌/应用/安装身份、私有更新策略和独立 TUF 根，禁止查询或安装 Pixels 官网、Customer 或另一 OEM 的版本。
 当前构建与更新对象模型仍只有 Official/Customer，故第一份 OEM 包生成前还要把该命名空间贯穿产品描述、Desk/Console 目录、TUF target、

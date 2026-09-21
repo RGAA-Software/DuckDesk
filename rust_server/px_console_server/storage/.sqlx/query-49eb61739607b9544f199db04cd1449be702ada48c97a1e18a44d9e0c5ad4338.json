@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id,request_hash,product,distribution,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,repository_publication_sha256,platform_signer_sha256,size_bytes,state,revision,created_at,updated_at FROM pixels.update_releases WHERE id=$1 FOR UPDATE\n",
+  "query": "INSERT INTO pixels.update_releases(id,registered_by,request_id,request_hash,product,distribution,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,repository_publication_sha256,repository_root_version,platform_signer_sha256,size_bytes)\nVALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING id,request_hash,product,distribution,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,repository_publication_sha256,repository_root_version,platform_signer_sha256,size_bytes,state,revision,created_at,updated_at\n",
   "describe": {
     "columns": [
       {
@@ -75,41 +75,65 @@
       },
       {
         "ordinal": 14,
+        "name": "repository_root_version",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 15,
         "name": "platform_signer_sha256",
         "type_info": "Text"
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "size_bytes",
         "type_info": "Int8"
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "state",
         "type_info": "Text"
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "revision",
         "type_info": "Int8"
       },
       {
-        "ordinal": 18,
+        "ordinal": 19,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 19,
+        "ordinal": 20,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Bytea",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int8",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int8",
+        "Text",
+        "Int8"
       ]
     },
     "nullable": [
+      false,
       false,
       false,
       false,
@@ -132,5 +156,5 @@
       false
     ]
   },
-  "hash": "d118cbe0fb45d4f69b1be709c899068fa62c39536c0c2f2e897d8eaef51921e6"
+  "hash": "49eb61739607b9544f199db04cd1449be702ada48c97a1e18a44d9e0c5ad4338"
 }

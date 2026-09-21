@@ -93,11 +93,15 @@ RDP 工作区沿用[已冻结模式决策 §0.0](rdp_application_mode_design.md)
 Desk 的第二个 schema 增量及 Console 0019 已补齐 OS/architecture、制品大小与签名元数据 URL/hash；
 共享 `px_release_catalog` 校验严格字段及平台矩阵。Desk 不补旧开发行默认值，也不导入旧发布目录。
 Console 本地登记初始为 pending；admin 管理审批/撤回、viewer 只读；发布身份和正文只读，runtime 仅可改策略状态/revision。
-登记必须额外携带已发布仓库精确 `publication.json` 的小写 SHA-256；该固定值独立入库并进入请求摘要，不能只登记目标文件而丢失对应仓库代际。
+登记必须额外携带已发布仓库精确 `publication.json` 的小写 SHA-256 和经 authority 验证的末端 root version；二者独立入库并进入请求摘要，不能只登记
+目标文件而丢失对应仓库代际，也不能让相同 request_id 更换根版本。
 主体 request_id + 制品正文及仓库发布摘要使原登记可精确重试，但不会撤销后续 withdraw；相同 request_id 换制品或仓库代际均拒绝，CAS/事件同事务，
 事件写失败则策略不改变。
 当前最高 build 未审批或已撤回时不自动返回低版本，避免目录查询制造隐式降级；明确再次审批仍须新的 CAS。
 单调版本水位、签名有效期和实际安装防回滚属于更新执行器，不能用该查询规则替代。
+认证节点的每次更新检查返回当前已批准仓库，即使节点已是最新 build；Service 独立完成 TUF 刷新后，在下一次检查中回报 release、publication SHA-256
+和该发布要求的 root version。Console 只接受与不可变发布记录精确一致的事实，并对 `node_id` 做单调 upsert；伪造摘要、错误根版本和水位倒退均拒绝。
+`pixels.node_update_trust` 是节点实际验证事实，不以“已下发仓库”或“已安装新包”推测信任，也不把 Console 响应本身算作水位。
 
 2026-09-17 Windows 专项：Console 七组、Desk 七组真实 PG/API 测试通过，共同校验四组及 clippy 无警告。
 两份专项的 808 个登记源码 hash 已复核。后续完整 pg-20260917-084316-f0f4839f 的 503 项通过，

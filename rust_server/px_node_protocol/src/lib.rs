@@ -488,6 +488,29 @@ pub struct NodeUpdateOffer {
     pub artifact: ReleaseSpec,
 }
 
+/// The exact approved TUF repository generation an authenticated node must refresh.
+/// This is returned even when the node is already running the latest product build so
+/// root rotation does not depend on installing another package.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NodeUpdateRepository {
+    pub release_id: Uuid,
+    pub repository_publication_sha256: String,
+    pub root_version: u64,
+    pub metadata_base_url: String,
+    pub targets_base_url: String,
+}
+
+/// A node-produced acknowledgement that it successfully refreshed and verified at
+/// least the root version declared by one approved repository generation.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NodeUpdateTrustObservation {
+    pub release_id: Uuid,
+    pub repository_publication_sha256: String,
+    pub root_version: u64,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "result", rename_all = "snake_case", deny_unknown_fields)]
 pub enum UpdateActivationOutcome {
@@ -594,6 +617,7 @@ pub enum NodeRequest {
     CheckUpdate {
         request_id: u64,
         current_build_number: i64,
+        trust_observation: Option<NodeUpdateTrustObservation>,
     },
     BeginUpdateActivation {
         request_id: u64,
@@ -769,6 +793,7 @@ pub enum NodeResponse {
     },
     UpdateChecked {
         request_id: u64,
+        repository: Option<NodeUpdateRepository>,
         offer: Option<NodeUpdateOffer>,
     },
     UpdateActivationGranted {
@@ -962,6 +987,13 @@ mod tests {
         };
         let encoded = serde_json::to_value(NodeResponse::UpdateChecked {
             request_id: 9,
+            repository: Some(NodeUpdateRepository {
+                release_id: offer.release_id,
+                repository_publication_sha256: "c".repeat(64),
+                root_version: 2,
+                metadata_base_url: offer.artifact.metadata_base_url.clone(),
+                targets_base_url: offer.artifact.targets_base_url.clone(),
+            }),
             offer: Some(offer.clone()),
         })
         .unwrap();

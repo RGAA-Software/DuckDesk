@@ -621,20 +621,58 @@ async fn operation(
             }
             NodeRequest::CheckUpdate {
                 current_build_number,
+                trust_observation,
                 ..
             } => {
                 let target = node_update_target(state, connection);
-                let offer = state
+                let trust_observation = trust_observation
+                    .map(|observation| -> Result<_, ApiError> {
+                        Ok(px_console_store::UpdateTrustObservation {
+                            release_id: observation.release_id,
+                            repository_publication_sha256: observation
+                                .repository_publication_sha256,
+                            root_version: i64::try_from(observation.root_version)
+                                .map_err(|_| ApiError::Invalid)?,
+                        })
+                    })
+                    .transpose()?;
+                let approved_release = state
                     .db
                     .updates()
-                    .latest_for_node(connection, &target, current_build_number)
-                    .await?
+                    .check_for_node(
+                        connection,
+                        &target,
+                        current_build_number,
+                        trust_observation.as_ref(),
+                    )
+                    .await?;
+                let repository = approved_release
+                    .as_ref()
+                    .map(|release| -> Result<_, ApiError> {
+                        Ok(px_node_protocol::NodeUpdateRepository {
+                            release_id: release.id,
+                            repository_publication_sha256: release
+                                .repository_publication_sha256
+                                .clone(),
+                            root_version: u64::try_from(release.repository_root_version)
+                                .map_err(|_| ApiError::Internal)?,
+                            metadata_base_url: release.artifact.metadata_base_url.clone(),
+                            targets_base_url: release.artifact.targets_base_url.clone(),
+                        })
+                    })
+                    .transpose()?;
+                let offer = approved_release
+                    .filter(|release| release.artifact.build_number > current_build_number)
                     .map(|release| px_node_protocol::NodeUpdateOffer {
                         release_id: release.id,
                         policy_revision: release.revision,
                         artifact: release.artifact,
                     });
-                Ok(NodeResponse::UpdateChecked { request_id, offer })
+                Ok(NodeResponse::UpdateChecked {
+                    request_id,
+                    repository,
+                    offer,
+                })
             }
             NodeRequest::BeginUpdateActivation {
                 release_id,

@@ -1,4 +1,4 @@
-use px_node_protocol::NodeUpdateOffer;
+use px_node_protocol::{NodeUpdateOffer, NodeUpdateRepository, NodeUpdateTrustObservation};
 use px_release_catalog::{ReleaseQuery, ReleaseSpec};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -21,6 +21,12 @@ pub(crate) struct PreparedUpdate {
     pub artifact_path: PathBuf,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RepositorySynchronization {
+    pub trust_observation: NodeUpdateTrustObservation,
+    pub prepared_update: Option<PreparedUpdate>,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SignedPixelsTarget {
@@ -31,19 +37,30 @@ struct SignedPixelsTarget {
     platform_signer_sha256: String,
 }
 
-pub(crate) async fn prepare(
-    offer: &NodeUpdateOffer,
+pub(crate) async fn synchronize(
+    repository_descriptor: &NodeUpdateRepository,
+    offer: Option<&NodeUpdateOffer>,
     trusted_root_path: &Path,
     update_data_root: &Path,
-) -> Result<PreparedUpdate, String> {
-    validate_offer(offer)?;
+) -> Result<RepositorySynchronization, String> {
+    validate_repository(repository_descriptor)?;
+    if let Some(offer) = offer {
+        validate_offer(offer)?;
+        if offer.release_id != repository_descriptor.release_id
+            || offer.artifact.metadata_base_url != repository_descriptor.metadata_base_url
+            || offer.artifact.targets_base_url != repository_descriptor.targets_base_url
+        {
+            return Err("update offer does not belong to the approved TUF repository".into());
+        }
+    }
     let trusted_root = read_trusted_root(trusted_root_path).await?;
     crate::node_control_store::platform::ensure_private_directory(update_data_root)?;
-    let metadata_base_url = Url::parse(&offer.artifact.metadata_base_url)
+    let metadata_base_url = Url::parse(&repository_descriptor.metadata_base_url)
         .map_err(|_| "update metadata base URL is invalid".to_string())?;
-    let targets_base_url = Url::parse(&offer.artifact.targets_base_url)
+    let targets_base_url = Url::parse(&repository_descriptor.targets_base_url)
         .map_err(|_| "update targets base URL is invalid".to_string())?;
-    prepare_from_repository_urls(
+    synchronize_from_repository_urls(
+        repository_descriptor,
         offer,
         trusted_root,
         update_data_root,
@@ -53,15 +70,17 @@ pub(crate) async fn prepare(
     .await
 }
 
-async fn prepare_from_repository_urls(
-    offer: &NodeUpdateOffer,
+async fn synchronize_from_repository_urls(
+    repository_descriptor: &NodeUpdateRepository,
+    offer: Option<&NodeUpdateOffer>,
     trusted_root: Vec<u8>,
     update_data_root: &Path,
     metadata_base_url: Url,
     targets_base_url: Url,
-) -> Result<PreparedUpdate, String> {
-    let repository_identity =
-        hex::encode(Sha256::digest(offer.artifact.metadata_base_url.as_bytes()));
+) -> Result<RepositorySynchronization, String> {
+    let repository_identity = hex::encode(Sha256::digest(
+        repository_descriptor.metadata_base_url.as_bytes(),
+    ));
     let datastore = update_data_root
         .join("tuf")
         .join(&repository_identity[..32]);
@@ -79,6 +98,20 @@ async fn prepare_from_repository_urls(
         .load()
         .await
         .map_err(|error| format!("TUF metadata verification failed: {error}"))?;
+    if repository.root().signed.version.get() < repository_descriptor.root_version {
+        return Err("verified TUF repository has not reached the approved root version".into());
+    }
+    let trust_observation = NodeUpdateTrustObservation {
+        release_id: repository_descriptor.release_id,
+        repository_publication_sha256: repository_descriptor.repository_publication_sha256.clone(),
+        root_version: repository_descriptor.root_version,
+    };
+    let Some(offer) = offer else {
+        return Ok(RepositorySynchronization {
+            trust_observation,
+            prepared_update: None,
+        });
+    };
     let target_name = TargetName::new(offer.artifact.target_name.clone())
         .map_err(|_| "update target name is invalid".to_string())?;
     let signed_target = repository
@@ -95,7 +128,10 @@ async fn prepare_from_repository_urls(
     let final_artifact = final_directory.join(target_name.resolved());
     if final_directory.exists() {
         verify_file(&final_artifact, &offer.artifact).await?;
-        return Ok(prepared_update(offer, final_artifact));
+        return Ok(RepositorySynchronization {
+            trust_observation,
+            prepared_update: Some(prepared_update(offer, final_artifact)),
+        });
     }
     let pending_directory = prepared_root.join(format!(".{release_directory_name}.pending"));
     if pending_directory.exists() {
@@ -114,7 +150,24 @@ async fn prepare_from_repository_urls(
         .await
         .map_err(|_| "cannot commit verified update staging directory".to_string())?;
     verify_file(&final_artifact, &offer.artifact).await?;
-    Ok(prepared_update(offer, final_artifact))
+    Ok(RepositorySynchronization {
+        trust_observation,
+        prepared_update: Some(prepared_update(offer, final_artifact)),
+    })
+}
+
+fn validate_repository(repository: &NodeUpdateRepository) -> Result<(), String> {
+    if repository.release_id.is_nil()
+        || repository.root_version == 0
+        || repository.repository_publication_sha256.len() != 64
+        || !repository
+            .repository_publication_sha256
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err("update repository descriptor is invalid".into());
+    }
+    Ok(())
 }
 
 fn validate_offer(offer: &NodeUpdateOffer) -> Result<(), String> {
@@ -394,9 +447,17 @@ mod tests {
             policy_revision: 2,
             artifact: approved_release.clone(),
         };
+        let repository_descriptor = NodeUpdateRepository {
+            release_id: offer.release_id,
+            repository_publication_sha256: "c".repeat(64),
+            root_version: 1,
+            metadata_base_url: approved_release.metadata_base_url.clone(),
+            targets_base_url: approved_release.targets_base_url.clone(),
+        };
         let update_data_root = repository_root.path().join("service-update-state");
-        let prepared = prepare_from_repository_urls(
-            &offer,
+        let synchronized = synchronize_from_repository_urls(
+            &repository_descriptor,
+            Some(&offer),
             tokio::fs::read(&root_path).await.unwrap(),
             &update_data_root,
             Url::from_directory_path(&metadata_directory).unwrap(),
@@ -404,11 +465,25 @@ mod tests {
         )
         .await
         .unwrap();
+        let prepared = synchronized.prepared_update.unwrap();
+        assert_eq!(synchronized.trust_observation.root_version, 1);
         assert_eq!(prepared.release_id, offer.release_id);
         assert_eq!(
             tokio::fs::read(&prepared.artifact_path).await.unwrap(),
             target_bytes
         );
+        let metadata_only = synchronize_from_repository_urls(
+            &repository_descriptor,
+            None,
+            tokio::fs::read(&root_path).await.unwrap(),
+            &repository_root.path().join("metadata-only-state"),
+            Url::from_directory_path(&metadata_directory).unwrap(),
+            Url::from_directory_path(&targets_directory).unwrap(),
+        )
+        .await
+        .unwrap();
+        assert!(metadata_only.prepared_update.is_none());
+        assert_eq!(metadata_only.trust_observation.release_id, offer.release_id);
 
         let expired_metadata_directory = repository_root.path().join("expired-metadata");
         let mut expired_target = Target::from_path(&target_path).await.unwrap();
@@ -433,8 +508,9 @@ mod tests {
             .write(&expired_metadata_directory)
             .await
             .unwrap();
-        let expiration_error = prepare_from_repository_urls(
-            &offer,
+        let expiration_error = synchronize_from_repository_urls(
+            &repository_descriptor,
+            Some(&offer),
             tokio::fs::read(&root_path).await.unwrap(),
             &repository_root.path().join("expiration-check-state"),
             Url::from_directory_path(&expired_metadata_directory).unwrap(),
@@ -448,8 +524,9 @@ mod tests {
             .await
             .unwrap();
         let second_data_root = repository_root.path().join("tamper-check-state");
-        let error = prepare_from_repository_urls(
-            &offer,
+        let error = synchronize_from_repository_urls(
+            &repository_descriptor,
+            Some(&offer),
             tokio::fs::read(&root_path).await.unwrap(),
             &second_data_root,
             Url::from_directory_path(&metadata_directory).unwrap(),

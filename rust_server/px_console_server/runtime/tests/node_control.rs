@@ -1241,6 +1241,7 @@ async fn node_update_check_uses_authenticated_product_and_console_distribution()
         json!({
             "request_id":Uuid::new_v4(),
             "repository_publication_sha256":"c".repeat(64),
+            "repository_root_version":1,
             "artifact":artifact
         }),
     )
@@ -1291,6 +1292,12 @@ async fn node_update_check_uses_authenticated_product_and_console_distribution()
     )
     .await;
     assert_eq!(available["type"], "update_checked", "{available}");
+    assert_eq!(available["repository"]["release_id"], approved["id"]);
+    assert_eq!(
+        available["repository"]["repository_publication_sha256"],
+        "c".repeat(64)
+    );
+    assert_eq!(available["repository"]["root_version"], 1);
     assert_eq!(available["offer"]["release_id"], approved["id"]);
     assert_eq!(available["offer"]["policy_revision"], 2);
     assert_eq!(
@@ -1352,11 +1359,21 @@ async fn node_update_check_uses_authenticated_product_and_console_distribution()
     assert!(finished["error_code"].is_null());
     let current = exchange(
         &mut socket,
-        json!({"type":"check_update","request_id":8,"current_build_number":2}),
+        json!({
+            "type":"check_update",
+            "request_id":8,
+            "current_build_number":2,
+            "trust_observation":{
+                "release_id":approved["id"],
+                "repository_publication_sha256":"c".repeat(64),
+                "root_version":1
+            }
+        }),
     )
     .await;
     assert_eq!(current["type"], "update_checked");
     assert!(current["offer"].is_null());
+    assert_eq!(current["repository"]["release_id"], approved["id"]);
     socket.close(None).await.unwrap();
     server_stop.cancel();
     server.await.unwrap().unwrap();

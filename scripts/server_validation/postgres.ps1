@@ -240,7 +240,7 @@ try {
         # Explicit developer command, never performed implicitly by acceptance tests.
         # PostgreSQL/SQLx generate these files; this is not evidence that runtime tests passed.
         foreach ($item in @(
-            @{Service='console';Crate='px_console_store';Path='rust_server/px_console_server/storage';Count=284},
+            @{Service='console';Crate='px_console_store';Path='rust_server/px_console_server/storage';Count=285},
             @{Service='desk';Crate='px_desk_server';Path='rust_server/px_desk_server';Count=9},
             @{Service='auth';Crate='px_auth_store';Path='rust_server/px_auth_server/storage';Count=34}
         )) {

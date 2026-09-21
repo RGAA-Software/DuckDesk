@@ -1453,6 +1453,7 @@ mod tests {
             console_registration["artifact"],
             serde_json::to_value(second_release).unwrap()
         );
+        assert_eq!(console_registration["repository_root_version"], 1);
         assert!(prepare_console_registration(&registration_preparation)
             .await
             .is_err());

@@ -102,6 +102,7 @@ async fn update_catalog_requires_explicit_approval_and_exact_client_identity() {
     let create_body = json!({
         "request_id":request_id,
         "repository_publication_sha256":"c".repeat(64),
+        "repository_root_version":1,
         "artifact":artifact
     });
     let (created_status, created) = call(
@@ -116,6 +117,7 @@ async fn update_catalog_requires_explicit_approval_and_exact_client_identity() {
     assert_eq!(created_status, StatusCode::CREATED, "{created}");
     assert_eq!(created["state"], "pending");
     assert_eq!(created["repository_publication_sha256"], "c".repeat(64));
+    assert_eq!(created["repository_root_version"], 1);
     let mut missing_publication = create_body.clone();
     missing_publication
         .as_object_mut()
@@ -129,6 +131,24 @@ async fn update_catalog_requires_explicit_approval_and_exact_client_identity() {
             "admin_web",
             Some(&admin),
             missing_publication,
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    let mut missing_root_version = create_body.clone();
+    missing_root_version
+        .as_object_mut()
+        .unwrap()
+        .remove("repository_root_version");
+    assert_eq!(
+        call(
+            &router,
+            "POST",
+            "/api/console/managed/updates",
+            "admin_web",
+            Some(&admin),
+            missing_root_version,
         )
         .await
         .0,
