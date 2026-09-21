@@ -1436,6 +1436,11 @@ Ed25519 私钥；初始 root 强制 2–5 把 root key 且门限至少 2，targe
 及目标名复用，严格 Clippy 通过；统一验收入口报告 `pg-20260921-184610-e8da787b` 同为 3/3，源码 hash 冻结且隔离容器/卷已清理。它只生成
 不可变候选，不上传或切换线上仓库；正式发布同步、root 轮换、审批私钥托管和正式安装包矩阵仍保持门禁。
 
+Windows 安装包到 TUF 的输入边界也已去除人工字段拼装：`prepare_windows_update_release.py` 要求调用方外部给出审批证书 DER SHA-256，复用正式
+安装包验证器重新核对 manifest、文件 hash、Authenticode、时间戳和 signer pin，再生成固定
+`windows/product/distribution/channel/x86_64/build/installer` 名称及严格 ReleaseSpec；输出排他创建，不覆盖旧审批文件。2/2 单元测试覆盖
+正确派生、错误 signer、带 query 的更新 URL 和输出覆盖拒绝。该工具不产生签名、不批准证书，也不替代后续 TUF 角色签名和 Console 审批。
+
 Official/Customer 包装已经把正式 `resources/update/root.json` 作为强制输入，但仓库不伪造生产根、签名私钥或正式已审批更新，因此尚未执行
 “签名旧包→签名新包→真实 SCM 覆盖→故障回滚”的实物矩阵；在该故障注入通过前仍属于 DB2 的部分完成，不得称为正式无人值守升级验收完成。
 development 发行不查询生产更新。Cloud Node/Remote 的聚焦 release Service 构建已重新执行，构建树、stage 与各自 development dist 的

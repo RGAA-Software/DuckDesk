@@ -141,6 +141,22 @@ cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority
 不可复用，输出目录也不可覆盖。新输出在同父目录的随机 staging 中完整生成并由正式 `tough` 客户端重新下载验证目标后才一次重命名提交，包含
 `metadata/`、`targets/` 和带 root/release 摘要及角色版本的 `publication.json`。
 
+Windows 的 `PIXELS_RELEASE_SPEC_FILE` 不手工抄写。从正式安装器版本目录生成：
+
+```bat
+python scripts\prepare_windows_update_release.py ^
+  --release-directory <build_official\product\distribution\installer\version> ^
+  --approved-signer-sha256 <外部审批的证书DER SHA-256> ^
+  --metadata-base-url https://updates.example/metadata/ ^
+  --targets-base-url https://updates.example/targets/ ^
+  --channel stable ^
+  --output <不存在的绝对release-spec.json路径>
+```
+
+该入口复用独立安装包验证器，重新检查 installer manifest、制品 SHA-256、Authenticode、时间戳和外部 signer pin，并从已验证事实生成固定的
+`windows/product/distribution/channel/x86_64/build/installer` target name；输出使用排他创建且不覆盖。生成后的 spec 和同一 installer 文件才交给
+`px_update_authority publish`，因此 TUF 发布不能靠修改 JSON 把另一产品、发行、build 或签名者带入目录。
+
 该命令只生成一个不可变候选目录。发布系统还必须把候选同步到独立临时位置、核对 `publication.json`，先提交 targets 与非 timestamp 元数据，
 最后原子切换 `timestamp.json`；不能直接对线上目录运行本工具。root 私钥保持离线，日常 `publish` 不接触 root 私钥。正式 Windows ReleaseSpec
 中的 `platform_signer_sha256` 必须来自已独立验证的安装器 manifest 和审批证书固定值，不能由仓库地址或 TUF 在线角色密钥替代。

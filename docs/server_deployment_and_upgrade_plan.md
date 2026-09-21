@@ -422,6 +422,8 @@ OEM 只使用对应 `oem_id/release_namespace` 的 OEM 更新仓库、离线包�
 使用三把彼此及 root 均不同的角色 key；日常发布不接触 root 私钥。追加发布先验证旧仓库元数据及每个历史目标字节，三个角色版本自动递增，
 target name 不可复用；候选目录完整自验后一次提交并记录 `publication.json`。该工具不直接写线上目录；正式部署仍必须在独立临时位置同步，
 按 targets、targets/snapshot、最后 timestamp 的顺序原子切换，并保留上一份可验证候选用于回退。root 轮换和线上发布执行器仍须单独验收。
+Windows 发布先由 `prepare_windows_update_release.py` 使用外部审批 signer pin 调用独立安装器验证器，再从真实 manifest/制品生成不可变 target name
+和 ReleaseSpec；不允许人工抄 product/distribution/build、摘要或证书固定值后直接进入 TUF 签名。
 
 当前实现基线使用 `tough` 的 TUF 1.0 客户端。Console 的已认证节点连接根据节点登记产品与 Console 许可证发行类型在服务端派生
 `product/distribution/stable/windows/x86_64`，节点只提交当前 build，不能传入或降级目标维度。目录只返回严格更新、最新且已审批的版本；
