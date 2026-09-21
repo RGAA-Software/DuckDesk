@@ -329,7 +329,7 @@ try {
             Invoke-Checked 'docker' @('exec',$container,'psql','-X','-v','ON_ERROR_STOP=1','-U','pixels_admin','-d','pixels_desk','-c',
                 "CREATE TABLE pixels.pg_fixture(id uuid PRIMARY KEY,version text NOT NULL,created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP); ALTER TABLE pixels.pg_fixture OWNER TO pixels_desk_owner; GRANT SELECT,INSERT,UPDATE,DELETE ON pixels.pg_fixture TO pixels_desk_runtime") | Out-Null
         }
-        $suiteCounts = @{unit=19;identity=12;control=8;devices=9;applications=8;guests=9;nodes=11;deployments=6;instances=16;commands=16;workspaces=6;database=2;sessions=11;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=17;activity=8;updates=11;desk=7;catalog=4;'update-authority'=5;lease=6;postgres=14;accounts=9}
+        $suiteCounts = @{unit=19;identity=12;control=8;devices=9;applications=8;guests=9;nodes=11;deployments=6;instances=16;commands=16;workspaces=6;database=2;sessions=11;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=17;activity=8;updates=11;desk=7;catalog=4;'update-authority'=6;lease=6;postgres=14;accounts=9}
         $suiteCounts['console-api'] = 6
         $suiteCounts['directory-api'] = 7
         $suiteCounts['node-control'] = 3
@@ -379,7 +379,7 @@ try {
     Add-TestCases $catalogTests 'native/release-catalog' 4
     $updateAuthorityTests = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_update_authority','--lib','--target-dir',$targetDir)
     Write-Host $updateAuthorityTests
-    Add-TestCases $updateAuthorityTests 'native/update-authority' 5
+    Add-TestCases $updateAuthorityTests 'native/update-authority' 6
     $fileTests = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_private_files','--features','integration-probe','--test','cache_files','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $fileTests
     Add-TestCases $fileTests 'native/private-files' 8

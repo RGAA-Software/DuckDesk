@@ -18,12 +18,15 @@ use tough::{ExpirationEnforcement, Prefix, RepositoryLoader, TargetName};
 use url::Url;
 use zeroize::Zeroizing;
 
+mod promotion;
+pub use promotion::{promote_repository, RepositoryPromotion};
+
 pub type AuthorityResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-const MAXIMUM_ROOT_BYTES: u64 = 1024 * 1024;
+pub(crate) const MAXIMUM_ROOT_BYTES: u64 = 1024 * 1024;
 const MAXIMUM_RELEASE_SPEC_BYTES: u64 = 1024 * 1024;
-const MAXIMUM_TARGET_FILES: usize = 10_000;
-const MAXIMUM_TARGET_BYTES: u64 = 1_u64 << 40;
+pub(crate) const MAXIMUM_TARGET_FILES: usize = 10_000;
+pub(crate) const MAXIMUM_TARGET_BYTES: u64 = 1_u64 << 40;
 const MAXIMUM_ROOT_CHAIN_LENGTH: usize = 64;
 
 #[derive(Debug, Clone)]
@@ -70,10 +73,10 @@ struct PrivateKeySource {
     key_material: Arc<Zeroizing<Vec<u8>>>,
 }
 
-struct RootChainEntry {
-    version: u64,
-    bytes: Vec<u8>,
-    signed_root: Signed<Root>,
+pub(crate) struct RootChainEntry {
+    pub(crate) version: u64,
+    pub(crate) bytes: Vec<u8>,
+    pub(crate) signed_root: Signed<Root>,
 }
 
 impl std::fmt::Debug for PrivateKeySource {
@@ -560,7 +563,7 @@ async fn load_repository_editor(
     ))
 }
 
-fn load_root_chain(metadata_path: &Path) -> AuthorityResult<Vec<RootChainEntry>> {
+pub(crate) fn load_root_chain(metadata_path: &Path) -> AuthorityResult<Vec<RootChainEntry>> {
     let mut root_paths = Vec::new();
     for directory_entry in std::fs::read_dir(metadata_path)? {
         let directory_entry = directory_entry?;
@@ -772,7 +775,7 @@ fn verify_artifact(path: &Path, release: &ReleaseSpec) -> AuthorityResult<()> {
     Ok(())
 }
 
-fn sha256_file(path: &Path) -> AuthorityResult<String> {
+pub(crate) fn sha256_file(path: &Path) -> AuthorityResult<String> {
     let mut artifact = File::open(path)?;
     let mut digest = Sha256::new();
     let mut buffer = [0_u8; 128 * 1024];
@@ -786,7 +789,7 @@ fn sha256_file(path: &Path) -> AuthorityResult<String> {
     Ok(hex::encode(digest.finalize()))
 }
 
-fn read_bounded(path: &Path, maximum_bytes: u64) -> AuthorityResult<Vec<u8>> {
+pub(crate) fn read_bounded(path: &Path, maximum_bytes: u64) -> AuthorityResult<Vec<u8>> {
     reject_symbolic_link(path)?;
     let file = File::open(path)?;
     let metadata = file.metadata()?;
@@ -801,7 +804,7 @@ fn read_bounded(path: &Path, maximum_bytes: u64) -> AuthorityResult<Vec<u8>> {
     Ok(bytes)
 }
 
-fn reject_symbolic_link(path: &Path) -> AuthorityResult<()> {
+pub(crate) fn reject_symbolic_link(path: &Path) -> AuthorityResult<()> {
     for existing_path in path.ancestors().take_while(|ancestor| ancestor.exists()) {
         let metadata = std::fs::symlink_metadata(existing_path)?;
         #[cfg(windows)]
@@ -818,7 +821,7 @@ fn reject_symbolic_link(path: &Path) -> AuthorityResult<()> {
     Ok(())
 }
 
-fn copy_new_file(source: &Path, destination: &Path) -> AuthorityResult<()> {
+pub(crate) fn copy_new_file(source: &Path, destination: &Path) -> AuthorityResult<()> {
     let mut source_file = File::open(source)?;
     let mut destination_file = OpenOptions::new()
         .write(true)
@@ -864,7 +867,7 @@ fn write_new_public_file(path: &Path, bytes: &[u8]) -> AuthorityResult<()> {
     Ok(())
 }
 
-fn directory_url(path: &Path) -> AuthorityResult<Url> {
+pub(crate) fn directory_url(path: &Path) -> AuthorityResult<Url> {
     let canonical_path = path.canonicalize()?;
     Url::from_directory_path(&canonical_path).map_err(|_| {
         format!(
@@ -1294,6 +1297,130 @@ mod tests {
         .await
         .is_err());
         assert!(!rejected_output.exists());
+    }
+
+    #[tokio::test]
+    async fn filesystem_promotion_is_approved_monotonic_and_resumable() {
+        let fixture = AuthorityFixture::new().await;
+        let first_artifact = b"first promoted signed installer";
+        let first_artifact_path = fixture.directory().join("first-promoted-installer.exe");
+        std::fs::write(&first_artifact_path, first_artifact).unwrap();
+        let first_release = fixture.release(
+            30390,
+            "cloud_node/official/stable/windows/x86_64/30390/installer.exe",
+            first_artifact,
+        );
+        let first_release_path = fixture.directory().join("first-promoted-release.json");
+        std::fs::write(
+            &first_release_path,
+            serde_json::to_vec_pretty(&first_release).unwrap(),
+        )
+        .unwrap();
+        let first_candidate_path = fixture.directory().join("first-promotion-candidate");
+        publish_repository(&fixture.publication(
+            first_release_path,
+            first_artifact_path,
+            None,
+            first_candidate_path.clone(),
+        ))
+        .await
+        .unwrap();
+        let live_repository_path = fixture.directory().join("live-repository");
+        let first_publication_sha256 =
+            sha256_file(&first_candidate_path.join("publication.json")).unwrap();
+        promote_repository(&RepositoryPromotion {
+            candidate_repository_path: first_candidate_path.clone(),
+            live_repository_path: live_repository_path.clone(),
+            approved_publication_sha256: first_publication_sha256,
+        })
+        .await
+        .unwrap();
+        let first_live_repository =
+            load_test_repository(&fixture.root_path, &live_repository_path).await;
+        assert_eq!(first_live_repository.timestamp().signed.version.get(), 1);
+
+        let second_artifact = b"second promoted signed installer";
+        let second_artifact_path = fixture.directory().join("second-promoted-installer.exe");
+        std::fs::write(&second_artifact_path, second_artifact).unwrap();
+        let second_release = fixture.release(
+            30391,
+            "cloud_node/official/stable/windows/x86_64/30391/installer.exe",
+            second_artifact,
+        );
+        let second_release_path = fixture.directory().join("second-promoted-release.json");
+        std::fs::write(
+            &second_release_path,
+            serde_json::to_vec_pretty(&second_release).unwrap(),
+        )
+        .unwrap();
+        let second_candidate_path = fixture.directory().join("second-promotion-candidate");
+        publish_repository(&fixture.publication(
+            second_release_path,
+            second_artifact_path,
+            Some(first_candidate_path),
+            second_candidate_path.clone(),
+        ))
+        .await
+        .unwrap();
+        let second_publication_sha256 =
+            sha256_file(&second_candidate_path.join("publication.json")).unwrap();
+        let wrong_approval = RepositoryPromotion {
+            candidate_repository_path: second_candidate_path.clone(),
+            live_repository_path: live_repository_path.clone(),
+            approved_publication_sha256: "f".repeat(64),
+        };
+        assert!(promote_repository(&wrong_approval).await.is_err());
+        let unchanged_live_repository =
+            load_test_repository(&fixture.root_path, &live_repository_path).await;
+        assert_eq!(
+            unchanged_live_repository.timestamp().signed.version.get(),
+            1
+        );
+
+        let promotion_journal = serde_json::json!({
+            "schema_version": 1,
+            "approved_publication_sha256": second_publication_sha256.clone(),
+            "created_at": Timestamp::now().to_string(),
+        });
+        std::fs::write(
+            live_repository_path.join("promotion.pending.json"),
+            serde_json::to_vec_pretty(&promotion_journal).unwrap(),
+        )
+        .unwrap();
+        std::fs::copy(
+            second_candidate_path.join("metadata/targets.json"),
+            live_repository_path.join("metadata/targets.json"),
+        )
+        .unwrap();
+        std::fs::copy(
+            second_candidate_path.join("metadata/snapshot.json"),
+            live_repository_path.join("metadata/snapshot.json"),
+        )
+        .unwrap();
+        let second_live_target_path = live_repository_path
+            .join("targets")
+            .join(&second_release.target_name);
+        std::fs::create_dir_all(second_live_target_path.parent().unwrap()).unwrap();
+        std::fs::copy(
+            second_candidate_path
+                .join("targets")
+                .join(&second_release.target_name),
+            &second_live_target_path,
+        )
+        .unwrap();
+
+        promote_repository(&RepositoryPromotion {
+            candidate_repository_path: second_candidate_path,
+            live_repository_path: live_repository_path.clone(),
+            approved_publication_sha256: second_publication_sha256,
+        })
+        .await
+        .unwrap();
+        assert!(!live_repository_path.join("promotion.pending.json").exists());
+        let promoted_repository =
+            load_test_repository(&fixture.root_path, &live_repository_path).await;
+        assert_eq!(promoted_repository.timestamp().signed.version.get(), 2);
+        assert_eq!(promoted_repository.targets().signed.targets.len(), 2);
     }
 
     #[tokio::test]

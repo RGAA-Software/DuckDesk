@@ -1,7 +1,7 @@
 use jiff::Timestamp;
 use px_update_authority::{
-    create_initial_root, generate_signing_key, publish_repository, rotate_root,
-    RepositoryPublication, RootCreation, RootRotation,
+    create_initial_root, generate_signing_key, promote_repository, publish_repository, rotate_root,
+    RepositoryPromotion, RepositoryPublication, RootCreation, RootRotation,
 };
 use std::env;
 use std::path::PathBuf;
@@ -67,7 +67,17 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             })
             .await
         }
-        _ => Err("usage: px_update_authority <generate-key|create-root|rotate-root|publish>; offline explicit provisioning only; configuration via environment".into()),
+        [command] if command == "promote-filesystem" => {
+            promote_repository(&RepositoryPromotion {
+                candidate_repository_path: required_path("PIXELS_TUF_CANDIDATE_REPOSITORY")?,
+                live_repository_path: required_path("PIXELS_TUF_LIVE_REPOSITORY")?,
+                approved_publication_sha256: required(
+                    "PIXELS_TUF_APPROVED_PUBLICATION_SHA256",
+                )?,
+            })
+            .await
+        }
+        _ => Err("usage: px_update_authority <generate-key|create-root|rotate-root|publish|promote-filesystem>; explicit provisioning only; configuration via environment".into()),
     }
 }
 

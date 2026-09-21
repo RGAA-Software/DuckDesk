@@ -125,6 +125,7 @@ cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority
 cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority -- create-root
 cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority -- rotate-root
 cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority -- publish
+cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority -- promote-filesystem
 ```
 
 `generate-key` 每次只通过 `PIXELS_TUF_KEY_OUTPUT` 创建一个新 Ed25519 PKCS#8 私钥，父目录必须已经按生产私钥目录限制权限，已有文件绝不覆盖。
@@ -169,6 +170,13 @@ python scripts\prepare_windows_update_release.py ^
 该命令只生成一个不可变候选目录。发布系统还必须把候选同步到独立临时位置、核对 `publication.json`，先提交 targets 与非 timestamp 元数据，
 最后原子切换 `timestamp.json`；不能直接对线上目录运行本工具。root 私钥保持离线，日常 `publish` 不接触 root 私钥。正式 Windows ReleaseSpec
 中的 `platform_signer_sha256` 必须来自已独立验证的安装器 manifest 和审批证书固定值，不能由仓库地址或 TUF 在线角色密钥替代。
+
+`promote-filesystem` 用于部署主机上的本地或挂载式静态源站目录，不执行 SSH、对象存储 API 或 CDN 刷新。必须提供绝对路径
+`PIXELS_TUF_CANDIDATE_REPOSITORY`、`PIXELS_TUF_LIVE_REPOSITORY`，以及审批系统在传输外独立固定的候选
+`publication.json` 小写 SHA-256：`PIXELS_TUF_APPROVED_PUBLICATION_SHA256`。首次发布先在 live 同父目录复制并完整验签，再用目录重命名提交；后续只接受
+三个在线角色版本各加一、历史目标不变且 root 链相同或追加一个合法根的下一代候选。执行器先发布不可变 targets/root，再逐文件原子切换
+`targets.json`、`snapshot.json`，最后切换 `timestamp.json` 和审计清单。切换前写入持久 `promotion.pending.json`；进程或主机在任一步中断后，必须用
+同一候选和同一审批 SHA 续跑，另一候选会 fail closed。成功后执行器重新从初始根加载线上目录、验证全部目标并删除 journal。
 
 ### 2.3 完整构建 Android
 
