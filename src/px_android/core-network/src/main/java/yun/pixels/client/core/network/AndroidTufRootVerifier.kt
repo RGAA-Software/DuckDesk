@@ -8,9 +8,11 @@ import org.json.JSONObject
 
 class AndroidTufTrustConfiguration private constructor(
     internal val initialRootBytes: ByteArray,
-    internal val initialRootVersion: Long,
-    internal val initialRootExpiresAtEpochSeconds: Long,
+    internal val verifiedInitialRoot: VerifiedTufRoot,
 ) {
+    internal val initialRootVersion: Long = verifiedInitialRoot.version
+    internal val initialRootExpiresAtEpochSeconds: Long = verifiedInitialRoot.expiresAtEpochSeconds
+
     companion object {
         fun create(initialRootBytes: ByteArray, nowEpochSeconds: Long = System.currentTimeMillis() / 1_000): AndroidTufTrustConfiguration? =
             create(initialRootBytes, nowEpochSeconds, JcaEd25519Verifier.android())
@@ -21,7 +23,7 @@ class AndroidTufTrustConfiguration private constructor(
             signatureVerifier: DeploymentSignatureVerifier,
         ): AndroidTufTrustConfiguration? {
             val verifiedRoot = AndroidTufRootVerifier(signatureVerifier).verifyInitialRoot(initialRootBytes, nowEpochSeconds) ?: return null
-            return AndroidTufTrustConfiguration(initialRootBytes.copyOf(), verifiedRoot.version, verifiedRoot.expiresAtEpochSeconds)
+            return AndroidTufTrustConfiguration(initialRootBytes.copyOf(), verifiedRoot)
         }
     }
 }
@@ -29,17 +31,43 @@ class AndroidTufTrustConfiguration private constructor(
 internal data class VerifiedTufRoot(
     val version: Long,
     val expiresAtEpochSeconds: Long,
+    val publicKeys: Map<String, ByteArray>,
+    val rootRole: TufRole,
+    val signatures: List<TufSignature>,
+    val canonicalSigned: ByteArray,
 )
 
-private data class TufRole(
+internal data class TufRole(
     val keyIds: Set<String>,
     val threshold: Int,
+)
+
+internal data class TufSignature(
+    val keyId: String,
+    val signature: ByteArray,
 )
 
 internal class AndroidTufRootVerifier(
     private val signatureVerifier: DeploymentSignatureVerifier,
 ) {
-    fun verifyInitialRoot(rootBytes: ByteArray, nowEpochSeconds: Long): VerifiedTufRoot? = runCatching {
+    fun verifyInitialRoot(rootBytes: ByteArray, nowEpochSeconds: Long): VerifiedTufRoot? {
+        val root = parseRoot(rootBytes, nowEpochSeconds) ?: return null
+        return root.takeIf { verifyThreshold(it, it.publicKeys, it.rootRole) }
+    }
+
+    fun verifyNextRoot(
+        currentRoot: VerifiedTufRoot,
+        candidateRootBytes: ByteArray,
+        nowEpochSeconds: Long,
+    ): VerifiedTufRoot? {
+        val candidateRoot = parseRoot(candidateRootBytes, nowEpochSeconds) ?: return null
+        if (currentRoot.version == Long.MAX_VALUE || candidateRoot.version != currentRoot.version + 1) return null
+        if (!verifyThreshold(candidateRoot, currentRoot.publicKeys, currentRoot.rootRole)) return null
+        if (!verifyThreshold(candidateRoot, candidateRoot.publicKeys, candidateRoot.rootRole)) return null
+        return candidateRoot
+    }
+
+    private fun parseRoot(rootBytes: ByteArray, nowEpochSeconds: Long): VerifiedTufRoot? = runCatching {
         if (rootBytes.isEmpty() || rootBytes.size > MAXIMUM_ROOT_BYTES || nowEpochSeconds < 0) return null
         val envelope = JSONObject(String(rootBytes, StandardCharsets.UTF_8))
         if (!envelope.hasExactly("signed", "signatures")) return null
@@ -80,22 +108,32 @@ internal class AndroidTufRootVerifier(
         if (rootRole.keyIds.any(onlineKeyIds::contains)) return null
         if (roles.values.flatMap { it.keyIds }.toSet() != publicKeys.keys) return null
 
-        val signatures = envelope.optJSONArray("signatures") ?: return null
-        if (signatures.length() !in rootRole.threshold..MAXIMUM_SIGNATURE_COUNT) return null
+        val signaturesPayload = envelope.optJSONArray("signatures") ?: return null
+        if (signaturesPayload.length() !in 1..MAXIMUM_SIGNATURE_COUNT) return null
         val canonicalSigned = canonicalTufJson(signed)
-        val verifiedRootKeys = mutableSetOf<String>()
-        repeat(signatures.length()) { signatureIndex ->
-            val signaturePayload = signatures.optJSONObject(signatureIndex) ?: return null
+        val signatures = mutableListOf<TufSignature>()
+        val signatureKeyIds = mutableSetOf<String>()
+        repeat(signaturesPayload.length()) { signatureIndex ->
+            val signaturePayload = signaturesPayload.optJSONObject(signatureIndex) ?: return null
             if (!signaturePayload.hasExactly("keyid", "sig")) return null
             val keyId = signaturePayload.strictString("keyid") ?: return null
             val signature = signaturePayload.strictString("sig")?.decodeCanonicalHex(SIGNATURE_BYTES) ?: return null
-            if (!rootRole.keyIds.contains(keyId) || !verifiedRootKeys.add(keyId)) return null
-            val publicKey = publicKeys[keyId] ?: return null
-            if (!signatureVerifier.verify(publicKey, canonicalSigned, signature)) return null
+            if (keyId.decodeCanonicalHex(SHA256_BYTES) == null || !signatureKeyIds.add(keyId)) return null
+            signatures += TufSignature(keyId, signature)
         }
-        if (verifiedRootKeys.size < rootRole.threshold) return null
-        VerifiedTufRoot(version, expiresAt)
+        VerifiedTufRoot(version, expiresAt, publicKeys, rootRole, signatures, canonicalSigned)
     }.getOrNull()
+
+    private fun verifyThreshold(root: VerifiedTufRoot, authorizedKeys: Map<String, ByteArray>, role: TufRole): Boolean {
+        var verifiedCount = 0
+        root.signatures.forEach { candidateSignature ->
+            if (!role.keyIds.contains(candidateSignature.keyId)) return@forEach
+            val publicKey = authorizedKeys[candidateSignature.keyId] ?: return false
+            if (!signatureVerifier.verify(publicKey, root.canonicalSigned, candidateSignature.signature)) return false
+            verifiedCount += 1
+        }
+        return verifiedCount >= role.threshold
+    }
 
     private fun parseRole(payload: JSONObject?, knownKeyIds: Set<String>): TufRole? {
         payload ?: return null

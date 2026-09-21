@@ -79,6 +79,60 @@ class AndroidTufRootVerifierTest {
         assertNull(AndroidTufTrustConfiguration.create(reusedRoleKey, NOW, JcaEd25519Verifier()))
     }
 
+    @Test
+    fun nextRootRequiresTheOldAndNewRootThresholds() {
+        val fixture = RootFixture()
+        val verifier = AndroidTufRootVerifier(JcaEd25519Verifier())
+        val initialRoot = requireNotNull(verifier.verifyInitialRoot(fixture.rootBytes(), NOW))
+
+        val rotatedRoot = verifier.verifyNextRoot(initialRoot, fixture.rotatedRootBytes(), NOW)
+
+        assertNotNull(rotatedRoot)
+        assertEquals(2L, rotatedRoot?.version)
+    }
+
+    @Test
+    fun nextRootRejectsARevisionGap() {
+        val fixture = RootFixture()
+        val verifier = AndroidTufRootVerifier(JcaEd25519Verifier())
+        val initialRoot = requireNotNull(verifier.verifyInitialRoot(fixture.rootBytes(), NOW))
+
+        assertNull(verifier.verifyNextRoot(initialRoot, fixture.rotatedRootBytes(version = 3), NOW))
+    }
+
+    @Test
+    fun nextRootRejectsAOneSidedAuthorization() {
+        val fixture = RootFixture()
+        val verifier = AndroidTufRootVerifier(JcaEd25519Verifier())
+        val initialRoot = requireNotNull(verifier.verifyInitialRoot(fixture.rootBytes(), NOW))
+
+        assertNull(
+            verifier.verifyNextRoot(
+                initialRoot,
+                fixture.rotatedRootBytes(includeCurrentRootSignatures = false),
+                NOW,
+            ),
+        )
+        assertNull(
+            verifier.verifyNextRoot(
+                initialRoot,
+                fixture.rotatedRootBytes(includeCandidateRootSignatures = false),
+                NOW,
+            ),
+        )
+    }
+
+    @Test
+    fun nextRootRejectsSignedPayloadTampering() {
+        val fixture = RootFixture()
+        val verifier = AndroidTufRootVerifier(JcaEd25519Verifier())
+        val initialRoot = requireNotNull(verifier.verifyInitialRoot(fixture.rootBytes(), NOW))
+        val tamperedEnvelope = JSONObject(String(fixture.rotatedRootBytes(), Charsets.UTF_8))
+        tamperedEnvelope.getJSONObject("signed").put("expires", Instant.ofEpochSecond(NOW + 7_200).toString())
+
+        assertNull(verifier.verifyNextRoot(initialRoot, tamperedEnvelope.toString().toByteArray(), NOW))
+    }
+
     private data class SigningKey(
         val pair: KeyPair,
         val keyPayload: JSONObject,
@@ -91,6 +145,11 @@ class AndroidTufRootVerifierTest {
         private val snapshotKey = signingKey()
         private val timestampKey = signingKey()
         private val allKeys = rootKeys + targetsKey + snapshotKey + timestampKey
+        private val rotatedRootKeys = List(2) { signingKey() }
+        private val rotatedTargetsKey = signingKey()
+        private val rotatedSnapshotKey = signingKey()
+        private val rotatedTimestampKey = signingKey()
+        private val allRotatedKeys = rotatedRootKeys + rotatedTargetsKey + rotatedSnapshotKey + rotatedTimestampKey
 
         fun rootBytes(
             expiresAtEpochSeconds: Long = NOW + 3_600,
@@ -116,6 +175,42 @@ class AndroidTufRootVerifierTest {
             val canonicalSigned = canonicalTufJson(signed)
             val signatures = JSONArray()
             rootKeys.take(rootSignatureCount).forEach { signingKey ->
+                signatures.put(
+                    JSONObject()
+                        .put("keyid", signingKey.keyId)
+                        .put("sig", sign(signingKey.pair, canonicalSigned).toHex()),
+                )
+            }
+            return JSONObject().put("signed", signed).put("signatures", signatures).toString().toByteArray()
+        }
+
+        fun rotatedRootBytes(
+            version: Long = 2,
+            includeCurrentRootSignatures: Boolean = true,
+            includeCandidateRootSignatures: Boolean = true,
+        ): ByteArray {
+            val keys = JSONObject()
+            allRotatedKeys.forEach { signingKey -> keys.put(signingKey.keyId, signingKey.keyPayload) }
+            val roles = JSONObject()
+                .put("root", role(rotatedRootKeys.map(SigningKey::keyId), 2))
+                .put("targets", role(listOf(rotatedTargetsKey.keyId), 1))
+                .put("snapshot", role(listOf(rotatedSnapshotKey.keyId), 1))
+                .put("timestamp", role(listOf(rotatedTimestampKey.keyId), 1))
+            val signed = JSONObject()
+                .put("_type", "root")
+                .put("spec_version", "1.0.0")
+                .put("consistent_snapshot", true)
+                .put("version", version)
+                .put("expires", Instant.ofEpochSecond(NOW + 3_600).toString())
+                .put("keys", keys)
+                .put("roles", roles)
+            val canonicalSigned = canonicalTufJson(signed)
+            val authorizingKeys = buildList {
+                if (includeCurrentRootSignatures) addAll(rootKeys)
+                if (includeCandidateRootSignatures) addAll(rotatedRootKeys)
+            }
+            val signatures = JSONArray()
+            authorizingKeys.forEach { signingKey ->
                 signatures.put(
                     JSONObject()
                         .put("keyid", signingKey.keyId)

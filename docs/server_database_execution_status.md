@@ -1732,7 +1732,12 @@ Android TUF 信任起点随后完成：产品构建新增强制 `PIXELS_UPDATE_R
 应用组合根启动时验证 1 MiB 上限、TUF 1.0 root 精确结构、Ed25519 公钥及规范 key ID、2–5 把 root key/至少 2 签名门限、三个互不复用的在线角色 key、
 全部 key 被角色引用、版本与到期时间。OEM 同时核对 profile 固定的 root SHA-256。4 项新 root 测试覆盖合法双签、单签不足、过期、签后篡改、key ID
 替换和角色复用；core-network 单测、App Kotlin 编译及 core-network/App Android Lint 372 个任务通过。构建脚本短测证明缺 root 明确拒绝，完整外形 root 的
-Customer preflight 不清理、不升版。当前仍没有 root N+1 轮换、timestamp/snapshot/targets 验签与持久水位，故只关闭初始信任根缺口。
+Customer preflight 不清理、不升版。该初始切片只关闭信任起点缺口；连续轮换在下一切片实现，元数据验签与持久水位继续保持未完成。
+
+Android root 连续轮换验证内核随后接通：候选只允许当前版本的精确 `N+1`，同一规范化 `signed` 内容必须先满足当前 root 角色门限、再满足候选 root
+自签门限；候选可使用一组全新的 root key，旧/新任一侧签名不足、版本跳跃、过期或签后篡改均 fail closed。core-network 当前 37/37 单测通过，
+App Kotlin 编译通过，core-network/App Lint 372 个任务通过。该切片只实现可复用的密码学链验证；在线逐版本 root 获取、原子持久提交及防回滚水位仍未实现，
+timestamp/snapshot/targets、APK 下载/平台签名复核和安装事务也仍保持未完成。
 
 | 阶段 | 当前未完成项 |
 |---|---|
