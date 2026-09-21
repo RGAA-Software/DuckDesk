@@ -99,6 +99,22 @@ SYSTEM 和本机管理员，Service 在授权升级前记录并保护旧包 SHA-
 都内置同一 Pixels 更新信任根，Customer 可使用自己的镜像地址，但不能以私有描述或重签方式改变制品发行属性。预检失败不会删除现有产物，
 也不会消耗版本号。
 
+Windows 正式构建还必须设置以下代码签名输入：
+
+- `PIXELS_WINDOWS_SIGNING_CERT_SHA1`：Windows `My` 证书存储中证书的精确 SHA-1 选择值；
+- `PIXELS_WINDOWS_SIGNING_CERT_SHA256`：审批记录中的证书原始 DER SHA-256 固定值，防止只凭较弱选择值误签；
+- `PIXELS_WINDOWS_SIGNING_STORE`：只能是 `current_user` 或 `local_machine`；
+- `PIXELS_WINDOWS_TIMESTAMP_URL`：无凭据的 HTTPS RFC 3161 时间戳地址；
+- `PIXELS_WINDOWS_SIGNTOOL`：可选的固定 `signtool.exe` 路径，未设置时使用 PATH 或已安装 Windows SDK。
+
+私钥必须已经由 Windows 证书存储、硬件令牌或构建机密钥提供者安全暴露给该证书；构建脚本不接受 PFX 密码参数，也不把私钥或密码写入
+命令行。清理和升版前的预检会核对双指纹、私钥可用性、代码签名 EKU、证书有效期、HTTPS 时间戳配置、SignTool 以及固定 NSIS 版本。
+正式 `dist` 中所有 Pixels 自有 PE、生成的 `Uninstall.exe` 和最终 Setup 均须使用同一审批证书签名并带时间戳，随后由 SignTool 和
+PowerShell 独立复核签名状态、签名者 SHA-256 与时间戳；任一项失败都不发布版本目录。
+
+仓库固定 NSIS 3.12（正式签名卸载器至少需要 3.08，项目要求不低于 3.11 的 SYSTEM 安全修复基线）。安装器直接封装已验证的 `dist`，
+不再使用旧 `Nsis7z`/`nsProcess` 插件和额外 `app.7z` 层；工具包按 vendored 字节处理，不能在提交时自动换行或格式化。
+
 ### 2.3 完整构建 Android
 
 ```bat

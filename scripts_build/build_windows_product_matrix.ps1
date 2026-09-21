@@ -37,6 +37,10 @@ if ($nodeRequired) {
     Get-Command npm -ErrorAction Stop | Out-Null
 }
 
+Invoke-NativeChecked -FilePath $python.Source -Arguments @(
+    (Join-Path $repoRoot 'setup\make_setup.py'), '--product', $Product, '--distribution', 'official', '--preflight-only'
+)
+
 $prepareScript = Join-Path $repoRoot 'scripts\prepare_windows_distribution.py'
 Invoke-NativeChecked -FilePath $python.Source -Arguments @(
     $prepareScript, '--product', $Product, '--distribution', 'official', '--validate-only'

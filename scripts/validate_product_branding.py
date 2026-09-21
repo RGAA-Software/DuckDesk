@@ -20,7 +20,6 @@ PRODUCT_FILES = (
     "setup/make_setup.nsi",
     "src/px_android/app/build.gradle",
     "src/px_android/scripts/build_release.ps1",
-    "rust_client/px_sysinfo/setup/make_setup.nsi",
 )
 
 RETIRED_BRAND = re.compile(r"rgaa", re.IGNORECASE)

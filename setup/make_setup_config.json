@@ -1,4 +1,3 @@
 {
-    "7z_path": "../tools/7z/7za.exe",
     "nsis_dir_path": "../tools/nsis"
 }

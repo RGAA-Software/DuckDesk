@@ -4,7 +4,6 @@ Unicode true
 
 !include "MUI2.nsh"
 !include "x64.nsh"
-!include "nsProcess.nsh"
 !include "StrFunc.nsh"
 
 !ifndef PRODUCT_ID
@@ -77,6 +76,11 @@ RequestExecutionLevel admin
 !endif
 
 OutFile "${OUTPUT_DIR}\${INSTALLER_BASENAME}_${DISTRIBUTION}_${PRODUCT_VERSION}_Setup.exe"
+
+!ifndef UNINSTALL_SIGN_COMMAND
+    !error "UNINSTALL_SIGN_COMMAND is required"
+!endif
+!uninstfinalize '${UNINSTALL_SIGN_COMMAND}' = 0
 
 InstallDir "${INSTALL_DIR}"
 
@@ -151,10 +155,10 @@ replace_failed:
     Abort "$(MSG_REPLACE_FAILED)"
 replace_ready:
 
-    ; 1. Extract app.7z
-    File "${OUTPUT_DIR}\app\app.7z"
-    Nsis7z::ExtractWithCallback "$INSTDIR\app.7z" $R9
-    Delete "$INSTDIR\app.7z"
+    ; 1. Install the already verified product payload directly. The release
+    ;    builder signs owned PE files before makensis reads this directory.
+    SetOutPath "$INSTDIR"
+    File /r "${OUTPUT_DIR}\app\*"
 
 !if ${HAS_HOST} == 1
     ; 2. Install the Microsoft-signed Parsec virtual display driver.

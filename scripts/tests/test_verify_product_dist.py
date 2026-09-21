@@ -5,6 +5,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from scripts.collect_dist import sha256
 from scripts.refresh_development_dist import refresh
@@ -128,11 +129,66 @@ class DistributionUpdateTrustAuditTest(unittest.TestCase):
                     actual_files,
                 )
             actual_files.add("resources/update/root.json")
-            VERIFY_PRODUCT_DIST.verify_distribution_identity(
-                distribution,
-                {"distribution": "customer"},
-                actual_files,
+            actual_files.add("px_client.exe")
+            manifest = {
+                "distribution": "customer",
+                "owned_pe": ["px_client.exe"],
+                "signer_certificate_sha256": "A" * 64,
+            }
+            with mock.patch.object(VERIFY_PRODUCT_DIST, "verify_file") as verify_file:
+                VERIFY_PRODUCT_DIST.verify_distribution_identity(distribution, manifest, actual_files)
+                verify_file.assert_called_once_with(distribution / "px_client.exe", "A" * 64)
+
+    def test_release_distribution_requires_signer_pin_and_owned_pe_inventory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            distribution = Path(temporary_directory)
+            actual_files = {
+                "resources/deployment/deployment-policy.json",
+                "resources/deployment/deployment-trust.json",
+                "resources/update/root.json",
+            }
+            with self.assertRaisesRegex(RuntimeError, "signer pin"):
+                VERIFY_PRODUCT_DIST.verify_distribution_identity(
+                    distribution,
+                    {"distribution": "official"},
+                    actual_files,
+                )
+
+    def test_release_distribution_rejects_pixels_pe_outside_owned_inventory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            distribution = Path(temporary_directory)
+            policy_path = distribution / "resources/deployment/deployment-policy.json"
+            policy_path.parent.mkdir(parents=True)
+            policy_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "distribution": "customer",
+                        "expected_deployment_id": None,
+                        "official_console_origin": None,
+                        "minimum_certificate_version": 1,
+                        "minimum_descriptor_revision": 1,
+                        "minimum_trust_epoch": 1,
+                        "protocol_version": 1,
+                    }
+                ),
+                encoding="utf-8",
             )
+            actual_files = {
+                "resources/deployment/deployment-policy.json",
+                "resources/deployment/deployment-trust.json",
+                "resources/update/root.json",
+                "px_client.exe",
+                "rdp/px_rdp_core.dll",
+            }
+            manifest = {
+                "distribution": "customer",
+                "owned_pe": ["px_client.exe"],
+                "signer_certificate_sha256": "A" * 64,
+            }
+            with mock.patch.object(VERIFY_PRODUCT_DIST, "verify_file"):
+                with self.assertRaisesRegex(RuntimeError, "unsigned Pixels PE"):
+                    VERIFY_PRODUCT_DIST.verify_distribution_identity(distribution, manifest, actual_files)
 
     def test_development_distribution_rejects_update_root(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

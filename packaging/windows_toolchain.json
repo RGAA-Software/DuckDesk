@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "nsis": {
+    "version": "3.12",
+    "source_url": "https://sourceforge.net/projects/nsis/files/NSIS%203/3.12/nsis-3.12-setup.exe/download",
+    "source_sha256": "3BC2B06253A7E4957111BE152AC6A536E0C7478A706E19DA814038DB5D706495",
+    "files": {
+      "makensis.exe": "B043E554AFEFBFC56315669D0B4779793AEAE67F0F2A7A790E2EA91F05298EFF",
+      "bin/makensis.exe": "25D1AA7081DB1A9DE9690B59983F9652B7409A189C3444328CC1841EFF693E8D",
+      "Stubs/zlib-x86-unicode": "48B8E5FB4D985097822ADFBEE2F44D4CE0D2C567420142775DF3A4E79501530F",
+      "Plugins/x86-unicode/System.dll": "996645D7F16A6294BABB6DA83478062AED7B72318D7A51B66E90AB5D3EDC51A5"
+    }
+  }
+}

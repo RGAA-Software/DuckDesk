@@ -14,8 +14,10 @@ from pathlib import Path
 
 try:
     from scripts.refresh_development_dist import is_runtime_output
+    from scripts.windows_release_signing import normalized_hex, verify_file
 except ModuleNotFoundError:
     from refresh_development_dist import is_runtime_output
+    from windows_release_signing import normalized_hex, verify_file
 
 
 WINDOWS_PRODUCTS = {"cloud_node", "client", "remote"}
@@ -217,11 +219,32 @@ def verify_distribution_identity(dist_dir: Path, manifest: dict[str, object], ac
     trust_path = "resources/deployment/deployment-trust.json"
     update_root_path = "resources/update/root.json"
     if distribution == "development":
+        if manifest.get("signer_certificate_sha256") is not None:
+            raise RuntimeError("development distribution must not declare a release signer")
         if {policy_path, trust_path, update_root_path} & actual_files:
             raise RuntimeError("development distribution contains release deployment or update trust resources")
         return
     if not {policy_path, trust_path, update_root_path}.issubset(actual_files):
         raise RuntimeError("official/customer distribution is missing deployment identity or update trust resources")
+    signer_certificate_sha256 = normalized_hex(str(manifest.get("signer_certificate_sha256", "")))
+    if not re.fullmatch(r"[0-9A-F]{64}", signer_certificate_sha256):
+        raise RuntimeError("official/customer distribution is missing its approved Authenticode signer pin")
+    owned_pe = manifest.get("owned_pe")
+    if not isinstance(owned_pe, list) or not owned_pe or any(not isinstance(path, str) for path in owned_pe):
+        raise RuntimeError("official/customer distribution has an invalid owned PE inventory")
+    if not set(owned_pe).issubset(actual_files):
+        raise RuntimeError("official/customer distribution owned PE inventory contains missing files")
+    pixels_pe = {
+        relative_path
+        for relative_path in actual_files
+        if Path(relative_path).name.lower().startswith("px_")
+        and Path(relative_path).suffix.lower() in {".exe", ".dll"}
+    }
+    unsigned_pixels_pe = pixels_pe - set(owned_pe)
+    if unsigned_pixels_pe:
+        raise RuntimeError(f"official/customer distribution has unsigned Pixels PE files: {sorted(unsigned_pixels_pe)}")
+    for relative_path in owned_pe:
+        verify_file(dist_dir / relative_path, signer_certificate_sha256)
     policy = json.loads((dist_dir / policy_path).read_text(encoding="utf-8"))
     expected_fields = [
         "schema_version",

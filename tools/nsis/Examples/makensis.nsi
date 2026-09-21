@@ -71,7 +71,8 @@ Caption "NSIS ${VERSION}${NAMESUFFIX} Setup"
 !define MUI_UNICON "${NSISDIR}\Contrib\Graphics\Icons\nsis3-uninstall.ico"
 
 !define MUI_HEADERIMAGE
-!define MUI_HEADERIMAGE_BITMAP "${NSISDIR}\Contrib\Graphics\Header\nsis3-branding.bmp"
+!define MUI_HEADERIMAGE_RIGHT
+!define MUI_HEADERIMAGE_BITMAP "${NSISDIR}\Contrib\Graphics\Header\nsis3-branding-r.bmp"
 !define MUI_WELCOMEFINISHPAGE_BITMAP "${NSISDIR}\Contrib\Graphics\Wizard\nsis3-branding.bmp"
 
 !define MUI_COMPONENTSPAGE_SMALLDESC
@@ -122,9 +123,24 @@ VIAddVersionKey "LegalCopyright" "http://nsis.sf.net/License"
 ;--------------------------------
 ;Installer Sections
 
+!macro OptionalFile src options eval
+  !if '${eval}' == ''
+    !define /ReDef eval 1
+  !endif
+  !if ${eval}
+    !if /FileExists "${src}"
+      File ${options} "${src}"
+    !endif
+  !endif
+!macroend
+
 !macro InstallPlugin pi
   !if ${BITS} >= 64
-    File "/oname=$InstDir\Plugins\amd64-unicode\${pi}.dll" ..\Plugins\amd64-unicode\${pi}.dll
+    File "/oname=$InstDir\Plugins\${NSIS_CPU}-unicode\${pi}.dll" ..\Plugins\${NSIS_CPU}-unicode\${pi}.dll
+    !insertmacro OptionalFile ..\Plugins\amd64-unicode\${pi}.dll "/oname=$InstDir\Plugins\amd64-unicode\${pi}.dll" 'amd64 != ${NSIS_CPU}'
+    !insertmacro OptionalFile ..\Plugins\arm64-unicode\${pi}.dll "/oname=$InstDir\Plugins\arm64-unicode\${pi}.dll" 'arm64 != ${NSIS_CPU}'
+    !insertmacro OptionalFile ..\Plugins\x86-ansi\${pi}.dll "/oname=$InstDir\Plugins\x86-ansi\${pi}.dll" ''
+    !insertmacro OptionalFile ..\Plugins\x86-unicode\${pi}.dll "/oname=$InstDir\Plugins\x86-unicode\${pi}.dll" ''
   !else
     File "/oname=$InstDir\Plugins\x86-ansi\${pi}.dll" ..\Plugins\x86-ansi\${pi}.dll
     File "/oname=$InstDir\Plugins\x86-unicode\${pi}.dll" ..\Plugins\x86-unicode\${pi}.dll
@@ -133,7 +149,9 @@ VIAddVersionKey "LegalCopyright" "http://nsis.sf.net/License"
 
 !macro InstallStub stub
   !if ${BITS} >= 64
-    File ..\Stubs\${stub}-amd64-unicode
+    File ..\Stubs\${stub}-${NSIS_CPU}-unicode
+    !insertmacro OptionalFile ..\Stubs\${stub}-amd64-unicode '' 'amd64 != ${NSIS_CPU}'
+    !insertmacro OptionalFile ..\Stubs\${stub}-arm64-unicode '' 'arm64 != ${NSIS_CPU}'
   !else
     File ..\Stubs\${stub}-x86-ansi
     File ..\Stubs\${stub}-x86-unicode
@@ -148,7 +166,6 @@ ${MementoSection} "NSIS Core Files (required)" SecCore
 
   SectionIn 1 2 3 RO
   SetOutPath $INSTDIR
-  RMDir /r $SMPROGRAMS\NSIS
 
   IfFileExists $INSTDIR\nsisconf.nsi "" +2
   Rename $INSTDIR\nsisconf.nsi $INSTDIR\nsisconf.nsh
@@ -218,6 +235,7 @@ ${MementoSection} "NSIS Core Files (required)" SecCore
   File ..\Include\Win\WinUser.nsh
   File ..\Include\Win\COM.nsh
   File ..\Include\Win\Propkey.nsh
+  File ..\Include\Win\RestartManager.nsh
 
   SetOutPath $INSTDIR\Docs\StrFunc
   File ..\Docs\StrFunc\StrFunc.txt
@@ -244,19 +262,24 @@ ${MementoSection} "NSIS Core Files (required)" SecCore
 
   SetOutPath $INSTDIR\Bin
   !if ${BITS} >= 64
-    File /NonFatal  ..\Bin\RegTool-x86.bin
-    File            ..\Bin\RegTool-amd64.bin
-  !else
-    File            ..\Bin\RegTool-x86.bin
-    !if /FileExists ..\Bin\RegTool-amd64.bin ; It is unlikely that this exists, avoid the /NonFatal warning.
-      File          ..\Bin\RegTool-amd64.bin
+    !insertmacro OptionalFile ..\Bin\RegTool-x86.bin '' ''
+    !ifdef NSIS_ARM64
+      File                    ..\Bin\RegTool-arm64.bin
+    !else
+      File                    ..\Bin\RegTool-amd64.bin
     !endif
+  !else
+    File                      ..\Bin\RegTool-x86.bin
+    !insertmacro OptionalFile ..\Bin\RegTool-amd64.bin '' '' ; It's unlikely that this exists, avoid the /NonFatal warning.
   !endif
 
   CreateDirectory $INSTDIR\Plugins\x86-ansi
   CreateDirectory $INSTDIR\Plugins\x86-unicode
   !if ${BITS} >= 64
     CreateDirectory $INSTDIR\Plugins\amd64-unicode
+    !ifdef NSIS_ARM64
+      CreateDirectory $INSTDIR\Plugins\arm64-unicode
+    !endif
   !endif
   !insertmacro InstallPlugin TypeLib
 
@@ -307,6 +330,7 @@ ${MementoSection} "Script Examples" SecExample
   File ..\Examples\makensis.nsi
   File ..\Examples\example1.nsi
   File ..\Examples\example2.nsi
+  File ..\Examples\AppGen.nsi
   File ..\Examples\install-per-user.nsi
   File ..\Examples\install-shared.nsi
   File ..\Examples\waplugin.nsi
@@ -331,6 +355,7 @@ ${MementoSection} "Script Examples" SecExample
   File ..\Examples\WordFunc.ini
   File ..\Examples\WordFuncTest.nsi
   File ..\Examples\Memento.nsi
+  File ..\Examples\MultiUser.nsi
   File ..\Examples\unicode.nsi
   File ..\Examples\NSISMenu.nsi
 
@@ -353,28 +378,15 @@ ${MementoSection} "Script Examples" SecExample
 
 ${MementoSectionEnd}
 
-!ifndef NO_STARTMENUSHORTCUTS
-${MementoSection} "Start Menu and Desktop Shortcuts" SecShortcuts
+${MementoSection} "Start Menu Shortcut" SecShortcuts
 
   SetDetailsPrint textonly
-  DetailPrint "Installing Start Menu and Desktop Shortcuts..."
+  DetailPrint "Installing Start Menu shortcut..."
   SetDetailsPrint listonly
 
-!else
-${MementoSection} "Desktop Shortcut" SecShortcuts
-
-  SetDetailsPrint textonly
-  DetailPrint "Installing Desktop Shortcut..."
-  SetDetailsPrint listonly
-
-!endif
   SectionIn 1 2
   SetOutPath $INSTDIR
-!ifndef NO_STARTMENUSHORTCUTS
   CreateShortcut "$SMPROGRAMS\NSIS${NAMESUFFIX}.lnk" "$INSTDIR\NSIS.exe"
-!endif
-
-  CreateShortcut "$DESKTOP\NSIS${NAMESUFFIX}.lnk" "$INSTDIR\NSIS.exe"
 
 ${MementoSectionEnd}
 
@@ -590,7 +602,7 @@ ${MementoSection} "Splash" SecPluginsSplash
 
   SectionIn 1
 
-  !insertmacro InstallPlugin splash
+  !insertmacro InstallPlugin Splash
   SetOutPath $INSTDIR\Docs\Splash
   File ..\Docs\Splash\splash.txt
   SetOutPath $INSTDIR\Examples\Splash
@@ -605,7 +617,7 @@ ${MementoSection} "AdvSplash" SecPluginsSplashT
 
   SectionIn 1
 
-  !insertmacro InstallPlugin advsplash
+  !insertmacro InstallPlugin AdvSplash
   SetOutPath $INSTDIR\Docs\AdvSplash
   File ..\Docs\AdvSplash\advsplash.txt
   SetOutPath $INSTDIR\Examples\AdvSplash
@@ -697,7 +709,7 @@ ${MementoSection} "NSISdl" SecPluginsNSISDL
 
   SectionIn 1
 
-  !insertmacro InstallPlugin nsisdl
+  !insertmacro InstallPlugin NSISdl
   SetOutPath $INSTDIR\Docs\NSISdl
   File ..\Docs\NSISdl\ReadMe.txt
   File ..\Docs\NSISdl\License.txt
@@ -835,11 +847,11 @@ Section -post
   WriteRegDword HKLM "Software\NSIS" "VersionBuild" "${VER_BUILD}"
 !endif
 
-  WriteRegExpandStr HKLM "${REG_UNINST_KEY}" "UninstallString" '"$INSTDIR\uninst-nsis.exe"'
-  ;WriteRegStr HKLM "${REG_UNINST_KEY}" "QuietUninstallString" '"$INSTDIR\uninst-nsis.exe" /S' ; Ideally WACK would use this
-  WriteRegExpandStr HKLM "${REG_UNINST_KEY}" "InstallLocation" "$INSTDIR"
+  WriteRegStr HKLM "${REG_UNINST_KEY}" "UninstallString" '"$INSTDIR\uninst-nsis.exe"'
+  WriteRegStr HKLM "${REG_UNINST_KEY}" "QuietUninstallString" '"$INSTDIR\uninst-nsis.exe" /S'
+  WriteRegStr HKLM "${REG_UNINST_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKLM "${REG_UNINST_KEY}" "DisplayName" "Nullsoft Install System${NAMESUFFIX}"
-  WriteRegStr HKLM "${REG_UNINST_KEY}" "DisplayIcon" "$INSTDIR\uninst-nsis.exe,0"
+  WriteRegStr HKLM "${REG_UNINST_KEY}" "DisplayIcon" "$INSTDIR\NSIS.exe"
   WriteRegStr HKLM "${REG_UNINST_KEY}" "DisplayVersion" "${VERSION}"
 !ifdef VER_MAJOR & VER_MINOR & VER_REVISION & VER_BUILD
   WriteRegDWORD HKLM "${REG_UNINST_KEY}" "VersionMajor" "${VER_MAJOR}" ; Required by WACK
@@ -867,7 +879,7 @@ SectionEnd
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
   !insertmacro MUI_DESCRIPTION_TEXT ${SecCore} "The core files required to use NSIS (compiler etc.)"
   !insertmacro MUI_DESCRIPTION_TEXT ${SecExample} "Example installation scripts that show you how to use NSIS"
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecShortcuts} "Adds icons to your start menu and your desktop for easy access"
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecShortcuts} "Add icon to your start menu for easy access"
   !insertmacro MUI_DESCRIPTION_TEXT ${SecInterfaces} "User interface designs that can be used to change the installer look and feel"
   !insertmacro MUI_DESCRIPTION_TEXT ${SecInterfacesModernUI} "A modern user interface like the wizards of recent Windows versions"
   !insertmacro MUI_DESCRIPTION_TEXT ${SecInterfacesDefaultUI} "The default NSIS user interface which you can customize to make your own UI"
@@ -1077,7 +1089,7 @@ Section Uninstall
   SetDetailsPrint listonly
 
   Delete "$SMPROGRAMS\NSIS${NAMESUFFIX}.lnk"
-  Delete "$DESKTOP\NSIS${NAMESUFFIX}.lnk"
+  Delete "$DESKTOP\NSIS${NAMESUFFIX}.lnk" ; Remove legacy shortcut
   Delete $INSTDIR\makensis.exe
   Delete $INSTDIR\makensisw.exe
   Delete $INSTDIR\NSIS.exe

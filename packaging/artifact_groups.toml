@@ -34,6 +34,7 @@ root = "build"
 source = "src/px_deps/px_voice_call/px_voice_apm.dll"
 destination = "px_voice_apm.dll"
 optional = true
+owned_pe = true
 
 [[groups.desktop_client]]
 root = "source"
@@ -90,6 +91,7 @@ source = "bin"
 destination = "."
 kind = "tree"
 include = ["px_rdp_client.dll", "px_rdp_core.dll", "px_rdp_winpr.dll", "libusb-1.0.dll", "libssl-3-x64.dll", "libcrypto-3-x64.dll", "zlib1.dll", "cjson.dll", "legacy.dll", "openh264-6.dll"]
+owned_pe_include = ["px_rdp_client.dll", "px_rdp_core.dll", "px_rdp_winpr.dll"]
 
 [[groups.host_common]]
 root = "product_rust"
@@ -103,6 +105,7 @@ source = "bin"
 destination = "rdp"
 kind = "tree"
 include = ["px_rdp_proxy.exe", "px_rdp_server_proxy.dll", "px_rdp_server.dll", "px_rdp_client.dll", "px_rdp_core.dll", "px_rdp_winpr.dll", "libusb-1.0.dll", "libssl-3-x64.dll", "libcrypto-3-x64.dll", "zlib1.dll", "cjson.dll", "legacy.dll", "openh264-6.dll"]
+owned_pe_include = ["px_rdp_proxy.exe", "px_rdp_server_proxy.dll", "px_rdp_server.dll", "px_rdp_client.dll", "px_rdp_core.dll", "px_rdp_winpr.dll"]
 
 [[groups.rdp_host]]
 root = "rdp_policy"

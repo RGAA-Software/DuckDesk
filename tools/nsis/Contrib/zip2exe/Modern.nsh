@@ -4,5 +4,5 @@
 
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
-!insertmacro MUI_LANGUAGE "SimpChinese"
-#!insertmacro MUI_LANGUAGE "English"
+
+!insertmacro MUI_LANGUAGE "English"

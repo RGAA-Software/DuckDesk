@@ -9,13 +9,26 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import tomllib
 from pathlib import Path
 
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
+
+from windows_release_signing import (  # noqa: E402
+    load_configuration,
+    nsis_finalize_command,
+    preflight,
+    sign_file,
+)
+
+
 PRODUCTS = ("cloud_node", "client", "remote")
 HOST_PRODUCTS = {"cloud_node", "remote"}
+MINIMUM_NSIS_VERSION = (3, 11)
 FORBIDDEN_FILES = {
     "client": {
         "px_render.exe",
@@ -67,6 +80,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--distribution", required=True, choices=("official", "customer"))
     parser.add_argument("--dist-dir", type=Path, help="Verified product dist directory")
     parser.add_argument("--output-root", type=Path, help="Installer output root")
+    parser.add_argument("--preflight-only", action="store_true")
     parser.add_argument("--validate-only", action="store_true")
     return parser.parse_args()
 
@@ -137,39 +151,87 @@ def load_tool_config(setup_dir: Path) -> dict[str, str]:
     return load_json(path) if path.is_file() else {}
 
 
-def find_7z(configured_path: str | None, repo_root: Path) -> Path:
-    candidates = [
-        Path(configured_path) if configured_path else None,
-        repo_root / "tools" / "7z" / "7za.exe",
-        Path(r"C:\Program Files\7-Zip\7z.exe"),
-        Path(r"C:\Program Files (x86)\7-Zip\7z.exe"),
-    ]
-    for path in candidates:
-        if path and path.is_file():
-            return path.resolve()
-    raise RuntimeError("Cannot find 7z.exe; configure setup/make_setup_config.json")
+def nsis_version(makensis: Path) -> tuple[int, ...]:
+    result = subprocess.run(
+        [str(makensis), "/VERSION"],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    version_text = result.stdout.strip().removeprefix("v")
+    if not version_text or any(not component.isdigit() for component in version_text.split(".")):
+        raise RuntimeError(f"cannot parse NSIS version from {makensis}: {result.stdout!r}")
+    return tuple(int(component) for component in version_text.split("."))
+
+
+def require_supported_nsis(makensis: Path) -> Path:
+    version = nsis_version(makensis)
+    if version < MINIMUM_NSIS_VERSION:
+        required = ".".join(str(component) for component in MINIMUM_NSIS_VERSION)
+        actual = ".".join(str(component) for component in version)
+        raise RuntimeError(
+            f"NSIS {required} or newer is required for signed uninstallers and the SYSTEM security fix; "
+            f"got {actual}: {makensis}"
+        )
+    return makensis.resolve()
 
 
 def find_nsis(configured_dir: str | None, repo_root: Path) -> Path:
+    if configured_dir:
+        configured_path = Path(configured_dir) / "makensis.exe"
+        if not configured_path.is_file():
+            raise RuntimeError(f"configured makensis.exe is missing: {configured_path}")
+        return require_supported_nsis(configured_path)
     candidates = [
-        Path(configured_dir) / "makensis.exe" if configured_dir else None,
         repo_root / "tools" / "nsis" / "makensis.exe",
         Path(r"C:\Program Files (x86)\NSIS\makensis.exe"),
         Path(r"C:\Program Files\NSIS\makensis.exe"),
     ]
     for path in candidates:
         if path and path.is_file():
-            return path.resolve()
+            return require_supported_nsis(path)
     raise RuntimeError("Cannot find makensis.exe; configure setup/make_setup_config.json")
 
 
-def create_archive(seven_zip: Path, dist_dir: Path, archive: Path) -> None:
-    archive.parent.mkdir(parents=True)
-    subprocess.run(
-        [str(seven_zip), "a", "-t7z", str(archive), "."],
-        cwd=dist_dir,
-        check=True,
-    )
+def validate_pinned_nsis(repo_root: Path, makensis: Path) -> None:
+    expected_root = (repo_root / "tools" / "nsis").resolve()
+    if makensis.resolve() != expected_root / "makensis.exe":
+        raise RuntimeError(f"release builds must use the pinned repository NSIS toolchain: {expected_root}")
+    toolchain_manifest = load_json(repo_root / "packaging" / "windows_toolchain.json")
+    nsis_manifest = toolchain_manifest.get("nsis")
+    if toolchain_manifest.get("schema_version") != 1 or not isinstance(nsis_manifest, dict):
+        raise RuntimeError("Windows toolchain manifest is invalid")
+    expected_version = nsis_manifest.get("version")
+    actual_version = ".".join(str(component) for component in nsis_version(makensis))
+    if expected_version != actual_version:
+        raise RuntimeError(f"pinned NSIS version mismatch: expected={expected_version}, actual={actual_version}")
+    expected_files = nsis_manifest.get("files")
+    if not isinstance(expected_files, dict) or not expected_files:
+        raise RuntimeError("Windows toolchain manifest has no NSIS file inventory")
+    for relative_path, expected_sha256 in expected_files.items():
+        if not isinstance(relative_path, str) or not isinstance(expected_sha256, str):
+            raise RuntimeError("Windows toolchain manifest has an invalid NSIS file entry")
+        tool_path = expected_root / relative_path
+        if not tool_path.is_file() or sha256(tool_path) != expected_sha256:
+            raise RuntimeError(f"pinned NSIS toolchain hash mismatch: {relative_path}")
+
+
+def stage_payload(dist_dir: Path, payload_directory: Path) -> None:
+    shutil.copytree(dist_dir, payload_directory)
+    source_files = {
+        path.relative_to(dist_dir).as_posix(): sha256(path)
+        for path in dist_dir.rglob("*")
+        if path.is_file()
+    }
+    staged_files = {
+        path.relative_to(payload_directory).as_posix(): sha256(path)
+        for path in payload_directory.rglob("*")
+        if path.is_file()
+    }
+    if staged_files != source_files:
+        raise RuntimeError("staged installer payload does not exactly match the verified product dist")
 
 
 def create_installer(
@@ -181,6 +243,7 @@ def create_installer(
     version: str,
     version_code: int,
     company: str,
+    uninstaller_sign_command: str,
 ) -> Path:
     subprocess.run(
         [
@@ -191,6 +254,7 @@ def create_installer(
             f"/DPRODUCT_VERSION={version}",
             f"/DPRODUCT_VERSION_CODE={version_code}",
             f"/DCOMPANY={company}",
+            f"/DUNINSTALL_SIGN_COMMAND={uninstaller_sign_command}",
             str(setup_dir / "make_setup.nsi"),
         ],
         cwd=setup_dir,
@@ -208,6 +272,14 @@ def main() -> int:
     setup_dir = Path(__file__).resolve().parent
     repo_root = setup_dir.parent
     config = load_product_config(repo_root, args.product)
+    signing_configuration = load_configuration()
+    preflight(signing_configuration)
+    tool_config = load_tool_config(setup_dir)
+    makensis = find_nsis(tool_config.get("nsis_dir_path"), repo_root)
+    validate_pinned_nsis(repo_root, makensis)
+    if args.preflight_only:
+        print("Windows installer signing and pinned toolchain preflight passed.")
+        return 0
     expected_dist_dir = (repo_root / "build_official" / args.product / args.distribution / "dist").resolve()
     dist_dir = (args.dist_dir or expected_dist_dir).resolve()
     if dist_dir != expected_dist_dir:
@@ -217,9 +289,6 @@ def main() -> int:
         print(f"Validated installer input: {args.product}/{args.distribution} {config['product_version']} ({dist_dir})")
         return 0
 
-    tool_config = load_tool_config(setup_dir)
-    seven_zip = find_7z(tool_config.get("7z_path"), repo_root)
-    makensis = find_nsis(tool_config.get("nsis_dir_path"), repo_root)
     expected_output_root = (repo_root / "build_official" / args.product / args.distribution / "installer").resolve()
     output_root = (args.output_root or expected_output_root).resolve()
     if output_root != expected_output_root:
@@ -231,8 +300,7 @@ def main() -> int:
 
     staging_dir = Path(tempfile.mkdtemp(prefix=f".{args.product}-installer-", dir=output_root))
     try:
-        archive = staging_dir / "app" / "app.7z"
-        create_archive(seven_zip, dist_dir, archive)
+        stage_payload(dist_dir, staging_dir / "app")
         installer = create_installer(
             makensis,
             setup_dir,
@@ -242,17 +310,20 @@ def main() -> int:
             str(config["product_version"]),
             int(config["product_version_code"]),
             str(config["company"]),
+            nsis_finalize_command(signing_configuration),
         )
+        sign_file(installer, signing_configuration)
         release_manifest = {
-            "schema_version": 1,
+            "schema_version": 2,
             "product": args.product,
             "distribution": args.distribution,
             "company": config["company"],
             "product_version": config["product_version"],
             "product_version_code": config["product_version_code"],
             "git_revision": manifest["git_revision"],
+            "signer_certificate_sha256": signing_configuration.certificate_sha256,
             "payload_manifest_sha256": sha256(dist_dir / "product-manifest.json"),
-            "payload_archive": {"path": "app/app.7z", "sha256": sha256(archive)},
+            "payload_artifact_count": len(manifest["artifacts"]),
             "installer": {"path": installer.name, "sha256": sha256(installer)},
         }
         (staging_dir / "installer-manifest.json").write_text(
@@ -269,4 +340,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except RuntimeError as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        raise SystemExit(1) from None

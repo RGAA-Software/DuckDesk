@@ -1399,6 +1399,13 @@ Authenticode 的完整旧安装包，回滚后同样复核旧 build 和协议健
 `cargo test -p px_service --locked` 为 122/122 PASS，另 1 项物理 NVIDIA 用例按设计忽略；全目标严格 Clippy 通过。该结果关闭可注入的本地
 软件行为矩阵，不冒充正式签名新旧安装包、真实 SCM/断电/断网故障矩阵。
 
+Windows 发行侧随后补入缺失的代码签名链：正式矩阵在清理和升版前验证证书存储、SHA-1 精确选择值、审批 SHA-256 指纹、私钥、代码签名
+EKU、有效期、HTTPS RFC 3161 时间戳和 SignTool；所有 Pixels 自有 PE 在生成 hash 清单前签名，NSIS 生成的卸载器及最终 Setup 也分别签名，
+每次签名后独立核对 `Valid`、签名者固定值和时间戳。仓库工具从旧 3.06.1 插件合集收敛到固定 NSIS 3.12，安装器直接封装验证后的 dist，
+不再执行旧 `Nsis7z`/`nsProcess` 或构造 `app.7z`。26 项 Python 门禁、三个产品 NSIS 脚本实编、Client 45 文件真实 development dist
+直接封装及“未提供正式证书时预检必须失败且不清理、不升版”均通过；
+当前机器没有配置批准的正式代码签名证书固定值，因此没有运行 release-only 构建、没有消耗版本号，也没有把语法产物冒充正式制品。
+
 Official/Customer 包装已经把正式 `resources/update/root.json` 作为强制输入，但仓库不伪造生产根、签名私钥或正式已审批更新，因此尚未执行
 “签名旧包→签名新包→真实 SCM 覆盖→故障回滚”的实物矩阵；在该故障注入通过前仍属于 DB2 的部分完成，不得称为正式无人值守升级验收完成。
 development 发行不查询生产更新。Cloud Node/Remote 的聚焦 release Service 构建已重新执行，构建树、stage 与各自 development dist 的

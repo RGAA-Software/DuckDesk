@@ -61,6 +61,9 @@
 ;         ${ShellVarContextAll}
 ;       Built-in NSIS other tests:
 ;         ${FileExists} a
+;       Complex string tests:
+;         a ${StartsWith} b; a ${StartsWithS} b; a ${EndsWith} b; a ${EndsWithS} b;
+;         a ${Contains} b; a ${ContainsS} b; ${IsLowerCase} b; ${IsUpperCase} b
 ;       Any conditional NSIS instruction test:
 ;         ${Cmd} a
 ;       Section flag tests:
@@ -69,7 +72,7 @@
 ;         ${SectionIsReadOnly} a; ${SectionIsExpanded} a;
 ;         ${SectionIsPartiallySelected} a
 ;       Additional tests:
-;         HK RegKeyIsEmpty SubKey
+;         HK ${RegKeyIsEmpty} SubKey
 ;
 ; Examples:
 ;   See LogicLib.nsi in the Examples folder for lots of example usage.
@@ -84,7 +87,7 @@
 !verbose ${_LOGICLIB_VERBOSITY}
 
 !ifndef LOGICLIB
-  !define LOGICLIB
+  !define LOGICLIB 20260419
   !define | "'"
   !define || "' '"
   !define LOGICLIB_COUNTER 0
@@ -99,7 +102,7 @@
   !macroend
 
   !macro LogicLib_JumpToBranch _Jump _Skip
-    !if `${_Jump}` != ``
+    !if `${_Jump}${_Skip}` != ``
       StrCmp "" "" `${_Jump}` ${_Skip}
     !endif
   !macroend
@@ -133,7 +136,7 @@
     !ifndef _${Type}
       !error "Cannot use _Pop${Type} without a preceding _Push${Type}"
     !endif
-    !ifdef ${_${Type}}Prev${Type}                         ; If a previous statment was active then restore it
+    !ifdef ${_${Type}}Prev${Type}                         ; If a previous statement was active then restore it
       !define _Cur${Type} ${_${Type}}
       !undef _${Type}
       !define _${Type} ${${_Cur${Type}}Prev${Type}}
@@ -142,6 +145,13 @@
     !else
       !undef _${Type}
     !endif
+  !macroend
+
+  !macro _LogicLib_AlwaysTrue _a _b _t _f
+    !insertmacro LogicLib_JumpToBranch `${_t}` `${_f}`
+  !macroend
+  !macro _LogicLib_AlwaysFalse _a _b _t _f
+    !insertmacro LogicLib_JumpToBranch `${_f}` `${_t}`
   !macroend
 
   ; String tests
@@ -353,6 +363,59 @@
   !macroend
   !define AltRegView `"" AltRegView ""`
 
+  ; Complex string tests
+  !macro _LL_StartsWith _op _a _b _t _f
+    !insertmacro _LOGICLIB_TEMP
+    StrLen $_LOGICLIB_TEMP `${_b}`
+    StrCpy $_LOGICLIB_TEMP `${_a}` $_LOGICLIB_TEMP
+    ${_op} $_LOGICLIB_TEMP `${_b}` `${_t}` `${_f}`
+  !macroend
+  !define StartsWith `"LL_StartsWith StrCmp"`
+  !define StartsWithS `"LL_StartsWith StrCmpS"`
+
+  !macro _LL_EndsWith _op _a _b _t _f
+    !insertmacro _LOGICLIB_TEMP
+    StrLen $_LOGICLIB_TEMP `${_b}`
+    StrCpy $_LOGICLIB_TEMP `${_a}` "" -$_LOGICLIB_TEMP
+    ${_op} $_LOGICLIB_TEMP `${_b}` `${_t}` `${_f}`
+  !macroend
+  !define EndsWith `"LL_EndsWith StrCmp"`
+  !define EndsWithS `"LL_EndsWith StrCmpS"`
+
+  !macro _LL_StrContains _op _a _b _t _f
+    !insertmacro _LOGICLIB_TEMP
+    Push $0
+    Push $1
+    Push $2
+    StrCpy $0 `${_b}`
+    StrCpy $1 `${_a}`
+    StrLen $_LOGICLIB_TEMP $0
+    _LL${LOGICLIB_COUNTER}_Loop:
+      StrCpy $2 $1 $_LOGICLIB_TEMP
+      StrCmp $2 "" _LL${LOGICLIB_COUNTER}_Done
+      StrCpy $1 $1 "" 1
+      ${_op} $2 $0 ""_LL${LOGICLIB_COUNTER}_Loop
+      StrCpy $_LOGICLIB_TEMP ""
+    _LL${LOGICLIB_COUNTER}_Done:
+    Pop $2
+    Pop $1
+    Pop $0
+    StrCmp $_LOGICLIB_TEMP "" `${_t}` `${_f}`
+    !insertmacro _IncreaseCounter
+  !macroend
+  !define Contains `"LL_StrContains StrCmp"`
+  !define ContainsS `"LL_StrContains StrCmpS"`
+
+  !macro _LL_IsCase _func _a _b _t _f
+    !insertmacro _LOGICLIB_TEMP
+    System::Call USER32::${_func}(tss) `${_b}`
+    Pop $_LOGICLIB_TEMP
+    StrCmpS $_LOGICLIB_TEMP `${_b}` `${_t}` `${_f}`
+  !macroend
+  !define IsLowerCase `"" "LL_IsCase CharLower"`
+  !define IsUpperCase `"" "LL_IsCase CharUpper"`
+
+  ; Registry tests
   !macro _RegKeyIsEmpty _a _b _t _f
     !insertmacro _LOGICLIB_TEMP
     ClearErrors
@@ -812,10 +875,17 @@
     !verbose ${LOGICLIB_VERBOSITY}
     !insertmacro _PushLogic
     !insertmacro _PushScope Switch ${_Logic}              ; Keep a separate stack for switch data
-    !insertmacro _PushScope Break _LogicLib_Label_${LOGICLIB_COUNTER} ; Get a lable for beyond the end of the switch
+    !insertmacro _PushScope Break _LogicLib_Label_${LOGICLIB_COUNTER} ; Get a label for beyond the end of the switch
     !insertmacro _IncreaseCounter
     !define ${_Switch}Var `${_a}`                         ; Remember the left hand side of the comparison
+    !ifdef LL_NOAPPENDMEMFILE
     !tempfile ${_Switch}Tmp                               ; Create a temporary file
+    !if "${NSIS_CHAR_SIZE}" > 1
+      !appendfile /CHARSET=UTF8SIG "${${_Switch}Tmp}" ""  ; Make sure the file uses Unicode
+    !endif
+    !else
+    !appendmemfile ${_Switch}Tmp                          ; Create a temporary file
+    !endif
     !define ${_Logic}Switch _LogicLib_Label_${LOGICLIB_COUNTER} ; Get a label for the end of the switch
     !insertmacro _IncreaseCounter
     Goto ${${_Logic}Switch}                               ; and go there
@@ -834,7 +904,11 @@
       !define _label _LogicLib_Label_${LOGICLIB_COUNTER}  ; Get a label for this case,
       !insertmacro _IncreaseCounter
       ${_label}:                                          ; place it and add it's check to the temp file
+      !ifdef LL_NOAPPENDMEMFILE
       !appendfile "${${_Switch}Tmp}" `!insertmacro _== $\`${${_Switch}Var}$\` $\`${_a}$\` ${_label} ""$\n`
+      !else
+      !appendmemfile ${_Switch}Tmp `!insertmacro _== $\`${${_Switch}Var}$\` $\`${_a}$\` ${_label} ""$\n`
+      !endif
       !undef _label
     !endif
     !verbose pop
@@ -866,13 +940,18 @@
     Goto ${_Break}                                        ; Skip the jump table
     ${${_Logic}Switch}:                                   ; Place the end of the switch
     !undef ${_Logic}Switch
+    !ifdef LL_NOAPPENDMEMFILE
     !include "${${_Switch}Tmp}"                           ; Include the jump table
-    !delfile "${${_Switch}Tmp}"                           ; and clear it up
+    !delfile "${${_Switch}Tmp}"                           ; and delete it
+    !undef ${_Switch}Tmp
+    !else
+    !include /memfile ${_Switch}Tmp                       ; Include the jump table
+    !appendmemfile '' ${_Switch}Tmp                       ; and delete it
+    !endif
     !ifdef ${_Switch}Else                                 ; Was there a default case?
       Goto ${${_Switch}Else}                              ; then go there if all else fails
       !undef ${_Switch}Else
     !endif
-    !undef ${_Switch}Tmp
     !undef ${_Switch}Var
     ${_Break}:                                            ; Place the break label
     !insertmacro _PopScope Break

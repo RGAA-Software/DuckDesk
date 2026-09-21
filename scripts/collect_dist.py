@@ -15,6 +15,11 @@ import tomllib
 import uuid
 from pathlib import Path
 
+try:
+    from scripts.windows_release_signing import load_configuration, preflight, sign_file
+except ModuleNotFoundError:
+    from windows_release_signing import load_configuration, preflight, sign_file
+
 
 GENERATED_MANIFESTS = {"product-manifest.json", "sha256sums.json", "licenses.json"}
 
@@ -110,6 +115,16 @@ def collect_artifacts(
                 patterns = entry.get("include")
                 if not isinstance(patterns, list) or not patterns:
                     raise RuntimeError(f"tree artifact must declare include patterns: {source}")
+                owned_pe_include = entry.get("owned_pe_include", [])
+                if not isinstance(owned_pe_include, list) or any(
+                    not isinstance(pattern, str) or not pattern for pattern in owned_pe_include
+                ):
+                    raise RuntimeError(f"tree artifact has an invalid owned_pe_include list: {source}")
+                unknown_owned_pe = set(owned_pe_include) - set(patterns)
+                if unknown_owned_pe:
+                    raise RuntimeError(
+                        f"tree artifact owned_pe_include is not present in include: {sorted(unknown_owned_pe)}"
+                    )
                 files = matching_tree_files(source, patterns)
                 if not files:
                     raise RuntimeError(f"tree artifact matched no files: {source}")
@@ -127,7 +142,12 @@ def collect_artifacts(
                     )
                 copy_file(source_file, staging_dir / relative_output, staging_dir)
                 written_by[output_name] = group_name
-                if entry.get("owned_pe", False):
+                source_name = (
+                    source_file.relative_to(source).as_posix()
+                    if kind == "tree"
+                    else source_file.name
+                )
+                if entry.get("owned_pe", False) or source_name in entry.get("owned_pe_include", []):
                     owned_pe.append(output_name)
     return sorted(set(owned_pe))
 
@@ -138,6 +158,7 @@ def write_distribution_manifests(
     distribution: str,
     staging_dir: Path,
     owned_pe: list[str],
+    signer_certificate_sha256: str | None,
 ) -> None:
     revision = subprocess.run(
         ["git", "-C", source_dir, "rev-parse", "--short=12", "HEAD"],
@@ -163,6 +184,7 @@ def write_distribution_manifests(
         "package_groups": product_config["package_groups"],
         "git_revision": revision,
         "owned_pe": owned_pe,
+        "signer_certificate_sha256": signer_certificate_sha256,
         "artifacts": [{"path": path, "sha256": digest} for path, digest in hashes.items()],
     }
     write_json_atomic(staging_dir / "sha256sums.json", hashes)
@@ -305,6 +327,7 @@ def main() -> int:
 
     atexit.register(cleanup)
     owned_pe = collect_artifacts(product_config, artifact_config, roots, staging_dir)
+    signer_certificate_sha256 = None
     if args.distribution == "development":
         if args.deployment_policy_dir is not None:
             raise RuntimeError("development distributions must not accept release deployment policy inputs")
@@ -324,7 +347,19 @@ def main() -> int:
         if not update_root_source.is_file():
             raise RuntimeError(f"required TUF update root input is missing: {update_root_source}")
         copy_file(update_root_source, staging_dir / "resources" / "update" / "root.json", staging_dir)
-    write_distribution_manifests(source_dir, product_config, args.distribution, staging_dir, owned_pe)
+        signing_configuration = load_configuration()
+        preflight(signing_configuration)
+        for relative_path in owned_pe:
+            sign_file(staging_dir / relative_path, signing_configuration)
+        signer_certificate_sha256 = signing_configuration.certificate_sha256
+    write_distribution_manifests(
+        source_dir,
+        product_config,
+        args.distribution,
+        staging_dir,
+        owned_pe,
+        signer_certificate_sha256,
+    )
     publish_staging_directory(staging_dir, final_dir)
     atexit.unregister(cleanup)
     print(f"Done: {args.product} distribution published to {final_dir}")
