@@ -23,6 +23,8 @@ class ApiError(RuntimeError):
 class ConsoleClient:
     def __init__(self, endpoint: str, ca_file: Path, client_type: str = "android") -> None:
         self.endpoint = endpoint.rstrip("/")
+        endpoint_parts = urllib.parse.urlsplit(self.endpoint)
+        self.origin = f"{endpoint_parts.scheme}://{endpoint_parts.netloc}"
         self.context = ssl.create_default_context(cafile=str(ca_file))
         # Python 3.13 enables OpenSSL strict mode, which rejects the current
         # private test CA solely because it predates the Authority Key
@@ -43,6 +45,8 @@ class ConsoleClient:
             "Accept": "application/json",
             "X-Pixels-Client-Type": self.client_type,
         }
+        if self.client_type in {"admin_web", "user_web"}:
+            headers["Origin"] = self.origin
         payload = None
         if token:
             headers["Authorization"] = f"Bearer {token}"

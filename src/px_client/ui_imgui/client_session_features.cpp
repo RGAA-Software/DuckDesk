@@ -1,35 +1,6 @@
-#include "client_session.h"
-
-#include "client_audio_output.h"
-#include "ct_virtual_display_protocol.h"
-#include "px_client_sdk/platform/windows/windows_decoder_factory.h"
-#include "px_client_sdk/platform/windows/windows_video_resources.h"
-#include "px_client_sdk/sdk_messages.h"
-#include "px_client_sdk/sdk_params.h"
-#include "px_client_sdk/sdk_connection_params.h"
-#include "px_client_sdk/sdk_net_client.h"
-#include "px_client_sdk/sdk_recording_session.h"
-#include "px_client_sdk/sdk_statistics.h"
-#include "px_client_sdk/sdk_voice_call.h"
-#include "px_client_sdk/platform/voice_audio_endpoint_port.h"
-#include "px_client_sdk/thunder_sdk.h"
-#include "px_common/data.h"
-#include "px_common/md5.h"
-#include "px_common/message_notifier.h"
-#include "px_common/time_util.h"
-#include "px_common/url_helper.h"
-#include "px_message/proto_converter.h"
-#include "px_message/proto_message_maker.h"
-#include "px_message.pb.h"
-#include "px_ft_engine/ft_async_session.h"
-#include "px_ft_engine/ft_engine.h"
-#include "px_rdp/rdp_client_endpoint.h"
-#include "px_rdp/rdp_stream_packet.h"
-#include "rdp/rdp_session.h"
-
 #include <SDL3/SDL.h>
-#include <freerdp/input.h>
 #include <Windows.h>
+#include <freerdp/input.h>
 
 #include <algorithm>
 #include <array>
@@ -37,6 +8,35 @@
 #include <filesystem>
 #include <format>
 #include <utility>
+
+#include "client_audio_output.h"
+#include "client_session.h"
+#include "ct_virtual_display_protocol.h"
+#include "px_client_sdk/platform/voice_audio_endpoint_port.h"
+#include "px_client_sdk/platform/windows/windows_decoder_factory.h"
+#include "px_client_sdk/platform/windows/windows_video_resources.h"
+#include "px_client_sdk/sdk_connection_params.h"
+#include "px_client_sdk/sdk_messages.h"
+#include "px_client_sdk/sdk_net_client.h"
+#include "px_client_sdk/sdk_params.h"
+#include "px_client_sdk/sdk_recording_session.h"
+#include "px_client_sdk/sdk_statistics.h"
+#include "px_client_sdk/sdk_voice_call.h"
+#include "px_client_sdk/thunder_sdk.h"
+#include "px_common/data.h"
+#include "px_common/md5.h"
+#include "px_common/message_notifier.h"
+#include "px_common/time_util.h"
+#include "px_common/url_helper.h"
+#include "px_ft_engine/ft_async_session.h"
+#include "px_ft_engine/ft_engine.h"
+#include "px_ft_engine/ft_terminal.h"
+#include "px_message.pb.h"
+#include "px_message/proto_converter.h"
+#include "px_message/proto_message_maker.h"
+#include "px_rdp/rdp_client_endpoint.h"
+#include "px_rdp/rdp_stream_packet.h"
+#include "rdp/rdp_session.h"
 
 namespace px::client::imgui {
 
@@ -71,19 +71,23 @@ bool ClientSession::ListRemoteDirectory(const std::string& path, const bool incl
            fileTransfer->Post("pixels-client-ft-list", [path, includeHidden](const auto& engine) { engine->ReadDir(path, includeHidden); });
 }
 
+bool ClientSession::SetFileTransferRateLimitBytesPerSecond(const std::uint64_t bytesPerSecond) {
+    const auto fileTransfer = FileTransfer();
+    return fileTransfer && fileTransfer->PostAndWait(
+                               "pixels-client-ft-rate-limit",
+                               [bytesPerSecond](const auto& engine) { engine->SetRateLimitBytesPerSec(bytesPerSecond); }, std::chrono::seconds{2});
+}
+
 std::int32_t ClientSession::StartUpload(const std::string& localPath, const std::string& remoteDirectory) {
     const auto fileTransfer = FileTransfer();
-    if (!fileTransfer || localPath.empty())
-        return 0;
+    if (!fileTransfer || localPath.empty()) return 0;
     const std::string fileName{std::filesystem::path{localPath}.filename().string()};
-    if (fileName.empty())
-        return 0;
+    if (fileName.empty()) return 0;
     std::error_code sizeError{};
     const bool regularFile{std::filesystem::is_regular_file(std::filesystem::path{localPath}, sizeError)};
     const std::uint64_t expectedBytes{regularFile ? std::filesystem::file_size(std::filesystem::path{localPath}, sizeError) : 0U};
     std::string remoteTarget{remoteDirectory};
-    if (!remoteTarget.empty() && !remoteTarget.ends_with('/') && !remoteTarget.ends_with('\\'))
-        remoteTarget.push_back('/');
+    if (!remoteTarget.empty() && !remoteTarget.ends_with('/') && !remoteTarget.ends_with('\\')) remoteTarget.push_back('/');
     remoteTarget += fileName;
     const auto result = std::make_shared<std::atomic_int32_t>();
     const bool completed = fileTransfer->PostAndWait(
@@ -109,12 +113,9 @@ std::int32_t ClientSession::StartUpload(const std::string& localPath, const std:
             found->name = request.name;
             found->sourcePath = request.sourcePath;
             found->destinationDirectory = request.destinationDirectory;
-            if (found->totalBytes == 0U)
-                found->totalBytes = request.totalBytes;
-            if (found->fileCount == 0)
-                found->fileCount = request.fileCount;
-            if (found->done && found->totalBytes > 0U)
-                found->completedBytes = found->totalBytes;
+            if (found->totalBytes == 0U) found->totalBytes = request.totalBytes;
+            if (found->fileCount == 0) found->fileCount = request.fileCount;
+            if (found->done && found->totalBytes > 0U) found->completedBytes = found->totalBytes;
         }
     }
     return id;
@@ -122,12 +123,10 @@ std::int32_t ClientSession::StartUpload(const std::string& localPath, const std:
 
 std::int32_t ClientSession::StartDownload(const std::string& remotePath, const std::string& localDirectory) {
     const auto fileTransfer = FileTransfer();
-    if (!fileTransfer || remotePath.empty() || localDirectory.empty())
-        return 0;
+    if (!fileTransfer || remotePath.empty() || localDirectory.empty()) return 0;
     const auto separator = remotePath.find_last_of("/\\");
     const std::string fileName{separator == std::string::npos ? remotePath : remotePath.substr(separator + 1)};
-    if (fileName.empty())
-        return 0;
+    if (fileName.empty()) return 0;
     std::uint64_t expectedBytes{};
     bool regularFile{};
     {
@@ -163,12 +162,9 @@ std::int32_t ClientSession::StartDownload(const std::string& remotePath, const s
             found->name = request.name;
             found->sourcePath = request.sourcePath;
             found->destinationDirectory = request.destinationDirectory;
-            if (found->totalBytes == 0U)
-                found->totalBytes = request.totalBytes;
-            if (found->fileCount == 0)
-                found->fileCount = request.fileCount;
-            if (found->done && found->totalBytes > 0U)
-                found->completedBytes = found->totalBytes;
+            if (found->totalBytes == 0U) found->totalBytes = request.totalBytes;
+            if (found->fileCount == 0) found->fileCount = request.fileCount;
+            if (found->done && found->totalBytes > 0U) found->completedBytes = found->totalBytes;
         }
     }
     return id;
@@ -184,13 +180,12 @@ bool ClientSession::ResumeTransfer(const std::int32_t jobId) {
     {
         const std::scoped_lock lock{mutex_};
         const auto found = std::ranges::find(transferJobs_, jobId, &ClientTransferJob::id);
-        if (found == transferJobs_.end() || found->sourcePath.empty() || found->destinationDirectory.empty() || found->error.empty())
-            return false;
+        if (found == transferJobs_.end() || found->sourcePath.empty() || found->destinationDirectory.empty() || found->error.empty()) return false;
         job = *found;
     }
+    const bool resumePartialTransfer = px::ft::ClassifyTerminal(job.error).resumable;
     const auto fileTransfer = FileTransfer();
-    if (!fileTransfer)
-        return false;
+    if (!fileTransfer) return false;
     std::string target{};
     if (job.download) {
         const auto separator = job.sourcePath.find_last_of("/\\");
@@ -198,20 +193,18 @@ bool ClientSession::ResumeTransfer(const std::int32_t jobId) {
         target = (std::filesystem::path{job.destinationDirectory} / std::filesystem::u8path(name)).string();
     } else {
         target = job.destinationDirectory;
-        if (!target.empty() && !target.ends_with('/') && !target.ends_with('\\'))
-            target.push_back('/');
+        if (!target.empty() && !target.ends_with('/') && !target.ends_with('\\')) target.push_back('/');
         target += std::filesystem::path{job.sourcePath}.filename().string();
     }
     const auto result = std::make_shared<std::atomic_int32_t>();
     const bool completed = fileTransfer->PostAndWait(
         "pixels-client-ft-resume",
-        [job, target = std::move(target), streamId = config_.streamId, result](const auto& engine) {
-            result->store(job.download ? engine->ReceiveFiles(job.sourcePath, false, target, 0, true, streamId)
-                                       : engine->SendFiles(job.sourcePath, false, target, 0, true, streamId));
+        [job, target = std::move(target), streamId = config_.streamId, result, resumePartialTransfer](const auto& engine) {
+            result->store(job.download ? engine->ReceiveFiles(job.sourcePath, false, target, 0, resumePartialTransfer, streamId)
+                                       : engine->SendFiles(job.sourcePath, false, target, 0, resumePartialTransfer, streamId));
         },
         std::chrono::seconds{2});
-    if (!completed || result->load() <= 0)
-        return false;
+    if (!completed || result->load() <= 0) return false;
     const std::int32_t resumedJobId{result->load()};
     const std::scoped_lock lock{mutex_};
     const auto previous = std::ranges::find(transferJobs_, jobId, &ClientTransferJob::id);
@@ -245,15 +238,13 @@ bool ClientSession::ConfirmOverwrite(const bool overwrite, const bool applyToAll
     ClientOverwriteRequest request{};
     {
         const std::scoped_lock lock{mutex_};
-        if (!overwrite_)
-            return false;
+        if (!overwrite_) return false;
         request = *overwrite_;
         overwrite_.reset();
     }
     const auto fileTransfer = FileTransfer();
     return fileTransfer && fileTransfer->Post("pixels-client-ft-overwrite", [request, overwrite, applyToAll](const auto& engine) {
-        if (applyToAll)
-            engine->SetOverwriteStrategy(request.jobId, overwrite);
+        if (applyToAll) engine->SetOverwriteStrategy(request.jobId, overwrite);
         engine->ConfirmFile(request.jobId, request.fileNumber, overwrite);
     });
 }
@@ -279,11 +270,9 @@ bool ClientSession::RemoveRemoteEntry(const std::string& path, const bool direct
 
 bool ClientSession::RemoveRemoteEntries(const std::vector<ClientRemoteEntry>& entries) {
     const auto fileTransfer = FileTransfer();
-    if (!fileTransfer || entries.empty())
-        return false;
+    if (!fileTransfer || entries.empty()) return false;
     for (const auto& entry : entries) {
-        if (entry.path.empty() || entry.path.size() > 4096U)
-            return false;
+        if (entry.path.empty() || entry.path.size() > 4096U) return false;
     }
     return fileTransfer->Post("pixels-client-ft-remove-entries", [entries](const auto& engine) {
         for (const auto& entry : entries) {
@@ -315,8 +304,7 @@ bool ClientSession::StartRecording() {
     {
         const std::scoped_lock lock{mutex_};
         std::erase_if(finishingRecordings_, [](const auto& item) { return item->WaitFor(std::chrono::milliseconds::zero()); });
-        if (recording_ || finishingRecordings_.size() >= 4U || !sdk_)
-            return false;
+        if (recording_ || finishingRecordings_.size() >= 4U || !sdk_) return false;
         const std::filesystem::path directory =
             config_.recordingPath.empty() ? std::filesystem::current_path() / "recordings" : std::filesystem::u8path(config_.recordingPath);
         const std::string id{"recording-" + std::to_string(px::TimeUtil::GetCurrentTimestamp())};
@@ -327,20 +315,16 @@ bool ClientSession::StartRecording() {
                                                              .max_segment_bytes = 8LL * 1024 * 1024 * 1024,
                                                              .on_request_keyframe =
                                                                  [weakSdk = std::weak_ptr<px::ThunderSdk>(sdk_)] {
-                                                                     if (const auto sdk = weakSdk.lock())
-                                                                         sdk->RequestVideoKeyFrame();
+                                                                     if (const auto sdk = weakSdk.lock()) sdk->RequestVideoKeyFrame();
                                                                  }}},
                                                  {.finished = [weakSelf, id](const px::RecordingSessionResult& result) {
                                                      if (const auto self = weakSelf.lock()) {
                                                          const std::scoped_lock stateLock{self->mutex_};
-                                                         if (self->recordingId_ == id)
-                                                             self->recordingId_.clear();
-                                                         if (!result.error.empty())
-                                                             self->status_ = "Recording failed: " + result.error;
+                                                         if (self->recordingId_ == id) self->recordingId_.clear();
+                                                         if (!result.error.empty()) self->status_ = "Recording failed: " + result.error;
                                                      }
                                                  }});
-        if (!recording || !recording->Start())
-            return false;
+        if (!recording || !recording->Start()) return false;
         recording_ = recording;
         recordingId_ = id;
     }
@@ -352,8 +336,7 @@ bool ClientSession::StopRecording() {
     std::shared_ptr<px::RecordingSession> recording{};
     {
         const std::scoped_lock lock{mutex_};
-        if (!recording_)
-            return false;
+        if (!recording_) return false;
         recording = std::move(recording_);
         finishingRecordings_.push_back(recording);
         recordingId_.clear();
@@ -369,8 +352,7 @@ bool ClientSession::StartVoiceCall() {
 
 bool ClientSession::StopVoiceCall() {
     const auto voice = VoiceCall();
-    if (!voice)
-        return false;
+    if (!voice) return false;
     voice->Stop(true, "local_hangup");
     return true;
 }
@@ -401,4 +383,4 @@ void ClientSession::SetState(const ClientConnectionState state, std::string stat
     failure_ = failure;
     status_ = std::move(status);
 }
-} // namespace px::client::imgui
+}  // namespace px::client::imgui

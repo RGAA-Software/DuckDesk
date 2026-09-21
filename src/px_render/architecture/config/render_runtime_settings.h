@@ -7,6 +7,7 @@ namespace px {
 
 struct RenderRuntimeSettings final {
     std::string device_id;
+    std::string application_instance_id;
     std::string device_random_password;
     std::string device_safety_password;
     std::string relay_host;
@@ -24,4 +25,4 @@ struct RenderRuntimeSettings final {
     int role{1};
 };
 
-} // namespace px
+}  // namespace px

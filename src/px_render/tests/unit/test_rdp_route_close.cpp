@@ -1,9 +1,11 @@
-#include "network/ws/ws_stream_router.h"
-#include "px_rdp/rdp_stream_packet.h"
 #include <gtest/gtest.h>
+
 #include <atomic>
 #include <chrono>
 #include <thread>
+
+#include "network/ws/ws_stream_router.h"
+#include "px_rdp/rdp_stream_packet.h"
 
 namespace px {
 namespace {
@@ -81,7 +83,7 @@ TEST(RdpRouteClose, ProtocolCloseReleasesSeatBeforeWebSocketDisconnect) {
 
 TEST(RdpRouteClose, RevocationWinsOverAFollowingTransportLoss) {
     const auto router = WsStreamRouter::Make(std::make_shared<WsData>(), false, "test-visitor", "test-stream");
-    router->RevokeRdp();
+    router->MarkResourcePolicyRevoked();
     router->MarkResourceTransportLost();
     EXPECT_EQ(router->ResourceCloseOutcome(), ResourceChannelCloseOutcome::kPolicyRevoked);
 }

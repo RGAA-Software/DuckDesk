@@ -160,6 +160,22 @@ class RemoteSessionWorkflowTest {
     }
 
     @Test
+    fun connectedEventPreservesMediaStateThatArrivedDuringStartup() = runTest {
+        val transport = FakeRemoteSessionTransport()
+        val workflow = RemoteSessionWorkflow(transport, CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
+        val request = request("session-1")
+        val videoSize = RemoteVideoSize(1920, 1080)
+        workflow.start(request)
+
+        transport.eventsFlow.emit(RemoteTransportEvent.VideoSize(request.id, videoSize))
+        transport.eventsFlow.emit(RemoteTransportEvent.Connected(request.id, capabilities()))
+        advanceUntilIdle()
+
+        assertEquals(videoSize, workflow.snapshot.value.videoSize)
+        assertEquals(RemoteSessionStatus.Connected(request, capabilities()), workflow.snapshot.value.status)
+    }
+
+    @Test
     fun terminalDisconnectStopsTransportAndKeepsTypedFailure() = runTest {
         val transport = FakeRemoteSessionTransport()
         val workflow = RemoteSessionWorkflow(transport, CoroutineScope(UnconfinedTestDispatcher(testScheduler)))

@@ -442,4 +442,28 @@ mod tests {
         );
         assert_eq!(http_mutation(&Method::POST, "/api/console/sessions"), None);
     }
+
+    #[test]
+    fn high_frequency_overflow_requires_snapshot_and_retains_the_exact_window() {
+        let events = ManagementEvents::new();
+        for _ in 0..EVENT_CAPACITY + 2 {
+            events.publish("nodes", None);
+        }
+        assert!(matches!(
+            events.replay(Some(events.stream_id), Some(0)),
+            Replay::SnapshotRequired {
+                latest_sequence: 1026
+            }
+        ));
+        match events.replay(Some(events.stream_id), Some(2)) {
+            Replay::Events(replayed) => {
+                assert_eq!(replayed.len(), EVENT_CAPACITY);
+                assert_eq!(replayed.first().unwrap().sequence, 3);
+                assert_eq!(replayed.last().unwrap().sequence, 1026);
+            }
+            Replay::SnapshotRequired { .. } => {
+                panic!("the oldest retained cursor must remain replayable")
+            }
+        }
+    }
 }

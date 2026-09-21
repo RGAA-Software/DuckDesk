@@ -320,6 +320,10 @@ def main() -> int:
             if not policy_source.is_file():
                 raise RuntimeError(f"required deployment policy input is missing: {policy_source}")
             copy_file(policy_source, staging_dir / "resources" / "deployment" / policy_name, staging_dir)
+        update_root_source = policy_directory / "update-root.json"
+        if not update_root_source.is_file():
+            raise RuntimeError(f"required TUF update root input is missing: {update_root_source}")
+        copy_file(update_root_source, staging_dir / "resources" / "update" / "root.json", staging_dir)
     write_distribution_manifests(source_dir, product_config, args.distribution, staging_dir, owned_pe)
     publish_staging_directory(staging_dir, final_dir)
     atexit.unregister(cleanup)

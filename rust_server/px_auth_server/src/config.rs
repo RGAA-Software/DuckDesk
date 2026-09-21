@@ -1,5 +1,9 @@
 use px_pg::{DatabaseConfig, Transport};
-use std::{env, net::SocketAddr, path::PathBuf};
+use std::{
+    env,
+    net::{IpAddr, SocketAddr},
+    path::PathBuf,
+};
 use uuid::Uuid;
 use zeroize::Zeroizing;
 
@@ -11,6 +15,7 @@ pub struct Settings {
     pub tls: Option<(PathBuf, PathBuf)>,
     pub signing_key: PathBuf,
     pub trust_store: PathBuf,
+    pub trusted_proxy: Option<IpAddr>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -60,6 +65,11 @@ impl Settings {
         if !static_directory.join("index.html").is_file() {
             return Err(ConfigurationError);
         }
+        let trusted_proxy = match env::var("PIXELS_AUTH_TRUSTED_PROXY_IP") {
+            Ok(address) => Some(address.parse::<IpAddr>().map_err(|_| ConfigurationError)?),
+            Err(env::VarError::NotPresent) => None,
+            Err(env::VarError::NotUnicode(_)) => return Err(ConfigurationError),
+        };
         Ok(Self {
             database,
             deployment,
@@ -68,6 +78,7 @@ impl Settings {
             tls,
             signing_key,
             trust_store,
+            trusted_proxy,
         })
     }
 }

@@ -44,7 +44,7 @@ bool IsSha256(const std::string_view value) {
 
 }  // namespace
 
-std::optional<ClientLaunchConfig> ParseClientLaunchEnvelope(const std::string_view envelope) {
+std::optional<ClientLaunchConfig> ParseClientLaunchEnvelope(const std::string_view envelope, const bool allowAcceptance) {
     if (envelope.empty() || envelope.size() > 65'536U) {
         return std::nullopt;
     }
@@ -104,6 +104,37 @@ std::optional<ClientLaunchConfig> ParseClientLaunchEnvelope(const std::string_vi
             result.rdpAccount = Value<std::string>(*rdp, "account_name");
             result.rdpDomain = Value<std::string>(*rdp, "domain");
             result.rdpProxyCertificateSha256 = Value<std::string>(*rdp, "proxy_certificate_sha256");
+        }
+        if (const auto acceptance = values.find("acceptance_file_transfer"); acceptance != values.end()) {
+            if (!allowAcceptance || !acceptance->is_object()) {
+                return std::nullopt;
+            }
+            ClientFileTransferAcceptanceConfig acceptanceConfig{
+                .localSourcePath = Value<std::string>(*acceptance, "local_source_path"),
+                .remoteDirectory = Value<std::string>(*acceptance, "remote_directory"),
+                .localDownloadDirectory = Value<std::string>(*acceptance, "local_download_directory"),
+                .exerciseCancelRetry = Value<bool>(*acceptance, "exercise_cancel_retry"),
+                .exerciseHostRestart = Value<bool>(*acceptance, "exercise_host_restart"),
+            };
+            if (acceptanceConfig.localSourcePath.empty() || acceptanceConfig.localSourcePath.size() > 4096U ||
+                acceptanceConfig.remoteDirectory.empty() || acceptanceConfig.remoteDirectory.size() > 4096U ||
+                acceptanceConfig.localDownloadDirectory.empty() || acceptanceConfig.localDownloadDirectory.size() > 4096U ||
+                (acceptanceConfig.exerciseCancelRetry && acceptanceConfig.exerciseHostRestart)) {
+                return std::nullopt;
+            }
+            result.fileTransferAcceptance = std::move(acceptanceConfig);
+        }
+        result.audioAcceptance = Value<bool>(values, "acceptance_audio");
+        result.rdpIoErrorAcceptance = Value<bool>(values, "acceptance_rdp_io_error");
+        result.rdpPeerCloseAcceptance = Value<bool>(values, "acceptance_rdp_peer_close");
+        if ((result.audioAcceptance || result.rdpIoErrorAcceptance || result.rdpPeerCloseAcceptance) && !allowAcceptance) {
+            return std::nullopt;
+        }
+        const unsigned int acceptanceModeCount =
+            static_cast<unsigned int>(result.audioAcceptance) + static_cast<unsigned int>(result.rdpIoErrorAcceptance) +
+            static_cast<unsigned int>(result.rdpPeerCloseAcceptance) + static_cast<unsigned int>(result.fileTransferAcceptance.has_value());
+        if (acceptanceModeCount > 1U || ((result.rdpIoErrorAcceptance || result.rdpPeerCloseAcceptance) && !result.rdp)) {
+            return std::nullopt;
         }
         const bool hasConsoleFrontendFields = result.frontendToken || !result.frontendSessionId.empty() || result.frontendSessionRevision != 0;
         const bool consoleFrontend = result.frontendToken && !result.frontendToken->Bytes().empty();

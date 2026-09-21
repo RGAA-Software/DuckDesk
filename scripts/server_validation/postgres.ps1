@@ -240,7 +240,7 @@ try {
         # Explicit developer command, never performed implicitly by acceptance tests.
         # PostgreSQL/SQLx generate these files; this is not evidence that runtime tests passed.
         foreach ($item in @(
-            @{Service='console';Crate='px_console_store';Path='rust_server/px_console_server/storage';Count=277},
+            @{Service='console';Crate='px_console_store';Path='rust_server/px_console_server/storage';Count=284},
             @{Service='desk';Crate='px_desk_server';Path='rust_server/px_desk_server';Count=9},
             @{Service='auth';Crate='px_auth_store';Path='rust_server/px_auth_server/storage';Count=34}
         )) {
@@ -329,10 +329,10 @@ try {
             Invoke-Checked 'docker' @('exec',$container,'psql','-X','-v','ON_ERROR_STOP=1','-U','pixels_admin','-d','pixels_desk','-c',
                 "CREATE TABLE pixels.pg_fixture(id uuid PRIMARY KEY,version text NOT NULL,created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP); ALTER TABLE pixels.pg_fixture OWNER TO pixels_desk_owner; GRANT SELECT,INSERT,UPDATE,DELETE ON pixels.pg_fixture TO pixels_desk_runtime") | Out-Null
         }
-        $suiteCounts = @{unit=19;identity=12;control=8;devices=9;applications=8;guests=9;nodes=11;deployments=6;instances=16;commands=16;workspaces=6;database=2;sessions=11;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=17;activity=8;updates=7;desk=7;catalog=4;lease=6;postgres=14;accounts=9}
+        $suiteCounts = @{unit=19;identity=12;control=8;devices=9;applications=8;guests=9;nodes=11;deployments=6;instances=16;commands=16;workspaces=6;database=2;sessions=11;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=17;activity=8;updates=11;desk=7;catalog=4;lease=6;postgres=14;accounts=9}
         $suiteCounts['console-api'] = 6
         $suiteCounts['directory-api'] = 7
-        $suiteCounts['node-control'] = 2
+        $suiteCounts['node-control'] = 3
         $suiteCounts['console-process'] = 1
         $suiteCounts['console-admin'] = 3
         $suiteCounts['schema_gate'] = 4
@@ -412,7 +412,7 @@ try {
     $committedMetadata = Join-Path $repo 'rust_server/px_console_server/storage/.sqlx'
     $expectedQueries = @(Get-ChildItem -LiteralPath $committedMetadata -Filter 'query-*.json' -File)
     $actualQueries = @(Get-ChildItem -LiteralPath $queryMetadata -Filter 'query-*.json' -File)
-    if ($expectedQueries.Count -ne 276 -or $actualQueries.Count -ne $expectedQueries.Count) { throw 'Missing or extra SQLx query metadata' }
+    if ($expectedQueries.Count -ne 284 -or $actualQueries.Count -ne $expectedQueries.Count) { throw 'Missing or extra SQLx query metadata' }
     foreach ($expected in $expectedQueries) {
         $actual = Join-Path $queryMetadata $expected.Name
         if (-not (Test-Path -LiteralPath $actual) -or (Get-FileHash -LiteralPath $expected.FullName).Hash -ne (Get-FileHash -LiteralPath $actual).Hash) {
@@ -421,7 +421,7 @@ try {
     }
     Set-LocalEnv 'SQLX_OFFLINE' 'true'
     Set-LocalEnv 'SQLX_OFFLINE_DIR' $committedMetadata
-    Add-Step 'QUERY: 276 Console SQLx queries compiled against fresh PG; offline metadata matches'
+    Add-Step 'QUERY: 284 Console SQLx queries compiled against fresh PG; offline metadata matches'
     $identityUnit = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--lib','--target-dir',$targetDir)
     Add-TestCases $identityUnit 'native/identity-unit' 19
     $identityIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--test','identity','--target-dir',$targetDir,'--','--test-threads=1')
@@ -434,10 +434,10 @@ try {
     Add-Step 'ACCOUNTS: empty bootstrap, exact login binding, password/logout races and restricted identity privileges'
     $consoleUnit = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--lib','--target-dir',$targetDir)
     Write-Host $consoleUnit
-    Add-TestCases $consoleUnit 'native/console-ingress' 13
+    Add-TestCases $consoleUnit 'native/console-ingress' 18
     $nodeProtocolUnit = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_node_protocol','--lib','--target-dir',$targetDir)
     Write-Host $nodeProtocolUnit
-    Add-TestCases $nodeProtocolUnit 'native/node-protocol' 1
+    Add-TestCases $nodeProtocolUnit 'native/node-protocol' 4
     $consoleApi = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--features','pg-integration','--test','identity_api','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $consoleApi
     Add-TestCases $consoleApi 'native/console-identity-api' 6
@@ -446,7 +446,7 @@ try {
     Add-TestCases $directoryApi 'native/console-directory-api' 7
     $nodeControl = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--features','pg-integration','--test','node_control','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $nodeControl
-    Add-TestCases $nodeControl 'native/console-node-control' 1
+    Add-TestCases $nodeControl 'native/console-node-control' 3
     $consoleProcess = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--features','pg-integration','--test','process','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $consoleProcess
     Add-TestCases $consoleProcess 'native/console-process' 1
@@ -514,7 +514,7 @@ try {
     Add-TestCases $activityIntegration 'native/activity' 8
     $updateIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--test','updates','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $updateIntegration
-    Add-TestCases $updateIntegration 'native/updates' 7
+    Add-TestCases $updateIntegration 'native/updates' 11
     Add-Step 'PREFERENCES: owner/client-scoped targets, bounded settings, exact retry, CAS, quota and atomic events'
     Add-Step 'RECORDINGS: immutable source versions, exact node/session origin, owner-scoped history and cache authorization'
     Add-Step 'TRANSFERS: original producer, ordered idempotent progress, hash completion, unknown state and atomic events'
@@ -600,8 +600,8 @@ try {
     Add-Step 'AUTH-WEB: five contract tests, catalogs, themes, bounds, retry identity and logout failures'
     Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_console'),'run','build') | Out-Null
     $consoleWebUnit = Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_console'),'run','test:unit','--','--run')
-    if ($consoleWebUnit -notmatch 'Tests\s+47 passed') { throw 'Console frontend contract tests missing' }
-    Add-Step 'CONSOLE-WEB: 47 bearer identity, managed directory/activity/server telemetry trends/GPU scheduling preview, authorized recording cache management/downloads, localization, descriptor secrecy and production bundle tests'
+    if ($consoleWebUnit -notmatch 'Tests\s+49 passed') { throw 'Console frontend contract tests missing' }
+    Add-Step 'CONSOLE-WEB: 49 bearer identity, managed directory/activity/server telemetry trends/GPU scheduling preview, realtime event overflow, authorized recording cache management/downloads, localization, descriptor secrecy and production bundle tests'
     $consoleParity = Get-Content -LiteralPath (Join-Path $repo 'docs/console_management_feature_parity.md') -Raw
     $requiredConsoleCapabilities = @(
         'CM-IDENTITY', 'CM-DASHBOARD', 'CM-DEVICE', 'CM-ONLINE', 'CM-CONNECTION', 'CM-APPLICATION',

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import process from "node:process";
 import { expect, test } from "@playwright/test";
+import type { Download } from "@playwright/test";
 
 function requiredEnvironment(name: string): string {
     const value = process.env[name];
@@ -24,13 +25,19 @@ test("authenticated user downloads the expected recording", async ({ page }) => 
     await expect(page).toHaveURL(/\/user\/home$/);
 
     await page.goto("/user/recordings");
+    await page.getByPlaceholder(/文\s*件\s*名\s*或\s*会\s*话/).fill(expectedFileName);
+    await page.getByPlaceholder(/文\s*件\s*名\s*或\s*会\s*话/).press("Enter");
     const recordingRow = page.getByRole("row").filter({ hasText: expectedFileName });
     await expect(recordingRow).toBeVisible();
     await expect(recordingRow).toContainText(/h264/i);
 
-    const downloadPromise = page.waitForEvent("download");
-    await recordingRow.getByRole("button", { name: /下\s*载/ }).click();
-    const download = await downloadPromise;
+    let download: Download | null = null;
+    for (let attempt = 0; attempt < 10 && !download; attempt += 1) {
+        const downloadPromise = page.waitForEvent("download", { timeout: 5_000 }).catch(() => null);
+        await recordingRow.getByRole("button", { name: /下\s*载/ }).click();
+        download = await downloadPromise;
+    }
+    if (!download) throw new Error("The recording cache did not become downloadable.");
     expect(download.suggestedFilename()).toBe(expectedFileName);
 
     const downloadPath = await download.path();

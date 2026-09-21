@@ -14,6 +14,7 @@
 | PIXELS_AUTH_SIGNING_KEY | ACL 保护的 PKCS#8 v2 二进制 Ed25519 私钥文件 |
 | PIXELS_AUTH_TRUST_STORE | ACL 保护、规范 JSON 的签名信任根；声明 Auth deployment、恢复代际、唯一活动 key 与最多 16 个受信公钥 |
 | PIXELS_AUTH_TLS_CERT / PIXELS_AUTH_TLS_KEY | 正式环境两者必填；受信证书/私钥，不接受跳过证书验证的客户端方案 |
+| PIXELS_AUTH_TRUSTED_PROXY_IP | 可选的单一可信反向代理 IP；只允许该 socket peer 提供恰好一个、无逗号的 `X-Forwarded-For` 客户端 IP |
 | PIXELS_AUTH_LOCAL_DEVELOPMENT=1 | 仅显式本机开发：监听及 PG 连接均限 loopback，才允许无 TLS |
 
 私钥不存数据库、不随包分发、不从旧 Base64 文件导入，不因缺失自动生成。
@@ -46,7 +47,9 @@ Unix 私钥拒绝 group/other 权限。文件类型/权限与读取在同一打�
 
 管理密码只存 Argon2id v19 m=19456,t=2,p=1、随机 16 字节盐、32 字节 hash。
 登录统一拒绝信息、dummy verify、4 个有界阻塞计算名额、每账号每分钟 10 次/每来源 30 次与有界桶数量；
-来源是实际 socket peer，不信任任意 X-Forwarded-For。代理环境需要受信代理方案，不能伪造绕过限制。
+未配置可信代理时来源始终是实际 socket peer，不信任任意 `X-Forwarded-For`。配置 `PIXELS_AUTH_TRUSTED_PROXY_IP` 后，仅当 socket peer
+与该 IP 完全相同时才读取恰好一个、无逗号且可解析为 IP 的 `X-Forwarded-For`；缺失、重复、链式或非法值返回 400，非可信 peer 的伪造头
+被忽略。边缘代理必须覆盖该头为直接客户端地址，不能追加客户端输入。CN 当前 Nginx 使用 `$remote_addr` 覆盖，并只信任 loopback。
 会话为 32 字节随机 token，仅存 SHA-256；最长 8 小时，每次检查当前 role/revision/到期/撤销。
 退出幂等撤销，改密事务递增授权 revision；在途旧密码校验不能签发新有效会话。
 
@@ -92,6 +95,13 @@ Vite 开发代理只在显式 PIXELS_AUTH_DEV_TARGET 配置时启用，HTTPS 证
 新增查询后显式运行 PrepareQueries 生成 SQLx 元数据，再运行 Test；生成元数据不等于验收通过。
 覆盖固定向量、签发竞争/回滚、原生 API/进程、私钥 ACL、独立初始化、网页及数据库中断恢复。
 报告状态以[实施与验收状态](server_database_execution_status.md)为准，不以文档描述代替证据。
+
+日常 Linux 聚焦构建使用 `scripts_build/build_px_auth_linux.ps1`；它不升版本，交叉构建 `px_auth`、`px_auth_admin` 和 `px_db`，制品位于
+`.cache/px-auth-linux-target/x86_64-unknown-linux-gnu/release/`。目标机使用
+[`pixels-auth@.service`](../deploy/systemd/pixels-auth@.service) 以无登录 `pixels-auth` 身份运行，私有环境文件固定为
+`/etc/pixels/<deployment-id>/auth/auth.env`，稳定执行入口为 `/opt/pixels/auth/current/bin/px_auth`。systemd unit 文件存在或静态校验通过
+不等于部署成功；必须在目标 Linux 上验证 enable/start、重启、数据库断连 fail-closed、恢复及制品摘要。
+当前官方 CN 实例的实际边界与短验收见 [CN Auth 部署记录](px_auth_cn_deployment.md)。
 
 正式打包：scripts/package_px_auth_server.bat（release-only，独立 bump Auth 版本）。
 输出 output/px_auth/releases/<run-id>/，包含 px_auth.exe、px_auth_admin.exe、px_db.exe、

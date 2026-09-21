@@ -1,5 +1,8 @@
 #pragma once
 
+#include <d3d11.h>
+#include <wrl/client.h>
+
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -7,9 +10,6 @@
 #include <map>
 #include <memory>
 #include <string>
-
-#include <d3d11.h>
-#include <wrl/client.h>
 
 #include "px_render/architecture/config/render_runtime_settings.h"
 #include "px_render/architecture/events/render_event.h"
@@ -46,6 +46,7 @@ struct RenderModuleConfiguration final {
     std::int64_t ws_listen_port{0};
     std::int64_t udp_listen_port{0};
     std::string device_id;
+    std::string application_instance_id;
     bool direct_allow_takeover{true};
     std::string relay_device_id;
     bool relay_enabled{true};
@@ -75,7 +76,7 @@ class ModuleEventChannel;
 // - Event callback replacement and delivery are serialized by the channel.
 // - Derived asynchronous work must capture weak_ptr ownership.
 class RenderModule : public std::enable_shared_from_this<RenderModule> {
-  public:
+public:
     RenderModule();
     virtual ~RenderModule() = default;
 
@@ -129,7 +130,7 @@ class RenderModule : public std::enable_shared_from_this<RenderModule> {
                             const Microsoft::WRL::ComPtr<ID3D11DeviceContext>& context);
     void ClearD3DResources(std::uint64_t adapter_uid);
 
-  protected:
+protected:
     std::shared_ptr<RenderExecutionContext> execution_context_;
     std::atomic_bool stopped_{false};
     std::atomic_bool destroyed_{false};
@@ -139,12 +140,12 @@ class RenderModule : public std::enable_shared_from_this<RenderModule> {
     std::atomic_bool enabled_{true};
     std::atomic_int64_t no_connected_clients_counter_{0};
 
-  public:
+public:
     std::map<std::uint64_t, Microsoft::WRL::ComPtr<ID3D11Device>> d3d11_devices_;
     std::map<std::uint64_t, Microsoft::WRL::ComPtr<ID3D11DeviceContext>> d3d11_device_contexts_;
 
-  private:
+private:
     std::shared_ptr<ModuleEventChannel> event_channel_;
 };
 
-} // namespace px
+}  // namespace px

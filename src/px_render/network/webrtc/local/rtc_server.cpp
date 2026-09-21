@@ -25,6 +25,7 @@
 #include "px_common/time_util.h"
 #include "remote_audio_sink.h"
 #include "rtc_base/ref_counted_object.h"
+#include "rtc_base/time_utils.h"
 #include "rtc_data_channel.h"
 #include "rtc_video_encoder_factory.h"
 #include "video_source_impl.h"
@@ -395,6 +396,48 @@ void RtcServer::DispatchEvent(WebRtcEvent event) const {
 void RtcServer::QueueEvent(WebRtcEvent event) const { DispatchEvent(std::move(event)); }
 
 void RtcServer::RequestEncodedIdr(const std::string& mon_name) { runtime_->InsertIdr(mon_name); }
+
+void RtcServer::QueueLatestVideoNotificationReplay() {
+    if (!worker_thread_ || exit_) {
+        return;
+    }
+    // The first frame can be the frame that lazily creates and initializes
+    // libwebrtc's encoder. A replay posted immediately from InitEncode may
+    // still arrive while VideoStreamEncoder is processing that frame and be
+    // dropped as an encoder-queue overload. Keep the wake-up bounded, but
+    // provide later pulses so a static WebView can deliver its retained IDR
+    // without requiring a new browser repaint.
+    static constexpr std::array<int, 3> kStartupReplayDelaysMilliseconds{10, 100, 250};
+    const auto weak_server = weak_from_this();
+    for (std::size_t replay_index = 0; replay_index < kStartupReplayDelaysMilliseconds.size(); ++replay_index) {
+        worker_thread_->PostDelayedTask(
+            [weak_server, replay_index]() {
+                const auto server = weak_server.lock();
+                if (!server || server->exit_) {
+                    return;
+                }
+                std::vector<std::shared_ptr<VideoSourceImpl>> video_sources;
+                {
+                    std::lock_guard lock(server->video_tracks_mutex_);
+                    video_sources.reserve(server->video_tracks_.size());
+                    for (const auto& video_track : server->video_tracks_) {
+                        if (video_track.source_) {
+                            video_sources.push_back(video_track.source_);
+                        }
+                    }
+                }
+                std::size_t replayed_source_count{};
+                for (const auto& video_source : video_sources) {
+                    if (video_source->ReplayLatestNotification()) {
+                        ++replayed_source_count;
+                    }
+                }
+                LOGI("Replayed retained video notification after encoder initialization, attempt={}, sources={}", replay_index + 1,
+                     replayed_source_count);
+            },
+            webrtc::TimeDelta::Millis(kStartupReplayDelaysMilliseconds[replay_index]));
+    }
+}
 
 uint64_t RtcServer::GetLatestEncodedSeq(const std::string& mon_name) { return runtime_->GetLatestEncodedSeq(mon_name); }
 
@@ -1218,15 +1261,15 @@ void RtcServer::DispatchCapturedFrameNotify(const std::string& mon_name, uint64_
         LOGW("OnNewFrameCaptured [{}] skipped {} frame(s)", mon_name, frame_sequence_result.gap_ - 1);
     }
 
-    // timestamp_us = Unix us. Do NOT set ntp_time_ms here: WebRTC fills NTP
-    // on the encode path; stuffing the wrong epoch caused DebugBreak crashes.
-    // RtcSharedVideoEncoder normalizes EncodedImage.ntp_time_ms_ before send.
-    const auto now_us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    // VideoFrame timestamps use libwebrtc's monotonic clock. Do NOT set
+    // ntp_time_ms here: WebRTC fills NTP on the encode path; stuffing the
+    // wrong epoch caused DebugBreak crashes. RtcSharedVideoEncoder normalizes
+    // EncodedImage.ntp_time_ms_ before send.
     auto buffer =
         rtc::make_ref_counted<NotifyFrameFrameBuffer>(mon_name, frame_idx, frame_width, frame_height, handle, adapter_id, frame_format, stream_reset);
     webrtc::VideoFrame notify_frame = webrtc::VideoFrame::Builder()
                                           .set_video_frame_buffer(buffer)
-                                          .set_timestamp_us(now_us)
+                                          .set_timestamp_us(rtc::TimeMicros())
                                           .set_id(static_cast<uint16_t>(frame_idx & 0xFFFF))
                                           .build();
     if (target_source) {

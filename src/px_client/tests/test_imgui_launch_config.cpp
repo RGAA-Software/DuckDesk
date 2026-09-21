@@ -53,6 +53,121 @@ TEST(ClientImguiLaunchConfigTest, ParsesIndependentFileTransferLaunch) {
     EXPECT_EQ(config->localHost, "192.168.31.6");
 }
 
+TEST(ClientImguiLaunchConfigTest, AcceptanceFileTransferRequiresExplicitProcessMode) {
+    constexpr std::string_view envelope{R"({
+        "schema":1,"host":"127.0.0.1","port":4601,"stream_id":"file-acceptance","device_id":"100",
+        "remote_device_id":"200","connection_nonce":"nonce","remote_password_hash":"password-hash",
+        "acceptance_file_transfer":{"local_source_path":"C:\\source\\payload.bin","remote_directory":"C:\\Windows\\Temp",
+        "local_download_directory":"C:\\download","exercise_cancel_retry":true}
+    })"};
+    EXPECT_FALSE(ParseClientLaunchEnvelope(envelope));
+    const auto config = ParseClientLaunchEnvelope(envelope, true);
+    ASSERT_TRUE(config);
+    ASSERT_TRUE(config->fileTransferAcceptance);
+    EXPECT_EQ(config->fileTransferAcceptance->localSourcePath, "C:\\source\\payload.bin");
+    EXPECT_EQ(config->fileTransferAcceptance->remoteDirectory, "C:\\Windows\\Temp");
+    EXPECT_EQ(config->fileTransferAcceptance->localDownloadDirectory, "C:\\download");
+    EXPECT_TRUE(config->fileTransferAcceptance->exerciseCancelRetry);
+    EXPECT_FALSE(config->fileTransferAcceptance->exerciseHostRestart);
+}
+
+TEST(ClientImguiLaunchConfigTest, AcceptanceFileTransferHostRestartIsExplicitAndExclusive) {
+    const auto config = ParseClientLaunchEnvelope(
+        R"({"schema":1,"host":"127.0.0.1","port":4601,"stream_id":"file-restart","device_id":"100",
+        "remote_device_id":"200","connection_nonce":"nonce","remote_password_hash":"password-hash",
+        "acceptance_file_transfer":{"local_source_path":"C:\\source\\payload.bin","remote_directory":"C:\\Windows\\Temp",
+        "local_download_directory":"C:\\download","exercise_host_restart":true}})",
+        true);
+    ASSERT_TRUE(config);
+    ASSERT_TRUE(config->fileTransferAcceptance);
+    EXPECT_TRUE(config->fileTransferAcceptance->exerciseHostRestart);
+    EXPECT_FALSE(config->fileTransferAcceptance->exerciseCancelRetry);
+    EXPECT_FALSE(ParseClientLaunchEnvelope(
+        R"({"schema":1,"host":"127.0.0.1","port":4601,"stream_id":"file-conflict","device_id":"100",
+        "remote_device_id":"200","connection_nonce":"nonce","remote_password_hash":"password-hash",
+        "acceptance_file_transfer":{"local_source_path":"C:\\source\\payload.bin","remote_directory":"C:\\Windows\\Temp",
+        "local_download_directory":"C:\\download","exercise_host_restart":true,"exercise_cancel_retry":true}})",
+        true));
+}
+
+TEST(ClientImguiLaunchConfigTest, AcceptanceFileTransferRejectsMissingPaths) {
+    EXPECT_FALSE(ParseClientLaunchEnvelope(
+        R"({"schema":1,"host":"127.0.0.1","port":4601,"stream_id":"file-acceptance","device_id":"100",
+        "remote_device_id":"200","connection_nonce":"nonce","remote_password_hash":"password-hash",
+        "acceptance_file_transfer":{"local_source_path":"C:\\source\\payload.bin","remote_directory":"C:\\Windows\\Temp"}})",
+        true));
+}
+
+TEST(ClientImguiLaunchConfigTest, AcceptanceAudioRequiresExplicitProcessMode) {
+    constexpr std::string_view envelope{R"({
+        "schema":1,"host":"127.0.0.1","port":4601,"stream_id":"audio-acceptance","device_id":"100",
+        "remote_device_id":"200","connection_nonce":"nonce","remote_password_hash":"password-hash","acceptance_audio":true
+    })"};
+    EXPECT_FALSE(ParseClientLaunchEnvelope(envelope));
+    const auto config = ParseClientLaunchEnvelope(envelope, true);
+    ASSERT_TRUE(config);
+    EXPECT_TRUE(config->audioAcceptance);
+}
+
+TEST(ClientImguiLaunchConfigTest, AcceptanceModesAreMutuallyExclusive) {
+    EXPECT_FALSE(ParseClientLaunchEnvelope(
+        R"({"schema":1,"host":"127.0.0.1","port":4601,"stream_id":"acceptance","device_id":"100",
+        "remote_device_id":"200","connection_nonce":"nonce","remote_password_hash":"password-hash","acceptance_audio":true,
+        "acceptance_file_transfer":{"local_source_path":"C:\\source\\payload.bin","remote_directory":"C:\\Windows\\Temp",
+        "local_download_directory":"C:\\download"}})",
+        true));
+}
+
+TEST(ClientImguiLaunchConfigTest, AcceptanceRdpIoErrorRequiresExplicitRdpProcessMode) {
+    constexpr std::string_view envelope{R"({
+        "schema":1,"host":"127.0.0.1","port":5403,"stream_id":"rdp-1","device_id":"client-1",
+        "remote_device_id":"render-1","connection_nonce":"nonce","connection_instance_id":"instance-1",
+        "frontend_session_id":"rdp-1","frontend_session_revision":2,"frontend_token":"frontend-secret",
+        "acceptance_rdp_io_error":true,
+        "rdp":{"schema":1,"account_name":"pxrdp_0123456789abcd","domain":"PIXELS",
+        "password":"a-secure-workspace-password-with-32-bytes",
+        "proxy_certificate_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}
+    })"};
+    EXPECT_FALSE(ParseClientLaunchEnvelope(envelope));
+    const auto config = ParseClientLaunchEnvelope(envelope, true);
+    ASSERT_TRUE(config);
+    EXPECT_TRUE(config->rdp);
+    EXPECT_TRUE(config->rdpIoErrorAcceptance);
+}
+
+TEST(ClientImguiLaunchConfigTest, AcceptanceRdpIoErrorRejectsNonRdpAndOtherAcceptanceModes) {
+    EXPECT_FALSE(ParseClientLaunchEnvelope(
+        R"({"schema":1,"host":"127.0.0.1","port":4601,"stream_id":"native","device_id":"100",
+        "remote_device_id":"200","connection_nonce":"nonce","remote_password_hash":"password-hash",
+        "acceptance_rdp_io_error":true})",
+        true));
+    EXPECT_FALSE(ParseClientLaunchEnvelope(
+        R"({"schema":1,"host":"127.0.0.1","port":5403,"stream_id":"rdp-1","device_id":"client-1",
+        "remote_device_id":"render-1","connection_nonce":"nonce","connection_instance_id":"instance-1",
+        "frontend_session_id":"rdp-1","frontend_session_revision":2,"frontend_token":"frontend-secret",
+        "acceptance_rdp_io_error":true,"acceptance_audio":true,
+        "rdp":{"schema":1,"account_name":"pxrdp_0123456789abcd","domain":"PIXELS",
+        "password":"a-secure-workspace-password-with-32-bytes",
+        "proxy_certificate_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}})",
+        true));
+}
+
+TEST(ClientImguiLaunchConfigTest, AcceptanceRdpPeerCloseRequiresExplicitRdpProcessMode) {
+    constexpr std::string_view envelope{R"({
+        "schema":1,"host":"127.0.0.1","port":5403,"stream_id":"rdp-1","device_id":"client-1",
+        "remote_device_id":"render-1","connection_nonce":"nonce","connection_instance_id":"instance-1",
+        "frontend_session_id":"rdp-1","frontend_session_revision":2,"frontend_token":"frontend-secret",
+        "acceptance_rdp_peer_close":true,
+        "rdp":{"schema":1,"account_name":"pxrdp_0123456789abcd","domain":"PIXELS",
+        "password":"a-secure-workspace-password-with-32-bytes",
+        "proxy_certificate_sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}
+    })"};
+    EXPECT_FALSE(ParseClientLaunchEnvelope(envelope));
+    const auto config = ParseClientLaunchEnvelope(envelope, true);
+    ASSERT_TRUE(config);
+    EXPECT_TRUE(config->rdpPeerCloseAcceptance);
+}
+
 TEST(ClientImguiLaunchConfigTest, RejectsLegacyCommandLineAndMissingPassword) {
     EXPECT_FALSE(ParseClientLaunchEnvelope("--host=127.0.0.1 --port=4601"));
     EXPECT_FALSE(ParseClientLaunchEnvelope(R"({"schema":1,"host":"127.0.0.1","port":4601})"));

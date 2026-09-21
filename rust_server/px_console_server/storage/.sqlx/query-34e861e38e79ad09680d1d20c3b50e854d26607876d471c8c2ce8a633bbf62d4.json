@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE pixels.update_releases SET state=$2,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 RETURNING id,request_hash,product,distribution,channel,os,architecture,build_number,version,artifact_url,sha256,size_bytes,metadata_url,metadata_sha256,state,revision,created_at,updated_at\n",
+  "query": "SELECT id,request_hash,product,distribution,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,size_bytes,state,revision,created_at,updated_at FROM pixels.update_releases WHERE product=$1 AND distribution=$2 AND channel=$3 AND os=$4 AND architecture=$5 ORDER BY build_number DESC LIMIT 1\n",
   "describe": {
     "columns": [
       {
@@ -50,28 +50,28 @@
       },
       {
         "ordinal": 9,
-        "name": "artifact_url",
+        "name": "metadata_base_url",
         "type_info": "Text"
       },
       {
         "ordinal": 10,
-        "name": "sha256",
+        "name": "targets_base_url",
         "type_info": "Text"
       },
       {
         "ordinal": 11,
-        "name": "size_bytes",
-        "type_info": "Int8"
+        "name": "target_name",
+        "type_info": "Text"
       },
       {
         "ordinal": 12,
-        "name": "metadata_url",
+        "name": "sha256",
         "type_info": "Text"
       },
       {
         "ordinal": 13,
-        "name": "metadata_sha256",
-        "type_info": "Text"
+        "name": "size_bytes",
+        "type_info": "Int8"
       },
       {
         "ordinal": 14,
@@ -96,7 +96,10 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
         "Text"
       ]
     },
@@ -121,5 +124,5 @@
       false
     ]
   },
-  "hash": "bb84a139caf72ce6d64c2941f4d9ea87cd9d4d4434b17e16cbab311e3791a4fb"
+  "hash": "34e861e38e79ad09680d1d20c3b50e854d26607876d471c8c2ce8a633bbf62d4"
 }

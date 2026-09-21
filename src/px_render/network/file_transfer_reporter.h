@@ -2,6 +2,8 @@
 #define PX_FILE_TRANSFER_REPORTER_H
 
 #include <array>
+#include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -39,6 +41,9 @@ public:
     void Progress(const render::FileTransferAuditProgress& audit);
     void End(const render::FileTransferAuditEnd& audit);
     void Stop();
+    [[nodiscard]] bool StopAndWait(std::chrono::steady_clock::time_point deadline);
+    [[nodiscard]] static PxAwaitable<PxResult<void>> StopAsync(std::shared_ptr<FileTransferReporter> owner,
+                                                               std::chrono::steady_clock::time_point deadline);
 
 private:
     struct Activity final {
@@ -60,6 +65,7 @@ private:
     std::shared_ptr<PxAsyncScope> scope_{};
     std::weak_ptr<RenderServiceClient> service_client_{};
     std::mutex activities_mutex_{};
+    std::condition_variable activities_changed_{};
     std::unordered_map<std::string, std::shared_ptr<Activity>> activities_{};
     bool stopping_{};
 };

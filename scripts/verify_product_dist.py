@@ -12,6 +12,11 @@ import shutil
 import subprocess
 from pathlib import Path
 
+try:
+    from scripts.refresh_development_dist import is_runtime_output
+except ModuleNotFoundError:
+    from refresh_development_dist import is_runtime_output
+
 
 WINDOWS_PRODUCTS = {"cloud_node", "client", "remote"}
 HOST_PRODUCTS = {"cloud_node", "remote"}
@@ -26,14 +31,20 @@ RETIRED_RDP_FILES = {
     "pixels-rdp-sdk.json",
 }
 RETIRED_CENTRAL_MEDIA_FILES = {
+    "coturn",
     "coturn.exe",
     "libmk_api.dll",
+    "libmk_api.so",
+    "mediaserver",
     "mediaserver.exe",
     "mk_api.dll",
+    "mk_api.so",
     "px_media.exe",
     "px_turn.exe",
+    "turnserver",
     "turnserver.conf",
     "turnserver.exe",
+    "zlmediakit",
     "zlmediakit.exe",
 }
 RETIRED_CENTRAL_MEDIA_DIRECTORIES = {"coturn", "zlmediakit"}
@@ -65,6 +76,11 @@ DEPENDENCY_LINE = re.compile(r"^\s*([^\s]+\.(?:dll|exe))\s*$", re.IGNORECASE)
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--retired-media-only",
+        action="store_true",
+        help="scan the current file tree for retired ZLMediaKit/Coturn artifacts without requiring a pristine manifest",
+    )
     parser.add_argument("dist_dir", type=Path)
     return parser.parse_args()
 
@@ -199,12 +215,13 @@ def verify_distribution_identity(dist_dir: Path, manifest: dict[str, object], ac
         raise RuntimeError("product manifest has an invalid distribution")
     policy_path = "resources/deployment/deployment-policy.json"
     trust_path = "resources/deployment/deployment-trust.json"
+    update_root_path = "resources/update/root.json"
     if distribution == "development":
-        if policy_path in actual_files or trust_path in actual_files:
-            raise RuntimeError("development distribution contains release deployment identity resources")
+        if {policy_path, trust_path, update_root_path} & actual_files:
+            raise RuntimeError("development distribution contains release deployment or update trust resources")
         return
-    if not {policy_path, trust_path}.issubset(actual_files):
-        raise RuntimeError("official/customer distribution is missing deployment identity resources")
+    if not {policy_path, trust_path, update_root_path}.issubset(actual_files):
+        raise RuntimeError("official/customer distribution is missing deployment identity or update trust resources")
     policy = json.loads((dist_dir / policy_path).read_text(encoding="utf-8"))
     expected_fields = [
         "schema_version",
@@ -231,6 +248,17 @@ def verify_distribution_identity(dist_dir: Path, manifest: dict[str, object], ac
 def main() -> int:
     args = parse_args()
     dist_dir = args.dist_dir.resolve()
+    generated_manifests = {"product-manifest.json", "sha256sums.json", "licenses.json"}
+    actual_files = {
+        path.relative_to(dist_dir).as_posix()
+        for path in dist_dir.rglob("*")
+        if path.is_file() and path.name not in generated_manifests
+    }
+    if args.retired_media_only:
+        verify_retired_central_media_absent(actual_files)
+        print(f"Retired central media audit passed: {dist_dir} ({len(actual_files)} files).")
+        return 0
+
     product_manifest_path = dist_dir / "product-manifest.json"
     sums_path = dist_dir / "sha256sums.json"
     product_manifest = json.loads(product_manifest_path.read_text(encoding="utf-8"))
@@ -239,12 +267,9 @@ def main() -> int:
     if sums != manifest_sums:
         raise RuntimeError("product-manifest.json and sha256sums.json disagree")
 
-    generated_manifests = {"product-manifest.json", "sha256sums.json", "licenses.json"}
-    actual_files = {
-        path.relative_to(dist_dir).as_posix()
-        for path in dist_dir.rglob("*")
-        if path.is_file() and path.name not in generated_manifests
-    }
+    if product_manifest.get("distribution") == "development":
+        actual_files = {relative for relative in actual_files if not is_runtime_output(relative)}
+
     expected_files = set(sums)
     if actual_files != expected_files:
         missing = sorted(expected_files - actual_files)

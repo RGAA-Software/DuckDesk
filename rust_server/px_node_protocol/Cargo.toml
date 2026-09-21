@@ -6,6 +6,7 @@ rust-version = "1.88"
 
 [dependencies]
 chrono = { version = "0.4.42", features = ["serde"] }
+px_release_catalog = { path = "../px_release_catalog" }
 serde = { version = "1", features = ["derive"] }
 uuid = { version = "1.15.1", features = ["serde"] }
 zeroize = "1.8"

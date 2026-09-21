@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id,request_hash,product,distribution,channel,os,architecture,build_number,version,artifact_url,sha256,size_bytes,metadata_url,metadata_sha256,state,revision,created_at,updated_at FROM pixels.update_releases WHERE id=$1 FOR UPDATE\n",
+  "query": "INSERT INTO pixels.versions(id,product,distribution,channel,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,\n    os,architecture,size_bytes)\nVALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)\nRETURNING id,product,distribution,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,\n    size_bytes,created_at\n",
   "describe": {
     "columns": [
       {
@@ -10,93 +10,85 @@
       },
       {
         "ordinal": 1,
-        "name": "request_hash",
-        "type_info": "Bytea"
-      },
-      {
-        "ordinal": 2,
         "name": "product",
         "type_info": "Text"
       },
       {
-        "ordinal": 3,
+        "ordinal": 2,
         "name": "distribution",
         "type_info": "Text"
       },
       {
-        "ordinal": 4,
+        "ordinal": 3,
         "name": "channel",
         "type_info": "Text"
       },
       {
-        "ordinal": 5,
+        "ordinal": 4,
         "name": "os",
         "type_info": "Text"
       },
       {
-        "ordinal": 6,
+        "ordinal": 5,
         "name": "architecture",
         "type_info": "Text"
       },
       {
-        "ordinal": 7,
+        "ordinal": 6,
         "name": "build_number",
         "type_info": "Int8"
       },
       {
-        "ordinal": 8,
+        "ordinal": 7,
         "name": "version",
         "type_info": "Text"
       },
       {
+        "ordinal": 8,
+        "name": "metadata_base_url",
+        "type_info": "Text"
+      },
+      {
         "ordinal": 9,
-        "name": "artifact_url",
+        "name": "targets_base_url",
         "type_info": "Text"
       },
       {
         "ordinal": 10,
-        "name": "sha256",
+        "name": "target_name",
         "type_info": "Text"
       },
       {
         "ordinal": 11,
+        "name": "sha256",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
         "name": "size_bytes",
         "type_info": "Int8"
       },
       {
-        "ordinal": 12,
-        "name": "metadata_url",
-        "type_info": "Text"
-      },
-      {
         "ordinal": 13,
-        "name": "metadata_sha256",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 14,
-        "name": "state",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 15,
-        "name": "revision",
-        "type_info": "Int8"
-      },
-      {
-        "ordinal": 16,
         "name": "created_at",
-        "type_info": "Timestamptz"
-      },
-      {
-        "ordinal": 17,
-        "name": "updated_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Int8",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int8"
       ]
     },
     "nullable": [
@@ -113,12 +105,8 @@
       false,
       false,
       false,
-      false,
-      false,
-      false,
-      false,
       false
     ]
   },
-  "hash": "d70bc91ed91115149f2c2af899f80f97c1f0dce5547a55df6d92577fa695a348"
+  "hash": "59ce9169f4996e96b9a5fc5ffcf51fffc9dde462a85ae2c1a4df171bfcb7f1d8"
 }

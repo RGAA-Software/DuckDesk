@@ -18,12 +18,15 @@ from urllib.parse import urlsplit
 
 ENVIRONMENT_FIELDS = {
     "trust_store": "PIXELS_DEPLOYMENT_TRUST_STORE_FILE",
+    "update_root": "PIXELS_UPDATE_ROOT_FILE",
     "certificate_version": "PIXELS_DEPLOYMENT_CERTIFICATE_VERSION",
     "descriptor_revision": "PIXELS_DESCRIPTOR_REVISION",
     "trust_epoch": "PIXELS_DEPLOYMENT_TRUST_EPOCH",
     "deployment_id": "PIXELS_EXPECTED_DEPLOYMENT_ID",
     "official_origin": "PIXELS_OFFICIAL_CONSOLE_URL",
 }
+
+MAXIMUM_UPDATE_ROOT_BYTES = 1024 * 1024
 
 
 def parse_args() -> argparse.Namespace:
@@ -92,6 +95,36 @@ def load_canonical_trust_store(path: Path) -> tuple[bytes, int]:
     if trust_bytes != canonical_bytes:
         raise RuntimeError("the deployment trust store must be canonical UTF-8 JSON without a trailing newline")
     return trust_bytes, trust_epoch
+
+
+def load_tuf_update_root(path: Path) -> bytes:
+    try:
+        root_bytes = path.read_bytes()
+        root_metadata = json.loads(root_bytes.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise RuntimeError("the approved TUF update root is unreadable or invalid") from error
+    if not 0 < len(root_bytes) <= MAXIMUM_UPDATE_ROOT_BYTES or not isinstance(root_metadata, dict):
+        raise RuntimeError("the approved TUF update root has an invalid size or document shape")
+    signed = root_metadata.get("signed")
+    signatures = root_metadata.get("signatures")
+    required_roles = {"root", "snapshot", "targets", "timestamp"}
+    if (
+        not isinstance(signed, dict)
+        or signed.get("_type") != "root"
+        or signed.get("spec_version") != "1.0.0"
+        or not isinstance(signed.get("version"), int)
+        or isinstance(signed.get("version"), bool)
+        or signed["version"] <= 0
+        or not isinstance(signed.get("expires"), str)
+        or not isinstance(signed.get("keys"), dict)
+        or not signed["keys"]
+        or not isinstance(signed.get("roles"), dict)
+        or not required_roles.issubset(signed["roles"])
+        or not isinstance(signatures, list)
+        or not signatures
+    ):
+        raise RuntimeError("the approved TUF update root is not a complete signed TUF 1.0 root")
+    return root_bytes
 
 
 def canonical_deployment_id(value: str) -> str:
@@ -169,7 +202,7 @@ def build_policy(distribution: str, trust_epoch: int, matrix_customer: bool) -> 
     }
 
 
-def publish_policy(output_dir: Path, policy: dict[str, object], trust_bytes: bytes) -> None:
+def publish_policy(output_dir: Path, policy: dict[str, object], trust_bytes: bytes, update_root_bytes: bytes) -> None:
     output_dir.parent.mkdir(parents=True, exist_ok=True)
     staging_dir = Path(tempfile.mkdtemp(prefix=f".{output_dir.name}.staging-", dir=output_dir.parent))
     try:
@@ -179,6 +212,7 @@ def publish_policy(output_dir: Path, policy: dict[str, object], trust_bytes: byt
             newline="\n",
         )
         (staging_dir / "deployment-trust.json").write_bytes(trust_bytes)
+        (staging_dir / "update-root.json").write_bytes(update_root_bytes)
         if output_dir.exists():
             shutil.rmtree(output_dir)
         os.replace(staging_dir, output_dir)
@@ -195,6 +229,13 @@ def main() -> int:
     if not trust_store_path.is_file():
         raise RuntimeError("PIXELS_DEPLOYMENT_TRUST_STORE_FILE does not identify a regular file")
     trust_bytes, trust_epoch = load_canonical_trust_store(trust_store_path)
+    update_root_value = os.environ.get(ENVIRONMENT_FIELDS["update_root"], "").strip()
+    if not update_root_value:
+        raise RuntimeError("PIXELS_UPDATE_ROOT_FILE must identify the approved TUF update root")
+    update_root_path = Path(update_root_value).resolve()
+    if not update_root_path.is_file():
+        raise RuntimeError("PIXELS_UPDATE_ROOT_FILE does not identify a regular file")
+    update_root_bytes = load_tuf_update_root(update_root_path)
     policy = build_policy(arguments.distribution, trust_epoch, arguments.matrix_customer)
     if arguments.validate_only:
         if arguments.output_dir is not None:
@@ -203,7 +244,7 @@ def main() -> int:
         return 0
     if arguments.output_dir is None:
         raise RuntimeError("--output-dir is required unless --validate-only is used")
-    publish_policy(arguments.output_dir.resolve(), policy, trust_bytes)
+    publish_policy(arguments.output_dir.resolve(), policy, trust_bytes, update_root_bytes)
     print(f"Prepared Windows {arguments.product}/{arguments.distribution} deployment policy: {arguments.output_dir.resolve()}")
     return 0
 

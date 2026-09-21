@@ -74,7 +74,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.SemanticsPropertyReceiver
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import yun.pixels.client.core.domain.session.InputCommand
@@ -90,6 +94,14 @@ import yun.pixels.client.core.domain.session.RemoteSessionStatus
 import yun.pixels.client.core.domain.recording.RecordingState
 import yun.pixels.client.core.domain.voice.VoiceCallPhase
 import yun.pixels.client.core.domain.voice.VoiceCallState
+
+object RemoteWorkspaceTestTags {
+    const val VideoSurface = "remote_video_surface"
+    const val Statistics = "remote_statistics"
+}
+
+val RemoteVideoSizeSemanticsKey = SemanticsPropertyKey<String>("PixelsRemoteVideoSize")
+private var SemanticsPropertyReceiver.remoteVideoSize by RemoteVideoSizeSemanticsKey
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -243,7 +255,16 @@ fun RemoteWorkspaceScreen(
             onOpenTransfers = onOpenTransfers,
             onEndSession = requestEndSession,
         )
-        BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f).background(Color.Black)) {
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .background(Color.Black)
+                .testTag(RemoteWorkspaceTestTags.VideoSurface)
+                .semantics {
+                    remoteVideoSize = snapshot.videoSize?.let { size -> "${size.width}x${size.height}" }.orEmpty()
+                },
+        ) {
             val videoAspectRatio = snapshot.videoSize?.let { it.width.toFloat() / it.height } ?: (16f / 9f)
             val containerAspectRatio = if (maxHeight.value > 0f) maxWidth.value / maxHeight.value else videoAspectRatio
             val videoModifier = if (videoAspectRatio >= containerAspectRatio) {
@@ -521,7 +542,10 @@ private fun RemoteTopBar(
                         snapshot.statistics.packetLossPercent,
                         snapshot.statistics.decoderName.ifBlank { "—" },
                     ),
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .testTag(RemoteWorkspaceTestTags.Statistics),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

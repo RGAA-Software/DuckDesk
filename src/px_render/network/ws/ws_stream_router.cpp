@@ -69,16 +69,16 @@ void WsStreamRouter::OnClose(std::shared_ptr<asio2::http_session>& sess_ptr) {
     WsRouter::OnClose(sess_ptr);
 }
 
-void WsStreamRouter::OnMessage(std::shared_ptr<asio2::http_session>& sess_ptr, int64_t socket_fd, std::string_view data) {
-    WsRouter::OnMessage(sess_ptr, socket_fd, data);
+void WsStreamRouter::OnMessage(std::shared_ptr<asio2::http_session>& sess_ptr, int64_t socket_fd, std::string_view wireMessage) {
+    WsRouter::OnMessage(sess_ptr, socket_fd, wireMessage);
     if (rdp_mode_.load()) {
         Message envelope{};
-        if (data.size() > rdp::kMaxWireBytes || !envelope.ParseFromArray(data.data(), static_cast<int>(data.size()))) {
+        if (wireMessage.size() > rdp::kMaxWireBytes || !envelope.ParseFromArray(wireMessage.data(), static_cast<int>(wireMessage.size()))) {
             sess_ptr->stop();
             return;
         }
         if (envelope.type() == kRdpStream && rdp_bridge_) {
-            if (!rdp_bridge_->Receive(Data::From(data))) {
+            if (!rdp_bridge_->Receive(Data::From(wireMessage))) {
                 sess_ptr->stop();
             }
         } else if (envelope.type() == kHeartBeat && envelope.has_heartbeat()) {
@@ -93,11 +93,12 @@ void WsStreamRouter::OnMessage(std::shared_ptr<asio2::http_session>& sess_ptr, i
         }
         return;
     }
-    if (IsWsUseWebSocketMediaSignal(data)) {
+    if (IsWsUseWebSocketMediaSignal(wireMessage)) {
         if (udp_media_.exchange(false)) {
-            LOGI("event=transport.route component=net_ws operation=udp_fallback "
-                 "outcome=websocket stream={}",
-                 PrivacyLogId(stream_id_));
+            LOGI(
+                "event=transport.route component=net_ws operation=udp_fallback "
+                "outcome=websocket stream={}",
+                PrivacyLogId(stream_id_));
             if (udp_media_fallback_callback_) {
                 udp_media_fallback_callback_();
             }
@@ -105,19 +106,20 @@ void WsStreamRouter::OnMessage(std::shared_ptr<asio2::http_session>& sess_ptr, i
         return;
     }
     px::Message parsed;
-    if (parsed.ParseFromArray(data.data(), static_cast<int>(data.size())) &&
+    if (parsed.ParseFromArray(wireMessage.data(), static_cast<int>(wireMessage.size())) &&
         (parsed.type() == kApplicationTextCapabilities || parsed.type() == kApplicationTextSubmit || parsed.type() == kApplicationTextBarrier) &&
         !input_allowed_.load()) {
         return;
     }
-    if (parsed.ParsePartialFromArray(data.data(), static_cast<int>(data.size())) &&
+    if (parsed.ParsePartialFromArray(wireMessage.data(), static_cast<int>(wireMessage.size())) &&
         (parsed.type() == MessageType::kFileAction || parsed.type() == MessageType::kFileResponse) && !file_allowed_.load()) {
         const auto decision = permission_log_gate_.Evaluate("file_transfer", std::chrono::steady_clock::now());
         if (decision.emit) {
-            LOGW("event=transport.receive component=net_ws "
-                 "code=SESSION_CAPABILITY_DENIED operation=file_transfer "
-                 "outcome=dropped recoverable=true stream={} suppressed={}",
-                 PrivacyLogId(stream_id_), decision.suppressed_since_last_emit);
+            LOGW(
+                "event=transport.receive component=net_ws "
+                "code=SESSION_CAPABILITY_DENIED operation=file_transfer "
+                "outcome=dropped recoverable=true stream={} suppressed={}",
+                PrivacyLogId(stream_id_), decision.suppressed_since_last_emit);
         }
         return;
     }
@@ -125,38 +127,34 @@ void WsStreamRouter::OnMessage(std::shared_ptr<asio2::http_session>& sess_ptr, i
     if (!transport) {
         return;
     }
-    auto msg = Data::From(data);
-    transport->ReceiveClientEvent(true, socket_fd, TransportKind::kWebSocket, channel_type_, msg, binding_id_);
+    auto clientEvent = Data::From(wireMessage);
+    transport->ReceiveClientEvent(true, socket_fd, TransportKind::kWebSocket, channel_type_, clientEvent, binding_id_);
 }
 
-void WsStreamRouter::OnPing(std::shared_ptr<asio2::http_session>& sess_ptr) {
-    WsRouter::OnPing(sess_ptr);
-}
+void WsStreamRouter::OnPing(std::shared_ptr<asio2::http_session>& sess_ptr) { WsRouter::OnPing(sess_ptr); }
 
-void WsStreamRouter::OnPong(std::shared_ptr<asio2::http_session>& sess_ptr) {
-    WsRouter::OnPong(sess_ptr);
-}
+void WsStreamRouter::OnPong(std::shared_ptr<asio2::http_session>& sess_ptr) { WsRouter::OnPong(sess_ptr); }
 
-void WsStreamRouter::PostReliableBinaryMessage(std::shared_ptr<Data> data, std::function<void(bool)> completion) {
+void WsStreamRouter::PostReliableBinaryMessage(std::shared_ptr<Data> wireMessage, std::function<void(bool)> completion) {
     auto session = std::shared_ptr<asio2::http_session>{};
     {
         std::lock_guard lock(reliable_session_mutex_);
         session = reliable_session_.lock();
     }
-    PostReliableWebSocketWrite(session, std::move(data), std::move(completion),
-                              [weak = weak_from_this(), weak_session = std::weak_ptr<asio2::http_session>(session)] {
-        const auto self = weak.lock();
-        if (!self) {
-            return false;
-        }
-        std::lock_guard lock(self->reliable_session_mutex_);
-        return self->reliable_session_.lock() == weak_session.lock();
-    });
+    PostReliableWebSocketWrite(session, std::move(wireMessage), std::move(completion),
+                               [weak = weak_from_this(), weak_session = std::weak_ptr<asio2::http_session>(session)] {
+                                   const auto self = weak.lock();
+                                   if (!self) {
+                                       return false;
+                                   }
+                                   std::lock_guard lock(self->reliable_session_mutex_);
+                                   return self->reliable_session_.lock() == weak_session.lock();
+                               });
 }
 
-void WsStreamRouter::PostBinaryMessage(std::shared_ptr<Data> data) {
+void WsStreamRouter::PostBinaryMessage(std::shared_ptr<Data> wireMessage) {
     if (rdp_mode_.load()) {
-        return; // RDP never participates in native broadcast or host feature routing.
+        return;  // RDP never participates in native broadcast or host feature routing.
     }
     if (!session_ || !session_->is_started()) {
         return;
@@ -176,7 +174,7 @@ void WsStreamRouter::PostBinaryMessage(std::shared_ptr<Data> data) {
     // asio2 consumes this buffer asynchronously. Retain the owned payload
     // until completion so short-lived control and voice messages cannot
     // leave the socket with a dangling byte view.
-    session_->async_send(data->Bytes().data(), data->Size(), [weak_self, data](size_t byte_sent) {
+    session_->async_send(wireMessage->Bytes().data(), wireMessage->Size(), [weak_self, wireMessage](size_t byte_sent) {
         auto self = weak_self.lock();
         if (!self) {
             return;
@@ -194,14 +192,14 @@ void WsStreamRouter::PostBinaryMessage(std::shared_ptr<Data> data) {
     });
 }
 
-bool WsStreamRouter::TryPostRealtimeMediaMessage(const std::shared_ptr<Data>& data) {
-    if (!data) {
+bool WsStreamRouter::TryPostRealtimeMediaMessage(const std::shared_ptr<Data>& wireMessage) {
+    if (!wireMessage) {
         return true;
     }
-    if (ClassifyWsRealtimeMedia(data) == WsRealtimeMediaKind::None) {
+    if (ClassifyWsRealtimeMedia(wireMessage) == WsRealtimeMediaKind::None) {
         // This is the safety boundary: callers cannot accidentally make a
         // control-plane or file-transfer message disposable.
-        PostBinaryMessage(data);
+        PostBinaryMessage(wireMessage);
         return true;
     }
     if (rdp_mode_.load() || !session_ || !session_->is_started()) {
@@ -210,15 +208,15 @@ bool WsStreamRouter::TryPostRealtimeMediaMessage(const std::shared_ptr<Data>& da
 
     const auto pending_media = realtime_media_budget_.PendingMessages();
     if (GetQueuingMsgCount() > static_cast<int64_t>(pending_media) ||
-        !realtime_media_budget_.TryReserve(static_cast<std::size_t>(data->Size()))) {
+        !realtime_media_budget_.TryReserve(static_cast<std::size_t>(wireMessage->Size()))) {
         return false;
     }
 
     session_->ws_stream().binary(true);
     ++queuing_message_count_;
-    const auto bytes = static_cast<std::size_t>(data->Size());
+    const auto bytes = static_cast<std::size_t>(wireMessage->Size());
     const auto weak_self = weak_from_this();
-    session_->async_send(data->Bytes().data(), data->Size(), [weak_self, data, bytes](const size_t byte_sent) {
+    session_->async_send(wireMessage->Bytes().data(), wireMessage->Size(), [weak_self, wireMessage, bytes](const size_t byte_sent) {
         const auto self = weak_self.lock();
         if (!self) {
             return;
@@ -259,7 +257,8 @@ bool WsStreamRouter::StartRdp(asio::any_io_executor executor, const std::uint16_
         },
         [weak, weak_session, closed = std::move(closed)](rdp::BridgeCloseReason reason) {
             if (const auto self = weak.lock(); self && reason != rdp::BridgeCloseReason::kStopped) {
-                self->rdp_close_outcome_.store(MapRdpCloseOutcome(reason));
+                auto expected = ResourceChannelCloseOutcome::kPeerClosed;
+                static_cast<void>(self->rdp_close_outcome_.compare_exchange_strong(expected, MapRdpCloseOutcome(reason)));
             }
             if (const auto session = weak_session.lock()) {
                 session->post([weak_session, closed, reason] {
@@ -299,9 +298,7 @@ bool WsStreamRouter::StartRdp(asio::any_io_executor executor, const std::uint16_
     return true;
 }
 
-void WsStreamRouter::PostBinaryMessage(const std::string& binary_message) {
-    this->PostBinaryMessage(Data::From(binary_message));
-}
+void WsStreamRouter::PostBinaryMessage(const std::string& binary_message) { this->PostBinaryMessage(Data::From(binary_message)); }
 
 void WsStreamRouter::PostTextMessage(const std::string& text_message) {
     if (rdp_mode_.load() || !session_ || !session_->is_started()) {
@@ -357,7 +354,7 @@ FileTransferSendResult WsStreamRouter::TryPostFileTransferMessage(const std::sha
 void WsStreamRouter::SetUdpMediaFallbackCallback(std::function<void()> callback) { udp_media_fallback_callback_ = std::move(callback); }
 
 void WsStreamRouter::RevokeRdp() {
-    rdp_close_outcome_.store(ResourceChannelCloseOutcome::kPolicyRevoked);
+    MarkResourcePolicyRevoked();
     std::weak_ptr<asio2::http_session> weak_session{};
     {
         std::lock_guard lock(reliable_session_mutex_);
@@ -371,6 +368,8 @@ void WsStreamRouter::RevokeRdp() {
         });
     }
 }
+
+void WsStreamRouter::MarkResourcePolicyRevoked() { rdp_close_outcome_.store(ResourceChannelCloseOutcome::kPolicyRevoked); }
 
 void WsStreamRouter::MarkResourceTransportLost() {
     auto expected = ResourceChannelCloseOutcome::kPeerClosed;

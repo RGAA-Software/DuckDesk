@@ -3,10 +3,13 @@ package yun.pixels.client
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.espresso.Espresso.pressBack
+import androidx.test.espresso.NoActivityResumedException
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -32,13 +35,13 @@ class PixelsNavigationTest {
 
         composeRule.onNodeWithText(devicesContent).fetchSemanticsNode()
         composeRule.onNodeWithText(cloudAppsTab).performClick()
-        composeRule.onNodeWithText(cloudAppsContent).fetchSemanticsNode()
-        composeRule.onNodeWithText(cloudAppsTab).assertIsSelected()
+        composeRule.onNode(hasText(cloudAppsContent) and !hasClickAction()).fetchSemanticsNode()
+        composeRule.onNode(hasText(cloudAppsTab) and hasClickAction()).assertIsSelected()
         composeRule.onNodeWithText(settingsTab).performClick()
         composeRule.onNodeWithText(settingsContent).fetchSemanticsNode()
-        composeRule.onNodeWithText(settingsTab).assertIsSelected()
+        composeRule.onNode(hasText(settingsTab) and hasClickAction()).assertIsSelected()
         composeRule.onAllNodesWithText(devicesContent).assertCountEquals(0)
-        composeRule.onNodeWithText(settingsTab).performClick()
+        composeRule.onNode(hasText(settingsTab) and hasClickAction()).performClick()
         composeRule.onNodeWithText(settingsContent).fetchSemanticsNode()
 
         composeRule.onNodeWithText(transfersTab).performClick()
@@ -65,14 +68,14 @@ class PixelsNavigationTest {
         val settingsContent = activity.getString(SettingsR.string.account_title)
 
         composeRule.onNodeWithText(cloudApps).performClick()
-        composeRule.onNodeWithText(cloudAppsTitle).fetchSemanticsNode()
+        composeRule.onNode(hasText(cloudAppsTitle) and !hasClickAction()).fetchSemanticsNode()
 
         composeRule.onNodeWithText(settingsTab).performClick()
         composeRule.onNodeWithText(settingsContent).fetchSemanticsNode()
 
         composeRule.onNodeWithText(devicesTab).performClick()
         composeRule.onNodeWithText(devicesContent).fetchSemanticsNode()
-        composeRule.onAllNodesWithText(cloudAppsTitle).assertCountEquals(0)
+        composeRule.onAllNodes(hasText(cloudAppsTitle) and !hasClickAction()).assertCountEquals(0)
     }
 
     @Test
@@ -83,11 +86,11 @@ class PixelsNavigationTest {
         val cloudAppsTitle = activity.getString(CloudAppsR.string.cloud_apps_title)
 
         composeRule.onNodeWithText(cloudApps).performClick()
-        composeRule.onNodeWithText(cloudAppsTitle).fetchSemanticsNode()
+        composeRule.onNode(hasText(cloudAppsTitle) and !hasClickAction()).fetchSemanticsNode()
         pressBack()
 
         composeRule.onNodeWithText(devicesContent).fetchSemanticsNode()
-        composeRule.onAllNodesWithText(cloudAppsTitle).assertCountEquals(0)
+        composeRule.onAllNodes(hasText(cloudAppsTitle) and !hasClickAction()).assertCountEquals(0)
     }
 
     @Test
@@ -100,9 +103,9 @@ class PixelsNavigationTest {
         composeRule.onNodeWithText(activity.getString(DevicesR.string.quick_connect)).fetchSemanticsNode()
         composeRule.onNodeWithText(activity.getString(R.string.navigation_devices)).assertIsSelected()
 
-        pressBack()
-
-        composeRule.runOnIdle { assertTrue(activity.isFinishing) }
+        val exitResult = runCatching { pressBack() }
+        exitResult.exceptionOrNull()?.let { error -> assertTrue(error is NoActivityResumedException) }
+        composeRule.waitUntil(timeoutMillis = 5_000) { activity.isFinishing || activity.isDestroyed }
     }
 
     @Test

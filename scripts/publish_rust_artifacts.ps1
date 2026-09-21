@@ -78,3 +78,8 @@ function Publish-Artifact([string]$Destination) {
 
 Publish-Artifact (Join-Path $outputRoot 'px_service.exe')
 Publish-Artifact (Join-Path $distributionRoot 'px_service.exe')
+$manifestRefresh = Join-Path $repoRoot 'scripts\refresh_development_dist.py'
+& python $manifestRefresh $distributionRoot
+if ($LASTEXITCODE -ne 0) {
+    throw "development distribution manifest refresh failed with exit code $LASTEXITCODE"
+}

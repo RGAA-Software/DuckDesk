@@ -27,6 +27,9 @@ int32_t RtcSharedVideoEncoder::InitEncode(
     const webrtc::VideoCodec* codec_settings,  // NOLINT(pixels-raw-pointer-boundary): libwebrtc VideoEncoder ABI
     const webrtc::VideoEncoder::Settings& settings) {
     LOGI("InitEncode start bitrate {} kbps", codec_settings->startBitrate);
+    if (server_) {
+        server_->QueueLatestVideoNotificationReplay();
+    }
     return WEBRTC_VIDEO_CODEC_OK;
 }
 
@@ -123,7 +126,8 @@ int32_t RtcSharedVideoEncoder::Encode(
         }
         last_monitor_name_ = mon_name;
         mWaitIDRFrame = true;
-        consumed_seq_ = server_->GetLatestEncodedSeq(mon_name);
+        const auto latest_encoded_sequence = server_->GetLatestEncodedSeq(mon_name);
+        consumed_seq_ = latest_encoded_sequence > 0 ? latest_encoded_sequence - 1 : 0;
         // 新屏 frame_index 序号空间不同,旧时间戳日志作废
         input_ts_log_.clear();
         has_last_sent_ts_ = false;
@@ -398,20 +402,26 @@ webrtc::VideoEncoder::EncoderInfo RtcSharedVideoEncoder::GetEncoderInfo() const 
     info.has_trusted_rate_controller = true;
     // info.has_internal_source = false;
     info.supports_simulcast = false;
-    int min, max;
+    int minimum_bitrate;
+    int maximum_bitrate;
     if (gAdapterBitrate) {
-        constexpr auto kDefalutMinBitrate = 1 * 1024 * 1024;
-        constexpr auto kDefalutStartBitrate = 15 * 1024 * 1024;
-        constexpr auto kDefalutMaxBitrate = 100 * 1024 * 1024;
-        min = kDefalutMinBitrate;
-        max = kDefalutStartBitrate;
+        constexpr auto kDefaultMinimumBitrate = 1 * 1024 * 1024;
+        constexpr auto kDefaultPreferredMaximumBitrate = 15 * 1024 * 1024;
+        minimum_bitrate = kDefaultMinimumBitrate;
+        maximum_bitrate = kDefaultPreferredMaximumBitrate;
     } else {
-        min = 128 * 1024 * 1024;
-        max = 256 * 1024 * 1024;
+        minimum_bitrate = 128 * 1024 * 1024;
+        maximum_bitrate = 256 * 1024 * 1024;
     }
-    int start = max;
-    info.resolution_bitrate_limits.push_back(ResolutionBitrateLimits(1 * 1, start, min, max));
-    info.resolution_bitrate_limits.push_back(ResolutionBitrateLimits(8192 * 8192, start, min, max));
+    // This encoder forwards the Render pipeline's already encoded stream.
+    // The initial threshold is only an admission hint to libwebrtc; setting it
+    // to the preferred maximum makes VideoStreamEncoder drop every native
+    // frame before Encode() while public-network BWE is still ramping up.
+    // Keep the threshold at the real supported minimum so the retained IDR can
+    // bootstrap RTP and let congestion control collect feedback.
+    const int minimum_start_bitrate = minimum_bitrate;
+    info.resolution_bitrate_limits.push_back(ResolutionBitrateLimits(1 * 1, minimum_start_bitrate, minimum_bitrate, maximum_bitrate));
+    info.resolution_bitrate_limits.push_back(ResolutionBitrateLimits(8192 * 8192, minimum_start_bitrate, minimum_bitrate, maximum_bitrate));
     return info;
 }
 

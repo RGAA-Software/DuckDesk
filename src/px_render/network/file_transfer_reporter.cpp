@@ -6,6 +6,8 @@
 
 #include "architecture/services/file_transfer_service.h"
 #include "network/render_service_client.h"
+#include "px_common/async_delay.h"
+#include "px_common/async_scope_drain.h"
 #include "px_common/log.h"
 #include "px_common/uuid.h"
 #include "px_service_message.pb.h"
@@ -110,20 +112,74 @@ void FileTransferReporter::End(const render::FileTransferAuditEnd& audit) {
     activity.delivery.RecordTerminal(transferred_bytes, terminal_outcome, std::move(verified_sha256));
 }
 
-void FileTransferReporter::Stop() {
+void FileTransferReporter::Stop() { static_cast<void>(StopAndWait(std::chrono::steady_clock::now())); }
+
+bool FileTransferReporter::StopAndWait(const std::chrono::steady_clock::time_point deadline) {
     std::shared_ptr<PxAsyncScope> scope{};
+    bool drained{};
     {
-        std::scoped_lock lock(activities_mutex_);
+        std::unique_lock lock(activities_mutex_);
         if (stopping_) {
-            return;
+            return activities_.empty();
         }
+        drained = activities_changed_.wait_until(lock, deadline, [&activities = activities_] { return activities.empty(); });
         stopping_ = true;
         activities_.clear();
         scope = scope_;
     }
     if (scope) {
         scope->BeginStop();
+        const auto remaining = std::max(std::chrono::milliseconds::zero(),
+                                        std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now()));
+        drained = scope->WaitFor(remaining) && drained;
     }
+    return drained;
+}
+
+PxAwaitable<PxResult<void>> FileTransferReporter::StopAsync(std::shared_ptr<FileTransferReporter> owner,
+                                                            const std::chrono::steady_clock::time_point deadline) {
+    if (!owner) {
+        co_return PxResult<void>::Failure(
+            MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument, "file-transfer-reporter.stop", "reporter owner is missing"));
+    }
+    std::shared_ptr<PxAsyncScope> scope;
+    for (;;) {
+        {
+            std::scoped_lock lock(owner->activities_mutex_);
+            if (owner->activities_.empty()) {
+                owner->stopping_ = true;
+                scope = owner->scope_;
+                break;
+            }
+        }
+        const auto now = std::chrono::steady_clock::now();
+        if (now >= deadline) {
+            {
+                std::scoped_lock lock(owner->activities_mutex_);
+                owner->stopping_ = true;
+                owner->activities_.clear();
+                scope = owner->scope_;
+            }
+            if (scope) {
+                scope->BeginStop();
+            }
+            co_return PxResult<void>::Failure(
+                MakePxAsyncError(PxAsyncErrorCode::kTimeout, "file-transfer-reporter.stop", "file-transfer audit reports did not drain"));
+        }
+        const auto delay = std::min(std::chrono::milliseconds(5), std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now));
+        const auto waited = co_await WaitForAsyncDelay(delay, "file-transfer-reporter.stop");
+        if (!waited) {
+            co_return waited;
+        }
+    }
+    if (scope) {
+        scope->BeginStop();
+        const auto drained = co_await WaitForAsyncScopeDrain(scope, deadline, "file-transfer-reporter.stop");
+        if (!drained) {
+            co_return PxResult<void>::Failure(drained.Error());
+        }
+    }
+    co_return PxResult<void>::Success();
 }
 
 bool FileTransferReporter::IsCanonicalUuid(const std::string& value) {
@@ -289,6 +345,7 @@ void FileTransferReporter::RemoveIfCurrent(const std::shared_ptr<Activity>& acti
     const auto current = activities_.find(activity->transfer_request_id);
     if (current != activities_.end() && current->second == activity) {
         activities_.erase(current);
+        activities_changed_.notify_all();
     }
 }
 

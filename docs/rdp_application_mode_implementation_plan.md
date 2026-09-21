@@ -30,8 +30,8 @@
 
 使用 FreeRDP proxy 和 Windows 原生 SSPI。Console 自动提供所需凭证，无交互认证步骤；
 客户端仅在连接内存持有 Windows 凭证，不以“仅服务端可知 Windows 密码”为首版要求。
-现有 WebSocket/RDP 适配、Console 工作区调度、Service 账号/SID 与独占管理、Render 超时退出均已有实现；当前剩余工作是用最新
-Console、Service、Render 和 Client 制品在公网 Windows 节点完成产品级复验并关闭尚未通过的通道与故障矩阵。
+现有 WebSocket/RDP 适配、Console 工作区调度、Service 账号/SID 与独占管理、Render 超时退出、系统音频和富剪贴板均已有实现；
+当前剩余工作是完成设备变化、长路径/ACL/重名/取消、规模与安装交付等扩展矩阵，不再把音频或完整剪贴板列为实现缺口。
 
 ```text
 Console：应用+节点工作区 / 凭证权威存储 / 登录或匿名自动准入
@@ -50,7 +50,7 @@ TCP 原型与后续 WebSocket 产品承载是验证阶段的差异，不是同�
 - 自有 demo：`D:/dolit/rdp`，提交 `b9183a9`；FreeRDP 实际提交
   `6c867799c4a50b7c3abf88d32c0f4e7123ce9caa`，包含 demo 自有 MF AVC444 修改；这不是已经通过产品验收的修复。
 - 产品依赖已迁到官方 FreeRDP 3.31.0，固定 `aa8650b300aa4cabd85d9c72b431301509b9043f`，
-  原 demo 保持只读。旧 fork 与新版本 OpenH264 实测均有 AVC444 解码失败；当前图形验收仍未完成，详见最新实施检查点。
+  原 demo 保持只读。旧 fork 与新版本 OpenH264 曾实测 AVC444 解码失败；当前固定补丁及公网图形短测已通过，详见最新实施检查点。
 - demo 的 `RdpSession`、`RdpView`、输入/剪贴板实现可以复用；不另写一套 RDP 解码器。
 - 本地 FreeRDP `server/proxy/pf_utils.c::pf_utils_is_passthrough` 当前返回透传模式；
   `pf_server.c` 包含 `FreeRDP_DeactivateClientDecoding` 设置，`pf_update.c` 转发图形更新，
@@ -213,7 +213,7 @@ demo 的 EndPaint 到 paintGL 计时不是输入到屏幕的端到端时延，�
   文件占用时停止准确对应进程再发布并复核；公网节点部署也记录源/目标版本及哈希，不用旧 DLL 混测。
 - 每阶段独立变更与验证记录，提交/push 按后续用户要求执行；不修改无关脏文件，不移除现有归档。
 - 回退通过停止新 RDP 运行实例、关闭入口/撤回运行产物，不删除已创建的持久账号/profile 或注销用户。
-  数据字段尽量向后兼容；不为回退恢复已经退役的 Native RTC/Relay/WS 视频实现。
+  开发期不维护旧字段、旧协议或旧配置兼容；回退也不恢复已经退役的 Native RTC/Relay/WS 视频实现。
 
 ## 9. 当前交接
 
@@ -270,7 +270,27 @@ frontend admission 后打开 `rdp` 通道、上报 4096/2048 字节并从 Panel 
 超时/发送故障为 `transport_lost`，非法包与队列溢出为 `io_error`。强原因通过原子状态保留，撤销不会被后续 socket 断开覆盖；Render 停止会在
 关闭网络适配器前为活动路由产生最终状态。路由关闭/分类 3/3、前端准入 4/4 通过；最新 Cloud Node/Remote Render build/dist SHA-256 为
 `3A6769A16FA22A1111B2A1D650AB38AF15C313BB14EB613A0330E55265DDB16B`、
-`FB47D5AFED82909111F1F4AF75E938C45D4143F3A876CBEFF9626CF0B90CBE21`。公网验收仍需实际制造并核对五类终态。
+`FB47D5AFED82909111F1F4AF75E938C45D4143F3A876CBEFF9626CF0B90CBE21`。
+
+2026-09-21 已在官方公网 Windows 节点完成五类真实终态短测。`peer_closed`、`user_stopped`、`policy_revoked`、
+`transport_lost`、`io_error` 均由真实 RDP 工作区制造，Console 历史分别收敛为预期状态和原因，并保存非零双向实际字节；
+授权撤销未改变节点 generation。`user_stopped` 还修正了 Render 有序关闭与 Service 命令执行互相等待的问题：WS 先产生终态，
+节点控制连接在等待 Render 自行退出期间继续处理报告请求，报告器改用异步 drain，主消息循环只在有序关闭完成后退出。最终样本
+`7351600d-03f6-4ae0-8078-a0d6b80bbf38` 为 `closed/user_stopped`，发送/接收字节为 `104016/7605`，
+Render 在 142 ms 内完成有序关闭且没有强杀或报告超时；其余四类样本也均通过。当前 Cloud Node Render 与 Service 制品
+SHA-256 分别为 `18DCFCF63E29BAE9B2E9794012565CF4940015CBECFF2DC9406AA0BAF57D33D8`、
+`369949280680BCB00912EB7F83E949AC475B2CBF4FE3B9E5B789DD88C1936DC8`。本条关闭 RDP 五类终态公网实机门禁；
+画面、输入、断线宽限、忙工作区拒绝和双工作区已有公网短测证据。
+
+同日系统音频与富剪贴板也完成开发期短门禁。Client 已接 RDP `rdpsnd`/WinMM，公网追踪收到连续 `Wave2PDU`，实际格式为
+44.1 kHz、双声道、16-bit PCM；工具栏“声音”开关在同一真实会话中按 `false → true → false` 完成进程音频未静音、静音、恢复，
+没有另走普通媒体音频通道。剪贴板支持 Unicode 文本、HTML、DIB/DIBV5、PNG 以及
+`FileGroupDescriptorW`/`FileContents` 文件目录流，限定 512 项、512 MiB 总量和 64 KiB 分块，并拒绝绝对路径、盘符、`..`、重解析点、
+越界及畸形描述符；5/5 聚焦测试覆盖富内容、未知格式清理、本地 SIZE/RANGE、远端多分块目录下载/暂存回收和路径穿越拒绝。
+公网 Windows 实机已完成双向 Unicode 和双向文件粘贴；本机→远端样本长度 28，SHA-256 为
+`08EA062419933C5BADA220417E12A62BC459E4078BF69CA86AB2E15E7C4FA4C5`，远端→本机内容也逐字节核对。Client build/dist
+SHA-256 均为 `AB595EBDB318AC47E3BFEC48EB2FEAA17BA066BADF0563473186362A0324C41D`。这关闭 P5 的开发期功能缺口，
+不替代最终统一长测中的设备切换、长路径/ACL、重名/取消、超大目录和持续播放矩阵。
 
 ### 保留：最初的原型交接
 
@@ -282,9 +302,9 @@ P0 已新增 `px_rdp_stream`：现有 `px::Message` 增加 `kRdpStream`，实现
 探针复用项目 asio2 实现及消息封装，但尚未接入产品 `WsServer/WsConnection` 的既有连接、准入和控制消息调度，
 不能把独立探针端口当作新增产品连接要求，也不能据此把 P0 全部门禁或 P1/P2 标为完成。
 旧 WebSocket 适配验证记录已经删除；后续结果直接更新本计划的当前验收矩阵。
-SDK/Render 既有 WebSocket 路由、Client Qt 6 RDP 工作区、Console 凭证和 Service 账号/SID 闭环均已有当前实现；下一项是在当前公网
-Windows 节点部署 Console/Service/Render 后复验真实画面、输入、音频、剪贴板、双工作区、撤销、故障恢复和退出宽限，未通过前不关闭
-P2–P7。
+SDK/Render 既有 WebSocket 路由、Client Qt 6 RDP 工作区、Console 凭证和 Service 账号/SID 闭环均已有当前实现；当前公网节点已经完成
+真实画面、输入、系统音频、富剪贴板、双工作区、撤销、五类终态、故障恢复和退出宽限的开发期短测。P2–P5 的核心功能门禁据此关闭；
+P6 辅助通道和 P7 安装交付、扩展故障/性能矩阵仍按本计划推进，最后统一长测。
 公网测试节点禁止用 Administrator 登录 RDP；每批测试与收尾不超过 10 分钟。
 其余工程细节按上述默认方案实施，不因已确定的账号粒度、自动授权、TCP 可靠性再次等待产品确认。
 

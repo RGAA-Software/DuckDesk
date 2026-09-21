@@ -1039,7 +1039,10 @@ bool NativeSession::Initialize() {
                 statistics_due = true;
             }
         }
-        if (size_changed) self->callback_->FrameSizeChanged(self->config_.session_id, image->img_width, image->img_height);
+        if (size_changed) {
+            LOGI("event=media.decoded_frame_size width={} height={}", image->img_width, image->img_height);
+            self->callback_->FrameSizeChanged(self->config_.session_id, image->img_width, image->img_height);
+        }
         if (statistics_due) {
             self->callback_->Statistics(self->config_.session_id, frames_per_second, self->latest_latency_millis_.load(), bitrate_kbps,
                                         self->statistics_->video_decoder_.Clone());

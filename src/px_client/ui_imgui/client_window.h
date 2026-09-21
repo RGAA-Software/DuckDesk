@@ -3,11 +3,13 @@
 #include "client_input_mapper.h"
 #include "client_session.h"
 #include "px_desktop_shell/desktop_shell.h"
+#include "rdp/rdp_windows_clipboard.h"
 
 #include <functional>
 #include <chrono>
 #include <array>
 #include <memory>
+#include <optional>
 #include <unordered_map>
 
 namespace px::client::imgui {
@@ -31,6 +33,8 @@ class ClientWindow final {
     std::reference_wrapper<px::desktop::DesktopShell> shell_;
     std::shared_ptr<ClientSession> session_{};
     std::unique_ptr<ClientToolbar> toolbar_{};
+    std::unique_ptr<px::rdp::WindowsClipboard> rdpClipboard_{};
+    std::optional<px::rdp::ClipboardContent> pendingRemoteClipboard_{};
     std::shared_ptr<ClientVideoFrame> uploadedFrame_{};
     float videoLeft_{};
     float videoTop_{};

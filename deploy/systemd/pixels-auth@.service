@@ -1,0 +1,35 @@
+[Unit]
+Description=Pixels Auth for deployment %i
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pixels-auth
+Group=pixels-auth
+EnvironmentFile=/etc/pixels/%i/auth/auth.env
+ExecStart=/opt/pixels/auth/current/bin/px_auth
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+KillMode=mixed
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadOnlyPaths=/etc/pixels/%i/auth /opt/pixels/auth/current
+
+[Install]
+WantedBy=multi-user.target

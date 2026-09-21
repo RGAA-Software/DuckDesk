@@ -1,8 +1,11 @@
 use nvml_wrapper::Nvml;
 use px_node_protocol::NodeGpuTelemetry;
+use serde::Deserialize;
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use std::ffi::c_void;
 use windows::Win32::Foundation::LUID;
+use wmi::WMIConnection;
 
 // NVML metrics enrich the WMI inventory only through an unambiguous PCI identity.
 // Names are display data and must never select a physical adapter.
@@ -25,7 +28,36 @@ struct NvidiaMetrics {
 
 #[derive(Debug)]
 struct RuntimeAdapterIdentity {
+    luid: AdapterLuid,
     stable_keys: Vec<String>,
+    dedicated_memory_bytes: Option<u64>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+struct AdapterLuid {
+    high_part: u32,
+    low_part: u32,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct GpuEngineCounterRow {
+    name: Option<String>,
+    utilization_percentage: Option<u64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct GpuAdapterMemoryCounterRow {
+    name: Option<String>,
+    dedicated_usage: Option<u64>,
+}
+
+#[derive(Debug, Default)]
+struct VendorNeutralMetrics {
+    used_memory_bytes: Option<u64>,
+    utilization_per_mille: Option<u16>,
+    encoder_utilization_per_mille: Option<u16>,
 }
 
 type D3dkmtHandle = u32;
@@ -73,6 +105,22 @@ pub(crate) struct EnumeratedGpu {
     pub(crate) telemetry: NodeGpuTelemetry,
 }
 
+pub(crate) fn enrich_windows_metrics(gpus: &mut [EnumeratedGpu], wmi: &WMIConnection) {
+    let adapters = enumerate_runtime_adapters();
+    apply_runtime_adapter_bindings(gpus, &adapters);
+    let engine_counters = wmi
+        .raw_query::<GpuEngineCounterRow>(
+            "SELECT Name, UtilizationPercentage FROM Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine",
+        )
+        .unwrap_or_default();
+    let memory_counters = wmi
+        .raw_query::<GpuAdapterMemoryCounterRow>(
+            "SELECT Name, DedicatedUsage FROM Win32_PerfFormattedData_GPUPerformanceCounters_GPUAdapterMemory",
+        )
+        .unwrap_or_default();
+    apply_vendor_neutral_metrics(gpus, &adapters, &engine_counters, &memory_counters);
+}
+
 pub(crate) fn enrich_nvidia_metrics(gpus: &mut [EnumeratedGpu]) {
     let Ok(nvml) = Nvml::init() else {
         return;
@@ -107,11 +155,11 @@ pub(crate) fn enrich_nvidia_metrics(gpus: &mut [EnumeratedGpu]) {
     apply_unique_matches(gpus, &metrics);
 }
 
-pub(crate) fn enrich_runtime_adapter_bindings(gpus: &mut [EnumeratedGpu]) {
+fn enumerate_runtime_adapters() -> Vec<RuntimeAdapterIdentity> {
     use windows::Win32::Graphics::Dxgi::{CreateDXGIFactory1, IDXGIFactory1};
 
     let Ok(factory) = (unsafe { CreateDXGIFactory1::<IDXGIFactory1>() }) else {
-        return;
+        return Vec::new();
     };
     let mut adapters = Vec::new();
     for adapter_index in 0..64 {
@@ -122,10 +170,14 @@ pub(crate) fn enrich_runtime_adapter_bindings(gpus: &mut [EnumeratedGpu]) {
             continue;
         };
         adapters.push(RuntimeAdapterIdentity {
+            luid: adapter_luid(description.AdapterLuid),
             stable_keys: physical_adapter_stable_keys(description.AdapterLuid),
+            dedicated_memory_bytes: u64::try_from(description.DedicatedVideoMemory)
+                .ok()
+                .filter(|bytes| *bytes > 0),
         });
     }
-    apply_runtime_adapter_bindings(gpus, &adapters);
+    adapters
 }
 
 fn physical_adapter_stable_keys(adapter_luid: LUID) -> Vec<String> {
@@ -235,6 +287,94 @@ fn apply_runtime_adapter_bindings(gpus: &mut [EnumeratedGpu], adapters: &[Runtim
     }
 }
 
+fn apply_vendor_neutral_metrics(
+    gpus: &mut [EnumeratedGpu],
+    adapters: &[RuntimeAdapterIdentity],
+    engine_counters: &[GpuEngineCounterRow],
+    memory_counters: &[GpuAdapterMemoryCounterRow],
+) {
+    let mut metrics_by_luid = HashMap::<AdapterLuid, VendorNeutralMetrics>::new();
+    for counter in engine_counters {
+        let Some(name) = counter.name.as_deref() else {
+            continue;
+        };
+        let Some(luid) = parse_counter_luid(name) else {
+            continue;
+        };
+        let Some(utilization_per_mille) = counter
+            .utilization_percentage
+            .and_then(percentage_to_per_mille_u64)
+        else {
+            continue;
+        };
+        let metrics = metrics_by_luid.entry(luid).or_default();
+        metrics.utilization_per_mille =
+            maximum(metrics.utilization_per_mille, utilization_per_mille);
+        if name.to_ascii_lowercase().contains("engtype_videoencode") {
+            metrics.encoder_utilization_per_mille =
+                maximum(metrics.encoder_utilization_per_mille, utilization_per_mille);
+        }
+    }
+    for counter in memory_counters {
+        let Some(luid) = counter.name.as_deref().and_then(parse_counter_luid) else {
+            continue;
+        };
+        let Some(dedicated_usage) = counter.dedicated_usage else {
+            continue;
+        };
+        let metrics = metrics_by_luid.entry(luid).or_default();
+        metrics.used_memory_bytes = maximum(metrics.used_memory_bytes, dedicated_usage);
+    }
+
+    for adapter in adapters {
+        let [stable_key] = adapter.stable_keys.as_slice() else {
+            continue;
+        };
+        let mut matching_gpus = gpus.iter_mut().filter(|gpu| {
+            gpu.pnp_identity.starts_with("PCI\\") && gpu.telemetry.stable_key == *stable_key
+        });
+        let Some(gpu) = matching_gpus.next() else {
+            continue;
+        };
+        if matching_gpus.next().is_some() {
+            continue;
+        }
+        gpu.telemetry.dedicated_memory_bytes = adapter.dedicated_memory_bytes;
+        let Some(metrics) = metrics_by_luid.get(&adapter.luid) else {
+            continue;
+        };
+        gpu.telemetry.used_memory_bytes = metrics.used_memory_bytes.filter(|used_bytes| {
+            adapter
+                .dedicated_memory_bytes
+                .is_some_and(|total_bytes| *used_bytes <= total_bytes)
+        });
+        gpu.telemetry.utilization_per_mille = metrics.utilization_per_mille;
+        gpu.telemetry.encoder_utilization_per_mille = metrics.encoder_utilization_per_mille;
+    }
+}
+
+fn adapter_luid(luid: LUID) -> AdapterLuid {
+    AdapterLuid {
+        high_part: u32::from_ne_bytes(luid.HighPart.to_ne_bytes()),
+        low_part: luid.LowPart,
+    }
+}
+
+fn parse_counter_luid(counter_name: &str) -> Option<AdapterLuid> {
+    let lowercase_name = counter_name.to_ascii_lowercase();
+    let (_, luid_suffix) = lowercase_name.split_once("luid_0x")?;
+    let (high_part, low_part_suffix) = luid_suffix.split_once("_0x")?;
+    let low_part = low_part_suffix.split('_').next()?;
+    Some(AdapterLuid {
+        high_part: u32::from_str_radix(high_part, 16).ok()?,
+        low_part: u32::from_str_radix(low_part, 16).ok()?,
+    })
+}
+
+fn maximum<T: Ord + Copy>(current: Option<T>, candidate: T) -> Option<T> {
+    Some(current.map_or(candidate, |value| value.max(candidate)))
+}
+
 fn apply_unique_matches(gpus: &mut [EnumeratedGpu], metrics: &[NvidiaMetrics]) {
     let identities = gpus
         .iter()
@@ -309,6 +449,13 @@ fn percentage_to_per_mille(percentage: u32) -> Option<u16> {
         .and_then(|value| u16::try_from(value).ok())
 }
 
+fn percentage_to_per_mille_u64(percentage: u64) -> Option<u16> {
+    (percentage <= 100)
+        .then(|| percentage.checked_mul(10))
+        .flatten()
+        .and_then(|value| u16::try_from(value).ok())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -340,10 +487,20 @@ mod tests {
         let mut gpus = vec![gpu(first_identity), gpu(second_identity)];
         let adapters = vec![
             RuntimeAdapterIdentity {
+                luid: AdapterLuid {
+                    high_part: 0,
+                    low_part: 1,
+                },
                 stable_keys: vec![stable_gpu_key(first_identity)],
+                dedicated_memory_bytes: Some(8_192),
             },
             RuntimeAdapterIdentity {
+                luid: AdapterLuid {
+                    high_part: 0,
+                    low_part: 2,
+                },
                 stable_keys: vec![stable_gpu_key(second_identity)],
+                dedicated_memory_bytes: Some(16_384),
             },
         ];
 
@@ -354,7 +511,12 @@ mod tests {
         let mut equivalent_luid_gpus = vec![gpu(first_identity), gpu(second_identity)];
         let mut equivalent_luid_adapters = adapters;
         equivalent_luid_adapters.push(RuntimeAdapterIdentity {
+            luid: AdapterLuid {
+                high_part: 0,
+                low_part: 3,
+            },
             stable_keys: vec![stable_gpu_key(first_identity)],
+            dedicated_memory_bytes: Some(8_192),
         });
         apply_runtime_adapter_bindings(&mut equivalent_luid_gpus, &equivalent_luid_adapters);
         assert!(equivalent_luid_gpus[0].telemetry.runtime_binding_ready);
@@ -375,6 +537,99 @@ mod tests {
         let mut gpus = vec![gpu("PCI\\VEN_1002&DEV_73BF&SUBSYS_0E3A1002")];
         apply_unique_matches(&mut gpus, &[metrics()]);
         assert!(gpus[0].telemetry.dedicated_memory_bytes.is_none());
+    }
+
+    #[test]
+    fn windows_counters_enrich_a_uniquely_bound_non_nvidia_adapter() {
+        let identity = "PCI\\VEN_1002&DEV_73BF&SUBSYS_0E3A1002";
+        let mut gpus = vec![gpu(identity)];
+        let adapters = vec![RuntimeAdapterIdentity {
+            luid: AdapterLuid {
+                high_part: 0,
+                low_part: 0x12ab,
+            },
+            stable_keys: vec![stable_gpu_key(identity)],
+            dedicated_memory_bytes: Some(16_000),
+        }];
+        let engine_counters = vec![
+            GpuEngineCounterRow {
+                name: Some("pid_4_luid_0x00000000_0x000012AB_phys_0_eng_0_engtype_3D".into()),
+                utilization_percentage: Some(31),
+            },
+            GpuEngineCounterRow {
+                name: Some(
+                    "pid_4_luid_0x00000000_0x000012ab_phys_0_eng_1_engtype_VideoEncode".into(),
+                ),
+                utilization_percentage: Some(17),
+            },
+        ];
+        let memory_counters = vec![GpuAdapterMemoryCounterRow {
+            name: Some("luid_0x00000000_0x000012ab_phys_0".into()),
+            dedicated_usage: Some(4_000),
+        }];
+
+        apply_vendor_neutral_metrics(&mut gpus, &adapters, &engine_counters, &memory_counters);
+
+        assert_eq!(gpus[0].telemetry.dedicated_memory_bytes, Some(16_000));
+        assert_eq!(gpus[0].telemetry.used_memory_bytes, Some(4_000));
+        assert_eq!(gpus[0].telemetry.utilization_per_mille, Some(310));
+        assert_eq!(gpus[0].telemetry.encoder_utilization_per_mille, Some(170));
+    }
+
+    #[test]
+    fn windows_counter_identity_and_bounds_fail_closed() {
+        assert_eq!(
+            parse_counter_luid("pid_4_luid_0xffffffff_0x89abcdef_phys_0"),
+            Some(AdapterLuid {
+                high_part: u32::MAX,
+                low_part: 0x89abcdef,
+            })
+        );
+        assert_eq!(parse_counter_luid("missing-luid"), None);
+        assert_eq!(percentage_to_per_mille_u64(101), None);
+
+        let identity = "PCI\\VEN_8086&DEV_56A0&SUBSYS_10208086";
+        let mut gpus = vec![gpu(identity)];
+        let adapters = vec![RuntimeAdapterIdentity {
+            luid: AdapterLuid {
+                high_part: 0,
+                low_part: 7,
+            },
+            stable_keys: vec![stable_gpu_key(identity)],
+            dedicated_memory_bytes: Some(8_000),
+        }];
+        let memory_counters = vec![GpuAdapterMemoryCounterRow {
+            name: Some("luid_0x00000000_0x00000007_phys_0".into()),
+            dedicated_usage: Some(9_000),
+        }];
+
+        apply_vendor_neutral_metrics(&mut gpus, &adapters, &[], &memory_counters);
+
+        assert_eq!(gpus[0].telemetry.dedicated_memory_bytes, Some(8_000));
+        assert_eq!(gpus[0].telemetry.used_memory_bytes, None);
+    }
+
+    #[test]
+    fn windows_counters_do_not_promote_virtual_display_adapters_to_gpus() {
+        let identity = "ROOT\\DISPLAY\\0001";
+        let mut gpus = vec![gpu(identity)];
+        let adapters = vec![RuntimeAdapterIdentity {
+            luid: AdapterLuid {
+                high_part: 0,
+                low_part: 9,
+            },
+            stable_keys: vec![stable_gpu_key(identity)],
+            dedicated_memory_bytes: Some(8_000),
+        }];
+        let engine_counters = vec![GpuEngineCounterRow {
+            name: Some("pid_4_luid_0x00000000_0x00000009_phys_0_eng_0_engtype_3D".into()),
+            utilization_percentage: Some(20),
+        }];
+
+        apply_vendor_neutral_metrics(&mut gpus, &adapters, &engine_counters, &[]);
+
+        assert_eq!(gpus[0].telemetry.dedicated_memory_bytes, None);
+        assert_eq!(gpus[0].telemetry.utilization_per_mille, None);
     }
 
     fn metrics() -> NvidiaMetrics {

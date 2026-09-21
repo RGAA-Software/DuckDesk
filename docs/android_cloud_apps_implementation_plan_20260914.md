@@ -324,7 +324,9 @@ cd src/px_android
 
 设备 ACL 的可重复公网短测入口为 `scripts/test_android_device_acl_public.py`。它使用临时 Android 账号依次证明授权前不可见、显式 user ACL
 授权后目录和详情可见、撤销后重新隐藏；结束时恢复设备原始 users/groups ACL 并删除临时账号。该脚本必须使用现有公网测试平台的管理员凭据，
-不能生成或硬编码管理员身份；脚本存在不等于真机/公网验收已经通过。
+不能生成或硬编码管理员身份。2026-09-20 已使用现有测试平台管理员身份完成公网短测：授权后目录/详情可见、撤销后重新隐藏、原 ACL 恢复
+均通过，临时账号已删除。管理客户端仅对 `admin_web/user_web` 附加从 Console HTTPS endpoint 派生的同源 `Origin`，没有绕过服务端 Origin
+策略。本项验证 Android 身份的服务端 ACL 合同，不等于真机媒体链路验收。
 
 ## 12. 2026-09-19 Android Relay 路由切片
 

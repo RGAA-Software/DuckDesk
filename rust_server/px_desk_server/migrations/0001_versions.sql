@@ -35,7 +35,12 @@ CREATE TABLE pixels.versions (
     channel TEXT NOT NULL CHECK (channel IN ('stable','preview')),
     build_number BIGINT NOT NULL CHECK (build_number > 0),
     version TEXT NOT NULL CHECK (char_length(version) >= 1 AND char_length(version) <= 64 AND btrim(version) <> ''),
-    artifact_url TEXT NOT NULL CHECK (char_length(artifact_url) >= 9 AND char_length(artifact_url) <= 2048 AND artifact_url ~ '^https://[^/@[:space:]]+([/:?]|$)'),
+    metadata_base_url TEXT NOT NULL CHECK (char_length(metadata_base_url) >= 9 AND char_length(metadata_base_url) <= 2048
+        AND metadata_base_url ~ '^https://[^/@[:space:]]+([/:]|$)' AND metadata_base_url !~ '[?#[:space:]]' AND right(metadata_base_url,1)='/'),
+    targets_base_url TEXT NOT NULL CHECK (char_length(targets_base_url) >= 9 AND char_length(targets_base_url) <= 2048
+        AND targets_base_url ~ '^https://[^/@[:space:]]+([/:]|$)' AND targets_base_url !~ '[?#[:space:]]' AND right(targets_base_url,1)='/'),
+    target_name TEXT NOT NULL CHECK (char_length(target_name) >= 1 AND char_length(target_name) <= 512
+        AND target_name !~ '(^/|\\|[[:space:]]|(^|/)\.\.?(/|$)|/$)'),
     sha256 TEXT NOT NULL CHECK (sha256 ~ '^[a-f0-9]{64}$'),
     created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
     UNIQUE(product,distribution,channel,build_number)

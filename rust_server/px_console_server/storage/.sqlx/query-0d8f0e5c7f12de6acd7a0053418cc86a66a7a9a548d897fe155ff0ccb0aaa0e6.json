@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT product_version_code AS \"product_version_code!\",draining,\nEXISTS(SELECT 1 FROM pixels.instances WHERE node_id=$1 AND ended_at IS NULL)\n OR EXISTS(SELECT 1 FROM pixels.resource_sessions WHERE node_id=$1 AND closed_at IS NULL)\n OR EXISTS(SELECT 1 FROM pixels.connection_observations WHERE node_id=$1 AND state IN ('active','unknown'))\n OR EXISTS(SELECT 1 FROM pixels.file_transfers WHERE node_id=$1 AND state IN ('active','unknown')) AS \"busy!\"\nFROM pixels.nodes WHERE id=$1\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "product_version_code!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "draining",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 2,
+        "name": "busy!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      false,
+      null
+    ]
+  },
+  "hash": "0d8f0e5c7f12de6acd7a0053418cc86a66a7a9a548d897fe155ff0ccb0aaa0e6"
+}

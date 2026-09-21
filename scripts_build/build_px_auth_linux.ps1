@@ -10,8 +10,10 @@ $env:PKG_CONFIG_ALLOW_CROSS = '1'
 $env:PKG_CONFIG_PATH = "$linuxSysroot/pkgconfig"
 $env:PKG_CONFIG_LIBDIR = "$linuxSysroot/pkgconfig"
 $env:CARGO_TARGET_DIR = "$projectRoot/.cache/px-auth-linux-target"
+$env:SQLX_OFFLINE = 'true'
 Push-Location "$projectRoot/rust_server"
 try {
-    & "$projectRoot/.tooling/cargo-zigbuild/cargo-zigbuild.exe" zigbuild --locked --release --target x86_64-unknown-linux-gnu -p px_auth_server --bin px_auth
-    if ($LASTEXITCODE -ne 0) { throw 'Linux px_auth build failed' }
+    & "$projectRoot/.tooling/cargo-zigbuild/cargo-zigbuild.exe" zigbuild --locked --release --target x86_64-unknown-linux-gnu `
+        -p px_auth_server --bin px_auth --bin px_auth_admin -p px_pg --bin px_db
+    if ($LASTEXITCODE -ne 0) { throw 'Linux Auth runtime and administration tool build failed' }
 } finally { Pop-Location }

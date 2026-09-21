@@ -376,11 +376,7 @@ async fn transfer_creation_and_reports_are_idempotent_monotonic_and_hash_verifie
     };
     assert_eq!(
         transfer_store
-            .report(
-                &node,
-                observed_hash_record.id,
-                &observed_hash_completed
-            )
+            .report(&node, observed_hash_record.id, &observed_hash_completed)
             .await
             .unwrap()
             .state,

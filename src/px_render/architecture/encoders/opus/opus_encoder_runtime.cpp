@@ -1,13 +1,14 @@
 #include "opus_encoder_runtime.h"
 
+#include <cstddef>
 #include <exception>
 #include <span>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "px_common/data.h"
 #include "px_common/async_runtime.h"
+#include "px_common/data.h"
 #include "px_common/file.h"
 #include "px_common/log.h"
 #include "px_common/string_util.h"
@@ -26,7 +27,6 @@ struct OpusEncoderRuntime::WorkerState final {
     std::shared_ptr<File> original_pcm_file;
     std::shared_ptr<File> decoded_pcm_file;
     std::vector<char> audio_cache;
-    int callback_count = 0;
     int sample_rate = 0;
     int channels = 0;
     int bits = 0;
@@ -96,13 +96,9 @@ void OpusEncoderRuntime::StartWorker() {
     worker_ = std::jthread([state](std::stop_token stop_token) { WorkerMain(state, stop_token); });
 }
 
-void OpusEncoderRuntime::SetDelivery(EncodedDelivery delivery) {
-    delivery_channel_->Set(std::move(delivery));
-}
+void OpusEncoderRuntime::SetDelivery(EncodedDelivery delivery) { delivery_channel_->Set(std::move(delivery)); }
 
-void OpusEncoderRuntime::ClearDelivery() {
-    delivery_channel_->Clear();
-}
+void OpusEncoderRuntime::ClearDelivery() { delivery_channel_->Clear(); }
 
 void OpusEncoderRuntime::Enqueue(const std::shared_ptr<Data>& data, int sample_rate, int channels, int bits) {
     if (!accepting_.load() || !data || data->Size() <= 0) {
@@ -127,13 +123,9 @@ void OpusEncoderRuntime::Enqueue(const std::shared_ptr<Data>& data, int sample_r
     worker_state_->condition.notify_one();
 }
 
-bool OpusEncoderRuntime::IsAccepting() const {
-    return accepting_.load();
-}
+bool OpusEncoderRuntime::IsAccepting() const { return accepting_.load(); }
 
-uint64_t OpusEncoderRuntime::DroppedCount() const {
-    return dropped_.load();
-}
+uint64_t OpusEncoderRuntime::DroppedCount() const { return dropped_.load(); }
 
 void OpusEncoderRuntime::Shutdown() {
     std::jthread worker_to_join{};
@@ -195,7 +187,6 @@ void OpusEncoderRuntime::ProcessEntry(const std::shared_ptr<WorkerState>& state,
     const bool format_changed = state->sample_rate != entry.sample_rate || state->channels != entry.channels || state->bits != entry.bits;
     if (!state->encoder || format_changed) {
         state->audio_cache.clear();
-        state->callback_count = 0;
         state->decoder.reset();
         state->encoder = std::make_shared<OpusAudioEncoder>(entry.sample_rate, entry.channels, entry.bits, OPUS_APPLICATION_AUDIO, 15);
         if (!state->encoder->valid()) {
@@ -220,38 +211,44 @@ void OpusEncoderRuntime::ProcessEntry(const std::shared_ptr<WorkerState>& state,
 
     const auto input = entry.data->AsString();
     state->audio_cache.insert(state->audio_cache.end(), input.begin(), input.end());
-    if (++state->callback_count < 2) {
-        return;
-    }
     const int bytes_per_sample = entry.bits / 8;
-    if (bytes_per_sample <= 0 || entry.channels <= 0) {
+    if (bytes_per_sample <= 0 || entry.channels <= 0 || entry.sample_rate % 50 != 0) {
         state->audio_cache.clear();
-        state->callback_count = 0;
         return;
     }
     const auto bytes_per_frame = static_cast<size_t>(bytes_per_sample) * static_cast<size_t>(entry.channels);
-    const int frame_size = static_cast<int>(state->audio_cache.size() / bytes_per_frame);
-    const auto encoded_frames = state->encoder->Encode(std::as_bytes(std::span{state->audio_cache}), frame_size);
-    for (const auto& encoded_frame : encoded_frames) {
-        auto encoded_data = Data::Copy(std::span<const char>{reinterpret_cast<const char*>(encoded_frame.data()), encoded_frame.size()});
-        state->delivery_channel->Deliver(encoded_data, entry.sample_rate, entry.channels, entry.bits, frame_size);
+    const int opus_frame_size = entry.sample_rate / 50;
+    const auto opus_frame_bytes = bytes_per_frame * static_cast<size_t>(opus_frame_size);
+    size_t consumed_bytes{};
+    while (state->audio_cache.size() - consumed_bytes >= opus_frame_bytes) {
+        const auto pcm_frame = std::span<const char>{state->audio_cache}.subspan(consumed_bytes, opus_frame_bytes);
+        const auto encoded_frames = state->encoder->Encode(std::as_bytes(pcm_frame), opus_frame_size);
+        for (const auto& encoded_frame : encoded_frames) {
+            if (encoded_frame.empty()) {
+                continue;
+            }
+            auto encoded_data = Data::Copy(std::span<const char>{reinterpret_cast<const char*>(encoded_frame.data()), encoded_frame.size()});
+            state->delivery_channel->Deliver(encoded_data, entry.sample_rate, entry.channels, entry.bits, opus_frame_size);
 
-        if (state->config.debug_decoder) {
-            if (!state->decoder) {
-                state->decoder = std::make_shared<OpusAudioDecoder>(state->encoder->SampleRate(), state->encoder->Channels());
-            }
-            const auto pcm = state->decoder->Decode(encoded_frame, frame_size, false);
-            if (!state->decoded_pcm_file) {
-                state->decoded_pcm_file = File::OpenForWriteB(PathFromUTF8("1.test.pcm"));
-            }
-            if (state->decoded_pcm_file && !pcm.empty()) {
-                state->decoded_pcm_file->Append(
-                    Data::Copy(std::span<const char>{reinterpret_cast<const char*>(pcm.data()), pcm.size() * sizeof(pcm.front())}));
+            if (state->config.debug_decoder) {
+                if (!state->decoder) {
+                    state->decoder = std::make_shared<OpusAudioDecoder>(state->encoder->SampleRate(), state->encoder->Channels());
+                }
+                const auto pcm = state->decoder->Decode(encoded_frame, opus_frame_size, false);
+                if (!state->decoded_pcm_file) {
+                    state->decoded_pcm_file = File::OpenForWriteB(PathFromUTF8("1.test.pcm"));
+                }
+                if (state->decoded_pcm_file && !pcm.empty()) {
+                    state->decoded_pcm_file->Append(
+                        Data::Copy(std::span<const char>{reinterpret_cast<const char*>(pcm.data()), pcm.size() * sizeof(pcm.front())}));
+                }
             }
         }
+        consumed_bytes += opus_frame_bytes;
     }
-    state->audio_cache.clear();
-    state->callback_count = 0;
+    if (consumed_bytes > 0U) {
+        state->audio_cache.erase(state->audio_cache.begin(), state->audio_cache.begin() + static_cast<std::ptrdiff_t>(consumed_bytes));
+    }
 }
 
-} // namespace px
+}  // namespace px

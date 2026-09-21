@@ -20,6 +20,11 @@ use px_console_store::{
     NodeConfiguration, NodeConnection, NodeProduct, NodeTelemetryTrend, TelemetryHistoryCursor,
     TelemetryTrendRequest, WorkspaceCommandLease,
 };
+use px_license::Distribution as LicenseDistribution;
+use px_release_catalog::{
+    Architecture, Channel, Distribution as ReleaseDistribution, OperatingSystem, Product,
+    ReleaseQuery,
+};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
@@ -288,8 +293,13 @@ async fn run_authenticated(
                 code: error_code(error).into(),
             },
         };
-        let failed = matches!(response, NodeResponse::Error { .. });
-        if send(socket, &response).await.is_err() || failed {
+        // Operation-level denials are part of the authenticated protocol. In
+        // particular, a frontend lease renewal must be rejected after its
+        // resource session starts closing without also invalidating the whole
+        // node connection. The node decides whether an error is recoverable;
+        // malformed sequencing and authentication failures are handled above
+        // and still close the socket.
+        if send(socket, &response).await.is_err() {
             return;
         }
     }
@@ -609,6 +619,74 @@ async fn operation(
                     uploads,
                 })
             }
+            NodeRequest::CheckUpdate {
+                current_build_number,
+                ..
+            } => {
+                let target = node_update_target(state, connection);
+                let offer = state
+                    .db
+                    .updates()
+                    .latest_for_node(connection, &target, current_build_number)
+                    .await?
+                    .map(|release| px_node_protocol::NodeUpdateOffer {
+                        release_id: release.id,
+                        policy_revision: release.revision,
+                        artifact: release.artifact,
+                    });
+                Ok(NodeResponse::UpdateChecked { request_id, offer })
+            }
+            NodeRequest::BeginUpdateActivation {
+                release_id,
+                policy_revision,
+                prepared_sha256,
+                ..
+            } => {
+                let target = node_update_target(state, connection);
+                let activation = state
+                    .db
+                    .updates()
+                    .begin_activation(
+                        connection,
+                        &target,
+                        release_id,
+                        policy_revision,
+                        &prepared_sha256,
+                    )
+                    .await?;
+                Ok(NodeResponse::UpdateActivationGranted {
+                    request_id,
+                    task_id: activation.task_id,
+                    lease_id: activation.lease_id,
+                    lease_until: activation.lease_until,
+                })
+            }
+            NodeRequest::FinishUpdateActivation {
+                task_id,
+                lease_id,
+                outcome,
+                ..
+            } => {
+                let outcome = match outcome {
+                    px_node_protocol::UpdateActivationOutcome::Installed => {
+                        px_console_store::UpdateActivationOutcome::Installed
+                    }
+                    px_node_protocol::UpdateActivationOutcome::Failed { error_code } => {
+                        px_console_store::UpdateActivationOutcome::Failed { error_code }
+                    }
+                };
+                let completion = state
+                    .db
+                    .updates()
+                    .finish_activation(connection, task_id, lease_id, &outcome)
+                    .await?;
+                Ok(NodeResponse::UpdateActivationFinished {
+                    request_id,
+                    state: completion.state,
+                    revision: completion.revision,
+                    error_code: completion.error_code,
+                })
+            }
             NodeRequest::Authenticate { .. } => Err(ApiError::Invalid),
         }
     };
@@ -652,7 +730,29 @@ fn management_event(message: &NodeRequest, node_id: Uuid) -> Option<(&'static st
         | NodeRequest::FetchRdpWorkspace { .. }
         | NodeRequest::ListDeployments { .. }
         | NodeRequest::ListFrontends { .. }
-        | NodeRequest::PollRecordingCache { .. } => None,
+        | NodeRequest::PollRecordingCache { .. }
+        | NodeRequest::CheckUpdate { .. } => None,
+        NodeRequest::BeginUpdateActivation { .. } | NodeRequest::FinishUpdateActivation { .. } => {
+            Some(("nodes", Some(node_id)))
+        }
+    }
+}
+
+fn node_update_target(state: &StateData, connection: &NodeConnection) -> ReleaseQuery {
+    let product = match connection.product() {
+        NodeProduct::CloudNode => Product::CloudNode,
+        NodeProduct::Remote => Product::Remote,
+    };
+    let distribution = match state.license.payload.distribution {
+        LicenseDistribution::Official => ReleaseDistribution::Official,
+        LicenseDistribution::Customer => ReleaseDistribution::Customer,
+    };
+    ReleaseQuery {
+        product,
+        distribution,
+        channel: Channel::Stable,
+        os: OperatingSystem::Windows,
+        architecture: Architecture::X86_64,
     }
 }
 

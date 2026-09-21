@@ -18,6 +18,7 @@ import RemoteOemCalculator from '@/views/RemoteOemCalculator.vue'
 import pixelsLogo from '@/assets/pixels-logo-45.svg'
 
 type PersonalEdition = 'commercial' | 'free'
+type PricingPage = 'remote' | 'cloud'
 
 interface RemotePricingPlan {
     name: string
@@ -46,6 +47,7 @@ interface PricingFaq {
 const { t, tm } = useI18n()
 const router = useRouter()
 const selectedPersonalEdition = ref<PersonalEdition>('commercial')
+const activePricingPage = ref<PricingPage>('remote')
 const calculatorVisible = ref(false)
 const remoteOemCalculatorVisible = ref(false)
 const contactVisible = ref(false)
@@ -70,7 +72,22 @@ const displayedRemotePlans = computed(() =>
 const cloudProducts = computed(
     () => tm('site.pricing.cloudProducts') as CloudProduct[],
 )
-const pricingFaqs = computed(() => tm('site.pricing.faqs') as PricingFaq[])
+const pricingPageOptions: PricingPage[] = ['remote', 'cloud']
+const pricingFaqs = computed(
+    () =>
+        tm(
+            activePricingPage.value === 'remote'
+                ? 'site.pricing.remoteFaqs'
+                : 'site.pricing.cloudFaqs',
+        ) as PricingFaq[],
+)
+const pricingFaqTitle = computed(() =>
+    t(
+        activePricingPage.value === 'remote'
+            ? 'site.pricing.remoteFaqTitle'
+            : 'site.pricing.cloudFaqTitle',
+    ),
+)
 
 function openCalculator() {
     calculatorVisible.value = true
@@ -174,7 +191,29 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
       </strong>
     </div>
 
-    <section id="remote-plans" class="section plans-section">
+    <div class="page-shell pricing-page-switch-wrap">
+      <nav
+        class="pricing-page-switcher"
+        :aria-label="t('site.pricing.pageSwitchLabel')"
+      >
+        <button
+          v-for="pricingPageOption in pricingPageOptions"
+          :key="pricingPageOption"
+          type="button"
+          :class="{ active: activePricingPage === pricingPageOption }"
+          :aria-current="activePricingPage === pricingPageOption ? 'page' : undefined"
+          @click="activePricingPage = pricingPageOption"
+        >
+          {{ t(`site.pricing.pageSwitch.${pricingPageOption}`) }}
+        </button>
+      </nav>
+    </div>
+
+    <section
+      v-if="activePricingPage === 'remote'"
+      id="remote-plans"
+      class="section plans-section"
+    >
       <div class="page-shell">
         <div class="section-heading centered-heading">
           <h2>{{ t('site.pricing.plansTitle') }}</h2>
@@ -256,7 +295,7 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
       </div>
     </section>
 
-    <section class="section cloud-pricing-section">
+    <section v-else class="section cloud-pricing-section">
       <div class="page-shell">
         <div class="section-heading cloud-heading">
           <h2>{{ t('site.pricing.cloudTitle') }}</h2>
@@ -307,7 +346,7 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
     <section class="section faq-section">
       <div class="page-shell faq-layout">
         <div class="section-heading faq-heading">
-          <h2>{{ t('site.pricing.faqTitle') }}</h2>
+          <h2>{{ pricingFaqTitle }}</h2>
           <IconStack2 :size="46" :stroke-width="1.2" />
         </div>
         <div class="faq-list">
@@ -670,6 +709,54 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
     text-align: center;
 }
 
+.pricing-page-switch-wrap {
+    padding-top: 34px;
+}
+
+.pricing-page-switcher {
+    display: grid;
+    width: min(720px, 100%);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    margin: 0 auto;
+    padding: 6px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--card);
+    box-shadow: 0 16px 42px rgba(15, 23, 42, 0.06);
+}
+
+.pricing-page-switcher button {
+    display: flex;
+    min-width: 0;
+    min-height: 54px;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 20px;
+    border: 0;
+    border-radius: 13px;
+    background: transparent;
+    color: var(--foreground);
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 760;
+    text-align: center;
+    transition:
+        background 180ms ease,
+        color 180ms ease,
+        transform 180ms ease;
+}
+
+.pricing-page-switcher button:hover {
+    background: var(--secondary);
+}
+
+.pricing-page-switcher button.active {
+    background: var(--primary);
+    box-shadow: 0 9px 24px rgba(0, 127, 73, 0.18);
+    color: var(--primary-foreground);
+}
+
 .plan-deployment-notice {
     position: relative;
     display: block;
@@ -927,10 +1014,8 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
 }
 
 .cloud-pricing-section {
-    border-top: 1px solid var(--border);
-    background:
-        radial-gradient(circle at 80% 20%, rgba(0, 154, 89, 0.12), transparent 28%),
-        var(--secondary);
+    padding-top: 52px;
+    background: var(--background);
 }
 
 .cloud-heading {
@@ -1172,6 +1257,10 @@ function consultRemotePlan(plan: RemotePricingPlan, planIndex: number) {
 }
 
 @media (max-width: 560px) {
+    .pricing-page-switcher {
+        grid-template-columns: 1fr;
+    }
+
     .hero-copy h1 {
         font-size: 42px;
     }

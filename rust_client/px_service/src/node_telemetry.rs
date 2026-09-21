@@ -1,5 +1,5 @@
 use crate::node_gpu_telemetry::{
-    enrich_nvidia_metrics, enrich_runtime_adapter_bindings, stable_gpu_key, EnumeratedGpu,
+    enrich_nvidia_metrics, enrich_windows_metrics, stable_gpu_key, EnumeratedGpu,
 };
 use chrono::Utc;
 use px_node_protocol::{NodeGpuTelemetry, NodeTelemetry, TelemetryProbeState};
@@ -113,8 +113,8 @@ fn sample_inner() -> Result<NodeTelemetry, String> {
                     })
                 })
                 .collect::<Vec<_>>();
+            enrich_windows_metrics(&mut enumerated_gpus, &wmi);
             enrich_nvidia_metrics(&mut enumerated_gpus);
-            enrich_runtime_adapter_bindings(&mut enumerated_gpus);
             let mut gpus = enumerated_gpus
                 .into_iter()
                 .map(|gpu| gpu.telemetry)

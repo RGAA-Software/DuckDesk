@@ -61,13 +61,14 @@ pub struct ReleaseSpec {
     pub target: ReleaseQuery,
     pub build_number: i64,
     pub version: String,
-    pub artifact_url: String,
+    /// HTTPS base URL of the TUF metadata repository. Must end with `/`.
+    pub metadata_base_url: String,
+    /// HTTPS base URL of the TUF targets repository. Must end with `/`.
+    pub targets_base_url: String,
+    /// Exact TUF target path. It is resolved only by the verified TUF client.
+    pub target_name: String,
     pub sha256: String,
     pub size_bytes: i64,
-    /// Immutable reference to metadata for the reviewed update framework.
-    /// Recording this reference never asserts that its signature was verified.
-    pub metadata_url: String,
-    pub metadata_sha256: String,
 }
 fn digest_text(value: &str) -> bool {
     value.len() == 64
@@ -75,7 +76,7 @@ fn digest_text(value: &str) -> bool {
             .bytes()
             .all(|byte_value| byte_value.is_ascii_digit() || (b'a'..=b'f').contains(&byte_value))
 }
-fn public_url(value: &str) -> bool {
+fn public_base_url(value: &str) -> bool {
     if value.len() > 2048
         || value
             .bytes()
@@ -90,7 +91,21 @@ fn public_url(value: &str) -> bool {
             && url.password().is_none()
             && url.fragment().is_none()
             && url.query().is_none()
+            && url.path().ends_with('/')
     })
+}
+fn target_name(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 512
+        && !value.starts_with(['/', '\\'])
+        && !value.ends_with(['/', '\\'])
+        && !value.contains('\\')
+        && !value
+            .bytes()
+            .any(|byte_value| byte_value.is_ascii_whitespace() || byte_value.is_ascii_control())
+        && value
+            .split('/')
+            .all(|component| !component.is_empty() && component != "." && component != "..")
 }
 impl ReleaseSpec {
     pub fn validate(&self) -> Result<(), InvalidRelease> {
@@ -101,10 +116,10 @@ impl ReleaseSpec {
             && !self.version.trim().is_empty()
             && self.version.chars().count() <= 64
             && !self.version.chars().any(char::is_control)
-            && public_url(&self.artifact_url)
-            && public_url(&self.metadata_url)
-            && digest_text(&self.sha256)
-            && digest_text(&self.metadata_sha256);
+            && public_base_url(&self.metadata_base_url)
+            && public_base_url(&self.targets_base_url)
+            && target_name(&self.target_name)
+            && digest_text(&self.sha256);
         valid.then_some(()).ok_or(InvalidRelease)
     }
     pub fn digest(&self) -> Result<[u8; 32], InvalidRelease> {
@@ -128,11 +143,11 @@ mod tests {
             },
             build_number: 32,
             version: "1.2.3".into(),
-            artifact_url: "https://example.invalid/server.tar.gz".into(),
+            metadata_base_url: "https://example.invalid/metadata/".into(),
+            targets_base_url: "https://example.invalid/targets/".into(),
+            target_name: "server/server.tar.gz".into(),
             sha256: "a".repeat(64),
             size_bytes: 500,
-            metadata_url: "https://example.invalid/32.targets.json".into(),
-            metadata_sha256: "b".repeat(64),
         }
     }
     #[test]
@@ -163,18 +178,18 @@ mod tests {
         for field in [
             "build_number",
             "version",
-            "artifact_url",
+            "metadata_base_url",
+            "targets_base_url",
+            "target_name",
             "sha256",
             "size_bytes",
-            "metadata_url",
-            "metadata_sha256",
         ] {
             let mut value = serde_json::to_value(&base).unwrap();
             value[field] = match field {
                 "build_number" | "size_bytes" => serde_json::json!(999),
-                "sha256" | "metadata_sha256" => serde_json::json!("c".repeat(64)),
-                "artifact_url" | "metadata_url" => {
-                    serde_json::json!("https://example.invalid/other")
+                "sha256" => serde_json::json!("c".repeat(64)),
+                "metadata_base_url" | "targets_base_url" => {
+                    serde_json::json!("https://example.invalid/other/")
                 }
                 _ => serde_json::json!("other"),
             };
@@ -218,10 +233,22 @@ mod tests {
             "file:///tmp/a",
         ] {
             let mut release_spec = spec();
-            release_spec.artifact_url = url.into();
+            release_spec.metadata_base_url = url.into();
             assert!(release_spec.validate().is_err());
             release_spec = spec();
-            release_spec.metadata_url = url.into();
+            release_spec.targets_base_url = url.into();
+            assert!(release_spec.validate().is_err());
+        }
+        for name in [
+            "",
+            "/absolute.exe",
+            "../escape.exe",
+            "a/../b.exe",
+            "a\\b.exe",
+            "a b.exe",
+        ] {
+            let mut release_spec = spec();
+            release_spec.target_name = name.into();
             assert!(release_spec.validate().is_err());
         }
     }

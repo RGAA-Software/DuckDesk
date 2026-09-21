@@ -511,9 +511,8 @@ class RemoteSessionWorkflow(
             if (mutableSnapshot.value.status is RemoteSessionStatus.Stopping || mutableSnapshot.value.status is RemoteSessionStatus.Failed) return
             when (event) {
                 is RemoteTransportEvent.Connected -> {
-                    mutableSnapshot.value = RemoteSessionSnapshot(
+                    mutableSnapshot.value = mutableSnapshot.value.copy(
                         status = RemoteSessionStatus.Connected(request, event.capabilities),
-                        mediaFailure = mutableSnapshot.value.mediaFailure,
                     )
                 }
                 is RemoteTransportEvent.CapabilitiesUpdated -> {

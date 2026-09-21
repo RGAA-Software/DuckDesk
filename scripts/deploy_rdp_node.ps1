@@ -119,7 +119,37 @@ $rdpArchive = Invoke-Command -Session $Session -ArgumentList $rdpInstall, $proxy
         }
         Set-Acl -LiteralPath $path -AclObject $acl
     }
-    Stop-Service -Name px_service -ErrorAction Stop
+    Stop-Service -Name px_service -Force -ErrorAction Stop
+    $service = Get-Service -Name px_service -ErrorAction Stop
+    $service.WaitForStatus(
+        [ServiceProcess.ServiceControllerStatus]::Stopped,
+        [TimeSpan]::FromSeconds(20))
+    $serviceExecutable = [IO.Path]::GetFullPath("$install\px_service.exe")
+    Get-CimInstance Win32_Process |
+        Where-Object {
+            $_.Name -eq 'px_service.exe' -and
+            $_.ExecutablePath -and
+            [IO.Path]::GetFullPath($_.ExecutablePath).Equals(
+                $serviceExecutable,
+                [StringComparison]::OrdinalIgnoreCase)
+        } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop }
+    for ($attempt = 0; $attempt -lt 40; $attempt++) {
+        $remainingServiceProcesses = @(Get-CimInstance Win32_Process | Where-Object {
+                $_.Name -eq 'px_service.exe' -and
+                $_.ExecutablePath -and
+                [IO.Path]::GetFullPath($_.ExecutablePath).Equals(
+                    $serviceExecutable,
+                    [StringComparison]::OrdinalIgnoreCase)
+            })
+        if ($remainingServiceProcesses.Count -eq 0) {
+            break
+        }
+        Start-Sleep -Milliseconds 250
+    }
+    if ($remainingServiceProcesses.Count -ne 0) {
+        throw 'Stopped Service process did not release the installed executable.'
+    }
     foreach ($process in @(Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'px_render.exe' -and $_.ExecutablePath -eq "$install\px_render.exe" })) {
         # Stop only the host Render process, not its descendants or RDS sessions.
         try { Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop }

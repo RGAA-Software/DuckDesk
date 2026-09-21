@@ -78,13 +78,13 @@ pub async fn publish(pool: &PgPool, input: ReleaseInput) -> Result<Release, ApiE
         input.target.channel.name(),
         input.build_number,
         input.version,
-        input.artifact_url,
+        input.metadata_base_url,
+        input.targets_base_url,
+        input.target_name,
         input.sha256,
         input.target.os.name(),
         input.target.architecture.name(),
-        input.size_bytes,
-        input.metadata_url,
-        input.metadata_sha256
+        input.size_bytes
     )
     .fetch_one(pool)
     .await?)

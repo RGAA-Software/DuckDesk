@@ -1,5 +1,6 @@
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use chrono::Utc;
@@ -11,9 +12,12 @@ use px_node_protocol::{
     ApplicationLaunch, BeginFileTransfer, ChannelKind, ChannelProgress, CommandOutcome,
     CommandReceipt, DeploymentAssignment, DeploymentObservation, DeploymentPreparation,
     GpuReservation, NodeCommand, NodeCommandAction, NodeReport, NodeRequest, NodeResponse,
-    ObservedRuntime, ObservedRuntimePhase, OpenChannel, PreparationFailure, PreparationState,
-    RdpWorkspaceCredential, RecordingCacheUpload, RelayEndpoint, RuntimeInventory,
-    TelemetryBackfillSample, TransferDirection, VideoCodec, MAX_MESSAGE_BYTES,
+    NodeUpdateOffer, ObservedRuntime, ObservedRuntimePhase, OpenChannel, PreparationFailure,
+    PreparationState, RdpWorkspaceCredential, RecordingCacheUpload, RelayEndpoint,
+    RuntimeInventory, TelemetryBackfillSample, TransferDirection, VideoCodec, MAX_MESSAGE_BYTES,
+};
+use px_release_catalog::{
+    Architecture, Channel, Distribution, OperatingSystem, Product, ReleaseQuery,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use service_core::{AppInstanceState, StartAppRequest};
@@ -36,6 +40,9 @@ use crate::node_control_store::{
 use crate::product_descriptor::ProductDescriptor;
 use crate::recording_inventory::RecordingInventory;
 use crate::service_host::ServiceRuntime;
+use crate::update_activation::{
+    trusted_rollback_sha256, ActivationPhase, UpdateActivationRecord, UpdateActivationStore,
+};
 
 type NodeSocket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
@@ -45,7 +52,10 @@ const RECONNECT_DELAY: Duration = Duration::from_secs(2);
 const CONFIGURATION_POLL: Duration = Duration::from_secs(5);
 const COMMAND_POLL: Duration = Duration::from_secs(1);
 const REPORT_INTERVAL: Duration = Duration::from_secs(15);
+const UPDATE_CHECK_INTERVAL: Duration = Duration::from_secs(15 * 60);
 const DEPLOYMENT_IDENTITY_RESPONSE_LIMIT: usize = 64 * 1024;
+const FRONTEND_FAIL_CLOSED_LEASE: Duration = Duration::from_secs(30);
+const FRONTEND_CHALLENGE_RENEWAL_MARGIN: chrono::TimeDelta = chrono::TimeDelta::seconds(5);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct NodeControlIdentity {
@@ -58,6 +68,20 @@ pub(crate) struct NodeControlIdentity {
 struct NodeControlAuthentication {
     identity: NodeControlIdentity,
     relay: Option<RelayEndpoint>,
+}
+
+struct PendingFrontendRetirement {
+    challenge_id: Uuid,
+    deadline: chrono::DateTime<Utc>,
+    render_name: Option<String>,
+    fail_closed_at: Instant,
+}
+
+struct FrontendObservation {
+    connected_renders: HashSet<String>,
+    sessions_by_render: HashMap<String, HashSet<Uuid>>,
+    render_by_session: HashMap<Uuid, String>,
+    duplicate_sessions: HashSet<Uuid>,
 }
 
 #[derive(Serialize)]
@@ -262,8 +286,10 @@ pub async fn node_control_loop(
         let connection_result =
             run_connection(&runtime, &connection_context, &mut stop_rx, &mut operations).await;
         let mut runtime = runtime.lock().await;
+        runtime.rdp_console_trusted = false;
         runtime.node_control_identity = None;
         runtime.node_control_relay = None;
+        runtime.node_control_update_offer = None;
         drop(runtime);
         match connection_result {
             Ok(ConnectionEnd::Stopped) => return Ok(()),
@@ -342,6 +368,7 @@ async fn run_connection(
     let authentication = session.accept_authentication(authentication_id, response)?;
     {
         let mut runtime = runtime.lock().await;
+        runtime.rdp_console_trusted = true;
         let relay_changed = runtime.node_control_relay != authentication.relay;
         runtime.node_control_identity = Some(authentication.identity);
         runtime.node_control_relay = authentication.relay.clone();
@@ -360,7 +387,7 @@ async fn run_connection(
         "node-control authenticated"
     );
 
-    let endpoint_revision = report(
+    let report_outcome = report(
         &mut socket,
         &mut session,
         runtime,
@@ -369,10 +396,46 @@ async fn run_connection(
         1,
     )
     .await?;
+    let service_directory = std::env::current_exe()
+        .map_err(|_| "cannot resolve Service executable for update trust".to_string())?
+        .parent()
+        .ok_or_else(|| "Service executable has no parent directory".to_string())?
+        .to_path_buf();
+    let trusted_update_root = service_directory.join("resources/update/root.json");
+    let update_data_root = runtime.lock().await.config.data_root.join("updates");
+    let service_data_root = runtime.lock().await.config.data_root.clone();
+    synchronize_update_activation(&mut socket, &mut session, product, &service_data_root).await?;
+    let mut update_tasks = JoinSet::new();
+    let mut preparing_release_id = None;
+    let update_offer = refresh_update_offer(&mut socket, &mut session, runtime, product).await?;
+    schedule_update_preparation(
+        update_offer,
+        runtime,
+        &mut update_tasks,
+        &mut preparing_release_id,
+        &trusted_update_root,
+        &update_data_root,
+    )
+    .await;
     sync_telemetry_backlog(&mut socket, &mut session, telemetry_backlog, 4).await?;
     sync_file_transfer_reports(&mut socket, &mut session, file_transfer_outbox).await?;
-    sync_deployments(&mut socket, &mut session, product, endpoint_revision, 1).await?;
+    sync_deployments(
+        &mut socket,
+        &mut session,
+        product,
+        report_outcome.endpoint_revision,
+        1,
+    )
+    .await?;
     reconcile(&mut socket, &mut session, runtime).await?;
+    let mut pending_frontend_retirements = HashMap::new();
+    synchronize_frontend_retirements(
+        &mut socket,
+        &mut session,
+        runtime,
+        &mut pending_frontend_retirements,
+    )
+    .await?;
     let inventory_for_connection = recording_inventory.clone();
     tokio::task::spawn_blocking(move || {
         inventory_for_connection
@@ -388,6 +451,12 @@ async fn run_connection(
     let mut reports = tokio::time::interval(REPORT_INTERVAL);
     reports.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     reports.tick().await;
+    let mut update_checks = tokio::time::interval(UPDATE_CHECK_INTERVAL);
+    update_checks.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    update_checks.tick().await;
+    let mut command_polls = tokio::time::interval(COMMAND_POLL);
+    command_polls.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    command_polls.tick().await;
     let console_endpoint = url::Url::parse(&configuration.endpoint)
         .map_err(|_| "node-control endpoint cannot be reused for recording upload".to_string())?;
     let mut upload_tasks = JoinSet::new();
@@ -401,7 +470,7 @@ async fn run_connection(
                 report_sequence = report_sequence.checked_add(1)
                     .ok_or_else(|| "node report sequence exhausted".to_string())?;
                 ServiceRuntime::refresh_app_processes(runtime).await;
-                let endpoint_revision = report(
+                let report_outcome = report(
                     &mut socket,
                     &mut session,
                     runtime,
@@ -409,18 +478,45 @@ async fn run_connection(
                     product,
                     report_sequence,
                 ).await?;
+                if report_outcome.state == "reconciling" {
+                    reconcile(&mut socket, &mut session, runtime).await?;
+                }
                 sync_telemetry_backlog(&mut socket, &mut session, telemetry_backlog, 4).await?;
                 sync_file_transfer_reports(&mut socket, &mut session, file_transfer_outbox).await?;
                 sync_deployments(
                     &mut socket,
                     &mut session,
                     product,
-                    endpoint_revision,
+                    report_outcome.endpoint_revision,
                     report_sequence,
                 ).await?;
                 sync_recordings(&mut socket, &mut session, recording_inventory).await?;
+                synchronize_update_activation(
+                    &mut socket,
+                    &mut session,
+                    product,
+                    &service_data_root,
+                ).await?;
             }
-            _ = sleep(COMMAND_POLL) => {
+            _ = update_checks.tick() => {
+                let update_offer = refresh_update_offer(&mut socket, &mut session, runtime, product).await?;
+                schedule_update_preparation(
+                    update_offer,
+                    runtime,
+                    &mut update_tasks,
+                    &mut preparing_release_id,
+                    &trusted_update_root,
+                    &update_data_root,
+                ).await;
+                try_activate_prepared_update(
+                    &mut socket,
+                    &mut session,
+                    runtime,
+                    product,
+                    file_transfer_outbox,
+                ).await?;
+            }
+            _ = command_polls.tick() => {
                 let request = NodeRequest::PollCommand {
                     request_id: session.request_id()?,
                 };
@@ -449,12 +545,20 @@ async fn run_connection(
                                 None
                             };
                             let workspace_id = rdp_workspace.as_ref().map(|workspace| workspace.workspace_id);
-                            let mut outcome = execute_command(
+                            let command_execution_io = CommandExecutionIo {
+                                socket: &mut socket,
+                                session: &mut session,
+                                operations,
+                                file_transfer_outbox,
+                            };
+                            let mut outcome = execute_command_while_servicing_operations(
+                                command_execution_io,
                                 runtime,
                                 &command,
                                 rdp_workspace,
                                 authentication.identity,
-                            ).await;
+                            )
+                            .await?;
                             if matches!(outcome, CommandOutcome::Running { .. }) {
                                 if let Some(workspace_id) = workspace_id {
                                     let windows_sid = {
@@ -503,6 +607,12 @@ async fn run_connection(
                         upload_recording(upload_http, upload_endpoint, upload_inventory, upload).await
                     });
                 }
+                synchronize_frontend_retirements(
+                    &mut socket,
+                    &mut session,
+                    runtime,
+                    &mut pending_frontend_retirements,
+                ).await?;
             }
             operation = operations.recv() => {
                 let Some(operation) = operation else {
@@ -519,6 +629,43 @@ async fn run_connection(
                     Some(Ok(Ok(()))) => {}
                     Some(Ok(Err(error))) => warn!(%error, "recording cache upload failed"),
                     Some(Err(error)) => warn!(%error, "recording cache upload task failed"),
+                    None => {}
+                }
+            }
+            completed = update_tasks.join_next(), if !update_tasks.is_empty() => {
+                match completed {
+                    Some(Ok((release_id, Ok(prepared)))) => {
+                        if preparing_release_id == Some(release_id) {
+                            preparing_release_id = None;
+                        }
+                        {
+                            let mut runtime_guard = runtime.lock().await;
+                            if runtime_guard.node_control_update_offer.as_ref().map(|offer| offer.release_id) == Some(release_id) {
+                                info!(
+                                    %release_id,
+                                    version = %prepared.version,
+                                    build_number = prepared.build_number,
+                                    path = %prepared.artifact_path.display(),
+                                    "TUF-verified update is staged; activation eligibility will now be checked"
+                                );
+                                runtime_guard.node_control_prepared_update = Some(prepared);
+                            }
+                        }
+                        try_activate_prepared_update(
+                            &mut socket,
+                            &mut session,
+                            runtime,
+                            product,
+                            file_transfer_outbox,
+                        ).await?;
+                    }
+                    Some(Ok((release_id, Err(error)))) => {
+                        if preparing_release_id == Some(release_id) {
+                            preparing_release_id = None;
+                        }
+                        warn!(%release_id, %error, "node update preparation failed closed");
+                    }
+                    Some(Err(error)) => warn!(%error, "node update preparation task failed"),
                     None => {}
                 }
             }
@@ -1035,6 +1182,11 @@ async fn sync_file_transfer_reports(
     Ok(())
 }
 
+struct NodeReportOutcome {
+    endpoint_revision: i64,
+    state: String,
+}
+
 async fn report(
     socket: &mut NodeSocket,
     session: &mut ProtocolSession,
@@ -1042,7 +1194,7 @@ async fn report(
     configuration: &NodeControlConfiguration,
     product: &ProductDescriptor,
     sequence: u64,
-) -> Result<i64, String> {
+) -> Result<NodeReportOutcome, String> {
     let node = runtime.lock().await.config.node.clone();
     let telemetry = match tokio::task::spawn_blocking(crate::node_telemetry::sample).await {
         Ok(telemetry) => telemetry,
@@ -1084,12 +1236,320 @@ async fn report(
     match exchange(socket, request).await? {
         NodeResponse::Reported {
             request_id,
+            state,
             endpoint_revision,
-            ..
-        } if request_id == expected && endpoint_revision > 0 => Ok(endpoint_revision),
+        } if request_id == expected && endpoint_revision > 0 => Ok(NodeReportOutcome {
+            endpoint_revision,
+            state,
+        }),
         NodeResponse::Error { code, .. } => Err(format!("node report rejected: {code}")),
         _ => Err("unexpected node report response".into()),
     }
+}
+
+fn expected_update_target(product: &ProductDescriptor) -> Result<Option<ReleaseQuery>, String> {
+    let product_name = match product.product.as_str() {
+        "cloud_node" => Product::CloudNode,
+        "remote" => Product::Remote,
+        _ => return Err("installed product cannot consume node updates".into()),
+    };
+    let distribution = match product.distribution.as_str() {
+        "official" => Distribution::Official,
+        "customer" => Distribution::Customer,
+        "development" => return Ok(None),
+        _ => return Err("installed product has an invalid update distribution".into()),
+    };
+    Ok(Some(ReleaseQuery {
+        product: product_name,
+        distribution,
+        channel: Channel::Stable,
+        os: OperatingSystem::Windows,
+        architecture: Architecture::X86_64,
+    }))
+}
+
+async fn check_update(
+    socket: &mut NodeSocket,
+    session: &mut ProtocolSession,
+    product: &ProductDescriptor,
+) -> Result<Option<NodeUpdateOffer>, String> {
+    let Some(expected_target) = expected_update_target(product)? else {
+        return Ok(None);
+    };
+    let current_build_number = i64::from(product.product_version_code);
+    let request = NodeRequest::CheckUpdate {
+        request_id: session.request_id()?,
+        current_build_number,
+    };
+    let expected_request_id = request.request_id();
+    let offer = match exchange(socket, request).await? {
+        NodeResponse::UpdateChecked { request_id, offer } if request_id == expected_request_id => {
+            offer
+        }
+        NodeResponse::Error { code, .. } => {
+            return Err(format!("node update check rejected: {code}"));
+        }
+        _ => return Err("unexpected node update check response".into()),
+    };
+    if let Some(offer) = &offer {
+        if offer.release_id.is_nil()
+            || offer.policy_revision < 2
+            || offer.artifact.validate().is_err()
+            || offer.artifact.target != expected_target
+            || offer.artifact.build_number <= current_build_number
+        {
+            return Err("Console returned an invalid node update offer".into());
+        }
+    }
+    Ok(offer)
+}
+
+async fn refresh_update_offer(
+    socket: &mut NodeSocket,
+    session: &mut ProtocolSession,
+    runtime: &Arc<Mutex<ServiceRuntime>>,
+    product: &ProductDescriptor,
+) -> Result<Option<NodeUpdateOffer>, String> {
+    let offer = check_update(socket, session, product).await?;
+    if let Some(update) = &offer {
+        info!(
+            release_id = %update.release_id,
+            version = %update.artifact.version,
+            build_number = update.artifact.build_number,
+            "approved node update is available; activation remains blocked until package signature verification"
+        );
+    }
+    runtime.lock().await.node_control_update_offer = offer.clone();
+    Ok(offer)
+}
+
+async fn schedule_update_preparation(
+    offer: Option<NodeUpdateOffer>,
+    runtime: &Arc<Mutex<ServiceRuntime>>,
+    tasks: &mut JoinSet<(
+        Uuid,
+        Result<crate::update_preparation::PreparedUpdate, String>,
+    )>,
+    preparing_release_id: &mut Option<Uuid>,
+    trusted_root_path: &std::path::Path,
+    update_data_root: &std::path::Path,
+) {
+    let Some(offer) = offer else {
+        return;
+    };
+    let already_prepared = runtime
+        .lock()
+        .await
+        .node_control_prepared_update
+        .as_ref()
+        .is_some_and(|prepared| {
+            prepared.release_id == offer.release_id
+                && prepared.policy_revision == offer.policy_revision
+                && prepared.build_number == offer.artifact.build_number
+        });
+    if already_prepared || *preparing_release_id == Some(offer.release_id) {
+        return;
+    }
+    if preparing_release_id.is_some() {
+        tasks.abort_all();
+    }
+    let release_id = offer.release_id;
+    let trusted_root_path = trusted_root_path.to_path_buf();
+    let update_data_root = update_data_root.to_path_buf();
+    tasks.spawn(async move {
+        let result =
+            crate::update_preparation::prepare(&offer, &trusted_root_path, &update_data_root).await;
+        (release_id, result)
+    });
+    *preparing_release_id = Some(release_id);
+}
+
+async fn synchronize_update_activation(
+    socket: &mut NodeSocket,
+    session: &mut ProtocolSession,
+    product: &ProductDescriptor,
+    data_root: &std::path::Path,
+) -> Result<(), String> {
+    let store = UpdateActivationStore::new(data_root.to_path_buf());
+    let Some(record) = store.load()? else {
+        return Ok(());
+    };
+    if record.product != product.product || record.distribution != product.distribution {
+        return Err("update activation record belongs to another installed product".into());
+    }
+    if record.lease_until <= Utc::now() {
+        store.remove()?;
+        return Ok(());
+    }
+    let outcome = match record.phase {
+        ActivationPhase::Installed => px_node_protocol::UpdateActivationOutcome::Installed,
+        ActivationPhase::Failed => px_node_protocol::UpdateActivationOutcome::Failed {
+            error_code: record
+                .error_code
+                .clone()
+                .ok_or_else(|| "failed update activation record has no error code".to_string())?,
+        },
+        ActivationPhase::Authorized | ActivationPhase::Applying => return Ok(()),
+    };
+    let request = NodeRequest::FinishUpdateActivation {
+        request_id: session.request_id()?,
+        task_id: record.task_id,
+        lease_id: record.lease_id,
+        outcome,
+    };
+    let expected_request_id = request.request_id();
+    match exchange(socket, request).await? {
+        NodeResponse::UpdateActivationFinished {
+            request_id,
+            state,
+            ..
+        } if request_id == expected_request_id
+            && matches!(state.as_str(), "installed" | "failed") =>
+        {
+            store.remove()?;
+            info!(task_id = %record.task_id, %state, "node update activation reached a durable terminal state");
+            Ok(())
+        }
+        NodeResponse::Error { code, .. } if code == "rejected" => {
+            Err(format!(
+                "Console rejected update activation completion for task {} before its local lease expired",
+                record.task_id
+            ))
+        }
+        NodeResponse::Error { code, .. } => {
+            Err(format!("node update activation completion failed: {code}"))
+        }
+        _ => Err("unexpected node update activation completion response".into()),
+    }
+}
+
+async fn try_activate_prepared_update(
+    socket: &mut NodeSocket,
+    session: &mut ProtocolSession,
+    runtime: &Arc<Mutex<ServiceRuntime>>,
+    product: &ProductDescriptor,
+    file_transfer_outbox: &Arc<std::sync::Mutex<FileTransferOutboxStore>>,
+) -> Result<(), String> {
+    let (offer, prepared, data_root, service_port, install_directory, local_idle) = {
+        let guard = runtime.lock().await;
+        let logical_sessions_idle = if guard.state.desktop_alive {
+            serde_json::from_str::<Vec<serde_json::Value>>(&guard.state.logical_sessions_json)
+                .is_ok_and(|sessions| sessions.is_empty())
+        } else {
+            true
+        };
+        let applications_idle = guard
+            .app_registry
+            .list()
+            .into_iter()
+            .all(|instance| !instance.is_active());
+        (
+            guard.node_control_update_offer.clone(),
+            guard.node_control_prepared_update.clone(),
+            guard.config.data_root.clone(),
+            guard.config.listen_port,
+            std::env::current_exe()
+                .ok()
+                .and_then(|path| path.parent().map(std::path::Path::to_path_buf)),
+            logical_sessions_idle && applications_idle,
+        )
+    };
+    if !local_idle {
+        return Ok(());
+    }
+    let transfers_idle = file_transfer_outbox
+        .lock()
+        .map_err(|_| "file transfer outbox lock is unavailable".to_string())?
+        .pending(32)?
+        .is_empty();
+    if !transfers_idle {
+        return Ok(());
+    }
+    let (Some(offer), Some(prepared), Some(install_directory)) =
+        (offer, prepared, install_directory)
+    else {
+        return Ok(());
+    };
+    if prepared.release_id != offer.release_id
+        || prepared.policy_revision != offer.policy_revision
+        || prepared.build_number != offer.artifact.build_number
+    {
+        return Ok(());
+    }
+    let store = UpdateActivationStore::new(data_root.clone());
+    if store.load()?.is_some() {
+        return Ok(());
+    }
+    let request = NodeRequest::BeginUpdateActivation {
+        request_id: session.request_id()?,
+        release_id: offer.release_id,
+        policy_revision: offer.policy_revision,
+        prepared_sha256: offer.artifact.sha256.clone(),
+    };
+    let expected_request_id = request.request_id();
+    let (task_id, lease_id, lease_until) = match exchange(socket, request).await? {
+        NodeResponse::UpdateActivationGranted {
+            request_id,
+            task_id,
+            lease_id,
+            lease_until,
+        } if request_id == expected_request_id
+            && !task_id.is_nil()
+            && !lease_id.is_nil()
+            && lease_until > Utc::now() =>
+        {
+            (task_id, lease_id, lease_until)
+        }
+        NodeResponse::Error { code, .. } if code == "rejected" => return Ok(()),
+        NodeResponse::Error { code, .. } => {
+            return Err(format!("node update activation request failed: {code}"));
+        }
+        _ => return Err("unexpected node update activation response".into()),
+    };
+    let to_build_number = u32::try_from(prepared.build_number)
+        .map_err(|_| "prepared update build does not fit the product manifest".to_string())?;
+    let rollback_sha256 =
+        trusted_rollback_sha256(&data_root, &product.product, &product.distribution)?;
+    let record = UpdateActivationRecord {
+        schema_version: 1,
+        release_id: offer.release_id,
+        policy_revision: offer.policy_revision,
+        task_id,
+        lease_id,
+        lease_until,
+        product: product.product.clone(),
+        distribution: product.distribution.clone(),
+        from_build_number: product.product_version_code,
+        to_build_number,
+        version: prepared.version.clone(),
+        prepared_sha256: offer.artifact.sha256,
+        rollback_sha256,
+        artifact_path: prepared.artifact_path,
+        install_directory,
+        service_port,
+        phase: ActivationPhase::Authorized,
+        error_code: None,
+    };
+    store.save(&record)?;
+    let runner_directory = data_root.join("updates").join("activation").join("runners");
+    crate::node_control_store::platform::ensure_private_directory(&runner_directory)?;
+    let runner_path = runner_directory.join(format!("pixels-update-runner-{task_id}.exe"));
+    std::fs::copy(
+        std::env::current_exe()
+            .map_err(|_| "cannot resolve the Service update runner".to_string())?,
+        &runner_path,
+    )
+    .map_err(|_| "cannot publish the Service update runner".to_string())?;
+    if std::process::Command::new(&runner_path)
+        .arg("--apply-authorized-update")
+        .spawn()
+        .is_err()
+    {
+        store.mark_phase(record, ActivationPhase::Failed, Some("runner_start_failed"))?;
+        return Err("cannot start the Service update runner".into());
+    }
+    info!(%task_id, version = %prepared.version, "node update activation lease granted; verified installer runner started");
+    Ok(())
 }
 
 async fn sync_telemetry_backlog(
@@ -1288,6 +1748,213 @@ fn gpu_binding_is_available(
         == 1
 }
 
+async fn observe_frontends(
+    runtime: &Arc<Mutex<ServiceRuntime>>,
+) -> Result<FrontendObservation, String> {
+    let guard = runtime.lock().await;
+    let connected_renders = guard.render_senders.keys().cloned().collect::<HashSet<_>>();
+    let mut sessions_by_render = HashMap::new();
+    let mut render_by_session = HashMap::new();
+    let mut duplicate_sessions = HashSet::new();
+    for render_name in &connected_renders {
+        let Some(snapshot) = guard.render_logical_sessions.get(render_name) else {
+            continue;
+        };
+        let rows = serde_json::from_str::<Vec<serde_json::Value>>(snapshot).map_err(|error| {
+            format!("invalid logical-session snapshot from {render_name}: {error}")
+        })?;
+        let mut session_ids = HashSet::new();
+        for row in rows {
+            let Some(session_id) = row
+                .get("logical_session_id")
+                .and_then(serde_json::Value::as_str)
+                .and_then(|value| Uuid::parse_str(value).ok())
+                .filter(|value| !value.is_nil())
+            else {
+                continue;
+            };
+            session_ids.insert(session_id);
+            if render_by_session
+                .insert(session_id, render_name.clone())
+                .is_some()
+            {
+                duplicate_sessions.insert(session_id);
+            }
+        }
+        sessions_by_render.insert(render_name.clone(), session_ids);
+    }
+    for duplicate_session in &duplicate_sessions {
+        render_by_session.remove(duplicate_session);
+    }
+    Ok(FrontendObservation {
+        connected_renders,
+        sessions_by_render,
+        render_by_session,
+        duplicate_sessions,
+    })
+}
+
+fn frontend_observation_drained(
+    session_id: Uuid,
+    retirement: &PendingFrontendRetirement,
+    observation: &FrontendObservation,
+) -> bool {
+    if Instant::now() >= retirement.fail_closed_at {
+        return true;
+    }
+    if observation.duplicate_sessions.contains(&session_id) {
+        return false;
+    }
+    match retirement.render_name.as_ref() {
+        Some(render_name) => {
+            observation.connected_renders.contains(render_name)
+                && observation
+                    .sessions_by_render
+                    .get(render_name)
+                    .is_some_and(|session_ids| !session_ids.contains(&session_id))
+        }
+        None => Instant::now() >= retirement.fail_closed_at,
+    }
+}
+
+async fn begin_frontend_retirement(
+    socket: &mut NodeSocket,
+    session: &mut ProtocolSession,
+    session_id: Uuid,
+    render_name: Option<String>,
+    fail_closed_at: Instant,
+) -> Result<Option<PendingFrontendRetirement>, String> {
+    let request = NodeRequest::BeginFrontendRetirement {
+        request_id: session.request_id()?,
+        session_id,
+    };
+    let expected_request_id = request.request_id();
+    match exchange(socket, request).await? {
+        NodeResponse::FrontendRetirementStarted {
+            request_id,
+            retirement,
+        } if request_id == expected_request_id
+            && retirement.session_id == session_id
+            && !retirement.challenge_id.is_nil()
+            && retirement.reject_through_revision > 0
+            && retirement.deadline > Utc::now() =>
+        {
+            Ok(Some(PendingFrontendRetirement {
+                challenge_id: retirement.challenge_id,
+                deadline: retirement.deadline,
+                render_name,
+                fail_closed_at,
+            }))
+        }
+        NodeResponse::Error { code, .. } if code == "rejected" => Ok(None),
+        NodeResponse::Error { code, .. } => {
+            Err(format!("frontend retirement start failed: {code}"))
+        }
+        _ => Err("unexpected frontend retirement start response".into()),
+    }
+}
+
+async fn finish_frontend_retirement(
+    socket: &mut NodeSocket,
+    session: &mut ProtocolSession,
+    session_id: Uuid,
+    challenge_id: Uuid,
+) -> Result<bool, String> {
+    let request = NodeRequest::FinishFrontendRetirement {
+        request_id: session.request_id()?,
+        session_id,
+        challenge_id,
+    };
+    let expected_request_id = request.request_id();
+    match exchange(socket, request).await? {
+        NodeResponse::FrontendRetired {
+            request_id,
+            session_id: retired_session_id,
+            revision,
+        } if request_id == expected_request_id
+            && retired_session_id == session_id
+            && revision > 0 =>
+        {
+            Ok(true)
+        }
+        NodeResponse::Error { code, .. } if code == "rejected" => Ok(false),
+        NodeResponse::Error { code, .. } => {
+            Err(format!("frontend retirement completion failed: {code}"))
+        }
+        _ => Err("unexpected frontend retirement completion response".into()),
+    }
+}
+
+async fn synchronize_frontend_retirements(
+    socket: &mut NodeSocket,
+    session: &mut ProtocolSession,
+    runtime: &Arc<Mutex<ServiceRuntime>>,
+    pending_retirements: &mut HashMap<Uuid, PendingFrontendRetirement>,
+) -> Result<(), String> {
+    let request = NodeRequest::ListFrontends {
+        request_id: session.request_id()?,
+    };
+    let expected_request_id = request.request_id();
+    let frontends = match exchange(socket, request).await? {
+        NodeResponse::Frontends {
+            request_id,
+            frontends,
+        } if request_id == expected_request_id => frontends,
+        NodeResponse::Error { code, .. } => {
+            return Err(format!("frontend inventory failed: {code}"));
+        }
+        _ => return Err("unexpected frontend inventory response".into()),
+    };
+    let retiring_ids = frontends
+        .iter()
+        .filter(|frontend| matches!(frontend.state.as_str(), "closing" | "reconcile_required"))
+        .map(|frontend| frontend.id)
+        .collect::<HashSet<_>>();
+    pending_retirements.retain(|session_id, _| retiring_ids.contains(session_id));
+    if retiring_ids.is_empty() {
+        return Ok(());
+    }
+
+    let observation = observe_frontends(runtime).await?;
+    for session_id in retiring_ids {
+        let challenge_needs_refresh =
+            pending_retirements
+                .get(&session_id)
+                .is_none_or(|retirement| {
+                    retirement.deadline - Utc::now() <= FRONTEND_CHALLENGE_RENEWAL_MARGIN
+                });
+        if challenge_needs_refresh {
+            let previous = pending_retirements.remove(&session_id);
+            let render_name = previous
+                .as_ref()
+                .and_then(|retirement| retirement.render_name.clone())
+                .or_else(|| observation.render_by_session.get(&session_id).cloned());
+            let fail_closed_at = previous
+                .map(|retirement| retirement.fail_closed_at)
+                .unwrap_or_else(|| Instant::now() + FRONTEND_FAIL_CLOSED_LEASE);
+            if let Some(retirement) =
+                begin_frontend_retirement(socket, session, session_id, render_name, fail_closed_at)
+                    .await?
+            {
+                pending_retirements.insert(session_id, retirement);
+            }
+        }
+
+        let Some(retirement) = pending_retirements.get(&session_id) else {
+            continue;
+        };
+        if !frontend_observation_drained(session_id, retirement, &observation) {
+            continue;
+        }
+        let challenge_id = retirement.challenge_id;
+        if finish_frontend_retirement(socket, session, session_id, challenge_id).await? {
+            pending_retirements.remove(&session_id);
+            info!(%session_id, "frontend retirement reached a durable closed state");
+        }
+    }
+    Ok(())
+}
+
 async fn reconcile(
     socket: &mut NodeSocket,
     session: &mut ProtocolSession,
@@ -1429,6 +2096,45 @@ async fn execute_command(
         }
     }
     CommandOutcome::Unknown
+}
+
+async fn execute_command_while_servicing_operations(
+    command_execution_io: CommandExecutionIo<'_>,
+    runtime: &Arc<Mutex<ServiceRuntime>>,
+    command: &NodeCommand,
+    rdp_workspace: Option<RdpWorkspaceCredential>,
+    identity: NodeControlIdentity,
+) -> Result<CommandOutcome, String> {
+    let CommandExecutionIo {
+        socket,
+        session,
+        operations,
+        file_transfer_outbox,
+    } = command_execution_io;
+    let command_execution = execute_command(runtime, command, rdp_workspace, identity);
+    tokio::pin!(command_execution);
+    loop {
+        tokio::select! {
+            outcome = &mut command_execution => return Ok(outcome),
+            operation = operations.recv() => {
+                let Some(operation) = operation else {
+                    return Err("node-control operation channel closed".into());
+                };
+                if matches!(operation, NodeControlOperation::FileTransferReportsQueued) {
+                    sync_file_transfer_reports(socket, session, file_transfer_outbox).await?;
+                } else {
+                    execute_operation(socket, session, operation).await?;
+                }
+            }
+        }
+    }
+}
+
+struct CommandExecutionIo<'a> {
+    socket: &'a mut NodeSocket,
+    session: &'a mut ProtocolSession,
+    operations: &'a mut tokio::sync::mpsc::Receiver<NodeControlOperation>,
+    file_transfer_outbox: &'a Arc<std::sync::Mutex<FileTransferOutboxStore>>,
 }
 
 async fn execute_command_before_deadline(
@@ -1694,7 +2400,7 @@ fn start_request(
         game_arguments: arguments,
         listen_port: i32::from(port),
         encoder_fps: 60,
-        encoder_bitrate: i32::try_from(bitrate)
+        encoder_bitrate_kbps: i32::try_from(bitrate)
             .map_err(|_| "video bitrate is outside the Render range".to_string())?,
         encoder_format: match codec {
             VideoCodec::H264 => "h264",
@@ -1846,6 +2552,67 @@ mod tests {
         encoded
     }
 
+    #[test]
+    fn frontend_retirement_requires_a_fresh_render_snapshot_or_full_lease_expiry() {
+        let session_id = Uuid::new_v4();
+        let render_name = "render_4613".to_string();
+        let retirement = PendingFrontendRetirement {
+            challenge_id: Uuid::new_v4(),
+            deadline: Utc::now() + TimeDelta::seconds(30),
+            render_name: Some(render_name.clone()),
+            fail_closed_at: Instant::now() + Duration::from_secs(30),
+        };
+        let active = FrontendObservation {
+            connected_renders: HashSet::from([render_name.clone()]),
+            sessions_by_render: HashMap::from([(render_name.clone(), HashSet::from([session_id]))]),
+            render_by_session: HashMap::from([(session_id, render_name.clone())]),
+            duplicate_sessions: HashSet::new(),
+        };
+        assert!(!frontend_observation_drained(
+            session_id,
+            &retirement,
+            &active
+        ));
+
+        let drained = FrontendObservation {
+            connected_renders: HashSet::from([render_name.clone()]),
+            sessions_by_render: HashMap::from([(render_name.clone(), HashSet::new())]),
+            render_by_session: HashMap::new(),
+            duplicate_sessions: HashSet::new(),
+        };
+        assert!(frontend_observation_drained(
+            session_id,
+            &retirement,
+            &drained
+        ));
+
+        let disconnected = FrontendObservation {
+            connected_renders: HashSet::new(),
+            sessions_by_render: HashMap::new(),
+            render_by_session: HashMap::new(),
+            duplicate_sessions: HashSet::new(),
+        };
+        assert!(!frontend_observation_drained(
+            session_id,
+            &retirement,
+            &disconnected
+        ));
+
+        let expired_retirement = PendingFrontendRetirement {
+            challenge_id: Uuid::new_v4(),
+            deadline: Utc::now() + TimeDelta::seconds(30),
+            render_name: None,
+            fail_closed_at: Instant::now()
+                .checked_sub(Duration::from_secs(1))
+                .expect("test clock must support one second of history"),
+        };
+        assert!(frontend_observation_drained(
+            session_id,
+            &expired_retirement,
+            &disconnected
+        ));
+    }
+
     fn deployment_identity_fixture(now: i64) -> DeploymentIdentityFixture {
         let random = SystemRandom::new();
         let vendor_document = Ed25519KeyPair::generate_pkcs8(&random).unwrap();
@@ -1987,6 +2754,100 @@ mod tests {
         }
     }
 
+    #[test]
+    fn update_target_never_falls_back_between_distribution_or_product() {
+        let official = cloud_product();
+        assert_eq!(
+            expected_update_target(&official).unwrap(),
+            Some(ReleaseQuery {
+                product: Product::CloudNode,
+                distribution: Distribution::Official,
+                channel: Channel::Stable,
+                os: OperatingSystem::Windows,
+                architecture: Architecture::X86_64,
+            })
+        );
+        let mut customer_remote = official.clone();
+        customer_remote.product = "remote".into();
+        customer_remote.distribution = "customer".into();
+        assert_eq!(
+            expected_update_target(&customer_remote).unwrap(),
+            Some(ReleaseQuery {
+                product: Product::Remote,
+                distribution: Distribution::Customer,
+                channel: Channel::Stable,
+                os: OperatingSystem::Windows,
+                architecture: Architecture::X86_64,
+            })
+        );
+        let mut development = official.clone();
+        development.distribution = "development".into();
+        assert_eq!(expected_update_target(&development).unwrap(), None);
+        let mut invalid = official;
+        invalid.distribution = "official-looking".into();
+        assert!(expected_update_target(&invalid).is_err());
+    }
+
+    #[tokio::test]
+    async fn update_check_uses_installed_build_and_validates_exact_offer() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(stream).await.unwrap();
+            let message = socket.next().await.unwrap().unwrap();
+            let request: NodeRequest = serde_json::from_str(message.to_text().unwrap()).unwrap();
+            let NodeRequest::CheckUpdate {
+                request_id,
+                current_build_number,
+            } = request
+            else {
+                panic!("expected update check");
+            };
+            assert_eq!(request_id, 1);
+            assert_eq!(current_build_number, 30367);
+            let response = NodeResponse::UpdateChecked {
+                request_id,
+                offer: Some(NodeUpdateOffer {
+                    release_id: Uuid::new_v4(),
+                    policy_revision: 2,
+                    artifact: px_release_catalog::ReleaseSpec {
+                        target: ReleaseQuery {
+                            product: Product::CloudNode,
+                            distribution: Distribution::Official,
+                            channel: Channel::Stable,
+                            os: OperatingSystem::Windows,
+                            architecture: Architecture::X86_64,
+                        },
+                        build_number: 30368,
+                        version: "3.3.68".into(),
+                        metadata_base_url: "https://downloads.example.test/metadata/".into(),
+                        targets_base_url: "https://downloads.example.test/targets/".into(),
+                        target_name: "cloud-node.exe".into(),
+                        sha256: "a".repeat(64),
+                        size_bytes: 4096,
+                    },
+                }),
+            };
+            socket
+                .send(Message::Text(
+                    serde_json::to_string(&response).unwrap().into(),
+                ))
+                .await
+                .unwrap();
+        });
+        let (mut socket, _) = tokio_tungstenite::connect_async(format!("ws://{address}"))
+            .await
+            .unwrap();
+        let mut session = ProtocolSession::new();
+        let offer = check_update(&mut socket, &mut session, &cloud_product())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(offer.artifact.build_number, 30368);
+        server.await.unwrap();
+    }
+
     fn gpu_reservation() -> GpuReservation {
         GpuReservation {
             stable_key: "gpu-1".into(),
@@ -2125,7 +2986,7 @@ mod tests {
         assert_eq!(request.game_exe_rel, "游戏 目录\\game.exe");
         assert_eq!(request.game_arguments, "--name \"two words\"");
         assert_eq!(request.encoder_format, "h265");
-        assert_eq!(request.encoder_bitrate, 24_000);
+        assert_eq!(request.encoder_bitrate_kbps, 24_000);
         assert_eq!(request.listen_port, 4613);
         assert!(request.relay_server_host.is_empty());
     }

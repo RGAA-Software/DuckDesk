@@ -157,10 +157,7 @@ impl RecoverySetManifest {
                     }
                 }
                 BackupMemberState::NotApplicable { reason } => {
-                    if member.service == BackupService::Console
-                        || reason.trim().is_empty()
-                        || reason.len() > 256
-                    {
+                    if reason.trim().is_empty() || reason.len() > 256 {
                         return Err("invalid not-applicable member");
                     }
                 }
@@ -174,6 +171,9 @@ impl RecoverySetManifest {
                 BackupMemberState::NotApplicable { .. } => None,
             })
             .collect::<BTreeSet<_>>();
+        if required_services.is_empty() {
+            return Err("recovery set requires at least one database");
+        }
         match (&self.kind, &self.security_evidence) {
             (
                 RecoverySetKind::Independent,
@@ -347,13 +347,26 @@ mod tests {
     }
 
     #[test]
-    fn console_cannot_be_not_applicable_and_status_transitions_are_explicit() {
+    fn split_deployment_may_omit_console_but_cannot_omit_every_database() {
         let mut value = manifest();
-        value.members[0].member = BackupMemberState::NotApplicable {
-            reason: "not installed".into(),
+        value.kind = RecoverySetKind::Independent;
+        value.security_evidence = RecoverySecurityEvidence::Unavailable {
+            reason: RecoveryEvidenceUnavailableReason::IndependentBackup,
         };
+        value.members[0].member = BackupMemberState::NotApplicable {
+            reason: "service is deployed on another machine".into(),
+        };
+        assert_eq!(value.validate(), Ok(()));
+        for member in &mut value.members {
+            member.member = BackupMemberState::NotApplicable {
+                reason: "service is deployed on another machine".into(),
+            };
+        }
         assert!(value.validate().is_err());
+    }
 
+    #[test]
+    fn status_transitions_are_explicit() {
         let mut failed = manifest();
         failed.status = RecoverySetStatus::Failed;
         failed.completed_at_unix = Some(200);

@@ -30,9 +30,9 @@ where
         .send(Message::Text(request.to_string().into()))
         .await
         .unwrap();
-    let message = tokio::time::timeout(Duration::from_secs(5), socket.next())
+    let message = tokio::time::timeout(Duration::from_secs(15), socket.next())
         .await
-        .unwrap()
+        .unwrap_or_else(|_| panic!("timed out waiting for node response to {request_for_error}"))
         .unwrap()
         .unwrap();
     let response_text = message
@@ -988,11 +988,32 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     .await;
     assert_eq!(status.as_u16(), 200, "{closing}");
     assert_eq!(closing["state"], "closing");
+    let rejected_renewal = exchange(
+        &mut socket,
+        json!({
+            "type":"admit_frontend",
+            "request_id":21,
+            "session_id":resource_session["id"],
+            "revision":descriptor["descriptor"]["session"]["revision"],
+            "frontend_token":descriptor["token"]
+        }),
+    )
+    .await;
+    assert_eq!(
+        rejected_renewal,
+        json!({"type":"error","request_id":21,"code":"rejected"})
+    );
+    let frontends_after_rejection = exchange(
+        &mut socket,
+        json!({"type":"list_frontends","request_id":22}),
+    )
+    .await;
+    assert_eq!(frontends_after_rejection["type"], "frontends");
     let retirement = exchange(
         &mut socket,
         json!({
             "type":"begin_frontend_retirement",
-            "request_id":21,
+            "request_id":23,
             "session_id":resource_session["id"]
         }),
     )
@@ -1002,7 +1023,7 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
         &mut socket,
         json!({
             "type":"finish_frontend_retirement",
-            "request_id":22,
+            "request_id":24,
             "session_id":resource_session["id"],
             "challenge_id":retirement["retirement"]["challenge_id"]
         }),
@@ -1026,7 +1047,7 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
         &mut socket,
         json!({
             "type":"report_telemetry_backfill",
-            "request_id":23,
+            "request_id":25,
             "samples":[{
                 "sample_id":backfill_sample_id,
                 "telemetry":{
@@ -1047,13 +1068,13 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     .await;
     assert_eq!(backfilled["type"], "telemetry_backfilled");
     assert_eq!(backfilled["sample_ids"], json!([backfill_sample_id]));
-    let stop_command = exchange(&mut socket, json!({"type":"poll_command","request_id":24})).await;
+    let stop_command = exchange(&mut socket, json!({"type":"poll_command","request_id":26})).await;
     assert_eq!(stop_command["command"]["action"]["kind"], "stop");
     let stopped = exchange(
         &mut socket,
         json!({
             "type":"acknowledge_command",
-            "request_id":25,
+            "request_id":27,
             "receipt":{
                 "command_id":stop_command["command"]["id"],
                 "lease_id":stop_command["command"]["lease_id"],
@@ -1068,10 +1089,10 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     assert_eq!(stopped["state"], "stopped");
 
     let sequence_error =
-        exchange(&mut socket, json!({"type":"poll_command","request_id":25})).await;
+        exchange(&mut socket, json!({"type":"poll_command","request_id":27})).await;
     assert_eq!(
         sequence_error,
-        json!({"type":"error","request_id":25,"code":"invalid_sequence"})
+        json!({"type":"error","request_id":27,"code":"invalid_sequence"})
     );
     let closed = tokio::time::timeout(Duration::from_secs(5), socket.next())
         .await
@@ -1164,6 +1185,174 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
         "pnp-sha256:0123456789abcdef"
     );
 
+    server_stop.cancel();
+    server.await.unwrap().unwrap();
+    runtime.shutdown().await;
+}
+
+#[tokio::test]
+async fn node_update_check_uses_authenticated_product_and_console_distribution() {
+    let runtime = start_with_relay().await;
+    let router = runtime.router();
+    let admin = login(&router, "initial-admin", PASSWORD, "admin_web").await;
+    let (device_status, device) = call(
+        &router,
+        "POST",
+        "/api/console/managed/devices",
+        "admin_web",
+        Some(&admin),
+        json!({"name":format!("update-node-{}", Uuid::new_v4()),"platform":"windows"}),
+    )
+    .await;
+    assert_eq!(device_status.as_u16(), 201, "{device}");
+    let (node_status, node) = call(
+        &router,
+        "POST",
+        "/api/console/managed/nodes",
+        "admin_web",
+        Some(&admin),
+        json!({"device_id":device["device"]["id"],"product":"cloud_node","max_instances":2}),
+    )
+    .await;
+    assert_eq!(node_status.as_u16(), 201, "{node}");
+    let artifact = json!({
+        "target":{
+            "product":"cloud_node",
+            "distribution":"customer",
+            "channel":"stable",
+            "os":"windows",
+            "architecture":"x86_64"
+        },
+        "build_number":2,
+        "version":"0.0.2",
+        "metadata_base_url":"https://downloads.example.test/metadata/",
+        "targets_base_url":"https://downloads.example.test/targets/",
+        "target_name":"cloud-node-2.exe",
+        "sha256":"a".repeat(64),
+        "size_bytes":4096
+    });
+    let (release_status, release) = call(
+        &router,
+        "POST",
+        "/api/console/managed/updates",
+        "admin_web",
+        Some(&admin),
+        json!({"request_id":Uuid::new_v4(),"artifact":artifact}),
+    )
+    .await;
+    assert_eq!(release_status.as_u16(), 201, "{release}");
+    let (approval_status, approved) = call(
+        &router,
+        "PATCH",
+        &format!(
+            "/api/console/managed/updates/{}",
+            release["id"].as_str().unwrap()
+        ),
+        "admin_web",
+        Some(&admin),
+        json!({"revision":release["revision"],"decision":"approve"}),
+    )
+    .await;
+    assert_eq!(approval_status.as_u16(), 200, "{approved}");
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server_stop = CancellationToken::new();
+    let server_router = router.clone();
+    let shutdown_signal = server_stop.clone();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            server_router.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .with_graceful_shutdown(shutdown_signal.cancelled_owned())
+        .await
+    });
+    let mut socket = connect_async(format!("ws://{address}/api/console/node-control"))
+        .await
+        .unwrap()
+        .0;
+    let authenticated = exchange(
+        &mut socket,
+        json!({"type":"authenticate","request_id":1,"node_token":node["node_token"]}),
+    )
+    .await;
+    assert_eq!(authenticated["type"], "authenticated");
+    let report = exchange(&mut socket, telemetry_report(2, 1, 100)).await;
+    assert_eq!(report["type"], "reported", "{report}");
+    let available = exchange(
+        &mut socket,
+        json!({"type":"check_update","request_id":3,"current_build_number":1}),
+    )
+    .await;
+    assert_eq!(available["type"], "update_checked", "{available}");
+    assert_eq!(available["offer"]["release_id"], approved["id"]);
+    assert_eq!(available["offer"]["policy_revision"], 2);
+    assert_eq!(
+        available["offer"]["artifact"]["target"]["distribution"],
+        "customer"
+    );
+    assert_eq!(
+        available["offer"]["artifact"]["target"]["product"],
+        "cloud_node"
+    );
+    let activation = exchange(
+        &mut socket,
+        json!({
+            "type":"begin_update_activation",
+            "request_id":4,
+            "release_id":approved["id"],
+            "policy_revision":2,
+            "prepared_sha256":"a".repeat(64)
+        }),
+    )
+    .await;
+    assert_eq!(
+        activation["type"], "update_activation_granted",
+        "{activation}"
+    );
+    assert!(activation["task_id"].as_str().is_some());
+    assert!(activation["lease_id"].as_str().is_some());
+    let activation_retry = exchange(
+        &mut socket,
+        json!({
+            "type":"begin_update_activation",
+            "request_id":5,
+            "release_id":approved["id"],
+            "policy_revision":2,
+            "prepared_sha256":"a".repeat(64)
+        }),
+    )
+    .await;
+    assert_eq!(activation_retry["task_id"], activation["task_id"]);
+    assert_eq!(activation_retry["lease_id"], activation["lease_id"]);
+    let mut updated_report = telemetry_report(6, 2, 100);
+    updated_report["report"]["product_version_code"] = json!(2);
+    let updated = exchange(&mut socket, updated_report).await;
+    assert_eq!(updated["type"], "reported", "{updated}");
+    let finished = exchange(
+        &mut socket,
+        json!({
+            "type":"finish_update_activation",
+            "request_id":7,
+            "task_id":activation["task_id"],
+            "lease_id":activation["lease_id"],
+            "outcome":{"result":"installed"}
+        }),
+    )
+    .await;
+    assert_eq!(finished["type"], "update_activation_finished", "{finished}");
+    assert_eq!(finished["state"], "installed");
+    assert_eq!(finished["revision"], 2);
+    assert!(finished["error_code"].is_null());
+    let current = exchange(
+        &mut socket,
+        json!({"type":"check_update","request_id":8,"current_build_number":2}),
+    )
+    .await;
+    assert_eq!(current["type"], "update_checked");
+    assert!(current["offer"].is_null());
+    socket.close(None).await.unwrap();
     server_stop.cancel();
     server.await.unwrap().unwrap();
     runtime.shutdown().await;

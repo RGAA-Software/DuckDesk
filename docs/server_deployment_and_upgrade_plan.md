@@ -115,6 +115,10 @@ product 决定能力，distribution 决定平台与更新策略，release_channe
 ### 2.2 安装与更新身份
 
 - Windows 升级只接受相同 product、distribution、架构和签名发行方；跨产品或跨发行拒绝覆盖，提示先卸载。
+- 发行身份分为三个互不兼容的产品线：`official` 是 Pixels 自营发行，`customer` 是 Pixels 品牌私有部署发行，`oem` 是交付给特定 OEM
+  客户的定制发行。`oem` 不是 `customer` 的显示名称，也不能只靠换图标或服务器 URL 实现。
+- 每个 OEM 发行必须在构建时绑定不可为空且全局唯一的 `oem_id/release_namespace`、应用/安装身份、发布者、初始 TUF 信任根和允许的私有
+  更新策略。OEM A、OEM B、Pixels Official 和 Pixels Customer 之间均不得覆盖安装、共享更新元数据或回落到彼此的软件包。
 - 三个 Windows 产品及其发行变体继续互斥。只有一个已安装发行，服务命名可沿用统一方案。
 - 卸载软件与删除账号、配置、工作区和用户数据分开；普通升级不调用卸载清理路径。保留的数据带平台/发行归属，禁止另一发行自动导入。
 - Android 为两个 flavor 分配不同 applicationId、显示标记和更新身份；同一 flavor 的后续 APK 保持 applicationId、签名谱系和递增 versionCode。
@@ -128,6 +132,8 @@ product 决定能力，distribution 决定平台与更新策略，release_channe
 
 Official 内置官方 HTTPS 引导入口及官方信任策略，不提供自定义服务器输入。官方域名轮换通过受信任的配置更新完成。
 Customer 首次启动填写私有 HTTPS 入口，验证成功后才展示登录；设置中可修改，首版同一客户端仅激活一个私有平台。
+OEM 客户端只接受其交付策略允许的 private 部署身份。是否由 OEM 固定私有入口或允许最终客户填写私有入口由该 OEM 的构建策略明确；
+两种情况都不得接受 Pixels Official 部署身份、官方业务入口或官方更新信任根，也不得静默切回 Pixels 品牌发行。
 可以保存多个配置档案，但并非首版必需；不做多平台同时在线。
 
 普通用户仅填一个入口。Console、Broker、Relay、升级服务及节点当前Render端点由私有管理员配置或节点上报、由平台按权限下发。
@@ -192,6 +198,11 @@ Broker/Relay/更新端点仍须通过后续认证响应安全下发，不能用�
 都不能向远端证明当前进程未被修改。攻击者若改客户端、持有合法官方账号，或自己重写协议代理，不能承诺仅靠上述设计绝对阻止。
 如需进一步限制官方接入设备，应增加服务端登记的每安装实例密钥及持有者证明；登记本身仍需可信发放或平台证明，不能信任自报 flavor。
 跨 Windows/Android 的强制可信执行证明是另一个安全项目，首版不伪装成已经具备。即使未来增加证明，仍需正常的账号 ACL、限流和吊销。
+
+OEM 在上述 private 部署身份校验外再增加本地发行门禁：安装身份、`oem_id/release_namespace`、TUF 初始根和 TUF target 自定义元数据必须
+同时一致。仅把官方域名换成代理、由私有 Console 返回官方包 URL、复制另一 OEM 的元数据或持有较高 build number，均不能进入安装阶段。
+OEM 更新策略和密钥由对应交付合同管理；Pixels 官方发布服务不把 OEM 客户端纳入自动升级目标，也不持有让 OEM 客户端信任官方包的
+兼容根。OEM 停止维护时进入明确的人工迁移/卸载流程，不能通过“最后一次更新”跨线变成 Official 或 Customer。
 
 ## 4. 平台切换与节点归属
 
@@ -396,6 +407,9 @@ RDP 的 Windows Session、账号、Profile 和工作区应用继续保留，即�
 Official 使用官方更新源；Customer 使用私有平台管理员批准的更新源或离线包，不自动请求官方业务或更新服务器。
 客户管理员可以手动取得 Pixels 签名包并导入内网镜像。制品来源与平台业务身份分开，镜像地址不改变制品发行属性。
 Customer 更新元数据来自当前私有平台的可信发布策略，但执行文件仍须通过 Pixels 发布签名；私有管理员不能靠重新签描述跨 flavor 装包。
+OEM 只使用对应 `oem_id/release_namespace` 的 OEM 更新仓库、离线包和独立 TUF 根。即使 Pixels 官网存在更高版本，OEM 客户端也不得查询、
+展示、下载或安装；OEM 仓库不可发布 Official/Customer 或另一 OEM 的目标。OEM 是否由 Pixels 代运维更新仓库不改变该信任域，托管服务也必须
+使用 OEM 独立域名/命名空间、密钥、审批和审计记录。
 不恢复已归档的旧 `px_updater` 服务，更新器是有明确权限边界的新模块/辅助进程。
 
 发布清单至少包含：product、distribution、OS/arch、版本/build ID、安全序列、SHA-256/大小、发布者、协议/schema 范围、
@@ -403,6 +417,29 @@ Customer 更新元数据来自当前私有平台的可信发布策略，但执�
 采用经过审查的更新框架/库实现信任根轮换、元数据一致性、防回滚/冻结；不能只把 MD5 换成 SHA-256 就声称安全更新完成。
 离线包使用明确的离线维护元数据有效期及信任根轮换链，不永久关闭元数据有效期检查。
 首次发行信任根内置，后续根轮换由既有根授权；HTTPS、包摘要与操作系统代码签名各自验证。
+
+当前实现基线使用 `tough` 的 TUF 1.0 客户端。Console 的已认证节点连接根据节点登记产品与 Console 许可证发行类型在服务端派生
+`product/distribution/stable/windows/x86_64`，节点只提交当前 build，不能传入或降级目标维度。目录只返回严格更新、最新且已审批的版本；
+最新版本处于 pending/withdrawn 时不回退到更旧版本。发布记录保存 `metadata_base_url`、`targets_base_url`、`target_name`、目标大小和
+SHA-256，不保存可绕开 TUF 的直接制品 URL。
+
+Cloud Node/Remote Service 从安装目录 `resources/update/root.json` 读取独立分发的初始可信根，按安全到期策略验证 root/timestamp/
+snapshot/targets、元数据大小上限与持久 datastore 防回滚状态。TUF target 的 `pixels` 自定义元数据必须逐项绑定 schema version、
+产品、发行类型、渠道、OS、architecture、build 与版本；其目标大小和 SHA-256 还须与 Console 审批事实一致。下载只进入受控
+`.pending` 目录，复核内容后原子提交到 prepared 目录；残留暂存、符号链接/Windows reparse point 或任何不匹配均 fail closed。
+当前节点首版已实现“发现 + 验签 + 完整包暂存 + 本地空闲复核 + Console 激活租约 + SCM 完整包覆盖 + 本机协议健康 + Console 精确 build
+提交 + 失败回滚”。激活记录由机器 DPAPI 保护，安装器和回滚包均绑定精确 SHA-256/发行身份并重新验证 Authenticode；更新缓存只允许
+SYSTEM/管理员访问，人工安装、自动升级、回滚和卸载使用同一个全局互斥锁。prepared 不会直接显示为 installed：新 Service 必须先完成
+产品清单和本机 WebSocket 健康检查，再向 Console 上报精确目标 build 并以原 task/lease 提交。尚未完成的是使用正式签名 Official/Customer
+新旧安装包进行真实 SCM、断网、安装失败和回滚失败故障注入，因此商业发行验收仍保持未通过。
+
+Windows 软件组合验收 `pg-20260920-151630-d92d153c` 已以 449/449 个登记检查 PASS 覆盖更新目录/激活、节点控制、三个 PostgreSQL
+产品服务、生产前端与真实 Chromium、进程重启/断库恢复及三库 dump/restore 后的数据和结构对账。该结果关闭本轮实现的本地组合回归，
+但不把测试生成的 TUF 仓库、NSIS 语法编译或 development Service 制品冒充正式签名 Official/Customer 安装升级矩阵。
+
+当前代码只实现 Official/Customer 更新维度，尚未实现上述 OEM `oem_id/release_namespace` 的端到端字段和独立构建入口。因此 OEM 包不得
+使用现有 Customer 构建入口冒充交付；P0 必须先让产品描述、安装器、Desk/Console 发布目录、TUF `pixels` 元数据、节点激活任务和验收矩阵
+共同绑定 OEM 命名空间，再允许生成第一份 OEM 安装包。
 
 下载可恢复，完整包先验证再解压；防路径穿越、链接逃逸、超大解压、符号链接/重解析点替换和校验后替换。
 高权限安装辅助进程只接受受保护的已验证 staging 及类型化任务，不执行 UI/服务器传来的任意命令或任意路径。

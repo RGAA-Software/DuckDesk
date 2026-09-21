@@ -2,7 +2,8 @@
 
 > 决策日期：2026-09-19。
 >
-> 状态：活动代码、构建与归档清理已完成聚焦实现和短测；公网跨端功能验收仍按第 8 节继续，尚未关闭 DB5。
+> 状态：活动代码、构建、归档清理及当前 Windows/Web/Android 公网功能短测已完成；正式双发行、Customer 真机、异机灾备、
+> AMD/Intel 真机和统一长测仍按第 8 节继续，尚未关闭 DB5 总出口。
 >
 > 本文同时约束 Windows Client、Web Client、Android、Render、Service、Console 后端、Console 前端、Relay、安装包和 DB0–DB5
 > 验收。任一端单独修改都不能宣称本计划完成。
@@ -196,6 +197,17 @@ DB5短期功能出口通过后统一长测：Relay长连接、Direct Host重复�
   454/454 task 和覆盖安装通过，APK SHA-256 为 `3B7F875C1C7ABE8F1667A4F85B78A346CDBB97A5404FFA20DED002238BD142BD`。
   该项关闭本地实现门禁，不替代新 Console/Relay 公网部署后的真实 Relay 票据重连。
 
-尚未完成且不得被上述聚焦证据冒充：真实公网 Web/Android 首帧/音频/输入/重连/撤销、Windows 剩余音频与撤销矩阵、Relay 公网音频、
-文件独立 hash 与真实断线重连/撤销、
-Android CloudApplication Relay 真机首帧与真实票据续签、安装包内容审计，以及所有 DB5 短测通过后的统一长测。
+2026-09-21 的后续验收已取代上面各历史切片当时的“仍待”描述：Windows Direct/Relay 首帧、输入、音频、文件 SHA-256、取消/重试、
+在线撤销、持续续租、Service 重启收敛，Web Direct Host RTP/解码首帧，Android Direct/Relay 首帧、启停、真实票据续签和 Relay 重启恢复，
+以及公网真实录像本人下载和管理员副本生命周期均已通过。管理实时流也已完成公网在线事件、断线突发重放、严格序号、断库 fail-closed
+和恢复后重新认证；1026 条溢出窗口由进程内门禁覆盖，公网压力留到统一长测。
+
+退役媒体制品门禁现同时覆盖正式 Windows dist 与 Android APK/AAB；当前 Client 42 文件、Cloud Node 315 文件、Remote 77 文件及 5 个
+Android debug/androidTest APK 的独立实物扫描均通过，负向审计 8/8 通过。运行过的 development dist 中存在运行日志及聚焦同步后的陈旧
+manifest 摘要的问题也已修复：聚焦 C++/Rust 发布器会原子刷新 development 清单并排除 `px_logs/`，拒绝修改 Official/Customer 清单；
+当前 Client 41 件、Cloud Node 315 件和 Remote 77 件完整文件集、SHA-256、许可证、PE 依赖及产品边界均通过。它们仍不冒充正式安装包；
+release-only 构建必须从干净输出生成 Official/Customer 清单并执行签名和退役媒体联合门禁。
+
+当前仍不得冒充完成的事项：正式 approved 身份/签名材料下的 Windows/Android 双发行及更新回滚实物矩阵、Windows 安装/升级/卸载、
+Cloud Node/Remote Web 正式双发行、Android Customer 真机、AMD/Intel 物理 GPU 各一次短测、目标 Linux 与独立灾备故障域、正式安装包
+完整审计，以及最后统一长测。RDP 设备变化、长路径/ACL、重名/取消、规模和持续播放只进入统一长测，不再是 Direct Host 功能实现缺口。

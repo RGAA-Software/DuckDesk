@@ -6,6 +6,7 @@
 
 ## 文档索引
 
+- [Pixels 软件定价方案及其思考](software_pricing_plan_and_rationale.md)：软件供应商模式下的竞品观察、Stream 授权、年度与永久价格、维护、实施、OEM 和商业分发建议。
 - [Relay 基础设施与商业化方案](relay_infrastructure_business_plan.md)：Relay 节点选型、成本模型、容量、混合部署和收费建议。
 
 服务职责、Session、P2P 和 Relay 技术边界见 [Pixels 服务端改造计划](../server_refactoring_plan.md)。

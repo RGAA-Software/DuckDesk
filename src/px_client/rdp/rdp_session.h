@@ -1,5 +1,6 @@
 #pragma once
 
+#include "rdp_clipboard_content.h"
 #include "rdp_frame.h"
 
 #include <functional>
@@ -43,7 +44,7 @@ enum class SessionPhase : std::uint8_t { Connecting, Connected, Disconnected, Fa
 struct SessionCallbacks final {
     std::function<void(std::shared_ptr<const DesktopFrame>)> frame{};
     std::function<void(SessionPhase, std::string)> phase{};
-    std::function<void(std::string)> clipboard{};
+    std::function<void(ClipboardContent)> clipboard{};
 };
 
 class RdpSession final {
@@ -63,7 +64,8 @@ class RdpSession final {
     void Resize(Size size);
     void ConsumeFrame(std::uint64_t frameId);
     void Refresh();
-    void PublishClipboard(std::string text);
+    void PublishClipboard(ClipboardContent content);
+    void SetAudioEnabled(bool enabled);
 
   private:
     std::shared_ptr<State> state_{};

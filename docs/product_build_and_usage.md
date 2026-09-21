@@ -3,6 +3,10 @@
 状态：当前唯一有效流程
 适用产品：Pixels Cloud Node、Pixels Client、Pixels Remote、Pixels Android
 
+当前发布入口只生成 Pixels `official` 与 Pixels `customer`。OEM 是独立发行线，不得通过修改现有 Customer 的名称、图标、URL 或清单后
+交付。OEM 构建入口尚未开放；开放前必须同时提供唯一 `oem_id/release_namespace`、独立品牌/应用/安装身份、独立 TUF 初始根、私有更新策略
+和跨 Official/Customer/其他 OEM 的拒绝测试。现有双发行矩阵继续保持两项，不能把未实现的 OEM 算作已完成产物。
+
 旧的根 CMake 树、公共 `build_official/dist`、共享 Rust 编译产物、`build_client.bat`、旧端口和旧节点测试方案均已退役，不提供兼容入口。
 
 ## 1. 产品与目录
@@ -41,6 +45,8 @@ Windows Rust 使用仓库 `rust_client/.cargo/config.toml` 中的 MSVC `/Brepro`
 Cloud Node 与 Remote 的 Official/Customer Web Client 也是发行绑定制品，不是可在两种发行之间复制的通用静态目录。完整矩阵构建从对应
 `deployment` 目录注入 policy、approved trust store 和产品 build 水位；缺少材料、发行不匹配或非正 build 会在 Vite 构建阶段失败关闭。
 正式 bundle 只接受带 `console_origin` 的 Console 资源启动描述符，并在向 Render 使用 frontend token 前完成签名部署身份和 nonce 证明。
+未来 OEM Web/Windows/Android 产物必须从其 OEM 专属沙箱生成，并携带同一 OEM 命名空间；不得读取 Official/Customer 的已编译 bundle、
+update root 或安装清单。
 
 ## 2. 完整编译规则
 
@@ -82,10 +88,16 @@ scripts_build\build_remote_product.bat
 
 这些都是发布级完整构建；每条命令一次升版并同时构建 Official/Customer，不接受旧的 `full`、`incremental` 或 `reconfigure` 参数。
 
-执行前必须设置：`PIXELS_DEPLOYMENT_TRUST_STORE_FILE`、`PIXELS_DEPLOYMENT_CERTIFICATE_VERSION`、
+Cloud Node/Remote 安装器会在每次成功覆盖时把当前完整安装包保存到受保护的机器更新缓存，供下一次升级失败时精确回滚。缓存 ACL 只允许
+SYSTEM 和本机管理员，Service 在授权升级前记录并保护旧包 SHA-256，runner 使用前还会复核 Authenticode。安装、覆盖升级、自动更新、回滚和
+卸载共用一个全局安装互斥锁；并发操作返回 Windows Installer busy（1618），不会同时改写安装目录或回滚点。
+
+执行前必须设置：`PIXELS_DEPLOYMENT_TRUST_STORE_FILE`、`PIXELS_UPDATE_ROOT_FILE`、`PIXELS_DEPLOYMENT_CERTIFICATE_VERSION`、
 `PIXELS_DESCRIPTOR_REVISION`、`PIXELS_DEPLOYMENT_TRUST_EPOCH`、`PIXELS_EXPECTED_DEPLOYMENT_ID` 和
 `PIXELS_OFFICIAL_CONSOLE_URL`。Customer 产物不会写入后两项；它们只用于同一矩阵事务中的 Official 半边。trust store 必须是离线签发流程输出的
-规范 JSON，不能使用服务器下载内容或测试 key。预检失败不会删除现有产物，也不会消耗版本号。
+规范 JSON，不能使用服务器下载内容或测试 key。`PIXELS_UPDATE_ROOT_FILE` 必须是离线审批并签名的 TUF 1.0 初始根；Official 和 Customer
+都内置同一 Pixels 更新信任根，Customer 可使用自己的镜像地址，但不能以私有描述或重签方式改变制品发行属性。预检失败不会删除现有产物，
+也不会消耗版本号。
 
 ### 2.3 完整构建 Android
 

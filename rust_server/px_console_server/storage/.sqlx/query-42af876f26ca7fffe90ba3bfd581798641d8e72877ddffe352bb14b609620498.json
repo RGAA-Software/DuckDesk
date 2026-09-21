@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.node_update_tasks\nSET state=$4,error_code=$5,revision=revision+1,updated_at=clock_timestamp(),completed_at=clock_timestamp()\nWHERE id=$1 AND lease_id=$2 AND revision=$3 AND state='activating' AND lease_until>clock_timestamp()\nRETURNING state,revision,error_code\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "error_code",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "42af876f26ca7fffe90ba3bfd581798641d8e72877ddffe352bb14b609620498"
+}

@@ -2,12 +2,14 @@
 #define PX_RESOURCE_CHANNEL_REPORTER_H
 
 #include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <unordered_map>
 
+#include "px_common/async_result.h"
 #include "px_common/async_runtime.h"
 
 namespace px {
@@ -29,6 +31,9 @@ public:
     void RecordTraffic(const std::string& connection_key, std::uint64_t sent_bytes, std::uint64_t received_bytes);
     void Close(const std::string& connection_key, int outcome);
     void Stop();
+    [[nodiscard]] bool StopAndWait(std::chrono::steady_clock::time_point deadline);
+    [[nodiscard]] static PxAwaitable<PxResult<void>> StopAsync(std::shared_ptr<ResourceChannelReporter> owner,
+                                                               std::chrono::steady_clock::time_point deadline);
 
 private:
     struct Activity final {
@@ -37,6 +42,7 @@ private:
         std::string logical_session_id{};
         std::string channel_id{};
         std::chrono::steady_clock::time_point started_at{};
+        std::shared_ptr<asio::steady_timer> report_timer{};
         int channel_kind{};
         int close_outcome{};
         std::uint64_t sequence{};
@@ -53,6 +59,7 @@ private:
     std::shared_ptr<PxAsyncScope> scope_{};
     std::weak_ptr<RenderServiceClient> service_client_{};
     std::mutex activities_mutex_{};
+    std::condition_variable activities_changed_{};
     std::unordered_map<std::string, std::shared_ptr<Activity>> activities_{};
     bool stopping_{};
 };

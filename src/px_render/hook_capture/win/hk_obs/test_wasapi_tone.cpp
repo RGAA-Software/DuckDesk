@@ -4,104 +4,143 @@
 #include <Windows.h>
 #include <audioclient.h>
 #include <mmdeviceapi.h>
+#include <wrl/client.h>
+
 #include <cmath>
 #include <cstdint>
 #include <iostream>
+#include <memory>
+#include <span>
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "mmdevapi.lib")
 
+namespace {
+
+class ComApartment final {
+public:
+    ComApartment() : result_{CoInitializeEx(nullptr, COINIT_MULTITHREADED)}, mustUninitialize_{result_ == S_OK || result_ == S_FALSE} {}
+    ~ComApartment() {
+        if (mustUninitialize_) {
+            CoUninitialize();
+        }
+    }
+
+    [[nodiscard]] HRESULT Result() const noexcept { return result_; }
+
+private:
+    HRESULT result_{};
+    bool mustUninitialize_{};
+};
+
+struct CoTaskMemoryDeleter final {
+    void operator()(WAVEFORMATEX* const format) const noexcept {  // NOLINT(pixels-raw-pointer-boundary): COM task-memory deleter ABI.
+        CoTaskMemFree(format);
+    }
+};
+
+}  // namespace
+
 int wmain() {
-    HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-    if (FAILED(hr) && hr != S_FALSE && hr != RPC_E_CHANGED_MODE) {
+    const ComApartment apartment{};
+    if (FAILED(apartment.Result()) && apartment.Result() != RPC_E_CHANGED_MODE) {
         return 1;
     }
 
-    IMMDeviceEnumerator* enumerator = nullptr;
-    IMMDevice* device = nullptr;
-    IAudioClient* client = nullptr;
-    IAudioRenderClient* render = nullptr;
-    WAVEFORMATEX* mix = nullptr;
+    Microsoft::WRL::ComPtr<IMMDeviceEnumerator> deviceEnumerator{};
+    Microsoft::WRL::ComPtr<IMMDevice> playbackDevice{};
+    Microsoft::WRL::ComPtr<IAudioClient> audioClient{};
+    Microsoft::WRL::ComPtr<IAudioRenderClient> audioRenderer{};
 
-    hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL,
-                          __uuidof(IMMDeviceEnumerator), reinterpret_cast<void**>(&enumerator));
-    if (FAILED(hr)) {
+    auto result = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, IID_PPV_ARGS(deviceEnumerator.ReleaseAndGetAddressOf()));
+    if (FAILED(result)) {
         return 2;
     }
-    hr = enumerator->GetDefaultAudioEndpoint(eRender, eConsole, &device);
-    if (FAILED(hr)) {
+    result = deviceEnumerator->GetDefaultAudioEndpoint(eRender, eConsole, playbackDevice.ReleaseAndGetAddressOf());
+    if (FAILED(result)) {
         return 3;
     }
-    hr = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,
-                          reinterpret_cast<void**>(&client));
-    if (FAILED(hr)) {
+    result = playbackDevice->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr, reinterpret_cast<void**>(audioClient.ReleaseAndGetAddressOf()));
+    if (FAILED(result)) {
         return 4;
     }
-    hr = client->GetMixFormat(&mix);
-    if (FAILED(hr) || !mix) {
+    WAVEFORMATEX* mixFormatBoundary{};  // NOLINT(pixels-raw-pointer-boundary): transient COM out parameter, immediately smart-owned.
+    result = audioClient->GetMixFormat(&mixFormatBoundary);
+    std::unique_ptr<WAVEFORMATEX, CoTaskMemoryDeleter> mixFormat{mixFormatBoundary};
+    if (FAILED(result) || !mixFormat) {
         return 5;
     }
-    hr = client->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, 10000000, 0, mix, nullptr);
-    if (FAILED(hr)) {
+    result = audioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, 10'000'000, 0, mixFormat.get(), nullptr);
+    if (FAILED(result)) {
         return 6;
     }
-    UINT32 buffer_frames = 0;
-    client->GetBufferSize(&buffer_frames);
-    hr = client->GetService(__uuidof(IAudioRenderClient), reinterpret_cast<void**>(&render));
-    if (FAILED(hr)) {
+    UINT32 bufferFrameCount{};
+    if (FAILED(audioClient->GetBufferSize(&bufferFrameCount))) {
+        return 7;
+    }
+    result = audioClient->GetService(__uuidof(IAudioRenderClient), reinterpret_cast<void**>(audioRenderer.ReleaseAndGetAddressOf()));
+    if (FAILED(result)) {
         return 7;
     }
 
-    std::wcout << L"WASAPI tone " << mix->nSamplesPerSec << L"Hz " << mix->nChannels << L"ch "
-               << mix->wBitsPerSample << L"bit — playing until killed\n";
-    client->Start();
+    std::wcout << L"WASAPI tone " << mixFormat->nSamplesPerSec << L"Hz " << mixFormat->nChannels << L"ch " << mixFormat->wBitsPerSample
+               << L"bit - playing until killed\n";
+    if (FAILED(audioClient->Start())) {
+        return 8;
+    }
 
-    double phase = 0.0;
-    const double freq = 440.0;
-    const double two_pi = 6.283185307179586;
-    const bool is_float = (mix->wFormatTag == WAVE_FORMAT_IEEE_FLOAT) ||
-                          (mix->wBitsPerSample == 32 && mix->wFormatTag != WAVE_FORMAT_PCM);
+    double phase{};
+    constexpr double frequency{440.0};
+    constexpr double twoPi{6.283185307179586};
+    const bool floatingPointSamples =
+        mixFormat->wFormatTag == WAVE_FORMAT_IEEE_FLOAT || (mixFormat->wBitsPerSample == 32 && mixFormat->wFormatTag != WAVE_FORMAT_PCM);
 
     while (true) {
-        UINT32 padding = 0;
-        client->GetCurrentPadding(&padding);
-        const UINT32 available = buffer_frames - padding;
-        if (available < 64) {
+        UINT32 paddingFrameCount{};
+        if (FAILED(audioClient->GetCurrentPadding(&paddingFrameCount))) {
+            return 9;
+        }
+        const UINT32 availableFrameCount{bufferFrameCount - paddingFrameCount};
+        if (availableFrameCount < 64U) {
             Sleep(5);
             continue;
         }
-        BYTE* data = nullptr;
-        if (FAILED(render->GetBuffer(available, &data)) || !data) {
+        BYTE* audioBufferBoundary{};  // NOLINT(pixels-raw-pointer-boundary): transient WASAPI buffer valid until ReleaseBuffer.
+        if (FAILED(audioRenderer->GetBuffer(availableFrameCount, &audioBufferBoundary)) || audioBufferBoundary == nullptr) {
             Sleep(5);
             continue;
         }
-        const int ch = mix->nChannels > 0 ? mix->nChannels : 2;
-        const double step = two_pi * freq / mix->nSamplesPerSec;
-        if (is_float) {
-            auto* f = reinterpret_cast<float*>(data);
-            for (UINT32 i = 0; i < available; i++) {
-                const float s = static_cast<float>(0.2 * std::sin(phase));
-                phase += step;
-                if (phase > two_pi) {
-                    phase -= two_pi;
+        const int channelCount{mixFormat->nChannels > 0 ? mixFormat->nChannels : 2};
+        const double phaseStep{twoPi * frequency / mixFormat->nSamplesPerSec};
+        if (floatingPointSamples) {
+            const std::span<float> outputSamples{reinterpret_cast<float*>(audioBufferBoundary),
+                                                 static_cast<std::size_t>(availableFrameCount) * channelCount};
+            for (UINT32 frameIndex{}; frameIndex < availableFrameCount; ++frameIndex) {
+                const float sample = static_cast<float>(0.2 * std::sin(phase));
+                phase += phaseStep;
+                if (phase > twoPi) {
+                    phase -= twoPi;
                 }
-                for (int c = 0; c < ch; c++) {
-                    f[i * ch + c] = s;
+                for (int channelIndex{}; channelIndex < channelCount; ++channelIndex) {
+                    outputSamples[static_cast<std::size_t>(frameIndex) * channelCount + channelIndex] = sample;
                 }
             }
         } else {
-            auto* s16 = reinterpret_cast<int16_t*>(data);
-            for (UINT32 i = 0; i < available; i++) {
-                const auto s = static_cast<int16_t>(0.2 * 32767.0 * std::sin(phase));
-                phase += step;
-                if (phase > two_pi) {
-                    phase -= two_pi;
+            const std::span<std::int16_t> outputSamples{reinterpret_cast<std::int16_t*>(audioBufferBoundary),
+                                                        static_cast<std::size_t>(availableFrameCount) * channelCount};
+            for (UINT32 frameIndex{}; frameIndex < availableFrameCount; ++frameIndex) {
+                const auto sample = static_cast<std::int16_t>(0.2 * 32'767.0 * std::sin(phase));
+                phase += phaseStep;
+                if (phase > twoPi) {
+                    phase -= twoPi;
                 }
-                for (int c = 0; c < ch; c++) {
-                    s16[i * ch + c] = s;
+                for (int channelIndex{}; channelIndex < channelCount; ++channelIndex) {
+                    outputSamples[static_cast<std::size_t>(frameIndex) * channelCount + channelIndex] = sample;
                 }
             }
         }
-        render->ReleaseBuffer(available, 0);
+        if (FAILED(audioRenderer->ReleaseBuffer(availableFrameCount, 0))) {
+            return 10;
+        }
     }
 }

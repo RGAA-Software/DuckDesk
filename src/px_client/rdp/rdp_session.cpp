@@ -1,6 +1,7 @@
 #include "rdp_session.h"
+#include "rdp_clipboard_channel.h"
 #include "rdp_display_channel.h"
-#include "rdp_text_clipboard_channel.h"
+#include "rdp_process_audio_controller.h"
 
 #include "px_common/async_runtime.h"
 #include "px_common/log.h"
@@ -137,11 +138,13 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
     SessionCallbacks callbacks{};
     std::atomic<std::shared_ptr<rdpContext>> context{};
     DisplayChannel display{};
-    std::unique_ptr<TextClipboardChannel> clipboard{};
-    std::atomic<std::shared_ptr<const std::string>> pending_clipboard{};
-    std::string local_clipboard{};
+    std::unique_ptr<ClipboardChannel> clipboard{};
+    std::atomic<std::shared_ptr<const ClipboardContent>> pending_clipboard{};
+    ClipboardContent local_clipboard{};
     UniqueWinHandle command_event{CreateEventW(nullptr, FALSE, FALSE, nullptr)};
     std::atomic_bool stopping{false};
+    std::atomic_bool audio_enabled{true};
+    std::atomic_bool audio_sync_requested{true};
     std::mutex commands_mutex{};
     std::deque<Command> commands{};
     Rectangle dirty{};
@@ -150,7 +153,8 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
     bool connected{false};
     std::chrono::steady_clock::time_point diagnostic_deadline{};
 
-    State(SessionConfiguration config, SessionCallbacks cb) : configuration(std::move(config)), callbacks(std::move(cb)) {}
+    State(SessionConfiguration config, SessionCallbacks cb)
+        : configuration(std::move(config)), callbacks(std::move(cb)), audio_enabled(configuration.audio) {}
     static Context& Extended(rdpContext& borrowed) {
         return reinterpret_cast<Context&>(borrowed);
     }
@@ -184,6 +188,12 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
                 commands.push_back(command);
             }
         }
+        SetEvent(command_event.get());
+    }
+
+    void SetAudioEnabled(const bool enabled) {
+        audio_enabled.store(configuration.audio && enabled);
+        audio_sync_requested.store(true);
         SetEvent(command_event.get());
     }
 
@@ -341,13 +351,15 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
                 channel->ServerFormatListResponse = ClipboardFormatsResponse;
                 channel->ServerFormatDataRequest = ClipboardDataRequest;
                 channel->ServerFormatDataResponse = ClipboardDataResponse;
+                channel->ServerFileContentsRequest = ClipboardFileRequest;
+                channel->ServerFileContentsResponse = ClipboardFileResponse;
                 const std::weak_ptr<State> weak{self};
-                self->clipboard = std::make_unique<TextClipboardChannel>(channel, [weak](std::string text) {
+                self->clipboard = std::make_unique<ClipboardChannel>(channel, [weak](ClipboardContent content) {
                     if (const auto owner = weak.lock(); owner && !owner->stopping.load() && owner->callbacks.clipboard) {
-                        owner->callbacks.clipboard(std::move(text));
+                        owner->callbacks.clipboard(std::move(content));
                     }
                 });
-                if (!self->local_clipboard.empty() && !self->clipboard->SetLocal(self->local_clipboard)) return false;
+                if (!self->local_clipboard.Empty() && !self->clipboard->SetLocal(self->local_clipboard)) return false;
             } else {
                 freerdp_client_OnChannelConnectedEventHandler(&base, &update);
             }
@@ -381,15 +393,15 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
                    : ERROR_INVALID_DATA;
     }
     static UINT ClipboardReady(CliprdrClientContext* channel, const CLIPRDR_MONITOR_READY*) { // NOLINT(pixels-raw-pointer-boundary): ABI.
-        return WithClipboard(*channel, [](TextClipboardChannel& clipboard) { return clipboard.Ready(); });
+        return WithClipboard(*channel, [](ClipboardChannel& clipboard) { return clipboard.Ready(); });
     }
     static UINT ClipboardCapabilities(CliprdrClientContext* channel, const CLIPRDR_CAPABILITIES* value) { // NOLINT(pixels-raw-pointer-boundary)
         const auto& capabilities = *value;
-        return WithClipboard(*channel, [&capabilities](TextClipboardChannel& clipboard) { return clipboard.Capabilities(capabilities); });
+        return WithClipboard(*channel, [&capabilities](ClipboardChannel& clipboard) { return clipboard.Capabilities(capabilities); });
     }
     static UINT ClipboardFormats(CliprdrClientContext* channel, const CLIPRDR_FORMAT_LIST* value) { // NOLINT(pixels-raw-pointer-boundary): ABI.
         const auto& formats = *value;
-        return WithClipboard(*channel, [&formats](TextClipboardChannel& clipboard) { return clipboard.Formats(formats); });
+        return WithClipboard(*channel, [&formats](ClipboardChannel& clipboard) { return clipboard.Formats(formats); });
     }
     static UINT ClipboardFormatsResponse(CliprdrClientContext*, const CLIPRDR_FORMAT_LIST_RESPONSE*) { // NOLINT(pixels-raw-pointer-boundary): ABI.
         return CHANNEL_RC_OK;
@@ -397,12 +409,22 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
     static UINT ClipboardDataRequest( // NOLINT(pixels-raw-pointer-boundary): FreeRDP callback ABI.
         CliprdrClientContext* channel, const CLIPRDR_FORMAT_DATA_REQUEST* value) { // NOLINT(pixels-raw-pointer-boundary): callback ABI.
         const auto& request = *value;
-        return WithClipboard(*channel, [&request](TextClipboardChannel& clipboard) { return clipboard.DataRequest(request); });
+        return WithClipboard(*channel, [&request](ClipboardChannel& clipboard) { return clipboard.DataRequest(request); });
     }
     static UINT ClipboardDataResponse( // NOLINT(pixels-raw-pointer-boundary): FreeRDP callback ABI.
         CliprdrClientContext* channel, const CLIPRDR_FORMAT_DATA_RESPONSE* value) { // NOLINT(pixels-raw-pointer-boundary): callback ABI.
         const auto& response = *value;
-        return WithClipboard(*channel, [&response](TextClipboardChannel& clipboard) { return clipboard.DataResponse(response); });
+        return WithClipboard(*channel, [&response](ClipboardChannel& clipboard) { return clipboard.DataResponse(response); });
+    }
+    static UINT ClipboardFileRequest(  // NOLINT(pixels-raw-pointer-boundary): FreeRDP callback ABI.
+        CliprdrClientContext* channel, const CLIPRDR_FILE_CONTENTS_REQUEST* value) {  // NOLINT(pixels-raw-pointer-boundary): callback ABI.
+        const auto& request = *value;
+        return WithClipboard(*channel, [&request](ClipboardChannel& clipboard) { return clipboard.FileRequest(request); });
+    }
+    static UINT ClipboardFileResponse(  // NOLINT(pixels-raw-pointer-boundary): FreeRDP callback ABI.
+        CliprdrClientContext* channel, const CLIPRDR_FILE_CONTENTS_RESPONSE* value) {  // NOLINT(pixels-raw-pointer-boundary): callback ABI.
+        const auto& response = *value;
+        return WithClipboard(*channel, [&response](ClipboardChannel& clipboard) { return clipboard.FileResponse(response); });
     }
     static BOOL BeginPaint(rdpContext* borrowed) { // NOLINT(pixels-raw-pointer-boundary): FreeRDP ABI.
         if (!borrowed->gdi || !borrowed->gdi->primary || !borrowed->gdi->primary->hdc || !borrowed->gdi->primary->hdc->hwnd) {
@@ -568,6 +590,9 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
     void Run() noexcept {
         bool success{false};
         try {
+            ProcessAudioController audioController{};
+            auto nextAudioSynchronization = std::chrono::steady_clock::now();
+            std::optional<bool> appliedAudioMuted{};
             Report(SessionPhase::Connecting, {});
             RDP_CLIENT_ENTRY_POINTS entry{};
             entry.Size = sizeof(entry);
@@ -591,6 +616,15 @@ struct RdpSession::State final : std::enable_shared_from_this<State> {
                     if (!ProcessCommands(*current)) {
                         success = false;
                         break;
+                    }
+                    const auto now = std::chrono::steady_clock::now();
+                    if (configuration.audio && (audio_sync_requested.exchange(false) || now >= nextAudioSynchronization)) {
+                        const bool muted = !audio_enabled.load();
+                        if (audioController.ApplyMuted(muted) && appliedAudioMuted != muted) {
+                            appliedAudioMuted = muted;
+                            LOGI("event=rdp.audio.mute applied={}", muted);
+                        }
+                        nextAudioSynchronization = now + (muted ? std::chrono::milliseconds{250} : std::chrono::seconds{2});
                     }
                     // Transient borrowed WinPR/Win32 wait ABI; no event ownership is transferred or retained.
                     std::array<HANDLE, MAXIMUM_WAIT_OBJECTS> handles{};
@@ -680,10 +714,14 @@ void RdpSession::ConsumeFrame(std::uint64_t frame_id) {
 void RdpSession::Refresh() {
     state_->Enqueue({CommandKind::kRefresh});
 }
-void RdpSession::PublishClipboard(std::string text) {
-    if (!state_->configuration.clipboard || state_->stopping.load() || text.empty() || text.size() > 16U * 1024U * 1024U) return;
-    state_->pending_clipboard.store(std::make_shared<const std::string>(std::move(text)));
+void RdpSession::PublishClipboard(ClipboardContent content) {
+    if (!state_->configuration.clipboard || state_->stopping.load()) return;
+    state_->pending_clipboard.store(std::make_shared<const ClipboardContent>(std::move(content)));
     SetEvent(state_->command_event.get());
+}
+
+void RdpSession::SetAudioEnabled(const bool enabled) {
+    state_->SetAudioEnabled(enabled);
 }
 
 } // namespace px::rdp

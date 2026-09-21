@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id,request_hash,product,distribution,channel,os,architecture,build_number,version,artifact_url,sha256,size_bytes,metadata_url,metadata_sha256,state,revision,created_at,updated_at FROM pixels.update_releases WHERE product=$1 AND distribution=$2 AND channel=$3 AND os=$4 AND architecture=$5 ORDER BY build_number DESC LIMIT 1\n",
+  "query": "INSERT INTO pixels.update_releases(id,registered_by,request_id,request_hash,product,distribution,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,size_bytes)\nVALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id,request_hash,product,distribution,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,size_bytes,state,revision,created_at,updated_at\n",
   "describe": {
     "columns": [
       {
@@ -50,28 +50,28 @@
       },
       {
         "ordinal": 9,
-        "name": "artifact_url",
+        "name": "metadata_base_url",
         "type_info": "Text"
       },
       {
         "ordinal": 10,
-        "name": "sha256",
+        "name": "targets_base_url",
         "type_info": "Text"
       },
       {
         "ordinal": 11,
-        "name": "size_bytes",
-        "type_info": "Int8"
+        "name": "target_name",
+        "type_info": "Text"
       },
       {
         "ordinal": 12,
-        "name": "metadata_url",
+        "name": "sha256",
         "type_info": "Text"
       },
       {
         "ordinal": 13,
-        "name": "metadata_sha256",
-        "type_info": "Text"
+        "name": "size_bytes",
+        "type_info": "Int8"
       },
       {
         "ordinal": 14,
@@ -96,11 +96,22 @@
     ],
     "parameters": {
       "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Bytea",
         "Text",
         "Text",
         "Text",
         "Text",
-        "Text"
+        "Text",
+        "Int8",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int8"
       ]
     },
     "nullable": [
@@ -124,5 +135,5 @@
       false
     ]
   },
-  "hash": "867985f501e2e5afe95b12c7d68db20ef2e6d4c2b356c7ec7f282eaa5e3823bb"
+  "hash": "c99ae113425480d1c77ac8e7e6934e7fd51c72b7d68dde67c2a37775f4a0f397"
 }

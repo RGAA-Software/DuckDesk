@@ -11,7 +11,7 @@ Desk 只负责咨询、问题反馈、产品版本元数据，不调度云桌面
 | 表 | 主要字段 / 约束 | 访问 |
 |---|---|---|
 | feedback | id=request_id UUID、kind consult/issue、title、your_name、description、email/wechat/qq、consult_type/version/os、body_sha256、created_at/updated_at、processed、revision | 匿名仅创建并取 receipt；管理会话按 kind 查询、CAS 标记。咨询与问题字段组合由 CHECK 约束，非 JSONB 业务袋 |
-| versions | id UUID、product/distribution/channel/os/architecture、build_number、version、artifact_url/sha256/size_bytes、metadata_url/metadata_sha256、created_at | 管理会话发布，公开按五个明确维度查询最新 build_number；元数据不代替更新包签名验收 |
+| versions | id UUID、product/distribution/channel/os/architecture、build_number、version、metadata_base_url/targets_base_url/target_name、sha256/size_bytes、created_at | 管理会话发布，公开按五个明确维度查询最新 build_number；三个 TUF 定位字段与目标内容身份都必须精确匹配 |
 | admin_sessions | id UUID、token_hash 32 bytes、credential_fingerprint 32 bytes、expires_at、revoked_at | 8 小时会话，每次请求查过期、撤销和当前配置指纹；只存摘要 |
 
 文本长度由接口和 SQL 双重约束。分页 page 1–10000、page_size 1–100，稳定按 created_at DESC,id DESC 排序；管理更新要求 revision CAS。
@@ -22,8 +22,10 @@ CAS 未命中（ID/kind 不存在或 revision 冲突）统一 409；不以第二
 build_number 是 1..i64::MAX 的整数；同产品/发行/渠道/OS/architecture/build 唯一，较旧发布记录不覆盖新 build 的查询结果。
 当前受支持组合：Cloud Node/Client/Remote 为 windows+x86_64，Android 为 android+aarch64，Server 为 windows 或 linux+x86_64。
 不猜缺失平台，不把 ARM Android 包当作 x86 包；后续支持新平台需显式扩充契约与 SQL CHECK。
-内容大小为 1 字节至 1 TiB，SHA-256 为小写 64 位 hex；制品及签名元数据引用均为明确 HTTPS URL，不允许用户信息、查询令牌或片段。
-签名元数据引用只是待验证的不可变内容，不代表已验签或可安装；实际更新信任链仍由部署计划规定的更新框架验证。
+内容大小为 1 字节至 1 TiB，SHA-256 为小写 64 位 hex；TUF metadata/targets 基址均为以 `/` 结尾的明确 HTTPS URL，
+不允许用户信息、查询令牌或片段。`target_name` 是不含空白、反斜杠、绝对路径、`.`/`..` 分量和末尾 `/` 的相对目标名。
+目录记录只是已审批发布事实，不代表已验签或可安装；Service 必须从安装时内置根开始验证 TUF 时间戳、快照、目标元数据、
+Pixels 自定义目标身份、大小与 SHA-256，不能按目录 URL 直接下载执行。
 
 ## 2. 管理与配置
 
@@ -42,7 +44,7 @@ build_number 是 1..i64::MAX 的整数；同产品/发行/渠道/OS/architecture
 - `/api/desk/admin/sessions`：POST 登录；`/api/desk/admin/session`：DELETE 撤销当前会话。
 - `/api/desk/consults`、`/api/desk/issues`：POST 匿名提交、GET 管理查询。
 - `/api/desk/consults/{id}`、`/api/desk/issues/{id}`：PATCH 管理标记 processed，提交 expected_revision。
-- `/api/desk/versions`：POST 管理发布；正文是 `{target:{product,distribution,channel,os,architecture},build_number,version,artifact_url,sha256,size_bytes,metadata_url,metadata_sha256}`。
+- `/api/desk/versions`：POST 管理发布；正文是 `{target:{product,distribution,channel,os,architecture},build_number,version,metadata_base_url,targets_base_url,target_name,sha256,size_bytes}`。
   GET 查询参数须包含 target 的五个字段，返回该精确平台的最新 build；无默认平台或旧正文兼容。
 
 JSON 请求拒绝未知字段；结构错误 400/422、无会话 401、找不到 404、版本/幂等冲突 409、过大 413、数据库故障 503。

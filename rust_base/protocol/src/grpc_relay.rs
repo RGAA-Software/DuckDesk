@@ -81,10 +81,10 @@ pub mod grpc_relay_client {
         dead_code,
         missing_docs,
         clippy::wildcard_imports,
-        clippy::let_unit_value
+        clippy::let_unit_value,
     )]
-    use tonic::codegen::http::Uri;
     use tonic::codegen::*;
+    use tonic::codegen::http::Uri;
     #[derive(Debug, Clone)]
     pub struct GrpcRelayClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -123,13 +123,14 @@ pub mod grpc_relay_client {
             F: tonic::service::Interceptor,
             T::ResponseBody: Default,
             T: tonic::codegen::Service<
-                    http::Request<tonic::body::Body>,
-                    Response = http::Response<
-                        <T as tonic::client::GrpcService<tonic::body::Body>>::ResponseBody,
-                    >,
+                http::Request<tonic::body::Body>,
+                Response = http::Response<
+                    <T as tonic::client::GrpcService<tonic::body::Body>>::ResponseBody,
                 >,
-            <T as tonic::codegen::Service<http::Request<tonic::body::Body>>>::Error:
-                Into<StdError> + std::marker::Send + std::marker::Sync,
+            >,
+            <T as tonic::codegen::Service<
+                http::Request<tonic::body::Body>,
+            >>::Error: Into<StdError> + std::marker::Send + std::marker::Sync,
         {
             GrpcRelayClient::new(InterceptedService::new(inner, interceptor))
         }
@@ -168,11 +169,18 @@ pub mod grpc_relay_client {
             &mut self,
             request: impl tonic::IntoRequest<super::HeartBeatRequest>,
         ) -> std::result::Result<tonic::Response<super::HeartBeatReply>, tonic::Status> {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
-            })?;
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic_prost::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static("/grpc_relay.GrpcRelay/HeartBeat");
+            let path = http::uri::PathAndQuery::from_static(
+                "/grpc_relay.GrpcRelay/HeartBeat",
+            );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("grpc_relay.GrpcRelay", "HeartBeat"));
@@ -180,16 +188,25 @@ pub mod grpc_relay_client {
         }
         pub async fn stream_request(
             &mut self,
-            request: impl tonic::IntoStreamingRequest<Message = super::RelayStreamRequest>,
+            request: impl tonic::IntoStreamingRequest<
+                Message = super::RelayStreamRequest,
+            >,
         ) -> std::result::Result<
             tonic::Response<tonic::codec::Streaming<super::RelayStreamReply>>,
             tonic::Status,
         > {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
-            })?;
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic_prost::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static("/grpc_relay.GrpcRelay/StreamRequest");
+            let path = http::uri::PathAndQuery::from_static(
+                "/grpc_relay.GrpcRelay/StreamRequest",
+            );
             let mut req = request.into_streaming_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("grpc_relay.GrpcRelay", "StreamRequest"));
@@ -198,13 +215,22 @@ pub mod grpc_relay_client {
         pub async fn query_device(
             &mut self,
             request: impl tonic::IntoRequest<super::RelayQueryDeviceRequest>,
-        ) -> std::result::Result<tonic::Response<super::RelayQueryDeviceReply>, tonic::Status>
-        {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
-            })?;
+        ) -> std::result::Result<
+            tonic::Response<super::RelayQueryDeviceReply>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic_prost::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static("/grpc_relay.GrpcRelay/QueryDevice");
+            let path = http::uri::PathAndQuery::from_static(
+                "/grpc_relay.GrpcRelay/QueryDevice",
+            );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("grpc_relay.GrpcRelay", "QueryDevice"));
@@ -213,19 +239,25 @@ pub mod grpc_relay_client {
         pub async fn query_relay_rooms_count(
             &mut self,
             request: impl tonic::IntoRequest<super::RelayRoomsCountRequest>,
-        ) -> std::result::Result<tonic::Response<super::RelayRoomsCountReply>, tonic::Status>
-        {
-            self.inner.ready().await.map_err(|e| {
-                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
-            })?;
+        ) -> std::result::Result<
+            tonic::Response<super::RelayRoomsCountReply>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
             let codec = tonic_prost::ProstCodec::default();
-            let path =
-                http::uri::PathAndQuery::from_static("/grpc_relay.GrpcRelay/QueryRelayRoomsCount");
+            let path = http::uri::PathAndQuery::from_static(
+                "/grpc_relay.GrpcRelay/QueryRelayRoomsCount",
+            );
             let mut req = request.into_request();
-            req.extensions_mut().insert(GrpcMethod::new(
-                "grpc_relay.GrpcRelay",
-                "QueryRelayRoomsCount",
-            ));
+            req.extensions_mut()
+                .insert(GrpcMethod::new("grpc_relay.GrpcRelay", "QueryRelayRoomsCount"));
             self.inner.unary(req, path, codec).await
         }
     }
@@ -237,7 +269,7 @@ pub mod grpc_relay_server {
         dead_code,
         missing_docs,
         clippy::wildcard_imports,
-        clippy::let_unit_value
+        clippy::let_unit_value,
     )]
     use tonic::codegen::*;
     /// Generated trait containing gRPC methods that should be implemented for use with GrpcRelayServer.
@@ -250,20 +282,30 @@ pub mod grpc_relay_server {
         /// Server streaming response type for the StreamRequest method.
         type StreamRequestStream: tonic::codegen::tokio_stream::Stream<
                 Item = std::result::Result<super::RelayStreamReply, tonic::Status>,
-            > + std::marker::Send
+            >
+            + std::marker::Send
             + 'static;
         async fn stream_request(
             &self,
             request: tonic::Request<tonic::Streaming<super::RelayStreamRequest>>,
-        ) -> std::result::Result<tonic::Response<Self::StreamRequestStream>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<Self::StreamRequestStream>,
+            tonic::Status,
+        >;
         async fn query_device(
             &self,
             request: tonic::Request<super::RelayQueryDeviceRequest>,
-        ) -> std::result::Result<tonic::Response<super::RelayQueryDeviceReply>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::RelayQueryDeviceReply>,
+            tonic::Status,
+        >;
         async fn query_relay_rooms_count(
             &self,
             request: tonic::Request<super::RelayRoomsCountRequest>,
-        ) -> std::result::Result<tonic::Response<super::RelayRoomsCountReply>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::RelayRoomsCountReply>,
+            tonic::Status,
+        >;
     }
     #[derive(Debug)]
     pub struct GrpcRelayServer<T> {
@@ -286,7 +328,10 @@ pub mod grpc_relay_server {
                 max_encoding_message_size: None,
             }
         }
-        pub fn with_interceptor<F>(inner: T, interceptor: F) -> InterceptedService<Self, F>
+        pub fn with_interceptor<F>(
+            inner: T,
+            interceptor: F,
+        ) -> InterceptedService<Self, F>
         where
             F: tonic::service::Interceptor,
         {
@@ -341,16 +386,23 @@ pub mod grpc_relay_server {
                 "/grpc_relay.GrpcRelay/HeartBeat" => {
                     #[allow(non_camel_case_types)]
                     struct HeartBeatSvc<T: GrpcRelay>(pub Arc<T>);
-                    impl<T: GrpcRelay> tonic::server::UnaryService<super::HeartBeatRequest> for HeartBeatSvc<T> {
+                    impl<
+                        T: GrpcRelay,
+                    > tonic::server::UnaryService<super::HeartBeatRequest>
+                    for HeartBeatSvc<T> {
                         type Response = super::HeartBeatReply;
-                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::HeartBeatRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
-                            let fut =
-                                async move { <T as GrpcRelay>::heart_beat(&inner, request).await };
+                            let fut = async move {
+                                <T as GrpcRelay>::heart_beat(&inner, request).await
+                            };
                             Box::pin(fut)
                         }
                     }
@@ -379,16 +431,21 @@ pub mod grpc_relay_server {
                 "/grpc_relay.GrpcRelay/StreamRequest" => {
                     #[allow(non_camel_case_types)]
                     struct StreamRequestSvc<T: GrpcRelay>(pub Arc<T>);
-                    impl<T: GrpcRelay> tonic::server::StreamingService<super::RelayStreamRequest>
-                        for StreamRequestSvc<T>
-                    {
+                    impl<
+                        T: GrpcRelay,
+                    > tonic::server::StreamingService<super::RelayStreamRequest>
+                    for StreamRequestSvc<T> {
                         type Response = super::RelayStreamReply;
                         type ResponseStream = T::StreamRequestStream;
-                        type Future =
-                            BoxFuture<tonic::Response<Self::ResponseStream>, tonic::Status>;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::ResponseStream>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<tonic::Streaming<super::RelayStreamRequest>>,
+                            request: tonic::Request<
+                                tonic::Streaming<super::RelayStreamRequest>,
+                            >,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
@@ -422,11 +479,15 @@ pub mod grpc_relay_server {
                 "/grpc_relay.GrpcRelay/QueryDevice" => {
                     #[allow(non_camel_case_types)]
                     struct QueryDeviceSvc<T: GrpcRelay>(pub Arc<T>);
-                    impl<T: GrpcRelay> tonic::server::UnaryService<super::RelayQueryDeviceRequest>
-                        for QueryDeviceSvc<T>
-                    {
+                    impl<
+                        T: GrpcRelay,
+                    > tonic::server::UnaryService<super::RelayQueryDeviceRequest>
+                    for QueryDeviceSvc<T> {
                         type Response = super::RelayQueryDeviceReply;
-                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::RelayQueryDeviceRequest>,
@@ -463,18 +524,23 @@ pub mod grpc_relay_server {
                 "/grpc_relay.GrpcRelay/QueryRelayRoomsCount" => {
                     #[allow(non_camel_case_types)]
                     struct QueryRelayRoomsCountSvc<T: GrpcRelay>(pub Arc<T>);
-                    impl<T: GrpcRelay> tonic::server::UnaryService<super::RelayRoomsCountRequest>
-                        for QueryRelayRoomsCountSvc<T>
-                    {
+                    impl<
+                        T: GrpcRelay,
+                    > tonic::server::UnaryService<super::RelayRoomsCountRequest>
+                    for QueryRelayRoomsCountSvc<T> {
                         type Response = super::RelayRoomsCountReply;
-                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::RelayRoomsCountRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as GrpcRelay>::query_relay_rooms_count(&inner, request).await
+                                <T as GrpcRelay>::query_relay_rooms_count(&inner, request)
+                                    .await
                             };
                             Box::pin(fut)
                         }
@@ -501,19 +567,25 @@ pub mod grpc_relay_server {
                     };
                     Box::pin(fut)
                 }
-                _ => Box::pin(async move {
-                    let mut response = http::Response::new(tonic::body::Body::default());
-                    let headers = response.headers_mut();
-                    headers.insert(
-                        tonic::Status::GRPC_STATUS,
-                        (tonic::Code::Unimplemented as i32).into(),
-                    );
-                    headers.insert(
-                        http::header::CONTENT_TYPE,
-                        tonic::metadata::GRPC_CONTENT_TYPE,
-                    );
-                    Ok(response)
-                }),
+                _ => {
+                    Box::pin(async move {
+                        let mut response = http::Response::new(
+                            tonic::body::Body::default(),
+                        );
+                        let headers = response.headers_mut();
+                        headers
+                            .insert(
+                                tonic::Status::GRPC_STATUS,
+                                (tonic::Code::Unimplemented as i32).into(),
+                            );
+                        headers
+                            .insert(
+                                http::header::CONTENT_TYPE,
+                                tonic::metadata::GRPC_CONTENT_TYPE,
+                            );
+                        Ok(response)
+                    })
+                }
             }
         }
     }

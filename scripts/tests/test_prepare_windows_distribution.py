@@ -32,10 +32,29 @@ class PrepareWindowsDistributionTest(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+        self.update_root = self.root / "update-root.json"
+        self.update_root.write_text(
+            json.dumps(
+                {
+                    "signed": {
+                        "_type": "root",
+                        "spec_version": "1.0.0",
+                        "version": 1,
+                        "expires": "2030-01-01T00:00:00Z",
+                        "keys": {"test-key": {"keytype": "ed25519"}},
+                        "roles": {role: {"keyids": ["test-key"], "threshold": 1} for role in ("root", "snapshot", "targets", "timestamp")},
+                    },
+                    "signatures": [{"keyid": "test-key", "sig": "test-signature"}],
+                },
+                separators=(",", ":"),
+            ),
+            encoding="utf-8",
+        )
         self.environment = os.environ.copy()
         self.environment.update(
             {
                 "PIXELS_DEPLOYMENT_TRUST_STORE_FILE": str(self.trust_store),
+                "PIXELS_UPDATE_ROOT_FILE": str(self.update_root),
                 "PIXELS_DEPLOYMENT_CERTIFICATE_VERSION": "4",
                 "PIXELS_DESCRIPTOR_REVISION": "7",
                 "PIXELS_DEPLOYMENT_TRUST_EPOCH": "3",
@@ -75,6 +94,7 @@ class PrepareWindowsDistributionTest(unittest.TestCase):
         self.assertEqual(policy["official_console_origin"], self.environment["PIXELS_OFFICIAL_CONSOLE_URL"])
         self.assertEqual(policy["protocol_version"], 1)
         self.assertEqual((output_directory / "deployment-trust.json").read_bytes(), self.trust_store.read_bytes())
+        self.assertEqual((output_directory / "update-root.json").read_bytes(), self.update_root.read_bytes())
 
     def test_customer_policy_contains_no_official_identity(self) -> None:
         output_directory = self.root / "customer"
@@ -101,7 +121,15 @@ class PrepareWindowsDistributionTest(unittest.TestCase):
     def test_validation_does_not_create_output(self) -> None:
         result = self.run_script("official", "--validate-only")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(list(self.root.iterdir()), [self.trust_store])
+        self.assertEqual(set(self.root.iterdir()), {self.trust_store, self.update_root})
+
+    def test_rejects_missing_or_incomplete_update_root(self) -> None:
+        missing_environment = self.environment | {"PIXELS_UPDATE_ROOT_FILE": ""}
+        result = self.run_script("official", "--validate-only", environment=missing_environment)
+        self.assertNotEqual(result.returncode, 0)
+        self.update_root.write_text("{}", encoding="utf-8")
+        result = self.run_script("official", "--validate-only")
+        self.assertNotEqual(result.returncode, 0)
 
 
 if __name__ == "__main__":

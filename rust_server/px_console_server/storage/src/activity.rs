@@ -119,7 +119,10 @@ impl ActivityStore {
             transaction.commit().await?;
             return Ok(result);
         }
-        if previous.state != "active"
+        let terminal_after_frontend_close = previous.state == "unknown"
+            && previous.reason.as_deref() == Some("frontend_closed")
+            && checked.state != "active";
+        if (previous.state != "active" && !terminal_after_frontend_close)
             || checked.sequence <= previous.sequence
             || checked.sent < previous.sent_bytes
             || checked.received < previous.received_bytes

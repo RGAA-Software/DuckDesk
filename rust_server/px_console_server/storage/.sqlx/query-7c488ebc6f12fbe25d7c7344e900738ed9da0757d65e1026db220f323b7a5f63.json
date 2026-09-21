@@ -1,0 +1,124 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id,request_hash,product,distribution,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,size_bytes,state,revision,created_at,updated_at FROM pixels.update_releases WHERE id=$1 FOR UPDATE\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "request_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 2,
+        "name": "product",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "distribution",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "channel",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "os",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "architecture",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "build_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "version",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "metadata_base_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "targets_base_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "target_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "sha256",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "size_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 14,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 16,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 17,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "7c488ebc6f12fbe25d7c7344e900738ed9da0757d65e1026db220f323b7a5f63"
+}

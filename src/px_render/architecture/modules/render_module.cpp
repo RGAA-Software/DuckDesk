@@ -4,18 +4,18 @@
 #include <mutex>
 #include <utility>
 
+#include "app/app_messages.h"
 #include "px_common/folder_util.h"
 #include "px_common/log.h"
 #include "px_common/memory_stat.h"
 #include "px_common/snowflake_id.h"
 #include "px_common/string_util.h"
-#include "app/app_messages.h"
 #include "runtime/render_execution_context.h"
 
 namespace px {
 
 class ModuleEventChannel final {
-  public:
+public:
     void Set(const RenderEventCallback& callback) {
         const std::lock_guard lock(mutex_);
         callback_ = callback;
@@ -45,7 +45,7 @@ class ModuleEventChannel final {
         callback(event);
     }
 
-  private:
+private:
     mutable std::mutex mutex_;
     RenderEventCallback callback_;
     bool accepting_{false};
@@ -53,37 +53,19 @@ class ModuleEventChannel final {
 
 RenderModule::RenderModule() : event_channel_(std::make_shared<ModuleEventChannel>()) {}
 
-std::shared_ptr<RenderExecutionContext> RenderModule::ExecutionContext() const {
-    return execution_context_;
-}
+std::shared_ptr<RenderExecutionContext> RenderModule::ExecutionContext() const { return execution_context_; }
 
-std::string RenderModule::Name() const {
-    return Id();
-}
-std::string RenderModule::Author() const {
-    return "Pixels";
-}
-std::string RenderModule::Description() const {
-    return {};
-}
-std::string RenderModule::VersionName() const {
-    return "1.0.0";
-}
-std::uint32_t RenderModule::VersionCode() const {
-    return 1;
-}
+std::string RenderModule::Name() const { return Id(); }
+std::string RenderModule::Author() const { return "Pixels"; }
+std::string RenderModule::Description() const { return {}; }
+std::string RenderModule::VersionName() const { return "1.0.0"; }
+std::uint32_t RenderModule::VersionCode() const { return 1; }
 
-bool RenderModule::IsEnabled() const noexcept {
-    return enabled_.load();
-}
+bool RenderModule::IsEnabled() const noexcept { return enabled_.load(); }
 
-void RenderModule::SetEnabled(const bool enabled) noexcept {
-    enabled_.store(enabled);
-}
+void RenderModule::SetEnabled(const bool enabled) noexcept { enabled_.store(enabled); }
 
-bool RenderModule::IsWorking() const {
-    return IsEnabled();
-}
+bool RenderModule::IsWorking() const { return IsEnabled(); }
 
 bool RenderModule::Start(const RenderModuleConfiguration& configuration) {
     if (lifecycle_.load() == RenderModuleLifecycle::kRunning) {
@@ -105,6 +87,7 @@ bool RenderModule::Start(const RenderModuleConfiguration& configuration) {
     Logger::InitLog(log_path, true);
 
     settings_.device_id = configuration_.device_id;
+    settings_.application_instance_id = configuration_.application_instance_id;
     settings_.direct_allow_takeover = configuration_.direct_allow_takeover;
     settings_.relay_enabled = configuration_.relay_enabled;
     settings_.relay_host = configuration_.relay_host;
@@ -175,9 +158,7 @@ void RenderModule::PostDelayedUiTask(const int milliseconds, std::function<void(
     }
 }
 
-void RenderModule::SetEventCallback(const RenderEventCallback& callback) {
-    event_channel_->Set(callback);
-}
+void RenderModule::SetEventCallback(const RenderEventCallback& callback) { event_channel_->Set(callback); }
 
 void RenderModule::EmitEvent(RenderEvent event) {
     if (IsStoppingOrDestroyed() || !event_channel_->CanDeliver()) {
@@ -209,23 +190,17 @@ RenderEventCallback RenderModule::MakeImmediateEventDispatcher() const {
 
 void RenderModule::Tick1Second() {}
 
-void RenderModule::RequestKeyFrame() {
-    EmitEvent(std::make_shared<KeyFrameRequestEvent>());
-}
+void RenderModule::RequestKeyFrame() { EmitEvent(std::make_shared<KeyFrameRequestEvent>()); }
 
 void RenderModule::HandleCommand(const std::string&) {}
 
-void RenderModule::OnClientConnected(const std::string&, const std::string&, const std::string&) {
-    no_connected_clients_counter_.store(0);
-}
+void RenderModule::OnClientConnected(const std::string&, const std::string&, const std::string&) { no_connected_clients_counter_.store(0); }
 
 void RenderModule::OnClientDisconnected(const std::string&, const std::string&) {}
 
 void RenderModule::HandleMessage(const std::shared_ptr<Message>&) {}
 
-void RenderModule::UpdateSettings(const RenderModuleSettings& settings) {
-    settings_ = settings;
-}
+void RenderModule::UpdateSettings(const RenderModuleSettings& settings) { settings_ = settings; }
 
 void RenderModule::HandleAppEvent(const std::shared_ptr<AppBaseEvent>& event) {
     if (!event || event->type_ != AppBaseEvent::EType::kConnectedClientCount) {
@@ -241,13 +216,9 @@ void RenderModule::HandleAppEvent(const std::shared_ptr<AppBaseEvent>& event) {
 
 void RenderModule::UpdateCaptureMonitorInfo(const CaptureMonitorInfoMessage&) {}
 
-RenderModuleSettings RenderModule::Settings() const {
-    return settings_;
-}
+RenderModuleSettings RenderModule::Settings() const { return settings_; }
 
-bool RenderModule::HasNoConnectedClients() const noexcept {
-    return no_connected_clients_counter_.load() > 10;
-}
+bool RenderModule::HasNoConnectedClients() const noexcept { return no_connected_clients_counter_.load() > 10; }
 
 void RenderModule::ReportDataSent(const std::size_t bytes) {
     const auto event = std::make_shared<DataSentEvent>();
@@ -266,4 +237,4 @@ void RenderModule::ClearD3DResources(const std::uint64_t adapter_uid) {
     d3d11_device_contexts_.erase(adapter_uid);
 }
 
-} // namespace px
+}  // namespace px

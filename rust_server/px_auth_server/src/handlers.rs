@@ -47,6 +47,7 @@ pub struct Login {
 pub async fn login(
     State(state): State<Arc<AppState>>,
     ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     Json(input): Json<Login>,
 ) -> Result<Json<Value>, ApiError> {
     let username =
@@ -55,7 +56,11 @@ pub async fn login(
     if !credentials::valid_password(&password) {
         return Err(ApiError::Unauthorized);
     }
-    if !state.limits.allow(&username, peer.ip()) {
+    let client_address = state
+        .client_address_resolver
+        .resolve(peer.ip(), &headers)
+        .map_err(|_| ApiError::Invalid)?;
+    if !state.limits.allow(&username, client_address) {
         return Err(ApiError::RateLimited);
     }
     let permit = state

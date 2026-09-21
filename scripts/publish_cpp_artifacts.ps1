@@ -535,6 +535,11 @@ switch ($Component) {
         Publish-LanguageResources
     }
 }
+$manifestRefresh = Join-Path $repoRoot 'scripts\refresh_development_dist.py'
+& python $manifestRefresh $distRoot
+if ($LASTEXITCODE -ne 0) {
+    throw "development distribution manifest refresh failed with exit code $LASTEXITCODE"
+}
 }
 finally {
     Restore-RenderServiceAfterPublish

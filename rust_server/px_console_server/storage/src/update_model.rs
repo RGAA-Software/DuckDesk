@@ -38,15 +38,74 @@ pub(crate) struct UpdateRow {
     pub architecture: String,
     pub build_number: i64,
     pub version: String,
-    pub artifact_url: String,
+    pub metadata_base_url: String,
+    pub targets_base_url: String,
+    pub target_name: String,
     pub sha256: String,
     pub size_bytes: i64,
-    pub metadata_url: String,
-    pub metadata_sha256: String,
     pub state: String,
     pub revision: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct NodeUpdateActivation {
+    pub task_id: Uuid,
+    pub lease_id: Uuid,
+    pub lease_until: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UpdateActivationOutcome {
+    Installed,
+    Failed { error_code: String },
+}
+
+impl UpdateActivationOutcome {
+    pub(crate) fn fields(&self) -> (&'static str, Option<&str>) {
+        match self {
+            Self::Installed => ("installed", None),
+            Self::Failed { error_code } => ("failed", Some(error_code)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct NodeUpdateCompletion {
+    pub state: String,
+    pub revision: i64,
+    pub error_code: Option<String>,
+}
+
+#[derive(sqlx::FromRow)]
+pub(crate) struct NodeUpdateActivationRow {
+    pub id: Uuid,
+    pub release_id: Uuid,
+    pub from_build_number: i64,
+    pub to_build_number: i64,
+    pub lease_id: Uuid,
+    pub lease_until: DateTime<Utc>,
+}
+
+#[derive(sqlx::FromRow)]
+pub(crate) struct NodeUpdateTaskRow {
+    pub id: Uuid,
+    pub to_build_number: i64,
+    pub state: String,
+    pub lease_id: Uuid,
+    pub revision: i64,
+    pub error_code: Option<String>,
+}
+
+impl NodeUpdateActivationRow {
+    pub(crate) fn grant(self) -> NodeUpdateActivation {
+        NodeUpdateActivation {
+            task_id: self.id,
+            lease_id: self.lease_id,
+            lease_until: self.lease_until,
+        }
+    }
 }
 impl UpdateRow {
     pub(crate) fn view(self) -> Result<UpdateRelease, StoreError> {
@@ -66,11 +125,11 @@ impl UpdateRow {
             },
             build_number: self.build_number,
             version: self.version,
-            artifact_url: self.artifact_url,
+            metadata_base_url: self.metadata_base_url,
+            targets_base_url: self.targets_base_url,
+            target_name: self.target_name,
             sha256: self.sha256,
             size_bytes: self.size_bytes,
-            metadata_url: self.metadata_url,
-            metadata_sha256: self.metadata_sha256,
         };
         artifact.validate().map_err(|_| StoreError::Rejected)?;
         Ok(UpdateRelease {

@@ -1,8 +1,5 @@
 #pragma once
 
-#include "client_launch_config.h"
-#include "client_video_frame.h"
-
 #include <atomic>
 #include <chrono>
 #include <memory>
@@ -10,6 +7,10 @@
 #include <optional>
 #include <string>
 #include <vector>
+
+#include "client_launch_config.h"
+#include "rdp/rdp_clipboard_content.h"
+#include "client_video_frame.h"
 
 namespace px {
 class Data;
@@ -25,13 +26,13 @@ struct VoiceCallStatus;
 namespace ft {
 class FtAsyncSession;
 struct TransferJobStatus;
-} // namespace ft
+}  // namespace ft
 namespace rdp {
 class RdpClientEndpoint;
 class RdpSession;
 struct DesktopFrame;
-} // namespace rdp
-} // namespace px
+}  // namespace rdp
+}  // namespace px
 
 namespace px::client::imgui {
 
@@ -63,6 +64,8 @@ struct ClientSessionSnapshot final {
     int framesPerSecond{};
     int latencyMilliseconds{};
     int bitrateKbps{};
+    std::uint64_t decodedAudioFrames{};
+    std::uint64_t decodedAudioBytes{};
     std::string decoder{};
     bool fileTransferAvailable{};
     bool voiceAvailable{};
@@ -113,7 +116,7 @@ struct ClientFileOperationResult final {
 };
 
 class ClientSession final : public std::enable_shared_from_this<ClientSession> {
-  public:
+public:
     static std::shared_ptr<ClientSession> Create(ClientLaunchConfig config, std::shared_ptr<px::WindowsVideoResources> videoResources);
     ClientSession(ClientLaunchConfig config, std::shared_ptr<px::WindowsVideoResources> videoResources);
     ~ClientSession();
@@ -129,6 +132,9 @@ class ClientSession final : public std::enable_shared_from_this<ClientSession> {
     bool SendText(const std::string& text);
     bool SendClipboardText(const std::string& text);
     [[nodiscard]] std::optional<std::string> TakeRemoteClipboardText();
+    bool SendRdpClipboard(px::rdp::ClipboardContent content);
+    [[nodiscard]] std::optional<px::rdp::ClipboardContent> TakeRemoteRdpClipboard();
+    [[nodiscard]] bool UsesRdp() const noexcept;
     bool SendSecureAttention();
     bool SwitchMonitor(const std::string& name);
     bool ChangeResolution(int width, int height);
@@ -143,6 +149,7 @@ class ClientSession final : public std::enable_shared_from_this<ClientSession> {
     [[nodiscard]] std::string RemotePath() const;
     [[nodiscard]] std::optional<ClientOverwriteRequest> PendingOverwrite() const;
     bool ListRemoteDirectory(const std::string& path, bool includeHidden = false);
+    bool SetFileTransferRateLimitBytesPerSecond(std::uint64_t bytesPerSecond);
     std::int32_t StartUpload(const std::string& localPath, const std::string& remoteDirectory);
     std::int32_t StartDownload(const std::string& remotePath, const std::string& localDirectory);
     bool CancelTransfer(std::int32_t jobId);
@@ -161,7 +168,7 @@ class ClientSession final : public std::enable_shared_from_this<ClientSession> {
     bool SetVoiceMicrophoneMuted(bool muted);
     bool SetVoiceSpeakerMuted(bool muted);
 
-  private:
+private:
     [[nodiscard]] bool SendMedia(const std::shared_ptr<px::Data>& data) const;
     bool InitializeRdp();
     void StartRdpProtocol(std::uint16_t loopbackPort);
@@ -202,6 +209,7 @@ class ClientSession final : public std::enable_shared_from_this<ClientSession> {
     std::optional<ClientOverwriteRequest> overwrite_{};
     std::optional<ClientFileOperationResult> remoteFileOperationResult_{};
     std::optional<std::string> remoteClipboardText_{};
+    std::optional<px::rdp::ClipboardContent> remoteRdpClipboard_{};
     std::string recordingId_{};
     std::string voiceStatus_{};
     std::string virtualDisplayRequestId_{};
@@ -210,6 +218,8 @@ class ClientSession final : public std::enable_shared_from_this<ClientSession> {
     int latencyMilliseconds_{};
     int bitrateKbps_{};
     std::int64_t lastReceivedBytes_{};
+    std::uint64_t decodedAudioFrames_{};
+    std::uint64_t decodedAudioBytes_{};
     std::chrono::steady_clock::time_point statisticsStarted_{std::chrono::steady_clock::now()};
     bool fileTransferAvailable_{};
     bool voiceAvailable_{};
@@ -222,6 +232,8 @@ class ClientSession final : public std::enable_shared_from_this<ClientSession> {
     float cursorY_{0.5F};
     std::atomic_bool started_{};
     std::atomic_bool stopped_{};
+    std::atomic_bool rdpIoErrorInjected_{};
+    std::atomic_bool rdpPeerCloseTriggered_{};
 };
 
-} // namespace px::client::imgui
+}  // namespace px::client::imgui

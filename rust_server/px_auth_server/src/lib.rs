@@ -1,3 +1,4 @@
+mod client_address;
 pub mod config;
 pub mod error;
 mod handlers;
@@ -29,6 +30,7 @@ pub struct AppState {
     login_slots: Arc<Semaphore>,
     limits: credentials::LoginLimits,
     dummy_password: Zeroizing<String>,
+    client_address_resolver: client_address::ClientAddressResolver,
 }
 impl AppState {
     pub async fn connect(settings: &config::Settings) -> Result<Self, Box<dyn std::error::Error>> {
@@ -40,13 +42,15 @@ impl AppState {
             return Err("license trust store deployment mismatch".into());
         }
         trust_store.verify_active_signer(&signer)?;
-        let state = Self::from_signer_and_verifier(
+        let mut state = Self::from_signer_and_verifier(
             &settings.database,
             settings.deployment,
             signer,
             trust_store.verifier_set()?,
         )
         .await?;
+        state.client_address_resolver =
+            client_address::ClientAddressResolver::new(settings.trusted_proxy);
         if state.store.recovery_generation().await? != trust_store.recovery_generation {
             state.close().await;
             return Err("license trust store recovery generation mismatch".into());
@@ -81,6 +85,7 @@ impl AppState {
             login_slots: Arc::new(Semaphore::new(4)),
             limits: Default::default(),
             dummy_password,
+            client_address_resolver: Default::default(),
         })
     }
     pub async fn close(&self) {

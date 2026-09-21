@@ -9,6 +9,7 @@ AND NOT d.disabled AND d.revision=i.deployment_revision AND d.application_revisi
 AND d.observed_state='ready' AND d.observed_generation=n.generation AND d.observed_epoch=n.control_epoch
 AND d.observed_endpoint_revision=n.endpoint_revision
 AND NOT n.disabled AND NOT n.draining AND n.deleted_at IS NULL AND n.state='ready'
+AND NOT EXISTS(SELECT 1 FROM pixels.node_update_tasks u WHERE u.node_id=n.id AND u.state='activating')
 AND n.connection_hash IS NOT NULL AND n.last_seen>clock_timestamp()-interval '30 seconds'
 AND n.generation=i.node_generation AND n.control_epoch=i.control_epoch AND n.control_epoch=(SELECT epoch FROM pixels.control_runtime)
 AND n.endpoint_revision=i.endpoint_revision AND i.port>=n.application_port_start AND i.port<=n.application_port_end

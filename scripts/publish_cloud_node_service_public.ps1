@@ -48,6 +48,33 @@ try {
         (Get-Service -Name 'px_service').WaitForStatus(
             [ServiceProcess.ServiceControllerStatus]::Stopped,
             [TimeSpan]::FromSeconds(20))
+        $targetPath = [IO.Path]::GetFullPath($target)
+        Get-CimInstance Win32_Process |
+            Where-Object {
+                $_.Name -eq 'px_service.exe' -and
+                $_.ExecutablePath -and
+                [IO.Path]::GetFullPath($_.ExecutablePath).Equals(
+                    $targetPath,
+                    [StringComparison]::OrdinalIgnoreCase)
+            } |
+            ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop }
+        for ($attempt = 0; $attempt -lt 40; $attempt++) {
+            $remaining = Get-CimInstance Win32_Process |
+                Where-Object {
+                    $_.Name -eq 'px_service.exe' -and
+                    $_.ExecutablePath -and
+                    [IO.Path]::GetFullPath($_.ExecutablePath).Equals(
+                        $targetPath,
+                        [StringComparison]::OrdinalIgnoreCase)
+                }
+            if (-not $remaining) {
+                break
+            }
+            Start-Sleep -Milliseconds 250
+        }
+        if ($remaining) {
+            throw 'Stopped Service process did not release the installed executable.'
+        }
         try {
             Copy-Item -LiteralPath $target -Destination $backup -Force
             Copy-Item -LiteralPath $staged -Destination $target -Force

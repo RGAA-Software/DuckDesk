@@ -132,7 +132,10 @@ pub use transfer_model::{
     BeginFileTransfer, FileTransferRecord, TransferDirection, TransferFailure, TransferOutcome,
     TransferProgress,
 };
-pub use update_model::{UpdateDecision, UpdateRelease};
+pub use update_model::{
+    NodeUpdateActivation, NodeUpdateCompletion, UpdateActivationOutcome, UpdateDecision,
+    UpdateRelease,
+};
 pub use updates::UpdateStore;
 pub use workspace_model::{WorkspaceCommandLease, WorkspaceCredential, WorkspaceProfile};
 pub use workspace_vault::{WorkspaceKey, WorkspaceVault};

@@ -92,11 +92,11 @@ async fn update_catalog_requires_explicit_approval_and_exact_client_identity() {
         },
         "build_number":32018,
         "version":"3.2.18",
-        "artifact_url":"https://downloads.example.test/pixels-3.2.18.apk",
+        "metadata_base_url":"https://downloads.example.test/metadata/",
+        "targets_base_url":"https://downloads.example.test/targets/",
+        "target_name":"android/pixels-3.2.18.apk",
         "sha256":"a".repeat(64),
-        "size_bytes":12345678,
-        "metadata_url":"https://downloads.example.test/3.2.18.targets.json",
-        "metadata_sha256":"b".repeat(64)
+        "size_bytes":12345678
     });
     let create_body = json!({"request_id":request_id,"artifact":artifact});
     let (created_status, created) = call(

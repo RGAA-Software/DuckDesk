@@ -50,8 +50,10 @@ mv -f /opt/pixels/current/bin/px_backup.next /opt/pixels/current/bin/px_backup
 
 configuration_root="/etc/pixels/$deployment_id/backup"
 data_root="/var/lib/pixels/$deployment_id/backup"
-install -d -o root -g pixels-backup -m 0750 "/etc/pixels/$deployment_id" "$configuration_root"
-install -d -o pixels-backup -g pixels-backup -m 0700 "/var/lib/pixels/$deployment_id" "$data_root"
+install -d -o root -g root -m 0755 /etc/pixels "/etc/pixels/$deployment_id"
+install -d -o root -g pixels-backup -m 0750 "$configuration_root"
+install -d -o root -g root -m 0755 /var/lib/pixels "/var/lib/pixels/$deployment_id"
+install -d -o pixels-backup -g pixels-backup -m 0700 "$data_root"
 for directory_name in repository scheduler status offsite; do
     install -d -o pixels-backup -g pixels-backup -m 0700 "$data_root/$directory_name"
 done

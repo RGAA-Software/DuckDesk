@@ -10,7 +10,9 @@ add_subdirectory(anti_hooking)
 include(rdp/rdp_freerdp_sdk.cmake)
 
 add_library(px_client_imgui_runtime STATIC
+    ui_imgui/client_audio_acceptance.cpp
     ui_imgui/client_audio_output.cpp
+    ui_imgui/client_file_transfer_acceptance.cpp
     ui_imgui/client_file_transfer_format.cpp
     ui_imgui/client_file_transfer_panel.cpp
     ui_imgui/client_file_transfer_window.cpp
@@ -31,14 +33,18 @@ add_library(px_client_imgui_runtime STATIC
     ui_imgui/client_window.cpp
     ui_imgui/client_toolbar.cpp
     rdp/rdp_frame.cpp
+    rdp/rdp_clipboard_channel.cpp
+    rdp/rdp_clipboard_files.cpp
+    rdp/rdp_process_audio_controller.cpp
     rdp/rdp_session.cpp
-    rdp/rdp_text_clipboard_channel.cpp
+    rdp/rdp_windows_clipboard.cpp
     ct_virtual_display_protocol.cpp
 )
 target_include_directories(px_client_imgui_runtime PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/ui_imgui)
 target_link_libraries(px_client_imgui_runtime PUBLIC
     px_desktop_shell px_ui px_common px_message px_ft_engine px_voice_call px_rdp_stream pixels::sdk SDL3::SDL3-static yuv
     nlohmann_json::nlohmann_json pixels_rdp_sdk
+    ole32 shell32
 )
 
 add_executable(px_client WIN32 ui_imgui/client_main.cpp ${CMAKE_CURRENT_BINARY_DIR}/icon.rc)
@@ -95,6 +101,11 @@ if(BUILD_TESTING AND TARGET GTest::gtest)
     target_include_directories(test_client_file_transfer_format PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ui_imgui)
     target_link_libraries(test_client_file_transfer_format PRIVATE GTest::gtest GTest::gtest_main)
     add_test(NAME client_file_transfer_format COMMAND test_client_file_transfer_format)
+
+    add_executable(test_rdp_clipboard_channel tests/test_rdp_clipboard_channel.cpp rdp/rdp_clipboard_channel.cpp rdp/rdp_clipboard_files.cpp)
+    target_include_directories(test_rdp_clipboard_channel PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(test_rdp_clipboard_channel PRIVATE pixels_rdp_sdk ole32 GTest::gtest GTest::gtest_main)
+    add_test(NAME rdp_clipboard_channel COMMAND test_rdp_clipboard_channel)
 endif()
 
 if(PX_PROTECTION_ENABLED)

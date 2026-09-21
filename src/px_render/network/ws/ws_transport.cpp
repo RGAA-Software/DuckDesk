@@ -90,7 +90,6 @@ PxAwaitable<PxResult<void>> WsTransport::StopAsync(
             MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument, "net-ws.stop",
                              "WS transport owner is missing"));
     }
-    owner->RenderModule::Stop();
     const auto server = owner->ws_server_;
     if (server) {
         const auto stopped = co_await WsServer::StopAsync(server, deadline);
@@ -98,6 +97,10 @@ PxAwaitable<PxResult<void>> WsTransport::StopAsync(
             co_return stopped;
         }
     }
+    // WsServer::BeginStop emits the terminal connection events. Keep the
+    // module event channel alive until those events have reached the
+    // application; RenderModule::Stop deactivates that channel.
+    owner->RenderModule::Stop();
     owner->ws_server_.reset();
     co_return PxResult<void>::Success();
 }

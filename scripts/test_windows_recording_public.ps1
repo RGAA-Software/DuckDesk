@@ -23,7 +23,8 @@ $ConsoleBase = $ConsoleBase.TrimEnd('/')
 $repository = Split-Path $PSScriptRoot -Parent
 $credentialsPath = Join-Path $repository '.env/public_test_user.json'
 $cloudApplicationTest = Join-Path $PSScriptRoot 'test_windows_cloud_app_public.ps1'
-foreach ($path in @($credentialsPath, $cloudApplicationTest)) {
+$recordingBrowserTest = Join-Path $PSScriptRoot 'test_windows_recording_browser_public.ps1'
+foreach ($path in @($credentialsPath, $cloudApplicationTest, $recordingBrowserTest)) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         throw "Windows recording acceptance input is missing: $path"
     }
@@ -183,6 +184,18 @@ try {
     $downloadHash = [Convert]::ToHexString(
         [Security.Cryptography.SHA256]::HashData($recordingBytes))
 
+    $browserResult = & $recordingBrowserTest `
+        -ConsoleBase $ConsoleBase `
+        -CertificateAuthority $CertificateAuthority `
+        -RecordingFileName ([string]$recording.file_name) `
+        -RecordingSha256 $downloadHash `
+        -RecordingSizeBytes ([long]$recording.size_bytes) |
+        Where-Object { $_.PSObject.Properties.Name -contains 'Result' } |
+        Select-Object -Last 1
+    if (-not $browserResult -or $browserResult.Result -ne 'PASS') {
+        throw 'The public Console recording browser acceptance did not pass.'
+    }
+
     [pscustomobject]@{
         Result = 'PASS'
         ResourceSessionId = $resourceSessionId
@@ -193,6 +206,10 @@ try {
         CacheState = [string]$cache.state
         DownloadSha256 = $downloadHash
         Mp4HeaderValid = $true
+        AdminRetention = $true
+        AdminRelease = $true
+        AdminEviction = $true
+        UserBrowserRedownload = $true
     }
 }
 finally {

@@ -74,7 +74,7 @@ function scrollToSolutions() {
             <span>{{ t('site.hero.titleLead') }}</span>
             <strong>{{ t('site.hero.titleAccent') }}</strong>
           </h1>
-          <p>{{ t('site.hero.description') }}</p>
+          <p>{{ t('site.hero.descriptionLead') }}<strong>{{ t('site.hero.descriptionAccent') }}</strong>{{ t('site.hero.descriptionTail') }}</p>
           <div class="hero-actions">
             <button class="button-primary" type="button" @click="contactVisible = true">
               {{ t('site.actions.consult') }}
@@ -399,6 +399,11 @@ function scrollToSolutions() {
     color: var(--muted-foreground);
     font-size: 16px;
     line-height: 1.85;
+}
+
+.hero-copy > p strong {
+    color: var(--primary);
+    font-weight: 800;
 }
 
 .hero-actions {

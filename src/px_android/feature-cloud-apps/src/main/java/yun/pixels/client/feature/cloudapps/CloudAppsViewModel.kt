@@ -86,7 +86,7 @@ class CloudAppsViewModel(
         viewModelScope.launch {
             mutableState.value = mutableState.value.copy(pendingAppId = application.appId, failure = null)
             when (val result = repository.stop(instance.instanceId)) {
-                is AccountResult.Success -> load()
+                is AccountResult.Success -> awaitStopped(application.appId)
                 is AccountResult.Failure -> fail(result.reason)
             }
         }
@@ -141,6 +141,26 @@ class CloudAppsViewModel(
             instance = applications.firstOrNull { it.appId == application.appId }?.runningInstance ?: run {
                 fail(AccountFailure.NotFound); return
             }
+        }
+        fail(AccountFailure.ServerError)
+    }
+
+    private suspend fun awaitStopped(applicationId: String) {
+        repeat(20) { attempt ->
+            when (val refreshed = repository.applications()) {
+                is AccountResult.Failure -> {
+                    fail(refreshed.reason)
+                    return
+                }
+                is AccountResult.Success -> {
+                    mutableState.value = mutableState.value.copy(applications = refreshed.value, loading = false)
+                    if (refreshed.value.firstOrNull { it.appId == applicationId }?.runningInstance == null) {
+                        mutableState.value = mutableState.value.copy(pendingAppId = null)
+                        return
+                    }
+                }
+            }
+            if (attempt < 19) delay(500)
         }
         fail(AccountFailure.ServerError)
     }

@@ -89,10 +89,16 @@ bool ClientSession::SetFrameRate(const int frameRate) {
 
 bool ClientSession::SetAudioEnabled(const bool enabled) {
     bool stop{};
+    std::shared_ptr<px::rdp::RdpSession> rdpSession{};
     {
         const std::scoped_lock lock{mutex_};
         audioEnabled_ = enabled && config_.audio;
         stop = !audioEnabled_;
+        rdpSession = rdpSession_;
+    }
+    if (config_.rdp) {
+        if (rdpSession) rdpSession->SetAudioEnabled(audioEnabled_);
+        return config_.audio && static_cast<bool>(rdpSession);
     }
     if (stop && audio_) audio_->Stop();
     return config_.audio;

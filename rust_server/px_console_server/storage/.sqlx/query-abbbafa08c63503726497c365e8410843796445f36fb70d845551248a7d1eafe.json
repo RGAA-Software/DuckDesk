@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO pixels.update_releases(id,registered_by,request_id,request_hash,product,distribution,channel,os,architecture,build_number,version,artifact_url,sha256,size_bytes,metadata_url,metadata_sha256)\nVALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id,request_hash,product,distribution,channel,os,architecture,build_number,version,artifact_url,sha256,size_bytes,metadata_url,metadata_sha256,state,revision,created_at,updated_at\n",
+  "query": "SELECT id,request_hash,product,distribution,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,size_bytes,state,revision,created_at,updated_at FROM pixels.update_releases WHERE registered_by=$1 AND request_id=$2\n",
   "describe": {
     "columns": [
       {
@@ -50,28 +50,28 @@
       },
       {
         "ordinal": 9,
-        "name": "artifact_url",
+        "name": "metadata_base_url",
         "type_info": "Text"
       },
       {
         "ordinal": 10,
-        "name": "sha256",
+        "name": "targets_base_url",
         "type_info": "Text"
       },
       {
         "ordinal": 11,
-        "name": "size_bytes",
-        "type_info": "Int8"
+        "name": "target_name",
+        "type_info": "Text"
       },
       {
         "ordinal": 12,
-        "name": "metadata_url",
+        "name": "sha256",
         "type_info": "Text"
       },
       {
         "ordinal": 13,
-        "name": "metadata_sha256",
-        "type_info": "Text"
+        "name": "size_bytes",
+        "type_info": "Int8"
       },
       {
         "ordinal": 14,
@@ -97,21 +97,7 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Uuid",
-        "Uuid",
-        "Bytea",
-        "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Int8",
-        "Text",
-        "Text",
-        "Text",
-        "Int8",
-        "Text",
-        "Text"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -135,5 +121,5 @@
       false
     ]
   },
-  "hash": "e7a3ef1c937705fe3e195eed8fea7d5800011d4ca635fb3bec2c3eabb92288fd"
+  "hash": "abbbafa08c63503726497c365e8410843796445f36fb70d845551248a7d1eafe"
 }

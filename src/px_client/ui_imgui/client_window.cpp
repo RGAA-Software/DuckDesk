@@ -74,7 +74,9 @@ ImGuiMouseCursor RemoteMouseCursor(const std::uint32_t type) noexcept {
 ClientWindow::ClientWindow(std::reference_wrapper<px::desktop::DesktopShell> shell, std::shared_ptr<ClientSession> session, const bool english,
                            const bool darkTheme, const bool enhancedVisualEffects)
     : shell_{shell}, session_{std::move(session)}, toolbar_{std::make_unique<ClientToolbar>(enhancedVisualEffects)}, english_{english},
-      darkTheme_{darkTheme} {}
+      darkTheme_{darkTheme} {
+    if (session_->UsesRdp()) rdpClipboard_ = std::make_unique<px::rdp::WindowsClipboard>();
+}
 
 ClientWindow::~ClientWindow() = default;
 
@@ -333,6 +335,15 @@ struct SdlTextDeleter final {
 } // namespace
 
 void ClientWindow::SynchronizeClipboard() {
+    if (rdpClipboard_) {
+        if (const auto remote = session_->TakeRemoteRdpClipboard()) pendingRemoteClipboard_ = std::move(*remote);
+        if (pendingRemoteClipboard_ && rdpClipboard_->Write(*pendingRemoteClipboard_)) pendingRemoteClipboard_.reset();
+        const auto now = std::chrono::steady_clock::now();
+        if (now < nextClipboardCheck_) return;
+        nextClipboardCheck_ = now + std::chrono::milliseconds{250};
+        if (const auto local = rdpClipboard_->ReadChanged()) static_cast<void>(session_->SendRdpClipboard(std::move(*local)));
+        return;
+    }
     if (const auto remote = session_->TakeRemoteClipboardText()) {
         if (SDL_SetClipboardText(remote->c_str()))
             clipboardText_ = *remote;

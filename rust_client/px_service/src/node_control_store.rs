@@ -797,7 +797,7 @@ fn validate_public_host(value: &str) -> Result<(), String> {
     }
 }
 
-fn reject_reparse_point(path: &Path) -> Result<(), String> {
+pub(crate) fn reject_reparse_point(path: &Path) -> Result<(), String> {
     #[cfg(windows)]
     {
         use std::os::windows::fs::MetadataExt;
@@ -818,7 +818,7 @@ fn reject_reparse_point(path: &Path) -> Result<(), String> {
 }
 
 #[cfg(windows)]
-mod platform {
+pub(crate) mod platform {
     use super::*;
     use std::os::windows::ffi::OsStrExt;
     use windows::core::{PCWSTR, PWSTR};
@@ -1058,7 +1058,7 @@ mod platform {
 }
 
 #[cfg(not(windows))]
-mod platform {
+pub(crate) mod platform {
     use super::*;
 
     pub fn seal(_: &[u8]) -> Result<Vec<u8>, String> {

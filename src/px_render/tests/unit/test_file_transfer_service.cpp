@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <cctype>
 #include <chrono>
 #include <condition_variable>
 #include <filesystem>
@@ -62,6 +63,19 @@ std::string Sha256(std::string_view content) {
     auto hasher = ft::Sha256Hasher{};
     hasher.Update(bytes);
     return ft::Sha256Bytes(hasher.Finalize());
+}
+
+bool IsCanonicalUuid(std::string_view value) {
+    if (value.size() != 36U) {
+        return false;
+    }
+    for (std::size_t index = 0; index < value.size(); ++index) {
+        const bool separator = index == 8U || index == 13U || index == 18U || index == 23U;
+        if (separator ? value[index] != '-' : std::isxdigit(static_cast<unsigned char>(value[index])) == 0) {
+            return false;
+        }
+    }
+    return true;
 }
 
 std::shared_ptr<Message> MakeFileResponse(const std::string& stream_id) {
@@ -291,6 +305,7 @@ TEST(FileTransferServiceTest, SuccessfulUploadReportsVerifiedContentDigest) {
     ASSERT_TRUE(audit_state->changed.wait_for(audit_lock, std::chrono::seconds(5), [audit_state] { return audit_state->end.has_value(); }));
     ASSERT_TRUE(audit_state->begin.has_value());
     ASSERT_TRUE(audit_state->end.has_value());
+    EXPECT_TRUE(IsCanonicalUuid(audit_state->begin->transfer_request_id));
     EXPECT_EQ(audit_state->begin->logical_session_id, "6d593020-9ca6-4f84-84a3-c3478af87a3f");
     EXPECT_EQ(audit_state->begin->file_name, "payload.bin");
     EXPECT_EQ(audit_state->begin->total_bytes, content.size());

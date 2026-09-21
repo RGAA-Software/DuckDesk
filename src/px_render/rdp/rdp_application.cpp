@@ -1,12 +1,12 @@
-#include "rd_app.h"
-
 #include "app/app_timer.h"
 #include "modules/render_module_registry.h"
 #include "network/render_service_client.h"
+#include "network/resource_channel_reporter.h"
 #include "px_common/log.h"
 #include "px_common/win32/win_helper.h"
-#include "px_rdp/rdp_proxy_process.h"
 #include "px_rdp/rdp_control_lease.h"
+#include "px_rdp/rdp_proxy_process.h"
+#include "rd_app.h"
 #include "rd_statistics.h"
 #include "settings/rd_settings.h"
 
@@ -65,6 +65,14 @@ int RdApplication::RunRdp() {
         }
     });
     service_client_ = std::make_shared<RenderServiceClient>(shared_from_this());
+    resource_channel_reporter_ = ResourceChannelReporter::Create(context_->GetAsyncRuntime(), service_client_);
+    if (!resource_channel_reporter_) {
+        init_failed_ = true;
+        init_error_ = "RDP resource channel reporter initialization failed";
+        LOGE("event=resource_channel.reporter component=rdp_application outcome=failed code=ASYNC_RUNTIME_UNAVAILABLE");
+        Exit();
+        return -1;
+    }
     service_client_->NotifyAppInstanceReady(settings_.rdp_launch_.instance_id, settings_.transmission_.listening_port_, true, "");
     service_client_->Start();
     InitAppTimer();
@@ -82,4 +90,4 @@ int RdApplication::RunRdp() {
     return RunMessageLoop();
 }
 
-} // namespace px
+}  // namespace px

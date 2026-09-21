@@ -120,6 +120,8 @@ LangString MSG_LEGACY_CONFLICT ${LANG_ENGLISH} "An old or unowned Pixels install
 LangString MSG_LEGACY_CONFLICT ${LANG_SIMPCHINESE} "旧版或无法确认归属的 Pixels 安装阻止安装 ${PRODUCT_NAME}。$\r$\n$\r$\n检测到的项目：$\r$\n$R9$\r$\n$\r$\n请先卸载或移除此确切安装项目，再重新运行安装程序。"
 LangString MSG_REPLACE_FAILED ${LANG_ENGLISH} "The existing ${PRODUCT_NAME} files could not be replaced. Close any process using $INSTDIR and run setup again."
 LangString MSG_REPLACE_FAILED ${LANG_SIMPCHINESE} "无法覆盖现有 ${PRODUCT_NAME} 文件。请关闭正在使用 $INSTDIR 的程序后重新运行安装程序。"
+LangString MSG_INSTALL_BUSY ${LANG_ENGLISH} "Another Pixels installation, upgrade, rollback, or uninstall is already running. Wait for it to finish and try again."
+LangString MSG_INSTALL_BUSY ${LANG_SIMPCHINESE} "另一个 Pixels 安装、升级、回滚或卸载任务正在运行。请等待其完成后重试。"
 
 ;--------------------------------
 ; Sections
@@ -168,18 +170,46 @@ parsec_vdd_install_ok:
     ; 3. Install ViGEm joystick driver silently
     ExecWait '"$INSTDIR\px_joystick.exe" /S'
 
-    ; 4. Register or update the Windows service only after all runtime files
+    ; 4. Keep the last successfully installed, signed full installer outside
+    ; the replaceable installation tree. Restrict the entire update cache to
+    ; SYSTEM and local administrators before the Service can consume it.
+    ReadEnvStr $R2 "PUBLIC"
+    StrCmp $R2 "" update_cache_public_missing
+    CreateDirectory "$R2\Pixels"
+    CreateDirectory "$R2\Pixels\px_data"
+    CreateDirectory "$R2\Pixels\px_data\updates"
+    CreateDirectory "$R2\Pixels\px_data\updates\rollback"
+    nsExec::ExecToStack 'icacls "$R2\Pixels\px_data\updates" /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" /T /C'
+    Pop $R0
+    Pop $R1
+    DetailPrint "$R1"
+    StrCmp $R0 "0" update_cache_acl_ready
+        SetErrorLevel 1603
+        Abort "Failed to protect the update cache: $R1"
+update_cache_acl_ready:
+    ClearErrors
+    CopyFiles /SILENT "$EXEPATH" "$R2\Pixels\px_data\updates\rollback\${PRODUCT_ID}-${DISTRIBUTION}-current.exe"
+    IfErrors update_cache_failed update_cache_ready
+update_cache_public_missing:
+        SetErrorLevel 1603
+        Abort "Windows PUBLIC directory is unavailable"
+update_cache_failed:
+        SetErrorLevel 1603
+        Abort "Failed to publish the signed rollback installer"
+update_cache_ready:
+
+    ; 5. Register or update the Windows service only after all runtime files
     ; have been published. The service manager also starts the service.
     Call InstallAndStartService
 !endif
 
-    ; 5. Create shortcuts
+    ; 6. Create shortcuts
     CreateShortCut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\${APPNAME}.exe"
     CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
     CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\${PRODUCT_NAME}.lnk" "$INSTDIR\${APPNAME}.exe"
     CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
 
-    ; 6. Write uninstall registry info. Remove the former 32-bit-view key so
+    ; 7. Write uninstall registry info. Remove the former 32-bit-view key so
     ; packages produced before the registry-view fix cannot leave a ghost
     ; installation behind after upgrade.
     SetRegView 32
@@ -261,6 +291,7 @@ SectionEnd
 
 ;--------------------------------
 Function .onInit
+    Call AcquireInstallerMutationMutex
     ${IfNot} ${RunningX64}
         SetErrorLevel 1633
         Abort "${PRODUCT_NAME} requires 64-bit Windows."
@@ -279,8 +310,37 @@ Function .onInit
 FunctionEnd
 
 Function un.onInit
+    Call un.AcquireInstallerMutationMutex
     SetRegView 64
     SetShellVarContext all
+FunctionEnd
+
+Function AcquireInstallerMutationMutex
+    System::Call 'kernel32::CreateMutexW(p 0, i 0, w "Global\PixelsInstallerMutation") p .r8 ?e'
+    Pop $R0
+    StrCmp $R8 "0" installer_mutex_failed
+    StrCmp $R0 "183" installer_mutex_busy installer_mutex_ready
+installer_mutex_failed:
+    SetErrorLevel 1603
+    Abort "Cannot create the Pixels installer mutation lock."
+installer_mutex_busy:
+    SetErrorLevel 1618
+    Abort "$(MSG_INSTALL_BUSY)"
+installer_mutex_ready:
+FunctionEnd
+
+Function un.AcquireInstallerMutationMutex
+    System::Call 'kernel32::CreateMutexW(p 0, i 0, w "Global\PixelsInstallerMutation") p .r8 ?e'
+    Pop $R0
+    StrCmp $R8 "0" un_installer_mutex_failed
+    StrCmp $R0 "183" un_installer_mutex_busy un_installer_mutex_ready
+un_installer_mutex_failed:
+    SetErrorLevel 1603
+    Abort "Cannot create the Pixels installer mutation lock."
+un_installer_mutex_busy:
+    SetErrorLevel 1618
+    Abort "$(MSG_INSTALL_BUSY)"
+un_installer_mutex_ready:
 FunctionEnd
 
 Function ResolveExistingInstallDirectory

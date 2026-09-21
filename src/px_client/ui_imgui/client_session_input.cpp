@@ -201,14 +201,7 @@ bool ClientSession::SendClipboardText(const std::string& text) {
         return false;
     }
     if (config_.rdp) {
-        std::shared_ptr<px::rdp::RdpSession> session{};
-        {
-            const std::scoped_lock lock{mutex_};
-            session = rdpSession_;
-        }
-        if (!session) return false;
-        session->PublishClipboard(text);
-        return true;
+        return SendRdpClipboard({.text = text});
     }
     auto message = std::make_shared<px::Message>();
     message->set_type(px::kClipboardInfo);
@@ -224,6 +217,29 @@ std::optional<std::string> ClientSession::TakeRemoteClipboardText() {
     auto result = std::move(remoteClipboardText_);
     remoteClipboardText_.reset();
     return result;
+}
+
+bool ClientSession::SendRdpClipboard(px::rdp::ClipboardContent content) {
+    if (!config_.rdp || !config_.clipboard) return false;
+    std::shared_ptr<px::rdp::RdpSession> session{};
+    {
+        const std::scoped_lock lock{mutex_};
+        session = rdpSession_;
+    }
+    if (!session) return false;
+    session->PublishClipboard(std::move(content));
+    return true;
+}
+
+std::optional<px::rdp::ClipboardContent> ClientSession::TakeRemoteRdpClipboard() {
+    const std::scoped_lock lock{mutex_};
+    auto result = std::move(remoteRdpClipboard_);
+    remoteRdpClipboard_.reset();
+    return result;
+}
+
+bool ClientSession::UsesRdp() const noexcept {
+    return config_.rdp;
 }
 
 bool ClientSession::SendSecureAttention() {

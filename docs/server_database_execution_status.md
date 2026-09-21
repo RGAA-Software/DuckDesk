@@ -1,9 +1,26 @@
 # 服务数据库改造：实施与验收状态
 
-> 更新至 2026-09-20。只记录实际交付范围；这不是 DB0–DB5 或整个商业化计划的完成声明。
+> 更新至 2026-09-21。只记录实际交付范围；这不是 DB0–DB5 或整个商业化计划的完成声明。
 
 本轮范围已确认：先完成 DB0–DB5；DB-HA 和 P1–P7 不作为本轮交付终点。DB4 仍包含其已规划的备份/恢复要求，不因排除 HA 而删除备份验收。
 Desk 与 Console 调度无运行依赖，允许先完成 Desk 的独立新库/API/网页纵向验证；这不是提前宣布 DB3 整体完成。
+
+2026-09-21 CN 目标 Ubuntu 24.04 已完成新 Auth 首次部署短验收。`auth.rgaa.vip` 只承载 Auth，其他服务仍留在既有“90”公网环境；
+不导入旧 Mongo 数据、不保留旧协议或签名兼容。固定摘要 PostgreSQL 18.6 容器只监听 loopback，新 Auth deployment
+`63706848-cf7b-4a50-9652-f4fab461aa26` 完成五项 migration、owner/runtime 最小权限、新 keyring/恢复代际绑定和管理员初始化；
+`pixels-auth@<deployment>` 已 enable/active，旧 Supervisor Auth 已禁用。公网新 API 的 live/ready、登录/鉴权/注销和旧 API 404 均通过；
+systemd 重启通过，短停数据库时 live=204/ready=503，恢复后 ready=204；远端三支二进制与聚焦 Linux 构建 hash 一致且无缺依赖。
+可信代理边界也已闭合：Auth 只信任 loopback Nginx，Nginx 用直接 `$remote_addr` 覆盖转发来源，伪造地址链不能绕过按来源限流。
+CN 同 deployment 的 Auth-only `px_backup` 已 enable/active：备份计划仍显式包含 Console/Auth/Desk 三成员，但允许分机部署把 Console/Desk
+标记为 not_applicable，并要求至少一个真实数据库；不再硬编码 Console 必须与执行器同机。独立只读 Auth 备份角色、固定 PostgreSQL 18.6
+工具摘要、每小时分层保留和首个 verified recovery set `7a6551f3-7aea-4e73-91b2-b3e5b3a8eb6b` 已实测，archive/manifest 摘要一致且
+`pg_restore --list` 通过。Linux 安装器也不再把共享 deployment 父目录改成 backup 私有权限，Auth 重启/ready 未受影响。
+当前 `offsite_configured=false`，因此这关闭 CN Auth 的本机定时备份门禁，不关闭异机复制/恢复演练、正式外层签名或最终长测。
+“90”公网 Official Console 已原子改用 `https://auth.rgaa.vip/api/auth/licenses/verify` 和 CN Authority deployment；新 trust store/许可证
+安装 hash 一致，旧配置、水位和任务 XML 留有显式回退备份。切换后停用“90”的 `Pixels-Auth` 任务、终止进程并关闭 4602；Console
+正式进程和 4600 保持正常，公网 live/ready 为 204。本机 Auth 停止后每 5 秒持续检查 70.7 秒，15 次 ready 全为 204，覆盖两次
+30 秒在线刷新及 40 秒 fail-closed freshness 边界；用户登录、本人资料、注销与已注销 token 拒绝同步通过，故跨机 Official 许可证消费
+闭环已完成短验收。
 
 ## 已实现的小步
 
@@ -1128,16 +1145,22 @@ Cloud Node/Remote 矩阵构建把各发行 policy/trust/build 注入各自 Web �
 通过匿名管道传入与 session/revision 绑定的一次性 frontend token；用户主动输入密码的点对点连接仍是独立的本机功能，不是 Customer 配置
 Official Console 的绕过路径。让 Client 再次访问 Console 会重复验证并扩大凭据和网络责任，故不列为 DB5 缺口。
 
-Web Client 增加可重复的公网验收入口，使用 `user_web` 创建当前资源会话，并确认当前本地产物能完成 frontend grant、SDP、ICE、四条
-DataChannel 和公网 UDP peer 连接，令牌也从可见 URL 移除；但公网 Render 没有发送任何 RTP，视频轨保持 muted，不能记为首帧通过。
-同时确认远端 `web_client` 仍是旧版（日志仍声明游客 RTC Relay/设备密码，直接被当前 Render 以 HTTP 400 拒绝）。本地已把当前 Web 构建
-同步进 Cloud Node dist，5 个文件 hash 一致，并为 SSH 聚焦部署器增加原子 Web 目录发布；公网 WinRM 与 SSH 均可达，但登记机器凭据都在
-认证阶段拒绝，故无法部署当前 Render/Web 制品复验。失败实例和资源会话均已清理；该项保持 DB5 未通过，不用 peer connected 冒充视频通过。
+Web Client 增加可重复的公网验收入口，使用 `user_web` 创建当前资源会话，并严格要求 frontend grant、SDP、ICE、四条 DataChannel、
+公网 UDP、入站视频 RTP 字节、浏览器解码帧和非零画面尺寸同时成立；frontend token 从可见 URL 移除。公网实测最终为 PASS：
+Direct Host 与 SCTP 均 connected，画面 1920×1080，首帧解码 1 帧，接收视频 33780 bytes。远端编码日志同时确认
+`Encode call #1`、关键帧 `sent encoded frame #1` 和 callback success，不再以 peer connected 冒充视频通过。排查期间修复三处真实缺陷：
+Console 的 kbps 在 Service→Render CLI 边界只转换一次为 Mbps，避免 8000 kbps 被当成 8000 Mbps；`VideoFrame.timestamp_us` 改用
+libwebrtc 要求的单调时钟；自定义透传编码器的首帧准入阈值从错误的 15 MiB/s 最大偏好值降为实际支持的 1 MiB/s，并为静态 WebView
+保留 10/100/250ms 有界启动通知，不引入持续伪造帧。Service 单测 88/88（另 1 ignored）、RTC 生命周期/心跳/候选 3/3 和 C++ 所有权、
+可读命名门禁均通过。公网安装 `px_service.exe` SHA-256 为
+`F5EB746B0A980C02A214CDA0D79BBE85C0ED74BE63145F6B92FF37631EEDED5D`，`px_render_rtc.dll` 为
+`6E9D432760AFCD1EA4B2BC13246D0135EF40B3A3DE18425F1B409AD79D9B0860`，均与本地产物一致；测试后动态 Render 数为 0，Service 保持 Running。
 
 Android 设备 ACL 已增加独立公网短测入口：用临时 Android 账号验证授权前目录/详情拒绝、显式 user ACL 后可见、撤销后重新拒绝，并在
-`finally` 中恢复设备原 users/groups ACL、删除临时账号和注销管理员会话。脚本语法、参数入口通过；USB 设备 `e2b3b128` 在线，现装
-`1.0.10-debug` 正常运行但处于登出状态。当前工作区没有公网测试平台管理员凭据，故本轮没有执行会改变真实 ACL 的测试，也不把入口存在
-写成真机验收通过。
+`finally` 中恢复设备原 users/groups ACL、删除临时账号和注销管理员会话。公网执行最初暴露 Python 管理客户端漏发浏览器必需的同源
+`Origin`，Console 正确返回 403；工具现只为 `admin_web/user_web` 附加从当前 HTTPS endpoint 派生的同源 Origin，不放宽服务端策略。
+修复后真实公网结果为授权可见、撤销隐藏、原 ACL 恢复全部通过，临时账号已删除。该证据验证 Android 身份使用的设备目录 ACL 合同，
+不冒充 Android 媒体会话或真机 UI 流程。
 
 退役中央媒体制品审计现覆盖 Windows 和 Android：Windows 产品 dist 拒绝已知 ZLMediaKit/Coturn 文件名及组件目录；Android Debug 发布与
 Release APK/AAB 发布在落盘后逐项检查 ZIP entry，同样失败关闭。相关 Python 门禁合计 11/11、两份 PowerShell 解析通过；当前三个 Windows
@@ -1227,6 +1250,24 @@ RDP 关闭原因现已从网络入口贯穿到 Console 资源通道终态：远�
 `FB47D5AFED82909111F1F4AF75E938C45D4143F3A876CBEFF9626CF0B90CBE21`，315/77 件 dist 清单复核通过。公网实机仍需对五类终态逐类
 制造故障并核对 Console 历史。
 
+2026-09-21 已在官方公网 Windows 节点逐类完成 RDP `peer_closed`、`user_stopped`、`policy_revoked`、`transport_lost`、
+`io_error` 短测，Console 历史中的状态、原因和双向实际字节均与故障注入一致；授权撤销不改变节点 generation。为保证
+`user_stopped` 不是 Service 强杀造成的伪终态，Render 已改为先关闭 WS 并直接产生最终路由事件，再停止事件路由；Service 等待
+RDP Render 自行退出时继续在同一节点控制连接处理通道报告，报告器采用异步 drain，Render 主循环直到有序关闭完成才退出。
+最终样本 `7351600d-03f6-4ae0-8078-a0d6b80bbf38` 为 `closed/user_stopped`，双向字节 `104016/7605`，
+有序关闭耗时 142 ms，无强杀或报告超时。当前公网 Render、Service SHA-256 分别为
+`18DCFCF63E29BAE9B2E9794012565CF4940015CBECFF2DC9406AA0BAF57D33D8`、
+`369949280680BCB00912EB7F83E949AC475B2CBF4FE3B9E5B789DD88C1936DC8`。五类终态公网门禁据此关闭。
+
+RDP 系统音频与富剪贴板随后独立实现并完成开发期短门禁。Client 的 `rdpsnd`/WinMM 在公网真实工作区收到连续 `Wave2PDU`，
+协商并播放 44.1 kHz、双声道、16-bit PCM；同一会话的工具栏声音开关产生 `applied=false → true → false`，证明当前进程音频会话依次
+处于播放、静音和恢复状态。剪贴板实现 Unicode、HTML、DIB/DIBV5、PNG 及 `FileGroupDescriptorW`/`FileContents` 文件目录流，
+以 512 项、512 MiB 总量、64 KiB 分块和路径/重解析点检查约束资源与访问边界；5/5 聚焦测试通过。公网实机完成双向 Unicode 和双向
+文件粘贴，本机→远端 28 字节样本 SHA-256 为 `08EA062419933C5BADA220417E12A62BC459E4078BF69CA86AB2E15E7C4FA4C5`，
+远端→本机样本内容也一致。最终 Client build/dist SHA-256 均为
+`AB595EBDB318AC47E3BFEC48EB2FEAA17BA066BADF0563473186362A0324C41D`。本条关闭 RDP 音频/完整剪贴板的开发期功能缺口；设备变化、
+长路径/ACL、重名/取消、超大目录和持续播放留到所有功能短测完成后的统一长测矩阵，不反向阻塞当前开发切片。
+
 Relay 资源通道现已从物理连接细分为稳定的逻辑媒体、音频和文件通道：媒体保持基础 connection identity，音频和复用文件分别使用
 `:audio`、`:file` 后缀，独立文件路由在完成授权准入后建立文件通道。入站只统计已接收业务载荷，出站仍只在底层 WebSocket 完整写成功后
 累计；队列接受、写失败和未授权载荷均不计数。首次真实载荷惰性打开对应逻辑通道，房间销毁、主动停止、授权撤销、连接替换和准入故障分别
@@ -1289,10 +1330,22 @@ SHA-256 分别一致为 `7B987D3416FEB268071C62C54848A1524455DCD8DF43B6BE902D3F5
 
 Android 文件传输重试现会在启动新 native job 前清空旧覆盖确认、排队标记、进度、速度和错误缓存，避免把失败 job 的展示事实带入新 job。
 新增真机协调器测试覆盖“进度 → 失败 → 重试”，要求 native job ID 前进且新运行态从零开始；测试 APK 的 Kotlin/Java 编译、App JVM 单测
-5/5 和 Lint 已通过。连接的 Xiaomi HyperOS 设备先后以 `INSTALL_FAILED_VERSION_DOWNGRADE` 和 `INSTALL_FAILED_USER_RESTRICTED` 拒绝
-instrumentation 安装；改用 10011 临时 Debug 升级包后已排除降级原因，但 USB 安装仍未获系统放行，因此不能把该用例记为真机通过。
-Gradle connected runner 在首次失败后的自动清理移除了设备上原 Debug 包，随后已停止使用其自动安装/清理流程并强制返回桌面；恢复 USB 安装权限后
-应使用手动覆盖安装主 APK/测试 APK和 `am instrument` 执行，禁止卸载或清除应用数据。
+5/5 和 Lint 已通过。2026-09-20 使用统一产品入口生成 Official 1.0.12（10012）完整 Debug APK，经 `adb install -r` 覆盖安装；不卸载、不清除
+应用数据。随后用手动安装的测试 APK 和 `am instrument` 在 Xiaomi HyperOS 真机执行，文件协调器“失败后以全新 job 从零重试”为 1/1 PASS；
+顶层云应用导航、返回栈、Official 固定公网端点、注册入口、真实公网账号登录和云应用目录共 7/7 PASS。MIUI 会拦截 instrumentation 从后台启动
+Activity，验收时仅临时放行对应 AppOps，完成后恢复原 `ignore`；不再使用会自动卸载目标 APK 的 Gradle connected runner。
+
+公网代号 90（`39.71.45.66`）现已按全新数据模型重建 Console 空库并部署当前 Console、Relay、Cloud Node Service、Render 和 Render RTC，
+节点使用 schema 2 受保护配置和 Official 部署身份重新注册，不保留 schema 1 或旧凭据兼容。部署中发现并修复 Service 未显式安装 rustls ring
+CryptoProvider 导致节点控制 TLS 启动 panic；Service 全量短测 108/108 PASS，另 1 项物理 NVIDIA 用例按设计忽略。节点、遥测探针和 WebView
+部署均为 `ready`，4600/4601/4603/4605 正常监听。Windows 公网 CloudApplication 的 Native Direct 与 Native Relay 均通过真实实例、动态
+4613 端口、窗口、解码首帧和清理；Relay 路径另通过输入与双向业务载荷。公网五个运行制品与本地交付件 SHA-256 全部一致：Console
+`25EEF105D39DE43EC9397181FB83CDD519B825AC9A55F2EF496EEB9E22282B60`、Relay
+`07432B4B999FD2F1BF77DC05224885863D4B9A02FC5334589BABAECEA7A40611`、Service
+`99F65F2928796213478217A2300DC4B002B8C56218A9B6602227E14C2D35B35A`、Render
+`498FA24C3BB789E42C0254AB5F51984A39069E3207C10B013198911F7377267E`、Render RTC
+`14FE41D9729A4BBC3C5AC3E3AF6E7DBAD3FB72423A1D360B0617FF563F9AE016`。数据库重置前的本机录像/遥测/文件补报开发队列已移入可恢复隔离目录，
+避免把无效旧事实接入全新数据库；本条不是旧数据迁移或兼容行为。
 
 Console 的真实浏览器门禁随后把取消后重试落成两条独立事实：同一资源会话、同一文件名的第一条 transfer 在 4 MB 时取消，第二条使用新的
 transfer request UUID 和 transfer ID 完成 12 MB；owner API 和本人活动页必须同时显示 Cancelled/Completed，旧终态不得被新任务覆盖。
@@ -1309,23 +1362,163 @@ Evict，最终显示 Not cached。报告 `pg-20260920-111710-98f82ed9` 在隔离
 
 ## 仍未通过的阶段出口
 
+### 2026-09-20 无人值守更新发现与 TUF 暂存切片
+
+Console 节点协议已加入认证后的版本检查：连接身份固定节点产品，发行类型由 Console 当前许可证固定，Service 只上报已安装 build；
+服务端据此派生精确 `product/distribution/stable/windows/x86_64`，仅返回严格更新且最新的 approved 记录，pending/withdrawn 最新版本
+不会回落到旧包。更新目录的全新 schema 已直接改为 TUF `metadata_base_url`、`targets_base_url`、`target_name` 加目标 SHA-256/大小，
+没有旧字段迁移、旧 API 兼容或直接制品 URL 旁路。Console、Desk 与 SQLx 离线元数据同步完成。
+
+Cloud Node/Remote Service 已接入基于 `tough` 的 TUF 验证和异步准备任务：安装根、元数据签名/到期、防回滚 datastore、目标自定义
+Pixels 身份、全维度发布事实、大小和 SHA-256 必须全部一致；验证文件只进入受控暂存，复核后原子提交。真实测试运行时生成签名根和
+仓库，正常目标成功准备，篡改目标 fail closed；最新 Service 单线程全量短测 108/108 通过，另 1 项物理 NVIDIA 用例按设计忽略。PostgreSQL
+更新目录 8/8 与 Desk 7/7 的 fresh-schema 集成回归通过，报告分别为 `pg-20260920-123056-ba074b62`、
+`pg-20260920-123056-5840990b`。
+Console 目录 API 7/7 与真实节点控制 WebSocket 3/3 随后也通过，报告分别为
+`pg-20260920-123250-06b80948`、`pg-20260920-123250-d4068c31`。
+
+节点激活授权的 PostgreSQL 事务随后补入同一全新 schema：授权前在统一写门禁内复核 release 状态/revision/目标 SHA、节点当前 build、
+管理员 draining 和实例、资源会话、通道、文件传输占用；激活租约存在时调度和晚到 Start 同时失败关闭。同一 release 的相同申请幂等返回
+原 task/lease，10 分钟超时任务明确失败，不把失联猜成安装成功。完成回执只在节点先上报精确目标 build 后接受 `installed`，丢失响应可按
+原 task/lease 幂等重报，旧 build 不得解除调度冻结。激活租约过期还会在节点下一次正式报告的同一事务中收敛为
+`activation_lease_expired`，不会永久留下阻断调度的 `activating` 行。最新存储专项报告 `pg-20260920-133909-e2ec8976` 为 11/11 PASS；真实 Console
+node-control WebSocket 的发现→激活→新 build 报告→完成链最新报告 `pg-20260920-134814-f3dd1ea8` 为 3/3 PASS；三库 SQLx
+元数据也由 `pg-20260920-135018-1c63ed05` 在 fresh schema 上重新生成，Console/Desk/Auth 数量分别为 284/9/34。
+
+节点侧执行器现已完成首版空闲激活闭环：本地再次检查应用实例、逻辑会话和待报文件传输，取得 Console 激活租约后才把精确发行、build、
+TUF SHA、安装目录和租约写入机器 DPAPI 记录；受保护目录中的独立 runner 只消费该类型化记录，不接受网络任意命令或路径。runner 再次校验
+prepared 文件 reparse/SHA-256/Authenticode，静默运行完整安装包，并以精确产品清单、目标 build、发行类型和本机 WebSocket 协议握手作为
+本地健康门禁；新 Service 随后必须先向 Console 报告目标 build，才能提交 `installed`。失败时只执行升级前已记录精确 SHA-256 且再次通过
+Authenticode 的完整旧安装包，回滚后同样复核旧 build 和协议健康。安装器在 Service 启动前把整个更新缓存 ACL 限制为 SYSTEM/管理员，
+维护当前成功安装包，并用全局互斥锁串行化人工安装、自动升级、回滚与卸载。NSIS Cloud Node/Official 语法实编为零警告。
+
+Official/Customer 包装已经把正式 `resources/update/root.json` 作为强制输入，但仓库不伪造生产根、签名私钥或正式已审批更新，因此尚未执行
+“签名旧包→签名新包→真实 SCM 覆盖→故障回滚”的实物矩阵；在该故障注入通过前仍属于 DB2 的部分完成，不得称为正式无人值守升级验收完成。
+development 发行不查询生产更新。Cloud Node/Remote 的聚焦 release Service 构建已重新执行，构建树、stage 与各自 development dist 的
+`px_service.exe` SHA-256 均为 `070455A44E992A02FB4A40E85A94EF1EEAF5EFB9B275F28F53E16305E0DA0121`；未运行 release-only 全量构建或升版。
+
+本切片随后完成 Windows 全功能组合门禁，最终报告 `pg-20260920-151630-d92d153c` 为 449/449 个登记检查 PASS。报告在同一份稳定源码上
+覆盖 Console/Desk/Auth fresh schema、Console 284 条/Desk 9 条/Auth 34 条 SQLx 在线与离线元数据、更新激活 11 项、节点控制 3 项、
+Console 前端 49 项、真实 Chromium 管理/用户流程、三个原生服务重启与断库 fail-closed/恢复，以及三库 `pg_dump`/`pg_restore` 后的
+数据、schema、索引、关系、唯一约束和损坏归档拒绝；最终源码 hash 未漂移，隔离容器与卷已清理。验收过程中修正了两个测试基础设施问题：
+Console 前端精确计数仍停在 47 而实际为 49；`BETWEEN` CHECK 经 PostgreSQL dump/restore 后虽语义不变但反解析括号不稳定，fresh migration
+现直接采用稳定的上下界比较形式。节点控制测试辅助往返在连续容器/编译负载下也由无上下文的 5 秒等待改为带请求诊断的 15 秒测试上限；
+生产节点协议截止策略未被放宽。该报告证明本地软件组合基线，不替代正式签名新旧安装包故障注入或公网实机工作流。
+
+新增商业边界已经冻结但尚未冒充实现：Pixels Official、Pixels Customer 私有部署和具体 OEM 是三个不同更新信任域。OEM 必须绑定唯一
+`oem_id/release_namespace`、品牌/应用/安装身份、私有更新策略和独立 TUF 根，禁止查询或安装 Pixels 官网、Customer 或另一 OEM 的版本。
+当前构建与更新对象模型仍只有 Official/Customer，故第一份 OEM 包生成前还要把该命名空间贯穿产品描述、Desk/Console 目录、TUF target、
+激活任务及 Windows/Android/Web 构建验收；现有 Customer 入口不得改名后当 OEM 使用。
+
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。
 覆盖空库初始化竞争/失败回滚、原登录绑定、退出/改密竞争、身份表最小写权限与分组分页；SQLx 已生成 235 条 Console 查询。
 这是当时的存储专项；后续身份 API 与跨平台证据见本页最新完整报告，正式产品与全链路验收仍待完成。
+
+Android 当前公网栈补充验收已完成。Official 1.0.18 通过正式 Android 产品脚本执行 454 个任务、lint、全部 JVM 单元测试、
+arm64 原生编译、退役中央媒体审计和 `adb install -r` 覆盖安装；APK SHA-256 为
+`34EB80E2B9E3047F7AA9A44A1EE9C4E9FE4377B731DC2C9E289234295B944AC5`。Xiaomi HyperOS 真机分别以
+`route=0` 的 UDP/FEC Direct 和 `route=1` 的纯数据 Relay WebSocket 完成账号 CloudApplication 动态实例启动、1920×1088
+MediaCodec 首帧呈现、Compose 状态可见、退出、实例停止和服务端活动实例归零，两项公网仪器用例均为 1/1 PASS。
+Relay 单静态首帧同时暴露并修复 MediaCodec 在首次 `TRY_AGAIN_LATER` 后过早返回的问题；现在采用 25×2ms 有界输出轮询，
+未知返回码仍 fail-closed，不引入无限等待。Workflow 也保留 Connected 前到达的媒体状态。真机测试只临时放行 MIUI 后台 AppOps，
+结束后已恢复 `ignore`；通知权限使用覆盖安装后的现有授权，不卸载应用。该证据关闭 Android 当前栈 Direct/Relay 首帧与启停清理，
+随后在活动 Relay 会话中真实停止并重启公网 `Pixels-Relay` 任务：客户端观察到 generation 1 断线、短退避、资源 descriptor 安全 restart、
+新 Relay 房间和第二个 1920×1088 首帧，39.1 秒短故障注入用例为 1/1 PASS；最终实例由同一用户 API 收敛且活动实例归零。
+该证据关闭 Android Relay 的真实断线续签，不冒充在线授权撤销、Relay 音频/文件或 Customer 真机验收。
+
+Windows Native Relay 的三个剩余公网数据面短测随后完成。资源会话在线关闭不再只停留在 Console 的 `closing/reconcile_required`：
+Service 周期列举待退役 frontend，以 revision/challenge 建立关闭栅栏，并且只在同一 Render 的更新心跳确认逻辑 session 已消失，
+或完整 30 秒租约 fail-closed 到期后提交完成。公网真实会话从关闭请求到资源会话 `closed` 且 Relay room 回落基线用时
+46.422 秒；Service 109 项测试通过（另 1 项物理 NVIDIA 按设计忽略），公网安装的 `px_service.exe` SHA-256 为
+`0A6BFF6166D3E6B3265913AE980EB79924FCD2EACBCEBEBA2731D67E65DD208D`。
+
+文件传输使用显式验收模式驱动真实 Client 文件引擎，经活动 Relay room 上传 1 MiB 随机文件、下载、删除远端文件，并比较两端
+SHA-256 `5CC17230ADED92843EF119CA7041631FDA2A39D4CADD0573B3020B85EA25200F`；Relay 两方向业务字节均增长，正常 Panel 启动信封不能
+启用该验收入口。音频短测则临时把同一公网 WebView 部署指向受控 WebAudio 页面，节点重新报告部署 ready 后完成
+CEF 音频→Render PCM→Opus→Relay→Client Opus 解码的真实闭环，同时收到 1920×1080 视频首帧且 Qt 模块数为 0。过程中发现并修复
+Opus 编码器把 CEF 的两个 512-frame 回调误拼成非法 1024-frame 包的问题；现按采样率连续缓存并固定切为 20 ms 帧，48 kHz 对应
+960 frames，空编码结果不再下发。新增 512+448 分片回归及 Opus processor/runtime 2/2 通过，公网 `px_render.exe`、本地 build/dist
+SHA-256 均为 `BF7741A7AFE305D070AC54BCF6B297D0F8403DBC2A37E41B175AD437B4866D86`，Client build/dist SHA-256 均为
+`EA457D87F4A174D7BC6E5EEB7C68CF318CEA23DBCB1EB0EE32AA9D1684F51994`。验收后脚本恢复原 WebView 规格、重新等待部署 ready，
+删除临时页面及早期诊断产生的限定测试任务/进程。上述结果关闭 Windows Native Relay 的音频、独立文件 hash 和在线撤销短测，
+不替代 Direct Host 音频、主机重启文件补报、其他客户端对应能力或最终统一长测。
+
+Windows 文件传输的剩余公网短测现已完成。验收先发现 Client 将文件消息所有权移交给传输连接后仍解引用已移动为空的消息做流量统计，
+首个数据块因此可能终止进程；现改为在移交前保存字节数。Direct/Relay 的 Hello 也不再依赖一次性发送：在收到 Render
+`ServerConfiguration` 前按现有 1 秒状态节拍重发幂等握手，断线时清除配置完成状态，收到配置后立即停止重发。最终 Client build/dist
+SHA-256 均为 `246EC49E2BF8727D6653DFED6F9EAB6CFF6978190A28FDAB8C776A3B00763796`，聚焦 Client 构建、六组测试程序、逐件同步 hash 和
+Zero-Qt 门禁全部通过。公网 Native Relay 以 4 MiB 随机文件完成“取消旧 job → 新 job 重试 → 上传 → 下载 → 远端删除”，两端
+SHA-256 `7697946F2CE5C8097F66C44A3DDC8F8B8E563DC7A6D8E6C7B393DB0989D054ED` 一致，同时保持真实视频首帧、活动 Relay room 和双向业务
+字节增长。Direct 故障注入在 256 KiB/s 活动上传中强制重启 Windows Service，Console 将该 transfer 收敛为 `unknown`，Service 回收
+精确跟踪的应用 Render；重启后立即新建 Direct 会话仍完成视频首帧和输入验证。由此关闭 Windows 公网文件传输取消/重试、主机重启补报
+收敛和进程回收短测，不替代最终统一长测。
+
+公网录像管理员动作也已使用当前正式页面完成闭环。Windows WebView 会话生成真实 H.264 MP4，Console 缓存收到 33,450 字节并进入
+`ready`；用户下载得到有效 `ftyp` 文件，SHA-256 为
+`08200FBF33200992574B27EDCBF22D9D093DFFF4B04E3C7EF6C2D01FC5200B17`。同一文件随后由真实 Chromium 管理页面完成保留、取消保留和
+确认驱逐，用户页面再下载校验字节与摘要。该流程关闭“公网真实录像只测本人下载、未测管理员副本生命周期”的旧待办。
+
+Windows Native Direct 的在线撤销短测随后暴露出 node-control 连接级错误边界问题：资源会话进入 `closing` 后，Render 的下一次 frontend
+租约续期按设计收到业务级 `rejected`，但 Console 同时关闭了整个已认证节点 WebSocket，导致 Service 反复重连、节点 generation 增长，
+资源会话被反复改写为 `reconcile_required`，一次现场会话 revision 最终达到 44。Console 现只对鉴权/消息序列等协议级错误关闭连接；
+已经形成响应的操作级拒绝留在原连接上，由 Service 按请求语义决定是否重连。新增真实 node-control WebSocket 回归证明“关闭后的续租被拒绝，
+同一连接仍可继续列举 frontend 并完成 retirement”，隔离 PostgreSQL 报告 `pg-20260920-232415-aedd24b9` 为 3/3 PASS，Console 严格
+Clippy 及 release 构建通过，候选 `px_console.exe` SHA-256 为
+`78B129F4ACB45AD53354D6C921F1EDC72CCD3EE10BB0CFB6320C7CD1D5181DE8`。旧 Console 上的 Relay 回归虽在 47.322 秒内完成首帧、客户端断线、
+会话关闭和房间归零，但节点 generation 从 97 增至 99、会话 revision 达到 10，进一步证明业务拒绝误伤节点连接，而不是 Direct 传输独有问题。
+
+候选 Console 随后部署到公网节点，远端 hash 与本地一致，并保留可恢复备份
+`D:\PixelsServer\backups\relay-stack-before-20260921003833`。修复后的 Native Direct 在 31.215 秒内完成在线撤销，Native Relay 在
+15.955 秒内完成在线撤销和房间归零；两者均收到视频首帧并观察到客户端断线，节点 generation 全程保持 101。Direct 又以独立 40 秒活动
+探针跨过完整 30 秒租约：Client 持续存活、资源会话始终为 `connected`、generation 保持 101，随后 11.145 秒完成撤销。Direct Host 音频
+也以受控 WebAudio 页面完成 CEF→Render PCM→Opus→Client 解码和视频首帧，验收后恢复应用规格、部署重新 `ready`、临时页面归零。
+最终公网节点 `ready`，测试用户活动实例和未关闭资源会话均为 0；由此关闭 Direct Host 音频、持续续租及 Direct/Relay 在线撤销缺口。
+
+Windows 逐 GPU 遥测随后补齐了非 NVIDIA 的活动实现。Service 现在从 DXGI 取得适配器 LUID/专用显存，并用 D3DKMT 将该 LUID 精确映射到
+物理 PNP stable key；GPU Engine 和 GPU Adapter Memory 的 Windows 原生性能计数器按同一 LUID 提供总体引擎利用率、VideoEncode
+利用率和已用专用显存。匹配不依赖显示名称；多物理适配器歧义、畸形 LUID、超过 100% 的计数、已用大于总量及 `ROOT\DISPLAY` 虚拟显示
+适配器均保持未知并 fail-closed。NVIDIA 仍在同一 stable key 上使用 NVML 的精确指标覆盖通用样本。新增通用路径 3 项后 GPU 专项 8/8、
+Service 全量 111/111（另 1 项物理 NVIDIA 默认忽略）、严格 Clippy 通过；本机 RTX 3060 的物理 NVML 用例另行 1/1 通过。
+Cloud Node/Remote 的聚焦 release Service 均已同步到各自 development dist，build/stage/dist SHA-256 一致为
+`104ECA2214BEF87A8AE21BE350C3EB0728A26961D8BCEFE773D17499469D53FB`。本条关闭 AMD/Intel 指标的软件实现缺口；当前环境没有物理
+AMD/Intel 适配器，因此两类真机各一次短测仍保留，不能用 NVIDIA 或合成计数冒充硬件验收。
+
+同一 Service 制品随后部署到官方公网节点。Console 在 `2026-09-21T05:50:18Z` 收到 generation 121、sequence 22 的 ready 遥测；
+RTX 4090 的 25,757,220,864 字节专用显存、已用显存、总体利用率和编码器利用率均有实际值，两块 GameViewer/Parsec 虚拟显示适配器
+保持 `runtime_binding_ready=false` 且四项调度指标为空，验证新实现没有把虚拟卡提升为可调度物理 GPU。公网管理事件流的开发期短测也通过：
+无 cursor 首连要求权威快照，1 条在线设备变更即时到达，断线期间 4 条连续变更以 sequence 5269–5272 完整重放，随后 5 条带精确资源 ID
+的删除事件以 5273–5277 到达，整个 5268–5277 区间严格递增，测试设备清理为 0。容量 1024 的溢出边界继续由 1026 条进程内门禁精确验证；
+不在开发切片重复公网压力长测。
+
+公网 `PixelsPostgreSQL18` 有序停库时，Console 进程和已认证管理 WebSocket 均 fail-closed，HTTP 不返回陈旧成功数据；数据库恢复后显式启动
+`Pixels-Console`，登录、管理 API、WebSocket 和 Cloud Node ready 全部恢复，节点以新 generation 122、sequence 1 重新对账。部署监督器当前为
+`RestartCount=999`、`RestartInterval=PT1M`；本轮按开发期短测约束在 30 秒内人工恢复，没有等待一分钟自动重启窗口。监督器自然重启时限、
+高频公网事件压力和断库期间并发管理操作统一进入最后长测，不再作为功能实现切片。
+
+退役中央媒体的制品门禁已补成可独立执行的实物扫描。Windows `verify_product_dist.py --retired-media-only` 现在同时拒绝 Windows/Linux
+形式的 ZLMediaKit、Coturn、MediaServer、TURN server、`libmk_api`/`mk_api` 和旧 Pixels media/turn sidecar 名称，不要求运行过的 development
+dist 仍保持封包清单不变；正式安装包仍调用完整清单、SHA-256、PE 依赖和退役媒体联合门禁。Android release 构建继续强制扫描 APK/AAB ZIP
+条目。负向审计测试 8/8 通过；当前 Client 42 文件、Cloud Node 315 文件、Remote 77 文件以及 5 个现存 Android debug/androidTest APK
+均无退役媒体产物，活动源码/构建/部署入口也没有对应组件名；旧实现完整保存在
+`backup/central_media_retirement_20260919/` 并由 manifest 记录。当前运行过的 development dist 不冒充正式可安装包：完整清单检查分别发现
+Client 的运行日志、Cloud Node 的 `px_render.exe` 陈旧清单摘要和 Remote 的 `px_client.exe` 陈旧清单摘要。聚焦 C++/Rust 发布器现会在制品同步
+和逐件 hash 校验后原子刷新 schema 2 development 清单；运行时 `px_logs/` 明确不进入清单，Official/Customer 清单拒绝原地刷新。修复后
+Client 3.3.72 的 41 件、Cloud Node 3.3.74 的 315 件、Remote 3.3.72 的 77 件完整文件集、SHA-256、许可证、PE 依赖和产品边界全部通过。
+这恢复 development dist 的可验证性，但 release-only 双发行仍须从干净输出生成正式签名清单。
 
 | 阶段 | 当前未完成项 |
 |---|---|
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |
 | DB1-EXIT | 完成：Desk/Auth 产品服务与 PostgreSQL Console 正式 `px_console.exe` 均已接入；三者具有独立发行入口。Console 当前 3.2.21 发行、进程断库 fail-closed、真实浏览器和制品哈希已通过；后续能力缺口归 DB2–DB5，不再把旧 Mongo 组合根当产品入口 |
-| DB2-A | 身份/管理HTTP、本人资料/头像、密码计算/限流/Origin、访客HMAC/会话/公开目录、Saved Connections、本人实例列表、更新目录、访问/通道/传输历史及录像目录HTTP、严格配置、稳定私钥加载、独立初始化CLI、静态文件服务及进程生命周期已实现；Console用户门户及管理后台的当前目录/身份/状态入口均已切新bearer/主体API，源码不再保留旧`/api/v1`，正式PostgreSQL产品二进制和发行包已切换。部署绑定录像缓存、本人/管理员授权Range下载、Render完成段session归属、Windows Service真实字节生产、本人/管理下载页面、保留/释放/驱逐 Console 副本、真实浏览器空目录及公网本人有数据下载流程已接；节点源文件/缓存/浏览器下载大小和SHA-256一致，Direct Host观察者不再默认获得输入。仍需管理员在公网真实文件上的保留/释放/驱逐浏览器动作；视频墙延期，ZLM直播和RTC/TURN管理明确退役，不再作为待实现项 |
-| DB2-B/C/D | 设备/应用/节点/部署目录、user/guest资源入口、更新与历史元数据入口、Console节点WS及独立管理实时事件流已接；Windows Service已切到新节点协议并实现部署准备、调和、命令fencing、精确launch ACK、Render前端准入转发、实际媒体/RDP通道生命周期、遥测、DPAPI有界断线补报、唯一PCI身份的NVIDIA逐GPU指标、GPU预算/原子硬过滤/物理stable key运行时绑定与节点二次准入、只读调度预览/逐候选拒绝解释、数据库时钟对齐的有界服务端趋势/陈旧判断、录像session归属及通用录像字节上传。ZLM/Coturn/中央RTC signaling已归档移除，Windows/Web/Render/Service/Console的Direct Host活动代码和聚焦构建已接通；Direct Host WebRTC 已生产真实视频/数据载荷字节，并以5秒周期、单调sequence和最终终态累计上报；Relay 的媒体、音频和文件逻辑通道已独立建账，入站按已接收载荷、出站只在底层WebSocket完整写成功后累计，五类关闭结果经 Render→Service→Console 保存，本机真实套接字与重连生命周期专项通过。独立纯数据 `px_relay` 已部署公网，Windows Native Relay 的动态实例、活动房间、首帧、窗口、输入及双向字节短测通过，默认 Direct 路径回归通过。Render真实文件引擎现已把操作UUID、实际总量/进度、单文件SHA-256或确定性多文件清单摘要经Service送入Console，真实payload单元测试、本机Service WebSocket桥及PostgreSQL 8组专项通过；开始授权仍由Console在线裁决，已授权transfer的进度/终态先进入Service的DPAPI有界持久outbox，再向Render确认，并在即时通知、节点重连和周期任务中按原幂等正文补报，因此Render退出或Service重启不再丢失待报终态。本人文件传输完成态已通过真实 PostgreSQL、node-control 协议、原生 Console 与实际 Chromium 前端门禁。RDP 的 Console→Service 租约凭证、标准账号/SID 确认、无 GPU/Relay Start、精确 launch 失败回收、真实桥接 I/O 通道累计及五类关闭原因已通过本地短测。仍需 Relay 公网音频、文件独立 hash、真实断线重连/撤销，Direct Host公网Web/音频/持续续租/撤销、Android直连、AMD/Intel逐GPU指标、管理实时流的公网高频/断库专项、RDP公网执行与五类终态实机复验、文件传输公网取消/重试/主机重启故障注入与两端真实字节 hash、无人值守更新及其余产品入口 |
+| DB2-A | 身份/管理HTTP、本人资料/头像、密码计算/限流/Origin、访客HMAC/会话/公开目录、Saved Connections、本人实例列表、更新目录、访问/通道/传输历史及录像目录HTTP、严格配置、稳定私钥加载、独立初始化CLI、静态文件服务及进程生命周期已实现；Console用户门户及管理后台的当前目录/身份/状态入口均已切新bearer/主体API，源码不再保留旧`/api/v1`，正式PostgreSQL产品二进制和发行包已切换。部署绑定录像缓存、本人/管理员授权Range下载、Render完成段session归属、Windows Service真实字节生产、本人/管理下载页面、保留/释放/驱逐 Console 副本、真实浏览器空目录及公网本人有数据下载流程已接；节点源文件/缓存/浏览器下载大小和SHA-256一致，公网真实文件的本人下载及管理员保留/释放/驱逐浏览器动作均已通过，Direct Host观察者不再默认获得输入。视频墙延期，ZLM直播和RTC/TURN管理明确退役，不再作为待实现项 |
+| DB2-B/C/D | 设备/应用/节点/部署目录、user/guest资源入口、更新与历史元数据入口、Console节点WS及独立管理实时事件流已接；Windows Service已切到新节点协议并实现部署准备、调和、命令fencing、精确launch ACK、Render前端准入转发、实际媒体/RDP通道生命周期、遥测、DPAPI有界断线补报、基于PCI stable key的NVIDIA NVML及Windows原生AMD/Intel逐GPU指标、GPU预算/原子硬过滤/物理stable key运行时绑定与节点二次准入、只读调度预览/逐候选拒绝解释、数据库时钟对齐的有界服务端趋势/陈旧判断、录像session归属及通用录像字节上传。管理实时流已通过公网在线事件、断线突发重放、精确删除、严格序号、断库 fail-closed 和恢复重连短测，1026 条溢出由进程内门禁覆盖；一分钟监督器自然重启和公网压力统一留到长测。ZLM/Coturn/中央RTC signaling已归档移除，Windows/Web/Render/Service/Console的Direct Host活动代码和聚焦构建已接通；Direct Host WebRTC 已生产真实视频/数据载荷字节，并以5秒周期、单调sequence和最终终态累计上报；Relay 的媒体、音频和文件逻辑通道已独立建账，入站按已接收载荷、出站只在底层WebSocket完整写成功后累计，五类关闭结果经 Render→Service→Console 保存，本机真实套接字与重连生命周期专项通过。独立纯数据 `px_relay` 已部署公网，Windows Native Relay 的动态实例、活动房间、首帧、窗口、输入、真实音频解码、1 MiB 上传/下载/删除及两端SHA-256、在线会话关闭和双向字节短测均通过；Direct Host 的真实音频、跨完整租约持续续签、在线撤销和 generation 稳定性也已通过公网短测。Render真实文件引擎现已把操作UUID、实际总量/进度、单文件SHA-256或确定性多文件清单摘要经Service送入Console，真实payload单元测试、本机Service WebSocket桥及PostgreSQL 8组专项通过；开始授权仍由Console在线裁决，已授权transfer的进度/终态先进入Service的DPAPI有界持久outbox，再向Render确认，并在即时通知、节点重连和周期任务中按原幂等正文补报，因此Render退出或Service重启不再丢失待报终态。本人文件传输完成态已通过真实 PostgreSQL、node-control 协议、原生 Console 与实际 Chromium 前端门禁；Windows 公网 4 MiB 取消/新 job 重试和活动上传中重启 Service 的 `unknown` 收敛、精确 Render 回收及立即再调度均通过。RDP 的 Console→Service 租约凭证、标准账号/SID 确认、无 GPU/Relay Start、精确 launch 失败回收、真实桥接 I/O 通道累计、五类关闭原因、系统音频及富剪贴板已通过本地和公网实机短测。无人值守更新已完成认证节点的严格版本发现、TUF签名/防回滚验证、完整包原子暂存、Console串行激活、节点空闲门禁、SCM完整安装、本机协议健康提交及精确旧包失败回滚；仍缺正式签名新旧包的实物故障注入矩阵。Android 当前栈账号 CloudApplication 的公网 Native Direct/Relay 首帧与启停清理已通过；当前 Web Client 也已在公网 Direct Host 收到 RTP 并解码 1920×1080 首帧。其余仍需 AMD/Intel 物理显卡短测及其余产品入口 |
 | DB2-EXIT / DB3 | Windows 侧功能出口完成：Desk/Auth 独立产品、Auth 事务 outbox、Official 认证接触和 30/40 秒持续 currentness、Customer 私有离线、库外水位、额度/feature 事务门禁及管理员状态均已接；keyring/恢复代际/监督取消短测通过。Service 只消费 Console control epoch。旧授权、Mongo/Redis/旧 Console 组合根和可误用入口已归档，活动锁文件不含旧后端。Linux systemd unit 静态验证通过，但 Unix binary/SIGTERM 仍须随 DB4/DB5 Linux 总门禁形成动态证据；不建设运行时双后端 |
 | DB4 | 恢复集、保留、异机复制、恢复准入/执行/封印、三库写屏障/安全水位、外部见证、Auth keyring、pgBackRest/WAL/PITR、Windows SCM包及WSL2 systemd生命周期已实现。开发期仍需目标Linux发行版VM短测、Pixels外层签名/生产密钥托管、独立主机或对象仓库一次完整恢复、目标环境keyring/见证轮换及真实节点与Windows/RDP事实对账；连续7天窗口和自然周期稳定性统一放到DB5功能通过后的长测，不阻塞每个开发切片 |
-| DB5 | 公网 Windows CloudApplication 的 Native Direct/Relay、Android guest 与账号 CloudApplication Native Direct 首帧/启停清理短测已通过，公网录像本人下载也已通过；Windows Panel 的账号、目录、实例与显式资源 descriptor 已切当前 API 并完成公网 API 短测，主机设置旧设备自注册/appkey/加密接入串路径也已删除，Relay 部署配置改由已认证 Console→Service 节点控制下发。Official/Customer 签名 deployment identity 的服务端证书/描述/nonce证明协议、Console 启动交叉绑定、部署私钥和离线根/trust store/证书签发工具已实现；Android、Windows Service、Windows Panel 与 Web Client 已接凭据前验签、nonce证明和持久水位，Panel/Web 还实现 Official 固定端点、Customer 私有端点及按 origin+DeploymentId 隔离凭据。Windows 与 Android 双发行的一次预检/一次升版和独立沙箱编排均已实现并通过软件门禁；Windows 另已接 policy/trust、清单、安装器、Web bundle 注入与聚焦发布边界。两平台都缺正式 approved 身份/签名材料，尚未执行 release-only 双制品；Windows 安装/升级/卸载、Cloud Node/Remote Web 正式双发行与 Android 真机双发行仍未验收。原生 Client 不持有 Console 配置或账号凭据，使用 Panel 已验证后下发的会话 token，不重复建设 Console 门禁。Android Relay 的短期路由票据、客户端选择、真机持久化及同资源会话 descriptor 重签/安全 restart 已实现，但新 Console/Relay 尚未公网部署，不能记为首帧或真实续签通过；Android 设备 ACL 仍未验收。Web Client 已通过当前授权、ICE和DataChannel但公网无RTP，且远端仍托管旧Web资产，不能记为通过；部署被失效机器凭据阻塞。仍需 Android Relay 公网首帧/真实断线续签、Relay 音频/文件/撤销实机复验、RDP/文件/更新、完整制品的自动退役媒体审计与正式安装包实物审计。全部短测通过后再统一长测 |
+| DB5 | 公网 Windows CloudApplication Native Direct/Relay 及 Relay 音频/文件hash/取消重试/在线撤销、活动文件上传中 Service 重启收敛与精确 Render 回收、Web Client Direct Host RTP/解码首帧、Android guest 与账号 CloudApplication Native Direct/Relay 首帧、启停清理、Relay 真实断线续签、设备目录 ACL 授权/撤销及公网录像本人下载和管理员副本生命周期已通过；RDP 的画面、输入、resize、系统音频、双向 Unicode/文件剪贴板、断线宽限、忙工作区、双工作区和五类终态也已通过公网短测。当前 Console/Relay/Service/Render 部署在官方公网节点，节点按 schema 2 和 Official 部署身份注册，节点、遥测与 WebView 部署为 ready。Windows Panel 的账号、目录、实例与显式资源 descriptor 已切当前 API 并完成公网 API 短测，主机设置旧设备自注册/appkey/加密接入串路径也已删除，Relay 部署配置改由已认证 Console→Service 节点控制下发。Official/Customer 签名 deployment identity 的服务端证书/描述/nonce证明协议、Console 启动交叉绑定、部署私钥和离线根/trust store/证书签发工具已实现；Android、Windows Service、Windows Panel 与 Web Client 已接凭据前验签、nonce证明和持久水位，Panel/Web 还实现 Official 固定端点、Customer 私有端点及按 origin+DeploymentId 隔离凭据。Android Official 1.0.18 已覆盖安装到 Xiaomi HyperOS 真机，完整构建 454 项通过，Direct/Relay 两条公网仪器用例和 Relay 重启故障注入均 1/1 PASS，服务端测试实例均收敛。Windows 与 Android 双发行的一次预检/一次升版和独立沙箱编排均已实现并通过软件门禁；两平台仍缺正式 approved 身份/签名材料，尚未执行 release-only 双制品。原生 Client 不持有 Console 配置或账号凭据，使用 Panel 已验证后下发的会话 token。退役媒体自动门禁及当前 Windows development dist/Android APK 实物扫描已通过；仍需正式签名更新实物矩阵、Windows 安装/升级/卸载、Cloud Node/Remote Web 正式双发行、Android Customer 真机和正式安装包完整清单/签名实物审计。RDP 的设备变化、长路径/ACL、重名/取消和规模/持续播放进入最后统一长测，不再列为功能实现缺口。全部短测通过后再统一长测 |
 | DB-HA / P1–P7 | 独立主机 HA、正式发行隔离、授权/连接服务、升级、运维与真实容量/稳定性验收 |
 
-接续依赖顺序：补完 Windows/Web/Android 的 Direct Host 与 Relay 剩余跨端矩阵 → Console录像管理员动作、文件/RDP/更新等保留工作流 →
-备份/恢复短测 → 全新部署与完整制品短测 → 统一长测。
+接续依赖顺序：先完成正式签名更新回滚实物矩阵；再做 Customer 真机、目标 Linux/独立仓库备份恢复、全新部署与完整正式制品矩阵，
+全部短测通过后统一执行包含 RDP 设备变化、长路径/ACL、重名/取消和规模/持续播放的长测。
 资源会话 repository 证据见[CloudApplication/桌面会话与描述符契约](postgresql_resource_session_contract.md)；
 专项测试入口与独立 AES 固定向量已经通过，不再列为未开始。Service 已开始切入新节点协议，但其他客户端和真实 OS/媒体链路仍未验收，
 不能将协议、存储层或合成节点通过写成产品验收通过。

@@ -95,16 +95,35 @@ constexpr auto kApplicationShutdownBudget = std::chrono::seconds(15);
 
 PxAwaitable<void> StopApplicationNetworkClients(std::shared_ptr<WsPanelClient> panel_client, std::shared_ptr<RenderServiceClient> service_client,
                                                 std::shared_ptr<RenderModuleRegistry> module_registry,
+                                                std::shared_ptr<FileTransferReporter> file_transfer_reporter,
+                                                std::shared_ptr<ResourceChannelReporter> resource_channel_reporter,
                                                 const std::chrono::steady_clock::time_point deadline,
                                                 std::shared_ptr<std::promise<PxResult<void>>> completion) {
+    auto outcome = PxResult<void>::Success();
+    if (module_registry) {
+        const auto stopped = co_await module_registry->StopNetworkIngressAsync(deadline);
+        if (!stopped) {
+            outcome = PxResult<void>::Failure(stopped.Error());
+        }
+    }
+    if (file_transfer_reporter) {
+        const auto stopped = co_await FileTransferReporter::StopAsync(file_transfer_reporter, deadline);
+        if (!stopped && outcome) {
+            outcome = PxResult<void>::Failure(stopped.Error());
+        }
+    }
+    if (resource_channel_reporter) {
+        const auto stopped = co_await ResourceChannelReporter::StopAsync(resource_channel_reporter, deadline);
+        if (!stopped && outcome) {
+            outcome = PxResult<void>::Failure(stopped.Error());
+        }
+    }
     if (panel_client) {
         panel_client->Exit();
     }
     if (service_client) {
         service_client->Exit();
     }
-
-    auto outcome = PxResult<void>::Success();
     if (panel_client) {
         const auto stopped = co_await WsPanelClient::StopAsync(panel_client, deadline);
         if (!stopped) {
@@ -113,12 +132,6 @@ PxAwaitable<void> StopApplicationNetworkClients(std::shared_ptr<WsPanelClient> p
     }
     if (service_client) {
         const auto stopped = co_await RenderServiceClient::StopAsync(service_client, deadline);
-        if (!stopped && outcome) {
-            outcome = PxResult<void>::Failure(stopped.Error());
-        }
-    }
-    if (module_registry) {
-        const auto stopped = co_await module_registry->StopNetworkIngressAsync(deadline);
         if (!stopped && outcome) {
             outcome = PxResult<void>::Failure(stopped.Error());
         }
@@ -765,7 +778,11 @@ int RdApplication::RunMessageLoop() {
     main_thread_id_ = GetCurrentThreadId();
 
     MSG windows_message{};
-    while (!exit_app_) {
+    // exit_app_ means that ordered shutdown has started; it is not evidence
+    // that teardown has finished. The shutdown dispatcher posts WM_QUIT only
+    // after network audit reports and owned modules have drained, so keep the
+    // process main thread alive until that explicit completion signal.
+    for (;;) {
         const BOOL get_message_result = GetMessage(&windows_message, NULL, 0, 0);
         if (get_message_result == 0 || get_message_result == -1) {
             break;
@@ -2467,6 +2484,7 @@ PxAwaitable<PxResult<ConsoleFrontendGrant>> RdApplication::AdmitConsoleFrontend(
 void RdApplication::OpenConsoleResourceChannel(std::string connection_key, std::string logical_session_id,
                                                const ConsoleResourceChannelKind channel_kind) {
     if (!resource_channel_reporter_) {
+        LOGW("event=resource_channel.open component=rd_application outcome=rejected code=REPORTER_UNAVAILABLE");
         return;
     }
     const auto protocol_kind = [channel_kind] {
@@ -2792,16 +2810,7 @@ void RdApplication::Exit() {
         LOGI("RdApplication shutdown: timers");
         app_timer_->StopTimers();
     }
-    if (module_registry_) {
-        module_registry_->StopRouting();
-    }
     if (ws_panel_client_ || service_client_ || module_registry_) {
-        if (file_transfer_reporter_) {
-            file_transfer_reporter_->Stop();
-        }
-        if (resource_channel_reporter_) {
-            resource_channel_reporter_->Stop();
-        }
         LOGI(
             "event=application.shutdown component=rd_application "
             "operation=stop_network_clients outcome=started");
@@ -2812,10 +2821,13 @@ void RdApplication::Exit() {
             auto future = completion->get_future();
             const auto spawned =
                 shutdown_scope &&
-                shutdown_scope->Spawn("application-network-shutdown", [panel_client = ws_panel_client_, service_client = service_client_,
-                                                                       module_registry = module_registry_, shutdown_deadline, completion]() {
-                    return StopApplicationNetworkClients(panel_client, service_client, module_registry, shutdown_deadline, completion);
-                });
+                shutdown_scope->Spawn("application-network-shutdown",
+                                      [panel_client = ws_panel_client_, service_client = service_client_, module_registry = module_registry_,
+                                       file_transfer_reporter = file_transfer_reporter_, resource_channel_reporter = resource_channel_reporter_,
+                                       shutdown_deadline, completion]() {
+                                          return StopApplicationNetworkClients(panel_client, service_client, module_registry, file_transfer_reporter,
+                                                                               resource_channel_reporter, shutdown_deadline, completion);
+                                      });
             if (!spawned || future.wait_until(shutdown_deadline) != std::future_status::ready) {
                 LOGE(
                     "event=application.shutdown component=rd_application "
@@ -2853,6 +2865,12 @@ void RdApplication::Exit() {
                 service_client_->Exit();
             }
         }
+    }
+    if (module_registry_) {
+        // Network shutdown emits its final resource-channel events through
+        // the module routes. Detach those routes only after the reporters
+        // have had the opportunity to publish their terminal state.
+        module_registry_->StopRouting();
     }
     if (webview_runtime_) {
         webview_runtime_->Stop();

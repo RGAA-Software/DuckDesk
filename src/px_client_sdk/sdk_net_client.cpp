@@ -3,43 +3,44 @@
 //
 
 #include "sdk_net_client.h"
-#include "px_common/uuid.h"
 
-#include <string_view>
+#include <asio2/asio2.hpp>
+#include <asio2/websocket/ws_client.hpp>
 #include <chrono>
+#include <string_view>
 #include <utility>
-#include "px_common/log.h"
-#include "px_common/data.h"
-#include "px_common/thread.h"
-#include "px_common/file.h"
-#include "px_common/message_notifier.h"
-#include "px_common/ws_control_signal.h"
-#include "px_common/reliable_websocket_send.h"
-#include "px_rdp/rdp_stream_packet.h"
-#include "sdk_messages.h"
+
+#include "connection/relay_connection.h"
+#include "connection/udp_direct_connection.h"
 #include "connection/ws_connection.h"
 #include "connection/wss_connection.h"
-#include "connection/udp_direct_connection.h"
-#include "connection/relay_connection.h"
+#include "px_common/data.h"
+#include "px_common/file.h"
+#include "px_common/log.h"
+#include "px_common/message_notifier.h"
+#include "px_common/reliable_websocket_send.h"
+#include "px_common/thread.h"
 #include "px_common/time_util.h"
 #include "px_common/url_helper.h"
-#include "sdk_statistics.h"
+#include "px_common/uuid.h"
+#include "px_common/ws_control_signal.h"
 #include "px_message/proto_converter.h"
 #include "px_message/proto_message_maker.h"
-#include <asio2/websocket/ws_client.hpp>
-#include <asio2/asio2.hpp>
+#include "px_rdp/rdp_stream_packet.h"
+#include "sdk_messages.h"
+#include "sdk_statistics.h"
 
 namespace px {
 
 NetClient::NetClient(SdkConnectionParams params, const std::shared_ptr<MessageNotifier>& notifier)
-    : params_(std::move(params)), udp_media_association_(params_.udp_media_association_.empty() ? GetUUID() : params_.udp_media_association_),
-      msg_notifier_(notifier), stat_(SdkStatistics::Instance()) {
+    : params_(std::move(params)),
+      udp_media_association_(params_.udp_media_association_.empty() ? GetUUID() : params_.udp_media_association_),
+      msg_notifier_(notifier),
+      stat_(SdkStatistics::Instance()) {
     stat_->media_transport_.store(params_.media_transport_);
 }
 
-NetClient::~NetClient() {
-    Exit();
-}
+NetClient::~NetClient() { Exit(); }
 
 std::string NetClient::MakeAuthenticatedWebSocketPath(std::string path) const {
     if (!params_.connection_nonce_.empty()) {
@@ -129,37 +130,25 @@ void NetClient::StartManagedUdpMediaConnection(const std::shared_ptr<Connection>
     const std::weak_ptr<Connection> weak_connection = connection;
     connection->RegisterOnConnectedCallback([weak_self, generation]() {
         const auto self = weak_self.lock();
-        if (!self || !self->IsCurrentManagedMediaConnection(generation))
-            return;
-        if (self->connection_notified_.exchange(true))
-            return;
-        if (self->conn_cbk_)
-            self->conn_cbk_();
+        if (!self || !self->IsCurrentManagedMediaConnection(generation)) return;
+        if (self->connection_notified_.exchange(true)) return;
+        if (self->conn_cbk_) self->conn_cbk_();
     });
     connection->RegisterOnDisConnectedCallback([weak_self, generation]() {
         const auto self = weak_self.lock();
-        if (!self || !self->IsCurrentManagedMediaConnection(generation))
-            return;
+        if (!self || !self->IsCurrentManagedMediaConnection(generation)) return;
         // 已认证 WS 是控制/文件会话的生命期边界，UDP 故障不改变它。
         // generation 只过滤被后续启动或退出替换掉的旧回调。
-        if (self->dis_conn_cbk_)
-            self->dis_conn_cbk_();
+        if (self->dis_conn_cbk_) self->dis_conn_cbk_();
     });
-    connection->RegisterOnMessageCallback([weak_self, weak_connection,
-                                           generation](
-                                              std::shared_ptr<Data> payload) {
+    connection->RegisterOnMessageCallback([weak_self, weak_connection, generation](std::shared_ptr<Data> payload) {
         const auto self = weak_self.lock();
-        if (!self || !self->IsCurrentManagedMediaConnection(generation))
-            return;
+        if (!self || !self->IsCurrentManagedMediaConnection(generation)) return;
         self->stat_->AppendRecvDataSize(payload->Size());
         if (self->params_.session_mode_ == SdkSessionMode::kRdp) {
             px::Message envelope{};
-            if (payload->Size() > rdp::kMaxWireBytes ||
-                !envelope.ParseFromArray(payload->Bytes().data(),
-                                         static_cast<int>(payload->Size())) ||
-                (envelope.type() != kRdpStream &&
-                 envelope.type() != kOnHeartBeat &&
-                 envelope.type() != kInstanceStopped) ||
+            if (payload->Size() > rdp::kMaxWireBytes || !envelope.ParseFromArray(payload->Bytes().data(), static_cast<int>(payload->Size())) ||
+                (envelope.type() != kRdpStream && envelope.type() != kOnHeartBeat && envelope.type() != kInstanceStopped) ||
                 (envelope.type() == kRdpStream && !envelope.has_rdp_stream())) {
                 if (const auto active_connection = weak_connection.lock()) {
                     active_connection->Stop();
@@ -175,10 +164,10 @@ void NetClient::StartManagedUdpMediaConnection(const std::shared_ptr<Connection>
                 if (callback) {
                     callback(std::move(payload));
                 }
-                return; // RDP owns its framing; do not generate one Pixels ACK per chunk.
+                return;  // RDP owns its framing; do not generate one Pixels ACK per chunk.
             }
             static_cast<void>(self->ParseMessage(std::move(payload)));
-            return; // No native UDP or host file/clipboard channel in RDP mode.
+            return;  // No native UDP or host file/clipboard channel in RDP mode.
         }
         if (auto message = self->ParseMessage(payload); message) {
             self->StartFileTransferConnection();
@@ -199,8 +188,7 @@ void NetClient::StartManagedUdpMediaConnection(const std::shared_ptr<Connection>
 }
 
 void NetClient::StartUdpDirectMedia() {
-    if (!params_.enable_video_ && !params_.enable_audio_)
-        return;
+    if (!params_.enable_video_ && !params_.enable_audio_) return;
     bool expected = false;
     if (!udp_direct_started_.compare_exchange_strong(expected, true)) {
         return;
@@ -239,20 +227,16 @@ void NetClient::OnUdpMediaReady() {
 }
 
 void NetClient::CheckUdpMediaProbeTimeout() {
-    if (exited_)
-        return;
+    if (exited_) return;
     const auto deadline = udp_media_probe_deadline_ms_.load();
-    if (deadline <= 0 || TimeUtil::GetCurrentTimestamp() < deadline)
-        return;
+    if (deadline <= 0 || TimeUtil::GetCurrentTimestamp() < deadline) return;
     ReportUdpMediaUnavailable();
 }
 
 void NetClient::ReportUdpMediaUnavailable() {
-    if (exited_)
-        return;
+    if (exited_) return;
     const auto failure = udp_media_state_.MarkUnavailable();
-    if (!failure)
-        return;
+    if (!failure) return;
     udp_media_probe_deadline_ms_ = 0;
     LOGW("UDP media unavailable (reason={}); keep the authenticated control/file channel, without media fallback.", static_cast<int>(*failure));
     msg_notifier_->SendAppMessage(SdkMsgUdpMediaUnavailable{.reason = *failure});
@@ -263,8 +247,7 @@ void NetClient::Start() {
         LOGE("RDP cannot use the host file-transfer connection.");
         return;
     }
-    if (exited_ || started_.exchange(true))
-        return;
+    if (exited_ || started_.exchange(true)) return;
     if (params_.route_ == SdkConnectionRoute::kWebSocketRelay &&
         (params_.session_mode_ != SdkSessionMode::kNative || params_.media_transport_ != SdkMediaTransport::kWebSocket ||
          params_.relay_host_.empty() || params_.relay_port_ <= 0 || params_.relay_device_id_.empty() || params_.relay_remote_device_id_.empty() ||
@@ -316,19 +299,14 @@ void NetClient::Start() {
     const auto media_connection = CurrentMediaConnection();
     // Standalone file sessions use a single authenticated WebSocket.
     if (ft_conn_) {
-        ft_conn_->RegisterOnMessageCallback([weak_self](
-                                                std::shared_ptr<Data> payload) {
+        ft_conn_->RegisterOnMessageCallback([weak_self](std::shared_ptr<Data> payload) {
             const auto self = weak_self.lock();
-            if (!self || self->exited_)
-                return;
+            if (!self || self->exited_) return;
             self->stat_->AppendRecvDataSize(payload->Size());
-            if (auto parsed_message = self->ParseMessage(payload);
-                parsed_message) {
-                auto acknowledgment = ProtoMessageMaker::MakeAck(
-                    parsed_message->device_id(), parsed_message->stream_id(),
-                    parsed_message->send_time(), parsed_message->type());
-                if (self->ft_conn_)
-                    self->ft_conn_->PostBinaryMessage(acknowledgment);
+            if (auto parsed_message = self->ParseMessage(payload); parsed_message) {
+                auto acknowledgment = ProtoMessageMaker::MakeAck(parsed_message->device_id(), parsed_message->stream_id(),
+                                                                 parsed_message->send_time(), parsed_message->type());
+                if (self->ft_conn_) self->ft_conn_->PostBinaryMessage(acknowledgment);
             }
         });
     }
@@ -351,35 +329,31 @@ void NetClient::Start() {
     if (const auto udp_connection = CurrentUdpDirectConnection()) {
         // UDP 媒体面:组帧后合成的 kVideoFrame,交给 SDK 解码,
         // 同样不回 Ack(裸 UDP 无应用层确认,丢帧走 IDR 请求恢复)
-        udp_connection->SetOnVideoMessageCallback(
-            [weak_self](std::shared_ptr<px::Message> video_message) {
-                const auto self = weak_self.lock();
-                if (!self) return;
-                if (!self->udp_media_state_.AcceptsMedia()) return;
-                self->OnUdpMediaReady();
-                self->stat_->AppendRecvDataSize(
-                    static_cast<int64_t>(video_message->ByteSizeLong()));
-                if (self->raw_msg_cbk_) {
-                    self->raw_msg_cbk_(video_message);
-                }
-                if (self->video_frame_cbk_) {
-                    self->video_frame_cbk_(video_message);
-                }
-            });
+        udp_connection->SetOnVideoMessageCallback([weak_self](std::shared_ptr<px::Message> video_message) {
+            const auto self = weak_self.lock();
+            if (!self) return;
+            if (!self->udp_media_state_.AcceptsMedia()) return;
+            self->OnUdpMediaReady();
+            self->stat_->AppendRecvDataSize(static_cast<int64_t>(video_message->ByteSizeLong()));
+            if (self->raw_msg_cbk_) {
+                self->raw_msg_cbk_(video_message);
+            }
+            if (self->video_frame_cbk_) {
+                self->video_frame_cbk_(video_message);
+            }
+        });
         // UDP 音频:jitter buffer 按序交付/丢帧信号(空 data)都从这里上送,
         // 与 ws 路径一样直接进 audio_frame_cbk_(音频本就不走 raw_msg_cbk_)
-        udp_connection->SetOnAudioMessageCallback(
-            [weak_self](std::shared_ptr<px::Message> audio_message) {
-                const auto self = weak_self.lock();
-                if (!self) return;
-                if (!self->udp_media_state_.AcceptsMedia()) return;
-                self->OnUdpMediaReady();
-                self->stat_->AppendRecvDataSize(
-                    static_cast<int64_t>(audio_message->ByteSizeLong()));
-                if (self->audio_frame_cbk_) {
-                    self->audio_frame_cbk_(audio_message);
-                }
-            });
+        udp_connection->SetOnAudioMessageCallback([weak_self](std::shared_ptr<px::Message> audio_message) {
+            const auto self = weak_self.lock();
+            if (!self) return;
+            if (!self->udp_media_state_.AcceptsMedia()) return;
+            self->OnUdpMediaReady();
+            self->stat_->AppendRecvDataSize(static_cast<int64_t>(audio_message->ByteSizeLong()));
+            if (self->audio_frame_cbk_) {
+                self->audio_frame_cbk_(audio_message);
+            }
+        });
         udp_connection->SetOnVoiceFrameCallback([weak_self](UdpVoiceFrame frame) {
             const auto self = weak_self.lock();
             if (!self || self->exited_.load() || !self->udp_media_state_.AcceptsMedia()) {
@@ -451,36 +425,29 @@ void NetClient::Exit() {
     LOGI("WS has exited...");
 }
 
-std::shared_ptr<Message> NetClient::ParseMessage(
-    std::shared_ptr<Data> serialized_message) {
+std::shared_ptr<Message> NetClient::ParseMessage(std::shared_ptr<Data> serialized_message) {
     auto parsed_message = std::make_shared<px::Message>();
-    const bool parse_succeeded = parsed_message->ParsePartialFromArray(
-        serialized_message->Bytes().data(), serialized_message->Size());
+    const bool parse_succeeded = parsed_message->ParsePartialFromArray(serialized_message->Bytes().data(), serialized_message->Size());
     if (!parse_succeeded) {
         LOGE("Sdk ParseMessage failed.");
         return nullptr;
     }
 
-    if (parsed_message->type() == px::kVideoFrame ||
-        parsed_message->type() == px::kAudioFrame ||
-        parsed_message->type() == px::kVoiceAudioFrame) {
+    if (parsed_message->type() == px::kVideoFrame || parsed_message->type() == px::kAudioFrame || parsed_message->type() == px::kVoiceAudioFrame) {
         if (params_.media_transport_ != SdkMediaTransport::kWebSocket || params_.file_transfer_only_ ||
             params_.session_mode_ != SdkSessionMode::kNative) {
             return parsed_message;
         }
         if (parsed_message->type() == kVideoFrame && params_.enable_video_) {
             const auto current_time_ms =
-                std::chrono::duration_cast<std::chrono::milliseconds>(
-                    std::chrono::steady_clock::now().time_since_epoch())
-                    .count();
+                std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
             auto& window = tcp_receive_window_;
             if (window.start_ms == 0) {
                 window.start_ms = current_time_ms;
                 LOGI("TCP media video delivered over WebSocket.");
             }
             if (window.last_frame_ms != 0) {
-                const std::int64_t frame_gap_ms = static_cast<std::int64_t>(
-                    current_time_ms - window.last_frame_ms);
+                const std::int64_t frame_gap_ms = static_cast<std::int64_t>(current_time_ms - window.last_frame_ms);
                 window.max_gap_ms = std::max(window.max_gap_ms, frame_gap_ms);
                 window.stalls += frame_gap_ms > 100 ? 1 : 0;
             }
@@ -490,10 +457,7 @@ std::shared_ptr<Message> NetClient::ParseMessage(
                 LOGI(
                     "TCP media window: frames={}, fps={:.1f}, max_gap_ms={}, "
                     "gaps_gt_100ms={}",
-                    window.frames,
-                    1000.0 * window.frames /
-                        (current_time_ms - window.start_ms),
-                    window.max_gap_ms, window.stalls);
+                    window.frames, 1000.0 * window.frames / (current_time_ms - window.start_ms), window.max_gap_ms, window.stalls);
                 window.start_ms = current_time_ms;
                 window.frames = 0;
                 window.max_gap_ms = 0;
@@ -505,8 +469,7 @@ std::shared_ptr<Message> NetClient::ParseMessage(
             if (!exited_.load() && video_frame_cbk_) {
                 video_frame_cbk_(parsed_message);
             }
-        } else if (parsed_message->type() == kAudioFrame &&
-                   params_.enable_audio_ && audio_frame_cbk_) {
+        } else if (parsed_message->type() == kAudioFrame && params_.enable_audio_ && audio_frame_cbk_) {
             if (!tcp_receive_window_.audio_seen) {
                 tcp_receive_window_.audio_seen = true;
                 LOGI("TCP media audio delivered over WebSocket.");
@@ -550,8 +513,7 @@ std::shared_ptr<Message> NetClient::ParseMessage(
         // save render statistics
         const auto& monitor_statistics = heartbeat.monitors_info();
         for (const auto& [monitor_name, statistics] : monitor_statistics) {
-            stat_->UpdateIsolatedMonitorStatisticsInfoInRender(monitor_name,
-                                                               statistics);
+            stat_->UpdateIsolatedMonitorStatisticsInfoInRender(monitor_name, statistics);
         }
 
         stat_->video_capture_type_ = heartbeat.video_capture_type();
@@ -578,8 +540,7 @@ std::shared_ptr<Message> NetClient::ParseMessage(
         // render 主动断开:被其它客户端接管
         msg_notifier_->SendAppMessage(SdkMsgConnectionTakenOver{});
     } else if (parsed_message->type() == px::kChangeMonitorResolutionResult) {
-        const auto resolution_result =
-            parsed_message->change_monitor_resolution_result();
+        const auto resolution_result = parsed_message->change_monitor_resolution_result();
         msg_notifier_->SendAppMessage(SdkMsgChangeMonitorResolutionResult{
             .monitor_name_ = resolution_result.monitor_name(),
             .result = resolution_result.result(),
@@ -619,24 +580,18 @@ void NetClient::SetOnRdpMessageCallback(std::function<void(std::shared_ptr<Data>
     rdp_message_callback_ = std::move(callback);
 }
 
-void NetClient::PostRdpMessage(std::shared_ptr<Data> payload,
-                               std::function<void(bool)> completion) {
+void NetClient::PostRdpMessage(std::shared_ptr<Data> payload, std::function<void(bool)> completion) {
     const auto pending = std::make_shared<ReliableWriteCompletion>(std::move(completion));
-    if (exited_.load() || params_.session_mode_ != SdkSessionMode::kRdp ||
-        !payload || payload->Size() == 0 ||
-        payload->Size() > rdp::kMaxWireBytes) {
+    if (exited_.load() || params_.session_mode_ != SdkSessionMode::kRdp || !payload || payload->Size() == 0 || payload->Size() > rdp::kMaxWireBytes) {
         return;
     }
     Message envelope{};
-    if (!envelope.ParseFromArray(payload->Bytes().data(),
-                                 static_cast<int>(payload->Size())) ||
-        envelope.type() != kRdpStream || !envelope.has_rdp_stream()) {
+    if (!envelope.ParseFromArray(payload->Bytes().data(), static_cast<int>(payload->Size())) || envelope.type() != kRdpStream ||
+        !envelope.has_rdp_stream()) {
         return;
     }
     if (const auto connection = CurrentMediaConnection()) {
-        connection->PostReliableBinaryMessage(
-            std::move(payload),
-            [pending](bool success) { pending->Complete(success); });
+        connection->PostReliableBinaryMessage(std::move(payload), [pending](bool success) { pending->Complete(success); });
     }
 }
 
@@ -669,28 +624,26 @@ void NetClient::PostMediaMessage(std::shared_ptr<Data> payload) {
 }
 
 bool NetClient::PostReliableControlMessage(std::shared_ptr<Data> payload) {
-    if (exited_.load() || params_.session_mode_ == SdkSessionMode::kRdp ||
-        !payload || payload->Size() == 0 || payload->Size() > 32768)
-        return false;
+    if (exited_.load() || params_.session_mode_ == SdkSessionMode::kRdp || !payload || payload->Size() == 0 || payload->Size() > 32768) return false;
     Message envelope{};
-    if (!envelope.ParseFromArray(payload->Bytes().data(),
-                                 static_cast<int>(payload->Size())) ||
-        (envelope.type() != kApplicationTextCapabilities &&
-         envelope.type() != kApplicationTextSubmit &&
+    if (!envelope.ParseFromArray(payload->Bytes().data(), static_cast<int>(payload->Size())) ||
+        (envelope.type() != kHello && envelope.type() != kApplicationTextCapabilities && envelope.type() != kApplicationTextSubmit &&
          envelope.type() != kApplicationTextBarrier))
         return false;
     const auto connection = CurrentMediaConnection();
-    if (!connection || !connection->IsAlive() || connection->GetQueuingMsgCount() >= kMaxFileTransferQueuedMessages)
-        return false;
+    if (!connection || !connection->IsAlive() || connection->GetQueuingMsgCount() >= kMaxFileTransferQueuedMessages) return false;
     // The managed media connection is the reliable WS/WSS control connection;
     // UDP video/audio has a separate owner. A server result, not this enqueue,
     // determines success. Lost writes time out without an automatic replay.
-    connection->PostReliableBinaryMessage(std::move(payload), [](bool) {});
+    connection->PostReliableBinaryMessage(std::move(payload), [](const bool succeeded) {
+        if (!succeeded) {
+            LOGW("event=session.control component=sdk_client operation=write outcome=failed recoverable=true");
+        }
+    });
     return true;
 }
 
-FileTransferSendResult NetClient::PostFileTransferMessage(
-    std::shared_ptr<Data> payload) {
+FileTransferSendResult NetClient::PostFileTransferMessage(std::shared_ptr<Data> payload) {
     if (params_.session_mode_ == SdkSessionMode::kRdp) {
         return FileTransferSendResult::Disconnected("Host file transfer is unavailable in RDP mode");
     }
@@ -698,8 +651,8 @@ FileTransferSendResult NetClient::PostFileTransferMessage(
         return FileTransferSendResult::TransportError("file-transfer message is empty");
     }
 
+    const auto payload_size = payload->Size();
     {
-
         const auto file_connection = params_.file_transfer_only_ ? ft_conn_ : CurrentMediaConnection();
         if (!file_connection || !file_connection->IsAlive()) {
             return FileTransferSendResult::Disconnected("file-transfer connection is not alive");
@@ -711,59 +664,34 @@ FileTransferSendResult NetClient::PostFileTransferMessage(
             }
             return FileTransferSendResult::Busy("file-transfer connection queue is full", signal);
         }
-        file_connection->PostBinaryMessage(payload);
+        file_connection->PostBinaryMessage(std::move(payload));
     }
 
-    stat_->AppendSentDataSize(payload->Size());
+    stat_->AppendSentDataSize(payload_size);
     return FileTransferSendResult::Accepted();
 }
 
-void NetClient::SetOnVideoFrameMsgCallback(OnVideoFrameMsgCallback&& callback) {
-    video_frame_cbk_ = std::move(callback);
-}
+void NetClient::SetOnVideoFrameMsgCallback(OnVideoFrameMsgCallback&& callback) { video_frame_cbk_ = std::move(callback); }
 
-void NetClient::SetOnAudioFrameMsgCallback(OnAudioFrameMsgCallback&& callback) {
-    audio_frame_cbk_ = std::move(callback);
-}
+void NetClient::SetOnAudioFrameMsgCallback(OnAudioFrameMsgCallback&& callback) { audio_frame_cbk_ = std::move(callback); }
 
-void NetClient::SetOnCursorInfoSyncMsgCallback(
-    OnCursorInfoSyncMsgCallback&& callback) {
-    cursor_info_sync_cbk_ = std::move(callback);
-}
+void NetClient::SetOnCursorInfoSyncMsgCallback(OnCursorInfoSyncMsgCallback&& callback) { cursor_info_sync_cbk_ = std::move(callback); }
 
-void NetClient::SetOnConnectCallback(OnConnectedCallback&& callback) {
-    conn_cbk_ = std::move(callback);
-}
+void NetClient::SetOnConnectCallback(OnConnectedCallback&& callback) { conn_cbk_ = std::move(callback); }
 
-void NetClient::SetOnDisconnectedCallback(OnDisconnectedCallback&& callback) {
-    dis_conn_cbk_ = std::move(callback);
-}
+void NetClient::SetOnDisconnectedCallback(OnDisconnectedCallback&& callback) { dis_conn_cbk_ = std::move(callback); }
 
-void NetClient::SetOnAudioSpectrumCallback(OnAudioSpectrumCallback&& callback) {
-    audio_spectrum_cbk_ = std::move(callback);
-}
+void NetClient::SetOnAudioSpectrumCallback(OnAudioSpectrumCallback&& callback) { audio_spectrum_cbk_ = std::move(callback); }
 
-void NetClient::SetOnHeartBeatCallback(px::OnHeartBeatInfoCallback&& callback) {
-    hb_cbk_ = std::move(callback);
-}
+void NetClient::SetOnHeartBeatCallback(px::OnHeartBeatInfoCallback&& callback) { hb_cbk_ = std::move(callback); }
 
-void NetClient::SetOnClipboardCallback(OnClipboardInfoCallback&& callback) {
-    clipboard_cbk_ = std::move(callback);
-}
+void NetClient::SetOnClipboardCallback(OnClipboardInfoCallback&& callback) { clipboard_cbk_ = std::move(callback); }
 
-void NetClient::SetOnServerConfigurationCallback(
-    px::OnConfigCallback&& callback) {
-    config_cbk_ = std::move(callback);
-}
+void NetClient::SetOnServerConfigurationCallback(px::OnConfigCallback&& callback) { config_cbk_ = std::move(callback); }
 
-void NetClient::SetOnMonitorSwitchedCallback(
-    OnMonitorSwitchedCallback&& callback) {
-    monitor_switched_cbk_ = std::move(callback);
-}
+void NetClient::SetOnMonitorSwitchedCallback(OnMonitorSwitchedCallback&& callback) { monitor_switched_cbk_ = std::move(callback); }
 
-void NetClient::SetOnRawMessageCallback(px::OnRawMessageCallback&& callback) {
-    raw_msg_cbk_ = std::move(callback);
-}
+void NetClient::SetOnRawMessageCallback(px::OnRawMessageCallback&& callback) { raw_msg_cbk_ = std::move(callback); }
 
 void NetClient::HeartBeat() {
     CheckUdpMediaProbeTimeout();
@@ -773,8 +701,7 @@ void NetClient::HeartBeat() {
     heartbeat_message->set_stream_id(params_.stream_id_);
     auto& heartbeat = *heartbeat_message->mutable_heartbeat();
     heartbeat.set_index(hb_idx_++);
-    heartbeat.set_timestamp(
-        static_cast<int64_t>(TimeUtil::GetCurrentTimestamp()));
+    heartbeat.set_timestamp(static_cast<int64_t>(TimeUtil::GetCurrentTimestamp()));
     if (auto buffer = px::ProtoAsData(heartbeat_message); buffer) {
         this->PostMediaMessage(buffer);
         if (params_.file_transfer_only_) {
@@ -813,4 +740,4 @@ void NetClient::On16msTimeout() {
     }
 }
 
-} // namespace px
+}  // namespace px

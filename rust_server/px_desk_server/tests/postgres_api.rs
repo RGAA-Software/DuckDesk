@@ -504,8 +504,9 @@ fn release(
     build: i64,
 ) -> Value {
     json!({"target":{"product":product,"distribution":distribution,"channel":channel,"os":os,"architecture":architecture},
-        "build_number":build,"version":"1.2.3","artifact_url":"https://example.invalid/release","sha256":"a".repeat(64),
-        "size_bytes":1234,"metadata_url":"https://example.invalid/targets.json","metadata_sha256":"b".repeat(64)})
+        "build_number":build,"version":"1.2.3","metadata_base_url":"https://example.invalid/metadata/",
+        "targets_base_url":"https://example.invalid/targets/","target_name":"release/pixels.bin","sha256":"a".repeat(64),
+        "size_bytes":1234})
 }
 #[tokio::test]
 async fn versions_are_persisted_dimensioned_and_write_failures_do_not_publish() {
@@ -579,7 +580,7 @@ async fn versions_are_persisted_dimensioned_and_write_failures_do_not_publish() 
                 assert_eq!(result["architecture"], arch);
                 assert_eq!(result["size_bytes"], 1234);
                 assert_eq!(result["sha256"], "a".repeat(64));
-                assert_eq!(result["metadata_sha256"], "b".repeat(64));
+                assert_eq!(result["target_name"], "release/pixels.bin");
             }
         }
     }
@@ -639,9 +640,12 @@ async fn release_platform_missing_fields_invalid_metadata_and_races_cannot_publi
     }
     for (field, value) in [
         ("size_bytes", json!(0)),
-        ("metadata_url", json!("https://u:p@example.invalid/a")),
-        ("metadata_sha256", json!("bad")),
-        ("artifact_url", json!("https://example.invalid/a?token=x")),
+        ("metadata_base_url", json!("https://u:p@example.invalid/a/")),
+        ("target_name", json!("../escape.bin")),
+        (
+            "targets_base_url",
+            json!("https://example.invalid/a?token=x"),
+        ),
     ] {
         let mut body = base.clone();
         body[field] = value;

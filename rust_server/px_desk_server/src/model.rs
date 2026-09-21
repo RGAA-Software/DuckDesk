@@ -127,10 +127,10 @@ pub struct Release {
     pub architecture: String,
     pub build_number: i64,
     pub version: String,
-    pub artifact_url: String,
+    pub metadata_base_url: String,
+    pub targets_base_url: String,
+    pub target_name: String,
     pub sha256: String,
     pub size_bytes: i64,
-    pub metadata_url: String,
-    pub metadata_sha256: String,
     pub created_at: DateTime<Utc>,
 }

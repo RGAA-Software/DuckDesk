@@ -103,6 +103,7 @@ void RenderModuleRegistry::StartModules() {
         .ws_listen_port = settings_.transmission_.listening_port_,
         .udp_listen_port = settings_.transmission_.listening_port_,
         .device_id = settings_.device_id_,
+        .application_instance_id = settings_.IsRdpMode() ? settings_.rdp_launch_.instance_id : settings_.device_id_,
         .direct_allow_takeover = settings_.direct_allow_takeover_,
         .relay_device_id = settings_.relay_device_id_,
         .relay_enabled = settings_.relay_enabled_,

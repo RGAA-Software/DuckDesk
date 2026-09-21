@@ -31,7 +31,7 @@ JSONB 只允许版本化、限长且经过 DTO 验证的事件详情/遥测附�
 | 描述符 | resource_sessions 中当前 descriptor_hash/expires_at/revision，resource_session_events 追加签发事件；generation/endpoint revision 与目标绑定 | endpoint 来自当前节点报告，不能把 host/port 当授权；短期授权最长 30 秒且续租在线复查；实际端口同时承载该 Render 的 TCP/WS 与 UDP；缺失/过期拒绝 |
 | 流与连接 | 具名连接设置的 owner/明确 target/有界选项；client connection observations 的 resource_session FK、node/客户端连接代际、观察时间、断开时间 | c_stream 同时包含配置，不能只建在线快照表就声称替换；持久记录不作为在线证据；Console 重启先对账，不把旧连接/流直接恢复 Running；见[活动记录契约](postgresql_activity_contract.md) |
 | 访问/传输/录制/事件 | visits、file_transfers、会话 recording events、独立 node 录像库/缓存、resource_session_events、audit_events；主体/目标 FK、UTC、结果码、必要计数、创建游标 | 节点自主录像不强绑访问会话；审计追加而非覆盖；以业务键幂等；文件名/路径按权限最小可见，不记录口令/请求正文；查询稳定排序与有界分页 |
-| 更新元数据 | update_releases：明确产品/发行/渠道/OS/architecture/build、URL/hash/大小、签名引用、状态、revision | 与 Desk 外部发布目录通过 API 对账，不跨库 JOIN；无默认发行/平台、旧产品别名或“只按字符串最新” |
+| 更新元数据 | update_releases：明确产品/发行/渠道/OS/architecture/build、TUF metadata/targets HTTPS 基址、相对 target name、hash/大小、状态、revision | 与 Desk 外部发布目录通过 API 对账，不跨库 JOIN；无默认发行/平台、旧产品别名或“只按字符串最新”；节点不能自行选择产品或发行类型 |
 
 表名用于归档业务归属，最终 SQL 新增/拆分必须同步本表，不能遗漏旧实现中的业务能力后宣称替换完成。
 删除优先使用明确的软删除/终态；实例、命令和工作区不得通过级联删除触发 Windows 清理。

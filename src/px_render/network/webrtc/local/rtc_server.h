@@ -121,6 +121,7 @@ public:
 
     void QueueEvent(WebRtcEvent event) const;
     void RequestEncodedIdr(const std::string& mon_name);
+    void QueueLatestVideoNotificationReplay();
     [[nodiscard]] uint64_t GetLatestEncodedSeq(const std::string& mon_name);
     [[nodiscard]] size_t GetCachedFrameCount(const std::string& mon_name, uint64_t after_seq);
     [[nodiscard]] std::shared_ptr<RtcLocalEncodedVideoFrame> ReadNextEncodedVideoFrame(const std::string& mon_name, uint64_t after_seq,

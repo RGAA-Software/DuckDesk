@@ -1,9 +1,17 @@
 use px_console_runtime::LicenseLaunchConfig;
 use px_console_store::{initialize_administrator, PasswordDigest, Username};
+use px_deployment_identity::{
+    sign_certificate, DeploymentCertificate, DeploymentKind, DeploymentTrustStore,
+};
 use px_license::{
     Distribution, Feature, LicensePayload, LicenseSigner, LicenseTrustStore, Mode, Product,
 };
 use px_pg::{DatabaseConfig, Transport};
+use ring::{
+    rand::SystemRandom,
+    signature::{Ed25519KeyPair, KeyPair},
+};
+use sha2::{Digest, Sha256};
 use std::{
     env,
     io::{Read, Write},
@@ -84,6 +92,52 @@ fn restrict_private_directory(path: &Path) {
             .unwrap();
         assert!(access_result.status.success());
     }
+}
+
+fn deployment_identity_files(
+    private_directory: &Path,
+    deployment: Uuid,
+) -> (std::path::PathBuf, std::path::PathBuf, std::path::PathBuf) {
+    let random = SystemRandom::new();
+    let vendor_pkcs8 = Ed25519KeyPair::generate_pkcs8(&random).unwrap();
+    let vendor_signer = Ed25519KeyPair::from_pkcs8(vendor_pkcs8.as_ref()).unwrap();
+    let deployment_pkcs8 = Ed25519KeyPair::generate_pkcs8(&random).unwrap();
+    let deployment_signer = Ed25519KeyPair::from_pkcs8(deployment_pkcs8.as_ref()).unwrap();
+    let vendor_public_key: [u8; 32] = vendor_signer.public_key().as_ref().try_into().unwrap();
+    let deployment_public_key: [u8; 32] =
+        deployment_signer.public_key().as_ref().try_into().unwrap();
+    let now = chrono::Utc::now().timestamp();
+    let certificate = DeploymentCertificate {
+        schema_version: 1,
+        deployment_id: deployment,
+        deployment_kind: DeploymentKind::Private,
+        deployment_public_key_hex: hex::encode(deployment_public_key),
+        certificate_version: 1,
+        not_before: now - 60,
+        expires_at: now + 3600,
+        issuer_key_id: hex::encode(Sha256::digest(vendor_public_key)),
+    };
+    let certificate_path = private_directory.join("deployment.cert");
+    let signing_key_path = private_directory.join("deployment.pk8");
+    let trust_store_path = private_directory.join("deployment-trust.json");
+    px_private_files::private::create_private(
+        &certificate_path,
+        sign_certificate(vendor_pkcs8.as_ref(), &certificate)
+            .unwrap()
+            .as_bytes(),
+    )
+    .unwrap();
+    px_private_files::private::create_private(&signing_key_path, deployment_pkcs8.as_ref())
+        .unwrap();
+    px_private_files::private::create_private(
+        &trust_store_path,
+        &DeploymentTrustStore::new(1, [vendor_public_key])
+            .unwrap()
+            .canonical_bytes()
+            .unwrap(),
+    )
+    .unwrap();
+    (certificate_path, signing_key_path, trust_store_path)
 }
 
 fn http_response(address: SocketAddr, path: &str) -> Option<String> {
@@ -167,6 +221,8 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
     let static_directory = private_directory.path().join("web");
     let recording_cache_directory = private_directory.path().join("recording-cache");
     let license_state_directory = private_directory.path().join("license-state");
+    let (deployment_certificate_path, deployment_signing_key_path, deployment_trust_path) =
+        deployment_identity_files(private_directory.path(), deployment);
     std::fs::create_dir(&static_directory).unwrap();
     std::fs::create_dir(&recording_cache_directory).unwrap();
     std::fs::create_dir(&license_state_directory).unwrap();
@@ -302,6 +358,22 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
             "PIXELS_CONSOLE_LICENSE_STATE_DIRECTORY",
             &license_state_directory,
         )
+        .env(
+            "PIXELS_CONSOLE_DEPLOYMENT_CERTIFICATE",
+            &deployment_certificate_path,
+        )
+        .env(
+            "PIXELS_CONSOLE_DEPLOYMENT_SIGNING_KEY",
+            &deployment_signing_key_path,
+        )
+        .env(
+            "PIXELS_CONSOLE_DEPLOYMENT_TRUST_STORE",
+            &deployment_trust_path,
+        )
+        .env("PIXELS_CONSOLE_DEPLOYMENT_CERTIFICATE_VERSION", "1")
+        .env("PIXELS_CONSOLE_DESCRIPTOR_REVISION", "1")
+        .env("PIXELS_CONSOLE_DEPLOYMENT_TRUST_EPOCH", "1")
+        .env("PIXELS_CONSOLE_MINIMUM_CLIENT_BUILD", "1")
         .env_remove("PIXELS_CONSOLE_AUTH_VERIFY_URL")
         .env_remove("PIXELS_CONSOLE_TLS_CERT")
         .env_remove("PIXELS_CONSOLE_TLS_KEY")

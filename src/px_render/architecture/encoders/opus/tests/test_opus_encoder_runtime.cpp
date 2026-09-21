@@ -1,11 +1,12 @@
+#include <gtest/gtest.h>
+
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
-
-#include <gtest/gtest.h>
 
 #include "opus_encoder_runtime.h"
 #include "px_common/data.h"
@@ -15,6 +16,11 @@ namespace {
 
 std::shared_ptr<Data> TenMillisecondsOfSilence(int sample_rate, int channels) {
     const auto bytes = static_cast<size_t>(sample_rate / 100 * channels * 2);
+    return Data::From(std::string(bytes, '\0'));
+}
+
+std::shared_ptr<Data> PcmSilence(int frame_count, int channel_count) {
+    const auto bytes = static_cast<size_t>(frame_count) * static_cast<size_t>(channel_count) * sizeof(std::int16_t);
     return Data::From(std::string(bytes, '\0'));
 }
 
@@ -85,6 +91,33 @@ TEST(OpusEncoderRuntimeTest, FormatChangeRecreatesEncoderAndMetadata) {
     runtime->Shutdown();
 }
 
+TEST(OpusEncoderRuntimeTest, IrregularCapturePacketsAreReframedToTwentyMilliseconds) {
+    auto delivery = std::make_shared<DeliveryState>();
+    auto runtime = OpusEncoderRuntime::Make({});
+    runtime->SetDelivery([delivery](const std::shared_ptr<Data>& encodedAudio, int sample_rate, int channels, int bits, int frame_size) {
+        std::lock_guard lock(delivery->mutex);
+        if (encodedAudio && encodedAudio->Size() > 0) {
+            ++delivery->count;
+        }
+        delivery->sample_rate = sample_rate;
+        delivery->channels = channels;
+        delivery->bits = bits;
+        delivery->frame_size = frame_size;
+        delivery->condition.notify_all();
+    });
+    runtime->Enqueue(PcmSilence(512, 2), 48000, 2, 16);
+    runtime->Enqueue(PcmSilence(448, 2), 48000, 2, 16);
+    {
+        std::unique_lock lock(delivery->mutex);
+        ASSERT_TRUE(delivery->condition.wait_for(lock, std::chrono::seconds(2), [delivery] { return delivery->count == 1; }));
+        EXPECT_EQ(delivery->sample_rate, 48000);
+        EXPECT_EQ(delivery->channels, 2);
+        EXPECT_EQ(delivery->bits, 16);
+        EXPECT_EQ(delivery->frame_size, 960);
+    }
+    runtime->Shutdown();
+}
+
 TEST(OpusEncoderRuntimeTest, DeliveryCallbackCanRequestShutdownWithoutSelfJoin) {
     auto runtime = OpusEncoderRuntime::Make({});
     const auto weak_runtime = std::weak_ptr<OpusEncoderRuntime>(runtime);
@@ -150,5 +183,5 @@ TEST(OpusEncoderRuntimeTest, InvalidInputAndPostShutdownEnqueueAreIgnored) {
     EXPECT_EQ(deliveries->load(), 0);
 }
 
-} // namespace
-} // namespace px
+}  // namespace
+}  // namespace px

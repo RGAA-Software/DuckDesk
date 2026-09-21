@@ -7,6 +7,9 @@ Wants=network-online.target
 Type=simple
 User=pixels-backup
 Group=pixels-backup
+Environment=LD_LIBRARY_PATH=/opt/pixels/postgresql/18/lib
+Environment=PGSSLMODE=verify-full
+Environment=PGSSLROOTCERT=/etc/pixels/%i/backup/postgres-ca.crt
 ExecStart=/opt/pixels/current/bin/px_backup run /etc/pixels/%i/backup/config.json
 Restart=on-failure
 RestartSec=5s
@@ -29,6 +32,7 @@ CapabilityBoundingSet=
 AmbientCapabilities=
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 ReadOnlyPaths=/etc/pixels/%i/backup
+ReadOnlyPaths=-/opt/pixels/postgresql/18
 ReadWritePaths=/var/lib/pixels/%i/backup
 
 [Install]

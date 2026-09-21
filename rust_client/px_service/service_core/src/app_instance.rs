@@ -16,7 +16,7 @@ pub const APP_MODE_GAME_HOOK: &str = "game-hook";
 pub const APP_MODE_WEBVIEW: &str = "webview";
 pub const APP_MODE_RDP: &str = "rdp";
 pub const DEFAULT_ENCODER_FPS: i32 = 60;
-pub const DEFAULT_ENCODER_BITRATE: i32 = 20;
+pub const DEFAULT_ENCODER_BITRATE_KBPS: i32 = 20_000;
 pub const DEFAULT_ENCODER_FORMAT: &str = "h264";
 /// Port pool when Console sends listen_port=0.
 pub const DEFAULT_PORT_RANGE_START: u16 = crate::node_config::DEFAULT_APPLICATION_PORT_START;
@@ -54,7 +54,7 @@ pub struct StartAppRequest {
     pub game_arguments: String,
     pub listen_port: i32,
     pub encoder_fps: i32,
-    pub encoder_bitrate: i32,
+    pub encoder_bitrate_kbps: i32,
     pub encoder_format: String,
     pub webrtc_enabled: bool,
     pub websocket_enabled: bool,
@@ -196,6 +196,15 @@ pub fn encode_game_path_b64(game_path: &Path) -> String {
     base64_encode(&path_text)
 }
 
+fn render_bitrate_megabits_per_second(requested_kilobits_per_second: i32) -> i32 {
+    let normalized_kilobits_per_second = if requested_kilobits_per_second > 0 {
+        requested_kilobits_per_second
+    } else {
+        DEFAULT_ENCODER_BITRATE_KBPS
+    };
+    normalized_kilobits_per_second.saturating_add(999) / 1_000
+}
+
 /// Build px_render launch spec for a game-hook app instance.
 /// `game_path` is the boot exe (launched normally); when `view` is set the
 /// render discovers and injects that real game process instead of the boot.
@@ -213,11 +222,7 @@ pub fn build_game_hook_launch_spec(
     } else {
         DEFAULT_ENCODER_FPS
     };
-    let bitrate = if req.encoder_bitrate > 0 {
-        req.encoder_bitrate
-    } else {
-        DEFAULT_ENCODER_BITRATE
-    };
+    let bitrate_megabits_per_second = render_bitrate_megabits_per_second(req.encoder_bitrate_kbps);
     let format = if req.encoder_format.trim().is_empty() {
         DEFAULT_ENCODER_FORMAT
     } else {
@@ -236,7 +241,7 @@ pub fn build_game_hook_launch_spec(
         format!("--webrtc_enabled={}", req.webrtc_enabled),
         format!("--websocket_enabled={}", req.websocket_enabled),
         format!("--encoder_fps={fps}"),
-        format!("--encoder_bitrate={bitrate}"),
+        format!("--encoder_bitrate={bitrate_megabits_per_second}"),
         format!("--encoder_format={format}"),
         format!("--network_listen_port={listen_port}"),
         format!("--device_id={}", req.device_id.trim()),
@@ -276,11 +281,7 @@ pub fn build_webview_launch_spec(
     } else {
         DEFAULT_ENCODER_FPS
     };
-    let bitrate = if req.encoder_bitrate > 0 {
-        req.encoder_bitrate
-    } else {
-        DEFAULT_ENCODER_BITRATE
-    };
+    let bitrate_megabits_per_second = render_bitrate_megabits_per_second(req.encoder_bitrate_kbps);
     let format = if req.encoder_format.trim().is_empty() {
         DEFAULT_ENCODER_FORMAT
     } else {
@@ -297,7 +298,7 @@ pub fn build_webview_launch_spec(
         format!("--webrtc_enabled={}", req.webrtc_enabled),
         format!("--websocket_enabled={}", req.websocket_enabled),
         format!("--encoder_fps={fps}"),
-        format!("--encoder_bitrate={bitrate}"),
+        format!("--encoder_bitrate={bitrate_megabits_per_second}"),
         format!("--encoder_format={format}"),
         format!("--network_listen_port={listen_port}"),
         format!("--webview_instance_id={}", req.instance_id),
@@ -909,7 +910,7 @@ mod tests {
             game_arguments: "-dx11".to_string(),
             listen_port: port,
             encoder_fps: 60,
-            encoder_bitrate: 20,
+            encoder_bitrate_kbps: 20_000,
             encoder_format: "h264".to_string(),
             webrtc_enabled: true,
             websocket_enabled: true,
@@ -1080,6 +1081,17 @@ mod tests {
             .args
             .iter()
             .any(|argument| argument == "--relay_enabled=true"));
+        assert!(spec
+            .args
+            .iter()
+            .any(|argument| argument == "--encoder_bitrate=20"));
+    }
+
+    #[test]
+    fn console_kilobit_bitrate_is_converted_once_for_render_megabit_flag() {
+        assert_eq!(render_bitrate_megabits_per_second(8_000), 8);
+        assert_eq!(render_bitrate_megabits_per_second(8_001), 9);
+        assert_eq!(render_bitrate_megabits_per_second(0), 20);
     }
 
     #[test]
@@ -1146,6 +1158,10 @@ mod tests {
             .args
             .iter()
             .any(|argument| argument == "--gpu_stable_key=pnp-sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+        assert!(spec
+            .args
+            .iter()
+            .any(|argument| argument == "--encoder_bitrate=20"));
         assert!(!spec.args.join(" ").contains(url));
 
         let mut registry = AppInstanceRegistry::new();

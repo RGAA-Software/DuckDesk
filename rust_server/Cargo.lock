@@ -1809,6 +1809,7 @@ name = "px_node_protocol"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "px_release_catalog",
  "serde",
  "serde_json",
  "uuid",

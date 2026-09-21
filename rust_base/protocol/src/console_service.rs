@@ -54,7 +54,8 @@ pub struct ConsoleServiceHeartBeat {
     #[prost(message, optional, tag = "7")]
     pub node_endpoints: ::core::option::Option<NodeEndpoints>,
 }
-#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, Eq, Hash, ::prost::Message)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct NodeEndpoints {
     #[prost(uint32, tag = "1")]
     pub schema_version: u32,
@@ -208,13 +209,19 @@ pub struct ConsoleServiceMessage {
     #[prost(message, optional, tag = "50")]
     pub stop_app_instance: ::core::option::Option<ConsoleServiceStopAppInstance>,
     #[prost(message, optional, tag = "60")]
-    pub start_app_instance_result: ::core::option::Option<ConsoleServiceStartAppInstanceResult>,
+    pub start_app_instance_result: ::core::option::Option<
+        ConsoleServiceStartAppInstanceResult,
+    >,
     #[prost(message, optional, tag = "70")]
-    pub stop_app_instance_result: ::core::option::Option<ConsoleServiceStopAppInstanceResult>,
+    pub stop_app_instance_result: ::core::option::Option<
+        ConsoleServiceStopAppInstanceResult,
+    >,
     #[prost(message, optional, tag = "80")]
     pub validate_rdp_session: ::core::option::Option<ConsoleServiceValidateRdpSession>,
     #[prost(message, optional, tag = "90")]
-    pub validate_rdp_session_result: ::core::option::Option<ConsoleServiceValidateRdpSessionResult>,
+    pub validate_rdp_session_result: ::core::option::Option<
+        ConsoleServiceValidateRdpSessionResult,
+    >,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
@@ -243,9 +250,15 @@ impl ConsoleServiceMessageType {
             Self::KConsoleServiceHeartBeat => "kConsoleServiceHeartBeat",
             Self::KConsoleServiceStartAppInstance => "kConsoleServiceStartAppInstance",
             Self::KConsoleServiceStopAppInstance => "kConsoleServiceStopAppInstance",
-            Self::KConsoleServiceStartAppInstanceResult => "kConsoleServiceStartAppInstanceResult",
-            Self::KConsoleServiceStopAppInstanceResult => "kConsoleServiceStopAppInstanceResult",
-            Self::KConsoleServiceValidateRdpSession => "kConsoleServiceValidateRdpSession",
+            Self::KConsoleServiceStartAppInstanceResult => {
+                "kConsoleServiceStartAppInstanceResult"
+            }
+            Self::KConsoleServiceStopAppInstanceResult => {
+                "kConsoleServiceStopAppInstanceResult"
+            }
+            Self::KConsoleServiceValidateRdpSession => {
+                "kConsoleServiceValidateRdpSession"
+            }
             Self::KConsoleServiceValidateRdpSessionResult => {
                 "kConsoleServiceValidateRdpSessionResult"
             }
@@ -256,15 +269,21 @@ impl ConsoleServiceMessageType {
         match value {
             "kConsoleServiceHello" => Some(Self::KConsoleServiceHello),
             "kConsoleServiceHeartBeat" => Some(Self::KConsoleServiceHeartBeat),
-            "kConsoleServiceStartAppInstance" => Some(Self::KConsoleServiceStartAppInstance),
-            "kConsoleServiceStopAppInstance" => Some(Self::KConsoleServiceStopAppInstance),
+            "kConsoleServiceStartAppInstance" => {
+                Some(Self::KConsoleServiceStartAppInstance)
+            }
+            "kConsoleServiceStopAppInstance" => {
+                Some(Self::KConsoleServiceStopAppInstance)
+            }
             "kConsoleServiceStartAppInstanceResult" => {
                 Some(Self::KConsoleServiceStartAppInstanceResult)
             }
             "kConsoleServiceStopAppInstanceResult" => {
                 Some(Self::KConsoleServiceStopAppInstanceResult)
             }
-            "kConsoleServiceValidateRdpSession" => Some(Self::KConsoleServiceValidateRdpSession),
+            "kConsoleServiceValidateRdpSession" => {
+                Some(Self::KConsoleServiceValidateRdpSession)
+            }
             "kConsoleServiceValidateRdpSessionResult" => {
                 Some(Self::KConsoleServiceValidateRdpSessionResult)
             }

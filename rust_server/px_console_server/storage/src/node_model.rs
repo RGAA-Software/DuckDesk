@@ -10,10 +10,18 @@ pub enum NodeProduct {
     Remote,
 }
 impl NodeProduct {
-    pub(crate) fn name(self) -> &'static str {
+    pub fn name(self) -> &'static str {
         match self {
             Self::CloudNode => "cloud_node",
             Self::Remote => "remote",
+        }
+    }
+
+    pub(crate) fn parse(value: &str) -> Result<Self, StoreError> {
+        match value {
+            "cloud_node" => Ok(Self::CloudNode),
+            "remote" => Ok(Self::Remote),
+            _ => Err(StoreError::Rejected),
         }
     }
 }
@@ -32,6 +40,7 @@ pub struct NodeConnection {
     pub(crate) generation: i64,
     pub(crate) epoch: RuntimeEpoch,
     pub(crate) key: TokenDigest,
+    pub(crate) product: NodeProduct,
 }
 impl NodeConnection {
     pub fn id(&self) -> Uuid {
@@ -45,6 +54,9 @@ impl NodeConnection {
     }
     pub fn epoch(&self) -> RuntimeEpoch {
         self.epoch
+    }
+    pub fn product(&self) -> NodeProduct {
+        self.product
     }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

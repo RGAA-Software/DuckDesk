@@ -1,6 +1,8 @@
 use crate::{
-    control, update_model::UpdateRow, ClientType, StoreError, TokenDigest, UpdateDecision,
-    UpdateRelease,
+    control,
+    update_model::{NodeUpdateActivationRow, NodeUpdateTaskRow, UpdateRow},
+    ClientType, NodeUpdateActivation, NodeUpdateCompletion, StoreError, TokenDigest,
+    UpdateActivationOutcome, UpdateDecision, UpdateRelease,
 };
 use px_release_catalog::{ReleaseQuery, ReleaseSpec};
 use sqlx::{PgConnection, PgPool};
@@ -70,11 +72,11 @@ impl UpdateStore {
             release_target.architecture.name(),
             artifact.build_number,
             artifact.version,
-            artifact.artifact_url,
+            artifact.metadata_base_url,
+            artifact.targets_base_url,
+            artifact.target_name,
             artifact.sha256,
-            artifact.size_bytes,
-            artifact.metadata_url,
-            artifact.metadata_sha256
+            artifact.size_bytes
         )
         .fetch_one(&mut *tx)
         .await?;
@@ -177,6 +179,194 @@ impl UpdateStore {
         let result = row.view()?;
         tx.commit().await?;
         Ok(result)
+    }
+    pub async fn latest_for_node(
+        &self,
+        node: &crate::NodeConnection,
+        target: &ReleaseQuery,
+        current_build_number: i64,
+    ) -> Result<Option<UpdateRelease>, StoreError> {
+        target.validate().map_err(|_| StoreError::InvalidInput)?;
+        if current_build_number < 1 || target.product.name() != node.product().name() {
+            return Err(StoreError::Rejected);
+        }
+        let mut tx = self.pool.begin().await?;
+        control::read_gate(&mut tx).await?;
+        crate::node_lifecycle::authorize(&mut tx, node).await?;
+        let row = sqlx::query_file_as!(
+            UpdateRow,
+            "queries/latest_update.sql",
+            target.product.name(),
+            target.distribution.name(),
+            target.channel.name(),
+            target.os.name(),
+            target.architecture.name()
+        )
+        .fetch_optional(&mut *tx)
+        .await?;
+        let result = match row {
+            Some(row) if row.state == "approved" && row.build_number > current_build_number => {
+                Some(row.view()?)
+            }
+            _ => None,
+        };
+        tx.commit().await?;
+        Ok(result)
+    }
+    pub async fn begin_activation(
+        &self,
+        node: &crate::NodeConnection,
+        target: &ReleaseQuery,
+        release_id: Uuid,
+        policy_revision: i64,
+        prepared_sha256: &str,
+    ) -> Result<NodeUpdateActivation, StoreError> {
+        target.validate().map_err(|_| StoreError::InvalidInput)?;
+        if release_id.is_nil()
+            || policy_revision < 1
+            || prepared_sha256.len() != 64
+            || !prepared_sha256
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+            || target.product.name() != node.product().name()
+        {
+            return Err(StoreError::InvalidInput);
+        }
+        let mut transaction = self.pool.begin().await?;
+        control::write_gate(&mut transaction).await?;
+        crate::node_lifecycle::authorize(&mut transaction, node).await?;
+        sqlx::query_file!("queries/expire_node_update_activation.sql", node.id)
+            .execute(&mut *transaction)
+            .await?;
+        let release = sqlx::query_file_as!(UpdateRow, "queries/lock_update.sql", release_id)
+            .fetch_optional(&mut *transaction)
+            .await?
+            .ok_or(StoreError::Rejected)?;
+        let release_state = release.state.clone();
+        let release_revision = release.revision;
+        let artifact = release.view()?.artifact;
+        if release_state != "approved"
+            || release_revision != policy_revision
+            || artifact.target != *target
+            || artifact.sha256 != prepared_sha256
+        {
+            return Err(StoreError::Rejected);
+        }
+        let status = sqlx::query_file!("queries/node_update_activation_status.sql", node.id)
+            .fetch_one(&mut *transaction)
+            .await?;
+        if status.draining || status.busy || status.product_version_code >= artifact.build_number {
+            return Err(StoreError::Rejected);
+        }
+        if let Some(existing) = sqlx::query_file_as!(
+            NodeUpdateActivationRow,
+            "queries/active_node_update_activation.sql",
+            node.id
+        )
+        .fetch_optional(&mut *transaction)
+        .await?
+        {
+            if existing.release_id != release_id
+                || existing.from_build_number != status.product_version_code
+                || existing.to_build_number != artifact.build_number
+            {
+                return Err(StoreError::Rejected);
+            }
+            let grant = existing.grant();
+            transaction.commit().await?;
+            return Ok(grant);
+        }
+        let task_id = Uuid::new_v4();
+        let lease_id = Uuid::new_v4();
+        let activation = sqlx::query_file!(
+            "queries/create_node_update_activation.sql",
+            task_id,
+            node.id,
+            release_id,
+            status.product_version_code,
+            artifact.build_number,
+            lease_id
+        )
+        .fetch_one(&mut *transaction)
+        .await?;
+        let grant = NodeUpdateActivation {
+            task_id: activation.id,
+            lease_id: activation.lease_id,
+            lease_until: activation.lease_until,
+        };
+        transaction.commit().await?;
+        Ok(grant)
+    }
+
+    pub async fn finish_activation(
+        &self,
+        node: &crate::NodeConnection,
+        task_id: Uuid,
+        lease_id: Uuid,
+        outcome: &UpdateActivationOutcome,
+    ) -> Result<NodeUpdateCompletion, StoreError> {
+        let (state, error_code) = outcome.fields();
+        if task_id.is_nil()
+            || lease_id.is_nil()
+            || error_code.is_some_and(|value| {
+                value.is_empty()
+                    || value.len() > 64
+                    || !value.bytes().all(|byte| {
+                        byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_'
+                    })
+            })
+        {
+            return Err(StoreError::InvalidInput);
+        }
+        let mut transaction = self.pool.begin().await?;
+        control::write_gate(&mut transaction).await?;
+        crate::node_lifecycle::authorize(&mut transaction, node).await?;
+        let task = sqlx::query_file_as!(
+            NodeUpdateTaskRow,
+            "queries/lock_node_update_activation.sql",
+            task_id,
+            node.id
+        )
+        .fetch_optional(&mut *transaction)
+        .await?
+        .ok_or(StoreError::Rejected)?;
+        if task.lease_id != lease_id {
+            return Err(StoreError::Rejected);
+        }
+        if task.state != "activating" {
+            if task.state == state && task.error_code.as_deref() == error_code {
+                let completion = NodeUpdateCompletion {
+                    state: task.state,
+                    revision: task.revision,
+                    error_code: task.error_code,
+                };
+                transaction.commit().await?;
+                return Ok(completion);
+            }
+            return Err(StoreError::Rejected);
+        }
+        if matches!(outcome, UpdateActivationOutcome::Installed) {
+            let installed = sqlx::query_file!("queries/node_installed_build.sql", node.id)
+                .fetch_one(&mut *transaction)
+                .await?;
+            if installed.product_version_code != task.to_build_number {
+                return Err(StoreError::Rejected);
+            }
+        }
+        let completion = sqlx::query_file_as!(
+            NodeUpdateCompletion,
+            "queries/complete_node_update_activation.sql",
+            task.id,
+            task.lease_id,
+            task.revision,
+            state,
+            error_code
+        )
+        .fetch_optional(&mut *transaction)
+        .await?
+        .ok_or(StoreError::Rejected)?;
+        transaction.commit().await?;
+        Ok(completion)
     }
     async fn event(
         connection: &mut PgConnection,

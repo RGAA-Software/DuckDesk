@@ -491,6 +491,24 @@ async fn audit_failures_roll_back_channel_mutations_node_invalidation_and_fronte
     assert_eq!(result.revision, 2);
     assert!(result.ended_at.is_none());
     assert!(context.visits().await[0].session.closed_at.is_some());
+    assert!(context
+        .activity_store
+        .report_channel(&context.node, row.id, &progress(1, 100))
+        .await
+        .is_err());
+    let mut terminal = progress(1, 100);
+    terminal.outcome = ChannelOutcome::Failed {
+        reason: ChannelFailure::PolicyRevoked,
+    };
+    let finalized = context
+        .activity_store
+        .report_channel(&context.node, row.id, &terminal)
+        .await
+        .unwrap();
+    assert_eq!(finalized.state, "failed");
+    assert_eq!(finalized.reason.as_deref(), Some("policy_revoked"));
+    assert_eq!(finalized.revision, 3);
+    assert!(finalized.ended_at.is_some());
     let runtime = config("RUNTIME").connect().await.unwrap();
     assert!(sqlx::query("DELETE FROM pixels.connection_observations")
         .execute(&runtime)

@@ -215,6 +215,7 @@ bool ClientSession::Initialize() {
             });
         });
     fileTransferAvailable_ = fileTransfer_ && fileTransfer_->Start();
+    LOGI("event=file_transfer.session component=client operation=start outcome={}", fileTransferAvailable_ ? "success" : "failed");
 
     if (!config_.fileTransferOnly) {
         px::VoiceCallDependencies voiceDependencies{.send_control =
@@ -327,6 +328,8 @@ bool ClientSession::Initialize() {
             self->monitors_ = std::move(monitors);
             self->resolutions_ = std::move(resolutions);
             self->fileTransferAvailable_ = self->fileTransferAvailable_ && message->config().file_transfer_enabled();
+            LOGI("event=file_transfer.capability component=client operation=configure outcome={} host_enabled={}",
+                 self->fileTransferAvailable_ ? "enabled" : "disabled", message->config().file_transfer_enabled());
             self->voiceAvailable_ = voiceAvailable;
             self->virtualDisplayAvailable_ = message->config().virtual_display_enabled();
             self->virtualDisplayCount_ = message->config().virtual_display_owned_count();
@@ -378,16 +381,21 @@ bool ClientSession::Initialize() {
         const std::scoped_lock lock{self->mutex_};
         self->remoteCursor_ = {.received = true, .visible = cursor.visible(), .type = static_cast<std::uint32_t>(cursor.type())};
     });
-    sdk_->SetOnAudioFrameDecodedCallback([weakSelf](const std::shared_ptr<px::Data>& data, const int samples, const int channels, const int bits) {
-        if (const auto self = weakSelf.lock(); self && !self->stopped_.load()) {
-            bool enabled{};
-            {
-                const std::scoped_lock lock{self->mutex_};
-                enabled = self->audioEnabled_;
+    sdk_->SetOnAudioFrameDecodedCallback(
+        [weakSelf](const std::shared_ptr<px::Data>& audioData, const int sampleRate, const int channelCount, const int bitsPerSample) {
+            if (const auto self = weakSelf.lock(); self && !self->stopped_.load()) {
+                bool enabled{};
+                {
+                    const std::scoped_lock lock{self->mutex_};
+                    enabled = self->audioEnabled_;
+                    if (audioData && audioData->Size() > 0 && sampleRate > 0 && channelCount > 0 && bitsPerSample > 0) {
+                        ++self->decodedAudioFrames_;
+                        self->decodedAudioBytes_ += static_cast<std::uint64_t>(audioData->Size());
+                    }
+                }
+                if (enabled) static_cast<void>(self->audio_->Write(audioData, sampleRate, channelCount, bitsPerSample));
             }
-            if (enabled) static_cast<void>(self->audio_->Write(data, samples, channels, bits));
-        }
-    });
+        });
     sdk_->SetOnClipboardCallback([weakSelf](const std::shared_ptr<px::Message>& message) {
         if (const auto self = weakSelf.lock(); self && message && message->has_clipboard_info() &&
                                                message->clipboard_info().type() == px::kClipboardText && !message->clipboard_info().msg().empty()) {

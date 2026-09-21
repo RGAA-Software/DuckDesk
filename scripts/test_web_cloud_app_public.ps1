@@ -119,11 +119,23 @@ try {
         throw 'No matching WebView cloud application is available to the web test user.'
     }
 
-    $applicationInstance = Invoke-ConsoleApi -Path '/api/console/instances' -Method POST -Body @{
-        request_id = [guid]::NewGuid().ToString()
-        application_id = [string]$application.id
-        deployment_id = $null
-    } -Token $accessToken -UserResource
+    $instanceRequestId = [guid]::NewGuid().ToString()
+    $createDeadline = [DateTime]::UtcNow.AddSeconds($StartTimeoutSeconds)
+    while (-not $applicationInstance) {
+        try {
+            $applicationInstance = Invoke-ConsoleApi -Path '/api/console/instances' -Method POST -Body @{
+                request_id = $instanceRequestId
+                application_id = [string]$application.id
+                deployment_id = $null
+            } -Token $accessToken -UserResource
+        }
+        catch {
+            if ($_.Exception.Message -notmatch 'HTTP 503' -or [DateTime]::UtcNow -ge $createDeadline) {
+                throw
+            }
+            Start-Sleep -Milliseconds 500
+        }
+    }
 
     $encodedInstanceId = [Uri]::EscapeDataString([string]$applicationInstance.id)
     $startDeadline = [DateTime]::UtcNow.AddSeconds($StartTimeoutSeconds)

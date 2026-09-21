@@ -180,6 +180,8 @@ Auth/Desk 可有多个同时持共享锁的实例；升级时全部停止准入�
 备份执行器独立于 Console UI/进程，使用受限备份身份；Console 负责策略/任务展示，不接收超级用户密码或任意 shell。
 备份含数据库、schema/tool/engine 版本、校验和、时间与来源身份；另存必要角色/权限、配置、扩展清单和受保护密钥恢复材料。
 `pg_dump` 单库一致，不保证 Console/Auth/Desk 多库同一事务时间点；整体恢复必须按第 6.6 节的恢复集/对账流程执行。
+执行器的恢复集始终显式列出 Console/Auth/Desk 三成员；分机部署允许不在本机的服务记录为可核对的 not_applicable，但每个执行器至少
+必须有一个 required 数据库。官方当前拓扑中 CN 只备份 Auth，Console/Desk 继续由 90 环境的执行器负责，禁止从 CN 跨公网拉取其数据库。
 备份库外保存签名/校验清单和任务结果副本，不能数据库坏了连备份位置、解密材料和恢复工具都找不到。
 
 - 完成状态区分 Created、Verified、OffsiteVerified、RestoreTested；校验和成功不等于已验证能恢复。

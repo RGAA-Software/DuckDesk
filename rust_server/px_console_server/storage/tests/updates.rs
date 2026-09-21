@@ -1,7 +1,7 @@
 #[path = "support/node_fixture.rs"]
 mod fixture;
 use fixture::{config, token, Fixture};
-use px_console_store::{ClientType, UpdateDecision, UpdateStore};
+use px_console_store::{ClientType, DeploymentTarget, UpdateDecision, UpdateRelease, UpdateStore};
 use px_release_catalog::*;
 use std::env;
 use uuid::Uuid;
@@ -17,11 +17,11 @@ fn spec() -> ReleaseSpec {
         },
         build_number: chrono::Utc::now().timestamp_micros(),
         version: "3.2.9".into(),
-        artifact_url: "https://example.invalid/pixels.exe".into(),
+        metadata_base_url: "https://example.invalid/metadata/".into(),
+        targets_base_url: "https://example.invalid/targets/".into(),
+        target_name: "pixels.exe".into(),
         sha256: "a".repeat(64),
         size_bytes: 12345,
-        metadata_url: "https://example.invalid/targets.json".into(),
-        metadata_sha256: "b".repeat(64),
     }
 }
 async fn store() -> UpdateStore {
@@ -31,6 +31,35 @@ async fn store() -> UpdateStore {
     )
     .await
     .unwrap()
+}
+
+async fn approved_cloud_node_release(
+    update_store: &UpdateStore,
+    fixture: &Fixture,
+) -> UpdateRelease {
+    let mut release_spec = spec();
+    release_spec.target = ReleaseQuery {
+        product: Product::CloudNode,
+        distribution: Distribution::Customer,
+        channel: Channel::Stable,
+        os: OperatingSystem::Windows,
+        architecture: Architecture::X86_64,
+    };
+    release_spec.build_number =
+        1_000 + i64::try_from(Uuid::new_v4().as_u128() % 1_000_000).unwrap();
+    let release = update_store
+        .register(&fixture.admin, Uuid::new_v4(), &release_spec)
+        .await
+        .unwrap();
+    update_store
+        .decide(
+            &fixture.admin,
+            release.id,
+            release.revision,
+            UpdateDecision::Approve,
+        )
+        .await
+        .unwrap()
 }
 #[tokio::test]
 async fn all_product_platform_flavor_channel_dimensions_are_independent() {
@@ -105,6 +134,85 @@ async fn all_product_platform_flavor_channel_dimensions_are_independent() {
     update_store.close().await;
     fixture.close().await;
 }
+
+#[tokio::test]
+async fn authenticated_node_sees_only_a_newer_approved_release_for_its_product() {
+    let fixture = Fixture::new().await;
+    let update_store = store().await;
+    let (connection, _) = fixture.connected().await;
+    let mut release_spec = spec();
+    release_spec.target = ReleaseQuery {
+        product: Product::CloudNode,
+        distribution: Distribution::Customer,
+        channel: Channel::Stable,
+        os: OperatingSystem::Windows,
+        architecture: Architecture::X86_64,
+    };
+    let release = update_store
+        .register(&fixture.admin, Uuid::new_v4(), &release_spec)
+        .await
+        .unwrap();
+    assert!(update_store
+        .latest_for_node(
+            &connection,
+            &release_spec.target,
+            release_spec.build_number - 1
+        )
+        .await
+        .unwrap()
+        .is_none());
+    let approved = update_store
+        .decide(
+            &fixture.admin,
+            release.id,
+            release.revision,
+            UpdateDecision::Approve,
+        )
+        .await
+        .unwrap();
+    let offer = update_store
+        .latest_for_node(
+            &connection,
+            &release_spec.target,
+            release_spec.build_number - 1,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(offer.id, approved.id);
+    assert_eq!(offer.artifact, release_spec);
+    assert!(update_store
+        .latest_for_node(&connection, &release_spec.target, release_spec.build_number)
+        .await
+        .unwrap()
+        .is_none());
+    let mut wrong_product = release_spec.target;
+    wrong_product.product = Product::Remote;
+    assert!(update_store
+        .latest_for_node(&connection, &wrong_product, release_spec.build_number - 1)
+        .await
+        .is_err());
+    update_store
+        .decide(
+            &fixture.admin,
+            approved.id,
+            approved.revision,
+            UpdateDecision::Withdraw,
+        )
+        .await
+        .unwrap();
+    assert!(update_store
+        .latest_for_node(
+            &connection,
+            &release_spec.target,
+            release_spec.build_number - 1
+        )
+        .await
+        .unwrap()
+        .is_none());
+    update_store.close().await;
+    fixture.close().await;
+}
 #[tokio::test]
 async fn concurrent_registration_retries_bind_body_and_never_reverse_withdrawal() {
     let fixture = Fixture::new().await;
@@ -142,7 +250,7 @@ async fn concurrent_registration_retries_bind_body_and_never_reverse_withdrawal(
             .unwrap();
     assert_eq!(count, 1);
     let mut changed = release_spec.clone();
-    changed.metadata_sha256 = "c".repeat(64);
+    changed.target_name = "pixels-other.exe".into();
     assert!(update_store
         .register(&fixture.admin, request, &changed)
         .await
@@ -405,8 +513,8 @@ async fn malformed_release_metadata_has_no_side_effects_and_database_enforces_pl
             0 => bad.size_bytes = 0,
             1 => bad.target.os = OperatingSystem::Android,
             2 => bad.target.architecture = Architecture::Aarch64,
-            3 => bad.metadata_sha256 = "bad".into(),
-            4 => bad.artifact_url = "https://example.invalid/a?secret=x".into(),
+            3 => bad.target_name = "../escape.exe".into(),
+            4 => bad.targets_base_url = "https://example.invalid/a?secret=x".into(),
             _ => bad.build_number = 0,
         }
         assert!(update_store
@@ -480,5 +588,223 @@ async fn restarts_preserve_policy_and_closed_pool_never_reports_success() {
         assert!(!json.contains(secret));
     }
     resumed.close().await;
+    fixture.close().await;
+}
+
+#[tokio::test]
+async fn activation_is_console_serialized_idempotent_and_blocks_new_work() {
+    let fixture = Fixture::new().await;
+    let update_store = store().await;
+    let (connection, application, _) = fixture.prepared(DeploymentTarget::Rdp, 1).await;
+    let release = approved_cloud_node_release(&update_store, &fixture).await;
+
+    let first = update_store
+        .begin_activation(
+            &connection,
+            &release.artifact.target,
+            release.id,
+            release.revision,
+            &release.artifact.sha256,
+        )
+        .await
+        .unwrap();
+    let retry = update_store
+        .begin_activation(
+            &connection,
+            &release.artifact.target,
+            release.id,
+            release.revision,
+            &release.artifact.sha256,
+        )
+        .await
+        .unwrap();
+    assert_eq!(retry.task_id, first.task_id);
+    assert_eq!(retry.lease_id, first.lease_id);
+    assert_eq!(retry.lease_until, first.lease_until);
+
+    let user = fixture.session("user", ClientType::Android).await;
+    assert!(fixture
+        .instances
+        .reserve(
+            px_console_store::ResourceCredential::User(&user),
+            ClientType::Android,
+            connection.epoch(),
+            &fixture::request(application.id),
+        )
+        .await
+        .is_err());
+
+    let count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM pixels.node_update_tasks WHERE node_id=$1 AND state='activating'",
+    )
+    .bind(connection.id())
+    .fetch_one(&fixture.owner)
+    .await
+    .unwrap();
+    assert_eq!(count, 1);
+
+    assert!(update_store
+        .finish_activation(
+            &connection,
+            first.task_id,
+            first.lease_id,
+            &px_console_store::UpdateActivationOutcome::Installed,
+        )
+        .await
+        .is_err());
+    sqlx::query("UPDATE pixels.nodes SET product_version_code=$2 WHERE id=$1")
+        .bind(connection.id())
+        .bind(release.artifact.build_number)
+        .execute(&fixture.owner)
+        .await
+        .unwrap();
+    let completed = update_store
+        .finish_activation(
+            &connection,
+            first.task_id,
+            first.lease_id,
+            &px_console_store::UpdateActivationOutcome::Installed,
+        )
+        .await
+        .unwrap();
+    assert_eq!(completed.state, "installed");
+    assert_eq!(completed.revision, 2);
+    assert!(completed.error_code.is_none());
+    let completion_retry = update_store
+        .finish_activation(
+            &connection,
+            first.task_id,
+            first.lease_id,
+            &px_console_store::UpdateActivationOutcome::Installed,
+        )
+        .await
+        .unwrap();
+    assert_eq!(completion_retry.revision, completed.revision);
+    assert!(fixture
+        .instances
+        .reserve(
+            px_console_store::ResourceCredential::User(&user),
+            ClientType::Android,
+            connection.epoch(),
+            &fixture::request(application.id),
+        )
+        .await
+        .is_ok());
+    update_store.close().await;
+    fixture.close().await;
+}
+
+#[tokio::test]
+async fn activation_rejects_busy_draining_or_mismatched_release_state() {
+    let fixture = Fixture::new().await;
+    let update_store = store().await;
+    let (connection, application, _) = fixture.prepared(DeploymentTarget::Rdp, 1).await;
+    let release = approved_cloud_node_release(&update_store, &fixture).await;
+    let (_user, _instance, _command) = fixture.started(&connection, application.id).await;
+
+    assert!(update_store
+        .begin_activation(
+            &connection,
+            &release.artifact.target,
+            release.id,
+            release.revision,
+            &release.artifact.sha256,
+        )
+        .await
+        .is_err());
+
+    sqlx::query(
+        "UPDATE pixels.instances SET ended_at=clock_timestamp(),state='stopped' WHERE node_id=$1",
+    )
+    .bind(connection.id())
+    .execute(&fixture.owner)
+    .await
+    .unwrap();
+    sqlx::query("UPDATE pixels.nodes SET draining=true WHERE id=$1")
+        .bind(connection.id())
+        .execute(&fixture.owner)
+        .await
+        .unwrap();
+    assert!(update_store
+        .begin_activation(
+            &connection,
+            &release.artifact.target,
+            release.id,
+            release.revision,
+            &release.artifact.sha256,
+        )
+        .await
+        .is_err());
+    assert!(update_store
+        .begin_activation(
+            &connection,
+            &release.artifact.target,
+            release.id,
+            release.revision + 1,
+            &release.artifact.sha256,
+        )
+        .await
+        .is_err());
+    assert!(update_store
+        .begin_activation(
+            &connection,
+            &release.artifact.target,
+            release.id,
+            release.revision,
+            &"b".repeat(64),
+        )
+        .await
+        .is_err());
+
+    let count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM pixels.node_update_tasks WHERE node_id=$1")
+            .bind(connection.id())
+            .fetch_one(&fixture.owner)
+            .await
+            .unwrap();
+    assert_eq!(count, 0);
+    update_store.close().await;
+    fixture.close().await;
+}
+
+#[tokio::test]
+async fn node_report_expires_an_abandoned_activation_lease() {
+    let fixture = Fixture::new().await;
+    let update_store = store().await;
+    let (connection, _, _) = fixture.prepared(DeploymentTarget::Rdp, 1).await;
+    let release = approved_cloud_node_release(&update_store, &fixture).await;
+    let activation = update_store
+        .begin_activation(
+            &connection,
+            &release.artifact.target,
+            release.id,
+            release.revision,
+            &release.artifact.sha256,
+        )
+        .await
+        .unwrap();
+    sqlx::query(
+        "UPDATE pixels.node_update_tasks SET created_at=clock_timestamp()-interval '11 minutes',lease_until=clock_timestamp()-interval '1 minute' WHERE id=$1",
+    )
+    .bind(activation.task_id)
+    .execute(&fixture.owner)
+    .await
+    .unwrap();
+
+    fixture
+        .nodes
+        .report(&connection, &fixture::node_report(2))
+        .await
+        .unwrap();
+    let terminal: (String, Option<String>) =
+        sqlx::query_as("SELECT state,error_code FROM pixels.node_update_tasks WHERE id=$1")
+            .bind(activation.task_id)
+            .fetch_one(&fixture.owner)
+            .await
+            .unwrap();
+    assert_eq!(terminal.0, "failed");
+    assert_eq!(terminal.1.as_deref(), Some("activation_lease_expired"));
+
+    update_store.close().await;
     fixture.close().await;
 }

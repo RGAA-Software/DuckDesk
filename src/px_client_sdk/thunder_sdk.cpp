@@ -4,28 +4,29 @@
 
 #include "thunder_sdk.h"
 
-#include "px_common/log.h"
-#include "px_common/file.h"
-#include "px_common/message_notifier.h"
-#include "px_common/thread.h"
-#include "px_common/time_util.h"
 #include <atomic>
 #include <span>
-#include "px_common/folder_util.h"
-#include "px_common/string_util.h"
+
 #include "px_client_sdk/gl/raw_image.h"
-#include "px_opus_codec/opus_codec.h"
+#include "px_common/file.h"
+#include "px_common/folder_util.h"
+#include "px_common/log.h"
+#include "px_common/message_notifier.h"
+#include "px_common/string_util.h"
+#include "px_common/thread.h"
+#include "px_common/time_util.h"
 #include "px_message.pb.h"
-#include "sdk_timer.h"
-#include "sdk_messages.h"
-#include "sdk_statistics.h"
-#include "sdk_net_client.h"
-#include "sdk_cast_receiver.h"
-#include "sdk_video_decoder_factory.h"
-#include "sdk_stream_helper.h"
-#include "sdk_video_decoder.h"
-#include "video_decode_thread_task.h"
 #include "px_message/proto_converter.h"
+#include "px_opus_codec/opus_codec.h"
+#include "sdk_cast_receiver.h"
+#include "sdk_messages.h"
+#include "sdk_net_client.h"
+#include "sdk_statistics.h"
+#include "sdk_stream_helper.h"
+#include "sdk_timer.h"
+#include "sdk_video_decoder.h"
+#include "sdk_video_decoder_factory.h"
+#include "video_decode_thread_task.h"
 
 namespace px {
 
@@ -44,17 +45,14 @@ void DumpDecodeLatencyIfDue() {
     if (current_time_us - previous_dump_time_us < 5000000) {
         return;
     }
-    if (!last_dump_time_us.compare_exchange_weak(previous_dump_time_us,
-                                                 current_time_us)) {
+    if (!last_dump_time_us.compare_exchange_weak(previous_dump_time_us, current_time_us)) {
         return;
     }
     const auto decoded_frame_count = g_decode_frames.exchange(0);
     const auto total_decode_time_us = g_decode_us_sum.exchange(0);
     const auto maximum_decode_time_us = g_decode_us_max.exchange(0);
     LOGI("[LAT-decode] frames={} avg_us={} max_us={}", decoded_frame_count,
-         decoded_frame_count > 0 ? (total_decode_time_us / decoded_frame_count)
-                                 : 0,
-         maximum_decode_time_us);
+         decoded_frame_count > 0 ? (total_decode_time_us / decoded_frame_count) : 0, maximum_decode_time_us);
 }
 
 // [LAT-roundtrip] 操作往返延迟:最近一次鼠标发送 -> 本帧解码完成(含输入+DWM 垂直同步+视频链路)
@@ -69,34 +67,25 @@ void DumpRoundtripLatencyIfDue() {
     if (current_time_us - previous_dump_time_us < 5000000) {
         return;
     }
-    if (!last_dump_time_us.compare_exchange_weak(previous_dump_time_us,
-                                                 current_time_us)) {
+    if (!last_dump_time_us.compare_exchange_weak(previous_dump_time_us, current_time_us)) {
         return;
     }
     const auto sample_count = g_roundtrip_cnt.exchange(0);
     const auto total_roundtrip_time_us = g_roundtrip_us_sum.exchange(0);
     const auto maximum_roundtrip_time_us = g_roundtrip_us_max.exchange(0);
-    LOGI("[LAT-roundtrip] samples={} avg_us={} max_us={}", sample_count,
-         sample_count > 0 ? (total_roundtrip_time_us / sample_count) : 0,
+    LOGI("[LAT-roundtrip] samples={} avg_us={} max_us={}", sample_count, sample_count > 0 ? (total_roundtrip_time_us / sample_count) : 0,
          maximum_roundtrip_time_us);
 }
-} // namespace
+}  // namespace
 
-std::shared_ptr<ThunderSdk> ThunderSdk::Make(const std::shared_ptr<MessageNotifier>& notifier) {
-    return std::make_shared<ThunderSdk>(notifier);
-}
+std::shared_ptr<ThunderSdk> ThunderSdk::Make(const std::shared_ptr<MessageNotifier>& notifier) { return std::make_shared<ThunderSdk>(notifier); }
 
-ThunderSdk::ThunderSdk(const std::shared_ptr<MessageNotifier>& notifier) {
-    this->msg_notifier_ = notifier;
-}
+ThunderSdk::ThunderSdk(const std::shared_ptr<MessageNotifier>& notifier) { this->msg_notifier_ = notifier; }
 
-ThunderSdk::~ThunderSdk() {
-    Exit();
-}
+ThunderSdk::~ThunderSdk() { Exit(); }
 
 bool ThunderSdk::Init(const std::shared_ptr<ThunderSdkParams>& params, std::shared_ptr<VideoDecoderFactory> decoder_factory) {
-    if (!params || !decoder_factory || net_client_ || exit_)
-        return false;
+    if (!params || !decoder_factory || net_client_ || exit_) return false;
     sdk_params_ = params;
     decoder_factory_ = std::move(decoder_factory);
     last_heartbeat_callback_ = TimeUtil::GetCurrentTimestamp();
@@ -140,11 +129,9 @@ void ThunderSdk::RefreshVideoOutput(const bool output_available, OnRenderSurface
     render_surface_update_pending_.store(true, std::memory_order_release);
     const auto thread = video_thread_;
     if (!thread || exit_) {
-        if (!exit_ && configure_output)
-            configure_output();
+        if (!exit_ && configure_output) configure_output();
         render_surface_update_pending_.store(false, std::memory_order_release);
-        if (completion)
-            completion();
+        if (completion) completion();
         return;
     }
     thread->Clear();
@@ -156,8 +143,7 @@ void ThunderSdk::RefreshVideoOutput(const bool output_available, OnRenderSurface
             const auto self = weak_self.lock();
             if (self) {
                 if (!self->exit_) {
-                    if (configure_output)
-                        configure_output();
+                    if (configure_output) configure_output();
                     bool surface_updated = output_available && !self->video_decoders_.empty();
                     for (const auto& [monitor_name, decoder] : self->video_decoders_) {
                         static_cast<void>(monitor_name);
@@ -175,17 +161,14 @@ void ThunderSdk::RefreshVideoOutput(const bool output_available, OnRenderSurface
                     }
                 }
                 self->render_surface_update_pending_.store(false, std::memory_order_release);
-                if (!self->exit_ && output_available)
-                    self->RequestIFrame();
+                if (!self->exit_ && output_available) self->RequestIFrame();
             }
-            if (completion)
-                completion();
+            if (completion) completion();
         }));
 }
 
 void ThunderSdk::Start() {
-    if (!net_client_ || !decoder_factory_ || exit_ || started_.exchange(true))
-        return;
+    if (!net_client_ || !decoder_factory_ || exit_ || started_.exchange(true)) return;
     const auto weak_self = weak_from_this();
     statistics_ = SdkStatistics::Instance();
     statistics_->render_type_.Update(sdk_params_->render_type_name_);
@@ -193,8 +176,7 @@ void ThunderSdk::Start() {
     video_thread_ = Thread::Make("video", 64);
     video_thread_->SetOnFrontTaskCallback([weak_self](ThreadTaskPtr task_tr) -> void {
         const auto self = weak_self.lock();
-        if (!self)
-            return;
+        if (!self) return;
         if (self->video_frame_thread_discarded_cbk_) {
             self->video_frame_thread_discarded_cbk_();
         }
@@ -225,15 +207,14 @@ void ThunderSdk::Start() {
 
     net_client_->SetOnDisconnectedCallback([weak_self]() {
         if (const auto self = weak_self.lock()) {
+            self->has_config_msg_.store(false, std::memory_order_release);
             self->decoder_resync_requested_.store(true, std::memory_order_release);
             self->msg_notifier_->SendAppMessage(SdkMsgNetworkDisConnected{});
             self->ClearFirstFrameState();
         }
     });
 
-    net_client_->SetOnVideoFrameMsgCallback([weak_self](
-                                                std::shared_ptr<px::Message>
-                                                    video_message) {
+    net_client_->SetOnVideoFrameMsgCallback([weak_self](std::shared_ptr<px::Message> video_message) {
         const auto owner = weak_self.lock();
         if (!owner || owner->exit_) {
             return;
@@ -246,8 +227,7 @@ void ThunderSdk::Start() {
 
         auto video_task = [weak_self, frame]() -> void {
             const auto self = weak_self.lock();
-            if (!self || self->exit_ || !self->output_available_.load(std::memory_order_acquire))
-                return;
+            if (!self || self->exit_ || !self->output_available_.load(std::memory_order_acquire)) return;
             auto& video_decoders_ = self->video_decoders_;
             auto& last_received_video_timestamps_ = self->last_received_video_timestamps_;
             auto& received_files_ = self->received_files_;
@@ -271,8 +251,8 @@ void ThunderSdk::Start() {
             const auto previous = self->last_frame_indices_.find(monitor_name);
             const bool stream_discontinuity = previous != self->last_frame_indices_.end() && current_frame_index != previous->second + 1;
             if (stream_discontinuity) {
-                LOGI("Video frame discontinuity, mon: [{}], index: {}, last: {}, extra: [{}]", monitor_name, current_frame_index,
-                     previous->second, frame.extra());
+                LOGI("Video frame discontinuity, mon: [{}], index: {}, last: {}, extra: [{}]", monitor_name, current_frame_index, previous->second,
+                     frame.extra());
                 self->decoder_startup_gates_[monitor_name].RequireKeyFrame();
                 if (const auto decoder = video_decoders_.find(monitor_name); decoder != video_decoders_.end()) {
                     decoder->second->Release();
@@ -312,8 +292,7 @@ void ThunderSdk::Start() {
                     video_decoders_.clear();
                 }
                 auto created = self->decoder_factory_->Create(self, frame, self->IsDisabledHardwareDecoder(monitor_name));
-                if (created.disable_hardware)
-                    self->DisableHardwareDecoder(monitor_name);
+                if (created.disable_hardware) self->DisableHardwareDecoder(monitor_name);
                 video_decoder = std::move(created.decoder);
                 if (!video_decoder) {
                     self->NotifyDecoderUnavailable();
@@ -326,27 +305,24 @@ void ThunderSdk::Start() {
             if (!last_received_video_timestamps_.contains(monitor_name)) {
                 last_received_video_timestamps_[monitor_name] = current_time;
             }
-            const auto receive_gap_ms =
-                current_time - last_received_video_timestamps_[monitor_name];
+            const auto receive_gap_ms = current_time - last_received_video_timestamps_[monitor_name];
             last_received_video_timestamps_[monitor_name] = current_time;
 
             self->PostMiscTask([statistics_, frame, receive_gap_ms]() {
-                statistics_->AppendVideoRecvGap(frame.mon_name(),
-                                                receive_gap_ms);
+                statistics_->AppendVideoRecvGap(frame.mon_name(), receive_gap_ms);
                 statistics_->TickVideoRecvFps(frame.mon_name());
                 statistics_->UpdateFrameSize(frame.mon_name(), frame.frame_width(), frame.frame_height());
             });
 
-            SdkCaptureMonitorInfo capture_monitor_info{
-                .mon_name_ = frame.mon_name(),
-                .mon_index_ = frame.mon_index(),
-                .mon_left_ = frame.mon_left(),
-                .mon_top_ = frame.mon_top(),
-                .mon_right_ = frame.mon_right(),
-                .mon_bottom_ = frame.mon_bottom(),
-                .frame_width_ = frame.frame_width(),
-                .frame_height_ = frame.frame_height(),
-                .update_time_ = TimeUtil::GetCurrentTimestamp()};
+            SdkCaptureMonitorInfo capture_monitor_info{.mon_name_ = frame.mon_name(),
+                                                       .mon_index_ = frame.mon_index(),
+                                                       .mon_left_ = frame.mon_left(),
+                                                       .mon_top_ = frame.mon_top(),
+                                                       .mon_right_ = frame.mon_right(),
+                                                       .mon_bottom_ = frame.mon_bottom(),
+                                                       .frame_width_ = frame.frame_width(),
+                                                       .frame_height_ = frame.frame_height(),
+                                                       .update_time_ = TimeUtil::GetCurrentTimestamp()};
 
             if (sdk_params_->debug_) {
                 if (!received_files_.contains(monitor_name)) {
@@ -360,16 +336,13 @@ void ThunderSdk::Start() {
             // [LAT-decode] 计时单帧解码耗时
             const auto decode_start_time_us = TimeUtil::GetCurrentTimePointUS();
             auto decode_result = video_decoder->Decode(frame.data());
-            const auto decode_duration_us =
-                TimeUtil::GetCurrentTimePointUS() - decode_start_time_us;
+            const auto decode_duration_us = TimeUtil::GetCurrentTimePointUS() - decode_start_time_us;
             ++g_decode_frames;
             g_decode_us_sum += decode_duration_us;
             {
                 auto previous_maximum_decode_time_us = g_decode_us_max.load();
-                while (
-                    decode_duration_us > previous_maximum_decode_time_us &&
-                    !g_decode_us_max.compare_exchange_weak(
-                        previous_maximum_decode_time_us, decode_duration_us)) {
+                while (decode_duration_us > previous_maximum_decode_time_us &&
+                       !g_decode_us_max.compare_exchange_weak(previous_maximum_decode_time_us, decode_duration_us)) {
                 }
             }
             DumpDecodeLatencyIfDue();
@@ -379,18 +352,15 @@ void ThunderSdk::Start() {
                     self->ResetDecodeFailedCount(frame.mon_name());
                     const auto hardware_was_enabled = !self->IsDisabledHardwareDecoder(frame.mon_name());
                     self->DisableHardwareDecoder(frame.mon_name());
-                    LOGE("decode error: {}, will recreate the decoder",
-                         decode_result.error());
+                    LOGE("decode error: {}, will recreate the decoder", decode_result.error());
                     video_decoder->Release();
                     video_decoders_.erase(frame.mon_name());
                     self->decoder_startup_gates_[frame.mon_name()].RequireKeyFrame();
                     LOGW("Video decoder for : {} is released.", frame.mon_name());
-                    if (!hardware_was_enabled)
-                        self->NotifyDecoderUnavailable();
+                    if (!hardware_was_enabled) self->NotifyDecoderUnavailable();
                 } else if (self->GetDecodeFailedCount(frame.mon_name()) > 30) {
                     self->RequestIFrame();
-                    LOGE("decode error: {}, will request Key Frame",
-                         decode_result.error());
+                    LOGE("decode error: {}, will request Key Frame", decode_result.error());
                 }
             } else if (decode_result.has_value()) {
                 self->ResetDecodeFailedCount(frame.mon_name());
@@ -405,8 +375,7 @@ void ThunderSdk::Start() {
                         recreate_destroy_decoder = true;
                         self->ResetDecodeFailedCount(frame.mon_name());
                         self->DisableHardwareDecoder(frame.mon_name());
-                        LOGE("decode error: {}, will recreate the decoder",
-                             decode_result.error());
+                        LOGE("decode error: {}, will recreate the decoder", decode_result.error());
                         video_decoder->Release();
                         video_decoders_.erase(frame.mon_name());
                         LOGW("Video decoder for : {} is released.", frame.mon_name());
@@ -419,9 +388,7 @@ void ThunderSdk::Start() {
                 return;
             }
             if (!decode_result.has_value()) {
-                if (decode_result.error() != 0)
-                    LOGE("Video decoder produced an error: {}",
-                         decode_result.error());
+                if (decode_result.error() != 0) LOGE("Video decoder produced an error: {}", decode_result.error());
                 return;
             }
             auto raw_image = decode_result.value();
@@ -433,23 +400,16 @@ void ThunderSdk::Start() {
             // LOGI("decode image size {}x{}", raw_image->img_width, raw_image->img_height);
             //  [LAT-roundtrip] 操作往返:最近一次鼠标发送 -> 本帧解码完成(只统计 100ms 内,过滤空闲期)
             {
-                const auto last_mouse_send_time_us =
-                    g_last_mouse_send_us.load();
+                const auto last_mouse_send_time_us = g_last_mouse_send_us.load();
                 if (last_mouse_send_time_us != 0) {
-                    const auto current_time_us =
-                        TimeUtil::GetCurrentTimePointUS();
-                    const auto roundtrip_time_us =
-                        current_time_us - last_mouse_send_time_us;
+                    const auto current_time_us = TimeUtil::GetCurrentTimePointUS();
+                    const auto roundtrip_time_us = current_time_us - last_mouse_send_time_us;
                     if (roundtrip_time_us < 100000) {
                         ++g_roundtrip_cnt;
                         g_roundtrip_us_sum += roundtrip_time_us;
-                        auto previous_maximum_roundtrip_time_us =
-                            g_roundtrip_us_max.load();
-                        while (roundtrip_time_us >
-                                   previous_maximum_roundtrip_time_us &&
-                               !g_roundtrip_us_max.compare_exchange_weak(
-                                   previous_maximum_roundtrip_time_us,
-                                   roundtrip_time_us)) {
+                        auto previous_maximum_roundtrip_time_us = g_roundtrip_us_max.load();
+                        while (roundtrip_time_us > previous_maximum_roundtrip_time_us &&
+                               !g_roundtrip_us_max.compare_exchange_weak(previous_maximum_roundtrip_time_us, roundtrip_time_us)) {
                         }
                         DumpRoundtripLatencyIfDue();
                     }
@@ -468,9 +428,7 @@ void ThunderSdk::Start() {
         owner->PostVideoTask(std::move(video_task), frame.frame_index(), frame.mon_name());
     });
 
-    net_client_->SetOnAudioFrameMsgCallback([weak_self](
-                                                std::shared_ptr<px::Message>
-                                                    audio_message) {
+    net_client_->SetOnAudioFrameMsgCallback([weak_self](std::shared_ptr<px::Message> audio_message) {
         const auto owner = weak_self.lock();
         if (!owner || owner->exit_) {
             return;
@@ -478,34 +436,25 @@ void ThunderSdk::Start() {
         if (owner->encoded_audio_frame_cbk_) {
             owner->encoded_audio_frame_cbk_(audio_message);
         }
-        owner->PostAudioTask([weak_self,
-                              audio_message = std::move(audio_message)]() {
+        owner->PostAudioTask([weak_self, audio_message = std::move(audio_message)]() {
             const auto self = weak_self.lock();
-            if (!self || self->exit_)
-                return;
+            if (!self || self->exit_) return;
             const auto audio_frame = audio_message->audio_frame();
             if (!self->audio_decoder_) {
-                self->audio_decoder_ = std::make_shared<OpusAudioDecoder>(
-                    audio_frame.samples(), audio_frame.channels());
+                self->audio_decoder_ = std::make_shared<OpusAudioDecoder>(audio_frame.samples(), audio_frame.channels());
             }
             std::vector<opus_int16> pcm_data;
             if (audio_frame.data().empty()) {
                 // UDP 丢帧信号(extra="udp_lost"):无码流可解,走 Opus PLC 补一帧 20ms
-                pcm_data =
-                    self->audio_decoder_->DecodeDummy(audio_frame.frame_size());
+                pcm_data = self->audio_decoder_->DecodeDummy(audio_frame.frame_size());
             } else {
-                std::vector<unsigned char> encoded_audio(
-                    audio_frame.data().begin(), audio_frame.data().end());
-                pcm_data = self->audio_decoder_->Decode(
-                    encoded_audio, audio_frame.frame_size(), false);
+                std::vector<unsigned char> encoded_audio(audio_frame.data().begin(), audio_frame.data().end());
+                pcm_data = self->audio_decoder_->Decode(encoded_audio, audio_frame.frame_size(), false);
             }
             if (self->audio_frame_cbk_) {
-                const auto decoded_audio = Data::Copy(std::span<const char>{
-                    reinterpret_cast<const char*>(pcm_data.data()),
-                    pcm_data.size() * sizeof(pcm_data.front())});
-                self->audio_frame_cbk_(decoded_audio, audio_frame.samples(),
-                                       audio_frame.channels(),
-                                       audio_frame.bits());
+                const auto decoded_audio =
+                    Data::Copy(std::span<const char>{reinterpret_cast<const char*>(pcm_data.data()), pcm_data.size() * sizeof(pcm_data.front())});
+                self->audio_frame_cbk_(decoded_audio, audio_frame.samples(), audio_frame.channels(), audio_frame.bits());
             }
             // LOGI("opus data size: {}, frame size: {}, samples: {}, channel: {}, PCM data size in char : {}", frame.data().size(),
             // frame.frame_size(), frame.samples(), frame.channels(), pcm_data.size()*2);
@@ -516,20 +465,17 @@ void ThunderSdk::Start() {
         });
     });
 
-    net_client_->SetOnAudioSpectrumCallback(
-        [weak_self](std::shared_ptr<px::Message> spectrum_message) {
-            const auto owner = weak_self.lock();
-            if (!owner || owner->exit_) {
-                return;
+    net_client_->SetOnAudioSpectrumCallback([weak_self](std::shared_ptr<px::Message> spectrum_message) {
+        const auto owner = weak_self.lock();
+        if (!owner || owner->exit_) {
+            return;
+        }
+        owner->PostMiscTask([weak_self, spectrum_message = std::move(spectrum_message)]() {
+            if (const auto self = weak_self.lock(); self && !self->exit_ && self->audio_spectrum_cbk_) {
+                self->audio_spectrum_cbk_(spectrum_message);
             }
-            owner->PostMiscTask(
-                [weak_self, spectrum_message = std::move(spectrum_message)]() {
-                    if (const auto self = weak_self.lock();
-                        self && !self->exit_ && self->audio_spectrum_cbk_) {
-                        self->audio_spectrum_cbk_(spectrum_message);
-                    }
-                });
         });
+    });
 
     net_client_->Start();
 
@@ -543,9 +489,7 @@ void ThunderSdk::Start() {
     RegisterEventListeners();
 }
 
-void ThunderSdk::SendFirstFrameMessage(
-    std::shared_ptr<RawImage> image,
-    const SdkCaptureMonitorInfo& monitor_info) {
+void ThunderSdk::SendFirstFrameMessage(std::shared_ptr<RawImage> image, const SdkCaptureMonitorInfo& monitor_info) {
     SdkMsgFirstVideoFrameDecoded first_frame_message;
     first_frame_message.raw_image_ = image;
     first_frame_message.mon_info_ = monitor_info;
@@ -559,16 +503,14 @@ void ThunderSdk::PostMediaMessage(std::shared_ptr<Data> payload) {
 }
 
 bool ThunderSdk::PostReliableControlMessage(std::shared_ptr<Data> payload) {
-    return !exit_.load() && net_client_ &&
-           net_client_->PostReliableControlMessage(std::move(payload));
+    return !exit_.load() && net_client_ && net_client_->PostReliableControlMessage(std::move(payload));
 }
 
 bool ThunderSdk::PostVoiceAudioMessage(const std::shared_ptr<Message>& message) {
     return !exit_.load() && net_client_ && net_client_->PostVoiceAudioMessage(message);
 }
 
-FileTransferSendResult ThunderSdk::PostFileTransferMessage(
-    std::shared_ptr<Data> payload) {
+FileTransferSendResult ThunderSdk::PostFileTransferMessage(std::shared_ptr<Data> payload) {
     if (!payload) {
         return FileTransferSendResult::TransportError("file-transfer message is empty");
     }
@@ -592,6 +534,11 @@ void ThunderSdk::RegisterEventListeners() {
 
     state_msg_listener_->Listen<SdkMsgTimer1000>([weak_self](const auto&) {
         if (const auto owner = weak_self.lock()) {
+            // Hello is an idempotent handshake. Keep advertising client
+            // capabilities until Render proves receipt with its configuration.
+            if (!owner->has_config_msg_.load(std::memory_order_acquire)) {
+                owner->SendHelloMessage();
+            }
             owner->PostMiscTask([weak_self]() {
                 if (const auto self = weak_self.lock(); self && !self->exit_) {
                     self->statistics_->CalculateDataSpeed();
@@ -617,7 +564,9 @@ void ThunderSdk::SendHelloMessage() {
     hello_payload.set_enable_controller(sdk_params_->enable_controller_);
     hello_payload.set_device_name(sdk_params_->device_name_);
     if (auto buffer = px::ProtoAsData(&hello_message); buffer) {
-        net_client_->PostMediaMessage(buffer);
+        if (!net_client_->PostReliableControlMessage(std::move(buffer))) {
+            LOGW("event=session.hello component=sdk_client operation=enqueue outcome=failed recoverable=true");
+        }
     }
 }
 
@@ -663,25 +612,18 @@ void ThunderSdk::PostMiscTask(std::function<void()>&& task) {
     }
 }
 
-void ThunderSdk::SetOnAudioSpectrumCallback(
-    OnAudioSpectrumCallback&& callback) {
-    audio_spectrum_cbk_ = std::move(callback);
-}
+void ThunderSdk::SetOnAudioSpectrumCallback(OnAudioSpectrumCallback&& callback) { audio_spectrum_cbk_ = std::move(callback); }
 
-void ThunderSdk::SetOnCursorInfoCallback(
-    px::OnCursorInfoSyncMsgCallback&& callback) {
+void ThunderSdk::SetOnCursorInfoCallback(px::OnCursorInfoSyncMsgCallback&& callback) {
     if (net_client_) {
         net_client_->SetOnCursorInfoSyncMsgCallback(std::move(callback));
     }
 }
 
-void ThunderSdk::SetOnHeartBeatCallback(
-    px::OnHeartBeatInfoCallback&& callback) {
+void ThunderSdk::SetOnHeartBeatCallback(px::OnHeartBeatInfoCallback&& callback) {
     if (net_client_) {
         const auto weak_self = weak_from_this();
-        net_client_->SetOnHeartBeatCallback([weak_self,
-                                             callback = std::move(callback)](
-                                                auto heartbeat_message) {
+        net_client_->SetOnHeartBeatCallback([weak_self, callback = std::move(callback)](auto heartbeat_message) {
             if (const auto self = weak_self.lock()) {
                 self->last_heartbeat_callback_ = TimeUtil::GetCurrentTimestamp();
                 callback(std::move(heartbeat_message));
@@ -700,24 +642,21 @@ void ThunderSdk::SetOnServerConfigurationCallback(OnConfigCallback&& callback) {
     if (net_client_) {
         const auto weak_self = weak_from_this();
         net_client_->SetOnServerConfigurationCallback(
-            [weak_self, callback = std::move(callback)](
-                std::shared_ptr<px::Message> configuration_message) mutable {
+            [weak_self, callback = std::move(callback)](std::shared_ptr<px::Message> configuration_message) mutable {
                 const auto self = weak_self.lock();
                 if (!self) return;
                 auto first_configuration_message = configuration_message;
                 callback(std::move(configuration_message));
                 if (!self->has_config_msg_.exchange(true)) {
-                    self->msg_notifier_->SendAppMessage(
-                        SdkMsgFirstConfigInfoCallback{
-                            .msg_ = std::move(first_configuration_message),
-                        });
+                    self->msg_notifier_->SendAppMessage(SdkMsgFirstConfigInfoCallback{
+                        .msg_ = std::move(first_configuration_message),
+                    });
                 }
             });
     }
 }
 
-void ThunderSdk::SetOnMonitorSwitchedCallback(
-    OnMonitorSwitchedCallback&& callback) {
+void ThunderSdk::SetOnMonitorSwitchedCallback(OnMonitorSwitchedCallback&& callback) {
     if (net_client_) {
         net_client_->SetOnMonitorSwitchedCallback(std::move(callback));
     }
@@ -729,18 +668,13 @@ void ThunderSdk::SetOnRawMessageCallback(OnRawMessageCallback&& callback) {
     }
 }
 
-void ThunderSdk::SetOnVideoFrameDecodeThreadDiscardedCallback(
-    OnVideoFrameDecodeThreadDiscardedCallback&& callback) {
+void ThunderSdk::SetOnVideoFrameDecodeThreadDiscardedCallback(OnVideoFrameDecodeThreadDiscardedCallback&& callback) {
     video_frame_thread_discarded_cbk_ = std::move(callback);
 }
 
-std::shared_ptr<ThunderSdkParams> ThunderSdk::GetSdkParams() {
-    return sdk_params_;
-}
+std::shared_ptr<ThunderSdkParams> ThunderSdk::GetSdkParams() { return sdk_params_; }
 
-std::shared_ptr<MessageNotifier> ThunderSdk::GetMessageNotifier() {
-    return msg_notifier_;
-}
+std::shared_ptr<MessageNotifier> ThunderSdk::GetMessageNotifier() { return msg_notifier_; }
 
 int64_t ThunderSdk::GetQueuingMediaMsgCount() {
     if (net_client_) {
@@ -756,9 +690,7 @@ int64_t ThunderSdk::GetQueuingFtMsgCount() {
     return 0;
 }
 
-uint64_t ThunderSdk::GetLastHeartbeatTimestamp() {
-    return last_heartbeat_callback_;
-}
+uint64_t ThunderSdk::GetLastHeartbeatTimestamp() { return last_heartbeat_callback_; }
 
 void ThunderSdk::ClearFirstFrameState() {
     has_config_msg_ = false;
@@ -777,13 +709,9 @@ int ThunderSdk::GetDecodeFailedCount(const std::string& monitor_name) {
     return 0;
 }
 
-void ThunderSdk::ResetDecodeFailedCount(const std::string& monitor_name) {
-    decode_failed_counts_[monitor_name] = 0;
-}
+void ThunderSdk::ResetDecodeFailedCount(const std::string& monitor_name) { decode_failed_counts_[monitor_name] = 0; }
 
-void ThunderSdk::DisableHardwareDecoder(const std::string& monitor_name) {
-    hw_disabled_states_[monitor_name] = true;
-}
+void ThunderSdk::DisableHardwareDecoder(const std::string& monitor_name) { hw_disabled_states_[monitor_name] = true; }
 
 bool ThunderSdk::IsDisabledHardwareDecoder(const std::string& monitor_name) {
     if (hw_disabled_states_.contains(monitor_name)) {
@@ -793,8 +721,7 @@ bool ThunderSdk::IsDisabledHardwareDecoder(const std::string& monitor_name) {
 }
 
 void ThunderSdk::NotifyDecoderUnavailable() {
-    if (decoder_failure_notified_.exchange(true) || !video_decoder_failure_cbk_)
-        return;
+    if (decoder_failure_notified_.exchange(true) || !video_decoder_failure_cbk_) return;
     video_decoder_failure_cbk_();
 }
 
@@ -847,4 +774,4 @@ void ThunderSdk::Exit() {
 
     LOGI("ThunderSdk exited");
 }
-} // namespace px
+}  // namespace px

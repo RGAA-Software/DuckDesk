@@ -10,6 +10,14 @@
 
 namespace px::client::imgui {
 
+struct ClientFileTransferAcceptanceConfig final {
+    std::string localSourcePath{};
+    std::string remoteDirectory{};
+    std::string localDownloadDirectory{};
+    bool exerciseCancelRetry{};
+    bool exerciseHostRestart{};
+};
+
 struct ClientLaunchConfig final {
     std::string host{};
     std::string localHost{};
@@ -49,9 +57,13 @@ struct ClientLaunchConfig final {
     std::string rdpDomain{};
     std::string rdpProxyCertificateSha256{};
     std::shared_ptr<const px::SecretBuffer> rdpPassword{};
+    std::optional<ClientFileTransferAcceptanceConfig> fileTransferAcceptance{};
+    bool audioAcceptance{};
+    bool rdpIoErrorAcceptance{};
+    bool rdpPeerCloseAcceptance{};
 };
 
-[[nodiscard]] std::optional<ClientLaunchConfig> ParseClientLaunchEnvelope(std::string_view envelope);
+[[nodiscard]] std::optional<ClientLaunchConfig> ParseClientLaunchEnvelope(std::string_view envelope, bool allowAcceptance = false);
 [[nodiscard]] std::string BuildClientMediaPath(const ClientLaunchConfig& config);
 [[nodiscard]] std::string BuildClientFileTransferPath(const ClientLaunchConfig& config);
 

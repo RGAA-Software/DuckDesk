@@ -52,6 +52,8 @@ pub struct ServiceRuntime {
         Option<mpsc::Receiver<crate::node_control_client::NodeControlOperation>>,
     pub(crate) node_control_identity: Option<crate::node_control_client::NodeControlIdentity>,
     pub(crate) node_control_relay: Option<px_node_protocol::RelayEndpoint>,
+    pub(crate) node_control_update_offer: Option<px_node_protocol::NodeUpdateOffer>,
+    pub(crate) node_control_prepared_update: Option<crate::update_preparation::PreparedUpdate>,
     pub(crate) file_transfer_outbox:
         Arc<std::sync::Mutex<crate::node_control_store::FileTransferOutboxStore>>,
     stop_tx: broadcast::Sender<()>,
@@ -74,6 +76,8 @@ const SERVICE_OWNED_RELAY_ARGUMENTS: [&str; 4] = [
     "appkey",
     "relay_enabled",
 ];
+const RDP_RENDER_GRACEFUL_STOP_ATTEMPTS: u32 = 50;
+const RDP_RENDER_GRACEFUL_STOP_POLL_MS: u64 = 100;
 
 fn strip_service_owned_relay_arguments(arguments: &mut Vec<String>) {
     let mut skip_following_value = false;
@@ -187,6 +191,8 @@ impl ServiceRuntime {
             node_control_receiver: Some(node_control_receiver),
             node_control_identity: None,
             node_control_relay: None,
+            node_control_update_offer: None,
+            node_control_prepared_update: None,
             file_transfer_outbox,
             stop_tx,
         }
@@ -528,7 +534,7 @@ impl ServiceRuntime {
         let (record, process_manager, ipc_token, webview_ready_rx, node_config) = {
             let mut guard = runtime.lock().await;
             if is_rdp && !guard.rdp_console_trusted {
-                return Err("RDP requires a verified Console TLS connection".into());
+                return Err("RDP requires a verified Console connection".into());
             }
             let work_dir = guard.pick_app_work_dir()?;
             let record = guard.app_registry.begin_start(&work_dir, req)?.clone();
@@ -1045,9 +1051,23 @@ impl ServiceRuntime {
                 }
             }
         }
-        tokio::time::sleep(Duration::from_millis(800)).await;
-        let processes = process_manager.list_processes().unwrap_or_default();
         if service_core::app_instance::is_rdp_launch(&rec.launch) {
+            if wait_rdp_render_exit(
+                &process_manager,
+                &rec,
+                RDP_RENDER_GRACEFUL_STOP_ATTEMPTS,
+                RDP_RENDER_GRACEFUL_STOP_POLL_MS,
+            )
+            .await?
+            {
+                runtime
+                    .lock()
+                    .await
+                    .app_registry
+                    .mark_stopped(instance_id)?;
+                return Ok(());
+            }
+            let processes = process_manager.list_processes()?;
             // Terminate only the positively identified Render. Its kill-on-close
             // Job owns the proxy; never enumerate/kill Windows workspace apps.
             for process in processes
@@ -1073,6 +1093,8 @@ impl ServiceRuntime {
             }
             return Err("RDP Render is still alive; its workspace reservation is retained".into());
         }
+        tokio::time::sleep(Duration::from_millis(800)).await;
+        let processes = process_manager.list_processes().unwrap_or_default();
         let mut kill_pids: Vec<u32> = Vec::new();
         let mut identity_mismatch = false;
         // Kill 前校验 pid 当前身份:render 崩溃后 Windows 会复用 pid,只比数值
@@ -1177,9 +1199,70 @@ impl ServiceRuntime {
         self.start_desktop(spec)
     }
 
+    fn stop_tracked_app_instances_for_shutdown(&mut self) -> Result<(), String> {
+        let processes = self.process_manager.list_processes()?;
+        let records: Vec<_> = self
+            .app_registry
+            .list()
+            .into_iter()
+            .filter(|record| record.is_active())
+            .cloned()
+            .collect();
+        let mut failures = Vec::new();
+        for record in records {
+            self.webview_ready_waiters.remove(&record.instance_id);
+            let root_process = if service_core::app_instance::is_rdp_launch(&record.launch) {
+                processes.iter().find(|process| {
+                    service_core::app_instance::rdp_process_matches(&record, process)
+                })
+            } else {
+                record.pid.and_then(|pid| {
+                    processes.iter().find(|process| {
+                        process.pid == pid
+                            && process.exe_path_eq(&record.launch.app_path)
+                            && process.is_app_instance_render_process()
+                            && cmdline_has_listen_port(&process.cmdline, record.listen_port)
+                    })
+                })
+            };
+            let Some(root_process) = root_process else {
+                warn!(
+                    "service shutdown skipped application instance {} because its recorded process identity is no longer valid",
+                    record.instance_id
+                );
+                continue;
+            };
+            info!(
+                "service shutdown stopping tracked application instance {}, pid={}, port={}",
+                record.instance_id, root_process.pid, record.listen_port
+            );
+            for process_id in
+                service_core::process::collect_process_tree(&processes, root_process.pid)
+            {
+                if let Err(error) = self.process_manager.kill_process(process_id) {
+                    failures.push(format!(
+                        "instance {} process {}: {}",
+                        record.instance_id, process_id, error
+                    ));
+                }
+            }
+        }
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(format!(
+                "tracked application shutdown did not complete: {}",
+                failures.join("; ")
+            ))
+        }
+    }
+
     pub fn stop_managed_render(&mut self) -> Result<(), String> {
         info!("stop managed render begin");
-        self.stop_desktop()?;
+        let app_result = self.stop_tracked_app_instances_for_shutdown();
+        let desktop_result = self.stop_desktop();
+        app_result?;
+        desktop_result?;
         info!("stop managed render finished");
         Ok(())
     }
@@ -1283,6 +1366,27 @@ async fn wait_app_render_exit_by_port(
         tokio::time::sleep(Duration::from_millis(sleep_ms)).await;
     }
     find_app_render_pid_by_port(process_manager, port).is_none()
+}
+
+async fn wait_rdp_render_exit(
+    process_manager: &Arc<dyn ProcessManager>,
+    record: &service_core::app_instance::AppInstanceRecord,
+    attempts: u32,
+    sleep_ms: u64,
+) -> Result<bool, String> {
+    for attempt in 0..attempts.max(1) {
+        let processes = process_manager.list_processes()?;
+        if !processes
+            .iter()
+            .any(|process| service_core::app_instance::rdp_process_matches(record, process))
+        {
+            return Ok(true);
+        }
+        if attempt + 1 < attempts.max(1) {
+            tokio::time::sleep(Duration::from_millis(sleep_ms)).await;
+        }
+    }
+    Ok(false)
 }
 
 async fn wait_game_process(
@@ -2034,13 +2138,32 @@ mod tests {
 
     #[test]
     fn stop_control_event_only_kills_managed_processes() {
-        let mut runtime = test_runtime(vec![
+        let mut runtime = test_runtime(Vec::new());
+        let request = sample_webview_req("shutdown-app", 4613);
+        let record = runtime
+            .app_registry
+            .begin_start("D:/app", request)
+            .unwrap()
+            .clone();
+        runtime
+            .app_registry
+            .mark_running(&record.instance_id, 6)
+            .unwrap();
+        let manager = Arc::new(MockProcessManager::new(vec![
             ProcessSnapshot::new(1, "D:/px_render.exe", "--app_mode=desktop"),
             ProcessSnapshot::new(2, "D:/UnrelatedApp.exe", ""),
             ProcessSnapshot::new(3, "D:/px_client.exe", ""),
             ProcessSnapshot::new(4, "D:/px_osinfo.exe", ""),
             ProcessSnapshot::new(5, "D:/px_function.exe", "--render-port=4601"),
-        ]);
+            ProcessSnapshot::new(6, &record.launch.app_path, record.launch.args.join(" ")),
+            ProcessSnapshot::new(7, "D:/app/px_render.exe", "--type=gpu-process").with_parent(6),
+            ProcessSnapshot::new(
+                8,
+                &record.launch.app_path,
+                "--app_mode=webview --network_listen_port=4613",
+            ),
+        ]));
+        runtime.process_manager = manager;
         runtime.state.last_desktop_launch = Some(RenderLaunchSpec {
             work_dir: "D:/app".to_string(),
             app_path: "D:/app/px_render.exe".to_string(),
@@ -2054,10 +2177,14 @@ mod tests {
             "SCM stop must preserve the launch spec so a restart resumes the render"
         );
         let processes = runtime.process_manager.list_processes().unwrap();
-        assert_eq!(processes.len(), 3);
+        assert_eq!(processes.len(), 4);
         assert!(processes
             .iter()
-            .all(|process| !process.is_managed_clipboard_process()));
+            .all(|process| process.pid != 1 && process.pid != 5));
+        assert!(processes.iter().any(|process| process.pid == 8));
+        assert!(processes
+            .iter()
+            .all(|process| process.pid != 6 && process.pid != 7));
     }
 
     struct StopOrderingProcessManager {
@@ -2133,7 +2260,7 @@ mod tests {
             game_arguments: String::new(),
             listen_port: port,
             encoder_fps: 60,
-            encoder_bitrate: 20,
+            encoder_bitrate_kbps: 20_000,
             encoder_format: "h264".to_string(),
             webrtc_enabled: true,
             websocket_enabled: true,

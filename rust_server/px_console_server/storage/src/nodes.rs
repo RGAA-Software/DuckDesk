@@ -304,6 +304,7 @@ impl NodeStore {
             generation: node.generation,
             epoch,
             key: connection_key.clone(),
+            product: NodeProduct::parse(&node.product)?,
         })
     }
     pub async fn report(
@@ -344,6 +345,9 @@ impl NodeStore {
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(StoreError::Rejected)?;
+        sqlx::query_file!("queries/expire_node_update_activation.sql", node.id)
+            .execute(&mut *tx)
+            .await?;
         let telemetry = validated.telemetry;
         sqlx::query_file!("queries/delete_node_gpus.sql", node.id)
             .execute(&mut *tx)

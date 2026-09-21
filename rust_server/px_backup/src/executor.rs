@@ -146,17 +146,18 @@ impl BackupPlan {
                     BackupService::Auth,
                     BackupService::Desk,
                 ])
+            || !self
+                .targets
+                .iter()
+                .any(|target| matches!(target, BackupTarget::Required { .. }))
         {
             return Err(BackupError::InvalidPlan);
         }
         for target in &self.targets {
             match target {
                 BackupTarget::Required { database } => database.validate()?,
-                BackupTarget::NotApplicable { service, reason } => {
-                    if *service == BackupService::Console
-                        || reason.trim().is_empty()
-                        || reason.len() > 256
-                    {
+                BackupTarget::NotApplicable { reason, .. } => {
+                    if reason.trim().is_empty() || reason.len() > 256 {
                         return Err(BackupError::InvalidPlan);
                     }
                 }
@@ -772,7 +773,7 @@ mod tests {
     }
 
     #[test]
-    fn plan_requires_a_private_barrier_proof_and_rejects_duplicate_services_and_console_na() {
+    fn plan_requires_a_private_barrier_proof_and_rejects_duplicates_or_no_required_service() {
         let fixture = Fixture::new();
         let mut value = plan(&fixture);
         value.kind = RecoverySetKind::WriteBarrier;
@@ -780,11 +781,63 @@ mod tests {
         value.kind = RecoverySetKind::Independent;
         value.targets[2] = target(&fixture, BackupService::Auth);
         assert_eq!(value.validate(), Err(BackupError::InvalidPlan));
+        value = plan(&fixture);
         value.targets[0] = BackupTarget::NotApplicable {
             service: BackupService::Console,
             reason: "not installed".into(),
         };
+        assert_eq!(value.validate(), Ok(()));
+        value.targets[1] = BackupTarget::NotApplicable {
+            service: BackupService::Auth,
+            reason: "not installed".into(),
+        };
+        value.targets[2] = BackupTarget::NotApplicable {
+            service: BackupService::Desk,
+            reason: "not installed".into(),
+        };
         assert_eq!(value.validate(), Err(BackupError::InvalidPlan));
+    }
+
+    #[test]
+    fn auth_only_plan_preserves_explicit_absence_of_console_and_desk() {
+        let fixture = Fixture::new();
+        let repository = BackupRepository::open(&fixture.root, fixture.deployment_id).unwrap();
+        let auth_only_plan = BackupPlan {
+            deployment_id: fixture.deployment_id,
+            kind: RecoverySetKind::Independent,
+            write_barrier_proof_file: None,
+            retention: BTreeSet::from([RetentionClass::Hourly]),
+            previous_recovery_set_id: None,
+            targets: vec![
+                BackupTarget::NotApplicable {
+                    service: BackupService::Console,
+                    reason: "service is deployed on the 90 environment".into(),
+                },
+                target(&fixture, BackupService::Auth),
+                BackupTarget::NotApplicable {
+                    service: BackupService::Desk,
+                    reason: "service is deployed on the 90 environment".into(),
+                },
+            ],
+        };
+
+        let manifest = BackupRunner::new(FakeTool {
+            fail_verify: AtomicBool::new(false),
+        })
+        .run(&repository, &auth_only_plan)
+        .unwrap();
+        assert!(matches!(
+            manifest.members[0].member,
+            BackupMemberState::NotApplicable { .. }
+        ));
+        assert!(matches!(
+            manifest.members[1].member,
+            BackupMemberState::Required { .. }
+        ));
+        assert!(matches!(
+            manifest.members[2].member,
+            BackupMemberState::NotApplicable { .. }
+        ));
     }
 
     fn write_barrier_proof(fixture: &Fixture, current_time: u64) -> WriteBarrierProof {

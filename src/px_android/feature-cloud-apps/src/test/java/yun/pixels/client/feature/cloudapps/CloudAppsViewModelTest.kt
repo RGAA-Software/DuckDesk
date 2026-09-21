@@ -99,7 +99,7 @@ class CloudAppsViewModelTest {
     fun startFailureClearsPendingStateAndExposesTypedFailure() = runTest(dispatcher) {
         val application = application()
         val repository = FakeApplicationRepository(
-            applications = listOf(application),
+            initialApplications = listOf(application),
             startResult = AccountResult.Failure(AccountFailure.QuotaExceeded),
         )
         val viewModel = CloudAppsViewModel(repository, FakeConsoleSessionRepository())
@@ -109,6 +109,22 @@ class CloudAppsViewModelTest {
         advanceUntilIdle()
 
         assertEquals(AccountFailure.QuotaExceeded, viewModel.state.value.failure)
+        assertNull(viewModel.state.value.pendingAppId)
+    }
+
+    @Test
+    fun stopPollsUntilTheInstanceLeavesTheActiveSet() = runTest(dispatcher) {
+        val instance = RemoteApplicationInstance("instance-1", "app-1", RemoteApplicationInstance.State.Running, true)
+        val application = application(instance = instance)
+        val repository = FakeApplicationRepository(listOf(application), stopAfterApplicationCalls = 3)
+        val viewModel = CloudAppsViewModel(repository, FakeConsoleSessionRepository())
+        advanceUntilIdle()
+
+        viewModel.stop(application)
+        advanceUntilIdle()
+
+        assertEquals(3, repository.applicationCalls)
+        assertNull(viewModel.state.value.applications.single().runningInstance)
         assertNull(viewModel.state.value.pendingAppId)
     }
 
@@ -138,9 +154,10 @@ class CloudAppsViewModelTest {
 }
 
 private class FakeApplicationRepository(
-    private val applications: List<RemoteApplication>,
+    private val initialApplications: List<RemoteApplication>,
     private val startResult: AccountResult<RemoteApplicationInstance> = AccountResult.Failure(AccountFailure.ServerError),
     private val connectionResult: AccountResult<ResourceConnection> = AccountResult.Failure(AccountFailure.DeviceOffline),
+    private val stopAfterApplicationCalls: Int? = null,
 ) : ApplicationRepository {
     var applicationCalls = 0
     val startedAppIds = mutableListOf<String>()
@@ -148,6 +165,11 @@ private class FakeApplicationRepository(
 
     override suspend fun applications(): AccountResult<List<RemoteApplication>> {
         applicationCalls += 1
+        val applications = if (stopAfterApplicationCalls != null && applicationCalls >= stopAfterApplicationCalls) {
+            initialApplications.map { it.copy(runningInstance = null) }
+        } else {
+            initialApplications
+        }
         return AccountResult.Success(applications)
     }
 
