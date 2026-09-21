@@ -24,6 +24,10 @@ pub(crate) fn routes() -> Router<Arc<StateData>> {
             "/api/console/managed/updates/{id}/node-trust",
             get(node_trust),
         )
+        .route(
+            "/api/console/managed/updates/{id}/node-trust/nodes",
+            get(node_trust_nodes),
+        )
         .route("/api/console/updates/latest", get(latest))
 }
 
@@ -105,17 +109,45 @@ async fn node_trust(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<Json<px_console_store::NodeUpdateTrustSummary>, ApiError> {
-    let distribution = match state.license.payload.distribution {
-        LicenseDistribution::Official => Distribution::Official,
-        LicenseDistribution::Customer => Distribution::Customer,
-    };
     Ok(Json(
         state
             .db
             .updates()
-            .node_trust_summary(&request::administrator(&state, &headers)?, id, distribution)
+            .node_trust_summary(
+                &request::administrator(&state, &headers)?,
+                id,
+                release_distribution(&state),
+            )
             .await?,
     ))
+}
+
+async fn node_trust_nodes(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    Query(page): Query<Page>,
+) -> Result<Json<Vec<px_console_store::NodeUpdateTrustStatus>>, ApiError> {
+    Ok(Json(
+        state
+            .db
+            .updates()
+            .node_trust_statuses(
+                &request::administrator(&state, &headers)?,
+                id,
+                release_distribution(&state),
+                page.after,
+                page.limit,
+            )
+            .await?,
+    ))
+}
+
+fn release_distribution(state: &StateData) -> Distribution {
+    match state.license.payload.distribution {
+        LicenseDistribution::Official => Distribution::Official,
+        LicenseDistribution::Customer => Distribution::Customer,
+    }
 }
 
 async fn latest(

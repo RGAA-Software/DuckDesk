@@ -1396,6 +1396,24 @@ async fn node_update_check_uses_authenticated_product_and_console_distribution()
             .unwrap(),
         trust_summary["eligible_node_count"].as_i64().unwrap() - 1
     );
+    let (node_status, node_statuses) = call(
+        &router,
+        "GET",
+        &format!(
+            "/api/console/managed/updates/{}/node-trust/nodes?limit=100",
+            approved["id"].as_str().unwrap()
+        ),
+        "admin_web",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(node_status, StatusCode::OK, "{node_statuses}");
+    assert!(node_statuses
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|status| status["confirmed"] == true && status["trusted_root_version"] == 1));
     socket.close(None).await.unwrap();
     server_stop.cancel();
     server.await.unwrap().unwrap();

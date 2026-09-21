@@ -275,6 +275,29 @@ async fn authenticated_node_receives_the_approved_repository_and_records_real_ro
         trust_summary.unknown_or_behind_node_count,
         trust_summary.eligible_node_count - 1
     );
+    let trust_statuses = update_store
+        .node_trust_statuses(
+            &fixture.admin,
+            approved.id,
+            Distribution::Customer,
+            None,
+            100,
+        )
+        .await
+        .unwrap();
+    let connected_status = trust_statuses
+        .iter()
+        .find(|status| status.node_id == connection.id())
+        .unwrap();
+    assert!(connected_status.confirmed);
+    assert_eq!(
+        connected_status.trusted_root_version,
+        Some(REPOSITORY_ROOT_VERSION)
+    );
+    assert!(update_store
+        .node_trust_statuses(&fixture.admin, approved.id, Distribution::Customer, None, 0,)
+        .await
+        .is_err());
     assert!(update_store
         .node_trust_summary(&fixture.admin, approved.id, Distribution::Official)
         .await

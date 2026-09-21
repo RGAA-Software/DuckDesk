@@ -441,7 +441,8 @@ Console 发布登记同时要求源站 `publication.json` 的精确 SHA-256，�
 ReleaseSpec 或 publication SHA。生成请求不自动调用 Console、更不自动 approve，管理身份、变更审批和审计责任仍留在 Console 管理流程。
 
 当前实现基线使用 `tough` 的 TUF 1.0 客户端。Console 的已认证节点连接根据节点登记产品与 Console 许可证发行类型在服务端派生
-`product/distribution/stable/windows/x86_64`，节点只提交当前 build，不能传入或降级目标维度。目录只返回严格更新、最新且已审批的版本；
+`product/distribution/stable/windows/x86_64`，节点只提交当前 build 和上一轮实际 TUF 验签事实，不能传入或降级目标维度。目录在存在最新已审批发布时
+始终返回其仓库代际供元数据/root 刷新；只有 build 严格更高时才额外返回安装 offer。
 最新版本处于 pending/withdrawn 时不回退到更旧版本。发布记录保存 `metadata_base_url`、`targets_base_url`、`target_name`、目标大小、
 SHA-256 和平台签名证书 DER SHA-256，不保存可绕开 TUF 的直接制品 URL。Windows/Android 发布必须提供平台签名证书固定值，Linux 发布
 必须为空；该字段进入发布内容摘要、PostgreSQL 约束和审批记录，不能在节点下载后临时补写。
@@ -457,6 +458,9 @@ snapshot/targets、元数据大小上限与持久 datastore 防回滚状态。TU
 SYSTEM/管理员访问，人工安装、自动升级、回滚和卸载使用同一个全局互斥锁。prepared 不会直接显示为 installed：新 Service 必须先完成
 产品清单和本机 WebSocket 健康检查，再向 Console 上报精确目标 build 并以原 task/lease 提交。尚未完成的是使用正式签名 Official/Customer
 新旧安装包进行真实 SCM、断网、安装失败和回滚失败故障注入，因此商业发行验收仍保持未通过。
+上述消费者、水位和运维接口当前只覆盖 Cloud Node/Remote Service。Panel 的检查更新仍是部署包管理提示；Android 与 Windows Client 也尚未实现独立
+TUF 刷新、平台安装及安装实例水位。通用目录查询不能作为这三类产品已验签或已升级的证据，后续实现必须由服务器派生产品/发行/平台目标，客户端不得
+自行选择或回退维度。
 
 节点重启后的本地激活状态必须先于首次可调度状态上报完成收敛。有效租约内的 `authorized/applying` 一律阻断节点接客；租约过期的
 `applying` 只有在本机产品清单仍是精确旧 build 或已是精确目标 build 时才可清理。`installed` 必须与目标 build 一致；普通安装失败必须
@@ -640,6 +644,8 @@ datastore 执行防回滚和安全有效期校验。authority 生成的 Console 
 运维必须以当前应纳管节点集合的真实水位为依据；未知、离线或落后节点不能被成功下发这一事实冒充已完成轮换。
 Console 的 `GET /api/console/managed/updates/{id}/node-trust` 返回当前发行域内的应纳管、确认及未知/落后数量；分母包含未删除的离线和禁用节点。
 只有未知/落后为零且最低确认根版本达标时，才可进入旧根退役的下一道人工审批，接口本身不得触发删除或改变客户端最小根。
+`GET /api/console/managed/updates/{id}/node-trust/nodes` 以 UUID 游标有界分页列出具体节点、状态、禁用标记、最后在线与已确认根；运维后台必须遍历完整分页，
+不可只显示在线节点或以第一页代表全集。
 - 排空需要应用及入口共同参与，参考 [Kubernetes 终止与连接排空说明](https://kubernetes.io/docs/tutorials/services/pods-and-endpoint-termination-flow/)；本计划不要求采用 Kubernetes。
 - Job 最后句柄关闭的行为参考 [Microsoft Job Objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects)。
 - Android 更新要区分下载与安装/重启，参考 [Android 应用内更新](https://developer.android.com/guide/playcore/in-app-updates)；Play 流程不作为私有离线部署的前置依赖。

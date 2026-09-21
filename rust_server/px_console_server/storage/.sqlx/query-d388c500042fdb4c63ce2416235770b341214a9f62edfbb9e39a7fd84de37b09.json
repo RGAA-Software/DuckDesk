@@ -1,0 +1,79 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n    node.id AS node_id,\n    node.device_id,\n    node.state AS node_state,\n    node.disabled,\n    node.last_seen,\n    trust.release_id AS \"observed_release_id?\",\n    trust.repository_publication_sha256 AS \"repository_publication_sha256?\",\n    trust.trusted_root_version AS \"trusted_root_version?\",\n    trust.observed_at AS \"observed_at?\",\n    coalesce(trust.trusted_root_version >= $2,false) AS \"confirmed!\"\nFROM pixels.nodes AS node\nLEFT JOIN pixels.node_update_trust AS trust ON trust.node_id=node.id\nWHERE node.product=$1 AND node.deleted_at IS NULL AND ($3::uuid IS NULL OR node.id>$3)\nORDER BY node.id\nLIMIT $4\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "node_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "device_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "node_state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "disabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "last_seen",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "observed_release_id?",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "repository_publication_sha256?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "trusted_root_version?",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "observed_at?",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "confirmed!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "d388c500042fdb4c63ce2416235770b341214a9f62edfbb9e39a7fd84de37b09"
+}

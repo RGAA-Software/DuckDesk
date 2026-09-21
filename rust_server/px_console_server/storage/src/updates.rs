@@ -3,7 +3,7 @@ use crate::{
     update_model::{
         NodeUpdateActivationRow, NodeUpdateTaskRow, NodeUpdateTrustSummaryRow, UpdateRow,
     },
-    ClientType, NodeUpdateActivation, NodeUpdateCompletion, NodeUpdateTrust,
+    ClientType, NodeUpdateActivation, NodeUpdateCompletion, NodeUpdateTrust, NodeUpdateTrustStatus,
     NodeUpdateTrustSummary, StoreError, TokenDigest, UpdateActivationOutcome, UpdateDecision,
     UpdateRelease, UpdateTrustObservation,
 };
@@ -176,19 +176,8 @@ impl UpdateStore {
         let mut transaction = self.pool.begin().await?;
         control::read_gate(&mut transaction).await?;
         control::authorize(&mut transaction, token, false).await?;
-        let release = sqlx::query_file_as!(UpdateRow, "queries/update_release.sql", release_id)
-            .fetch_optional(&mut *transaction)
-            .await?
-            .ok_or(StoreError::Rejected)?
-            .view()?;
-        if release.artifact.target.distribution != expected_distribution
-            || !matches!(
-                release.artifact.target.product,
-                Product::CloudNode | Product::Remote
-            )
-        {
-            return Err(StoreError::Rejected);
-        }
+        let release =
+            Self::node_release(&mut transaction, release_id, expected_distribution).await?;
         let summary = sqlx::query_file_as!(
             NodeUpdateTrustSummaryRow,
             "queries/node_update_trust_summary.sql",
@@ -215,6 +204,61 @@ impl UpdateStore {
         transaction.commit().await?;
         Ok(result)
     }
+
+    pub async fn node_trust_statuses(
+        &self,
+        token: &TokenDigest,
+        release_id: Uuid,
+        expected_distribution: Distribution,
+        after: Option<Uuid>,
+        limit: u32,
+    ) -> Result<Vec<NodeUpdateTrustStatus>, StoreError> {
+        if release_id.is_nil()
+            || after.is_some_and(|cursor| cursor.is_nil())
+            || !(1..=100).contains(&limit)
+        {
+            return Err(StoreError::InvalidInput);
+        }
+        let mut transaction = self.pool.begin().await?;
+        control::read_gate(&mut transaction).await?;
+        control::authorize(&mut transaction, token, false).await?;
+        let release =
+            Self::node_release(&mut transaction, release_id, expected_distribution).await?;
+        let statuses = sqlx::query_file_as!(
+            NodeUpdateTrustStatus,
+            "queries/node_update_trust_statuses.sql",
+            release.artifact.target.product.name(),
+            release.repository_root_version,
+            after,
+            i64::from(limit)
+        )
+        .fetch_all(&mut *transaction)
+        .await?;
+        transaction.commit().await?;
+        Ok(statuses)
+    }
+
+    async fn node_release(
+        transaction: &mut PgConnection,
+        release_id: Uuid,
+        expected_distribution: Distribution,
+    ) -> Result<UpdateRelease, StoreError> {
+        let release = sqlx::query_file_as!(UpdateRow, "queries/update_release.sql", release_id)
+            .fetch_optional(&mut *transaction)
+            .await?
+            .ok_or(StoreError::Rejected)?
+            .view()?;
+        if release.artifact.target.distribution != expected_distribution
+            || !matches!(
+                release.artifact.target.product,
+                Product::CloudNode | Product::Remote
+            )
+        {
+            return Err(StoreError::Rejected);
+        }
+        Ok(release)
+    }
+
     pub async fn latest(
         &self,
         token: &TokenDigest,

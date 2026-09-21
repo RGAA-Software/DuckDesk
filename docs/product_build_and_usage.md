@@ -191,6 +191,8 @@ python scripts\prepare_windows_update_release.py ^
 TUF datastore 和安全有效期策略刷新元数据。只有实际验签达到登记根版本后才向 Console 回报该发布代际的信任事实，包下载与激活仍是另一条门禁。
 管理员可查询 `GET /api/console/managed/updates/{id}/node-trust`。只有 `unknown_or_behind_node_count=0` 且最低确认版本达到要求，才具备继续评估旧根退役的
 必要条件；这不是自动退役授权。统计包含所有未删除的同产品节点（包括离线和禁用节点），并拒绝查询当前 Console 发行域之外的发布记录。
+具体节点通过 `GET /api/console/managed/updates/{id}/node-trust/nodes?limit=100&after=<uuid>` 按稳定 UUID 游标分页；响应包含节点状态、禁用标记、
+最后在线时间、实际确认的发布/摘要/根版本和确认时间。运维必须处理完整分页，不能只检查第一页或只看在线节点。
 
 ### 2.3 完整构建 Android
 

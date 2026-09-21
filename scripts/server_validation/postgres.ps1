@@ -240,7 +240,7 @@ try {
         # Explicit developer command, never performed implicitly by acceptance tests.
         # PostgreSQL/SQLx generate these files; this is not evidence that runtime tests passed.
         foreach ($item in @(
-            @{Service='console';Crate='px_console_store';Path='rust_server/px_console_server/storage';Count=287},
+            @{Service='console';Crate='px_console_store';Path='rust_server/px_console_server/storage';Count=288},
             @{Service='desk';Crate='px_desk_server';Path='rust_server/px_desk_server';Count=9},
             @{Service='auth';Crate='px_auth_store';Path='rust_server/px_auth_server/storage';Count=34}
         )) {
@@ -426,7 +426,7 @@ try {
     }
     Set-LocalEnv 'SQLX_OFFLINE' 'true'
     Set-LocalEnv 'SQLX_OFFLINE_DIR' $committedMetadata
-    Add-Step 'QUERY: 284 Console SQLx queries compiled against fresh PG; offline metadata matches'
+    Add-Step 'QUERY: 288 Console SQLx queries compiled against fresh PG; offline metadata matches'
     $identityUnit = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--lib','--target-dir',$targetDir)
     Add-TestCases $identityUnit 'native/identity-unit' 19
     $identityIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--test','identity','--target-dir',$targetDir,'--','--test-threads=1')
