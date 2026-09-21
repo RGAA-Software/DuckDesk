@@ -3,6 +3,7 @@ package yun.pixels.client.core.data
 import android.content.Context
 import android.content.SharedPreferences
 import java.util.Base64
+import yun.pixels.client.core.domain.update.AndroidTufMetadataWatermark
 import yun.pixels.client.core.domain.update.AndroidTufTrustedRoot
 import yun.pixels.client.core.domain.update.AndroidTufTrustedRootState
 import yun.pixels.client.core.domain.update.AndroidTufTrustedRootStore
@@ -37,8 +38,8 @@ class SharedPreferencesAndroidTufTrustedRootStore private constructor(
                 AndroidKeystoreTextCipher(KEY_ALIAS),
             )
 
-        private const val PREFERENCES_NAME = "pixels_android_tuf_trusted_root_v1"
-        private const val KEY_ALIAS = "pixels_android_tuf_trusted_root_v1"
+        private const val PREFERENCES_NAME = "pixels_android_tuf_trusted_root_v2"
+        private const val KEY_ALIAS = "pixels_android_tuf_trusted_root_v2"
         private const val ENCRYPTED_STATE = "encrypted_state"
     }
 }
@@ -60,6 +61,12 @@ internal object TufTrustedRootStateCodec {
             trustedRoot.oemId.orEmpty(),
             trustedRoot.version.toString(),
             Base64.getEncoder().encodeToString(trustedRootBytes),
+            trustedRoot.metadataWatermark?.timestampVersion?.toString().orEmpty(),
+            trustedRoot.metadataWatermark?.timestampSha256.orEmpty(),
+            trustedRoot.metadataWatermark?.snapshotVersion?.toString().orEmpty(),
+            trustedRoot.metadataWatermark?.snapshotSha256.orEmpty(),
+            trustedRoot.metadataWatermark?.targetsVersion?.toString().orEmpty(),
+            trustedRoot.metadataWatermark?.targetsSha256.orEmpty(),
         ).joinToString("\n")
     }
 
@@ -76,7 +83,35 @@ internal object TufTrustedRootStateCodec {
             ?.takeIf { candidateBytes -> candidateBytes.isNotEmpty() && candidateBytes.size <= MAXIMUM_ROOT_BYTES }
             ?: return null
         if (Base64.getEncoder().encodeToString(rootBytes) != encodedRoot) return null
-        return AndroidTufTrustedRoot(distribution, releaseNamespace, oemId, version, rootBytes)
+        val metadataFields = stateFields.drop(METADATA_FIELD_OFFSET)
+        val metadataWatermark = if (metadataFields.all(String::isEmpty)) {
+            null
+        } else {
+            decodeMetadataWatermark(metadataFields) ?: return null
+        }
+        return AndroidTufTrustedRoot(distribution, releaseNamespace, oemId, version, rootBytes, metadataWatermark)
+    }
+
+    private fun decodeMetadataWatermark(metadataFields: List<String>): AndroidTufMetadataWatermark? {
+        if (metadataFields.size != METADATA_FIELD_COUNT) return null
+        val timestampVersion = metadataFields[0].toLongOrNull()?.takeIf { version -> version > 0 } ?: return null
+        val snapshotVersion = metadataFields[2].toLongOrNull()?.takeIf { version -> version > 0 } ?: return null
+        val targetsVersion = metadataFields[4].toLongOrNull()?.takeIf { version -> version > 0 } ?: return null
+        if (
+            !isCanonicalSha256(metadataFields[1]) ||
+            !isCanonicalSha256(metadataFields[3]) ||
+            !isCanonicalSha256(metadataFields[5])
+        ) {
+            return null
+        }
+        return AndroidTufMetadataWatermark(
+            timestampVersion,
+            metadataFields[1],
+            snapshotVersion,
+            metadataFields[3],
+            targetsVersion,
+            metadataFields[5],
+        )
     }
 
     private fun validReleaseDomain(
@@ -97,8 +132,13 @@ internal object TufTrustedRootStateCodec {
         else -> false
     }
 
-    private const val SCHEMA_VERSION = "1"
-    private const val FIELD_COUNT = 6
+    private fun isCanonicalSha256(value: String): Boolean =
+        value.length == 64 && value.all { character -> character in '0'..'9' || character in 'a'..'f' }
+
+    private const val SCHEMA_VERSION = "2"
+    private const val FIELD_COUNT = 12
+    private const val METADATA_FIELD_OFFSET = 6
+    private const val METADATA_FIELD_COUNT = 6
     private const val MAXIMUM_ROOT_BYTES = 1024 * 1024
     private val RESERVED_OEM_IDS = setOf("pixels", "official", "customer", "oem")
 }

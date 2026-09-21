@@ -1749,6 +1749,11 @@ Android 顶级在线元数据验证内核随后实现：当前 root 保留四个
 目标大小/摘要和 APK 签名证书摘要，root version 也必须与目录仓库代际一致。core-network 当前 44/44 单测、App Kotlin 编译和 core-network Lint
 140 个任务通过。此切片没有网络获取和三角色持久水位，不能防止跨重启元数据重放，也没有下载 APK 或进入安装流程。
 
+Android 在线元数据持久水位随后与 root 状态合并为全新 schema 2，不读取开发期 schema 1。timestamp/snapshot/targets 的最高版本与各自完整文件 SHA-256
+随发行域、root 版本/root 字节一起由 Keystore AES-GCM 保护并同步原子提交；重启后任一角色降版、同版本不同内容或保存失败都 fail closed，root 轮换不会清空
+已经接受的在线元数据水位。core-data 13/13、core-network 45/45 单测通过，相关 App 编译及 core-data/core-network/App Lint 385 个任务通过。
+尚未接入的是仓库 HTTPS 获取、逐版本在线 root 刷新、APK 下载/平台签名复核及安装事务。
+
 | 阶段 | 当前未完成项 |
 |---|---|
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |

@@ -6,11 +6,21 @@ class AndroidTufTrustedRoot(
     val oemId: String?,
     val version: Long,
     rootBytes: ByteArray,
+    val metadataWatermark: AndroidTufMetadataWatermark?,
 ) {
     private val trustedRootBytes = rootBytes.copyOf()
 
     fun copyRootBytes(): ByteArray = trustedRootBytes.copyOf()
 }
+
+data class AndroidTufMetadataWatermark(
+    val timestampVersion: Long,
+    val timestampSha256: String,
+    val snapshotVersion: Long,
+    val snapshotSha256: String,
+    val targetsVersion: Long,
+    val targetsSha256: String,
+)
 
 sealed interface AndroidTufTrustedRootState {
     data object Empty : AndroidTufTrustedRootState

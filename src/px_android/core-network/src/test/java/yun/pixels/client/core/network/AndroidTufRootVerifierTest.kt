@@ -339,6 +339,69 @@ class AndroidTufRootVerifierTest {
         )
     }
 
+    @Test
+    fun metadataWatermarkRejectsRollbackAndSameVersionEquivocation() {
+        val fixture = RootFixture()
+        val trustConfiguration = requireNotNull(
+            AndroidTufTrustConfiguration.create(fixture.rootBytes(), NOW, JcaEd25519Verifier()),
+        )
+        val releaseIdentity = requireNotNull(AndroidReleaseIdentity.create("official", "pixels.official", null))
+        val trustedRootStore = MemoryTrustedRootStore()
+        val manager = requireNotNull(
+            AndroidTufTrustedRootManager.create(
+                trustConfiguration,
+                releaseIdentity,
+                trustedRootStore,
+                NOW,
+                JcaEd25519Verifier(),
+            ),
+        )
+        val release = androidRelease()
+        val currentMetadata = fixture.metadata(release, releaseIdentity, 2, 2, 2)
+        assertEquals(
+            true,
+            manager.verifyAndCommitMetadata(
+                release,
+                currentMetadata.timestampBytes,
+                currentMetadata.snapshotBytes,
+                currentMetadata.targetsBytes,
+                NOW,
+            ),
+        )
+        val restoredManager = requireNotNull(
+            AndroidTufTrustedRootManager.create(
+                trustConfiguration,
+                releaseIdentity,
+                trustedRootStore,
+                NOW,
+                JcaEd25519Verifier(),
+            ),
+        )
+
+        val rollbackMetadata = fixture.metadata(release, releaseIdentity, 1, 1, 1)
+        val equivocatedMetadata = fixture.metadata(release, releaseIdentity, 2, 2, 2, includeUnrelatedTarget = true)
+        assertEquals(
+            false,
+            restoredManager.verifyAndCommitMetadata(
+                release,
+                rollbackMetadata.timestampBytes,
+                rollbackMetadata.snapshotBytes,
+                rollbackMetadata.targetsBytes,
+                NOW,
+            ),
+        )
+        assertEquals(
+            false,
+            restoredManager.verifyAndCommitMetadata(
+                release,
+                equivocatedMetadata.timestampBytes,
+                equivocatedMetadata.snapshotBytes,
+                equivocatedMetadata.targetsBytes,
+                NOW,
+            ),
+        )
+    }
+
     private data class SigningKey(
         val pair: KeyPair,
         val keyPayload: JSONObject,
@@ -366,6 +429,7 @@ class AndroidTufRootVerifierTest {
                     trustedRoot.oemId,
                     trustedRoot.version,
                     trustedRoot.copyRootBytes(),
+                    trustedRoot.metadataWatermark,
                 ),
             )
             return true
@@ -453,7 +517,14 @@ class AndroidTufRootVerifierTest {
             return JSONObject().put("signed", signed).put("signatures", signatures).toString().toByteArray()
         }
 
-        fun metadata(release: AndroidUpdateRelease, releaseIdentity: AndroidReleaseIdentity): MetadataBundle {
+        fun metadata(
+            release: AndroidUpdateRelease,
+            releaseIdentity: AndroidReleaseIdentity,
+            timestampVersion: Long = 1,
+            snapshotVersion: Long = 1,
+            targetsVersion: Long = 1,
+            includeUnrelatedTarget: Boolean = false,
+        ): MetadataBundle {
             val artifact = release.artifact
             val targetIdentity = JSONObject()
                 .put("product", "android")
@@ -476,27 +547,37 @@ class AndroidTufRootVerifierTest {
                 .put("length", artifact.sizeBytes)
                 .put("hashes", JSONObject().put("sha256", artifact.sha256))
                 .put("custom", custom)
-            val targetsSigned = commonMetadata("targets")
-                .put("targets", JSONObject().put(artifact.targetName, target))
+            val targets = JSONObject().put(artifact.targetName, target)
+            if (includeUnrelatedTarget) {
+                targets.put(
+                    "android/android/official/stable/aarch64/1/unrelated.apk",
+                    JSONObject()
+                        .put("length", 1)
+                        .put("hashes", JSONObject().put("sha256", "e".repeat(64)))
+                        .put("custom", JSONObject()),
+                )
+            }
+            val targetsSigned = commonMetadata("targets", targetsVersion)
+                .put("targets", targets)
             val targetsBytes = signedEnvelope(targetsSigned, targetsKey)
-            val snapshotSigned = commonMetadata("snapshot")
-                .put("meta", JSONObject().put("targets.json", metadataDescription(targetsBytes)))
+            val snapshotSigned = commonMetadata("snapshot", snapshotVersion)
+                .put("meta", JSONObject().put("targets.json", metadataDescription(targetsBytes, targetsVersion)))
             val snapshotBytes = signedEnvelope(snapshotSigned, snapshotKey)
-            val timestampSigned = commonMetadata("timestamp")
-                .put("meta", JSONObject().put("snapshot.json", metadataDescription(snapshotBytes)))
+            val timestampSigned = commonMetadata("timestamp", timestampVersion)
+                .put("meta", JSONObject().put("snapshot.json", metadataDescription(snapshotBytes, snapshotVersion)))
             return MetadataBundle(signedEnvelope(timestampSigned, timestampKey), snapshotBytes, targetsBytes)
         }
 
-        private fun commonMetadata(roleName: String): JSONObject = JSONObject()
+        private fun commonMetadata(roleName: String, version: Long): JSONObject = JSONObject()
             .put("_type", roleName)
             .put("spec_version", "1.0.0")
-            .put("version", 1)
+            .put("version", version)
             .put("expires", Instant.ofEpochSecond(NOW + 3_600).toString())
 
-        private fun metadataDescription(metadataBytes: ByteArray): JSONObject = JSONObject()
+        private fun metadataDescription(metadataBytes: ByteArray, version: Long): JSONObject = JSONObject()
             .put("length", metadataBytes.size)
             .put("hashes", JSONObject().put("sha256", MessageDigest.getInstance("SHA-256").digest(metadataBytes).toHex()))
-            .put("version", 1)
+            .put("version", version)
 
         private fun signedEnvelope(signed: JSONObject, signingKey: SigningKey): ByteArray {
             val signature = JSONObject()

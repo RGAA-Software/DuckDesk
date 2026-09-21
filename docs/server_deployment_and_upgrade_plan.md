@@ -474,13 +474,14 @@ Android 已完成第一段目录边界：`GET /api/console/updates/latest` 不�
 Android 构建也已强制内置审批初始 root，运行时独立验证 Ed25519 key ID、root 自签门限、顶级角色密钥隔离、版本和到期时间，OEM root 摘要须匹配 profile。
 连续 root 轮换的密码学内核也已实现：只接受 `N+1`，候选 root 必须同时满足当前 root 角色门限和候选 root 自签门限，单边授权、版本跳跃及签后篡改均拒绝。
 当前可信 root 及其最高版本已按 Android 发行域由 Keystore AES-GCM 保护并原子持久化；损坏、跨发行状态或保存失败均 fail closed，APK 内置根前进时也必须
-从已保存根完成精确 `N+1` 验证后才能提交。尚未完成的是在线逐版本 root 获取、timestamp/snapshot/targets 刷新与各角色持久防回滚、目标下载、APK 平台签名、
+从已保存根完成精确 `N+1` 验证后才能提交。尚未完成的是在线逐版本 root 获取、timestamp/snapshot/targets HTTPS 刷新、目标下载、APK 平台签名、
 PackageInstaller 和安装实例水位；目录或 root 通过
 都不能作为已升级证据。后续消费者同样不得自行选择或回退维度。
 
 timestamp/snapshot/targets 的纯验证内核已完成第一段：三个顶级角色分别使用当前 root 授权 key 验签并校验有效期，timestamp→snapshot→targets
 逐层绑定精确版本、长度和 SHA-256；最终 signed target 必须与 Console 已审批目录的 target path、build、版本、大小、摘要、APK 签名者和完整 Android
-发行域逐项一致。在线 HTTPS 获取、三角色原子持久水位和目标下载尚未接入，因此该内核通过仍不是可安装更新。
+发行域逐项一致。三个角色的最高版本和对应完整元数据 SHA-256 已与 root 水位在同一 Keystore 保护状态内原子提交，任一角色降版或同版本换内容均拒绝；
+保存失败不会推进内存状态。在线 HTTPS 获取和目标下载尚未接入，因此验证与水位通过仍不是可安装更新。
 
 节点重启后的本地激活状态必须先于首次可调度状态上报完成收敛。有效租约内的 `authorized/applying` 一律阻断节点接客；租约过期的
 `applying` 只有在本机产品清单仍是精确旧 build 或已是精确目标 build 时才可清理。`installed` 必须与目标 build 一致；普通安装失败必须
