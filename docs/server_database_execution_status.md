@@ -1473,6 +1473,9 @@ Console updates 11 项、directory API 7 项、node-control 3 项全部通过；
 `GET /api/console/managed/updates/{id}/node-trust` 查看应纳管、已确认、未知/落后、最低确认根版本和最早确认时间；聚合包含未删除的离线/禁用节点，并拒绝
 跨 Official/Customer 发行域查询。该增量证明软件闭环，正式旧根退役仍须
 在正式签名发布材料和实际纳管节点集合上检查未知/离线/落后节点，不能以仓库下发代替真实水位。
+Console 运维后台的应用页已接入更新发布与节点信任卡片：前端遍历完整 UUID 分页，按发布展示纳管/确认/未知数量，并列出离线、禁用、最后在线、
+实际观测根版本和时间；页面明确限定水位只覆盖 Cloud Node/Remote Service，且不会从页面自动执行旧根退役。模型与本地化 51 项单测及生产构建通过，
+`web/px_console/dist` 与 `output/px_console/dev/static` 已逐文件 SHA-256 一致。
 该水位当前仅覆盖 Cloud Node/Remote Service。Panel 的检查更新仍只是部署包管理提示，Android 与 Windows Client 尚无独立 TUF 消费器/安装水位生产者；
 通用 `/api/console/updates/latest` 目录响应不等于这些产品已完成安全更新。它们必须分别完成服务器派生发行目标、初始根内置、持久防回滚、平台签名、激活与
 安装实例水位后，才能纳入“全产品根轮换完成”的统计。
