@@ -12,6 +12,7 @@ import yun.pixels.client.core.data.DataStoreConsoleEndpointStore
 import yun.pixels.client.core.data.DataStoreInstallationIdentity
 import yun.pixels.client.core.data.DataStoreRemoteSessionPreferencesRepository
 import yun.pixels.client.core.data.PanelDeviceResolver
+import yun.pixels.client.core.data.SharedPreferencesAndroidTufTrustedRootStore
 import yun.pixels.client.core.data.SharedPreferencesDeploymentIdentityWatermarkStore
 import yun.pixels.client.core.data.createDeviceDirectory
 import yun.pixels.client.core.domain.account.AccountRepository
@@ -22,6 +23,7 @@ import yun.pixels.client.core.domain.device.DeviceResolver
 import yun.pixels.client.core.domain.update.AndroidUpdateRepository
 import yun.pixels.client.core.network.AndroidReleaseIdentity
 import yun.pixels.client.core.network.AndroidTufTrustConfiguration
+import yun.pixels.client.core.network.AndroidTufTrustedRootManager
 import yun.pixels.client.core.network.ConsoleApiClient
 import yun.pixels.client.core.network.ConsoleAndroidUpdateRepository
 import yun.pixels.client.core.network.ConsoleApplicationRepository
@@ -66,6 +68,13 @@ class PixelsAppGraph(application: Application) {
     val androidTufTrustConfiguration = requireNotNull(
         AndroidTufTrustConfiguration.create(Base64.getDecoder().decode(BuildConfig.TUF_INITIAL_ROOT_BASE64)),
     ) { "Pixels Android TUF initial root is invalid or expired" }
+    val androidTufTrustedRootManager = requireNotNull(
+        AndroidTufTrustedRootManager.create(
+            androidTufTrustConfiguration,
+            androidReleaseIdentity,
+            SharedPreferencesAndroidTufTrustedRootStore.create(application),
+        ),
+    ) { "Pixels Android TUF trusted root state is invalid" }
     private val consoleApi = ConsoleApiClient(
         deploymentIdentity,
         SharedPreferencesDeploymentIdentityWatermarkStore.create(application),

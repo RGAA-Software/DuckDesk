@@ -1739,6 +1739,11 @@ Android root 连续轮换验证内核随后接通：候选只允许当前版本�
 App Kotlin 编译通过，core-network/App Lint 372 个任务通过。该切片只实现可复用的密码学链验证；在线逐版本 root 获取、原子持久提交及防回滚水位仍未实现，
 timestamp/snapshot/targets、APK 下载/平台签名复核和安装事务也仍保持未完成。
 
+Android root 持久水位随后接通应用组合根：状态同时绑定 distribution/release namespace/OEM、最高 root version 和完整 root 字节，使用独立 Android Keystore
+AES-GCM 密钥保护后由 SharedPreferences 同步原子提交。首次安装只在空状态写入 APK 内置根；损坏、跨发行、版本/内容矛盾或保存失败均阻止启动或推进，运行时仍只接受
+当前根验证出的 `N+1`；新版 APK 携带的根若领先已保存根，也必须经过同一旧/新双门限后才能替换。core-data 12/12、core-network 42/42 单测通过，相关 App 编译及
+core-data/core-network/App Lint 385 个任务通过。在线 root 获取尚未接入，timestamp/snapshot/targets 的验签与各自持久版本水位、目标下载和安装事务仍未完成。
+
 | 阶段 | 当前未完成项 |
 |---|---|
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |

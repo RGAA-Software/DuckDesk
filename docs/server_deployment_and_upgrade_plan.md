@@ -473,7 +473,9 @@ Android 已完成第一段目录边界：`GET /api/console/updates/latest` 不�
 `android + 当前 distribution/release_namespace/oem_id + stable + android/aarch64`；Android 再以编译身份逐字段校验响应和不可变 target 路径。
 Android 构建也已强制内置审批初始 root，运行时独立验证 Ed25519 key ID、root 自签门限、顶级角色密钥隔离、版本和到期时间，OEM root 摘要须匹配 profile。
 连续 root 轮换的密码学内核也已实现：只接受 `N+1`，候选 root 必须同时满足当前 root 角色门限和候选 root 自签门限，单边授权、版本跳跃及签后篡改均拒绝。
-尚未完成的是在线逐版本获取/持久提交 root 链、timestamp/snapshot/targets 刷新与持久防回滚、目标下载、APK 平台签名、PackageInstaller 和安装实例水位；目录或 root 通过
+当前可信 root 及其最高版本已按 Android 发行域由 Keystore AES-GCM 保护并原子持久化；损坏、跨发行状态或保存失败均 fail closed，APK 内置根前进时也必须
+从已保存根完成精确 `N+1` 验证后才能提交。尚未完成的是在线逐版本 root 获取、timestamp/snapshot/targets 刷新与各角色持久防回滚、目标下载、APK 平台签名、
+PackageInstaller 和安装实例水位；目录或 root 通过
 都不能作为已升级证据。后续消费者同样不得自行选择或回退维度。
 
 节点重启后的本地激活状态必须先于首次可调度状态上报完成收敛。有效租约内的 `authorized/applying` 一律阻断节点接客；租约过期的

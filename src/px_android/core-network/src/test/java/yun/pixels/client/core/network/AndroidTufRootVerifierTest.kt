@@ -11,6 +11,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
+import yun.pixels.client.core.domain.update.AndroidTufTrustedRoot
+import yun.pixels.client.core.domain.update.AndroidTufTrustedRootState
+import yun.pixels.client.core.domain.update.AndroidTufTrustedRootStore
 
 class AndroidTufRootVerifierTest {
     @Test
@@ -133,11 +136,175 @@ class AndroidTufRootVerifierTest {
         assertNull(verifier.verifyNextRoot(initialRoot, tamperedEnvelope.toString().toByteArray(), NOW))
     }
 
+    @Test
+    fun trustedRootManagerPersistsOnlyAValidatedNextRoot() {
+        val fixture = RootFixture()
+        val initialRootBytes = fixture.rootBytes()
+        val trustConfiguration = requireNotNull(
+            AndroidTufTrustConfiguration.create(initialRootBytes, NOW, JcaEd25519Verifier()),
+        )
+        val releaseIdentity = requireNotNull(AndroidReleaseIdentity.create("official", "pixels.official", null))
+        val trustedRootStore = MemoryTrustedRootStore()
+        val manager = requireNotNull(
+            AndroidTufTrustedRootManager.create(
+                trustConfiguration,
+                releaseIdentity,
+                trustedRootStore,
+                NOW,
+                JcaEd25519Verifier(),
+            ),
+        )
+
+        assertEquals(1L, manager.currentVersion)
+        assertEquals(1L, (trustedRootStore.state as AndroidTufTrustedRootState.Present).trustedRoot.version)
+        assertEquals(true, manager.acceptNextRoot(fixture.rotatedRootBytes(), NOW))
+        assertEquals(2L, manager.currentVersion)
+        assertEquals(2L, (trustedRootStore.state as AndroidTufTrustedRootState.Present).trustedRoot.version)
+    }
+
+    @Test
+    fun trustedRootManagerDoesNotAdvanceWhenAtomicPersistenceFails() {
+        val fixture = RootFixture()
+        val trustConfiguration = requireNotNull(
+            AndroidTufTrustConfiguration.create(fixture.rootBytes(), NOW, JcaEd25519Verifier()),
+        )
+        val releaseIdentity = requireNotNull(AndroidReleaseIdentity.create("customer", "pixels.customer", null))
+        val trustedRootStore = MemoryTrustedRootStore()
+        val manager = requireNotNull(
+            AndroidTufTrustedRootManager.create(
+                trustConfiguration,
+                releaseIdentity,
+                trustedRootStore,
+                NOW,
+                JcaEd25519Verifier(),
+            ),
+        )
+        trustedRootStore.allowSave = false
+
+        assertEquals(false, manager.acceptNextRoot(fixture.rotatedRootBytes(), NOW))
+        assertEquals(1L, manager.currentVersion)
+    }
+
+    @Test
+    fun trustedRootManagerRestoresThePersistedRootAndRejectsAnotherReleaseDomain() {
+        val fixture = RootFixture()
+        val trustConfiguration = requireNotNull(
+            AndroidTufTrustConfiguration.create(fixture.rootBytes(), NOW, JcaEd25519Verifier()),
+        )
+        val officialIdentity = requireNotNull(AndroidReleaseIdentity.create("official", "pixels.official", null))
+        val trustedRootStore = MemoryTrustedRootStore()
+        val firstManager = requireNotNull(
+            AndroidTufTrustedRootManager.create(
+                trustConfiguration,
+                officialIdentity,
+                trustedRootStore,
+                NOW,
+                JcaEd25519Verifier(),
+            ),
+        )
+        assertEquals(true, firstManager.acceptNextRoot(fixture.rotatedRootBytes(), NOW))
+
+        val restoredManager = AndroidTufTrustedRootManager.create(
+            trustConfiguration,
+            officialIdentity,
+            trustedRootStore,
+            NOW,
+            JcaEd25519Verifier(),
+        )
+        val customerIdentity = requireNotNull(AndroidReleaseIdentity.create("customer", "pixels.customer", null))
+        val mismatchedManager = AndroidTufTrustedRootManager.create(
+            trustConfiguration,
+            customerIdentity,
+            trustedRootStore,
+            NOW,
+            JcaEd25519Verifier(),
+        )
+
+        assertEquals(2L, restoredManager?.currentVersion)
+        assertNull(mismatchedManager)
+    }
+
+    @Test
+    fun newerEmbeddedRootMustAdvanceFromThePersistedRoot() {
+        val fixture = RootFixture()
+        val initialRootBytes = fixture.rootBytes()
+        val rotatedRootBytes = fixture.rotatedRootBytes()
+        val initialConfiguration = requireNotNull(
+            AndroidTufTrustConfiguration.create(initialRootBytes, NOW, JcaEd25519Verifier()),
+        )
+        val rotatedConfiguration = requireNotNull(
+            AndroidTufTrustConfiguration.create(rotatedRootBytes, NOW, JcaEd25519Verifier()),
+        )
+        val releaseIdentity = requireNotNull(AndroidReleaseIdentity.create("official", "pixels.official", null))
+        val trustedRootStore = MemoryTrustedRootStore()
+        assertNotNull(
+            AndroidTufTrustedRootManager.create(
+                initialConfiguration,
+                releaseIdentity,
+                trustedRootStore,
+                NOW,
+                JcaEd25519Verifier(),
+            ),
+        )
+
+        val upgradedManager = AndroidTufTrustedRootManager.create(
+            rotatedConfiguration,
+            releaseIdentity,
+            trustedRootStore,
+            NOW,
+            JcaEd25519Verifier(),
+        )
+
+        assertEquals(2L, upgradedManager?.currentVersion)
+        assertEquals(2L, (trustedRootStore.state as AndroidTufTrustedRootState.Present).trustedRoot.version)
+    }
+
+    @Test
+    fun invalidPersistentRootStateNeverFallsBackToTheEmbeddedRoot() {
+        val fixture = RootFixture()
+        val trustConfiguration = requireNotNull(
+            AndroidTufTrustConfiguration.create(fixture.rootBytes(), NOW, JcaEd25519Verifier()),
+        )
+        val releaseIdentity = requireNotNull(AndroidReleaseIdentity.create("official", "pixels.official", null))
+        val trustedRootStore = MemoryTrustedRootStore(AndroidTufTrustedRootState.Invalid)
+
+        val manager = AndroidTufTrustedRootManager.create(
+            trustConfiguration,
+            releaseIdentity,
+            trustedRootStore,
+            NOW,
+            JcaEd25519Verifier(),
+        )
+
+        assertNull(manager)
+    }
+
     private data class SigningKey(
         val pair: KeyPair,
         val keyPayload: JSONObject,
         val keyId: String,
     )
+
+    private class MemoryTrustedRootStore(
+        var state: AndroidTufTrustedRootState = AndroidTufTrustedRootState.Empty,
+        var allowSave: Boolean = true,
+    ) : AndroidTufTrustedRootStore {
+        override fun load(): AndroidTufTrustedRootState = state
+
+        override fun save(trustedRoot: AndroidTufTrustedRoot): Boolean {
+            if (!allowSave) return false
+            state = AndroidTufTrustedRootState.Present(
+                AndroidTufTrustedRoot(
+                    trustedRoot.distribution,
+                    trustedRoot.releaseNamespace,
+                    trustedRoot.oemId,
+                    trustedRoot.version,
+                    trustedRoot.copyRootBytes(),
+                ),
+            )
+            return true
+        }
+    }
 
     private class RootFixture {
         private val rootKeys = List(2) { signingKey() }
