@@ -478,6 +478,10 @@ Android 构建也已强制内置审批初始 root，运行时独立验证 Ed2551
 PackageInstaller 和安装实例水位；目录或 root 通过
 都不能作为已升级证据。后续消费者同样不得自行选择或回退维度。
 
+timestamp/snapshot/targets 的纯验证内核已完成第一段：三个顶级角色分别使用当前 root 授权 key 验签并校验有效期，timestamp→snapshot→targets
+逐层绑定精确版本、长度和 SHA-256；最终 signed target 必须与 Console 已审批目录的 target path、build、版本、大小、摘要、APK 签名者和完整 Android
+发行域逐项一致。在线 HTTPS 获取、三角色原子持久水位和目标下载尚未接入，因此该内核通过仍不是可安装更新。
+
 节点重启后的本地激活状态必须先于首次可调度状态上报完成收敛。有效租约内的 `authorized/applying` 一律阻断节点接客；租约过期的
 `applying` 只有在本机产品清单仍是精确旧 build 或已是精确目标 build 时才可清理。`installed` 必须与目标 build 一致；普通安装失败必须
 证明已经回到精确旧 build 才可报告并解除维护。`rollback_failed`、未知 build 或任何终态/产品清单矛盾均保留受保护记录并进入

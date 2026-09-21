@@ -32,10 +32,12 @@ internal data class VerifiedTufRoot(
     val version: Long,
     val expiresAtEpochSeconds: Long,
     val publicKeys: Map<String, ByteArray>,
-    val rootRole: TufRole,
+    val roles: Map<String, TufRole>,
     val signatures: List<TufSignature>,
     val canonicalSigned: ByteArray,
-)
+) {
+    val rootRole: TufRole = roles.getValue("root")
+}
 
 internal data class TufRole(
     val keyIds: Set<String>,
@@ -121,7 +123,7 @@ internal class AndroidTufRootVerifier(
             if (keyId.decodeCanonicalHex(SHA256_BYTES) == null || !signatureKeyIds.add(keyId)) return null
             signatures += TufSignature(keyId, signature)
         }
-        VerifiedTufRoot(version, expiresAt, publicKeys, rootRole, signatures, canonicalSigned)
+        VerifiedTufRoot(version, expiresAt, publicKeys, roles, signatures, canonicalSigned)
     }.getOrNull()
 
     private fun verifyThreshold(root: VerifiedTufRoot, authorizedKeys: Map<String, ByteArray>, role: TufRole): Boolean {

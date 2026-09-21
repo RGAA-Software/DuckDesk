@@ -1742,7 +1742,12 @@ timestamp/snapshot/targets、APK 下载/平台签名复核和安装事务也仍�
 Android root 持久水位随后接通应用组合根：状态同时绑定 distribution/release namespace/OEM、最高 root version 和完整 root 字节，使用独立 Android Keystore
 AES-GCM 密钥保护后由 SharedPreferences 同步原子提交。首次安装只在空状态写入 APK 内置根；损坏、跨发行、版本/内容矛盾或保存失败均阻止启动或推进，运行时仍只接受
 当前根验证出的 `N+1`；新版 APK 携带的根若领先已保存根，也必须经过同一旧/新双门限后才能替换。core-data 12/12、core-network 42/42 单测通过，相关 App 编译及
-core-data/core-network/App Lint 385 个任务通过。在线 root 获取尚未接入，timestamp/snapshot/targets 的验签与各自持久版本水位、目标下载和安装事务仍未完成。
+core-data/core-network/App Lint 385 个任务通过。该持久根切片当时尚未接入在线 root 获取和顶级元数据验签；后者的纯验证内核在下一切片实现。
+
+Android 顶级在线元数据验证内核随后实现：当前 root 保留四个角色的授权 key/门限，timestamp、snapshot、targets 分别校验规范类型、版本、到期和角色签名；
+父层对下一层的精确版本、字节长度及 SHA-256 必须一致。最终 targets 中的 Android 项还与 Console 已审批目录逐项对账不可变路径、发行域、build、版本、
+目标大小/摘要和 APK 签名证书摘要，root version 也必须与目录仓库代际一致。core-network 当前 44/44 单测、App Kotlin 编译和 core-network Lint
+140 个任务通过。此切片没有网络获取和三角色持久水位，不能防止跨重启元数据重放，也没有下载 APK 或进入安装流程。
 
 | 阶段 | 当前未完成项 |
 |---|---|
