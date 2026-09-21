@@ -1407,7 +1407,8 @@ EKU、有效期、HTTPS RFC 3161 时间戳和 SignTool；所有 Pixels 自有 PE
 当前机器没有配置批准的正式代码签名证书固定值，因此没有运行 release-only 构建、没有消耗版本号，也没有把语法产物冒充正式制品。
 
 签名链之后补齐了可直接消费正式旧/新包的 Windows 生命周期验收器。只读预检验证安装器 manifest、产品/发行一致性、严格递增版本、同一
-签名者 pin、文件 SHA-256、Authenticode 与时间戳；默认要求同一证书，证书续期只接受同时显式给出的已审核旧/新 SHA-256 固定值。执行态必须
+签名者 pin、文件 SHA-256、Authenticode 与时间戳；旧/新证书 SHA-256 均为外部必填输入，未轮换时两值相同，证书续期时分别给出已审核
+旧/新固定值，拒绝把相邻 manifest 的自我声明当成信任根。执行态必须
 由管理员在三产品及 `px_service` 均不存在的干净专用机器显式开启，依次执行
 旧版安装、升级、同版覆盖和卸载。每个安装阶段按 release manifest 重新验证已安装 payload manifest、精确文件集合、全部 artifact hash、
 owned PE/Uninstall 签名、注册表版本及 Host/Client 的 Service 边界，阶段报告原子保存且失败不自动清理现场。新增 7 项验证器单元测试和

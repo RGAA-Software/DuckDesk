@@ -69,7 +69,12 @@ class WindowsInstallerReleaseVerificationTests(unittest.TestCase):
             current_directory = self.create_release(release_root, "3.3.73", 30373)
 
             previous_release = validate_release_directory(previous_directory, self.accept_signature)
-            upgrade_pair = validate_upgrade_pair(previous_directory, current_directory, self.accept_signature)
+            upgrade_pair = validate_upgrade_pair(
+                previous_directory,
+                current_directory,
+                self.accept_signature,
+                approved_signer_transition=(SIGNER_PIN, SIGNER_PIN),
+            )
 
             self.assertEqual(previous_release.product_version, "3.3.72")
             self.assertEqual(upgrade_pair["product"], "client")
@@ -103,9 +108,14 @@ class WindowsInstallerReleaseVerificationTests(unittest.TestCase):
             )
 
             with self.assertRaisesRegex(RuntimeError, "distributions do not match"):
-                validate_upgrade_pair(previous_directory, current_directory, self.accept_signature)
+                validate_upgrade_pair(
+                    previous_directory,
+                    current_directory,
+                    self.accept_signature,
+                    approved_signer_transition=(SIGNER_PIN, SIGNER_PIN),
+                )
 
-    def test_upgrade_pair_rejects_signer_rotation_without_separate_approval(self) -> None:
+    def test_upgrade_pair_requires_external_signer_approval_and_supports_approved_rotation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             release_root = Path(temporary_directory)
             previous_directory = self.create_release(release_root, "3.3.72", 30372)
@@ -116,7 +126,7 @@ class WindowsInstallerReleaseVerificationTests(unittest.TestCase):
                 signer_pin="C" * 64,
             )
 
-            with self.assertRaisesRegex(RuntimeError, "no signer transition was approved"):
+            with self.assertRaisesRegex(RuntimeError, "requires externally approved"):
                 validate_upgrade_pair(previous_directory, current_directory, self.accept_signature)
 
             approved_pair = validate_upgrade_pair(
@@ -134,7 +144,12 @@ class WindowsInstallerReleaseVerificationTests(unittest.TestCase):
             current_directory = self.create_release(release_root, "3.3.71", 30371)
 
             with self.assertRaisesRegex(RuntimeError, "must be newer"):
-                validate_upgrade_pair(previous_directory, current_directory, self.accept_signature)
+                validate_upgrade_pair(
+                    previous_directory,
+                    current_directory,
+                    self.accept_signature,
+                    approved_signer_transition=(SIGNER_PIN, SIGNER_PIN),
+                )
 
     def test_installed_product_requires_exact_payload_and_signed_owned_files(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -192,7 +207,12 @@ class WindowsInstallerReleaseVerificationTests(unittest.TestCase):
                 self.assertEqual(signer_pin, SIGNER_PIN)
                 verified_signatures.append(artifact_path.name)
 
-            result = validate_installed_product(release_directory, install_directory, record_signature)
+            result = validate_installed_product(
+                release_directory,
+                install_directory,
+                record_signature,
+                expected_signer_sha256=SIGNER_PIN,
+            )
 
             self.assertEqual(result["artifact_count"], 2)
             self.assertEqual(verified_signatures, [
@@ -200,6 +220,17 @@ class WindowsInstallerReleaseVerificationTests(unittest.TestCase):
                 "px_panel.exe",
                 "Uninstall.exe",
             ])
+
+    def test_external_signer_pin_cannot_be_replaced_by_manifest_self_declaration(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            release_directory = self.create_release(Path(temporary_directory), "3.3.72", 30372)
+
+            with self.assertRaisesRegex(RuntimeError, "externally approved certificate pin"):
+                validate_release_directory(
+                    release_directory,
+                    self.accept_signature,
+                    expected_signer_sha256="D" * 64,
+                )
 
 
 if __name__ == "__main__":

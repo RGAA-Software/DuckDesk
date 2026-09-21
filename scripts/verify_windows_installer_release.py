@@ -50,18 +50,20 @@ def parse_arguments() -> argparse.Namespace:
 
     single_parser = subcommands.add_parser("single", help="Verify one installer release directory")
     single_parser.add_argument("--release-dir", type=Path, required=True)
+    single_parser.add_argument("--expected-signer-sha256", required=True)
     single_parser.add_argument("--output", type=Path)
 
     pair_parser = subcommands.add_parser("pair", help="Verify one same-channel upgrade pair")
     pair_parser.add_argument("--previous", type=Path, required=True)
     pair_parser.add_argument("--current", type=Path, required=True)
-    pair_parser.add_argument("--previous-signer-sha256")
-    pair_parser.add_argument("--current-signer-sha256")
+    pair_parser.add_argument("--previous-signer-sha256", required=True)
+    pair_parser.add_argument("--current-signer-sha256", required=True)
     pair_parser.add_argument("--output", type=Path)
 
     installed_parser = subcommands.add_parser("installed", help="Verify one installed product against its release")
     installed_parser.add_argument("--release-dir", type=Path, required=True)
     installed_parser.add_argument("--install-dir", type=Path, required=True)
+    installed_parser.add_argument("--expected-signer-sha256", required=True)
     installed_parser.add_argument("--output", type=Path)
     return parser.parse_args()
 
@@ -118,6 +120,7 @@ def validate_sha256(value: str, field_name: str) -> str:
 def validate_release_directory(
     release_directory: Path,
     signature_verifier: Callable[[Path, str], None] = verify_file,
+    expected_signer_sha256: str | None = None,
 ) -> VerifiedInstallerRelease:
     resolved_directory = release_directory.resolve()
     if not resolved_directory.is_dir():
@@ -137,6 +140,10 @@ def validate_release_directory(
         require_string(manifest, "signer_certificate_sha256"),
         "signer_certificate_sha256",
     )
+    if expected_signer_sha256 is not None:
+        approved_signer_sha256 = validate_sha256(expected_signer_sha256, "externally approved signer")
+        if signer_certificate_sha256 != approved_signer_sha256:
+            raise RuntimeError("installer manifest signer does not match the externally approved certificate pin")
     payload_manifest_sha256 = validate_sha256(
         require_string(manifest, "payload_manifest_sha256"),
         "payload_manifest_sha256",
@@ -204,26 +211,24 @@ def validate_upgrade_pair(
     signature_verifier: Callable[[Path, str], None] = verify_file,
     approved_signer_transition: tuple[str, str] | None = None,
 ) -> dict[str, object]:
-    previous_release = validate_release_directory(previous_directory, signature_verifier)
-    current_release = validate_release_directory(current_directory, signature_verifier)
+    if approved_signer_transition is None:
+        raise RuntimeError("upgrade pair requires externally approved previous and current signer pins")
+    approved_previous_signer = validate_sha256(approved_signer_transition[0], "previous signer approval")
+    approved_current_signer = validate_sha256(approved_signer_transition[1], "current signer approval")
+    previous_release = validate_release_directory(
+        previous_directory,
+        signature_verifier,
+        approved_previous_signer,
+    )
+    current_release = validate_release_directory(
+        current_directory,
+        signature_verifier,
+        approved_current_signer,
+    )
     if previous_release.product != current_release.product:
         raise RuntimeError("upgrade pair products do not match")
     if previous_release.distribution != current_release.distribution:
         raise RuntimeError("upgrade pair distributions do not match")
-    if approved_signer_transition is None:
-        if previous_release.signer_certificate_sha256 != current_release.signer_certificate_sha256:
-            raise RuntimeError("upgrade pair signer certificate pins do not match and no signer transition was approved")
-    else:
-        approved_previous_signer = validate_sha256(approved_signer_transition[0], "previous signer approval")
-        approved_current_signer = validate_sha256(approved_signer_transition[1], "current signer approval")
-        actual_signer_transition = (
-            previous_release.signer_certificate_sha256,
-            current_release.signer_certificate_sha256,
-        )
-        if actual_signer_transition != (approved_previous_signer, approved_current_signer):
-            raise RuntimeError(
-                "upgrade pair signer transition does not match the explicitly approved certificate pins"
-            )
     if current_release.product_version_code <= previous_release.product_version_code:
         raise RuntimeError(
             "current installer version must be newer than the previous installer version: "
@@ -236,7 +241,7 @@ def validate_upgrade_pair(
         "signer_transition": {
             "previous": previous_release.signer_certificate_sha256,
             "current": current_release.signer_certificate_sha256,
-            "explicitly_approved": approved_signer_transition is not None,
+            "explicitly_approved": True,
         },
         "previous": asdict(previous_release),
         "current": asdict(current_release),
@@ -247,8 +252,13 @@ def validate_installed_product(
     release_directory: Path,
     install_directory: Path,
     signature_verifier: Callable[[Path, str], None] = verify_file,
+    expected_signer_sha256: str | None = None,
 ) -> dict[str, object]:
-    verified_release = validate_release_directory(release_directory, signature_verifier)
+    verified_release = validate_release_directory(
+        release_directory,
+        signature_verifier,
+        expected_signer_sha256,
+    )
     resolved_install_directory = install_directory.resolve()
     if not resolved_install_directory.is_dir():
         raise RuntimeError(f"installed product directory does not exist: {resolved_install_directory}")
@@ -385,23 +395,27 @@ def write_result(result: dict[str, object], output_path: Path | None) -> None:
 def main() -> int:
     arguments = parse_arguments()
     if arguments.command == "single":
-        verified_release = validate_release_directory(arguments.release_dir)
+        verified_release = validate_release_directory(
+            arguments.release_dir,
+            expected_signer_sha256=arguments.expected_signer_sha256,
+        )
         write_result({"schema_version": 1, "release": asdict(verified_release)}, arguments.output)
         return 0
     if arguments.command == "installed":
-        installed_result = validate_installed_product(arguments.release_dir, arguments.install_dir)
+        installed_result = validate_installed_product(
+            arguments.release_dir,
+            arguments.install_dir,
+            expected_signer_sha256=arguments.expected_signer_sha256,
+        )
         write_result(installed_result, arguments.output)
         return 0
-    signer_approval_values = (arguments.previous_signer_sha256, arguments.current_signer_sha256)
-    if (signer_approval_values[0] is None) != (signer_approval_values[1] is None):
-        raise RuntimeError("both signer transition approval pins must be provided together")
-    approved_signer_transition = None
-    if signer_approval_values[0] is not None and signer_approval_values[1] is not None:
-        approved_signer_transition = (signer_approval_values[0], signer_approval_values[1])
     matrix = validate_upgrade_pair(
         arguments.previous,
         arguments.current,
-        approved_signer_transition=approved_signer_transition,
+        approved_signer_transition=(
+            arguments.previous_signer_sha256,
+            arguments.current_signer_sha256,
+        ),
     )
     write_result(matrix, arguments.output)
     return 0
