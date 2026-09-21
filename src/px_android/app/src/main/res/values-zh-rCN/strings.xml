@@ -1,7 +1,6 @@
 <resources>
-    <string name="share_diagnostics">分享 Pixels 诊断信息</string>
+    <string name="share_diagnostics">分享诊断信息</string>
     <string name="diagnostics_failed">无法生成诊断报告。</string>
-    <string name="app_name">Pixels</string>
     <string name="navigation_devices">设备</string>
     <string name="navigation_cloud_apps">云应用</string>
     <string name="navigation_transfers">传输</string>
@@ -9,13 +8,13 @@
     <string name="device_saved">设备验证成功并已保存。</string>
     <string name="device_removed">设备已移除。</string>
     <string name="local_network_permission_required">请允许访问本地网络，以发现并连接你的电脑。</string>
-    <string name="discovery_finished">已添加发现的 Pixels 设备。</string>
-    <string name="no_devices_discovered">当前网络中没有发现 Pixels 设备。</string>
+    <string name="discovery_finished">已添加发现的设备。</string>
+    <string name="no_devices_discovered">当前网络中没有发现兼容设备。</string>
     <string name="scanner_unavailable">二维码扫描器暂时不可用，请粘贴或手动输入连接信息。</string>
     <string name="remote_connection_unavailable">无法准备远程连接。</string>
     <string name="microphone_permission_required">请允许麦克风权限以开始语音通话。</string>
     <string name="remote_notification_channel">远程会话</string>
-    <string name="remote_notification_title">Pixels 远程会话</string>
+    <string name="remote_notification_title">远程会话</string>
     <string name="remote_notification_text">正在连接 %1$s</string>
     <string name="remote_notification_transfer">正在传输 %1$s</string>
     <string name="remote_notification_recording">正在录制远程会话</string>

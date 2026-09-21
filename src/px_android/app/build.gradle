@@ -207,6 +207,7 @@ def effectiveApplicationName = deploymentDistribution == 'oem' ? androidApplicat
 def effectiveBrandCompany = deploymentDistribution == 'oem' ? androidBrandCompany : 'Pixels'
 def launcherIconResource = deploymentDistribution == 'oem' ? '@mipmap/ic_oem_launcher' : '@mipmap/ic_launcher'
 def roundLauncherIconResource = deploymentDistribution == 'oem' ? '@mipmap/ic_oem_launcher_round' : '@mipmap/ic_launcher_round'
+def applicationThemeResource = deploymentDistribution == 'oem' ? '@style/Theme.Oem.Starting' : '@style/Theme.Pixels.Starting'
 def javaStringLiteral = { String value ->
     '"' + value.replace('\\', '\\\\').replace('"', '\\"').replace('\r', '\\r').replace('\n', '\\n') + '"'
 }
@@ -251,6 +252,7 @@ android {
         manifestPlaceholders = [
             applicationIcon: launcherIconResource,
             applicationRoundIcon: roundLauncherIconResource,
+            applicationTheme: applicationThemeResource,
         ]
         if (deploymentDistribution == 'oem') {
             resValue 'string', 'app_name', effectiveApplicationName

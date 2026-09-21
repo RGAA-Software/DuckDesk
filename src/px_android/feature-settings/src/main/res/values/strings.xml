@@ -1,9 +1,9 @@
 <resources>
     <string name="settings_title">Settings</string>
-    <string name="account_title">Pixels account</string>
+    <string name="account_title">%1$s account</string>
     <string name="console_title">PX Console</string>
     <string name="console_endpoint">Console address</string>
-    <string name="official_console_endpoint">This official build uses the verified Pixels Console.</string>
+    <string name="official_console_endpoint">This official build uses the verified official Console.</string>
     <string name="username">Username</string>
     <string name="password">Password</string>
     <string name="confirm_password">Confirm password</string>
@@ -23,10 +23,10 @@
     <string name="password_change_required">Change this account password before starting a remote session.</string>
     <string name="security_title">Connection security</string>
     <string name="security_body">Console connections require verified HTTPS. Private-network direct connections may use unencrypted HTTP/WS.</string>
-    <string name="about_title">About Pixels</string>
+    <string name="about_title">About %1$s</string>
     <string name="version_format">Version %1$s</string>
     <string name="privacy_title">Privacy</string>
-    <string name="privacy_body">Pixels stores saved computer metadata locally. Temporary direct-connect credentials, Console sessions, and tokens are encrypted with Android Keystore-backed keys. Console traffic requires verified HTTPS; a private-network direct connection may use unencrypted HTTP and WebSocket traffic on that local network.\n\nMicrophone access starts only after you initiate a voice call and grant Android permission. Clipboard, file transfer, recording, and diagnostic sharing run only after an explicit action. Temporary files are kept in app-private cache and expire automatically. A diagnostic report contains build/device information and recent application logs with common credentials, URLs, addresses, and identifiers redacted; Android shows the destination chooser before anything leaves the device.\n\nPixels does not include advertising or analytics SDKs and does not sell personal data. Removing app data deletes locally stored account sessions, devices, and temporary files.</string>
+    <string name="privacy_body">%1$s stores saved computer metadata locally. Temporary direct-connect credentials, Console sessions, and tokens are encrypted with Android Keystore-backed keys. Console traffic requires verified HTTPS; a private-network direct connection may use unencrypted HTTP and WebSocket traffic on that local network.\n\nMicrophone access starts only after you initiate a voice call and grant Android permission. Clipboard, file transfer, recording, and diagnostic sharing run only after an explicit action. Temporary files are kept in app-private cache and expire automatically. A diagnostic report contains build/device information and recent application logs with common credentials, URLs, addresses, and identifiers redacted; Android shows the destination chooser before anything leaves the device.\n\n%1$s does not include advertising or analytics SDKs and does not sell personal data. Removing app data deletes locally stored account sessions, devices, and temporary files.</string>
     <string name="open_source_title">Open-source notices</string>
     <string name="export_diagnostics">Export diagnostics</string>
     <string name="close">Close</string>

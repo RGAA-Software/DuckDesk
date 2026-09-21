@@ -1645,6 +1645,14 @@ applicationId、应用名、launcher/round icon、Android 签名证书固定值�
 `0010CA907ABC69FE76411110BB3A350CD125ACBF08A96671D48205DE600952F7`。该证据不是正式 OEM 签名 Release；Android 内部品牌文案、Windows 原生 UI、
 独立 TUF 正式发布和跨产品验收仍须完成后才能开放首份 OEM 商业交付。
 
+同日 Android OEM 内部品牌切片继续关闭页面级残留：应用标签被显式传入设备、设置和远控页面；账号/关于/隐私、设备发现、通知、手柄浮层、
+诊断、剪贴板、录像目录与提示均不再硬编码 Pixels，native 对端显示名改为中性的 Android Client。OEM 构建另生成 Splash theme，并让 Splash、
+launcher/round icon 和通知图标消费 profile 前景/背景资源；部署签名域、HTTP 协议头和开源法律声明作为技术/权利人标识保留。`1.0.22` 在 APK
+和单测完成后由 lint 因品牌名缺少“不翻译”声明而失败，版本按规则不复用；修正后 `1.0.23 (10023)` 的 456 个 Gradle task、lint、全模块单测、
+arm64 native、APK 和退休媒体审计通过。APK 反查确认 package=`com.northstar.cloud.client.debug`、label=`North Star Cloud`、
+theme=`Theme.Oem.Starting`、OEM 双图标，以及中英文运行资源无 Pixels 可见文本；Gradle 源 APK 与独立 dist SHA-256 均为
+`AEFA6299D3849985934052CE718F340139D62C99E1AC5099FB3A98EA0FB3EC7B`。
+
 | 阶段 | 当前未完成项 |
 |---|---|
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |

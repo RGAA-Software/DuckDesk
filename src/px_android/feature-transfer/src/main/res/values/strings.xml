@@ -4,7 +4,7 @@
     <string name="clear_finished">Clear finished</string>
     <string name="transfer_requires_session">Connect to a computer to transfer files.</string>
     <string name="transfer_not_supported">This computer does not allow file transfers.</string>
-    <string name="transfer_ready">File transfers continue while you use other parts of Pixels.</string>
+    <string name="transfer_ready">File transfers continue while you use other parts of the application.</string>
     <string name="current_remote_folder">Current remote folder</string>
     <string name="remote_root">Computer</string>
     <string name="parent_folder">Parent folder</string>

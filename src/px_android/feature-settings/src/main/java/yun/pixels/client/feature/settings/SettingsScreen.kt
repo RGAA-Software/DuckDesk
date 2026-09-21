@@ -38,6 +38,7 @@ import yun.pixels.client.core.domain.account.AccountFailure
 @Composable
 fun SettingsScreen(
     state: SettingsUiState,
+    applicationName: String = "Application",
     appVersion: String = "",
     onAction: (SettingsAction) -> Unit,
     onExportDiagnostics: () -> Unit = {},
@@ -55,7 +56,7 @@ fun SettingsScreen(
         ) {
             Text(stringResource(R.string.console_title), style = MaterialTheme.typography.titleLarge)
             ConsoleEndpointForm(state, onAction)
-            Text(stringResource(R.string.account_title), style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.account_title, applicationName), style = MaterialTheme.typography.titleLarge)
             when {
                 state.isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
                 state.profile != null -> SignedInAccount(state, onAction)
@@ -67,7 +68,7 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium,
             )
-            Text(stringResource(R.string.about_title), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.about_title, applicationName), style = MaterialTheme.typography.titleMedium)
             if (appVersion.isNotBlank()) {
                 Text(
                     stringResource(R.string.version_format, appVersion),
@@ -89,7 +90,7 @@ fun SettingsScreen(
     informationDialog?.let { dialog ->
         val title = if (dialog == InformationDialog.Privacy) R.string.privacy_title else R.string.open_source_title
         val body = if (dialog == InformationDialog.Privacy) {
-            stringResource(R.string.privacy_body)
+            stringResource(R.string.privacy_body, applicationName)
         } else {
             rememberOpenSourceNotices()
         }

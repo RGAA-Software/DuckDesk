@@ -1,7 +1,7 @@
 <resources>
-    <string name="share_diagnostics">Share Pixels diagnostics</string>
+    <string name="share_diagnostics">Share diagnostics</string>
     <string name="diagnostics_failed">Could not create the diagnostics report.</string>
-    <string name="app_name">Pixels</string>
+    <string name="app_name" translatable="false">Pixels</string>
     <string name="navigation_devices">Devices</string>
     <string name="navigation_cloud_apps">Cloud Apps</string>
     <string name="navigation_transfers">Transfers</string>
@@ -9,13 +9,13 @@
     <string name="device_saved">Device verified and saved.</string>
     <string name="device_removed">Device removed.</string>
     <string name="local_network_permission_required">Allow local network access to find and connect to your computers.</string>
-    <string name="discovery_finished">Nearby Pixels devices were added.</string>
-    <string name="no_devices_discovered">No Pixels devices were found on this network.</string>
+    <string name="discovery_finished">Nearby devices were added.</string>
+    <string name="no_devices_discovered">No compatible devices were found on this network.</string>
     <string name="scanner_unavailable">The QR scanner is unavailable. Paste or enter the connection details instead.</string>
     <string name="remote_connection_unavailable">The remote connection could not be prepared.</string>
     <string name="microphone_permission_required">Allow microphone access to start a voice call.</string>
     <string name="remote_notification_channel">Remote sessions</string>
-    <string name="remote_notification_title">Pixels remote session</string>
+    <string name="remote_notification_title">Remote session</string>
     <string name="remote_notification_text">Connected to %1$s</string>
     <string name="remote_notification_transfer">Transferring %1$s</string>
     <string name="remote_notification_recording">Recording remote session</string>

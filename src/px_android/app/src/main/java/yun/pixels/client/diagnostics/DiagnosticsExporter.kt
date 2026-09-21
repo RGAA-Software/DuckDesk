@@ -21,9 +21,9 @@ object DiagnosticsExporter {
         directory.listFiles()?.forEach { file ->
             if (file.isFile && file.lastModified() < System.currentTimeMillis() - DIAGNOSTICS_RETENTION_MILLIS) file.delete()
         }
-        val report = File(directory, "pixels-diagnostics-${System.currentTimeMillis()}.txt")
+        val report = File(directory, "remote-diagnostics-${System.currentTimeMillis()}.txt")
         report.bufferedWriter().use { writer ->
-            writer.appendLine("Pixels Android diagnostics")
+            writer.appendLine("${BuildConfig.APPLICATION_NAME} Android diagnostics")
             writer.appendLine("Generated: ${Instant.now()}")
             writer.appendLine("Version: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
             writer.appendLine("Build: ${BuildConfig.BUILD_TYPE} ${BuildConfig.GIT_REVISION}")

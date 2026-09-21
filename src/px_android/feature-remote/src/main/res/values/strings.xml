@@ -1,4 +1,5 @@
 <resources>
+    <string name="remote_gamepad_brand">%1$s Gamepad</string>
     <string name="remote_udp_media_unavailable">UDP media is unavailable. Control and file connections remain active; check the network, end this session, and reconnect.</string>
     <string name="remote_connecting">Connecting securely…</string>
     <string name="remote_reconnecting">Connection interrupted. Reconnecting…</string>
@@ -39,8 +40,8 @@
     <string name="remote_record_starting">Starting recording…</string>
     <string name="remote_recording">Recording · %1$s</string>
     <string name="remote_record_stopping">Finishing recording…</string>
-    <string name="remote_record_publishing">Saving to Movies/Pixels…</string>
-    <string name="remote_record_saved">Saved %1$d video(s) to Movies/Pixels</string>
+    <string name="remote_record_publishing">Saving to Movies/Remote Recordings…</string>
+    <string name="remote_record_saved">Saved %1$d video(s) to Movies/Remote Recordings</string>
     <string name="remote_record_failed">Recording could not be saved.</string>
     <string name="remote_voice_start">Start voice call</string>
     <string name="remote_voice_cancel">Cancel voice call request</string>

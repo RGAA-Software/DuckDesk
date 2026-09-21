@@ -35,7 +35,11 @@ import androidx.compose.ui.unit.dp
 import yun.pixels.client.core.domain.session.RemoteGamepadButton
 
 @Composable
-internal fun BoxScope.RemoteGamepadOverlay(controller: RemoteGamepadController, configuration: GamepadConfiguration) {
+internal fun BoxScope.RemoteGamepadOverlay(
+    controller: RemoteGamepadController,
+    configuration: GamepadConfiguration,
+    applicationName: String,
+) {
     val config = configuration.normalized()
     Row(
         modifier = Modifier
@@ -62,7 +66,11 @@ internal fun BoxScope.RemoteGamepadOverlay(controller: RemoteGamepadController, 
                 GamepadButton("Back", RemoteGamepadButton.Back, controller, compact = true)
                 GamepadButton("Start", RemoteGamepadButton.Start, controller, compact = true)
             }
-            Text("Pixels Gamepad", color = Color.White.copy(alpha = 0.72f), style = MaterialTheme.typography.labelSmall)
+            Text(
+                stringResource(R.string.remote_gamepad_brand, applicationName),
+                color = Color.White.copy(alpha = 0.72f),
+                style = MaterialTheme.typography.labelSmall,
+            )
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             GamepadButton("RB", RemoteGamepadButton.RightShoulder, controller)

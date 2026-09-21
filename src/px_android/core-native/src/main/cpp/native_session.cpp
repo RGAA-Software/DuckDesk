@@ -620,8 +620,8 @@ bool NativeSession::Initialize() {
     params->ft_remote_device_id_ = "ft_" + params->remote_device_id_;
     params->stream_id_ = config_.stream_id;
     params->stream_name_ = config_.display_name;
-    params->device_name_ = "Pixels Android";
-    params->display_name_ = "Pixels Android";
+    params->device_name_ = "Android Client";
+    params->display_name_ = "Android Client";
     params->display_remote_name_ = config_.remote_device_id;
     const auto authentication_query = AuthenticationQuery(config_);
     params->media_path_ = std::format(

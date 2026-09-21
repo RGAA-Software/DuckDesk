@@ -1,4 +1,5 @@
 <resources>
+    <string name="remote_gamepad_brand">%1$s 游戏手柄</string>
     <string name="remote_udp_media_unavailable">UDP 音视频不可达。控制和文件连接仍保留；请检查网络，结束当前会话后重新连接。</string>
     <string name="remote_connecting">正在安全连接…</string>
     <string name="remote_reconnecting">连接已中断，正在重连…</string>
@@ -39,8 +40,8 @@
     <string name="remote_record_starting">正在开始录制…</string>
     <string name="remote_recording">正在录制 · %1$s</string>
     <string name="remote_record_stopping">正在结束录制…</string>
-    <string name="remote_record_publishing">正在保存到 Movies/Pixels…</string>
-    <string name="remote_record_saved">已保存 %1$d 个视频到 Movies/Pixels</string>
+    <string name="remote_record_publishing">正在保存到 Movies/Remote Recordings…</string>
+    <string name="remote_record_saved">已保存 %1$d 个视频到 Movies/Remote Recordings</string>
     <string name="remote_record_failed">录制内容未能保存。</string>
     <string name="remote_voice_start">开始语音通话</string>
     <string name="remote_voice_cancel">取消语音请求</string>

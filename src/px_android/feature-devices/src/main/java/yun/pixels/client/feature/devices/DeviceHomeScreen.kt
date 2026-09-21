@@ -51,11 +51,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -71,6 +66,7 @@ import yun.pixels.client.core.domain.account.AccountFailure
 fun DeviceHomeScreen(
     state: DeviceHomeUiState,
     onAction: (DeviceHomeAction) -> Unit,
+    applicationName: String = "Application",
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -80,9 +76,8 @@ fun DeviceHomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    PixelsMark()
                     Text(
-                        text = stringResource(R.string.device_home_title),
+                        text = applicationName,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -543,44 +538,6 @@ private fun AccountFailure.labelResource(): Int = when (this) {
     AccountFailure.UnsupportedApplication,
     AccountFailure.AccountCreatedLoginFailed,
     -> R.string.account_error_server
-}
-
-@Composable
-private fun PixelsMark(modifier: Modifier = Modifier) {
-    val primary = MaterialTheme.colorScheme.primary
-    val secondary = MaterialTheme.colorScheme.secondary
-    Box(modifier = modifier.size(36.dp)) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            drawPixelsMark(primary = primary, secondary = secondary)
-        }
-    }
-}
-
-private fun DrawScope.drawPixelsMark(primary: Color, secondary: Color) {
-    val cells = listOf(
-        0 to 0, 1 to 0, 2 to 0,
-        0 to 1, 3 to 1,
-        0 to 2, 1 to 2, 2 to 2,
-        0 to 3,
-        0 to 4,
-    )
-    val cell = size.minDimension / 5f
-    val gap = cell * 0.18f
-    val side = cell - gap
-    cells.forEach { (column, row) ->
-        drawRoundRect(
-            color = primary,
-            topLeft = Offset(column * cell, row * cell),
-            size = Size(side, side),
-            cornerRadius = CornerRadius(side * 0.18f),
-        )
-    }
-    drawRoundRect(
-        color = secondary,
-        topLeft = Offset(3f * cell, 4f * cell),
-        size = Size(side, side),
-        cornerRadius = CornerRadius(side * 0.18f),
-    )
 }
 
 @Preview(showBackground = true, backgroundColor = 0xFF080C18)

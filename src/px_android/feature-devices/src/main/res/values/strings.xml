@@ -1,5 +1,5 @@
 <resources>
-    <string name="device_home_title">Pixels</string>
+    <string name="device_home_title">Devices</string>
     <string name="quick_connect">Quick connect</string>
     <string name="connection_input_hint">Device code, IP, or connection details</string>
     <string name="paste">Paste</string>
@@ -10,18 +10,18 @@
     <string name="account_devices">Account devices</string>
     <string name="refresh_devices">Refresh devices</string>
     <string name="no_account_devices">No devices are registered with this account.</string>
-    <string name="sign_in_title">Use your Pixels account</string>
+    <string name="sign_in_title">Sign in to your account</string>
     <string name="sign_in_body">Sign in to see computers registered with your Console.</string>
     <string name="sign_in">Sign in</string>
     <string name="restoring_account">Restoring your account…</string>
     <string name="no_devices_title">Connect your first device</string>
-    <string name="no_devices_body">Scan a Pixels connection code or add a computer manually.</string>
+    <string name="no_devices_body">Scan a connection code or add a computer manually.</string>
     <string name="discover_nearby">Find nearby devices</string>
     <string name="connection_input_empty">Enter a device code, IP, or connection details.</string>
-    <string name="connection_input_invalid">Enter a private-network host, optional port, or a valid Pixels link.</string>
+    <string name="connection_input_invalid">Enter a private-network host, optional port, or a valid connection link.</string>
     <string name="connection_input_public_address">Direct connection is restricted to devices on your local network.</string>
-    <string name="connection_input_unreachable">Pixels could not reach this computer. Check its address and Panel status.</string>
-    <string name="connection_input_invalid_response">The computer responded, but its Pixels device information was invalid.</string>
+    <string name="connection_input_unreachable">Could not reach this computer. Check its address and Panel status.</string>
+    <string name="connection_input_invalid_response">The computer responded, but its device information was invalid.</string>
     <string name="online">Online</string>
     <string name="offline">Offline</string>
     <string name="discovering">Discovering</string>

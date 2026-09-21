@@ -31,6 +31,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
+import yun.pixels.client.BuildConfig
 import yun.pixels.client.MainActivity
 import yun.pixels.client.PixelsApplication
 import yun.pixels.client.R
@@ -75,7 +76,7 @@ class RemoteSessionService : Service() {
     private val localBinder = LocalBinder()
     private var preparedRequest: RemoteSessionRequest? = null
     private var foregroundStarted = false
-    private var foregroundDeviceName = "Pixels"
+    private var foregroundDeviceName = BuildConfig.APPLICATION_NAME
     private lateinit var audioManager: AudioManager
     private var audioFocusRequest: AudioFocusRequest? = null
     private var hasAudioFocus = false
@@ -567,7 +568,7 @@ class RemoteSessionService : Service() {
         )
         val activeTransfer = tasks.firstOrNull { it.state in ACTIVE_TRANSFER_STATES }
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_pixels_notification)
+            .setSmallIcon(notificationIconResource())
             .setContentTitle(getString(R.string.remote_notification_title))
             .setContentText(
                 when {
@@ -591,6 +592,12 @@ class RemoteSessionService : Service() {
             )
         }
         return builder.build()
+    }
+
+    private fun notificationIconResource(): Int {
+        if (BuildConfig.DEPLOYMENT_DISTRIBUTION != "oem") return R.drawable.ic_pixels_notification
+        val oemIconResource = resources.getIdentifier("oem_icon_foreground", "drawable", packageName)
+        return oemIconResource.takeIf { resourceId -> resourceId != 0 } ?: android.R.drawable.stat_sys_warning
     }
 
     private fun createNotificationChannel() {

@@ -37,6 +37,8 @@ Debug 每次调用只删除所选发行类型的旧沙箱、独立提升 Android
 OEM 不属于 Pixels 双发行矩阵。Debug/Release 分别清理并写入 `build_official/android/oem/<oem_id>/`，构建前必须核对 profile 所绑定的
 deployment trust store；Release 还必须使用与 profile 固定值相同的 Android 签名证书。applicationId、应用名、launcher/round icon、
 `oem_id/release_namespace` 和 profile SHA-256 均由同一 profile 注入，Official/Customer 反向拒绝这些 OEM 输入。
+运行界面使用编译注入的应用名；账号、关于、隐私、通知、诊断、剪贴板、远控和录像提示不硬编码 Pixels。OEM Splash、launcher/round icon 和通知
+小图标使用 profile 品牌资源。部署签名域、HTTP 协议头及开源法律声明保留 Pixels 技术/权利人标识，不能随 OEM 显示品牌改写。
 
 Debug APK：
 

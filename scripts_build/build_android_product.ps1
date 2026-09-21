@@ -186,8 +186,10 @@ if ($Distribution -eq 'oem') {
     $oemResourceRoot = Join-Path $androidBuildRoot 'generated\oem-branding\res'
     $oemDrawableRoot = Join-Path $oemResourceRoot 'drawable-nodpi'
     $oemMipmapRoot = Join-Path $oemResourceRoot 'mipmap-anydpi-v26'
+    $oemValuesRoot = Join-Path $oemResourceRoot 'values'
     [IO.Directory]::CreateDirectory($oemDrawableRoot) | Out-Null
     [IO.Directory]::CreateDirectory($oemMipmapRoot) | Out-Null
+    [IO.Directory]::CreateDirectory($oemValuesRoot) | Out-Null
     Copy-Item -LiteralPath ([string]$oemConfiguration.icon_foreground_path) -Destination (Join-Path $oemDrawableRoot 'oem_icon_foreground.png')
     Copy-Item -LiteralPath ([string]$oemConfiguration.icon_background_path) -Destination (Join-Path $oemDrawableRoot 'oem_icon_background.png')
     $adaptiveIconXml = @'
@@ -199,6 +201,17 @@ if ($Distribution -eq 'oem') {
 '@
     Set-Content -LiteralPath (Join-Path $oemMipmapRoot 'ic_oem_launcher.xml') -Value $adaptiveIconXml -Encoding utf8
     Set-Content -LiteralPath (Join-Path $oemMipmapRoot 'ic_oem_launcher_round.xml') -Value $adaptiveIconXml -Encoding utf8
+    $oemThemeXml = @'
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Oem.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@drawable/oem_icon_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/oem_icon_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.Pixels</item>
+    </style>
+</resources>
+'@
+    Set-Content -LiteralPath (Join-Path $oemValuesRoot 'oem_theme.xml') -Value $oemThemeXml -Encoding utf8
     $env:PIXELS_ANDROID_BRAND_RESOURCE_ROOT = $oemResourceRoot
 } else {
     Remove-Item Env:PIXELS_ANDROID_BRAND_RESOURCE_ROOT -ErrorAction SilentlyContinue

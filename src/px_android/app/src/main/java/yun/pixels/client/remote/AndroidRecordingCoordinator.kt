@@ -160,7 +160,7 @@ class AndroidRecordingCoordinator(
         val values = ContentValues().apply {
             put(MediaStore.Video.Media.DISPLAY_NAME, source.name)
             put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
-            put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/Pixels")
+            put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/Remote Recordings")
             put(MediaStore.Video.Media.IS_PENDING, 1)
         }
         val destination = checkNotNull(resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)) {

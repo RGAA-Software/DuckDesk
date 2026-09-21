@@ -1,5 +1,5 @@
 <resources>
-    <string name="device_home_title">Pixels</string>
+    <string name="device_home_title">设备</string>
     <string name="quick_connect">快速连接</string>
     <string name="connection_input_hint">设备代码、IP 或连接信息</string>
     <string name="paste">粘贴</string>
@@ -10,18 +10,18 @@
     <string name="account_devices">账号设备</string>
     <string name="refresh_devices">刷新设备</string>
     <string name="no_account_devices">此账号尚未注册设备。</string>
-    <string name="sign_in_title">使用 Pixels 账号</string>
+    <string name="sign_in_title">登录账号</string>
     <string name="sign_in_body">登录后查看 Console 中注册的电脑。</string>
     <string name="sign_in">登录</string>
     <string name="restoring_account">正在恢复账号…</string>
     <string name="no_devices_title">连接你的第一台设备</string>
-    <string name="no_devices_body">扫描 Pixels 连接码，或者手动添加一台电脑。</string>
+    <string name="no_devices_body">扫描连接码，或者手动添加一台电脑。</string>
     <string name="discover_nearby">发现附近设备</string>
     <string name="connection_input_empty">请输入设备代码、IP 或连接信息。</string>
-    <string name="connection_input_invalid">请输入局域网主机、可选端口或有效的 Pixels 连接信息。</string>
+    <string name="connection_input_invalid">请输入局域网主机、可选端口或有效的连接信息。</string>
     <string name="connection_input_public_address">直接连接仅允许访问当前局域网中的设备。</string>
     <string name="connection_input_unreachable">无法访问这台电脑，请检查地址和 Panel 运行状态。</string>
-    <string name="connection_input_invalid_response">电脑已响应，但返回的 Pixels 设备信息无效。</string>
+    <string name="connection_input_invalid_response">电脑已响应，但返回的设备信息无效。</string>
     <string name="online">在线</string>
     <string name="offline">离线</string>
     <string name="discovering">发现中</string>

@@ -107,6 +107,7 @@ private var SemanticsPropertyReceiver.remoteVideoSize by RemoteVideoSizeSemantic
 @Composable
 fun RemoteWorkspaceScreen(
     snapshot: RemoteSessionSnapshot,
+    applicationName: String = "Application",
     audioEnabled: Boolean,
     recordingState: RecordingState,
     voiceCallState: VoiceCallState,
@@ -229,6 +230,7 @@ fun RemoteWorkspaceScreen(
     Column(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         RemoteTopBar(
             snapshot = snapshot,
+            applicationName = applicationName,
             audioEnabled = audioEnabled,
             recordingState = recordingState,
             voiceCallState = voiceCallState,
@@ -332,7 +334,7 @@ fun RemoteWorkspaceScreen(
             )
             if (inputMode == RemoteInputMode.Gamepad && snapshot.status is RemoteSessionStatus.Connected) {
                 if (maxWidth > maxHeight || allowPortraitGamepad) {
-                    RemoteGamepadOverlay(gamepadController, gamepadConfiguration)
+                    RemoteGamepadOverlay(gamepadController, gamepadConfiguration, applicationName)
                 } else {
                     GamepadPortraitPrompt { allowPortraitGamepad = true }
                 }
@@ -472,6 +474,7 @@ internal fun resolveRemoteBackAction(
 @Composable
 private fun RemoteTopBar(
     snapshot: RemoteSessionSnapshot,
+    applicationName: String,
     audioEnabled: Boolean,
     recordingState: RecordingState,
     voiceCallState: VoiceCallState,
@@ -494,7 +497,7 @@ private fun RemoteTopBar(
 ) {
     val status = snapshot.status
     val title = when (status) {
-        RemoteSessionStatus.Idle -> "Pixels"
+        RemoteSessionStatus.Idle -> applicationName
         is RemoteSessionStatus.Starting -> status.request.target.displayName
         is RemoteSessionStatus.Connected -> status.request.target.displayName
         is RemoteSessionStatus.Reconnecting -> status.request.target.displayName

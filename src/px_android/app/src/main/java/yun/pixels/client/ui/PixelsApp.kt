@@ -115,6 +115,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
     val coroutineScope = rememberCoroutineScope()
     val clipboard = LocalClipboard.current
     val context = LocalContext.current
+    val applicationName = stringResource(R.string.app_name)
     var remoteBinder by remember { mutableStateOf<RemoteSessionService.LocalBinder?>(null) }
     var remoteRequest by remember { mutableStateOf<RemoteSessionRequest?>(null) }
     var openTransfersWhenConnected by remember { mutableStateOf(false) }
@@ -350,6 +351,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
             when (appDestination) {
                 AppDestination.Devices -> DeviceHomeScreen(
                     state = deviceHomeState,
+                    applicationName = applicationName,
                     onAction = { action ->
                         when (action) {
                             DeviceHomeAction.Paste -> {
@@ -492,6 +494,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                     BackHandler { appDestination = settingsReturnDestination }
                     SettingsScreen(
                         state = settingsState,
+                        applicationName = applicationName,
                         appVersion = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
                         onAction = settingsViewModel::onAction,
                         onExportDiagnostics = {
@@ -520,6 +523,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                     val voiceCallState by voiceCallStateFlow.collectAsStateWithLifecycle()
                     RemoteWorkspaceScreen(
                         snapshot = snapshot,
+                        applicationName = applicationName,
                         audioEnabled = audioEnabled,
                         recordingState = recordingState,
                         voiceCallState = voiceCallState,

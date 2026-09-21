@@ -6,17 +6,18 @@ import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.core.content.FileProvider
+import java.io.File
+import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import yun.pixels.client.BuildConfig
 import yun.pixels.client.core.domain.session.ClipboardDownloadState
 import yun.pixels.client.core.domain.session.LocalClipboardFile
 import yun.pixels.client.core.domain.session.RemoteClipboardFiles
 import yun.pixels.client.core.domain.session.RemoteSessionId
 import yun.pixels.client.core.domain.session.RemoteSessionTransport
-import java.io.File
-import java.util.UUID
 
 internal class AndroidClipboardCoordinator(
     context: Context,
@@ -62,7 +63,7 @@ internal class AndroidClipboardCoordinator(
             check(files.size == state.localPaths.size && files.isNotEmpty())
             val authority = "${applicationContext.packageName}.files"
             val uris = files.map { file -> FileProvider.getUriForFile(applicationContext, authority, file) }
-            val clip = ClipData.newUri(resolver, "Pixels", uris.first())
+            val clip = ClipData.newUri(resolver, BuildConfig.APPLICATION_NAME, uris.first())
             uris.drop(1).forEach { uri -> clip.addItem(ClipData.Item(uri)) }
             clipboardManager.setPrimaryClip(clip)
         }.onSuccess { publishedGeneration = state.generation }

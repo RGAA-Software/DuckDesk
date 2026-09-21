@@ -4,8 +4,8 @@
 适用产品：Pixels Cloud Node、Pixels Client、Pixels Remote、Pixels Android
 
 Pixels 发布矩阵只生成 `official` 与 `customer`。OEM 是独立发行线，不得通过修改现有 Customer 的名称、图标、URL 或清单后交付；现有双发行
-矩阵继续保持两项。Android 已有独立 OEM 构建入口，Windows 底层和 Web 已能消费 profile，但全产品 OEM 交付仍保持关闭，直到 Windows 原生 UI、
-Android 内部品牌文案、独立 TUF 正式发布、激活任务和跨 Official/Customer/其他 OEM 的完整拒绝矩阵全部通过。
+矩阵继续保持两项。Android 已有独立 OEM 构建入口并完成运行界面品牌参数化，Windows 底层和 Web 已能消费 profile，但全产品 OEM 交付仍保持
+关闭，直到 Windows 原生 UI、独立 TUF 正式发布、激活任务和跨 Official/Customer/其他 OEM 的完整拒绝矩阵全部通过。
 服务端发布目录、Auth `PXLIC2` 许可证和 `PXDC2/PXDD2` 部署身份已经能够签名表达并隔离 `oem.<oem_id>`；Windows Service、Panel、Web 与
 Android 的消费者也会精确拒绝发行域替换。Android 已开放独立 OEM 构建入口，但全产品 OEM 品牌、TUF 发布和商业交付入口仍未开放；这些身份能力
 不能用于手工拼装 Windows OEM 包，也不改变 Pixels 双发行构建命令。
@@ -27,7 +27,7 @@ TUF ReleaseSpec 也把 OEM ID 纳入升级相等性和不可变 target 路径。
 Web Client 的 OEM 品牌消费现已接通应用名、PNG 图标和 profile SHA-256：HTML/运行标题、加载页与浮球共用同一构建值，非 OEM 构建拒绝 OEM
 环境输入。日常 development Web 产物使用 `scripts_build/publish_web_client_development.ps1` 同步到 Cloud Node/Remote 独立沙箱，脚本逐文件
 核对源目录、产品 `web` 目录和 `dist/web_client` 的 SHA-256，随后刷新并完整验证产品 manifest。该能力仍不是 OEM 完整编排入口；Windows
-Panel/Client 内部品牌、Android 内部品牌文案和正式跨产品签名矩阵未完成前不得交付 OEM 包。
+Panel/Client 内部品牌和正式跨产品签名矩阵未完成前不得交付 OEM 包。
 
 旧的根 CMake 树、公共 `build_official/dist`、共享 Rust 编译产物、`build_client.bat`、旧端口和旧节点测试方案均已退役，不提供兼容入口。
 
@@ -242,7 +242,8 @@ Android 版本一次。任何缺失的身份、签名或 FFmpeg 合规输入都�
 OEM 不加入上述双发行 Release 事务，而是在 `build_official/android/oem/<oem_id>/` 独立清理、升版和发布。OEM 入口只接受
 `PIXELS_OEM_RELEASE_PROFILE`，并校验实际 deployment trust store、独立 applicationId、应用名、前景/背景 PNG、`oem_id/release_namespace`、
 profile SHA-256 以及 Release 签名证书固定值；Pixels Official/Customer 反向拒绝所有 OEM 输入。OEM Debug/Release 均不能读取 Pixels 两个发行的
-已编译资源或改用 Pixels 签名。当前入口已覆盖 APK 的包身份和 launcher 品牌；应用内剩余 Pixels 专属文案仍是全产品 OEM 交付关闭项。
+已编译资源或改用 Pixels 签名。应用名同时用于中英文页面、账号/关于/隐私、通知、诊断、剪贴板和远控浮层；OEM Splash、launcher/round icon 与
+通知图标均使用 profile 品牌资源。签名域、协议头和开源法律声明仍保持 Pixels 技术/权利人标识，不属于可换品牌 UI。
 
 `official` 固定编译时的 HTTPS Console origin 与 deployment UUID，设置页不提供服务器编辑；`customer` 使用独立 applicationId 和输出沙箱，
 不允许编入 Official 的 UUID/URL，只接受用户填写且签名类别为 `private` 的部署。两类构建都必须内置同一审批后的公开 trust store，并显式设置
