@@ -1406,6 +1406,13 @@ EKU、有效期、HTTPS RFC 3161 时间戳和 SignTool；所有 Pixels 自有 PE
 直接封装及“未提供正式证书时预检必须失败且不清理、不升版”均通过；
 当前机器没有配置批准的正式代码签名证书固定值，因此没有运行 release-only 构建、没有消耗版本号，也没有把语法产物冒充正式制品。
 
+签名链之后补齐了可直接消费正式旧/新包的 Windows 生命周期验收器。只读预检验证安装器 manifest、产品/发行一致性、严格递增版本、同一
+签名者 pin、文件 SHA-256、Authenticode 与时间戳；默认要求同一证书，证书续期只接受同时显式给出的已审核旧/新 SHA-256 固定值。执行态必须
+由管理员在三产品及 `px_service` 均不存在的干净专用机器显式开启，依次执行
+旧版安装、升级、同版覆盖和卸载。每个安装阶段按 release manifest 重新验证已安装 payload manifest、精确文件集合、全部 artifact hash、
+owned PE/Uninstall 签名、注册表版本及 Host/Client 的 Service 边界，阶段报告原子保存且失败不自动清理现场。新增 7 项验证器单元测试和
+PowerShell 语法门禁通过。由于当前仍无批准证书和正式双发行旧/新包，本条只关闭“矩阵没有可重复执行器”的软件缺口，不关闭 DB5 实物门禁。
+
 Official/Customer 包装已经把正式 `resources/update/root.json` 作为强制输入，但仓库不伪造生产根、签名私钥或正式已审批更新，因此尚未执行
 “签名旧包→签名新包→真实 SCM 覆盖→故障回滚”的实物矩阵；在该故障注入通过前仍属于 DB2 的部分完成，不得称为正式无人值守升级验收完成。
 development 发行不查询生产更新。Cloud Node/Remote 的聚焦 release Service 构建已重新执行，构建树、stage 与各自 development dist 的

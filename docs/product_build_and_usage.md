@@ -169,6 +169,24 @@ build_official/<product>/<official|customer>/installer/<version>/
 安装、升级或覆盖安装使用对应版本的 `PixelsCloudNode_<distribution>_*_Setup.exe`、`PixelsClient_<distribution>_*_Setup.exe` 或
 `PixelsRemote_<distribution>_*_Setup.exe`。安装器在注册表记录发行身份；同产品不同发行不能直接覆盖，须先卸载。卸载使用 Windows“已安装的应用”或产品卸载程序。
 
+正式签名包先做只读的新旧版本预检：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate_windows_installer_lifecycle.ps1 `
+    -PreviousReleaseDirectory build_official/client/official/installer/<old-version> `
+    -CurrentReleaseDirectory build_official/client/official/installer/<new-version> `
+    -ReportPath build_official/client/reports/official-installer-lifecycle.json
+```
+
+该命令验证两个安装器的 schema、产品/发行、严格递增版本、签名者固定值、安装器 SHA-256、Authenticode 状态和时间戳，默认要求前后证书
+一致且绝不安装或
+卸载。只有在专用、已提升权限且确认三个 Pixels 产品和 `px_service` 均不存在的干净 Windows 验收机上，才增加
+`-ExecuteLifecycle`。执行态依次验证旧版安装、同发行升级、同版覆盖、安装目录精确文件集及逐件 hash、自研 PE 与卸载器签名、Service 产品
+边界和最终卸载清理；每阶段原子写报告，失败后保留现场而不自动删除证据。Cloud Node、Client、Remote 的 Official/Customer 六组必须分别
+执行，不能用 development dist、自签名包或 NSIS 语法构建替代。
+证书正常续期时，必须同时显式提供 `-ApprovedPreviousSignerSha256` 和 `-ApprovedCurrentSignerSha256` 两个已审核固定值；不能用通配、只提供
+新证书或从包内自我声明来放宽签名者切换。
+
 ## 4. Console 与连接配置
 
 产品只使用当前 Console 身份和权威连接描述：
@@ -237,6 +255,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts_build\clean_product_
 - `dist/product-manifest.json` 与产品清单一致；
 - `dist/artifact-manifest.json` 中全部 SHA-256 校验通过；
 - Windows 两种发行使用同一产品版本，安装包分别位于 `<official|customer>/installer/<version>`；
+- 正式发布候选在专用 Windows 验收机完成对应的新旧签名安装包生命周期报告；
 - 没有公共 `build_official/dist`、公共 Rust 编译目录或其他产品制品混入。
 
 服务端 Console/Auth/Desk 有独立发布流程，不属于上述四个客户端产品沙箱。

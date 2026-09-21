@@ -445,6 +445,14 @@ Windows 正式发行链现要求构建机证书存储中的明确代码签名证
 严格校验的 dist，退役旧 `Nsis7z`/`nsProcess` 与额外压缩层。正式证书尚未提供，所以该链目前只完成软件门禁、工具实编和缺输入失败关闭，
 仍不得把语法构建或旧的未签名安装包计作正式签名实物矩阵。
 
+安装包生命周期矩阵已有正式执行入口 `scripts/validate_windows_installer_lifecycle.ps1`。默认只读预检两个版本目录：要求 schema 2、同产品、
+同发行、版本严格递增、签名者 SHA-256 固定值一致，并独立验证 Setup 的内容摘要、Authenticode 和时间戳。证书续期必须同时显式传入经审核
+的旧/新 SHA-256 固定值，不能由包内自我声明批准轮换。只有显式
+`-ExecuteLifecycle`、管理员权限和三产品/`px_service` 全部不存在的干净专用 Windows 验收机才能进入变更阶段；顺序固定为旧版安装、升级、
+同版覆盖、卸载。每个已安装阶段重新核对 payload manifest 摘要、精确文件集、全部 artifact hash、自研 PE/Uninstall 签名、注册表版本和
+Service 边界，失败保留现场和阶段报告，不自动清理后掩盖问题。六组 product×distribution 的正式报告及更新执行器的断网/安装失败/回滚失败
+注入仍需真实批准证书和候选包；当前代码与单元测试就绪不等于实物矩阵已通过。
+
 Windows 软件组合验收 `pg-20260920-151630-d92d153c` 已以 449/449 个登记检查 PASS 覆盖更新目录/激活、节点控制、三个 PostgreSQL
 产品服务、生产前端与真实 Chromium、进程重启/断库恢复及三库 dump/restore 后的数据和结构对账。该结果关闭本轮实现的本地组合回归，
 但不把测试生成的 TUF 仓库、NSIS 语法编译或 development Service 制品冒充正式签名 Official/Customer 安装升级矩阵。

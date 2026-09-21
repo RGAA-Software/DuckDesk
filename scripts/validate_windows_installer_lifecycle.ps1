@@ -1,0 +1,287 @@
+param(
+    [Parameter(Mandatory = $true)]
+    [ValidateScript({ Test-Path -LiteralPath $_ -PathType Container })]
+    [string]$PreviousReleaseDirectory,
+
+    [Parameter(Mandatory = $true)]
+    [ValidateScript({ Test-Path -LiteralPath $_ -PathType Container })]
+    [string]$CurrentReleaseDirectory,
+
+    [Parameter(Mandatory = $true)]
+    [string]$ReportPath,
+
+    [ValidatePattern("^$|^[0-9A-Fa-f]{64}$")]
+    [string]$ApprovedPreviousSignerSha256 = "",
+
+    [ValidatePattern("^$|^[0-9A-Fa-f]{64}$")]
+    [string]$ApprovedCurrentSignerSha256 = "",
+
+    [switch]$ExecuteLifecycle
+)
+
+$ErrorActionPreference = "Stop"
+Set-StrictMode -Version Latest
+
+$releaseVerifier = Join-Path $PSScriptRoot "verify_windows_installer_release.py"
+$packageAuditor = Join-Path $PSScriptRoot "audit_installed_package.ps1"
+$resolvedReportPath = [System.IO.Path]::GetFullPath($ReportPath)
+$reportDirectory = Split-Path -Parent $resolvedReportPath
+$matrixPath = Join-Path $reportDirectory "installer-release-matrix.json"
+
+$productDefinitions = @{
+    cloud_node = @{
+        install_directory = "C:\Program Files\Pixels Cloud Node"
+        uninstall_key = "PixelsCloudNode"
+        expects_service = $true
+    }
+    client = @{
+        install_directory = "C:\Program Files\Pixels Client"
+        uninstall_key = "PixelsClient"
+        expects_service = $false
+    }
+    remote = @{
+        install_directory = "C:\Program Files\Pixels Remote"
+        uninstall_key = "PixelsRemote"
+        expects_service = $true
+    }
+}
+
+function Write-LifecycleReport {
+    param([System.Collections.IDictionary]$Report)
+
+    $temporaryReportPath = "$resolvedReportPath.pending"
+    [System.IO.File]::WriteAllText(
+        $temporaryReportPath,
+        (($Report | ConvertTo-Json -Depth 12) + "`n"),
+        [System.Text.UTF8Encoding]::new($false)
+    )
+    Move-Item -LiteralPath $temporaryReportPath -Destination $resolvedReportPath -Force
+}
+
+function Invoke-CheckedProcess {
+    param(
+        [Parameter(Mandatory = $true)][string]$ExecutablePath,
+        [Parameter(Mandatory = $true)][string[]]$ArgumentList,
+        [Parameter(Mandatory = $true)][string]$Operation
+    )
+
+    $process = Start-Process -FilePath $ExecutablePath -ArgumentList $ArgumentList -Wait -PassThru
+    if ($process.ExitCode -ne 0) {
+        throw "$Operation failed with exit code $($process.ExitCode)"
+    }
+}
+
+function Get-UninstallRegistration {
+    param([Parameter(Mandatory = $true)][string]$UninstallKey)
+
+    foreach ($registryPath in @(
+        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$UninstallKey",
+        "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\$UninstallKey"
+    )) {
+        $registration = Get-ItemProperty -LiteralPath $registryPath -ErrorAction SilentlyContinue
+        if ($null -ne $registration) {
+            return $registration
+        }
+    }
+    return $null
+}
+
+function Assert-CleanValidationMachine {
+    foreach ($productName in @("cloud_node", "client", "remote")) {
+        $productDefinition = $productDefinitions[$productName]
+        if ($null -ne (Get-UninstallRegistration -UninstallKey $productDefinition.uninstall_key)) {
+            throw "validation machine is not clean: $productName has an uninstall registration"
+        }
+        if (Test-Path -LiteralPath $productDefinition.install_directory) {
+            throw "validation machine is not clean: product directory exists: $($productDefinition.install_directory)"
+        }
+    }
+    if ($null -ne (Get-Service -Name "px_service" -ErrorAction SilentlyContinue)) {
+        throw "validation machine is not clean: px_service already exists"
+    }
+}
+
+function Invoke-InstalledVerification {
+    param(
+        [Parameter(Mandatory = $true)][string]$ReleaseDirectory,
+        [Parameter(Mandatory = $true)][string]$InstallDirectory,
+        [Parameter(Mandatory = $true)][string]$OutputPath
+    )
+
+    Invoke-CheckedProcess -ExecutablePath "python" -ArgumentList @(
+        $releaseVerifier,
+        "installed",
+        "--release-dir", $ReleaseDirectory,
+        "--install-dir", $InstallDirectory,
+        "--output", $OutputPath
+    ) -Operation "installed payload verification"
+    return Get-Content -LiteralPath $OutputPath -Raw | ConvertFrom-Json
+}
+
+function Assert-InstalledState {
+    param(
+        [Parameter(Mandatory = $true)][string]$Product,
+        [Parameter(Mandatory = $true)][string]$ExpectedDistribution,
+        [Parameter(Mandatory = $true)][string]$ExpectedVersion,
+        [Parameter(Mandatory = $true)][string]$ReleaseDirectory,
+        [Parameter(Mandatory = $true)][string]$PhaseName
+    )
+
+    $productDefinition = $productDefinitions[$Product]
+    $phaseAuditPath = Join-Path $reportDirectory "$PhaseName-audit.json"
+    & powershell.exe -NoProfile -NonInteractive -File $packageAuditor `
+        -OutputPath $phaseAuditPath `
+        -Product $Product `
+        -InstallRoot $productDefinition.install_directory
+    if ($LASTEXITCODE -ne 0) {
+        throw "$PhaseName package audit failed with exit code $LASTEXITCODE"
+    }
+    $packageAudit = Get-Content -LiteralPath $phaseAuditPath -Raw | ConvertFrom-Json
+    if (-not $packageAudit.installed) {
+        throw "$PhaseName did not create the product installation directory"
+    }
+    if ([string]$packageAudit.installed_version -ne $ExpectedVersion) {
+        throw "$PhaseName installed version mismatch: expected=$ExpectedVersion actual=$($packageAudit.installed_version)"
+    }
+    if ([string]$packageAudit.installed_distribution -ne $ExpectedDistribution) {
+        throw "$PhaseName installed distribution mismatch: expected=$ExpectedDistribution actual=$($packageAudit.installed_distribution)"
+    }
+    if ([string]$packageAudit.installed_publisher -ne "Pixels") {
+        throw "$PhaseName installed publisher is not Pixels"
+    }
+    $servicePresent = [bool]$packageAudit.service.present
+    if ($servicePresent -ne [bool]$productDefinition.expects_service) {
+        throw "$PhaseName service presence does not match the product contract"
+    }
+    if ($productDefinition.expects_service -and [string]$packageAudit.service.status -ne "Running") {
+        throw "$PhaseName px_service is not running"
+    }
+    $installedVerificationPath = Join-Path $reportDirectory "$PhaseName-installed.json"
+    $installedVerification = Invoke-InstalledVerification `
+        -ReleaseDirectory $ReleaseDirectory `
+        -InstallDirectory $productDefinition.install_directory `
+        -OutputPath $installedVerificationPath
+    return [ordered]@{
+        package_audit = $packageAudit
+        installed_verification = $installedVerification
+    }
+}
+
+$hasPreviousSignerApproval = -not [string]::IsNullOrWhiteSpace($ApprovedPreviousSignerSha256)
+$hasCurrentSignerApproval = -not [string]::IsNullOrWhiteSpace($ApprovedCurrentSignerSha256)
+if ($hasPreviousSignerApproval -ne $hasCurrentSignerApproval) {
+    throw "ApprovedPreviousSignerSha256 and ApprovedCurrentSignerSha256 must be provided together"
+}
+
+New-Item -ItemType Directory -Path $reportDirectory -Force | Out-Null
+$releaseVerificationArguments = [System.Collections.Generic.List[string]]::new()
+$releaseVerificationArguments.Add($releaseVerifier)
+$releaseVerificationArguments.Add("pair")
+$releaseVerificationArguments.Add("--previous")
+$releaseVerificationArguments.Add([System.IO.Path]::GetFullPath($PreviousReleaseDirectory))
+$releaseVerificationArguments.Add("--current")
+$releaseVerificationArguments.Add([System.IO.Path]::GetFullPath($CurrentReleaseDirectory))
+$releaseVerificationArguments.Add("--output")
+$releaseVerificationArguments.Add($matrixPath)
+if ($hasPreviousSignerApproval) {
+    $releaseVerificationArguments.Add("--previous-signer-sha256")
+    $releaseVerificationArguments.Add($ApprovedPreviousSignerSha256)
+    $releaseVerificationArguments.Add("--current-signer-sha256")
+    $releaseVerificationArguments.Add($ApprovedCurrentSignerSha256)
+}
+Invoke-CheckedProcess -ExecutablePath "python" -ArgumentList @(
+    $releaseVerificationArguments.ToArray()
+) -Operation "signed installer pair preflight"
+$releaseMatrix = Get-Content -LiteralPath $matrixPath -Raw | ConvertFrom-Json
+
+$lifecycleReport = [ordered]@{
+    schema_version = 1
+    started_at = (Get-Date).ToUniversalTime().ToString("O")
+    completed_at = $null
+    status = if ($ExecuteLifecycle) { "running" } else { "preflight_passed" }
+    execution_requested = [bool]$ExecuteLifecycle
+    host = [ordered]@{
+        computer_name = $env:COMPUTERNAME
+        windows_version = [System.Environment]::OSVersion.VersionString
+    }
+    release_matrix = $releaseMatrix
+    phases = [System.Collections.Generic.List[object]]::new()
+    failure = $null
+}
+
+if (-not $ExecuteLifecycle) {
+    $lifecycleReport.completed_at = (Get-Date).ToUniversalTime().ToString("O")
+    Write-LifecycleReport -Report $lifecycleReport
+    Write-Host "Signed installer pair preflight passed. No installation or uninstallation was performed."
+    exit 0
+}
+
+$windowsIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$windowsPrincipal = [Security.Principal.WindowsPrincipal]::new($windowsIdentity)
+if (-not $windowsPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    throw "-ExecuteLifecycle requires an elevated PowerShell process"
+}
+
+$product = [string]$releaseMatrix.product
+$productDefinition = $productDefinitions[$product]
+$previousRelease = $releaseMatrix.previous
+$currentRelease = $releaseMatrix.current
+
+try {
+    Assert-CleanValidationMachine
+    $lifecycleReport.phases.Add([ordered]@{ name = "clean_machine_precondition"; status = "passed" })
+    Write-LifecycleReport -Report $lifecycleReport
+
+    Invoke-CheckedProcess -ExecutablePath ([string]$previousRelease.installer_path) -ArgumentList @("/S") -Operation "previous version installation"
+    $previousState = Assert-InstalledState `
+        -Product $product `
+        -ExpectedDistribution ([string]$releaseMatrix.distribution) `
+        -ExpectedVersion ([string]$previousRelease.product_version) `
+        -ReleaseDirectory ([string]$previousRelease.directory) `
+        -PhaseName "previous_install"
+    $lifecycleReport.phases.Add([ordered]@{ name = "previous_install"; status = "passed"; evidence = $previousState })
+    Write-LifecycleReport -Report $lifecycleReport
+
+    Invoke-CheckedProcess -ExecutablePath ([string]$currentRelease.installer_path) -ArgumentList @("/S") -Operation "same-channel upgrade"
+    $upgradeState = Assert-InstalledState `
+        -Product $product `
+        -ExpectedDistribution ([string]$releaseMatrix.distribution) `
+        -ExpectedVersion ([string]$currentRelease.product_version) `
+        -ReleaseDirectory ([string]$currentRelease.directory) `
+        -PhaseName "upgrade"
+    $lifecycleReport.phases.Add([ordered]@{ name = "upgrade"; status = "passed"; evidence = $upgradeState })
+    Write-LifecycleReport -Report $lifecycleReport
+
+    Invoke-CheckedProcess -ExecutablePath ([string]$currentRelease.installer_path) -ArgumentList @("/S") -Operation "same-version covering installation"
+    $coveringState = Assert-InstalledState `
+        -Product $product `
+        -ExpectedDistribution ([string]$releaseMatrix.distribution) `
+        -ExpectedVersion ([string]$currentRelease.product_version) `
+        -ReleaseDirectory ([string]$currentRelease.directory) `
+        -PhaseName "same_version_cover"
+    $lifecycleReport.phases.Add([ordered]@{ name = "same_version_cover"; status = "passed"; evidence = $coveringState })
+    Write-LifecycleReport -Report $lifecycleReport
+
+    $uninstallPath = Join-Path $productDefinition.install_directory "Uninstall.exe"
+    Invoke-CheckedProcess -ExecutablePath $uninstallPath -ArgumentList @("/S") -Operation "product uninstallation"
+    if (Test-Path -LiteralPath $productDefinition.install_directory) {
+        throw "uninstall left the product installation directory behind"
+    }
+    if ($null -ne (Get-UninstallRegistration -UninstallKey $productDefinition.uninstall_key)) {
+        throw "uninstall left the product registration behind"
+    }
+    if ($productDefinition.expects_service -and $null -ne (Get-Service -Name "px_service" -ErrorAction SilentlyContinue)) {
+        throw "uninstall left px_service registered"
+    }
+    $lifecycleReport.phases.Add([ordered]@{ name = "uninstall"; status = "passed" })
+    $lifecycleReport.status = "passed"
+} catch {
+    $lifecycleReport.status = "failed"
+    $lifecycleReport.failure = $_.Exception.Message
+    throw
+} finally {
+    $lifecycleReport.completed_at = (Get-Date).ToUniversalTime().ToString("O")
+    Write-LifecycleReport -Report $lifecycleReport
+}
+
+Write-Host "Windows installer lifecycle passed: $product $($previousRelease.product_version) -> $($currentRelease.product_version)"
