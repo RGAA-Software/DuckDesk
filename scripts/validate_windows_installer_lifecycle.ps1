@@ -7,6 +7,9 @@ param(
     [ValidateScript({ Test-Path -LiteralPath $_ -PathType Container })]
     [string]$CurrentReleaseDirectory,
 
+    [ValidateScript({ [string]::IsNullOrWhiteSpace($_) -or (Test-Path -LiteralPath $_ -PathType Container) })]
+    [string]$ConflictReleaseDirectory = "",
+
     [Parameter(Mandatory = $true)]
     [string]$ReportPath,
 
@@ -71,6 +74,18 @@ function Invoke-CheckedProcess {
     }
 }
 
+function Invoke-ExpectedInstallerRejection {
+    param(
+        [Parameter(Mandatory = $true)][string]$InstallerPath,
+        [Parameter(Mandatory = $true)][string]$Operation
+    )
+
+    $process = Start-Process -FilePath $InstallerPath -ArgumentList @("/S") -Wait -PassThru
+    if ($process.ExitCode -ne 1638) {
+        throw "$Operation must return the product-conflict code 1638, actual=$($process.ExitCode)"
+    }
+}
+
 function Get-UninstallRegistration {
     param([Parameter(Mandatory = $true)][string]$UninstallKey)
 
@@ -99,6 +114,62 @@ function Assert-CleanValidationMachine {
     if ($null -ne (Get-Service -Name "px_service" -ErrorAction SilentlyContinue)) {
         throw "validation machine is not clean: px_service already exists"
     }
+}
+
+function Assert-ProductAbsent {
+    param([Parameter(Mandatory = $true)][string]$Product)
+
+    $productDefinition = $productDefinitions[$Product]
+    if ($null -ne (Get-UninstallRegistration -UninstallKey $productDefinition.uninstall_key)) {
+        throw "$Product unexpectedly has an uninstall registration"
+    }
+    if (Test-Path -LiteralPath $productDefinition.install_directory) {
+        throw "$Product unexpectedly has an installation directory"
+    }
+}
+
+function Invoke-ProductUninstall {
+    param([Parameter(Mandatory = $true)][string]$Product)
+
+    $productDefinition = $productDefinitions[$Product]
+    $uninstallPath = Join-Path $productDefinition.install_directory "Uninstall.exe"
+    Invoke-CheckedProcess -ExecutablePath $uninstallPath -ArgumentList @("/S") -Operation "$Product uninstallation"
+    Assert-ProductAbsent -Product $Product
+    if ($productDefinition.expects_service -and $null -ne (Get-Service -Name "px_service" -ErrorAction SilentlyContinue)) {
+        throw "$Product uninstall left px_service registered"
+    }
+}
+
+function New-ManualServiceConflictProbe {
+    $probeDisplayName = "Pixels Installer Manual Service Conflict Probe"
+    $probeCommand = Join-Path $env:SystemRoot "System32\cmd.exe"
+    New-Service -Name "px_service" -BinaryPathName "`"$probeCommand`" /c exit 0" -DisplayName $probeDisplayName -StartupType Manual | Out-Null
+    $registeredDisplayName = (Get-ItemProperty -LiteralPath "HKLM:\SYSTEM\CurrentControlSet\Services\px_service").DisplayName
+    if ([string]$registeredDisplayName -ne $probeDisplayName) {
+        throw "manual px_service conflict probe was not registered with the expected identity"
+    }
+    return $probeDisplayName
+}
+
+function Remove-ManualServiceConflictProbe {
+    param([Parameter(Mandatory = $true)][string]$ExpectedDisplayName)
+
+    $serviceRegistryPath = "HKLM:\SYSTEM\CurrentControlSet\Services\px_service"
+    $registeredService = Get-ItemProperty -LiteralPath $serviceRegistryPath -ErrorAction SilentlyContinue
+    if ($null -eq $registeredService) {
+        return
+    }
+    if ([string]$registeredService.DisplayName -ne $ExpectedDisplayName) {
+        throw "refusing to delete px_service because the manual conflict probe identity changed"
+    }
+    Invoke-CheckedProcess -ExecutablePath "sc.exe" -ArgumentList @("delete", "px_service") -Operation "manual px_service conflict probe cleanup"
+    for ($attemptIndex = 0; $attemptIndex -lt 20; $attemptIndex++) {
+        if ($null -eq (Get-Service -Name "px_service" -ErrorAction SilentlyContinue)) {
+            return
+        }
+        Start-Sleep -Milliseconds 250
+    }
+    throw "manual px_service conflict probe remained registered after cleanup"
 }
 
 function Invoke-InstalledVerification {
@@ -193,6 +264,26 @@ Invoke-CheckedProcess -ExecutablePath "python" -ArgumentList @(
     $releaseVerificationArguments.ToArray()
 ) -Operation "signed installer pair preflight"
 $releaseMatrix = Get-Content -LiteralPath $matrixPath -Raw | ConvertFrom-Json
+$conflictRelease = $null
+if (-not [string]::IsNullOrWhiteSpace($ConflictReleaseDirectory)) {
+    $conflictReleasePath = Join-Path $reportDirectory "installer-conflict-release.json"
+    Invoke-CheckedProcess -ExecutablePath "python" -ArgumentList @(
+        $releaseVerifier,
+        "single",
+        "--release-dir", ([System.IO.Path]::GetFullPath($ConflictReleaseDirectory)),
+        "--output", $conflictReleasePath
+    ) -Operation "signed conflict installer preflight"
+    $conflictRelease = (Get-Content -LiteralPath $conflictReleasePath -Raw | ConvertFrom-Json).release
+    if ([string]$conflictRelease.product -eq [string]$releaseMatrix.product) {
+        throw "conflict installer must belong to a different Pixels product"
+    }
+    if ([string]$conflictRelease.distribution -ne [string]$releaseMatrix.distribution) {
+        throw "conflict installer must use the same distribution as the lifecycle pair"
+    }
+    if ([string]$conflictRelease.signer_certificate_sha256 -ne [string]$releaseMatrix.current.signer_certificate_sha256) {
+        throw "conflict installer must use the current release signer certificate"
+    }
+}
 
 $lifecycleReport = [ordered]@{
     schema_version = 1
@@ -205,6 +296,7 @@ $lifecycleReport = [ordered]@{
         windows_version = [System.Environment]::OSVersion.VersionString
     }
     release_matrix = $releaseMatrix
+    conflict_release = $conflictRelease
     phases = [System.Collections.Generic.List[object]]::new()
     failure = $null
 }
@@ -223,7 +315,6 @@ if (-not $windowsPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Adm
 }
 
 $product = [string]$releaseMatrix.product
-$productDefinition = $productDefinitions[$product]
 $previousRelease = $releaseMatrix.previous
 $currentRelease = $releaseMatrix.current
 
@@ -231,6 +322,49 @@ try {
     Assert-CleanValidationMachine
     $lifecycleReport.phases.Add([ordered]@{ name = "clean_machine_precondition"; status = "passed" })
     Write-LifecycleReport -Report $lifecycleReport
+
+    if ($null -ne $conflictRelease) {
+        $conflictProduct = [string]$conflictRelease.product
+        Invoke-CheckedProcess -ExecutablePath ([string]$conflictRelease.installer_path) -ArgumentList @("/S") -Operation "conflicting product installation"
+        $conflictStateBeforeRejection = Assert-InstalledState `
+            -Product $conflictProduct `
+            -ExpectedDistribution ([string]$conflictRelease.distribution) `
+            -ExpectedVersion ([string]$conflictRelease.product_version) `
+            -ReleaseDirectory ([string]$conflictRelease.directory) `
+            -PhaseName "conflict_product_before_rejection"
+        Invoke-ExpectedInstallerRejection `
+            -InstallerPath ([string]$currentRelease.installer_path) `
+            -Operation "cross-product installation rejection"
+        Assert-ProductAbsent -Product $product
+        $conflictStateAfterRejection = Assert-InstalledState `
+            -Product $conflictProduct `
+            -ExpectedDistribution ([string]$conflictRelease.distribution) `
+            -ExpectedVersion ([string]$conflictRelease.product_version) `
+            -ReleaseDirectory ([string]$conflictRelease.directory) `
+            -PhaseName "conflict_product_after_rejection"
+        $lifecycleReport.phases.Add([ordered]@{
+            name = "cross_product_rejection"
+            status = "passed"
+            before = $conflictStateBeforeRejection
+            after = $conflictStateAfterRejection
+        })
+        Write-LifecycleReport -Report $lifecycleReport
+        Invoke-ProductUninstall -Product $conflictProduct
+        Assert-CleanValidationMachine
+    }
+
+    $manualServiceProbeName = New-ManualServiceConflictProbe
+    try {
+        Invoke-ExpectedInstallerRejection `
+            -InstallerPath ([string]$currentRelease.installer_path) `
+            -Operation "manual px_service conflict rejection"
+        Assert-ProductAbsent -Product $product
+        $lifecycleReport.phases.Add([ordered]@{ name = "manual_service_rejection"; status = "passed" })
+        Write-LifecycleReport -Report $lifecycleReport
+    } finally {
+        Remove-ManualServiceConflictProbe -ExpectedDisplayName $manualServiceProbeName
+    }
+    Assert-CleanValidationMachine
 
     Invoke-CheckedProcess -ExecutablePath ([string]$previousRelease.installer_path) -ArgumentList @("/S") -Operation "previous version installation"
     $previousState = Assert-InstalledState `
@@ -262,17 +396,7 @@ try {
     $lifecycleReport.phases.Add([ordered]@{ name = "same_version_cover"; status = "passed"; evidence = $coveringState })
     Write-LifecycleReport -Report $lifecycleReport
 
-    $uninstallPath = Join-Path $productDefinition.install_directory "Uninstall.exe"
-    Invoke-CheckedProcess -ExecutablePath $uninstallPath -ArgumentList @("/S") -Operation "product uninstallation"
-    if (Test-Path -LiteralPath $productDefinition.install_directory) {
-        throw "uninstall left the product installation directory behind"
-    }
-    if ($null -ne (Get-UninstallRegistration -UninstallKey $productDefinition.uninstall_key)) {
-        throw "uninstall left the product registration behind"
-    }
-    if ($productDefinition.expects_service -and $null -ne (Get-Service -Name "px_service" -ErrorAction SilentlyContinue)) {
-        throw "uninstall left px_service registered"
-    }
+    Invoke-ProductUninstall -Product $product
     $lifecycleReport.phases.Add([ordered]@{ name = "uninstall"; status = "passed" })
     $lifecycleReport.status = "passed"
 } catch {

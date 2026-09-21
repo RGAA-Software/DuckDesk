@@ -175,6 +175,7 @@ build_official/<product>/<official|customer>/installer/<version>/
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate_windows_installer_lifecycle.ps1 `
     -PreviousReleaseDirectory build_official/client/official/installer/<old-version> `
     -CurrentReleaseDirectory build_official/client/official/installer/<new-version> `
+    -ConflictReleaseDirectory build_official/remote/official/installer/<current-version> `
     -ReportPath build_official/client/reports/official-installer-lifecycle.json
 ```
 
@@ -182,7 +183,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate_windows_ins
 一致且绝不安装或
 卸载。只有在专用、已提升权限且确认三个 Pixels 产品和 `px_service` 均不存在的干净 Windows 验收机上，才增加
 `-ExecuteLifecycle`。执行态依次验证旧版安装、同发行升级、同版覆盖、安装目录精确文件集及逐件 hash、自研 PE 与卸载器签名、Service 产品
-边界和最终卸载清理；每阶段原子写报告，失败后保留现场而不自动删除证据。Cloud Node、Client、Remote 的 Official/Customer 六组必须分别
+边界和最终卸载清理。提供另一产品的正式包时，还会先安装该产品，要求目标安装返回 1638 且原产品逐件不变，再清洁卸载；执行器也会注册
+一个不启动的受控 `px_service` 探针，要求目标安装同样返回 1638，随后只在探针身份未变化时删除它。每阶段原子写报告，产品失败后保留现场
+而不自动删除证据。Cloud Node、Client、Remote 的 Official/Customer 六组必须分别
 执行，不能用 development dist、自签名包或 NSIS 语法构建替代。
 证书正常续期时，必须同时显式提供 `-ApprovedPreviousSignerSha256` 和 `-ApprovedCurrentSignerSha256` 两个已审核固定值；不能用通配、只提供
 新证书或从包内自我声明来放宽签名者切换。
