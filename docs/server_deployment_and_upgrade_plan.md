@@ -426,7 +426,8 @@ Windows 发布先由 `prepare_windows_update_release.py` 使用外部审批 sign
 和 ReleaseSpec；不允许人工抄 product/distribution/build、摘要或证书固定值后直接进入 TUF 签名。
 
 root 轮换工具现强制 `N+1` 版本、晚于当前 root 的到期时间和旧/新两套门限交叉签名，并在落盘前分别用当前 root 与新 root 验证。轮换文件必须
-以版本化 root 元数据先行发布并等待客户端信任水位推进；旧 root key 的撤离是后续独立审批动作。公网仓库原子同步/切换执行器仍未完成。
+以版本化 root 元数据先行发布并等待客户端信任水位推进；旧 root key 的撤离是后续独立审批动作。追加候选已能验证上一仓库的连续 root 链，
+仅接受相同 root 或经旧/新门限授权的 `N+1`，保留全部历史版本化 root，并从最早保留根重新加载候选。公网仓库原子同步/切换执行器仍未完成。
 
 当前实现基线使用 `tough` 的 TUF 1.0 客户端。Console 的已认证节点连接根据节点登记产品与 Console 许可证发行类型在服务端派生
 `product/distribution/stable/windows/x86_64`，节点只提交当前 build，不能传入或降级目标维度。目录只返回严格更新、最新且已审批的版本；

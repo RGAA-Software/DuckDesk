@@ -145,7 +145,9 @@ cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority
 `publish` 需要上述三个在线角色私钥，以及 `PIXELS_TUF_ROOT_FILE`、`PIXELS_RELEASE_SPEC_FILE`、`PIXELS_RELEASE_ARTIFACT`、
 `PIXELS_TUF_REPOSITORY_OUTPUT`、三个 `PIXELS_TUF_*_EXPIRES_AT`。追加发布时还必须给出 `PIXELS_TUF_PREVIOUS_REPOSITORY`。工具验证 root 自签门限、
 角色密钥隔离、到期顺序、ReleaseSpec、制品大小/SHA-256、历史仓库全部签名和全部历史目标字节；角色版本自动严格递增。每个 target name 永久
-不可复用，输出目录也不可覆盖。新输出在同父目录的随机 staging 中完整生成并由正式 `tough` 客户端重新下载验证目标后才一次重命名提交，包含
+不可复用，输出目录也不可覆盖。轮换后的第一次追加发布要求新 root 恰为上一仓库 root 的 `N+1` 且同时满足旧、新门限；新候选保留连续
+版本化 root 链，并从最早保留根重新验证整库，禁止把自签新根直接接到旧仓库。新输出在同父目录的随机 staging 中完整生成并由正式 `tough`
+客户端重新下载验证目标后才一次重命名提交，包含
 `metadata/`、`targets/` 和带 root/release 摘要及角色版本的 `publication.json`。
 
 Windows 的 `PIXELS_RELEASE_SPEC_FILE` 不手工抄写。从正式安装器版本目录生成：

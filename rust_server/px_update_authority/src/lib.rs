@@ -24,6 +24,7 @@ const MAXIMUM_ROOT_BYTES: u64 = 1024 * 1024;
 const MAXIMUM_RELEASE_SPEC_BYTES: u64 = 1024 * 1024;
 const MAXIMUM_TARGET_FILES: usize = 10_000;
 const MAXIMUM_TARGET_BYTES: u64 = 1_u64 << 40;
+const MAXIMUM_ROOT_CHAIN_LENGTH: usize = 64;
 
 #[derive(Debug, Clone)]
 pub struct RootCreation {
@@ -67,6 +68,12 @@ pub struct RepositoryPublication {
 
 struct PrivateKeySource {
     key_material: Arc<Zeroizing<Vec<u8>>>,
+}
+
+struct RootChainEntry {
+    version: u64,
+    bytes: Vec<u8>,
+    signed_root: Signed<Root>,
 }
 
 impl std::fmt::Debug for PrivateKeySource {
@@ -364,7 +371,7 @@ async fn publish_into_staging(
     std::fs::create_dir(&metadata_path)?;
     std::fs::create_dir(&targets_path)?;
     let (mut editor, targets_version, snapshot_version, timestamp_version) =
-        load_repository_editor(configuration, root_bytes, &targets_path)
+        load_repository_editor(configuration, root_bytes, &metadata_path, &targets_path)
             .await
             .map_err(|error| format!("cannot prepare prior TUF repository state: {error}"))?;
     editor.targets_version(targets_version)?;
@@ -429,9 +436,15 @@ async fn publish_into_staging(
         &staging_path.join("publication.json"),
         &(serde_json::to_vec_pretty(&manifest)?),
     )?;
-    verify_staged_repository(root_bytes, &metadata_path, &targets_path, target_name)
-        .await
-        .map_err(|error| format!("staged TUF repository self-verification failed: {error}").into())
+    let bootstrap_root_bytes = oldest_repository_root(&metadata_path)?;
+    verify_staged_repository(
+        &bootstrap_root_bytes,
+        &metadata_path,
+        &targets_path,
+        target_name,
+    )
+    .await
+    .map_err(|error| format!("staged TUF repository self-verification failed: {error}").into())
 }
 
 async fn verify_staged_repository(
@@ -461,6 +474,7 @@ async fn verify_staged_repository(
 async fn load_repository_editor(
     configuration: &RepositoryPublication,
     root_bytes: &[u8],
+    metadata_output: &Path,
     verified_targets_output: &Path,
 ) -> AuthorityResult<(RepositoryEditor, NonZeroU64, NonZeroU64, NonZeroU64)> {
     let Some(previous_repository_path) = &configuration.previous_repository_path else {
@@ -473,19 +487,17 @@ async fn load_repository_editor(
     };
     reject_symbolic_link(&previous_repository_path.join("metadata"))?;
     reject_symbolic_link(&previous_repository_path.join("targets"))?;
-    let trusted_root: Signed<Root> = serde_json::from_slice(root_bytes)?;
-    let repository_root_name = format!("{}.root.json", trusted_root.signed.version.get());
-    let previous_root = read_bounded(
-        &previous_repository_path
-            .join("metadata")
-            .join(repository_root_name),
-        MAXIMUM_ROOT_BYTES,
+    let root_chain = load_root_chain(&previous_repository_path.join("metadata"))?;
+    let previous_root_entry = root_chain
+        .last()
+        .ok_or("previous repository does not contain TUF root metadata")?;
+    validate_next_publication_root(
+        &previous_root_entry.bytes,
+        &previous_root_entry.signed_root,
+        root_bytes,
     )?;
-    if previous_root != root_bytes {
-        return Err("previous repository is not bound to the supplied TUF root".into());
-    }
     let repository = RepositoryLoader::new(
-        &root_bytes,
+        &previous_root_entry.bytes,
         directory_url(&previous_repository_path.join("metadata"))?,
         directory_url(&previous_repository_path.join("targets"))?,
     )
@@ -523,6 +535,21 @@ async fn load_repository_editor(
                 )
             })?;
     }
+    for root_entry in &root_chain {
+        copy_new_file(
+            &previous_repository_path
+                .join("metadata")
+                .join(format!("{}.root.json", root_entry.version)),
+            &metadata_output.join(format!("{}.root.json", root_entry.version)),
+        )?;
+        let copied_root_bytes = read_bounded(
+            &metadata_output.join(format!("{}.root.json", root_entry.version)),
+            MAXIMUM_ROOT_BYTES,
+        )?;
+        if copied_root_bytes != root_entry.bytes {
+            return Err("copied TUF root metadata changed during publication".into());
+        }
+    }
     Ok((
         RepositoryEditor::from_repo(&configuration.root_path, repository)
             .await
@@ -531,6 +558,86 @@ async fn load_repository_editor(
         snapshot_version,
         timestamp_version,
     ))
+}
+
+fn load_root_chain(metadata_path: &Path) -> AuthorityResult<Vec<RootChainEntry>> {
+    let mut root_paths = Vec::new();
+    for directory_entry in std::fs::read_dir(metadata_path)? {
+        let directory_entry = directory_entry?;
+        let file_name = directory_entry
+            .file_name()
+            .into_string()
+            .map_err(|_| "TUF metadata file name is not valid UTF-8")?;
+        let Some(version_text) = file_name.strip_suffix(".root.json") else {
+            continue;
+        };
+        let root_version: u64 = version_text
+            .parse()
+            .map_err(|_| "TUF root metadata file has an invalid version")?;
+        if root_version == 0 {
+            return Err("TUF root metadata version must be positive".into());
+        }
+        root_paths.push((root_version, directory_entry.path()));
+    }
+    root_paths.sort_by_key(|(root_version, _)| *root_version);
+    if root_paths.is_empty() || root_paths.len() > MAXIMUM_ROOT_CHAIN_LENGTH {
+        return Err("TUF root chain has an invalid length".into());
+    }
+
+    let mut root_chain: Vec<RootChainEntry> = Vec::with_capacity(root_paths.len());
+    for (root_version, root_path) in root_paths {
+        let root_bytes = read_bounded(&root_path, MAXIMUM_ROOT_BYTES)?;
+        let signed_root: Signed<Root> = serde_json::from_slice(&root_bytes)?;
+        if signed_root.signed.version.get() != root_version {
+            return Err("TUF root metadata file name does not match its version".into());
+        }
+        signed_root.signed.verify_role(&signed_root)?;
+        if let Some(previous_root_entry) = root_chain.last() {
+            if previous_root_entry.version.checked_add(1) != Some(root_version) {
+                return Err("TUF root metadata chain is not contiguous".into());
+            }
+            previous_root_entry
+                .signed_root
+                .signed
+                .verify_role(&signed_root)?;
+        }
+        root_chain.push(RootChainEntry {
+            version: root_version,
+            bytes: root_bytes,
+            signed_root,
+        });
+    }
+    Ok(root_chain)
+}
+
+fn validate_next_publication_root(
+    previous_root_bytes: &[u8],
+    previous_root: &Signed<Root>,
+    requested_root_bytes: &[u8],
+) -> AuthorityResult<()> {
+    if requested_root_bytes == previous_root_bytes {
+        return Ok(());
+    }
+    let requested_root: Signed<Root> = serde_json::from_slice(requested_root_bytes)?;
+    if previous_root.signed.version.get().checked_add(1)
+        != Some(requested_root.signed.version.get())
+    {
+        return Err(
+            "new publication root must equal the current root or advance exactly one version"
+                .into(),
+        );
+    }
+    previous_root.signed.verify_role(&requested_root)?;
+    requested_root.signed.verify_role(&requested_root)?;
+    Ok(())
+}
+
+fn oldest_repository_root(metadata_path: &Path) -> AuthorityResult<Vec<u8>> {
+    load_root_chain(metadata_path)?
+        .into_iter()
+        .next()
+        .map(|root_entry| root_entry.bytes)
+        .ok_or_else(|| "TUF repository does not contain root metadata".into())
 }
 
 fn validate_root_creation(configuration: &RootCreation) -> AuthorityResult<()> {
@@ -978,6 +1085,109 @@ mod tests {
         };
         assert!(rotate_root(&insufficient_current_keys).await.is_err());
         assert!(!insufficient_current_keys.output_path.exists());
+    }
+
+    #[tokio::test]
+    async fn publication_after_root_rotation_preserves_and_verifies_the_root_chain() {
+        let fixture = AuthorityFixture::new().await;
+        let first_artifact = b"installer signed by the first authority";
+        let first_artifact_path = fixture.directory().join("first-authority-installer.exe");
+        std::fs::write(&first_artifact_path, first_artifact).unwrap();
+        let first_release = fixture.release(
+            30380,
+            "cloud_node/official/stable/windows/x86_64/30380/installer.exe",
+            first_artifact,
+        );
+        let first_release_path = fixture.directory().join("first-authority-release.json");
+        std::fs::write(
+            &first_release_path,
+            serde_json::to_vec_pretty(&first_release).unwrap(),
+        )
+        .unwrap();
+        let first_repository_path = fixture.directory().join("first-authority-repository");
+        publish_repository(&fixture.publication(
+            first_release_path,
+            first_artifact_path,
+            None,
+            first_repository_path.clone(),
+        ))
+        .await
+        .unwrap();
+
+        let rotated_key_directory = fixture.directory().join("rotated-authority-keys");
+        std::fs::create_dir(&rotated_key_directory).unwrap();
+        make_private_directory(&rotated_key_directory);
+        let rotated_root_key_paths = vec![
+            rotated_key_directory.join("root-one.pk8"),
+            rotated_key_directory.join("root-two.pk8"),
+            rotated_key_directory.join("root-three.pk8"),
+        ];
+        let rotated_targets_key_path = rotated_key_directory.join("targets.pk8");
+        let rotated_snapshot_key_path = rotated_key_directory.join("snapshot.pk8");
+        let rotated_timestamp_key_path = rotated_key_directory.join("timestamp.pk8");
+        for key_path in rotated_root_key_paths.iter().chain([
+            &rotated_targets_key_path,
+            &rotated_snapshot_key_path,
+            &rotated_timestamp_key_path,
+        ]) {
+            generate_signing_key(key_path).unwrap();
+        }
+        let rotated_root_path = fixture.directory().join("2.root.json");
+        rotate_root(&RootRotation {
+            current_root_path: fixture.root_path.clone(),
+            current_root_signing_key_paths: fixture.root_key_paths.clone(),
+            new_root_signing_key_paths: rotated_root_key_paths,
+            new_root_signature_threshold: 2,
+            new_targets_signing_key_path: rotated_targets_key_path.clone(),
+            new_snapshot_signing_key_path: rotated_snapshot_key_path.clone(),
+            new_timestamp_signing_key_path: rotated_timestamp_key_path.clone(),
+            expires_at: Timestamp::now() + SignedDuration::from_hours(24 * 730),
+            output_path: rotated_root_path.clone(),
+        })
+        .await
+        .unwrap();
+
+        let second_artifact = b"installer signed by the rotated authority";
+        let second_artifact_path = fixture.directory().join("rotated-authority-installer.exe");
+        std::fs::write(&second_artifact_path, second_artifact).unwrap();
+        let second_release = fixture.release(
+            30381,
+            "cloud_node/official/stable/windows/x86_64/30381/installer.exe",
+            second_artifact,
+        );
+        let second_release_path = fixture.directory().join("rotated-authority-release.json");
+        std::fs::write(
+            &second_release_path,
+            serde_json::to_vec_pretty(&second_release).unwrap(),
+        )
+        .unwrap();
+        let rotated_repository_path = fixture.directory().join("rotated-authority-repository");
+        publish_repository(&RepositoryPublication {
+            root_path: rotated_root_path,
+            targets_signing_key_path: rotated_targets_key_path,
+            snapshot_signing_key_path: rotated_snapshot_key_path,
+            timestamp_signing_key_path: rotated_timestamp_key_path,
+            release_spec_path: second_release_path,
+            artifact_path: second_artifact_path,
+            previous_repository_path: Some(first_repository_path),
+            output_path: rotated_repository_path.clone(),
+            targets_expires_at: Timestamp::now() + SignedDuration::from_hours(24 * 90),
+            snapshot_expires_at: Timestamp::now() + SignedDuration::from_hours(24 * 7),
+            timestamp_expires_at: Timestamp::now() + SignedDuration::from_hours(24),
+        })
+        .await
+        .unwrap();
+
+        assert!(rotated_repository_path
+            .join("metadata/1.root.json")
+            .is_file());
+        assert!(rotated_repository_path
+            .join("metadata/2.root.json")
+            .is_file());
+        let repository = load_test_repository(&fixture.root_path, &rotated_repository_path).await;
+        assert_eq!(repository.root().signed.version.get(), 2);
+        assert_eq!(repository.targets().signed.version.get(), 2);
+        assert_eq!(repository.targets().signed.targets.len(), 2);
     }
 
     #[tokio::test]
