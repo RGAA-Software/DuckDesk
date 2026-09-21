@@ -30,7 +30,7 @@
 | Cloud Node | 完整节点、Render、Service 和管理 Panel | official/customer 两种发行 |
 | Client | 访问方 Panel、Client、文件和 RDP 能力 | official/customer 两种发行 |
 | Remote | 桌面被控节点和对应访问能力 | official/customer 两种发行 |
-| Android | 移动访问方 | official/customer 两种发行 |
+| Android | 移动访问方 | Pixels official/customer 双发行；profile 绑定的 OEM 独立发行 |
 
 许可证签发、部署证书签发与软件发布签名属于 Pixels 的发行基础设施，不是客户正常会话必经的在线服务。
 客户可以离线导入有效签名材料；验证私钥不进入客户端或私有服务端套件。
@@ -121,10 +121,12 @@ product 决定能力，distribution 决定平台与更新策略，release_channe
   更新策略。OEM A、OEM B、Pixels Official 和 Pixels Customer 之间均不得覆盖安装、共享更新元数据或回落到彼此的软件包。
 - OEM 非秘密发行描述采用严格 schema 1，并由 `PIXELS_OEM_RELEASE_PROFILE` 唯一指定。描述将品牌、Windows 三产品安装身份、Android
   applicationId、各平台签名证书固定值、品牌资源摘要、deployment trust store 与 TUF 初始根摘要绑定为一个整体；构建过程不得再从若干可互相
-  矛盾的环境变量推断 OEM 身份。当前 Windows deployment policy 预检已经执行该门禁，完整 OEM 编译/安装入口仍保持关闭，直到所有消费者接线完成。
+  矛盾的环境变量推断 OEM 身份。Windows deployment policy 和 Android 独立 OEM 构建入口已经执行该门禁；全产品 OEM 编译/安装入口仍保持关闭，
+  直到所有消费者接线完成。
 - 三个 Windows 产品及其发行变体继续互斥。只有一个已安装发行，服务命名可沿用统一方案。
 - 卸载软件与删除账号、配置、工作区和用户数据分开；普通升级不调用卸载清理路径。保留的数据带平台/发行归属，禁止另一发行自动导入。
-- Android 为两个 flavor 分配不同 applicationId、显示标记和更新身份；同一 flavor 的后续 APK 保持 applicationId、签名谱系和递增 versionCode。
+- Android 为 Pixels 两个发行分配不同 applicationId、显示标记和更新身份；每个 OEM 另由 profile 固定独立 applicationId、品牌和签名谱系。同一
+  发行域的后续 APK 保持 applicationId、签名谱系和递增 versionCode。
 - P0 定义新 Windows 安装身份与 Android applicationId/签名，冻结首次正式发行归属；不为旧开发包增加身份兼容或数据导入。
 - 新基线按全新安装验收，旧开发版不承诺原位升级；正式发行后的同产品/同发行版本继续验收覆盖安装与升级。
 - 更新身份、数据迁移与卸载边界同时测试；不能因为版本更高就接受另一个 flavor 的包。
@@ -500,8 +502,9 @@ Windows 软件组合验收 `pg-20260920-151630-d92d153c` 已以 449/449 个登�
 当前 release catalog、Desk/Console PostgreSQL 发布目录、TUF `pixels.target` 元数据、Auth `PXLIC2`、部署身份、Console 和节点产品描述符均已实现
 严格 `oem_id/release_namespace` 字段，Desk 能保存不同 OEM 的同构建号版本，Console 运维页能显示命名空间。OEM 非秘密发行描述及 Windows policy
 前置门禁已绑定品牌/安装身份/签名者/独立根；Windows CMake、dist、NSIS、installer verifier 和 TUF ReleaseSpec 也已开始消费同一 profile，并以
-共享 owner 记录保持所有产品/发行互斥。但还没有开放完整 OEM 产物入口。OEM 包仍不得使用现有 Customer 构建入口冒充交付；P0 后续必须完成
-Windows UI/Web、Android 品牌资源、独立 TUF 正式发布、节点激活任务和验收矩阵，再允许生成第一份 OEM 安装包。
+共享 owner 记录保持所有产品/发行互斥。但还没有开放完整 OEM 产物入口。OEM 包仍不得使用现有 Customer 构建入口冒充交付。Web 和 Android
+包身份/launcher 品牌已接线，P0 后续仍必须完成 Windows 原生 UI、Android 内部品牌文案、独立 TUF 正式发布、节点激活任务和验收矩阵，再允许
+生成第一份全产品 OEM 商业交付。
 
 下载可恢复，完整包先验证再解压；防路径穿越、链接逃逸、超大解压、符号链接/重解析点替换和校验后替换。
 高权限安装辅助进程只接受受保护的已验证 staging 及类型化任务，不执行 UI/服务器传来的任意命令或任意路径。

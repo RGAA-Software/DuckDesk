@@ -44,4 +44,16 @@ Web Client 单独修改时，先在 `web/px_web_client` 执行 `npm.cmd run test
 各自的 development `web` 与 `dist/web_client`，逐文件核对 SHA-256、刷新 manifest 并执行完整 dist 验证；它不升版、不构建 C++/Rust，
 也不能生成 Official/Customer/OEM 安装包。
 
+Android OEM 使用同一份 `PIXELS_OEM_RELEASE_PROFILE`，但不加入 Pixels 的 Official/Customer 双发行矩阵：
+
+```bat
+set PIXELS_OEM_RELEASE_PROFILE=D:\secure\north-star\oem-release-profile.json
+scripts_build\build_android_product.bat oem debug
+scripts_build\build_android_product.bat oem debug install
+scripts_build\build_android_product.bat oem release
+```
+
+输出固定隔离到 `build_official/android/oem/<oem_id>/`。入口校验 profile、deployment trust store、独立 applicationId、应用名、双层
+launcher 图标和 Android 签名证书固定值；OEM Release 独立升版，不能使用 Pixels Release 矩阵或 Pixels 签名。
+
 移动前的脚本已完整归档至 `backup/build_scripts_relocation_20260908`，归档不参与构建。

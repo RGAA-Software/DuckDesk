@@ -1,7 +1,7 @@
 product = "android"
 company = "Pixels"
-product_version = "1.0.18"
-product_version_code = 10018
+product_version = "1.0.20"
+product_version_code = 10020
 capabilities = [
     "desktop_client",
     "file_transfer",

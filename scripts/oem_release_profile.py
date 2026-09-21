@@ -42,6 +42,8 @@ class OemReleaseProfile:
     windows_products: dict[str, OemWindowsProductIdentity]
     android_application_id: str
     android_signer_certificate_sha256: str
+    android_icon_foreground_path: Path
+    android_icon_background_path: Path
     web_icon_path: Path
     profile_sha256: str
     document: dict[str, object]
@@ -223,6 +225,7 @@ def load_oem_release_profile(path: Path) -> OemReleaseProfile:
     if not ANDROID_APPLICATION_ID_PATTERN.fullmatch(android_application_id) or android_application_id.startswith("yun.pixels."):
         raise RuntimeError("OEM Android application_id must be an independent lowercase reverse-DNS identifier")
     android_signer_certificate_sha256 = require_sha256(android, "signer_certificate_sha256")
+    android_asset_paths: dict[str, Path] = {}
     for asset_field in ("icon_foreground", "icon_background"):
         android_asset = android.get(asset_field)
         if not isinstance(android_asset, dict):
@@ -230,6 +233,7 @@ def load_oem_release_profile(path: Path) -> OemReleaseProfile:
         android_asset_path = validate_asset(resolved_path.parent, android_asset, f"Android {asset_field}")
         if android_asset_path.suffix.lower() != ".png":
             raise RuntimeError(f"OEM Android {asset_field} must be a .png file")
+        android_asset_paths[asset_field] = android_asset_path
 
     web = require_object(profile_document, "web", {"application_name", "icon"})
     web_application_name = require_text(web, "application_name")
@@ -256,6 +260,8 @@ def load_oem_release_profile(path: Path) -> OemReleaseProfile:
         windows_products=windows_products,
         android_application_id=android_application_id,
         android_signer_certificate_sha256=android_signer_certificate_sha256,
+        android_icon_foreground_path=android_asset_paths["icon_foreground"],
+        android_icon_background_path=android_asset_paths["icon_background"],
         web_icon_path=web_icon_path,
         profile_sha256=sha256_bytes(profile_bytes),
         document=profile_document,
@@ -284,18 +290,45 @@ def emit_cmake(profile: OemReleaseProfile, product: str) -> str:
     return "\n".join(f"set({variable_name} {cmake_bracket(variable_value)})" for variable_name, variable_value in variables.items()) + "\n"
 
 
+def emit_android_json(profile: OemReleaseProfile) -> str:
+    configuration = {
+        "schema_version": 1,
+        "oem_id": profile.oem_id,
+        "release_namespace": profile.release_namespace,
+        "company_name": profile.company_name,
+        "application_name": profile.application_name,
+        "application_id": profile.android_application_id,
+        "signer_certificate_sha256": profile.android_signer_certificate_sha256,
+        "deployment_trust_store_sha256": profile.deployment_trust_store_sha256,
+        "update_root_sha256": profile.update_root_sha256,
+        "icon_foreground_path": str(profile.android_icon_foreground_path),
+        "icon_background_path": str(profile.android_icon_background_path),
+        "profile_sha256": profile.profile_sha256,
+    }
+    return json.dumps(configuration, ensure_ascii=False, separators=(",", ":")) + "\n"
+
+
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", type=Path, required=True)
-    parser.add_argument("--product", choices=OEM_PRODUCTS, required=True)
-    parser.add_argument("--cmake", action="store_true", required=True)
+    parser.add_argument("--product", choices=OEM_PRODUCTS)
+    output_format = parser.add_mutually_exclusive_group(required=True)
+    output_format.add_argument("--cmake", action="store_true")
+    output_format.add_argument("--android-json", action="store_true")
     return parser.parse_args()
 
 
 def main() -> int:
     arguments = parse_arguments()
     profile = load_oem_release_profile(arguments.profile)
-    sys.stdout.write(emit_cmake(profile, arguments.product))
+    if arguments.cmake:
+        if arguments.product is None:
+            raise RuntimeError("--product is required with --cmake")
+        sys.stdout.write(emit_cmake(profile, arguments.product))
+    else:
+        if arguments.product is not None:
+            raise RuntimeError("--product is not accepted with --android-json")
+        sys.stdout.write(emit_android_json(profile))
     return 0
 
 

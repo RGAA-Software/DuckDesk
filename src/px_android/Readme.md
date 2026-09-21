@@ -1,7 +1,8 @@
 # Pixels Android Client
 
-`src/px_android` 是正式 Pixels Android 客户端，产品名为 `Pixels`。Official 的 applicationId 为 `yun.pixels.client`，Customer 为
-`yun.pixels.client.customer`。只发布 `arm64-v8a`，最低系统版本为 Android 12 / API 31；不保留旧 Android 应用、数据、入口、协议默认值或包名兼容。
+`src/px_android` 是正式 Android 客户端。Pixels Official 的 applicationId 为 `yun.pixels.client`，Pixels Customer 为
+`yun.pixels.client.customer`；OEM 使用其不可变 release profile 中的独立 applicationId、应用名、图标和签名谱系。只发布 `arm64-v8a`，最低系统
+版本为 Android 12 / API 31；不保留旧 Android 应用、数据、入口、协议默认值或包名兼容。
 
 产品能力和设计边界见：
 
@@ -20,6 +21,10 @@ scripts_build\build_android_product.bat official debug install
 scripts_build\build_android_product.bat customer debug
 scripts_build\build_android_product.bat customer debug install
 scripts_build\build_android_product.bat release
+set PIXELS_OEM_RELEASE_PROFILE=D:\secure\north-star\oem-release-profile.json
+scripts_build\build_android_product.bat oem debug
+scripts_build\build_android_product.bat oem debug install
+scripts_build\build_android_product.bat oem release
 ```
 
 Debug 每次调用只删除所选发行类型的旧沙箱、独立提升 Android 版本，并构建完整目标；`debug install` 使用 `adb install -r` 覆盖安装，不卸载应用或
@@ -29,16 +34,22 @@ Debug 每次调用只删除所选发行类型的旧沙箱、独立提升 Android
 `PIXELS_EXPECTED_DEPLOYMENT_ID`、`PIXELS_OFFICIAL_CONSOLE_URL`，应用内不提供地址编辑；Customer 禁止携带这两个 Official 参数，要求用户填写
 私有部署地址，并只接受签名类别为 `private` 的部署。
 
+OEM 不属于 Pixels 双发行矩阵。Debug/Release 分别清理并写入 `build_official/android/oem/<oem_id>/`，构建前必须核对 profile 所绑定的
+deployment trust store；Release 还必须使用与 profile 固定值相同的 Android 签名证书。applicationId、应用名、launcher/round icon、
+`oem_id/release_namespace` 和 profile SHA-256 均由同一 profile 注入，Official/Customer 反向拒绝这些 OEM 输入。
+
 Debug APK：
 
 ```text
 build_official/android/<official|customer>/dist/Pixels-<distribution>-<version>-debug-arm64-v8a.apk
+build_official/android/oem/<oem_id>/dist/OEM-<oem_id>-<version>-debug-arm64-v8a.apk
 ```
 
 Release 目录：
 
 ```text
 build_official/android/<official|customer>/dist/<version>/
+build_official/android/oem/<oem_id>/dist/<version>/
 ```
 
 Release 同时生成并校验签名 APK、AAB、R8 mapping、native symbols、FFmpeg n6.1 对应源码、从本次 native 构建对象自动生成的 LGPL relink kit、第三方 notices 和带 SHA-256 的 `release-manifest.json`。FFmpeg 源码由当前 `VCPKG_ROOT`（未设置时为 `C:\source\vcpkg`）的已安装 SPDX 清单与下载缓存锁定，不再要求手工准备旧的源码/relink ZIP。

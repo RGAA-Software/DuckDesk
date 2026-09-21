@@ -3,32 +3,31 @@
 状态：当前唯一有效流程
 适用产品：Pixels Cloud Node、Pixels Client、Pixels Remote、Pixels Android
 
-当前发布入口只生成 Pixels `official` 与 Pixels `customer`。OEM 是独立发行线，不得通过修改现有 Customer 的名称、图标、URL 或清单后
-交付。OEM 构建入口尚未开放；开放前必须同时提供唯一 `oem_id/release_namespace`、独立品牌/应用/安装身份、独立 TUF 初始根、私有更新策略
-和跨 Official/Customer/其他 OEM 的拒绝测试。现有双发行矩阵继续保持两项，不能把未实现的 OEM 算作已完成产物。
+Pixels 发布矩阵只生成 `official` 与 `customer`。OEM 是独立发行线，不得通过修改现有 Customer 的名称、图标、URL 或清单后交付；现有双发行
+矩阵继续保持两项。Android 已有独立 OEM 构建入口，Windows 底层和 Web 已能消费 profile，但全产品 OEM 交付仍保持关闭，直到 Windows 原生 UI、
+Android 内部品牌文案、独立 TUF 正式发布、激活任务和跨 Official/Customer/其他 OEM 的完整拒绝矩阵全部通过。
 服务端发布目录、Auth `PXLIC2` 许可证和 `PXDC2/PXDD2` 部署身份已经能够签名表达并隔离 `oem.<oem_id>`；Windows Service、Panel、Web 与
-Android 的消费者也会精确拒绝发行域替换。但 OEM 品牌、安装身份、TUF 根和完整构建入口仍未开放，因此这些身份能力不能用于手工拼装 OEM 包，
-也不改变本页双发行构建命令。
+Android 的消费者也会精确拒绝发行域替换。Android 已开放独立 OEM 构建入口，但全产品 OEM 品牌、TUF 发布和商业交付入口仍未开放；这些身份能力
+不能用于手工拼装 Windows OEM 包，也不改变 Pixels 双发行构建命令。
 
-OEM 构建前置配置已经开始实施，但尚不是产物入口。`PIXELS_OEM_RELEASE_PROFILE` 指向一个 schema 1 UTF-8 JSON，作为该 OEM 的唯一非秘密
+OEM 构建配置使用 `PIXELS_OEM_RELEASE_PROFILE` 指向的 schema 1 UTF-8 JSON，作为该 OEM 的唯一非秘密
 发行描述；Windows OEM deployment policy 预检不再接受裸 `PIXELS_OEM_ID`。描述必须同时固定 `oem_id/release_namespace`、品牌名、三个
 Windows 产品各自的显示名/安装目录/卸载键/安装包 basename、Windows 和 Android 签名证书 SHA-256、独立 Android applicationId、
 Windows/Android/Web 品牌图标及逐件 SHA-256、deployment trust store SHA-256 和 TUF 初始 root SHA-256。资源路径只能位于描述文件目录内；
 缺项、多余字段、路径逃逸、资源篡改、复用 Pixels 品牌/applicationId、重复 Windows 安装身份或根摘要不一致均在产生策略前失败。Official/
-Customer 构建反向拒绝该变量，避免 OEM 配置污染 Pixels 双发行矩阵。完整 OEM 编译入口只有在这些字段实际贯穿 CMake、Web、Android 和安装器后
-才会开放。
+Customer 构建反向拒绝该变量，避免 OEM 配置污染 Pixels 双发行矩阵。Android OEM 已有独立产物入口；全产品 OEM 编排和商业交付入口仍关闭。
 
 Windows 底层发行链现已继续接线，但仍不构成公开入口：CMake/`collect_dist.py`/NSIS 共同消费同一 profile，OEM 输出固定隔离到
 `build_official/<product>/oem/<oem_id>/`，CMake 产品水位使用 schema 2，dist 与 installer manifest 使用 schema 3 并携带精确发行域和
 profile SHA-256；OEM 公司名、图标、产品显示名、安装目录、卸载键、安装包 basename 与签名证书固定值不能在后段覆盖。安装器用共享受保护
 owner 记录维持三个 Windows 产品及所有发行互斥，同时同一 product/domain/install identity 才允许覆盖安装。installer release verifier 和
-TUF ReleaseSpec 也把 OEM ID 纳入升级相等性和不可变 target 路径。Web 正式编排、Windows 原生 UI 与 Android 尚未完成，所以不要直接调用这些
-底层参数生成交付包。
+TUF ReleaseSpec 也把 OEM ID 纳入升级相等性和不可变 target 路径。Windows 原生 UI 和正式 OEM 编排尚未完成，所以不要直接调用这些底层参数
+生成交付包。
 
 Web Client 的 OEM 品牌消费现已接通应用名、PNG 图标和 profile SHA-256：HTML/运行标题、加载页与浮球共用同一构建值，非 OEM 构建拒绝 OEM
 环境输入。日常 development Web 产物使用 `scripts_build/publish_web_client_development.ps1` 同步到 Cloud Node/Remote 独立沙箱，脚本逐文件
 核对源目录、产品 `web` 目录和 `dist/web_client` 的 SHA-256，随后刷新并完整验证产品 manifest。该能力仍不是 OEM 完整编排入口；Windows
-Panel/Client 内部品牌、Android 和正式签名矩阵未完成前不得交付 OEM 包。
+Panel/Client 内部品牌、Android 内部品牌文案和正式跨产品签名矩阵未完成前不得交付 OEM 包。
 
 旧的根 CMake 树、公共 `build_official/dist`、共享 Rust 编译产物、`build_client.bat`、旧端口和旧节点测试方案均已退役，不提供兼容入口。
 
@@ -48,6 +47,7 @@ build_official/
 │   ├── official/{cmake,cargo,web,rdp_policy,deployment,dist,installer,reports}/
 │   └── customer/{cmake,cargo,web,rdp_policy,deployment,dist,installer,reports}/
 └── android/{official,customer}/{gradle,native,dist,reports}/
+    └── oem/<oem_id>/{gradle,native,dist,reports}/
 ```
 
 - `cmake`：该 Windows 产品专属 CMake/Ninja 构建树。
@@ -225,6 +225,10 @@ scripts_build\build_android_product.bat official debug install
 scripts_build\build_android_product.bat customer debug
 scripts_build\build_android_product.bat customer debug install
 scripts_build\build_android_product.bat release
+set PIXELS_OEM_RELEASE_PROFILE=D:\secure\north-star\oem-release-profile.json
+scripts_build\build_android_product.bat oem debug
+scripts_build\build_android_product.bat oem debug install
+scripts_build\build_android_product.bat oem release
 ```
 
 - `debug`：执行 lint、单元测试并生成完整 Debug APK。
@@ -234,6 +238,11 @@ scripts_build\build_android_product.bat release
 
 单发行 Debug 每次调用先删除自己的旧沙箱并提升 Android 版本一次；正式 Release 先同时预检两个发行，再删除整个 Android 输出，且只提升
 Android 版本一次。任何缺失的身份、签名或 FFmpeg 合规输入都会在清理和升版前失败。旧的单发行 Release 调用不再提供兼容入口。
+
+OEM 不加入上述双发行 Release 事务，而是在 `build_official/android/oem/<oem_id>/` 独立清理、升版和发布。OEM 入口只接受
+`PIXELS_OEM_RELEASE_PROFILE`，并校验实际 deployment trust store、独立 applicationId、应用名、前景/背景 PNG、`oem_id/release_namespace`、
+profile SHA-256 以及 Release 签名证书固定值；Pixels Official/Customer 反向拒绝所有 OEM 输入。OEM Debug/Release 均不能读取 Pixels 两个发行的
+已编译资源或改用 Pixels 签名。当前入口已覆盖 APK 的包身份和 launcher 品牌；应用内剩余 Pixels 专属文案仍是全产品 OEM 交付关闭项。
 
 `official` 固定编译时的 HTTPS Console origin 与 deployment UUID，设置页不提供服务器编辑；`customer` 使用独立 applicationId 和输出沙箱，
 不允许编入 Official 的 UUID/URL，只接受用户填写且签名类别为 `private` 的部署。两类构建都必须内置同一审批后的公开 trust store，并显式设置

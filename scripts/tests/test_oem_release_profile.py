@@ -11,7 +11,7 @@ from pathlib import Path
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY_ROOT / "scripts"))
 
-from oem_release_profile import emit_cmake, load_oem_release_profile  # noqa: E402
+from oem_release_profile import emit_android_json, emit_cmake, load_oem_release_profile  # noqa: E402
 
 
 class OemReleaseProfileTest(unittest.TestCase):
@@ -94,6 +94,14 @@ class OemReleaseProfileTest(unittest.TestCase):
         cmake_variables = emit_cmake(profile, "client")
         self.assertIn("set(PX_OEM_ID [[north-star]])", cmake_variables)
         self.assertIn("set(PX_OEM_PRODUCT_NAME [[North Star Client]])", cmake_variables)
+        android_configuration = json.loads(emit_android_json(profile))
+        self.assertEqual(android_configuration["application_id"], "com.northstar.cloud.client")
+        self.assertEqual(android_configuration["application_name"], "North Star Cloud")
+        self.assertEqual(android_configuration["profile_sha256"], profile.profile_sha256)
+        self.assertEqual(
+            Path(android_configuration["icon_foreground_path"]),
+            self.assets["android-foreground.png"],
+        )
 
     def test_rejects_pixels_brand_and_application_identity(self) -> None:
         profile = self.valid_profile()

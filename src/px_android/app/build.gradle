@@ -35,8 +35,16 @@ def pixelsVersionCodeInput = System.getenv('PIXELS_VERSION_CODE')?.trim()
 def pixelsVersionNameInput = System.getenv('PIXELS_VERSION_NAME')?.trim()
 def pixelsCompanyInput = System.getenv('PIXELS_COMPANY')?.trim()
 def deploymentDistribution = System.getenv('PIXELS_DISTRIBUTION')?.trim()
-def releaseNamespace = deploymentDistribution in ['official', 'customer'] ? "pixels.${deploymentDistribution}" : ''
+def configuredReleaseNamespace = System.getenv('PIXELS_RELEASE_NAMESPACE')?.trim() ?: ''
+def releaseNamespace = deploymentDistribution in ['official', 'customer'] ? "pixels.${deploymentDistribution}" : configuredReleaseNamespace
 def oemId = System.getenv('PIXELS_OEM_ID')?.trim() ?: ''
+def oemProfileSha256 = System.getenv('PIXELS_OEM_PROFILE_SHA256')?.trim() ?: ''
+def androidApplicationId = System.getenv('PIXELS_ANDROID_APPLICATION_ID')?.trim() ?: ''
+def androidApplicationName = System.getenv('PIXELS_ANDROID_APPLICATION_NAME')?.trim() ?: ''
+def androidBrandCompany = System.getenv('PIXELS_ANDROID_BRAND_COMPANY')?.trim() ?: ''
+def androidIconForegroundPath = System.getenv('PIXELS_ANDROID_ICON_FOREGROUND_FILE')?.trim() ?: ''
+def androidIconBackgroundPath = System.getenv('PIXELS_ANDROID_ICON_BACKGROUND_FILE')?.trim() ?: ''
+def androidBrandResourceRoot = System.getenv('PIXELS_ANDROID_BRAND_RESOURCE_ROOT')?.trim() ?: ''
 def deploymentTrustStorePath = System.getenv('PIXELS_DEPLOYMENT_TRUST_STORE_FILE')?.trim()
 def deploymentTrustStoreFile = deploymentTrustStorePath ? file(deploymentTrustStorePath) : null
 def deploymentTrustStoreBase64 = deploymentTrustStoreFile?.isFile() ? Base64.encoder.encodeToString(deploymentTrustStoreFile.bytes) : ''
@@ -96,11 +104,37 @@ if (requestedArtifactTask && !hasExplicitProductVersion) {
 if (requestedArtifactTask && pixelsCompanyInput != 'Pixels') {
     throw new GradleException('APK/AAB tasks require PIXELS_COMPANY=Pixels from the Android product manifest.')
 }
-if (requestedDistributionValidation && !(deploymentDistribution in ['official', 'customer'])) {
-    throw new GradleException('APK/AAB tasks require PIXELS_DISTRIBUTION=official or customer.')
+if (requestedDistributionValidation && !(deploymentDistribution in ['official', 'customer', 'oem'])) {
+    throw new GradleException('APK/AAB tasks require PIXELS_DISTRIBUTION=official, customer or oem.')
 }
-if (requestedDistributionValidation && oemId) {
-    throw new GradleException('Official/Customer APK/AAB tasks must not configure PIXELS_OEM_ID.')
+def oemBuildInputs = [
+    oemId,
+    oemProfileSha256,
+    androidApplicationId,
+    androidApplicationName,
+    androidBrandCompany,
+    androidIconForegroundPath,
+    androidIconBackgroundPath,
+]
+if (requestedDistributionValidation && deploymentDistribution != 'oem' &&
+    ([configuredReleaseNamespace, androidBrandResourceRoot] + oemBuildInputs).any { oemBuildInput -> oemBuildInput }) {
+    throw new GradleException('Official/Customer APK/AAB tasks must not configure OEM build inputs.')
+}
+if (requestedDistributionValidation && deploymentDistribution == 'oem') {
+    if (oemBuildInputs.any { oemBuildInput -> !oemBuildInput }) {
+        throw new GradleException('OEM APK/AAB tasks require the complete immutable OEM Android build configuration.')
+    }
+    if (releaseNamespace != "oem.${oemId}" || !(oemId ==~ /[a-z0-9](?:[a-z0-9-]{1,30}[a-z0-9])?/) ||
+        !(oemProfileSha256 ==~ /[0-9a-f]{64}/) || !(androidApplicationId ==~ /[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*){2,}/) ||
+        androidApplicationId.startsWith('yun.pixels.')) {
+        throw new GradleException('OEM Android identity inputs are not canonical or independent from Pixels application identity.')
+    }
+    if (![androidIconForegroundPath, androidIconBackgroundPath].every { iconPath -> new File(iconPath).isFile() }) {
+        throw new GradleException('OEM Android icon inputs are missing.')
+    }
+    if (requestedArtifactTask && (!androidBrandResourceRoot || !file(androidBrandResourceRoot).isDirectory())) {
+        throw new GradleException('OEM artifact tasks require the prepared generated brand resource directory.')
+    }
 }
 if (requestedDistributionValidation && !deploymentTrustStoreFile?.isFile()) {
     throw new GradleException('APK/AAB tasks require PIXELS_DEPLOYMENT_TRUST_STORE_FILE with the approved canonical public trust store.')
@@ -151,8 +185,8 @@ if (requestedDistributionValidation && deploymentDistribution == 'official') {
         throw new GradleException('PIXELS_OFFICIAL_CONSOLE_URL must be an HTTPS origin without credentials, path, query or fragment.')
     }
 }
-if (requestedDistributionValidation && deploymentDistribution == 'customer' && (expectedDeploymentId || officialConsoleUrl)) {
-    throw new GradleException('Customer APK/AAB tasks must not configure the official deployment ID or official Console URL.')
+if (requestedDistributionValidation && deploymentDistribution in ['customer', 'oem'] && (expectedDeploymentId || officialConsoleUrl)) {
+    throw new GradleException('Customer/OEM APK/AAB tasks must not configure the official deployment ID or official Console URL.')
 }
 if (requestedReleaseValidation && !releaseSigningReady) {
     throw new GradleException(
@@ -167,6 +201,15 @@ def pixelsVersionName = pixelsVersionNameInput ?: '1.0.0'
 def pixelsCompany = pixelsCompanyInput ?: 'Pixels'
 def pixelsGitRevision = System.getenv('PIXELS_GIT_REVISION') ?: 'unknown'
 def releaseComplianceDriver = System.getenv('PIXELS_RELEASE_COMPLIANCE_DRIVER') == '1'
+def effectiveApplicationId = deploymentDistribution == 'customer' ? 'yun.pixels.client.customer' :
+    deploymentDistribution == 'oem' ? androidApplicationId : 'yun.pixels.client'
+def effectiveApplicationName = deploymentDistribution == 'oem' ? androidApplicationName : 'Pixels'
+def effectiveBrandCompany = deploymentDistribution == 'oem' ? androidBrandCompany : 'Pixels'
+def launcherIconResource = deploymentDistribution == 'oem' ? '@mipmap/ic_oem_launcher' : '@mipmap/ic_launcher'
+def roundLauncherIconResource = deploymentDistribution == 'oem' ? '@mipmap/ic_oem_launcher_round' : '@mipmap/ic_launcher_round'
+def javaStringLiteral = { String value ->
+    '"' + value.replace('\\', '\\\\').replace('"', '\\"').replace('\r', '\\r').replace('\n', '\\n') + '"'
+}
 
 if (pixelsVersionCode <= 0 || !(pixelsVersionName ==~ /[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?/)) {
     throw new GradleException('PIXELS_VERSION_CODE must be positive and PIXELS_VERSION_NAME must use semantic version syntax.')
@@ -187,22 +230,31 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = deploymentDistribution == 'customer' ? 'yun.pixels.client.customer' : 'yun.pixels.client'
+        applicationId = effectiveApplicationId
         minSdk = 31
         targetSdk = 37
         versionCode = pixelsVersionCode
         versionName = pixelsVersionName
         buildConfigField 'String', 'GIT_REVISION', "\"${pixelsGitRevision}\""
-        buildConfigField 'String', 'COMPANY', "\"${pixelsCompany}\""
+        buildConfigField 'String', 'COMPANY', javaStringLiteral(effectiveBrandCompany)
+        buildConfigField 'String', 'APPLICATION_NAME', javaStringLiteral(effectiveApplicationName)
         buildConfigField 'String', 'DEPLOYMENT_DISTRIBUTION', "\"${deploymentDistribution ?: ''}\""
         buildConfigField 'String', 'RELEASE_NAMESPACE', "\"${releaseNamespace}\""
         buildConfigField 'String', 'OEM_ID', "\"${oemId}\""
+        buildConfigField 'String', 'OEM_PROFILE_SHA256', "\"${oemProfileSha256}\""
         buildConfigField 'String', 'DEPLOYMENT_TRUST_STORE_BASE64', "\"${deploymentTrustStoreBase64}\""
         buildConfigField 'String', 'EXPECTED_DEPLOYMENT_ID', "\"${expectedDeploymentId}\""
         buildConfigField 'String', 'OFFICIAL_CONSOLE_URL', "\"${officialConsoleUrl}\""
         buildConfigField 'long', 'MINIMUM_DEPLOYMENT_CERTIFICATE_VERSION', "${deploymentCertificateVersion}L"
         buildConfigField 'long', 'MINIMUM_DESCRIPTOR_REVISION', "${deploymentDescriptorRevision}L"
         buildConfigField 'long', 'DEPLOYMENT_TRUST_EPOCH', "${deploymentTrustEpoch}L"
+        manifestPlaceholders = [
+            applicationIcon: launcherIconResource,
+            applicationRoundIcon: roundLauncherIconResource,
+        ]
+        if (deploymentDistribution == 'oem') {
+            resValue 'string', 'app_name', effectiveApplicationName
+        }
 
         testInstrumentationRunner = 'androidx.test.runner.AndroidJUnitRunner'
 
@@ -210,6 +262,12 @@ android {
             abiFilters += ['arm64-v8a']
         }
 
+    }
+
+    if (deploymentDistribution == 'oem' && androidBrandResourceRoot) {
+        sourceSets {
+            main.res.srcDir androidBrandResourceRoot
+        }
     }
 
     signingConfigs {
@@ -253,6 +311,7 @@ android {
     buildFeatures {
         buildConfig = true
         compose = true
+        resValues = true
     }
 
     packaging {

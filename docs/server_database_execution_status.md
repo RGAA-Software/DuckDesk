@@ -1637,6 +1637,14 @@ Web 单测现为 68/68，另有语音状态 19 条断言，TypeScript 和 produc
 Cloud Node/Remote 的 `web` 与 `dist/web_client`，逐文件 hash 一致后刷新清单；完整产品验证分别为 314/76 件通过。该结果只证明 Web 品牌门禁与
 development 产物同步，不冒充 OEM 完整构建、正式签名或安装验收；Windows 原生 UI 与 Android 品牌仍未完成。
 
+2026-09-22 的 Android OEM 纵向切片新增独立 `oem` Debug/Release 入口和 `build_official/android/oem/<oem_id>/` 沙箱；同一 profile 现在贯穿
+applicationId、应用名、launcher/round icon、Android 签名证书固定值、`oem_id/release_namespace` 与 profile SHA-256，Pixels Official/Customer
+反向拒绝 OEM 输入。OEM Release 不加入 Pixels 双发行矩阵并独立升版。聚焦实编译先因 D 盘耗尽消费 `1.0.19` 后失败，清理明确的旧 Android
+生成树后按不复用失败版本规则完成 `1.0.20 (10020)`：456 个 Gradle task、lint、全模块单测、arm64 native、APK 和退休媒体审计全部通过。
+打包反查确认 `com.northstar.cloud.client.debug`、`North Star Cloud` 和 OEM adaptive/round icon，Gradle 源 APK 与独立 dist SHA-256 均为
+`0010CA907ABC69FE76411110BB3A350CD125ACBF08A96671D48205DE600952F7`。该证据不是正式 OEM 签名 Release；Android 内部品牌文案、Windows 原生 UI、
+独立 TUF 正式发布和跨产品验收仍须完成后才能开放首份 OEM 商业交付。
+
 | 阶段 | 当前未完成项 |
 |---|---|
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |

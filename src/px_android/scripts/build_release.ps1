@@ -20,14 +20,35 @@ $expectedVersionName = [Environment]::GetEnvironmentVariable('PIXELS_VERSION_NAM
 $expectedVersionCodeText = [Environment]::GetEnvironmentVariable('PIXELS_VERSION_CODE')
 $expectedCompany = [Environment]::GetEnvironmentVariable('PIXELS_COMPANY')
 $expectedDistribution = [Environment]::GetEnvironmentVariable('PIXELS_DISTRIBUTION')
+$expectedOemId = [Environment]::GetEnvironmentVariable('PIXELS_OEM_ID')
+$expectedReleaseNamespace = [Environment]::GetEnvironmentVariable('PIXELS_RELEASE_NAMESPACE')
+$expectedOemProfileSha256 = [Environment]::GetEnvironmentVariable('PIXELS_OEM_PROFILE_SHA256')
+$expectedApplicationId = [Environment]::GetEnvironmentVariable('PIXELS_ANDROID_APPLICATION_ID')
+$expectedApplicationName = [Environment]::GetEnvironmentVariable('PIXELS_ANDROID_APPLICATION_NAME')
+$expectedBrandCompany = [Environment]::GetEnvironmentVariable('PIXELS_ANDROID_BRAND_COMPANY')
 if ($expectedVersionName -notmatch '^\d+\.\d+\.\d+$' -or $expectedVersionCodeText -notmatch '^\d+$') {
     throw 'Run scripts_build\build_android_product.bat release so the independent Android product version is assigned first.'
 }
 if ($expectedCompany -ne 'Pixels') {
     throw 'PIXELS_COMPANY must be Pixels and must come from the Android product manifest.'
 }
-if ($expectedDistribution -notin @('official', 'customer')) {
-    throw 'PIXELS_DISTRIBUTION must be official or customer and must come from the Android product build entry point.'
+if ($expectedDistribution -notin @('official', 'customer', 'oem')) {
+    throw 'PIXELS_DISTRIBUTION must be official, customer or oem and must come from the Android product build entry point.'
+}
+if ($expectedDistribution -eq 'oem') {
+    if ($expectedOemId -notmatch '^[a-z0-9](?:[a-z0-9-]{1,30}[a-z0-9])?$' -or
+        $expectedReleaseNamespace -ne "oem.$expectedOemId" -or $expectedOemProfileSha256 -notmatch '^[0-9a-f]{64}$' -or
+        [string]::IsNullOrWhiteSpace($expectedApplicationId) -or [string]::IsNullOrWhiteSpace($expectedApplicationName) -or
+        [string]::IsNullOrWhiteSpace($expectedBrandCompany)) {
+        throw 'The OEM Android release identity is incomplete or invalid.'
+    }
+} else {
+    $expectedReleaseNamespace = "pixels.$expectedDistribution"
+    $expectedApplicationId = if ($expectedDistribution -eq 'customer') { 'yun.pixels.client.customer' } else { 'yun.pixels.client' }
+    $expectedApplicationName = 'Pixels'
+    $expectedBrandCompany = 'Pixels'
+    $expectedOemId = $null
+    $expectedOemProfileSha256 = $null
 }
 $expectedVersionCode = [int]$expectedVersionCodeText
 if ($expectedVersionCode -le 0) {
@@ -228,20 +249,23 @@ if (-not (Test-Path -LiteralPath $metadataPath -PathType Leaf) -or -not (Test-Pa
     throw 'Gradle completed without producing both release APK metadata and AAB output.'
 }
 
-$metadata = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
-$element = @($metadata.elements)[0]
-$apkPath = Join-Path (Split-Path -Parent $metadataPath) $element.outputFile
+$apkMetadata = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
+$apkMetadataElement = @($apkMetadata.elements)[0]
+$apkPath = Join-Path (Split-Path -Parent $metadataPath) $apkMetadataElement.outputFile
 if (-not (Test-Path -LiteralPath $apkPath -PathType Leaf)) {
     throw "Release APK is missing: $apkPath"
 }
 
-$versionName = [string]$element.versionName
-$versionCode = [int]$element.versionCode
+$versionName = [string]$apkMetadataElement.versionName
+$versionCode = [int]$apkMetadataElement.versionCode
 if ([string]::IsNullOrWhiteSpace($versionName) -or $versionCode -le 0) {
     throw 'Release output metadata does not contain a valid version.'
 }
 if ($versionName -ne $expectedVersionName -or $versionCode -ne $expectedVersionCode) {
     throw "Release output version $versionName ($versionCode) does not match Android product version $expectedVersionName ($expectedVersionCode)."
+}
+if ([string]$apkMetadata.applicationId -ne $expectedApplicationId) {
+    throw "Release output applicationId does not match the immutable $expectedDistribution identity."
 }
 
 $generatedRelinkArchive = Join-Path $androidBuildRoot "staging\pixels-lgpl-relink-$versionName.zip"
@@ -259,8 +283,9 @@ $artifactRoot = $artifactStagingRoot
 New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
 $releasePublished = $false
 try {
-$apkDestination = Join-Path $artifactRoot "Pixels-$versionName-arm64-v8a.apk"
-$bundleDestination = Join-Path $artifactRoot "Pixels-$versionName.aab"
+$artifactBaseName = if ($expectedDistribution -eq 'oem') { "Android-OEM-$expectedOemId" } else { 'Pixels' }
+$apkDestination = Join-Path $artifactRoot "$artifactBaseName-$versionName-arm64-v8a.apk"
+$bundleDestination = Join-Path $artifactRoot "$artifactBaseName-$versionName.aab"
 Copy-Item -LiteralPath $apkPath -Destination $apkDestination -Force
 Copy-Item -LiteralPath $bundlePath -Destination $bundleDestination -Force
 $retiredMediaAudit = Join-Path $repositoryRoot 'scripts\audit_android_retired_media.py'
@@ -461,10 +486,16 @@ $artifactMetadata = $publishedArtifacts | ForEach-Object {
     }
 }
 $manifest = [ordered]@{
-    product = 'Pixels Android'
+    schemaVersion = 2
+    product = 'android'
     distribution = $expectedDistribution
-    company = $expectedCompany
-    applicationId = [string]$metadata.applicationId
+    releaseNamespace = $expectedReleaseNamespace
+    oemId = $expectedOemId
+    oemProfileSha256 = $expectedOemProfileSha256
+    productOwner = $expectedCompany
+    company = $expectedBrandCompany
+    applicationName = $expectedApplicationName
+    applicationId = [string]$apkMetadata.applicationId
     versionName = $versionName
     versionCode = $versionCode
     abi = 'arm64-v8a'
@@ -495,6 +526,6 @@ $manifestPath = Join-Path $artifactRoot 'release-manifest.json'
     }
 }
 
-Write-Host "Pixels $versionName ($versionCode) release verified."
+Write-Host "$expectedApplicationName $versionName ($versionCode) $expectedDistribution release verified."
 Write-Host "Artifacts: $artifactRoot"
 Get-Content -LiteralPath $manifestPath

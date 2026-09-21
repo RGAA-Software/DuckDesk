@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('official', 'customer')]
+    [ValidateSet('official', 'customer', 'oem')]
     [string]$Distribution,
 
     [Parameter(Mandatory = $true)]
@@ -17,7 +17,9 @@ param(
 
     [int]$AssignedVersionCode = 0,
 
-    [string]$AssignedCompany = ''
+    [string]$AssignedCompany = '',
+
+    [string]$OemProfile = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -25,8 +27,32 @@ Set-StrictMode -Version Latest
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $androidRoot = Join-Path $repoRoot 'src\px_android'
-$androidProductRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot "build_official\android\$Distribution"))
 $expectedAndroidRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot 'build_official\android'))
+$oemProfileTool = Join-Path $repoRoot 'scripts\oem_release_profile.py'
+if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
+    throw 'Python is required to validate Android identity and assign the product version.'
+}
+$oemConfiguration = $null
+if ($Distribution -eq 'oem') {
+    if ([string]::IsNullOrWhiteSpace($OemProfile)) {
+        $OemProfile = [Environment]::GetEnvironmentVariable('PIXELS_OEM_RELEASE_PROFILE')
+    }
+    if ([string]::IsNullOrWhiteSpace($OemProfile) -or -not (Test-Path -LiteralPath $OemProfile -PathType Leaf)) {
+        throw 'OEM Android builds require -OemProfile or PIXELS_OEM_RELEASE_PROFILE.'
+    }
+    $oemConfigurationOutput = @(& python $oemProfileTool --profile $OemProfile --android-json 2>&1)
+    if ($LASTEXITCODE -ne 0) {
+        throw "OEM Android release profile validation failed: $($oemConfigurationOutput -join [Environment]::NewLine)"
+    }
+    $oemConfiguration = ($oemConfigurationOutput -join [Environment]::NewLine) | ConvertFrom-Json
+    $androidProductRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot "build_official\android\oem\$($oemConfiguration.oem_id)"))
+} else {
+    if (-not [string]::IsNullOrWhiteSpace($OemProfile) -or
+        -not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('PIXELS_OEM_RELEASE_PROFILE'))) {
+        throw 'Official and Customer Android builds must not configure an OEM release profile.'
+    }
+    $androidProductRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot "build_official\android\$Distribution"))
+}
 $androidBuildRoot = Join-Path $androidProductRoot 'gradle'
 $androidNativeRoot = Join-Path $androidProductRoot 'native'
 $gradle = Join-Path $androidRoot 'gradlew.bat'
@@ -54,9 +80,6 @@ function Get-Sha256File {
 if (-not (Test-Path -LiteralPath $gradle -PathType Leaf)) {
     throw "Android Gradle wrapper is missing: $gradle"
 }
-if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
-    throw 'Python is required to assign the Android product version.'
-}
 if ($Configuration -eq 'release' -and $Action) {
     throw 'The install action is only supported for debug builds.'
 }
@@ -73,7 +96,7 @@ if ($PreflightOnly -and $hasAssignedVersion) {
     throw 'Preflight-only validation does not accept an assigned Android version.'
 }
 if ($Configuration -eq 'release' -and -not $PreflightOnly -and -not $hasAssignedVersion) {
-    throw 'Android release builds require the matrix-assigned version; use build_android_product.bat release.'
+    throw 'Android release builds require a version assigned by the approved Pixels matrix or OEM release orchestrator.'
 }
 if ($Action -eq 'install' -and -not (Get-Command adb -ErrorAction SilentlyContinue)) {
     throw 'adb is required for build_android_product.bat debug install.'
@@ -92,7 +115,42 @@ if ($Distribution -eq 'official') {
     }
 } elseif (-not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('PIXELS_EXPECTED_DEPLOYMENT_ID')) -or
     -not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('PIXELS_OFFICIAL_CONSOLE_URL'))) {
-    throw 'Customer builds must not configure PIXELS_EXPECTED_DEPLOYMENT_ID or PIXELS_OFFICIAL_CONSOLE_URL.'
+    throw 'Customer and OEM builds must not configure PIXELS_EXPECTED_DEPLOYMENT_ID or PIXELS_OFFICIAL_CONSOLE_URL.'
+}
+if ($Distribution -eq 'oem') {
+    $actualTrustStoreSha256 = (Get-FileHash -LiteralPath $trustStorePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actualTrustStoreSha256 -ne [string]$oemConfiguration.deployment_trust_store_sha256) {
+        throw 'The deployment trust store does not match the OEM release profile.'
+    }
+    if ($Configuration -eq 'release') {
+        $configuredCertificateSha256 = [Environment]::GetEnvironmentVariable('PIXELS_SIGNING_CERT_SHA256')
+        $keystorePropertiesPath = Join-Path $androidRoot 'keystore.properties'
+        if ([string]::IsNullOrWhiteSpace($configuredCertificateSha256) -and
+            (Test-Path -LiteralPath $keystorePropertiesPath -PathType Leaf)) {
+            $certificateProperty = Get-Content -LiteralPath $keystorePropertiesPath |
+                Where-Object { $_ -match '^\s*certificateSha256\s*=' } |
+                Select-Object -First 1
+            if ($certificateProperty) {
+                $configuredCertificateSha256 = ($certificateProperty -replace '^\s*certificateSha256\s*=\s*', '').Trim()
+            }
+        }
+        $configuredCertificateSha256 = ([string]$configuredCertificateSha256 -replace '[:\s]', '').ToLowerInvariant()
+        if ($configuredCertificateSha256 -ne [string]$oemConfiguration.signer_certificate_sha256) {
+            throw 'The configured Android signing certificate does not match the OEM release profile.'
+        }
+    }
+    $env:PIXELS_OEM_ID = [string]$oemConfiguration.oem_id
+    $env:PIXELS_RELEASE_NAMESPACE = [string]$oemConfiguration.release_namespace
+    $env:PIXELS_OEM_PROFILE_SHA256 = [string]$oemConfiguration.profile_sha256
+    $env:PIXELS_ANDROID_APPLICATION_ID = [string]$oemConfiguration.application_id
+    $env:PIXELS_ANDROID_APPLICATION_NAME = [string]$oemConfiguration.application_name
+    $env:PIXELS_ANDROID_BRAND_COMPANY = [string]$oemConfiguration.company_name
+    $env:PIXELS_ANDROID_ICON_FOREGROUND_FILE = [string]$oemConfiguration.icon_foreground_path
+    $env:PIXELS_ANDROID_ICON_BACKGROUND_FILE = [string]$oemConfiguration.icon_background_path
+} else {
+    Remove-Item Env:PIXELS_OEM_ID, Env:PIXELS_RELEASE_NAMESPACE, Env:PIXELS_OEM_PROFILE_SHA256,
+        Env:PIXELS_ANDROID_APPLICATION_ID, Env:PIXELS_ANDROID_APPLICATION_NAME, Env:PIXELS_ANDROID_BRAND_COMPANY,
+        Env:PIXELS_ANDROID_ICON_FOREGROUND_FILE, Env:PIXELS_ANDROID_ICON_BACKGROUND_FILE -ErrorAction SilentlyContinue
 }
 $env:PIXELS_DISTRIBUTION = $Distribution
 $env:PIXELS_VALIDATE_DISTRIBUTION = '1'
@@ -124,6 +182,28 @@ if ([IO.Directory]::Exists($androidProductRoot)) {
 }
 [IO.Directory]::CreateDirectory($androidProductRoot) | Out-Null
 
+if ($Distribution -eq 'oem') {
+    $oemResourceRoot = Join-Path $androidBuildRoot 'generated\oem-branding\res'
+    $oemDrawableRoot = Join-Path $oemResourceRoot 'drawable-nodpi'
+    $oemMipmapRoot = Join-Path $oemResourceRoot 'mipmap-anydpi-v26'
+    [IO.Directory]::CreateDirectory($oemDrawableRoot) | Out-Null
+    [IO.Directory]::CreateDirectory($oemMipmapRoot) | Out-Null
+    Copy-Item -LiteralPath ([string]$oemConfiguration.icon_foreground_path) -Destination (Join-Path $oemDrawableRoot 'oem_icon_foreground.png')
+    Copy-Item -LiteralPath ([string]$oemConfiguration.icon_background_path) -Destination (Join-Path $oemDrawableRoot 'oem_icon_background.png')
+    $adaptiveIconXml = @'
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/oem_icon_background" />
+    <foreground android:drawable="@drawable/oem_icon_foreground" />
+</adaptive-icon>
+'@
+    Set-Content -LiteralPath (Join-Path $oemMipmapRoot 'ic_oem_launcher.xml') -Value $adaptiveIconXml -Encoding utf8
+    Set-Content -LiteralPath (Join-Path $oemMipmapRoot 'ic_oem_launcher_round.xml') -Value $adaptiveIconXml -Encoding utf8
+    $env:PIXELS_ANDROID_BRAND_RESOURCE_ROOT = $oemResourceRoot
+} else {
+    Remove-Item Env:PIXELS_ANDROID_BRAND_RESOURCE_ROOT -ErrorAction SilentlyContinue
+}
+
 $versionArguments = @('--product', 'android', '--json')
 if ($hasAssignedVersion) {
     $versionArguments += '--show'
@@ -134,15 +214,16 @@ $versionOutput = @(& python $versionTool @versionArguments 2>&1)
 if ($LASTEXITCODE -ne 0) {
     throw "Unable to assign the Android product version: $($versionOutput -join [Environment]::NewLine)"
 }
-$version = ($versionOutput -join [Environment]::NewLine) | ConvertFrom-Json
+$assignedAndroidVersion = ($versionOutput -join [Environment]::NewLine) | ConvertFrom-Json
 if ($hasAssignedVersion -and
-    ([string]$version.product_version -ne $AssignedVersionName -or [int]$version.product_version_code -ne $AssignedVersionCode -or
-        [string]$version.company -ne $AssignedCompany)) {
+    ([string]$assignedAndroidVersion.product_version -ne $AssignedVersionName -or
+        [int]$assignedAndroidVersion.product_version_code -ne $AssignedVersionCode -or
+        [string]$assignedAndroidVersion.company -ne $AssignedCompany)) {
     throw 'The assigned Android release version no longer matches the product manifest.'
 }
-$env:PIXELS_VERSION_NAME = [string]$version.product_version
-$env:PIXELS_VERSION_CODE = [string]$version.product_version_code
-$env:PIXELS_COMPANY = [string]$version.company
+$env:PIXELS_VERSION_NAME = [string]$assignedAndroidVersion.product_version
+$env:PIXELS_VERSION_CODE = [string]$assignedAndroidVersion.product_version_code
+$env:PIXELS_COMPANY = [string]$assignedAndroidVersion.company
 if ($env:PIXELS_COMPANY -ne 'Pixels') {
     throw "Android product company must be Pixels; got '$($env:PIXELS_COMPANY)'."
 }
@@ -179,20 +260,22 @@ $metadataPath = Join-Path $androidBuildRoot 'app\outputs\apk\debug\output-metada
 if (-not (Test-Path -LiteralPath $metadataPath -PathType Leaf)) {
     throw 'Gradle completed without producing debug APK metadata.'
 }
-$metadata = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
-$element = @($metadata.elements)[0]
+$apkMetadata = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
+$apkMetadataElement = @($apkMetadata.elements)[0]
 $expectedVersionName = "$($env:PIXELS_VERSION_NAME)-debug"
-if ([string]$element.versionName -ne $expectedVersionName -or [int]$element.versionCode -ne [int]$env:PIXELS_VERSION_CODE) {
+if ([string]$apkMetadataElement.versionName -ne $expectedVersionName -or
+    [int]$apkMetadataElement.versionCode -ne [int]$env:PIXELS_VERSION_CODE) {
     throw "Debug APK metadata does not match $expectedVersionName ($($env:PIXELS_VERSION_CODE))."
 }
-$apkPath = Join-Path (Split-Path -Parent $metadataPath) ([string]$element.outputFile)
+$apkPath = Join-Path (Split-Path -Parent $metadataPath) ([string]$apkMetadataElement.outputFile)
 if (-not (Test-Path -LiteralPath $apkPath -PathType Leaf)) {
     throw "Debug APK is missing: $apkPath"
 }
 
 $distRoot = Join-Path $androidProductRoot 'dist'
 New-Item -ItemType Directory -Path $distRoot -Force | Out-Null
-$destination = Join-Path $distRoot "Pixels-$Distribution-$($env:PIXELS_VERSION_NAME)-debug-arm64-v8a.apk"
+$artifactBrand = if ($Distribution -eq 'oem') { "OEM-$($oemConfiguration.oem_id)" } else { "Pixels-$Distribution" }
+$destination = Join-Path $distRoot "$artifactBrand-$($env:PIXELS_VERSION_NAME)-debug-arm64-v8a.apk"
 $temporaryDestination = "$destination.tmp"
 Copy-Item -LiteralPath $apkPath -Destination $temporaryDestination -Force
 Move-Item -LiteralPath $temporaryDestination -Destination $destination -Force
