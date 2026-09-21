@@ -4,14 +4,16 @@ use crate::{
     StateData,
 };
 use axum::{
-    extract::State,
+    extract::{RawQuery, State},
     http::{HeaderMap, StatusCode},
     routing::{get, patch},
     Json, Router,
 };
 use px_console_store::UpdateDecision;
 use px_license::Distribution as LicenseDistribution;
-use px_release_catalog::{Distribution, ReleaseQuery, ReleaseSpec};
+use px_release_catalog::{
+    Architecture, Channel, Distribution, OperatingSystem, Product, ReleaseQuery, ReleaseSpec,
+};
 use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -167,10 +169,21 @@ fn release_distribution(state: &StateData) -> Distribution {
 async fn latest(
     State(state): State<Arc<StateData>>,
     headers: HeaderMap,
-    Query(target): Query<ReleaseQuery>,
+    RawQuery(raw_query): RawQuery,
 ) -> Result<Json<px_console_store::UpdateRelease>, ApiError> {
     let (token, client) = request::context(&state, &headers)?;
-    require_console_release_domain(&state, &target)?;
+    if raw_query.is_some() || client != px_console_store::ClientType::Android {
+        return Err(ApiError::Rejected);
+    }
+    let target = ReleaseQuery {
+        product: Product::Android,
+        distribution: release_distribution(&state),
+        release_namespace: state.license.payload.release_namespace.clone(),
+        oem_id: state.license.payload.oem_id.clone(),
+        channel: Channel::Stable,
+        os: OperatingSystem::Android,
+        architecture: Architecture::Aarch64,
+    };
     Ok(Json(
         state.db.updates().latest(&token, client, &target).await?,
     ))

@@ -19,10 +19,13 @@ import yun.pixels.client.core.domain.account.ApplicationRepository
 import yun.pixels.client.core.domain.device.DeviceDirectory
 import yun.pixels.client.core.domain.device.DeviceDiscovery
 import yun.pixels.client.core.domain.device.DeviceResolver
+import yun.pixels.client.core.domain.update.AndroidUpdateRepository
+import yun.pixels.client.core.network.AndroidReleaseIdentity
 import yun.pixels.client.core.network.ConsoleApiClient
+import yun.pixels.client.core.network.ConsoleAndroidUpdateRepository
 import yun.pixels.client.core.network.ConsoleApplicationRepository
-import yun.pixels.client.core.network.ConsoleSessionCoordinator
 import yun.pixels.client.core.network.ConsoleResourceConnectionRenewer
+import yun.pixels.client.core.network.ConsoleSessionCoordinator
 import yun.pixels.client.core.network.DeploymentIdentityConfiguration
 
 class PixelsApplication : Application() {
@@ -52,9 +55,17 @@ class PixelsAppGraph(application: Application) {
             protocolVersion = 1,
         ),
     ) { "Pixels deployment identity configuration is invalid" }
+    private val androidReleaseIdentity = requireNotNull(
+        AndroidReleaseIdentity.create(
+            distribution = BuildConfig.DEPLOYMENT_DISTRIBUTION,
+            releaseNamespace = BuildConfig.RELEASE_NAMESPACE,
+            oemId = BuildConfig.OEM_ID.ifEmpty { null },
+        ),
+    ) { "Pixels Android release identity configuration is invalid" }
     private val consoleApi = ConsoleApiClient(
         deploymentIdentity,
         SharedPreferencesDeploymentIdentityWatermarkStore.create(application),
+        androidReleaseIdentity,
     )
 
     val deviceDirectory: DeviceDirectory = createDeviceDirectory(application)
@@ -70,5 +81,6 @@ class PixelsAppGraph(application: Application) {
     ).also { repository -> applicationScope.launch { repository.restore() } }
     val accountRepository: AccountRepository = consoleSessionRepository
     val applicationRepository: ApplicationRepository = ConsoleApplicationRepository(consoleApi, consoleSessionRepository)
+    val updateRepository: AndroidUpdateRepository = ConsoleAndroidUpdateRepository(consoleApi, consoleSessionRepository)
     val resourceConnectionRenewer = ConsoleResourceConnectionRenewer(consoleApi, consoleApi, consoleSessionRepository)
 }

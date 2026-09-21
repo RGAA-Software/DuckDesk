@@ -30,6 +30,7 @@ import yun.pixels.client.core.domain.account.RemoteApplicationType
 import yun.pixels.client.core.domain.account.ResourceConnection
 import yun.pixels.client.core.domain.account.ResourceConnectionOwner
 import yun.pixels.client.core.domain.account.ResourceRelayEndpoint
+import yun.pixels.client.core.domain.update.AndroidUpdateRelease
 
 interface ConsoleAccountApi {
     suspend fun testEndpoint(endpointInput: String): AccountResult<ConsoleEndpoint>
@@ -50,11 +51,13 @@ class ConsoleApiClient private constructor(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val requestExecutor: ConsoleRequestExecutor,
     private val deploymentIdentityGate: DeploymentIdentityGate?,
+    private val androidReleaseIdentity: AndroidReleaseIdentity?,
     @Suppress("UNUSED_PARAMETER") constructorMarker: Unit,
-) : ConsoleAccountApi, ConsoleApplicationApi {
+) : ConsoleAccountApi, ConsoleApplicationApi, ConsoleUpdateApi {
     constructor(
         deploymentIdentity: DeploymentIdentityConfiguration,
         deploymentIdentityWatermarkStore: DeploymentIdentityWatermarkStore,
+        androidReleaseIdentity: AndroidReleaseIdentity,
         ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     ) : this(
         ioDispatcher,
@@ -64,6 +67,7 @@ class ConsoleApiClient private constructor(
             ConsoleRequestExecutor(::executeHttpsRequest),
             deploymentIdentityWatermarkStore,
         ),
+        androidReleaseIdentity,
         Unit,
     )
 
@@ -72,11 +76,13 @@ class ConsoleApiClient private constructor(
         requestExecutor: ConsoleRequestExecutor,
         deploymentIdentity: DeploymentIdentityConfiguration? = null,
         deploymentIdentityWatermarkStore: DeploymentIdentityWatermarkStore? = null,
+        androidReleaseIdentity: AndroidReleaseIdentity? = null,
         nowEpochSeconds: () -> Long = { System.currentTimeMillis() / 1_000 },
     ) : this(
         ioDispatcher,
         requestExecutor,
         deploymentIdentity?.let { DeploymentIdentityGate(it, requestExecutor, deploymentIdentityWatermarkStore, nowEpochSeconds) },
+        androidReleaseIdentity,
         Unit,
     )
 
@@ -130,6 +136,13 @@ class ConsoleApiClient private constructor(
     override suspend fun devices(session: AccountSession): AccountResult<List<AccountDevice>> = withContext(ioDispatcher) {
         request(session.endpoint, "/api/console/devices?limit=100", "GET", session.accessToken)?.parseArray(::parseDevices)
             ?: failure(AccountFailure.NetworkUnavailable)
+    }
+
+    override suspend fun latestAndroidUpdate(session: AccountSession): AccountResult<AndroidUpdateRelease> = withContext(ioDispatcher) {
+        val releaseIdentity = androidReleaseIdentity ?: return@withContext invalidResponse()
+        request(session.endpoint, "/api/console/updates/latest", "GET", session.accessToken)?.parseObject { payload ->
+            parseAndroidUpdateRelease(payload, releaseIdentity)
+        } ?: failure(AccountFailure.NetworkUnavailable)
     }
 
     override suspend fun resolveConnection(session: AccountSession, deviceId: String): AccountResult<ResourceConnection> =

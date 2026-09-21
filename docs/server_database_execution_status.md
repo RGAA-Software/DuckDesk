@@ -1720,6 +1720,14 @@ fail-closed，避免损坏数据被当作有效 UpdateRelease。安全但错域�
 `A31CAC01C7625CC25AB8EC3194FD6F7855E378353FDE36F3F70AEFE0FADB1A69`，`px_desk.exe`
 `20DB7445134FFD874E405C24EEE106132EBDADCA60BE1B8C193A391EF570BC69`。本轮没有升版或生成正式发行包。
 
+Android 更新消费的第一段目录契约随后接通。Console 的 latest 路由不再接收客户端提交的 product/distribution/channel/OS/architecture，任何查询参数及
+非 Android client type 均拒绝；目标固定由当前 Console 许可证发行域派生为 Android stable/aarch64。Android 构建身份以同一
+distribution/release namespace/OEM 规则创建，已登录请求只调用零参数路由，并严格解析 approved 状态、仓库代际、时间、摘要、平台签名证书、大小、
+全部 target 维度和 `android/android/distribution/[oem_id/]stable/aarch64/build/file` 不可变路径；缺少构建身份或任何字段替换均 fail closed。
+隔离 PostgreSQL directory API 7/7 通过，报告 `pg-20260922-052957-e519882b`；Android core-network 新增 5 项契约测试通过，App Kotlin 编译通过。
+Console focused development build 输出 SHA-256 为 `67BA24D1516330508699F28542D1022A4F7BA6EC9BCA023264B70927A37A7A41`。
+本切片没有实现 Android TUF 元数据/root 防回滚、APK 下载/平台签名复核、PackageInstaller 或安装实例水位，因此不把目录接线写成安全更新完成。
+
 | 阶段 | 当前未完成项 |
 |---|---|
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |

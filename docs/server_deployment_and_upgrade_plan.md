@@ -468,9 +468,10 @@ snapshot/targets、元数据大小上限与持久 datastore 防回滚状态。TU
 SYSTEM/管理员访问，人工安装、自动升级、回滚和卸载使用同一个全局互斥锁。prepared 不会直接显示为 installed：新 Service 必须先完成
 产品清单和本机 WebSocket 健康检查，再向 Console 上报精确目标 build 并以原 task/lease 提交。尚未完成的是使用正式签名 Official/Customer
 新旧安装包进行真实 SCM、断网、安装失败和回滚失败故障注入，因此商业发行验收仍保持未通过。
-上述消费者、水位和运维接口当前只覆盖 Cloud Node/Remote Service。Panel 的检查更新仍是部署包管理提示；Android 与 Windows Client 也尚未实现独立
-TUF 刷新、平台安装及安装实例水位。通用目录查询不能作为这三类产品已验签或已升级的证据，后续实现必须由服务器派生产品/发行/平台目标，客户端不得
-自行选择或回退维度。
+上述完整消费者、水位和运维接口当前只覆盖 Cloud Node/Remote Service。Panel 的检查更新仍是部署包管理提示；Windows Client 尚未实现独立消费者。
+Android 已完成第一段目录边界：`GET /api/console/updates/latest` 不接受查询参数且只接受 Android 会话，Console 从已验证许可证派生
+`android + 当前 distribution/release_namespace/oem_id + stable + android/aarch64`；Android 再以编译身份逐字段校验响应和不可变 target 路径。
+这仍不是 TUF 刷新、平台安装或安装实例水位，目录响应不能作为已验签或已升级的证据。后续消费者同样不得自行选择或回退维度。
 
 节点重启后的本地激活状态必须先于首次可调度状态上报完成收敛。有效租约内的 `authorized/applying` 一律阻断节点接客；租约过期的
 `applying` 只有在本机产品清单仍是精确旧 build 或已是精确目标 build 时才可清理。`installed` 必须与目标 build 一致；普通安装失败必须
@@ -514,7 +515,8 @@ Console PostgreSQL 发布目录也已通过 OEM A/OEM B 同产品、同平台、
 `distribution/release_namespace/oem_id`。仓库可在同一发行域内服务多个产品，但不能通过追加操作逐步混入另一个 OEM 或 Pixels 发行。
 promotion 是独立门禁，不能假设候选必由本仓库 authority 生成；上线前必须再次执行相同的不可变路径和全仓发行域校验。
 不可变路径派生属于共享 release catalog 契约，authority、promotion 和各安装消费者必须调用同一实现。Windows Service 在接受 Console offer 与下载准备
-两个边界都执行该校验；后续 Android/Client 消费器也必须复用对应契约语义，不能只把 target name 当普通安全相对路径。
+两个边界都执行该校验；Android 目录消费者已按相同分段顺序和发行域语义执行第一道校验。后续 Android TUF/安装边界及 Client 消费器仍必须再次执行，
+不能只把 target name 当普通安全相对路径或把目录校验冒充 TUF 验签。
 Desk 发布和 Console 登记同样在数据库写入前执行该契约，Console 从数据库重建 UpdateRelease 时再验一次；错误维度不得先进入目录后依赖下游兜底。
 
 下载可恢复，完整包先验证再解压；防路径穿越、链接逃逸、超大解压、符号链接/重解析点替换和校验后替换。

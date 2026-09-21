@@ -204,10 +204,7 @@ async fn update_catalog_requires_explicit_approval_and_exact_client_identity() {
         .1,
         created
     );
-    let latest_path = concat!(
-        "/api/console/updates/latest?product=android&distribution=customer",
-        "&release_namespace=pixels.customer&channel=stable&os=android&architecture=aarch64"
-    );
+    let latest_path = "/api/console/updates/latest";
     assert_eq!(
         call(
             &router,
@@ -243,7 +240,7 @@ async fn update_catalog_requires_explicit_approval_and_exact_client_identity() {
     .await;
     assert_eq!(latest_status, StatusCode::OK, "{latest}");
     assert_eq!(latest, approved);
-    for wrong_domain_path in [
+    for client_supplied_target_path in [
         concat!(
             "/api/console/updates/latest?product=android&distribution=official",
             "&release_namespace=pixels.official&channel=stable&os=android&architecture=aarch64"
@@ -258,7 +255,7 @@ async fn update_catalog_requires_explicit_approval_and_exact_client_identity() {
             call(
                 &router,
                 "GET",
-                wrong_domain_path,
+                client_supplied_target_path,
                 "android",
                 Some(&android),
                 Value::Null,

@@ -350,8 +350,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate_windows_ins
 - Official 的 Console 地址来自已验证安装策略，设置页只读；Customer 在设置页填写私有 Console；
 - 支持当前账号登录、注册和云应用会话；
 - Android 使用 `client_type=android`；
+- Android 更新目录使用已登录 Android 会话访问零参数 `GET /api/console/updates/latest`；产品、发行域、stable、Android/aarch64 均由 Console 派生，
+  客户端提交任何查询维度都会被拒绝；
 - 不使用局域网测试机假设，不探测或回退到已退役端口；
 - Render 桌面端口和应用端口以 Console/节点返回的当前描述为准。
+
+当前 Android 接线只完成严格目录发现，不代表 TUF 验签、APK 下载或覆盖安装已经实现；不得从该 JSON 拼接直链并绕过后续 TUF 与平台签名门禁。
 
 ## 5. Android 产物与安装
 
