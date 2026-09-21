@@ -131,6 +131,7 @@ pub struct Release {
     pub targets_base_url: String,
     pub target_name: String,
     pub sha256: String,
+    pub platform_signer_sha256: Option<String>,
     pub size_bytes: i64,
     pub created_at: DateTime<Utc>,
 }

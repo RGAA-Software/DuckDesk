@@ -6,6 +6,9 @@ ALTER TABLE pixels.versions
     ADD CONSTRAINT versions_platform CHECK (
         (product='android' AND os='android' AND architecture='aarch64') OR
         (product IN ('cloud_node','client','remote') AND os='windows' AND architecture='x86_64') OR
-        (product='server' AND os IN ('windows','linux') AND architecture='x86_64'));
+        (product='server' AND os IN ('windows','linux') AND architecture='x86_64')),
+    ADD CONSTRAINT versions_platform_signer CHECK (
+        (os IN ('windows','android') AND platform_signer_sha256 ~ '^[a-f0-9]{64}$')
+        OR (os='linux' AND platform_signer_sha256 IS NULL));
 ALTER TABLE pixels.versions DROP CONSTRAINT versions_product_distribution_channel_build_number_key;
 ALTER TABLE pixels.versions ADD UNIQUE(product,distribution,channel,os,architecture,build_number);

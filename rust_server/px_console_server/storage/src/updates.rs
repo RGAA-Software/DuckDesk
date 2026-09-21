@@ -76,6 +76,7 @@ impl UpdateStore {
             artifact.targets_base_url,
             artifact.target_name,
             artifact.sha256,
+            artifact.platform_signer_sha256,
             artifact.size_bytes
         )
         .fetch_one(&mut *tx)

@@ -40,7 +40,9 @@ pub(crate) struct UpdateActivationRecord {
     pub to_build_number: u32,
     pub version: String,
     pub prepared_sha256: String,
+    pub target_signer_sha256: String,
     pub rollback_sha256: Option<String>,
+    pub rollback_signer_sha256: Option<String>,
     pub artifact_path: PathBuf,
     pub install_directory: PathBuf,
     pub service_port: u16,
@@ -58,7 +60,7 @@ impl UpdateActivationRecord {
                     .bytes()
                     .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
         });
-        if self.schema_version != 1
+        if self.schema_version != 2
             || self.release_id.is_nil()
             || self.policy_revision < 1
             || self.task_id.is_nil()
@@ -74,12 +76,18 @@ impl UpdateActivationRecord {
                 .prepared_sha256
                 .bytes()
                 .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+            || !valid_sha256(&self.target_signer_sha256)
             || self.rollback_sha256.as_deref().is_some_and(|digest| {
                 digest.len() != 64
                     || !digest
                         .bytes()
                         .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
             })
+            || self
+                .rollback_signer_sha256
+                .as_deref()
+                .is_some_and(|digest| !valid_sha256(digest))
+            || self.rollback_sha256.is_some() != self.rollback_signer_sha256.is_some()
             || !self.artifact_path.is_absolute()
             || !self.artifact_path.starts_with(expected_prepared_root)
             || !self.install_directory.is_absolute()
@@ -201,12 +209,18 @@ fn run_authorized_update_with(
 }
 
 trait ActivationRuntime {
-    fn verify_installer(&self, installer_path: &Path, expected_sha256: &str) -> Result<(), String>;
+    fn verify_installer(
+        &self,
+        installer_path: &Path,
+        expected_sha256: &str,
+        expected_signer_sha256: &str,
+    ) -> Result<(), String>;
     fn snapshot_rollback_installer(
         &self,
         current_installer_path: &Path,
         task_installer_path: &Path,
         expected_sha256: &str,
+        expected_signer_sha256: &str,
     ) -> Result<(), String>;
     fn run_installer(&self, installer_path: &Path) -> Result<bool, String>;
     fn installed_product_matches(&self, record: &UpdateActivationRecord, build_number: u32)
@@ -217,10 +231,15 @@ trait ActivationRuntime {
 struct SystemActivationRuntime;
 
 impl ActivationRuntime for SystemActivationRuntime {
-    fn verify_installer(&self, installer_path: &Path, expected_sha256: &str) -> Result<(), String> {
+    fn verify_installer(
+        &self,
+        installer_path: &Path,
+        expected_sha256: &str,
+        expected_signer_sha256: &str,
+    ) -> Result<(), String> {
         reject_reparse_point(installer_path)?;
         verify_sha256(installer_path, expected_sha256)?;
-        verify_authenticode(installer_path)
+        verify_authenticode(installer_path, expected_signer_sha256)
     }
 
     fn snapshot_rollback_installer(
@@ -228,11 +247,16 @@ impl ActivationRuntime for SystemActivationRuntime {
         current_installer_path: &Path,
         task_installer_path: &Path,
         expected_sha256: &str,
+        expected_signer_sha256: &str,
     ) -> Result<(), String> {
-        self.verify_installer(current_installer_path, expected_sha256)?;
+        self.verify_installer(
+            current_installer_path,
+            expected_sha256,
+            expected_signer_sha256,
+        )?;
         std::fs::copy(current_installer_path, task_installer_path)
             .map_err(|_| "cannot snapshot the previous installer".to_string())?;
-        self.verify_installer(task_installer_path, expected_sha256)
+        self.verify_installer(task_installer_path, expected_sha256, expected_signer_sha256)
     }
 
     fn run_installer(&self, installer_path: &Path) -> Result<bool, String> {
@@ -262,7 +286,11 @@ fn apply_authorized_update(
     data_root: &Path,
     record: UpdateActivationRecord,
 ) -> Result<(), String> {
-    runtime.verify_installer(&record.artifact_path, &record.prepared_sha256)?;
+    runtime.verify_installer(
+        &record.artifact_path,
+        &record.prepared_sha256,
+        &record.target_signer_sha256,
+    )?;
 
     let current_rollback =
         rollback_installer_path(data_root, &record.product, &record.distribution)?;
@@ -270,16 +298,20 @@ fn apply_authorized_update(
         .parent()
         .ok_or_else(|| "rollback installer has no parent directory".to_string())?;
     let task_rollback = rollback_directory.join(format!("{}.previous.exe", record.task_id));
-    let rollback_available = if let Some(expected_rollback_sha256) = &record.rollback_sha256 {
-        runtime.snapshot_rollback_installer(
-            &current_rollback,
-            &task_rollback,
-            expected_rollback_sha256,
-        )?;
-        true
-    } else {
-        false
-    };
+    let rollback_available =
+        if let (Some(expected_rollback_sha256), Some(expected_rollback_signer)) =
+            (&record.rollback_sha256, &record.rollback_signer_sha256)
+        {
+            runtime.snapshot_rollback_installer(
+                &current_rollback,
+                &task_rollback,
+                expected_rollback_sha256,
+                expected_rollback_signer,
+            )?;
+            true
+        } else {
+            false
+        };
 
     let installed = runtime.run_installer(&record.artifact_path)?
         && runtime.installed_product_matches(&record, record.to_build_number)
@@ -303,11 +335,19 @@ fn apply_authorized_update(
 }
 
 fn installed_product_matches(record: &UpdateActivationRecord, build_number: u32) -> bool {
+    let expected_signer = if build_number == record.to_build_number {
+        Some(record.target_signer_sha256.as_str())
+    } else if build_number == record.from_build_number {
+        record.rollback_signer_sha256.as_deref()
+    } else {
+        None
+    };
     ProductDescriptor::load(&record.install_directory.join("product-manifest.json")).is_ok_and(
         |descriptor| {
             descriptor.product == record.product
                 && descriptor.distribution == record.distribution
                 && descriptor.product_version_code == build_number
+                && descriptor.signer_certificate_sha256.as_deref() == expected_signer
         },
     )
 }
@@ -347,13 +387,14 @@ pub(crate) fn trusted_rollback_sha256(
     data_root: &Path,
     product: &str,
     distribution: &str,
+    expected_signer_sha256: &str,
 ) -> Result<Option<String>, String> {
     let installer_path = rollback_installer_path(data_root, product, distribution)?;
     if !installer_path.exists() {
         return Ok(None);
     }
     reject_reparse_point(&installer_path)?;
-    verify_authenticode(&installer_path)?;
+    verify_authenticode(&installer_path, expected_signer_sha256)?;
     Ok(Some(sha256(&installer_path)?))
 }
 
@@ -393,6 +434,10 @@ fn verify_sha256(path: &Path, expected: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn valid_sha256(value: &str) -> bool {
+    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
 fn sha256(path: &Path) -> Result<String, String> {
     let mut file = std::fs::File::open(path)
         .map_err(|_| "cannot reopen the prepared update installer".to_string())?;
@@ -411,14 +456,16 @@ fn sha256(path: &Path) -> Result<String, String> {
 }
 
 #[cfg(windows)]
-fn verify_authenticode(path: &Path) -> Result<(), String> {
+fn verify_authenticode(path: &Path, expected_signer_sha256: &str) -> Result<(), String> {
     use std::os::windows::ffi::OsStrExt;
     use windows::core::PCWSTR;
     use windows::Win32::Foundation::HWND;
     use windows::Win32::Security::WinTrust::{
-        WinVerifyTrust, WINTRUST_ACTION_GENERIC_VERIFY_V2, WINTRUST_DATA, WINTRUST_DATA_0,
-        WINTRUST_FILE_INFO, WTD_CACHE_ONLY_URL_RETRIEVAL, WTD_CHOICE_FILE, WTD_REVOKE_NONE,
-        WTD_STATEACTION_CLOSE, WTD_STATEACTION_VERIFY, WTD_UICONTEXT_INSTALL, WTD_UI_NONE,
+        WTHelperGetProvCertFromChain, WTHelperGetProvSignerFromChain,
+        WTHelperProvDataFromStateData, WinVerifyTrust, WINTRUST_ACTION_GENERIC_VERIFY_V2,
+        WINTRUST_DATA, WINTRUST_DATA_0, WINTRUST_FILE_INFO, WTD_CACHE_ONLY_URL_RETRIEVAL,
+        WTD_CHOICE_FILE, WTD_REVOKE_NONE, WTD_STATEACTION_CLOSE, WTD_STATEACTION_VERIFY,
+        WTD_UICONTEXT_INSTALL, WTD_UI_NONE,
     };
 
     let wide_path = path
@@ -452,6 +499,46 @@ fn verify_authenticode(path: &Path) -> Result<(), String> {
             std::ptr::from_mut(&mut trust).cast(),
         )
     };
+    let signer_check = if status == 0 {
+        let provider_data = unsafe { WTHelperProvDataFromStateData(trust.hWVTStateData) };
+        let signer = if provider_data.is_null() {
+            std::ptr::null_mut()
+        } else {
+            unsafe { WTHelperGetProvSignerFromChain(provider_data, 0, false, 0) }
+        };
+        let provider_certificate = if signer.is_null() {
+            std::ptr::null_mut()
+        } else {
+            unsafe { WTHelperGetProvCertFromChain(signer, 0) }
+        };
+        if provider_certificate.is_null() || unsafe { (*provider_certificate).pCert.is_null() } {
+            Err("update installer signer certificate is unavailable".to_string())
+        } else {
+            let certificate_context = unsafe { &*(*provider_certificate).pCert };
+            if certificate_context.pbCertEncoded.is_null() || certificate_context.cbCertEncoded == 0
+            {
+                Err("update installer signer certificate is empty".to_string())
+            } else {
+                let certificate_bytes = unsafe {
+                    std::slice::from_raw_parts(
+                        certificate_context.pbCertEncoded,
+                        certificate_context.cbCertEncoded as usize,
+                    )
+                };
+                let actual_signer_sha256 = hex::encode(Sha256::digest(certificate_bytes));
+                if actual_signer_sha256.eq_ignore_ascii_case(expected_signer_sha256) {
+                    Ok(())
+                } else {
+                    Err("update installer Authenticode signer pin mismatch".to_string())
+                }
+            }
+        }
+    } else {
+        Err(format!(
+            "update installer Authenticode verification failed: 0x{:08X}",
+            status as u32
+        ))
+    };
     trust.dwStateAction = WTD_STATEACTION_CLOSE;
     unsafe {
         WinVerifyTrust(
@@ -460,17 +547,11 @@ fn verify_authenticode(path: &Path) -> Result<(), String> {
             std::ptr::from_mut(&mut trust).cast(),
         );
     }
-    if status != 0 {
-        return Err(format!(
-            "update installer Authenticode verification failed: 0x{:08X}",
-            status as u32
-        ));
-    }
-    Ok(())
+    signer_check
 }
 
 #[cfg(not(windows))]
-fn verify_authenticode(_: &Path) -> Result<(), String> {
+fn verify_authenticode(_: &Path, _: &str) -> Result<(), String> {
     Err("update installer Authenticode verification requires Windows".into())
 }
 
@@ -484,7 +565,7 @@ mod tests {
 
     fn record(root: &Path) -> UpdateActivationRecord {
         UpdateActivationRecord {
-            schema_version: 1,
+            schema_version: 2,
             release_id: Uuid::from_u128(1),
             policy_revision: 2,
             task_id: Uuid::from_u128(2),
@@ -496,7 +577,9 @@ mod tests {
             to_build_number: 11,
             version: "1.0.11".into(),
             prepared_sha256: "a".repeat(64),
+            target_signer_sha256: "c".repeat(64),
             rollback_sha256: Some("b".repeat(64)),
+            rollback_signer_sha256: Some("d".repeat(64)),
             artifact_path: root.join("updates/prepared/installer.exe"),
             install_directory: PathBuf::from("C:/Program Files/Pixels Cloud Node"),
             service_port: 4602,
@@ -512,7 +595,8 @@ mod tests {
         product_match_results: RefCell<VecDeque<bool>>,
         service_health_results: RefCell<VecDeque<bool>>,
         verified_installers: RefCell<Vec<PathBuf>>,
-        rollback_snapshots: RefCell<Vec<(PathBuf, PathBuf, String)>>,
+        verified_signers: RefCell<Vec<String>>,
+        rollback_snapshots: RefCell<Vec<(PathBuf, PathBuf, String, String)>>,
         executed_installers: RefCell<Vec<PathBuf>>,
     }
 
@@ -536,10 +620,14 @@ mod tests {
             &self,
             installer_path: &Path,
             _expected_sha256: &str,
+            expected_signer_sha256: &str,
         ) -> Result<(), String> {
             self.verified_installers
                 .borrow_mut()
                 .push(installer_path.to_path_buf());
+            self.verified_signers
+                .borrow_mut()
+                .push(expected_signer_sha256.to_string());
             if let Some(error) = self.verification_error.borrow().clone() {
                 return Err(error);
             }
@@ -551,11 +639,13 @@ mod tests {
             current_installer_path: &Path,
             task_installer_path: &Path,
             expected_sha256: &str,
+            expected_signer_sha256: &str,
         ) -> Result<(), String> {
             self.rollback_snapshots.borrow_mut().push((
                 current_installer_path.to_path_buf(),
                 task_installer_path.to_path_buf(),
                 expected_sha256.to_string(),
+                expected_signer_sha256.to_string(),
             ));
             Ok(())
         }
@@ -614,6 +704,12 @@ mod tests {
         let mut wrong_distribution = valid.clone();
         wrong_distribution.distribution = "development".into();
         assert!(wrong_distribution.validate(&root).is_err());
+        let mut missing_rollback_signer = valid.clone();
+        missing_rollback_signer.rollback_signer_sha256 = None;
+        assert!(missing_rollback_signer.validate(&root).is_err());
+        let mut invalid_target_signer = valid.clone();
+        invalid_target_signer.target_signer_sha256 = "not-a-certificate-pin".into();
+        assert!(invalid_target_signer.validate(&root).is_err());
         let mut failed_without_error = valid;
         failed_without_error.phase = ActivationPhase::Failed;
         assert!(failed_without_error.validate(&root).is_err());
@@ -658,6 +754,11 @@ mod tests {
             &[activation_record.artifact_path]
         );
         assert_eq!(runtime.rollback_snapshots.borrow().len(), 1);
+        assert_eq!(
+            runtime.verified_signers.borrow().as_slice(),
+            &["c".repeat(64)]
+        );
+        assert_eq!(runtime.rollback_snapshots.borrow()[0].3, "d".repeat(64));
         assert_eq!(runtime.executed_installers.borrow().len(), 1);
     }
 

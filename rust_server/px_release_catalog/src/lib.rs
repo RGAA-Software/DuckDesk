@@ -68,6 +68,8 @@ pub struct ReleaseSpec {
     /// Exact TUF target path. It is resolved only by the verified TUF client.
     pub target_name: String,
     pub sha256: String,
+    /// SHA-256 of the platform signing certificate DER. Required for Windows and Android.
+    pub platform_signer_sha256: Option<String>,
     pub size_bytes: i64,
 }
 fn digest_text(value: &str) -> bool {
@@ -110,6 +112,13 @@ fn target_name(value: &str) -> bool {
 impl ReleaseSpec {
     pub fn validate(&self) -> Result<(), InvalidRelease> {
         self.target.validate()?;
+        let platform_signer_valid = match self.target.os {
+            OperatingSystem::Windows | OperatingSystem::Android => self
+                .platform_signer_sha256
+                .as_deref()
+                .is_some_and(digest_text),
+            OperatingSystem::Linux => self.platform_signer_sha256.is_none(),
+        };
         let valid = self.build_number > 0
             && self.size_bytes > 0
             && self.size_bytes <= (1_i64 << 40)
@@ -119,7 +128,8 @@ impl ReleaseSpec {
             && public_base_url(&self.metadata_base_url)
             && public_base_url(&self.targets_base_url)
             && target_name(&self.target_name)
-            && digest_text(&self.sha256);
+            && digest_text(&self.sha256)
+            && platform_signer_valid;
         valid.then_some(()).ok_or(InvalidRelease)
     }
     pub fn digest(&self) -> Result<[u8; 32], InvalidRelease> {
@@ -147,6 +157,7 @@ mod tests {
             targets_base_url: "https://example.invalid/targets/".into(),
             target_name: "server/server.tar.gz".into(),
             sha256: "a".repeat(64),
+            platform_signer_sha256: None,
             size_bytes: 500,
         }
     }
@@ -155,11 +166,13 @@ mod tests {
         let mut release_spec = spec();
         release_spec.validate().unwrap();
         release_spec.target.os = OperatingSystem::Windows;
+        release_spec.platform_signer_sha256 = Some("b".repeat(64));
         release_spec.validate().unwrap();
         release_spec.target.product = Product::Android;
         assert!(release_spec.validate().is_err());
         release_spec.target.os = OperatingSystem::Android;
         release_spec.target.architecture = Architecture::Aarch64;
+        release_spec.platform_signer_sha256 = Some("b".repeat(64));
         release_spec.validate().unwrap();
         for value in ["panel", "gammaray", "Client", ""] {
             assert!(value.parse::<Product>().is_err());
@@ -201,6 +214,15 @@ mod tests {
                 digest
             );
         }
+        let mut signed_windows_release = spec();
+        signed_windows_release.target.os = OperatingSystem::Windows;
+        signed_windows_release.platform_signer_sha256 = Some("b".repeat(64));
+        let signed_windows_digest = signed_windows_release.digest().unwrap();
+        signed_windows_release.platform_signer_sha256 = Some("c".repeat(64));
+        assert_ne!(
+            signed_windows_release.digest().unwrap(),
+            signed_windows_digest
+        );
         for (field, other) in [
             ("product", "client"),
             ("distribution", "official"),
@@ -211,6 +233,9 @@ mod tests {
             value["target"][field] = serde_json::json!(other);
             if field == "product" {
                 value["target"]["os"] = serde_json::json!("windows");
+            }
+            if field == "product" || field == "os" {
+                value["platform_signer_sha256"] = serde_json::json!("c".repeat(64));
             }
             assert_ne!(
                 serde_json::from_value::<ReleaseSpec>(value)
@@ -267,6 +292,11 @@ mod tests {
         let mut release_spec = spec();
         release_spec.build_number = 0;
         assert!(release_spec.validate().is_err());
+        release_spec = spec();
+        release_spec.target.os = OperatingSystem::Windows;
+        assert!(release_spec.validate().is_err());
+        release_spec.platform_signer_sha256 = Some("b".repeat(64));
+        assert!(release_spec.validate().is_ok());
         let mut value = serde_json::to_value(spec()).unwrap();
         value["signed"] = serde_json::json!(true);
         assert!(serde_json::from_value::<ReleaseSpec>(value).is_err());

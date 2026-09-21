@@ -1586,10 +1586,19 @@ async fn try_activate_prepared_update(
     };
     let to_build_number = u32::try_from(prepared.build_number)
         .map_err(|_| "prepared update build does not fit the product manifest".to_string())?;
-    let rollback_sha256 =
-        trusted_rollback_sha256(&data_root, &product.product, &product.distribution)?;
+    let rollback_signer_sha256 = product
+        .signer_certificate_sha256
+        .clone()
+        .ok_or_else(|| "installed release product lacks its signer certificate pin".to_string())?;
+    let rollback_sha256 = trusted_rollback_sha256(
+        &data_root,
+        &product.product,
+        &product.distribution,
+        &rollback_signer_sha256,
+    )?;
+    let rollback_signer_sha256 = rollback_sha256.as_ref().map(|_| rollback_signer_sha256);
     let record = UpdateActivationRecord {
-        schema_version: 1,
+        schema_version: 2,
         release_id: offer.release_id,
         policy_revision: offer.policy_revision,
         task_id,
@@ -1601,7 +1610,9 @@ async fn try_activate_prepared_update(
         to_build_number,
         version: prepared.version.clone(),
         prepared_sha256: offer.artifact.sha256,
+        target_signer_sha256: prepared.platform_signer_sha256,
         rollback_sha256,
+        rollback_signer_sha256,
         artifact_path: prepared.artifact_path,
         install_directory,
         service_port,
@@ -2828,6 +2839,7 @@ mod tests {
             company: "Pixels".into(),
             product_version: "3.3.67".into(),
             product_version_code: 30367,
+            signer_certificate_sha256: Some("c".repeat(64)),
             capabilities: vec!["game_hook".into(), "webview_host".into()],
         }
     }
@@ -2838,7 +2850,7 @@ mod tests {
         error_code: Option<&str>,
     ) -> UpdateActivationRecord {
         UpdateActivationRecord {
-            schema_version: 1,
+            schema_version: 2,
             release_id: Uuid::new_v4(),
             policy_revision: 1,
             task_id: Uuid::new_v4(),
@@ -2850,7 +2862,9 @@ mod tests {
             to_build_number: 30368,
             version: "3.3.68".into(),
             prepared_sha256: "a".repeat(64),
+            target_signer_sha256: "c".repeat(64),
             rollback_sha256: Some("b".repeat(64)),
+            rollback_signer_sha256: Some("c".repeat(64)),
             artifact_path: std::path::PathBuf::from(
                 r"C:\ProgramData\Pixels\updates\prepared\cloud-node.exe",
             ),
@@ -3037,6 +3051,7 @@ mod tests {
                         targets_base_url: "https://downloads.example.test/targets/".into(),
                         target_name: "cloud-node.exe".into(),
                         sha256: "a".repeat(64),
+                        platform_signer_sha256: Some("b".repeat(64)),
                         size_bytes: 4096,
                     },
                 }),

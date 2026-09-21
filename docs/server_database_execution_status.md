@@ -1417,6 +1417,17 @@ PowerShell 语法门禁通过。由于当前仍无批准证书和正式双发行
 执行器还接受同发行的另一产品正式包，验证跨产品安装精确返回 1638 且已安装产品逐件不变；并用不启动、身份受控的 `px_service` 注册探针
 验证手工 Service 也会返回 1638。探针清理前重新核对身份，目标安装若错误接管它则保留现场而不误删服务。
 
+更新执行器随后关闭“只验证任意有效 Authenticode、未绑定审批发布者”的缺口。全新 `ReleaseSpec`、Desk/Console PostgreSQL 目录、内容摘要和
+TUF `pixels` 自定义元数据现在共同携带平台签名证书 DER SHA-256：Windows/Android 必填小写 64 位十六进制，Linux 必须为空。Service 的
+DPAPI 激活记录 schema 直接升为 2（开发期不兼容旧记录），分别保存目标包和回滚包的签名者固定值；runner 在校验 Authenticode 后从
+WinTrust provider chain 提取实际签名证书并精确比对，安装完成后的 `product-manifest.json` 也必须报告同一固定值。新包固定值来自已审批
+目录并再次受 TUF 签名保护，回滚固定值来自升级前已验证的产品清单，支持经审批的新旧证书轮换而不接受任意有效证书。
+本轮 `px_release_catalog`/`px_node_protocol` 8/8、`px_service` 122/122（另 1 项物理 NVIDIA 按设计忽略）及严格 Clippy 均通过；fresh-schema
+报告 `pg-20260921-180717-d1cb87f4`、`pg-20260921-181006-983ac8dc`、`pg-20260921-181108-a6831489`、
+`pg-20260921-181403-31c1459b` 分别覆盖 Console 更新 11/11、Desk 7/7、节点控制 3/3、目录 API 7/7。SQLx 元数据由
+`pg-20260921-180318-228560ca` 在三套全新数据库上重建为 Console/Desk/Auth 284/9/34。正式签名新旧包及真实 SCM 故障注入仍是实物门禁，
+本条不把软件测试冒充商业发布验收。
+
 Official/Customer 包装已经把正式 `resources/update/root.json` 作为强制输入，但仓库不伪造生产根、签名私钥或正式已审批更新，因此尚未执行
 “签名旧包→签名新包→真实 SCM 覆盖→故障回滚”的实物矩阵；在该故障注入通过前仍属于 DB2 的部分完成，不得称为正式无人值守升级验收完成。
 development 发行不查询生产更新。Cloud Node/Remote 的聚焦 release Service 构建已重新执行，构建树、stage 与各自 development dist 的

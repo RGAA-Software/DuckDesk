@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id,request_hash,product,distribution,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,size_bytes,state,revision,created_at,updated_at FROM pixels.update_releases WHERE registered_by=$1 AND request_id=$2\n",
+  "query": "UPDATE pixels.update_releases SET state=$2,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 RETURNING id,request_hash,product,distribution,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,platform_signer_sha256,size_bytes,state,revision,created_at,updated_at\n",
   "describe": {
     "columns": [
       {
@@ -70,26 +70,31 @@
       },
       {
         "ordinal": 13,
+        "name": "platform_signer_sha256",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
         "name": "size_bytes",
         "type_info": "Int8"
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "state",
         "type_info": "Text"
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "revision",
         "type_info": "Int8"
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
@@ -97,7 +102,7 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Uuid"
+        "Text"
       ]
     },
     "nullable": [
@@ -114,6 +119,7 @@
       false,
       false,
       false,
+      true,
       false,
       false,
       false,
@@ -121,5 +127,5 @@
       false
     ]
   },
-  "hash": "abbbafa08c63503726497c365e8410843796445f36fb70d845551248a7d1eafe"
+  "hash": "ca34a8cb6c2d41ad1ac09b8516efdebfcb5b4f009fb6121bb03ef5a63980acdb"
 }

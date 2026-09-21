@@ -17,6 +17,7 @@ CREATE TABLE pixels.update_releases (
     target_name TEXT NOT NULL CHECK (char_length(target_name) >= 1 AND char_length(target_name) <= 512
         AND target_name !~ '(^/|\\|[[:space:]]|(^|/)\.\.?(/|$)|/$)'),
     sha256 TEXT NOT NULL CHECK (sha256 ~ '^[a-f0-9]{64}$'),
+    platform_signer_sha256 TEXT,
     size_bytes BIGINT NOT NULL CHECK (size_bytes > 0 AND size_bytes <= 1099511627776),
     state TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending','approved','withdrawn')),
     revision BIGINT NOT NULL DEFAULT 1 CHECK (revision > 0),
@@ -27,7 +28,10 @@ CREATE TABLE pixels.update_releases (
     CHECK (
         (product='android' AND os='android' AND architecture='aarch64') OR
         (product IN ('cloud_node','client','remote') AND os='windows' AND architecture='x86_64') OR
-        (product='server' AND os IN ('windows','linux') AND architecture='x86_64'))
+        (product='server' AND os IN ('windows','linux') AND architecture='x86_64')),
+    CHECK (
+        (os IN ('windows','android') AND platform_signer_sha256 ~ '^[a-f0-9]{64}$')
+        OR (os='linux' AND platform_signer_sha256 IS NULL))
 );
 GRANT SELECT,INSERT ON pixels.update_releases TO pixels_console_runtime;
 GRANT UPDATE(state,revision,updated_at) ON pixels.update_releases TO pixels_console_runtime;

@@ -503,9 +503,14 @@ fn release(
     architecture: &str,
     build: i64,
 ) -> Value {
+    let platform_signer_sha256 = match os {
+        "linux" => Value::Null,
+        _ => json!("b".repeat(64)),
+    };
     json!({"target":{"product":product,"distribution":distribution,"channel":channel,"os":os,"architecture":architecture},
         "build_number":build,"version":"1.2.3","metadata_base_url":"https://example.invalid/metadata/",
         "targets_base_url":"https://example.invalid/targets/","target_name":"release/pixels.bin","sha256":"a".repeat(64),
+        "platform_signer_sha256":platform_signer_sha256,
         "size_bytes":1234})
 }
 #[tokio::test]
@@ -630,6 +635,28 @@ async fn release_platform_missing_fields_invalid_metadata_and_races_cannot_publi
         .fetch_one(&owner)
         .await
         .unwrap();
+    let mut windows_without_signer = release(
+        "client",
+        "official",
+        "stable",
+        "windows",
+        "x86_64",
+        chrono::Utc::now().timestamp_micros(),
+    );
+    windows_without_signer
+        .as_object_mut()
+        .unwrap()
+        .remove("platform_signer_sha256");
+    assert!(call(
+        &app,
+        "POST",
+        "/api/desk/versions",
+        Some(&token),
+        windows_without_signer
+    )
+    .await
+    .0
+    .is_client_error());
     for field in ["os", "architecture", "distribution"] {
         let mut body = base.clone();
         body["target"].as_object_mut().unwrap().remove(field);
@@ -646,6 +673,7 @@ async fn release_platform_missing_fields_invalid_metadata_and_races_cannot_publi
             "targets_base_url",
             json!("https://example.invalid/a?token=x"),
         ),
+        ("platform_signer_sha256", json!("c".repeat(64))),
     ] {
         let mut body = base.clone();
         body[field] = value;

@@ -38,6 +38,7 @@ pub struct ProductDescriptor {
     pub company: String,
     pub product_version: String,
     pub product_version_code: u32,
+    pub signer_certificate_sha256: Option<String>,
     pub capabilities: Vec<String>,
 }
 
@@ -98,6 +99,17 @@ impl ProductDescriptor {
         {
             return Err("installed product descriptor has an invalid product version".to_string());
         }
+        let signer_is_valid = self
+            .signer_certificate_sha256
+            .as_deref()
+            .is_some_and(valid_sha256);
+        if (self.distribution == "development" && self.signer_certificate_sha256.is_some())
+            || (self.distribution != "development" && !signer_is_valid)
+        {
+            return Err(
+                "installed product descriptor has an invalid signer certificate pin".to_string(),
+            );
+        }
         let actual: HashSet<&str> = self.capabilities.iter().map(String::as_str).collect();
         let required: HashSet<&str> = expected.iter().copied().collect();
         if actual.len() != self.capabilities.len() || actual != required {
@@ -108,6 +120,10 @@ impl ProductDescriptor {
         }
         Ok(())
     }
+}
+
+fn valid_sha256(value: &str) -> bool {
+    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 #[cfg(test)]
@@ -123,6 +139,7 @@ mod tests {
             company: "Pixels".to_string(),
             product_version: "3.3.67".to_string(),
             product_version_code: 30367,
+            signer_certificate_sha256: Some("b".repeat(64)),
             capabilities: capabilities.iter().map(|value| value.to_string()).collect(),
         }
     }
@@ -146,5 +163,12 @@ mod tests {
         let mut invalid_distribution = descriptor("remote", "REMOTE", REMOTE_CAPABILITIES);
         invalid_distribution.distribution = "official-looking".to_string();
         assert!(invalid_distribution.validate().is_err());
+        let mut missing_release_signer = descriptor("remote", "REMOTE", REMOTE_CAPABILITIES);
+        missing_release_signer.signer_certificate_sha256 = None;
+        assert!(missing_release_signer.validate().is_err());
+        let mut development = descriptor("remote", "REMOTE", REMOTE_CAPABILITIES);
+        development.distribution = "development".into();
+        development.signer_certificate_sha256 = None;
+        assert!(development.validate().is_ok());
     }
 }

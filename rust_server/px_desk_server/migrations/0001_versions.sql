@@ -42,6 +42,7 @@ CREATE TABLE pixels.versions (
     target_name TEXT NOT NULL CHECK (char_length(target_name) >= 1 AND char_length(target_name) <= 512
         AND target_name !~ '(^/|\\|[[:space:]]|(^|/)\.\.?(/|$)|/$)'),
     sha256 TEXT NOT NULL CHECK (sha256 ~ '^[a-f0-9]{64}$'),
+    platform_signer_sha256 TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
     UNIQUE(product,distribution,channel,build_number)
 );

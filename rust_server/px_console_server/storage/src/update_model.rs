@@ -42,6 +42,7 @@ pub(crate) struct UpdateRow {
     pub targets_base_url: String,
     pub target_name: String,
     pub sha256: String,
+    pub platform_signer_sha256: Option<String>,
     pub size_bytes: i64,
     pub state: String,
     pub revision: i64,
@@ -129,6 +130,7 @@ impl UpdateRow {
             targets_base_url: self.targets_base_url,
             target_name: self.target_name,
             sha256: self.sha256,
+            platform_signer_sha256: self.platform_signer_sha256,
             size_bytes: self.size_bytes,
         };
         artifact.validate().map_err(|_| StoreError::Rejected)?;

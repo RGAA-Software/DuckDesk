@@ -89,7 +89,8 @@ scripts_build\build_remote_product.bat
 这些都是发布级完整构建；每条命令一次升版并同时构建 Official/Customer，不接受旧的 `full`、`incremental` 或 `reconfigure` 参数。
 
 Cloud Node/Remote 安装器会在每次成功覆盖时把当前完整安装包保存到受保护的机器更新缓存，供下一次升级失败时精确回滚。缓存 ACL 只允许
-SYSTEM 和本机管理员，Service 在授权升级前记录并保护旧包 SHA-256，runner 使用前还会复核 Authenticode。安装、覆盖升级、自动更新、回滚和
+SYSTEM 和本机管理员，Service 在授权升级前记录并保护旧包 SHA-256 及当前产品清单中的签名证书 DER SHA-256；新包的签名证书固定值由
+Console 审批记录与 TUF `pixels` 元数据共同绑定。runner 使用前既复核 Authenticode 链，也精确比对对应证书固定值。安装、覆盖升级、自动更新、回滚和
 卸载共用一个全局安装互斥锁；并发操作返回 Windows Installer busy（1618），不会同时改写安装目录或回滚点。
 
 执行前必须设置：`PIXELS_DEPLOYMENT_TRUST_STORE_FILE`、`PIXELS_UPDATE_ROOT_FILE`、`PIXELS_DEPLOYMENT_CERTIFICATE_VERSION`、

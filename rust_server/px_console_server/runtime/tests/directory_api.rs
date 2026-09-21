@@ -96,6 +96,7 @@ async fn update_catalog_requires_explicit_approval_and_exact_client_identity() {
         "targets_base_url":"https://downloads.example.test/targets/",
         "target_name":"android/pixels-3.2.18.apk",
         "sha256":"a".repeat(64),
+        "platform_signer_sha256":"b".repeat(64),
         "size_bytes":12345678
     });
     let create_body = json!({"request_id":request_id,"artifact":artifact});

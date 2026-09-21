@@ -21,6 +21,7 @@ fn spec() -> ReleaseSpec {
         targets_base_url: "https://example.invalid/targets/".into(),
         target_name: "pixels.exe".into(),
         sha256: "a".repeat(64),
+        platform_signer_sha256: Some("b".repeat(64)),
         size_bytes: 12345,
     }
 }
@@ -107,6 +108,10 @@ async fn all_product_platform_flavor_channel_dimensions_are_independent() {
                     channel,
                     os,
                     architecture,
+                };
+                release_spec.platform_signer_sha256 = match os {
+                    OperatingSystem::Linux => None,
+                    OperatingSystem::Windows | OperatingSystem::Android => Some("b".repeat(64)),
                 };
                 let row = update_store
                     .register(&fixture.admin, Uuid::new_v4(), &release_spec)

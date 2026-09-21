@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id,product,distribution,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,\n    size_bytes,created_at FROM pixels.versions\nWHERE product=$1 AND distribution=$2 AND channel=$3 AND os=$4 AND architecture=$5\nORDER BY build_number DESC LIMIT 1\n",
+  "query": "SELECT id,product,distribution,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,platform_signer_sha256,\n    size_bytes,created_at FROM pixels.versions\nWHERE product=$1 AND distribution=$2 AND channel=$3 AND os=$4 AND architecture=$5\nORDER BY build_number DESC LIMIT 1\n",
   "describe": {
     "columns": [
       {
@@ -65,11 +65,16 @@
       },
       {
         "ordinal": 12,
+        "name": "platform_signer_sha256",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
         "name": "size_bytes",
         "type_info": "Int8"
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "created_at",
         "type_info": "Timestamptz"
       }
@@ -96,9 +101,10 @@
       false,
       false,
       false,
+      true,
       false,
       false
     ]
   },
-  "hash": "2f9d97de5ad707d1c5feb3eaa6b8f524138cd1b6aa09577d8a2c5bbea5a9aa6c"
+  "hash": "41c534a676165502e61be2a9135556b05cd54ebbe3726f44a3bb588eb75fc7d6"
 }

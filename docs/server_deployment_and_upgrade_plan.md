@@ -420,15 +420,18 @@ OEM 只使用对应 `oem_id/release_namespace` 的 OEM 更新仓库、离线包�
 
 当前实现基线使用 `tough` 的 TUF 1.0 客户端。Console 的已认证节点连接根据节点登记产品与 Console 许可证发行类型在服务端派生
 `product/distribution/stable/windows/x86_64`，节点只提交当前 build，不能传入或降级目标维度。目录只返回严格更新、最新且已审批的版本；
-最新版本处于 pending/withdrawn 时不回退到更旧版本。发布记录保存 `metadata_base_url`、`targets_base_url`、`target_name`、目标大小和
-SHA-256，不保存可绕开 TUF 的直接制品 URL。
+最新版本处于 pending/withdrawn 时不回退到更旧版本。发布记录保存 `metadata_base_url`、`targets_base_url`、`target_name`、目标大小、
+SHA-256 和平台签名证书 DER SHA-256，不保存可绕开 TUF 的直接制品 URL。Windows/Android 发布必须提供平台签名证书固定值，Linux 发布
+必须为空；该字段进入发布内容摘要、PostgreSQL 约束和审批记录，不能在节点下载后临时补写。
 
 Cloud Node/Remote Service 从安装目录 `resources/update/root.json` 读取独立分发的初始可信根，按安全到期策略验证 root/timestamp/
 snapshot/targets、元数据大小上限与持久 datastore 防回滚状态。TUF target 的 `pixels` 自定义元数据必须逐项绑定 schema version、
-产品、发行类型、渠道、OS、architecture、build 与版本；其目标大小和 SHA-256 还须与 Console 审批事实一致。下载只进入受控
+产品、发行类型、渠道、OS、architecture、build、版本与平台签名证书固定值；其目标大小和 SHA-256 还须与 Console 审批事实一致。下载只进入受控
 `.pending` 目录，复核内容后原子提交到 prepared 目录；残留暂存、符号链接/Windows reparse point 或任何不匹配均 fail closed。
 当前节点首版已实现“发现 + 验签 + 完整包暂存 + 本地空闲复核 + Console 激活租约 + SCM 完整包覆盖 + 本机协议健康 + Console 精确 build
-提交 + 失败回滚”。激活记录由机器 DPAPI 保护，安装器和回滚包均绑定精确 SHA-256/发行身份并重新验证 Authenticode；更新缓存只允许
+提交 + 失败回滚”。激活记录由机器 DPAPI 保护，安装器和回滚包均绑定精确 SHA-256、发行身份和各自审批的签名证书 DER SHA-256；runner
+不仅要求 Authenticode 链有效，还从 WinTrust provider chain 取得实际签名者证书并精确比对固定值。新包使用 TUF/Console 审批固定值，旧包
+使用当前已安装产品清单固定值，因此证书轮换不会把“任意有效代码签名”误当成批准发布者。更新缓存只允许
 SYSTEM/管理员访问，人工安装、自动升级、回滚和卸载使用同一个全局互斥锁。prepared 不会直接显示为 installed：新 Service 必须先完成
 产品清单和本机 WebSocket 健康检查，再向 Console 上报精确目标 build 并以原 task/lease 提交。尚未完成的是使用正式签名 Official/Customer
 新旧安装包进行真实 SCM、断网、安装失败和回滚失败故障注入，因此商业发行验收仍保持未通过。

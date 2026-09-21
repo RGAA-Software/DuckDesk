@@ -82,6 +82,7 @@ pub async fn publish(pool: &PgPool, input: ReleaseInput) -> Result<Release, ApiE
         input.targets_base_url,
         input.target_name,
         input.sha256,
+        input.platform_signer_sha256,
         input.target.os.name(),
         input.target.architecture.name(),
         input.size_bytes

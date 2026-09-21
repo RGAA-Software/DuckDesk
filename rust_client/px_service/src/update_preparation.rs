@@ -17,6 +17,7 @@ pub(crate) struct PreparedUpdate {
     pub policy_revision: i64,
     pub build_number: i64,
     pub version: String,
+    pub platform_signer_sha256: String,
     pub artifact_path: PathBuf,
 }
 
@@ -27,6 +28,7 @@ struct SignedPixelsTarget {
     target: ReleaseQuery,
     build_number: i64,
     version: String,
+    platform_signer_sha256: String,
 }
 
 pub(crate) async fn prepare(
@@ -145,6 +147,7 @@ fn validate_signed_target(
         || signed.target != release.target
         || signed.build_number != release.build_number
         || signed.version != release.version
+        || Some(signed.platform_signer_sha256.as_str()) != release.platform_signer_sha256.as_deref()
     {
         return Err("TUF Pixels release identity does not match the approved release".into());
     }
@@ -232,6 +235,11 @@ fn prepared_update(offer: &NodeUpdateOffer, artifact_path: PathBuf) -> PreparedU
         policy_revision: offer.policy_revision,
         build_number: offer.artifact.build_number,
         version: offer.artifact.version.clone(),
+        platform_signer_sha256: offer
+            .artifact
+            .platform_signer_sha256
+            .clone()
+            .expect("validated Windows release has a signer pin"),
         artifact_path,
     }
 }
@@ -267,6 +275,7 @@ mod tests {
             targets_base_url: "https://updates.example.test/targets/".into(),
             target_name: "cloud-node/PixelsCloudNode.exe".into(),
             sha256: "a".repeat(64),
+            platform_signer_sha256: Some("b".repeat(64)),
             size_bytes: 4096,
         }
     }
@@ -280,6 +289,7 @@ mod tests {
                 "target":release.target,
                 "build_number":release.build_number,
                 "version":release.version,
+                "platform_signer_sha256":release.platform_signer_sha256,
             }),
         );
         Target {
@@ -307,6 +317,9 @@ mod tests {
         let mut wrong_digest = release.clone();
         wrong_digest.sha256 = "b".repeat(64);
         assert!(validate_signed_target(&wrong_digest, &target).is_err());
+        let mut wrong_signer = release.clone();
+        wrong_signer.platform_signer_sha256 = Some("c".repeat(64));
+        assert!(validate_signed_target(&wrong_signer, &target).is_err());
     }
 
     #[tokio::test]

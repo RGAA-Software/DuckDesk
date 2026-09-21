@@ -1229,6 +1229,7 @@ async fn node_update_check_uses_authenticated_product_and_console_distribution()
         "targets_base_url":"https://downloads.example.test/targets/",
         "target_name":"cloud-node-2.exe",
         "sha256":"a".repeat(64),
+        "platform_signer_sha256":"b".repeat(64),
         "size_bytes":4096
     });
     let (release_status, release) = call(
