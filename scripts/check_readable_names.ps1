@@ -9,6 +9,7 @@ param(
         'rust_server/px_pg',
         'rust_server/px_private_files',
         'rust_server/px_release_catalog',
+        'rust_server/px_update_authority',
         'rust_server/px_backup',
         'rust_server/px_console_server',
         'rust_server/px_auth_server/license',

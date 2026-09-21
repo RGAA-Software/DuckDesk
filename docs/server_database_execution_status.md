@@ -1428,6 +1428,14 @@ WinTrust provider chain 提取实际签名证书并精确比对，安装完成�
 `pg-20260921-180318-228560ca` 在三套全新数据库上重建为 Console/Desk/Auth 284/9/34。正式签名新旧包及真实 SCM 故障注入仍是实物门禁，
 本条不把软件测试冒充商业发布验收。
 
+更新仓库生产侧随后新增离线 `px_update_authority`，关闭“客户端能验 TUF、仓库只能靠测试代码临时生成”的软件缺口。工具创建受限目录中的
+Ed25519 私钥；初始 root 强制 2–5 把 root key 且门限至少 2，targets/snapshot/timestamp 三角色密钥彼此及 root 隔离。发布读取严格
+`ReleaseSpec` 与精确制品，验证大小/SHA-256、root 自签和到期层级；追加发布重新验证上一仓库全部元数据及每个历史目标字节，自动递增三角色
+版本并拒绝复用 target name。完整候选在随机 staging 内生成，由 `tough` 安全到期模式重新加载并实际取回新目标后才以新目录提交，永不原位
+覆盖；`publication.json` 固定 root/release 摘要和角色版本。3/3 单元测试覆盖多 root 门限/不覆盖、两代发布与历史保留、篡改制品、错误角色 key
+及目标名复用，严格 Clippy 通过；统一验收入口报告 `pg-20260921-184610-e8da787b` 同为 3/3，源码 hash 冻结且隔离容器/卷已清理。它只生成
+不可变候选，不上传或切换线上仓库；正式发布同步、root 轮换、审批私钥托管和正式安装包矩阵仍保持门禁。
+
 Official/Customer 包装已经把正式 `resources/update/root.json` 作为强制输入，但仓库不伪造生产根、签名私钥或正式已审批更新，因此尚未执行
 “签名旧包→签名新包→真实 SCM 覆盖→故障回滚”的实物矩阵；在该故障注入通过前仍属于 DB2 的部分完成，不得称为正式无人值守升级验收完成。
 development 发行不查询生产更新。Cloud Node/Remote 的聚焦 release Service 构建已重新执行，构建树、stage 与各自 development dist 的

@@ -116,6 +116,35 @@ PowerShell 独立复核签名状态、签名者 SHA-256 与时间戳；任一项
 仓库固定 NSIS 3.12（正式签名卸载器至少需要 3.08，项目要求不低于 3.11 的 SYSTEM 安全修复基线）。安装器直接封装已验证的 `dist`，
 不再使用旧 `Nsis7z`/`nsProcess` 插件和额外 `app.7z` 层；工具包按 vendored 字节处理，不能在提交时自动换行或格式化。
 
+### 2.2.1 TUF 离线发布权威
+
+`px_update_authority` 是明确离线运行的更新仓库生成工具，不是在线服务，也不会上传、覆盖或切换正在提供服务的仓库。入口为：
+
+```bat
+cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority -- generate-key
+cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority -- create-root
+cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority -- publish
+```
+
+`generate-key` 每次只通过 `PIXELS_TUF_KEY_OUTPUT` 创建一个新 Ed25519 PKCS#8 私钥，父目录必须已经按生产私钥目录限制权限，已有文件绝不覆盖。
+正式初始根至少使用 2 个、至多 5 个独立 root key，门限不得低于 2；targets、snapshot、timestamp 各用一个彼此及 root 都不同的 key。
+`create-root` 的输入为：
+
+- `PIXELS_TUF_ROOT_SIGNING_KEYS`：root 私钥绝对路径的 JSON 数组；
+- `PIXELS_TUF_ROOT_THRESHOLD`、`PIXELS_TUF_ROOT_VERSION`、`PIXELS_TUF_ROOT_EXPIRES_AT`；
+- `PIXELS_TUF_TARGETS_SIGNING_KEY`、`PIXELS_TUF_SNAPSHOT_SIGNING_KEY`、`PIXELS_TUF_TIMESTAMP_SIGNING_KEY`；
+- `PIXELS_TUF_ROOT_OUTPUT`：不存在的输出文件，时间使用带时区的 RFC 3339。
+
+`publish` 需要上述三个在线角色私钥，以及 `PIXELS_TUF_ROOT_FILE`、`PIXELS_RELEASE_SPEC_FILE`、`PIXELS_RELEASE_ARTIFACT`、
+`PIXELS_TUF_REPOSITORY_OUTPUT`、三个 `PIXELS_TUF_*_EXPIRES_AT`。追加发布时还必须给出 `PIXELS_TUF_PREVIOUS_REPOSITORY`。工具验证 root 自签门限、
+角色密钥隔离、到期顺序、ReleaseSpec、制品大小/SHA-256、历史仓库全部签名和全部历史目标字节；角色版本自动严格递增。每个 target name 永久
+不可复用，输出目录也不可覆盖。新输出在同父目录的随机 staging 中完整生成并由正式 `tough` 客户端重新下载验证目标后才一次重命名提交，包含
+`metadata/`、`targets/` 和带 root/release 摘要及角色版本的 `publication.json`。
+
+该命令只生成一个不可变候选目录。发布系统还必须把候选同步到独立临时位置、核对 `publication.json`，先提交 targets 与非 timestamp 元数据，
+最后原子切换 `timestamp.json`；不能直接对线上目录运行本工具。root 私钥保持离线，日常 `publish` 不接触 root 私钥。正式 Windows ReleaseSpec
+中的 `platform_signer_sha256` 必须来自已独立验证的安装器 manifest 和审批证书固定值，不能由仓库地址或 TUF 在线角色密钥替代。
+
 ### 2.3 完整构建 Android
 
 ```bat

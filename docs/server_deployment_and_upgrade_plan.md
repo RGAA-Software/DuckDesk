@@ -418,6 +418,11 @@ OEM 只使用对应 `oem_id/release_namespace` 的 OEM 更新仓库、离线包�
 离线包使用明确的离线维护元数据有效期及信任根轮换链，不永久关闭元数据有效期检查。
 首次发行信任根内置，后续根轮换由既有根授权；HTTPS、包摘要与操作系统代码签名各自验证。
 
+离线 `px_update_authority` 已提供新根和不可变候选仓库的生成基线：初始 root 强制 2–5 把 root key、门限至少 2，targets/snapshot/timestamp
+使用三把彼此及 root 均不同的角色 key；日常发布不接触 root 私钥。追加发布先验证旧仓库元数据及每个历史目标字节，三个角色版本自动递增，
+target name 不可复用；候选目录完整自验后一次提交并记录 `publication.json`。该工具不直接写线上目录；正式部署仍必须在独立临时位置同步，
+按 targets、targets/snapshot、最后 timestamp 的顺序原子切换，并保留上一份可验证候选用于回退。root 轮换和线上发布执行器仍须单独验收。
+
 当前实现基线使用 `tough` 的 TUF 1.0 客户端。Console 的已认证节点连接根据节点登记产品与 Console 许可证发行类型在服务端派生
 `product/distribution/stable/windows/x86_64`，节点只提交当前 build，不能传入或降级目标维度。目录只返回严格更新、最新且已审批的版本；
 最新版本处于 pending/withdrawn 时不回退到更旧版本。发布记录保存 `metadata_base_url`、`targets_base_url`、`target_name`、目标大小、

@@ -1,0 +1,24 @@
+[package]
+name = "px_update_authority"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+async-trait = "0.1"
+aws-lc-rs = "1"
+hex = "0.4"
+jiff = "0.2"
+px_private_files = { path = "../px_private_files" }
+px_release_catalog = { path = "../px_release_catalog" }
+ring = "0.17"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread"] }
+tough = "0.24"
+url = "2.5"
+uuid = { version = "1", features = ["v4"] }
+zeroize = "1.8"
+
+[dev-dependencies]
+tempfile = "3"

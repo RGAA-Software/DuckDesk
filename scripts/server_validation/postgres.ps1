@@ -7,7 +7,7 @@ param(
     [ValidateRange(0,65535)]
     [int]$Port = 0,
     [switch]$Linux,
-    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'backup-pg', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'catalog', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'node-control', 'console-process', 'console-admin', 'console-browser')]
+    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'backup-pg', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'catalog', 'update-authority', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'node-control', 'console-process', 'console-admin', 'console-browser')]
     [string]$Suite = ''
 )
 
@@ -62,7 +62,7 @@ foreach ($webProject in @('px_console','px_web_client')) {
 }
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_auth_server/license') -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_auth_server/storage') -File -Recurse -Force | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
-$sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_pg'),(Join-Path $repo 'rust_server/px_private_files'),(Join-Path $repo 'rust_server/px_release_catalog'),(Join-Path $repo 'deploy/development/postgres'),$PSScriptRoot -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
+$sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_pg'),(Join-Path $repo 'rust_server/px_private_files'),(Join-Path $repo 'rust_server/px_release_catalog'),(Join-Path $repo 'rust_server/px_update_authority'),(Join-Path $repo 'deploy/development/postgres'),$PSScriptRoot -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_desk_server'),(Join-Path $repo 'rust_server/px_console_server/storage') -File -Recurse -Force | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
 foreach ($service in @('console','auth','desk')) {
     $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo "rust_server/px_${service}_server/migrations") -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
@@ -329,7 +329,7 @@ try {
             Invoke-Checked 'docker' @('exec',$container,'psql','-X','-v','ON_ERROR_STOP=1','-U','pixels_admin','-d','pixels_desk','-c',
                 "CREATE TABLE pixels.pg_fixture(id uuid PRIMARY KEY,version text NOT NULL,created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP); ALTER TABLE pixels.pg_fixture OWNER TO pixels_desk_owner; GRANT SELECT,INSERT,UPDATE,DELETE ON pixels.pg_fixture TO pixels_desk_runtime") | Out-Null
         }
-        $suiteCounts = @{unit=19;identity=12;control=8;devices=9;applications=8;guests=9;nodes=11;deployments=6;instances=16;commands=16;workspaces=6;database=2;sessions=11;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=17;activity=8;updates=11;desk=7;catalog=4;lease=6;postgres=14;accounts=9}
+        $suiteCounts = @{unit=19;identity=12;control=8;devices=9;applications=8;guests=9;nodes=11;deployments=6;instances=16;commands=16;workspaces=6;database=2;sessions=11;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=17;activity=8;updates=11;desk=7;catalog=4;'update-authority'=3;lease=6;postgres=14;accounts=9}
         $suiteCounts['console-api'] = 6
         $suiteCounts['directory-api'] = 7
         $suiteCounts['node-control'] = 3
@@ -359,6 +359,8 @@ try {
             $suiteArgs = @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_pg','--features','pg-integration','--test',$Suite,'--target-dir',$targetDir)
         } elseif ($Suite -eq 'catalog') {
             $suiteArgs = @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_release_catalog','--lib','--target-dir',$targetDir)
+        } elseif ($Suite -eq 'update-authority') {
+            $suiteArgs = @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_update_authority','--lib','--target-dir',$targetDir)
         } else {
             $suiteArgs = @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--target-dir',$targetDir)
             if ($Suite -eq 'unit') { $suiteArgs += '--lib' } else { $suiteArgs += @('--test',$Suite) }
@@ -375,6 +377,9 @@ try {
     $catalogTests = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_release_catalog','--lib','--target-dir',$targetDir)
     Write-Host $catalogTests
     Add-TestCases $catalogTests 'native/release-catalog' 4
+    $updateAuthorityTests = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_update_authority','--lib','--target-dir',$targetDir)
+    Write-Host $updateAuthorityTests
+    Add-TestCases $updateAuthorityTests 'native/update-authority' 3
     $fileTests = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_private_files','--features','integration-probe','--test','cache_files','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $fileTests
     Add-TestCases $fileTests 'native/private-files' 8
