@@ -1696,6 +1696,11 @@ Console PostgreSQL 发布目录随后补齐 OEM 发行域实库覆盖：Official
 `os/product/distribution/[oem_id/]channel/architecture/build`，逐段匹配且只允许最后一个文件名分量；错放到 Customer、另一 OEM、产品或 build
 都会在读取 artifact 和创建 staging 前失败。全部 authority 6/6 及严格 Clippy 通过，测试夹具也已与正式 Windows 生成器的路径顺序完全一致。
 
+同一轮继续关闭 TUF 仓库域混用：authority 在导入已验签历史仓库后，现在逐个解析历史 target 的 Pixels 签名身份，要求 schema 有效且
+`distribution/release_namespace/oem_id` 与本次发布完全一致。OEM `acme-cloud` 仓库追加 Official（同产品、相邻 build、同签名角色）会失败且不产生
+输出目录，随后追加同 OEM 新版本仍正常保留历史并发布。该规则允许同一发行域的多产品仓库，但禁止 Official/Customer/其他 OEM 被逐次混入。
+authority 全部 6/6 与严格 Clippy 再次通过；正式密钥和正式仓库的运营验收仍未因此冒充完成。
+
 | 阶段 | 当前未完成项 |
 |---|---|
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |

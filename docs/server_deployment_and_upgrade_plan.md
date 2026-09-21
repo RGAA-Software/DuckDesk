@@ -504,12 +504,14 @@ Windows 软件组合验收 `pg-20260920-151630-d92d153c` 已以 449/449 个登�
 前置门禁已绑定品牌/安装身份/签名者/独立根；Windows CMake、dist、NSIS、installer verifier 和 TUF ReleaseSpec 消费同一 profile，并以共享
 owner 记录保持所有产品/发行互斥。Windows OEM 候选入口现已逐产品串起独立清理、升版、Web/RDP/C++、安装器签名和安装包复核；OEM 包仍不得使用
 现有 Customer 构建入口冒充交付。Web 和 Android 包身份已接线，Android 运行界面/Splash/launcher/通知及 Windows 原生 Panel/Client 窗口、托盘、
-文案、运行 Logo 和 PE 品牌也已参数化。OEM Host 的 Service 描述符、激活记录、安装后身份复核和回滚缓存均已绑定精确 OEM/profile 身份；P0 后续
+文案、运行 Logo 和 PE 品牌也已参数化。OEM Host 的 Service 描述符、激活记录、安装后身份复核和回滚缓存均已绑定精确 OEM/profile 身份。
 代码验收已证明发布权威能签发精确 OEM target，Service 能验签并准备该 target，且同制品被替换成另一合法 OEM 身份时会在安装前失败关闭；
 Console PostgreSQL 发布目录也已通过 OEM A/OEM B 同产品、同平台、同通道、同 build 并存及精确查询隔离的空库实测。P0 后续
 仍必须使用审批后的独立根/角色密钥完成正式 TUF 发布、Console 登记/批准、正式包节点激活实测和跨发行实物验收矩阵，再允许第一份全产品 OEM 商业交付。
 发布权威不能只信任上游生成器：签名前必须从 ReleaseSpec 独立派生
 `os/product/distribution/[oem_id/]channel/architecture/build/file`，并逐段匹配 target name；任一维度错位均不得创建候选仓库。
+追加发布还必须先验签历史仓库内每个 target 的 Pixels 身份，并要求全部历史 target 与新发布具有完全相同的
+`distribution/release_namespace/oem_id`。仓库可在同一发行域内服务多个产品，但不能通过追加操作逐步混入另一个 OEM 或 Pixels 发行。
 
 下载可恢复，完整包先验证再解压；防路径穿越、链接逃逸、超大解压、符号链接/重解析点替换和校验后替换。
 高权限安装辅助进程只接受受保护的已验证 staging 及类型化任务，不执行 UI/服务器传来的任意命令或任意路径。

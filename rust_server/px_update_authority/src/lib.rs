@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use aws_lc_rs::rand::SystemRandom;
 use jiff::Timestamp;
-use px_release_catalog::ReleaseSpec;
-use serde::Serialize;
+use px_release_catalog::{ReleaseQuery, ReleaseSpec};
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::fs::{File, OpenOptions};
@@ -118,6 +118,12 @@ struct PublicationManifest<'a> {
     timestamp_version: u64,
     created_at: String,
     release: &'a ReleaseSpec,
+}
+
+#[derive(Deserialize)]
+struct SignedTargetIdentity {
+    schema_version: u32,
+    target: ReleaseQuery,
 }
 
 pub fn generate_signing_key(output_path: &Path) -> AuthorityResult<()> {
@@ -405,9 +411,15 @@ async fn publish_into_staging(
     std::fs::create_dir(&metadata_path)?;
     std::fs::create_dir(&targets_path)?;
     let (mut editor, targets_version, snapshot_version, timestamp_version) =
-        load_repository_editor(configuration, root_bytes, &metadata_path, &targets_path)
-            .await
-            .map_err(|error| format!("cannot prepare prior TUF repository state: {error}"))?;
+        load_repository_editor(
+            configuration,
+            release,
+            root_bytes,
+            &metadata_path,
+            &targets_path,
+        )
+        .await
+        .map_err(|error| format!("cannot prepare prior TUF repository state: {error}"))?;
     editor.targets_version(targets_version)?;
     editor.targets_expires(configuration.targets_expires_at)?;
     editor
@@ -507,6 +519,7 @@ async fn verify_staged_repository(
 
 async fn load_repository_editor(
     configuration: &RepositoryPublication,
+    release: &ReleaseSpec,
     root_bytes: &[u8],
     metadata_output: &Path,
     verified_targets_output: &Path,
@@ -539,6 +552,7 @@ async fn load_repository_editor(
     .load()
     .await
     .map_err(|error| format!("previous TUF repository verification failed: {error}"))?;
+    validate_repository_release_domain(&repository, &release.target)?;
     let targets_version = next_version(repository.targets().signed.version)?;
     let snapshot_version = next_version(repository.snapshot().signed.version)?;
     let timestamp_version = next_version(repository.timestamp().signed.version)?;
@@ -592,6 +606,31 @@ async fn load_repository_editor(
         snapshot_version,
         timestamp_version,
     ))
+}
+
+fn validate_repository_release_domain(
+    repository: &tough::Repository,
+    expected_target: &ReleaseQuery,
+) -> AuthorityResult<()> {
+    for (_, historical_target) in repository.all_targets() {
+        let signed_identity: SignedTargetIdentity = serde_json::from_value(
+            historical_target
+                .custom
+                .get("pixels")
+                .cloned()
+                .ok_or("historical TUF target lacks a Pixels release identity")?,
+        )
+        .map_err(|_| "historical TUF target has an invalid Pixels release identity")?;
+        let same_release_domain = signed_identity.schema_version == 1
+            && signed_identity.target.validate().is_ok()
+            && signed_identity.target.distribution == expected_target.distribution
+            && signed_identity.target.release_namespace == expected_target.release_namespace
+            && signed_identity.target.oem_id == expected_target.oem_id;
+        if !same_release_domain {
+            return Err("TUF repository history belongs to a different release domain".into());
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn load_root_chain(metadata_path: &Path) -> AuthorityResult<Vec<RootChainEntry>> {
@@ -1291,6 +1330,28 @@ mod tests {
         let second_artifact = b"second signed installer";
         let second_artifact_path = fixture.directory().join("second-installer.exe");
         std::fs::write(&second_artifact_path, second_artifact).unwrap();
+        let cross_domain_release = fixture.release(
+            30381,
+            "windows/cloud_node/official/stable/x86_64/30381/installer.exe",
+            second_artifact,
+        );
+        let cross_domain_spec_path = fixture.directory().join("cross-domain-release.json");
+        std::fs::write(
+            &cross_domain_spec_path,
+            serde_json::to_vec_pretty(&cross_domain_release).unwrap(),
+        )
+        .unwrap();
+        let cross_domain_repository_path = fixture.directory().join("cross-domain-repository");
+        assert!(publish_repository(&fixture.publication(
+            cross_domain_spec_path,
+            second_artifact_path.clone(),
+            Some(first_repository_path.clone()),
+            cross_domain_repository_path.clone(),
+        ))
+        .await
+        .is_err());
+        assert!(!cross_domain_repository_path.exists());
+
         let second_release = fixture.oem_release(
             30381,
             "windows/cloud_node/oem/acme-cloud/stable/x86_64/30381/installer.exe",
