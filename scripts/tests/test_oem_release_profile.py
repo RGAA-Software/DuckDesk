@@ -11,7 +11,7 @@ from pathlib import Path
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY_ROOT / "scripts"))
 
-from oem_release_profile import emit_android_json, emit_cmake, load_oem_release_profile  # noqa: E402
+from oem_release_profile import emit_android_json, emit_cmake, emit_windows_json, load_oem_release_profile  # noqa: E402
 
 
 class OemReleaseProfileTest(unittest.TestCase):
@@ -104,6 +104,14 @@ class OemReleaseProfileTest(unittest.TestCase):
             Path(android_configuration["icon_foreground_path"]),
             self.assets["android-foreground.png"],
         )
+        windows_configuration = json.loads(emit_windows_json(profile, "client"))
+        self.assertEqual(windows_configuration["oem_id"], "north-star")
+        self.assertEqual(windows_configuration["product"], "client")
+        self.assertEqual(windows_configuration["product_name"], "North Star Client")
+        self.assertEqual(windows_configuration["application_name"], "North Star Cloud")
+        self.assertEqual(windows_configuration["signer_certificate_sha256"], "3" * 64)
+        self.assertEqual(Path(windows_configuration["web_icon_path"]), self.assets["web-icon.png"])
+        self.assertEqual(windows_configuration["profile_sha256"], profile.profile_sha256)
 
     def test_rejects_pixels_brand_and_application_identity(self) -> None:
         profile = self.valid_profile()

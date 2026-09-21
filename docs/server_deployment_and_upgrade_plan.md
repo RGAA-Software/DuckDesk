@@ -27,9 +27,9 @@
 | 交付物 | 职责 | 发行或部署差异 |
 |---|---|---|
 | Pixels Server 套件 | Console、Broker、Relay、管理 Web、部署和备份升级工具 | 同一服务端制品，通过签名部署身份区分 official/private |
-| Cloud Node | 完整节点、Render、Service 和管理 Panel | official/customer 两种发行 |
-| Client | 访问方 Panel、Client、文件和 RDP 能力 | official/customer 两种发行 |
-| Remote | 桌面被控节点和对应访问能力 | official/customer 两种发行 |
+| Cloud Node | 完整节点、Render、Service 和管理 Panel | Pixels official/customer 双发行；profile 绑定的 OEM 独立候选 |
+| Client | 访问方 Panel、Client、文件和 RDP 能力 | Pixels official/customer 双发行；profile 绑定的 OEM 独立候选 |
+| Remote | 桌面被控节点和对应访问能力 | Pixels official/customer 双发行；profile 绑定的 OEM 独立候选 |
 | Android | 移动访问方 | Pixels official/customer 双发行；profile 绑定的 OEM 独立发行 |
 
 许可证签发、部署证书签发与软件发布签名属于 Pixels 的发行基础设施，不是客户正常会话必经的在线服务。
@@ -121,8 +121,8 @@ product 决定能力，distribution 决定平台与更新策略，release_channe
   更新策略。OEM A、OEM B、Pixels Official 和 Pixels Customer 之间均不得覆盖安装、共享更新元数据或回落到彼此的软件包。
 - OEM 非秘密发行描述采用严格 schema 1，并由 `PIXELS_OEM_RELEASE_PROFILE` 唯一指定。描述将品牌、Windows 三产品安装身份、Android
   applicationId、各平台签名证书固定值、品牌资源摘要、deployment trust store 与 TUF 初始根摘要绑定为一个整体；构建过程不得再从若干可互相
-  矛盾的环境变量推断 OEM 身份。Windows deployment policy 和 Android 独立 OEM 构建入口已经执行该门禁；全产品 OEM 编译/安装入口仍保持关闭，
-  直到所有消费者接线完成。
+  矛盾的环境变量推断 OEM 身份。Windows deployment policy、Windows 独立 OEM 候选入口和 Android 独立 OEM 构建入口均执行该门禁；候选构建
+  不等于 TUF 发布、节点激活或商业交付批准。
 - 三个 Windows 产品及其发行变体继续互斥。只有一个已安装发行，服务命名可沿用统一方案。
 - 卸载软件与删除账号、配置、工作区和用户数据分开；普通升级不调用卸载清理路径。保留的数据带平台/发行归属，禁止另一发行自动导入。
 - Android 为 Pixels 两个发行分配不同 applicationId、显示标记和更新身份；每个 OEM 另由 profile 固定独立 applicationId、品牌和签名谱系。同一
@@ -192,7 +192,7 @@ Broker/Relay/更新端点仍须通过后续认证响应安全下发，不能用�
 完成同源身份/nonce 验证和 machine-scope DPAPI 水位，并要求安装流程提供 approved trust store，不能从远端自举根信任。Windows Panel
 也已在密码、bearer、guest 与资源请求前完成同源 discovery/nonce 验证，以受保护水位固定身份；Official origin 只读，Customer 只接 private，
 账号与 guest 缓存按 origin+DeploymentId 隔离。Windows Service、Panel、Web Client、Android 已统一消费 v2 精确发行域并拒绝字段替换；
-正式 Android 双制品/真机证据、Windows 双发行 policy/trust 资源与独立输出及 OEM 完整构建入口仍属于 DB5/P0，完成前发行隔离不得判定通过。
+正式 Android 双制品/真机证据、Windows 双发行 policy/trust 资源与独立输出及 OEM 正式签名实物矩阵仍属于 DB5/P0，完成前发行隔离不得判定通过。
 部署私钥生成、离线根/trust store 建立及证书签发工具已实现，操作与隔离
 边界见[部署身份离线签发与安装](deployment_identity_provisioning.md)。
 
@@ -501,10 +501,10 @@ Windows 软件组合验收 `pg-20260920-151630-d92d153c` 已以 449/449 个登�
 
 当前 release catalog、Desk/Console PostgreSQL 发布目录、TUF `pixels.target` 元数据、Auth `PXLIC2`、部署身份、Console 和节点产品描述符均已实现
 严格 `oem_id/release_namespace` 字段，Desk 能保存不同 OEM 的同构建号版本，Console 运维页能显示命名空间。OEM 非秘密发行描述及 Windows policy
-前置门禁已绑定品牌/安装身份/签名者/独立根；Windows CMake、dist、NSIS、installer verifier 和 TUF ReleaseSpec 也已开始消费同一 profile，并以
-共享 owner 记录保持所有产品/发行互斥。但还没有开放完整 OEM 产物入口。OEM 包仍不得使用现有 Customer 构建入口冒充交付。Web 和 Android
-包身份已接线，Android 运行界面/Splash/launcher/通知及 Windows 原生 Panel/Client 窗口、托盘、文案、运行 Logo 和 PE 品牌也已参数化。P0 后续
-仍必须完成独立 TUF 正式发布、节点激活任务和验收矩阵，再允许生成第一份全产品 OEM 商业交付。
+前置门禁已绑定品牌/安装身份/签名者/独立根；Windows CMake、dist、NSIS、installer verifier 和 TUF ReleaseSpec 消费同一 profile，并以共享
+owner 记录保持所有产品/发行互斥。Windows OEM 候选入口现已逐产品串起独立清理、升版、Web/RDP/C++、安装器签名和安装包复核；OEM 包仍不得使用
+现有 Customer 构建入口冒充交付。Web 和 Android 包身份已接线，Android 运行界面/Splash/launcher/通知及 Windows 原生 Panel/Client 窗口、托盘、
+文案、运行 Logo 和 PE 品牌也已参数化。P0 后续仍必须完成独立 TUF 正式发布、节点激活任务和验收矩阵，再允许第一份全产品 OEM 商业交付。
 
 下载可恢复，完整包先验证再解压；防路径穿越、链接逃逸、超大解压、符号链接/重解析点替换和校验后替换。
 高权限安装辅助进程只接受受保护的已验证 staging 及类型化任务，不执行 UI/服务器传来的任意命令或任意路径。

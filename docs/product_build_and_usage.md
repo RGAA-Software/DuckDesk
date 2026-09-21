@@ -4,11 +4,11 @@
 适用产品：Pixels Cloud Node、Pixels Client、Pixels Remote、Pixels Android
 
 Pixels 发布矩阵只生成 `official` 与 `customer`。OEM 是独立发行线，不得通过修改现有 Customer 的名称、图标、URL 或清单后交付；现有双发行
-矩阵继续保持两项。Android 已有独立 OEM 构建入口，Android、Web 与 Windows 原生 Panel/Client 均已消费 profile 品牌，但全产品 OEM 交付仍
+矩阵继续保持两项。Windows 与 Android 均已有独立 OEM 构建入口，Android、Web 与 Windows 原生 Panel/Client 均已消费 profile 品牌，但 OEM 商业交付仍
 保持关闭，直到独立 TUF 正式发布、激活任务和跨 Official/Customer/其他 OEM 的完整拒绝矩阵全部通过。
 服务端发布目录、Auth `PXLIC2` 许可证和 `PXDC2/PXDD2` 部署身份已经能够签名表达并隔离 `oem.<oem_id>`；Windows Service、Panel、Web 与
-Android 的消费者也会精确拒绝发行域替换。Android 已开放独立 OEM 构建入口，但全产品 OEM 品牌、TUF 发布和商业交付入口仍未开放；这些身份能力
-不能用于手工拼装 Windows OEM 包，也不改变 Pixels 双发行构建命令。
+Android 的消费者也会精确拒绝发行域替换。独立 OEM 构建入口只生成待验收候选，不会发布 TUF、激活节点或开放商业交付；这些身份能力不能用于
+手工拼装 OEM 包，也不改变 Pixels 双发行构建命令。
 
 OEM 构建配置使用 `PIXELS_OEM_RELEASE_PROFILE` 指向的 schema 1 UTF-8 JSON，作为该 OEM 的唯一非秘密
 发行描述；Windows OEM deployment policy 预检不再接受裸 `PIXELS_OEM_ID`。描述必须同时固定 `oem_id/release_namespace`、品牌名、三个
@@ -16,21 +16,21 @@ Windows 产品各自的显示名/安装目录/卸载键/安装包 basename、Win
 Windows/Android/Web 品牌图标及逐件 SHA-256、deployment trust store SHA-256 和 TUF 初始 root SHA-256。会进入原生字符串资源的公司名、应用名、
 Windows 产品名还不得包含引号或反斜杠。资源路径只能位于描述文件目录内；缺项、多余字段、路径逃逸、资源篡改、复用 Pixels 品牌/applicationId、
 重复 Windows 安装身份或根摘要不一致均在产生策略前失败。Official/
-Customer 构建反向拒绝该变量，避免 OEM 配置污染 Pixels 双发行矩阵。Android OEM 已有独立产物入口；全产品 OEM 编排和商业交付入口仍关闭。
+Customer 构建反向拒绝该变量，避免 OEM 配置污染 Pixels 双发行矩阵。Windows/Android OEM 产物均由独立入口生成；商业交付仍保持关闭。
 
-Windows 底层发行链现已继续接线，但仍不构成公开入口：CMake/`collect_dist.py`/NSIS 共同消费同一 profile，OEM 输出固定隔离到
+Windows OEM 正式编排入口把 CMake/`collect_dist.py`/NSIS 和独立安装包复核串为一个升版事务，OEM 输出固定隔离到
 `build_official/<product>/oem/<oem_id>/`，CMake 产品水位使用 schema 2，dist 与 installer manifest 使用 schema 3 并携带精确发行域和
 profile SHA-256；OEM 公司名、图标、产品显示名、安装目录、卸载键、安装包 basename 与签名证书固定值不能在后段覆盖。安装器用共享受保护
 owner 记录维持三个 Windows 产品及所有发行互斥，同时同一 product/domain/install identity 才允许覆盖安装。installer release verifier 和
 TUF ReleaseSpec 也把 OEM ID 纳入升级相等性和不可变 target 路径。Windows 原生 Panel/Client 的窗口、标题栏、托盘、通知、错误提示、关于页、
 截图/日志目录和 PE 元数据均使用编译期品牌；Client 不再绕过 profile 使用固定 ICO，Web PNG 同时作为三档桌面运行 Logo。未使用的顶层
-`resources/icons/px_icon.png` 已从构建、发布和 dist manifest 删除，运行时只读取 `resources/icons/brand/`。正式 OEM 编排尚未完成，所以不要
-直接调用这些底层参数生成交付包。
+`resources/icons/px_icon.png` 已从构建、发布和 dist manifest 删除，运行时只读取 `resources/icons/brand/`。禁止绕过正式入口直接调用底层参数
+拼装交付包。
 
 Web Client 的 OEM 品牌消费现已接通应用名、PNG 图标和 profile SHA-256：HTML/运行标题、加载页与浮球共用同一构建值，非 OEM 构建拒绝 OEM
 环境输入。日常 development Web 产物使用 `scripts_build/publish_web_client_development.ps1` 同步到 Cloud Node/Remote 独立沙箱，脚本逐文件
-核对源目录、产品 `web` 目录和 `dist/web_client` 的 SHA-256，随后刷新并完整验证产品 manifest。该能力仍不是 OEM 完整编排入口；正式跨产品
-签名矩阵未完成前不得交付 OEM 包。
+核对源目录、产品 `web` 目录和 `dist/web_client` 的 SHA-256，随后刷新并完整验证产品 manifest。OEM Web 只能由 Windows OEM 产品入口注入；
+正式跨产品签名矩阵未完成前不得交付 OEM 包。
 
 旧的根 CMake 树、公共 `build_official/dist`、共享 Rust 编译产物、`build_client.bat`、旧端口和旧节点测试方案均已退役，不提供兼容入口。
 
@@ -41,15 +41,16 @@ Web Client 的 OEM 品牌消费现已接通应用名、PNG 图标和 profile SHA
 ```text
 build_official/
 ├── cloud_node/{cmake,dist}/                         # 日常聚焦开发
-│   ├── official/{cmake,cargo,web,rdp_policy,deployment,dist,installer,reports}/
-│   └── customer/{cmake,cargo,web,rdp_policy,deployment,dist,installer,reports}/
+│   ├── {official,customer}/{cmake,cargo,web,rdp_policy,deployment,dist,installer,reports}/
+│   └── oem/<oem_id>/{cmake,cargo,web,rdp_policy,deployment,dist,installer,reports}/
 ├── client/{cmake,dist}/                             # 日常聚焦开发
-│   ├── official/{cmake,cargo,deployment,dist,installer,reports}/
-│   └── customer/{cmake,cargo,deployment,dist,installer,reports}/
+│   ├── {official,customer}/{cmake,cargo,deployment,dist,installer,reports}/
+│   └── oem/<oem_id>/{cmake,cargo,deployment,dist,installer,reports}/
 ├── remote/{cmake,dist}/                             # 日常聚焦开发
-│   ├── official/{cmake,cargo,web,rdp_policy,deployment,dist,installer,reports}/
-│   └── customer/{cmake,cargo,web,rdp_policy,deployment,dist,installer,reports}/
-└── android/{official,customer}/{gradle,native,dist,reports}/
+│   ├── {official,customer}/{cmake,cargo,web,rdp_policy,deployment,dist,installer,reports}/
+│   └── oem/<oem_id>/{cmake,cargo,web,rdp_policy,deployment,dist,installer,reports}/
+└── android/
+    ├── {official,customer}/{gradle,native,dist,reports}/
     └── oem/<oem_id>/{gradle,native,dist,reports}/
 ```
 
@@ -142,7 +143,31 @@ PowerShell 独立复核签名状态、签名者 SHA-256 与时间戳；任一项
 仓库固定 NSIS 3.12（正式签名卸载器至少需要 3.08，项目要求不低于 3.11 的 SYSTEM 安全修复基线）。安装器直接封装已验证的 `dist`，
 不再使用旧 `Nsis7z`/`nsProcess` 插件和额外 `app.7z` 层；工具包按 vendored 字节处理，不能在提交时自动换行或格式化。
 
-### 2.2.1 TUF 离线发布权威
+### 2.2.1 独立构建 Windows OEM 候选
+
+先设置该 OEM 审批后的 profile、私有部署 trust store、独立 TUF 初始 root 和 Windows 签名输入。可先执行不清理、不升版的预检：
+
+```bat
+set PIXELS_OEM_RELEASE_PROFILE=D:\secure\north-star\oem-release-profile.json
+scripts_build\build_windows_oem_product.bat cloud_node preflight
+scripts_build\build_windows_oem_product.bat client preflight
+scripts_build\build_windows_oem_product.bat remote preflight
+```
+
+正式候选逐产品独立升版和构建：
+
+```bat
+scripts_build\build_windows_oem_product.bat cloud_node
+scripts_build\build_windows_oem_product.bat client
+scripts_build\build_windows_oem_product.bat remote
+```
+
+每次调用只清理 `build_official/<product>/oem/<oem_id>/`，不会删除该产品 development、Official、Customer 或另一 OEM 的产物。入口从已验证
+profile 派生 OEM ID、品牌、图标、安装身份和签名 pin，构建 OEM Web/RDP/C++ 完整 dist，签名安装器后再独立复核安装包目录。任何预检失败都发生在
+清理和升版前。该入口不生成或发布 TUF 仓库、不向 Console 登记版本、不批准激活，也不把候选标记为商业可交付；这些步骤继续经过第 2.2.2 节的
+独立审批边界和实物验收矩阵。
+
+### 2.2.2 TUF 离线发布权威
 
 `px_update_authority` 是明确离线运行的更新仓库生成工具，不是在线服务，也不会上传、覆盖或切换正在提供服务的仓库。入口为：
 
@@ -363,10 +388,12 @@ policy/trust，不能冒充完整发布包。需要交付或制作安装包时�
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts_build\clean_product_outputs.ps1 -Product cloud_node
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts_build\clean_product_outputs.ps1 -Product cloud_node -Distribution oem -OemId north-star
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts_build\clean_product_outputs.ps1 -Product all
 ```
 
-`all` 只删除仓库下的 `build_official` 生成目录；源码、下载缓存、外部工具链和服务器独立输出不受影响。删除后的产物只能通过重新构建恢复。
+OEM 定向清理只接受规范且非保留的 OEM ID。`all` 只删除仓库下的 `build_official` 生成目录；源码、下载缓存、外部工具链和服务器独立输出不受影响。
+删除后的产物只能通过重新构建恢复。
 
 ## 8. 成功判定
 
@@ -378,6 +405,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts_build\clean_product_
   oem_profile_sha256；
 - `dist/artifact-manifest.json` 中全部 SHA-256 校验通过；
 - Windows 两种发行使用同一产品版本，安装包分别位于 `<official|customer>/installer/<version>`；
+- Windows OEM 候选位于 `oem/<oem_id>/installer/<version>`，manifest、Authenticode signer pin、profile 摘要和发行域复核一致；
 - 正式发布候选在专用 Windows 验收机完成对应的新旧签名安装包生命周期报告；
 - 没有公共 `build_official/dist`、公共 Rust 编译目录或其他产品制品混入。
 

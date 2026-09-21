@@ -42,7 +42,7 @@ Cloud Node 或 Remote 的完整产品矩阵构建生成；矩阵构建会把该�
 OEM Web build 额外要求由已验证 release profile 派生 `PIXELS_WEB_APPLICATION_NAME`、`PIXELS_WEB_ICON_FILE` 和
 `PIXELS_WEB_OEM_PROFILE_SHA256`。应用名同时驱动 HTML 标题、中英文运行标题、加载页和浮球无障碍文本；图标必须是 2 MiB 以内的 PNG，并在构建时
 转为 bundle 内 data URL。Official/Customer/development 反向拒绝这三个变量，OEM 缺失任一值或 profile 摘要不是规范小写 SHA-256 也会失败。
-这些是底层构建门禁；完整 OEM 产品入口尚未开放，不能靠手工设置环境变量生成交付包。
+这些是底层构建门禁；OEM Web 只能由 `scripts_build/build_windows_oem_product.bat` 从已验证 profile 注入，不能靠手工设置环境变量生成交付包。
 
 ## 部署身份门禁
 

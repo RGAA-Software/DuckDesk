@@ -317,6 +317,32 @@ def emit_android_json(profile: OemReleaseProfile) -> str:
     return json.dumps(configuration, ensure_ascii=False, separators=(",", ":")) + "\n"
 
 
+def emit_windows_json(profile: OemReleaseProfile, product: str) -> str:
+    if product not in OEM_PRODUCTS:
+        raise RuntimeError(f"unsupported OEM Windows product: {product}")
+    product_identity = profile.windows_products[product]
+    configuration = {
+        "schema_version": 1,
+        "oem_id": profile.oem_id,
+        "release_namespace": profile.release_namespace,
+        "company_name": profile.company_name,
+        "application_name": profile.application_name,
+        "publisher_name": profile.windows_publisher_name,
+        "signer_certificate_sha256": profile.windows_signer_certificate_sha256,
+        "deployment_trust_store_sha256": profile.deployment_trust_store_sha256,
+        "update_root_sha256": profile.update_root_sha256,
+        "windows_icon_path": str(profile.windows_icon_path),
+        "web_icon_path": str(profile.web_icon_path),
+        "profile_sha256": profile.profile_sha256,
+        "product": product,
+        "product_name": product_identity.product_name,
+        "install_directory_name": product_identity.install_directory_name,
+        "uninstall_key": product_identity.uninstall_key,
+        "installer_basename": product_identity.installer_basename,
+    }
+    return json.dumps(configuration, ensure_ascii=False, separators=(",", ":")) + "\n"
+
+
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", type=Path, required=True)
@@ -324,16 +350,20 @@ def parse_arguments() -> argparse.Namespace:
     output_format = parser.add_mutually_exclusive_group(required=True)
     output_format.add_argument("--cmake", action="store_true")
     output_format.add_argument("--android-json", action="store_true")
+    output_format.add_argument("--windows-json", action="store_true")
     return parser.parse_args()
 
 
 def main() -> int:
     arguments = parse_arguments()
     profile = load_oem_release_profile(arguments.profile)
-    if arguments.cmake:
+    if arguments.cmake or arguments.windows_json:
         if arguments.product is None:
-            raise RuntimeError("--product is required with --cmake")
-        sys.stdout.write(emit_cmake(profile, arguments.product))
+            raise RuntimeError("--product is required with --cmake or --windows-json")
+        if arguments.cmake:
+            sys.stdout.write(emit_cmake(profile, arguments.product))
+        else:
+            sys.stdout.write(emit_windows_json(profile, arguments.product))
     else:
         if arguments.product is not None:
             raise RuntimeError("--product is not accepted with --android-json")

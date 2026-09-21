@@ -1496,8 +1496,8 @@ Service 更新测试 14/14、Console 前端 51/51；严格 Clippy、前端类型
 `pg-20260921-223251-d779ff14`。
 
 这不代表 OEM 产品已经可交付。Auth 许可证、部署身份和产品描述符的后续完成情况见本页第二阶段；第一份 OEM 包之前仍须完成激活任务、OEM
-独立 TUF 初始根和密钥审批、独立品牌/应用/安装身份以及 Windows/Android/Web 构建与跨域拒绝验收。当前构建入口继续只生成 Official/Customer，现有 Customer 入口
-不得改名后当 OEM 使用。
+独立 TUF 初始根和密钥审批、独立品牌/应用/安装身份以及 Windows/Android/Web 构建与跨域拒绝验收。本段完成时构建入口仍只生成
+Official/Customer；后续独立 OEM 候选入口见本页 2026-09-22 的最新记录，现有 Customer 入口始终不得改名后当 OEM 使用。
 
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。
 覆盖空库初始化竞争/失败回滚、原登录绑定、退出/改密竞争、身份表最小写权限与分组分页；SQLx 已生成 235 条 Console 查询。
@@ -1601,8 +1601,8 @@ Client 3.3.72 的 41 件、Cloud Node 3.3.74 的 315 件、Remote 3.3.72 的 77 
 `official/pixels.official/null`、`customer/pixels.customer/null`、`oem/oem.<oem_id>/<oem_id>`。Auth 签发、续期、在线验证、通知 outbox，
 Console 启动准入/在线状态/更新目标/节点描述，离线部署签发器，Windows Service schema 3 节点配置和产品描述符，Windows Panel、Web Client
 及 Android 的凭据前门禁和持久水位已同步这组精确绑定；替换 OEM ID、namespace、发行类别或把 OEM/Customer 与 Official/Private 类别交叉组合
-都会 fail-closed。v1 开发 wire 和旧 Service 配置直接无效，没有迁移、兼容解析或 fallback。当前阶段不等于 OEM 制品可交付：OEM 独立品牌、安装身份、
-TUF 初始根、更新签名与 Windows/Android/Web 完整构建入口仍按 DB5/P0 后续门禁实施。
+都会 fail-closed。v1 开发 wire 和旧 Service 配置直接无效，没有迁移、兼容解析或 fallback。该阶段不等于 OEM 制品可交付；后续已完成独立品牌、
+安装身份和 Windows/Android/Web 候选构建接线，正式 TUF 发布、激活与跨发行实物验收仍按 DB5/P0 后续门禁实施。
 
 本阶段开发期短测已通过：许可证固定向量/边界 8/8、部署身份与离线签发 7/7、Console 库单元 19/19、Windows Service 122/122
 （另 1 项物理 NVIDIA 按设计忽略）、Web Client 63/63、Auth Web 5/5、Windows 发布脚本 17/17、Android core-network/core-data 与 App Kotlin
@@ -1662,6 +1662,12 @@ theme=`Theme.Oem.Starting`、OEM 双图标，以及中英文运行资源无 Pixe
 `C869E3A5BA633A111A74B1D66769035E41DF6E8ADBA58F58B3D648CA11C76D88`，Cloud Node Panel 对应哈希同为
 `582E5BE1D40C3CB363071C24772E3926B0068FC0D9A99177E2C39E8AF8D60676`；二进制资源反查分别为 Pixels Client 3.3.72 与 Pixels Cloud Node 3.3.74。
 这关闭 Windows 原生品牌代码门禁，不等于已生成或签名 OEM Release；独立 TUF、节点激活和跨发行实物矩阵仍保持关闭。
+
+同日 Windows OEM 发布编排切片新增逐产品正式候选入口：在任何清理/升版前一次性验证 profile、deployment trust/TUF root、NSIS 和 OEM Windows
+签名证书，之后只清理 `build_official/<product>/oem/<oem_id>/`，独立升版并串行生成 OEM Web、RDP policy、C++ 完整 dist 和签名安装器，最后再次
+用 profile signer pin 复核真实安装包目录。通用 C++ 与 RDP policy 构建路径同步修正为带 OEM ID 的隔离树，定向清理拒绝保留字、路径逃逸和跨 OEM
+范围。该切片只开放受控候选生成入口；本轮未持有正式 OEM profile/私钥，因此没有执行 release-only 实编译，也不冒充独立 TUF 发布、节点激活或
+跨 Official/Customer/OEM 的安装实物验收。
 
 | 阶段 | 当前未完成项 |
 |---|---|

@@ -3,6 +3,7 @@
 原仓库根目录的 31 个 `build_*.bat` 已统一移到这里，不保留根目录转发脚本。
 脚本通过自身路径定位仓库；每个产品只写入自己的 `build_official/<product>/` 沙箱。聚焦开发使用该目录下的
 `cmake/dist`；发布构建在同一次升版事务中生成 `official` 与 `customer` 两个子沙箱。
+OEM 发布候选使用独立入口，只生成一个 profile 绑定的 `oem/<oem_id>` 沙箱，不加入双发行事务。
 `scripts/` 继续存放公共构建辅助工具、发布和诊断脚本。
 完整命令、产物目录和使用方式以 `docs/product_build_and_usage.md` 为唯一权威说明。
 
@@ -55,5 +56,18 @@ scripts_build\build_android_product.bat oem release
 
 输出固定隔离到 `build_official/android/oem/<oem_id>/`。入口校验 profile、deployment trust store、独立 applicationId、应用名、双层
 launcher 图标和 Android 签名证书固定值；OEM Release 独立升版，不能使用 Pixels Release 矩阵或 Pixels 签名。
+
+Windows OEM 同样不加入 Pixels 双发行矩阵。预检与逐产品完整候选入口为：
+
+```bat
+set PIXELS_OEM_RELEASE_PROFILE=D:\secure\north-star\oem-release-profile.json
+scripts_build\build_windows_oem_product.bat cloud_node preflight
+scripts_build\build_windows_oem_product.bat cloud_node
+scripts_build\build_windows_oem_product.bat client
+scripts_build\build_windows_oem_product.bat remote
+```
+
+输出固定隔离到 `build_official/<product>/oem/<oem_id>/`，清理只作用于该产品和 OEM ID。该入口生成并复核签名安装候选，但不发布 TUF、不登记或
+批准激活，也不替代正式跨发行安装验收。
 
 移动前的脚本已完整归档至 `backup/build_scripts_relocation_20260908`，归档不参与构建。

@@ -2,7 +2,12 @@
 param(
     [Parameter(Mandatory = $true)]
     [ValidateSet('cloud_node', 'client', 'remote', 'android', 'all')]
-    [string]$Product
+    [string]$Product,
+
+    [ValidateSet('', 'oem')]
+    [string]$Distribution = '',
+
+    [string]$OemId = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -17,8 +22,25 @@ if (-not $buildRoot.StartsWith($repoRoot + [IO.Path]::DirectorySeparatorChar, [S
     throw "Refusing to clean outside the repository: $buildRoot"
 }
 
+if ($Product -eq 'all' -and ($Distribution -or $OemId)) {
+    throw 'Distribution-scoped cleanup cannot be combined with Product=all.'
+}
+if ($Distribution -eq 'oem') {
+    if ($Product -eq 'android') {
+        throw 'Android OEM cleanup is owned by build_android_product.ps1.'
+    }
+    if ($OemId -notmatch '^[a-z0-9](?:[a-z0-9-]{1,30}[a-z0-9])$' -or $OemId.Contains('--') -or
+        $OemId -in @('pixels', 'official', 'customer', 'oem')) {
+        throw 'OEM cleanup requires one canonical, non-reserved OemId.'
+    }
+} elseif ($OemId) {
+    throw 'OemId requires Distribution=oem.'
+}
+
 $targets = if ($Product -eq 'all') {
     @($buildRoot)
+} elseif ($Distribution -eq 'oem') {
+    @([IO.Path]::GetFullPath((Join-Path $buildRoot "$Product\oem\$OemId")))
 } else {
     @([IO.Path]::GetFullPath((Join-Path $buildRoot $Product)))
 }
@@ -36,4 +58,5 @@ foreach ($target in $targets) {
 }
 
 [IO.Directory]::CreateDirectory($buildRoot) | Out-Null
-Write-Host "Product output cleanup complete: $Product"
+$cleanupIdentity = if ($Distribution -eq 'oem') { "$Product/oem/$OemId" } else { $Product }
+Write-Host "Product output cleanup complete: $cleanupIdentity"

@@ -31,8 +31,35 @@ if /I not "%BUILD_DISTRIBUTION%"=="development" if /I not "%BUILD_DISTRIBUTION%"
     echo ERROR: CPP_DISTRIBUTION must be development, official, customer, or oem.
     exit /b 2
 )
+if /I not "%BUILD_DISTRIBUTION%"=="oem" goto :select_build_directory
+if not defined CPP_OEM_ID (
+    echo ERROR: CPP_OEM_ID is required for an OEM build.
+    exit /b 2
+)
+echo(%CPP_OEM_ID%| findstr.exe /r /x "[a-z0-9][a-z0-9-]*[a-z0-9]" >nul
+if errorlevel 1 (
+    echo ERROR: CPP_OEM_ID must be a canonical lowercase OEM identifier.
+    exit /b 2
+)
+echo(%CPP_OEM_ID%| findstr.exe /c:"--" >nul
+if not errorlevel 1 (
+    echo ERROR: CPP_OEM_ID must not contain consecutive hyphens.
+    exit /b 2
+)
+if /I "%CPP_OEM_ID%"=="pixels" exit /b 2
+if /I "%CPP_OEM_ID%"=="official" exit /b 2
+if /I "%CPP_OEM_ID%"=="customer" exit /b 2
+if /I "%CPP_OEM_ID%"=="oem" exit /b 2
+if not "%CPP_OEM_ID:~32,1%"=="" (
+    echo ERROR: CPP_OEM_ID must contain at most 32 characters.
+    exit /b 2
+)
+
+:select_build_directory
 if /I "%BUILD_DISTRIBUTION%"=="development" (
     set "EXPECTED_BUILD_DIR=build_official\%CPP_PRODUCT%\cmake"
+) else if /I "%BUILD_DISTRIBUTION%"=="oem" (
+    set "EXPECTED_BUILD_DIR=build_official\%CPP_PRODUCT%\oem\%CPP_OEM_ID%\cmake"
 ) else (
     set "EXPECTED_BUILD_DIR=build_official\%CPP_PRODUCT%\%BUILD_DISTRIBUTION%\cmake"
 )
@@ -110,3 +137,4 @@ if errorlevel 1 exit /b %errorlevel%
 
 echo DONE: %*
 endlocal
+exit /b 0
