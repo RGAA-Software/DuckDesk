@@ -97,6 +97,13 @@ def require_text(parent: dict[str, object], field_name: str, minimum_length: int
     return field_value
 
 
+def require_embeddable_text(parent: dict[str, object], field_name: str, minimum_length: int = 1, maximum_length: int = 128) -> str:
+    field_value = require_text(parent, field_name, minimum_length, maximum_length)
+    if any(character in {'"', "\\"} for character in field_value):
+        raise RuntimeError(f"OEM release profile {field_name} cannot contain quote or backslash characters")
+    return field_value
+
+
 def require_sha256(parent: dict[str, object], field_name: str) -> str:
     field_value = parent.get(field_name)
     if not isinstance(field_value, str) or not SHA256_PATTERN.fullmatch(field_value) or field_value == "0" * 64:
@@ -136,7 +143,7 @@ def validate_windows_products(windows: dict[str, object]) -> dict[str, OemWindow
         expected_fields = {"product_name", "install_directory_name", "uninstall_key", "installer_basename"}
         if not isinstance(product_identity, dict) or set(product_identity) != expected_fields:
             raise RuntimeError(f"OEM Windows {product} identity must contain exactly {sorted(expected_fields)}")
-        product_name = require_text(product_identity, "product_name")
+        product_name = require_embeddable_text(product_identity, "product_name")
         install_directory = require_text(product_identity, "install_directory_name", maximum_length=80)
         if any(character in '<>:"/\\|?*' for character in install_directory) or install_directory.endswith((".", " ")):
             raise RuntimeError(f"OEM Windows {product} install directory name is invalid")
@@ -191,8 +198,8 @@ def load_oem_release_profile(path: Path) -> OemReleaseProfile:
         raise RuntimeError("OEM release namespace must exactly match oem.<oem_id>")
 
     brand = require_object(profile_document, "brand", {"company_name", "application_name"})
-    company_name = require_text(brand, "company_name")
-    application_name = require_text(brand, "application_name")
+    company_name = require_embeddable_text(brand, "company_name")
+    application_name = require_embeddable_text(brand, "application_name")
     if company_name.casefold() == "pixels" or application_name.casefold() == "pixels":
         raise RuntimeError("OEM branding must not impersonate the Pixels product brand")
 
@@ -206,7 +213,7 @@ def load_oem_release_profile(path: Path) -> OemReleaseProfile:
         "windows",
         {"publisher_name", "signer_certificate_sha256", "icon", "products"},
     )
-    windows_publisher_name = require_text(windows, "publisher_name")
+    windows_publisher_name = require_embeddable_text(windows, "publisher_name")
     windows_signer_certificate_sha256 = require_sha256(windows, "signer_certificate_sha256")
     windows_icon = windows.get("icon")
     if not isinstance(windows_icon, dict):
@@ -284,8 +291,10 @@ def emit_cmake(profile: OemReleaseProfile, product: str) -> str:
         "PX_OEM_COMPANY": profile.company_name,
         "PX_OEM_APPLICATION_NAME": profile.application_name,
         "PX_OEM_ICON": profile.windows_icon_path.as_posix(),
+        "PX_OEM_BRAND_ICON": profile.web_icon_path.as_posix(),
         "PX_OEM_PROFILE_SHA256": profile.profile_sha256,
         "PX_OEM_PRODUCT_NAME": product_identity.product_name,
+        "PX_OEM_STORAGE_DIRECTORY_NAME": product_identity.install_directory_name,
     }
     return "\n".join(f"set({variable_name} {cmake_bracket(variable_value)})" for variable_name, variable_value in variables.items()) + "\n"
 

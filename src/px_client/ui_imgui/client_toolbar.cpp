@@ -1,20 +1,5 @@
 #include "client_toolbar.h"
 
-#include "client_session.h"
-#include "client_text.h"
-#include "px_desktop_shell/brand_logo.h"
-#include "px_desktop_shell/desktop_shell.h"
-#include "px_ui/components/button.h"
-#include "px_ui/components/data_view.h"
-#include "px_ui/components/form.h"
-#include "px_ui/components/navigation.h"
-#include "px_ui/components/overlay.h"
-#include "px_ui/components/surface.h"
-#include "px_ui/style_scope.h"
-#include "px_ui/theme_tokens.h"
-
-#include "px_common/log.h"
-
 #include <SDL3/SDL.h>
 #include <imgui.h>
 
@@ -23,6 +8,21 @@
 #include <string_view>
 #include <utility>
 #include <vector>
+
+#include "client_session.h"
+#include "client_text.h"
+#include "px_common/log.h"
+#include "px_desktop_shell/brand_logo.h"
+#include "px_desktop_shell/desktop_shell.h"
+#include "px_ui/components/button.h"
+#include "px_ui/components/data_view.h"
+#include "px_ui/components/form.h"
+#include "px_ui/components/navigation.h"
+#include "px_ui/components/overlay.h"
+#include "px_ui/components/surface.h"
+#include "px_ui/product_brand.h"
+#include "px_ui/style_scope.h"
+#include "px_ui/theme_tokens.h"
 
 namespace px::client::imgui {
 namespace {
@@ -36,7 +36,7 @@ float ClampMenuY(const ImGuiViewport& viewport, const float desired, const float
     return std::clamp(desired, minimum, std::max(minimum, maximum));
 }
 
-} // namespace
+}  // namespace
 
 ClientToolbar::ClientToolbar(const bool enhancedVisualEffects) : enhancedVisualEffects_{enhancedVisualEffects} {}
 
@@ -50,8 +50,7 @@ bool ClientToolbar::CapturesPointer(const float x, const float y) const noexcept
 
 bool ClientToolbar::HandlePointerEvent(const px::desktop::DesktopInputEvent& event) {
     if (dismissPointerDown_) {
-        if (event.type == SDL_EVENT_MOUSE_BUTTON_UP && event.mouseButton == SDL_BUTTON_LEFT)
-            dismissPointerDown_ = false;
+        if (event.type == SDL_EVENT_MOUSE_BUTTON_UP && event.mouseButton == SDL_BUTTON_LEFT) dismissPointerDown_ = false;
         return true;
     }
     if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN && event.mouseButton == SDL_BUTTON_LEFT) {
@@ -159,7 +158,7 @@ bool ClientToolbar::DrawLauncher(const px::desktop::BrandLogo& logo) {
     const float logoSize{diameter * 0.62F};
     logo.Draw(drawList, {center.x - logoSize * 0.5F, center.y - logoSize * 0.5F}, logoSize);
     if (hovered) {
-        px::ui::ShowTooltip("Pixels");
+        px::ui::ShowTooltip(px::ui::ApplicationName());
     }
     return hovered || launcherPointerDown_;
 }
@@ -195,8 +194,8 @@ bool ClientToolbar::DrawNavigation(const ClientSessionSnapshot& snapshot, const 
     auto& sectionExpanded = sectionExpanded_;
     auto& sectionNeedsFocus = sectionNeedsFocus_;
     auto& menuExpanded = expanded_;
-    const auto navigationItem = [&selectedSection, &sectionExpanded, &sectionNeedsFocus, &menuExpanded, &metrics,
-                                 &action](const std::string_view label, const Section section, const bool enabled = true) {
+    const auto navigationItem = [&selectedSection, &sectionExpanded, &sectionNeedsFocus, &menuExpanded, &metrics, &action](
+                                    const std::string_view label, const Section section, const bool enabled = true) {
         const px::ui::VectorIcon icon{section == Section::Display    ? px::ui::VectorIcon::Monitor
                                       : section == Section::Control  ? px::ui::VectorIcon::Connect
                                       : section == Section::Tools    ? px::ui::VectorIcon::FileTransfer
@@ -222,8 +221,7 @@ bool ClientToolbar::DrawNavigation(const ClientSessionSnapshot& snapshot, const 
             menuExpanded = false;
             sectionExpanded = false;
         } else if (enabled && isSection && pressed) {
-            if (!sectionExpanded || selectedSection != section)
-                sectionNeedsFocus = true;
+            if (!sectionExpanded || selectedSection != section) sectionNeedsFocus = true;
             selectedSection = section;
             sectionExpanded = true;
         }
@@ -283,8 +281,7 @@ bool ClientToolbar::DrawSection(const std::shared_ptr<ClientSession>& session, c
             int selected{};
             for (std::size_t index{}; index < snapshot.monitors.size(); ++index) {
                 options.push_back({static_cast<int>(index), snapshot.monitors[index]});
-                if (snapshot.monitors[index] == snapshot.monitorName)
-                    selected = static_cast<int>(index);
+                if (snapshot.monitors[index] == snapshot.monitorName) selected = static_cast<int>(index);
             }
             if (px::ui::SelectField({"client-monitor"}, selected, options) && selected >= 0 &&
                 static_cast<std::size_t>(selected) < snapshot.monitors.size())
@@ -301,8 +298,7 @@ bool ClientToolbar::DrawSection(const std::shared_ptr<ClientSession>& session, c
                 const auto& resolution = snapshot.resolutions[index];
                 labels.push_back(std::to_string(resolution.width) + "x" + std::to_string(resolution.height));
                 options.push_back({static_cast<int>(index), labels.back()});
-                if (resolution.width == resolutionWidth_ && resolution.height == resolutionHeight_)
-                    selected = static_cast<int>(index);
+                if (resolution.width == resolutionWidth_ && resolution.height == resolutionHeight_) selected = static_cast<int>(index);
             }
             if (px::ui::SelectField({"client-resolution"}, selected, options) && selected >= 0 &&
                 static_cast<std::size_t>(selected) < snapshot.resolutions.size()) {
@@ -313,8 +309,7 @@ bool ClientToolbar::DrawSection(const std::shared_ptr<ClientSession>& session, c
             }
         }
         px::ui::FieldLabel(text(ClientText::FrameRate));
-        if (px::ui::SliderIntField({"client-frame-rate"}, frameRate_, 15, 120))
-            static_cast<void>(session->SetFrameRate(frameRate_));
+        if (px::ui::SliderIntField({"client-frame-rate"}, frameRate_, 15, 120)) static_cast<void>(session->SetFrameRate(frameRate_));
         if (px::ui::ToggleSwitch({"client-audio"}, text(ClientText::Audio), audioEnabled_, false,
                                  audioEnabled_ ? px::ui::VectorIcon::Volume : px::ui::VectorIcon::VolumeOff))
             static_cast<void>(session->SetAudioEnabled(audioEnabled_));
@@ -389,8 +384,7 @@ bool ClientToolbar::DrawSection(const std::shared_ptr<ClientSession>& session, c
                                          " ms | " + std::to_string(snapshot.bitrateKbps) + " Kbps | " + snapshot.decoder};
             px::ui::FieldDescription(statistics);
         }
-        if (!screenshotStatus_.empty())
-            px::ui::FieldDescription(screenshotStatus_);
+        if (!screenshotStatus_.empty()) px::ui::FieldDescription(screenshotStatus_);
     } else if (section_ == Section::Voice) {
         px::ui::SectionTitle(text(ClientText::Voice));
         px::ui::HorizontalSeparator();
@@ -445,4 +439,4 @@ bool ClientToolbar::DrawSection(const std::shared_ptr<ClientSession>& session, c
     return hovered;
 }
 
-} // namespace px::client::imgui
+}  // namespace px::client::imgui

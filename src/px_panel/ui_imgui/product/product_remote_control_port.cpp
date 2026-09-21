@@ -22,6 +22,7 @@
 #include "px_common/uuid.h"
 #include "px_console_client/console_api.h"
 #include "px_console_client/console_user_device.h"
+#include "px_ui/product_brand.h"
 #include "render_api.h"
 
 namespace px::panel::product {
@@ -331,7 +332,7 @@ public:
                                                 .forceGdiCapture = device.forceGdiCapture,
                                                 .disableVulkan = device.disableVulkan};
         if (!runtime_->Config()->SaveRemoteDevicePreference(device.deviceId, preference)) {
-            runtime_->Notify(true, "Pixels", "Unable to save device settings");
+            runtime_->Notify(true, std::string{px::ui::ApplicationName()}, "Unable to save device settings");
             return;
         }
         const auto history = runtime_->Config()->LoadRemoteDeviceHistory();
@@ -347,14 +348,14 @@ public:
 
     void CopyText(const std::string& text) override {
         if (text.empty() || !SDL_SetClipboardText(text.c_str())) {
-            runtime_->Notify(true, "Pixels", "Unable to copy this value");
+            runtime_->Notify(true, std::string{px::ui::ApplicationName()}, "Unable to copy this value");
             return;
         }
-        runtime_->Notify(false, "Pixels", "Copied to clipboard");
+        runtime_->Notify(false, std::string{px::ui::ApplicationName()}, "Copied to clipboard");
     }
     void OpenUrl(const std::string& url) override {
         if (url.empty() || !SDL_OpenURL(url.c_str())) {
-            runtime_->Notify(true, "Pixels", "Unable to open the complete address");
+            runtime_->Notify(true, std::string{px::ui::ApplicationName()}, "Unable to open the complete address");
         }
     }
 
@@ -605,7 +606,8 @@ private:
                                          "px_panel.exe and is not blocked by Windows.");
                 return;
             }
-            connectionProgress_.Complete(generation, fileTransfer ? "Pixels File Transfer started." : "Pixels Client started.");
+            connectionProgress_.Complete(generation,
+                                         std::string{px::ui::ApplicationName()} + (fileTransfer ? " File Transfer started." : " Client started."));
             if (!consoleAuthorized) {
                 static_cast<void>(credentialVault_->Write("device:" + remoteDeviceId, target.password));
                 if (credentialKey != "device:" + remoteDeviceId) static_cast<void>(credentialVault_->Write(credentialKey, target.password));

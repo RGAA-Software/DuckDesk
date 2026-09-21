@@ -2,6 +2,7 @@
 
 #include <array>
 #include <filesystem>
+#include <format>
 #include <iostream>
 #include <iterator>
 #include <memory>
@@ -19,6 +20,7 @@
 #include "client_window.h"
 #include "px_common/log.h"
 #include "px_desktop_shell/desktop_shell.h"
+#include "px_ui/product_brand.h"
 
 namespace {
 
@@ -52,7 +54,9 @@ AcceptanceModes RequestedAcceptanceModes() {
 
 int main() {
     InitializeClientLog();
-    LOGI("Pixels Client starting, input route diagnostics enabled");
+    const std::string applicationName{px::ui::ApplicationName()};
+    const std::string productName{px::ui::WindowsProductName()};
+    LOGI("{} starting, input route diagnostics enabled", productName);
     std::string envelope{std::istreambuf_iterator<char>{std::cin}, std::istreambuf_iterator<char>{}};
     const auto acceptanceModes = RequestedAcceptanceModes();
     const bool acceptanceMode = acceptanceModes.audio || acceptanceModes.fileTransfer || acceptanceModes.rdpIoError || acceptanceModes.rdpPeerClose;
@@ -65,7 +69,8 @@ int main() {
         acceptanceModes.rdpIoError != config->rdpIoErrorAcceptance || acceptanceModes.rdpPeerClose != config->rdpPeerCloseAcceptance ||
         acceptanceModeCount > 1U) {
         static_cast<void>(px::client::imgui::ShowStartupDialog(
-            "Pixels Client received an invalid or incomplete launch request.\nPixels Client 收到了无效或不完整的启动请求。", "OK / 确定", true));
+            std::format("{} received an invalid or incomplete launch request.\n{} 收到了无效或不完整的启动请求。", productName, productName),
+            "OK / 确定", true));
         return 2;
     }
     const bool english = config->language == "en-US";
@@ -73,7 +78,7 @@ int main() {
         config->remoteDeviceId,
         config->fileTransferOnly ? px::client::imgui::ClientInstanceMode::FileTransfer : px::client::imgui::ClientInstanceMode::Desktop);
     if (instanceAcquisition.activatedExisting) {
-        LOGI("Activated existing Pixels client instance for remote device {}", config->remoteDeviceId);
+        LOGI("Activated existing {} instance for remote device {}", productName, config->remoteDeviceId);
         return 0;
     }
     if (!instanceAcquisition.instance) {
@@ -91,8 +96,8 @@ int main() {
     }
     const std::string windowTitle{config->fileTransferOnly
                                       ? px::client::imgui::ClientTextValue(px::client::imgui::ClientText::FileTransferWindowTitle, english)
-                                  : config->streamName.empty() ? "Pixels Client"
-                                                               : "Pixels - " + config->streamName};
+                                  : config->streamName.empty() ? productName
+                                                               : applicationName + " - " + config->streamName};
     auto shellResult = px::desktop::DesktopShell::Create(
         {.title = windowTitle,
          .titleBarTitle = config->fileTransferOnly ? windowTitle : std::string{},
@@ -104,8 +109,8 @@ int main() {
          .preferVulkanVideo = !config->fileTransferOnly && !config->rdp && !config->disableVulkan && config->decoder != "Software"});
     if (!shellResult) {
         static_cast<void>(px::client::imgui::ShowStartupDialog(
-            english ? "Pixels Client could not create its window or graphics device. Update the graphics driver, then retry."
-                    : "Pixels Client 无法创建窗口或图形设备。请更新显卡驱动后重试。",
+            english ? productName + " could not create its window or graphics device. Update the graphics driver, then retry."
+                    : productName + " 无法创建窗口或图形设备。请更新显卡驱动后重试。",
             english ? "OK" : "确定", true));
         return 3;
     }
@@ -122,8 +127,8 @@ int main() {
     auto session = px::client::imgui::ClientSession::Create(*config, shell.VideoResources(config->decoder));
     if (!session) {
         static_cast<void>(px::client::imgui::ShowStartupDialog(
-            english ? "Pixels Client could not initialize this connection. Check the launch data and installed runtime files, then retry."
-                    : "Pixels Client 无法初始化本次连接。请检查启动数据和已安装的运行库文件后重试。",
+            english ? productName + " could not initialize this connection. Check the launch data and installed runtime files, then retry."
+                    : productName + " 无法初始化本次连接。请检查启动数据和已安装的运行库文件后重试。",
             english ? "OK" : "确定", true));
         return 4;
     }

@@ -16,12 +16,12 @@ BEGIN
         BLOCK "040004b0"
         BEGIN
             VALUE "CompanyName", "@PX_PRODUCT_COMPANY@"
-            VALUE "FileDescription", "Pixels Client"
+            VALUE "FileDescription", "@PX_PRODUCT_DISPLAY_NAME@"
             VALUE "FileVersion", "@PX_PRODUCT_VERSION@"
             VALUE "InternalName", "px_client.exe"
             VALUE "LegalCopyright", "Copyright (c) 2022-2026 @PX_PRODUCT_COMPANY@"
             VALUE "OriginalFilename", "px_client.exe"
-            VALUE "ProductName", "Pixels"
+            VALUE "ProductName", "@PX_PRODUCT_DISPLAY_NAME@"
             VALUE "ProductVersion", "@PX_PRODUCT_VERSION@"
         END
     END

@@ -84,8 +84,23 @@ include("${CMAKE_BINARY_DIR}/generated/pixels_product.cmake")
 if(PX_DISTRIBUTION STREQUAL "oem")
     set(PX_PRODUCT_COMPANY "${PX_OEM_COMPANY}")
     set(PX_PRODUCT_ICON_SOURCE "${PX_OEM_ICON}")
+    set(PX_PRODUCT_BRAND_ICON_SOURCE "${PX_OEM_BRAND_ICON}")
+    set(PX_PRODUCT_APPLICATION_NAME "${PX_OEM_APPLICATION_NAME}")
+    set(PX_PRODUCT_DISPLAY_NAME "${PX_OEM_PRODUCT_NAME}")
+    set(PX_PRODUCT_STORAGE_DIRECTORY_NAME "${PX_OEM_STORAGE_DIRECTORY_NAME}")
+    set(PX_PRODUCT_IS_OEM 1)
 else()
     set(PX_PRODUCT_ICON_SOURCE "${CMAKE_SOURCE_DIR}/src/px_panel/icon.ico")
+    set(PX_PRODUCT_APPLICATION_NAME "Pixels")
+    set(PX_PRODUCT_STORAGE_DIRECTORY_NAME "Pixels")
+    set(PX_PRODUCT_IS_OEM 0)
+    if(PX_PRODUCT STREQUAL "cloud_node")
+        set(PX_PRODUCT_DISPLAY_NAME "Pixels Cloud Node")
+    elseif(PX_PRODUCT STREQUAL "client")
+        set(PX_PRODUCT_DISPLAY_NAME "Pixels Client")
+    else()
+        set(PX_PRODUCT_DISPLAY_NAME "Pixels Remote")
+    endif()
 endif()
 string(REPLACE "." ";" PX_PRODUCT_VERSION_PARTS "${PX_PRODUCT_VERSION}")
 list(GET PX_PRODUCT_VERSION_PARTS 0 PX_PRODUCT_VERSION_MAJOR)
@@ -96,6 +111,10 @@ file(MAKE_DIRECTORY "${PX_PRODUCT_GENERATED_DIR}")
 configure_file(
     "${CMAKE_SOURCE_DIR}/cmake/product_version_config.h.in"
     "${PX_PRODUCT_GENERATED_DIR}/version_config.h"
+    @ONLY)
+configure_file(
+    "${CMAKE_SOURCE_DIR}/cmake/product_version_config.h.in"
+    "${PX_PRODUCT_GENERATED_DIR}/pixels_product_version_config.h"
     @ONLY)
 configure_file(
     "${CMAKE_SOURCE_DIR}/cmake/product_icon.rc.in"

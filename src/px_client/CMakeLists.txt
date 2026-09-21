@@ -3,7 +3,7 @@ project(px_client)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-configure_file(${CMAKE_SOURCE_DIR}/src/px_panel/icon.ico ${CMAKE_CURRENT_BINARY_DIR}/icon.ico COPYONLY)
+configure_file(${PX_PRODUCT_ICON_SOURCE} ${CMAKE_CURRENT_BINARY_DIR}/icon.ico COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/icon.rc.in ${CMAKE_CURRENT_BINARY_DIR}/icon.rc @ONLY)
 
 add_subdirectory(anti_hooking)
@@ -41,6 +41,7 @@ add_library(px_client_imgui_runtime STATIC
     ct_virtual_display_protocol.cpp
 )
 target_include_directories(px_client_imgui_runtime PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/ui_imgui)
+target_include_directories(px_client_imgui_runtime BEFORE PRIVATE "${PX_PRODUCT_GENERATED_DIR}")
 target_link_libraries(px_client_imgui_runtime PUBLIC
     px_desktop_shell px_ui px_common px_message px_ft_engine px_voice_call px_rdp_stream pixels::sdk SDL3::SDL3-static yuv
     nlohmann_json::nlohmann_json pixels_rdp_sdk
@@ -62,9 +63,6 @@ add_custom_command(TARGET px_client POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/src/px_deps/px_imgui/misc/fonts/Roboto-Medium.ttf"
         "$<TARGET_FILE_DIR:px_client>/resources/fonts/Roboto-Medium.ttf"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_SOURCE_DIR}/web/px_web_client/src/assets/px_icon.png"
-        "$<TARGET_FILE_DIR:px_client>/resources/icons/px_icon.png"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/libplacebo/lib/libplacebo-349.dll"
         "$<TARGET_FILE_DIR:px_client>/libplacebo-349.dll"

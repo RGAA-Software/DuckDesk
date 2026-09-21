@@ -1,15 +1,16 @@
-#include "px_ui/localization.h"
-#include "px_ui/px_ui_theme.h"
-
 #include <imgui.h>
+
+#include <string>
+
+#include "px_ui/localization.h"
+#include "px_ui/product_brand.h"
+#include "px_ui/px_ui_theme.h"
 
 namespace {
 
-bool UsesGreenBrandColor(const ImVec4 color) noexcept {
-    return color.y > color.x && color.y > color.z;
-}
+bool UsesGreenBrandColor(const ImVec4 color) noexcept { return color.y > color.x && color.y > color.z; }
 
-} // namespace
+}  // namespace
 
 int main() {
     if (!px::ui::CatalogsAreComplete()) {
@@ -26,7 +27,8 @@ int main() {
     if (localizer.Text(px::ui::TextId::CloudApplications) != "云端应用") {
         return 8;
     }
-    if (localizer.Text(px::ui::TextId::ConnectionRemotePreflightUnavailable) != "远程设备不支持连接前置探测，请更新远程设备上的 Pixels。") {
+    if (localizer.Text(px::ui::TextId::ConnectionRemotePreflightUnavailable) !=
+        "远程设备不支持连接前置探测，请更新远程设备上的 " + std::string{px::ui::ApplicationName()} + "。") {
         return 10;
     }
     if (localizer.Text(px::ui::TextId::ConnectionRemoteReconnectGrace) != "远程桌面已被占用，请稍后重试。") {
@@ -43,7 +45,7 @@ int main() {
         return 9;
     }
     if (localizer.Text(px::ui::TextId::ConnectionRemotePreflightUnavailable) !=
-        "The remote device does not support connection preflight. Update Pixels on the remote device.") {
+        "The remote device does not support connection preflight. Update " + std::string{px::ui::ApplicationName()} + " on the remote device.") {
         return 12;
     }
     if (localizer.Text(px::ui::TextId::ConnectionRemoteReconnectGrace) != "The remote desktop is occupied. Please try again shortly.") {

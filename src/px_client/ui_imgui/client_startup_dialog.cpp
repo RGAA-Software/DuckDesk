@@ -1,18 +1,19 @@
 #include "client_startup_dialog.h"
 
-#include "px_desktop_shell/desktop_shell.h"
-#include "px_ui/components/button.h"
-#include "px_ui/components/overlay.h"
-#include "px_ui/theme_tokens.h"
-
 #include <imgui.h>
 
 #include <string>
 
+#include "px_desktop_shell/desktop_shell.h"
+#include "px_ui/components/button.h"
+#include "px_ui/components/overlay.h"
+#include "px_ui/product_brand.h"
+#include "px_ui/theme_tokens.h"
+
 namespace px::client::imgui {
 
 StartupDialogAction ShowStartupDialog(const std::string_view message, const std::string_view button, const bool error) {
-    auto shellResult = px::desktop::DesktopShell::Create({.title = "Pixels Client",
+    auto shellResult = px::desktop::DesktopShell::Create({.title = std::string{px::ui::WindowsProductName()},
                                                           .width = 720,
                                                           .height = 300,
                                                           .minimumWidth = 640,
@@ -24,8 +25,7 @@ StartupDialogAction ShowStartupDialog(const std::string_view message, const std:
                                                           .allowTitleBarMaximize = false,
                                                           .useRoundedWindow = true,
                                                           .resizable = false});
-    if (!shellResult)
-        return StartupDialogAction::Exit;
+    if (!shellResult) return StartupDialogAction::Exit;
     auto shell = std::move(shellResult.value());
     bool opened{};
     bool accepted{};
@@ -38,9 +38,8 @@ StartupDialogAction ShowStartupDialog(const std::string_view message, const std:
         }
         constexpr ImGuiWindowFlags flags{ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings};
         const px::ui::ModalScope modal{{"Pixels##startup-dialog"}, 620.0F, flags};
-        if (!modal.Open())
-            return;
-        static_cast<void>(px::ui::DialogHeader({"startup-dialog-close"}, "Pixels", messageText,
+        if (!modal.Open()) return;
+        static_cast<void>(px::ui::DialogHeader({"startup-dialog-close"}, px::ui::ApplicationName(), messageText,
                                                {.icon = error ? px::ui::VectorIcon::TriangleAlert : px::ui::VectorIcon::Info,
                                                 .tone = error ? px::ui::BadgeVariant::Destructive : px::ui::BadgeVariant::Default,
                                                 .closeable = false}));
@@ -54,4 +53,4 @@ StartupDialogAction ShowStartupDialog(const std::string_view message, const std:
     return accepted ? StartupDialogAction::Continue : StartupDialogAction::Exit;
 }
 
-} // namespace px::client::imgui
+}  // namespace px::client::imgui

@@ -1,35 +1,6 @@
-#include "client_session.h"
-
-#include "client_audio_output.h"
-#include "ct_virtual_display_protocol.h"
-#include "px_client_sdk/platform/windows/windows_decoder_factory.h"
-#include "px_client_sdk/platform/windows/windows_video_resources.h"
-#include "px_client_sdk/sdk_messages.h"
-#include "px_client_sdk/sdk_params.h"
-#include "px_client_sdk/sdk_connection_params.h"
-#include "px_client_sdk/sdk_net_client.h"
-#include "px_client_sdk/sdk_recording_session.h"
-#include "px_client_sdk/sdk_statistics.h"
-#include "px_client_sdk/sdk_voice_call.h"
-#include "px_client_sdk/platform/voice_audio_endpoint_port.h"
-#include "px_client_sdk/thunder_sdk.h"
-#include "px_common/data.h"
-#include "px_common/md5.h"
-#include "px_common/message_notifier.h"
-#include "px_common/time_util.h"
-#include "px_common/url_helper.h"
-#include "px_message/proto_converter.h"
-#include "px_message/proto_message_maker.h"
-#include "px_message.pb.h"
-#include "px_ft_engine/ft_async_session.h"
-#include "px_ft_engine/ft_engine.h"
-#include "px_rdp/rdp_client_endpoint.h"
-#include "px_rdp/rdp_stream_packet.h"
-#include "rdp/rdp_session.h"
-
 #include <SDL3/SDL.h>
-#include <freerdp/input.h>
 #include <Windows.h>
+#include <freerdp/input.h>
 
 #include <algorithm>
 #include <array>
@@ -38,6 +9,35 @@
 #include <format>
 #include <utility>
 
+#include "client_audio_output.h"
+#include "client_session.h"
+#include "ct_virtual_display_protocol.h"
+#include "px_client_sdk/platform/voice_audio_endpoint_port.h"
+#include "px_client_sdk/platform/windows/windows_decoder_factory.h"
+#include "px_client_sdk/platform/windows/windows_video_resources.h"
+#include "px_client_sdk/sdk_connection_params.h"
+#include "px_client_sdk/sdk_messages.h"
+#include "px_client_sdk/sdk_net_client.h"
+#include "px_client_sdk/sdk_params.h"
+#include "px_client_sdk/sdk_recording_session.h"
+#include "px_client_sdk/sdk_statistics.h"
+#include "px_client_sdk/sdk_voice_call.h"
+#include "px_client_sdk/thunder_sdk.h"
+#include "px_common/data.h"
+#include "px_common/md5.h"
+#include "px_common/message_notifier.h"
+#include "px_common/time_util.h"
+#include "px_common/url_helper.h"
+#include "px_ft_engine/ft_async_session.h"
+#include "px_ft_engine/ft_engine.h"
+#include "px_message.pb.h"
+#include "px_message/proto_converter.h"
+#include "px_message/proto_message_maker.h"
+#include "px_rdp/rdp_client_endpoint.h"
+#include "px_rdp/rdp_stream_packet.h"
+#include "px_ui/product_brand.h"
+#include "rdp/rdp_session.h"
+
 namespace px::client::imgui {
 
 bool ClientSession::SwitchMonitor(const std::string& name) {
@@ -45,8 +45,8 @@ bool ClientSession::SwitchMonitor(const std::string& name) {
         const std::scoped_lock lock{mutex_};
         if (name.empty() || std::ranges::find(monitors_, name) == monitors_.end()) return false;
     }
-    return SendMedia(px::ProtoMessageMaker::MakeChangeMonitor(
-        0, name, "client_" + config_.localDeviceId + "_" + px::MD5::Hex(config_.remoteDeviceId), config_.streamId));
+    return SendMedia(px::ProtoMessageMaker::MakeChangeMonitor(0, name, "client_" + config_.localDeviceId + "_" + px::MD5::Hex(config_.remoteDeviceId),
+                                                              config_.streamId));
 }
 
 bool ClientSession::ChangeResolution(const int width, const int height) {
@@ -112,9 +112,9 @@ bool ClientSession::CreateVirtualDisplay() {
         requestId = px::NextNativeVirtualDisplayRequestId(GetCurrentProcessId());
         virtualDisplayRequestId_ = requestId;
     }
-    auto message = std::make_shared<px::Message>(px::MakeVirtualDisplayRequestMessage(
-        "client_" + config_.localDeviceId + "_" + px::MD5::Hex(config_.remoteDeviceId), config_.streamId, requestId,
-        px::kRemoteVirtualDisplayCreate, 1920, 1080, 60));
+    auto message = std::make_shared<px::Message>(
+        px::MakeVirtualDisplayRequestMessage("client_" + config_.localDeviceId + "_" + px::MD5::Hex(config_.remoteDeviceId), config_.streamId,
+                                             requestId, px::kRemoteVirtualDisplayCreate, 1920, 1080, 60));
     if (SendMedia(px::ProtoAsData(message))) return true;
     const std::scoped_lock lock{mutex_};
     if (virtualDisplayRequestId_ == requestId) virtualDisplayRequestId_.clear();
@@ -129,9 +129,9 @@ bool ClientSession::RemoveVirtualDisplay() {
         requestId = px::NextNativeVirtualDisplayRequestId(GetCurrentProcessId());
         virtualDisplayRequestId_ = requestId;
     }
-    auto message = std::make_shared<px::Message>(px::MakeVirtualDisplayRequestMessage(
-        "client_" + config_.localDeviceId + "_" + px::MD5::Hex(config_.remoteDeviceId), config_.streamId, requestId,
-        px::kRemoteVirtualDisplayRemoveLast, 0, 0, 0));
+    auto message = std::make_shared<px::Message>(
+        px::MakeVirtualDisplayRequestMessage("client_" + config_.localDeviceId + "_" + px::MD5::Hex(config_.remoteDeviceId), config_.streamId,
+                                             requestId, px::kRemoteVirtualDisplayRemoveLast, 0, 0, 0));
     if (SendMedia(px::ProtoAsData(message))) return true;
     const std::scoped_lock lock{mutex_};
     if (virtualDisplayRequestId_ == requestId) virtualDisplayRequestId_.clear();
@@ -148,14 +148,14 @@ std::optional<std::string> ClientSession::SaveScreenshot() const {
     std::array<wchar_t, MAX_PATH> documents{};
     const auto length = GetEnvironmentVariableW(L"USERPROFILE", documents.data(), static_cast<DWORD>(documents.size()));
     if (length == 0 || length >= documents.size()) return std::nullopt;
-    const auto directory = std::filesystem::path{documents.data()} / "Documents" / "Pixels" / "Screenshots";
+    const auto directory = std::filesystem::path{documents.data()} / "Documents" / px::ui::StorageDirectoryName() / "Screenshots";
     std::error_code error{};
     std::filesystem::create_directories(directory, error);
     if (error) return std::nullopt;
     const auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-    const auto path = directory / std::format("Pixels-{}.bmp", timestamp);
+    const auto path = directory / std::format("Screenshot-{}.bmp", timestamp);
     struct SurfaceDeleter final {
-        void operator()(SDL_Surface* surface) const noexcept { // NOLINT(pixels-raw-pointer-boundary): SDL-owned surface ABI.
+        void operator()(SDL_Surface* surface) const noexcept {  // NOLINT(pixels-raw-pointer-boundary): SDL-owned surface ABI.
             SDL_DestroySurface(surface);
         }
     };
@@ -164,5 +164,4 @@ std::optional<std::string> ClientSession::SaveScreenshot() const {
     if (!surface || !SDL_SaveBMP(surface.get(), path.string().c_str())) return std::nullopt;
     return path.string();
 }
-} // namespace px::client::imgui
-
+}  // namespace px::client::imgui

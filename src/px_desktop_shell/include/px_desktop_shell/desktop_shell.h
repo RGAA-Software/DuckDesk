@@ -12,7 +12,7 @@
 namespace px {
 class RawImage;
 struct WindowsVideoResources;
-} // namespace px
+}  // namespace px
 
 namespace px::desktop {
 
@@ -33,7 +33,7 @@ struct DesktopInputEvent final {
 };
 
 struct WindowConfig {
-    std::string title{"Pixels"};
+    std::string title{"Application"};
     std::string titleBarTitle{};
     int width{1180};
     int height{760};
@@ -52,7 +52,7 @@ struct WindowConfig {
 };
 
 class DesktopShell final {
-  public:
+public:
     using RenderCallback = std::function<void()>;
     using InputCallback = std::function<void(const DesktopInputEvent&)>;
 
@@ -80,7 +80,7 @@ class DesktopShell final {
     void RequestShowAndRaise() noexcept;
     static void PostShowAndRaiseRequest() noexcept;
 
-  private:
+private:
     struct Impl;
 
     explicit DesktopShell(std::unique_ptr<Impl> impl) noexcept;
@@ -88,4 +88,4 @@ class DesktopShell final {
     std::unique_ptr<Impl> impl_{};
 };
 
-} // namespace px::desktop
+}  // namespace px::desktop

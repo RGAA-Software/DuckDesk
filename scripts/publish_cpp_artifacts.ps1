@@ -161,10 +161,11 @@ function Publish-LanguageResources {
 
 function Publish-DesktopBrandLogo {
     param([Parameter(Mandatory = $true)][string]$ProcessName)
-    Publish-VerifiedFile `
-        -Source (Join-Path $buildRoot "src\px_deps\resources\icons\px_icon.png") `
-        -Destination (Join-Path $distRoot "resources\icons\px_icon.png") `
-        -ProcessName $ProcessName
+    $retiredTopLevelLogo = Join-Path $distRoot "resources\icons\px_icon.png"
+    if (Test-Path -LiteralPath $retiredTopLevelLogo -PathType Leaf) {
+        Remove-Item -LiteralPath $retiredTopLevelLogo -Force
+        Write-Host "REMOVED retired desktop logo  resources\icons\px_icon.png"
+    }
     Publish-VerifiedFile `
         -Source (Join-Path $buildRoot "src\px_deps\resources\fonts\Roboto-Medium.ttf") `
         -Destination (Join-Path $distRoot "resources\fonts\Roboto-Medium.ttf") `

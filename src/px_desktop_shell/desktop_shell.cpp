@@ -2,6 +2,7 @@
 
 #include "desktop_renderer.h"
 #include "imgui_session.h"
+#include "px_ui/product_brand.h"
 #include "title_bar.h"
 #include "window_host.h"
 #include "windows_title_bar_behavior.h"
@@ -16,9 +17,9 @@
 #include <imgui.h>
 
 #include <array>
+#include <filesystem>
 #include <memory>
 #include <optional>
-#include <filesystem>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -29,7 +30,7 @@ namespace {
 constexpr Uint32 kShowWindowEvent{SDL_EVENT_USER + 41};
 constexpr Uint32 kExitApplicationEvent{SDL_EVENT_USER + 42};
 
-BOOL CALLBACK RestoreCurrentProcessWindow(HWND window, LPARAM) { // NOLINT(pixels-raw-pointer-boundary): Win32 enumeration callback ABI.
+BOOL CALLBACK RestoreCurrentProcessWindow(HWND window, LPARAM) {  // NOLINT(pixels-raw-pointer-boundary): Win32 enumeration callback ABI.
     DWORD ownerProcessId{};
     static_cast<void>(GetWindowThreadProcessId(window, &ownerProcessId));
     std::array<wchar_t, 64> className{};
@@ -41,7 +42,7 @@ BOOL CALLBACK RestoreCurrentProcessWindow(HWND window, LPARAM) { // NOLINT(pixel
 }
 
 struct SdlTrayDeleter final {
-    void operator()(SDL_Tray* tray) const noexcept { // NOLINT(pixels-raw-pointer-boundary): SDL owned handle boundary
+    void operator()(SDL_Tray* tray) const noexcept {  // NOLINT(pixels-raw-pointer-boundary): SDL owned handle boundary
         SDL_DestroyTray(tray);
     }
 };
@@ -49,40 +50,47 @@ struct SdlTrayDeleter final {
 using SdlTray = std::unique_ptr<SDL_Tray, SdlTrayDeleter>;
 
 struct SdlSurfaceDeleter final {
-    void operator()(SDL_Surface* surface) const noexcept { // NOLINT(pixels-raw-pointer-boundary): SDL owned handle boundary
+    void operator()(SDL_Surface* surface) const noexcept {  // NOLINT(pixels-raw-pointer-boundary): SDL owned handle boundary
         SDL_DestroySurface(surface);
     }
 };
 
 using SdlSurface = std::unique_ptr<SDL_Surface, SdlSurfaceDeleter>;
 
-void SDLCALL OnTrayEntry(void*, SDL_TrayEntry* entry) { // NOLINT(pixels-raw-pointer-boundary): SDL callback ABI
+void SDLCALL OnTrayEntry(void*, SDL_TrayEntry* entry) {  // NOLINT(pixels-raw-pointer-boundary): SDL callback ABI
     const std::string_view label{SDL_GetTrayEntryLabel(entry)};
     SDL_Event event{};
-    event.type = label == "Exit Pixels" ? kExitApplicationEvent : kShowWindowEvent;
+    event.type = label == "Exit " + std::string{px::ui::ApplicationName()} ? kExitApplicationEvent : kShowWindowEvent;
     SDL_PushEvent(&event);
 }
 
 SdlTray CreateTray() {
     const std::string basePath{SDL_GetBasePath() == nullptr ? "" : SDL_GetBasePath()};
     const std::filesystem::path iconPath{std::filesystem::path{basePath} / "resources" / "icons" / "brand" / "px_icon.png"};
+    const std::string applicationName{px::ui::ApplicationName()};
+    const std::string showLabel{"Show " + applicationName};
+    const std::string exitLabel{"Exit " + applicationName};
     SdlSurface icon{SDL_LoadPNG(iconPath.string().c_str())};
-    SdlTray tray{SDL_CreateTray(icon.get(), "Pixels")};
+    SdlTray tray{SDL_CreateTray(icon.get(), applicationName.c_str())};
     if (!tray || !SDL_CreateTrayMenu(tray.get())) {
         return {};
     }
-    SDL_SetTrayEntryCallback(SDL_InsertTrayEntryAt(SDL_GetTrayMenu(tray.get()), -1, "Show Pixels", SDL_TRAYENTRY_BUTTON), OnTrayEntry, nullptr);
-    SDL_SetTrayEntryCallback(SDL_InsertTrayEntryAt(SDL_GetTrayMenu(tray.get()), -1, "Exit Pixels", SDL_TRAYENTRY_BUTTON), OnTrayEntry, nullptr);
+    SDL_SetTrayEntryCallback(SDL_InsertTrayEntryAt(SDL_GetTrayMenu(tray.get()), -1, showLabel.c_str(), SDL_TRAYENTRY_BUTTON), OnTrayEntry, nullptr);
+    SDL_SetTrayEntryCallback(SDL_InsertTrayEntryAt(SDL_GetTrayMenu(tray.get()), -1, exitLabel.c_str(), SDL_TRAYENTRY_BUTTON), OnTrayEntry, nullptr);
     return tray;
 }
 
-} // namespace
+}  // namespace
 
 struct DesktopShell::Impl final {
     Impl(WindowHost windowValue, DesktopRenderer rendererValue, WindowChromeConfig chromeValue, std::string titleBarTitleValue,
          const bool minimizeToTrayValue, const bool continuousTextInputValue, const bool continuousRenderingValue)
-        : window{std::move(windowValue)}, renderer{std::move(rendererValue)}, minimizeToTray{minimizeToTrayValue},
-          continuousTextInput{continuousTextInputValue}, continuousRendering{continuousRenderingValue}, chrome{chromeValue},
+        : window{std::move(windowValue)},
+          renderer{std::move(rendererValue)},
+          minimizeToTray{minimizeToTrayValue},
+          continuousTextInput{continuousTextInputValue},
+          continuousRendering{continuousRenderingValue},
+          chrome{chromeValue},
           titleBarTitle{std::move(titleBarTitleValue)} {}
 
     WindowHost window;
@@ -126,8 +134,7 @@ std::expected<DesktopShell, std::string> DesktopShell::Create(const WindowConfig
         return std::unexpected{imguiResult.error()};
     }
     impl->imgui.emplace(std::move(imguiResult.value()));
-    if (impl->continuousTextInput)
-        static_cast<void>(SDL_StartTextInput(&impl->window.Native()));
+    if (impl->continuousTextInput) static_cast<void>(SDL_StartTextInput(&impl->window.Native()));
     return DesktopShell{std::move(impl)};
 }
 
@@ -163,7 +170,7 @@ int DesktopShell::Run(const RenderCallback& render, const InputCallback& input) 
                     } else if (event.type == SDL_EVENT_MOUSE_WHEEL) {
                         translated.wheelX = event.wheel.x;
                         translated.wheelY = event.wheel.y;
-                    } else if (event.type == SDL_EVENT_DROP_FILE && event.drop.data) { // NOLINT(pixels-raw-pointer-boundary): SDL event ABI
+                    } else if (event.type == SDL_EVENT_DROP_FILE && event.drop.data) {  // NOLINT(pixels-raw-pointer-boundary): SDL event ABI
                         translated.text = event.drop.data;
                     }
                     input(translated);
@@ -225,8 +232,7 @@ int DesktopShell::Run(const RenderCallback& render, const InputCallback& input) 
 
         interactiveFrame = impl_->imgui->NeedsInteractiveRefresh();
         ImGui::Render();
-        if (!impl_->window.IsMinimized())
-            impl_->renderer.Render();
+        if (!impl_->window.IsMinimized()) impl_->renderer.Render();
         firstFrame = false;
     }
     return 0;
@@ -236,25 +242,17 @@ bool DesktopShell::UpdateVideoTexture(const int width, const int height, const s
     return impl_->renderer.UpdateVideoTexture(width, height, bgra);
 }
 
-bool DesktopShell::UpdateVideoFrame(const std::shared_ptr<RawImage>& image) {
-    return impl_->renderer.UpdateVideoFrame(image);
-}
+bool DesktopShell::UpdateVideoFrame(const std::shared_ptr<RawImage>& image) { return impl_->renderer.UpdateVideoFrame(image); }
 
-std::uint64_t DesktopShell::VideoTextureId() const noexcept {
-    return impl_->renderer.VideoTextureId();
-}
+std::uint64_t DesktopShell::VideoTextureId() const noexcept { return impl_->renderer.VideoTextureId(); }
 
 std::shared_ptr<WindowsVideoResources> DesktopShell::VideoResources(const std::string& decoderPreference) {
     return impl_->renderer.VideoResources(decoderPreference);
 }
 
-const PlatformIconAtlas& DesktopShell::PlatformIcons() const noexcept {
-    return impl_->imgui->PlatformIcons();
-}
+const PlatformIconAtlas& DesktopShell::PlatformIcons() const noexcept { return impl_->imgui->PlatformIcons(); }
 
-const BrandLogo& DesktopShell::Logo() const noexcept {
-    return impl_->imgui->Logo();
-}
+const BrandLogo& DesktopShell::Logo() const noexcept { return impl_->imgui->Logo(); }
 
 bool DesktopShell::SetTheme(const px::ui::Theme theme) {
     impl_->theme = theme;
@@ -266,24 +264,14 @@ bool DesktopShell::SetEnhancedVisualEffects(const bool enabled) {
     return impl_->imgui->ApplyAppearance(impl_->theme, impl_->window.DisplayScale(), enabled);
 }
 
-bool DesktopShell::ToggleFullscreen() {
-    return impl_->window.ToggleFullscreen();
-}
+bool DesktopShell::ToggleFullscreen() { return impl_->window.ToggleFullscreen(); }
 
-void DesktopShell::RequestExit() noexcept {
-    impl_->running = false;
-}
+void DesktopShell::RequestExit() noexcept { impl_->running = false; }
 
-void DesktopShell::CancelCloseRequest() noexcept {
-    impl_->cancelCloseRequest = true;
-}
+void DesktopShell::CancelCloseRequest() noexcept { impl_->cancelCloseRequest = true; }
 
-void DesktopShell::RequestShowAndRaise() noexcept {
-    PostShowAndRaiseRequest();
-}
+void DesktopShell::RequestShowAndRaise() noexcept { PostShowAndRaiseRequest(); }
 
-void DesktopShell::PostShowAndRaiseRequest() noexcept {
-    static_cast<void>(EnumWindows(RestoreCurrentProcessWindow, 0));
-}
+void DesktopShell::PostShowAndRaiseRequest() noexcept { static_cast<void>(EnumWindows(RestoreCurrentProcessWindow, 0)); }
 
-} // namespace px::desktop
+}  // namespace px::desktop

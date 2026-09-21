@@ -127,9 +127,6 @@ add_custom_command(TARGET px_panel POST_BUILD
         "${CMAKE_SOURCE_DIR}/src/px_deps/px_imgui/misc/fonts/Roboto-Medium.ttf"
         "$<TARGET_FILE_DIR:px_panel>/resources/fonts/Roboto-Medium.ttf"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_SOURCE_DIR}/web/px_web_client/src/assets/px_icon.png"
-        "$<TARGET_FILE_DIR:px_panel>/resources/icons/px_icon.png"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/src/px_ui/resources/icons/LICENSE.lucide"
         "$<TARGET_FILE_DIR:px_panel>/resources/licenses/Lucide.txt"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -160,9 +157,6 @@ add_custom_command(TARGET px_panel_imgui_preview POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/src/px_deps/px_imgui/misc/fonts/Roboto-Medium.ttf"
         "$<TARGET_FILE_DIR:px_panel_imgui_preview>/resources/fonts/Roboto-Medium.ttf"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_SOURCE_DIR}/web/px_web_client/src/assets/px_icon.png"
-        "$<TARGET_FILE_DIR:px_panel_imgui_preview>/resources/icons/px_icon.png"
 )
 
 add_custom_command(TARGET px_ui_component_gallery POST_BUILD
@@ -174,9 +168,6 @@ add_custom_command(TARGET px_ui_component_gallery POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_SOURCE_DIR}/src/px_deps/px_imgui/misc/fonts/Roboto-Medium.ttf"
         "$<TARGET_FILE_DIR:px_ui_component_gallery>/resources/fonts/Roboto-Medium.ttf"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_SOURCE_DIR}/web/px_web_client/src/assets/px_icon.png"
-        "$<TARGET_FILE_DIR:px_ui_component_gallery>/resources/icons/px_icon.png"
 )
 
 if(BUILD_TESTING AND TARGET GTest::gtest)

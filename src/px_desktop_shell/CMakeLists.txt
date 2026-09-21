@@ -14,6 +14,7 @@ set(px_desktop_shell_common_sources
 
 function(pixels_configure_desktop_shell target)
     target_include_directories(${target} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+    target_include_directories(${target} BEFORE PRIVATE "${PX_PRODUCT_GENERATED_DIR}")
     if(MSVC)
         target_compile_options(${target} PRIVATE "$<$<NOT:$<CONFIG:Debug>>:/Gy>")
     endif()
@@ -55,14 +56,19 @@ function(pixels_stage_desktop_images target)
     foreach(platform_icon IN LISTS platform_icon_names)
         list(APPEND desktop_asset_sources "${CMAKE_SOURCE_DIR}/src/px_ui/resources/icons/platform/${platform_icon}")
     endforeach()
-    foreach(brand_icon IN LISTS brand_icon_names)
-        list(APPEND desktop_asset_sources "${CMAKE_SOURCE_DIR}/src/px_ui/resources/icons/brand/${brand_icon}")
-    endforeach()
+    if(PX_DISTRIBUTION STREQUAL "oem")
+        list(APPEND desktop_asset_sources "${PX_PRODUCT_BRAND_ICON_SOURCE}")
+    else()
+        foreach(brand_icon IN LISTS brand_icon_names)
+            list(APPEND desktop_asset_sources "${CMAKE_SOURCE_DIR}/src/px_ui/resources/icons/brand/${brand_icon}")
+        endforeach()
+    endif()
     set_property(TARGET ${target} APPEND PROPERTY LINK_DEPENDS "${desktop_asset_sources}")
     add_custom_command(TARGET ${target} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target}>/resources/icons/platform"
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target}>/resources/icons/brand"
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target}>/resources/licenses"
+        COMMAND ${CMAKE_COMMAND} -E rm -f "$<TARGET_FILE_DIR:${target}>/resources/icons/px_icon.png"
     )
     foreach(platform_icon IN LISTS platform_icon_names)
         add_custom_command(TARGET ${target} POST_BUILD
@@ -72,9 +78,14 @@ function(pixels_stage_desktop_images target)
         )
     endforeach()
     foreach(brand_icon IN LISTS brand_icon_names)
+        if(PX_DISTRIBUTION STREQUAL "oem")
+            set(brand_icon_source "${PX_PRODUCT_BRAND_ICON_SOURCE}")
+        else()
+            set(brand_icon_source "${CMAKE_SOURCE_DIR}/src/px_ui/resources/icons/brand/${brand_icon}")
+        endif()
         add_custom_command(TARGET ${target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CMAKE_SOURCE_DIR}/src/px_ui/resources/icons/brand/${brand_icon}"
+                "${brand_icon_source}"
                 "$<TARGET_FILE_DIR:${target}>/resources/icons/brand/${brand_icon}"
         )
     endforeach()

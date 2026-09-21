@@ -8,6 +8,7 @@
 #include "panel_product_runtime.h"
 #include "px_common/uuid.h"
 #include "px_console_client/console_errors.h"
+#include "px_ui/product_brand.h"
 
 namespace px::panel::product {
 namespace {
@@ -273,7 +274,7 @@ private:
 
     void SetPreference(const std::string& streamId, const bool tcp, const bool relay) {
         if (!runtime_->Config()->SaveCloudApplicationPreference(streamId, {.forceTcp = tcp, .forceRelay = relay})) {
-            runtime_->Notify(true, "Pixels", "Unable to save application settings");
+            runtime_->Notify(true, std::string{px::ui::ApplicationName()}, "Unable to save application settings");
             return;
         }
         const std::scoped_lock lock{mutex_};

@@ -3,6 +3,8 @@
 #include <array>
 #include <utility>
 
+#include "pixels_product_version_config.h"
+
 namespace px::client::imgui {
 namespace {
 constexpr auto kCount = std::to_underlying(ClientText::Count);
@@ -27,8 +29,8 @@ constexpr Catalog kEnglish{"Controls",
                            "Statistics",
                            "Hide",
                            "File transfer",
-                           "Pixels File Transfer",
-                           "Pixels could not coordinate the existing connection window. Please try again.",
+                           PROJECT_APPLICATION_NAME " File Transfer",
+                           PROJECT_APPLICATION_NAME " could not coordinate the existing connection window. Please try again.",
                            "Remote path",
                            "Open",
                            "Local path",
@@ -55,7 +57,7 @@ constexpr Catalog kEnglish{"Controls",
                            "The device policy does not allow this connection.",
                            "This session was taken over by another controller.",
                            "The remote control channel rejected the connection.",
-                           "Pixels connection failed",
+                           PROJECT_APPLICATION_NAME " connection failed",
                            "OK",
                            "Light",
                            "Dark",
@@ -66,8 +68,9 @@ constexpr Catalog kEnglish{"Controls",
                            "Media unavailable",
                            "Connection rejected",
                            "Disconnected; retrying...",
-                           "Video and audio are temporarily unavailable. Control and file transfer remain connected; Pixels is retrying media.",
-                           "The connection was interrupted. Pixels is retrying; check the network if it does not recover.",
+                           "Video and audio are temporarily unavailable. Control and file transfer remain connected; " PROJECT_APPLICATION_NAME
+                           " is retrying media.",
+                           "The connection was interrupted. " PROJECT_APPLICATION_NAME " is retrying; check the network if it does not recover.",
                            "Display",
                            "Control",
                            "Tools",
@@ -145,8 +148,8 @@ constexpr Catalog kChinese{"控制栏",
                            "统计",
                            "隐藏",
                            "文件传输",
-                           "Pixels文件传输",
-                           "Pixels 无法协调已有的连接窗口，请重试。",
+                           PROJECT_APPLICATION_NAME "文件传输",
+                           PROJECT_APPLICATION_NAME " 无法协调已有的连接窗口，请重试。",
                            "远端路径",
                            "打开",
                            "本地路径",
@@ -173,7 +176,7 @@ constexpr Catalog kChinese{"控制栏",
                            "设备策略不允许本次连接。",
                            "当前会话已被其他控制端接管。",
                            "远程控制通道拒绝了连接。",
-                           "Pixels 连接失败",
+                           PROJECT_APPLICATION_NAME " 连接失败",
                            "确定",
                            "浅色",
                            "深色",
@@ -184,8 +187,8 @@ constexpr Catalog kChinese{"控制栏",
                            "媒体不可用",
                            "连接被拒绝",
                            "连接已断开，正在重试…",
-                           "音视频暂时不可用，控制与文件传输仍保持连接；Pixels 正在重试媒体通道。",
-                           "连接已中断，Pixels 正在重试；如果长时间未恢复，请检查网络。",
+                           "音视频暂时不可用，控制与文件传输仍保持连接；" PROJECT_APPLICATION_NAME " 正在重试媒体通道。",
+                           "连接已中断，" PROJECT_APPLICATION_NAME " 正在重试；如果长时间未恢复，请检查网络。",
                            "显示",
                            "控制",
                            "工具",
@@ -244,11 +247,11 @@ constexpr Catalog kChinese{"控制栏",
                            "退出控制",
                            "当前远程控制会话将断开，是否继续？"};
 static_assert(kEnglish.size() == kChinese.size());
-} // namespace
+}  // namespace
 
 std::string_view ClientTextValue(const ClientText id, const bool english) noexcept {
     const auto index = std::to_underlying(id);
     return index < kCount ? (english ? kEnglish[index] : kChinese[index]) : std::string_view{};
 }
 
-} // namespace px::client::imgui
+}  // namespace px::client::imgui

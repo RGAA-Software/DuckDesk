@@ -1,16 +1,3 @@
-#include "panel_preview.h"
-#include "product/panel_product_runtime.h"
-
-#include "px_desktop_shell/desktop_shell.h"
-
-#include "px_common/folder_util.h"
-#include "px_common/auto_start.h"
-#include "px_common/hardware.h"
-#include "px_common/log.h"
-#include "px_common/process_util.h"
-#include "product/panel_running_pipe.h"
-#include "version_config.h"
-
 #include <array>
 #include <atomic>
 #include <filesystem>
@@ -21,6 +8,18 @@
 #include <system_error>
 #include <utility>
 
+#include "panel_preview.h"
+#include "product/panel_product_runtime.h"
+#include "product/panel_running_pipe.h"
+#include "px_common/auto_start.h"
+#include "px_common/folder_util.h"
+#include "px_common/hardware.h"
+#include "px_common/log.h"
+#include "px_common/process_util.h"
+#include "px_desktop_shell/desktop_shell.h"
+#include "px_ui/product_brand.h"
+#include "version_config.h"
+
 namespace {
 
 struct CommandLineOptions final {
@@ -29,7 +28,7 @@ struct CommandLineOptions final {
     std::string skinName{};
 };
 
-CommandLineOptions ParseCommandLine(const int argc, char* argv[]) { // NOLINT(pixels-raw-pointer-boundary): process-entry ABI
+CommandLineOptions ParseCommandLine(const int argc, char* argv[]) {  // NOLINT(pixels-raw-pointer-boundary): process-entry ABI
     CommandLineOptions options{};
     for (int index{1}; index < argc; ++index) {
         const std::string_view argument{argv[index]};
@@ -56,9 +55,9 @@ bool PrepareRuntimeDirectories(const std::filesystem::path& basePath) {
     return true;
 }
 
-} // namespace
+}  // namespace
 
-int main(int argc, char* argv[]) { // NOLINT(pixels-raw-pointer-boundary): process-entry ABI
+int main(int argc, char* argv[]) {  // NOLINT(pixels-raw-pointer-boundary): process-entry ABI
     px::Hardware::AcquirePermissionForRestartDevice();
     px::ProcessUtil::SetProcessInHighLevel();
     const auto options = ParseCommandLine(argc, argv);
@@ -73,7 +72,7 @@ int main(int argc, char* argv[]) { // NOLINT(pixels-raw-pointer-boundary): proce
         return 1;
     }
     px::Logger::InitLog((basePath / "px_logs" / "pixels.log").wstring(), true);
-    auto shellResult = px::desktop::DesktopShell::Create({.title = "Pixels",
+    auto shellResult = px::desktop::DesktopShell::Create({.title = std::string{px::ui::ApplicationName()},
                                                           .width = 960,
                                                           .height = 640,
                                                           .initiallyVisible = !options.runAutomatically,
@@ -98,10 +97,10 @@ int main(int argc, char* argv[]) { // NOLINT(pixels-raw-pointer-boundary): proce
         if (!runtime) {
             return 4;
         }
-        static_cast<void>(autoStart->CreateLogonTask("px_panel_start", executablePath, "--run_automatically", "Pixels"));
+        static_cast<void>(
+            autoStart->CreateLogonTask("px_panel_start", executablePath, "--run_automatically", std::string{px::ui::ApplicationName()}));
         const auto showPanel = [weakShell] {
-            if (const auto activeShell = weakShell.lock())
-                activeShell->RequestShowAndRaise();
+            if (const auto activeShell = weakShell.lock()) activeShell->RequestShowAndRaise();
         };
         px::panel::ui::PanelPreview panel{{
             .account = px::panel::product::CreateProductAccountPort(runtime),
@@ -129,8 +128,7 @@ int main(int argc, char* argv[]) { // NOLINT(pixels-raw-pointer-boundary): proce
                 }
             }
             const auto activeShell = weakShell.lock();
-            if (!activeShell)
-                return;
+            if (!activeShell) return;
             const auto action = panel.Draw(activeShell->PlatformIcons());
             if (action.selectedTheme.has_value()) {
                 activeShell->SetTheme(*action.selectedTheme);

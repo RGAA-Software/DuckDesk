@@ -3,6 +3,7 @@
 #include <utility>
 
 #include "panel_product_runtime.h"
+#include "px_ui/product_brand.h"
 
 namespace px::panel::product {
 namespace {
@@ -94,13 +95,15 @@ public:
                 self->state_.operation = ui::NetworkOperation::SavedNeedsRestart;
                 self->state_.detail.clear();
             }
-            runtime->Notify(false, "Pixels", "Network settings saved");
+            runtime->Notify(false, std::string{px::ui::ApplicationName()}, "Network settings saved");
         }));
     }
 
     void RestartRender() override {
         const auto service = runtime_->Service();
-        if (!service || !service->RestartRender()) runtime_->Notify(true, "Pixels", "Render service is not connected");
+        if (!service || !service->RestartRender()) {
+            runtime_->Notify(true, std::string{px::ui::ApplicationName()}, "Render service is not connected");
+        }
         Acknowledge();
     }
 

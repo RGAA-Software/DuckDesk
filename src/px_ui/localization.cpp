@@ -4,6 +4,8 @@
 #include <cstddef>
 #include <utility>
 
+#include "pixels_product_version_config.h"
+
 namespace px::ui {
 namespace {
 
@@ -138,11 +140,11 @@ constexpr Catalog kEnglish{
     "Passwords must be non-empty and identical.",
     "Maintenance tools",
     "Clear application data",
-    "Clear all local Pixels data? This action cannot be undone.",
+    "Clear all local " PROJECT_APPLICATION_NAME " data? This action cannot be undone.",
     "Clear",
     "Cancel",
     "Version",
-    "Pixels keeps render nodes online and provides secure remote desktop and cloud application access.",
+    PROJECT_APPLICATION_NAME " keeps render nodes online and provides secure remote desktop and cloud application access.",
     "Check for updates",
     "Website",
     "Visit history",
@@ -241,7 +243,7 @@ constexpr Catalog kEnglish{
     "The management service could not resolve this device.",
     "No usable remote address or service port was found.",
     "The remote desktop service could not be reached.",
-    "The remote device does not support connection preflight. Update Pixels on the remote device.",
+    "The remote device does not support connection preflight. Update " PROJECT_APPLICATION_NAME " on the remote device.",
     "The remote device has disabled incoming remote access.",
     "The remote device has disabled file transfer.",
     "The remote desktop is occupied. Please try again shortly.",
@@ -415,11 +417,11 @@ constexpr Catalog kSimplifiedChinese{
     "密码不能为空且两次输入必须一致。",
     "维护工具",
     "清除应用数据",
-    "确定清除 Pixels 的全部本地数据吗？此操作无法撤销。",
+    "确定清除 " PROJECT_APPLICATION_NAME " 的全部本地数据吗？此操作无法撤销。",
     "清除",
     "取消",
     "版本",
-    "Pixels 用于保持渲染节点在线，并提供安全的远程桌面和云应用访问。",
+    PROJECT_APPLICATION_NAME " 用于保持渲染节点在线，并提供安全的远程桌面和云应用访问。",
     "检查更新",
     "官方网站",
     "访问记录",
@@ -518,7 +520,7 @@ constexpr Catalog kSimplifiedChinese{
     "管理服务无法解析该设备。",
     "没有找到可用的远程地址或服务端口。",
     "无法连接远程桌面服务。",
-    "远程设备不支持连接前置探测，请更新远程设备上的 Pixels。",
+    "远程设备不支持连接前置探测，请更新远程设备上的 " PROJECT_APPLICATION_NAME "。",
     "对方已禁止远程控制。",
     "对方已禁止文件传输。",
     "远程桌面已被占用，请稍后重试。",
@@ -567,7 +569,7 @@ constexpr Catalog kSimplifiedChinese{
 static_assert(kEnglish.size() == kTextCount);
 static_assert(kSimplifiedChinese.size() == kTextCount);
 
-} // namespace
+}  // namespace
 
 Localizer::Localizer(const Language language) noexcept : language_{language} {}
 
@@ -595,4 +597,4 @@ bool CatalogsAreComplete() noexcept {
     return complete(kEnglish) && complete(kSimplifiedChinese);
 }
 
-} // namespace px::ui
+}  // namespace px::ui

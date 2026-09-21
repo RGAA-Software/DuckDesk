@@ -1,18 +1,17 @@
 #include "title_bar.h"
 
-#include "brand_logo.h"
-#include "window_host.h"
-
-#include "px_ui/layout_metrics.h"
-#include "px_ui/theme_tokens.h"
-#include "px_ui/vector_icon.h"
-
 #include <imgui.h>
 
 #include <string>
 #include <string_view>
 
-#include "version_config.h"
+#include "brand_logo.h"
+#include "px_ui/layout_metrics.h"
+#include "px_ui/product_brand.h"
+#include "px_ui/theme_tokens.h"
+#include "px_ui/vector_icon.h"
+#include "pixels_product_version_config.h"
+#include "window_host.h"
 
 namespace px::desktop {
 namespace {
@@ -40,7 +39,7 @@ bool CircularCaptionButton(const px::ui::VectorIcon icon, const std::string_view
     return pressed;
 }
 
-} // namespace
+}  // namespace
 
 bool DrawTitleBar(WindowHost& window, const WindowChromeConfig& chrome, const BrandLogo& logo, const std::string_view titleOverride) {
     const float titleBarHeight{px::ui::Scale(static_cast<float>(kTitleBarLogicalHeight))};
@@ -58,7 +57,7 @@ bool DrawTitleBar(WindowHost& window, const WindowChromeConfig& chrome, const Br
     const float logoTop{origin.y + (titleBarHeight - logoSize) * 0.5F};
     const px::ui::ThemeTokens tokens{px::ui::CurrentThemeTokens()};
     logo.Draw({logoLeft, logoTop}, logoSize);
-    const std::string title{titleOverride.empty() ? "Pixels(V" PROJECT_VERSION ")" : titleOverride};
+    const std::string title{titleOverride.empty() ? std::string{px::ui::ApplicationName()} + "(V" PROJECT_VERSION ")" : titleOverride};
     const ImVec2 titleSize{ImGui::CalcTextSize(title.c_str())};
     ImGui::GetWindowDrawList()->AddText({logoLeft + logoSize + px::ui::Scale(8.0F), origin.y + (titleBarHeight - titleSize.y) * 0.5F},
                                         ImGui::GetColorU32(tokens.foreground), title.c_str());
@@ -82,4 +81,4 @@ bool DrawTitleBar(WindowHost& window, const WindowChromeConfig& chrome, const Br
     return keepRunning;
 }
 
-} // namespace px::desktop
+}  // namespace px::desktop

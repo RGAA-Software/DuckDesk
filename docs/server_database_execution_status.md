@@ -1653,6 +1653,16 @@ arm64 native、APK 和退休媒体审计通过。APK 反查确认 package=`com.n
 theme=`Theme.Oem.Starting`、OEM 双图标，以及中英文运行资源无 Pixels 可见文本；Gradle 源 APK 与独立 dist SHA-256 均为
 `AEFA6299D3849985934052CE718F340139D62C99E1AC5099FB3A98EA0FB3EC7B`。
 
+同日 Windows 原生 OEM 品牌切片把 profile 应用名、逐产品显示名、安装目录名和共享 Web PNG 写入唯一生成头，Panel/Client 的窗口、标题栏、托盘、
+通知、关于页、错误/连接提示、对端显示名及截图/日志路径均消费该身份；OEM 关于页不再暴露 Pixels 官网。PE Company/FileDescription/ProductName
+与 profile 同源，Client ICO 不再绕过产品图标输入。桌面运行 Logo 只从 `resources/icons/brand/` 读取，已无引用但此前仍被复制的顶层
+`resources/icons/px_icon.png` 从 CMake、增量发布和两个 development dist manifest 中移除，旧 Panel RC 模板也删除。profile 新增原生资源文本
+可嵌入性拒绝门禁，14 项 Python profile/发行准备测试通过。Client 聚焦构建的 17+8+4+6+3+2+5 项测试全部通过；Cloud Node Panel 21 项产品测试
+及中英文本地化门禁通过。最终 `build_official/client/dist/px_client.exe` 与构建树 SHA-256 同为
+`C869E3A5BA633A111A74B1D66769035E41DF6E8ADBA58F58B3D648CA11C76D88`，Cloud Node Panel 对应哈希同为
+`582E5BE1D40C3CB363071C24772E3926B0068FC0D9A99177E2C39E8AF8D60676`；二进制资源反查分别为 Pixels Client 3.3.72 与 Pixels Cloud Node 3.3.74。
+这关闭 Windows 原生品牌代码门禁，不等于已生成或签名 OEM Release；独立 TUF、节点激活和跨发行实物矩阵仍保持关闭。
+
 | 阶段 | 当前未完成项 |
 |---|---|
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |

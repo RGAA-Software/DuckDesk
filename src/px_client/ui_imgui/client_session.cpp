@@ -37,6 +37,7 @@
 #include "px_message/proto_message_maker.h"
 #include "px_rdp/rdp_client_endpoint.h"
 #include "px_rdp/rdp_stream_packet.h"
+#include "px_ui/product_brand.h"
 #include "rdp/rdp_session.h"
 
 namespace px::client::imgui {
@@ -95,9 +96,9 @@ bool ClientSession::Initialize() {
     params->ft_remote_device_id_ = "ft_" + remoteSignalId;
     params->stream_id_ = config_.streamId;
     params->stream_name_ = config_.streamName;
-    params->display_name_ = "Pixels Client";
+    params->display_name_ = px::ui::WindowsProductName();
     params->display_remote_name_ = config_.remoteDeviceId;
-    params->device_name_ = "Pixels Windows";
+    params->device_name_ = std::string{px::ui::ApplicationName()} + " Windows";
     params->appkey_ = config_.appKey;
     params->relay_host_ = config_.relayHost;
     params->relay_port_ = config_.relayPort;

@@ -14,6 +14,7 @@ add_library(px_ui STATIC
     vector_icon.cpp
 )
 
+target_include_directories(px_ui BEFORE PUBLIC "${PX_PRODUCT_GENERATED_DIR}")
 target_include_directories(px_ui PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_link_libraries(px_ui PUBLIC px_imgui)
 

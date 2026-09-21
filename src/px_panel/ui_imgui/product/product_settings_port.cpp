@@ -7,6 +7,7 @@
 
 #include "panel_product_runtime.h"
 #include "px_common/md5.h"
+#include "px_ui/product_brand.h"
 
 namespace px::panel::product {
 namespace {
@@ -44,7 +45,9 @@ public:
 
     void RestartRender() override {
         const auto service = runtime_->Service();
-        if (!service || !service->RestartRender()) runtime_->Notify(true, "Pixels", "Render service is not connected");
+        if (!service || !service->RestartRender()) {
+            runtime_->Notify(true, std::string{px::ui::ApplicationName()}, "Render service is not connected");
+        }
     }
     void SaveController(const ui::ControllerSettings& settings) override { static_cast<void>(runtime_->Config()->SaveController(settings)); }
     void SetDisconnectAutoLock(const bool enabled) override { static_cast<void>(runtime_->Config()->SaveDisconnectAutoLock(enabled)); }
@@ -82,9 +85,11 @@ public:
         runtime_->Config()->Clear();
         runtime_->LocalServer()->RefreshPanelInfo();
         if (const auto service = runtime_->Service()) static_cast<void>(service->RestartRender());
-        runtime_->Notify(false, "Pixels", "Local Panel data cleared");
+        runtime_->Notify(false, std::string{px::ui::ApplicationName()}, "Local Panel data cleared");
     }
-    void CheckForUpdates() override { runtime_->Notify(false, "Pixels", "This build is managed by the deployment package"); }
+    void CheckForUpdates() override {
+        runtime_->Notify(false, std::string{px::ui::ApplicationName()}, "This build is managed by the deployment package");
+    }
     void SetLanguage(const ::px::ui::Language language) override { static_cast<void>(runtime_->Config()->SaveLanguage(language)); }
     void SetTheme(const ::px::ui::Theme theme) override { static_cast<void>(runtime_->Config()->SaveTheme(theme)); }
     void SetEnhancedVisualEffects(const bool enabled) override { static_cast<void>(runtime_->Config()->SaveEnhancedVisualEffects(enabled)); }
@@ -95,7 +100,7 @@ public:
             return;
         }
         const std::filesystem::path source = runtime_->Config()->DataDirectory().parent_path() / "px_logs";
-        const std::filesystem::path destination = std::filesystem::path{destinationDirectory} / "PixelsLogs";
+        const std::filesystem::path destination = std::filesystem::path{destinationDirectory} / px::ui::StorageDirectoryName() / "Logs";
         {
             const std::scoped_lock lock{mutex_};
             logCollection_ = ui::LogCollectionState::Collecting;

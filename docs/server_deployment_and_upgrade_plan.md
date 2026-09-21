@@ -503,8 +503,8 @@ Windows 软件组合验收 `pg-20260920-151630-d92d153c` 已以 449/449 个登�
 严格 `oem_id/release_namespace` 字段，Desk 能保存不同 OEM 的同构建号版本，Console 运维页能显示命名空间。OEM 非秘密发行描述及 Windows policy
 前置门禁已绑定品牌/安装身份/签名者/独立根；Windows CMake、dist、NSIS、installer verifier 和 TUF ReleaseSpec 也已开始消费同一 profile，并以
 共享 owner 记录保持所有产品/发行互斥。但还没有开放完整 OEM 产物入口。OEM 包仍不得使用现有 Customer 构建入口冒充交付。Web 和 Android
-包身份已接线，Android 运行界面/Splash/launcher/通知品牌也已参数化。P0 后续仍必须完成 Windows 原生 UI、独立 TUF 正式发布、节点激活任务和
-验收矩阵，再允许生成第一份全产品 OEM 商业交付。
+包身份已接线，Android 运行界面/Splash/launcher/通知及 Windows 原生 Panel/Client 窗口、托盘、文案、运行 Logo 和 PE 品牌也已参数化。P0 后续
+仍必须完成独立 TUF 正式发布、节点激活任务和验收矩阵，再允许生成第一份全产品 OEM 商业交付。
 
 下载可恢复，完整包先验证再解压；防路径穿越、链接逃逸、超大解压、符号链接/重解析点替换和校验后替换。
 高权限安装辅助进程只接受受保护的已验证 staging 及类型化任务，不执行 UI/服务器传来的任意命令或任意路径。
