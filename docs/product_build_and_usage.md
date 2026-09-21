@@ -225,6 +225,7 @@ python scripts\prepare_windows_update_release.py ^
 派生并逐段复核这一路径，不能靠手工 JSON 把 Official、Customer、另一 OEM 或另一 build 的制品签入错误目录。生成后的 spec 和同一 installer 文件才交给
 `px_update_authority publish`，因此 TUF 发布不能靠修改 JSON 把另一产品、发行、build 或签名者带入目录。
 该路径规则由共享 release catalog 提供，发布权威、promotion 和 Windows Service 消费同一校验；节点不会把错误维度的普通安全相对路径当作合法 target。
+Desk 发布目录与 Console 审批目录也在写入前执行同一规则，Console 读回持久记录时再次校验；人工登记不能绕过生成器把错域路径留在数据库中。
 
 该命令只生成一个不可变候选目录。发布系统还必须把候选同步到独立临时位置、核对 `publication.json`，先提交 targets 与非 timestamp 元数据，
 最后原子切换 `timestamp.json`；不能直接对线上目录运行本工具。root 私钥保持离线，日常 `publish` 不接触 root 私钥。正式 Windows ReleaseSpec

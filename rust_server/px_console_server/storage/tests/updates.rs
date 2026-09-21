@@ -22,6 +22,7 @@ fn release_domain(distribution: Distribution) -> (String, Option<String>) {
 }
 
 fn spec() -> ReleaseSpec {
+    let build_number = chrono::Utc::now().timestamp_micros();
     ReleaseSpec {
         target: ReleaseQuery {
             product: Product::Server,
@@ -32,15 +33,34 @@ fn spec() -> ReleaseSpec {
             os: OperatingSystem::Windows,
             architecture: Architecture::X86_64,
         },
-        build_number: chrono::Utc::now().timestamp_micros(),
+        build_number,
         version: "3.2.9".into(),
         metadata_base_url: "https://example.invalid/metadata/".into(),
         targets_base_url: "https://example.invalid/targets/".into(),
-        target_name: "pixels.exe".into(),
+        target_name: format!("windows/server/customer/stable/x86_64/{build_number}/pixels.exe"),
         sha256: "a".repeat(64),
         platform_signer_sha256: Some("b".repeat(64)),
         size_bytes: 12345,
     }
+}
+
+fn synchronize_target_name(release_spec: &mut ReleaseSpec) {
+    let target = &release_spec.target;
+    let mut components = vec![
+        target.os.name().to_owned(),
+        target.product.name().to_owned(),
+        target.distribution.name().to_owned(),
+    ];
+    if let Some(oem_id) = &target.oem_id {
+        components.push(oem_id.clone());
+    }
+    components.extend([
+        target.channel.name().to_owned(),
+        target.architecture.name().to_owned(),
+        release_spec.build_number.to_string(),
+        "pixels.exe".to_owned(),
+    ]);
+    release_spec.target_name = components.join("/");
 }
 async fn store() -> UpdateStore {
     UpdateStore::connect(
@@ -67,6 +87,7 @@ async fn approved_cloud_node_release(
     };
     release_spec.build_number =
         1_000 + i64::try_from(Uuid::new_v4().as_u128() % 1_000_000).unwrap();
+    synchronize_target_name(&mut release_spec);
     let release = update_store
         .register(
             &fixture.admin,
@@ -145,6 +166,7 @@ async fn all_product_platform_flavor_channel_dimensions_are_independent() {
                     OperatingSystem::Linux => None,
                     OperatingSystem::Windows | OperatingSystem::Android => Some("b".repeat(64)),
                 };
+                synchronize_target_name(&mut release_spec);
                 let row = update_store
                     .register(
                         &fixture.admin,
@@ -181,9 +203,11 @@ async fn all_product_platform_flavor_channel_dimensions_are_independent() {
     acme_release.target.distribution = Distribution::Oem;
     acme_release.target.release_namespace = "oem.acme-cloud".into();
     acme_release.target.oem_id = Some("acme-cloud".into());
+    synchronize_target_name(&mut acme_release);
     let mut north_star_release = acme_release.clone();
     north_star_release.target.release_namespace = "oem.north-star".into();
     north_star_release.target.oem_id = Some("north-star".into());
+    synchronize_target_name(&mut north_star_release);
     let mut approved_releases = Vec::new();
     for release_spec in [&acme_release, &north_star_release] {
         let pending_release = update_store
@@ -248,6 +272,7 @@ async fn authenticated_node_receives_the_approved_repository_and_records_real_ro
         os: OperatingSystem::Windows,
         architecture: Architecture::X86_64,
     };
+    synchronize_target_name(&mut release_spec);
     let release = update_store
         .register(
             &fixture.admin,
@@ -392,6 +417,7 @@ async fn authenticated_node_receives_the_approved_repository_and_records_real_ro
     let mut next_release_spec = release_spec.clone();
     next_release_spec.build_number += 1;
     next_release_spec.version = "3.2.10".into();
+    synchronize_target_name(&mut next_release_spec);
     let next_publication_sha256 = "e".repeat(64);
     let next_release = update_store
         .register(
@@ -511,7 +537,7 @@ async fn concurrent_registration_retries_bind_body_and_never_reverse_withdrawal(
             .unwrap();
     assert_eq!(count, 1);
     let mut changed = release_spec.clone();
-    changed.target_name = "pixels-other.exe".into();
+    changed.version = "3.2.10-changed-request".into();
     assert!(update_store
         .register(
             &fixture.admin,
@@ -769,6 +795,7 @@ async fn newest_unapproved_or_withdrawn_build_never_falls_back_and_pages_are_bou
         .await
         .is_err());
     release_spec.build_number += 1;
+    synchronize_target_name(&mut release_spec);
     let newer = update_store
         .register(
             &fixture.admin,
@@ -850,14 +877,20 @@ async fn malformed_release_metadata_has_no_side_effects_and_database_enforces_pl
         .fetch_one(&fixture.owner)
         .await
         .unwrap();
-    for invalid_case_index in 0..6 {
+    for invalid_case_index in 0..7 {
         let mut bad = release_spec.clone();
         match invalid_case_index {
             0 => bad.size_bytes = 0,
             1 => bad.target.os = OperatingSystem::Android,
             2 => bad.target.architecture = Architecture::Aarch64,
             3 => bad.target_name = "../escape.exe".into(),
-            4 => bad.targets_base_url = "https://example.invalid/a?secret=x".into(),
+            4 => {
+                bad.target_name = format!(
+                    "windows/server/official/stable/x86_64/{}/pixels.exe",
+                    bad.build_number
+                )
+            }
+            5 => bad.targets_base_url = "https://example.invalid/a?secret=x".into(),
             _ => bad.build_number = 0,
         }
         assert!(update_store

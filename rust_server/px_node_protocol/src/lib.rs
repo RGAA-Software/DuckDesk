@@ -981,7 +981,8 @@ mod tests {
                 version: "3.3.68".into(),
                 metadata_base_url: "https://downloads.example.test/metadata/".into(),
                 targets_base_url: "https://downloads.example.test/targets/".into(),
-                target_name: "cloud-node.exe".into(),
+                target_name: "windows/cloud_node/official/stable/x86_64/30368/cloud-node.exe"
+                    .into(),
                 sha256: "a".repeat(64),
                 platform_signer_sha256: Some("b".repeat(64)),
                 size_bytes: 1024,

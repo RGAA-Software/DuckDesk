@@ -535,10 +535,14 @@ fn release_in_domain(
         "linux" => Value::Null,
         _ => json!("b".repeat(64)),
     };
+    let oem_component = oem_id.map_or_else(String::new, |value| format!("/{value}"));
+    let target_name = format!(
+        "{os}/{product}/{distribution}{oem_component}/{channel}/{architecture}/{build}/pixels.bin"
+    );
     json!({"target":{"product":product,"distribution":distribution,"release_namespace":release_namespace,"oem_id":oem_id,
         "channel":channel,"os":os,"architecture":architecture},
         "build_number":build,"version":"1.2.3","metadata_base_url":"https://example.invalid/metadata/",
-        "targets_base_url":"https://example.invalid/targets/","target_name":"release/pixels.bin","sha256":"a".repeat(64),
+        "targets_base_url":"https://example.invalid/targets/","target_name":target_name,"sha256":"a".repeat(64),
         "platform_signer_sha256":platform_signer_sha256,
         "size_bytes":1234})
 }
@@ -599,6 +603,10 @@ async fn versions_are_persisted_dimensioned_and_write_failures_do_not_publish() 
                 let mut older = body;
                 older["build_number"] = json!(seed - 1);
                 older["version"] = json!("older");
+                older["target_name"] = json!(format!(
+                    "{os}/{product}/{distribution}/{channel}/{arch}/{}/pixels.bin",
+                    seed - 1
+                ));
                 assert_eq!(
                     call(&app, "POST", "/api/desk/versions", Some(&token), older)
                         .await
@@ -631,7 +639,10 @@ async fn versions_are_persisted_dimensioned_and_write_failures_do_not_publish() 
                 assert_eq!(result["architecture"], arch);
                 assert_eq!(result["size_bytes"], 1234);
                 assert_eq!(result["sha256"], "a".repeat(64));
-                assert_eq!(result["target_name"], "release/pixels.bin");
+                assert_eq!(
+                    result["target_name"],
+                    format!("{os}/{product}/{distribution}/{channel}/{arch}/{seed}/pixels.bin")
+                );
             }
         }
     }
@@ -719,6 +730,10 @@ async fn release_platform_missing_fields_invalid_metadata_and_races_cannot_publi
         ("size_bytes", json!(0)),
         ("metadata_base_url", json!("https://u:p@example.invalid/a/")),
         ("target_name", json!("../escape.bin")),
+        (
+            "target_name",
+            json!("windows/client/customer/stable/x86_64/1/pixels.bin"),
+        ),
         (
             "targets_base_url",
             json!("https://example.invalid/a?token=x"),

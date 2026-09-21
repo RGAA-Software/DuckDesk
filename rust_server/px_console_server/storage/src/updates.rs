@@ -45,6 +45,9 @@ impl UpdateStore {
         {
             return Err(StoreError::InvalidInput);
         }
+        artifact
+            .validate_immutable_target_name()
+            .map_err(|_| StoreError::InvalidInput)?;
         let artifact_digest = artifact.digest().map_err(|_| StoreError::InvalidInput)?;
         let mut request_digest = Sha256::new();
         request_digest.update(artifact_digest);

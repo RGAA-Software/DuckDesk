@@ -96,7 +96,7 @@ async fn update_catalog_requires_explicit_approval_and_exact_client_identity() {
         "version":"3.2.18",
         "metadata_base_url":"https://downloads.example.test/metadata/",
         "targets_base_url":"https://downloads.example.test/targets/",
-        "target_name":"android/pixels-3.2.18.apk",
+        "target_name":"android/android/customer/stable/aarch64/32018/pixels-3.2.18.apk",
         "sha256":"a".repeat(64),
         "platform_signer_sha256":"b".repeat(64),
         "size_bytes":12345678

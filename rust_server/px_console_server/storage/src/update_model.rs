@@ -193,7 +193,9 @@ impl UpdateRow {
             platform_signer_sha256: self.platform_signer_sha256,
             size_bytes: self.size_bytes,
         };
-        artifact.validate().map_err(|_| StoreError::Rejected)?;
+        artifact
+            .validate_immutable_target_name()
+            .map_err(|_| StoreError::Rejected)?;
         Ok(UpdateRelease {
             id: self.id,
             artifact,

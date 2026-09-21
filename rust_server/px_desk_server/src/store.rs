@@ -68,7 +68,9 @@ pub async fn mark(pool: &PgPool, kind: Kind, id: Uuid, input: Mark) -> Result<Fe
     .ok_or(ApiError::Conflict)
 }
 pub async fn publish(pool: &PgPool, input: ReleaseInput) -> Result<Release, ApiError> {
-    input.validate().map_err(|_| ApiError::Invalid)?;
+    input
+        .validate_immutable_target_name()
+        .map_err(|_| ApiError::Invalid)?;
     Ok(sqlx::query_file_as!(
         Release,
         "queries/publish_version.sql",

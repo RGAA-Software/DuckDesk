@@ -1230,7 +1230,7 @@ async fn node_update_check_uses_authenticated_product_and_console_distribution()
         "version":"0.0.2",
         "metadata_base_url":"https://downloads.example.test/metadata/",
         "targets_base_url":"https://downloads.example.test/targets/",
-        "target_name":"cloud-node-2.exe",
+        "target_name":"windows/cloud_node/customer/stable/x86_64/2/cloud-node-2.exe",
         "sha256":"a".repeat(64),
         "platform_signer_sha256":"b".repeat(64),
         "size_bytes":4096
