@@ -1728,6 +1728,12 @@ distribution/release namespace/OEM 规则创建，已登录请求只调用零参
 Console focused development build 输出 SHA-256 为 `67BA24D1516330508699F28542D1022A4F7BA6EC9BCA023264B70927A37A7A41`。
 本切片没有实现 Android TUF 元数据/root 防回滚、APK 下载/平台签名复核、PackageInstaller 或安装实例水位，因此不把目录接线写成安全更新完成。
 
+Android TUF 信任起点随后完成：产品构建新增强制 `PIXELS_UPDATE_ROOT_FILE`，缺失或结构不完整在清理/升版前失败；root 字节进入发行专属 BuildConfig，
+应用组合根启动时验证 1 MiB 上限、TUF 1.0 root 精确结构、Ed25519 公钥及规范 key ID、2–5 把 root key/至少 2 签名门限、三个互不复用的在线角色 key、
+全部 key 被角色引用、版本与到期时间。OEM 同时核对 profile 固定的 root SHA-256。4 项新 root 测试覆盖合法双签、单签不足、过期、签后篡改、key ID
+替换和角色复用；core-network 单测、App Kotlin 编译及 core-network/App Android Lint 372 个任务通过。构建脚本短测证明缺 root 明确拒绝，完整外形 root 的
+Customer preflight 不清理、不升版。当前仍没有 root N+1 轮换、timestamp/snapshot/targets 验签与持久水位，故只关闭初始信任根缺口。
+
 | 阶段 | 当前未完成项 |
 |---|---|
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |

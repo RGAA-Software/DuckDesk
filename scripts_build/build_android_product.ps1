@@ -108,6 +108,10 @@ $trustStorePath = [Environment]::GetEnvironmentVariable('PIXELS_DEPLOYMENT_TRUST
 if ([string]::IsNullOrWhiteSpace($trustStorePath) -or -not (Test-Path -LiteralPath $trustStorePath -PathType Leaf)) {
     throw 'PIXELS_DEPLOYMENT_TRUST_STORE_FILE must identify the approved canonical public trust store.'
 }
+$updateRootPath = [Environment]::GetEnvironmentVariable('PIXELS_UPDATE_ROOT_FILE')
+if ([string]::IsNullOrWhiteSpace($updateRootPath) -or -not (Test-Path -LiteralPath $updateRootPath -PathType Leaf)) {
+    throw 'PIXELS_UPDATE_ROOT_FILE must identify the approved signed TUF 1.0 initial root.'
+}
 if ($Distribution -eq 'official') {
     if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('PIXELS_EXPECTED_DEPLOYMENT_ID')) -or
         [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('PIXELS_OFFICIAL_CONSOLE_URL'))) {
@@ -121,6 +125,10 @@ if ($Distribution -eq 'oem') {
     $actualTrustStoreSha256 = (Get-FileHash -LiteralPath $trustStorePath -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($actualTrustStoreSha256 -ne [string]$oemConfiguration.deployment_trust_store_sha256) {
         throw 'The deployment trust store does not match the OEM release profile.'
+    }
+    $actualUpdateRootSha256 = (Get-FileHash -LiteralPath $updateRootPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actualUpdateRootSha256 -ne [string]$oemConfiguration.update_root_sha256) {
+        throw 'The TUF initial root does not match the OEM release profile.'
     }
     if ($Configuration -eq 'release') {
         $configuredCertificateSha256 = [Environment]::GetEnvironmentVariable('PIXELS_SIGNING_CERT_SHA256')

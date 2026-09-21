@@ -21,6 +21,7 @@ import yun.pixels.client.core.domain.device.DeviceDiscovery
 import yun.pixels.client.core.domain.device.DeviceResolver
 import yun.pixels.client.core.domain.update.AndroidUpdateRepository
 import yun.pixels.client.core.network.AndroidReleaseIdentity
+import yun.pixels.client.core.network.AndroidTufTrustConfiguration
 import yun.pixels.client.core.network.ConsoleApiClient
 import yun.pixels.client.core.network.ConsoleAndroidUpdateRepository
 import yun.pixels.client.core.network.ConsoleApplicationRepository
@@ -62,6 +63,9 @@ class PixelsAppGraph(application: Application) {
             oemId = BuildConfig.OEM_ID.ifEmpty { null },
         ),
     ) { "Pixels Android release identity configuration is invalid" }
+    val androidTufTrustConfiguration = requireNotNull(
+        AndroidTufTrustConfiguration.create(Base64.getDecoder().decode(BuildConfig.TUF_INITIAL_ROOT_BASE64)),
+    ) { "Pixels Android TUF initial root is invalid or expired" }
     private val consoleApi = ConsoleApiClient(
         deploymentIdentity,
         SharedPreferencesDeploymentIdentityWatermarkStore.create(application),

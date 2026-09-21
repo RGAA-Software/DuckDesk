@@ -471,7 +471,9 @@ SYSTEM/管理员访问，人工安装、自动升级、回滚和卸载使用同�
 上述完整消费者、水位和运维接口当前只覆盖 Cloud Node/Remote Service。Panel 的检查更新仍是部署包管理提示；Windows Client 尚未实现独立消费者。
 Android 已完成第一段目录边界：`GET /api/console/updates/latest` 不接受查询参数且只接受 Android 会话，Console 从已验证许可证派生
 `android + 当前 distribution/release_namespace/oem_id + stable + android/aarch64`；Android 再以编译身份逐字段校验响应和不可变 target 路径。
-这仍不是 TUF 刷新、平台安装或安装实例水位，目录响应不能作为已验签或已升级的证据。后续消费者同样不得自行选择或回退维度。
+Android 构建也已强制内置审批初始 root，运行时独立验证 Ed25519 key ID、root 自签门限、顶级角色密钥隔离、版本和到期时间，OEM root 摘要须匹配 profile。
+尚未完成的是连续 root 轮换、timestamp/snapshot/targets 刷新与持久防回滚、目标下载、APK 平台签名、PackageInstaller 和安装实例水位；目录或初始根通过
+都不能作为已升级证据。后续消费者同样不得自行选择或回退维度。
 
 节点重启后的本地激活状态必须先于首次可调度状态上报完成收敛。有效租约内的 `authorized/applying` 一律阻断节点接客；租约过期的
 `applying` 只有在本机产品清单仍是精确旧 build 或已是精确目标 build 时才可清理。`installed` 必须与目标 build 一致；普通安装失败必须

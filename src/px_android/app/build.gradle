@@ -48,6 +48,9 @@ def androidBrandResourceRoot = System.getenv('PIXELS_ANDROID_BRAND_RESOURCE_ROOT
 def deploymentTrustStorePath = System.getenv('PIXELS_DEPLOYMENT_TRUST_STORE_FILE')?.trim()
 def deploymentTrustStoreFile = deploymentTrustStorePath ? file(deploymentTrustStorePath) : null
 def deploymentTrustStoreBase64 = deploymentTrustStoreFile?.isFile() ? Base64.encoder.encodeToString(deploymentTrustStoreFile.bytes) : ''
+def updateRootPath = System.getenv('PIXELS_UPDATE_ROOT_FILE')?.trim()
+def updateRootFile = updateRootPath ? file(updateRootPath) : null
+def updateRootBase64 = updateRootFile?.isFile() ? Base64.encoder.encodeToString(updateRootFile.bytes) : ''
 def expectedDeploymentId = System.getenv('PIXELS_EXPECTED_DEPLOYMENT_ID')?.trim() ?: ''
 def officialConsoleUrl = System.getenv('PIXELS_OFFICIAL_CONSOLE_URL')?.trim() ?: ''
 def deploymentCertificateVersionInput = System.getenv('PIXELS_DEPLOYMENT_CERTIFICATE_VERSION')?.trim()
@@ -84,6 +87,23 @@ def canonicalTrustEpoch = { File trustStoreFile ->
         return Arrays.equals(bytes, canonical.getBytes(StandardCharsets.UTF_8)) ? parsed.trust_epoch.longValue() : null
     } catch (Exception ignored) {
         return null
+    }
+}
+def validTufInitialRootShape = { File rootFile ->
+    try {
+        byte[] rootBytes = rootFile.bytes
+        if (rootBytes.length < 1 || rootBytes.length > 1024 * 1024) return false
+        def root = new JsonSlurper().parse(rootBytes, StandardCharsets.UTF_8.name())
+        if (!(root instanceof Map) || root.keySet() != ['signed', 'signatures'] as Set) return false
+        def signed = root.signed
+        if (!(signed instanceof Map) || signed._type != 'root' || signed.spec_version != '1.0.0' ||
+            !(signed.version instanceof Number) || signed.version.longValue() <= 0 ||
+            !(signed.expires instanceof String) || !(signed.keys instanceof Map) || signed.keys.isEmpty() ||
+            !(signed.roles instanceof Map) || signed.roles.keySet() != ['root', 'snapshot', 'targets', 'timestamp'] as Set ||
+            !(root.signatures instanceof List) || root.signatures.isEmpty()) return false
+        return true
+    } catch (Exception ignored) {
+        return false
     }
 }
 def hasExplicitProductVersion = pixelsVersionCodeInput && pixelsVersionNameInput
@@ -138,6 +158,12 @@ if (requestedDistributionValidation && deploymentDistribution == 'oem') {
 }
 if (requestedDistributionValidation && !deploymentTrustStoreFile?.isFile()) {
     throw new GradleException('APK/AAB tasks require PIXELS_DEPLOYMENT_TRUST_STORE_FILE with the approved canonical public trust store.')
+}
+if (requestedDistributionValidation && !updateRootFile?.isFile()) {
+    throw new GradleException('APK/AAB tasks require PIXELS_UPDATE_ROOT_FILE with the approved signed TUF 1.0 initial root.')
+}
+if (requestedDistributionValidation && !validTufInitialRootShape(updateRootFile)) {
+    throw new GradleException('PIXELS_UPDATE_ROOT_FILE is not a complete signed TUF 1.0 root.')
 }
 if (requestedDistributionValidation && ![
     deploymentCertificateVersionInput,
@@ -244,6 +270,7 @@ android {
         buildConfigField 'String', 'OEM_ID', "\"${oemId}\""
         buildConfigField 'String', 'OEM_PROFILE_SHA256', "\"${oemProfileSha256}\""
         buildConfigField 'String', 'DEPLOYMENT_TRUST_STORE_BASE64', "\"${deploymentTrustStoreBase64}\""
+        buildConfigField 'String', 'TUF_INITIAL_ROOT_BASE64', "\"${updateRootBase64}\""
         buildConfigField 'String', 'EXPECTED_DEPLOYMENT_ID', "\"${expectedDeploymentId}\""
         buildConfigField 'String', 'OFFICIAL_CONSOLE_URL', "\"${officialConsoleUrl}\""
         buildConfigField 'long', 'MINIMUM_DEPLOYMENT_CERTIFICATE_VERSION', "${deploymentCertificateVersion}L"

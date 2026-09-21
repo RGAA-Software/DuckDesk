@@ -276,6 +276,10 @@ scripts_build\build_android_product.bat oem release
 单发行 Debug 每次调用先删除自己的旧沙箱并提升 Android 版本一次；正式 Release 先同时预检两个发行，再删除整个 Android 输出，且只提升
 Android 版本一次。任何缺失的身份、签名或 FFmpeg 合规输入都会在清理和升版前失败。旧的单发行 Release 调用不再提供兼容入口。
 
+所有 Android Debug/Release 产品构建还必须设置 `PIXELS_UPDATE_ROOT_FILE`，指向离线审批并签名的 TUF 1.0 初始 root。缺少文件或根文档结构不完整时，
+预检会在清理与升版前失败。该 root 以 BuildConfig 资源进入 APK，并在应用组合根创建时验证 Ed25519 key ID、自签门限、四个顶级角色、角色密钥隔离、
+版本和到期时间；OEM 构建还要求文件 SHA-256 与 profile 的 `update.root_sha256` 完全一致。不得从 Console 或下载源动态取得初始根。
+
 OEM 不加入上述双发行 Release 事务，而是在 `build_official/android/oem/<oem_id>/` 独立清理、升版和发布。OEM 入口只接受
 `PIXELS_OEM_RELEASE_PROFILE`，并校验实际 deployment trust store、独立 applicationId、应用名、前景/背景 PNG、`oem_id/release_namespace`、
 profile SHA-256 以及 Release 签名证书固定值；Pixels Official/Customer 反向拒绝所有 OEM 输入。OEM Debug/Release 均不能读取 Pixels 两个发行的
@@ -283,7 +287,7 @@ profile SHA-256 以及 Release 签名证书固定值；Pixels Official/Customer 
 通知图标均使用 profile 品牌资源。签名域、协议头和开源法律声明仍保持 Pixels 技术/权利人标识，不属于可换品牌 UI。
 
 `official` 固定编译时的 HTTPS Console origin 与 deployment UUID，设置页不提供服务器编辑；`customer` 使用独立 applicationId 和输出沙箱，
-不允许编入 Official 的 UUID/URL，只接受用户填写且签名类别为 `private` 的部署。两类构建都必须内置同一审批后的公开 trust store，并显式设置
+不允许编入 Official 的 UUID/URL，只接受用户填写且签名类别为 `private` 的部署。两类构建都必须内置同一审批后的公开 trust store 和 TUF 初始 root，并显式设置
 `PIXELS_DEPLOYMENT_CERTIFICATE_VERSION`、`PIXELS_DESCRIPTOR_REVISION`、`PIXELS_DEPLOYMENT_TRUST_EPOCH` 最低水位。
 
 Release 必须使用上述统一入口，不能直接调用 Gradle 的 `assembleRelease`/`bundleRelease`。流水线从当前 Android native 构建实际产生的对象自动生成 LGPL relink kit，并根据 `VCPKG_ROOT`（默认 `C:\source\vcpkg`）中已安装的 SPDX 清单锁定和校验 FFmpeg n6.1 对应源码；不再手工提供旧源码包或旧 relink 包。正式签名来自被 Git 忽略的 `src/px_android/keystore.properties`，也可由完整的 `PIXELS_*` 签名变量提供。
