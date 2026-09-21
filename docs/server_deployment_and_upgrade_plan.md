@@ -508,6 +508,8 @@ owner 记录保持所有产品/发行互斥。Windows OEM 候选入口现已逐�
 代码验收已证明发布权威能签发精确 OEM target，Service 能验签并准备该 target，且同制品被替换成另一合法 OEM 身份时会在安装前失败关闭；
 Console PostgreSQL 发布目录也已通过 OEM A/OEM B 同产品、同平台、同通道、同 build 并存及精确查询隔离的空库实测。P0 后续
 仍必须使用审批后的独立根/角色密钥完成正式 TUF 发布、Console 登记/批准、正式包节点激活实测和跨发行实物验收矩阵，再允许第一份全产品 OEM 商业交付。
+发布权威不能只信任上游生成器：签名前必须从 ReleaseSpec 独立派生
+`os/product/distribution/[oem_id/]channel/architecture/build/file`，并逐段匹配 target name；任一维度错位均不得创建候选仓库。
 
 下载可恢复，完整包先验证再解压；防路径穿越、链接逃逸、超大解压、符号链接/重解析点替换和校验后替换。
 高权限安装辅助进程只接受受保护的已验证 staging 及类型化任务，不执行 UI/服务器传来的任意命令或任意路径。

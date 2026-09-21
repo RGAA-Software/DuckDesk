@@ -1691,6 +1691,11 @@ Console PostgreSQL 发布目录随后补齐 OEM 发行域实库覆盖：Official
 `pg-20260922-042948-bb5264ca` 为 11/11 PASS，执行期间源码哈希不变、隔离容器和卷已清理，`px_console_store` 全目标严格 Clippy 通过。
 首轮测试曾因测试 build 小于同套件先前时间戳 build 而按设计返回更高版本，修正夹具为严格更高 build 后通过；未改动产品查询语义。
 
+发布权威复核中又关闭一项防误签缺口：Windows ReleaseSpec 生成器原本会生成规范不可变 target 路径，但 authority 只验证路径安全，手工 JSON
+仍可能把某一发行身份签进另一发行或 build 的目录。authority 现在从已验证 spec 独立派生
+`os/product/distribution/[oem_id/]channel/architecture/build`，逐段匹配且只允许最后一个文件名分量；错放到 Customer、另一 OEM、产品或 build
+都会在读取 artifact 和创建 staging 前失败。全部 authority 6/6 及严格 Clippy 通过，测试夹具也已与正式 Windows 生成器的路径顺序完全一致。
+
 | 阶段 | 当前未完成项 |
 |---|---|
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |

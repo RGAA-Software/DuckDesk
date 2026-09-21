@@ -219,7 +219,8 @@ python scripts\prepare_windows_update_release.py ^
 ```
 
 该入口复用独立安装包验证器，重新检查 installer manifest、制品 SHA-256、Authenticode、时间戳和外部 signer pin，并从已验证事实生成固定的
-`windows/product/distribution/channel/x86_64/build/installer` target name；输出使用排他创建且不覆盖。生成后的 spec 和同一 installer 文件才交给
+`windows/product/distribution/[oem_id/]channel/x86_64/build/installer` target name；输出使用排他创建且不覆盖。TUF 发布权威会再次从 spec
+派生并逐段复核这一路径，不能靠手工 JSON 把 Official、Customer、另一 OEM 或另一 build 的制品签入错误目录。生成后的 spec 和同一 installer 文件才交给
 `px_update_authority publish`，因此 TUF 发布不能靠修改 JSON 把另一产品、发行、build 或签名者带入目录。
 
 该命令只生成一个不可变候选目录。发布系统还必须把候选同步到独立临时位置、核对 `publication.json`，先提交 targets 与非 timestamp 元数据，

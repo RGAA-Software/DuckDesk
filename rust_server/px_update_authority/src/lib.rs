@@ -322,6 +322,7 @@ pub async fn publish_repository(configuration: &RepositoryPublication) -> Author
     release
         .validate()
         .map_err(|_| "release specification is invalid")?;
+    validate_immutable_target_name(&release)?;
     verify_artifact(&configuration.artifact_path, &release)?;
 
     let targets_source = load_private_key_source(&configuration.targets_signing_key_path)?;
@@ -361,6 +362,33 @@ pub async fn publish_repository(configuration: &RepositoryPublication) -> Author
             configuration.output_path.display()
         )
     })?;
+    Ok(())
+}
+
+fn validate_immutable_target_name(release: &ReleaseSpec) -> AuthorityResult<()> {
+    let mut expected_components = vec![
+        release.target.os.name().to_owned(),
+        release.target.product.name().to_owned(),
+        release.target.distribution.name().to_owned(),
+    ];
+    if let Some(oem_id) = &release.target.oem_id {
+        expected_components.push(oem_id.clone());
+    }
+    expected_components.extend([
+        release.target.channel.name().to_owned(),
+        release.target.architecture.name().to_owned(),
+        release.build_number.to_string(),
+    ]);
+    let actual_components: Vec<&str> = release.target_name.split('/').collect();
+    let prefix_matches = actual_components.len() == expected_components.len() + 1
+        && actual_components.iter().zip(&expected_components).all(
+            |(actual_component, expected_component)| {
+                *actual_component == expected_component.as_str()
+            },
+        );
+    if !prefix_matches {
+        return Err("TUF target name does not match the immutable release identity".into());
+    }
     Ok(())
 }
 
@@ -1116,7 +1144,7 @@ mod tests {
         std::fs::write(&first_artifact_path, first_artifact).unwrap();
         let first_release = fixture.release(
             30380,
-            "cloud_node/official/stable/windows/x86_64/30380/installer.exe",
+            "windows/cloud_node/official/stable/x86_64/30380/installer.exe",
             first_artifact,
         );
         let first_release_path = fixture.directory().join("first-authority-release.json");
@@ -1173,7 +1201,7 @@ mod tests {
         std::fs::write(&second_artifact_path, second_artifact).unwrap();
         let second_release = fixture.release(
             30381,
-            "cloud_node/official/stable/windows/x86_64/30381/installer.exe",
+            "windows/cloud_node/official/stable/x86_64/30381/installer.exe",
             second_artifact,
         );
         let second_release_path = fixture.directory().join("rotated-authority-release.json");
@@ -1333,7 +1361,7 @@ mod tests {
         std::fs::write(&first_artifact_path, first_artifact).unwrap();
         let first_release = fixture.release(
             30390,
-            "cloud_node/official/stable/windows/x86_64/30390/installer.exe",
+            "windows/cloud_node/official/stable/x86_64/30390/installer.exe",
             first_artifact,
         );
         let first_release_path = fixture.directory().join("first-promoted-release.json");
@@ -1370,7 +1398,7 @@ mod tests {
         std::fs::write(&second_artifact_path, second_artifact).unwrap();
         let second_release = fixture.release(
             30391,
-            "cloud_node/official/stable/windows/x86_64/30391/installer.exe",
+            "windows/cloud_node/official/stable/x86_64/30391/installer.exe",
             second_artifact,
         );
         let second_release_path = fixture.directory().join("second-promoted-release.json");
@@ -1490,7 +1518,7 @@ mod tests {
         std::fs::write(&artifact_path, approved_bytes).unwrap();
         let release = fixture.release(
             30382,
-            "cloud_node/official/stable/windows/x86_64/30382/installer.exe",
+            "windows/cloud_node/official/stable/x86_64/30382/installer.exe",
             approved_bytes,
         );
         let release_spec_path = fixture.directory().join("candidate.json");
@@ -1499,6 +1527,27 @@ mod tests {
             serde_json::to_vec_pretty(&release).unwrap(),
         )
         .unwrap();
+
+        let mut wrong_target_layout = release.clone();
+        wrong_target_layout.target_name =
+            "windows/cloud_node/customer/stable/x86_64/30382/installer.exe".into();
+        let wrong_layout_spec_path = fixture.directory().join("wrong-layout-candidate.json");
+        std::fs::write(
+            &wrong_layout_spec_path,
+            serde_json::to_vec_pretty(&wrong_target_layout).unwrap(),
+        )
+        .unwrap();
+        let wrong_layout_output = fixture.directory().join("wrong-layout-output");
+        assert!(publish_repository(&fixture.publication(
+            wrong_layout_spec_path,
+            artifact_path.clone(),
+            None,
+            wrong_layout_output.clone(),
+        ))
+        .await
+        .is_err());
+        assert!(!wrong_layout_output.exists());
+
         std::fs::write(&artifact_path, b"tampered installer bytes").unwrap();
         let output_path = fixture.directory().join("tampered-output");
         assert!(publish_repository(&fixture.publication(
