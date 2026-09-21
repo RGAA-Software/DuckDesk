@@ -10,6 +10,14 @@
 Android 的消费者也会精确拒绝发行域替换。但 OEM 品牌、安装身份、TUF 根和完整构建入口仍未开放，因此这些身份能力不能用于手工拼装 OEM 包，
 也不改变本页双发行构建命令。
 
+OEM 构建前置配置已经开始实施，但尚不是产物入口。`PIXELS_OEM_RELEASE_PROFILE` 指向一个 schema 1 UTF-8 JSON，作为该 OEM 的唯一非秘密
+发行描述；Windows OEM deployment policy 预检不再接受裸 `PIXELS_OEM_ID`。描述必须同时固定 `oem_id/release_namespace`、品牌名、三个
+Windows 产品各自的显示名/安装目录/卸载键/安装包 basename、Windows 和 Android 签名证书 SHA-256、独立 Android applicationId、
+Windows/Android/Web 品牌图标及逐件 SHA-256、deployment trust store SHA-256 和 TUF 初始 root SHA-256。资源路径只能位于描述文件目录内；
+缺项、多余字段、路径逃逸、资源篡改、复用 Pixels 品牌/applicationId、重复 Windows 安装身份或根摘要不一致均在产生策略前失败。Official/
+Customer 构建反向拒绝该变量，避免 OEM 配置污染 Pixels 双发行矩阵。完整 OEM 编译入口只有在这些字段实际贯穿 CMake、Web、Android 和安装器后
+才会开放。
+
 旧的根 CMake 树、公共 `build_official/dist`、共享 Rust 编译产物、`build_client.bat`、旧端口和旧节点测试方案均已退役，不提供兼容入口。
 
 ## 1. 产品与目录

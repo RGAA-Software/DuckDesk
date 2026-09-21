@@ -119,6 +119,9 @@ product 决定能力，distribution 决定平台与更新策略，release_channe
   客户的定制发行。`oem` 不是 `customer` 的显示名称，也不能只靠换图标或服务器 URL 实现。
 - 每个 OEM 发行必须在构建时绑定不可为空且全局唯一的 `oem_id/release_namespace`、应用/安装身份、发布者、初始 TUF 信任根和允许的私有
   更新策略。OEM A、OEM B、Pixels Official 和 Pixels Customer 之间均不得覆盖安装、共享更新元数据或回落到彼此的软件包。
+- OEM 非秘密发行描述采用严格 schema 1，并由 `PIXELS_OEM_RELEASE_PROFILE` 唯一指定。描述将品牌、Windows 三产品安装身份、Android
+  applicationId、各平台签名证书固定值、品牌资源摘要、deployment trust store 与 TUF 初始根摘要绑定为一个整体；构建过程不得再从若干可互相
+  矛盾的环境变量推断 OEM 身份。当前 Windows deployment policy 预检已经执行该门禁，完整 OEM 编译/安装入口仍保持关闭，直到所有消费者接线完成。
 - 三个 Windows 产品及其发行变体继续互斥。只有一个已安装发行，服务命名可沿用统一方案。
 - 卸载软件与删除账号、配置、工作区和用户数据分开；普通升级不调用卸载清理路径。保留的数据带平台/发行归属，禁止另一发行自动导入。
 - Android 为两个 flavor 分配不同 applicationId、显示标记和更新身份；同一 flavor 的后续 APK 保持 applicationId、签名谱系和递增 versionCode。
@@ -494,10 +497,10 @@ Windows 软件组合验收 `pg-20260920-151630-d92d153c` 已以 449/449 个登�
 产品服务、生产前端与真实 Chromium、进程重启/断库恢复及三库 dump/restore 后的数据和结构对账。该结果关闭本轮实现的本地组合回归，
 但不把测试生成的 TUF 仓库、NSIS 语法编译或 development Service 制品冒充正式签名 Official/Customer 安装升级矩阵。
 
-当前 release catalog、Desk/Console PostgreSQL 发布目录和 TUF `pixels.target` 元数据已实现严格 `oem_id/release_namespace` 字段；Desk 能保存
-不同 OEM 的同构建号版本，Console 运维页能显示命名空间。由于 Auth/Console 许可证和节点产品描述符仍只定义 Official/Customer，Console 对 OEM
-登记与查询保持失败关闭，不能把服务端目录能力当作 OEM 产品可用。OEM 包仍不得使用现有 Customer 构建入口冒充交付；P0 下一步必须让 Auth
-许可证/部署身份、产品描述、安装器、独立 TUF 初始根、节点激活任务和验收矩阵共同绑定 OEM 命名空间，再允许生成第一份 OEM 安装包。
+当前 release catalog、Desk/Console PostgreSQL 发布目录、TUF `pixels.target` 元数据、Auth `PXLIC2`、部署身份、Console 和节点产品描述符均已实现
+严格 `oem_id/release_namespace` 字段，Desk 能保存不同 OEM 的同构建号版本，Console 运维页能显示命名空间。OEM 非秘密发行描述及 Windows policy
+前置门禁也已开始绑定品牌/安装身份/签名者/独立根，但还没有开放完整 OEM 产物入口。OEM 包仍不得使用现有 Customer 构建入口冒充交付；P0 后续必须
+让安装器、CMake/Web/Android 品牌资源、独立 TUF 发布、节点激活任务和验收矩阵共同消费该描述，再允许生成第一份 OEM 安装包。
 
 下载可恢复，完整包先验证再解压；防路径穿越、链接逃逸、超大解压、符号链接/重解析点替换和校验后替换。
 高权限安装辅助进程只接受受保护的已验证 staging 及类型化任务，不执行 UI/服务器传来的任意命令或任意路径。

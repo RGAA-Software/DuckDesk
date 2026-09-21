@@ -1484,9 +1484,9 @@ Console 运维后台的应用页已接入更新发布与节点信任卡片：前
 商业更新域的第一段服务端实现已完成：共享 release catalog 将 `distribution + release_namespace + oem_id` 作为不可拆分身份，固定
 Official=`pixels.official`、Customer=`pixels.customer`，OEM=`oem.<oem_id>`；OEM ID 只允许受限小写标识并拒绝保留字。Console/Desk 全新
 PostgreSQL schema、唯一键、SQLx 离线查询、TUF `pixels.target` 签名元数据和 Console 运维列表均保存并返回该身份。Desk 允许发布互相隔离的
-OEM 目录；相同产品/通道/平台/构建号可分别存在于不同 OEM 域，错误命名空间、缺失/错配 OEM ID 均失败关闭。当前 Auth/Console 许可证仍只有
-Official/Customer，因此 Console 登记和最新版本查询只允许其许可证对应的 Pixels 域，并显式拒绝 OEM 或另一 Pixels 域；Cloud Node/Remote
-Service 同样只从已安装 Official/Customer 产品描述符推导精确命名空间，不接受隐藏回落。节点 `UpdateChecked` 的大对象改为拥有型 `Box` 仅缩小
+OEM 目录；相同产品/通道/平台/构建号可分别存在于不同 OEM 域，错误命名空间、缺失/错配 OEM ID 均失败关闭。该第一段实现时 Auth/Console
+许可证和节点产品描述符仍只有 Official/Customer；这一限制已由本页 2026-09-21 发行域第二阶段的 `PXLIC2/PXDC2/PXDD2` 及精确产品描述符取代。
+节点 `UpdateChecked` 的大对象改为拥有型 `Box` 仅缩小
 Rust 枚举内存布局，serde 线格式保持不变。
 
 本增量的聚焦证据为 release catalog/authority/node protocol 15/15、Console updates 11/11、Desk 8/8、directory API 7/7、node-control 3/3、
@@ -1495,8 +1495,8 @@ Service 更新测试 14/14、Console 前端 51/51；严格 Clippy、前端类型
 `pg-20260921-224344-cd5fde81`、`pg-20260921-224445-4f640cb8`、`pg-20260921-224548-a4fdabc3` 和
 `pg-20260921-223251-d779ff14`。
 
-这不代表 OEM 产品已经可交付。第一份 OEM 包之前仍须扩展 Auth 许可证与部署身份、产品描述符、激活任务、OEM 独立 TUF 初始根和密钥审批，
-并完成独立品牌/应用/安装身份以及 Windows/Android/Web 构建与跨域拒绝验收。当前构建入口继续只生成 Official/Customer，现有 Customer 入口
+这不代表 OEM 产品已经可交付。Auth 许可证、部署身份和产品描述符的后续完成情况见本页第二阶段；第一份 OEM 包之前仍须完成激活任务、OEM
+独立 TUF 初始根和密钥审批、独立品牌/应用/安装身份以及 Windows/Android/Web 构建与跨域拒绝验收。当前构建入口继续只生成 Official/Customer，现有 Customer 入口
 不得改名后当 OEM 使用。
 
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。
@@ -1615,6 +1615,13 @@ Client、Cloud Node、Remote 的 `px_panel.exe` build/dist SHA-256 分别为
 `px_client.exe` 均为 `AB595EBDB318AC47E3BFEC48EB2FEAA17BA066BADF0563473186362A0324C41D`；Cloud Node/Remote 的
 `px_service.exe` build/stage/dist SHA-256 均为 `B7C283B06ECD25A598ACF5A84CC73119D6CFDCB9C0C0A2CA0AE469CC208AE7F2`。这些是开发期功能短测，
 不冒充 release-only 双发行/OEM 制品、安装生命周期或最后统一长测。
+
+2026-09-22 的发行域第三阶段开始冻结 OEM 构建输入：新增严格 schema 1 `PIXELS_OEM_RELEASE_PROFILE`，以一个非秘密描述整体固定 OEM ID/
+namespace、品牌、Windows 三产品安装身份、Windows/Android 签名证书固定值、独立 Android applicationId、Windows/Android/Web 品牌资源摘要、
+deployment trust store 摘要和 TUF 初始 root 摘要。Windows OEM policy 预检不再接受裸 OEM ID，并在写出任何策略前核对实际 trust store/root
+字节；Official/Customer 反向拒绝 OEM profile。资源缺失/篡改、目录逃逸、Pixels 品牌或 applicationId 冒充、重复安装身份和跨根替换均失败关闭。
+聚焦 Python 测试 13/13 通过。该切片只关闭“OEM 构建输入可互相矛盾”的前置缺口；完整 CMake/Web/Android/NSIS 消费、OEM 独立签名发布和
+安装生命周期仍未完成，构建入口保持关闭。
 
 | 阶段 | 当前未完成项 |
 |---|---|

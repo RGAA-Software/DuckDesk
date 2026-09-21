@@ -50,7 +50,21 @@ class PrepareWindowsDistributionTest(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+        self.windows_icon = self.root / "windows.ico"
+        self.android_foreground = self.root / "android-foreground.png"
+        self.android_background = self.root / "android-background.png"
+        self.web_icon = self.root / "web-icon.png"
+        for asset_path, asset_bytes in (
+            (self.windows_icon, b"test-windows-icon"),
+            (self.android_foreground, b"test-android-foreground"),
+            (self.android_background, b"test-android-background"),
+            (self.web_icon, b"test-web-icon"),
+        ):
+            asset_path.write_bytes(asset_bytes)
+        self.oem_profile = self.root / "oem-release-profile.json"
+        self.write_oem_profile()
         self.environment = os.environ.copy()
+        self.environment.pop("PIXELS_OEM_RELEASE_PROFILE", None)
         self.environment.update(
             {
                 "PIXELS_DEPLOYMENT_TRUST_STORE_FILE": str(self.trust_store),
@@ -62,6 +76,62 @@ class PrepareWindowsDistributionTest(unittest.TestCase):
                 "PIXELS_OFFICIAL_CONSOLE_URL": "https://console.pixels.example:8443",
             }
         )
+
+    @staticmethod
+    def file_sha256(path: Path) -> str:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
+    def write_oem_profile(self, *, update_root_sha256: str | None = None) -> None:
+        profile = {
+            "schema_version": 1,
+            "oem_id": "acme-cloud",
+            "release_namespace": "oem.acme-cloud",
+            "brand": {"company_name": "Acme Systems", "application_name": "Acme Cloud"},
+            "deployment": {"trust_store_sha256": self.file_sha256(self.trust_store)},
+            "update": {"root_sha256": update_root_sha256 or self.file_sha256(self.update_root)},
+            "windows": {
+                "publisher_name": "Acme Systems",
+                "signer_certificate_sha256": "1" * 64,
+                "icon": {"path": self.windows_icon.name, "sha256": self.file_sha256(self.windows_icon)},
+                "products": {
+                    "cloud_node": {
+                        "product_name": "Acme Cloud Node",
+                        "install_directory_name": "Acme Cloud Node",
+                        "uninstall_key": "AcmeCloudNode",
+                        "installer_basename": "AcmeCloudNode",
+                    },
+                    "client": {
+                        "product_name": "Acme Client",
+                        "install_directory_name": "Acme Client",
+                        "uninstall_key": "AcmeClient",
+                        "installer_basename": "AcmeClient",
+                    },
+                    "remote": {
+                        "product_name": "Acme Remote",
+                        "install_directory_name": "Acme Remote",
+                        "uninstall_key": "AcmeRemote",
+                        "installer_basename": "AcmeRemote",
+                    },
+                },
+            },
+            "android": {
+                "application_id": "com.acme.cloud.client",
+                "signer_certificate_sha256": "2" * 64,
+                "icon_foreground": {
+                    "path": self.android_foreground.name,
+                    "sha256": self.file_sha256(self.android_foreground),
+                },
+                "icon_background": {
+                    "path": self.android_background.name,
+                    "sha256": self.file_sha256(self.android_background),
+                },
+            },
+            "web": {
+                "application_name": "Acme Cloud",
+                "icon": {"path": self.web_icon.name, "sha256": self.file_sha256(self.web_icon)},
+            },
+        }
+        self.oem_profile.write_text(json.dumps(profile, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     def tearDown(self) -> None:
         self.temporary_directory.cleanup()
@@ -118,7 +188,7 @@ class PrepareWindowsDistributionTest(unittest.TestCase):
         environment = self.environment | {
             "PIXELS_EXPECTED_DEPLOYMENT_ID": "",
             "PIXELS_OFFICIAL_CONSOLE_URL": "",
-            "PIXELS_OEM_ID": "acme-cloud",
+            "PIXELS_OEM_RELEASE_PROFILE": str(self.oem_profile),
         }
         result = self.run_script("oem", "--output-dir", str(output_directory), environment=environment)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -126,6 +196,33 @@ class PrepareWindowsDistributionTest(unittest.TestCase):
         self.assertEqual(policy["distribution"], "oem")
         self.assertEqual(policy["release_namespace"], "oem.acme-cloud")
         self.assertEqual(policy["oem_id"], "acme-cloud")
+
+    def test_oem_policy_rejects_missing_profile_and_mismatched_roots(self) -> None:
+        private_environment = self.environment | {
+            "PIXELS_EXPECTED_DEPLOYMENT_ID": "",
+            "PIXELS_OFFICIAL_CONSOLE_URL": "",
+        }
+        result = self.run_script("oem", "--validate-only", environment=private_environment)
+        self.assertNotEqual(result.returncode, 0)
+
+        self.write_oem_profile(update_root_sha256="3" * 64)
+        mismatched_environment = private_environment | {"PIXELS_OEM_RELEASE_PROFILE": str(self.oem_profile)}
+        result = self.run_script("oem", "--validate-only", environment=mismatched_environment)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("TUF root SHA-256", result.stderr)
+
+    def test_pixels_distributions_reject_oem_profile(self) -> None:
+        official_environment = self.environment | {"PIXELS_OEM_RELEASE_PROFILE": str(self.oem_profile)}
+        result = self.run_script("official", "--validate-only", environment=official_environment)
+        self.assertNotEqual(result.returncode, 0)
+
+        customer_environment = self.environment | {
+            "PIXELS_EXPECTED_DEPLOYMENT_ID": "",
+            "PIXELS_OFFICIAL_CONSOLE_URL": "",
+            "PIXELS_OEM_RELEASE_PROFILE": str(self.oem_profile),
+        }
+        result = self.run_script("customer", "--validate-only", environment=customer_environment)
+        self.assertNotEqual(result.returncode, 0)
 
     def test_rejects_noncanonical_trust_store_and_origin(self) -> None:
         self.trust_store.write_bytes(self.trust_store.read_bytes() + b"\n")
@@ -139,7 +236,16 @@ class PrepareWindowsDistributionTest(unittest.TestCase):
     def test_validation_does_not_create_output(self) -> None:
         result = self.run_script("official", "--validate-only")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(set(self.root.iterdir()), {self.trust_store, self.update_root})
+        expected_files = {
+            self.trust_store,
+            self.update_root,
+            self.windows_icon,
+            self.android_foreground,
+            self.android_background,
+            self.web_icon,
+            self.oem_profile,
+        }
+        self.assertEqual(set(self.root.iterdir()), expected_files)
 
     def test_rejects_missing_or_incomplete_update_root(self) -> None:
         missing_environment = self.environment | {"PIXELS_UPDATE_ROOT_FILE": ""}

@@ -15,6 +15,8 @@ import uuid
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from oem_release_profile import OemReleaseProfile, load_oem_release_profile, sha256_bytes
+
 
 ENVIRONMENT_FIELDS = {
     "trust_store": "PIXELS_DEPLOYMENT_TRUST_STORE_FILE",
@@ -24,7 +26,7 @@ ENVIRONMENT_FIELDS = {
     "trust_epoch": "PIXELS_DEPLOYMENT_TRUST_EPOCH",
     "deployment_id": "PIXELS_EXPECTED_DEPLOYMENT_ID",
     "official_origin": "PIXELS_OFFICIAL_CONSOLE_URL",
-    "oem_id": "PIXELS_OEM_ID",
+    "oem_profile": "PIXELS_OEM_RELEASE_PROFILE",
 }
 
 MAXIMUM_UPDATE_ROOT_BYTES = 1024 * 1024
@@ -173,20 +175,12 @@ def canonical_https_origin(value: str) -> str:
     return value
 
 
-def canonical_oem_id(value: str) -> str:
-    if (
-        not 3 <= len(value) <= 32
-        or value in {"pixels", "official", "customer", "oem"}
-        or value.startswith("-")
-        or value.endswith("-")
-        or "--" in value
-        or any(not (character.isascii() and (character.islower() or character.isdecimal() or character == "-")) for character in value)
-    ):
-        raise RuntimeError("PIXELS_OEM_ID must be a canonical lowercase OEM identifier")
-    return value
-
-
-def build_policy(distribution: str, trust_epoch: int, matrix_customer: bool) -> dict[str, object]:
+def build_policy(
+    distribution: str,
+    trust_epoch: int,
+    matrix_customer: bool,
+    oem_profile: OemReleaseProfile | None,
+) -> dict[str, object]:
     certificate_version = required_positive_integer(ENVIRONMENT_FIELDS["certificate_version"])
     descriptor_revision = required_positive_integer(ENVIRONMENT_FIELDS["descriptor_revision"])
     configured_epoch = required_positive_integer(ENVIRONMENT_FIELDS["trust_epoch"])
@@ -194,8 +188,9 @@ def build_policy(distribution: str, trust_epoch: int, matrix_customer: bool) -> 
         raise RuntimeError("PIXELS_DEPLOYMENT_TRUST_EPOCH must exactly match the approved trust store")
     deployment_id = os.environ.get(ENVIRONMENT_FIELDS["deployment_id"], "").strip()
     official_origin = os.environ.get(ENVIRONMENT_FIELDS["official_origin"], "").strip()
-    configured_oem_id = os.environ.get(ENVIRONMENT_FIELDS["oem_id"], "").strip()
     if distribution == "official":
+        if oem_profile is not None:
+            raise RuntimeError("Official Windows builds must not configure an OEM release profile")
         if not deployment_id or not official_origin:
             raise RuntimeError("Official Windows builds require the expected deployment ID and Console origin")
         expected_deployment_id: str | None = canonical_deployment_id(deployment_id)
@@ -208,13 +203,15 @@ def build_policy(distribution: str, trust_epoch: int, matrix_customer: bool) -> 
         expected_deployment_id = None
         expected_origin = None
         if distribution == "customer":
-            if configured_oem_id:
-                raise RuntimeError("Customer Windows builds must not configure PIXELS_OEM_ID")
+            if oem_profile is not None:
+                raise RuntimeError("Customer Windows builds must not configure an OEM release profile")
             release_namespace = "pixels.customer"
             oem_id = None
         else:
-            oem_id = canonical_oem_id(configured_oem_id)
-            release_namespace = f"oem.{oem_id}"
+            if oem_profile is None:
+                raise RuntimeError("OEM Windows builds require PIXELS_OEM_RELEASE_PROFILE")
+            oem_id = oem_profile.oem_id
+            release_namespace = oem_profile.release_namespace
     return {
         "schema_version": 2,
         "distribution": distribution,
@@ -263,7 +260,14 @@ def main() -> int:
     if not update_root_path.is_file():
         raise RuntimeError("PIXELS_UPDATE_ROOT_FILE does not identify a regular file")
     update_root_bytes = load_tuf_update_root(update_root_path)
-    policy = build_policy(arguments.distribution, trust_epoch, arguments.matrix_customer)
+    oem_profile_value = os.environ.get(ENVIRONMENT_FIELDS["oem_profile"], "").strip()
+    oem_profile = load_oem_release_profile(Path(oem_profile_value)) if oem_profile_value else None
+    if oem_profile is not None:
+        if sha256_bytes(trust_bytes) != oem_profile.deployment_trust_store_sha256:
+            raise RuntimeError("OEM release profile deployment trust store SHA-256 does not match the approved input")
+        if sha256_bytes(update_root_bytes) != oem_profile.update_root_sha256:
+            raise RuntimeError("OEM release profile TUF root SHA-256 does not match the approved input")
+    policy = build_policy(arguments.distribution, trust_epoch, arguments.matrix_customer, oem_profile)
     if arguments.validate_only:
         if arguments.output_dir is not None:
             raise RuntimeError("--output-dir cannot be combined with --validate-only")
