@@ -433,6 +433,12 @@ SYSTEM/管理员访问，人工安装、自动升级、回滚和卸载使用同�
 产品清单和本机 WebSocket 健康检查，再向 Console 上报精确目标 build 并以原 task/lease 提交。尚未完成的是使用正式签名 Official/Customer
 新旧安装包进行真实 SCM、断网、安装失败和回滚失败故障注入，因此商业发行验收仍保持未通过。
 
+节点重启后的本地激活状态必须先于首次可调度状态上报完成收敛。有效租约内的 `authorized/applying` 一律阻断节点接客；租约过期的
+`applying` 只有在本机产品清单仍是精确旧 build 或已是精确目标 build 时才可清理。`installed` 必须与目标 build 一致；普通安装失败必须
+证明已经回到精确旧 build 才可报告并解除维护。`rollback_failed`、未知 build 或任何终态/产品清单矛盾均保留受保护记录并进入
+`RecoveryRequired`，即使 Console 已收到失败终态也不得把节点重新投入调度。当前执行器的成功、安装失败回滚、回滚失败、暂存包篡改、
+授权过期及上述重启收敛已由本地行为测试覆盖；这不替代正式代码签名安装包和真实 SCM 的实物故障注入矩阵。
+
 Windows 软件组合验收 `pg-20260920-151630-d92d153c` 已以 449/449 个登记检查 PASS 覆盖更新目录/激活、节点控制、三个 PostgreSQL
 产品服务、生产前端与真实 Chromium、进程重启/断库恢复及三库 dump/restore 后的数据和结构对账。该结果关闭本轮实现的本地组合回归，
 但不把测试生成的 TUF 仓库、NSIS 语法编译或 development Service 制品冒充正式签名 Official/Customer 安装升级矩阵。

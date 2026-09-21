@@ -387,15 +387,6 @@ async fn run_connection(
         "node-control authenticated"
     );
 
-    let report_outcome = report(
-        &mut socket,
-        &mut session,
-        runtime,
-        configuration,
-        product,
-        1,
-    )
-    .await?;
     let service_directory = std::env::current_exe()
         .map_err(|_| "cannot resolve Service executable for update trust".to_string())?
         .parent()
@@ -405,6 +396,15 @@ async fn run_connection(
     let update_data_root = runtime.lock().await.config.data_root.join("updates");
     let service_data_root = runtime.lock().await.config.data_root.clone();
     synchronize_update_activation(&mut socket, &mut session, product, &service_data_root).await?;
+    let report_outcome = report(
+        &mut socket,
+        &mut session,
+        runtime,
+        configuration,
+        product,
+        1,
+    )
+    .await?;
     let mut update_tasks = JoinSet::new();
     let mut preparing_release_id = None;
     let update_offer = refresh_update_offer(&mut socket, &mut session, runtime, product).await?;
@@ -1364,6 +1364,67 @@ async fn schedule_update_preparation(
     *preparing_release_id = Some(release_id);
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum LocalActivationDisposition {
+    ClearExpired,
+    BlockInProgress,
+    ReportTerminal,
+    ReportFailureAndBlock,
+    RequireManualRecovery,
+}
+
+fn classify_local_activation(
+    record: &UpdateActivationRecord,
+    installed_build_number: u32,
+    now: chrono::DateTime<Utc>,
+) -> LocalActivationDisposition {
+    let lease_expired = record.lease_until <= now;
+    match record.phase {
+        ActivationPhase::Authorized => {
+            if lease_expired {
+                LocalActivationDisposition::ClearExpired
+            } else {
+                LocalActivationDisposition::BlockInProgress
+            }
+        }
+        ActivationPhase::Applying => {
+            if !lease_expired {
+                LocalActivationDisposition::BlockInProgress
+            } else if installed_build_number == record.from_build_number
+                || installed_build_number == record.to_build_number
+            {
+                LocalActivationDisposition::ClearExpired
+            } else {
+                LocalActivationDisposition::RequireManualRecovery
+            }
+        }
+        ActivationPhase::Installed => {
+            if installed_build_number != record.to_build_number {
+                LocalActivationDisposition::RequireManualRecovery
+            } else if lease_expired {
+                LocalActivationDisposition::ClearExpired
+            } else {
+                LocalActivationDisposition::ReportTerminal
+            }
+        }
+        ActivationPhase::Failed => {
+            let rollback_is_verified = installed_build_number == record.from_build_number;
+            let rollback_failed = record.error_code.as_deref() == Some("rollback_failed");
+            if rollback_is_verified && !rollback_failed {
+                if lease_expired {
+                    LocalActivationDisposition::ClearExpired
+                } else {
+                    LocalActivationDisposition::ReportTerminal
+                }
+            } else if lease_expired {
+                LocalActivationDisposition::RequireManualRecovery
+            } else {
+                LocalActivationDisposition::ReportFailureAndBlock
+            }
+        }
+    }
+}
+
 async fn synchronize_update_activation(
     socket: &mut NodeSocket,
     session: &mut ProtocolSession,
@@ -1377,9 +1438,20 @@ async fn synchronize_update_activation(
     if record.product != product.product || record.distribution != product.distribution {
         return Err("update activation record belongs to another installed product".into());
     }
-    if record.lease_until <= Utc::now() {
-        store.remove()?;
-        return Ok(());
+    let disposition = classify_local_activation(&record, product.product_version_code, Utc::now());
+    match disposition {
+        LocalActivationDisposition::ClearExpired => {
+            store.remove()?;
+            return Ok(());
+        }
+        LocalActivationDisposition::BlockInProgress => {
+            return Err("update activation is still in progress".into());
+        }
+        LocalActivationDisposition::RequireManualRecovery => {
+            return Err("update activation requires manual recovery".into());
+        }
+        LocalActivationDisposition::ReportTerminal
+        | LocalActivationDisposition::ReportFailureAndBlock => {}
     }
     let outcome = match record.phase {
         ActivationPhase::Installed => px_node_protocol::UpdateActivationOutcome::Installed,
@@ -1389,7 +1461,9 @@ async fn synchronize_update_activation(
                 .clone()
                 .ok_or_else(|| "failed update activation record has no error code".to_string())?,
         },
-        ActivationPhase::Authorized | ActivationPhase::Applying => return Ok(()),
+        ActivationPhase::Authorized | ActivationPhase::Applying => {
+            return Err("non-terminal update activation cannot be reported".into());
+        }
     };
     let request = NodeRequest::FinishUpdateActivation {
         request_id: session.request_id()?,
@@ -1406,9 +1480,13 @@ async fn synchronize_update_activation(
         } if request_id == expected_request_id
             && matches!(state.as_str(), "installed" | "failed") =>
         {
-            store.remove()?;
             info!(task_id = %record.task_id, %state, "node update activation reached a durable terminal state");
-            Ok(())
+            if disposition == LocalActivationDisposition::ReportFailureAndBlock {
+                Err("update activation requires manual recovery".into())
+            } else {
+                store.remove()?;
+                Ok(())
+            }
         }
         NodeResponse::Error { code, .. } if code == "rejected" => {
             Err(format!(
@@ -2752,6 +2830,140 @@ mod tests {
             product_version_code: 30367,
             capabilities: vec!["game_hook".into(), "webview_host".into()],
         }
+    }
+
+    fn update_activation_record(
+        phase: ActivationPhase,
+        lease_until: chrono::DateTime<Utc>,
+        error_code: Option<&str>,
+    ) -> UpdateActivationRecord {
+        UpdateActivationRecord {
+            schema_version: 1,
+            release_id: Uuid::new_v4(),
+            policy_revision: 1,
+            task_id: Uuid::new_v4(),
+            lease_id: Uuid::new_v4(),
+            lease_until,
+            product: "cloud_node".into(),
+            distribution: "official".into(),
+            from_build_number: 30367,
+            to_build_number: 30368,
+            version: "3.3.68".into(),
+            prepared_sha256: "a".repeat(64),
+            rollback_sha256: Some("b".repeat(64)),
+            artifact_path: std::path::PathBuf::from(
+                r"C:\ProgramData\Pixels\updates\prepared\cloud-node.exe",
+            ),
+            install_directory: std::path::PathBuf::from(r"C:\Program Files\Pixels\Cloud Node"),
+            service_port: 7001,
+            phase,
+            error_code: error_code.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn active_update_activation_blocks_node_control_until_runner_finishes() {
+        let now = Utc::now();
+        for phase in [ActivationPhase::Authorized, ActivationPhase::Applying] {
+            let record = update_activation_record(phase, now + TimeDelta::minutes(1), None);
+            assert_eq!(
+                classify_local_activation(&record, record.from_build_number, now),
+                LocalActivationDisposition::BlockInProgress
+            );
+        }
+    }
+
+    #[test]
+    fn expired_applying_activation_clears_only_for_a_known_build() {
+        let now = Utc::now();
+        let record =
+            update_activation_record(ActivationPhase::Applying, now - TimeDelta::seconds(1), None);
+        assert_eq!(
+            classify_local_activation(&record, record.from_build_number, now),
+            LocalActivationDisposition::ClearExpired
+        );
+        assert_eq!(
+            classify_local_activation(&record, record.to_build_number, now),
+            LocalActivationDisposition::ClearExpired
+        );
+        assert_eq!(
+            classify_local_activation(&record, record.to_build_number + 1, now),
+            LocalActivationDisposition::RequireManualRecovery
+        );
+    }
+
+    #[test]
+    fn installed_activation_requires_the_exact_target_build() {
+        let now = Utc::now();
+        let active_record = update_activation_record(
+            ActivationPhase::Installed,
+            now + TimeDelta::minutes(1),
+            None,
+        );
+        assert_eq!(
+            classify_local_activation(&active_record, active_record.to_build_number, now),
+            LocalActivationDisposition::ReportTerminal
+        );
+        assert_eq!(
+            classify_local_activation(&active_record, active_record.from_build_number, now),
+            LocalActivationDisposition::RequireManualRecovery
+        );
+
+        let expired_record = update_activation_record(
+            ActivationPhase::Installed,
+            now - TimeDelta::seconds(1),
+            None,
+        );
+        assert_eq!(
+            classify_local_activation(&expired_record, expired_record.to_build_number, now),
+            LocalActivationDisposition::ClearExpired
+        );
+    }
+
+    #[test]
+    fn failed_activation_reports_only_after_verified_rollback() {
+        let now = Utc::now();
+        let restored_record = update_activation_record(
+            ActivationPhase::Failed,
+            now + TimeDelta::minutes(1),
+            Some("installer_failed"),
+        );
+        assert_eq!(
+            classify_local_activation(&restored_record, restored_record.from_build_number, now),
+            LocalActivationDisposition::ReportTerminal
+        );
+        assert_eq!(
+            classify_local_activation(&restored_record, restored_record.to_build_number, now),
+            LocalActivationDisposition::ReportFailureAndBlock
+        );
+
+        let rollback_failed_record = update_activation_record(
+            ActivationPhase::Failed,
+            now + TimeDelta::minutes(1),
+            Some("rollback_failed"),
+        );
+        assert_eq!(
+            classify_local_activation(
+                &rollback_failed_record,
+                rollback_failed_record.from_build_number,
+                now
+            ),
+            LocalActivationDisposition::ReportFailureAndBlock
+        );
+    }
+
+    #[test]
+    fn expired_unsafe_failure_remains_blocked_for_manual_recovery() {
+        let now = Utc::now();
+        let record = update_activation_record(
+            ActivationPhase::Failed,
+            now - TimeDelta::seconds(1),
+            Some("rollback_failed"),
+        );
+        assert_eq!(
+            classify_local_activation(&record, record.from_build_number, now),
+            LocalActivationDisposition::RequireManualRecovery
+        );
     }
 
     #[test]
