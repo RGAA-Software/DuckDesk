@@ -88,6 +88,9 @@ onMounted(refresh);
             <a-table-column :title="t('updates.distribution')">
                 <template #default="{ record }">{{ record.artifact.target.distribution }}</template>
             </a-table-column>
+            <a-table-column :title="t('updates.releaseNamespace')">
+                <template #default="{ record }">{{ record.artifact.target.release_namespace }}</template>
+            </a-table-column>
             <a-table-column :title="t('updates.state')" data-index="state" />
             <a-table-column
                 :title="t('updates.requiredRoot')"

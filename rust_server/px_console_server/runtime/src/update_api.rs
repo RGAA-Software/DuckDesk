@@ -45,11 +45,13 @@ async fn register(
     headers: HeaderMap,
     Input(input): Input<NewRelease>,
 ) -> Result<(StatusCode, Json<px_console_store::UpdateRelease>), ApiError> {
+    let administrator = request::administrator(&state, &headers)?;
+    require_console_release_domain(&state, &input.artifact.target)?;
     let release = state
         .db
         .updates()
         .register(
-            &request::administrator(&state, &headers)?,
+            &administrator,
             input.request_id,
             &input.repository_publication_sha256,
             input.repository_root_version,
@@ -122,6 +124,25 @@ async fn node_trust(
     ))
 }
 
+fn require_console_release_domain(
+    state: &StateData,
+    target: &ReleaseQuery,
+) -> Result<(), ApiError> {
+    let matches_console = match state.license.payload.distribution {
+        LicenseDistribution::Official => {
+            target.distribution == Distribution::Official
+                && target.release_namespace == "pixels.official"
+                && target.oem_id.is_none()
+        }
+        LicenseDistribution::Customer => {
+            target.distribution == Distribution::Customer
+                && target.release_namespace == "pixels.customer"
+                && target.oem_id.is_none()
+        }
+    };
+    matches_console.then_some(()).ok_or(ApiError::Rejected)
+}
+
 async fn node_trust_nodes(
     State(state): State<Arc<StateData>>,
     headers: HeaderMap,
@@ -156,6 +177,7 @@ async fn latest(
     Query(target): Query<ReleaseQuery>,
 ) -> Result<Json<px_console_store::UpdateRelease>, ApiError> {
     let (token, client) = request::context(&state, &headers)?;
+    require_console_release_domain(&state, &target)?;
     Ok(Json(
         state.db.updates().latest(&token, client, &target).await?,
     ))

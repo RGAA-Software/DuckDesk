@@ -13,11 +13,21 @@ const REPOSITORY_PUBLICATION_SHA256: &str =
     "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
 const REPOSITORY_ROOT_VERSION: i64 = 1;
 
+fn pixels_release_namespace(distribution: Distribution) -> String {
+    match distribution {
+        Distribution::Official => "pixels.official".into(),
+        Distribution::Customer => "pixels.customer".into(),
+        Distribution::Oem => unreachable!("OEM tests must provide an explicit namespace"),
+    }
+}
+
 fn spec() -> ReleaseSpec {
     ReleaseSpec {
         target: ReleaseQuery {
             product: Product::Server,
             distribution: Distribution::Customer,
+            release_namespace: "pixels.customer".into(),
+            oem_id: None,
             channel: Channel::Stable,
             os: OperatingSystem::Windows,
             architecture: Architecture::X86_64,
@@ -49,6 +59,8 @@ async fn approved_cloud_node_release(
     release_spec.target = ReleaseQuery {
         product: Product::CloudNode,
         distribution: Distribution::Customer,
+        release_namespace: "pixels.customer".into(),
+        oem_id: None,
         channel: Channel::Stable,
         os: OperatingSystem::Windows,
         architecture: Architecture::X86_64,
@@ -118,6 +130,8 @@ async fn all_product_platform_flavor_channel_dimensions_are_independent() {
                 release_spec.target = ReleaseQuery {
                     product,
                     distribution,
+                    release_namespace: pixels_release_namespace(distribution),
+                    oem_id: None,
                     channel,
                     os,
                     architecture,
@@ -168,6 +182,8 @@ async fn authenticated_node_receives_the_approved_repository_and_records_real_ro
     release_spec.target = ReleaseQuery {
         product: Product::CloudNode,
         distribution: Distribution::Customer,
+        release_namespace: "pixels.customer".into(),
+        oem_id: None,
         channel: Channel::Stable,
         os: OperatingSystem::Windows,
         architecture: Architecture::X86_64,
@@ -359,7 +375,7 @@ async fn authenticated_node_receives_the_approved_repository_and_records_real_ro
         )
         .await
         .is_err());
-    let mut wrong_product = release_spec.target;
+    let mut wrong_product = release_spec.target.clone();
     wrong_product.product = Product::Remote;
     assert!(update_store
         .check_for_node(

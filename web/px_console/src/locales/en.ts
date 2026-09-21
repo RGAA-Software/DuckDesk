@@ -519,6 +519,7 @@ export default {
         observedRoot: "Trusted root",
         product: "Product",
         refresh: "Refresh",
+        releaseNamespace: "Release namespace",
         requiredRoot: "Required root",
         retirementNotice: "This evidence is necessary but never automatically retires an old root.",
         scopeNotice:

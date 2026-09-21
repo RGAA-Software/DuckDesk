@@ -609,8 +609,9 @@ authorization revision，不会把正常会话误作权限撤销；每次实际�
 
 更新目录产品入口增量后的完整基线为 `pg-20260918-074115-43965960`：730/730 项 PASS。Console 运行时现在提供
 `/api/console/managed/updates` 管理接口和 `/api/console/updates/latest` 客户端查询接口；发布登记具备请求幂等，审批与撤回使用
-revision 乐观锁，未审批及已撤回制品不会被客户端发现。客户端查询同时严格匹配 token 中的 client type 和完整的 product、
-distribution、channel、OS、architecture 五维目标，Android 身份不能冒充 Panel。Windows 与 WSL2 的七项目录 API 测试、其余
+revision 乐观锁，未审批及已撤回制品不会被客户端发现。该历史基线的客户端查询严格匹配 token 中的 client type 和当时的 product、
+distribution、channel、OS、architecture 五维目标，Android 身份不能冒充 Panel；2026-09-21 增量又加入强制 `release_namespace/oem_id`
+发布域，当前契约以下文最新证据为准。Windows 与 WSL2 的七项目录 API 测试、其余
 存储/进程/浏览器用例、三库恢复、断库恢复和源码冻结均通过。此增量只交付 PostgreSQL 更新元数据入口；Cloud Node、Service、
 Render 等无人值守组件的独立服务身份，以及制品下载、签名验证、排空、安装、回滚和热升级执行器仍未交付。
 
@@ -1480,10 +1481,23 @@ Console 运维后台的应用页已接入更新发布与节点信任卡片：前
 通用 `/api/console/updates/latest` 目录响应不等于这些产品已完成安全更新。它们必须分别完成服务器派生发行目标、初始根内置、持久防回滚、平台签名、激活与
 安装实例水位后，才能纳入“全产品根轮换完成”的统计。
 
-新增商业边界已经冻结但尚未冒充实现：Pixels Official、Pixels Customer 私有部署和具体 OEM 是三个不同更新信任域。OEM 必须绑定唯一
-`oem_id/release_namespace`、品牌/应用/安装身份、私有更新策略和独立 TUF 根，禁止查询或安装 Pixels 官网、Customer 或另一 OEM 的版本。
-当前构建与更新对象模型仍只有 Official/Customer，故第一份 OEM 包生成前还要把该命名空间贯穿产品描述、Desk/Console 目录、TUF target、
-激活任务及 Windows/Android/Web 构建验收；现有 Customer 入口不得改名后当 OEM 使用。
+商业更新域的第一段服务端实现已完成：共享 release catalog 将 `distribution + release_namespace + oem_id` 作为不可拆分身份，固定
+Official=`pixels.official`、Customer=`pixels.customer`，OEM=`oem.<oem_id>`；OEM ID 只允许受限小写标识并拒绝保留字。Console/Desk 全新
+PostgreSQL schema、唯一键、SQLx 离线查询、TUF `pixels.target` 签名元数据和 Console 运维列表均保存并返回该身份。Desk 允许发布互相隔离的
+OEM 目录；相同产品/通道/平台/构建号可分别存在于不同 OEM 域，错误命名空间、缺失/错配 OEM ID 均失败关闭。当前 Auth/Console 许可证仍只有
+Official/Customer，因此 Console 登记和最新版本查询只允许其许可证对应的 Pixels 域，并显式拒绝 OEM 或另一 Pixels 域；Cloud Node/Remote
+Service 同样只从已安装 Official/Customer 产品描述符推导精确命名空间，不接受隐藏回落。节点 `UpdateChecked` 的大对象改为拥有型 `Box` 仅缩小
+Rust 枚举内存布局，serde 线格式保持不变。
+
+本增量的聚焦证据为 release catalog/authority/node protocol 15/15、Console updates 11/11、Desk 8/8、directory API 7/7、node-control 3/3、
+Service 更新测试 14/14、Console 前端 51/51；严格 Clippy、前端类型检查/生产构建及 `web/px_console/dist` 到
+`output/px_console/dev/static` 的逐文件 SHA-256 同步均通过。隔离 PostgreSQL 报告分别为
+`pg-20260921-224344-cd5fde81`、`pg-20260921-224445-4f640cb8`、`pg-20260921-224548-a4fdabc3` 和
+`pg-20260921-223251-d779ff14`。
+
+这不代表 OEM 产品已经可交付。第一份 OEM 包之前仍须扩展 Auth 许可证与部署身份、产品描述符、激活任务、OEM 独立 TUF 初始根和密钥审批，
+并完成独立品牌/应用/安装身份以及 Windows/Android/Web 构建与跨域拒绝验收。当前构建入口继续只生成 Official/Customer，现有 Customer 入口
+不得改名后当 OEM 使用。
 
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。
 覆盖空库初始化竞争/失败回滚、原登录绑定、退出/改密竞争、身份表最小写权限与分组分页；SQLx 已生成 235 条 Console 查询。

@@ -1295,15 +1295,17 @@ fn expected_update_target(product: &ProductDescriptor) -> Result<Option<ReleaseQ
         "remote" => Product::Remote,
         _ => return Err("installed product cannot consume node updates".into()),
     };
-    let distribution = match product.distribution.as_str() {
-        "official" => Distribution::Official,
-        "customer" => Distribution::Customer,
+    let (distribution, release_namespace) = match product.distribution.as_str() {
+        "official" => (Distribution::Official, "pixels.official"),
+        "customer" => (Distribution::Customer, "pixels.customer"),
         "development" => return Ok(None),
         _ => return Err("installed product has an invalid update distribution".into()),
     };
     Ok(Some(ReleaseQuery {
         product: product_name,
         distribution,
+        release_namespace: release_namespace.into(),
+        oem_id: None,
         channel: Channel::Stable,
         os: OperatingSystem::Windows,
         architecture: Architecture::X86_64,
@@ -1378,7 +1380,10 @@ async fn check_update(
             return Err("Console returned an invalid node update offer".into());
         }
     }
-    Ok(NodeUpdateCheck { repository, offer })
+    Ok(NodeUpdateCheck {
+        repository,
+        offer: offer.map(|boxed_offer| *boxed_offer),
+    })
 }
 
 async fn refresh_update_offer(
@@ -3061,6 +3066,8 @@ mod tests {
             Some(ReleaseQuery {
                 product: Product::CloudNode,
                 distribution: Distribution::Official,
+                release_namespace: "pixels.official".into(),
+                oem_id: None,
                 channel: Channel::Stable,
                 os: OperatingSystem::Windows,
                 architecture: Architecture::X86_64,
@@ -3074,6 +3081,8 @@ mod tests {
             Some(ReleaseQuery {
                 product: Product::Remote,
                 distribution: Distribution::Customer,
+                release_namespace: "pixels.customer".into(),
+                oem_id: None,
                 channel: Channel::Stable,
                 os: OperatingSystem::Windows,
                 architecture: Architecture::X86_64,
@@ -3082,6 +3091,9 @@ mod tests {
         let mut development = official.clone();
         development.distribution = "development".into();
         assert_eq!(expected_update_target(&development).unwrap(), None);
+        let mut unsupported_oem = official.clone();
+        unsupported_oem.distribution = "oem".into();
+        assert!(expected_update_target(&unsupported_oem).is_err());
         let mut invalid = official;
         invalid.distribution = "official-looking".into();
         assert!(expected_update_target(&invalid).is_err());
@@ -3117,13 +3129,15 @@ mod tests {
                     metadata_base_url: "https://downloads.example.test/metadata/".into(),
                     targets_base_url: "https://downloads.example.test/targets/".into(),
                 }),
-                offer: Some(NodeUpdateOffer {
+                offer: Some(Box::new(NodeUpdateOffer {
                     release_id,
                     policy_revision: 2,
                     artifact: px_release_catalog::ReleaseSpec {
                         target: ReleaseQuery {
                             product: Product::CloudNode,
                             distribution: Distribution::Official,
+                            release_namespace: "pixels.official".into(),
+                            oem_id: None,
                             channel: Channel::Stable,
                             os: OperatingSystem::Windows,
                             architecture: Architecture::X86_64,
@@ -3137,7 +3151,7 @@ mod tests {
                         platform_signer_sha256: Some("b".repeat(64)),
                         size_bytes: 4096,
                     },
-                }),
+                })),
             };
             socket
                 .send(Message::Text(

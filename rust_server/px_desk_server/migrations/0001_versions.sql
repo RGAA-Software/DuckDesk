@@ -31,7 +31,17 @@ GRANT UPDATE(processed,revision,updated_at) ON pixels.feedback TO pixels_desk_ru
 CREATE TABLE pixels.versions (
     id UUID PRIMARY KEY,
     product TEXT NOT NULL CHECK (product IN ('cloud_node','client','remote','android','server')),
-    distribution TEXT NOT NULL CHECK (distribution IN ('official','customer')),
+    distribution TEXT NOT NULL CHECK (distribution IN ('official','customer','oem')),
+    release_namespace TEXT NOT NULL CHECK (
+        char_length(release_namespace) BETWEEN 3 AND 36
+        AND release_namespace ~ '^[a-z0-9]+([.-][a-z0-9]+)*$'
+    ),
+    oem_id TEXT CHECK (
+        char_length(oem_id) BETWEEN 3 AND 32
+        AND oem_id ~ '^[a-z0-9][a-z0-9-]*[a-z0-9]$'
+        AND oem_id !~ '--'
+        AND oem_id NOT IN ('pixels','official','customer','oem')
+    ),
     channel TEXT NOT NULL CHECK (channel IN ('stable','preview')),
     build_number BIGINT NOT NULL CHECK (build_number > 0),
     version TEXT NOT NULL CHECK (char_length(version) >= 1 AND char_length(version) <= 64 AND btrim(version) <> ''),
@@ -44,7 +54,13 @@ CREATE TABLE pixels.versions (
     sha256 TEXT NOT NULL CHECK (sha256 ~ '^[a-f0-9]{64}$'),
     platform_signer_sha256 TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
-    UNIQUE(product,distribution,channel,build_number)
+    CONSTRAINT versions_release_identity_build
+        UNIQUE(product,distribution,release_namespace,channel,build_number),
+    CHECK (
+        (distribution='official' AND release_namespace='pixels.official' AND oem_id IS NULL)
+        OR (distribution='customer' AND release_namespace='pixels.customer' AND oem_id IS NULL)
+        OR (distribution='oem' AND oem_id IS NOT NULL AND release_namespace=('oem.' || oem_id))
+    )
 );
 GRANT SELECT, INSERT ON pixels.versions TO pixels_desk_runtime;
 

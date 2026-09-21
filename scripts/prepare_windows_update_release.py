@@ -80,10 +80,18 @@ def build_release_spec(
         signature_verifier=signature_verifier,
         expected_signer_sha256=approved_signer_sha256,
     )
+    release_namespace = {
+        "official": "pixels.official",
+        "customer": "pixels.customer",
+    }.get(verified_release.distribution)
+    if release_namespace is None:
+        raise RuntimeError("installer distribution has no approved release namespace")
     release_spec: dict[str, object] = {
         "target": {
             "product": verified_release.product,
             "distribution": verified_release.distribution,
+            "release_namespace": release_namespace,
+            "oem_id": None,
             "channel": channel,
             "os": "windows",
             "architecture": "x86_64",

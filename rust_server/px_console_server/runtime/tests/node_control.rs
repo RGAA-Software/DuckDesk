@@ -1220,6 +1220,8 @@ async fn node_update_check_uses_authenticated_product_and_console_distribution()
         "target":{
             "product":"cloud_node",
             "distribution":"customer",
+            "release_namespace":"pixels.customer",
+            "oem_id":null,
             "channel":"stable",
             "os":"windows",
             "architecture":"x86_64"

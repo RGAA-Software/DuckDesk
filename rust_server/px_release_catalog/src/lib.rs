@@ -23,22 +23,35 @@ macro_rules! dimension {
     };
 }
 dimension!(Product { CloudNode => "cloud_node", Client => "client", Remote => "remote", Android => "android", Server => "server" });
-dimension!(Distribution { Official => "official", Customer => "customer" });
+dimension!(Distribution { Official => "official", Customer => "customer", Oem => "oem" });
 dimension!(Channel { Stable => "stable", Preview => "preview" });
 dimension!(OperatingSystem { Windows => "windows", Linux => "linux", Android => "android" });
 dimension!(Architecture { X86_64 => "x86_64", Aarch64 => "aarch64" });
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReleaseQuery {
     pub product: Product,
     pub distribution: Distribution,
+    pub release_namespace: String,
+    pub oem_id: Option<String>,
     pub channel: Channel,
     pub os: OperatingSystem,
     pub architecture: Architecture,
 }
 impl ReleaseQuery {
     pub fn validate(&self) -> Result<(), InvalidRelease> {
+        let valid_domain = match self.distribution {
+            Distribution::Official => {
+                self.release_namespace == "pixels.official" && self.oem_id.is_none()
+            }
+            Distribution::Customer => {
+                self.release_namespace == "pixels.customer" && self.oem_id.is_none()
+            }
+            Distribution::Oem => self.oem_id.as_deref().is_some_and(|oem_id| {
+                valid_oem_id(oem_id) && self.release_namespace == format!("oem.{oem_id}")
+            }),
+        };
         let supported = match self.product {
             Product::Android => {
                 self.os == OperatingSystem::Android && self.architecture == Architecture::Aarch64
@@ -51,8 +64,27 @@ impl ReleaseQuery {
                 self.os == OperatingSystem::Windows && self.architecture == Architecture::X86_64
             }
         };
-        supported.then_some(()).ok_or(InvalidRelease)
+        (valid_domain && supported)
+            .then_some(())
+            .ok_or(InvalidRelease)
     }
+}
+
+fn valid_oem_id(value: &str) -> bool {
+    (3..=32).contains(&value.len())
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+        && value
+            .bytes()
+            .next()
+            .is_some_and(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+        && value
+            .bytes()
+            .next_back()
+            .is_some_and(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+        && !value.contains("--")
+        && !matches!(value, "pixels" | "official" | "customer" | "oem")
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -147,6 +179,8 @@ mod tests {
             target: ReleaseQuery {
                 product: Product::Server,
                 distribution: Distribution::Customer,
+                release_namespace: "pixels.customer".into(),
+                oem_id: None,
                 channel: Channel::Stable,
                 os: OperatingSystem::Linux,
                 architecture: Architecture::X86_64,
@@ -231,6 +265,9 @@ mod tests {
         ] {
             let mut value = serde_json::to_value(&base).unwrap();
             value["target"][field] = serde_json::json!(other);
+            if field == "distribution" {
+                value["target"]["release_namespace"] = serde_json::json!("pixels.official");
+            }
             if field == "product" {
                 value["target"]["os"] = serde_json::json!("windows");
             }
@@ -244,6 +281,43 @@ mod tests {
                     .unwrap(),
                 digest
             );
+        }
+        let mut oem = base.clone();
+        oem.target.distribution = Distribution::Oem;
+        oem.target.oem_id = Some("acme-cloud".into());
+        oem.target.release_namespace = "oem.acme-cloud".into();
+        oem.validate().unwrap();
+        assert_ne!(oem.digest().unwrap(), digest);
+    }
+
+    #[test]
+    fn release_domains_are_explicit_and_cryptographically_disjoint() {
+        let mut release_spec = spec();
+        for (distribution, release_namespace, oem_id, valid) in [
+            (Distribution::Official, "pixels.official", None, true),
+            (Distribution::Customer, "pixels.customer", None, true),
+            (
+                Distribution::Oem,
+                "oem.acme-cloud",
+                Some("acme-cloud"),
+                true,
+            ),
+            (Distribution::Official, "pixels.customer", None, false),
+            (Distribution::Customer, "pixels.official", None, false),
+            (
+                Distribution::Oem,
+                "pixels.customer",
+                Some("acme-cloud"),
+                false,
+            ),
+            (Distribution::Oem, "oem.acme-cloud", Some("ACME"), false),
+            (Distribution::Oem, "oem.pixels", Some("pixels"), false),
+            (Distribution::Oem, "oem.acme-cloud", None, false),
+        ] {
+            release_spec.target.distribution = distribution;
+            release_spec.target.release_namespace = release_namespace.into();
+            release_spec.target.oem_id = oem_id.map(str::to_owned);
+            assert_eq!(release_spec.validate().is_ok(), valid);
         }
     }
     #[test]

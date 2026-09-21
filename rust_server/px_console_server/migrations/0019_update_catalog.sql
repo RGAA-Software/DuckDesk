@@ -4,7 +4,17 @@ CREATE TABLE pixels.update_releases (
     request_id UUID NOT NULL CHECK (request_id <> '00000000-0000-0000-0000-000000000000'),
     request_hash BYTEA NOT NULL CHECK (octet_length(request_hash)=32),
     product TEXT NOT NULL CHECK (product IN ('cloud_node','client','remote','android','server')),
-    distribution TEXT NOT NULL CHECK (distribution IN ('official','customer')),
+    distribution TEXT NOT NULL CHECK (distribution IN ('official','customer','oem')),
+    release_namespace TEXT NOT NULL CHECK (
+        char_length(release_namespace) BETWEEN 3 AND 36
+        AND release_namespace ~ '^[a-z0-9]+([.-][a-z0-9]+)*$'
+    ),
+    oem_id TEXT CHECK (
+        char_length(oem_id) BETWEEN 3 AND 32
+        AND oem_id ~ '^[a-z0-9][a-z0-9-]*[a-z0-9]$'
+        AND oem_id !~ '--'
+        AND oem_id NOT IN ('pixels','official','customer','oem')
+    ),
     channel TEXT NOT NULL CHECK (channel IN ('stable','preview')),
     os TEXT NOT NULL CHECK (os IN ('windows','linux','android')),
     architecture TEXT NOT NULL CHECK (architecture IN ('x86_64','aarch64')),
@@ -26,7 +36,13 @@ CREATE TABLE pixels.update_releases (
     created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
     UNIQUE(registered_by,request_id),
-    UNIQUE(product,distribution,channel,os,architecture,build_number),
+    CONSTRAINT update_releases_release_identity_build
+        UNIQUE(product,distribution,release_namespace,channel,os,architecture,build_number),
+    CHECK (
+        (distribution='official' AND release_namespace='pixels.official' AND oem_id IS NULL)
+        OR (distribution='customer' AND release_namespace='pixels.customer' AND oem_id IS NULL)
+        OR (distribution='oem' AND oem_id IS NOT NULL AND release_namespace=('oem.' || oem_id))
+    ),
     CHECK (
         (product='android' AND os='android' AND architecture='aarch64') OR
         (product IN ('cloud_node','client','remote') AND os='windows' AND architecture='x86_64') OR

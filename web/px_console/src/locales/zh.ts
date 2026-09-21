@@ -498,6 +498,7 @@ export default {
         observedRoot: "已信任根",
         product: "产品",
         refresh: "刷新",
+        releaseNamespace: "发布命名空间",
         requiredRoot: "要求根版本",
         retirementNotice: "该证据只是旧根退役的必要条件，绝不会自动执行旧根退役。",
         scopeNotice:

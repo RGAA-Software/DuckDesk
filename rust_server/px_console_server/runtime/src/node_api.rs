@@ -663,10 +663,12 @@ async fn operation(
                     .transpose()?;
                 let offer = approved_release
                     .filter(|release| release.artifact.build_number > current_build_number)
-                    .map(|release| px_node_protocol::NodeUpdateOffer {
-                        release_id: release.id,
-                        policy_revision: release.revision,
-                        artifact: release.artifact,
+                    .map(|release| {
+                        Box::new(px_node_protocol::NodeUpdateOffer {
+                            release_id: release.id,
+                            policy_revision: release.revision,
+                            artifact: release.artifact,
+                        })
                     });
                 Ok(NodeResponse::UpdateChecked {
                     request_id,
@@ -785,9 +787,16 @@ fn node_update_target(state: &StateData, connection: &NodeConnection) -> Release
         LicenseDistribution::Official => ReleaseDistribution::Official,
         LicenseDistribution::Customer => ReleaseDistribution::Customer,
     };
+    let release_namespace = match distribution {
+        ReleaseDistribution::Official => "pixels.official",
+        ReleaseDistribution::Customer => "pixels.customer",
+        ReleaseDistribution::Oem => unreachable!("licenses do not admit OEM deployments yet"),
+    };
     ReleaseQuery {
         product,
         distribution,
+        release_namespace: release_namespace.into(),
+        oem_id: None,
         channel: Channel::Stable,
         os: OperatingSystem::Windows,
         architecture: Architecture::X86_64,

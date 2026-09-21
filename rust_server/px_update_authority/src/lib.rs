@@ -979,6 +979,8 @@ mod tests {
                 target: ReleaseQuery {
                     product: Product::CloudNode,
                     distribution: Distribution::Official,
+                    release_namespace: "pixels.official".into(),
+                    oem_id: None,
                     channel: Channel::Stable,
                     os: OperatingSystem::Windows,
                     architecture: Architecture::X86_64,
@@ -1236,6 +1238,11 @@ mod tests {
             first_target.custom["pixels"]["platform_signer_sha256"],
             "b".repeat(64)
         );
+        assert_eq!(
+            first_target.custom["pixels"]["target"]["release_namespace"],
+            "pixels.official"
+        );
+        assert!(first_target.custom["pixels"]["target"]["oem_id"].is_null());
 
         let second_artifact = b"second signed installer";
         let second_artifact_path = fixture.directory().join("second-installer.exe");

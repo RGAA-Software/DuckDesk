@@ -7,7 +7,9 @@ export interface ManagedUpdateRelease {
     artifact: {
         target: {
             product: UpdateProduct;
-            distribution: "official" | "customer";
+            distribution: "official" | "customer" | "oem";
+            release_namespace: string;
+            oem_id: string | null;
             channel: "stable" | "preview";
             os: "windows" | "linux" | "android";
             architecture: "x86_64" | "aarch64";

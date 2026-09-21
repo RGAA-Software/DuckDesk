@@ -75,6 +75,8 @@ pub async fn publish(pool: &PgPool, input: ReleaseInput) -> Result<Release, ApiE
         Uuid::new_v4(),
         input.target.product.name(),
         input.target.distribution.name(),
+        input.target.release_namespace,
+        input.target.oem_id,
         input.target.channel.name(),
         input.build_number,
         input.version,
@@ -97,6 +99,8 @@ pub async fn latest(pool: &PgPool, input: ReleaseQuery) -> Result<Release, ApiEr
         "queries/latest_version.sql",
         input.product.name(),
         input.distribution.name(),
+        input.release_namespace,
+        input.oem_id,
         input.channel.name(),
         input.os.name(),
         input.architecture.name()

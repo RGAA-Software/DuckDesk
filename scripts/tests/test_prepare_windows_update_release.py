@@ -62,6 +62,8 @@ class WindowsUpdateReleaseTests(unittest.TestCase):
             self.assertEqual(verified_signatures, [("PixelsCloudNode_official_3.3.80_Setup.exe", SIGNER_PIN)])
             self.assertEqual(release_spec["platform_signer_sha256"], SIGNER_PIN.lower())
             self.assertEqual(release_spec["build_number"], 30380)
+            self.assertEqual(release_spec["target"]["release_namespace"], "pixels.official")
+            self.assertIsNone(release_spec["target"]["oem_id"])
             self.assertEqual(
                 release_spec["target_name"],
                 "windows/cloud_node/official/stable/x86_64/30380/PixelsCloudNode_official_3.3.80_Setup.exe",

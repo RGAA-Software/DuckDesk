@@ -10,5 +10,6 @@ ALTER TABLE pixels.versions
     ADD CONSTRAINT versions_platform_signer CHECK (
         (os IN ('windows','android') AND platform_signer_sha256 ~ '^[a-f0-9]{64}$')
         OR (os='linux' AND platform_signer_sha256 IS NULL));
-ALTER TABLE pixels.versions DROP CONSTRAINT versions_product_distribution_channel_build_number_key;
-ALTER TABLE pixels.versions ADD UNIQUE(product,distribution,channel,os,architecture,build_number);
+ALTER TABLE pixels.versions DROP CONSTRAINT versions_release_identity_build;
+ALTER TABLE pixels.versions ADD CONSTRAINT versions_release_identity_platform_build
+    UNIQUE(product,distribution,release_namespace,channel,os,architecture,build_number);

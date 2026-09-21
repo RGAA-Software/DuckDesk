@@ -11,15 +11,17 @@ Desk 只负责咨询、问题反馈、产品版本元数据，不调度云桌面
 | 表 | 主要字段 / 约束 | 访问 |
 |---|---|---|
 | feedback | id=request_id UUID、kind consult/issue、title、your_name、description、email/wechat/qq、consult_type/version/os、body_sha256、created_at/updated_at、processed、revision | 匿名仅创建并取 receipt；管理会话按 kind 查询、CAS 标记。咨询与问题字段组合由 CHECK 约束，非 JSONB 业务袋 |
-| versions | id UUID、product/distribution/channel/os/architecture、build_number、version、metadata_base_url/targets_base_url/target_name、sha256/size_bytes、created_at | 管理会话发布，公开按五个明确维度查询最新 build_number；三个 TUF 定位字段与目标内容身份都必须精确匹配 |
+| versions | id UUID、product/distribution/release_namespace/oem_id/channel/os/architecture、build_number、version、metadata_base_url/targets_base_url/target_name、sha256/size_bytes、created_at | 管理会话发布，公开按完整发布域和平台维度查询最新 build_number；三个 TUF 定位字段与目标内容身份都必须精确匹配 |
 | admin_sessions | id UUID、token_hash 32 bytes、credential_fingerprint 32 bytes、expires_at、revoked_at | 8 小时会话，每次请求查过期、撤销和当前配置指纹；只存摘要 |
 
 文本长度由接口和 SQL 双重约束。分页 page 1–10000、page_size 1–100，稳定按 created_at DESC,id DESC 排序；管理更新要求 revision CAS。
 CAS 未命中（ID/kind 不存在或 revision 冲突）统一 409；不以第二次查询制造存在性/并发歧义。runtime 只能更新 processed/revision/updated_at，不能修改正文或删除提交。
 公开创建请求必须提供 UUID request_id；重复相同 ID/正文返回同一 receipt，不同正文为 409，不返回旧提交内容。
 公开表单按请求限长；联系人信息和请求正文不写日志。查询、处理与版本发布全部要求管理会话。
-版本 product=cloud_node/client/remote/android/server，distribution=official/customer，channel=stable/preview；不猜默认产品或发行。
-build_number 是 1..i64::MAX 的整数；同产品/发行/渠道/OS/architecture/build 唯一，较旧发布记录不覆盖新 build 的查询结果。
+版本 product=cloud_node/client/remote/android/server，distribution=official/customer/oem，channel=stable/preview；不猜默认产品或发行。
+发布域固定为 Official=`pixels.official`、Customer=`pixels.customer`、OEM=`oem.<oem_id>`；Pixels 域禁止 OEM ID，OEM 域要求受限小写 ID 且
+命名空间必须与之精确相等。build_number 是 1..i64::MAX 的整数；同产品/发布域/渠道/OS/architecture/build 唯一，不同 OEM 互不冲突，
+较旧发布记录不覆盖新 build 的查询结果。
 当前受支持组合：Cloud Node/Client/Remote 为 windows+x86_64，Android 为 android+aarch64，Server 为 windows 或 linux+x86_64。
 不猜缺失平台，不把 ARM Android 包当作 x86 包；后续支持新平台需显式扩充契约与 SQL CHECK。
 内容大小为 1 字节至 1 TiB，SHA-256 为小写 64 位 hex；TUF metadata/targets 基址均为以 `/` 结尾的明确 HTTPS URL，
@@ -44,8 +46,8 @@ Pixels 自定义目标身份、大小与 SHA-256，不能按目录 URL 直接下
 - `/api/desk/admin/sessions`：POST 登录；`/api/desk/admin/session`：DELETE 撤销当前会话。
 - `/api/desk/consults`、`/api/desk/issues`：POST 匿名提交、GET 管理查询。
 - `/api/desk/consults/{id}`、`/api/desk/issues/{id}`：PATCH 管理标记 processed，提交 expected_revision。
-- `/api/desk/versions`：POST 管理发布；正文是 `{target:{product,distribution,channel,os,architecture},build_number,version,metadata_base_url,targets_base_url,target_name,sha256,size_bytes}`。
-  GET 查询参数须包含 target 的五个字段，返回该精确平台的最新 build；无默认平台或旧正文兼容。
+- `/api/desk/versions`：POST 管理发布；正文是 `{target:{product,distribution,release_namespace,oem_id,channel,os,architecture},build_number,version,metadata_base_url,targets_base_url,target_name,sha256,platform_signer_sha256,size_bytes}`。
+  GET 查询参数须包含完整 target；Pixels 域省略 `oem_id`，OEM 域必须给出。返回该精确发布域和平台的最新 build；无默认平台或旧正文兼容。
 
 JSON 请求拒绝未知字段；结构错误 400/422、无会话 401、找不到 404、版本/幂等冲突 409、过大 413、数据库故障 503。
 咨询/反馈网页、管理登录/列表同步使用新路由、UUID、ISO 时间和 revision，不建设旧接口转发。
@@ -55,6 +57,7 @@ JSON 请求拒绝未知字段；结构错误 400/422、无会话 401、找不到
 
 真实 PG + 实际路由：登录、非法/撤销/到期/轮换凭据、咨询/反馈提交与幂等冲突、管理查询和 CAS、分页、未知字段/缺字段/超限。
 拒绝前后核查持久行数；测试服务重启后数据/会话状态保留，断库 503，恢复后成功；禁止日志泄露口令/正文。
-版本测试六个产品/平台组合 × 两发行 × 两渠道隔离、旧 build 晚到、唯一冲突、二十个并发发布仅一成功及 DB 写失败不改变公开结果。
+版本测试六个产品/平台组合 × Pixels 两发行 × 两渠道隔离，并覆盖两个 OEM 同构建号隔离、跨域伪装拒绝、旧 build 晚到、唯一冲突、
+二十个并发发布仅一成功及 DB 写失败不改变公开结果。
 Windows 与 Linux 原生服务进程访问 PG；网页类型检查、真实浏览器表单/登录/处理/退出。源码和依赖树不含 Mongo，旧路由应返回 404。
 这些通过才声明 Desk 纵向小步完成；Auth、Console 和 DB4/DB5 的未完成项继续单独记录。

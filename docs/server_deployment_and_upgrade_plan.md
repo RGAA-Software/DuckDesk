@@ -489,9 +489,10 @@ Windows 软件组合验收 `pg-20260920-151630-d92d153c` 已以 449/449 个登�
 产品服务、生产前端与真实 Chromium、进程重启/断库恢复及三库 dump/restore 后的数据和结构对账。该结果关闭本轮实现的本地组合回归，
 但不把测试生成的 TUF 仓库、NSIS 语法编译或 development Service 制品冒充正式签名 Official/Customer 安装升级矩阵。
 
-当前代码只实现 Official/Customer 更新维度，尚未实现上述 OEM `oem_id/release_namespace` 的端到端字段和独立构建入口。因此 OEM 包不得
-使用现有 Customer 构建入口冒充交付；P0 必须先让产品描述、安装器、Desk/Console 发布目录、TUF `pixels` 元数据、节点激活任务和验收矩阵
-共同绑定 OEM 命名空间，再允许生成第一份 OEM 安装包。
+当前 release catalog、Desk/Console PostgreSQL 发布目录和 TUF `pixels.target` 元数据已实现严格 `oem_id/release_namespace` 字段；Desk 能保存
+不同 OEM 的同构建号版本，Console 运维页能显示命名空间。由于 Auth/Console 许可证和节点产品描述符仍只定义 Official/Customer，Console 对 OEM
+登记与查询保持失败关闭，不能把服务端目录能力当作 OEM 产品可用。OEM 包仍不得使用现有 Customer 构建入口冒充交付；P0 下一步必须让 Auth
+许可证/部署身份、产品描述、安装器、独立 TUF 初始根、节点激活任务和验收矩阵共同绑定 OEM 命名空间，再允许生成第一份 OEM 安装包。
 
 下载可恢复，完整包先验证再解压；防路径穿越、链接逃逸、超大解压、符号链接/重解析点替换和校验后替换。
 高权限安装辅助进程只接受受保护的已验证 staging 及类型化任务，不执行 UI/服务器传来的任意命令或任意路径。

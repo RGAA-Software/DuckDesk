@@ -6,6 +6,8 @@
 当前发布入口只生成 Pixels `official` 与 Pixels `customer`。OEM 是独立发行线，不得通过修改现有 Customer 的名称、图标、URL 或清单后
 交付。OEM 构建入口尚未开放；开放前必须同时提供唯一 `oem_id/release_namespace`、独立品牌/应用/安装身份、独立 TUF 初始根、私有更新策略
 和跨 Official/Customer/其他 OEM 的拒绝测试。现有双发行矩阵继续保持两项，不能把未实现的 OEM 算作已完成产物。
+服务端发布目录已经能够表达并隔离 `oem.<oem_id>`，但 Auth 许可证、部署/产品描述符、安装身份和构建入口尚未开放 OEM；因此该服务端能力
+不能用于手工拼装 OEM 包，也不改变本页双发行构建命令。
 
 旧的根 CMake 树、公共 `build_official/dist`、共享 Rust 编译产物、`build_client.bat`、旧端口和旧节点测试方案均已退役，不提供兼容入口。
 

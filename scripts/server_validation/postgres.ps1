@@ -329,7 +329,7 @@ try {
             Invoke-Checked 'docker' @('exec',$container,'psql','-X','-v','ON_ERROR_STOP=1','-U','pixels_admin','-d','pixels_desk','-c',
                 "CREATE TABLE pixels.pg_fixture(id uuid PRIMARY KEY,version text NOT NULL,created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP); ALTER TABLE pixels.pg_fixture OWNER TO pixels_desk_owner; GRANT SELECT,INSERT,UPDATE,DELETE ON pixels.pg_fixture TO pixels_desk_runtime") | Out-Null
         }
-        $suiteCounts = @{unit=19;identity=12;control=8;devices=9;applications=8;guests=9;nodes=11;deployments=6;instances=16;commands=16;workspaces=6;database=2;sessions=11;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=17;activity=8;updates=11;desk=7;catalog=4;'update-authority'=6;lease=6;postgres=14;accounts=9}
+        $suiteCounts = @{unit=19;identity=12;control=8;devices=9;applications=8;guests=9;nodes=11;deployments=6;instances=16;commands=16;workspaces=6;database=2;sessions=11;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=17;activity=8;updates=11;desk=8;catalog=4;'update-authority'=6;lease=6;postgres=14;accounts=9}
         $suiteCounts['console-api'] = 6
         $suiteCounts['directory-api'] = 7
         $suiteCounts['node-control'] = 3
@@ -547,7 +547,7 @@ try {
     Add-Step 'QUERY: nine Desk queries compiled online; offline metadata matches'
     $deskIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_desk_server','--features','pg-integration','--test','postgres_api','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $deskIntegration
-    Add-TestCases $deskIntegration 'native/desk-api' 7
+    Add-TestCases $deskIntegration 'native/desk-api' 8
     Add-Step 'DESK: real router/PG authorization, idempotency, CAS, release dimensions and rejected writes'
     Use-Service 'auth' 'runtime'
     Set-LocalEnv 'DATABASE_URL' $env:PIXELS_DATABASE_URL

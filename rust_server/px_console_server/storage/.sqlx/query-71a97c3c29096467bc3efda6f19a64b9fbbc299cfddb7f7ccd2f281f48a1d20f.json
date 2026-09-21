@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO pixels.update_releases(id,registered_by,request_id,request_hash,product,distribution,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,repository_publication_sha256,repository_root_version,platform_signer_sha256,size_bytes)\nVALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING id,request_hash,product,distribution,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,repository_publication_sha256,repository_root_version,platform_signer_sha256,size_bytes,state,revision,created_at,updated_at\n",
+  "query": "UPDATE pixels.update_releases SET state=$2,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 RETURNING id,request_hash,product,distribution,release_namespace,oem_id,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,repository_publication_sha256,repository_root_version,platform_signer_sha256,size_bytes,state,revision,created_at,updated_at\n",
   "describe": {
     "columns": [
       {
@@ -25,86 +25,96 @@
       },
       {
         "ordinal": 4,
-        "name": "channel",
+        "name": "release_namespace",
         "type_info": "Text"
       },
       {
         "ordinal": 5,
-        "name": "os",
+        "name": "oem_id",
         "type_info": "Text"
       },
       {
         "ordinal": 6,
-        "name": "architecture",
+        "name": "channel",
         "type_info": "Text"
       },
       {
         "ordinal": 7,
-        "name": "build_number",
-        "type_info": "Int8"
+        "name": "os",
+        "type_info": "Text"
       },
       {
         "ordinal": 8,
-        "name": "version",
+        "name": "architecture",
         "type_info": "Text"
       },
       {
         "ordinal": 9,
-        "name": "metadata_base_url",
-        "type_info": "Text"
+        "name": "build_number",
+        "type_info": "Int8"
       },
       {
         "ordinal": 10,
-        "name": "targets_base_url",
+        "name": "version",
         "type_info": "Text"
       },
       {
         "ordinal": 11,
-        "name": "target_name",
+        "name": "metadata_base_url",
         "type_info": "Text"
       },
       {
         "ordinal": 12,
-        "name": "sha256",
+        "name": "targets_base_url",
         "type_info": "Text"
       },
       {
         "ordinal": 13,
-        "name": "repository_publication_sha256",
+        "name": "target_name",
         "type_info": "Text"
       },
       {
         "ordinal": 14,
-        "name": "repository_root_version",
-        "type_info": "Int8"
+        "name": "sha256",
+        "type_info": "Text"
       },
       {
         "ordinal": 15,
-        "name": "platform_signer_sha256",
+        "name": "repository_publication_sha256",
         "type_info": "Text"
       },
       {
         "ordinal": 16,
-        "name": "size_bytes",
+        "name": "repository_root_version",
         "type_info": "Int8"
       },
       {
         "ordinal": 17,
-        "name": "state",
+        "name": "platform_signer_sha256",
         "type_info": "Text"
       },
       {
         "ordinal": 18,
-        "name": "revision",
+        "name": "size_bytes",
         "type_info": "Int8"
       },
       {
         "ordinal": 19,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 20,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 21,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 20,
+        "ordinal": 22,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
@@ -112,24 +122,7 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Uuid",
-        "Uuid",
-        "Bytea",
-        "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Int8",
-        "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Int8",
-        "Text",
-        "Int8"
+        "Text"
       ]
     },
     "nullable": [
@@ -137,6 +130,8 @@
       false,
       false,
       false,
+      false,
+      true,
       false,
       false,
       false,
@@ -156,5 +151,5 @@
       false
     ]
   },
-  "hash": "49eb61739607b9544f199db04cd1449be702ada48c97a1e18a44d9e0c5ad4338"
+  "hash": "71a97c3c29096467bc3efda6f19a64b9fbbc299cfddb7f7ccd2f281f48a1d20f"
 }

@@ -794,7 +794,7 @@ pub enum NodeResponse {
     UpdateChecked {
         request_id: u64,
         repository: Option<NodeUpdateRepository>,
-        offer: Option<NodeUpdateOffer>,
+        offer: Option<Box<NodeUpdateOffer>>,
     },
     UpdateActivationGranted {
         request_id: u64,
@@ -971,6 +971,8 @@ mod tests {
                 target: ReleaseQuery {
                     product: Product::CloudNode,
                     distribution: Distribution::Official,
+                    release_namespace: "pixels.official".into(),
+                    oem_id: None,
                     channel: Channel::Stable,
                     os: OperatingSystem::Windows,
                     architecture: Architecture::X86_64,
@@ -994,7 +996,7 @@ mod tests {
                 metadata_base_url: offer.artifact.metadata_base_url.clone(),
                 targets_base_url: offer.artifact.targets_base_url.clone(),
             }),
-            offer: Some(offer.clone()),
+            offer: Some(Box::new(offer.clone())),
         })
         .unwrap();
         assert_eq!(encoded["type"], "update_checked");

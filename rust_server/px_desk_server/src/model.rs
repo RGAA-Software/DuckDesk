@@ -122,6 +122,8 @@ pub struct Release {
     pub id: Uuid,
     pub product: String,
     pub distribution: String,
+    pub release_namespace: String,
+    pub oem_id: Option<String>,
     pub channel: String,
     pub os: String,
     pub architecture: String,

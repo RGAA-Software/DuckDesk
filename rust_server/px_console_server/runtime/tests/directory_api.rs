@@ -85,7 +85,9 @@ async fn update_catalog_requires_explicit_approval_and_exact_client_identity() {
     let artifact = json!({
         "target":{
             "product":"android",
-            "distribution":"official",
+            "distribution":"customer",
+            "release_namespace":"pixels.customer",
+            "oem_id":null,
             "channel":"stable",
             "os":"android",
             "architecture":"aarch64"
@@ -105,6 +107,41 @@ async fn update_catalog_requires_explicit_approval_and_exact_client_identity() {
         "repository_root_version":1,
         "artifact":artifact
     });
+    let mut wrong_domain_body = create_body.clone();
+    wrong_domain_body["request_id"] = json!(Uuid::new_v4());
+    wrong_domain_body["artifact"]["target"]["distribution"] = json!("official");
+    wrong_domain_body["artifact"]["target"]["release_namespace"] = json!("pixels.official");
+    assert_eq!(
+        call(
+            &router,
+            "POST",
+            "/api/console/managed/updates",
+            "admin_web",
+            Some(&admin),
+            wrong_domain_body,
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    let mut oem_domain_body = create_body.clone();
+    oem_domain_body["request_id"] = json!(Uuid::new_v4());
+    oem_domain_body["artifact"]["target"]["distribution"] = json!("oem");
+    oem_domain_body["artifact"]["target"]["release_namespace"] = json!("oem.acme-cloud");
+    oem_domain_body["artifact"]["target"]["oem_id"] = json!("acme-cloud");
+    assert_eq!(
+        call(
+            &router,
+            "POST",
+            "/api/console/managed/updates",
+            "admin_web",
+            Some(&admin),
+            oem_domain_body,
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
     let (created_status, created) = call(
         &router,
         "POST",
@@ -167,7 +204,10 @@ async fn update_catalog_requires_explicit_approval_and_exact_client_identity() {
         .1,
         created
     );
-    let latest_path = "/api/console/updates/latest?product=android&distribution=official&channel=stable&os=android&architecture=aarch64";
+    let latest_path = concat!(
+        "/api/console/updates/latest?product=android&distribution=customer",
+        "&release_namespace=pixels.customer&channel=stable&os=android&architecture=aarch64"
+    );
     assert_eq!(
         call(
             &router,
@@ -203,6 +243,31 @@ async fn update_catalog_requires_explicit_approval_and_exact_client_identity() {
     .await;
     assert_eq!(latest_status, StatusCode::OK, "{latest}");
     assert_eq!(latest, approved);
+    for wrong_domain_path in [
+        concat!(
+            "/api/console/updates/latest?product=android&distribution=official",
+            "&release_namespace=pixels.official&channel=stable&os=android&architecture=aarch64"
+        ),
+        concat!(
+            "/api/console/updates/latest?product=android&distribution=oem",
+            "&release_namespace=oem.acme-cloud&oem_id=acme-cloud",
+            "&channel=stable&os=android&architecture=aarch64"
+        ),
+    ] {
+        assert_eq!(
+            call(
+                &router,
+                "GET",
+                wrong_domain_path,
+                "android",
+                Some(&android),
+                Value::Null,
+            )
+            .await
+            .0,
+            StatusCode::FORBIDDEN
+        );
+    }
     assert_eq!(
         call(
             &router,

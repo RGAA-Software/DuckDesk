@@ -35,6 +35,8 @@ pub(crate) struct UpdateRow {
     pub request_hash: Vec<u8>,
     pub product: String,
     pub distribution: String,
+    pub release_namespace: String,
+    pub oem_id: Option<String>,
     pub channel: String,
     pub os: String,
     pub architecture: String,
@@ -173,6 +175,8 @@ impl UpdateRow {
                     .distribution
                     .parse()
                     .map_err(|_| StoreError::Rejected)?,
+                release_namespace: self.release_namespace,
+                oem_id: self.oem_id,
                 channel: self.channel.parse().map_err(|_| StoreError::Rejected)?,
                 os: self.os.parse().map_err(|_| StoreError::Rejected)?,
                 architecture: self

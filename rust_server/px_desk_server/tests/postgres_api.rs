@@ -503,11 +503,40 @@ fn release(
     architecture: &str,
     build: i64,
 ) -> Value {
+    let release_namespace = match distribution {
+        "official" => "pixels.official",
+        "customer" => "pixels.customer",
+        _ => panic!("release helper requires an explicit OEM domain"),
+    };
+    release_in_domain(
+        product,
+        distribution,
+        release_namespace,
+        None,
+        channel,
+        os,
+        architecture,
+        build,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn release_in_domain(
+    product: &str,
+    distribution: &str,
+    release_namespace: &str,
+    oem_id: Option<&str>,
+    channel: &str,
+    os: &str,
+    architecture: &str,
+    build: i64,
+) -> Value {
     let platform_signer_sha256 = match os {
         "linux" => Value::Null,
         _ => json!("b".repeat(64)),
     };
-    json!({"target":{"product":product,"distribution":distribution,"channel":channel,"os":os,"architecture":architecture},
+    json!({"target":{"product":product,"distribution":distribution,"release_namespace":release_namespace,"oem_id":oem_id,
+        "channel":channel,"os":os,"architecture":architecture},
         "build_number":build,"version":"1.2.3","metadata_base_url":"https://example.invalid/metadata/",
         "targets_base_url":"https://example.invalid/targets/","target_name":"release/pixels.bin","sha256":"a".repeat(64),
         "platform_signer_sha256":platform_signer_sha256,
@@ -576,7 +605,24 @@ async fn versions_are_persisted_dimensioned_and_write_failures_do_not_publish() 
                         .0,
                     StatusCode::OK
                 );
-                let path=format!("/api/desk/versions?product={product}&distribution={distribution}&channel={channel}&os={os}&architecture={arch}");
+                let release_namespace = match distribution {
+                    "official" => "pixels.official",
+                    "customer" => "pixels.customer",
+                    _ => unreachable!(),
+                };
+                let path = format!(
+                    concat!(
+                        "/api/desk/versions?product={product}&distribution={distribution}",
+                        "&release_namespace={release_namespace}&channel={channel}",
+                        "&os={os}&architecture={arch}"
+                    ),
+                    product = product,
+                    distribution = distribution,
+                    release_namespace = release_namespace,
+                    channel = channel,
+                    os = os,
+                    arch = arch
+                );
                 let (status, result) = call(&app, "GET", &path, None, Value::Null).await;
                 assert_eq!(status, StatusCode::OK);
                 assert_eq!(result["build_number"], seed);
@@ -613,7 +659,11 @@ async fn versions_are_persisted_dimensioned_and_write_failures_do_not_publish() 
         .await
         .unwrap();
     assert_eq!(failed.0, StatusCode::SERVICE_UNAVAILABLE);
-    let current=call(&app,"GET","/api/desk/versions?product=client&distribution=official&channel=stable&os=windows&architecture=x86_64",None,Value::Null).await.1;
+    let current_path = concat!(
+        "/api/desk/versions?product=client&distribution=official",
+        "&release_namespace=pixels.official&channel=stable&os=windows&architecture=x86_64"
+    );
+    let current = call(&app, "GET", current_path, None, Value::Null).await.1;
     assert_eq!(current["build_number"], seed);
     state.close().await;
     owner.close().await;
@@ -684,8 +734,8 @@ async fn release_platform_missing_fields_invalid_metadata_and_races_cannot_publi
     }
     for query in [
         "product=server&distribution=customer&channel=preview",
-        "product=android&distribution=customer&channel=preview&os=windows&architecture=x86_64",
-        "product=panel&distribution=official&channel=stable&os=windows&architecture=x86_64",
+        "product=android&distribution=customer&release_namespace=pixels.customer&channel=preview&os=windows&architecture=x86_64",
+        "product=panel&distribution=official&release_namespace=pixels.official&channel=stable&os=windows&architecture=x86_64",
     ] {
         assert!(call(
             &app,
@@ -723,6 +773,85 @@ async fn release_platform_missing_fields_invalid_metadata_and_races_cannot_publi
         }
     }
     assert_eq!(successes, 1);
+    state.close().await;
+    owner.close().await;
+}
+
+#[tokio::test]
+async fn oem_release_domains_are_isolated_and_cannot_alias_pixels_domains() {
+    let (app, state, owner) = application(TOKEN).await;
+    let token = login(&app).await;
+    let build_number = chrono::Utc::now().timestamp_micros();
+    for oem_id in ["acme-cloud", "north-star"] {
+        let body = release_in_domain(
+            "client",
+            "oem",
+            &format!("oem.{oem_id}"),
+            Some(oem_id),
+            "stable",
+            "windows",
+            "x86_64",
+            build_number,
+        );
+        assert_eq!(
+            call(&app, "POST", "/api/desk/versions", Some(&token), body)
+                .await
+                .0,
+            StatusCode::OK
+        );
+    }
+    for oem_id in ["acme-cloud", "north-star"] {
+        let path = format!(
+            concat!(
+                "/api/desk/versions?product=client&distribution=oem",
+                "&release_namespace=oem.{oem_id}&oem_id={oem_id}",
+                "&channel=stable&os=windows&architecture=x86_64"
+            ),
+            oem_id = oem_id
+        );
+        let (status, result) = call(&app, "GET", &path, None, Value::Null).await;
+        assert_eq!(status, StatusCode::OK, "{result}");
+        assert_eq!(result["release_namespace"], format!("oem.{oem_id}"));
+        assert_eq!(result["oem_id"], oem_id);
+    }
+    for (release_namespace, oem_id) in [
+        ("pixels.official", Some("acme-cloud")),
+        ("oem.acme-cloud", None),
+        ("oem.north-star", Some("acme-cloud")),
+    ] {
+        let body = release_in_domain(
+            "client",
+            "oem",
+            release_namespace,
+            oem_id,
+            "stable",
+            "windows",
+            "x86_64",
+            build_number + 1,
+        );
+        assert_eq!(
+            call(&app, "POST", "/api/desk/versions", Some(&token), body)
+                .await
+                .0,
+            StatusCode::BAD_REQUEST
+        );
+    }
+    assert_eq!(
+        call(
+            &app,
+            "GET",
+            concat!(
+                "/api/desk/versions?product=client&distribution=oem",
+                "&release_namespace=oem.acme-cloud&oem_id=north-star",
+                "&channel=stable&os=windows&architecture=x86_64"
+            ),
+            None,
+            Value::Null,
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
     state.close().await;
     owner.close().await;
 }

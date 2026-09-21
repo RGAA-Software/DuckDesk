@@ -318,6 +318,8 @@ mod tests {
             target: ReleaseQuery {
                 product: Product::CloudNode,
                 distribution: Distribution::Official,
+                release_namespace: "pixels.official".into(),
+                oem_id: None,
                 channel: Channel::Stable,
                 os: OperatingSystem::Windows,
                 architecture: Architecture::X86_64,

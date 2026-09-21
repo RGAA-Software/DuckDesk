@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id,request_hash,product,distribution,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,repository_publication_sha256,repository_root_version,platform_signer_sha256,size_bytes,state,revision,created_at,updated_at FROM pixels.update_releases WHERE id=$1\n",
+  "query": "SELECT id,request_hash,product,distribution,release_namespace,oem_id,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,repository_publication_sha256,repository_root_version,platform_signer_sha256,size_bytes,state,revision,created_at,updated_at FROM pixels.update_releases WHERE product=$1 AND distribution=$2 AND release_namespace=$3 AND oem_id IS NOT DISTINCT FROM $4 AND channel=$5 AND os=$6 AND architecture=$7 ORDER BY build_number DESC LIMIT 1\n",
   "describe": {
     "columns": [
       {
@@ -25,93 +25,109 @@
       },
       {
         "ordinal": 4,
-        "name": "channel",
+        "name": "release_namespace",
         "type_info": "Text"
       },
       {
         "ordinal": 5,
-        "name": "os",
+        "name": "oem_id",
         "type_info": "Text"
       },
       {
         "ordinal": 6,
-        "name": "architecture",
+        "name": "channel",
         "type_info": "Text"
       },
       {
         "ordinal": 7,
-        "name": "build_number",
-        "type_info": "Int8"
+        "name": "os",
+        "type_info": "Text"
       },
       {
         "ordinal": 8,
-        "name": "version",
+        "name": "architecture",
         "type_info": "Text"
       },
       {
         "ordinal": 9,
-        "name": "metadata_base_url",
-        "type_info": "Text"
+        "name": "build_number",
+        "type_info": "Int8"
       },
       {
         "ordinal": 10,
-        "name": "targets_base_url",
+        "name": "version",
         "type_info": "Text"
       },
       {
         "ordinal": 11,
-        "name": "target_name",
+        "name": "metadata_base_url",
         "type_info": "Text"
       },
       {
         "ordinal": 12,
-        "name": "sha256",
+        "name": "targets_base_url",
         "type_info": "Text"
       },
       {
         "ordinal": 13,
-        "name": "repository_publication_sha256",
+        "name": "target_name",
         "type_info": "Text"
       },
       {
         "ordinal": 14,
-        "name": "repository_root_version",
-        "type_info": "Int8"
+        "name": "sha256",
+        "type_info": "Text"
       },
       {
         "ordinal": 15,
-        "name": "platform_signer_sha256",
+        "name": "repository_publication_sha256",
         "type_info": "Text"
       },
       {
         "ordinal": 16,
-        "name": "size_bytes",
+        "name": "repository_root_version",
         "type_info": "Int8"
       },
       {
         "ordinal": 17,
-        "name": "state",
+        "name": "platform_signer_sha256",
         "type_info": "Text"
       },
       {
         "ordinal": 18,
-        "name": "revision",
+        "name": "size_bytes",
         "type_info": "Int8"
       },
       {
         "ordinal": 19,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 20,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 21,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 20,
+        "ordinal": 22,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text"
       ]
     },
     "nullable": [
@@ -119,6 +135,8 @@
       false,
       false,
       false,
+      false,
+      true,
       false,
       false,
       false,
@@ -138,5 +156,5 @@
       false
     ]
   },
-  "hash": "1a42a95f4ad75644d7192122f11409432a05e0ea8813ec502727fd27bc49c7cc"
+  "hash": "f8f250a15087095a40f60d2735231e1c96d9b0d353b69da2bcd868c6e65a326b"
 }
