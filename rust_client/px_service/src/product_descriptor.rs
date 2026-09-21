@@ -34,6 +34,8 @@ pub struct ProductDescriptor {
     pub schema_version: u32,
     pub product: String,
     pub distribution: String,
+    pub release_namespace: Option<String>,
+    pub oem_id: Option<String>,
     pub edition: String,
     pub company: String,
     pub product_version: String,
@@ -70,16 +72,47 @@ impl ProductDescriptor {
     }
 
     fn validate(&self) -> Result<(), String> {
-        if self.schema_version != 2 || self.company != "Pixels" {
+        if self.schema_version != 3 || self.company != "Pixels" {
             return Err(
-                "installed product descriptor must use schema 2 and company Pixels".to_string(),
+                "installed product descriptor must use schema 3 and company Pixels".to_string(),
             );
         }
         if !matches!(
             self.distribution.as_str(),
-            "development" | "official" | "customer"
+            "development" | "official" | "customer" | "oem"
         ) {
             return Err("installed product descriptor has an invalid distribution".to_string());
+        }
+        let release_domain_valid = match self.distribution.as_str() {
+            "development" => self.release_namespace.is_none() && self.oem_id.is_none(),
+            "official" => {
+                self.release_namespace.as_deref() == Some("pixels.official")
+                    && self.oem_id.is_none()
+            }
+            "customer" => {
+                self.release_namespace.as_deref() == Some("pixels.customer")
+                    && self.oem_id.is_none()
+            }
+            "oem" => self.oem_id.as_deref().is_some_and(|oem_id| {
+                (3..=32).contains(&oem_id.len())
+                    && oem_id.bytes().all(|byte| {
+                        byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-'
+                    })
+                    && !oem_id.starts_with('-')
+                    && !oem_id.ends_with('-')
+                    && !oem_id.contains("--")
+                    && !matches!(oem_id, "pixels" | "official" | "customer" | "oem")
+                    && self
+                        .release_namespace
+                        .as_deref()
+                        .is_some_and(|release_namespace| {
+                            release_namespace == format!("oem.{oem_id}")
+                        })
+            }),
+            _ => false,
+        };
+        if !release_domain_valid {
+            return Err("installed product descriptor has an invalid release domain".to_string());
         }
         let expected = match (self.product.as_str(), self.edition.as_str()) {
             ("cloud_node", "CLOUD_NODE") => CLOUD_NODE_CAPABILITIES,
@@ -132,9 +165,11 @@ mod tests {
 
     fn descriptor(product: &str, edition: &str, capabilities: &[&str]) -> ProductDescriptor {
         ProductDescriptor {
-            schema_version: 2,
+            schema_version: 3,
             product: product.to_string(),
             distribution: "official".to_string(),
+            release_namespace: Some("pixels.official".into()),
+            oem_id: None,
             edition: edition.to_string(),
             company: "Pixels".to_string(),
             product_version: "3.3.67".to_string(),
@@ -163,11 +198,23 @@ mod tests {
         let mut invalid_distribution = descriptor("remote", "REMOTE", REMOTE_CAPABILITIES);
         invalid_distribution.distribution = "official-looking".to_string();
         assert!(invalid_distribution.validate().is_err());
+        let mut retired_schema = descriptor("remote", "REMOTE", REMOTE_CAPABILITIES);
+        retired_schema.schema_version = 2;
+        assert!(retired_schema.validate().is_err());
+        let mut mismatched_domain = descriptor("remote", "REMOTE", REMOTE_CAPABILITIES);
+        mismatched_domain.release_namespace = Some("pixels.customer".into());
+        assert!(mismatched_domain.validate().is_err());
+        let mut oem = descriptor("remote", "REMOTE", REMOTE_CAPABILITIES);
+        oem.distribution = "oem".into();
+        oem.release_namespace = Some("oem.acme-cloud".into());
+        oem.oem_id = Some("acme-cloud".into());
+        assert!(oem.validate().is_ok());
         let mut missing_release_signer = descriptor("remote", "REMOTE", REMOTE_CAPABILITIES);
         missing_release_signer.signer_certificate_sha256 = None;
         assert!(missing_release_signer.validate().is_err());
         let mut development = descriptor("remote", "REMOTE", REMOTE_CAPABILITIES);
         development.distribution = "development".into();
+        development.release_namespace = None;
         development.signer_certificate_sha256 = None;
         assert!(development.validate().is_ok());
     }

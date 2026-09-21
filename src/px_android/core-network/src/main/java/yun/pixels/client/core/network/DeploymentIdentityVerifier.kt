@@ -17,8 +17,17 @@ internal enum class DeploymentKind(val wireValue: String) {
     Private("private"),
 }
 
+internal enum class DeploymentDistribution(val wireValue: String) {
+    Official("official"),
+    Customer("customer"),
+    Oem("oem"),
+}
+
 internal data class DeploymentVerificationPolicy(
     val expectedKind: DeploymentKind,
+    val expectedDistribution: DeploymentDistribution,
+    val expectedReleaseNamespace: String,
+    val expectedOemId: String?,
     val expectedDeploymentId: UUID?,
     val minimumCertificateVersion: Long,
     val minimumDescriptorRevision: Long,
@@ -30,6 +39,9 @@ internal data class DeploymentVerificationPolicy(
 internal data class VerifiedDeploymentIdentity(
     val deploymentId: UUID,
     val deploymentKind: DeploymentKind,
+    val distribution: DeploymentDistribution,
+    val releaseNamespace: String,
+    val oemId: String?,
     val deploymentPublicKey: ByteArray,
     val certificateVersion: Long,
     val descriptorRevision: Long,
@@ -45,6 +57,9 @@ class DeploymentIdentityConfiguration private constructor(
         fun create(
             canonicalTrustStore: ByteArray,
             expectedKind: String,
+            expectedDistribution: String,
+            expectedReleaseNamespace: String,
+            expectedOemId: String?,
             expectedDeploymentId: String?,
             minimumCertificateVersion: Long,
             minimumDescriptorRevision: Long,
@@ -62,8 +77,12 @@ class DeploymentIdentityConfiguration private constructor(
                 runCatching { UUID.fromString(it) }.getOrNull()?.takeIf { identifier -> identifier != ZERO_UUID && identifier.toString() == it }
                     ?: return null
             }
+            val distribution = expectedDistribution.toDeploymentDistribution() ?: return null
             val policy = DeploymentVerificationPolicy(
                 deploymentKind,
+                distribution,
+                expectedReleaseNamespace,
+                expectedOemId,
                 deploymentId,
                 minimumCertificateVersion,
                 minimumDescriptorRevision,
@@ -170,6 +189,9 @@ internal class DeploymentIdentityVerifier(
             val certificate = parseCertificate(certificatePayload) ?: return null
             if (
                 certificate.deploymentKind != policy.expectedKind ||
+                certificate.distribution != policy.expectedDistribution ||
+                certificate.releaseNamespace != policy.expectedReleaseNamespace ||
+                certificate.oemId != policy.expectedOemId ||
                 policy.expectedDeploymentId?.let { it != certificate.deploymentId } == true ||
                 certificate.certificateVersion < policy.minimumCertificateVersion ||
                 certificate.notBefore > nowEpochSeconds ||
@@ -184,6 +206,9 @@ internal class DeploymentIdentityVerifier(
             if (
                 descriptor.deploymentId != certificate.deploymentId ||
                 descriptor.deploymentKind != certificate.deploymentKind ||
+                descriptor.distribution != certificate.distribution ||
+                descriptor.releaseNamespace != certificate.releaseNamespace ||
+                descriptor.oemId != certificate.oemId ||
                 descriptor.descriptorRevision < policy.minimumDescriptorRevision ||
                 descriptor.trustEpoch < policy.minimumTrustEpoch ||
                 descriptor.issuedAt > nowEpochSeconds ||
@@ -194,6 +219,9 @@ internal class DeploymentIdentityVerifier(
             VerifiedDeploymentIdentity(
                 certificate.deploymentId,
                 certificate.deploymentKind,
+                certificate.distribution,
+                certificate.releaseNamespace,
+                certificate.oemId,
                 certificate.deploymentPublicKey,
                 certificate.certificateVersion,
                 descriptor.descriptorRevision,
@@ -251,6 +279,9 @@ internal class DeploymentIdentityVerifier(
 private data class DeploymentCertificatePayload(
     val deploymentId: UUID,
     val deploymentKind: DeploymentKind,
+    val distribution: DeploymentDistribution,
+    val releaseNamespace: String,
+    val oemId: String?,
     val deploymentPublicKey: ByteArray,
     val certificateVersion: Long,
     val notBefore: Long,
@@ -260,6 +291,9 @@ private data class DeploymentCertificatePayload(
 private data class PlatformDescriptorPayload(
     val deploymentId: UUID,
     val deploymentKind: DeploymentKind,
+    val distribution: DeploymentDistribution,
+    val releaseNamespace: String,
+    val oemId: String?,
     val descriptorRevision: Long,
     val trustEpoch: Long,
     val issuedAt: Long,
@@ -275,6 +309,9 @@ private fun parseCertificate(payload: ByteArray): DeploymentCertificatePayload? 
             "schema_version",
             "deployment_id",
             "deployment_kind",
+            "distribution",
+            "release_namespace",
+            "oem_id",
             "deployment_public_key_hex",
             "certificate_version",
             "not_before",
@@ -282,16 +319,30 @@ private fun parseCertificate(payload: ByteArray): DeploymentCertificatePayload? 
             "issuer_key_id",
         )
     ) return null
-    if (certificate.strictLong("schema_version") != 1L) return null
+    if (certificate.strictLong("schema_version") != 2L) return null
     val deploymentId = certificate.strictUuid("deployment_id") ?: return null
     val deploymentKind = certificate.strictDeploymentKind("deployment_kind") ?: return null
+    val distribution = certificate.strictDeploymentDistribution("distribution") ?: return null
+    val releaseNamespace = certificate.strictString("release_namespace") ?: return null
+    val oemId = certificate.strictNullableString("oem_id") ?: return null
+    if (!validReleaseDomain(deploymentKind, distribution, releaseNamespace, oemId.value)) return null
     val deploymentPublicKey = certificate.strictString("deployment_public_key_hex")?.decodeCanonicalHex(32) ?: return null
     val certificateVersion = certificate.strictPositiveLong("certificate_version") ?: return null
     val notBefore = certificate.strictNonNegativeLong("not_before") ?: return null
     val expiresAt = certificate.strictNonNegativeLong("expires_at") ?: return null
     val issuerKeyId = certificate.strictString("issuer_key_id") ?: return null
     if (issuerKeyId.decodeCanonicalHex(32) == null || expiresAt <= notBefore || expiresAt > MAX_UNIX_SECONDS) return null
-    DeploymentCertificatePayload(deploymentId, deploymentKind, deploymentPublicKey, certificateVersion, notBefore, expiresAt)
+    DeploymentCertificatePayload(
+        deploymentId,
+        deploymentKind,
+        distribution,
+        releaseNamespace,
+        oemId.value,
+        deploymentPublicKey,
+        certificateVersion,
+        notBefore,
+        expiresAt,
+    )
 }.getOrNull()
 
 private fun parseDescriptor(payload: ByteArray): PlatformDescriptorPayload? = runCatching {
@@ -300,6 +351,9 @@ private fun parseDescriptor(payload: ByteArray): PlatformDescriptorPayload? = ru
             "schema_version",
             "deployment_id",
             "deployment_kind",
+            "distribution",
+            "release_namespace",
+            "oem_id",
             "descriptor_revision",
             "trust_epoch",
             "issued_at",
@@ -314,9 +368,13 @@ private fun parseDescriptor(payload: ByteArray): PlatformDescriptorPayload? = ru
             "node_control_path",
         )
     ) return null
-    if (descriptor.strictLong("schema_version") != 1L) return null
+    if (descriptor.strictLong("schema_version") != 2L) return null
     val deploymentId = descriptor.strictUuid("deployment_id") ?: return null
     val deploymentKind = descriptor.strictDeploymentKind("deployment_kind") ?: return null
+    val distribution = descriptor.strictDeploymentDistribution("distribution") ?: return null
+    val releaseNamespace = descriptor.strictString("release_namespace") ?: return null
+    val oemId = descriptor.strictNullableString("oem_id") ?: return null
+    if (!validReleaseDomain(deploymentKind, distribution, releaseNamespace, oemId.value)) return null
     val descriptorRevision = descriptor.strictPositiveLong("descriptor_revision") ?: return null
     val trustEpoch = descriptor.strictPositiveLong("trust_epoch") ?: return null
     val issuedAt = descriptor.strictNonNegativeLong("issued_at") ?: return null
@@ -339,6 +397,9 @@ private fun parseDescriptor(payload: ByteArray): PlatformDescriptorPayload? = ru
     PlatformDescriptorPayload(
         deploymentId,
         deploymentKind,
+        distribution,
+        releaseNamespace,
+        oemId.value,
         descriptorRevision,
         trustEpoch,
         issuedAt,
@@ -350,7 +411,8 @@ private fun parseDescriptor(payload: ByteArray): PlatformDescriptorPayload? = ru
 }.getOrNull()
 
 private fun DeploymentVerificationPolicy.isValid(): Boolean =
-    minimumCertificateVersion > 0 &&
+    validReleaseDomain(expectedKind, expectedDistribution, expectedReleaseNamespace, expectedOemId) &&
+        minimumCertificateVersion > 0 &&
         minimumDescriptorRevision > 0 &&
         minimumTrustEpoch > 0 &&
         clientBuild > 0 &&
@@ -359,6 +421,15 @@ private fun DeploymentVerificationPolicy.isValid(): Boolean =
 private fun JSONObject.hasExactly(vararg names: String): Boolean = keys().asSequence().toSet() == names.toSet()
 
 private fun JSONObject.strictString(name: String): String? = opt(name).takeIf { it is String } as? String
+
+private data class NullableString(val value: String?)
+
+private fun JSONObject.strictNullableString(name: String): NullableString? = when (val value = opt(name)) {
+    null -> null
+    JSONObject.NULL -> NullableString(null)
+    is String -> NullableString(value)
+    else -> null
+}
 
 private fun JSONObject.strictLong(name: String): Long? {
     val number = opt(name) as? Number ?: return null
@@ -383,6 +454,32 @@ private fun JSONObject.strictDeploymentKind(name: String): DeploymentKind? = whe
     DeploymentKind.Private.wireValue -> DeploymentKind.Private
     else -> null
 }
+
+private fun JSONObject.strictDeploymentDistribution(name: String): DeploymentDistribution? =
+    strictString(name)?.toDeploymentDistribution()
+
+private fun String.toDeploymentDistribution(): DeploymentDistribution? = when (this) {
+    DeploymentDistribution.Official.wireValue -> DeploymentDistribution.Official
+    DeploymentDistribution.Customer.wireValue -> DeploymentDistribution.Customer
+    DeploymentDistribution.Oem.wireValue -> DeploymentDistribution.Oem
+    else -> null
+}
+
+private fun validReleaseDomain(
+    deploymentKind: DeploymentKind,
+    distribution: DeploymentDistribution,
+    releaseNamespace: String,
+    oemId: String?,
+): Boolean = when (distribution) {
+    DeploymentDistribution.Official -> deploymentKind == DeploymentKind.Official && releaseNamespace == "pixels.official" && oemId == null
+    DeploymentDistribution.Customer -> deploymentKind == DeploymentKind.Private && releaseNamespace == "pixels.customer" && oemId == null
+    DeploymentDistribution.Oem -> deploymentKind == DeploymentKind.Private && oemId != null && oemId.isCanonicalOemId() &&
+        releaseNamespace == "oem.$oemId"
+}
+
+private fun String.isCanonicalOemId(): Boolean =
+    length in 3..32 && first() != '-' && last() != '-' && "--" !in this &&
+        this !in setOf("pixels", "official", "customer", "oem") && all { it in 'a'..'z' || it in '0'..'9' || it == '-' }
 
 private fun JSONObject.strictSortedStringArray(name: String, allowedSize: IntRange): List<String>? {
     val values = opt(name) as? JSONArray ?: return null
@@ -416,9 +513,9 @@ private val ED25519_X509_PREFIX = byteArrayOf(0x30, 0x2a, 0x30, 0x05, 0x06, 0x03
 private val ZERO_UUID = UUID(0, 0)
 private const val MAX_WIRE_CHARACTERS = 16 * 1024
 private const val MAX_UNIX_SECONDS = 253_402_300_799L
-private const val CERTIFICATE_PREFIX = "PXDC1"
-private val CERTIFICATE_DOMAIN = "Pixels-Deployment-Certificate-v1\u0000".toByteArray(StandardCharsets.UTF_8)
-private const val DESCRIPTOR_PREFIX = "PXDD1"
-private val DESCRIPTOR_DOMAIN = "Pixels-Platform-Descriptor-v1\u0000".toByteArray(StandardCharsets.UTF_8)
+private const val CERTIFICATE_PREFIX = "PXDC2"
+private val CERTIFICATE_DOMAIN = "Pixels-Deployment-Certificate-v2\u0000".toByteArray(StandardCharsets.UTF_8)
+private const val DESCRIPTOR_PREFIX = "PXDD2"
+private val DESCRIPTOR_DOMAIN = "Pixels-Platform-Descriptor-v2\u0000".toByteArray(StandardCharsets.UTF_8)
 private const val CHALLENGE_PREFIX = "PXDP1"
 private val CHALLENGE_DOMAIN = "Pixels-Deployment-Challenge-v1\u0000".toByteArray(StandardCharsets.UTF_8)

@@ -69,7 +69,8 @@ Unix 私钥拒绝 group/other 权限。文件类型/权限与读取在同一打�
 | POST /licenses/verify | 提交 wire 和明确目标绑定；先验签，再查当前 revision/撤销/有效期 |
 
 列表必须传 limit=1..100，可传 after UUID，无无界全量查询。
-签发 terms 明确 customer/deployment/product/distribution/machine/mode/activation/expires/额度/features；
+签发 terms 明确 customer/deployment/product/distribution/release_namespace/oem_id/machine/mode/activation/expires/额度/features；
+发行域只能是 `official/pixels.official/null`、`customer/pixels.customer/null` 或 `oem/oem.<oem_id>/<oem_id>`，不能省略、推断或跨许可证续期改变；
 activation 为 immediately 或 at+timestamp，不用客户端猜签发时钟。
 同作者同 request_id 正文不同返回 409；相同请求返回完全相同已提交 wire。
 续期只能调整权益，不能换客户/部署/产品/发行/机器身份。撤销后不能通过旧请求或续期“复活”。
@@ -80,7 +81,7 @@ activation 为 immediately 或 at+timestamp，不用客户端猜签发时钟。
 只读角色不显示写入入口，服务端仍逐请求鉴权。
 私有离线验证的即时撤销和备份回退问题不能由此 API 解决；库外防回滚水位仍是 DB4/Console 准入门禁。
 
-`/licenses/verify` 同时是 Official Console 的认证消费者接触点。只有签名、deployment、product、distribution、machine 和时间全部通过后，
+`/licenses/verify` 同时是 Official Console 的认证消费者接触点。只有签名、deployment、product、精确发行域、machine 和时间全部通过后，
 Auth 才把该 license 截至数据库当前 revision 的通知 outbox 标为已接触并清除旧 lease；内部 lease UUID 从不出现在 HTTP。
 随后仍独立检查 wire 是否为当前 revision 且未撤销：旧 wire 的接触可以完成通知记账，但响应必为拒绝。响应丢失不会产生 fail-open，
 因为 Console 的在线新鲜度只由成功 currentness 响应推进。

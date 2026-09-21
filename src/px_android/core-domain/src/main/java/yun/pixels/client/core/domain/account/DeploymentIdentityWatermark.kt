@@ -3,6 +3,9 @@ package yun.pixels.client.core.domain.account
 data class DeploymentIdentityWatermark(
     val deploymentId: String,
     val deploymentKind: String,
+    val distribution: String,
+    val releaseNamespace: String,
+    val oemId: String?,
     val certificateVersion: Long,
     val descriptorRevision: Long,
     val trustEpoch: Long,

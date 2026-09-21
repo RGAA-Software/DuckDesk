@@ -3,13 +3,13 @@ import vue from '@vitejs/plugin-vue'
 import { readFileSync } from 'node:fs'
 
 const distribution = process.env.PIXELS_WEB_DISTRIBUTION ?? 'development'
-if (!['development', 'official', 'customer'].includes(distribution)) {
-  throw new Error('PIXELS_WEB_DISTRIBUTION must be development, official, or customer')
+if (!['development', 'official', 'customer', 'oem'].includes(distribution)) {
+  throw new Error('PIXELS_WEB_DISTRIBUTION must be development, official, customer, or oem')
 }
 
 function releaseIdentityResource(environmentName: string): string {
   const path = process.env[environmentName]
-  if (!path) throw new Error(`${environmentName} is required for an Official/Customer Web Client build`)
+  if (!path) throw new Error(`${environmentName} is required for a non-development Web Client build`)
   return readFileSync(path, 'utf8')
 }
 
@@ -21,7 +21,7 @@ if (distribution !== 'development') {
   deploymentTrustStore = releaseIdentityResource('PIXELS_WEB_DEPLOYMENT_TRUST_FILE')
   clientBuild = process.env.PIXELS_WEB_CLIENT_BUILD ?? ''
   if (!/^[1-9][0-9]*$/.test(clientBuild)) {
-    throw new Error('PIXELS_WEB_CLIENT_BUILD must be a positive integer for an Official/Customer Web Client build')
+    throw new Error('PIXELS_WEB_CLIENT_BUILD must be a positive integer for a non-development Web Client build')
   }
   const policy = JSON.parse(deploymentPolicy) as { distribution?: unknown }
   if (policy.distribution !== distribution) {

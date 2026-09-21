@@ -5,8 +5,8 @@ import {
     type DeploymentIdentityConfiguration,
 } from "../src/rtc/deployment_identity";
 
-const CERTIFICATE_DOMAIN = new TextEncoder().encode("Pixels-Deployment-Certificate-v1\0");
-const DESCRIPTOR_DOMAIN = new TextEncoder().encode("Pixels-Platform-Descriptor-v1\0");
+const CERTIFICATE_DOMAIN = new TextEncoder().encode("Pixels-Deployment-Certificate-v2\0");
+const DESCRIPTOR_DOMAIN = new TextEncoder().encode("Pixels-Platform-Descriptor-v2\0");
 const CHALLENGE_DOMAIN = new TextEncoder().encode("Pixels-Deployment-Challenge-v1\0");
 const DEPLOYMENT_ID = "8f9cbade-f2c1-47d4-a92e-109675684b21";
 const NOW = 1_900_000_000;
@@ -72,10 +72,15 @@ async function fixture(deploymentKind: "official" | "private" = "private", descr
     const vendorPublicKey = new Uint8Array(await crypto.subtle.exportKey("raw", vendorKeys.publicKey));
     const deploymentPublicKey = new Uint8Array(await crypto.subtle.exportKey("raw", deploymentKeys.publicKey));
     const vendorKeyId = await sha256Hex(vendorPublicKey);
+    const distribution = deploymentKind === "official" ? "official" : "customer";
+    const releaseNamespace = deploymentKind === "official" ? "pixels.official" : "pixels.customer";
     const certificate = {
-        schema_version: 1,
+        schema_version: 2,
         deployment_id: DEPLOYMENT_ID,
         deployment_kind: deploymentKind,
+        distribution,
+        release_namespace: releaseNamespace,
+        oem_id: null,
         deployment_public_key_hex: encodeHex(deploymentPublicKey),
         certificate_version: 2,
         not_before: NOW - 60,
@@ -83,9 +88,12 @@ async function fixture(deploymentKind: "official" | "private" = "private", descr
         issuer_key_id: vendorKeyId,
     };
     const descriptor = {
-        schema_version: 1,
+        schema_version: 2,
         deployment_id: DEPLOYMENT_ID,
         deployment_kind: deploymentKind,
+        distribution,
+        release_namespace: releaseNamespace,
+        oem_id: null,
         descriptor_revision: descriptorRevision,
         trust_epoch: 3,
         issued_at: NOW - 1,
@@ -100,14 +108,16 @@ async function fixture(deploymentKind: "official" | "private" = "private", descr
         node_control_path: "/api/console/node-control",
     };
     const identity = {
-        certificate_wire: await signWire("PXDC1", CERTIFICATE_DOMAIN, certificate, vendorKeys.privateKey),
-        descriptor_wire: await signWire("PXDD1", DESCRIPTOR_DOMAIN, descriptor, deploymentKeys.privateKey),
+        certificate_wire: await signWire("PXDC2", CERTIFICATE_DOMAIN, certificate, vendorKeys.privateKey),
+        descriptor_wire: await signWire("PXDD2", DESCRIPTOR_DOMAIN, descriptor, deploymentKeys.privateKey),
     };
     const configuration: DeploymentIdentityConfiguration = {
-        distribution: deploymentKind === "official" ? "official" : "customer",
+        distribution,
         policy: {
-            schema_version: 1,
-            distribution: deploymentKind === "official" ? "official" : "customer",
+            schema_version: 2,
+            distribution,
+            release_namespace: releaseNamespace,
+            oem_id: null,
             expected_deployment_id: deploymentKind === "official" ? DEPLOYMENT_ID : null,
             official_console_origin: deploymentKind === "official" ? "https://console.example.test" : null,
             minimum_certificate_version: 2,
@@ -176,6 +186,7 @@ describe("Web deployment identity gate", () => {
             policy: {
                 ...privateFixture.configuration.policy!,
                 distribution: "official",
+                release_namespace: "pixels.official",
                 expected_deployment_id: DEPLOYMENT_ID,
                 official_console_origin: "https://console.example.test",
             },

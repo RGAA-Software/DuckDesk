@@ -28,6 +28,8 @@ it("validates UUID, signed integer boundaries, products, sorted capabilities and
         deployment_id: crypto.randomUUID(),
         product: "pixels_console",
         distribution: "customer",
+        release_namespace: "pixels.customer",
+        oem_id: null,
         machine_sha256: "a".repeat(64),
         mode: "trial",
         activation: { kind: "immediately" },
@@ -46,9 +48,22 @@ it("validates UUID, signed integer boundaries, products, sorted capabilities and
         { deployment_id: "00000000-0000-0000-0000-000000000000" },
         { features: ["rdp", "desktop"] },
         { product: "console" },
+        { release_namespace: "pixels.official" },
+        { distribution: "oem", release_namespace: "oem.ACME", oem_id: "ACME" },
     ]) {
         expect(validTerms({ ...terms, ...patch } as Terms, 1900000000)).toBe(false);
     }
+    expect(
+        validTerms(
+            {
+                ...terms,
+                distribution: "oem",
+                release_namespace: "oem.acme-cloud",
+                oem_id: "acme-cloud",
+            },
+            1900000000,
+        ),
+    ).toBe(true);
 });
 it("retains request identity for unknown commits but resets after success or changed body", () => {
     const identity = requestIdentity(),

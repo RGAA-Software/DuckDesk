@@ -40,7 +40,10 @@ class PixelsAppGraph(application: Application) {
     private val deploymentIdentity = requireNotNull(
         DeploymentIdentityConfiguration.create(
             canonicalTrustStore = Base64.getDecoder().decode(BuildConfig.DEPLOYMENT_TRUST_STORE_BASE64),
-            expectedKind = if (BuildConfig.DEPLOYMENT_DISTRIBUTION == "customer") "private" else "official",
+            expectedKind = if (BuildConfig.DEPLOYMENT_DISTRIBUTION == "official") "official" else "private",
+            expectedDistribution = BuildConfig.DEPLOYMENT_DISTRIBUTION,
+            expectedReleaseNamespace = BuildConfig.RELEASE_NAMESPACE,
+            expectedOemId = BuildConfig.OEM_ID.ifEmpty { null },
             expectedDeploymentId = BuildConfig.EXPECTED_DEPLOYMENT_ID.ifEmpty { null },
             minimumCertificateVersion = BuildConfig.MINIMUM_DEPLOYMENT_CERTIFICATE_VERSION,
             minimumDescriptorRevision = BuildConfig.MINIMUM_DESCRIPTOR_REVISION,

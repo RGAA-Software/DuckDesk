@@ -21,8 +21,8 @@ using KeyHandle = std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)>;
 using DigestContextHandle = std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)>;
 
 constexpr std::int64_t kNow{1'700'000'000};
-constexpr char kCertificateDomainBytes[] = "Pixels-Deployment-Certificate-v1\0";
-constexpr char kDescriptorDomainBytes[] = "Pixels-Platform-Descriptor-v1\0";
+constexpr char kCertificateDomainBytes[] = "Pixels-Deployment-Certificate-v2\0";
+constexpr char kDescriptorDomainBytes[] = "Pixels-Platform-Descriptor-v2\0";
 constexpr char kChallengeDomainBytes[] = "Pixels-Deployment-Challenge-v1\0";
 
 std::string Base64Url(const std::span<const std::uint8_t> bytes) {
@@ -109,13 +109,23 @@ IdentityFixture MakeFixture() {
     const auto vendorKeyId = KeyId(vendorPublicKey);
     const std::string deploymentId{"8f9cbade-f2c1-47d4-a92e-109675684b21"};
 
-    const OrderedJson certificate{{"schema_version", 1},          {"deployment_id", deploymentId},
-                                  {"deployment_kind", "private"}, {"deployment_public_key_hex", LowerHex(deploymentPublicKey)},
-                                  {"certificate_version", 4},     {"not_before", kNow - 60},
-                                  {"expires_at", kNow + 86'400},  {"issuer_key_id", vendorKeyId}};
-    const OrderedJson descriptor{{"schema_version", 1},
+    const OrderedJson certificate{{"schema_version", 2},
+                                  {"deployment_id", deploymentId},
+                                  {"deployment_kind", "private"},
+                                  {"distribution", "customer"},
+                                  {"release_namespace", "pixels.customer"},
+                                  {"oem_id", nullptr},
+                                  {"deployment_public_key_hex", LowerHex(deploymentPublicKey)},
+                                  {"certificate_version", 4},
+                                  {"not_before", kNow - 60},
+                                  {"expires_at", kNow + 86'400},
+                                  {"issuer_key_id", vendorKeyId}};
+    const OrderedJson descriptor{{"schema_version", 2},
                                  {"deployment_id", deploymentId},
                                  {"deployment_kind", "private"},
+                                 {"distribution", "customer"},
+                                 {"release_namespace", "pixels.customer"},
+                                 {"oem_id", nullptr},
                                  {"descriptor_revision", 7},
                                  {"trust_epoch", 3},
                                  {"issued_at", kNow - 10},
@@ -129,9 +139,9 @@ IdentityFixture MakeFixture() {
                                  {"console_api_path", "/api/console"},
                                  {"node_control_path", "/api/console/node-control"}};
     const auto certificateWire =
-        SignedWire("PXDC1", std::string_view{kCertificateDomainBytes, sizeof(kCertificateDomainBytes) - 1}, certificate, vendorKey);
+        SignedWire("PXDC2", std::string_view{kCertificateDomainBytes, sizeof(kCertificateDomainBytes) - 1}, certificate, vendorKey);
     const auto descriptorWire =
-        SignedWire("PXDD1", std::string_view{kDescriptorDomainBytes, sizeof(kDescriptorDomainBytes) - 1}, descriptor, deploymentKey);
+        SignedWire("PXDD2", std::string_view{kDescriptorDomainBytes, sizeof(kDescriptorDomainBytes) - 1}, descriptor, deploymentKey);
     const OrderedJson identity{{"certificate_wire", certificateWire}, {"descriptor_wire", descriptorWire}};
 
     std::array<std::uint8_t, 32> nonceBytes{};
@@ -151,6 +161,8 @@ IdentityFixture MakeFixture() {
 DeploymentVerificationPolicy PrivatePolicy() {
     return {.expectedDeploymentId = "8f9cbade-f2c1-47d4-a92e-109675684b21",
             .expectedKind = DeploymentKind::kPrivate,
+            .expectedDistribution = DeploymentDistribution::kCustomer,
+            .expectedReleaseNamespace = "pixels.customer",
             .minimumCertificateVersion = 4,
             .minimumDescriptorRevision = 7,
             .minimumTrustEpoch = 3,
@@ -182,7 +194,7 @@ TEST(DeploymentIdentity, RejectsWrongFlavorRollbackTamperingAndReplay) {
     EXPECT_FALSE(VerifyDeploymentIdentity(fixture.identityJson, *trustStore, staleRevision, kNow));
 
     auto tamperedIdentity = fixture.identityJson;
-    tamperedIdentity[tamperedIdentity.find("PXDD1") + 7] = 'A';
+    tamperedIdentity[tamperedIdentity.find("PXDD2") + 7] = 'A';
     EXPECT_FALSE(VerifyDeploymentIdentity(tamperedIdentity, *trustStore, PrivatePolicy(), kNow));
     const auto identity = VerifyDeploymentIdentity(fixture.identityJson, *trustStore, PrivatePolicy(), kNow);
     ASSERT_TRUE(identity);

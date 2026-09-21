@@ -786,17 +786,13 @@ fn node_update_target(state: &StateData, connection: &NodeConnection) -> Release
     let distribution = match state.license.payload.distribution {
         LicenseDistribution::Official => ReleaseDistribution::Official,
         LicenseDistribution::Customer => ReleaseDistribution::Customer,
-    };
-    let release_namespace = match distribution {
-        ReleaseDistribution::Official => "pixels.official",
-        ReleaseDistribution::Customer => "pixels.customer",
-        ReleaseDistribution::Oem => unreachable!("licenses do not admit OEM deployments yet"),
+        LicenseDistribution::Oem => ReleaseDistribution::Oem,
     };
     ReleaseQuery {
         product,
         distribution,
-        release_namespace: release_namespace.into(),
-        oem_id: None,
+        release_namespace: state.license.payload.release_namespace.clone(),
+        oem_id: state.license.payload.oem_id.clone(),
         channel: Channel::Stable,
         os: OperatingSystem::Windows,
         architecture: Architecture::X86_64,

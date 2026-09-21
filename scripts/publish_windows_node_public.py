@@ -83,8 +83,10 @@ $descriptorTarget = Join-Path $directory 'product-manifest.json'
 $descriptorStaging = Join-Path $directory 'product-manifest.staged.json'
 if (-not (Test-Path -LiteralPath $descriptorTarget -PathType Leaf)) {{ throw 'Focused publish requires an installed current product descriptor' }}
 $installedProduct = Get-Content -LiteralPath $descriptorTarget -Raw | ConvertFrom-Json
-if ($installedProduct.schema_version -ne 2 -or $installedProduct.company -ne 'Pixels' -or $installedProduct.product -ne '{product}' -or
-    $installedProduct.distribution -ne '{distribution}') {{
+$expectedReleaseNamespace = if ('{distribution}' -eq 'development') {{ $null }} else {{ 'pixels.{distribution}' }}
+if ($installedProduct.schema_version -ne 3 -or $installedProduct.company -ne 'Pixels' -or $installedProduct.product -ne '{product}' -or
+    $installedProduct.distribution -ne '{distribution}' -or $installedProduct.release_namespace -ne $expectedReleaseNamespace -or
+    $null -ne $installedProduct.oem_id) {{
     throw 'Installed product identity does not match the requested focused publish'
 }}
 if ((Get-FileHash -LiteralPath $staging -Algorithm SHA256).Hash -ne '{exe_hash}') {{ throw 'Service staging hash mismatch' }}
@@ -133,8 +135,10 @@ $staging = Join-Path $directory 'px_render.staged.exe'
 $descriptorTarget = Join-Path $directory 'product-manifest.json'
 if (-not (Test-Path -LiteralPath $descriptorTarget -PathType Leaf)) {{ throw 'Focused publish requires an installed current product descriptor' }}
 $installedProduct = Get-Content -LiteralPath $descriptorTarget -Raw | ConvertFrom-Json
-if ($installedProduct.schema_version -ne 2 -or $installedProduct.company -ne 'Pixels' -or $installedProduct.product -ne '{product}' -or
-    $installedProduct.distribution -ne '{distribution}') {{
+$expectedReleaseNamespace = if ('{distribution}' -eq 'development') {{ $null }} else {{ 'pixels.{distribution}' }}
+if ($installedProduct.schema_version -ne 3 -or $installedProduct.company -ne 'Pixels' -or $installedProduct.product -ne '{product}' -or
+    $installedProduct.distribution -ne '{distribution}' -or $installedProduct.release_namespace -ne $expectedReleaseNamespace -or
+    $null -ne $installedProduct.oem_id) {{
     throw 'Installed product identity does not match the requested focused publish'
 }}
 if ((Get-FileHash -LiteralPath $staging -Algorithm SHA256).Hash -ne '{exe_hash}') {{ throw 'Render staging hash mismatch' }}
@@ -199,8 +203,10 @@ if (-not $resolvedStaging.StartsWith($resolvedDirectory, [StringComparison]::Ord
 }}
 if (-not (Test-Path -LiteralPath $descriptorTarget -PathType Leaf)) {{ throw 'Focused publish requires an installed current product descriptor' }}
 $installedProduct = Get-Content -LiteralPath $descriptorTarget -Raw | ConvertFrom-Json
-if ($installedProduct.schema_version -ne 2 -or $installedProduct.company -ne 'Pixels' -or $installedProduct.product -ne '{product}' -or
-    $installedProduct.distribution -ne '{distribution}') {{
+$expectedReleaseNamespace = if ('{distribution}' -eq 'development') {{ $null }} else {{ 'pixels.{distribution}' }}
+if ($installedProduct.schema_version -ne 3 -or $installedProduct.company -ne 'Pixels' -or $installedProduct.product -ne '{product}' -or
+    $installedProduct.distribution -ne '{distribution}' -or $installedProduct.release_namespace -ne $expectedReleaseNamespace -or
+    $null -ne $installedProduct.oem_id) {{
     throw 'Installed product identity does not match the requested focused publish'
 }}
 $expected = ConvertFrom-Json -InputObject '{expected_json}'

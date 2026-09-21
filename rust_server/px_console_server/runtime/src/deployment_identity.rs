@@ -106,6 +106,8 @@ impl DeploymentIdentityLaunchConfig {
         self,
         expected_deployment_id: Uuid,
         distribution: Distribution,
+        release_namespace: &str,
+        oem_id: Option<&str>,
     ) -> Result<DeploymentIdentityRuntime, DeploymentIdentityRuntimeError> {
         let certificate_path = self.certificate_path.clone();
         let signing_key_path = self.signing_key_path.clone();
@@ -132,7 +134,7 @@ impl DeploymentIdentityLaunchConfig {
         }
         let expected_kind = match distribution {
             Distribution::Official => DeploymentKind::Official,
-            Distribution::Customer => DeploymentKind::Private,
+            Distribution::Customer | Distribution::Oem => DeploymentKind::Private,
         };
         let verifier = DeploymentIdentityVerifier::new(&trust_store)
             .map_err(|_| DeploymentIdentityRuntimeError)?;
@@ -142,6 +144,9 @@ impl DeploymentIdentityLaunchConfig {
                 &certificate_wire,
                 Some(expected_deployment_id),
                 expected_kind,
+                distribution,
+                release_namespace,
+                oem_id,
                 now,
                 self.minimum_certificate_version,
             )
@@ -175,9 +180,12 @@ impl DeploymentIdentityLaunchConfig {
 impl DeploymentIdentityRuntime {
     fn descriptor(&self, now: i64) -> PlatformDescriptor {
         PlatformDescriptor {
-            schema_version: 1,
+            schema_version: 2,
             deployment_id: self.certificate.deployment_id,
             deployment_kind: self.certificate.deployment_kind,
+            distribution: self.certificate.distribution,
+            release_namespace: self.certificate.release_namespace.clone(),
+            oem_id: self.certificate.oem_id.clone(),
             descriptor_revision: self.descriptor_revision,
             trust_epoch: self.trust_epoch,
             issued_at: now,
@@ -315,9 +323,12 @@ mod tests {
         let (vendor_key, vendor_public_key) = key_material();
         let (deployment_key, deployment_public_key) = key_material();
         let certificate = DeploymentCertificate {
-            schema_version: 1,
+            schema_version: 2,
             deployment_id,
             deployment_kind: DeploymentKind::Private,
+            distribution: Distribution::Customer,
+            release_namespace: "pixels.customer".into(),
+            oem_id: None,
             deployment_public_key_hex: hex::encode(deployment_public_key),
             certificate_version: 2,
             not_before: NOW - 60,
@@ -347,6 +358,9 @@ mod tests {
                 &DeploymentVerificationContext {
                     expected_deployment_id: Some(deployment_id),
                     expected_kind: DeploymentKind::Private,
+                    expected_distribution: Distribution::Customer,
+                    expected_release_namespace: "pixels.customer".into(),
+                    expected_oem_id: None,
                     now: NOW,
                     minimum_certificate_version: 2,
                     minimum_descriptor_revision: 4,
@@ -397,9 +411,12 @@ mod tests {
         let (deployment_key, deployment_public_key) = key_material();
         let now = current_unix_time().unwrap();
         let certificate = DeploymentCertificate {
-            schema_version: 1,
+            schema_version: 2,
             deployment_id,
             deployment_kind: DeploymentKind::Private,
+            distribution: Distribution::Customer,
+            release_namespace: "pixels.customer".into(),
+            oem_id: None,
             deployment_public_key_hex: hex::encode(deployment_public_key),
             certificate_version: 2,
             not_before: now - 60,
@@ -441,11 +458,21 @@ mod tests {
             .unwrap()
         };
         assert!(configuration()
-            .load(deployment_id, Distribution::Customer)
+            .load(
+                deployment_id,
+                Distribution::Customer,
+                "pixels.customer",
+                None
+            )
             .await
             .is_ok());
         assert!(configuration()
-            .load(deployment_id, Distribution::Official)
+            .load(
+                deployment_id,
+                Distribution::Official,
+                "pixels.official",
+                None
+            )
             .await
             .is_err());
 
@@ -475,7 +502,12 @@ mod tests {
         )
         .unwrap();
         assert!(wrong_configuration
-            .load(deployment_id, Distribution::Customer)
+            .load(
+                deployment_id,
+                Distribution::Customer,
+                "pixels.customer",
+                None
+            )
             .await
             .is_err());
     }

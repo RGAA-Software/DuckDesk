@@ -792,7 +792,7 @@ async fn issuance_retry_online_verification_and_revocation_are_one_new_contract(
     .await;
     assert_eq!(customer.0, StatusCode::CREATED);
     let deployment = Uuid::new_v4();
-    let terms = json!({"customer_id":customer.1["id"],"deployment_id":deployment,"product":"pixels_console","distribution":"customer","machine_sha256":"b".repeat(64),"mode":"licensed","activation":{"kind":"immediately"},"expires_at":chrono::Utc::now().timestamp()+86400,"max_devices":2,"max_sessions":4,"features":["cloud_applications","desktop","rdp"]});
+    let terms = json!({"customer_id":customer.1["id"],"deployment_id":deployment,"product":"pixels_console","distribution":"customer","release_namespace":"pixels.customer","oem_id":null,"machine_sha256":"b".repeat(64),"mode":"licensed","activation":{"kind":"immediately"},"expires_at":chrono::Utc::now().timestamp()+86400,"max_devices":2,"max_sessions":4,"features":["cloud_applications","desktop","rdp"]});
     let issue = json!({"request_id":Uuid::new_v4(),"request":{"operation":"create","terms":terms}});
     let first = call(
         &fixture.app,
@@ -828,7 +828,7 @@ async fn issuance_retry_online_verification_and_revocation_are_one_new_contract(
         )
         .await
     );
-    let verify = json!({"wire":first.1["wire"],"deployment_id":deployment,"product":"pixels_console","distribution":"customer","machine_sha256":"b".repeat(64)});
+    let verify = json!({"wire":first.1["wire"],"deployment_id":deployment,"product":"pixels_console","distribution":"customer","release_namespace":"pixels.customer","oem_id":null,"machine_sha256":"b".repeat(64)});
     assert_eq!(
         call(
             &fixture.app,

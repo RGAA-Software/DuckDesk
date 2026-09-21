@@ -213,7 +213,7 @@ def verify_windows_product_boundary(dist_dir: Path, product: str, actual_files: 
 
 def verify_distribution_identity(dist_dir: Path, manifest: dict[str, object], actual_files: set[str]) -> None:
     distribution = manifest.get("distribution")
-    if distribution not in {"development", "official", "customer"}:
+    if distribution not in {"development", "official", "customer", "oem"}:
         raise RuntimeError("product manifest has an invalid distribution")
     policy_path = "resources/deployment/deployment-policy.json"
     trust_path = "resources/deployment/deployment-trust.json"
@@ -225,15 +225,15 @@ def verify_distribution_identity(dist_dir: Path, manifest: dict[str, object], ac
             raise RuntimeError("development distribution contains release deployment or update trust resources")
         return
     if not {policy_path, trust_path, update_root_path}.issubset(actual_files):
-        raise RuntimeError("official/customer distribution is missing deployment identity or update trust resources")
+        raise RuntimeError("release distribution is missing deployment identity or update trust resources")
     signer_certificate_sha256 = normalized_hex(str(manifest.get("signer_certificate_sha256", "")))
     if not re.fullmatch(r"[0-9A-F]{64}", signer_certificate_sha256):
-        raise RuntimeError("official/customer distribution is missing its approved Authenticode signer pin")
+        raise RuntimeError("release distribution is missing its approved Authenticode signer pin")
     owned_pe = manifest.get("owned_pe")
     if not isinstance(owned_pe, list) or not owned_pe or any(not isinstance(path, str) for path in owned_pe):
-        raise RuntimeError("official/customer distribution has an invalid owned PE inventory")
+        raise RuntimeError("release distribution has an invalid owned PE inventory")
     if not set(owned_pe).issubset(actual_files):
-        raise RuntimeError("official/customer distribution owned PE inventory contains missing files")
+        raise RuntimeError("release distribution owned PE inventory contains missing files")
     pixels_pe = {
         relative_path
         for relative_path in actual_files
@@ -242,13 +242,15 @@ def verify_distribution_identity(dist_dir: Path, manifest: dict[str, object], ac
     }
     unsigned_pixels_pe = pixels_pe - set(owned_pe)
     if unsigned_pixels_pe:
-        raise RuntimeError(f"official/customer distribution has unsigned Pixels PE files: {sorted(unsigned_pixels_pe)}")
+        raise RuntimeError(f"release distribution has unsigned Pixels PE files: {sorted(unsigned_pixels_pe)}")
     for relative_path in owned_pe:
         verify_file(dist_dir / relative_path, signer_certificate_sha256)
     policy = json.loads((dist_dir / policy_path).read_text(encoding="utf-8"))
     expected_fields = [
         "schema_version",
         "distribution",
+        "release_namespace",
+        "oem_id",
         "expected_deployment_id",
         "official_console_origin",
         "minimum_certificate_version",
@@ -256,16 +258,34 @@ def verify_distribution_identity(dist_dir: Path, manifest: dict[str, object], ac
         "minimum_trust_epoch",
         "protocol_version",
     ]
-    if list(policy) != expected_fields or policy.get("schema_version") != 1 or policy.get("distribution") != distribution:
+    if list(policy) != expected_fields or policy.get("schema_version") != 2 or policy.get("distribution") != distribution:
         raise RuntimeError("packaged deployment policy does not match the product distribution")
+    manifest_namespace = manifest.get("release_namespace")
+    manifest_oem_id = manifest.get("oem_id")
+    expected_namespace = f"pixels.{distribution}" if distribution != "oem" else f"oem.{manifest_oem_id}"
+    valid_oem_id = (
+        isinstance(manifest_oem_id, str)
+        and re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{1,30}[a-z0-9])", manifest_oem_id) is not None
+        and "--" not in manifest_oem_id
+        and manifest_oem_id not in {"pixels", "official", "customer", "oem"}
+    )
+    if (
+        not isinstance(manifest_namespace, str)
+        or manifest_namespace != expected_namespace
+        or policy.get("release_namespace") != manifest_namespace
+        or policy.get("oem_id") != manifest_oem_id
+        or (distribution != "oem" and manifest_oem_id is not None)
+        or (distribution == "oem" and not valid_oem_id)
+    ):
+        raise RuntimeError("packaged deployment policy has the wrong release domain")
     if distribution == "official" and (
         not isinstance(policy.get("expected_deployment_id"), str) or not isinstance(policy.get("official_console_origin"), str)
     ):
         raise RuntimeError("official distribution is missing its fixed deployment identity")
-    if distribution == "customer" and (
+    if distribution in {"customer", "oem"} and (
         policy.get("expected_deployment_id") is not None or policy.get("official_console_origin") is not None
     ):
-        raise RuntimeError("customer distribution contains Official deployment identity values")
+        raise RuntimeError("private distribution contains Official deployment identity values")
 
 
 def main() -> int:

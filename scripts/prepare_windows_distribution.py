@@ -24,6 +24,7 @@ ENVIRONMENT_FIELDS = {
     "trust_epoch": "PIXELS_DEPLOYMENT_TRUST_EPOCH",
     "deployment_id": "PIXELS_EXPECTED_DEPLOYMENT_ID",
     "official_origin": "PIXELS_OFFICIAL_CONSOLE_URL",
+    "oem_id": "PIXELS_OEM_ID",
 }
 
 MAXIMUM_UPDATE_ROOT_BYTES = 1024 * 1024
@@ -32,7 +33,7 @@ MAXIMUM_UPDATE_ROOT_BYTES = 1024 * 1024
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--product", required=True, choices=("cloud_node", "client", "remote"))
-    parser.add_argument("--distribution", required=True, choices=("official", "customer"))
+    parser.add_argument("--distribution", required=True, choices=("official", "customer", "oem"))
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--validate-only", action="store_true")
     parser.add_argument(
@@ -172,6 +173,19 @@ def canonical_https_origin(value: str) -> str:
     return value
 
 
+def canonical_oem_id(value: str) -> str:
+    if (
+        not 3 <= len(value) <= 32
+        or value in {"pixels", "official", "customer", "oem"}
+        or value.startswith("-")
+        or value.endswith("-")
+        or "--" in value
+        or any(not (character.isascii() and (character.islower() or character.isdecimal() or character == "-")) for character in value)
+    ):
+        raise RuntimeError("PIXELS_OEM_ID must be a canonical lowercase OEM identifier")
+    return value
+
+
 def build_policy(distribution: str, trust_epoch: int, matrix_customer: bool) -> dict[str, object]:
     certificate_version = required_positive_integer(ENVIRONMENT_FIELDS["certificate_version"])
     descriptor_revision = required_positive_integer(ENVIRONMENT_FIELDS["descriptor_revision"])
@@ -180,19 +194,32 @@ def build_policy(distribution: str, trust_epoch: int, matrix_customer: bool) -> 
         raise RuntimeError("PIXELS_DEPLOYMENT_TRUST_EPOCH must exactly match the approved trust store")
     deployment_id = os.environ.get(ENVIRONMENT_FIELDS["deployment_id"], "").strip()
     official_origin = os.environ.get(ENVIRONMENT_FIELDS["official_origin"], "").strip()
+    configured_oem_id = os.environ.get(ENVIRONMENT_FIELDS["oem_id"], "").strip()
     if distribution == "official":
         if not deployment_id or not official_origin:
             raise RuntimeError("Official Windows builds require the expected deployment ID and Console origin")
         expected_deployment_id: str | None = canonical_deployment_id(deployment_id)
         expected_origin: str | None = canonical_https_origin(official_origin)
+        release_namespace = "pixels.official"
+        oem_id: str | None = None
     else:
         if not matrix_customer and (deployment_id or official_origin):
-            raise RuntimeError("Customer Windows builds must not configure Official deployment identity inputs")
+            raise RuntimeError("Private Windows builds must not configure Official deployment identity inputs")
         expected_deployment_id = None
         expected_origin = None
+        if distribution == "customer":
+            if configured_oem_id:
+                raise RuntimeError("Customer Windows builds must not configure PIXELS_OEM_ID")
+            release_namespace = "pixels.customer"
+            oem_id = None
+        else:
+            oem_id = canonical_oem_id(configured_oem_id)
+            release_namespace = f"oem.{oem_id}"
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "distribution": distribution,
+        "release_namespace": release_namespace,
+        "oem_id": oem_id,
         "expected_deployment_id": expected_deployment_id,
         "official_console_origin": expected_origin,
         "minimum_certificate_version": certificate_version,

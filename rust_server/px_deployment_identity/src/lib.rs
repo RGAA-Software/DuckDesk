@@ -9,6 +9,7 @@ pub use model::{
     AuthenticationMethod, ChallengePayload, DeploymentCertificate, DeploymentKind,
     PlatformDescriptor, RegistrationPolicy, SignedDeploymentIdentity,
 };
+pub use px_release_catalog::Distribution;
 pub use signature::{
     sign_certificate, DeploymentIdentitySigner, DeploymentIdentityVerifier,
     DeploymentVerificationContext, VerifiedDeploymentIdentity,

@@ -108,9 +108,12 @@ fn deployment_identity_files(
         deployment_signer.public_key().as_ref().try_into().unwrap();
     let now = chrono::Utc::now().timestamp();
     let certificate = DeploymentCertificate {
-        schema_version: 1,
+        schema_version: 2,
         deployment_id: deployment,
         deployment_kind: DeploymentKind::Private,
+        distribution: px_deployment_identity::Distribution::Customer,
+        release_namespace: "pixels.customer".into(),
+        oem_id: None,
         deployment_public_key_hex: hex::encode(deployment_public_key),
         certificate_version: 1,
         not_before: now - 60,
@@ -255,11 +258,13 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
     .unwrap();
     let current_time = chrono::Utc::now().timestamp();
     let license = LicensePayload {
-        schema: 1,
+        schema: 2,
         license_id: Uuid::new_v4(),
         deployment_id: deployment,
         product: Product::PixelsConsole,
         distribution: Distribution::Customer,
+        release_namespace: "pixels.customer".into(),
+        oem_id: None,
         machine_sha256: "a".repeat(64),
         revision: 1,
         mode: Mode::Licensed,
@@ -291,6 +296,8 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
                 deployment_id: deployment,
                 product: Product::PixelsConsole,
                 distribution: Distribution::Customer,
+                release_namespace: "pixels.customer",
+                oem_id: None,
                 machine_sha256: &"a".repeat(64),
                 now: chrono::Utc::now().timestamp(),
                 minimum_revision: 1,
@@ -300,6 +307,8 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
         .unwrap();
     LicenseLaunchConfig::new(
         "customer",
+        "pixels.customer".into(),
+        None,
         "a".repeat(64),
         authority_deployment,
         license_trust_path.clone(),
@@ -347,6 +356,7 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
         .env("PIXELS_CONSOLE_RECORDING_CACHE_DOWNLOADS", "4")
         .env("PIXELS_CONSOLE_RECORDING_CACHE_TTL_SECONDS", "86400")
         .env("PIXELS_CONSOLE_DISTRIBUTION", "customer")
+        .env("PIXELS_CONSOLE_RELEASE_NAMESPACE", "pixels.customer")
         .env("PIXELS_CONSOLE_MACHINE_SHA256", "a".repeat(64))
         .env(
             "PIXELS_CONSOLE_LICENSE_AUTHORITY_DEPLOYMENT_ID",

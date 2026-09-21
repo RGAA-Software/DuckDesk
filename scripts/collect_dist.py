@@ -172,10 +172,13 @@ def write_distribution_manifests(
         if path.is_file() and path.name not in GENERATED_MANIFESTS
     }
     licenses = sorted(path for path in hashes if "license" in path.lower() or path.endswith("SOURCE.md"))
+    release_namespace = None if distribution == "development" else f"pixels.{distribution}"
     manifest = {
-        "schema_version": 2,
+        "schema_version": 3,
         "product": product_config["product"],
         "distribution": distribution,
+        "release_namespace": release_namespace,
+        "oem_id": None,
         "edition": product_config["edition"],
         "company": product_config["company"],
         "product_version": product_config["product_version"],

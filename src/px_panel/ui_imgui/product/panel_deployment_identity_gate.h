@@ -16,6 +16,7 @@ namespace px::panel::product {
 enum class PanelDistribution : std::uint8_t {
     Official,
     Customer,
+    Oem,
 };
 
 enum class DeploymentGateError : std::uint8_t {
@@ -48,6 +49,9 @@ private:
     struct Watermark final {
         std::string deploymentId{};
         px_console::DeploymentKind deploymentKind{px_console::DeploymentKind::kPrivate};
+        px_console::DeploymentDistribution distribution{px_console::DeploymentDistribution::kCustomer};
+        std::string releaseNamespace{};
+        std::optional<std::string> oemId{};
         std::uint64_t certificateVersion{};
         std::uint64_t descriptorRevision{};
         std::uint64_t trustEpoch{};

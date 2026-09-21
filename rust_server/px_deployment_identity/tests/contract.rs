@@ -2,8 +2,8 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use px_deployment_identity::{
     sign_certificate, AuthenticationMethod, ChallengePayload, DeploymentCertificate,
     DeploymentIdentityError, DeploymentIdentitySigner, DeploymentIdentityVerifier, DeploymentKind,
-    DeploymentTrustStore, DeploymentVerificationContext, PlatformDescriptor, RegistrationPolicy,
-    SignedDeploymentIdentity,
+    DeploymentTrustStore, DeploymentVerificationContext, Distribution, PlatformDescriptor,
+    RegistrationPolicy, SignedDeploymentIdentity,
 };
 use ring::{
     rand::SystemRandom,
@@ -36,13 +36,32 @@ fn key_id(public_key: &[u8]) -> String {
 }
 
 fn fixture(kind: DeploymentKind) -> Fixture {
+    match kind {
+        DeploymentKind::Official => {
+            fixture_for_domain(kind, Distribution::Official, "pixels.official", None)
+        }
+        DeploymentKind::Private => {
+            fixture_for_domain(kind, Distribution::Customer, "pixels.customer", None)
+        }
+    }
+}
+
+fn fixture_for_domain(
+    kind: DeploymentKind,
+    distribution: Distribution,
+    release_namespace: &str,
+    oem_id: Option<&str>,
+) -> Fixture {
     let deployment_id = Uuid::parse_str("8f9cbade-f2c1-47d4-a92e-109675684b21").unwrap();
     let (vendor_pkcs8, vendor_public_key) = key_material();
     let (deployment_pkcs8, deployment_public_key) = key_material();
     let certificate = DeploymentCertificate {
-        schema_version: 1,
+        schema_version: 2,
         deployment_id,
         deployment_kind: kind,
+        distribution,
+        release_namespace: release_namespace.into(),
+        oem_id: oem_id.map(str::to_owned),
         deployment_public_key_hex: hex::encode(deployment_public_key),
         certificate_version: 4,
         not_before: NOW - 60,
@@ -50,9 +69,12 @@ fn fixture(kind: DeploymentKind) -> Fixture {
         issuer_key_id: key_id(&vendor_public_key),
     };
     let descriptor = PlatformDescriptor {
-        schema_version: 1,
+        schema_version: 2,
         deployment_id,
         deployment_kind: kind,
+        distribution,
+        release_namespace: release_namespace.into(),
+        oem_id: oem_id.map(str::to_owned),
         descriptor_revision: 7,
         trust_epoch: 3,
         issued_at: NOW - 10,
@@ -83,9 +105,16 @@ fn fixture(kind: DeploymentKind) -> Fixture {
 }
 
 fn context(kind: DeploymentKind) -> DeploymentVerificationContext {
+    let (expected_distribution, expected_release_namespace) = match kind {
+        DeploymentKind::Official => (Distribution::Official, "pixels.official"),
+        DeploymentKind::Private => (Distribution::Customer, "pixels.customer"),
+    };
     DeploymentVerificationContext {
         expected_deployment_id: None,
         expected_kind: kind,
+        expected_distribution,
+        expected_release_namespace: expected_release_namespace.into(),
+        expected_oem_id: None,
         now: NOW,
         minimum_certificate_version: 4,
         minimum_descriptor_revision: 7,
@@ -142,6 +171,44 @@ fn official_and_private_distributions_are_cryptographically_disjoint() {
             .verifier
             .verify_identity(&private.identity, &context(DeploymentKind::Official)),
         Err(DeploymentIdentityError::Rejected)
+    );
+}
+
+#[test]
+fn oem_identity_accepts_only_its_signed_release_domain() {
+    let fixture = fixture_for_domain(
+        DeploymentKind::Private,
+        Distribution::Oem,
+        "oem.acme-cloud",
+        Some("acme-cloud"),
+    );
+    let context = DeploymentVerificationContext {
+        expected_deployment_id: None,
+        expected_kind: DeploymentKind::Private,
+        expected_distribution: Distribution::Oem,
+        expected_release_namespace: "oem.acme-cloud".into(),
+        expected_oem_id: Some("acme-cloud".into()),
+        now: NOW,
+        minimum_certificate_version: 4,
+        minimum_descriptor_revision: 7,
+        minimum_trust_epoch: 3,
+        client_build: 25,
+        protocol_version: 2,
+    };
+    fixture
+        .verifier
+        .verify_identity(&fixture.identity, &context)
+        .unwrap();
+    assert_eq!(
+        fixture.verifier.verify_identity(
+            &fixture.identity,
+            &DeploymentVerificationContext {
+                expected_release_namespace: "oem.north-star".into(),
+                expected_oem_id: Some("north-star".into()),
+                ..context
+            },
+        ),
+        Err(DeploymentIdentityError::Rejected),
     );
 }
 

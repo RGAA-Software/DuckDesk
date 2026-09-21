@@ -83,6 +83,8 @@ impl LicenseStore {
                 terms.deployment_id,
                 product,
                 distribution,
+                &terms.release_namespace,
+                terms.oem_id.as_deref(),
                 &terms.machine_sha256,
                 mode,
                 not_before,
@@ -94,7 +96,7 @@ impl LicenseStore {
             .execute(&mut *tx)
             .await?;
         } else {
-            // Renewal changes entitlement, never customer/deployment/product/distribution/machine identity.
+            // Renewal changes entitlement, never customer/deployment/product/release-domain/machine identity.
             let rows = sqlx::query_file!(
                 "queries/renew_license.sql",
                 id,
@@ -109,6 +111,8 @@ impl LicenseStore {
                 terms.deployment_id,
                 product,
                 distribution,
+                &terms.release_namespace,
+                terms.oem_id.as_deref(),
                 &terms.machine_sha256
             )
             .execute(&mut *tx)

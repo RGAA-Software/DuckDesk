@@ -11,6 +11,8 @@ pub struct LicenseNotification {
     pub deployment_id: Uuid,
     pub product: String,
     pub distribution: String,
+    pub release_namespace: String,
+    pub oem_id: Option<String>,
     pub machine_sha256: String,
     pub wire: Option<String>,
     pub lease_id: Uuid,

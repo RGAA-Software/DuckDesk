@@ -721,6 +721,14 @@ async fn verify_deployment_identity(
     configuration: &NodeControlConfiguration,
     product: &ProductDescriptor,
 ) -> Result<(), String> {
+    if product.distribution != "development"
+        && (product.distribution != configuration.distribution.name()
+            || product.release_namespace.as_deref()
+                != Some(configuration.release_namespace.as_str())
+            || product.oem_id != configuration.oem_id)
+    {
+        return Err("installed product release domain does not match node configuration".into());
+    }
     let identity_url = console_http_url(&configuration.endpoint, "/.well-known/pixels")?;
     let identity_response = http
         .get(identity_url)
@@ -737,6 +745,9 @@ async fn verify_deployment_identity(
             &DeploymentVerificationContext {
                 expected_deployment_id: Some(configuration.deployment_id),
                 expected_kind: configuration.deployment_kind,
+                expected_distribution: configuration.distribution,
+                expected_release_namespace: configuration.release_namespace.clone(),
+                expected_oem_id: configuration.oem_id.clone(),
                 now,
                 minimum_certificate_version: configuration.minimum_certificate_version,
                 minimum_descriptor_revision: configuration.minimum_descriptor_revision,
@@ -749,6 +760,9 @@ async fn verify_deployment_identity(
     let candidate = DeploymentIdentityWatermark::new(
         verified.certificate.deployment_id,
         verified.certificate.deployment_kind,
+        verified.certificate.distribution,
+        verified.certificate.release_namespace.clone(),
+        verified.certificate.oem_id.clone(),
         verified.certificate.certificate_version,
         verified.descriptor.descriptor_revision,
         verified.descriptor.trust_epoch,
@@ -1295,21 +1309,29 @@ fn expected_update_target(product: &ProductDescriptor) -> Result<Option<ReleaseQ
         "remote" => Product::Remote,
         _ => return Err("installed product cannot consume node updates".into()),
     };
-    let (distribution, release_namespace) = match product.distribution.as_str() {
-        "official" => (Distribution::Official, "pixels.official"),
-        "customer" => (Distribution::Customer, "pixels.customer"),
+    let distribution = match product.distribution.as_str() {
+        "official" => Distribution::Official,
+        "customer" => Distribution::Customer,
+        "oem" => Distribution::Oem,
         "development" => return Ok(None),
         _ => return Err("installed product has an invalid update distribution".into()),
     };
-    Ok(Some(ReleaseQuery {
+    let release_query = ReleaseQuery {
         product: product_name,
         distribution,
-        release_namespace: release_namespace.into(),
-        oem_id: None,
+        release_namespace: product
+            .release_namespace
+            .clone()
+            .ok_or_else(|| "installed product has no update namespace".to_string())?,
+        oem_id: product.oem_id.clone(),
         channel: Channel::Stable,
         os: OperatingSystem::Windows,
         architecture: Architecture::X86_64,
-    }))
+    };
+    release_query
+        .validate()
+        .map_err(|_| "installed product has an invalid update release domain".to_string())?;
+    Ok(Some(release_query))
 }
 
 async fn check_update(
@@ -2790,9 +2812,12 @@ mod tests {
         let deployment_public_key: [u8; 32] =
             deployment_pair.public_key().as_ref().try_into().unwrap();
         let certificate = DeploymentCertificate {
-            schema_version: 1,
+            schema_version: 2,
             deployment_id: Uuid::new_v4(),
             deployment_kind: DeploymentKind::Private,
+            distribution: Distribution::Customer,
+            release_namespace: "pixels.customer".into(),
+            oem_id: None,
             deployment_public_key_hex: lowercase_hex(&deployment_public_key),
             certificate_version: 2,
             not_before: now - 60,
@@ -2800,9 +2825,12 @@ mod tests {
             issuer_key_id: lowercase_hex(&Sha256::digest(vendor_public_key)),
         };
         let descriptor = PlatformDescriptor {
-            schema_version: 1,
+            schema_version: 2,
             deployment_id: certificate.deployment_id,
             deployment_kind: certificate.deployment_kind,
+            distribution: certificate.distribution,
+            release_namespace: certificate.release_namespace.clone(),
+            oem_id: certificate.oem_id.clone(),
             descriptor_revision: 4,
             trust_epoch: 3,
             issued_at: now - 10,
@@ -2913,6 +2941,8 @@ mod tests {
             schema_version: 2,
             product: "cloud_node".into(),
             distribution: "official".into(),
+            release_namespace: Some("pixels.official".into()),
+            oem_id: None,
             edition: "CLOUD_NODE".into(),
             company: "Pixels".into(),
             product_version: "3.3.67".into(),
@@ -3076,6 +3106,7 @@ mod tests {
         let mut customer_remote = official.clone();
         customer_remote.product = "remote".into();
         customer_remote.distribution = "customer".into();
+        customer_remote.release_namespace = Some("pixels.customer".into());
         assert_eq!(
             expected_update_target(&customer_remote).unwrap(),
             Some(ReleaseQuery {
@@ -3091,9 +3122,18 @@ mod tests {
         let mut development = official.clone();
         development.distribution = "development".into();
         assert_eq!(expected_update_target(&development).unwrap(), None);
-        let mut unsupported_oem = official.clone();
-        unsupported_oem.distribution = "oem".into();
-        assert!(expected_update_target(&unsupported_oem).is_err());
+        let mut oem_product = official.clone();
+        oem_product.distribution = "oem".into();
+        assert!(expected_update_target(&oem_product).is_err());
+        oem_product.release_namespace = Some("oem.acme-cloud".into());
+        oem_product.oem_id = Some("acme-cloud".into());
+        assert_eq!(
+            expected_update_target(&oem_product)
+                .unwrap()
+                .unwrap()
+                .release_namespace,
+            "oem.acme-cloud"
+        );
         let mut invalid = official;
         invalid.distribution = "official-looking".into();
         assert!(expected_update_target(&invalid).is_err());
@@ -3590,6 +3630,9 @@ mod tests {
             public_host: "render.example.com".into(),
             deployment_id: fixture.certificate.deployment_id,
             deployment_kind: fixture.certificate.deployment_kind,
+            distribution: fixture.certificate.distribution,
+            release_namespace: fixture.certificate.release_namespace.clone(),
+            oem_id: fixture.certificate.oem_id.clone(),
             deployment_trust_store: fixture.trust_store,
             minimum_certificate_version: fixture.certificate.certificate_version,
             minimum_descriptor_revision: fixture.descriptor.descriptor_revision,
@@ -3601,7 +3644,10 @@ mod tests {
             .timeout(EXCHANGE_TIMEOUT)
             .build()
             .unwrap();
-        verify_deployment_identity(&http, &store, &configuration, &cloud_product())
+        let mut customer_product = cloud_product();
+        customer_product.distribution = "customer".into();
+        customer_product.release_namespace = Some("pixels.customer".into());
+        verify_deployment_identity(&http, &store, &configuration, &customer_product)
             .await
             .unwrap();
         identity_server.await.unwrap();
@@ -3612,6 +3658,9 @@ mod tests {
                 DeploymentIdentityWatermark::new(
                     configuration.deployment_id,
                     configuration.deployment_kind,
+                    configuration.distribution,
+                    configuration.release_namespace.clone(),
+                    configuration.oem_id.clone(),
                     configuration.minimum_certificate_version,
                     configuration.minimum_descriptor_revision,
                     configuration.minimum_trust_epoch,

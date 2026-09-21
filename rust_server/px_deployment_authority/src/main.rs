@@ -1,5 +1,5 @@
 use px_deployment_identity::{
-    sign_certificate, DeploymentCertificate, DeploymentKind, DeploymentTrustStore,
+    sign_certificate, DeploymentCertificate, DeploymentKind, DeploymentTrustStore, Distribution,
 };
 use px_private_files::private;
 use ring::{
@@ -89,10 +89,16 @@ fn sign_deployment_certificate() -> Result<(), Box<dyn std::error::Error>> {
         "private" => DeploymentKind::Private,
         _ => return Err("deployment kind must be official or private".into()),
     };
+    let distribution = required("PIXELS_DEPLOYMENT_DISTRIBUTION")?.parse::<Distribution>()?;
     let certificate = DeploymentCertificate {
-        schema_version: 1,
+        schema_version: 2,
         deployment_id,
         deployment_kind,
+        distribution,
+        release_namespace: required("PIXELS_DEPLOYMENT_RELEASE_NAMESPACE")?,
+        oem_id: env::var("PIXELS_DEPLOYMENT_OEM_ID")
+            .ok()
+            .filter(|value| !value.is_empty()),
         deployment_public_key_hex: hex::encode(decode_public_key(&required(
             "PIXELS_DEPLOYMENT_PUBLIC_KEY_HEX",
         )?)?),
@@ -104,12 +110,15 @@ fn sign_deployment_certificate() -> Result<(), Box<dyn std::error::Error>> {
     let certificate_wire = sign_certificate(&signing_key_material, &certificate)?;
     private::create_private(&certificate_path, certificate_wire.as_bytes())?;
     println!(
-        "deployment_id={} deployment_kind={} certificate_version={} issuer_key_id={}",
+        "deployment_id={} deployment_kind={} distribution={} release_namespace={} oem_id={} certificate_version={} issuer_key_id={}",
         certificate.deployment_id,
         match certificate.deployment_kind {
             DeploymentKind::Official => "official",
             DeploymentKind::Private => "private",
         },
+        certificate.distribution.name(),
+        certificate.release_namespace,
+        certificate.oem_id.as_deref().unwrap_or("none"),
         certificate.certificate_version,
         certificate.issuer_key_id
     );

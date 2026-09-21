@@ -1,8 +1,10 @@
-export type WebDistribution = "development" | "official" | "customer";
+export type WebDistribution = "development" | "official" | "customer" | "oem";
 
 export interface DeploymentPolicy {
     schema_version: number;
-    distribution: "official" | "customer";
+    distribution: "official" | "customer" | "oem";
+    release_namespace: string;
+    oem_id: string | null;
     expected_deployment_id: string | null;
     official_console_origin: string | null;
     minimum_certificate_version: number;
@@ -27,6 +29,9 @@ export interface DeploymentIdentityConfiguration {
 export interface VerifiedDeploymentIdentity {
     deploymentId: string;
     deploymentKind: "official" | "private";
+    distribution: "official" | "customer" | "oem";
+    releaseNamespace: string;
+    oemId: string | null;
     certificateVersion: number;
     descriptorRevision: number;
     trustEpoch: number;
@@ -37,6 +42,9 @@ interface DeploymentCertificate {
     schema_version: number;
     deployment_id: string;
     deployment_kind: "official" | "private";
+    distribution: "official" | "customer" | "oem";
+    release_namespace: string;
+    oem_id: string | null;
     deployment_public_key_hex: string;
     certificate_version: number;
     not_before: number;
@@ -48,6 +56,9 @@ interface PlatformDescriptor {
     schema_version: number;
     deployment_id: string;
     deployment_kind: "official" | "private";
+    distribution: "official" | "customer" | "oem";
+    release_namespace: string;
+    oem_id: string | null;
     descriptor_revision: number;
     trust_epoch: number;
     issued_at: number;
@@ -75,6 +86,9 @@ interface Watermark {
     schema_version: number;
     deployment_id: string;
     deployment_kind: "official" | "private";
+    distribution: "official" | "customer" | "oem";
+    release_namespace: string;
+    oem_id: string | null;
     certificate_version: number;
     descriptor_revision: number;
     trust_epoch: number;
@@ -89,8 +103,8 @@ interface FetchResponse {
 type IdentityFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 const MAX_RESPONSE_BYTES = 64 * 1024;
-const CERTIFICATE_DOMAIN = new TextEncoder().encode("Pixels-Deployment-Certificate-v1\0");
-const DESCRIPTOR_DOMAIN = new TextEncoder().encode("Pixels-Platform-Descriptor-v1\0");
+const CERTIFICATE_DOMAIN = new TextEncoder().encode("Pixels-Deployment-Certificate-v2\0");
+const DESCRIPTOR_DOMAIN = new TextEncoder().encode("Pixels-Platform-Descriptor-v2\0");
 const CHALLENGE_DOMAIN = new TextEncoder().encode("Pixels-Deployment-Challenge-v1\0");
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const HEX_32_PATTERN = /^[0-9a-f]{64}$/;
@@ -218,11 +232,30 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
     return encodeHex(new Uint8Array(await crypto.subtle.digest("SHA-256", ownedBuffer(bytes))));
 }
 
+function validReleaseDomain(
+    deploymentKind: unknown,
+    distribution: unknown,
+    releaseNamespace: unknown,
+    oemId: unknown,
+): boolean {
+    if (typeof releaseNamespace !== "string") return false;
+    if (distribution === "official") {
+        return deploymentKind === "official" && releaseNamespace === "pixels.official" && oemId === null;
+    }
+    if (distribution === "customer") {
+        return deploymentKind === "private" && releaseNamespace === "pixels.customer" && oemId === null;
+    }
+    return distribution === "oem" && deploymentKind === "private" && typeof oemId === "string" &&
+        /^[a-z0-9](?:[a-z0-9-]{1,30}[a-z0-9])$/.test(oemId) && !oemId.includes("--") &&
+        !["pixels", "official", "customer", "oem"].includes(oemId) && releaseNamespace === `oem.${oemId}`;
+}
+
 function parseCertificate(value: unknown): DeploymentCertificate {
-    const fields = ["schema_version", "deployment_id", "deployment_kind", "deployment_public_key_hex", "certificate_version", "not_before",
-        "expires_at", "issuer_key_id"];
-    if (!exactFields(value, fields) || value.schema_version !== 1 || !canonicalUuid(value.deployment_id) ||
+    const fields = ["schema_version", "deployment_id", "deployment_kind", "distribution", "release_namespace", "oem_id",
+        "deployment_public_key_hex", "certificate_version", "not_before", "expires_at", "issuer_key_id"];
+    if (!exactFields(value, fields) || value.schema_version !== 2 || !canonicalUuid(value.deployment_id) ||
         (value.deployment_kind !== "official" && value.deployment_kind !== "private") ||
+        !validReleaseDomain(value.deployment_kind, value.distribution, value.release_namespace, value.oem_id) ||
         typeof value.deployment_public_key_hex !== "string" || !positiveSafeInteger(value.certificate_version) || !unixTime(value.not_before) ||
         !unixTime(value.expires_at) || value.expires_at <= value.not_before || value.expires_at > 253_402_300_799 ||
         typeof value.issuer_key_id !== "string" || !HEX_32_PATTERN.test(value.issuer_key_id)) {
@@ -239,11 +272,14 @@ function sortedUniqueTokens(value: unknown, maximum: number): value is string[] 
 }
 
 function parseDescriptor(value: unknown): PlatformDescriptor {
-    const fields = ["schema_version", "deployment_id", "deployment_kind", "descriptor_revision", "trust_epoch", "issued_at", "expires_at",
+    const fields = ["schema_version", "deployment_id", "deployment_kind", "distribution", "release_namespace", "oem_id",
+        "descriptor_revision", "trust_epoch", "issued_at", "expires_at",
         "minimum_client_build", "api_versions", "minimum_protocol_version", "maximum_protocol_version", "authentication_methods",
         "registration_policy", "console_api_path", "node_control_path"];
-    if (!exactFields(value, fields) || value.schema_version !== 1 || !canonicalUuid(value.deployment_id) ||
-        (value.deployment_kind !== "official" && value.deployment_kind !== "private") || !positiveSafeInteger(value.descriptor_revision) ||
+    if (!exactFields(value, fields) || value.schema_version !== 2 || !canonicalUuid(value.deployment_id) ||
+        (value.deployment_kind !== "official" && value.deployment_kind !== "private") ||
+        !validReleaseDomain(value.deployment_kind, value.distribution, value.release_namespace, value.oem_id) ||
+        !positiveSafeInteger(value.descriptor_revision) ||
         !positiveSafeInteger(value.trust_epoch) || !unixTime(value.issued_at) || !unixTime(value.expires_at) || value.expires_at <= value.issued_at ||
         value.expires_at - value.issued_at > 86_400 || !positiveSafeInteger(value.minimum_client_build) ||
         !sortedUniqueTokens(value.api_versions, 16) || !positiveSafeInteger(value.minimum_protocol_version) ||
@@ -273,9 +309,11 @@ function parsePolicy(text: string, distribution: WebDistribution): DeploymentPol
     } catch {
         reject();
     }
-    const fields = ["schema_version", "distribution", "expected_deployment_id", "official_console_origin", "minimum_certificate_version",
+    const fields = ["schema_version", "distribution", "release_namespace", "oem_id", "expected_deployment_id", "official_console_origin", "minimum_certificate_version",
         "minimum_descriptor_revision", "minimum_trust_epoch", "protocol_version"];
-    if (!exactFields(value, fields) || value.schema_version !== 1 || value.distribution !== distribution ||
+    const expectedKind = distribution === "official" ? "official" : "private";
+    if (!exactFields(value, fields) || value.schema_version !== 2 || value.distribution !== distribution ||
+        !validReleaseDomain(expectedKind, value.distribution, value.release_namespace, value.oem_id) ||
         !positiveSafeInteger(value.minimum_certificate_version) || !positiveSafeInteger(value.minimum_descriptor_revision) ||
         !positiveSafeInteger(value.minimum_trust_epoch) || !positiveSafeInteger(value.protocol_version)) {
         reject();
@@ -352,9 +390,11 @@ function parseWatermark(text: string): Watermark {
     } catch {
         reject();
     }
-    const fields = ["schema_version", "deployment_id", "deployment_kind", "certificate_version", "descriptor_revision", "trust_epoch"];
-    if (!exactFields(value, fields) || value.schema_version !== 1 || !canonicalUuid(value.deployment_id) ||
+    const fields = ["schema_version", "deployment_id", "deployment_kind", "distribution", "release_namespace", "oem_id",
+        "certificate_version", "descriptor_revision", "trust_epoch"];
+    if (!exactFields(value, fields) || value.schema_version !== 2 || !canonicalUuid(value.deployment_id) ||
         (value.deployment_kind !== "official" && value.deployment_kind !== "private") || !positiveSafeInteger(value.certificate_version) ||
+        !validReleaseDomain(value.deployment_kind, value.distribution, value.release_namespace, value.oem_id) ||
         !positiveSafeInteger(value.descriptor_revision) || !positiveSafeInteger(value.trust_epoch)) {
         reject();
     }
@@ -411,20 +451,24 @@ export class DeploymentIdentityGate {
         const identityJson = await readBoundedJson(identityResponse);
         if (!exactFields(identityJson, ["certificate_wire", "descriptor_wire"]) || typeof identityJson.certificate_wire !== "string" ||
             typeof identityJson.descriptor_wire !== "string") reject();
-        const certificateWire = decodeWire(identityJson.certificate_wire, "PXDC1");
+        const certificateWire = decodeWire(identityJson.certificate_wire, "PXDC2");
         const certificate = parseCertificate(certificateWire.value);
         const trustedKey = trustStore.trusted_keys.find(key => key.key_id === certificate.issuer_key_id);
         if (!trustedKey) reject();
         await verifySignature(decodeHex(trustedKey.public_key_hex), CERTIFICATE_DOMAIN, certificateWire.payload, certificateWire.signature);
         const expectedKind = this.configuration.distribution === "official" ? "official" : "private";
         const expectedDeploymentId = policy.expected_deployment_id ?? watermark?.deployment_id ?? null;
-        if (certificate.deployment_kind !== expectedKind || (expectedDeploymentId !== null && certificate.deployment_id !== expectedDeploymentId) ||
+        if (certificate.deployment_kind !== expectedKind || certificate.distribution !== policy.distribution ||
+            certificate.release_namespace !== policy.release_namespace || certificate.oem_id !== policy.oem_id ||
+            (expectedDeploymentId !== null && certificate.deployment_id !== expectedDeploymentId) ||
             certificate.certificate_version < policy.minimum_certificate_version || certificate.not_before > now || certificate.expires_at <= now) reject();
 
-        const descriptorWire = decodeWire(identityJson.descriptor_wire, "PXDD1");
+        const descriptorWire = decodeWire(identityJson.descriptor_wire, "PXDD2");
         await verifySignature(decodeHex(certificate.deployment_public_key_hex), DESCRIPTOR_DOMAIN, descriptorWire.payload, descriptorWire.signature);
         const descriptor = parseDescriptor(descriptorWire.value);
         if (descriptor.deployment_id !== certificate.deployment_id || descriptor.deployment_kind !== certificate.deployment_kind ||
+            descriptor.distribution !== certificate.distribution || descriptor.release_namespace !== certificate.release_namespace ||
+            descriptor.oem_id !== certificate.oem_id ||
             descriptor.descriptor_revision < policy.minimum_descriptor_revision || descriptor.trust_epoch < policy.minimum_trust_epoch ||
             descriptor.issued_at > now || descriptor.expires_at <= now || descriptor.minimum_client_build > this.configuration.clientBuild ||
             policy.protocol_version < descriptor.minimum_protocol_version || policy.protocol_version > descriptor.maximum_protocol_version) reject();
@@ -451,6 +495,9 @@ export class DeploymentIdentityGate {
         const verified: VerifiedDeploymentIdentity = {
             deploymentId: certificate.deployment_id,
             deploymentKind: certificate.deployment_kind,
+            distribution: certificate.distribution,
+            releaseNamespace: certificate.release_namespace,
+            oemId: certificate.oem_id,
             certificateVersion: certificate.certificate_version,
             descriptorRevision: descriptor.descriptor_revision,
             trustEpoch: descriptor.trust_epoch,
@@ -487,12 +534,17 @@ export class DeploymentIdentityGate {
     private writeWatermark(consoleOrigin: string, identity: VerifiedDeploymentIdentity, previous: Watermark | null): void {
         if (!this.storage) reject();
         if (previous && (previous.deployment_id !== identity.deploymentId || previous.deployment_kind !== identity.deploymentKind ||
+            previous.distribution !== identity.distribution || previous.release_namespace !== identity.releaseNamespace ||
+            previous.oem_id !== identity.oemId ||
             previous.certificate_version > identity.certificateVersion || previous.descriptor_revision > identity.descriptorRevision ||
             previous.trust_epoch > identity.trustEpoch)) reject();
         const watermark: Watermark = {
-            schema_version: 1,
+            schema_version: 2,
             deployment_id: identity.deploymentId,
             deployment_kind: identity.deploymentKind,
+            distribution: identity.distribution,
+            release_namespace: identity.releaseNamespace,
+            oem_id: identity.oemId,
             certificate_version: identity.certificateVersion,
             descriptor_revision: identity.descriptorRevision,
             trust_epoch: identity.trustEpoch,

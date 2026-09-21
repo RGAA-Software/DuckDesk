@@ -173,6 +173,8 @@ impl ConsoleLaunchConfig {
             .map_err(|_| ConfigurationError)?;
         let license = LicenseLaunchConfig::new(
             &required("PIXELS_CONSOLE_DISTRIBUTION")?,
+            required("PIXELS_CONSOLE_RELEASE_NAMESPACE")?,
+            get("PIXELS_CONSOLE_OEM_ID").filter(|value| !value.is_empty()),
             required("PIXELS_CONSOLE_MACHINE_SHA256")?,
             authority_deployment_id,
             PathBuf::from(required("PIXELS_CONSOLE_LICENSE_TRUST_STORE")?),
@@ -257,7 +259,12 @@ impl ConsoleLaunchConfig {
             .map_err(|_| ConfigurationError)?;
         let deployment_identity = Arc::new(
             self.deployment_identity
-                .load(self.deployment, license.payload.distribution)
+                .load(
+                    self.deployment,
+                    license.payload.distribution,
+                    &license.payload.release_namespace,
+                    license.payload.oem_id.as_deref(),
+                )
                 .await
                 .map_err(|_| ConfigurationError)?,
         );
@@ -368,6 +375,10 @@ mod tests {
                 Uuid::new_v4().to_string(),
             ),
             ("PIXELS_CONSOLE_DISTRIBUTION".into(), "customer".into()),
+            (
+                "PIXELS_CONSOLE_RELEASE_NAMESPACE".into(),
+                "pixels.customer".into(),
+            ),
             ("PIXELS_CONSOLE_MACHINE_SHA256".into(), "a".repeat(64)),
             (
                 "PIXELS_CONSOLE_LICENSE_TRUST_STORE".into(),
@@ -463,6 +474,10 @@ mod tests {
 
         let mut official = valid();
         official.insert("PIXELS_CONSOLE_DISTRIBUTION".into(), "official".into());
+        official.insert(
+            "PIXELS_CONSOLE_RELEASE_NAMESPACE".into(),
+            "pixels.official".into(),
+        );
         assert!(parse(&official).is_err());
         official.insert(
             "PIXELS_CONSOLE_AUTH_VERIFY_URL".into(),

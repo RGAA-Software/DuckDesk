@@ -42,6 +42,8 @@ fn context(payload: &LicensePayload) -> VerifyContext<'_> {
         deployment_id: payload.deployment_id,
         product: payload.product,
         distribution: payload.distribution,
+        release_namespace: &payload.release_namespace,
+        oem_id: payload.oem_id.as_deref(),
         machine_sha256: &payload.machine_sha256,
         now: 1750000000,
         minimum_revision: 7,
@@ -49,9 +51,9 @@ fn context(payload: &LicensePayload) -> VerifyContext<'_> {
     }
 }
 fn signed_raw(bytes: &[u8]) -> String {
-    let message = [b"Pixels-License-v1\0".as_slice(), bytes].concat();
+    let message = [b"Pixels-License-v2\0".as_slice(), bytes].concat();
     format!(
-        "PXLIC1.{}.{}",
+        "PXLIC2.{}.{}",
         URL_SAFE_NO_PAD.encode(bytes),
         URL_SAFE_NO_PAD.encode(pair().sign(&message).as_ref())
     )
@@ -106,6 +108,14 @@ fn target_time_revision_and_rollback_boundaries_reject() {
             ..context(&contract_vector.payload)
         },
         VerifyContext {
+            release_namespace: "pixels.official",
+            ..context(&contract_vector.payload)
+        },
+        VerifyContext {
+            oem_id: Some("acme-cloud"),
+            ..context(&contract_vector.payload)
+        },
+        VerifyContext {
             machine_sha256: &"b".repeat(64),
             ..context(&contract_vector.payload)
         },
@@ -155,6 +165,29 @@ fn target_time_revision_and_rollback_boundaries_reject() {
         )
         .is_ok());
 }
+
+#[test]
+fn oem_release_domain_is_signed_and_cannot_be_substituted() {
+    let mut payload = vector().payload;
+    payload.distribution = Distribution::Oem;
+    payload.release_namespace = "oem.acme-cloud".into();
+    payload.oem_id = Some("acme-cloud".into());
+    let wire = signer().sign(&payload).unwrap();
+    let public_key: [u8; 32] = signer().public_key().try_into().unwrap();
+    let verifier = LicenseVerifierSet::new([public_key]).unwrap();
+    verifier.verify(&wire, &context(&payload)).unwrap();
+    assert_eq!(
+        verifier.verify(
+            &wire,
+            &VerifyContext {
+                release_namespace: "oem.north-star",
+                oem_id: Some("north-star"),
+                ..context(&payload)
+            },
+        ),
+        Err(LicenseError::Rejected),
+    );
+}
 #[test]
 fn valid_signature_does_not_authorize_unknown_or_noncanonical_payloads() {
     let contract_vector = vector();
@@ -165,10 +198,10 @@ fn valid_signature_does_not_authorize_unknown_or_noncanonical_payloads() {
     .unwrap();
     let canonical = String::from_utf8(contract_vector.payload.canonical_bytes().unwrap()).unwrap();
     let extra = canonical.replacen("{", "{\"unexpected\":true,", 1);
-    let duplicate = canonical.replacen("{", "{\"schema\":1,", 1);
+    let duplicate = canonical.replacen("{", "{\"schema\":2,", 1);
     let no_product = canonical.replace("\"product\":\"pixels_console\",", "");
     let alias = canonical.replace("\"pixels_console\"", "\"Pixels_cms\"");
-    let unknown_schema = canonical.replace("\"schema\":1", "\"schema\":2");
+    let unknown_schema = canonical.replace("\"schema\":2", "\"schema\":1");
     let extra_space = canonical.replacen("{", "{ ", 1);
     let wrong_key = canonical.replace(&contract_vector.payload.key_id, &"b".repeat(64));
     for value in [
@@ -198,10 +231,10 @@ fn malformed_wire_tampering_and_wrong_trust_root_reject() {
     .unwrap();
     for wire in [
         "".into(),
-        contract_vector.wire.replacen("PXLIC1.", "", 1),
+        contract_vector.wire.replacen("PXLIC2.", "", 1),
         format!("{}.extra", contract_vector.wire),
         format!("{}=", contract_vector.wire),
-        contract_vector.wire.replacen("PXLIC1.", "PXLIC2.", 1),
+        contract_vector.wire.replacen("PXLIC2.", "PXLIC1.", 1),
         "x".repeat(8193),
     ] {
         assert!(verifier
@@ -228,7 +261,15 @@ fn issuance_rejects_invalid_limits_features_and_keys() {
     let original = vector().payload;
     for invalid in [
         LicensePayload {
-            schema: 2,
+            schema: 1,
+            ..original.clone()
+        },
+        LicensePayload {
+            release_namespace: "pixels.official".into(),
+            ..original.clone()
+        },
+        LicensePayload {
+            oem_id: Some("acme-cloud".into()),
             ..original.clone()
         },
         LicensePayload {

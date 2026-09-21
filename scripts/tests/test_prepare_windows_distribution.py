@@ -90,6 +90,8 @@ class PrepareWindowsDistributionTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         policy = json.loads((output_directory / "deployment-policy.json").read_text(encoding="utf-8"))
         self.assertEqual(policy["distribution"], "official")
+        self.assertEqual(policy["release_namespace"], "pixels.official")
+        self.assertIsNone(policy["oem_id"])
         self.assertEqual(policy["expected_deployment_id"], self.environment["PIXELS_EXPECTED_DEPLOYMENT_ID"])
         self.assertEqual(policy["official_console_origin"], self.environment["PIXELS_OFFICIAL_CONSOLE_URL"])
         self.assertEqual(policy["protocol_version"], 1)
@@ -102,12 +104,28 @@ class PrepareWindowsDistributionTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         policy = json.loads((output_directory / "deployment-policy.json").read_text(encoding="utf-8"))
         self.assertEqual(policy["distribution"], "customer")
+        self.assertEqual(policy["release_namespace"], "pixels.customer")
+        self.assertIsNone(policy["oem_id"])
         self.assertIsNone(policy["expected_deployment_id"])
         self.assertIsNone(policy["official_console_origin"])
 
     def test_customer_standalone_rejects_official_inputs(self) -> None:
         result = self.run_script("customer", "--validate-only")
         self.assertNotEqual(result.returncode, 0)
+
+    def test_oem_policy_requires_and_binds_canonical_oem_id(self) -> None:
+        output_directory = self.root / "oem"
+        environment = self.environment | {
+            "PIXELS_EXPECTED_DEPLOYMENT_ID": "",
+            "PIXELS_OFFICIAL_CONSOLE_URL": "",
+            "PIXELS_OEM_ID": "acme-cloud",
+        }
+        result = self.run_script("oem", "--output-dir", str(output_directory), environment=environment)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        policy = json.loads((output_directory / "deployment-policy.json").read_text(encoding="utf-8"))
+        self.assertEqual(policy["distribution"], "oem")
+        self.assertEqual(policy["release_namespace"], "oem.acme-cloud")
+        self.assertEqual(policy["oem_id"], "acme-cloud")
 
     def test_rejects_noncanonical_trust_store_and_origin(self) -> None:
         self.trust_store.write_bytes(self.trust_store.read_bytes() + b"\n")

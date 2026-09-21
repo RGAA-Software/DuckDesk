@@ -115,6 +115,8 @@ fn offline_authority_generates_rotatable_trust_and_signed_certificate_without_ov
         .env("PIXELS_DEPLOYMENT_CERTIFICATE_OUTPUT", &certificate_path)
         .env("PIXELS_DEPLOYMENT_ID", deployment_id.to_string())
         .env("PIXELS_DEPLOYMENT_KIND", "private")
+        .env("PIXELS_DEPLOYMENT_DISTRIBUTION", "customer")
+        .env("PIXELS_DEPLOYMENT_RELEASE_NAMESPACE", "pixels.customer")
         .env(
             "PIXELS_DEPLOYMENT_PUBLIC_KEY_HEX",
             hex::encode(deployment_key.public_key().as_ref()),
@@ -130,6 +132,9 @@ fn offline_authority_generates_rotatable_trust_and_signed_certificate_without_ov
             std::str::from_utf8(&certificate_wire).unwrap(),
             Some(deployment_id),
             DeploymentKind::Private,
+            px_deployment_identity::Distribution::Customer,
+            "pixels.customer",
+            None,
             1_750_000_000,
             4,
         )
@@ -146,6 +151,8 @@ fn offline_authority_generates_rotatable_trust_and_signed_certificate_without_ov
         .env("PIXELS_DEPLOYMENT_CERTIFICATE_OUTPUT", &certificate_path)
         .env("PIXELS_DEPLOYMENT_ID", deployment_id.to_string())
         .env("PIXELS_DEPLOYMENT_KIND", "private")
+        .env("PIXELS_DEPLOYMENT_DISTRIBUTION", "customer")
+        .env("PIXELS_DEPLOYMENT_RELEASE_NAMESPACE", "pixels.customer")
         .env(
             "PIXELS_DEPLOYMENT_PUBLIC_KEY_HEX",
             hex::encode(deployment_key.public_key().as_ref()),

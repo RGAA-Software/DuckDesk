@@ -6,7 +6,9 @@ export type Terms = {
     customer_id: string;
     deployment_id: string;
     product: Product;
-    distribution: "official" | "customer";
+    distribution: "official" | "customer" | "oem";
+    release_namespace: string;
+    oem_id: string | null;
     machine_sha256: string;
     mode: "trial" | "licensed";
     activation: { kind: "immediately" };
@@ -31,7 +33,7 @@ export type License = {
 export type Customer = { id: string; name: string; remark: string };
 export function readPayload(wire: string): Payload {
     const parts = wire.split(".");
-    if (parts.length !== 3 || parts[0] !== "PXLIC1" || wire.length > 8192)
+    if (parts.length !== 3 || parts[0] !== "PXLIC2" || wire.length > 8192)
         throw new Error("invalid display payload");
     // Display only, not cryptographic authorization. Server performs all security decisions.
     return JSON.parse(
@@ -44,13 +46,29 @@ export function readPayload(wire: string): Payload {
 }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export function validTerms(value: Terms, now = Math.floor(Date.now() / 1000)): boolean {
+    const validOemId =
+        value.oem_id !== null &&
+        /^[a-z0-9](?:[a-z0-9-]{1,30}[a-z0-9])$/.test(value.oem_id) &&
+        !value.oem_id.includes("--") &&
+        !["pixels", "official", "customer", "oem"].includes(value.oem_id);
+    const validReleaseDomain =
+        (value.distribution === "official" &&
+            value.release_namespace === "pixels.official" &&
+            value.oem_id === null) ||
+        (value.distribution === "customer" &&
+            value.release_namespace === "pixels.customer" &&
+            value.oem_id === null) ||
+        (value.distribution === "oem" &&
+            validOemId &&
+            value.release_namespace === `oem.${value.oem_id}`);
     return (
         [value.customer_id, value.deployment_id].every(
             id => uuid.test(id) && id !== "00000000-0000-0000-0000-000000000000",
         ) &&
         /^[a-f0-9]{64}$/.test(value.machine_sha256) &&
         products.includes(value.product) &&
-        ["official", "customer"].includes(value.distribution) &&
+        ["official", "customer", "oem"].includes(value.distribution) &&
+        validReleaseDomain &&
         ["trial", "licensed"].includes(value.mode) &&
         Number.isSafeInteger(value.expires_at) &&
         value.expires_at > now &&

@@ -1,6 +1,7 @@
 # 部署身份离线签发与安装
 
-> 2026-09-20。部署身份只证明当前平台属于 Official 或某个 Customer 私有部署，不承担商业额度、用户登录或软件发布签名。
+> 2026-09-21。部署身份只证明当前平台属于某个精确发行域及 Official/Private 部署类别，不承担商业额度、用户登录或软件发布签名。
+> 当前证书/描述是 `PXDC2`/`PXDD2` schema 2；v1 是已退役开发格式，不迁移、不兼容。
 
 ## 1. 工具与隔离边界
 
@@ -55,6 +56,9 @@ $env:PIXELS_DEPLOYMENT_VENDOR_SIGNING_KEY = 'D:\PixelsOffline\private\deployment
 $env:PIXELS_DEPLOYMENT_CERTIFICATE_OUTPUT = 'D:\PixelsOffline\out\customer-a.cert'
 $env:PIXELS_DEPLOYMENT_ID = '<deployment-uuid>'
 $env:PIXELS_DEPLOYMENT_KIND = 'private'
+$env:PIXELS_DEPLOYMENT_DISTRIBUTION = 'customer'
+$env:PIXELS_DEPLOYMENT_RELEASE_NAMESPACE = 'pixels.customer'
+# 仅 OEM 设置：$env:PIXELS_DEPLOYMENT_OEM_ID = '<canonical-oem-id>'
 $env:PIXELS_DEPLOYMENT_PUBLIC_KEY_HEX = '<deployment-public-key-hex>'
 $env:PIXELS_DEPLOYMENT_CERTIFICATE_VERSION = '1'
 $env:PIXELS_DEPLOYMENT_NOT_BEFORE = '<unix-seconds>'
@@ -62,7 +66,9 @@ $env:PIXELS_DEPLOYMENT_EXPIRES_AT = '<unix-seconds>'
 .\px_deployment_authority.exe sign-certificate
 ```
 
-审批人核对输出的 deployment、类别、版本和 issuer key ID。向目标部署传递证书和对应 trust store；它们虽不含私钥，Console 当前仍按私有
+发行域只允许 `official/pixels.official/null`、`customer/pixels.customer/null` 或
+`oem/oem.<oem_id>/<oem_id>`，且 Official 只能搭配 `official` deployment kind，Customer/OEM 只能搭配 `private`。
+审批人核对输出的 deployment、类别、精确发行域、版本和 issuer key ID。向目标部署传递证书和对应 trust store；它们虽不含私钥，Console 当前仍按私有
 文件 ACL 读取，以统一拒绝被低权限账号替换。不得传递厂商根私钥。
 
 ## 5. Console 安装与启动门禁
@@ -79,8 +85,9 @@ PIXELS_CONSOLE_DEPLOYMENT_TRUST_EPOCH=<exact installed trust epoch>
 PIXELS_CONSOLE_MINIMUM_CLIENT_BUILD=<minimum accepted client build>
 ```
 
-启动会交叉检查数据库 deployment UUID、许可证 distribution、证书类别、证书版本/有效期、trust epoch、签发根和部署公私钥。
-Official 许可证只能搭配 `official` 证书，Customer 许可证只能搭配 `private` 证书。任一不一致都 fail-closed，不能通过修改域名、IP、
+启动会交叉检查数据库 deployment UUID、许可证精确发行域、证书类别/发行域、证书版本/有效期、trust epoch、签发根和部署公私钥。
+Official 许可证只能搭配 `official` 证书，Customer/OEM 许可证只能搭配 `private` 证书；许可证、证书、描述和运行配置的
+distribution/release_namespace/oem_id 必须完全一致。任一不一致都 fail-closed，不能通过修改域名、IP、
 User-Agent 或配置字符串绕过。
 
 证书轮换采用“先分发 trust store（如需要）→ 安装新证书 → 提高最低证书版本 → 提高 descriptor revision → 重启并验证”的顺序。
@@ -89,7 +96,7 @@ User-Agent 或配置字符串绕过。
 ## 6. 最小验收
 
 - 重复运行三个生成/签发命令均拒绝覆盖，原文件摘要不变。
-- `official`/`private` 交叉组合、错误 deployment UUID、错误部署私钥、未知根、旧证书版本和错误 trust epoch 均无法启动 Console。
+- Official/Private 类别与发行域交叉组合、OEM ID/namespace 替换、错误 deployment UUID、错误部署私钥、未知根、旧证书版本和错误 trust epoch 均无法启动 Console。
 - `GET /.well-known/pixels` 的证书和短期描述可由预置信任根验证；篡改任一字节失败。
 - `POST /.well-known/pixels/challenge` 只接受当前 descriptor revision，证明绑定 32 字节随机 nonce 且过期/重放失败。
 - 通用 Server/客户端安装包清单中不存在 `px_deployment_authority`、厂商根私钥或部署私钥。
@@ -99,7 +106,7 @@ Android 已把验签、nonce 持有证明和 deployment/certificate/descriptor/t
 独立输出沙箱且只接受 `private` 身份，首次成功证明后固定 deployment。两类 APK/AAB 构建都要求规范公开 trust store，并校验文件
 `trust_epoch` 与显式最低水位一致。正式批准的 trust store、Official UUID/URL 和签名材料未配置时不得生成发行包。
 
-Windows Service 已在节点 token 发送前验证同源签名身份和在线 nonce 证明，并以 machine-scope DPAPI 持久化 deployment/kind 与三项单调
-水位；旧配置 schema 不兼容，显式清除节点配置同时清除身份水位。其 approved trust store 与预期 deployment 由受控节点安装/维护流程
+Windows Service 已在节点 token 发送前验证同源签名身份和在线 nonce 证明，并以 machine-scope DPAPI 持久化 deployment/kind、精确发行域与三项单调
+水位；当前配置 schema 3，旧配置不兼容，显式清除节点配置同时清除身份水位。其 approved trust store 与预期 deployment 由受控节点安装/维护流程
 配置，不能从待验证 Console 自举。Windows Client、Web 的同等消费以及 Android 正式双发行制品/真机验收仍按 DB5/P0 继续；
 Android/Service 代码门禁通过不等于全部发行隔离完成。

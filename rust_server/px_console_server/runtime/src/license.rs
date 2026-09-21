@@ -17,7 +17,7 @@ use tokio_util::sync::CancellationToken;
 use url::Url;
 use uuid::Uuid;
 
-const WATERMARK_SCHEMA_VERSION: u16 = 1;
+const WATERMARK_SCHEMA_VERSION: u16 = 2;
 const LICENSE_WIRE_LIMIT: u64 = 8192;
 const ONLINE_REFRESH_SECONDS: u64 = 30;
 const ONLINE_FAILURE_LIMIT_SECONDS: i64 = 40;
@@ -33,6 +33,8 @@ const LicenseAdmissionError: LicenseAdmissionError = LicenseAdmissionError { sta
 
 pub struct LicenseLaunchConfig {
     distribution: Distribution,
+    release_namespace: String,
+    oem_id: Option<String>,
     machine_sha256: String,
     authority_deployment_id: Uuid,
     trust_store_file: PathBuf,
@@ -54,6 +56,8 @@ pub struct LicenseStatus {
     pub license_id: Uuid,
     pub revision: i64,
     pub distribution: Distribution,
+    pub release_namespace: String,
+    pub oem_id: Option<String>,
     pub mode: px_license::Mode,
     pub expires_at: i64,
     pub max_devices: u32,
@@ -69,6 +73,8 @@ struct OnlineLicenseMonitor {
     wire: String,
     consumer_deployment_id: Uuid,
     distribution: Distribution,
+    release_namespace: String,
+    oem_id: Option<String>,
     machine_sha256: String,
     license_id: Uuid,
     revision: i64,
@@ -88,6 +94,8 @@ struct LicenseWatermark {
     authority_recovery_generation: Uuid,
     product: Product,
     distribution: Distribution,
+    release_namespace: String,
+    oem_id: Option<String>,
     machine_sha256: String,
     license_id: Uuid,
     minimum_revision: i64,
@@ -100,6 +108,8 @@ struct OnlineVerificationRequest<'a> {
     deployment_id: Uuid,
     product: Product,
     distribution: Distribution,
+    release_namespace: &'a str,
+    oem_id: Option<&'a str>,
     machine_sha256: &'a str,
 }
 
@@ -115,6 +125,8 @@ impl LicenseLaunchConfig {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         distribution: &str,
+        release_namespace: String,
+        oem_id: Option<String>,
         machine_sha256: String,
         authority_deployment_id: Uuid,
         trust_store_file: PathBuf,
@@ -124,11 +136,12 @@ impl LicenseLaunchConfig {
         auth_verify_ca: Option<PathBuf>,
         local_development: bool,
     ) -> Result<Self, LicenseAdmissionError> {
-        let distribution = match distribution {
-            "official" => Distribution::Official,
-            "customer" => Distribution::Customer,
-            _ => return Err(LicenseAdmissionError),
-        };
+        let distribution = distribution
+            .parse::<Distribution>()
+            .map_err(|_| LicenseAdmissionError)?;
+        distribution
+            .validate_release_domain(&release_namespace, oem_id.as_deref())
+            .map_err(|_| LicenseAdmissionError)?;
         if authority_deployment_id.is_nil() || !valid_hash(&machine_sha256) {
             return Err(LicenseAdmissionError);
         }
@@ -140,11 +153,15 @@ impl LicenseLaunchConfig {
                     (Some(url), certificate_authority)
                 }
                 (Distribution::Official, None, _) => return Err(LicenseAdmissionError),
-                (Distribution::Customer, None, None) => (None, None),
-                (Distribution::Customer, _, _) => return Err(LicenseAdmissionError),
+                (Distribution::Customer | Distribution::Oem, None, None) => (None, None),
+                (Distribution::Customer | Distribution::Oem, _, _) => {
+                    return Err(LicenseAdmissionError)
+                }
             };
         Ok(Self {
             distribution,
+            release_namespace,
+            oem_id,
             machine_sha256,
             authority_deployment_id,
             trust_store_file,
@@ -181,6 +198,8 @@ impl LicenseLaunchConfig {
             self.authority_deployment_id,
             trust_store.recovery_generation,
             self.distribution,
+            &self.release_namespace,
+            self.oem_id.as_deref(),
             &self.machine_sha256,
         )?;
         let minimum_revision = previous
@@ -201,6 +220,8 @@ impl LicenseLaunchConfig {
                     &wire,
                     consumer_deployment_id,
                     self.distribution,
+                    &self.release_namespace,
+                    self.oem_id.as_deref(),
                     &self.machine_sha256,
                 )
                 .await?,
@@ -218,6 +239,8 @@ impl LicenseLaunchConfig {
                     deployment_id: consumer_deployment_id,
                     product: Product::PixelsConsole,
                     distribution: self.distribution,
+                    release_namespace: &self.release_namespace,
+                    oem_id: self.oem_id.as_deref(),
                     machine_sha256: &self.machine_sha256,
                     now: trusted_at,
                     minimum_revision,
@@ -241,6 +264,8 @@ impl LicenseLaunchConfig {
             authority_recovery_generation: trust_store.recovery_generation,
             product: Product::PixelsConsole,
             distribution: self.distribution,
+            release_namespace: self.release_namespace.clone(),
+            oem_id: self.oem_id.clone(),
             machine_sha256: self.machine_sha256,
             license_id: payload.license_id,
             minimum_revision: payload.revision,
@@ -258,6 +283,8 @@ impl LicenseLaunchConfig {
                     wire,
                     consumer_deployment_id,
                     distribution: self.distribution,
+                    release_namespace: watermark.release_namespace.clone(),
+                    oem_id: watermark.oem_id.clone(),
                     machine_sha256: watermark.machine_sha256.clone(),
                     license_id: payload.license_id,
                     revision: payload.revision,
@@ -351,6 +378,8 @@ impl LicenseEntitlement {
             license_id: self.payload.license_id,
             revision: self.payload.revision,
             distribution: self.payload.distribution,
+            release_namespace: self.payload.release_namespace.clone(),
+            oem_id: self.payload.oem_id.clone(),
             mode: self.payload.mode,
             expires_at: self.payload.expires_at,
             max_devices: self.payload.max_devices,
@@ -366,11 +395,13 @@ impl LicenseEntitlement {
         use px_license::{Feature, Mode};
         Self {
             payload: LicensePayload {
-                schema: 1,
+                schema: 2,
                 license_id: Uuid::new_v4(),
                 deployment_id,
                 product: Product::PixelsConsole,
                 distribution: Distribution::Customer,
+                release_namespace: "pixels.customer".into(),
+                oem_id: None,
                 machine_sha256: "f".repeat(64),
                 revision: 1,
                 mode: Mode::Licensed,
@@ -411,6 +442,8 @@ impl OnlineLicenseMonitor {
             &self.wire,
             self.consumer_deployment_id,
             self.distribution,
+            &self.release_namespace,
+            self.oem_id.as_deref(),
             &self.machine_sha256,
         )
         .await?;
@@ -456,6 +489,8 @@ async fn verify_online(
     wire: &str,
     deployment_id: Uuid,
     distribution: Distribution,
+    release_namespace: &str,
+    oem_id: Option<&str>,
     machine_sha256: &str,
 ) -> Result<OnlineVerificationResponse, LicenseAdmissionError> {
     let response = client
@@ -465,6 +500,8 @@ async fn verify_online(
             deployment_id,
             product: Product::PixelsConsole,
             distribution,
+            release_namespace,
+            oem_id,
             machine_sha256,
         })
         .send()
@@ -621,6 +658,8 @@ impl WatermarkStore {
         authority_deployment_id: Uuid,
         authority_recovery_generation: Uuid,
         distribution: Distribution,
+        release_namespace: &str,
+        oem_id: Option<&str>,
         machine_sha256: &str,
     ) -> Result<Option<LicenseWatermark>, LicenseAdmissionError> {
         let state_error = || LicenseAdmissionError {
@@ -664,6 +703,8 @@ impl WatermarkStore {
                 || watermark.authority_recovery_generation != authority_recovery_generation
                 || watermark.product != Product::PixelsConsole
                 || watermark.distribution != distribution
+                || watermark.release_namespace != release_namespace
+                || watermark.oem_id.as_deref() != oem_id
                 || watermark.machine_sha256 != machine_sha256
         }) {
             return Err(state_error());
@@ -728,6 +769,10 @@ fn read_watermark(path: &Path) -> Result<Option<LicenseWatermark>, LicenseAdmiss
         || watermark.consumer_deployment_id.is_nil()
         || watermark.authority_deployment_id.is_nil()
         || watermark.authority_recovery_generation.is_nil()
+        || watermark
+            .distribution
+            .validate_release_domain(&watermark.release_namespace, watermark.oem_id.as_deref())
+            .is_err()
         || !valid_hash(&watermark.machine_sha256)
         || watermark.license_id.is_nil()
         || watermark.minimum_revision < 1
@@ -830,11 +875,17 @@ mod tests {
         ) {
             let now = current_unix_time().unwrap();
             let payload = LicensePayload {
-                schema: 1,
+                schema: 2,
                 license_id,
                 deployment_id: self.deployment_id,
                 product: Product::PixelsConsole,
                 distribution,
+                release_namespace: match distribution {
+                    Distribution::Official => "pixels.official".into(),
+                    Distribution::Customer => "pixels.customer".into(),
+                    Distribution::Oem => "oem.acme-cloud".into(),
+                },
+                oem_id: (distribution == Distribution::Oem).then(|| "acme-cloud".into()),
                 machine_sha256: self.machine_sha256.clone(),
                 revision,
                 mode: Mode::Licensed,
@@ -861,6 +912,8 @@ mod tests {
         fn config_with_state(&self, state_directory: PathBuf) -> LicenseLaunchConfig {
             LicenseLaunchConfig::new(
                 "customer",
+                "pixels.customer".into(),
+                None,
                 self.machine_sha256.clone(),
                 self.authority_deployment_id,
                 self.trust_store_file.clone(),
@@ -885,6 +938,46 @@ mod tests {
         assert!(second.trusted_at >= first.trusted_at);
         fixture.write_license(1, Distribution::Customer);
         assert!(fixture.config().admit(fixture.deployment_id).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn oem_license_is_offline_and_bound_to_one_release_namespace() {
+        let fixture = Fixture::new();
+        fixture.write_license(1, Distribution::Oem);
+        let configuration = LicenseLaunchConfig::new(
+            "oem",
+            "oem.acme-cloud".into(),
+            Some("acme-cloud".into()),
+            fixture.machine_sha256.clone(),
+            fixture.authority_deployment_id,
+            fixture.trust_store_file.clone(),
+            fixture.license_file.clone(),
+            fixture.state_directory.clone(),
+            None,
+            None,
+            true,
+        )
+        .unwrap();
+        let entitlement = configuration.admit(fixture.deployment_id).await.unwrap();
+        assert_eq!(entitlement.payload.distribution, Distribution::Oem);
+        assert_eq!(entitlement.payload.release_namespace, "oem.acme-cloud");
+        assert!(LicenseLaunchConfig::new(
+            "oem",
+            "oem.north-star".into(),
+            Some("north-star".into()),
+            fixture.machine_sha256.clone(),
+            fixture.authority_deployment_id,
+            fixture.trust_store_file.clone(),
+            fixture.license_file.clone(),
+            fixture.state_directory.clone(),
+            None,
+            None,
+            true,
+        )
+        .unwrap()
+        .admit(fixture.deployment_id)
+        .await
+        .is_err());
     }
 
     #[tokio::test]
@@ -1048,6 +1141,8 @@ mod tests {
         let server = tokio::spawn(async move { axum::serve(listener, application).await.unwrap() });
         let config = LicenseLaunchConfig::new(
             "official",
+            "pixels.official".into(),
+            None,
             fixture.machine_sha256.clone(),
             fixture.authority_deployment_id,
             fixture.trust_store_file.clone(),
@@ -1091,6 +1186,8 @@ mod tests {
         let fixture = Fixture::new();
         assert!(LicenseLaunchConfig::new(
             "official",
+            "pixels.official".into(),
+            None,
             fixture.machine_sha256.clone(),
             fixture.authority_deployment_id,
             fixture.trust_store_file.clone(),
@@ -1103,6 +1200,8 @@ mod tests {
         .is_ok());
         assert!(LicenseLaunchConfig::new(
             "customer",
+            "pixels.customer".into(),
+            None,
             fixture.machine_sha256.clone(),
             fixture.authority_deployment_id,
             fixture.trust_store_file.clone(),

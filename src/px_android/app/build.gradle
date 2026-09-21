@@ -35,6 +35,8 @@ def pixelsVersionCodeInput = System.getenv('PIXELS_VERSION_CODE')?.trim()
 def pixelsVersionNameInput = System.getenv('PIXELS_VERSION_NAME')?.trim()
 def pixelsCompanyInput = System.getenv('PIXELS_COMPANY')?.trim()
 def deploymentDistribution = System.getenv('PIXELS_DISTRIBUTION')?.trim()
+def releaseNamespace = deploymentDistribution in ['official', 'customer'] ? "pixels.${deploymentDistribution}" : ''
+def oemId = System.getenv('PIXELS_OEM_ID')?.trim() ?: ''
 def deploymentTrustStorePath = System.getenv('PIXELS_DEPLOYMENT_TRUST_STORE_FILE')?.trim()
 def deploymentTrustStoreFile = deploymentTrustStorePath ? file(deploymentTrustStorePath) : null
 def deploymentTrustStoreBase64 = deploymentTrustStoreFile?.isFile() ? Base64.encoder.encodeToString(deploymentTrustStoreFile.bytes) : ''
@@ -96,6 +98,9 @@ if (requestedArtifactTask && pixelsCompanyInput != 'Pixels') {
 }
 if (requestedDistributionValidation && !(deploymentDistribution in ['official', 'customer'])) {
     throw new GradleException('APK/AAB tasks require PIXELS_DISTRIBUTION=official or customer.')
+}
+if (requestedDistributionValidation && oemId) {
+    throw new GradleException('Official/Customer APK/AAB tasks must not configure PIXELS_OEM_ID.')
 }
 if (requestedDistributionValidation && !deploymentTrustStoreFile?.isFile()) {
     throw new GradleException('APK/AAB tasks require PIXELS_DEPLOYMENT_TRUST_STORE_FILE with the approved canonical public trust store.')
@@ -190,6 +195,8 @@ android {
         buildConfigField 'String', 'GIT_REVISION', "\"${pixelsGitRevision}\""
         buildConfigField 'String', 'COMPANY', "\"${pixelsCompany}\""
         buildConfigField 'String', 'DEPLOYMENT_DISTRIBUTION', "\"${deploymentDistribution ?: ''}\""
+        buildConfigField 'String', 'RELEASE_NAMESPACE', "\"${releaseNamespace}\""
+        buildConfigField 'String', 'OEM_ID', "\"${oemId}\""
         buildConfigField 'String', 'DEPLOYMENT_TRUST_STORE_BASE64', "\"${deploymentTrustStoreBase64}\""
         buildConfigField 'String', 'EXPECTED_DEPLOYMENT_ID', "\"${expectedDeploymentId}\""
         buildConfigField 'String', 'OFFICIAL_CONSOLE_URL', "\"${officialConsoleUrl}\""

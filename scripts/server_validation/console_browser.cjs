@@ -122,11 +122,13 @@ function provisionLicenseAndDeploymentIdentity() {
     { flag: "wx" },
   );
   const licensePayload = {
-    schema: 1,
+    schema: 2,
     license_id: randomUUID(),
     deployment_id: process.env.PIXELS_DEPLOYMENT_ID,
     product: "pixels_console",
     distribution: "customer",
+    release_namespace: "pixels.customer",
+    oem_id: null,
     machine_sha256: "a".repeat(64),
     revision: 1,
     mode: "licensed",
@@ -140,7 +142,7 @@ function provisionLicenseAndDeploymentIdentity() {
   };
   fs.writeFileSync(
     licensePath,
-    signedWire("PXLIC1", "Pixels-License-v1\0", licensePayload, licensePrivateKey),
+    signedWire("PXLIC2", "Pixels-License-v2\0", licensePayload, licensePrivateKey),
     { flag: "wx" },
   );
 
@@ -164,9 +166,12 @@ function provisionLicenseAndDeploymentIdentity() {
     { flag: "wx" },
   );
   const deploymentCertificate = {
-    schema_version: 1,
+    schema_version: 2,
     deployment_id: process.env.PIXELS_DEPLOYMENT_ID,
     deployment_kind: "private",
+    distribution: "customer",
+    release_namespace: "pixels.customer",
+    oem_id: null,
     deployment_public_key_hex: deploymentPublicKey.toString("hex"),
     certificate_version: 1,
     not_before: now - 60,
@@ -176,8 +181,8 @@ function provisionLicenseAndDeploymentIdentity() {
   fs.writeFileSync(
     deploymentCertificatePath,
     signedWire(
-      "PXDC1",
-      "Pixels-Deployment-Certificate-v1\0",
+      "PXDC2",
+      "Pixels-Deployment-Certificate-v2\0",
       deploymentCertificate,
       vendorKeys.privateKey,
     ),
@@ -298,6 +303,7 @@ async function startServer() {
     PIXELS_CONSOLE_RECORDING_CACHE_DOWNLOADS: "2",
     PIXELS_CONSOLE_RECORDING_CACHE_TTL_SECONDS: "60",
     PIXELS_CONSOLE_DISTRIBUTION: "customer",
+    PIXELS_CONSOLE_RELEASE_NAMESPACE: "pixels.customer",
     PIXELS_CONSOLE_MACHINE_SHA256: "a".repeat(64),
     PIXELS_CONSOLE_LICENSE_AUTHORITY_DEPLOYMENT_ID: licenseAuthorityDeploymentId,
     PIXELS_CONSOLE_LICENSE_TRUST_STORE: licenseTrustPath,

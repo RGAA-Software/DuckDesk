@@ -21,7 +21,9 @@ CREATE TABLE pixels.licenses (
     customer_id UUID NOT NULL REFERENCES pixels.customers(id),
     target_deployment UUID NOT NULL,
     product TEXT NOT NULL CHECK (product IN ('pixels_console','gopico','clientbox','goagent')),
-    distribution TEXT NOT NULL CHECK (distribution IN ('official','customer')),
+    distribution TEXT NOT NULL CHECK (distribution IN ('official','customer','oem')),
+    release_namespace TEXT NOT NULL CHECK (release_namespace ~ '^[a-z0-9][a-z0-9.-]{1,34}[a-z0-9]$'),
+    oem_id TEXT CHECK (char_length(oem_id) BETWEEN 3 AND 32 AND oem_id ~ '^[a-z0-9]([a-z0-9-]{1,30}[a-z0-9])$' AND oem_id NOT IN ('pixels','official','customer','oem') AND oem_id NOT LIKE '%--%'),
     machine_sha256 TEXT NOT NULL CHECK (machine_sha256 ~ '^[a-f0-9]{64}$'),
     revision BIGINT NOT NULL CHECK (revision>0),
     mode TEXT NOT NULL CHECK (mode IN ('trial','licensed')),
@@ -33,6 +35,9 @@ CREATE TABLE pixels.licenses (
     created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
     revoked_at TIMESTAMPTZ,
+    CHECK ((distribution='official' AND release_namespace='pixels.official' AND oem_id IS NULL)
+        OR (distribution='customer' AND release_namespace='pixels.customer' AND oem_id IS NULL)
+        OR (distribution='oem' AND release_namespace='oem.' || oem_id AND oem_id IS NOT NULL)),
     CHECK (expires_at>not_before),
     UNIQUE(target_deployment,product,machine_sha256)
 );
@@ -43,7 +48,7 @@ CREATE TABLE pixels.license_issuances (
     revision BIGINT NOT NULL CHECK (revision>0),
     key_id TEXT NOT NULL CHECK (key_id ~ '^[a-f0-9]{64}$'),
     payload BYTEA NOT NULL CHECK (octet_length(payload)<=4096),
-    wire TEXT NOT NULL CHECK (char_length(wire)<=8192 AND wire LIKE 'PXLIC1.%'),
+    wire TEXT NOT NULL CHECK (char_length(wire)<=8192 AND wire LIKE 'PXLIC2.%'),
     created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
     UNIQUE(license_id,revision)
 );

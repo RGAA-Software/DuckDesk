@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref } from "vue";
+import { reactive, ref, watch } from "vue";
 import { ApiFailure, request } from "../api";
 import {
     capabilities,
@@ -20,6 +20,8 @@ const terms = reactive<Terms>({
     deployment_id: payload?.deployment_id ?? "",
     product: payload?.product ?? "pixels_console",
     distribution: payload?.distribution ?? "customer",
+    release_namespace: payload?.release_namespace ?? "pixels.customer",
+    oem_id: payload?.oem_id ?? null,
     machine_sha256: payload?.machine_sha256 ?? "",
     mode: payload?.mode ?? "licensed",
     activation: { kind: "immediately" },
@@ -28,6 +30,21 @@ const terms = reactive<Terms>({
     max_sessions: payload?.max_sessions ?? 1,
     features: payload?.features ?? ["cloud_applications", "desktop", "rdp"],
 });
+watch(
+    () => [terms.distribution, terms.oem_id] as const,
+    ([distribution, oemId]) => {
+        if (distribution === "official") {
+            terms.release_namespace = "pixels.official";
+            terms.oem_id = null;
+        } else if (distribution === "customer") {
+            terms.release_namespace = "pixels.customer";
+            terms.oem_id = null;
+        } else {
+            terms.release_namespace = oemId ? `oem.${oemId}` : "";
+        }
+    },
+    { immediate: true },
+);
 const expires = ref(
     new Date(Math.max((payload?.expires_at ?? 0) * 1000, Date.now()) + 30 * 86400000)
         .toISOString()
@@ -79,8 +96,21 @@ async function save() {
                 }}<select v-model="terms.distribution" :disabled="busy || !!renewal">
                     <option value="official">{{ t("official") }}</option>
                     <option value="customer">{{ t("customer") }}</option>
+                    <option value="oem">{{ t("oem") }}</option>
                 </select></label
             >
+            <label v-if="terms.distribution === 'oem'"
+                >{{ t("oemId")
+                }}<input
+                    v-model="terms.oem_id"
+                    required
+                    pattern="[a-z0-9](?:[a-z0-9-]{1,30}[a-z0-9])"
+                    :disabled="busy || !!renewal"
+            /></label>
+            <label
+                >{{ t("releaseNamespace")
+                }}<input v-model="terms.release_namespace" readonly disabled
+            /></label>
             <label
                 >{{ t("machine")
                 }}<input

@@ -2682,6 +2682,7 @@ version = "3.2.9"
 dependencies = [
  "base64 0.22.1",
  "hex",
+ "px_release_catalog",
  "ring",
  "serde",
  "serde_json",

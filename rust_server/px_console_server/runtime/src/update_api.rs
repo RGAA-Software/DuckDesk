@@ -128,18 +128,10 @@ fn require_console_release_domain(
     state: &StateData,
     target: &ReleaseQuery,
 ) -> Result<(), ApiError> {
-    let matches_console = match state.license.payload.distribution {
-        LicenseDistribution::Official => {
-            target.distribution == Distribution::Official
-                && target.release_namespace == "pixels.official"
-                && target.oem_id.is_none()
-        }
-        LicenseDistribution::Customer => {
-            target.distribution == Distribution::Customer
-                && target.release_namespace == "pixels.customer"
-                && target.oem_id.is_none()
-        }
-    };
+    let expected_distribution = release_distribution(state);
+    let matches_console = target.distribution == expected_distribution
+        && target.release_namespace == state.license.payload.release_namespace
+        && target.oem_id == state.license.payload.oem_id;
     matches_console.then_some(()).ok_or(ApiError::Rejected)
 }
 
@@ -168,6 +160,7 @@ fn release_distribution(state: &StateData) -> Distribution {
     match state.license.payload.distribution {
         LicenseDistribution::Official => Distribution::Official,
         LicenseDistribution::Customer => Distribution::Customer,
+        LicenseDistribution::Oem => Distribution::Oem,
     }
 }
 

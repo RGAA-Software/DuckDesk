@@ -53,6 +53,8 @@ async fn validate_license() -> Result<(), Box<dyn std::error::Error>> {
         env::var("PIXELS_CONSOLE_LICENSE_AUTHORITY_DEPLOYMENT_ID")?.parse::<Uuid>()?;
     let configuration = LicenseLaunchConfig::new(
         &env::var("PIXELS_CONSOLE_DISTRIBUTION")?,
+        env::var("PIXELS_CONSOLE_RELEASE_NAMESPACE")?,
+        optional("PIXELS_CONSOLE_OEM_ID"),
         env::var("PIXELS_CONSOLE_MACHINE_SHA256")?,
         authority_deployment_id,
         PathBuf::from(env::var("PIXELS_CONSOLE_LICENSE_TRUST_STORE")?),
@@ -76,11 +78,9 @@ async fn validate_deployment_identity() -> Result<(), Box<dyn std::error::Error>
     if deployment_id.is_nil() {
         return Err("deployment identifier must not be nil".into());
     }
-    let distribution = match env::var("PIXELS_CONSOLE_DISTRIBUTION")?.as_str() {
-        "official" => Distribution::Official,
-        "customer" => Distribution::Customer,
-        _ => return Err("distribution must be official or customer".into()),
-    };
+    let distribution = env::var("PIXELS_CONSOLE_DISTRIBUTION")?
+        .parse::<Distribution>()
+        .map_err(|_| "distribution must be official, customer, or oem")?;
     let configuration = DeploymentIdentityLaunchConfig::new(
         PathBuf::from(env::var("PIXELS_CONSOLE_DEPLOYMENT_CERTIFICATE")?),
         PathBuf::from(env::var("PIXELS_CONSOLE_DEPLOYMENT_SIGNING_KEY")?),
@@ -92,7 +92,14 @@ async fn validate_deployment_identity() -> Result<(), Box<dyn std::error::Error>
         flag("PIXELS_CONSOLE_REGISTRATION")?,
         flag("PIXELS_CONSOLE_GUESTS")?,
     )?;
-    configuration.load(deployment_id, distribution).await?;
+    configuration
+        .load(
+            deployment_id,
+            distribution,
+            &env::var("PIXELS_CONSOLE_RELEASE_NAMESPACE")?,
+            optional("PIXELS_CONSOLE_OEM_ID").as_deref(),
+        )
+        .await?;
     println!("Console deployment identity validated");
     Ok(())
 }

@@ -151,12 +151,14 @@ Console 已实现项目发现接口 `GET /.well-known/pixels` 与 nonce 持有�
 DeploymentIdentity
   deployment_id
   deployment_kind
+  distribution / release_namespace / oem_id
   deployment_public_key
   issuer_key_id / certificate_version / validity
   vendor_signature
 
 PlatformDescriptor
   deployment_id / deployment_kind
+  distribution / release_namespace / oem_id
   descriptor_revision / trust_epoch
   api_versions / supported_protocol_range / minimum_client_build
   authentication_methods / registration_policy
@@ -175,15 +177,18 @@ TLS 按系统或管理员导入的 CA 验证主机名/链，再验证部署证�
 Direct 对端地址可能动态变化，其身份通过会话授权和端点持有者证明验证，不能要求所有 Render 必须使用平台同一域名。
 TLS 证书轮换或域名更换不自动创建新 DeploymentId；恢复/克隆部署是否沿用身份须通过管理操作决定，不能复制后同时宣称唯一 owner。
 
-当前 `PXDC1` 部署证书、`PXDD1` 平台描述和 `PXDP1` 在线证明使用相互独立的签名域；Console 启动前校验数据库 deployment UUID、
-许可证 distribution、部署证书类别、公私钥匹配、certificate version 与 trust epoch。平台描述最长 300 秒，在线证明最长 30 秒，
+当前 `PXDC2` schema 2 部署证书、`PXDD2` schema 2 平台描述和 `PXDP1` 在线证明使用相互独立的签名域；旧 v1 开发 wire 直接无效。
+证书与描述同时签入 distribution/release_namespace/oem_id：Official 固定 `pixels.official/null`，Customer 固定 `pixels.customer/null`，
+OEM 固定 `oem.<oem_id>/<oem_id>`。Console 启动前校验数据库 deployment UUID、许可证精确发行域、部署证书类别与精确发行域、
+公私钥匹配、certificate version 与 trust epoch。平台描述最长 300 秒，在线证明最长 30 秒，
 请求 nonce 必须是 32 字节规范 base64url。已实现描述中的固定相对 Console API 路径、协议范围、最低客户端 build、认证与注册策略；
 Broker/Relay/更新端点仍须通过后续认证响应安全下发，不能用当前相对路径集合冒充目标模型全部完成。Android 已实现凭据发送前验签、nonce
 证明、持久单调水位、Official 固定端点、Customer 私有端点以及独立 applicationId/构建沙箱；Windows Service 也已在节点 token 发送前
 完成同源身份/nonce 验证和 machine-scope DPAPI 水位，并要求安装流程提供 approved trust store，不能从远端自举根信任。Windows Panel
 也已在密码、bearer、guest 与资源请求前完成同源 discovery/nonce 验证，以受保护水位固定身份；Official origin 只读，Customer 只接 private，
-账号与 guest 缓存按 origin+DeploymentId 隔离。正式 Android 双制品/真机证据、Windows 双发行 policy/trust 资源与独立输出、Web 的同等实现仍
-属于 DB5/P0，完成前发行隔离不得判定通过。部署私钥生成、离线根/trust store 建立及证书签发工具已实现，操作与隔离
+账号与 guest 缓存按 origin+DeploymentId 隔离。Windows Service、Panel、Web Client、Android 已统一消费 v2 精确发行域并拒绝字段替换；
+正式 Android 双制品/真机证据、Windows 双发行 policy/trust 资源与独立输出及 OEM 完整构建入口仍属于 DB5/P0，完成前发行隔离不得判定通过。
+部署私钥生成、离线根/trust store 建立及证书签发工具已实现，操作与隔离
 边界见[部署身份离线签发与安装](deployment_identity_provisioning.md)。
 
 ### 3.3 Customer 禁止官方平台的准确边界

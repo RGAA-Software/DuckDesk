@@ -41,6 +41,9 @@ export const en = {
     distribution: "Distribution",
     official: "Official",
     customer: "Customer",
+    oem: "OEM",
+    oemId: "OEM identifier",
+    releaseNamespace: "Release namespace",
     deployment: "Deployment UUID",
     machine: "Machine SHA-256",
     mode: "Mode",
@@ -78,7 +81,7 @@ export const en = {
     clientbox: "ClientBox",
     goagent: "GoAgent",
     renewHint:
-        "Renewal keeps customer, deployment, product, distribution and machine binding unchanged.",
+        "Renewal keeps customer, deployment, product, release domain and machine binding unchanged.",
     signInFailed: "Sign-in failed. Check your credentials.",
     selectAll: "All capabilities",
     requestId: "Request ID",

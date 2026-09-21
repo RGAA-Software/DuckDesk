@@ -1,17 +1,17 @@
 use crate::{
     model::decode_public_key, trust_store::key_id, ChallengePayload, DeploymentCertificate,
-    DeploymentIdentityError, DeploymentKind, DeploymentTrustStore, PlatformDescriptor,
-    SignedDeploymentIdentity,
+    DeploymentIdentityError, DeploymentKind, DeploymentTrustStore, Distribution,
+    PlatformDescriptor, SignedDeploymentIdentity,
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use ring::signature::{Ed25519KeyPair, KeyPair, UnparsedPublicKey, ED25519};
 use std::collections::BTreeMap;
 use uuid::Uuid;
 
-const CERTIFICATE_PREFIX: &str = "PXDC1";
-const CERTIFICATE_DOMAIN: &[u8] = b"Pixels-Deployment-Certificate-v1\0";
-const DESCRIPTOR_PREFIX: &str = "PXDD1";
-const DESCRIPTOR_DOMAIN: &[u8] = b"Pixels-Platform-Descriptor-v1\0";
+const CERTIFICATE_PREFIX: &str = "PXDC2";
+const CERTIFICATE_DOMAIN: &[u8] = b"Pixels-Deployment-Certificate-v2\0";
+const DESCRIPTOR_PREFIX: &str = "PXDD2";
+const DESCRIPTOR_DOMAIN: &[u8] = b"Pixels-Platform-Descriptor-v2\0";
 const CHALLENGE_PREFIX: &str = "PXDP1";
 const CHALLENGE_DOMAIN: &[u8] = b"Pixels-Deployment-Challenge-v1\0";
 const MAX_WIRE_BYTES: usize = 16 * 1024;
@@ -23,6 +23,9 @@ pub struct DeploymentIdentitySigner {
 pub struct DeploymentVerificationContext {
     pub expected_deployment_id: Option<Uuid>,
     pub expected_kind: DeploymentKind,
+    pub expected_distribution: Distribution,
+    pub expected_release_namespace: String,
+    pub expected_oem_id: Option<String>,
     pub now: i64,
     pub minimum_certificate_version: u64,
     pub minimum_descriptor_revision: u64,
@@ -61,6 +64,9 @@ impl DeploymentIdentitySigner {
         self.verify_certificate_key(certificate)?;
         if descriptor.deployment_id != certificate.deployment_id
             || descriptor.deployment_kind != certificate.deployment_kind
+            || descriptor.distribution != certificate.distribution
+            || descriptor.release_namespace != certificate.release_namespace
+            || descriptor.oem_id != certificate.oem_id
         {
             return Err(DeploymentIdentityError::Rejected);
         }
@@ -117,6 +123,9 @@ impl DeploymentIdentityVerifier {
             &identity.certificate_wire,
             context.expected_deployment_id,
             context.expected_kind,
+            context.expected_distribution,
+            &context.expected_release_namespace,
+            context.expected_oem_id.as_deref(),
             context.now,
             context.minimum_certificate_version,
         )?;
@@ -130,6 +139,9 @@ impl DeploymentIdentityVerifier {
         descriptor.canonical_bytes()?;
         if descriptor.deployment_id != certificate.deployment_id
             || descriptor.deployment_kind != certificate.deployment_kind
+            || descriptor.distribution != certificate.distribution
+            || descriptor.release_namespace != certificate.release_namespace
+            || descriptor.oem_id != certificate.oem_id
             || descriptor.descriptor_revision < context.minimum_descriptor_revision
             || descriptor.trust_epoch < context.minimum_trust_epoch
             || descriptor.issued_at > context.now
@@ -151,6 +163,9 @@ impl DeploymentIdentityVerifier {
         wire: &str,
         expected_deployment_id: Option<Uuid>,
         expected_kind: DeploymentKind,
+        expected_distribution: Distribution,
+        expected_release_namespace: &str,
+        expected_oem_id: Option<&str>,
         now: i64,
         minimum_certificate_version: u64,
     ) -> Result<DeploymentCertificate, DeploymentIdentityError> {
@@ -170,6 +185,9 @@ impl DeploymentIdentityVerifier {
         certificate.validate()?;
         if expected_deployment_id.is_some_and(|expected| expected != certificate.deployment_id)
             || certificate.deployment_kind != expected_kind
+            || certificate.distribution != expected_distribution
+            || certificate.release_namespace != expected_release_namespace
+            || certificate.oem_id.as_deref() != expected_oem_id
             || certificate.certificate_version < minimum_certificate_version
             || certificate.not_before > now
             || certificate.expires_at <= now
@@ -233,6 +251,13 @@ fn validate_context(
         || context.minimum_trust_epoch == 0
         || context.client_build == 0
         || context.protocol_version == 0
+        || context
+            .expected_distribution
+            .validate_release_domain(
+                &context.expected_release_namespace,
+                context.expected_oem_id.as_deref(),
+            )
+            .is_err()
     {
         return Err(DeploymentIdentityError::Rejected);
     }

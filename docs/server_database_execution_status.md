@@ -954,7 +954,7 @@ DB3 Auth 通知事务切片新增 migration 0005。签发、续期和吊销会�
 `pg-20260919-125355-7ab5a625` 通过，Auth 9/9 真实 PG 专项 `pg-20260919-125549-7219cbfd` 通过，严格 Clippy 通过。
 本切片关闭“Auth 没有事务通知事实”的缺口；受认证投递执行器、Console/共享消费者、水位和私有离线验证仍未完成，不能据此关闭 DB3。
 
-DB3 Console 消费者随后接入正式 PostgreSQL 产品组合根：进程监听/连接数据库前读取受保护的 `PXLIC1`、规范 Auth trust store 和库外水位。
+DB3 Console 消费者随后接入正式 PostgreSQL 产品组合根；该处当时使用的 v1 开发 wire 已由 2026-09-21 的 `PXLIC2` 精确发行域契约直接取代。
 Official 强制使用明确的 Auth HTTPS `/api/auth/licenses/verify`，先以 Auth 数据库时间确认当前 revision/未撤销，再以本地 trust root 验同一
 wire；Customer 明确拒绝任何 Auth URL，仅做离线签名、绑定、有效期和水位验证。水位以 current/previous/next 原子状态绑定 Console
 deployment、机器 hex64、发行、license ID、Auth deployment/recovery generation，revision 和可信时间只升不降；未知文件和中断歧义
@@ -1086,7 +1086,7 @@ Render 的聚焦测试、Console runtime/node protocol 测试、Rust 严格 clip
 端点且拒绝编辑、Customer 必填私有端点且拒绝官方 deployment identity，以及按 distribution 独立输出仍是 DB5/P0；不能用域名或 IP
 黑名单替代签名身份。
 
-DB5/P0 的签名部署身份已完成服务端协议基础：独立 `px_deployment_identity` crate 定义并验证 `PXDC1` 部署证书、`PXDD1` 短期平台描述
+DB5/P0 的签名部署身份已完成服务端协议基础；该处当时的 v1 开发 wire 已由 2026-09-21 的 `PXDC2`/`PXDD2` 直接取代。
 和 `PXDP1` nonce 持有证明，Official/Private 类别、deployment UUID、公钥、证书版本、descriptor revision、trust epoch、最低客户端
 build 与协议范围均进入签名和 fail-closed 校验。Console 在监听前把数据库 deployment、许可证 distribution、证书、私钥和信任水位
 交叉绑定，并提供 `GET /.well-known/pixels` 与 `POST /.well-known/pixels/challenge`；证书/描述/证明合同 5/5、Console runtime 17/17
@@ -1099,7 +1099,7 @@ Android 客户端消费见下一段。Windows Service 随后已把同一 wire �
 严格 Clippy/格式检查通过；Cloud Node 与 Remote 的 release build/stage/dist 六份 `px_service.exe` SHA-256 均为
 `C9EBA9287EECDEA96731C24B00AF243659E752086D7B283DE51BCEA14B17CC1C`。
 
-Android 已把与服务端 wire 同域分离的部署身份验证接入实际请求链：严格解析 trust store、`PXDC1/PXDD1/PXDP1`，校验
+Android 已把与服务端 wire 同域分离的部署身份验证接入实际请求链；当前严格解析 trust store、`PXDC2/PXDD2/PXDP1`，校验
 Official/Private、deployment、证书/描述/trust 水位、客户端 build、协议范围、有效期及 nonce/revision 重放边界；endpoint 测试、guest、
 注册、登录必须先完成发现和 nonce 私钥持有证明，bearer 请求按最长 15 秒且不超过 descriptor 有效期的缓存重新验证。项目最低 API 31 不
 假设系统 Ed25519（平台只从 API 33 保证），生产实现使用独立 Conscrypt provider。deployment ID、类别、certificate version、descriptor
@@ -1136,7 +1136,7 @@ store、三项最低水位、Official deployment UUID 和规范 HTTPS origin；�
 现明确写 1 并有单测断言；否则签名与 nonce 均正确的当前 Console 也会被 Windows 客户端确定性拒绝。
 
 Web Client 随后完成同一发行身份门禁。Console 启动 URL fragment 现在显式携带 `console_origin`；Official/Customer Web bundle 在创建 RTC、
-向 Render 发送一次性 frontend token 或使用任何凭据前，严格验证 `PXDC1/PXDD1/PXDP1`、Official/Private 类别、固定 Official origin/UUID、
+向 Render 发送一次性 frontend token 或使用任何凭据前，严格验证 `PXDC2/PXDD2/PXDP1`、精确发行域、Official/Private 类别、固定 Official origin/UUID、
 客户端 build/协议范围、有效期与按 Console origin 持久化的单调水位，Customer 首次成功后固定 deployment ID，验证失败不回落到手工密码入口。
 Cloud Node/Remote 矩阵构建把各发行 policy/trust/build 注入各自 Web 输出，缺少材料或发行不匹配会失败关闭；Console 只给两个公开签名身份端点
 开放所需 CORS，不扩大账号 API。Web Client 62/62、Console 启动描述符 2/2、Console runtime 身份专项 2/2 与 development 生产构建通过；
@@ -1337,7 +1337,7 @@ Android 文件传输重试现会在启动新 native job 前清空旧覆盖确认
 Activity，验收时仅临时放行对应 AppOps，完成后恢复原 `ignore`；不再使用会自动卸载目标 APK 的 Gradle connected runner。
 
 公网代号 90（`39.71.45.66`）现已按全新数据模型重建 Console 空库并部署当前 Console、Relay、Cloud Node Service、Render 和 Render RTC，
-节点使用 schema 2 受保护配置和 Official 部署身份重新注册，不保留 schema 1 或旧凭据兼容。部署中发现并修复 Service 未显式安装 rustls ring
+节点当时使用 schema 2 受保护配置和 Official 部署身份重新注册；2026-09-21 后当前配置为强制发行域的 schema 3，不保留旧 schema 或凭据兼容。部署中发现并修复 Service 未显式安装 rustls ring
 CryptoProvider 导致节点控制 TLS 启动 panic；Service 全量短测 108/108 PASS，另 1 项物理 NVIDIA 用例按设计忽略。节点、遥测探针和 WebView
 部署均为 `ready`，4600/4601/4603/4605 正常监听。Windows 公网 CloudApplication 的 Native Direct 与 Native Relay 均通过真实实例、动态
 4613 端口、窗口、解码首帧和清理；Relay 路径另通过输入与双向业务载荷。公网五个运行制品与本地交付件 SHA-256 全部一致：Console
@@ -1591,9 +1591,30 @@ dist 仍保持封包清单不变；正式安装包仍调用完整清单、SHA-25
 均无退役媒体产物，活动源码/构建/部署入口也没有对应组件名；旧实现完整保存在
 `backup/central_media_retirement_20260919/` 并由 manifest 记录。当前运行过的 development dist 不冒充正式可安装包：完整清单检查分别发现
 Client 的运行日志、Cloud Node 的 `px_render.exe` 陈旧清单摘要和 Remote 的 `px_client.exe` 陈旧清单摘要。聚焦 C++/Rust 发布器现会在制品同步
-和逐件 hash 校验后原子刷新 schema 2 development 清单；运行时 `px_logs/` 明确不进入清单，Official/Customer 清单拒绝原地刷新。修复后
+和逐件 hash 校验后原子刷新 development 清单；2026-09-21 起产品清单升级为强制发行域字段的 schema 3。运行时 `px_logs/` 明确不进入清单，
+Official/Customer 清单拒绝原地刷新。修复后
 Client 3.3.72 的 41 件、Cloud Node 3.3.74 的 315 件、Remote 3.3.72 的 77 件完整文件集、SHA-256、许可证、PE 依赖和产品边界全部通过。
 这恢复 development dist 的可验证性，但 release-only 双发行仍须从干净输出生成正式签名清单。
+
+2026-09-21 的发行域第二阶段已把 OEM 从构建目录标签提升为签名身份事实。许可证升级为 `PXLIC2` schema 2，部署证书和平台描述升级为
+`PXDC2`/`PXDD2` schema 2；三者都签入 distribution、release_namespace 与 nullable oem_id，并统一只接受
+`official/pixels.official/null`、`customer/pixels.customer/null`、`oem/oem.<oem_id>/<oem_id>`。Auth 签发、续期、在线验证、通知 outbox，
+Console 启动准入/在线状态/更新目标/节点描述，离线部署签发器，Windows Service schema 3 节点配置和产品描述符，Windows Panel、Web Client
+及 Android 的凭据前门禁和持久水位已同步这组精确绑定；替换 OEM ID、namespace、发行类别或把 OEM/Customer 与 Official/Private 类别交叉组合
+都会 fail-closed。v1 开发 wire 和旧 Service 配置直接无效，没有迁移、兼容解析或 fallback。当前阶段不等于 OEM 制品可交付：OEM 独立品牌、安装身份、
+TUF 初始根、更新签名与 Windows/Android/Web 完整构建入口仍按 DB5/P0 后续门禁实施。
+
+本阶段开发期短测已通过：许可证固定向量/边界 8/8、部署身份与离线签发 7/7、Console 库单元 19/19、Windows Service 122/122
+（另 1 项物理 NVIDIA 按设计忽略）、Web Client 63/63、Auth Web 5/5、Windows 发布脚本 17/17、Android core-network/core-data 与 App Kotlin
+编译成功。隔离 PostgreSQL Auth API 9/9 报告为 `pg-20260921-235306-90399b7f`，Console 真实进程启动及数据库 authority 丢失退出 1/1
+报告为 `pg-20260921-235520-86be6ea9`。C++ 部署身份 2/2、Panel 22/22 及 Client 聚焦测试通过；development dist 中
+Client、Cloud Node、Remote 的 `px_panel.exe` build/dist SHA-256 分别为
+`DA1770D1A65627B4FB11DF4320350731420C2273C14E55CBA741FCFE6DDB8CE4`、
+`D87B0677025D3F90EAF41F4DCCFA125913F255DE9DCEC8509E6BA7C4DA807EC5`、
+`8342671BECED77A12F4B54720D7286BBFA58DEB4D6B721C3CDCA9C834AD0E7AD`，
+`px_client.exe` 均为 `AB595EBDB318AC47E3BFEC48EB2FEAA17BA066BADF0563473186362A0324C41D`；Cloud Node/Remote 的
+`px_service.exe` build/stage/dist SHA-256 均为 `B7C283B06ECD25A598ACF5A84CC73119D6CFDCB9C0C0A2CA0AE469CC208AE7F2`。这些是开发期功能短测，
+不冒充 release-only 双发行/OEM 制品、安装生命周期或最后统一长测。
 
 | 阶段 | 当前未完成项 |
 |---|---|

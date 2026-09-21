@@ -17,6 +17,8 @@ pub struct LicenseTerms {
     pub deployment_id: Uuid,
     pub product: Product,
     pub distribution: Distribution,
+    pub release_namespace: String,
+    pub oem_id: Option<String>,
     pub machine_sha256: String,
     pub mode: Mode,
     pub activation: Activation,
@@ -37,11 +39,13 @@ impl LicenseTerms {
             return Err(AuthError::Invalid);
         }
         let payload = LicensePayload {
-            schema: 1,
+            schema: 2,
             license_id: id,
             deployment_id: self.deployment_id,
             product: self.product,
             distribution: self.distribution,
+            release_namespace: self.release_namespace.clone(),
+            oem_id: self.oem_id.clone(),
             machine_sha256: self.machine_sha256.clone(),
             revision,
             mode: self.mode,

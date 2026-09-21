@@ -23,11 +23,11 @@ namespace {
 
 using OrderedJson = nlohmann::ordered_json;
 
-constexpr std::string_view kCertificatePrefix{"PXDC1"};
-constexpr char kCertificateDomainBytes[] = "Pixels-Deployment-Certificate-v1\0";
+constexpr std::string_view kCertificatePrefix{"PXDC2"};
+constexpr char kCertificateDomainBytes[] = "Pixels-Deployment-Certificate-v2\0";
 constexpr std::string_view kCertificateDomain{kCertificateDomainBytes, sizeof(kCertificateDomainBytes) - 1};
-constexpr std::string_view kDescriptorPrefix{"PXDD1"};
-constexpr char kDescriptorDomainBytes[] = "Pixels-Platform-Descriptor-v1\0";
+constexpr std::string_view kDescriptorPrefix{"PXDD2"};
+constexpr char kDescriptorDomainBytes[] = "Pixels-Platform-Descriptor-v2\0";
 constexpr std::string_view kDescriptorDomain{kDescriptorDomainBytes, sizeof(kDescriptorDomainBytes) - 1};
 constexpr std::string_view kChallengePrefix{"PXDP1"};
 constexpr char kChallengeDomainBytes[] = "Pixels-Deployment-Challenge-v1\0";
@@ -45,6 +45,9 @@ struct DecodedWire final {
 struct Certificate final {
     std::string deploymentId{};
     DeploymentKind deploymentKind{DeploymentKind::kPrivate};
+    DeploymentDistribution distribution{DeploymentDistribution::kCustomer};
+    std::string releaseNamespace{};
+    std::optional<std::string> oemId{};
     std::array<std::uint8_t, 32> deploymentPublicKey{};
     std::uint64_t certificateVersion{};
     std::int64_t notBefore{};
@@ -55,6 +58,9 @@ struct Certificate final {
 struct Descriptor final {
     std::string deploymentId{};
     DeploymentKind deploymentKind{DeploymentKind::kPrivate};
+    DeploymentDistribution distribution{DeploymentDistribution::kCustomer};
+    std::string releaseNamespace{};
+    std::optional<std::string> oemId{};
     std::uint64_t descriptorRevision{};
     std::uint64_t trustEpoch{};
     std::int64_t issuedAt{};
@@ -64,14 +70,17 @@ struct Descriptor final {
     std::uint16_t maximumProtocolVersion{};
 };
 
-constexpr std::array<std::string_view, 8> kCertificateFields{
-    "schema_version",      "deployment_id", "deployment_kind", "deployment_public_key_hex",
+constexpr std::array<std::string_view, 11> kCertificateFields{
+    "schema_version",      "deployment_id", "deployment_kind", "distribution",  "release_namespace", "oem_id", "deployment_public_key_hex",
     "certificate_version", "not_before",    "expires_at",      "issuer_key_id",
 };
-constexpr std::array<std::string_view, 13> kDescriptorFields{
+constexpr std::array<std::string_view, 16> kDescriptorFields{
     "schema_version",
     "deployment_id",
     "deployment_kind",
+    "distribution",
+    "release_namespace",
+    "oem_id",
     "descriptor_revision",
     "trust_epoch",
     "issued_at",
@@ -176,6 +185,34 @@ std::optional<DeploymentKind> ParseKind(const OrderedJson& value) {
         return DeploymentKind::kOfficial;
     }
     return kind == "private" ? std::optional{DeploymentKind::kPrivate} : std::nullopt;
+}
+
+std::optional<DeploymentDistribution> ParseDistribution(const OrderedJson& value) {
+    if (!value.is_string()) return std::nullopt;
+    const auto distribution = value.get<std::string>();
+    if (distribution == "official") return DeploymentDistribution::kOfficial;
+    if (distribution == "customer") return DeploymentDistribution::kCustomer;
+    return distribution == "oem" ? std::optional{DeploymentDistribution::kOem} : std::nullopt;
+}
+
+bool ValidOemId(const std::string_view oemId) {
+    return oemId.size() >= 3 && oemId.size() <= 32 && oemId.front() != '-' && oemId.back() != '-' && !oemId.contains("--") && oemId != "pixels" &&
+           oemId != "official" && oemId != "customer" && oemId != "oem" && std::ranges::all_of(oemId, [](const unsigned char character) {
+               return std::islower(character) != 0 || std::isdigit(character) != 0 || character == '-';
+           });
+}
+
+bool ValidReleaseDomain(const DeploymentKind deploymentKind, const DeploymentDistribution distribution, const std::string_view releaseNamespace,
+                        const std::optional<std::string>& oemId) {
+    switch (distribution) {
+        case DeploymentDistribution::kOfficial:
+            return deploymentKind == DeploymentKind::kOfficial && releaseNamespace == "pixels.official" && !oemId;
+        case DeploymentDistribution::kCustomer:
+            return deploymentKind == DeploymentKind::kPrivate && releaseNamespace == "pixels.customer" && !oemId;
+        case DeploymentDistribution::kOem:
+            return deploymentKind == DeploymentKind::kPrivate && oemId && ValidOemId(*oemId) && releaseNamespace == "oem." + *oemId;
+    }
+    return false;
 }
 
 template <typename Integer>
@@ -308,24 +345,31 @@ px::Result<OrderedJson, DeploymentIdentityError> DecodeSignedJson(const std::str
 std::optional<std::string> ReadString(const OrderedJson& value) { return value.is_string() ? std::optional{value.get<std::string>()} : std::nullopt; }
 
 px::Result<Certificate, DeploymentIdentityError> ParseCertificate(const OrderedJson& value) {
-    if (!HasExactOrderedFields(value, kCertificateFields) || ReadUnsigned<std::uint16_t>(value["schema_version"]) != 1) {
+    if (!HasExactOrderedFields(value, kCertificateFields) || ReadUnsigned<std::uint16_t>(value["schema_version"]) != 2) {
         return std::unexpected{DeploymentIdentityError::kInvalid};
     }
     const auto deploymentId = ReadString(value["deployment_id"]);
     const auto deploymentKind = ParseKind(value["deployment_kind"]);
+    const auto distribution = ParseDistribution(value["distribution"]);
+    const auto releaseNamespace = ReadString(value["release_namespace"]);
+    const auto oemId = value["oem_id"].is_null() ? std::optional<std::string>{} : ReadString(value["oem_id"]);
     const auto publicKeyHex = ReadString(value["deployment_public_key_hex"]);
     const auto publicKey = publicKeyHex ? DecodeLowerHex<32>(*publicKeyHex) : std::nullopt;
     const auto certificateVersion = ReadUnsigned<std::uint64_t>(value["certificate_version"]);
     const auto notBefore = ReadNonnegativeTime(value["not_before"]);
     const auto expiresAt = ReadNonnegativeTime(value["expires_at"]);
     const auto issuerKeyId = ReadString(value["issuer_key_id"]);
-    if (!deploymentId || !IsCanonicalUuid(*deploymentId) || !deploymentKind || !publicKey ||
+    if ((!value["oem_id"].is_null() && !value["oem_id"].is_string()) || !deploymentId || !IsCanonicalUuid(*deploymentId) || !deploymentKind ||
+        !distribution || !releaseNamespace || !ValidReleaseDomain(*deploymentKind, *distribution, *releaseNamespace, oemId) || !publicKey ||
         std::ranges::all_of(*publicKey, [](const auto byte) { return byte == 0; }) || !certificateVersion || *certificateVersion == 0 || !notBefore ||
         !expiresAt || *expiresAt <= *notBefore || *expiresAt > 253'402'300'799 || !issuerKeyId || !IsLowerHex(*issuerKeyId, 64)) {
         return std::unexpected{DeploymentIdentityError::kInvalid};
     }
     return Certificate{.deploymentId = *deploymentId,
                        .deploymentKind = *deploymentKind,
+                       .distribution = *distribution,
+                       .releaseNamespace = *releaseNamespace,
+                       .oemId = oemId,
                        .deploymentPublicKey = *publicKey,
                        .certificateVersion = *certificateVersion,
                        .notBefore = *notBefore,
@@ -351,11 +395,14 @@ bool ValidSortedStringArray(const OrderedJson& value, const std::size_t maximum,
 }
 
 px::Result<Descriptor, DeploymentIdentityError> ParseDescriptor(const OrderedJson& value) {
-    if (!HasExactDescriptorFields(value) || ReadUnsigned<std::uint16_t>(value["schema_version"]) != 1) {
+    if (!HasExactDescriptorFields(value) || ReadUnsigned<std::uint16_t>(value["schema_version"]) != 2) {
         return std::unexpected{DeploymentIdentityError::kInvalid};
     }
     const auto deploymentId = ReadString(value["deployment_id"]);
     const auto deploymentKind = ParseKind(value["deployment_kind"]);
+    const auto distribution = ParseDistribution(value["distribution"]);
+    const auto releaseNamespace = ReadString(value["release_namespace"]);
+    const auto oemId = value["oem_id"].is_null() ? std::optional<std::string>{} : ReadString(value["oem_id"]);
     const auto descriptorRevision = ReadUnsigned<std::uint64_t>(value["descriptor_revision"]);
     const auto trustEpoch = ReadUnsigned<std::uint64_t>(value["trust_epoch"]);
     const auto issuedAt = ReadNonnegativeTime(value["issued_at"]);
@@ -364,16 +411,20 @@ px::Result<Descriptor, DeploymentIdentityError> ParseDescriptor(const OrderedJso
     const auto minimumProtocolVersion = ReadUnsigned<std::uint16_t>(value["minimum_protocol_version"]);
     const auto maximumProtocolVersion = ReadUnsigned<std::uint16_t>(value["maximum_protocol_version"]);
     const auto registrationPolicy = ReadString(value["registration_policy"]);
-    if (!deploymentId || !IsCanonicalUuid(*deploymentId) || !deploymentKind || !descriptorRevision || *descriptorRevision == 0 || !trustEpoch ||
-        *trustEpoch == 0 || !issuedAt || !expiresAt || *expiresAt <= *issuedAt || *expiresAt - *issuedAt > 86'400 || !minimumClientBuild ||
-        !minimumProtocolVersion || *minimumProtocolVersion == 0 || !maximumProtocolVersion || *maximumProtocolVersion < *minimumProtocolVersion ||
-        !ValidSortedStringArray(value["api_versions"], 16, true) || !ValidSortedStringArray(value["authentication_methods"], 8, true) ||
-        (registrationPolicy != "closed" && registrationPolicy != "open") || value["console_api_path"] != "/api/console" ||
-        value["node_control_path"] != "/api/console/node-control") {
+    if ((!value["oem_id"].is_null() && !value["oem_id"].is_string()) || !deploymentId || !IsCanonicalUuid(*deploymentId) || !deploymentKind ||
+        !distribution || !releaseNamespace || !ValidReleaseDomain(*deploymentKind, *distribution, *releaseNamespace, oemId) || !descriptorRevision ||
+        *descriptorRevision == 0 || !trustEpoch || *trustEpoch == 0 || !issuedAt || !expiresAt || *expiresAt <= *issuedAt ||
+        *expiresAt - *issuedAt > 86'400 || !minimumClientBuild || !minimumProtocolVersion || *minimumProtocolVersion == 0 ||
+        !maximumProtocolVersion || *maximumProtocolVersion < *minimumProtocolVersion || !ValidSortedStringArray(value["api_versions"], 16, true) ||
+        !ValidSortedStringArray(value["authentication_methods"], 8, true) || (registrationPolicy != "closed" && registrationPolicy != "open") ||
+        value["console_api_path"] != "/api/console" || value["node_control_path"] != "/api/console/node-control") {
         return std::unexpected{DeploymentIdentityError::kInvalid};
     }
     return Descriptor{.deploymentId = *deploymentId,
                       .deploymentKind = *deploymentKind,
+                      .distribution = *distribution,
+                      .releaseNamespace = *releaseNamespace,
+                      .oemId = oemId,
                       .descriptorRevision = *descriptorRevision,
                       .trustEpoch = *trustEpoch,
                       .issuedAt = *issuedAt,
@@ -438,7 +489,8 @@ px::Result<VerifiedDeploymentIdentity, DeploymentIdentityError> VerifyDeployment
                                                                                          const std::int64_t now) {
     if (identityJson.empty() || identityJson.size() > 64 * 1024 || trustStore.trustEpoch == 0 || trustStore.trustEpoch != policy.minimumTrustEpoch ||
         trustStore.trustedKeys.empty() || policy.minimumCertificateVersion == 0 || policy.minimumDescriptorRevision == 0 ||
-        policy.minimumTrustEpoch == 0 || policy.clientBuild == 0 || policy.protocolVersion == 0 || now < 0) {
+        policy.minimumTrustEpoch == 0 || policy.clientBuild == 0 || policy.protocolVersion == 0 || now < 0 ||
+        !ValidReleaseDomain(policy.expectedKind, policy.expectedDistribution, policy.expectedReleaseNamespace, policy.expectedOemId)) {
         return std::unexpected{DeploymentIdentityError::kRejected};
     }
     try {
@@ -462,8 +514,9 @@ px::Result<VerifiedDeploymentIdentity, DeploymentIdentityError> VerifyDeployment
             return std::unexpected{DeploymentIdentityError::kSignature};
         }
         if ((policy.expectedDeploymentId && *policy.expectedDeploymentId != certificate->deploymentId) ||
-            certificate->deploymentKind != policy.expectedKind || certificate->certificateVersion < policy.minimumCertificateVersion ||
-            certificate->notBefore > now || certificate->expiresAt <= now) {
+            certificate->deploymentKind != policy.expectedKind || certificate->distribution != policy.expectedDistribution ||
+            certificate->releaseNamespace != policy.expectedReleaseNamespace || certificate->oemId != policy.expectedOemId ||
+            certificate->certificateVersion < policy.minimumCertificateVersion || certificate->notBefore > now || certificate->expiresAt <= now) {
             return std::unexpected{DeploymentIdentityError::kRejected};
         }
 
@@ -472,13 +525,18 @@ px::Result<VerifiedDeploymentIdentity, DeploymentIdentityError> VerifyDeployment
         auto descriptor = ParseDescriptor(*descriptorJson);
         if (!descriptor) return std::unexpected{descriptor.error()};
         if (descriptor->deploymentId != certificate->deploymentId || descriptor->deploymentKind != certificate->deploymentKind ||
-            descriptor->descriptorRevision < policy.minimumDescriptorRevision || descriptor->trustEpoch < policy.minimumTrustEpoch ||
-            descriptor->issuedAt > now || descriptor->expiresAt <= now || descriptor->minimumClientBuild > policy.clientBuild ||
-            policy.protocolVersion < descriptor->minimumProtocolVersion || policy.protocolVersion > descriptor->maximumProtocolVersion) {
+            descriptor->distribution != certificate->distribution || descriptor->releaseNamespace != certificate->releaseNamespace ||
+            descriptor->oemId != certificate->oemId || descriptor->descriptorRevision < policy.minimumDescriptorRevision ||
+            descriptor->trustEpoch < policy.minimumTrustEpoch || descriptor->issuedAt > now || descriptor->expiresAt <= now ||
+            descriptor->minimumClientBuild > policy.clientBuild || policy.protocolVersion < descriptor->minimumProtocolVersion ||
+            policy.protocolVersion > descriptor->maximumProtocolVersion) {
             return std::unexpected{DeploymentIdentityError::kRejected};
         }
         return VerifiedDeploymentIdentity{.deploymentId = certificate->deploymentId,
                                           .deploymentKind = certificate->deploymentKind,
+                                          .distribution = certificate->distribution,
+                                          .releaseNamespace = certificate->releaseNamespace,
+                                          .oemId = certificate->oemId,
                                           .deploymentPublicKey = certificate->deploymentPublicKey,
                                           .certificateVersion = certificate->certificateVersion,
                                           .descriptorRevision = descriptor->descriptorRevision,

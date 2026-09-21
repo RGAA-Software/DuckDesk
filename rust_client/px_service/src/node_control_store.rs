@@ -1,4 +1,6 @@
-use px_deployment_identity::{DeploymentIdentityVerifier, DeploymentKind, DeploymentTrustStore};
+use px_deployment_identity::{
+    DeploymentIdentityVerifier, DeploymentKind, DeploymentTrustStore, Distribution,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::io::{self, Read};
@@ -24,6 +26,9 @@ pub struct NodeControlConfiguration {
     pub public_host: String,
     pub deployment_id: Uuid,
     pub deployment_kind: DeploymentKind,
+    pub distribution: Distribution,
+    pub release_namespace: String,
+    pub oem_id: Option<String>,
     pub deployment_trust_store: DeploymentTrustStore,
     pub minimum_certificate_version: u64,
     pub minimum_descriptor_revision: u64,
@@ -38,6 +43,9 @@ impl Clone for NodeControlConfiguration {
             public_host: self.public_host.clone(),
             deployment_id: self.deployment_id,
             deployment_kind: self.deployment_kind,
+            distribution: self.distribution,
+            release_namespace: self.release_namespace.clone(),
+            oem_id: self.oem_id.clone(),
             deployment_trust_store: self.deployment_trust_store.clone(),
             minimum_certificate_version: self.minimum_certificate_version,
             minimum_descriptor_revision: self.minimum_descriptor_revision,
@@ -53,6 +61,9 @@ impl PartialEq for NodeControlConfiguration {
             && self.public_host == other.public_host
             && self.deployment_id == other.deployment_id
             && self.deployment_kind == other.deployment_kind
+            && self.distribution == other.distribution
+            && self.release_namespace == other.release_namespace
+            && self.oem_id == other.oem_id
             && self.deployment_trust_store == other.deployment_trust_store
             && self.minimum_certificate_version == other.minimum_certificate_version
             && self.minimum_descriptor_revision == other.minimum_descriptor_revision
@@ -71,6 +82,9 @@ struct StoredConfiguration {
     public_host: String,
     deployment_id: Uuid,
     deployment_kind: DeploymentKind,
+    distribution: Distribution,
+    release_namespace: String,
+    oem_id: Option<String>,
     deployment_trust_store: DeploymentTrustStore,
     minimum_certificate_version: u64,
     minimum_descriptor_revision: u64,
@@ -91,6 +105,9 @@ struct StoredConfigurationRef<'a> {
     public_host: &'a str,
     deployment_id: Uuid,
     deployment_kind: DeploymentKind,
+    distribution: Distribution,
+    release_namespace: &'a str,
+    oem_id: Option<&'a str>,
     deployment_trust_store: &'a DeploymentTrustStore,
     minimum_certificate_version: u64,
     minimum_descriptor_revision: u64,
@@ -99,7 +116,7 @@ struct StoredConfigurationRef<'a> {
 
 impl StoredConfiguration {
     fn into_runtime(mut self) -> Result<NodeControlConfiguration, String> {
-        if self.schema_version != 2 {
+        if self.schema_version != 3 {
             return Err("unsupported node-control configuration schema".into());
         }
         let runtime = NodeControlConfiguration {
@@ -108,6 +125,9 @@ impl StoredConfiguration {
             public_host: std::mem::take(&mut self.public_host),
             deployment_id: self.deployment_id,
             deployment_kind: self.deployment_kind,
+            distribution: self.distribution,
+            release_namespace: std::mem::take(&mut self.release_namespace),
+            oem_id: self.oem_id.take(),
             deployment_trust_store: self.deployment_trust_store.clone(),
             minimum_certificate_version: self.minimum_certificate_version,
             minimum_descriptor_revision: self.minimum_descriptor_revision,
@@ -124,6 +144,10 @@ impl NodeControlConfiguration {
         validate_token(&self.node_token)?;
         validate_public_host(&self.public_host)?;
         if self.deployment_id.is_nil()
+            || self
+                .distribution
+                .validate_release_domain(&self.release_namespace, self.oem_id.as_deref())
+                .is_err()
             || self.minimum_certificate_version == 0
             || self.minimum_descriptor_revision == 0
             || self.minimum_trust_epoch == 0
@@ -142,6 +166,9 @@ pub(crate) struct DeploymentIdentityWatermark {
     schema_version: u32,
     pub deployment_id: Uuid,
     pub deployment_kind: DeploymentKind,
+    pub distribution: Distribution,
+    pub release_namespace: String,
+    pub oem_id: Option<String>,
     pub certificate_version: u64,
     pub descriptor_revision: u64,
     pub trust_epoch: u64,
@@ -151,14 +178,20 @@ impl DeploymentIdentityWatermark {
     pub(crate) fn new(
         deployment_id: Uuid,
         deployment_kind: DeploymentKind,
+        distribution: Distribution,
+        release_namespace: String,
+        oem_id: Option<String>,
         certificate_version: u64,
         descriptor_revision: u64,
         trust_epoch: u64,
     ) -> Result<Self, String> {
         let watermark = Self {
-            schema_version: 1,
+            schema_version: 2,
             deployment_id,
             deployment_kind,
+            distribution,
+            release_namespace,
+            oem_id,
             certificate_version,
             descriptor_revision,
             trust_epoch,
@@ -168,8 +201,12 @@ impl DeploymentIdentityWatermark {
     }
 
     fn validate(&self) -> Result<(), String> {
-        if self.schema_version != 1
+        if self.schema_version != 2
             || self.deployment_id.is_nil()
+            || self
+                .distribution
+                .validate_release_domain(&self.release_namespace, self.oem_id.as_deref())
+                .is_err()
             || self.certificate_version == 0
             || self.descriptor_revision == 0
             || self.trust_epoch == 0
@@ -182,6 +219,9 @@ impl DeploymentIdentityWatermark {
     pub(crate) fn allows(&self, candidate: &Self) -> bool {
         self.deployment_id == candidate.deployment_id
             && self.deployment_kind == candidate.deployment_kind
+            && self.distribution == candidate.distribution
+            && self.release_namespace == candidate.release_namespace
+            && self.oem_id == candidate.oem_id
             && candidate.certificate_version >= self.certificate_version
             && candidate.descriptor_revision >= self.descriptor_revision
             && candidate.trust_epoch >= self.trust_epoch
@@ -226,12 +266,15 @@ impl NodeControlStore {
         configuration.validate()?;
         platform::ensure_private_directory(&self.directory)?;
         let stored = StoredConfigurationRef {
-            schema_version: 2,
+            schema_version: 3,
             endpoint: &configuration.endpoint,
             node_token: configuration.node_token.as_str(),
             public_host: &configuration.public_host,
             deployment_id: configuration.deployment_id,
             deployment_kind: configuration.deployment_kind,
+            distribution: configuration.distribution,
+            release_namespace: &configuration.release_namespace,
+            oem_id: configuration.oem_id.as_deref(),
             deployment_trust_store: &configuration.deployment_trust_store,
             minimum_certificate_version: configuration.minimum_certificate_version,
             minimum_descriptor_revision: configuration.minimum_descriptor_revision,
@@ -1089,6 +1132,9 @@ mod tests {
             public_host: "render.example.com".into(),
             deployment_id: Uuid::parse_str("9c08feb1-af71-4fab-a6b8-bbd99b3552ba").unwrap(),
             deployment_kind: DeploymentKind::Private,
+            distribution: Distribution::Customer,
+            release_namespace: "pixels.customer".into(),
+            oem_id: None,
             deployment_trust_store: DeploymentTrustStore::new(3, [[1_u8; 32]]).unwrap(),
             minimum_certificate_version: 2,
             minimum_descriptor_revision: 4,
@@ -1147,6 +1193,9 @@ mod tests {
             public_host: configured.public_host.clone(),
             deployment_id: configured.deployment_id,
             deployment_kind: configured.deployment_kind,
+            distribution: configured.distribution,
+            release_namespace: configured.release_namespace.clone(),
+            oem_id: configured.oem_id.clone(),
             deployment_trust_store: configured.deployment_trust_store.clone(),
             minimum_certificate_version: configured.minimum_certificate_version,
             minimum_descriptor_revision: configured.minimum_descriptor_revision,
@@ -1165,6 +1214,9 @@ mod tests {
         let current = DeploymentIdentityWatermark::new(
             configured.deployment_id,
             configured.deployment_kind,
+            configured.distribution,
+            configured.release_namespace.clone(),
+            configured.oem_id.clone(),
             2,
             4,
             3,
@@ -1173,6 +1225,9 @@ mod tests {
         let advanced = DeploymentIdentityWatermark::new(
             configured.deployment_id,
             configured.deployment_kind,
+            configured.distribution,
+            configured.release_namespace.clone(),
+            configured.oem_id.clone(),
             3,
             5,
             4,
@@ -1183,6 +1238,9 @@ mod tests {
         let rolled_back = DeploymentIdentityWatermark::new(
             configured.deployment_id,
             configured.deployment_kind,
+            configured.distribution,
+            configured.release_namespace.clone(),
+            configured.oem_id.clone(),
             2,
             3,
             3,
@@ -1190,9 +1248,17 @@ mod tests {
         .unwrap();
         assert!(!current.allows(&rolled_back));
 
-        let other_deployment =
-            DeploymentIdentityWatermark::new(Uuid::new_v4(), configured.deployment_kind, 3, 5, 4)
-                .unwrap();
+        let other_deployment = DeploymentIdentityWatermark::new(
+            Uuid::new_v4(),
+            configured.deployment_kind,
+            configured.distribution,
+            configured.release_namespace,
+            configured.oem_id,
+            3,
+            5,
+            4,
+        )
+        .unwrap();
         assert!(!current.allows(&other_deployment));
     }
 
@@ -1214,9 +1280,17 @@ mod tests {
             .windows(64)
             .any(|bytes| bytes
                 == b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
-        let watermark =
-            DeploymentIdentityWatermark::new(value.deployment_id, value.deployment_kind, 2, 4, 3)
-                .unwrap();
+        let watermark = DeploymentIdentityWatermark::new(
+            value.deployment_id,
+            value.deployment_kind,
+            value.distribution,
+            value.release_namespace.clone(),
+            value.oem_id.clone(),
+            2,
+            4,
+            3,
+        )
+        .unwrap();
         store.save_identity_watermark(&watermark).unwrap();
         assert_eq!(store.load_identity_watermark().unwrap(), Some(watermark));
         assert!(

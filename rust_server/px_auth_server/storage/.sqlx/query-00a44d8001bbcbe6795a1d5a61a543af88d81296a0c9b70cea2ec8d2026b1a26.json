@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.licenses(id,customer_id,target_deployment,product,distribution,release_namespace,oem_id,machine_sha256,revision,mode,\n                 not_before,expires_at,max_devices,max_sessions,features) VALUES($1,$2,$3,$4,$5,$6,$7,$8,1,$9,$10,$11,$12,$13,$14)\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Timestamptz",
+        "Int8",
+        "Int8",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "00a44d8001bbcbe6795a1d5a61a543af88d81296a0c9b70cea2ec8d2026b1a26"
+}

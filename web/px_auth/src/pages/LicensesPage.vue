@@ -99,7 +99,7 @@ onMounted(() => run(load));
                     >
                         <td>
                             {{ t(payload.product) }}<br /><small
-                                >{{ t(payload.distribution) }} · {{ t(payload.mode) }}</small
+                                >{{ t(payload.distribution) }} · {{ payload.release_namespace }} · {{ t(payload.mode) }}</small
                             >
                         </td>
                         <td class="mono">{{ payload.deployment_id }}<br />{{ row.license_id }}</td>

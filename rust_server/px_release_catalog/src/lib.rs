@@ -28,6 +28,23 @@ dimension!(Channel { Stable => "stable", Preview => "preview" });
 dimension!(OperatingSystem { Windows => "windows", Linux => "linux", Android => "android" });
 dimension!(Architecture { X86_64 => "x86_64", Aarch64 => "aarch64" });
 
+impl Distribution {
+    pub fn validate_release_domain(
+        self,
+        release_namespace: &str,
+        oem_id: Option<&str>,
+    ) -> Result<(), InvalidRelease> {
+        let valid_domain = match self {
+            Self::Official => release_namespace == "pixels.official" && oem_id.is_none(),
+            Self::Customer => release_namespace == "pixels.customer" && oem_id.is_none(),
+            Self::Oem => oem_id.is_some_and(|oem_id| {
+                valid_oem_id(oem_id) && release_namespace == format!("oem.{oem_id}")
+            }),
+        };
+        valid_domain.then_some(()).ok_or(InvalidRelease)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReleaseQuery {
@@ -41,17 +58,8 @@ pub struct ReleaseQuery {
 }
 impl ReleaseQuery {
     pub fn validate(&self) -> Result<(), InvalidRelease> {
-        let valid_domain = match self.distribution {
-            Distribution::Official => {
-                self.release_namespace == "pixels.official" && self.oem_id.is_none()
-            }
-            Distribution::Customer => {
-                self.release_namespace == "pixels.customer" && self.oem_id.is_none()
-            }
-            Distribution::Oem => self.oem_id.as_deref().is_some_and(|oem_id| {
-                valid_oem_id(oem_id) && self.release_namespace == format!("oem.{oem_id}")
-            }),
-        };
+        self.distribution
+            .validate_release_domain(&self.release_namespace, self.oem_id.as_deref())?;
         let supported = match self.product {
             Product::Android => {
                 self.os == OperatingSystem::Android && self.architecture == Architecture::Aarch64
@@ -64,9 +72,7 @@ impl ReleaseQuery {
                 self.os == OperatingSystem::Windows && self.architecture == Architecture::X86_64
             }
         };
-        (valid_domain && supported)
-            .then_some(())
-            .ok_or(InvalidRelease)
+        supported.then_some(()).ok_or(InvalidRelease)
     }
 }
 

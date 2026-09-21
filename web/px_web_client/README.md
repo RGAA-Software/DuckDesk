@@ -42,9 +42,10 @@ Cloud Node 或 Remote 的完整产品矩阵构建生成；矩阵构建会把该�
 ## 部署身份门禁
 
 Console 生成的启动 URL fragment 必须携带 `console_origin`、资源会话 ID、revision 和一次性 frontend token。Official/Customer bundle 在创建
-`RTCPeerConnection`、向 Render 发送 token 或使用任何凭据前，先跨源访问 Console 的公开身份端点，验证 `PXDC1` 证书、`PXDD1` 短期描述、
-`PXDP1` nonce 持有证明、发行类别、协议/build 水位和本地持久化单调水位。Official 只接受编译时固定的官方 HTTPS origin 与 deployment ID；
-Customer 只接受签名类别为 `private` 的部署，并在首次成功后按 Console origin 固定 deployment ID。验证失败时不会回落到手工设备密码路径。
+`RTCPeerConnection`、向 Render 发送 token 或使用任何凭据前，先跨源访问 Console 的公开身份端点，验证 `PXDC2` schema 2 证书、
+`PXDD2` schema 2 短期描述、`PXDP1` nonce 持有证明、精确 distribution/release_namespace/oem_id、协议/build 水位和本地持久化单调水位。
+Official 只接受编译时固定的官方 HTTPS origin 与 deployment ID；Customer/OEM 只接受签名类别为 `private` 且与构建策略完全一致的发行域，
+并在首次成功后按 Console origin 固定 deployment ID。验证失败时不会回落到手工设备密码路径。
 
 development bundle 保留本地手工连接入口用于聚焦开发，不构成 Official/Customer 产品行为。
 

@@ -1,26 +1,28 @@
 # Auth 新许可证字节契约（DB0 / DB3）
 
-> 2026-09-17。共享库 `rust_server/px_auth_server/license`，crate `px_license`。
-> Auth 产品入口已接入新 PG 存储及协议；Console/其他消费者尚未切换，不代表 DB3 整体已验收。
+> 2026-09-21。共享库 `rust_server/px_auth_server/license`，crate `px_license`。
+> 本文只描述当前全新开发契约；v1 是已退役开发格式，不迁移、不兼容、不提供运行时 fallback。
 
 ## 字节与字段
 
-唯一接受格式：`PXLIC1.<payload base64url-no-pad>.<Ed25519 signature base64url-no-pad>`，总长最多 8192 字节。
-签名输入是 UTF-8/ASCII 的 `Pixels-License-v1` + 单字节 NUL + 原始 payload bytes；
+唯一接受格式：`PXLIC2.<payload base64url-no-pad>.<Ed25519 signature base64url-no-pad>`，总长最多 8192 字节。
+签名输入是 UTF-8/ASCII 的 `Pixels-License-v2` + 单字节 NUL + 原始 payload bytes；
 不是仅签解码后的某些字段，也不能把下载响应提供的公钥作为可信根。
 
 payload 为紧凑 UTF-8 JSON，严格按以下字段顺序，不允许空白、重复/未知/缺失字段或字段重排：
 
 ```text
-schema, license_id, deployment_id, product, distribution, machine_sha256,
+schema, license_id, deployment_id, product, distribution, release_namespace, oem_id, machine_sha256,
 revision, mode, issued_at, not_before, expires_at, max_devices, max_sessions,
 features, key_id
 ```
 
-- schema=1；UUID 必须非 nil、标准小写带连字符编码。
+- schema=2；UUID 必须非 nil、标准小写带连字符编码。
 - product：pixels_console/gopico/clientbox/goagent；后三项是 Auth 已有独立产品，不是 Pixels 的旧名兼容。
   不接受 console/cms/Pixels_cms 等旧别名。其他产品消费者未接新契约前不能声称它们已验收。
-- distribution：official/customer；mode：trial/licensed。没有默认值，也不依赖省略字段推断发行。
+- distribution：official/customer/oem；mode：trial/licensed。发行域是精确绑定：Official 必须为
+  `release_namespace=pixels.official,oem_id=null`，Customer 必须为 `pixels.customer,null`，OEM 必须为
+  `oem.<oem_id>,<oem_id>`；OEM ID 只接受规范的小写字母、数字和单连字符片段。三个字段均无默认值，不能从部署类别、URL 或缺失字段推断。
 - machine_sha256：当前机器身份契约提供的 32 字节指纹，小写 hex64；不能拿旧 MD5 字符串补齐或转换。
 - revision 为正 i64；UTC 时间为整数 Unix 秒，0 <= issued_at <= not_before < expires_at <= 253402300799。
 - max_devices/max_sessions 为正 u32；撤销不是发放零容量许可证。
@@ -34,7 +36,7 @@ features, key_id
 
 ## 验证与信任状态
 
-验证方必须同时提供受控信任根中的公钥集合、deployment、product、distribution、机器指纹、当前时间、
+验证方必须同时提供受控信任根中的公钥集合、deployment、product、精确 distribution/release_namespace/oem_id、机器指纹、当前时间、
 minimum_revision 和 last_trusted_time。签名正确但任一绑定不符、not_before 未到、
 expires_at 已到、revision 过旧或时间回拨均拒绝。
 minimum_revision >=1，last_trusted_time >=0；不能用缺失状态绕过回滚检查。
@@ -68,13 +70,13 @@ Auth 已实现 PG 签发事实先提交、request_id 幂等、撤销事务与审
 签发/续期事件引用已提交的精确 wire，吊销事件只携带更高 revision，不伪造空许可证；outbox 写入失败会回滚许可证、
 request、issuance 和 audit。领取租约是 Auth 内部执行器能力，不通过公共 HTTP API 暴露。
 
-Official Console 以受保护的已签名 wire 及精确 deployment/product/distribution/machine 绑定每 30 秒调用一次 `/verify`；这次接触
+Official Console 以受保护的已签名 wire 及精确 deployment/product/release-domain/machine 绑定每 30 秒调用一次 `/verify`；这次接触
 就是部署消费者认证，不新增可伪造的回调 URL，也不把内部 lease UUID 暴露给 API。Auth 在验签和绑定通过后原子确认该 license 截至
 数据库当前 revision 的 outbox；即使响应丢失，Console 也不会因此续命，最后一次成功后的第 40 秒开始 API/readiness fail-closed 并退出。
 旧 revision 在续期或吊销后仍可证明“原消费者已接触 Auth”，因此会确认通知事实，但 currentness 仍返回拒绝，绝不会恢复旧授权。
 Customer 产品完全不启动这条在线循环；它不得填写官方地址，也不能声称获知尚未导入的撤销。手工调用 verify 不改变 Customer 产品边界。
 使用及精确验收范围见 [Auth 配置](px_auth_server_runtime_config.md)与[状态](server_database_execution_status.md)。
-Console PostgreSQL 产品已接 `PXLIC1` 本地验签、Official Auth 在线当前性复核、Customer 禁止 Auth URL、库外原子水位及请求期到期/回拨门禁；
+Console PostgreSQL 产品已接 `PXLIC2` 本地验签、Official Auth 在线当前性复核、Customer/OEM 禁止 Auth URL、库外原子水位及请求期到期/回拨门禁；
 `max_devices` 与 `max_sessions` 在同一 PostgreSQL 事务内用独立 advisory lock 竞争最后名额；CloudApplications、Desktop、Rdp 分别硬限制
 game-hook/webview 实例、桌面目标和 RDP 实例，并在实例预约、资源会话及新 descriptor 三层拒绝。Windows Service 不复制许可证解析器，
 只消费当前 Console 代际已经准入的节点命令；旧 `px_auth_mgr` 依赖已从 Service 删除。仍需恢复轮换实测和正式部署监督器联动。

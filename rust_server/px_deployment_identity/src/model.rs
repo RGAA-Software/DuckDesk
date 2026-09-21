@@ -1,5 +1,6 @@
 use crate::DeploymentIdentityError;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+use px_release_catalog::Distribution;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -31,6 +32,9 @@ pub struct DeploymentCertificate {
     pub schema_version: u16,
     pub deployment_id: Uuid,
     pub deployment_kind: DeploymentKind,
+    pub distribution: Distribution,
+    pub release_namespace: String,
+    pub oem_id: Option<String>,
     pub deployment_public_key_hex: String,
     pub certificate_version: u64,
     pub not_before: i64,
@@ -45,6 +49,9 @@ pub struct PlatformDescriptor {
     pub schema_version: u16,
     pub deployment_id: Uuid,
     pub deployment_kind: DeploymentKind,
+    pub distribution: Distribution,
+    pub release_namespace: String,
+    pub oem_id: Option<String>,
     pub descriptor_revision: u64,
     pub trust_epoch: u64,
     pub issued_at: i64,
@@ -84,8 +91,14 @@ impl DeploymentCertificate {
     }
 
     pub(crate) fn validate(&self) -> Result<(), DeploymentIdentityError> {
-        if self.schema_version != 1
+        if self.schema_version != 2
             || self.deployment_id.is_nil()
+            || !valid_release_domain(
+                self.deployment_kind,
+                self.distribution,
+                &self.release_namespace,
+                self.oem_id.as_deref(),
+            )
             || decode_public_key(&self.deployment_public_key_hex).is_err()
             || self.certificate_version == 0
             || self.not_before < 0
@@ -106,8 +119,14 @@ impl PlatformDescriptor {
     }
 
     fn validate(&self) -> Result<(), DeploymentIdentityError> {
-        if self.schema_version != 1
+        if self.schema_version != 2
             || self.deployment_id.is_nil()
+            || !valid_release_domain(
+                self.deployment_kind,
+                self.distribution,
+                &self.release_namespace,
+                self.oem_id.as_deref(),
+            )
             || self.descriptor_revision == 0
             || self.trust_epoch == 0
             || self.issued_at < 0
@@ -184,4 +203,20 @@ fn valid_token(value: &str) -> bool {
         && value.bytes().all(|byte| {
             byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'.' | b'-' | b'_')
         })
+}
+
+fn valid_release_domain(
+    deployment_kind: DeploymentKind,
+    distribution: Distribution,
+    release_namespace: &str,
+    oem_id: Option<&str>,
+) -> bool {
+    let expected_kind = match distribution {
+        Distribution::Official => DeploymentKind::Official,
+        Distribution::Customer | Distribution::Oem => DeploymentKind::Private,
+    };
+    deployment_kind == expected_kind
+        && distribution
+            .validate_release_domain(release_namespace, oem_id)
+            .is_ok()
 }

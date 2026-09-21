@@ -67,10 +67,19 @@ bool IsCanonicalUuid(const std::string_view value) {
     return true;
 }
 
+bool IsCanonicalOemId(const std::string_view oemId) {
+    return oemId.size() >= 3 && oemId.size() <= 32 && oemId.front() != '-' && oemId.back() != '-' && !oemId.contains("--") && oemId != "pixels" &&
+           oemId != "official" && oemId != "customer" && oemId != "oem" && std::ranges::all_of(oemId, [](const unsigned char character) {
+               return std::islower(character) != 0 || std::isdigit(character) != 0 || character == '-';
+           });
+}
+
 std::optional<ParsedPolicy> ParsePolicy(const std::string_view bytes, const std::uint64_t clientBuild) {
-    constexpr std::array<std::string_view, 8> fields{
+    constexpr std::array<std::string_view, 10> fields{
         "schema_version",
         "distribution",
+        "release_namespace",
+        "oem_id",
         "expected_deployment_id",
         "official_console_origin",
         "minimum_certificate_version",
@@ -80,7 +89,10 @@ std::optional<ParsedPolicy> ParsePolicy(const std::string_view bytes, const std:
     };
     try {
         const auto value = Json::parse(bytes);
-        if (!HasExactFields(value, fields) || value["schema_version"] != 1 || !value["distribution"].is_string()) return std::nullopt;
+        if (!HasExactFields(value, fields) || value["schema_version"] != 2 || !value["distribution"].is_string() ||
+            !value["release_namespace"].is_string() || (!value["oem_id"].is_null() && !value["oem_id"].is_string())) {
+            return std::nullopt;
+        }
         const auto minimumCertificateVersion = PositiveNumber(value["minimum_certificate_version"]);
         const auto minimumDescriptorRevision = PositiveNumber(value["minimum_descriptor_revision"]);
         const auto minimumTrustEpoch = PositiveNumber(value["minimum_trust_epoch"]);
@@ -90,14 +102,21 @@ std::optional<ParsedPolicy> ParsePolicy(const std::string_view bytes, const std:
             return std::nullopt;
         }
         const auto distributionText = value["distribution"].get<std::string>();
+        const auto releaseNamespace = value["release_namespace"].get<std::string>();
+        const auto oemId = value["oem_id"].is_string() ? std::optional{value["oem_id"].get<std::string>()} : std::nullopt;
         ParsedPolicy policy{};
+        policy.verification.expectedReleaseNamespace = releaseNamespace;
+        policy.verification.expectedOemId = oemId;
         policy.verification.minimumCertificateVersion = *minimumCertificateVersion;
         policy.verification.minimumDescriptorRevision = *minimumDescriptorRevision;
         policy.verification.minimumTrustEpoch = *minimumTrustEpoch;
         policy.verification.clientBuild = clientBuild;
         policy.verification.protocolVersion = static_cast<std::uint16_t>(*protocolVersion);
         if (distributionText == "official") {
-            if (!value["expected_deployment_id"].is_string() || !value["official_console_origin"].is_string()) return std::nullopt;
+            if (releaseNamespace != "pixels.official" || oemId || !value["expected_deployment_id"].is_string() ||
+                !value["official_console_origin"].is_string()) {
+                return std::nullopt;
+            }
             const auto deploymentId = value["expected_deployment_id"].get<std::string>();
             const auto origin = value["official_console_origin"].get<std::string>();
             const auto endpoint = ParseConsoleHttpsOrigin(origin);
@@ -107,11 +126,24 @@ std::optional<ParsedPolicy> ParsePolicy(const std::string_view bytes, const std:
             policy.distribution = PanelDistribution::Official;
             policy.verification.expectedDeploymentId = deploymentId;
             policy.verification.expectedKind = px_console::DeploymentKind::kOfficial;
+            policy.verification.expectedDistribution = px_console::DeploymentDistribution::kOfficial;
             policy.officialConsoleAddress = origin;
         } else if (distributionText == "customer") {
-            if (!value["expected_deployment_id"].is_null() || !value["official_console_origin"].is_null()) return std::nullopt;
+            if (releaseNamespace != "pixels.customer" || oemId || !value["expected_deployment_id"].is_null() ||
+                !value["official_console_origin"].is_null()) {
+                return std::nullopt;
+            }
             policy.distribution = PanelDistribution::Customer;
             policy.verification.expectedKind = px_console::DeploymentKind::kPrivate;
+            policy.verification.expectedDistribution = px_console::DeploymentDistribution::kCustomer;
+        } else if (distributionText == "oem") {
+            if (!value["expected_deployment_id"].is_null() || !value["official_console_origin"].is_null() || !oemId || !IsCanonicalOemId(*oemId) ||
+                releaseNamespace != "oem." + *oemId) {
+                return std::nullopt;
+            }
+            policy.distribution = PanelDistribution::Oem;
+            policy.verification.expectedKind = px_console::DeploymentKind::kPrivate;
+            policy.verification.expectedDistribution = px_console::DeploymentDistribution::kOem;
         } else {
             return std::nullopt;
         }
@@ -133,10 +165,13 @@ std::shared_ptr<PanelDeploymentIdentityGate> PanelDeploymentIdentityGate::Create
     const auto parsedTrustStore = trustStoreBytes ? px_console::ParseDeploymentTrustStore(*trustStoreBytes)
                                                   : px::Result<px_console::DeploymentTrustStore, px_console::DeploymentIdentityError>{
                                                         std::unexpected{px_console::DeploymentIdentityError::kInvalid}};
-    const auto compiledDistribution = kProductDistribution == "official" ? PanelDistribution::Official : PanelDistribution::Customer;
+    const auto compiledDistribution = kProductDistribution == "official"   ? PanelDistribution::Official
+                                      : kProductDistribution == "customer" ? PanelDistribution::Customer
+                                                                           : PanelDistribution::Oem;
     const bool policyMatchesExecutable =
         parsedPolicy && ((kProductDistribution == "official" && parsedPolicy->distribution == PanelDistribution::Official) ||
-                         (kProductDistribution == "customer" && parsedPolicy->distribution == PanelDistribution::Customer));
+                         (kProductDistribution == "customer" && parsedPolicy->distribution == PanelDistribution::Customer) ||
+                         (kProductDistribution == "oem" && parsedPolicy->distribution == PanelDistribution::Oem));
     const auto acceptedPolicy = policyMatchesExecutable ? parsedPolicy : std::nullopt;
     const auto trustStore = parsedTrustStore && acceptedPolicy && parsedTrustStore->trustEpoch == acceptedPolicy->verification.minimumTrustEpoch
                                 ? std::optional{*parsedTrustStore}
@@ -172,7 +207,7 @@ px::Result<px_console::VerifiedDeploymentIdentity, DeploymentGateError> PanelDep
 
 px::Result<px_console::VerifiedDeploymentIdentity, DeploymentGateError> PanelDeploymentIdentityGate::VerifyAndSelect(
     const std::string& consoleAddress, const std::string& host, const int port) {
-    return Verify(consoleAddress, host, port, distribution_ == PanelDistribution::Customer);
+    return Verify(consoleAddress, host, port, distribution_ != PanelDistribution::Official);
 }
 
 void PanelDeploymentIdentityGate::InvalidateCache() {
@@ -196,19 +231,24 @@ px::Result<px_console::VerifiedDeploymentIdentity, DeploymentGateError> PanelDep
     const auto current = ReadWatermark();
     if (!current) return std::unexpected{current.error()};
     auto verificationPolicy = *policy_;
-    if (distribution_ == PanelDistribution::Customer && *current && !allowIdentitySwitch) {
+    if (distribution_ != PanelDistribution::Official && *current && !allowIdentitySwitch) {
         verificationPolicy.expectedDeploymentId = (*current)->deploymentId;
     }
     const auto verified = px_console::VerifyConsoleDeployment(host, port, *trustStore_, verificationPolicy);
     if (!verified) return std::unexpected{DeploymentGateError::IdentityRejected};
     const Watermark candidate{.deploymentId = verified->deploymentId,
                               .deploymentKind = verified->deploymentKind,
+                              .distribution = verified->distribution,
+                              .releaseNamespace = verified->releaseNamespace,
+                              .oemId = verified->oemId,
                               .certificateVersion = verified->certificateVersion,
                               .descriptorRevision = verified->descriptorRevision,
                               .trustEpoch = verified->trustEpoch};
     if (*current) {
         const auto& stored = **current;
-        const bool sameIdentity = stored.deploymentId == candidate.deploymentId && stored.deploymentKind == candidate.deploymentKind;
+        const bool sameIdentity = stored.deploymentId == candidate.deploymentId && stored.deploymentKind == candidate.deploymentKind &&
+                                  stored.distribution == candidate.distribution && stored.releaseNamespace == candidate.releaseNamespace &&
+                                  stored.oemId == candidate.oemId;
         const bool monotonic = sameIdentity && candidate.certificateVersion >= stored.certificateVersion &&
                                candidate.descriptorRevision >= stored.descriptorRevision && candidate.trustEpoch >= stored.trustEpoch;
         if (!monotonic && !(allowIdentitySwitch && stored.deploymentId != candidate.deploymentId)) {
@@ -226,26 +266,37 @@ px::Result<px_console::VerifiedDeploymentIdentity, DeploymentGateError> PanelDep
 px::Result<std::optional<PanelDeploymentIdentityGate::Watermark>, DeploymentGateError> PanelDeploymentIdentityGate::ReadWatermark() const {
     const auto stored = credentialVault_->Read(std::string{kWatermarkCredential});
     if (!stored) return std::optional<Watermark>{};
-    constexpr std::array<std::string_view, 6> fields{"schema_version",      "deployment_id",       "deployment_kind",
+    constexpr std::array<std::string_view, 9> fields{"schema_version",      "deployment_id",       "deployment_kind",
+                                                     "distribution",        "release_namespace",   "oem_id",
                                                      "certificate_version", "descriptor_revision", "trust_epoch"};
     try {
         const auto value = Json::parse(*stored);
-        if (!HasExactFields(value, fields) || value["schema_version"] != 1 || !value["deployment_id"].is_string() ||
-            !value["deployment_kind"].is_string()) {
+        if (!HasExactFields(value, fields) || value["schema_version"] != 2 || !value["deployment_id"].is_string() ||
+            !value["deployment_kind"].is_string() || !value["distribution"].is_string() || !value["release_namespace"].is_string() ||
+            (!value["oem_id"].is_null() && !value["oem_id"].is_string())) {
             return std::unexpected{DeploymentGateError::WatermarkRejected};
         }
         const auto deploymentId = value["deployment_id"].get<std::string>();
         const auto kindText = value["deployment_kind"].get<std::string>();
+        const auto distributionText = value["distribution"].get<std::string>();
+        const auto releaseNamespace = value["release_namespace"].get<std::string>();
+        const auto oemId = value["oem_id"].is_string() ? std::optional{value["oem_id"].get<std::string>()} : std::nullopt;
         const auto certificateVersion = PositiveNumber(value["certificate_version"]);
         const auto descriptorRevision = PositiveNumber(value["descriptor_revision"]);
         const auto trustEpoch = PositiveNumber(value["trust_epoch"]);
-        if (!IsCanonicalUuid(deploymentId) || (kindText != "official" && kindText != "private") || !certificateVersion || !descriptorRevision ||
-            !trustEpoch) {
+        if (!IsCanonicalUuid(deploymentId) || (kindText != "official" && kindText != "private") ||
+            (distributionText != "official" && distributionText != "customer" && distributionText != "oem") || !certificateVersion ||
+            !descriptorRevision || !trustEpoch) {
             return std::unexpected{DeploymentGateError::WatermarkRejected};
         }
         return std::optional{
             Watermark{.deploymentId = deploymentId,
                       .deploymentKind = kindText == "official" ? px_console::DeploymentKind::kOfficial : px_console::DeploymentKind::kPrivate,
+                      .distribution = distributionText == "official"   ? px_console::DeploymentDistribution::kOfficial
+                                      : distributionText == "customer" ? px_console::DeploymentDistribution::kCustomer
+                                                                       : px_console::DeploymentDistribution::kOem,
+                      .releaseNamespace = releaseNamespace,
+                      .oemId = oemId,
                       .certificateVersion = *certificateVersion,
                       .descriptorRevision = *descriptorRevision,
                       .trustEpoch = *trustEpoch}};
@@ -255,9 +306,15 @@ px::Result<std::optional<PanelDeploymentIdentityGate::Watermark>, DeploymentGate
 }
 
 bool PanelDeploymentIdentityGate::WriteWatermark(const Watermark& watermark) const {
-    const Json value{{"schema_version", 1},
+    const auto distribution = watermark.distribution == px_console::DeploymentDistribution::kOfficial   ? "official"
+                              : watermark.distribution == px_console::DeploymentDistribution::kCustomer ? "customer"
+                                                                                                        : "oem";
+    const Json value{{"schema_version", 2},
                      {"deployment_id", watermark.deploymentId},
                      {"deployment_kind", watermark.deploymentKind == px_console::DeploymentKind::kOfficial ? "official" : "private"},
+                     {"distribution", distribution},
+                     {"release_namespace", watermark.releaseNamespace},
+                     {"oem_id", watermark.oemId ? Json(*watermark.oemId) : Json(nullptr)},
                      {"certificate_version", watermark.certificateVersion},
                      {"descriptor_revision", watermark.descriptorRevision},
                      {"trust_epoch", watermark.trustEpoch}};

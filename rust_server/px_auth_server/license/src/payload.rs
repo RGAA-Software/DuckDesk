@@ -1,4 +1,5 @@
 use crate::LicenseError;
+pub use px_release_catalog::Distribution;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -9,12 +10,6 @@ pub enum Product {
     Gopico,
     Clientbox,
     Goagent,
-}
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Distribution {
-    Official,
-    Customer,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -40,6 +35,8 @@ pub struct LicensePayload {
     pub deployment_id: Uuid,
     pub product: Product,
     pub distribution: Distribution,
+    pub release_namespace: String,
+    pub oem_id: Option<String>,
     pub machine_sha256: String,
     pub revision: i64,
     pub mode: Mode,
@@ -60,7 +57,7 @@ pub(crate) fn hash_text(value: &str) -> bool {
 }
 impl LicensePayload {
     pub fn validate(&self) -> Result<(), LicenseError> {
-        if self.schema != 1
+        if self.schema != 2
             || self.license_id.is_nil()
             || self.deployment_id.is_nil()
             || !hash_text(&self.machine_sha256)
@@ -78,6 +75,9 @@ impl LicensePayload {
         {
             return Err(LicenseError::Invalid);
         }
+        self.distribution
+            .validate_release_domain(&self.release_namespace, self.oem_id.as_deref())
+            .map_err(|_| LicenseError::Invalid)?;
         Ok(())
     }
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, LicenseError> {

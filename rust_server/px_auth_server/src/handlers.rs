@@ -202,6 +202,8 @@ pub struct Verify {
     deployment_id: Uuid,
     product: Product,
     distribution: Distribution,
+    release_namespace: String,
+    oem_id: Option<String>,
     machine_sha256: String,
 }
 pub async fn verify(
@@ -217,6 +219,8 @@ pub async fn verify(
                 deployment_id: input.deployment_id,
                 product: input.product,
                 distribution: input.distribution,
+                release_namespace: &input.release_namespace,
+                oem_id: input.oem_id.as_deref(),
                 machine_sha256: &input.machine_sha256,
                 now,
                 minimum_revision: 1,

@@ -110,6 +110,9 @@ class DeploymentIdentityVerifierTest {
                 DeploymentIdentityWatermark(
                     "9c08feb1-af71-4fab-a6b8-bbd99b3552ba",
                     "private",
+                    "customer",
+                    "pixels.customer",
+                    null,
                     2,
                     5,
                     3,
@@ -141,12 +144,15 @@ class DeploymentIdentityVerifierTest {
             "{\"schema_version\":1,\"trust_epoch\":3,\"trusted_keys\":[{\"key_id\":\"$vendorKeyId\",\"public_key_hex\":\"${vendorPublicKey.toHex()}\"}]}"
                 .toByteArray(StandardCharsets.UTF_8)
         private val certificateWire = wire(
-            "PXDC1",
-            "Pixels-Deployment-Certificate-v1\u0000",
+            "PXDC2",
+            "Pixels-Deployment-Certificate-v2\u0000",
             JSONObject()
-                .put("schema_version", 1)
+                .put("schema_version", 2)
                 .put("deployment_id", deploymentId.toString())
                 .put("deployment_kind", "private")
+                .put("distribution", "customer")
+                .put("release_namespace", "pixels.customer")
+                .put("oem_id", JSONObject.NULL)
                 .put("deployment_public_key_hex", deploymentPublicKey.toHex())
                 .put("certificate_version", 2)
                 .put("not_before", NOW - 60)
@@ -156,12 +162,15 @@ class DeploymentIdentityVerifierTest {
             vendorKey,
         )
         val descriptorWire = wire(
-            "PXDD1",
-            "Pixels-Platform-Descriptor-v1\u0000",
+            "PXDD2",
+            "Pixels-Platform-Descriptor-v2\u0000",
             JSONObject()
-                .put("schema_version", 1)
+                .put("schema_version", 2)
                 .put("deployment_id", deploymentId.toString())
                 .put("deployment_kind", "private")
+                .put("distribution", "customer")
+                .put("release_namespace", "pixels.customer")
+                .put("oem_id", JSONObject.NULL)
                 .put("descriptor_revision", 4)
                 .put("trust_epoch", 3)
                 .put("issued_at", NOW)
@@ -197,6 +206,9 @@ class DeploymentIdentityVerifierTest {
         )
         val policy = DeploymentVerificationPolicy(
             expectedKind = DeploymentKind.Private,
+            expectedDistribution = DeploymentDistribution.Customer,
+            expectedReleaseNamespace = "pixels.customer",
+            expectedOemId = null,
             expectedDeploymentId = deploymentId,
             minimumCertificateVersion = 2,
             minimumDescriptorRevision = 4,

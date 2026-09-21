@@ -6,8 +6,9 @@
 当前发布入口只生成 Pixels `official` 与 Pixels `customer`。OEM 是独立发行线，不得通过修改现有 Customer 的名称、图标、URL 或清单后
 交付。OEM 构建入口尚未开放；开放前必须同时提供唯一 `oem_id/release_namespace`、独立品牌/应用/安装身份、独立 TUF 初始根、私有更新策略
 和跨 Official/Customer/其他 OEM 的拒绝测试。现有双发行矩阵继续保持两项，不能把未实现的 OEM 算作已完成产物。
-服务端发布目录已经能够表达并隔离 `oem.<oem_id>`，但 Auth 许可证、部署/产品描述符、安装身份和构建入口尚未开放 OEM；因此该服务端能力
-不能用于手工拼装 OEM 包，也不改变本页双发行构建命令。
+服务端发布目录、Auth `PXLIC2` 许可证和 `PXDC2/PXDD2` 部署身份已经能够签名表达并隔离 `oem.<oem_id>`；Windows Service、Panel、Web 与
+Android 的消费者也会精确拒绝发行域替换。但 OEM 品牌、安装身份、TUF 根和完整构建入口仍未开放，因此这些身份能力不能用于手工拼装 OEM 包，
+也不改变本页双发行构建命令。
 
 旧的根 CMake 树、公共 `build_official/dist`、共享 Rust 编译产物、`build_client.bat`、旧端口和旧节点测试方案均已退役，不提供兼容入口。
 
@@ -340,7 +341,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts_build\clean_product_
 
 - 构建命令返回 0；
 - `product-build.json` 与目标产品、版本和 CMake 目录一致；
-- `dist/product-manifest.json` 与产品清单一致；
+- `dist/product-manifest.json` 使用 schema 3，与产品清单一致，并强制携带 distribution、release_namespace 和 nullable oem_id；
 - `dist/artifact-manifest.json` 中全部 SHA-256 校验通过；
 - Windows 两种发行使用同一产品版本，安装包分别位于 `<official|customer>/installer/<version>`；
 - 正式发布候选在专用 Windows 验收机完成对应的新旧签名安装包生命周期报告；

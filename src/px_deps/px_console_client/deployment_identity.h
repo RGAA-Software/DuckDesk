@@ -16,6 +16,12 @@ enum class DeploymentKind : std::uint8_t {
     kPrivate,
 };
 
+enum class DeploymentDistribution : std::uint8_t {
+    kOfficial,
+    kCustomer,
+    kOem,
+};
+
 enum class DeploymentIdentityError : std::uint8_t {
     kInvalid,
     kUntrusted,
@@ -36,6 +42,9 @@ struct DeploymentTrustStore final {
 struct DeploymentVerificationPolicy final {
     std::optional<std::string> expectedDeploymentId{};
     DeploymentKind expectedKind{DeploymentKind::kPrivate};
+    DeploymentDistribution expectedDistribution{DeploymentDistribution::kCustomer};
+    std::string expectedReleaseNamespace{"pixels.customer"};
+    std::optional<std::string> expectedOemId{};
     std::uint64_t minimumCertificateVersion{};
     std::uint64_t minimumDescriptorRevision{};
     std::uint64_t minimumTrustEpoch{};
@@ -46,6 +55,9 @@ struct DeploymentVerificationPolicy final {
 struct VerifiedDeploymentIdentity final {
     std::string deploymentId{};
     DeploymentKind deploymentKind{DeploymentKind::kPrivate};
+    DeploymentDistribution distribution{DeploymentDistribution::kCustomer};
+    std::string releaseNamespace{};
+    std::optional<std::string> oemId{};
     std::array<std::uint8_t, 32> deploymentPublicKey{};
     std::uint64_t certificateVersion{};
     std::uint64_t descriptorRevision{};

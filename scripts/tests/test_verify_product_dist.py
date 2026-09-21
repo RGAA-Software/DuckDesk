@@ -60,7 +60,7 @@ class DevelopmentManifestRefreshTest(unittest.TestCase):
             (distribution / "product-manifest.json").write_text(
                 json.dumps(
                     {
-                        "schema_version": 2,
+                        "schema_version": 3,
                         "product": "client",
                         "distribution": "development",
                         "artifacts": [{"path": "px_client.exe", "sha256": "STALE"}],
@@ -84,7 +84,7 @@ class DevelopmentManifestRefreshTest(unittest.TestCase):
             distribution = Path(temporary_directory) / "client" / "dist"
             distribution.mkdir(parents=True)
             (distribution / "product-manifest.json").write_text(
-                json.dumps({"schema_version": 2, "product": "client", "distribution": "official"}),
+                json.dumps({"schema_version": 3, "product": "client", "distribution": "official"}),
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(RuntimeError, "development distribution"):
@@ -106,8 +106,10 @@ class DistributionUpdateTrustAuditTest(unittest.TestCase):
             policy_path.write_text(
                 json.dumps(
                     {
-                        "schema_version": 1,
+                        "schema_version": 2,
                         "distribution": "customer",
+                        "release_namespace": "pixels.customer",
+                        "oem_id": None,
                         "expected_deployment_id": None,
                         "official_console_origin": None,
                         "minimum_certificate_version": 1,
@@ -125,13 +127,19 @@ class DistributionUpdateTrustAuditTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "update trust"):
                 VERIFY_PRODUCT_DIST.verify_distribution_identity(
                     distribution,
-                    {"distribution": "customer"},
+                    {
+                        "distribution": "customer",
+                        "release_namespace": "pixels.customer",
+                        "oem_id": None,
+                    },
                     actual_files,
                 )
             actual_files.add("resources/update/root.json")
             actual_files.add("px_client.exe")
             manifest = {
                 "distribution": "customer",
+                "release_namespace": "pixels.customer",
+                "oem_id": None,
                 "owned_pe": ["px_client.exe"],
                 "signer_certificate_sha256": "A" * 64,
             }
@@ -162,8 +170,10 @@ class DistributionUpdateTrustAuditTest(unittest.TestCase):
             policy_path.write_text(
                 json.dumps(
                     {
-                        "schema_version": 1,
+                        "schema_version": 2,
                         "distribution": "customer",
+                        "release_namespace": "pixels.customer",
+                        "oem_id": None,
                         "expected_deployment_id": None,
                         "official_console_origin": None,
                         "minimum_certificate_version": 1,
@@ -183,6 +193,8 @@ class DistributionUpdateTrustAuditTest(unittest.TestCase):
             }
             manifest = {
                 "distribution": "customer",
+                "release_namespace": "pixels.customer",
+                "oem_id": None,
                 "owned_pe": ["px_client.exe"],
                 "signer_certificate_sha256": "A" * 64,
             }
@@ -198,6 +210,44 @@ class DistributionUpdateTrustAuditTest(unittest.TestCase):
                     {"distribution": "development"},
                     {"resources/update/root.json"},
                 )
+
+    def test_oem_distribution_requires_the_same_canonical_release_domain_in_manifest_and_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            distribution = Path(temporary_directory)
+            policy_path = distribution / "resources/deployment/deployment-policy.json"
+            policy_path.parent.mkdir(parents=True)
+            policy = {
+                "schema_version": 2,
+                "distribution": "oem",
+                "release_namespace": "oem.acme-cloud",
+                "oem_id": "acme-cloud",
+                "expected_deployment_id": None,
+                "official_console_origin": None,
+                "minimum_certificate_version": 1,
+                "minimum_descriptor_revision": 1,
+                "minimum_trust_epoch": 1,
+                "protocol_version": 1,
+            }
+            policy_path.write_text(json.dumps(policy), encoding="utf-8")
+            actual_files = {
+                "resources/deployment/deployment-policy.json",
+                "resources/deployment/deployment-trust.json",
+                "resources/update/root.json",
+                "px_client.exe",
+            }
+            manifest = {
+                "distribution": "oem",
+                "release_namespace": "oem.acme-cloud",
+                "oem_id": "acme-cloud",
+                "owned_pe": ["px_client.exe"],
+                "signer_certificate_sha256": "A" * 64,
+            }
+            with mock.patch.object(VERIFY_PRODUCT_DIST, "verify_file"):
+                VERIFY_PRODUCT_DIST.verify_distribution_identity(distribution, manifest, actual_files)
+                policy["release_namespace"] = "oem.other-brand"
+                policy_path.write_text(json.dumps(policy), encoding="utf-8")
+                with self.assertRaisesRegex(RuntimeError, "wrong release domain"):
+                    VERIFY_PRODUCT_DIST.verify_distribution_identity(distribution, manifest, actual_files)
 
 if __name__ == "__main__":
     unittest.main()

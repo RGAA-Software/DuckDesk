@@ -431,6 +431,9 @@ private class DeploymentIdentityGate(
             val stored = state.watermark
             candidate.deploymentId == stored.deploymentId &&
                 candidate.deploymentKind == stored.deploymentKind &&
+                candidate.distribution == stored.distribution &&
+                candidate.releaseNamespace == stored.releaseNamespace &&
+                candidate.oemId == stored.oemId &&
                 candidate.certificateVersion >= stored.certificateVersion &&
                 candidate.descriptorRevision >= stored.descriptorRevision &&
                 candidate.trustEpoch >= stored.trustEpoch
@@ -441,6 +444,9 @@ private class DeploymentIdentityGate(
 private fun VerifiedDeploymentIdentity.toWatermark(): DeploymentIdentityWatermark = DeploymentIdentityWatermark(
     deploymentId.toString(),
     deploymentKind.wireValue,
+    distribution.wireValue,
+    releaseNamespace,
+    oemId,
     certificateVersion,
     descriptorRevision,
     trustEpoch,

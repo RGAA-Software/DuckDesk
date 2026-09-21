@@ -5,8 +5,8 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use uuid::Uuid;
 
-const PREFIX: &str = "PXLIC1";
-const DOMAIN: &[u8] = b"Pixels-License-v1\0";
+const PREFIX: &str = "PXLIC2";
+const DOMAIN: &[u8] = b"Pixels-License-v2\0";
 const MAX_WIRE_BYTES: usize = 8192;
 fn message(payload: &[u8]) -> Vec<u8> {
     let mut message = Vec::with_capacity(DOMAIN.len() + payload.len());
@@ -52,6 +52,8 @@ pub struct VerifyContext<'a> {
     pub deployment_id: Uuid,
     pub product: Product,
     pub distribution: Distribution,
+    pub release_namespace: &'a str,
+    pub oem_id: Option<&'a str>,
     pub machine_sha256: &'a str,
     pub now: i64,
     /// Independently retained trust state; restoring an old DB must not lower either value.
@@ -128,6 +130,8 @@ impl LicenseVerifierSet {
             || untrusted_payload.deployment_id != context.deployment_id
             || untrusted_payload.product != context.product
             || untrusted_payload.distribution != context.distribution
+            || untrusted_payload.release_namespace != context.release_namespace
+            || untrusted_payload.oem_id.as_deref() != context.oem_id
             || untrusted_payload.machine_sha256 != context.machine_sha256
             || untrusted_payload.revision < context.minimum_revision
             || untrusted_payload.not_before > context.now
