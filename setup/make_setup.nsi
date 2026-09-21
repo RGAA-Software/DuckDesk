@@ -261,7 +261,11 @@ parsec_vdd_install_ok:
         Abort "Failed to protect the update cache: $R1"
 update_cache_acl_ready:
     ClearErrors
-    CopyFiles /SILENT "$EXEPATH" "$R2\Pixels\px_data\updates\rollback\${PRODUCT_ID}-${DISTRIBUTION}-current.exe"
+!if "${DISTRIBUTION}" == "oem"
+    CopyFiles /SILENT "$EXEPATH" "$R2\Pixels\px_data\updates\rollback\${PRODUCT_ID}-${DISTRIBUTION}-${OEM_ID}-current.exe"
+!else
+    CopyFiles /SILENT "$EXEPATH" "$R2\Pixels\px_data\updates\rollback\${PRODUCT_ID}-${DISTRIBUTION}-pixels-current.exe"
+!endif
     IfErrors update_cache_failed update_cache_ready
 update_cache_public_missing:
         SetErrorLevel 1603

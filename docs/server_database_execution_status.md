@@ -1669,6 +1669,14 @@ theme=`Theme.Oem.Starting`、OEM 双图标，以及中英文运行资源无 Pixe
 范围。该切片只开放受控候选生成入口；本轮未持有正式 OEM profile/私钥，因此没有执行 release-only 实编译，也不冒充独立 TUF 发布、节点激活或
 跨 Official/Customer/OEM 的安装实物验收。
 
+随后关闭 OEM Host 激活代码阻塞：`px_service` 不再把所有 schema 3 manifest 的公司强制写死为 Pixels，而是对 Official/Customer 保持 Pixels，
+对 OEM 同时要求非 Pixels 公司、规范 `oem_id/release_namespace`、非零 profile SHA-256 和签名 pin。授权激活记录直接升级为 schema 3，持久绑定
+product/distribution/namespace/OEM/profile/company；重启收敛、安装后 manifest 复核和失败回滚均逐项比较，不解析开发期 schema 2。NSIS 与 Service
+回滚缓存名也加入发行 owner（Pixels 或精确 OEM ID），因此另一 OEM 的残留包即使碰巧复用签名证书也不会进入回滚。Service 聚焦测试为
+124 PASS、1 个物理 NVIDIA 用例按设计忽略，严格 Clippy 通过；Official/OEM 两条 NSIS 语法编译通过。Cloud Node/Remote development `px_service.exe` 的 build/stage/dist
+SHA-256 均为 `3BC759CB09C4075CF4B44DAF98BC3B69BA0333EB506B3EF29D8B1DB87C7670A5`，dist 清单分别刷新为 313/76 件。该证据关闭代码门禁，正式 OEM
+签名包的 TUF 发布、Console 登记/审批和真实节点激活仍需审批材料后执行。
+
 | 阶段 | 当前未完成项 |
 |---|---|
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |

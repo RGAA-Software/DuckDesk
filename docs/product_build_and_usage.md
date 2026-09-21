@@ -119,6 +119,8 @@ Cloud Node/Remote 安装器会在每次成功覆盖时把当前完整安装包�
 SYSTEM 和本机管理员，Service 在授权升级前记录并保护旧包 SHA-256 及当前产品清单中的签名证书 DER SHA-256；新包的签名证书固定值由
 Console 审批记录与 TUF `pixels` 元数据共同绑定。runner 使用前既复核 Authenticode 链，也精确比对对应证书固定值。安装、覆盖升级、自动更新、回滚和
 卸载共用一个全局安装互斥锁；并发操作返回 Windows Installer busy（1618），不会同时改写安装目录或回滚点。
+OEM Host 的回滚缓存文件名额外绑定 `oem_id`；Service 的激活记录使用 schema 3 并固定 release namespace、OEM ID、不可变 profile SHA-256 和
+公司身份。安装完成后的 manifest 少一项、替换另一 OEM，或残留另一 OEM 的回滚包都不能被报告为安装成功。开发基线的旧 schema 2 激活记录不读取。
 
 执行前必须设置：`PIXELS_DEPLOYMENT_TRUST_STORE_FILE`、`PIXELS_UPDATE_ROOT_FILE`、`PIXELS_DEPLOYMENT_CERTIFICATE_VERSION`、
 `PIXELS_DESCRIPTOR_REVISION`、`PIXELS_DEPLOYMENT_TRUST_EPOCH`、`PIXELS_EXPECTED_DEPLOYMENT_ID` 和

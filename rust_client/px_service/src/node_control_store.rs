@@ -174,27 +174,29 @@ pub(crate) struct DeploymentIdentityWatermark {
     pub trust_epoch: u64,
 }
 
+pub(crate) struct DeploymentIdentityWatermarkInput {
+    pub deployment_id: Uuid,
+    pub deployment_kind: DeploymentKind,
+    pub distribution: Distribution,
+    pub release_namespace: String,
+    pub oem_id: Option<String>,
+    pub certificate_version: u64,
+    pub descriptor_revision: u64,
+    pub trust_epoch: u64,
+}
+
 impl DeploymentIdentityWatermark {
-    pub(crate) fn new(
-        deployment_id: Uuid,
-        deployment_kind: DeploymentKind,
-        distribution: Distribution,
-        release_namespace: String,
-        oem_id: Option<String>,
-        certificate_version: u64,
-        descriptor_revision: u64,
-        trust_epoch: u64,
-    ) -> Result<Self, String> {
+    pub(crate) fn new(input: DeploymentIdentityWatermarkInput) -> Result<Self, String> {
         let watermark = Self {
             schema_version: 2,
-            deployment_id,
-            deployment_kind,
-            distribution,
-            release_namespace,
-            oem_id,
-            certificate_version,
-            descriptor_revision,
-            trust_epoch,
+            deployment_id: input.deployment_id,
+            deployment_kind: input.deployment_kind,
+            distribution: input.distribution,
+            release_namespace: input.release_namespace,
+            oem_id: input.oem_id,
+            certificate_version: input.certificate_version,
+            descriptor_revision: input.descriptor_revision,
+            trust_epoch: input.trust_epoch,
         };
         watermark.validate()?;
         Ok(watermark)
@@ -1142,6 +1144,25 @@ mod tests {
         }
     }
 
+    fn watermark_input(
+        configuration: &NodeControlConfiguration,
+        deployment_id: Uuid,
+        certificate_version: u64,
+        descriptor_revision: u64,
+        trust_epoch: u64,
+    ) -> DeploymentIdentityWatermarkInput {
+        DeploymentIdentityWatermarkInput {
+            deployment_id,
+            deployment_kind: configuration.deployment_kind,
+            distribution: configuration.distribution,
+            release_namespace: configuration.release_namespace.clone(),
+            oem_id: configuration.oem_id.clone(),
+            certificate_version,
+            descriptor_revision,
+            trust_epoch,
+        }
+    }
+
     #[test]
     fn validation_accepts_exact_secure_and_loopback_development_endpoints() {
         configuration().validate().unwrap();
@@ -1211,54 +1232,37 @@ mod tests {
     #[test]
     fn deployment_watermark_rejects_identity_change_and_rollback() {
         let configured = configuration();
-        let current = DeploymentIdentityWatermark::new(
+        let current = DeploymentIdentityWatermark::new(watermark_input(
+            &configured,
             configured.deployment_id,
-            configured.deployment_kind,
-            configured.distribution,
-            configured.release_namespace.clone(),
-            configured.oem_id.clone(),
             2,
             4,
             3,
-        )
+        ))
         .unwrap();
-        let advanced = DeploymentIdentityWatermark::new(
+        let advanced = DeploymentIdentityWatermark::new(watermark_input(
+            &configured,
             configured.deployment_id,
-            configured.deployment_kind,
-            configured.distribution,
-            configured.release_namespace.clone(),
-            configured.oem_id.clone(),
             3,
             5,
             4,
-        )
+        ))
         .unwrap();
         assert!(current.allows(&advanced));
 
-        let rolled_back = DeploymentIdentityWatermark::new(
+        let rolled_back = DeploymentIdentityWatermark::new(watermark_input(
+            &configured,
             configured.deployment_id,
-            configured.deployment_kind,
-            configured.distribution,
-            configured.release_namespace.clone(),
-            configured.oem_id.clone(),
             2,
             3,
             3,
-        )
+        ))
         .unwrap();
         assert!(!current.allows(&rolled_back));
 
-        let other_deployment = DeploymentIdentityWatermark::new(
-            Uuid::new_v4(),
-            configured.deployment_kind,
-            configured.distribution,
-            configured.release_namespace,
-            configured.oem_id,
-            3,
-            5,
-            4,
-        )
-        .unwrap();
+        let other_deployment =
+            DeploymentIdentityWatermark::new(watermark_input(&configured, Uuid::new_v4(), 3, 5, 4))
+                .unwrap();
         assert!(!current.allows(&other_deployment));
     }
 
@@ -1280,17 +1284,9 @@ mod tests {
             .windows(64)
             .any(|bytes| bytes
                 == b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
-        let watermark = DeploymentIdentityWatermark::new(
-            value.deployment_id,
-            value.deployment_kind,
-            value.distribution,
-            value.release_namespace.clone(),
-            value.oem_id.clone(),
-            2,
-            4,
-            3,
-        )
-        .unwrap();
+        let watermark =
+            DeploymentIdentityWatermark::new(watermark_input(&value, value.deployment_id, 2, 4, 3))
+                .unwrap();
         store.save_identity_watermark(&watermark).unwrap();
         assert_eq!(store.load_identity_watermark().unwrap(), Some(watermark));
         assert!(

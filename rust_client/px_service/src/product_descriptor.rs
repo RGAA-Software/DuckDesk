@@ -36,6 +36,7 @@ pub struct ProductDescriptor {
     pub distribution: String,
     pub release_namespace: Option<String>,
     pub oem_id: Option<String>,
+    pub oem_profile_sha256: Option<String>,
     pub edition: String,
     pub company: String,
     pub product_version: String,
@@ -72,10 +73,8 @@ impl ProductDescriptor {
     }
 
     fn validate(&self) -> Result<(), String> {
-        if self.schema_version != 3 || self.company != "Pixels" {
-            return Err(
-                "installed product descriptor must use schema 3 and company Pixels".to_string(),
-            );
+        if self.schema_version != 3 {
+            return Err("installed product descriptor must use schema 3".to_string());
         }
         if !matches!(
             self.distribution.as_str(),
@@ -83,36 +82,22 @@ impl ProductDescriptor {
         ) {
             return Err("installed product descriptor has an invalid distribution".to_string());
         }
-        let release_domain_valid = match self.distribution.as_str() {
-            "development" => self.release_namespace.is_none() && self.oem_id.is_none(),
-            "official" => {
-                self.release_namespace.as_deref() == Some("pixels.official")
-                    && self.oem_id.is_none()
-            }
-            "customer" => {
-                self.release_namespace.as_deref() == Some("pixels.customer")
-                    && self.oem_id.is_none()
-            }
-            "oem" => self.oem_id.as_deref().is_some_and(|oem_id| {
-                (3..=32).contains(&oem_id.len())
-                    && oem_id.bytes().all(|byte| {
-                        byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-'
-                    })
-                    && !oem_id.starts_with('-')
-                    && !oem_id.ends_with('-')
-                    && !oem_id.contains("--")
-                    && !matches!(oem_id, "pixels" | "official" | "customer" | "oem")
-                    && self
-                        .release_namespace
-                        .as_deref()
-                        .is_some_and(|release_namespace| {
-                            release_namespace == format!("oem.{oem_id}")
-                        })
-            }),
-            _ => false,
+        let release_identity_valid = if self.distribution == "development" {
+            self.release_namespace.is_none()
+                && self.oem_id.is_none()
+                && self.oem_profile_sha256.is_none()
+                && self.company == "Pixels"
+        } else {
+            valid_release_identity(
+                &self.distribution,
+                self.release_namespace.as_deref(),
+                self.oem_id.as_deref(),
+                &self.company,
+                self.oem_profile_sha256.as_deref(),
+            )
         };
-        if !release_domain_valid {
-            return Err("installed product descriptor has an invalid release domain".to_string());
+        if !release_identity_valid {
+            return Err("installed product descriptor has an invalid release identity".to_string());
         }
         let expected = match (self.product.as_str(), self.edition.as_str()) {
             ("cloud_node", "CLOUD_NODE") => CLOUD_NODE_CAPABILITIES,
@@ -156,7 +141,55 @@ impl ProductDescriptor {
 }
 
 fn valid_sha256(value: &str) -> bool {
-    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+    value.len() == 64
+        && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+        && value.bytes().any(|byte| byte != b'0')
+}
+
+pub(crate) fn valid_release_identity(
+    distribution: &str,
+    release_namespace: Option<&str>,
+    oem_id: Option<&str>,
+    company: &str,
+    oem_profile_sha256: Option<&str>,
+) -> bool {
+    match distribution {
+        "official" => {
+            release_namespace == Some("pixels.official")
+                && oem_id.is_none()
+                && oem_profile_sha256.is_none()
+                && company == "Pixels"
+        }
+        "customer" => {
+            release_namespace == Some("pixels.customer")
+                && oem_id.is_none()
+                && oem_profile_sha256.is_none()
+                && company == "Pixels"
+        }
+        "oem" => {
+            let valid_company = company == company.trim()
+                && !company.is_empty()
+                && company.len() <= 128
+                && !company.eq_ignore_ascii_case("Pixels")
+                && company.chars().all(|character| !character.is_control());
+            oem_id.is_some_and(|oem_id| {
+                (3..=32).contains(&oem_id.len())
+                    && oem_id.bytes().all(|byte| {
+                        byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-'
+                    })
+                    && !oem_id.starts_with('-')
+                    && !oem_id.ends_with('-')
+                    && !oem_id.contains("--")
+                    && !matches!(oem_id, "pixels" | "official" | "customer" | "oem")
+                    && release_namespace.is_some_and(|release_namespace| {
+                        release_namespace == format!("oem.{oem_id}")
+                    })
+                    && valid_company
+                    && oem_profile_sha256.is_some_and(valid_sha256)
+            })
+        }
+        _ => false,
+    }
 }
 
 #[cfg(test)]
@@ -170,6 +203,7 @@ mod tests {
             distribution: "official".to_string(),
             release_namespace: Some("pixels.official".into()),
             oem_id: None,
+            oem_profile_sha256: None,
             edition: edition.to_string(),
             company: "Pixels".to_string(),
             product_version: "3.3.67".to_string(),
@@ -208,7 +242,14 @@ mod tests {
         oem.distribution = "oem".into();
         oem.release_namespace = Some("oem.acme-cloud".into());
         oem.oem_id = Some("acme-cloud".into());
+        oem.oem_profile_sha256 = Some("e".repeat(64));
+        oem.company = "Acme Systems".into();
         assert!(oem.validate().is_ok());
+        oem.company = "Pixels".into();
+        assert!(oem.validate().is_err());
+        oem.company = "Acme Systems".into();
+        oem.oem_profile_sha256 = Some("f".repeat(63));
+        assert!(oem.validate().is_err());
         let mut missing_release_signer = descriptor("remote", "REMOTE", REMOTE_CAPABILITIES);
         missing_release_signer.signer_certificate_sha256 = None;
         assert!(missing_release_signer.validate().is_err());

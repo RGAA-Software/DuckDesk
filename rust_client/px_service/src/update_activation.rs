@@ -1,5 +1,5 @@
 use crate::node_control_store::{platform, reject_reparse_point};
-use crate::product_descriptor::ProductDescriptor;
+use crate::product_descriptor::{valid_release_identity, ProductDescriptor};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -36,6 +36,10 @@ pub(crate) struct UpdateActivationRecord {
     pub lease_until: DateTime<Utc>,
     pub product: String,
     pub distribution: String,
+    pub release_namespace: String,
+    pub oem_id: Option<String>,
+    pub oem_profile_sha256: Option<String>,
+    pub company: String,
     pub from_build_number: u32,
     pub to_build_number: u32,
     pub version: String,
@@ -60,13 +64,19 @@ impl UpdateActivationRecord {
                     .bytes()
                     .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
         });
-        if self.schema_version != 2
+        if self.schema_version != 3
             || self.release_id.is_nil()
             || self.policy_revision < 1
             || self.task_id.is_nil()
             || self.lease_id.is_nil()
             || !matches!(self.product.as_str(), "cloud_node" | "remote")
-            || !matches!(self.distribution.as_str(), "official" | "customer")
+            || !valid_release_identity(
+                &self.distribution,
+                Some(&self.release_namespace),
+                self.oem_id.as_deref(),
+                &self.company,
+                self.oem_profile_sha256.as_deref(),
+            )
             || self.from_build_number == 0
             || self.to_build_number <= self.from_build_number
             || self.version.is_empty()
@@ -292,8 +302,12 @@ fn apply_authorized_update(
         &record.target_signer_sha256,
     )?;
 
-    let current_rollback =
-        rollback_installer_path(data_root, &record.product, &record.distribution)?;
+    let current_rollback = rollback_installer_path(
+        data_root,
+        &record.product,
+        &record.distribution,
+        record.oem_id.as_deref(),
+    )?;
     let rollback_directory = current_rollback
         .parent()
         .ok_or_else(|| "rollback installer has no parent directory".to_string())?;
@@ -346,6 +360,10 @@ fn installed_product_matches(record: &UpdateActivationRecord, build_number: u32)
         |descriptor| {
             descriptor.product == record.product
                 && descriptor.distribution == record.distribution
+                && descriptor.release_namespace.as_deref() == Some(&record.release_namespace)
+                && descriptor.oem_id == record.oem_id
+                && descriptor.oem_profile_sha256 == record.oem_profile_sha256
+                && descriptor.company == record.company
                 && descriptor.product_version_code == build_number
                 && descriptor.signer_certificate_sha256.as_deref() == expected_signer
         },
@@ -387,9 +405,10 @@ pub(crate) fn trusted_rollback_sha256(
     data_root: &Path,
     product: &str,
     distribution: &str,
+    oem_id: Option<&str>,
     expected_signer_sha256: &str,
 ) -> Result<Option<String>, String> {
-    let installer_path = rollback_installer_path(data_root, product, distribution)?;
+    let installer_path = rollback_installer_path(data_root, product, distribution, oem_id)?;
     if !installer_path.exists() {
         return Ok(None);
     }
@@ -402,9 +421,20 @@ fn rollback_installer_path(
     data_root: &Path,
     product: &str,
     distribution: &str,
+    oem_id: Option<&str>,
 ) -> Result<PathBuf, String> {
     if !matches!(product, "cloud_node" | "remote")
-        || !matches!(distribution, "official" | "customer")
+        || !matches!(distribution, "official" | "customer" | "oem")
+        || (distribution == "oem") != oem_id.is_some()
+        || oem_id.is_some_and(|oem_id| {
+            !(3..=32).contains(&oem_id.len())
+                || !oem_id
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+                || oem_id.starts_with('-')
+                || oem_id.ends_with('-')
+                || oem_id.contains("--")
+        })
     {
         return Err("rollback installer identity is invalid".into());
     }
@@ -424,7 +454,10 @@ fn rollback_installer_path(
             return Err("rollback installer directory reparse point refused".into());
         }
     }
-    Ok(rollback_directory.join(format!("{product}-{distribution}-current.exe")))
+    let release_owner = oem_id.unwrap_or("pixels");
+    Ok(rollback_directory.join(format!(
+        "{product}-{distribution}-{release_owner}-current.exe"
+    )))
 }
 
 fn verify_sha256(path: &Path, expected: &str) -> Result<(), String> {
@@ -565,7 +598,7 @@ mod tests {
 
     fn record(root: &Path) -> UpdateActivationRecord {
         UpdateActivationRecord {
-            schema_version: 2,
+            schema_version: 3,
             release_id: Uuid::from_u128(1),
             policy_revision: 2,
             task_id: Uuid::from_u128(2),
@@ -573,6 +606,10 @@ mod tests {
             lease_until: Utc::now() + chrono::TimeDelta::minutes(10),
             product: "cloud_node".into(),
             distribution: "official".into(),
+            release_namespace: "pixels.official".into(),
+            oem_id: None,
+            oem_profile_sha256: None,
+            company: "Pixels".into(),
             from_build_number: 10,
             to_build_number: 11,
             version: "1.0.11".into(),
@@ -704,6 +741,20 @@ mod tests {
         let mut wrong_distribution = valid.clone();
         wrong_distribution.distribution = "development".into();
         assert!(wrong_distribution.validate(&root).is_err());
+        let mut cross_oem = valid.clone();
+        cross_oem.distribution = "oem".into();
+        cross_oem.release_namespace = "oem.acme-cloud".into();
+        cross_oem.oem_id = Some("other-cloud".into());
+        cross_oem.oem_profile_sha256 = Some("e".repeat(64));
+        cross_oem.company = "Acme Systems".into();
+        assert!(cross_oem.validate(&root).is_err());
+        let mut oem = valid.clone();
+        oem.distribution = "oem".into();
+        oem.release_namespace = "oem.acme-cloud".into();
+        oem.oem_id = Some("acme-cloud".into());
+        oem.oem_profile_sha256 = Some("e".repeat(64));
+        oem.company = "Acme Systems".into();
+        assert!(oem.validate(&root).is_ok());
         let mut missing_rollback_signer = valid.clone();
         missing_rollback_signer.rollback_signer_sha256 = None;
         assert!(missing_rollback_signer.validate(&root).is_err());
@@ -713,6 +764,83 @@ mod tests {
         let mut failed_without_error = valid;
         failed_without_error.phase = ActivationPhase::Failed;
         assert!(failed_without_error.validate(&root).is_err());
+    }
+
+    #[test]
+    fn rollback_cache_path_is_isolated_by_exact_oem_identity() {
+        let temporary_directory = tempfile::tempdir().unwrap();
+        let data_root = temporary_directory.path().join("service-data");
+        platform::ensure_private_directory(&data_root).unwrap();
+        let update_root = data_root.join("updates");
+        platform::ensure_private_directory(&update_root).unwrap();
+        platform::ensure_private_directory(&update_root.join("rollback")).unwrap();
+
+        let official_path =
+            rollback_installer_path(&data_root, "remote", "official", None).unwrap();
+        let oem_path =
+            rollback_installer_path(&data_root, "remote", "oem", Some("acme-cloud")).unwrap();
+
+        assert!(official_path.ends_with("remote-official-pixels-current.exe"));
+        assert!(oem_path.ends_with("remote-oem-acme-cloud-current.exe"));
+        assert!(rollback_installer_path(&data_root, "remote", "oem", None).is_err());
+        assert!(
+            rollback_installer_path(&data_root, "remote", "customer", Some("acme-cloud")).is_err()
+        );
+    }
+
+    #[test]
+    fn installed_product_match_rejects_another_oem_domain() {
+        let temporary_directory = tempfile::tempdir().unwrap();
+        let install_directory = temporary_directory.path().join("installed");
+        std::fs::create_dir(&install_directory).unwrap();
+        let mut activation_record = record(temporary_directory.path());
+        activation_record.product = "remote".into();
+        activation_record.distribution = "oem".into();
+        activation_record.release_namespace = "oem.acme-cloud".into();
+        activation_record.oem_id = Some("acme-cloud".into());
+        activation_record.oem_profile_sha256 = Some("e".repeat(64));
+        activation_record.company = "Acme Systems".into();
+        activation_record.install_directory = install_directory.clone();
+
+        let product_manifest = |oem_id: &str| {
+            serde_json::json!({
+                "schema_version": 3,
+                "product": "remote",
+                "distribution": "oem",
+                "release_namespace": format!("oem.{oem_id}"),
+                "oem_id": oem_id,
+                "oem_profile_sha256": "e".repeat(64),
+                "edition": "REMOTE",
+                "company": "Acme Systems",
+                "product_version": "1.0.11",
+                "product_version_code": 11,
+                "signer_certificate_sha256": "c".repeat(64),
+                "capabilities": [
+                    "browser_remote",
+                    "desktop_client",
+                    "desktop_host",
+                    "file_transfer",
+                    "joystick",
+                    "rdp_client",
+                    "rdp_host",
+                    "system_information",
+                    "virtual_display"
+                ]
+            })
+        };
+        std::fs::write(
+            install_directory.join("product-manifest.json"),
+            serde_json::to_vec(&product_manifest("acme-cloud")).unwrap(),
+        )
+        .unwrap();
+        assert!(installed_product_matches(&activation_record, 11));
+
+        std::fs::write(
+            install_directory.join("product-manifest.json"),
+            serde_json::to_vec(&product_manifest("other-cloud")).unwrap(),
+        )
+        .unwrap();
+        assert!(!installed_product_matches(&activation_record, 11));
     }
 
     #[test]

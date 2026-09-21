@@ -35,8 +35,8 @@ use uuid::Uuid;
 use zeroize::Zeroize;
 
 use crate::node_control_store::{
-    DeploymentIdentityWatermark, FileTransferOutboxStore, NodeControlConfiguration,
-    NodeControlStore, TelemetryBacklogStore,
+    DeploymentIdentityWatermark, DeploymentIdentityWatermarkInput, FileTransferOutboxStore,
+    NodeControlConfiguration, NodeControlStore, TelemetryBacklogStore,
 };
 use crate::product_descriptor::ProductDescriptor;
 use crate::recording_inventory::RecordingInventory;
@@ -757,16 +757,16 @@ async fn verify_deployment_identity(
             },
         )
         .map_err(|_| "Console deployment identity was rejected".to_string())?;
-    let candidate = DeploymentIdentityWatermark::new(
-        verified.certificate.deployment_id,
-        verified.certificate.deployment_kind,
-        verified.certificate.distribution,
-        verified.certificate.release_namespace.clone(),
-        verified.certificate.oem_id.clone(),
-        verified.certificate.certificate_version,
-        verified.descriptor.descriptor_revision,
-        verified.descriptor.trust_epoch,
-    )?;
+    let candidate = DeploymentIdentityWatermark::new(DeploymentIdentityWatermarkInput {
+        deployment_id: verified.certificate.deployment_id,
+        deployment_kind: verified.certificate.deployment_kind,
+        distribution: verified.certificate.distribution,
+        release_namespace: verified.certificate.release_namespace.clone(),
+        oem_id: verified.certificate.oem_id.clone(),
+        certificate_version: verified.certificate.certificate_version,
+        descriptor_revision: verified.descriptor.descriptor_revision,
+        trust_epoch: verified.descriptor.trust_epoch,
+    })?;
     let watermark_store = store.clone();
     let stored = tokio::task::spawn_blocking(move || watermark_store.load_identity_watermark())
         .await
@@ -1535,7 +1535,13 @@ async fn synchronize_update_activation(
     let Some(record) = store.load()? else {
         return Ok(());
     };
-    if record.product != product.product || record.distribution != product.distribution {
+    if record.product != product.product
+        || record.distribution != product.distribution
+        || product.release_namespace.as_deref() != Some(&record.release_namespace)
+        || record.oem_id != product.oem_id
+        || record.oem_profile_sha256 != product.oem_profile_sha256
+        || record.company != product.company
+    {
         return Err("update activation record belongs to another installed product".into());
     }
     let disposition = classify_local_activation(&record, product.product_version_code, Utc::now());
@@ -1694,11 +1700,12 @@ async fn try_activate_prepared_update(
         &data_root,
         &product.product,
         &product.distribution,
+        product.oem_id.as_deref(),
         &rollback_signer_sha256,
     )?;
     let rollback_signer_sha256 = rollback_sha256.as_ref().map(|_| rollback_signer_sha256);
     let record = UpdateActivationRecord {
-        schema_version: 2,
+        schema_version: 3,
         release_id: offer.release_id,
         policy_revision: offer.policy_revision,
         task_id,
@@ -1706,6 +1713,13 @@ async fn try_activate_prepared_update(
         lease_until,
         product: product.product.clone(),
         distribution: product.distribution.clone(),
+        release_namespace: product
+            .release_namespace
+            .clone()
+            .ok_or_else(|| "installed release product lacks its release namespace".to_string())?,
+        oem_id: product.oem_id.clone(),
+        oem_profile_sha256: product.oem_profile_sha256.clone(),
+        company: product.company.clone(),
         from_build_number: product.product_version_code,
         to_build_number,
         version: prepared.version.clone(),
@@ -2938,11 +2952,12 @@ mod tests {
 
     fn cloud_product() -> ProductDescriptor {
         ProductDescriptor {
-            schema_version: 2,
+            schema_version: 3,
             product: "cloud_node".into(),
             distribution: "official".into(),
             release_namespace: Some("pixels.official".into()),
             oem_id: None,
+            oem_profile_sha256: None,
             edition: "CLOUD_NODE".into(),
             company: "Pixels".into(),
             product_version: "3.3.67".into(),
@@ -2958,7 +2973,7 @@ mod tests {
         error_code: Option<&str>,
     ) -> UpdateActivationRecord {
         UpdateActivationRecord {
-            schema_version: 2,
+            schema_version: 3,
             release_id: Uuid::new_v4(),
             policy_revision: 1,
             task_id: Uuid::new_v4(),
@@ -2966,6 +2981,10 @@ mod tests {
             lease_until,
             product: "cloud_node".into(),
             distribution: "official".into(),
+            release_namespace: "pixels.official".into(),
+            oem_id: None,
+            oem_profile_sha256: None,
+            company: "Pixels".into(),
             from_build_number: 30367,
             to_build_number: 30368,
             version: "3.3.68".into(),
@@ -3655,16 +3674,16 @@ mod tests {
         assert_eq!(
             store.load_identity_watermark().unwrap(),
             Some(
-                DeploymentIdentityWatermark::new(
-                    configuration.deployment_id,
-                    configuration.deployment_kind,
-                    configuration.distribution,
-                    configuration.release_namespace.clone(),
-                    configuration.oem_id.clone(),
-                    configuration.minimum_certificate_version,
-                    configuration.minimum_descriptor_revision,
-                    configuration.minimum_trust_epoch,
-                )
+                DeploymentIdentityWatermark::new(DeploymentIdentityWatermarkInput {
+                    deployment_id: configuration.deployment_id,
+                    deployment_kind: configuration.deployment_kind,
+                    distribution: configuration.distribution,
+                    release_namespace: configuration.release_namespace.clone(),
+                    oem_id: configuration.oem_id.clone(),
+                    certificate_version: configuration.minimum_certificate_version,
+                    descriptor_revision: configuration.minimum_descriptor_revision,
+                    trust_epoch: configuration.minimum_trust_epoch,
+                })
                 .unwrap()
             )
         );
