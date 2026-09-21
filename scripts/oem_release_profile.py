@@ -42,6 +42,7 @@ class OemReleaseProfile:
     windows_products: dict[str, OemWindowsProductIdentity]
     android_application_id: str
     android_signer_certificate_sha256: str
+    web_icon_path: Path
     profile_sha256: str
     document: dict[str, object]
 
@@ -237,7 +238,9 @@ def load_oem_release_profile(path: Path) -> OemReleaseProfile:
     web_icon = web.get("icon")
     if not isinstance(web_icon, dict):
         raise RuntimeError("OEM Web icon asset is invalid")
-    validate_asset(resolved_path.parent, web_icon, "Web icon")
+    web_icon_path = validate_asset(resolved_path.parent, web_icon, "Web icon")
+    if web_icon_path.suffix.lower() != ".png":
+        raise RuntimeError("OEM Web icon must be a .png file")
 
     return OemReleaseProfile(
         source_path=resolved_path,
@@ -253,6 +256,7 @@ def load_oem_release_profile(path: Path) -> OemReleaseProfile:
         windows_products=windows_products,
         android_application_id=android_application_id,
         android_signer_certificate_sha256=android_signer_certificate_sha256,
+        web_icon_path=web_icon_path,
         profile_sha256=sha256_bytes(profile_bytes),
         document=profile_document,
     )

@@ -39,7 +39,6 @@ import type { AppLocale } from './locales/index'
 import type { PerfStats } from './rtc/stats'
 import { SessionRecorder, recordFileName } from './rtc/recorder'
 import { MSG_TYPE_CHANGE_MONITOR_RESOLUTION } from './rtc/proto'
-import logoUrl from './assets/px_icon.png'
 import {
   MSG_TYPE_HARD_UPDATE_DESKTOP,
   MSG_TYPE_LOCK_DEVICE,
@@ -48,6 +47,9 @@ import {
   MSG_TYPE_STOP_RENDER,
   MSG_TYPE_SWITCH_MONITOR,
 } from './rtc/control'
+
+const applicationName = __PIXELS_WEB_APPLICATION_NAME__
+const logoUrl = __PIXELS_WEB_ICON_DATA_URL__
 
 interface MonitorSpec {
   name: string
@@ -711,7 +713,7 @@ onBeforeUnmount(() => {
     @pointermove="onBallPointerMove"
     @pointerup="onBallPointerUp"
   >
-    <img class="ball-logo" :src="logoUrl" alt="Pixels" draggable="false" />
+    <img class="ball-logo" :src="logoUrl" :alt="applicationName" draggable="false" />
   </div>
 
   <!-- 主面板 -->

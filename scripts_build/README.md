@@ -39,4 +39,9 @@ scripts_build\build_cpp_android_common.bat px_common
 服务端和 Console Web 的独立构建入口也在本目录：`build_px_*_server.bat`、`build_console_web.bat`。
 根目录的 `run_official_tests.bat` 和版本维护工具不属于产品发布入口。
 
+Web Client 单独修改时，先在 `web/px_web_client` 执行 `npm.cmd run test` 和 `npm.cmd run build`，再运行
+`powershell -NoProfile -ExecutionPolicy Bypass -File scripts_build/publish_web_client_development.ps1 -Product all`。该入口只同步 Cloud Node/Remote
+各自的 development `web` 与 `dist/web_client`，逐文件核对 SHA-256、刷新 manifest 并执行完整 dist 验证；它不升版、不构建 C++/Rust，
+也不能生成 Official/Customer/OEM 安装包。
+
 移动前的脚本已完整归档至 `backup/build_scripts_relocation_20260908`，归档不参与构建。

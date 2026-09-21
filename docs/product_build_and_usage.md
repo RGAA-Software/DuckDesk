@@ -22,8 +22,13 @@ Windows 底层发行链现已继续接线，但仍不构成公开入口：CMake/
 `build_official/<product>/oem/<oem_id>/`，CMake 产品水位使用 schema 2，dist 与 installer manifest 使用 schema 3 并携带精确发行域和
 profile SHA-256；OEM 公司名、图标、产品显示名、安装目录、卸载键、安装包 basename 与签名证书固定值不能在后段覆盖。安装器用共享受保护
 owner 记录维持三个 Windows 产品及所有发行互斥，同时同一 product/domain/install identity 才允许覆盖安装。installer release verifier 和
-TUF ReleaseSpec 也把 OEM ID 纳入升级相等性和不可变 target 路径。Web/Android 的完整品牌资源和正式 OEM 编排尚未完成，所以不要直接调用这些
+TUF ReleaseSpec 也把 OEM ID 纳入升级相等性和不可变 target 路径。Web 正式编排、Windows 原生 UI 与 Android 尚未完成，所以不要直接调用这些
 底层参数生成交付包。
+
+Web Client 的 OEM 品牌消费现已接通应用名、PNG 图标和 profile SHA-256：HTML/运行标题、加载页与浮球共用同一构建值，非 OEM 构建拒绝 OEM
+环境输入。日常 development Web 产物使用 `scripts_build/publish_web_client_development.ps1` 同步到 Cloud Node/Remote 独立沙箱，脚本逐文件
+核对源目录、产品 `web` 目录和 `dist/web_client` 的 SHA-256，随后刷新并完整验证产品 manifest。该能力仍不是 OEM 完整编排入口；Windows
+Panel/Client 内部品牌、Android 和正式签名矩阵未完成前不得交付 OEM 包。
 
 旧的根 CMake 树、公共 `build_official/dist`、共享 Rust 编译产物、`build_client.bat`、旧端口和旧节点测试方案均已退役，不提供兼容入口。
 

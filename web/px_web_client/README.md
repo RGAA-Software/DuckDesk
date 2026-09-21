@@ -39,6 +39,11 @@ Cloud Node 或 Remote 的完整产品矩阵构建生成；矩阵构建会把该�
 水位注入 Web bundle。缺少任何一项，或 policy 与发行类别不一致时，构建失败关闭。`vite.config.ts` 中 `base: './'` 为相对路径，产物可部署
 到 Render 的 `/web/` 子路径。
 
+OEM Web build 额外要求由已验证 release profile 派生 `PIXELS_WEB_APPLICATION_NAME`、`PIXELS_WEB_ICON_FILE` 和
+`PIXELS_WEB_OEM_PROFILE_SHA256`。应用名同时驱动 HTML 标题、中英文运行标题、加载页和浮球无障碍文本；图标必须是 2 MiB 以内的 PNG，并在构建时
+转为 bundle 内 data URL。Official/Customer/development 反向拒绝这三个变量，OEM 缺失任一值或 profile 摘要不是规范小写 SHA-256 也会失败。
+这些是底层构建门禁；完整 OEM 产品入口尚未开放，不能靠手工设置环境变量生成交付包。
+
 ## 部署身份门禁
 
 Console 生成的启动 URL fragment 必须携带 `console_origin`、资源会话 ID、revision 和一次性 frontend token。Official/Customer bundle 在创建
@@ -47,7 +52,7 @@ Console 生成的启动 URL fragment 必须携带 `console_origin`、资源会�
 Official 只接受编译时固定的官方 HTTPS origin 与 deployment ID；Customer/OEM 只接受签名类别为 `private` 且与构建策略完全一致的发行域，
 并在首次成功后按 Console origin 固定 deployment ID。验证失败时不会回落到手工设备密码路径。
 
-development bundle 保留本地手工连接入口用于聚焦开发，不构成 Official/Customer 产品行为。
+development bundle 保留本地手工连接入口用于聚焦开发，不构成 Official/Customer/OEM 产品行为。
 
 ## 部署
 

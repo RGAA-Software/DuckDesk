@@ -1,7 +1,7 @@
 export default {
   app: {
-    title: 'Pixels',
-    titleWithId: 'Pixels({id})',
+    title: __PIXELS_WEB_APPLICATION_NAME__,
+    titleWithId: `${__PIXELS_WEB_APPLICATION_NAME__}({id})`,
     deviceId: '设备 ID',
     streamId: '流 ID',
     streamIdTip: '由设备 ID 自动生成,同一设备同时只允许一路连接',

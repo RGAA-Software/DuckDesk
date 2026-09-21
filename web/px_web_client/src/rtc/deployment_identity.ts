@@ -24,6 +24,7 @@ export interface DeploymentIdentityConfiguration {
     policy: DeploymentPolicy | null;
     trustStore: DeploymentTrustStore | null;
     clientBuild: number;
+    oemProfileSha256: string | null;
 }
 
 export interface VerifiedDeploymentIdentity {
@@ -403,11 +404,25 @@ function parseWatermark(text: string): Watermark {
 
 export function packagedDeploymentIdentityConfiguration(): DeploymentIdentityConfiguration {
     const distribution = __PIXELS_WEB_DISTRIBUTION__;
-    if (distribution === "development") return { distribution, policy: null, trustStore: null, clientBuild: 0 };
+    const oemProfileSha256 = __PIXELS_WEB_OEM_PROFILE_SHA256__;
+    if (distribution === "development") {
+        if (oemProfileSha256) reject();
+        return { distribution, policy: null, trustStore: null, clientBuild: 0, oemProfileSha256: null };
+    }
     const policy = parsePolicy(__PIXELS_WEB_DEPLOYMENT_POLICY__, distribution);
     if (!policy) reject();
+    if ((distribution === "oem" && !HEX_32_PATTERN.test(oemProfileSha256)) ||
+        (distribution !== "oem" && Boolean(oemProfileSha256))) {
+        reject();
+    }
     const trustStore = JSON.parse(__PIXELS_WEB_DEPLOYMENT_TRUST__) as DeploymentTrustStore;
-    return { distribution, policy, trustStore, clientBuild: __PIXELS_WEB_CLIENT_BUILD__ };
+    return {
+        distribution,
+        policy,
+        trustStore,
+        clientBuild: __PIXELS_WEB_CLIENT_BUILD__,
+        oemProfileSha256: oemProfileSha256 || null,
+    };
 }
 
 export class DeploymentIdentityGate {

@@ -1628,8 +1628,14 @@ deployment trust store 摘要和 TUF 初始 root 摘要。Windows OEM policy 预
 安装器使用 OEM 独立显示名/目录/卸载键/basename，并以共享 owner 记录拒绝任意其他 Pixels/OEM 产品共存，只允许完全相同安装身份覆盖。
 升级对比同时要求 namespace、OEM、公司、publisher、basename 和 profile 摘要不变，TUF target 路径显式包含 OEM ID。聚焦 Python 回归目前
 36/36 通过，Official 与 OEM 两条 NSIS 预处理/卸载器编译均成功；Client development Panel 聚焦重配构建通过，build/dist SHA-256 仍为
-`DA1770D1A65627B4FB11DF4320350731420C2273C14E55CBA741FCFE6DDB8CE4`。该切片未运行 release-only 构建，也未开放 OEM 入口；Windows UI/Web
-品牌替换、Android、正式密钥/TUF 发布和真实安装生命周期仍是后续门禁。
+`DA1770D1A65627B4FB11DF4320350731420C2273C14E55CBA741FCFE6DDB8CE4`。该切片未运行 release-only 构建，也未开放 OEM 入口；Windows 原生 UI、
+Android、正式密钥/TUF 发布和真实安装生命周期仍是后续门禁。
+
+OEM Web 品牌纵向切片随后完成：Vite 对 OEM 强制要求 profile 派生的应用名、PNG 图标和 profile SHA-256，并把应用名统一用于 HTML 标题、
+中英文运行标题、加载页与浮球；Official/Customer/development 拒绝任何 OEM 品牌变量。profile 自身也强制 Web 图标为已校验摘要的 PNG。
+Web 单测现为 68/68，另有语音状态 19 条断言，TypeScript 和 production build 通过。新的 development 发布入口把 4 个 Web 构建文件分别同步到
+Cloud Node/Remote 的 `web` 与 `dist/web_client`，逐文件 hash 一致后刷新清单；完整产品验证分别为 314/76 件通过。该结果只证明 Web 品牌门禁与
+development 产物同步，不冒充 OEM 完整构建、正式签名或安装验收；Windows 原生 UI 与 Android 品牌仍未完成。
 
 | 阶段 | 当前未完成项 |
 |---|---|

@@ -18,7 +18,6 @@ import { decodeConnectToken } from './rtc/connect_token'
 import { decodeMessage } from './rtc/proto'
 import { MessageType, ClientType, VideoCodec, GameStatus, VirtualDisplayState, VirtualDisplayOperation } from './rtc/protocol_enums'
 import { applyDocumentTitle } from './locales/i18n'
-import logoUrl from './assets/px_icon.png'
 import {
   MSG_TYPE_HELLO,
   MSG_TYPE_CLIPBOARD_INFO,
@@ -63,6 +62,8 @@ import {
     rejectedDirectHostConnectionType,
 } from "./rtc/direct_host_policy";
 
+const applicationName = __PIXELS_WEB_APPLICATION_NAME__
+const logoUrl = __PIXELS_WEB_ICON_DATA_URL__
 const { t } = useI18n()
 
 const MAX_LOG_LINES = 8000
@@ -1938,7 +1939,7 @@ onBeforeUnmount(() => {
 
     <!-- 连接/等画面/失败加载页(无顶部参数条,参数由 URL 带入) -->
     <div v-if="showLoading" class="loading-page">
-      <img class="loading-logo" :src="logoUrl" alt="Pixels" />
+      <img class="loading-logo" :src="logoUrl" :alt="applicationName" />
       <div class="loading-title">
         {{ status === 'failed' ? t('status.failed') : t('loading.title') }}
       </div>

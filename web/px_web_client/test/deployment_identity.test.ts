@@ -131,6 +131,7 @@ async function fixture(deploymentKind: "official" | "private" = "private", descr
             trusted_keys: [{ key_id: vendorKeyId, public_key_hex: encodeHex(vendorPublicKey) }],
         },
         clientBuild: 20,
+        oemProfileSha256: null,
     };
     return { configuration, identity, deploymentKeys, descriptor };
 }

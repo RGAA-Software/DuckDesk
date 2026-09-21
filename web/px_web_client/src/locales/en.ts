@@ -1,7 +1,7 @@
 export default {
   app: {
-    title: 'Pixels',
-    titleWithId: 'Pixels({id})',
+    title: __PIXELS_WEB_APPLICATION_NAME__,
+    titleWithId: `${__PIXELS_WEB_APPLICATION_NAME__}({id})`,
     deviceId: 'Device ID',
     streamId: 'Stream ID',
     streamIdTip: 'Derived from device ID; only one connection per device is allowed',
