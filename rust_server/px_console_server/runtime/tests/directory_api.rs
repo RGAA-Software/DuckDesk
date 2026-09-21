@@ -99,7 +99,11 @@ async fn update_catalog_requires_explicit_approval_and_exact_client_identity() {
         "platform_signer_sha256":"b".repeat(64),
         "size_bytes":12345678
     });
-    let create_body = json!({"request_id":request_id,"artifact":artifact});
+    let create_body = json!({
+        "request_id":request_id,
+        "repository_publication_sha256":"c".repeat(64),
+        "artifact":artifact
+    });
     let (created_status, created) = call(
         &router,
         "POST",
@@ -111,6 +115,25 @@ async fn update_catalog_requires_explicit_approval_and_exact_client_identity() {
     .await;
     assert_eq!(created_status, StatusCode::CREATED, "{created}");
     assert_eq!(created["state"], "pending");
+    assert_eq!(created["repository_publication_sha256"], "c".repeat(64));
+    let mut missing_publication = create_body.clone();
+    missing_publication
+        .as_object_mut()
+        .unwrap()
+        .remove("repository_publication_sha256");
+    assert_eq!(
+        call(
+            &router,
+            "POST",
+            "/api/console/managed/updates",
+            "admin_web",
+            Some(&admin),
+            missing_publication,
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
     assert_eq!(
         call(
             &router,

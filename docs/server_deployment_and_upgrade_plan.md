@@ -434,6 +434,10 @@ root 轮换工具现强制 `N+1` 版本、晚于当前 root 的到期时间和�
 完成后重新验证整库。执行器不内置云厂商凭据、SSH 传输或 CDN 刷新；公网使用时在源站主机或受控挂载目录执行。对象存储原生条件写、版本保留和
 CDN 缓存失效适配仍是选定正式基础设施后的部署层任务，不能把普通多文件上传声称为原子切换。
 
+Console 发布登记同时要求源站 `publication.json` 的精确 SHA-256，并把它和 ReleaseSpec 一起纳入 `request_id` 幂等摘要及不可变数据库事实。
+同一请求不能在保留制品字段时偷换仓库代际，runtime 也无权改写该固定值；审批/撤回事件因此可追溯到具体已发布候选。该摘要是审计绑定，不能替代
+客户端对 TUF 元数据、目标文件和平台代码签名的独立验证。
+
 当前实现基线使用 `tough` 的 TUF 1.0 客户端。Console 的已认证节点连接根据节点登记产品与 Console 许可证发行类型在服务端派生
 `product/distribution/stable/windows/x86_64`，节点只提交当前 build，不能传入或降级目标维度。目录只返回严格更新、最新且已审批的版本；
 最新版本处于 pending/withdrawn 时不回退到更旧版本。发布记录保存 `metadata_base_url`、`targets_base_url`、`target_name`、目标大小、

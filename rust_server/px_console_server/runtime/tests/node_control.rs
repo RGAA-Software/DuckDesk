@@ -1238,7 +1238,11 @@ async fn node_update_check_uses_authenticated_product_and_console_distribution()
         "/api/console/managed/updates",
         "admin_web",
         Some(&admin),
-        json!({"request_id":Uuid::new_v4(),"artifact":artifact}),
+        json!({
+            "request_id":Uuid::new_v4(),
+            "repository_publication_sha256":"c".repeat(64),
+            "artifact":artifact
+        }),
     )
     .await;
     assert_eq!(release_status.as_u16(), 201, "{release}");

@@ -26,6 +26,7 @@ pub(crate) fn routes() -> Router<Arc<StateData>> {
 #[serde(deny_unknown_fields)]
 struct NewRelease {
     request_id: Uuid,
+    repository_publication_sha256: String,
     artifact: ReleaseSpec,
 }
 
@@ -40,6 +41,7 @@ async fn register(
         .register(
             &request::administrator(&state, &headers)?,
             input.request_id,
+            &input.repository_publication_sha256,
             &input.artifact,
         )
         .await?;

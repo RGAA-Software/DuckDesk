@@ -93,7 +93,9 @@ RDP 工作区沿用[已冻结模式决策 §0.0](rdp_application_mode_design.md)
 Desk 的第二个 schema 增量及 Console 0019 已补齐 OS/architecture、制品大小与签名元数据 URL/hash；
 共享 `px_release_catalog` 校验严格字段及平台矩阵。Desk 不补旧开发行默认值，也不导入旧发布目录。
 Console 本地登记初始为 pending；admin 管理审批/撤回、viewer 只读；发布身份和正文只读，runtime 仅可改策略状态/revision。
-主体 request_id + 正文摘要使原登记可精确重试，但不会撤销后续 withdraw；CAS/事件同事务，事件写失败则策略不改变。
+登记必须额外携带已发布仓库精确 `publication.json` 的小写 SHA-256；该固定值独立入库并进入请求摘要，不能只登记目标文件而丢失对应仓库代际。
+主体 request_id + 制品正文及仓库发布摘要使原登记可精确重试，但不会撤销后续 withdraw；相同 request_id 换制品或仓库代际均拒绝，CAS/事件同事务，
+事件写失败则策略不改变。
 当前最高 build 未审批或已撤回时不自动返回低版本，避免目录查询制造隐式降级；明确再次审批仍须新的 CAS。
 单调版本水位、签名有效期和实际安装防回滚属于更新执行器，不能用该查询规则替代。
 

@@ -178,6 +178,10 @@ python scripts\prepare_windows_update_release.py ^
 `targets.json`、`snapshot.json`，最后切换 `timestamp.json` 和审计清单。切换前写入持久 `promotion.pending.json`；进程或主机在任一步中断后，必须用
 同一候选和同一审批 SHA 续跑，另一候选会 fail closed。成功后执行器重新从初始根加载线上目录、验证全部目标并删除 journal。
 
+源站发布成功后，调用 `/api/console/managed/updates` 登记同一 `publication.json` 中的 `release`，请求体除 `request_id` 和 `artifact` 外必须包含
+`repository_publication_sha256`，其值就是上述带外审批的小写 SHA-256。Console 将它作为不可变发布事实保存并与制品正文共同计算幂等摘要；同一
+`request_id` 不能换成另一仓库代际。登记仍只产生 `pending`，管理员应在源站验证和业务审批后显式 approve；不能把登记成功视为 TUF 验签或安装授权。
+
 ### 2.3 完整构建 Android
 
 ```bat

@@ -5,6 +5,7 @@ use crate::{
     UpdateActivationOutcome, UpdateDecision, UpdateRelease,
 };
 use px_release_catalog::{ReleaseQuery, ReleaseSpec};
+use sha2::{Digest, Sha256};
 use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
 
@@ -31,12 +32,17 @@ impl UpdateStore {
         &self,
         token: &TokenDigest,
         request_id: Uuid,
+        repository_publication_sha256: &str,
         artifact: &ReleaseSpec,
     ) -> Result<UpdateRelease, StoreError> {
-        if request_id.is_nil() {
+        if request_id.is_nil() || !valid_sha256(repository_publication_sha256) {
             return Err(StoreError::InvalidInput);
         }
-        let hash = artifact.digest().map_err(|_| StoreError::InvalidInput)?;
+        let artifact_digest = artifact.digest().map_err(|_| StoreError::InvalidInput)?;
+        let mut request_digest = Sha256::new();
+        request_digest.update(artifact_digest);
+        request_digest.update(repository_publication_sha256.as_bytes());
+        let request_hash: [u8; 32] = request_digest.finalize().into();
         let mut tx = self.pool.begin().await?;
         control::write_gate(&mut tx).await?;
         let actor = control::authorize(&mut tx, token, true).await?;
@@ -49,7 +55,7 @@ impl UpdateStore {
         .fetch_optional(&mut *tx)
         .await?
         {
-            if row.request_hash.as_slice() != hash {
+            if row.request_hash.as_slice() != request_hash.as_slice() {
                 return Err(StoreError::Rejected);
             }
             // Return the current policy; replay cannot undo a later withdrawal.
@@ -64,7 +70,7 @@ impl UpdateStore {
             Uuid::new_v4(),
             actor,
             request_id,
-            hash.as_slice(),
+            request_hash.as_slice(),
             release_target.product.name(),
             release_target.distribution.name(),
             release_target.channel.name(),
@@ -76,6 +82,7 @@ impl UpdateStore {
             artifact.targets_base_url,
             artifact.target_name,
             artifact.sha256,
+            repository_publication_sha256,
             artifact.platform_signer_sha256,
             artifact.size_bytes
         )
@@ -386,4 +393,11 @@ impl UpdateStore {
         .await?;
         Ok(())
     }
+}
+
+fn valid_sha256(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte_value| byte_value.is_ascii_digit() || (b'a'..=b'f').contains(&byte_value))
 }

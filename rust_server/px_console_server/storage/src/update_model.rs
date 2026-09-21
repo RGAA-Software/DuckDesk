@@ -22,6 +22,7 @@ impl UpdateDecision {
 pub struct UpdateRelease {
     pub id: Uuid,
     pub artifact: ReleaseSpec,
+    pub repository_publication_sha256: String,
     pub state: String,
     pub revision: i64,
     pub created_at: DateTime<Utc>,
@@ -42,6 +43,7 @@ pub(crate) struct UpdateRow {
     pub targets_base_url: String,
     pub target_name: String,
     pub sha256: String,
+    pub repository_publication_sha256: String,
     pub platform_signer_sha256: Option<String>,
     pub size_bytes: i64,
     pub state: String,
@@ -137,6 +139,7 @@ impl UpdateRow {
         Ok(UpdateRelease {
             id: self.id,
             artifact,
+            repository_publication_sha256: self.repository_publication_sha256,
             state: self.state,
             revision: self.revision,
             created_at: self.created_at,

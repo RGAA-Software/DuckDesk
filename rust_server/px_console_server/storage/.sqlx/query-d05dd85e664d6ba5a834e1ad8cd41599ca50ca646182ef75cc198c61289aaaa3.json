@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id,request_hash,product,distribution,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,platform_signer_sha256,size_bytes,state,revision,created_at,updated_at FROM pixels.update_releases WHERE id=$1 FOR UPDATE\n",
+  "query": "INSERT INTO pixels.update_releases(id,registered_by,request_id,request_hash,product,distribution,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,repository_publication_sha256,platform_signer_sha256,size_bytes)\nVALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING id,request_hash,product,distribution,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,repository_publication_sha256,platform_signer_sha256,size_bytes,state,revision,created_at,updated_at\n",
   "describe": {
     "columns": [
       {
@@ -70,41 +70,64 @@
       },
       {
         "ordinal": 13,
-        "name": "platform_signer_sha256",
+        "name": "repository_publication_sha256",
         "type_info": "Text"
       },
       {
         "ordinal": 14,
+        "name": "platform_signer_sha256",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
         "name": "size_bytes",
         "type_info": "Int8"
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "state",
         "type_info": "Text"
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "revision",
         "type_info": "Int8"
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 18,
+        "ordinal": 19,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Bytea",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int8",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int8"
       ]
     },
     "nullable": [
+      false,
       false,
       false,
       false,
@@ -126,5 +149,5 @@
       false
     ]
   },
-  "hash": "e0e4e6778b26b9a67bbaeea982551e0ba8925f49a9a1b60358304d8809a35ea8"
+  "hash": "d05dd85e664d6ba5a834e1ad8cd41599ca50ca646182ef75cc198c61289aaaa3"
 }

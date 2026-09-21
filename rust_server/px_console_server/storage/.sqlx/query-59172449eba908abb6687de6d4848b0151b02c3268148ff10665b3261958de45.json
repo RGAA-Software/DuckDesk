@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id,request_hash,product,distribution,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,platform_signer_sha256,size_bytes,state,revision,created_at,updated_at FROM pixels.update_releases WHERE ($1::uuid IS NULL OR id>$1) ORDER BY id LIMIT $2\n",
+  "query": "SELECT id,request_hash,product,distribution,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,repository_publication_sha256,platform_signer_sha256,size_bytes,state,revision,created_at,updated_at FROM pixels.update_releases WHERE ($1::uuid IS NULL OR id>$1) ORDER BY id LIMIT $2\n",
   "describe": {
     "columns": [
       {
@@ -70,31 +70,36 @@
       },
       {
         "ordinal": 13,
-        "name": "platform_signer_sha256",
+        "name": "repository_publication_sha256",
         "type_info": "Text"
       },
       {
         "ordinal": 14,
+        "name": "platform_signer_sha256",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
         "name": "size_bytes",
         "type_info": "Int8"
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "state",
         "type_info": "Text"
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "revision",
         "type_info": "Int8"
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 18,
+        "ordinal": 19,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
@@ -119,6 +124,7 @@
       false,
       false,
       false,
+      false,
       true,
       false,
       false,
@@ -127,5 +133,5 @@
       false
     ]
   },
-  "hash": "f5a397fe573a8584ecc2d5e28e419886ef482e42c8cb6584879731965eba94cb"
+  "hash": "59172449eba908abb6687de6d4848b0151b02c3268148ff10665b3261958de45"
 }

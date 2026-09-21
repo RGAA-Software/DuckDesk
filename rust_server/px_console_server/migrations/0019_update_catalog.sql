@@ -17,6 +17,7 @@ CREATE TABLE pixels.update_releases (
     target_name TEXT NOT NULL CHECK (char_length(target_name) >= 1 AND char_length(target_name) <= 512
         AND target_name !~ '(^/|\\|[[:space:]]|(^|/)\.\.?(/|$)|/$)'),
     sha256 TEXT NOT NULL CHECK (sha256 ~ '^[a-f0-9]{64}$'),
+    repository_publication_sha256 TEXT NOT NULL CHECK (repository_publication_sha256 ~ '^[a-f0-9]{64}$'),
     platform_signer_sha256 TEXT,
     size_bytes BIGINT NOT NULL CHECK (size_bytes > 0 AND size_bytes <= 1099511627776),
     state TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending','approved','withdrawn')),

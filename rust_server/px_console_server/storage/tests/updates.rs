@@ -6,6 +6,9 @@ use px_release_catalog::*;
 use std::env;
 use uuid::Uuid;
 
+const REPOSITORY_PUBLICATION_SHA256: &str =
+    "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+
 fn spec() -> ReleaseSpec {
     ReleaseSpec {
         target: ReleaseQuery {
@@ -49,7 +52,12 @@ async fn approved_cloud_node_release(
     release_spec.build_number =
         1_000 + i64::try_from(Uuid::new_v4().as_u128() % 1_000_000).unwrap();
     let release = update_store
-        .register(&fixture.admin, Uuid::new_v4(), &release_spec)
+        .register(
+            &fixture.admin,
+            Uuid::new_v4(),
+            REPOSITORY_PUBLICATION_SHA256,
+            &release_spec,
+        )
         .await
         .unwrap();
     update_store
@@ -114,7 +122,12 @@ async fn all_product_platform_flavor_channel_dimensions_are_independent() {
                     OperatingSystem::Windows | OperatingSystem::Android => Some("b".repeat(64)),
                 };
                 let row = update_store
-                    .register(&fixture.admin, Uuid::new_v4(), &release_spec)
+                    .register(
+                        &fixture.admin,
+                        Uuid::new_v4(),
+                        REPOSITORY_PUBLICATION_SHA256,
+                        &release_spec,
+                    )
                     .await
                     .unwrap();
                 assert_eq!(row.state, "pending");
@@ -154,7 +167,12 @@ async fn authenticated_node_sees_only_a_newer_approved_release_for_its_product()
         architecture: Architecture::X86_64,
     };
     let release = update_store
-        .register(&fixture.admin, Uuid::new_v4(), &release_spec)
+        .register(
+            &fixture.admin,
+            Uuid::new_v4(),
+            REPOSITORY_PUBLICATION_SHA256,
+            &release_spec,
+        )
         .await
         .unwrap();
     assert!(update_store
@@ -231,7 +249,12 @@ async fn concurrent_registration_retries_bind_body_and_never_reverse_withdrawal(
         let release_spec = release_spec.clone();
         tasks.spawn(async move {
             update_store
-                .register(&token, request, &release_spec)
+                .register(
+                    &token,
+                    request,
+                    REPOSITORY_PUBLICATION_SHA256,
+                    &release_spec,
+                )
                 .await
                 .unwrap()
         });
@@ -257,11 +280,31 @@ async fn concurrent_registration_retries_bind_body_and_never_reverse_withdrawal(
     let mut changed = release_spec.clone();
     changed.target_name = "pixels-other.exe".into();
     assert!(update_store
-        .register(&fixture.admin, request, &changed)
+        .register(
+            &fixture.admin,
+            request,
+            REPOSITORY_PUBLICATION_SHA256,
+            &changed,
+        )
+        .await
+        .is_err());
+    let different_publication_sha256 = "d".repeat(64);
+    assert!(update_store
+        .register(
+            &fixture.admin,
+            request,
+            &different_publication_sha256,
+            &release_spec,
+        )
         .await
         .is_err());
     assert!(update_store
-        .register(&fixture.admin, Uuid::new_v4(), &release_spec)
+        .register(
+            &fixture.admin,
+            Uuid::new_v4(),
+            REPOSITORY_PUBLICATION_SHA256,
+            &release_spec,
+        )
         .await
         .is_err());
     update_store
@@ -269,7 +312,12 @@ async fn concurrent_registration_retries_bind_body_and_never_reverse_withdrawal(
         .await
         .unwrap();
     let retry = update_store
-        .register(&fixture.admin, request, &release_spec)
+        .register(
+            &fixture.admin,
+            request,
+            REPOSITORY_PUBLICATION_SHA256,
+            &release_spec,
+        )
         .await
         .unwrap();
     assert_eq!(retry.id, id);
@@ -284,7 +332,12 @@ async fn concurrent_policy_cas_and_admin_identity_are_checked_on_every_write() {
     let update_store = store().await;
     let release_spec = spec();
     let row = update_store
-        .register(&fixture.admin, Uuid::new_v4(), &release_spec)
+        .register(
+            &fixture.admin,
+            Uuid::new_v4(),
+            REPOSITORY_PUBLICATION_SHA256,
+            &release_spec,
+        )
         .await
         .unwrap();
     let viewer = fixture.session("viewer", ClientType::AdminWeb).await;
@@ -292,7 +345,12 @@ async fn concurrent_policy_cas_and_admin_identity_are_checked_on_every_write() {
     let user = fixture.session("user", ClientType::AdminWeb).await;
     for denied in [&viewer, &panel_admin, &user, &token()] {
         assert!(update_store
-            .register(denied, Uuid::new_v4(), &spec())
+            .register(
+                denied,
+                Uuid::new_v4(),
+                REPOSITORY_PUBLICATION_SHA256,
+                &spec(),
+            )
             .await
             .is_err());
         assert!(update_store
@@ -360,7 +418,12 @@ async fn event_failure_rolls_back_registration_and_approval_and_runtime_cannot_r
         .await
         .unwrap();
     let failed = update_store
-        .register(&fixture.admin, request, &release_spec)
+        .register(
+            &fixture.admin,
+            request,
+            REPOSITORY_PUBLICATION_SHA256,
+            &release_spec,
+        )
         .await;
     sqlx::query("GRANT INSERT ON pixels.update_release_events TO pixels_console_runtime")
         .execute(&fixture.owner)
@@ -375,7 +438,12 @@ async fn event_failure_rolls_back_registration_and_approval_and_runtime_cannot_r
             .unwrap();
     assert_eq!(count, 0);
     let row = update_store
-        .register(&fixture.admin, request, &release_spec)
+        .register(
+            &fixture.admin,
+            request,
+            REPOSITORY_PUBLICATION_SHA256,
+            &release_spec,
+        )
         .await
         .unwrap();
     sqlx::query("REVOKE INSERT ON pixels.update_release_events FROM pixels_console_runtime")
@@ -391,7 +459,12 @@ async fn event_failure_rolls_back_registration_and_approval_and_runtime_cannot_r
         .unwrap();
     assert!(failed.is_err());
     let row = update_store
-        .register(&fixture.admin, request, &release_spec)
+        .register(
+            &fixture.admin,
+            request,
+            REPOSITORY_PUBLICATION_SHA256,
+            &release_spec,
+        )
         .await
         .unwrap();
     assert_eq!(row.state, "pending");
@@ -399,6 +472,7 @@ async fn event_failure_rolls_back_registration_and_approval_and_runtime_cannot_r
     let runtime = config("RUNTIME").connect().await.unwrap();
     for sql in [
         "UPDATE pixels.update_releases SET sha256=repeat('c',64)",
+        "UPDATE pixels.update_releases SET repository_publication_sha256=repeat('d',64)",
         "UPDATE pixels.update_releases SET os='linux'",
         "DELETE FROM pixels.update_releases",
         "UPDATE pixels.update_release_events SET state='approved'",
@@ -416,7 +490,12 @@ async fn newest_unapproved_or_withdrawn_build_never_falls_back_and_pages_are_bou
     let update_store = store().await;
     let mut release_spec = spec();
     let older = update_store
-        .register(&fixture.admin, Uuid::new_v4(), &release_spec)
+        .register(
+            &fixture.admin,
+            Uuid::new_v4(),
+            REPOSITORY_PUBLICATION_SHA256,
+            &release_spec,
+        )
         .await
         .unwrap();
     update_store
@@ -438,7 +517,12 @@ async fn newest_unapproved_or_withdrawn_build_never_falls_back_and_pages_are_bou
         .is_err());
     release_spec.build_number += 1;
     let newer = update_store
-        .register(&fixture.admin, Uuid::new_v4(), &release_spec)
+        .register(
+            &fixture.admin,
+            Uuid::new_v4(),
+            REPOSITORY_PUBLICATION_SHA256,
+            &release_spec,
+        )
         .await
         .unwrap();
     assert!(update_store
@@ -523,23 +607,53 @@ async fn malformed_release_metadata_has_no_side_effects_and_database_enforces_pl
             _ => bad.build_number = 0,
         }
         assert!(update_store
-            .register(&fixture.admin, Uuid::new_v4(), &bad)
+            .register(
+                &fixture.admin,
+                Uuid::new_v4(),
+                REPOSITORY_PUBLICATION_SHA256,
+                &bad,
+            )
             .await
             .is_err());
     }
     assert!(update_store
-        .register(&fixture.admin, Uuid::nil(), &release_spec)
+        .register(
+            &fixture.admin,
+            Uuid::nil(),
+            REPOSITORY_PUBLICATION_SHA256,
+            &release_spec,
+        )
         .await
         .is_err());
+    for invalid_publication_sha256 in ["short".to_owned(), "C".repeat(64)] {
+        assert!(update_store
+            .register(
+                &fixture.admin,
+                Uuid::new_v4(),
+                &invalid_publication_sha256,
+                &release_spec,
+            )
+            .await
+            .is_err());
+    }
     let after: i64 = sqlx::query_scalar("SELECT count(*) FROM pixels.update_releases")
         .fetch_one(&fixture.owner)
         .await
         .unwrap();
     assert_eq!(before, after);
     let row = update_store
-        .register(&fixture.admin, Uuid::new_v4(), &release_spec)
+        .register(
+            &fixture.admin,
+            Uuid::new_v4(),
+            REPOSITORY_PUBLICATION_SHA256,
+            &release_spec,
+        )
         .await
         .unwrap();
+    assert_eq!(
+        row.repository_publication_sha256,
+        REPOSITORY_PUBLICATION_SHA256
+    );
     assert!(
         sqlx::query("UPDATE pixels.update_releases SET os='android' WHERE id=$1")
             .bind(row.id)
@@ -564,7 +678,12 @@ async fn restarts_preserve_policy_and_closed_pool_never_reports_success() {
     let release_spec = spec();
     let request = Uuid::new_v4();
     let row = update_store
-        .register(&fixture.admin, request, &release_spec)
+        .register(
+            &fixture.admin,
+            request,
+            REPOSITORY_PUBLICATION_SHA256,
+            &release_spec,
+        )
         .await
         .unwrap();
     update_store
@@ -573,7 +692,12 @@ async fn restarts_preserve_policy_and_closed_pool_never_reports_success() {
         .unwrap();
     update_store.close().await;
     assert!(update_store
-        .register(&fixture.admin, request, &release_spec)
+        .register(
+            &fixture.admin,
+            request,
+            REPOSITORY_PUBLICATION_SHA256,
+            &release_spec,
+        )
         .await
         .is_err());
     assert!(update_store
@@ -582,7 +706,12 @@ async fn restarts_preserve_policy_and_closed_pool_never_reports_success() {
         .is_err());
     let resumed = store().await;
     let retry = resumed
-        .register(&fixture.admin, request, &release_spec)
+        .register(
+            &fixture.admin,
+            request,
+            REPOSITORY_PUBLICATION_SHA256,
+            &release_spec,
+        )
         .await
         .unwrap();
     assert_eq!(retry.id, row.id);

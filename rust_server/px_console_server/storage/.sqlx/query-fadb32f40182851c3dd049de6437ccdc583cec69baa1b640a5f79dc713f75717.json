@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id,request_hash,product,distribution,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,platform_signer_sha256,size_bytes,state,revision,created_at,updated_at FROM pixels.update_releases WHERE product=$1 AND distribution=$2 AND channel=$3 AND os=$4 AND architecture=$5 ORDER BY build_number DESC LIMIT 1\n",
+  "query": "UPDATE pixels.update_releases SET state=$2,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 RETURNING id,request_hash,product,distribution,channel,os,architecture,build_number,version,metadata_base_url,targets_base_url,target_name,sha256,repository_publication_sha256,platform_signer_sha256,size_bytes,state,revision,created_at,updated_at\n",
   "describe": {
     "columns": [
       {
@@ -70,45 +70,48 @@
       },
       {
         "ordinal": 13,
-        "name": "platform_signer_sha256",
+        "name": "repository_publication_sha256",
         "type_info": "Text"
       },
       {
         "ordinal": 14,
+        "name": "platform_signer_sha256",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
         "name": "size_bytes",
         "type_info": "Int8"
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "state",
         "type_info": "Text"
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "revision",
         "type_info": "Int8"
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 18,
+        "ordinal": 19,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
-        "Text",
-        "Text",
-        "Text",
-        "Text",
+        "Uuid",
         "Text"
       ]
     },
     "nullable": [
+      false,
       false,
       false,
       false,
@@ -130,5 +133,5 @@
       false
     ]
   },
-  "hash": "f9af6b95795a0a4be7b00111aabb2d786a778d889b9d4c964a131087e109b817"
+  "hash": "fadb32f40182851c3dd049de6437ccdc583cec69baa1b640a5f79dc713f75717"
 }
