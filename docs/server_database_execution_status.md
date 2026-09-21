@@ -1678,7 +1678,7 @@ SHA-256 均为 `3BC759CB09C4075CF4B44DAF98BC3B69BA0333EB506B3EF29D8B1DB87C7670A5
 签名包的 TUF 发布、Console 登记/审批和真实节点激活仍需审批材料后执行。
 
 同日补齐独立 OEM TUF 代码链的正反向验收：发布权威使用测试密钥发布
-`cloud_node/oem/acme-cloud/...`，经自验签后确认 `pixels.target` 完整携带
+`windows/cloud_node/oem/acme-cloud/...`，经自验签后确认 `pixels.target` 完整携带
 `distribution=oem`、`release_namespace=oem.acme-cloud` 和 `oem_id=acme-cloud`；Service
 从该仓库完成元数据验签、目标下载、内容复核和原子准备。把同一 Console offer 的发行身份改为另一个合法 OEM
 `oem.north-star/north-star`，即使复用相同 release ID、target 名、build、摘要和目标字节，也会在准备安装前因签名发行身份不一致而失败关闭。

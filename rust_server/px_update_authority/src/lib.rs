@@ -1219,7 +1219,7 @@ mod tests {
         std::fs::write(&first_artifact_path, first_artifact).unwrap();
         let first_release = fixture.oem_release(
             30380,
-            "cloud_node/oem/acme-cloud/stable/windows/x86_64/30380/installer.exe",
+            "windows/cloud_node/oem/acme-cloud/stable/x86_64/30380/installer.exe",
             first_artifact,
         );
         let first_spec_path = fixture.directory().join("first-release.json");
@@ -1265,7 +1265,7 @@ mod tests {
         std::fs::write(&second_artifact_path, second_artifact).unwrap();
         let second_release = fixture.oem_release(
             30381,
-            "cloud_node/oem/acme-cloud/stable/windows/x86_64/30381/installer.exe",
+            "windows/cloud_node/oem/acme-cloud/stable/x86_64/30381/installer.exe",
             second_artifact,
         );
         let second_spec_path = fixture.directory().join("second-release.json");

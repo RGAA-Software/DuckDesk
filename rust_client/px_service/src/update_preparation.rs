@@ -341,7 +341,7 @@ mod tests {
         release.target.release_namespace = "oem.acme-cloud".into();
         release.target.oem_id = Some("acme-cloud".into());
         release.target_name =
-            "cloud_node/oem/acme-cloud/stable/windows/x86_64/30368/PixelsCloudNode.exe".into();
+            "windows/cloud_node/oem/acme-cloud/stable/x86_64/30368/PixelsCloudNode.exe".into();
         release
     }
 
