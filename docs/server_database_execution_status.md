@@ -1766,14 +1766,13 @@ SHA-256 校验；全部通过后才原子替换 prepared APK，失败或摘要�
 
 Android APK 平台身份门禁随后接入：PackageManager 从 prepared APK 读取归档身份，只接受与当前发行精确相同的 applicationId、与 Console/TUF 事实一致的
 versionCode/versionName、唯一当前签名者证书 DER SHA-256，并要求候选 versionCode 严格高于当前安装版本；解析失败、多签名者或任一字段不符都会从私有 prepared
-目录删除候选。core-network 49/49 与 App 8/8 单测、App Kotlin 编译及三模块 Lint 375 个任务通过。该门禁尚未接入 PackageInstaller 事务、安装结果回读和
-安装实例水位，正式公网
-TUF 仓库与正式签名 APK 的端到端验证也仍未执行。
+目录删除候选。core-network 49/49 与 App 8/8 单测、App Kotlin 编译及三模块 Lint 375 个任务通过。该切片结束时尚未接入 PackageInstaller 事务、安装结果回读和
+安装实例水位；正式公网 TUF 仓库与正式签名 APK 的端到端验证也仍未执行。
 
 Android PackageInstaller 事务随后接入应用组合根：安装 session 从 prepared APK 再次流式核对精确长度/SHA-256，写入和 `fsync` 完成后，先把
 release/build/hash/session/phase 记录用独立 Android Keystore AES-GCM 密钥同步持久化，再向系统安装器提交；系统用户批准、成功和失败回调均要求精确 session ID。
 应用替换后的新进程只在自身 versionCode 等于目标 build 时推进 installed 水位；损坏记录、活动事务重入、丢失 session 和低于 installed 水位的回退均失败关闭。
-普通设备明确要求 Android 系统安装批准，不实现静默绕过。当前尚未把该事务接入设置页用户操作，也未使用正式签名相邻版本 APK 在真机完成批准/拒绝/成功/失败
+普通设备明确要求 Android 系统安装批准，不实现静默绕过。该切片结束时尚未把该事务接入设置页用户操作，也未使用正式签名相邻版本 APK 在真机完成批准/拒绝/成功/失败
 结果矩阵；core-data 15/15、App 9/9 单测、App Kotlin 编译及 core-data/App Lint 383 个任务通过，这些真机项仍是下一切片验收项。
 
 Android 设置页随后接通同一安全更新组合根：只有已登录用户能检查当前 Console 派生的发行目录，界面明确区分检查中、最新、发现版本、下载验证、已提交系统安装和
