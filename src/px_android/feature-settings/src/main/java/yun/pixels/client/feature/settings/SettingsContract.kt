@@ -63,5 +63,7 @@ sealed interface SettingsAction {
 
     data object InstallUpdate : SettingsAction
 
+    data object RefreshUpdateInstallation : SettingsAction
+
     data object DismissFailure : SettingsAction
 }

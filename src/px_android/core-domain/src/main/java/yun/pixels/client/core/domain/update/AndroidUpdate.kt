@@ -41,6 +41,8 @@ fun interface PreparedAndroidUpdateVerifier {
 }
 
 interface AndroidUpdateInstaller {
+    fun currentInstallationState(): AndroidUpdateInstallationState
+
     suspend fun install(preparedUpdate: PreparedAndroidUpdate): AccountResult<Unit>
 }
 

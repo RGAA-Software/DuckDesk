@@ -50,6 +50,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.StateFlow
@@ -66,6 +68,7 @@ import yun.pixels.client.feature.devices.DeviceSessionPreferencesDialog
 import yun.pixels.client.feature.cloudapps.CloudAppsScreen
 import yun.pixels.client.feature.cloudapps.CloudAppsViewModel
 import yun.pixels.client.feature.settings.SettingsScreen
+import yun.pixels.client.feature.settings.SettingsAction
 import yun.pixels.client.feature.settings.SettingsViewModel
 import yun.pixels.client.core.domain.session.RemoteSessionRequest
 import yun.pixels.client.core.domain.session.RemoteInputMode
@@ -174,6 +177,9 @@ fun PixelsApp(graph: PixelsAppGraph) {
         factory = SettingsViewModel.factory(graph.consoleSessionRepository, graph.updateRepository, graph.updateInstaller),
     )
     val settingsState by settingsViewModel.uiState.collectAsStateWithLifecycle()
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        settingsViewModel.onAction(SettingsAction.RefreshUpdateInstallation)
+    }
     val currentTopLevelDestination = appDestination.topLevel
     val showsBottomNavigation = currentTopLevelDestination != null
     var pendingLocalNetworkAction by remember { mutableStateOf<DeviceHomeAction?>(null) }

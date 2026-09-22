@@ -27,6 +27,9 @@ import yun.pixels.client.core.domain.account.ConsoleEndpoint
 import yun.pixels.client.core.domain.account.ResourceConnection
 import yun.pixels.client.core.domain.update.AndroidUpdateArtifact
 import yun.pixels.client.core.domain.update.AndroidUpdateInstaller
+import yun.pixels.client.core.domain.update.AndroidUpdateInstallationPhase
+import yun.pixels.client.core.domain.update.AndroidUpdateInstallationRecord
+import yun.pixels.client.core.domain.update.AndroidUpdateInstallationState
 import yun.pixels.client.core.domain.update.AndroidUpdatePreparationRepository
 import yun.pixels.client.core.domain.update.AndroidUpdateRelease
 import yun.pixels.client.core.domain.update.PreparedAndroidUpdate
@@ -163,6 +166,39 @@ class SettingsViewModelTest {
         assertEquals(APPROVED_RELEASE_ID, updateInstaller.installedUpdate?.release?.releaseId)
     }
 
+    @Test
+    fun persistedInstallationStateIsRestoredAndRefreshed() = runTest(dispatcher) {
+        val accountRepository = FakeAccountRepository(initialEndpoint = "https://console.example.com")
+        val updateInstaller = FakeUpdateInstaller(AndroidUpdateInstallationPhase.AwaitingUserApproval)
+        val viewModel = SettingsViewModel(accountRepository, FakeUpdateRepository(), updateInstaller)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+        advanceUntilIdle()
+
+        assertEquals(UpdateStatus.Idle, viewModel.uiState.value.updateStatus)
+
+        accountRepository.signIn("https://console.example.com", "alice")
+        advanceUntilIdle()
+
+        assertEquals(UpdateStatus.Submitted, viewModel.uiState.value.updateStatus)
+        assertEquals(APPROVED_RELEASE_ID, viewModel.uiState.value.updateReleaseId)
+        assertEquals(TARGET_BUILD_NUMBER, viewModel.uiState.value.updateBuildNumber)
+
+        updateInstaller.installationState = installationStateForPhase(AndroidUpdateInstallationPhase.Failed, failureStatus = -1)
+        viewModel.onAction(SettingsAction.RefreshUpdateInstallation)
+        advanceUntilIdle()
+
+        assertEquals(UpdateStatus.Failed, viewModel.uiState.value.updateStatus)
+        assertEquals(AccountFailure.InvalidResponse, viewModel.uiState.value.updateFailure)
+
+        updateInstaller.installationState = installationStateForPhase(AndroidUpdateInstallationPhase.Installed)
+        viewModel.onAction(SettingsAction.RefreshUpdateInstallation)
+        advanceUntilIdle()
+
+        assertEquals(UpdateStatus.Current, viewModel.uiState.value.updateStatus)
+        assertNull(viewModel.uiState.value.updateReleaseId)
+        assertNull(viewModel.uiState.value.updateFailure)
+    }
+
     private fun settingsViewModel(repository: ConsoleSessionRepository): SettingsViewModel =
         SettingsViewModel(repository, FakeUpdateRepository(), FakeUpdateInstaller())
 }
@@ -248,14 +284,33 @@ private class FakeUpdateRepository : AndroidUpdatePreparationRepository {
     }
 }
 
-private class FakeUpdateInstaller : AndroidUpdateInstaller {
+private class FakeUpdateInstaller(initialPhase: AndroidUpdateInstallationPhase? = null) : AndroidUpdateInstaller {
     var installedUpdate: PreparedAndroidUpdate? = null
+    var installationState: AndroidUpdateInstallationState = initialPhase?.let(::installationStateForPhase)
+        ?: AndroidUpdateInstallationState.Empty
+
+    override fun currentInstallationState(): AndroidUpdateInstallationState = installationState
 
     override suspend fun install(preparedUpdate: PreparedAndroidUpdate): AccountResult<Unit> {
         installedUpdate = preparedUpdate
+        installationState = installationStateForPhase(AndroidUpdateInstallationPhase.Submitted)
         return AccountResult.Success(Unit)
     }
 }
+
+private fun installationStateForPhase(
+    phase: AndroidUpdateInstallationPhase,
+    failureStatus: Int? = null,
+): AndroidUpdateInstallationState = AndroidUpdateInstallationState.Present(
+    AndroidUpdateInstallationRecord(
+        releaseId = APPROVED_RELEASE_ID,
+        targetBuildNumber = TARGET_BUILD_NUMBER,
+        artifactSha256 = "22".repeat(32),
+        sessionId = 7,
+        phase = phase,
+        failureStatus = failureStatus,
+    ),
+)
 
 private fun updateRelease() = AndroidUpdateRelease(
     releaseId = APPROVED_RELEASE_ID,

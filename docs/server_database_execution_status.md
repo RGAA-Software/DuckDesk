@@ -1791,6 +1791,11 @@ feature-settings 新增完整“发现→准备→提交”状态机单测，当
 Compose 宿主 Activity；仅对测试包临时放行后，`am instrument` 实际执行 2/2 PASS（4.47 秒），结束后该 AppOps 已恢复为 `ignore`，产品 App 保持
 `yun.pixels.client.debug` 1.0.18-debug/10018 且未卸载、未覆盖。本结果关闭设置页非密钥 UI 真机门禁，但不替代正式 APK 的 PackageInstaller 升级矩阵。
 
+随后复核发现 PackageInstaller 回调虽已持久化等待批准、成功待 reconcile 和失败状态，设置页却只显示本次点击提交的内存状态，应用恢复前台或重启后不会回读。
+当前 AndroidUpdateInstaller 已提供只读安装状态，Settings ViewModel 在初始化和 Activity `ON_RESUME` 时重新映射加密记录：活动事务保持“已提交”，失败明确显示，
+新 build reconcile 后显示当前版本；未登录时不展示 release/build/失败细节，底层系统安装事务仍保留。Settings 单测 7/7、App 单测 9/9、Android 全模块 JVM
+148/148 以及 feature-settings/App Lint 383 个任务通过。由于批准的正式根与签名包仍未提供，本切片关闭结果回读代码缺口，不冒充正式 APK 真机升级结果矩阵。
+
 | 阶段 | 当前未完成项 |
 |---|---|
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |

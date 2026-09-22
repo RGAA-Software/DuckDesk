@@ -491,6 +491,11 @@ versionCode 等于目标 build 时把记录推进为 installed；损坏状态、
 明确状态展示仓库检查、可用版本、下载验证、系统安装提交与失败结果；退出账号或更换 Console 会清除会话关联的候选 UI 状态。尚未完成正式签名 APK 真机安装
 结果回读和公网正式仓库端到端实测，因此代码级 installed 记录仍不是正式发行验收证据。
 
+设置页不再只保留点击提交时的进程内状态：ViewModel 初始化及 Activity 每次恢复前台时都会重新读取 Keystore 保护的安装记录，把 Submitted、等待系统批准及
+已应用待新进程确认统一显示为已提交，把平台失败显示为失败，并在新 build 启动完成 reconcile 后显示为当前版本。未登录页面不展示 release ID、build 或失败状态，
+但不会清除仍由 PackageInstaller 管理的全局安装事务；重新登录后再呈现其真实状态。该行为已由全模块 JVM 回归和 Android Lint 覆盖，正式签名相邻 APK 的批准、
+拒绝、成功、失败及重启结果仍必须在真机矩阵中验证。
+
 节点重启后的本地激活状态必须先于首次可调度状态上报完成收敛。有效租约内的 `authorized/applying` 一律阻断节点接客；租约过期的
 `applying` 只有在本机产品清单仍是精确旧 build 或已是精确目标 build 时才可清理。`installed` 必须与目标 build 一致；普通安装失败必须
 证明已经回到精确旧 build 才可报告并解除维护。`rollback_failed`、未知 build 或任何终态/产品清单矛盾均保留受保护记录并进入

@@ -31,6 +31,8 @@ class AndroidPackageInstaller(
         reconcileInstalledBuild()
     }
 
+    override fun currentInstallationState(): AndroidUpdateInstallationState = installationStore.load()
+
     override suspend fun install(preparedUpdate: PreparedAndroidUpdate): AccountResult<Unit> = withContext(ioDispatcher) {
         if (!canStartInstallation(preparedUpdate) || !verifier.verify(preparedUpdate)) {
             return@withContext AccountResult.Failure(AccountFailure.InvalidResponse)

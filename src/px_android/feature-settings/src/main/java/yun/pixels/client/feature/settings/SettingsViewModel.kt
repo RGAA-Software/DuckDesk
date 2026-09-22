@@ -15,6 +15,8 @@ import yun.pixels.client.core.domain.account.AccountState
 import yun.pixels.client.core.domain.account.ConsoleEndpoint
 import yun.pixels.client.core.domain.account.ConsoleSessionRepository
 import yun.pixels.client.core.domain.update.AndroidUpdateInstaller
+import yun.pixels.client.core.domain.update.AndroidUpdateInstallationPhase
+import yun.pixels.client.core.domain.update.AndroidUpdateInstallationState
 import yun.pixels.client.core.domain.update.AndroidUpdatePreparationRepository
 
 class SettingsViewModel(
@@ -22,7 +24,9 @@ class SettingsViewModel(
     private val updateRepository: AndroidUpdatePreparationRepository,
     private val updateInstaller: AndroidUpdateInstaller,
 ) : ViewModel() {
-    private val form = MutableStateFlow(SettingsUiState(endpointEditable = accountRepository.endpointEditable))
+    private val form = MutableStateFlow(
+        installationUiState(SettingsUiState(endpointEditable = accountRepository.endpointEditable)),
+    )
     val uiState = combine(form, accountRepository.state, accountRepository.endpoint, ::deriveUiState)
         .stateIn(
             viewModelScope,
@@ -38,7 +42,16 @@ class SettingsViewModel(
         val endpointValue = if (formState.endpointEdited) formState.consoleEndpoint else endpoint?.baseUrl.orEmpty()
         return when (accountState) {
             AccountState.Loading -> formState.copy(consoleEndpoint = endpointValue, isLoading = true, profile = null)
-            AccountState.SignedOut -> formState.copy(consoleEndpoint = endpointValue, isLoading = false, profile = null)
+            AccountState.SignedOut -> formState.copy(
+                consoleEndpoint = endpointValue,
+                isLoading = false,
+                profile = null,
+                updateStatus = UpdateStatus.Idle,
+                updateReleaseId = null,
+                updateVersion = null,
+                updateBuildNumber = null,
+                updateFailure = null,
+            )
             is AccountState.SignedIn -> formState.copy(
                 consoleEndpoint = endpointValue,
                 username = accountState.session.profile.username,
@@ -78,9 +91,47 @@ class SettingsViewModel(
             SettingsAction.Logout -> logout()
             SettingsAction.CheckUpdate -> checkUpdate()
             SettingsAction.InstallUpdate -> installUpdate()
+            SettingsAction.RefreshUpdateInstallation -> refreshUpdateInstallation()
             SettingsAction.DismissFailure -> form.update { it.copy(failure = null) }
         }
     }
+
+    private fun refreshUpdateInstallation() {
+        form.update(::installationUiState)
+    }
+
+    private fun installationUiState(currentState: SettingsUiState): SettingsUiState =
+        when (val installationState = updateInstaller.currentInstallationState()) {
+            AndroidUpdateInstallationState.Empty -> currentState
+            AndroidUpdateInstallationState.Invalid -> currentState.copy(
+                updateStatus = UpdateStatus.Failed,
+                updateFailure = AccountFailure.InvalidResponse,
+            )
+            is AndroidUpdateInstallationState.Present -> when (installationState.record.phase) {
+                AndroidUpdateInstallationPhase.Submitted,
+                AndroidUpdateInstallationPhase.AwaitingUserApproval,
+                AndroidUpdateInstallationPhase.AppliedAwaitingReconcile,
+                -> currentState.copy(
+                    updateStatus = UpdateStatus.Submitted,
+                    updateReleaseId = installationState.record.releaseId,
+                    updateBuildNumber = installationState.record.targetBuildNumber,
+                    updateFailure = null,
+                )
+                AndroidUpdateInstallationPhase.Installed -> currentState.copy(
+                    updateStatus = UpdateStatus.Current,
+                    updateReleaseId = null,
+                    updateVersion = null,
+                    updateBuildNumber = null,
+                    updateFailure = null,
+                )
+                AndroidUpdateInstallationPhase.Failed -> currentState.copy(
+                    updateStatus = UpdateStatus.Failed,
+                    updateReleaseId = installationState.record.releaseId,
+                    updateBuildNumber = installationState.record.targetBuildNumber,
+                    updateFailure = AccountFailure.InvalidResponse,
+                )
+            }
+        }
 
     private fun saveEndpoint() {
         if (!accountRepository.endpointEditable) return
