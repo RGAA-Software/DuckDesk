@@ -89,7 +89,7 @@ class AndroidTufTrustedRootManager private constructor(
             releaseIdentity: AndroidReleaseIdentity,
             trustedRootStore: AndroidTufTrustedRootStore,
             nowEpochSeconds: Long,
-            signatureVerifier: DeploymentSignatureVerifier,
+            signatureVerifier: Ed25519SignatureVerifier,
         ): AndroidTufTrustedRootManager? {
             val rootVerifier = AndroidTufRootVerifier(signatureVerifier)
             val embeddedRoot = trustConfiguration.verifiedInitialRoot

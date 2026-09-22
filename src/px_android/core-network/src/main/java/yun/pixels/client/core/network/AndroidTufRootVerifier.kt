@@ -20,7 +20,7 @@ class AndroidTufTrustConfiguration private constructor(
         internal fun create(
             initialRootBytes: ByteArray,
             nowEpochSeconds: Long,
-            signatureVerifier: DeploymentSignatureVerifier,
+            signatureVerifier: Ed25519SignatureVerifier,
         ): AndroidTufTrustConfiguration? {
             val verifiedRoot = AndroidTufRootVerifier(signatureVerifier).verifyInitialRoot(initialRootBytes, nowEpochSeconds) ?: return null
             return AndroidTufTrustConfiguration(initialRootBytes.copyOf(), verifiedRoot)
@@ -50,7 +50,7 @@ internal data class TufSignature(
 )
 
 internal class AndroidTufRootVerifier(
-    private val signatureVerifier: DeploymentSignatureVerifier,
+    private val signatureVerifier: Ed25519SignatureVerifier,
 ) {
     fun verifyInitialRoot(rootBytes: ByteArray, nowEpochSeconds: Long): VerifiedTufRoot? {
         val root = parseRoot(rootBytes, nowEpochSeconds) ?: return null

@@ -50,7 +50,6 @@ private fun AccountFailure.toRemoteSessionFailure(): RemoteSessionFailure = when
     AccountFailure.AuthenticationRequired,
     AccountFailure.InvalidCredentials,
     AccountFailure.Forbidden,
-    AccountFailure.UntrustedDeployment,
     -> RemoteSessionFailure.AuthenticationRejected
     AccountFailure.DeviceOffline -> RemoteSessionFailure.DeviceOffline
     AccountFailure.NetworkUnavailable,

@@ -15,7 +15,6 @@ import yun.pixels.client.core.data.DataStoreRemoteSessionPreferencesRepository
 import yun.pixels.client.core.data.PanelDeviceResolver
 import yun.pixels.client.core.data.SharedPreferencesAndroidTufTrustedRootStore
 import yun.pixels.client.core.data.SharedPreferencesAndroidUpdateInstallationStore
-import yun.pixels.client.core.data.SharedPreferencesDeploymentIdentityWatermarkStore
 import yun.pixels.client.core.data.createDeviceDirectory
 import yun.pixels.client.core.domain.account.AccountRepository
 import yun.pixels.client.core.domain.account.ApplicationRepository
@@ -34,7 +33,6 @@ import yun.pixels.client.core.network.ConsoleAndroidUpdateRepository
 import yun.pixels.client.core.network.ConsoleApplicationRepository
 import yun.pixels.client.core.network.ConsoleResourceConnectionRenewer
 import yun.pixels.client.core.network.ConsoleSessionCoordinator
-import yun.pixels.client.core.network.DeploymentIdentityConfiguration
 import yun.pixels.client.core.network.TufVerifiedAndroidUpdateRepository
 import yun.pixels.client.update.AndroidApkPlatformVerifier
 import yun.pixels.client.update.AndroidPackageInstaller
@@ -51,21 +49,6 @@ class PixelsApplication : Application() {
 
 class PixelsAppGraph(application: Application) {
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val deploymentIdentity = requireNotNull(
-        DeploymentIdentityConfiguration.create(
-            canonicalTrustStore = Base64.getDecoder().decode(BuildConfig.DEPLOYMENT_TRUST_STORE_BASE64),
-            expectedKind = if (BuildConfig.DEPLOYMENT_DISTRIBUTION == "official") "official" else "private",
-            expectedDistribution = BuildConfig.DEPLOYMENT_DISTRIBUTION,
-            expectedReleaseNamespace = BuildConfig.RELEASE_NAMESPACE,
-            expectedOemId = BuildConfig.OEM_ID.ifEmpty { null },
-            expectedDeploymentId = BuildConfig.EXPECTED_DEPLOYMENT_ID.ifEmpty { null },
-            minimumCertificateVersion = BuildConfig.MINIMUM_DEPLOYMENT_CERTIFICATE_VERSION,
-            minimumDescriptorRevision = BuildConfig.MINIMUM_DESCRIPTOR_REVISION,
-            minimumTrustEpoch = BuildConfig.DEPLOYMENT_TRUST_EPOCH,
-            clientBuild = BuildConfig.VERSION_CODE.toLong(),
-            protocolVersion = 1,
-        ),
-    ) { "Pixels deployment identity configuration is invalid" }
     private val androidReleaseIdentity = requireNotNull(
         AndroidReleaseIdentity.create(
             distribution = BuildConfig.DEPLOYMENT_DISTRIBUTION,
@@ -83,11 +66,7 @@ class PixelsAppGraph(application: Application) {
             SharedPreferencesAndroidTufTrustedRootStore.create(application),
         ),
     ) { "Pixels Android TUF trusted root state is invalid" }
-    private val consoleApi = ConsoleApiClient(
-        deploymentIdentity,
-        SharedPreferencesDeploymentIdentityWatermarkStore.create(application),
-        androidReleaseIdentity,
-    )
+    private val consoleApi = ConsoleApiClient(androidReleaseIdentity)
 
     val deviceDirectory: DeviceDirectory = createDeviceDirectory(application)
     val deviceResolver: DeviceResolver = PanelDeviceResolver()
@@ -98,7 +77,8 @@ class PixelsAppGraph(application: Application) {
         api = consoleApi,
         endpointStore = DataStoreConsoleEndpointStore.create(application, applicationScope),
         sessionStore = AndroidConsoleSessionStore.create(application, applicationScope),
-        fixedEndpoint = BuildConfig.OFFICIAL_CONSOLE_URL.ifEmpty { null },
+        fixedEndpoint = BuildConfig.OFFICIAL_CONSOLE_URL.takeIf { BuildConfig.DEPLOYMENT_DISTRIBUTION == "official" },
+        forbiddenEndpoint = BuildConfig.OFFICIAL_CONSOLE_URL.takeIf { BuildConfig.DEPLOYMENT_DISTRIBUTION == "customer" },
     ).also { repository -> applicationScope.launch { repository.restore() } }
     val accountRepository: AccountRepository = consoleSessionRepository
     val applicationRepository: ApplicationRepository = ConsoleApplicationRepository(consoleApi, consoleSessionRepository)

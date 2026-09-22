@@ -65,6 +65,48 @@ class ConsoleSessionCoordinatorTest {
     }
 
     @Test
+    fun officialEndpointIsFixedAndCannotBeReplaced() = runTest {
+        val repository = ConsoleSessionCoordinator(
+            FakeApi(),
+            FakeEndpointStore(),
+            FakeSessionStore(),
+            fixedEndpoint = "https://official-console.example",
+        )
+
+        repository.restore()
+
+        assertEquals(ConsoleEndpoint("https://official-console.example"), repository.endpoint.value)
+        assertEquals(false, repository.endpointEditable)
+        assertEquals(
+            AccountResult.Failure(AccountFailure.InvalidEndpoint),
+            repository.saveEndpoint("https://private-console.example"),
+        )
+    }
+
+    @Test
+    fun customerEndpointRejectsTheOfficialConsole() = runTest {
+        val repository = ConsoleSessionCoordinator(
+            FakeApi(),
+            FakeEndpointStore(ConsoleEndpoint("https://official-console.example")),
+            FakeSessionStore(),
+            forbiddenEndpoint = "https://official-console.example",
+        )
+
+        repository.restore()
+
+        assertEquals(null, repository.endpoint.value)
+        assertTrue(repository.endpointEditable)
+        assertEquals(
+            AccountResult.Failure(AccountFailure.InvalidEndpoint),
+            repository.saveEndpoint("https://official-console.example/"),
+        )
+        assertEquals(
+            AccountResult.Success(ConsoleEndpoint("https://private-console.example")),
+            repository.saveEndpoint("https://private-console.example"),
+        )
+    }
+
+    @Test
     fun resolvingConnectionKeepsAccountState() = runTest {
         val connection = connection()
         val signedIn = session(expiresAt = 200)

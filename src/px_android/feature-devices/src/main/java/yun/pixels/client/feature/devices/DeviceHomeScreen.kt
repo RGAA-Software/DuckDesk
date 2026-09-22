@@ -522,7 +522,6 @@ private fun ConnectionInputError.labelResource(): Int = when (this) {
 
 private fun AccountFailure.labelResource(): Int = when (this) {
     AccountFailure.InvalidEndpoint -> R.string.account_error_invalid_endpoint
-    AccountFailure.UntrustedDeployment -> R.string.account_error_untrusted_deployment
     AccountFailure.InvalidCredentials -> R.string.account_error_invalid_credentials
     AccountFailure.AuthenticationRequired -> R.string.account_error_authentication_required
     AccountFailure.Forbidden -> R.string.account_error_forbidden

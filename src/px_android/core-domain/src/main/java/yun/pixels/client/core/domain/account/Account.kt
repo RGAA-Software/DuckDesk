@@ -57,7 +57,6 @@ data class ResourceRelayEndpoint(
 
 enum class AccountFailure {
     InvalidEndpoint,
-    UntrustedDeployment,
     InvalidCredentials,
     AuthenticationRequired,
     Forbidden,

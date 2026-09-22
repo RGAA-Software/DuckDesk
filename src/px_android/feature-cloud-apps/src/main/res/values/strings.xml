@@ -7,7 +7,7 @@
     <string name="type_game">Game</string><string name="type_web">Web app</string><string name="type_rdp">RDP</string><string name="type_unknown">Unknown type</string>
     <string name="access_public">Public</string><string name="access_account">Account access</string><string name="access_unknown">Unknown access</string>
     <string name="starting">Starting</string><string name="running">Running</string><string name="stopping">Stopping</string><string name="stopped">Stopped</string><string name="failed">Failed</string>
-    <string name="error_invalid_endpoint">The PX Console address is invalid.</string><string name="error_untrusted_deployment">The Console deployment identity could not be verified.</string><string name="error_credentials">The credentials are invalid.</string>
+    <string name="error_invalid_endpoint">The PX Console address is invalid.</string><string name="error_credentials">The credentials are invalid.</string>
     <string name="error_auth">Sign in again.</string><string name="error_forbidden">Access denied.</string><string name="error_rate">Too many requests.</string>
     <string name="error_offline">The node is offline.</string><string name="error_not_found">The app was not found.</string><string name="error_network">PX Console is unreachable.</string>
     <string name="error_response">PX Console returned an invalid response.</string><string name="error_server">PX Console could not complete the request.</string>

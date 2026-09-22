@@ -23,9 +23,12 @@ class ConsoleSessionCoordinator(
     private val sessionStore: AccountSessionStore,
     private val now: () -> Long = System::currentTimeMillis,
     fixedEndpoint: String? = null,
+    forbiddenEndpoint: String? = null,
 ) : ConsoleSessionRepository {
-    private val officialEndpoint = fixedEndpoint?.let(::normalizeEndpoint)
-    private val invalidFixedEndpoint = fixedEndpoint != null && officialEndpoint == null
+    private val fixedConsoleEndpoint = fixedEndpoint?.let(::normalizeEndpoint)
+    private val forbiddenConsoleEndpoint = forbiddenEndpoint?.let(::normalizeEndpoint)
+    private val invalidEndpointPolicy =
+        fixedEndpoint != null && fixedConsoleEndpoint == null || forbiddenEndpoint != null && forbiddenConsoleEndpoint == null
     private val mutableState = MutableStateFlow<AccountState>(AccountState.Loading)
     private val mutableEndpoint = MutableStateFlow<ConsoleEndpoint?>(null)
     private val guestMutex = Mutex()
@@ -33,13 +36,14 @@ class ConsoleSessionCoordinator(
 
     override val state: StateFlow<AccountState> = mutableState.asStateFlow()
     override val endpoint: StateFlow<ConsoleEndpoint?> = mutableEndpoint.asStateFlow()
-    override val endpointEditable: Boolean = officialEndpoint == null
+    override val endpointEditable: Boolean = fixedConsoleEndpoint == null
 
     override suspend fun restore() {
-        check(!invalidFixedEndpoint) { "Official Console endpoint is invalid" }
-        val storedEndpoint = endpointStore.load()
-        val endpoint = officialEndpoint ?: storedEndpoint
-        if (officialEndpoint != null && storedEndpoint != officialEndpoint) endpointStore.save(officialEndpoint)
+        check(!invalidEndpointPolicy) { "Console endpoint policy is invalid" }
+        val storedEndpoint = endpointStore.load()?.takeUnless { it == forbiddenConsoleEndpoint }
+        val endpoint = fixedConsoleEndpoint ?: storedEndpoint
+        if (fixedConsoleEndpoint != null && storedEndpoint != fixedConsoleEndpoint) endpointStore.save(fixedConsoleEndpoint)
+        if (fixedConsoleEndpoint == null && storedEndpoint == null) endpointStore.clear()
         mutableEndpoint.value = endpoint
         val session = sessionStore.load()?.takeIf {
             endpoint != null && it.endpoint == endpoint && it.expiresAtEpochMillis > now()
@@ -51,7 +55,7 @@ class ConsoleSessionCoordinator(
     override suspend fun saveEndpoint(endpoint: String): AccountResult<ConsoleEndpoint> {
         val normalized = normalizeEndpoint(endpoint)
             ?: return AccountResult.Failure(AccountFailure.InvalidEndpoint)
-        if (officialEndpoint != null && normalized != officialEndpoint) {
+        if (fixedConsoleEndpoint != null && normalized != fixedConsoleEndpoint || normalized == forbiddenConsoleEndpoint) {
             return AccountResult.Failure(AccountFailure.InvalidEndpoint)
         }
         if (mutableEndpoint.value != normalized) {
@@ -65,7 +69,10 @@ class ConsoleSessionCoordinator(
     }
 
     override suspend fun testEndpoint(endpoint: String): AccountResult<ConsoleEndpoint> =
-        if (officialEndpoint != null && normalizeEndpoint(endpoint) != officialEndpoint) {
+        if (normalizeEndpoint(endpoint).let { normalized ->
+                normalized == null || fixedConsoleEndpoint != null && normalized != fixedConsoleEndpoint || normalized == forbiddenConsoleEndpoint
+            }
+        ) {
             AccountResult.Failure(AccountFailure.InvalidEndpoint)
         } else {
             api.testEndpoint(endpoint)

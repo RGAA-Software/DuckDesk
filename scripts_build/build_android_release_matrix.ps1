@@ -34,29 +34,15 @@ function Invoke-DistributionBuilder {
         [string[]]$Arguments
     )
 
-    $officialDeploymentId = [Environment]::GetEnvironmentVariable('PIXELS_EXPECTED_DEPLOYMENT_ID')
     $officialConsoleUrl = [Environment]::GetEnvironmentVariable('PIXELS_OFFICIAL_CONSOLE_URL')
-    try {
-        if ($Distribution -eq 'customer') {
-            Remove-Item Env:PIXELS_EXPECTED_DEPLOYMENT_ID, Env:PIXELS_OFFICIAL_CONSOLE_URL -ErrorAction SilentlyContinue
-        }
-        $builderArguments = @(
-            '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $distributionBuilder,
-            '-Distribution', $Distribution, '-Configuration', 'release'
-        ) + $Arguments
-        Invoke-NativeChecked -FilePath 'powershell.exe' -Arguments $builderArguments
-    } finally {
-        if ($null -eq $officialDeploymentId) {
-            Remove-Item Env:PIXELS_EXPECTED_DEPLOYMENT_ID -ErrorAction SilentlyContinue
-        } else {
-            $env:PIXELS_EXPECTED_DEPLOYMENT_ID = $officialDeploymentId
-        }
-        if ($null -eq $officialConsoleUrl) {
-            Remove-Item Env:PIXELS_OFFICIAL_CONSOLE_URL -ErrorAction SilentlyContinue
-        } else {
-            $env:PIXELS_OFFICIAL_CONSOLE_URL = $officialConsoleUrl
-        }
+    if ([string]::IsNullOrWhiteSpace($officialConsoleUrl)) {
+        throw 'Official and Customer Android release builds require PIXELS_OFFICIAL_CONSOLE_URL.'
     }
+    $builderArguments = @(
+        '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $distributionBuilder,
+        '-Distribution', $Distribution, '-Configuration', 'release'
+    ) + $Arguments
+    Invoke-NativeChecked -FilePath 'powershell.exe' -Arguments $builderArguments
 }
 
 function Get-SigningCertificateSha256 {

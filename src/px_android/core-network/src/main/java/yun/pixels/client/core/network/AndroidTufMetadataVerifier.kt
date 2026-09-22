@@ -13,7 +13,7 @@ internal data class AndroidTufMetadataVersions(
 )
 
 internal class AndroidTufMetadataVerifier(
-    private val signatureVerifier: DeploymentSignatureVerifier,
+    private val signatureVerifier: Ed25519SignatureVerifier,
 ) {
     fun verify(
         trustedRoot: VerifiedTufRoot,
