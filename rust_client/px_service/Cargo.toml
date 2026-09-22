@@ -10,7 +10,6 @@ path = "src/main.rs"
 [dependencies]
 px_base = { path = "../../rust_base/px_base" }
 px_node_protocol = { path = "../../rust_server/px_node_protocol" }
-px_deployment_identity = { path = "../../rust_server/px_deployment_identity" }
 px_release_catalog = { path = "../../rust_server/px_release_catalog" }
 protocol = { path = "../../rust_base/protocol" }
 service_core = { path = "./service_core" }

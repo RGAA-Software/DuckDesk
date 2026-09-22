@@ -5,9 +5,6 @@ use std::time::{Duration, Instant};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
-use px_deployment_identity::{
-    DeploymentIdentityVerifier, DeploymentVerificationContext, SignedDeploymentIdentity,
-};
 use px_node_protocol::{
     ApplicationLaunch, BeginFileTransfer, ChannelKind, ChannelProgress, CommandOutcome,
     CommandReceipt, DeploymentAssignment, DeploymentObservation, DeploymentPreparation,
@@ -20,7 +17,6 @@ use px_node_protocol::{
 use px_release_catalog::{
     Architecture, Channel, Distribution, OperatingSystem, Product, ReleaseQuery,
 };
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use service_core::{AppInstanceState, StartAppRequest};
 use tokio::net::TcpStream;
 use tokio::sync::{oneshot, Mutex};
@@ -35,8 +31,7 @@ use uuid::Uuid;
 use zeroize::Zeroize;
 
 use crate::node_control_store::{
-    DeploymentIdentityWatermark, DeploymentIdentityWatermarkInput, FileTransferOutboxStore,
-    NodeControlConfiguration, NodeControlStore, TelemetryBacklogStore,
+    FileTransferOutboxStore, NodeControlConfiguration, NodeControlStore, TelemetryBacklogStore,
 };
 use crate::product_descriptor::ProductDescriptor;
 use crate::recording_inventory::RecordingInventory;
@@ -54,7 +49,6 @@ const CONFIGURATION_POLL: Duration = Duration::from_secs(5);
 const COMMAND_POLL: Duration = Duration::from_secs(1);
 const REPORT_INTERVAL: Duration = Duration::from_secs(15);
 const UPDATE_CHECK_INTERVAL: Duration = Duration::from_secs(15 * 60);
-const DEPLOYMENT_IDENTITY_RESPONSE_LIMIT: usize = 64 * 1024;
 const FRONTEND_FAIL_CLOSED_LEASE: Duration = Duration::from_secs(30);
 const FRONTEND_CHALLENGE_RENEWAL_MARGIN: chrono::TimeDelta = chrono::TimeDelta::seconds(5);
 
@@ -88,18 +82,6 @@ struct FrontendObservation {
     sessions_by_render: HashMap<String, HashSet<Uuid>>,
     render_by_session: HashMap<Uuid, String>,
     duplicate_sessions: HashSet<Uuid>,
-}
-
-#[derive(Serialize)]
-struct DeploymentChallengeRequest<'a> {
-    nonce: &'a str,
-    descriptor_revision: u64,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct DeploymentChallengeResponse {
-    proof_wire: String,
 }
 
 struct ProtocolSession {
@@ -282,7 +264,6 @@ pub async fn node_control_loop(
                 .set_access_host(configuration.public_host.clone())?;
         }
         let connection_context = NodeConnectionContext {
-            store: &store,
             configuration: &configuration,
             product: &product,
             recording_inventory: &recording_inventory,
@@ -325,7 +306,6 @@ enum ConnectionEnd {
 }
 
 struct NodeConnectionContext<'a> {
-    store: &'a NodeControlStore,
     configuration: &'a NodeControlConfiguration,
     product: &'a ProductDescriptor,
     recording_inventory: &'a Arc<std::sync::Mutex<RecordingInventory>>,
@@ -349,7 +329,6 @@ async fn run_connection(
         .timeout(EXCHANGE_TIMEOUT)
         .build()
         .map_err(|_| "Console identity HTTP client cannot be created".to_string())?;
-    verify_deployment_identity(&http, context.store, configuration, product).await?;
     let websocket = WebSocketConfig::default()
         .max_message_size(Some(MAX_MESSAGE_BYTES))
         .max_frame_size(Some(MAX_MESSAGE_BYTES));
@@ -713,141 +692,6 @@ async fn run_connection(
             }
         }
     }
-}
-
-async fn verify_deployment_identity(
-    http: &reqwest::Client,
-    store: &NodeControlStore,
-    configuration: &NodeControlConfiguration,
-    product: &ProductDescriptor,
-) -> Result<(), String> {
-    if product.distribution != "development"
-        && (product.distribution != configuration.distribution.name()
-            || product.release_namespace.as_deref()
-                != Some(configuration.release_namespace.as_str())
-            || product.oem_id != configuration.oem_id)
-    {
-        return Err("installed product release domain does not match node configuration".into());
-    }
-    let identity_url = console_http_url(&configuration.endpoint, "/.well-known/pixels")?;
-    let identity_response = http
-        .get(identity_url)
-        .send()
-        .await
-        .map_err(|_| "Console deployment identity discovery failed".to_string())?;
-    let identity = bounded_json::<SignedDeploymentIdentity>(identity_response).await?;
-    let now = Utc::now().timestamp();
-    let verifier = DeploymentIdentityVerifier::new(&configuration.deployment_trust_store)
-        .map_err(|_| "Console deployment trust store is invalid".to_string())?;
-    let verified = verifier
-        .verify_identity(
-            &identity,
-            &DeploymentVerificationContext {
-                expected_deployment_id: Some(configuration.deployment_id),
-                expected_kind: configuration.deployment_kind,
-                expected_distribution: configuration.distribution,
-                expected_release_namespace: configuration.release_namespace.clone(),
-                expected_oem_id: configuration.oem_id.clone(),
-                now,
-                minimum_certificate_version: configuration.minimum_certificate_version,
-                minimum_descriptor_revision: configuration.minimum_descriptor_revision,
-                minimum_trust_epoch: configuration.minimum_trust_epoch,
-                client_build: u64::from(product.product_version_code),
-                protocol_version: 1,
-            },
-        )
-        .map_err(|_| "Console deployment identity was rejected".to_string())?;
-    let candidate = DeploymentIdentityWatermark::new(DeploymentIdentityWatermarkInput {
-        deployment_id: verified.certificate.deployment_id,
-        deployment_kind: verified.certificate.deployment_kind,
-        distribution: verified.certificate.distribution,
-        release_namespace: verified.certificate.release_namespace.clone(),
-        oem_id: verified.certificate.oem_id.clone(),
-        certificate_version: verified.certificate.certificate_version,
-        descriptor_revision: verified.descriptor.descriptor_revision,
-        trust_epoch: verified.descriptor.trust_epoch,
-    })?;
-    let watermark_store = store.clone();
-    let stored = tokio::task::spawn_blocking(move || watermark_store.load_identity_watermark())
-        .await
-        .map_err(|_| "deployment identity watermark read task failed".to_string())??;
-    if stored
-        .as_ref()
-        .is_some_and(|watermark| !watermark.allows(&candidate))
-    {
-        return Err("Console deployment identity watermark rollback was rejected".into());
-    }
-
-    let nonce = URL_SAFE_NO_PAD.encode(rand::random::<[u8; 32]>());
-    let challenge_url = console_http_url(&configuration.endpoint, "/.well-known/pixels/challenge")?;
-    let challenge_response = http
-        .post(challenge_url)
-        .json(&DeploymentChallengeRequest {
-            nonce: &nonce,
-            descriptor_revision: verified.descriptor.descriptor_revision,
-        })
-        .send()
-        .await
-        .map_err(|_| "Console deployment identity challenge failed".to_string())?;
-    let challenge = bounded_json::<DeploymentChallengeResponse>(challenge_response).await?;
-    verifier
-        .verify_challenge(
-            &verified,
-            &challenge.proof_wire,
-            &nonce,
-            Utc::now().timestamp(),
-        )
-        .map_err(|_| "Console deployment identity proof was rejected".to_string())?;
-
-    let watermark_store = store.clone();
-    tokio::task::spawn_blocking(move || watermark_store.save_identity_watermark(&candidate))
-        .await
-        .map_err(|_| "deployment identity watermark write task failed".to_string())??;
-    Ok(())
-}
-
-fn console_http_url(endpoint: &str, path: &str) -> Result<url::Url, String> {
-    let mut url = url::Url::parse(endpoint)
-        .map_err(|_| "node-control endpoint cannot be used for deployment identity".to_string())?;
-    let http_scheme = match url.scheme() {
-        "wss" => "https",
-        "ws" => "http",
-        _ => return Err("node-control endpoint has no deployment identity HTTP scheme".into()),
-    };
-    url.set_scheme(http_scheme)
-        .map_err(|_| "node-control endpoint scheme conversion failed".to_string())?;
-    url.set_path(path);
-    url.set_query(None);
-    url.set_fragment(None);
-    Ok(url)
-}
-
-async fn bounded_json<T: DeserializeOwned>(response: reqwest::Response) -> Result<T, String> {
-    if !response.status().is_success()
-        || response
-            .content_length()
-            .is_some_and(|length| length > DEPLOYMENT_IDENTITY_RESPONSE_LIMIT as u64)
-    {
-        return Err("Console deployment identity response was rejected".into());
-    }
-    let mut body = Vec::new();
-    let mut chunks = response.bytes_stream();
-    while let Some(chunk) = chunks.next().await {
-        let chunk = chunk.map_err(|_| "Console deployment identity response failed".to_string())?;
-        let next_length = body
-            .len()
-            .checked_add(chunk.len())
-            .ok_or_else(|| "Console deployment identity response is too large".to_string())?;
-        if next_length > DEPLOYMENT_IDENTITY_RESPONSE_LIMIT {
-            return Err("Console deployment identity response is too large".into());
-        }
-        body.extend_from_slice(&chunk);
-    }
-    if body.is_empty() {
-        return Err("Console deployment identity response is empty".into());
-    }
-    serde_json::from_slice(&body)
-        .map_err(|_| "Console deployment identity response is invalid".to_string())
 }
 
 async fn sync_recordings(
@@ -2724,36 +2568,7 @@ async fn exchange(
 mod tests {
     use super::*;
     use chrono::TimeDelta;
-    use px_deployment_identity::{
-        sign_certificate, AuthenticationMethod, ChallengePayload, DeploymentCertificate,
-        DeploymentIdentitySigner, DeploymentKind, DeploymentTrustStore, PlatformDescriptor,
-        RegistrationPolicy,
-    };
     use px_node_protocol::{TransferProgress, VideoSpec};
-    use ring::{
-        rand::SystemRandom,
-        signature::{Ed25519KeyPair, KeyPair},
-    };
-    use sha2::{Digest, Sha256};
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
-    struct DeploymentIdentityFixture {
-        certificate: DeploymentCertificate,
-        descriptor: PlatformDescriptor,
-        identity: SignedDeploymentIdentity,
-        signer: DeploymentIdentitySigner,
-        trust_store: DeploymentTrustStore,
-    }
-
-    fn lowercase_hex(bytes: &[u8]) -> String {
-        const DIGITS: &[u8; 16] = b"0123456789abcdef";
-        let mut encoded = String::with_capacity(bytes.len() * 2);
-        for byte in bytes {
-            encoded.push(DIGITS[(byte >> 4) as usize] as char);
-            encoded.push(DIGITS[(byte & 0x0f) as usize] as char);
-        }
-        encoded
-    }
 
     #[test]
     fn frontend_retirement_requires_a_fresh_render_snapshot_or_full_lease_expiry() {
@@ -2814,105 +2629,6 @@ mod tests {
             &expired_retirement,
             &disconnected
         ));
-    }
-
-    fn deployment_identity_fixture(now: i64) -> DeploymentIdentityFixture {
-        let random = SystemRandom::new();
-        let vendor_document = Ed25519KeyPair::generate_pkcs8(&random).unwrap();
-        let vendor_pair = Ed25519KeyPair::from_pkcs8(vendor_document.as_ref()).unwrap();
-        let vendor_public_key: [u8; 32] = vendor_pair.public_key().as_ref().try_into().unwrap();
-        let deployment_document = Ed25519KeyPair::generate_pkcs8(&random).unwrap();
-        let deployment_pair = Ed25519KeyPair::from_pkcs8(deployment_document.as_ref()).unwrap();
-        let deployment_public_key: [u8; 32] =
-            deployment_pair.public_key().as_ref().try_into().unwrap();
-        let certificate = DeploymentCertificate {
-            schema_version: 2,
-            deployment_id: Uuid::new_v4(),
-            deployment_kind: DeploymentKind::Private,
-            distribution: Distribution::Customer,
-            release_namespace: "pixels.customer".into(),
-            oem_id: None,
-            deployment_public_key_hex: lowercase_hex(&deployment_public_key),
-            certificate_version: 2,
-            not_before: now - 60,
-            expires_at: now + 3_600,
-            issuer_key_id: lowercase_hex(&Sha256::digest(vendor_public_key)),
-        };
-        let descriptor = PlatformDescriptor {
-            schema_version: 2,
-            deployment_id: certificate.deployment_id,
-            deployment_kind: certificate.deployment_kind,
-            distribution: certificate.distribution,
-            release_namespace: certificate.release_namespace.clone(),
-            oem_id: certificate.oem_id.clone(),
-            descriptor_revision: 4,
-            trust_epoch: 3,
-            issued_at: now - 10,
-            expires_at: now + 600,
-            minimum_client_build: 1,
-            api_versions: vec!["console.v1".into(), "node.v1".into()],
-            minimum_protocol_version: 1,
-            maximum_protocol_version: 1,
-            authentication_methods: vec![
-                AuthenticationMethod::Guest,
-                AuthenticationMethod::Password,
-            ],
-            registration_policy: RegistrationPolicy::Closed,
-            console_api_path: "/api/console".into(),
-            node_control_path: "/api/console/node-control".into(),
-        };
-        let signer = DeploymentIdentitySigner::from_pkcs8(deployment_document.as_ref()).unwrap();
-        let identity = SignedDeploymentIdentity {
-            certificate_wire: sign_certificate(vendor_document.as_ref(), &certificate).unwrap(),
-            descriptor_wire: signer.sign_descriptor(&certificate, &descriptor).unwrap(),
-        };
-        DeploymentIdentityFixture {
-            certificate,
-            descriptor,
-            identity,
-            signer,
-            trust_store: DeploymentTrustStore::new(3, [vendor_public_key]).unwrap(),
-        }
-    }
-
-    async fn read_http_request(stream: &mut TcpStream) -> Vec<u8> {
-        let mut request = Vec::new();
-        let mut buffer = [0_u8; 2_048];
-        loop {
-            let received = stream.read(&mut buffer).await.unwrap();
-            assert_ne!(
-                received, 0,
-                "HTTP request ended before its body was complete"
-            );
-            request.extend_from_slice(&buffer[..received]);
-            let Some(headers_end) = request.windows(4).position(|bytes| bytes == b"\r\n\r\n")
-            else {
-                continue;
-            };
-            let headers_end = headers_end + 4;
-            let headers = std::str::from_utf8(&request[..headers_end]).unwrap();
-            let content_length = headers
-                .lines()
-                .find_map(|line| {
-                    line.strip_prefix("content-length: ")
-                        .or_else(|| line.strip_prefix("Content-Length: "))
-                })
-                .map(|value| value.parse::<usize>().unwrap())
-                .unwrap_or(0);
-            if request.len() >= headers_end + content_length {
-                return request;
-            }
-        }
-    }
-
-    async fn write_http_json(stream: &mut TcpStream, body: &[u8]) {
-        let headers = format!(
-            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-            body.len()
-        );
-        stream.write_all(headers.as_bytes()).await.unwrap();
-        stream.write_all(body).await.unwrap();
-        stream.shutdown().await.unwrap();
     }
 
     fn command(action: NodeCommandAction) -> NodeCommand {
@@ -3563,132 +3279,6 @@ mod tests {
                 reason: PreparationFailure::UnsupportedMode
             }
         ));
-    }
-
-    #[test]
-    fn deployment_identity_urls_preserve_only_the_verified_console_origin() {
-        assert_eq!(
-            console_http_url(
-                "wss://console.example.com/api/console/node-control",
-                "/.well-known/pixels"
-            )
-            .unwrap()
-            .as_str(),
-            "https://console.example.com/.well-known/pixels"
-        );
-        assert_eq!(
-            console_http_url(
-                "ws://127.0.0.1:48123/api/console/node-control",
-                "/.well-known/pixels/challenge"
-            )
-            .unwrap()
-            .as_str(),
-            "http://127.0.0.1:48123/.well-known/pixels/challenge"
-        );
-        assert!(console_http_url(
-            "https://console.example.com/api/console/node-control",
-            "/.well-known/pixels"
-        )
-        .is_err());
-    }
-
-    #[cfg(windows)]
-    #[tokio::test]
-    async fn signed_deployment_identity_and_nonce_proof_are_required_before_node_control() {
-        let now = Utc::now().timestamp();
-        let fixture = deployment_identity_fixture(now);
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let address = listener.local_addr().unwrap();
-        let identity_body = serde_json::to_vec(&fixture.identity).unwrap();
-        let certificate = fixture.certificate.clone();
-        let descriptor = fixture.descriptor.clone();
-        let signer = fixture.signer;
-        let identity_server = tokio::spawn(async move {
-            let (mut discovery_stream, _) = listener.accept().await.unwrap();
-            let discovery_request = read_http_request(&mut discovery_stream).await;
-            assert!(discovery_request.starts_with(b"GET /.well-known/pixels HTTP/1.1\r\n"));
-            write_http_json(&mut discovery_stream, &identity_body).await;
-
-            let (mut challenge_stream, _) = listener.accept().await.unwrap();
-            let challenge_request = read_http_request(&mut challenge_stream).await;
-            assert!(
-                challenge_request.starts_with(b"POST /.well-known/pixels/challenge HTTP/1.1\r\n")
-            );
-            let body_start = challenge_request
-                .windows(4)
-                .position(|bytes| bytes == b"\r\n\r\n")
-                .unwrap()
-                + 4;
-            let request: serde_json::Value =
-                serde_json::from_slice(&challenge_request[body_start..]).unwrap();
-            assert_eq!(
-                request["descriptor_revision"].as_u64(),
-                Some(descriptor.descriptor_revision)
-            );
-            let nonce = request["nonce"].as_str().unwrap().to_string();
-            let challenge = ChallengePayload {
-                schema_version: 1,
-                deployment_id: certificate.deployment_id,
-                descriptor_revision: descriptor.descriptor_revision,
-                nonce,
-                issued_at: Utc::now().timestamp(),
-                expires_at: Utc::now().timestamp() + 30,
-            };
-            let proof_wire = signer.sign_challenge(&certificate, &challenge).unwrap();
-            let challenge_body = serde_json::to_vec(&serde_json::json!({
-                "proof_wire": proof_wire,
-            }))
-            .unwrap();
-            write_http_json(&mut challenge_stream, &challenge_body).await;
-        });
-
-        let temporary = tempfile::tempdir().unwrap();
-        let store = NodeControlStore::new(temporary.path().to_path_buf());
-        let configuration = NodeControlConfiguration {
-            endpoint: format!("ws://{address}/api/console/node-control"),
-            node_token: zeroize::Zeroizing::new("a".repeat(64)),
-            public_host: "render.example.com".into(),
-            deployment_id: fixture.certificate.deployment_id,
-            deployment_kind: fixture.certificate.deployment_kind,
-            distribution: fixture.certificate.distribution,
-            release_namespace: fixture.certificate.release_namespace.clone(),
-            oem_id: fixture.certificate.oem_id.clone(),
-            deployment_trust_store: fixture.trust_store,
-            minimum_certificate_version: fixture.certificate.certificate_version,
-            minimum_descriptor_revision: fixture.descriptor.descriptor_revision,
-            minimum_trust_epoch: fixture.descriptor.trust_epoch,
-        };
-        configuration.validate().unwrap();
-        let http = reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .timeout(EXCHANGE_TIMEOUT)
-            .build()
-            .unwrap();
-        let mut customer_product = cloud_product();
-        customer_product.distribution = "customer".into();
-        customer_product.release_namespace = Some("pixels.customer".into());
-        verify_deployment_identity(&http, &store, &configuration, &customer_product)
-            .await
-            .unwrap();
-        identity_server.await.unwrap();
-
-        assert_eq!(
-            store.load_identity_watermark().unwrap(),
-            Some(
-                DeploymentIdentityWatermark::new(DeploymentIdentityWatermarkInput {
-                    deployment_id: configuration.deployment_id,
-                    deployment_kind: configuration.deployment_kind,
-                    distribution: configuration.distribution,
-                    release_namespace: configuration.release_namespace.clone(),
-                    oem_id: configuration.oem_id.clone(),
-                    certificate_version: configuration.minimum_certificate_version,
-                    descriptor_revision: configuration.minimum_descriptor_revision,
-                    trust_epoch: configuration.minimum_trust_epoch,
-                })
-                .unwrap()
-            )
-        );
-        store.clear().unwrap();
     }
 
     #[tokio::test]
