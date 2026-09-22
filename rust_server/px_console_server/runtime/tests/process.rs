@@ -229,6 +229,8 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
     std::fs::create_dir(&static_directory).unwrap();
     std::fs::create_dir(&recording_cache_directory).unwrap();
     std::fs::create_dir(&license_state_directory).unwrap();
+    restrict_private_directory(&recording_cache_directory);
+    restrict_private_directory(&license_state_directory);
     std::fs::write(
         static_directory.join("index.html"),
         "pixels-console-process",
@@ -330,69 +332,72 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
         "path": workspace_key_path,
     }]);
 
-    let mut command = Command::new(env!("CARGO_BIN_EXE_px_console"));
-    command
-        .env("PIXELS_CONSOLE_LOCAL_DEVELOPMENT", "1")
-        .env("PIXELS_DEPLOYMENT_ID", deployment.to_string())
-        .env("PIXELS_CONSOLE_DATABASE_URL", database_url("RUNTIME"))
-        .env("PIXELS_CONSOLE_LISTEN", address.to_string())
-        .env("PIXELS_CONSOLE_STATIC_DIRECTORY", &static_directory)
-        .env("PIXELS_CONSOLE_PUBLIC_ORIGIN", format!("http://{address}"))
-        .env("PIXELS_CONSOLE_REGISTRATION", "1")
-        .env("PIXELS_CONSOLE_GUESTS", "1")
-        .env("PIXELS_CONSOLE_SESSION_LIFETIME_SECONDS", "3600")
-        .env("PIXELS_CONSOLE_GUEST_LIFETIME_SECONDS", "3600")
-        .env("PIXELS_CONSOLE_GUEST_SOURCE_KEY", &guest_key_path)
-        .env(
-            "PIXELS_CONSOLE_WORKSPACE_ACTIVE_KEY",
-            workspace_key_id.to_string(),
-        )
-        .env("PIXELS_CONSOLE_WORKSPACE_KEYS", workspace_keys.to_string())
-        .env(
-            "PIXELS_CONSOLE_RECORDING_CACHE_DIRECTORY",
-            &recording_cache_directory,
-        )
-        .env("PIXELS_CONSOLE_RECORDING_CACHE_BYTES", "1073741824")
-        .env("PIXELS_CONSOLE_RECORDING_CACHE_DOWNLOADS", "4")
-        .env("PIXELS_CONSOLE_RECORDING_CACHE_TTL_SECONDS", "86400")
-        .env("PIXELS_CONSOLE_DISTRIBUTION", "customer")
-        .env("PIXELS_CONSOLE_RELEASE_NAMESPACE", "pixels.customer")
-        .env("PIXELS_CONSOLE_MACHINE_SHA256", "a".repeat(64))
-        .env(
-            "PIXELS_CONSOLE_LICENSE_AUTHORITY_DEPLOYMENT_ID",
-            authority_deployment.to_string(),
-        )
-        .env("PIXELS_CONSOLE_LICENSE_TRUST_STORE", &license_trust_path)
-        .env("PIXELS_CONSOLE_LICENSE_FILE", &license_path)
-        .env(
-            "PIXELS_CONSOLE_LICENSE_STATE_DIRECTORY",
-            &license_state_directory,
-        )
-        .env(
-            "PIXELS_CONSOLE_DEPLOYMENT_CERTIFICATE",
-            &deployment_certificate_path,
-        )
-        .env(
-            "PIXELS_CONSOLE_DEPLOYMENT_SIGNING_KEY",
-            &deployment_signing_key_path,
-        )
-        .env(
-            "PIXELS_CONSOLE_DEPLOYMENT_TRUST_STORE",
-            &deployment_trust_path,
-        )
-        .env("PIXELS_CONSOLE_DEPLOYMENT_CERTIFICATE_VERSION", "1")
-        .env("PIXELS_CONSOLE_DESCRIPTOR_REVISION", "1")
-        .env("PIXELS_CONSOLE_DEPLOYMENT_TRUST_EPOCH", "1")
-        .env("PIXELS_CONSOLE_MINIMUM_CLIENT_BUILD", "1")
-        .env_remove("PIXELS_CONSOLE_AUTH_VERIFY_URL")
-        .env_remove("PIXELS_CONSOLE_TLS_CERT")
-        .env_remove("PIXELS_CONSOLE_TLS_KEY")
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped());
-    let mut process = ChildProcess {
-        process: Some(command.spawn().unwrap()),
+    let spawn_console = || {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_px_console"));
+        command
+            .env("PIXELS_CONSOLE_LOCAL_DEVELOPMENT", "1")
+            .env("PIXELS_DEPLOYMENT_ID", deployment.to_string())
+            .env("PIXELS_CONSOLE_DATABASE_URL", database_url("RUNTIME"))
+            .env("PIXELS_CONSOLE_LISTEN", address.to_string())
+            .env("PIXELS_CONSOLE_STATIC_DIRECTORY", &static_directory)
+            .env("PIXELS_CONSOLE_PUBLIC_ORIGIN", format!("http://{address}"))
+            .env("PIXELS_CONSOLE_REGISTRATION", "1")
+            .env("PIXELS_CONSOLE_GUESTS", "1")
+            .env("PIXELS_CONSOLE_SESSION_LIFETIME_SECONDS", "3600")
+            .env("PIXELS_CONSOLE_GUEST_LIFETIME_SECONDS", "3600")
+            .env("PIXELS_CONSOLE_GUEST_SOURCE_KEY", &guest_key_path)
+            .env(
+                "PIXELS_CONSOLE_WORKSPACE_ACTIVE_KEY",
+                workspace_key_id.to_string(),
+            )
+            .env("PIXELS_CONSOLE_WORKSPACE_KEYS", workspace_keys.to_string())
+            .env(
+                "PIXELS_CONSOLE_RECORDING_CACHE_DIRECTORY",
+                &recording_cache_directory,
+            )
+            .env("PIXELS_CONSOLE_RECORDING_CACHE_BYTES", "1073741824")
+            .env("PIXELS_CONSOLE_RECORDING_CACHE_DOWNLOADS", "4")
+            .env("PIXELS_CONSOLE_RECORDING_CACHE_TTL_SECONDS", "86400")
+            .env("PIXELS_CONSOLE_DISTRIBUTION", "customer")
+            .env("PIXELS_CONSOLE_RELEASE_NAMESPACE", "pixels.customer")
+            .env("PIXELS_CONSOLE_MACHINE_SHA256", "a".repeat(64))
+            .env(
+                "PIXELS_CONSOLE_LICENSE_AUTHORITY_DEPLOYMENT_ID",
+                authority_deployment.to_string(),
+            )
+            .env("PIXELS_CONSOLE_LICENSE_TRUST_STORE", &license_trust_path)
+            .env("PIXELS_CONSOLE_LICENSE_FILE", &license_path)
+            .env(
+                "PIXELS_CONSOLE_LICENSE_STATE_DIRECTORY",
+                &license_state_directory,
+            )
+            .env(
+                "PIXELS_CONSOLE_DEPLOYMENT_CERTIFICATE",
+                &deployment_certificate_path,
+            )
+            .env(
+                "PIXELS_CONSOLE_DEPLOYMENT_SIGNING_KEY",
+                &deployment_signing_key_path,
+            )
+            .env(
+                "PIXELS_CONSOLE_DEPLOYMENT_TRUST_STORE",
+                &deployment_trust_path,
+            )
+            .env("PIXELS_CONSOLE_DEPLOYMENT_CERTIFICATE_VERSION", "1")
+            .env("PIXELS_CONSOLE_DESCRIPTOR_REVISION", "1")
+            .env("PIXELS_CONSOLE_DEPLOYMENT_TRUST_EPOCH", "1")
+            .env("PIXELS_CONSOLE_MINIMUM_CLIENT_BUILD", "1")
+            .env_remove("PIXELS_CONSOLE_AUTH_VERIFY_URL")
+            .env_remove("PIXELS_CONSOLE_TLS_CERT")
+            .env_remove("PIXELS_CONSOLE_TLS_KEY")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped());
+        ChildProcess {
+            process: Some(command.spawn().unwrap()),
+        }
     };
+    let mut process = spawn_console();
     wait_until_ready(&mut process, address);
     let index_response = http_response(address, "/settings/profile").unwrap();
     assert!(index_response.starts_with("HTTP/1.1 200"));
@@ -405,6 +410,23 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
     assert!(http_response(address, "/api/retired")
         .unwrap()
         .starts_with("HTTP/1.1 404"));
+
+    #[cfg(unix)]
+    {
+        let process_id = process.process().id().to_string();
+        let signal_status = Command::new("kill")
+            .args(["-TERM", &process_id])
+            .status()
+            .unwrap();
+        assert!(signal_status.success());
+        let mut stopping_process = process.take();
+        let exit_status = stopping_process.wait().unwrap();
+        assert!(exit_status.success());
+
+        process = spawn_console();
+        wait_until_ready(&mut process, address);
+        assert!(ready(address));
+    }
 
     let container = env::var("PIXELS_TEST_CONTAINER").unwrap();
     assert!(

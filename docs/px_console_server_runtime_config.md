@@ -143,6 +143,8 @@ sequence 和 present 状态，重连时重新向当前 generation 报告，文�
 
 - 日常后端/前端聚焦构建：`scripts_build\build_px_console_server.bat`，输出到 `output\px_console\dev`，不提升版本。
 - 仅更新 Console Web：`scripts_build\build_console_web.bat`，同步到 `output\px_console\dev\static` 并逐文件校验哈希。
+- Windows/WSL2 进程与 Linux SIGTERM 聚焦短测：
+  `scripts\server_validation\postgres.ps1 TestSuite -Suite console-process -Linux`；它使用一次性数据库，不替代正式目标发行版 systemd 验收。
 - 正式发行：`scripts\package_px_console_server.bat`。它独立提升 Console 版本，运行前端合同测试和生产构建，编译 PostgreSQL
   `px_console.exe`、`px_console_admin.exe`、`px_db.exe`，输出新的 `output\px_console\releases\<run-id>`。
 

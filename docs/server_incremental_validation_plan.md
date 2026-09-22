@@ -196,6 +196,11 @@ UI/媒体验收报告须附制品 hash、设备信息和实际交互证据；截
 测试入口修订按对应阶段提交；本文不顺带运行旧脚本、改动业务实现或对公网注入故障。
 测试脚本本身必须验证退出码、断言数及结果收集完整性；PowerShell 内原生命令失败须显式传播，不能末尾打印 PASS 后以 0 退出。
 
+Console 进程的跨平台短门禁使用
+`scripts/server_validation/postgres.ps1 TestSuite -Suite console-process -Linux`。它只建立一次性 PostgreSQL 环境并在 Windows 与 WSL2
+分别运行同一真实进程用例；Linux 路径还必须完成 SIGTERM 正常退出、原配置重启和断库 fail-closed，记录 Unix 二进制 SHA-256 后清理容器与卷。
+该入口用于开发增量，不包含浏览器、三库恢复或完整跨平台目录，不能替代 `postgres.ps1 Test -Linux` 阶段总门禁。
+
 ## 11. 报告、运行频率与停止条件
 
 每次报告至少包含：run_id、时间、Git revision 和未提交补丁摘要、构建/包 SHA-256、数据库/schema/工具版本、脱敏环境身份、

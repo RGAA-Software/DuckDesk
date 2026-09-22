@@ -15,7 +15,9 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 if ($Action -eq 'TestSuite') {
     if (-not $Suite) { throw 'TestSuite requires an explicit -Suite' }
-    if ($Linux) { throw 'TestSuite is a focused native check. Use Test -Linux for the full cross-platform gate.' }
+    if ($Linux -and $Suite -ne 'console-process') {
+        throw '-Linux is currently supported only for the focused console-process suite; use Test -Linux for the full cross-platform gate.'
+    }
 } elseif ($Suite) { throw '-Suite is only valid with TestSuite' }
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $dockerBin = 'C:\Program Files\Docker\Docker\resources\bin'
@@ -369,9 +371,63 @@ try {
         $result = Invoke-Checked 'cargo' $suiteArgs
         Write-Host $result
         Add-TestCases $result "focused/$Suite" $suiteCounts[$Suite]
+        if ($Linux) {
+            $cargoHome = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path ([Environment]::GetFolderPath('UserProfile')) '.cargo' }
+            Set-LocalEnv 'CARGO_HOME' $cargoHome
+            $forward = @(
+                'CARGO_HOME/p',
+                'SQLX_OFFLINE',
+                'SQLX_OFFLINE_DIR/p',
+                'PIXELS_PG_ISOLATED_TEST',
+                'PIXELS_TEST_CONTAINER',
+                'PIXELS_DEPLOYMENT_ID',
+                'PIXELS_PG_LOCAL_DEVELOPMENT',
+                'PIXELS_TEST_PG_ADMIN_PASSWORD'
+            )
+            foreach ($service in @('CONSOLE','AUTH','DESK')) {
+                foreach ($role in @('OWNER','RUNTIME')) { $forward += "PIXELS_TEST_${service}_${role}_URL" }
+            }
+            $existing = @($env:WSLENV -split ':' | Where-Object {
+                $_ -and (($_ -split '/')[0] -notin @($forward | ForEach-Object { ($_ -split '/')[0] }))
+            })
+            Set-LocalEnv 'WSLENV' (($existing + $forward) -join ':')
+            $linuxScript = (Invoke-Checked 'wsl' @(
+                '-d',
+                'Ubuntu-20.04',
+                '--exec',
+                'wslpath',
+                '-a',
+                (Join-Path $PSScriptRoot 'postgres_wsl_suite.sh')
+            )).Trim()
+            $linuxResult = Invoke-Checked 'wsl' @(
+                '-d',
+                'Ubuntu-20.04',
+                '--exec',
+                'timeout',
+                '--signal=TERM',
+                '--kill-after=10s',
+                '360',
+                'bash',
+                '-l',
+                $linuxScript,
+                $Suite
+            ) -TimeoutSeconds 420
+            Write-Host $linuxResult
+            Add-TestCases $linuxResult "focused-linux/$Suite" $suiteCounts[$Suite]
+            if ($linuxResult -notmatch '(?m)^([a-f0-9]{64})\s+[^\r\n]+/debug/px_console\s*$') {
+                throw 'Missing focused Linux Console binary hash'
+            }
+            $fingerprints.linux_px_console = $Matches[1]
+            Add-Step 'LINUX-FOCUSED: native Console process received SIGTERM, exited cleanly, restarted, and failed closed after database authority loss'
+        }
         $fingerprints.px_db = (Get-FileHash -LiteralPath $dbTool -Algorithm SHA256).Hash
         Assert-SourceHashes
-        Add-Step 'FOCUSED-ONLY: selected native suite; no browser, restore or full cross-platform acceptance'
+        $focusedScope = if ($Linux) {
+            'FOCUSED-ONLY: selected Windows/Linux native suite; no browser, restore or full cross-platform acceptance'
+        } else {
+            'FOCUSED-ONLY: selected native suite; no browser, restore or full cross-platform acceptance'
+        }
+        Add-Step $focusedScope
         return
     }
     $catalogTests = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_release_catalog','--lib','--target-dir',$targetDir)
