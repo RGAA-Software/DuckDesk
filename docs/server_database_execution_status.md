@@ -1757,7 +1757,12 @@ Android 在线元数据持久水位随后与 root 状态合并为全新 schema 2
 Android 仓库刷新生产路径随后接入：检查更新在返回业务层前先使用独立受限 HTTPS 读取器，拒绝重定向、缓存、非 identity 编码、非 200、超时和超过 1 MiB 的
 响应；从当前 root 到 Console 审批末端版本逐个请求 `${N}.root.json`，不能跳版，再刷新 timestamp/snapshot/targets 并原子提交水位。注入仓库测试覆盖 Root 2
 轮换后使用新在线角色完成三层验证，以及缺失必需元数据 fail closed；core-network 当前 47/47、App Kotlin 编译和 core-network/App Lint 377 个任务通过。
-当前未使用正式公网 TUF 仓库做端到端实测，也尚未下载 APK、复核 APK 平台签名或进入 PackageInstaller。
+该切片结束时尚未下载 APK、复核 APK 平台签名或进入 PackageInstaller。
+
+Android APK 安全暂存随后接入：只有本进程刚通过 Console 目录与完整 TUF 链验证的精确 release ID 才能请求下载；目标地址限定为已审批 HTTPS target base 的
+同源子路径，禁用重定向、缓存和压缩并要求服务端 Content-Length 精确一致。下载流直接写入应用私有的唯一临时文件，同时执行 4 GiB 上限、实际字节数和 TUF
+SHA-256 校验；全部通过后才原子替换 prepared APK，失败或摘要不符即清理临时文件。core-network 当前 49/49、App Kotlin 编译及 core-network/App Lint
+372 个任务通过。当前未使用正式公网 TUF 仓库做端到端实测，也尚未复核 APK 平台签名、applicationId、版本字段或进入 PackageInstaller；prepared 文件不能直接安装。
 
 | 阶段 | 当前未完成项 |
 |---|---|

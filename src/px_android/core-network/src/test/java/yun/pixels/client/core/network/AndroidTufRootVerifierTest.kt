@@ -12,7 +12,9 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import yun.pixels.client.core.domain.update.AndroidTufTrustedRoot
 import yun.pixels.client.core.domain.update.AndroidTufTrustedRootState
 import yun.pixels.client.core.domain.update.AndroidTufTrustedRootStore
@@ -20,6 +22,9 @@ import yun.pixels.client.core.domain.update.AndroidUpdateArtifact
 import yun.pixels.client.core.domain.update.AndroidUpdateRelease
 
 class AndroidTufRootVerifierTest {
+    @get:Rule
+    val temporaryFolder = TemporaryFolder()
+
     @Test
     fun independentlySignedThresholdRootBecomesTheImmutableTrustStartingPoint() {
         val fixture = RootFixture()
@@ -476,6 +481,46 @@ class AndroidTufRootVerifierTest {
         )
 
         assertEquals(AndroidTufRefreshResult.NetworkFailure, refresher.refresh(release))
+    }
+
+    @Test
+    fun apkDownloadCommitsOnlyTheExpectedBytesAndDigest() = runBlocking {
+        val apkBytes = "verified apk payload".toByteArray()
+        val release = androidRelease().copy(
+            artifact = androidRelease().artifact.copy(
+                sizeBytes = apkBytes.size.toLong(),
+                sha256 = MessageDigest.getInstance("SHA-256").digest(apkBytes).toHex(),
+            ),
+        )
+        val downloader = AndroidApkDownloader(
+            temporaryFolder.newFolder("prepared"),
+            ApkRequestExecutor { _, expectedBytes, acceptChunk ->
+                expectedBytes == apkBytes.size.toLong() && acceptChunk(apkBytes, apkBytes.size)
+            },
+            Dispatchers.Unconfined,
+        )
+
+        val preparedUpdate = downloader.download(release)
+
+        assertNotNull(preparedUpdate)
+        assertEquals(true, java.io.File(preparedUpdate?.stagedApkPath.orEmpty()).readBytes().contentEquals(apkBytes))
+    }
+
+    @Test
+    fun apkDownloadDeletesAHashMismatchInsteadOfPublishingIt() = runBlocking {
+        val apkBytes = "tampered apk payload".toByteArray()
+        val stagingDirectory = temporaryFolder.newFolder("rejected")
+        val release = androidRelease().copy(
+            artifact = androidRelease().artifact.copy(sizeBytes = apkBytes.size.toLong()),
+        )
+        val downloader = AndroidApkDownloader(
+            stagingDirectory,
+            ApkRequestExecutor { _, _, acceptChunk -> acceptChunk(apkBytes, apkBytes.size) },
+            Dispatchers.Unconfined,
+        )
+
+        assertNull(downloader.download(release))
+        assertEquals(emptyList<String>(), stagingDirectory.list()?.toList())
     }
 
     private data class SigningKey(

@@ -5,10 +5,13 @@ import java.net.URI
 import javax.net.ssl.HttpsURLConnection
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import yun.pixels.client.core.domain.account.AccountFailure
 import yun.pixels.client.core.domain.account.AccountResult
 import yun.pixels.client.core.domain.update.AndroidUpdateRepository
+import yun.pixels.client.core.domain.update.AndroidUpdatePreparationRepository
 import yun.pixels.client.core.domain.update.AndroidUpdateRelease
 
 enum class AndroidTufRefreshResult {
@@ -21,17 +24,33 @@ enum class AndroidTufRefreshResult {
 class TufVerifiedAndroidUpdateRepository(
     private val catalogRepository: AndroidUpdateRepository,
     private val repositoryRefresher: AndroidTufRepositoryRefresher,
-) : AndroidUpdateRepository {
-    override suspend fun latest(): AccountResult<AndroidUpdateRelease> {
+    private val apkDownloader: AndroidApkDownloader,
+) : AndroidUpdatePreparationRepository {
+    private val workflowMutex = Mutex()
+    private var approvedRelease: AndroidUpdateRelease? = null
+
+    override suspend fun latest(): AccountResult<AndroidUpdateRelease> = workflowMutex.withLock {
+        approvedRelease = null
         val catalogResult = catalogRepository.latest()
-        if (catalogResult !is AccountResult.Success) return catalogResult
-        return when (repositoryRefresher.refresh(catalogResult.value)) {
-            AndroidTufRefreshResult.Success -> catalogResult
+        if (catalogResult !is AccountResult.Success) return@withLock catalogResult
+        when (repositoryRefresher.refresh(catalogResult.value)) {
+            AndroidTufRefreshResult.Success -> {
+                approvedRelease = catalogResult.value
+                catalogResult
+            }
             AndroidTufRefreshResult.NetworkFailure -> AccountResult.Failure(AccountFailure.NetworkUnavailable)
             AndroidTufRefreshResult.InvalidRepositoryLocation,
             AndroidTufRefreshResult.TrustRejected,
             -> AccountResult.Failure(AccountFailure.InvalidResponse)
         }
+    }
+
+    override suspend fun prepare(releaseId: String) = workflowMutex.withLock {
+        val release = approvedRelease?.takeIf { candidate -> candidate.releaseId == releaseId }
+            ?: return@withLock AccountResult.Failure(AccountFailure.InvalidResponse)
+        val preparedUpdate = apkDownloader.download(release)
+            ?: return@withLock AccountResult.Failure(AccountFailure.NetworkUnavailable)
+        AccountResult.Success(preparedUpdate)
     }
 }
 

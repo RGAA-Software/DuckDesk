@@ -1,6 +1,7 @@
 package yun.pixels.client
 
 import android.app.Application
+import java.io.File
 import java.util.Base64
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -20,8 +21,9 @@ import yun.pixels.client.core.domain.account.ApplicationRepository
 import yun.pixels.client.core.domain.device.DeviceDirectory
 import yun.pixels.client.core.domain.device.DeviceDiscovery
 import yun.pixels.client.core.domain.device.DeviceResolver
-import yun.pixels.client.core.domain.update.AndroidUpdateRepository
+import yun.pixels.client.core.domain.update.AndroidUpdatePreparationRepository
 import yun.pixels.client.core.network.AndroidReleaseIdentity
+import yun.pixels.client.core.network.AndroidApkDownloader
 import yun.pixels.client.core.network.AndroidTufTrustConfiguration
 import yun.pixels.client.core.network.AndroidTufTrustedRootManager
 import yun.pixels.client.core.network.AndroidTufRepositoryRefresher
@@ -96,9 +98,10 @@ class PixelsAppGraph(application: Application) {
     ).also { repository -> applicationScope.launch { repository.restore() } }
     val accountRepository: AccountRepository = consoleSessionRepository
     val applicationRepository: ApplicationRepository = ConsoleApplicationRepository(consoleApi, consoleSessionRepository)
-    val updateRepository: AndroidUpdateRepository = TufVerifiedAndroidUpdateRepository(
+    val updateRepository: AndroidUpdatePreparationRepository = TufVerifiedAndroidUpdateRepository(
         ConsoleAndroidUpdateRepository(consoleApi, consoleSessionRepository),
         AndroidTufRepositoryRefresher(androidTufTrustedRootManager),
+        AndroidApkDownloader(File(application.filesDir, "updates/prepared")),
     )
     val resourceConnectionRenewer = ConsoleResourceConnectionRenewer(consoleApi, consoleApi, consoleSessionRepository)
 }

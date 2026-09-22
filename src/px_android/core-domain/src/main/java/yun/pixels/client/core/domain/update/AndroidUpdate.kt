@@ -23,6 +23,15 @@ data class AndroidUpdateRelease(
     val artifact: AndroidUpdateArtifact,
 )
 
+data class PreparedAndroidUpdate(
+    val release: AndroidUpdateRelease,
+    val stagedApkPath: String,
+)
+
 interface AndroidUpdateRepository {
     suspend fun latest(): AccountResult<AndroidUpdateRelease>
+}
+
+interface AndroidUpdatePreparationRepository : AndroidUpdateRepository {
+    suspend fun prepare(releaseId: String): AccountResult<PreparedAndroidUpdate>
 }
