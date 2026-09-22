@@ -1752,7 +1752,12 @@ Android 顶级在线元数据验证内核随后实现：当前 root 保留四个
 Android 在线元数据持久水位随后与 root 状态合并为全新 schema 2，不读取开发期 schema 1。timestamp/snapshot/targets 的最高版本与各自完整文件 SHA-256
 随发行域、root 版本/root 字节一起由 Keystore AES-GCM 保护并同步原子提交；重启后任一角色降版、同版本不同内容或保存失败都 fail closed，root 轮换不会清空
 已经接受的在线元数据水位。core-data 13/13、core-network 45/45 单测通过，相关 App 编译及 core-data/core-network/App Lint 385 个任务通过。
-尚未接入的是仓库 HTTPS 获取、逐版本在线 root 刷新、APK 下载/平台签名复核及安装事务。
+该持久水位切片结束时尚未接入仓库读取；HTTPS 刷新在下一切片实现，APK 下载和安装仍继续保持未完成。
+
+Android 仓库刷新生产路径随后接入：检查更新在返回业务层前先使用独立受限 HTTPS 读取器，拒绝重定向、缓存、非 identity 编码、非 200、超时和超过 1 MiB 的
+响应；从当前 root 到 Console 审批末端版本逐个请求 `${N}.root.json`，不能跳版，再刷新 timestamp/snapshot/targets 并原子提交水位。注入仓库测试覆盖 Root 2
+轮换后使用新在线角色完成三层验证，以及缺失必需元数据 fail closed；core-network 当前 47/47、App Kotlin 编译和 core-network/App Lint 377 个任务通过。
+当前未使用正式公网 TUF 仓库做端到端实测，也尚未下载 APK、复核 APK 平台签名或进入 PackageInstaller。
 
 | 阶段 | 当前未完成项 |
 |---|---|

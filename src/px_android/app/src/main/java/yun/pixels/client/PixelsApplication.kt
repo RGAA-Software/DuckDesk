@@ -24,12 +24,14 @@ import yun.pixels.client.core.domain.update.AndroidUpdateRepository
 import yun.pixels.client.core.network.AndroidReleaseIdentity
 import yun.pixels.client.core.network.AndroidTufTrustConfiguration
 import yun.pixels.client.core.network.AndroidTufTrustedRootManager
+import yun.pixels.client.core.network.AndroidTufRepositoryRefresher
 import yun.pixels.client.core.network.ConsoleApiClient
 import yun.pixels.client.core.network.ConsoleAndroidUpdateRepository
 import yun.pixels.client.core.network.ConsoleApplicationRepository
 import yun.pixels.client.core.network.ConsoleResourceConnectionRenewer
 import yun.pixels.client.core.network.ConsoleSessionCoordinator
 import yun.pixels.client.core.network.DeploymentIdentityConfiguration
+import yun.pixels.client.core.network.TufVerifiedAndroidUpdateRepository
 
 class PixelsApplication : Application() {
     lateinit var graph: PixelsAppGraph
@@ -94,6 +96,9 @@ class PixelsAppGraph(application: Application) {
     ).also { repository -> applicationScope.launch { repository.restore() } }
     val accountRepository: AccountRepository = consoleSessionRepository
     val applicationRepository: ApplicationRepository = ConsoleApplicationRepository(consoleApi, consoleSessionRepository)
-    val updateRepository: AndroidUpdateRepository = ConsoleAndroidUpdateRepository(consoleApi, consoleSessionRepository)
+    val updateRepository: AndroidUpdateRepository = TufVerifiedAndroidUpdateRepository(
+        ConsoleAndroidUpdateRepository(consoleApi, consoleSessionRepository),
+        AndroidTufRepositoryRefresher(androidTufTrustedRootManager),
+    )
     val resourceConnectionRenewer = ConsoleResourceConnectionRenewer(consoleApi, consoleApi, consoleSessionRepository)
 }

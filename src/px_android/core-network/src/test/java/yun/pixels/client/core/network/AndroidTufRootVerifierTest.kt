@@ -5,6 +5,8 @@ import java.security.KeyPairGenerator
 import java.security.MessageDigest
 import java.security.Signature
 import java.time.Instant
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -402,6 +404,80 @@ class AndroidTufRootVerifierTest {
         )
     }
 
+    @Test
+    fun repositoryRefreshFetchesEveryRequiredRoleAndCommitsTheWatermark() = runBlocking {
+        val fixture = RootFixture()
+        val trustConfiguration = requireNotNull(
+            AndroidTufTrustConfiguration.create(fixture.rootBytes(), NOW, JcaEd25519Verifier()),
+        )
+        val releaseIdentity = requireNotNull(AndroidReleaseIdentity.create("official", "pixels.official", null))
+        val trustedRootStore = MemoryTrustedRootStore()
+        val manager = requireNotNull(
+            AndroidTufTrustedRootManager.create(
+                trustConfiguration,
+                releaseIdentity,
+                trustedRootStore,
+                NOW,
+                JcaEd25519Verifier(),
+            ),
+        )
+        val release = androidRelease().copy(repositoryRootVersion = 2)
+        val metadata = fixture.metadata(release, releaseIdentity, useRotatedOnlineKeys = true)
+        val metadataBaseUrl = release.artifact.metadataBaseUrl
+        val responses = mapOf(
+            "${metadataBaseUrl}2.root.json" to fixture.rotatedRootBytes(),
+            "${metadataBaseUrl}timestamp.json" to metadata.timestampBytes,
+            "${metadataBaseUrl}snapshot.json" to metadata.snapshotBytes,
+            "${metadataBaseUrl}targets.json" to metadata.targetsBytes,
+        )
+        val requestedUrls = mutableListOf<String>()
+        val refresher = AndroidTufRepositoryRefresher(
+            manager,
+            TufMetadataRequestExecutor { url, _ ->
+                requestedUrls += url
+                responses[url]
+            },
+            Dispatchers.Unconfined,
+            { NOW },
+        )
+
+        val result = refresher.refresh(release)
+
+        assertEquals(AndroidTufRefreshResult.Success, result)
+        assertEquals(responses.keys.toList(), requestedUrls)
+        assertEquals(2L, manager.currentVersion)
+    }
+
+    @Test
+    fun repositoryRefreshRejectsARepositoryThatOmitsRequiredMetadata() = runBlocking {
+        val fixture = RootFixture()
+        val trustConfiguration = requireNotNull(
+            AndroidTufTrustConfiguration.create(fixture.rootBytes(), NOW, JcaEd25519Verifier()),
+        )
+        val releaseIdentity = requireNotNull(AndroidReleaseIdentity.create("official", "pixels.official", null))
+        val manager = requireNotNull(
+            AndroidTufTrustedRootManager.create(
+                trustConfiguration,
+                releaseIdentity,
+                MemoryTrustedRootStore(),
+                NOW,
+                JcaEd25519Verifier(),
+            ),
+        )
+        val release = androidRelease()
+        val metadata = fixture.metadata(release, releaseIdentity)
+        val refresher = AndroidTufRepositoryRefresher(
+            manager,
+            TufMetadataRequestExecutor { url, _ ->
+                if (url.endsWith("timestamp.json")) metadata.timestampBytes else null
+            },
+            Dispatchers.Unconfined,
+            { NOW },
+        )
+
+        assertEquals(AndroidTufRefreshResult.NetworkFailure, refresher.refresh(release))
+    }
+
     private data class SigningKey(
         val pair: KeyPair,
         val keyPayload: JSONObject,
@@ -524,6 +600,7 @@ class AndroidTufRootVerifierTest {
             snapshotVersion: Long = 1,
             targetsVersion: Long = 1,
             includeUnrelatedTarget: Boolean = false,
+            useRotatedOnlineKeys: Boolean = false,
         ): MetadataBundle {
             val artifact = release.artifact
             val targetIdentity = JSONObject()
@@ -559,13 +636,16 @@ class AndroidTufRootVerifierTest {
             }
             val targetsSigned = commonMetadata("targets", targetsVersion)
                 .put("targets", targets)
-            val targetsBytes = signedEnvelope(targetsSigned, targetsKey)
+            val effectiveTargetsKey = if (useRotatedOnlineKeys) rotatedTargetsKey else targetsKey
+            val effectiveSnapshotKey = if (useRotatedOnlineKeys) rotatedSnapshotKey else snapshotKey
+            val effectiveTimestampKey = if (useRotatedOnlineKeys) rotatedTimestampKey else timestampKey
+            val targetsBytes = signedEnvelope(targetsSigned, effectiveTargetsKey)
             val snapshotSigned = commonMetadata("snapshot", snapshotVersion)
                 .put("meta", JSONObject().put("targets.json", metadataDescription(targetsBytes, targetsVersion)))
-            val snapshotBytes = signedEnvelope(snapshotSigned, snapshotKey)
+            val snapshotBytes = signedEnvelope(snapshotSigned, effectiveSnapshotKey)
             val timestampSigned = commonMetadata("timestamp", timestampVersion)
                 .put("meta", JSONObject().put("snapshot.json", metadataDescription(snapshotBytes, snapshotVersion)))
-            return MetadataBundle(signedEnvelope(timestampSigned, timestampKey), snapshotBytes, targetsBytes)
+            return MetadataBundle(signedEnvelope(timestampSigned, effectiveTimestampKey), snapshotBytes, targetsBytes)
         }
 
         private fun commonMetadata(roleName: String, version: Long): JSONObject = JSONObject()
