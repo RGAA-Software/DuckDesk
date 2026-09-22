@@ -1786,9 +1786,10 @@ feature-settings 新增完整“发现→准备→提交”状态机单测，当
 `scripts_build/build_android_product.bat official debug install` 覆盖安装并执行设置页及 PackageInstaller 矩阵。
 
 为在正式根材料到位前继续使用已连接手机验证非密钥 UI 边界，feature-settings 新增两项 Compose 真机仪器用例：未登录时检查更新按钮必须禁用且不存在安装按钮，已登录且
-存在已验证候选时检查按钮可用并把安装点击精确分发为 `InstallUpdate`。测试 APK 编译、单元测试和 Lint 均通过，但 Xiaomi 当前关闭“通过 USB 安装”，Gradle 与直接
-`pm install -r -t` 均被系统以 `INSTALL_FAILED_USER_RESTRICTED` 拒绝，实际执行为 0 项；开发者选项页面已打开，不能把编译通过记作真机通过。开启该设备开关后应立即
-重跑 `:feature-settings:connectedDebugAndroidTest`，这仍不替代正式 APK 的 PackageInstaller 升级矩阵。
+存在已验证候选时检查按钮可用并把安装点击精确分发为 `InstallUpdate`。测试 APK 编译、单元测试和 Lint 均通过；首次安装被 Xiaomi 以
+`INSTALL_FAILED_USER_RESTRICTED` 拒绝，人工确认后使用 `pm install -r -t` 覆盖安装成功。HyperOS 仍会用 `MIUIOP(10021)` 拒绝 instrumentation 在后台拉起
+Compose 宿主 Activity；仅对测试包临时放行后，`am instrument` 实际执行 2/2 PASS（4.47 秒），结束后该 AppOps 已恢复为 `ignore`，产品 App 保持
+`yun.pixels.client.debug` 1.0.18-debug/10018 且未卸载、未覆盖。本结果关闭设置页非密钥 UI 真机门禁，但不替代正式 APK 的 PackageInstaller 升级矩阵。
 
 | 阶段 | 当前未完成项 |
 |---|---|
