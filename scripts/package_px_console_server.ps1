@@ -73,6 +73,12 @@ try {
     New-Item -ItemType Directory -Path $systemdDirectory | Out-Null
     Copy-VerifiedFile (Join-Path $repositoryRoot 'deploy/systemd/pixels-console@.service') `
         (Join-Path $systemdDirectory 'pixels-console@.service')
+    $linuxDeploymentDirectory = Join-Path $releaseDirectory 'deploy/linux'
+    New-Item -ItemType Directory -Path $linuxDeploymentDirectory | Out-Null
+    Copy-VerifiedFile (Join-Path $repositoryRoot 'scripts/server_console/install_linux_service.sh') `
+        (Join-Path $linuxDeploymentDirectory 'install_linux_service.sh')
+    Copy-VerifiedFile (Join-Path $repositoryRoot 'scripts/server_console/uninstall_linux_service.sh') `
+        (Join-Path $linuxDeploymentDirectory 'uninstall_linux_service.sh')
 
     $releaseMetadata = [ordered]@{
         product = 'px_console'

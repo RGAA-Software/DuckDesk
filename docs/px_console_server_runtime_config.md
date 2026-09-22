@@ -50,6 +50,12 @@ Linux 发行使用包内 `deploy/systemd/pixels-console@.service`：非零退出
 不会被当成崩溃重启。实例 `%i` 是 deployment UUID；私有环境文件固定在 `/etc/pixels/%i/console.env`，可写运行状态固定在
 `/var/lib/pixels/%i/console`。不要再套一层进程守护器，也不要把密钥值写入 unit 文件。
 
+发行包同时携带 `deploy/linux/install_linux_service.sh` 与 `uninstall_linux_service.sh`。安装器只接受小写 deployment UUID、绝对普通可执行文件和
+权限不宽于 `0600` 的绝对环境文件；环境文件必须含与参数完全相同的 `PIXELS_DEPLOYMENT_ID`，未知的非赋值行、符号链接、宽权限文件和同机另一活动
+Console 实例均在覆盖前拒绝。安装器先确认当前实例已停止，再原子替换 `/opt/pixels/current/bin/px_console`，把私有环境以
+`pixels-console:pixels-console 0400` 安装，最后 enable/start 并检查 active。注销只停止并禁用指定实例，保留私有环境和运行数据，供升级回退、审计或
+显式授权的后续清理使用。
+
 ## 全新部署
 
 1. 用独立 owner DSN 执行 `px_db migrate console`；再用 runtime DSN 执行 `px_db check console`。
@@ -145,6 +151,8 @@ sequence 和 present 状态，重连时重新向当前 generation 报告，文�
 - 仅更新 Console Web：`scripts_build\build_console_web.bat`，同步到 `output\px_console\dev\static` 并逐文件校验哈希。
 - Windows/WSL2 进程与 Linux SIGTERM 聚焦短测：
   `scripts\server_validation\postgres.ps1 TestSuite -Suite console-process -Linux`；它使用一次性数据库，不替代正式目标发行版 systemd 验收。
+- WSL2 systemd 安装生命周期短测：`scripts\server_validation\linux_console_systemd.ps1`；它验证错误 deployment/权限拒绝、专用身份、覆盖升级、
+  restart、SIGTERM 和保留数据注销。该脚本使用可观察信号的验证进程测试安装层；真实 Console 进程行为由上一条测试负责，两者都不替代目标发行版 VM。
 - 正式发行：`scripts\package_px_console_server.bat`。它独立提升 Console 版本，运行前端合同测试和生产构建，编译 PostgreSQL
   `px_console.exe`、`px_console_admin.exe`、`px_db.exe`，输出新的 `output\px_console\releases\<run-id>`。
 
