@@ -28,6 +28,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -134,7 +135,7 @@ private fun UpdateControls(state: SettingsUiState, onAction: (SettingsAction) ->
     val operationActive = state.updateStatus == UpdateStatus.Checking || state.updateStatus == UpdateStatus.Downloading
     OutlinedButton(
         onClick = { onAction(SettingsAction.CheckUpdate) },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().testTag(UPDATE_CHECK_TEST_TAG),
         enabled = state.profile != null && !operationActive && state.updateStatus != UpdateStatus.Submitted,
     ) {
         Text(stringResource(R.string.check_for_updates))
@@ -153,7 +154,10 @@ private fun UpdateControls(state: SettingsUiState, onAction: (SettingsAction) ->
                     state.updateBuildNumber ?: 0,
                 ),
             )
-            Button(onClick = { onAction(SettingsAction.InstallUpdate) }, modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = { onAction(SettingsAction.InstallUpdate) },
+                modifier = Modifier.fillMaxWidth().testTag(UPDATE_INSTALL_TEST_TAG),
+            ) {
                 Text(stringResource(R.string.download_and_install))
             }
         }
@@ -176,6 +180,9 @@ private fun UpdateProgress(labelResource: Int) {
         Text(stringResource(labelResource))
     }
 }
+
+internal const val UPDATE_CHECK_TEST_TAG = "settings-update-check"
+internal const val UPDATE_INSTALL_TEST_TAG = "settings-update-install"
 
 private enum class InformationDialog { Privacy, OpenSource }
 

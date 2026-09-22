@@ -1785,6 +1785,11 @@ feature-settings 新增完整“发现→准备→提交”状态机单测，当
 旧公开材料或服务器下载内容冒充审批根，手机和现有构建产物均未改变。因此本轮证据只证明预检门禁有效，不计作新更新链的真机验收；补齐审批公开材料后仍应使用
 `scripts_build/build_android_product.bat official debug install` 覆盖安装并执行设置页及 PackageInstaller 矩阵。
 
+为在正式根材料到位前继续使用已连接手机验证非密钥 UI 边界，feature-settings 新增两项 Compose 真机仪器用例：未登录时检查更新按钮必须禁用且不存在安装按钮，已登录且
+存在已验证候选时检查按钮可用并把安装点击精确分发为 `InstallUpdate`。测试 APK 编译、单元测试和 Lint 均通过，但 Xiaomi 当前关闭“通过 USB 安装”，Gradle 与直接
+`pm install -r -t` 均被系统以 `INSTALL_FAILED_USER_RESTRICTED` 拒绝，实际执行为 0 项；开发者选项页面已打开，不能把编译通过记作真机通过。开启该设备开关后应立即
+重跑 `:feature-settings:connectedDebugAndroidTest`，这仍不替代正式 APK 的 PackageInstaller 升级矩阵。
+
 | 阶段 | 当前未完成项 |
 |---|---|
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |
