@@ -13,9 +13,9 @@ use uuid::Uuid;
 use zeroize::Zeroizing;
 
 #[tokio::test]
-async fn license_session_quota_and_feature_gate_new_grants() {
+async fn license_stream_quota_and_service_gate_new_grants() {
     let (fixture, session_store, _node, user, instance, session) = opened().await;
-    let allowed = RuntimeEntitlement::new(8, 1, true, true, true).unwrap();
+    let allowed = RuntimeEntitlement::new(1, true, true, true).unwrap();
     assert_eq!(
         session_store
             .open_with_entitlement(
@@ -27,7 +27,7 @@ async fn license_session_quota_and_feature_gate_new_grants() {
             .await,
         Err(StoreError::LicenseRestriction)
     );
-    let without_cloud = RuntimeEntitlement::new(8, 8, false, true, true).unwrap();
+    let without_cloud = RuntimeEntitlement::new(8, false, true, true).unwrap();
     assert!(matches!(
         session_store
             .descriptor_with_entitlement(
@@ -1073,7 +1073,7 @@ async fn desktop_requires_device_acl_and_never_accepts_guest_or_admin_web() {
         )
         .await
         .unwrap();
-    let without_desktop = RuntimeEntitlement::new(8, 8, true, false, true).unwrap();
+    let without_desktop = RuntimeEntitlement::new(8, true, false, true).unwrap();
     assert_eq!(
         session_store
             .open_with_entitlement(

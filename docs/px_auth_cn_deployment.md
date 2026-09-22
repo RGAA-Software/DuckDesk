@@ -11,7 +11,7 @@ CN（`49.232.190.218`）只承载官方 Auth，公网入口为 `https://auth.rga
 - PostgreSQL 18.6 镜像固定为
   `postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280`，容器
   `pixels-auth-postgres` 只发布 `127.0.0.1:54329`，使用单独持久卷，数据库连接使用 verify-full 和本部署私有 CA。
-- 只创建 `pixels_auth`、最小权限 `pixels_auth_owner`/`pixels_auth_runtime` 和新 deployment identity；五项 migration、运行角色检查、
+- 只创建 `pixels_auth`、最小权限 `pixels_auth_owner`/`pixels_auth_runtime` 和用于三库备份对账的内部 deployment 记录；五项 migration、运行角色检查、
   新 Ed25519 PKCS#8 私钥、与数据库 recovery generation 绑定的新信任根和一次性管理员初始化均完成。
 - 发行目录为 `/opt/pixels/auth/releases/3.2.11-0ae2966e34b3`，稳定链接为 `/opt/pixels/auth/current`。远端
   `px_auth`/`px_auth_admin`/`px_db` 与本次聚焦 Linux 构建 SHA-256 完全一致：

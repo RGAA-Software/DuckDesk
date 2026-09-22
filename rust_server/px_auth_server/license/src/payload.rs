@@ -19,7 +19,7 @@ pub enum Mode {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum Feature {
+pub enum LicensedService {
     CloudApplications,
     Desktop,
     Rdp,
@@ -43,9 +43,8 @@ pub struct LicensePayload {
     pub issued_at: i64,
     pub not_before: i64,
     pub expires_at: i64,
-    pub max_devices: u32,
-    pub max_sessions: u32,
-    pub features: Vec<Feature>,
+    pub max_streams: u32,
+    pub services: Vec<LicensedService>,
     pub key_id: String,
 }
 
@@ -67,11 +66,10 @@ impl LicensePayload {
             || self.not_before < self.issued_at
             || self.expires_at <= self.not_before
             || self.expires_at > 253402300799
-            || self.max_devices == 0
-            || self.max_sessions == 0
-            || self.features.is_empty()
-            || self.features.len() > 3
-            || self.features.windows(2).any(|pair| pair[0] >= pair[1])
+            || self.max_streams == 0
+            || self.services.is_empty()
+            || self.services.len() > 3
+            || self.services.windows(2).any(|pair| pair[0] >= pair[1])
         {
             return Err(LicenseError::Invalid);
         }

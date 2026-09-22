@@ -82,7 +82,7 @@ impl ResourceSessionStore {
         )
         .fetch_one(&mut *tx)
         .await?;
-        if active_sessions >= i64::from(entitlement.max_sessions) {
+        if active_sessions >= i64::from(entitlement.max_streams) {
             return Err(StoreError::LicenseRestriction);
         }
         let endpoint = Self::endpoint(

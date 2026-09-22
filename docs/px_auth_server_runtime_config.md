@@ -69,11 +69,11 @@ Unix 私钥拒绝 group/other 权限。文件类型/权限与读取在同一打�
 | POST /licenses/verify | 提交 wire 和明确目标绑定；先验签，再查当前 revision/撤销/有效期 |
 
 列表必须传 limit=1..100，可传 after UUID，无无界全量查询。
-签发 terms 明确 customer/deployment/product/distribution/release_namespace/oem_id/machine/mode/activation/expires/额度/features；
+签发 terms 明确 customer/deployment/product/distribution/release_namespace/oem_id/machine/mode/activation/expires/max_streams/services；
 发行域只能是 `official/pixels.official/null`、`customer/pixels.customer/null` 或 `oem/oem.<oem_id>/<oem_id>`，不能省略、推断或跨许可证续期改变；
 activation 为 immediately 或 at+timestamp，不用客户端猜签发时钟。
 同作者同 request_id 正文不同返回 409；相同请求返回完全相同已提交 wire。
-续期只能调整权益，不能换客户/部署/产品/发行/机器身份。撤销后不能通过旧请求或续期“复活”。
+续期只能调整到期时间、最大 stream 数和授权服务，不能换客户/部署/产品/发行/机器身份。撤销后不能通过旧请求或续期“复活”。
 签发中途失败回滚 license/request/audit；提交结果未知须按原 request_id 重试，不能制造新请求。
 签名字节/固定向量见[许可证契约](postgresql_license_contract.md)。
 

@@ -1,7 +1,7 @@
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use px_license::{
     Distribution, LicenseError, LicensePayload, LicenseSigner, LicenseTrustStore,
-    LicenseVerifierSet, Product, VerifyContext,
+    LicenseVerifierSet, LicensedService, Product, VerifyContext,
 };
 use ring::signature::{Ed25519KeyPair, KeyPair};
 use serde::Deserialize;
@@ -257,7 +257,7 @@ fn malformed_wire_tampering_and_wrong_trust_root_reject() {
     assert!(LicenseSigner::from_pkcs8(b"not a private key").is_err());
 }
 #[test]
-fn issuance_rejects_invalid_limits_features_and_keys() {
+fn issuance_rejects_invalid_stream_limits_services_and_keys() {
     let original = vector().payload;
     for invalid in [
         LicensePayload {
@@ -293,11 +293,7 @@ fn issuance_rejects_invalid_limits_features_and_keys() {
             ..original.clone()
         },
         LicensePayload {
-            max_devices: 0,
-            ..original.clone()
-        },
-        LicensePayload {
-            max_sessions: 0,
+            max_streams: 0,
             ..original.clone()
         },
         LicensePayload {
@@ -309,11 +305,11 @@ fn issuance_rejects_invalid_limits_features_and_keys() {
             ..original.clone()
         },
         LicensePayload {
-            features: vec![],
+            services: vec![],
             ..original.clone()
         },
         LicensePayload {
-            features: vec![px_license::Feature::Desktop, px_license::Feature::Desktop],
+            services: vec![LicensedService::Desktop, LicensedService::Desktop],
             ..original.clone()
         },
         LicensePayload {

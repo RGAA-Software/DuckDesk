@@ -32,8 +32,7 @@ pub enum StoreError {
 /// last quota slot cannot be over-issued by concurrent HTTP requests.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RuntimeEntitlement {
-    pub max_devices: u32,
-    pub max_sessions: u32,
+    pub max_streams: u32,
     pub cloud_applications: bool,
     pub desktop: bool,
     pub rdp: bool,
@@ -41,18 +40,16 @@ pub struct RuntimeEntitlement {
 
 impl RuntimeEntitlement {
     pub fn new(
-        max_devices: u32,
-        max_sessions: u32,
+        max_streams: u32,
         cloud_applications: bool,
         desktop: bool,
         rdp: bool,
     ) -> Result<Self, StoreError> {
-        if max_devices == 0 || max_sessions == 0 {
+        if max_streams == 0 {
             return Err(StoreError::InvalidInput);
         }
         Ok(Self {
-            max_devices,
-            max_sessions,
+            max_streams,
             cloud_applications,
             desktop,
             rdp,
@@ -62,8 +59,7 @@ impl RuntimeEntitlement {
     #[cfg(feature = "pg-integration")]
     pub(crate) fn unrestricted_for_integration() -> Self {
         Self {
-            max_devices: u32::MAX,
-            max_sessions: u32::MAX,
+            max_streams: u32::MAX,
             cloud_applications: true,
             desktop: true,
             rdp: true,

@@ -1,7 +1,7 @@
 export const products = ["pixels_console", "gopico", "clientbox", "goagent"] as const;
-export const capabilities = ["cloud_applications", "desktop", "rdp"] as const;
+export const licensedServices = ["cloud_applications", "desktop", "rdp"] as const;
 export type Product = (typeof products)[number];
-export type Capability = (typeof capabilities)[number];
+export type LicensedService = (typeof licensedServices)[number];
 export type Terms = {
     customer_id: string;
     deployment_id: string;
@@ -13,9 +13,8 @@ export type Terms = {
     mode: "trial" | "licensed";
     activation: { kind: "immediately" };
     expires_at: number;
-    max_devices: number;
-    max_sessions: number;
-    features: Capability[];
+    max_streams: number;
+    services: LicensedService[];
 };
 export type Payload = Omit<Terms, "customer_id" | "activation"> & {
     license_id: string;
@@ -73,13 +72,15 @@ export function validTerms(value: Terms, now = Math.floor(Date.now() / 1000)): b
         Number.isSafeInteger(value.expires_at) &&
         value.expires_at > now &&
         value.expires_at <= 253402300799 &&
-        [value.max_devices, value.max_sessions].every(
-            n => Number.isInteger(n) && n > 0 && n <= 4294967295,
-        ) &&
-        value.features.length > 0 &&
-        value.features.length <= 3 &&
-        value.features.every(
-            (f, i) => capabilities.includes(f) && (i === 0 || value.features[i - 1]! < f),
+        Number.isInteger(value.max_streams) &&
+        value.max_streams > 0 &&
+        value.max_streams <= 4294967295 &&
+        value.services.length > 0 &&
+        value.services.length <= 3 &&
+        value.services.every(
+            (licensedService, serviceIndex) =>
+                licensedServices.includes(licensedService) &&
+                (serviceIndex === 0 || value.services[serviceIndex - 1]! < licensedService),
         )
     );
 }

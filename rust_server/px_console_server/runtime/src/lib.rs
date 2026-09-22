@@ -42,7 +42,7 @@ pub use policy::IngressPolicy;
 use px_console_store::{
     CacheOptions, CacheRuntime, ConsoleDatabase, RuntimeEntitlement, RuntimeEpoch, WorkspaceVault,
 };
-use px_license::Feature;
+use px_license::LicensedService;
 use px_pg::{DatabaseConfig, LeaseStatus, Service, ServiceLease};
 use px_private_files::CacheRoot;
 pub use secrets::{RuntimeSecrets, WorkspaceKeyFile};
@@ -89,14 +89,19 @@ impl StateData {
 
     fn entitlement(&self) -> RuntimeEntitlement {
         RuntimeEntitlement::new(
-            self.license.payload.max_devices,
-            self.license.payload.max_sessions,
+            self.license.payload.max_streams,
             self.license
                 .payload
-                .features
-                .contains(&Feature::CloudApplications),
-            self.license.payload.features.contains(&Feature::Desktop),
-            self.license.payload.features.contains(&Feature::Rdp),
+                .services
+                .contains(&LicensedService::CloudApplications),
+            self.license
+                .payload
+                .services
+                .contains(&LicensedService::Desktop),
+            self.license
+                .payload
+                .services
+                .contains(&LicensedService::Rdp),
         )
         .expect("a verified license always contains valid nonzero limits")
     }

@@ -2,7 +2,7 @@
 import { reactive, ref, watch } from "vue";
 import { ApiFailure, request } from "../api";
 import {
-    capabilities,
+    licensedServices,
     products,
     readPayload,
     requestIdentity,
@@ -26,9 +26,8 @@ const terms = reactive<Terms>({
     mode: payload?.mode ?? "licensed",
     activation: { kind: "immediately" },
     expires_at: 0,
-    max_devices: payload?.max_devices ?? 1,
-    max_sessions: payload?.max_sessions ?? 1,
-    features: payload?.features ?? ["cloud_applications", "desktop", "rdp"],
+    max_streams: payload?.max_streams ?? 1,
+    services: payload?.services ?? ["cloud_applications", "desktop", "rdp"],
 });
 watch(
     () => [terms.distribution, terms.oem_id] as const,
@@ -55,7 +54,7 @@ const identity = requestIdentity(),
     { busy, error, run } = useOperation();
 async function save() {
     terms.expires_at = Date.parse(expires.value + ":00Z") / 1000;
-    terms.features.sort();
+    terms.services.sort();
     if (!validTerms(terms)) throw new ApiFailure("invalid");
     const operation = props.renewal
         ? {
@@ -131,19 +130,9 @@ async function save() {
                 </select></label
             >
             <label
-                >{{ t("devices")
+                >{{ t("streams")
                 }}<input
-                    v-model.number="terms.max_devices"
-                    type="number"
-                    min="1"
-                    max="4294967295"
-                    required
-                    :disabled="busy"
-            /></label>
-            <label
-                >{{ t("sessions")
-                }}<input
-                    v-model.number="terms.max_sessions"
+                    v-model.number="terms.max_streams"
                     type="number"
                     min="1"
                     max="4294967295"
@@ -152,9 +141,11 @@ async function save() {
             /></label>
         </div>
         <fieldset :disabled="busy">
-            <legend>{{ t("features") }}</legend>
-            <label v-for="f in capabilities" :key="f"
-                ><input v-model="terms.features" type="checkbox" :value="f" />{{ t(f) }}</label
+            <legend>{{ t("services") }}</legend>
+            <label v-for="licensedService in licensedServices" :key="licensedService"
+                ><input v-model="terms.services" type="checkbox" :value="licensedService" />{{
+                    t(licensedService)
+                }}</label
             >
         </fieldset>
         <p v-if="requestId" class="mono">{{ t("requestId") }}: {{ requestId }}</p>

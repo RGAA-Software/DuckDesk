@@ -1,5 +1,5 @@
 use crate::AuthError;
-use px_license::{Distribution, Feature, LicensePayload, Mode, Product};
+use px_license::{Distribution, LicensePayload, LicensedService, Mode, Product};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -23,9 +23,8 @@ pub struct LicenseTerms {
     pub mode: Mode,
     pub activation: Activation,
     pub expires_at: i64,
-    pub max_devices: u32,
-    pub max_sessions: u32,
-    pub features: Vec<Feature>,
+    pub max_streams: u32,
+    pub services: Vec<LicensedService>,
 }
 impl LicenseTerms {
     pub(crate) fn payload(
@@ -55,9 +54,8 @@ impl LicenseTerms {
                 Activation::At { timestamp } => timestamp,
             },
             expires_at: self.expires_at,
-            max_devices: self.max_devices,
-            max_sessions: self.max_sessions,
-            features: self.features.clone(),
+            max_streams: self.max_streams,
+            services: self.services.clone(),
             key_id,
         };
         payload.validate().map_err(|_| AuthError::Invalid)?;

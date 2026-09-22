@@ -4,7 +4,7 @@ mod payload;
 mod signature;
 mod trust_store;
 
-pub use payload::{Distribution, Feature, LicensePayload, Mode, Product};
+pub use payload::{Distribution, LicensePayload, LicensedService, Mode, Product};
 pub use signature::{LicenseSigner, LicenseVerifierSet, VerifyContext};
 pub use trust_store::{LicenseTrustStore, TrustedPublicKey};
 

@@ -2,7 +2,7 @@ use px_auth_store::{
     Activation, AuthError, IssueRequest, LicenseStore, LicenseTerms, NotificationFailure,
 };
 use px_license::{
-    Distribution, Feature, LicenseSigner, LicenseVerifierSet, Mode, Product, VerifyContext,
+    Distribution, LicenseSigner, LicenseVerifierSet, LicensedService, Mode, Product, VerifyContext,
 };
 use px_pg::{DatabaseConfig, Transport};
 use sha2::{Digest, Sha256};
@@ -138,9 +138,12 @@ impl Fixture {
             mode: Mode::Licensed,
             activation: Activation::Immediately,
             expires_at: chrono::Utc::now().timestamp() + 86400,
-            max_devices: 4,
-            max_sessions: 8,
-            features: vec![Feature::CloudApplications, Feature::Desktop, Feature::Rdp],
+            max_streams: 8,
+            services: vec![
+                LicensedService::CloudApplications,
+                LicensedService::Desktop,
+                LicensedService::Rdp,
+            ],
         }
     }
     async fn close(self) {
@@ -211,7 +214,7 @@ async fn committed_issuance_verifies_and_identical_retry_returns_exact_wire() {
             .unwrap();
     assert_eq!(count, 1);
     let mut changed = terms;
-    changed.max_devices += 1;
+    changed.max_streams += 1;
     assert!(matches!(
         fixture
             .store
@@ -694,7 +697,7 @@ async fn invalid_foreign_keys_limits_and_closed_database_never_succeed() {
         .await
         .is_err());
     let mut invalid = terms.clone();
-    invalid.max_sessions = 0;
+    invalid.max_streams = 0;
     assert!(fixture
         .store
         .issue(

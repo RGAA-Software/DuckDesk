@@ -67,8 +67,8 @@ impl LicenseStore {
         let not_before =
             DateTime::from_timestamp(payload.not_before, 0).ok_or(AuthError::Invalid)?;
         let expires = DateTime::from_timestamp(terms.expires_at, 0).ok_or(AuthError::Invalid)?;
-        let features = terms
-            .features
+        let services = terms
+            .services
             .iter()
             .map(enum_text)
             .collect::<Result<Vec<_>, _>>()?;
@@ -89,9 +89,8 @@ impl LicenseStore {
                 mode,
                 not_before,
                 expires,
-                i64::from(terms.max_devices),
-                i64::from(terms.max_sessions),
-                &features
+                i64::from(terms.max_streams),
+                &services
             )
             .execute(&mut *tx)
             .await?;
@@ -104,9 +103,8 @@ impl LicenseStore {
                 mode,
                 not_before,
                 expires,
-                i64::from(terms.max_devices),
-                i64::from(terms.max_sessions),
-                &features,
+                i64::from(terms.max_streams),
+                &services,
                 terms.customer_id,
                 terms.deployment_id,
                 product,

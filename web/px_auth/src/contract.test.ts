@@ -22,7 +22,7 @@ it("requires catalog parity and reuses the same UI state for languages and theme
     expect(t("licenses")).toBe(zh.licenses);
     expect(localStorage.getItem("pixels_auth_theme")).toBe("dark");
 });
-it("validates UUID, signed integer boundaries, products, sorted capabilities and UTC expiration", () => {
+it("validates UUID, stream boundaries, products, sorted services and UTC expiration", () => {
     const terms: Terms = {
         customer_id: crypto.randomUUID(),
         deployment_id: crypto.randomUUID(),
@@ -34,19 +34,18 @@ it("validates UUID, signed integer boundaries, products, sorted capabilities and
         mode: "trial",
         activation: { kind: "immediately" },
         expires_at: 2000000000,
-        max_devices: 4294967295,
-        max_sessions: 1,
-        features: ["desktop", "rdp"],
+        max_streams: 4294967295,
+        services: ["desktop", "rdp"],
     };
     expect(validTerms(terms, 1900000000)).toBe(true);
     for (const patch of [
-        { max_devices: 4294967296 },
-        { max_sessions: 0 },
+        { max_streams: 4294967296 },
+        { max_streams: 0 },
         { expires_at: 1900000000 },
         { expires_at: Infinity },
         { machine_sha256: "A".repeat(64) },
         { deployment_id: "00000000-0000-0000-0000-000000000000" },
-        { features: ["rdp", "desktop"] },
+        { services: ["rdp", "desktop"] },
         { product: "console" },
         { release_namespace: "pixels.official" },
         { distribution: "oem", release_namespace: "oem.ACME", oem_id: "ACME" },

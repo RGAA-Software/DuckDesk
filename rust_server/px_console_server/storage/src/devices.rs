@@ -1,6 +1,6 @@
 //! Device directory and authorization. No endpoint guessing or online-state cache.
 use crate::resource_policy::resource_user;
-use crate::{control, ClientType, RuntimeEntitlement, StoreError, TokenDigest};
+use crate::{control, ClientType, StoreError, TokenDigest};
 use chrono::{DateTime, Utc};
 use sqlx::{PgConnection, PgPool};
 use std::collections::BTreeSet;
@@ -79,7 +79,6 @@ impl DeviceStore {
     pub async fn close(&self) {
         self.pool.close().await;
     }
-    #[cfg(feature = "pg-integration")]
     pub async fn create(
         &self,
         token: &TokenDigest,
@@ -87,38 +86,10 @@ impl DeviceStore {
         platform: DevicePlatform,
         enrollment: &TokenDigest,
     ) -> Result<DeviceProfile, StoreError> {
-        self.create_with_entitlement(
-            token,
-            name,
-            platform,
-            enrollment,
-            RuntimeEntitlement::unrestricted_for_integration(),
-        )
-        .await
-    }
-
-    pub async fn create_with_entitlement(
-        &self,
-        token: &TokenDigest,
-        name: &str,
-        platform: DevicePlatform,
-        enrollment: &TokenDigest,
-        entitlement: RuntimeEntitlement,
-    ) -> Result<DeviceProfile, StoreError> {
         valid_name(name)?;
         let mut tx = self.pool.begin().await?;
         control::write_gate(&mut tx).await?;
         let actor = control::authorize(&mut tx, token, true).await?;
-        sqlx::query("SELECT pg_advisory_xact_lock(5788347791197331457)")
-            .execute(&mut *tx)
-            .await?;
-        let active_devices: i64 =
-            sqlx::query_scalar("SELECT count(*) FROM pixels.devices WHERE deleted_at IS NULL")
-                .fetch_one(&mut *tx)
-                .await?;
-        if active_devices >= i64::from(entitlement.max_devices) {
-            return Err(StoreError::LicenseRestriction);
-        }
         // Public lookup number, never a credential; unrelated to hardware/owner identity.
         // Unique constraints reject a collision without creating a partially registered device.
         let code = format!("{:012}", Uuid::new_v4().as_u128() % 1_000_000_000_000);

@@ -1,7 +1,7 @@
 use px_console_runtime::LicenseLaunchConfig;
 use px_console_store::{initialize_administrator, PasswordDigest, Username};
 use px_license::{
-    Distribution, Feature, LicensePayload, LicenseSigner, LicenseTrustStore, Mode, Product,
+    Distribution, LicensePayload, LicenseSigner, LicenseTrustStore, LicensedService, Mode, Product,
 };
 use px_pg::{DatabaseConfig, Transport};
 use std::{
@@ -214,9 +214,12 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
         issued_at: current_time - 10,
         not_before: current_time - 10,
         expires_at: current_time + 3600,
-        max_devices: 4,
-        max_sessions: 8,
-        features: vec![Feature::CloudApplications, Feature::Desktop, Feature::Rdp],
+        max_streams: 8,
+        services: vec![
+            LicensedService::CloudApplications,
+            LicensedService::Desktop,
+            LicensedService::Rdp,
+        ],
         key_id: signer.key_id(),
     };
     px_private_files::private::create_private(

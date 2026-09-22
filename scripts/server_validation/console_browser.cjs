@@ -111,9 +111,8 @@ function provisionLicense() {
     issued_at: now - 10,
     not_before: now - 10,
     expires_at: now + 3600,
-    max_devices: 32,
-    max_sessions: 32,
-    features: ["cloud_applications", "desktop", "rdp"],
+    max_streams: 32,
+    services: ["cloud_applications", "desktop", "rdp"],
     key_id: licenseKeyId,
   };
   fs.writeFileSync(

@@ -378,11 +378,11 @@ fn request(app: Uuid) -> StartApplication {
 }
 
 #[tokio::test]
-async fn license_features_reject_cloud_and_rdp_reservations_before_commands_exist() {
+async fn licensed_services_reject_cloud_and_rdp_reservations_before_commands_exist() {
     let fixture = Fixture::new().await;
     let (cloud_node, cloud_app, _) = fixture.prepared(DeploymentTarget::Webview, 2).await;
     let cloud_user = fixture.session("user", ClientType::Android).await;
-    let without_cloud = RuntimeEntitlement::new(8, 8, false, true, true).unwrap();
+    let without_cloud = RuntimeEntitlement::new(8, false, true, true).unwrap();
     assert_eq!(
         fixture
             .instances
@@ -405,7 +405,7 @@ async fn license_features_reject_cloud_and_rdp_reservations_before_commands_exis
 
     let (rdp_node, rdp_app, _) = fixture.prepared(DeploymentTarget::Rdp, 1).await;
     let rdp_user = fixture.session("user", ClientType::Android).await;
-    let without_rdp = RuntimeEntitlement::new(8, 8, true, true, false).unwrap();
+    let without_rdp = RuntimeEntitlement::new(8, true, true, false).unwrap();
     assert_eq!(
         fixture
             .instances

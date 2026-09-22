@@ -60,9 +60,8 @@ pub struct LicenseStatus {
     pub oem_id: Option<String>,
     pub mode: px_license::Mode,
     pub expires_at: i64,
-    pub max_devices: u32,
-    pub max_sessions: u32,
-    pub features: Vec<px_license::Feature>,
+    pub max_streams: u32,
+    pub services: Vec<px_license::LicensedService>,
     pub last_authoritative_time: i64,
     pub online_fresh_until: Option<i64>,
 }
@@ -382,9 +381,8 @@ impl LicenseEntitlement {
             oem_id: self.payload.oem_id.clone(),
             mode: self.payload.mode,
             expires_at: self.payload.expires_at,
-            max_devices: self.payload.max_devices,
-            max_sessions: self.payload.max_sessions,
-            features: self.payload.features.clone(),
+            max_streams: self.payload.max_streams,
+            services: self.payload.services.clone(),
             last_authoritative_time,
             online_fresh_until,
         }
@@ -392,7 +390,7 @@ impl LicenseEntitlement {
 
     #[cfg(feature = "pg-integration")]
     pub fn synthetic_for_integration(deployment_id: Uuid) -> Self {
-        use px_license::{Feature, Mode};
+        use px_license::{LicensedService, Mode};
         Self {
             payload: LicensePayload {
                 schema: 2,
@@ -408,9 +406,12 @@ impl LicenseEntitlement {
                 issued_at: 0,
                 not_before: 0,
                 expires_at: 253402300799,
-                max_devices: u32::MAX,
-                max_sessions: u32::MAX,
-                features: vec![Feature::CloudApplications, Feature::Desktop, Feature::Rdp],
+                max_streams: u32::MAX,
+                services: vec![
+                    LicensedService::CloudApplications,
+                    LicensedService::Desktop,
+                    LicensedService::Rdp,
+                ],
                 key_id: "f".repeat(64),
             },
             trusted_at: 0,
@@ -801,7 +802,7 @@ fn sync_directory(path: &Path) -> Result<(), LicenseAdmissionError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use px_license::{Feature, LicenseSigner, Mode};
+    use px_license::{LicenseSigner, LicensedService, Mode};
     use px_private_files::private::create_private;
 
     struct Fixture {
@@ -892,9 +893,12 @@ mod tests {
                 issued_at: now - 10,
                 not_before: now - 10,
                 expires_at: now + 3600,
-                max_devices: 4,
-                max_sessions: 8,
-                features: vec![Feature::CloudApplications, Feature::Desktop, Feature::Rdp],
+                max_streams: 8,
+                services: vec![
+                    LicensedService::CloudApplications,
+                    LicensedService::Desktop,
+                    LicensedService::Rdp,
+                ],
                 key_id: signer.key_id(),
             };
             let wire = signer.sign(&payload).unwrap();

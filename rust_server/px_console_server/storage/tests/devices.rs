@@ -4,7 +4,7 @@ use argon2::{
 };
 use px_console_store::{
     ClientType, ControlStore, DeviceAccess, DevicePlatform, DeviceProfile, DeviceStore, GroupStore,
-    IdentityStore, PasswordDigest, Role, RuntimeEntitlement, StoreError, TokenDigest, Username,
+    IdentityStore, PasswordDigest, Role, StoreError, TokenDigest, Username,
 };
 use px_pg::{DatabaseConfig, Transport};
 use std::{collections::BTreeSet, env, sync::OnceLock, time::Duration};
@@ -19,59 +19,6 @@ fn config(role: &str) -> DatabaseConfig {
     .unwrap()
 }
 
-#[tokio::test]
-async fn license_device_quota_serializes_the_last_available_slot() {
-    let fixture = Fixture::new().await;
-    let first_store = fixture.devices.clone();
-    let second_store = fixture.devices.clone();
-    let first_admin = fixture.admin.clone();
-    let second_admin = fixture.admin.clone();
-    let active_before: i64 =
-        sqlx::query_scalar("SELECT count(*) FROM pixels.devices WHERE deleted_at IS NULL")
-            .fetch_one(&fixture.owner)
-            .await
-            .unwrap();
-    let final_slot = u32::try_from(active_before + 1).unwrap();
-    let entitlement = RuntimeEntitlement::new(final_slot, 8, true, true, true).unwrap();
-    let first = tokio::spawn(async move {
-        first_store
-            .create_with_entitlement(
-                &first_admin,
-                "quota-a",
-                DevicePlatform::Windows,
-                &token(),
-                entitlement,
-            )
-            .await
-    });
-    let second = tokio::spawn(async move {
-        second_store
-            .create_with_entitlement(
-                &second_admin,
-                "quota-b",
-                DevicePlatform::Linux,
-                &token(),
-                entitlement,
-            )
-            .await
-    });
-    let outcomes = [first.await.unwrap(), second.await.unwrap()];
-    assert_eq!(outcomes.iter().filter(|outcome| outcome.is_ok()).count(), 1);
-    assert_eq!(
-        outcomes
-            .iter()
-            .filter(|outcome| **outcome == Err(StoreError::LicenseRestriction))
-            .count(),
-        1
-    );
-    let active: i64 =
-        sqlx::query_scalar("SELECT count(*) FROM pixels.devices WHERE deleted_at IS NULL")
-            .fetch_one(&fixture.owner)
-            .await
-            .unwrap();
-    assert_eq!(active, active_before + 1);
-    fixture.close().await;
-}
 fn token() -> TokenDigest {
     let mut bytes = [0; 32];
     bytes[..16].copy_from_slice(Uuid::new_v4().as_bytes());

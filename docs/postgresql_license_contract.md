@@ -13,8 +13,7 @@ payload 为紧凑 UTF-8 JSON，严格按以下字段顺序，不允许空白、�
 
 ```text
 schema, license_id, deployment_id, product, distribution, release_namespace, oem_id, machine_sha256,
-revision, mode, issued_at, not_before, expires_at, max_devices, max_sessions,
-features, key_id
+revision, mode, issued_at, not_before, expires_at, max_streams, services, key_id
 ```
 
 - schema=2；UUID 必须非 nil、标准小写带连字符编码。
@@ -25,8 +24,9 @@ features, key_id
   `oem.<oem_id>,<oem_id>`；OEM ID 只接受规范的小写字母、数字和单连字符片段。三个字段均无默认值，不能从部署类别、URL 或缺失字段推断。
 - machine_sha256：当前机器身份契约提供的 32 字节指纹，小写 hex64；不能拿旧 MD5 字符串补齐或转换。
 - revision 为正 i64；UTC 时间为整数 Unix 秒，0 <= issued_at <= not_before < expires_at <= 253402300799。
-- max_devices/max_sessions 为正 u32；撤销不是发放零容量许可证。
-- features 为非空、有序且无重复数组，当前顺序为 cloud_applications、desktop、rdp；未知功能拒绝。
+- max_streams 为正 u32，是整个 Console 部署允许同时存在的未关闭资源流总数；撤销不是发放零容量许可证。
+- services 为非空、有序且无重复数组，当前顺序为 cloud_applications、desktop、rdp；未知服务拒绝。
+  许可证不限制纳管设备数量，也不为每类服务分别设置一套额度。
 - key_id 为配置公钥原始 32 字节 SHA-256 的小写 hex64。签发私钥显式提供 PKCS#8 v2，
   不因文件缺失生成替代 key，不把私钥写入数据库/包/响应。
 
@@ -56,8 +56,8 @@ minimum_revision >=1，last_trusted_time >=0；不能用缺失状态绕过回滚
 Rust ring 签发必须逐字节生成相同 wire，验证器必须接受该向量。
 公开测试 seed 不是部署凭据，服务不自动加载测试材料。
 
-七组测试：固定向量；部署/产品/发行/机器/时间/版本/回拨边界；有效签名下的非规范/未知字段；
-损坏 wire/篡改/错误可信根；签发额度/功能/密钥输入拒绝；轮换期新旧 key 验签及撤回；
+八组测试：固定向量；部署/产品/发行/机器/时间/版本/回拨边界；有效签名下的非规范/未知字段；
+损坏 wire/篡改/错误可信根；签发流额度/服务/密钥输入拒绝；轮换期新旧 key 验签及撤回；
 重复/替换/非规范信任根拒绝。零单元测试不算通过，执行入口明确选择 `--test contract`，要求 7 个用例实际通过。
 
 ```powershell
@@ -77,7 +77,8 @@ Official Console 以受保护的已签名 wire 及精确 deployment/product/rele
 Customer 产品完全不启动这条在线循环；它不得填写官方地址，也不能声称获知尚未导入的撤销。手工调用 verify 不改变 Customer 产品边界。
 使用及精确验收范围见 [Auth 配置](px_auth_server_runtime_config.md)与[状态](server_database_execution_status.md)。
 Console PostgreSQL 产品已接 `PXLIC2` 本地验签、Official Auth 在线当前性复核、Customer/OEM 禁止 Auth URL、库外原子水位及请求期到期/回拨门禁；
-`max_devices` 与 `max_sessions` 在同一 PostgreSQL 事务内用独立 advisory lock 竞争最后名额；CloudApplications、Desktop、Rdp 分别硬限制
-game-hook/webview 实例、桌面目标和 RDP 实例，并在实例预约、资源会话及新 descriptor 三层拒绝。Windows Service 不复制许可证解析器，
+`max_streams` 在 PostgreSQL 事务内用 advisory lock 竞争最后名额；CloudApplications、Desktop、Rdp 分别准入
+game-hook/webview 实例、桌面目标和 RDP 实例，并在实例预约、资源会话及新 descriptor 三层拒绝。设备登记不消耗许可证额度。
+Windows Service 不复制许可证解析器，
 只消费当前 Console 代际已经准入的节点命令；旧 `px_auth_mgr` 依赖已从 Service 删除。仍需恢复轮换实测和正式部署监督器联动。
 这些未完成前不得把此库或 Auth 独立验收计为 DB3 完成。
