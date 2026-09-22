@@ -119,29 +119,47 @@ $backup = Join-Path $directory ('service.before-' + [DateTime]::UtcNow.ToString(
 Copy-Item -LiteralPath $target -Destination (Join-Path $backup 'px_service.exe') -Force
 Copy-Item -LiteralPath $configTarget -Destination (Join-Path $backup 'px_service.toml') -Force
 Copy-Item -LiteralPath $descriptorTarget -Destination (Join-Path $backup 'product-manifest.json') -Force
-try {{
-    if ($serviceWasRunning) {{
+function Stop-InstalledService {{
+    if ((Get-Service -Name $serviceName).Status -ne 'Stopped') {{
         Stop-Service -Name $serviceName -Force
         (Get-Service -Name $serviceName).WaitForStatus('Stopped', [TimeSpan]::FromSeconds(20))
     }}
+    $processDeadline = [DateTime]::UtcNow.AddSeconds(20)
+    do {{
+        $serviceProcesses = @(Get-CimInstance Win32_Process | Where-Object {{
+            $_.ExecutablePath -and [IO.Path]::GetFullPath($_.ExecutablePath).Equals(
+                [IO.Path]::GetFullPath($target), [StringComparison]::OrdinalIgnoreCase)
+        }})
+        if ($serviceProcesses.Count -eq 0) {{ return }}
+        Start-Sleep -Milliseconds 250
+    }} while ([DateTime]::UtcNow -lt $processDeadline)
+    throw 'Service process did not release the installed executable'
+}}
+function Start-InstalledService {{
+    Start-Service -Name $serviceName
+    (Get-Service -Name $serviceName).WaitForStatus('Running', [TimeSpan]::FromSeconds(20))
+    Start-Sleep -Seconds 2
+    if ((Get-Service -Name $serviceName).Status -ne 'Running') {{ throw 'Published Service did not remain running' }}
+}}
+try {{
+    Stop-InstalledService
     Copy-Item -LiteralPath $staging -Destination $target -Force
     Copy-Item -LiteralPath $configStaging -Destination $configTarget -Force
     Copy-Item -LiteralPath $descriptorStaging -Destination $descriptorTarget -Force
-    Remove-Item -LiteralPath $staging, $configStaging, $descriptorStaging -Force
     if ((Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash -ne '{exe_hash}') {{ throw 'Service deployment hash mismatch' }}
     if ((Get-FileHash -LiteralPath $configTarget -Algorithm SHA256).Hash -ne '{config_hash}') {{ throw 'Service config deployment hash mismatch' }}
     if ((Get-FileHash -LiteralPath $descriptorTarget -Algorithm SHA256).Hash -ne '{descriptor_hash}') {{ throw 'Product descriptor deployment hash mismatch' }}
+    if ($serviceWasRunning) {{ Start-InstalledService }}
 }} catch {{
+    $deploymentError = $_
+    Stop-InstalledService
     Copy-Item -LiteralPath (Join-Path $backup 'px_service.exe') -Destination $target -Force
     Copy-Item -LiteralPath (Join-Path $backup 'px_service.toml') -Destination $configTarget -Force
     Copy-Item -LiteralPath (Join-Path $backup 'product-manifest.json') -Destination $descriptorTarget -Force
-    throw
+    if ($serviceWasRunning) {{ Start-InstalledService }}
+    throw $deploymentError
 }} finally {{
     Remove-Item -LiteralPath $staging, $configStaging, $descriptorStaging -Force -ErrorAction SilentlyContinue
-    if ($serviceWasRunning -and (Get-Service -Name $serviceName).Status -ne 'Running') {{
-        Start-Service -Name $serviceName
-        (Get-Service -Name $serviceName).WaitForStatus('Running', [TimeSpan]::FromSeconds(20))
-    }}
 }}
 [pscustomobject]@{{
     Component = 'service'
@@ -190,11 +208,20 @@ $backup = Join-Path $directory ('render.before-' + [DateTime]::UtcNow.ToString('
 [void](New-Item -ItemType Directory -Path $backup)
 Copy-Item -LiteralPath $target -Destination (Join-Path $backup 'px_render.exe') -Force
 Copy-Item -LiteralPath $rtcTarget -Destination (Join-Path $backup 'px_render_rtc.dll') -Force
-try {{
-    if ($serviceWasRunning) {{
+function Stop-InstalledService {{
+    if ((Get-Service -Name $serviceName).Status -ne 'Stopped') {{
         Stop-Service -Name $serviceName -Force
         (Get-Service -Name $serviceName).WaitForStatus('Stopped', [TimeSpan]::FromSeconds(20))
     }}
+}}
+function Start-InstalledService {{
+    Start-Service -Name $serviceName
+    (Get-Service -Name $serviceName).WaitForStatus('Running', [TimeSpan]::FromSeconds(20))
+    Start-Sleep -Seconds 2
+    if ((Get-Service -Name $serviceName).Status -ne 'Running') {{ throw 'Service did not remain running with the published Render' }}
+}}
+try {{
+    Stop-InstalledService
     $deadline = [DateTime]::UtcNow.AddSeconds(20)
     do {{
         $processes = @(Get-Process -Name px_render, px_panel -ErrorAction SilentlyContinue | Where-Object {{
@@ -209,16 +236,16 @@ try {{
     Copy-Item -LiteralPath $rtcStaging -Destination $rtcTarget -Force
     if ((Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash -ne '{exe_hash}') {{ throw 'Render deployment hash mismatch' }}
     if ((Get-FileHash -LiteralPath $rtcTarget -Algorithm SHA256).Hash -ne '{rtc_hash}') {{ throw 'Render RTC deployment hash mismatch' }}
+    if ($serviceWasRunning) {{ Start-InstalledService }}
 }} catch {{
+    $deploymentError = $_
+    Stop-InstalledService
     Copy-Item -LiteralPath (Join-Path $backup 'px_render.exe') -Destination $target -Force
     Copy-Item -LiteralPath (Join-Path $backup 'px_render_rtc.dll') -Destination $rtcTarget -Force
-    throw
+    if ($serviceWasRunning) {{ Start-InstalledService }}
+    throw $deploymentError
 }} finally {{
     Remove-Item -LiteralPath $staging, $rtcStaging -Force -ErrorAction SilentlyContinue
-    if ($serviceWasRunning -and (Get-Service -Name $serviceName).Status -ne 'Running') {{
-        Start-Service -Name $serviceName
-        (Get-Service -Name $serviceName).WaitForStatus('Running', [TimeSpan]::FromSeconds(20))
-    }}
 }}
 [pscustomobject]@{{
     Component = 'render'

@@ -73,45 +73,59 @@ try {
         $backupDirectory = Join-Path $serverRoot ('backups\console-before-' + [DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))
         [void](New-Item -ItemType Directory -Path $backupDirectory)
         Copy-Item -LiteralPath $targetPath -Destination (Join-Path $backupDirectory 'px_console.exe') -Force
-        Stop-ScheduledTask -TaskName 'Pixels-Console' -ErrorAction SilentlyContinue
-        foreach ($process in @(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq $targetPath })) {
-            Stop-Process -Id $process.ProcessId -Force
-        }
-        for ($attempt = 0; $attempt -lt 40; $attempt++) {
-            $running = @(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq $targetPath })
-            if ($running.Count -eq 0) {
-                break
+        $taskWasRunning = (Get-ScheduledTask -TaskName 'Pixels-Console').State -eq 'Running' -or
+            @(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq $targetPath }).Count -gt 0
+
+        function Stop-InstalledConsole {
+            Stop-ScheduledTask -TaskName 'Pixels-Console' -ErrorAction SilentlyContinue
+            foreach ($consoleProcess in @(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq $targetPath })) {
+                Stop-Process -Id $consoleProcess.ProcessId -Force
             }
-            Start-Sleep -Milliseconds 250
+            for ($attempt = 0; $attempt -lt 80; $attempt++) {
+                $remainingProcesses = @(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq $targetPath })
+                if ($remainingProcesses.Count -eq 0) {
+                    return
+                }
+                Start-Sleep -Milliseconds 250
+            }
+            throw 'Console process did not stop before replacement.'
         }
-        if (@(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq $targetPath }).Count -ne 0) {
-            throw 'Formal Console process did not stop before replacement.'
+
+        function Start-InstalledConsole {
+            Start-ScheduledTask -TaskName 'Pixels-Console'
+            for ($attempt = 0; $attempt -lt 80; $attempt++) {
+                Start-Sleep -Milliseconds 250
+                if (Test-NetConnection -ComputerName '127.0.0.1' -Port 4600 -InformationLevel Quiet -WarningAction SilentlyContinue) {
+                    Start-Sleep -Seconds 2
+                    if ((Get-ScheduledTask -TaskName 'Pixels-Console').State -eq 'Running') {
+                        return
+                    }
+                }
+            }
+            throw 'Console did not remain healthy after deployment.'
         }
 
         try {
+            Stop-InstalledConsole
             Copy-Item -LiteralPath $stagedPath -Destination $targetPath -Force
             if ((Get-FileHash -LiteralPath $targetPath -Algorithm SHA256).Hash -ne $expectedHash) {
                 throw 'Installed Console hash mismatch.'
             }
+            if ($taskWasRunning) {
+                Start-InstalledConsole
+            }
         } catch {
+            $deploymentError = $_
+            Stop-InstalledConsole
             Copy-Item -LiteralPath (Join-Path $backupDirectory 'px_console.exe') -Destination $targetPath -Force
-            throw
+            if ($taskWasRunning) {
+                Start-InstalledConsole
+            }
+            throw $deploymentError
         } finally {
             Remove-Item -LiteralPath $stagedPath -Force -ErrorAction SilentlyContinue
         }
 
-        Start-ScheduledTask -TaskName 'Pixels-Console'
-        $ready = $false
-        for ($attempt = 0; $attempt -lt 80; $attempt++) {
-            Start-Sleep -Milliseconds 250
-            if (Test-NetConnection -ComputerName '127.0.0.1' -Port 4600 -InformationLevel Quiet -WarningAction SilentlyContinue) {
-                $ready = $true
-                break
-            }
-        }
-        if (-not $ready) {
-            throw 'Console port 4600 did not become ready.'
-        }
         if (Test-Path -LiteralPath $diagnosticPath -PathType Leaf) {
             Remove-Item -LiteralPath $diagnosticPath -Force
         }
