@@ -8,11 +8,11 @@ from unittest import mock
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-MODULE_PATH = REPOSITORY_ROOT / "scripts" / "publish_windows_node_public.py"
-SPECIFICATION = importlib.util.spec_from_file_location("publish_windows_node_public", MODULE_PATH)
+MODULE_PATH = REPOSITORY_ROOT / "scripts" / "public_console_identity.py"
+SPECIFICATION = importlib.util.spec_from_file_location("public_console_identity", MODULE_PATH)
 assert SPECIFICATION and SPECIFICATION.loader
-PUBLISH_WINDOWS_NODE_PUBLIC = importlib.util.module_from_spec(SPECIFICATION)
-SPECIFICATION.loader.exec_module(PUBLISH_WINDOWS_NODE_PUBLIC)
+PUBLIC_CONSOLE_IDENTITY = importlib.util.module_from_spec(SPECIFICATION)
+SPECIFICATION.loader.exec_module(PUBLIC_CONSOLE_IDENTITY)
 
 
 class FakeIdentityResponse:
@@ -37,8 +37,8 @@ class ConsoleIdentityPreflightTest(unittest.TestCase):
                 "descriptor_wire": "PXDD2.descriptor.signature",
             }
         )
-        with mock.patch.object(PUBLISH_WINDOWS_NODE_PUBLIC.urllib.request, "urlopen", return_value=response):
-            PUBLISH_WINDOWS_NODE_PUBLIC.verify_current_console_identity("https://console.example:4600")
+        with mock.patch.object(PUBLIC_CONSOLE_IDENTITY.urllib.request, "urlopen", return_value=response):
+            PUBLIC_CONSOLE_IDENTITY.verify_current_console_identity("https://console.example:4600")
 
     def test_rejects_retired_identity_generation(self) -> None:
         response = FakeIdentityResponse(
@@ -47,9 +47,9 @@ class ConsoleIdentityPreflightTest(unittest.TestCase):
                 "descriptor_wire": "PXDD1.descriptor.signature",
             }
         )
-        with mock.patch.object(PUBLISH_WINDOWS_NODE_PUBLIC.urllib.request, "urlopen", return_value=response):
+        with mock.patch.object(PUBLIC_CONSOLE_IDENTITY.urllib.request, "urlopen", return_value=response):
             with self.assertRaisesRegex(RuntimeError, "PXDC2"):
-                PUBLISH_WINDOWS_NODE_PUBLIC.verify_current_console_identity("https://console.example:4600")
+                PUBLIC_CONSOLE_IDENTITY.verify_current_console_identity("https://console.example:4600")
 
     def test_rejects_insecure_or_credentialed_origins_before_network_access(self) -> None:
         for invalid_origin in (
@@ -58,7 +58,7 @@ class ConsoleIdentityPreflightTest(unittest.TestCase):
         ):
             with self.subTest(invalid_origin=invalid_origin):
                 with self.assertRaisesRegex(RuntimeError, "HTTPS origin"):
-                    PUBLISH_WINDOWS_NODE_PUBLIC.verify_current_console_identity(invalid_origin)
+                    PUBLIC_CONSOLE_IDENTITY.verify_current_console_identity(invalid_origin)
 
 
 if __name__ == "__main__":
