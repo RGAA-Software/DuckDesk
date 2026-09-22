@@ -39,3 +39,40 @@ interface AndroidUpdatePreparationRepository : AndroidUpdateRepository {
 fun interface PreparedAndroidUpdateVerifier {
     fun verify(preparedUpdate: PreparedAndroidUpdate): Boolean
 }
+
+interface AndroidUpdateInstaller {
+    suspend fun install(preparedUpdate: PreparedAndroidUpdate): AccountResult<Unit>
+}
+
+enum class AndroidUpdateInstallationPhase {
+    Submitted,
+    AwaitingUserApproval,
+    AppliedAwaitingReconcile,
+    Installed,
+    Failed,
+}
+
+data class AndroidUpdateInstallationRecord(
+    val releaseId: String,
+    val targetBuildNumber: Long,
+    val artifactSha256: String,
+    val sessionId: Int,
+    val phase: AndroidUpdateInstallationPhase,
+    val failureStatus: Int?,
+)
+
+sealed interface AndroidUpdateInstallationState {
+    data object Empty : AndroidUpdateInstallationState
+
+    data object Invalid : AndroidUpdateInstallationState
+
+    data class Present(val record: AndroidUpdateInstallationRecord) : AndroidUpdateInstallationState
+}
+
+interface AndroidUpdateInstallationStore {
+    fun load(): AndroidUpdateInstallationState
+
+    fun save(record: AndroidUpdateInstallationRecord): Boolean
+
+    fun clear(): Boolean
+}

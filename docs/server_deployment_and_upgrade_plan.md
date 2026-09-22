@@ -485,7 +485,10 @@ timestamp/snapshot/targets 的纯验证内核已完成第一段：三个顶级�
 APK 下载；下载使用同源 HTTPS target 路径、禁用重定向/缓存/压缩、要求精确 Content-Length，并边写入应用私有临时文件边验证 TUF 固定的长度和 SHA-256，
 通过后才原子提交到 prepared 目录，失败和摘要不符均删除临时文件。prepared APK 随后由 Android PackageManager 读取归档身份，只接受精确的当前
 applicationId、Console/TUF 固定的 versionCode/versionName、单一当前签名者证书 SHA-256，且候选 versionCode 必须严格大于当前安装版本；任何不匹配都会删除
-prepared 文件。尚未完成 PackageInstaller 安装事务和安装实例水位；公网正式仓库也仍须端到端实测，因此通过平台身份复核的 prepared 文件仍不是已升级证据。
+prepared 文件。进入 PackageInstaller session 时再次流式核对 APK 长度和 SHA-256，写入完成并 `fsync` 后先用独立 Keystore 密钥持久化精确 release/build/hash/session
+记录，再提交给系统安装器；普通 Android 设备明确进入系统用户批准，不尝试绕过平台授权。回调按 session ID 收敛等待批准、成功或失败，新进程只在自身
+versionCode 等于目标 build 时把记录推进为 installed；损坏状态、活动 session 重入和低于已安装水位的回退均 fail closed。尚未完成设置页检查/下载/安装交互接线、
+正式签名 APK 真机安装结果回读和公网正式仓库端到端实测，因此代码级 installed 记录仍不是正式发行验收证据。
 
 节点重启后的本地激活状态必须先于首次可调度状态上报完成收敛。有效租约内的 `authorized/applying` 一律阻断节点接客；租约过期的
 `applying` 只有在本机产品清单仍是精确旧 build 或已是精确目标 build 时才可清理。`installed` 必须与目标 build 一致；普通安装失败必须

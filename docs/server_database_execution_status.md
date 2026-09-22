@@ -1770,6 +1770,12 @@ versionCode/versionName、唯一当前签名者证书 DER SHA-256，并要求候
 安装实例水位，正式公网
 TUF 仓库与正式签名 APK 的端到端验证也仍未执行。
 
+Android PackageInstaller 事务随后接入应用组合根：安装 session 从 prepared APK 再次流式核对精确长度/SHA-256，写入和 `fsync` 完成后，先把
+release/build/hash/session/phase 记录用独立 Android Keystore AES-GCM 密钥同步持久化，再向系统安装器提交；系统用户批准、成功和失败回调均要求精确 session ID。
+应用替换后的新进程只在自身 versionCode 等于目标 build 时推进 installed 水位；损坏记录、活动事务重入、丢失 session 和低于 installed 水位的回退均失败关闭。
+普通设备明确要求 Android 系统安装批准，不实现静默绕过。当前尚未把该事务接入设置页用户操作，也未使用正式签名相邻版本 APK 在真机完成批准/拒绝/成功/失败
+结果矩阵；core-data 15/15、App 9/9 单测、App Kotlin 编译及 core-data/App Lint 383 个任务通过，这些真机项仍是下一切片验收项。
+
 | 阶段 | 当前未完成项 |
 |---|---|
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |

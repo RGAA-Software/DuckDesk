@@ -4,6 +4,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import yun.pixels.client.core.domain.update.AndroidUpdateArtifact
+import yun.pixels.client.core.domain.update.AndroidUpdateInstallationPhase
+import yun.pixels.client.core.domain.update.AndroidUpdateInstallationRecord
+import yun.pixels.client.core.domain.update.AndroidUpdateInstallationState
 import yun.pixels.client.core.domain.update.AndroidUpdateRelease
 import yun.pixels.client.core.domain.update.PreparedAndroidUpdate
 
@@ -40,6 +43,34 @@ class AndroidApkPlatformVerifierTest {
         assertFalse(approvedIdentity().matches(preparedUpdate(), EXPECTED_PACKAGE_NAME, TARGET_VERSION_CODE))
     }
 
+    @Test
+    fun installationAdmissionRejectsCorruptOrActiveState() {
+        assertTrue(canStartAndroidUpdateInstallation(AndroidUpdateInstallationState.Empty, INSTALLED_VERSION_CODE, TARGET_VERSION_CODE))
+        assertFalse(canStartAndroidUpdateInstallation(AndroidUpdateInstallationState.Invalid, INSTALLED_VERSION_CODE, TARGET_VERSION_CODE))
+        assertFalse(
+            canStartAndroidUpdateInstallation(
+                installationState(AndroidUpdateInstallationPhase.Submitted),
+                INSTALLED_VERSION_CODE,
+                TARGET_VERSION_CODE,
+            ),
+        )
+        assertTrue(
+            canStartAndroidUpdateInstallation(
+                installationState(AndroidUpdateInstallationPhase.Failed, failureStatus = -1),
+                INSTALLED_VERSION_CODE,
+                TARGET_VERSION_CODE,
+            ),
+        )
+        assertFalse(canStartAndroidUpdateInstallation(AndroidUpdateInstallationState.Empty, TARGET_VERSION_CODE, TARGET_VERSION_CODE))
+        assertFalse(
+            canStartAndroidUpdateInstallation(
+                installationState(AndroidUpdateInstallationPhase.Installed),
+                INSTALLED_VERSION_CODE,
+                TARGET_VERSION_CODE,
+            ),
+        )
+    }
+
     private fun approvedIdentity() = AndroidArchiveIdentity(
         packageName = EXPECTED_PACKAGE_NAME,
         versionCode = TARGET_VERSION_CODE,
@@ -67,6 +98,20 @@ class AndroidApkPlatformVerifierTest {
             ),
         ),
         stagedApkPath = "/private/prepared.apk",
+    )
+
+    private fun installationState(
+        phase: AndroidUpdateInstallationPhase,
+        failureStatus: Int? = null,
+    ) = AndroidUpdateInstallationState.Present(
+        AndroidUpdateInstallationRecord(
+            releaseId = "11111111-1111-4111-8111-111111111111",
+            targetBuildNumber = TARGET_VERSION_CODE,
+            artifactSha256 = "44".repeat(32),
+            sessionId = 7,
+            phase = phase,
+            failureStatus = failureStatus,
+        ),
     )
 
     private companion object {

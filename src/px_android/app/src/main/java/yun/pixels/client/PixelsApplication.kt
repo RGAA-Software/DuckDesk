@@ -14,6 +14,7 @@ import yun.pixels.client.core.data.DataStoreInstallationIdentity
 import yun.pixels.client.core.data.DataStoreRemoteSessionPreferencesRepository
 import yun.pixels.client.core.data.PanelDeviceResolver
 import yun.pixels.client.core.data.SharedPreferencesAndroidTufTrustedRootStore
+import yun.pixels.client.core.data.SharedPreferencesAndroidUpdateInstallationStore
 import yun.pixels.client.core.data.SharedPreferencesDeploymentIdentityWatermarkStore
 import yun.pixels.client.core.data.createDeviceDirectory
 import yun.pixels.client.core.domain.account.AccountRepository
@@ -22,6 +23,7 @@ import yun.pixels.client.core.domain.device.DeviceDirectory
 import yun.pixels.client.core.domain.device.DeviceDiscovery
 import yun.pixels.client.core.domain.device.DeviceResolver
 import yun.pixels.client.core.domain.update.AndroidUpdatePreparationRepository
+import yun.pixels.client.core.domain.update.AndroidUpdateInstaller
 import yun.pixels.client.core.network.AndroidApkDownloader
 import yun.pixels.client.core.network.AndroidReleaseIdentity
 import yun.pixels.client.core.network.AndroidTufTrustConfiguration
@@ -35,6 +37,7 @@ import yun.pixels.client.core.network.ConsoleSessionCoordinator
 import yun.pixels.client.core.network.DeploymentIdentityConfiguration
 import yun.pixels.client.core.network.TufVerifiedAndroidUpdateRepository
 import yun.pixels.client.update.AndroidApkPlatformVerifier
+import yun.pixels.client.update.AndroidPackageInstaller
 
 class PixelsApplication : Application() {
     lateinit var graph: PixelsAppGraph
@@ -99,15 +102,22 @@ class PixelsAppGraph(application: Application) {
     ).also { repository -> applicationScope.launch { repository.restore() } }
     val accountRepository: AccountRepository = consoleSessionRepository
     val applicationRepository: ApplicationRepository = ConsoleApplicationRepository(consoleApi, consoleSessionRepository)
+    private val apkPlatformVerifier = AndroidApkPlatformVerifier(
+        packageManager = application.packageManager,
+        expectedPackageName = application.packageName,
+        installedVersionCode = BuildConfig.VERSION_CODE.toLong(),
+    )
     val updateRepository: AndroidUpdatePreparationRepository = TufVerifiedAndroidUpdateRepository(
         ConsoleAndroidUpdateRepository(consoleApi, consoleSessionRepository),
         AndroidTufRepositoryRefresher(androidTufTrustedRootManager),
         AndroidApkDownloader(File(application.filesDir, "updates/prepared")),
-        AndroidApkPlatformVerifier(
-            packageManager = application.packageManager,
-            expectedPackageName = application.packageName,
-            installedVersionCode = BuildConfig.VERSION_CODE.toLong(),
-        ),
+        apkPlatformVerifier,
+    )
+    val updateInstaller: AndroidUpdateInstaller = AndroidPackageInstaller(
+        context = application,
+        verifier = apkPlatformVerifier,
+        installationStore = SharedPreferencesAndroidUpdateInstallationStore.create(application),
+        currentBuildNumber = BuildConfig.VERSION_CODE.toLong(),
     )
     val resourceConnectionRenewer = ConsoleResourceConnectionRenewer(consoleApi, consoleApi, consoleSessionRepository)
 }
