@@ -4,6 +4,8 @@
 #include <cctype>
 #include <filesystem>
 #include <iostream>
+#include <string>
+#include <vector>
 
 #include "gflags/gflags.h"
 #include "px_common/base64.h"
@@ -12,6 +14,7 @@
 #include "px_common/hardware.h"
 #include "px_common/log.h"
 #include "px_common/process_util.h"
+#include "px_common/string_util.h"
 #include "px_common/win32/render_instance_lease.h"
 #include "rd_app.h"
 #include "rd_context.h"
@@ -59,8 +62,6 @@ DEFINE_string(app_game_args, "", "");
 DEFINE_bool(debug_block, false, "block the render process");
 DEFINE_string(device_id, "", "device id");
 DEFINE_string(relay_device_id, "", "independent relay identity for a child render");
-DEFINE_string(device_random_pwd, "", "device random pwd");
-DEFINE_string(device_safety_pwd, "", "device safety pwd");
 
 DEFINE_string(relay_server_host, "", "relay host");
 DEFINE_string(relay_server_port, "", "relay port");
@@ -69,7 +70,6 @@ DEFINE_string(panel_server_host, "127.0.0.1", "");
 DEFINE_int32(panel_server_port, 0, "");
 DEFINE_string(service_server_host, "127.0.0.1", "");
 DEFINE_int32(service_server_port, 4603, "");
-DEFINE_string(service_ipc_token, "", "ephemeral px_service IPC credential");
 // can be operated by mouse / keyboard
 DEFINE_bool(can_be_operated, true, "");
 DEFINE_bool(incoming_remote_access_enabled, true, "allow new inbound desktop and file-transfer sessions");
@@ -88,7 +88,6 @@ DEFINE_int32(language, 0, "");
 DEFINE_string(app_mode, "", "desktop | game-hook | webview | rdp; empty => settings.toml application.mode");
 DEFINE_string(app_instance_id, "", "Console application instance id");
 DEFINE_string(gpu_stable_key, "", "Console-selected physical GPU stable key");
-DEFINE_string(webview_url_b64, "", "Base64URL-encoded WebView entry URL (never log decoded value)");
 DEFINE_string(webview_instance_id, "", "Console WebView instance id");
 DEFINE_string(rdp_instance_id, "", "Console RDP runtime instance id");
 DEFINE_string(rdp_workspace_id, "", "Persistent Console RDP workspace id");
@@ -101,10 +100,32 @@ DEFINE_int32(webview_width, 1920, "WebView off-screen width");
 DEFINE_int32(webview_height, 1080, "WebView off-screen height");
 DEFINE_bool(webview_gpu, true, "Use CEF accelerated OSR shared textures");
 DEFINE_bool(webview_smoke_test, false, "Render WebView frames without a connected peer for diagnostics");
-// appkey
-DEFINE_string(appkey, "", "appkey");
+namespace {
 
-void UpdateSettings(RdSettings& settings) {
+bool ReadAndClearPrivateEnvironment(const std::wstring& environment_name, std::string& destination) {
+    const DWORD required_units = GetEnvironmentVariableW(environment_name.c_str(), nullptr, 0);
+    if (required_units == 0) {
+        destination.clear();
+        return GetLastError() == ERROR_ENVVAR_NOT_FOUND;
+    }
+    std::vector<wchar_t> value_units(required_units);
+    const DWORD written_units = GetEnvironmentVariableW(environment_name.c_str(), value_units.data(), required_units);
+    const bool cleared = SetEnvironmentVariableW(environment_name.c_str(), nullptr) != FALSE;
+    if (written_units == 0 || written_units >= required_units || !cleared) {
+        std::ranges::fill(value_units, L'\0');
+        destination.clear();
+        return false;
+    }
+    std::wstring wide_value(value_units.data(), written_units);
+    std::ranges::fill(value_units, L'\0');
+    destination = StringUtil::ToUTF8(wide_value);
+    std::ranges::fill(wide_value, L'\0');
+    return true;
+}
+
+}  // namespace
+
+bool UpdateSettings(RdSettings& settings) {
     if (FLAGS_steam_app_id > 0) {
         settings.app_.steam_app_.app_id_ = FLAGS_steam_app_id;
         settings.app_.steam_app_.steam_url_ = std::format("steam://rungameid/{}", FLAGS_steam_app_id);
@@ -167,8 +188,9 @@ void UpdateSettings(RdSettings& settings) {
     settings.block_debug_ = FLAGS_debug_block;
     settings.device_id_ = FLAGS_device_id;
     settings.relay_device_id_ = FLAGS_relay_device_id;
-    settings.device_random_pwd_ = FLAGS_device_random_pwd;
-    settings.device_safety_pwd_ = FLAGS_device_safety_pwd;
+    bool private_environment_loaded = true;
+    private_environment_loaded &= ReadAndClearPrivateEnvironment(L"PIXELS_RENDER_DEVICE_RANDOM_PASSWORD", settings.device_random_pwd_);
+    private_environment_loaded &= ReadAndClearPrivateEnvironment(L"PIXELS_RENDER_DEVICE_SAFETY_PASSWORD_HASH", settings.device_safety_pwd_);
 
     settings.relay_host_ = FLAGS_relay_server_host;
     settings.relay_port_ = FLAGS_relay_server_port;
@@ -181,7 +203,7 @@ void UpdateSettings(RdSettings& settings) {
     if (!gflags::GetCommandLineFlagInfoOrDie("service_server_port").is_default) {
         settings.service_server_port_ = FLAGS_service_server_port;
     }
-    settings.service_ipc_token_ = FLAGS_service_ipc_token;
+    private_environment_loaded &= ReadAndClearPrivateEnvironment(L"PIXELS_RENDER_SERVICE_IPC_TOKEN", settings.service_ipc_token_);
 
     // can be operated
     settings.can_be_operated_ = FLAGS_can_be_operated;
@@ -216,7 +238,7 @@ void UpdateSettings(RdSettings& settings) {
         settings.rdp_launch_.proxy_certificate_sha256 = FLAGS_rdp_proxy_certificate_sha256;
     }
 
-    settings.webview_url_b64_ = FLAGS_webview_url_b64;
+    private_environment_loaded &= ReadAndClearPrivateEnvironment(L"PIXELS_RENDER_WEBVIEW_URL_B64", settings.webview_url_b64_);
     settings.webview_instance_id_ = FLAGS_webview_instance_id;
     settings.app_instance_id_ = FLAGS_app_instance_id;
     settings.gpu_stable_key_ = FLAGS_gpu_stable_key;
@@ -225,8 +247,8 @@ void UpdateSettings(RdSettings& settings) {
     settings.webview_gpu_ = FLAGS_webview_gpu;
     settings.webview_smoke_test_ = FLAGS_webview_smoke_test;
 
-    // appkey
-    settings.appkey_ = FLAGS_appkey;
+    private_environment_loaded &= ReadAndClearPrivateEnvironment(L"PIXELS_RENDER_RELAY_TICKET", settings.appkey_);
+    return private_environment_loaded;
 }
 
 void PrintInputArgs() {
@@ -255,7 +277,7 @@ void PrintInputArgs() {
     LOGI("app_game_args: {}", FLAGS_app_game_args);
     LOGI("block debug: {}", FLAGS_debug_block);
     LOGI("device id: {}", FLAGS_device_id);
-    LOGI("device random password configured: {}", !FLAGS_device_random_pwd.empty());
+    LOGI("device random password configured: {}", !settings.device_random_pwd_.empty());
     LOGI("panel server host: {}", FLAGS_panel_server_host);
     LOGI("panel server port: {}", FLAGS_panel_server_port);
     LOGI("service server host: {}", FLAGS_service_server_host);
@@ -274,7 +296,7 @@ void PrintInputArgs() {
     LOGI("webview viewport: {}x{}", settings.webview_width_, settings.webview_height_);
     LOGI("webview accelerated paint: {}", settings.webview_gpu_);
     LOGI("event replay mode: {} (0=global,1=inner)", (int)settings.app_.event_replay_mode_);
-    LOGI("appkey configured: {}", !FLAGS_appkey.empty());
+    LOGI("relay admission ticket configured: {}", !settings.appkey_.empty());
     LOGI("--------------In args end----------------");
 }
 
@@ -302,7 +324,10 @@ int main(int argc, char** argv) {
         LOGE("Cannot load Render configuration");
         return 1;
     }
-    UpdateSettings(settings);
+    if (!UpdateSettings(settings)) {
+        OutputDebugStringA("Pixels Render: private launch environment could not be read and cleared\n");
+        return ERROR_INVALID_ENVIRONMENT;
+    }
 #if !PX_CAPABILITY_GAME_HOOK
     if (settings.IsGameHookMode()) {
         OutputDebugStringA("Pixels Render: selected product does not include the game-hook capability\n");

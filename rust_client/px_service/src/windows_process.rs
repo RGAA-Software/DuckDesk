@@ -39,6 +39,19 @@ pub trait ProcessManager: Send + Sync {
         args: &[String],
     ) -> Result<(), String>;
 
+    fn start_process_as_active_user_with_private_environment(
+        &self,
+        work_dir: &str,
+        app_path: &str,
+        args: &[String],
+        private_environment: &[(String, String)],
+    ) -> Result<(), String> {
+        if !private_environment.is_empty() {
+            return Err("private child-process environment is unsupported".into());
+        }
+        self.start_process_as_active_user(work_dir, app_path, args)
+    }
+
     /// RDP workers stay in the Service security context; never use an interactive user's token.
     fn start_process_as_service(
         &self,
@@ -47,6 +60,19 @@ pub trait ProcessManager: Send + Sync {
         _args: &[String],
     ) -> Result<(), String> {
         Err("Service-context process launch is unavailable".into())
+    }
+
+    fn start_process_as_service_with_private_environment(
+        &self,
+        work_dir: &str,
+        app_path: &str,
+        args: &[String],
+        private_environment: &[(String, String)],
+    ) -> Result<(), String> {
+        if !private_environment.is_empty() {
+            return Err("private child-process environment is unsupported".into());
+        }
+        self.start_process_as_service(work_dir, app_path, args)
     }
 
     /// Launch strictly with the logged-on user's WTS token (no SYSTEM token
@@ -144,6 +170,95 @@ fn redact_args(args: &[String]) -> Vec<String> {
         .collect()
 }
 
+fn validate_private_environment(private_environment: &[(String, String)]) -> Result<(), String> {
+    let mut normalized_names = std::collections::BTreeSet::new();
+    for (name, value) in private_environment {
+        if !name.starts_with("PIXELS_RENDER_")
+            || name.is_empty()
+            || name.contains('=')
+            || name.contains('\0')
+            || value.contains('\0')
+            || !normalized_names.insert(name.to_ascii_uppercase())
+        {
+            return Err("private child-process environment is invalid".into());
+        }
+    }
+    Ok(())
+}
+
+fn clear_inherited_private_environment(command: &mut std::process::Command) {
+    for (environment_name, _) in std::env::vars_os() {
+        if environment_name
+            .to_string_lossy()
+            .to_ascii_uppercase()
+            .starts_with("PIXELS_RENDER_")
+        {
+            command.env_remove(environment_name);
+        }
+    }
+}
+
+fn environment_entry_name(environment_entry: &str) -> Option<&str> {
+    let separator_offset =
+        if let Some(drive_environment_entry) = environment_entry.strip_prefix('=') {
+            drive_environment_entry.find('=').map(|offset| offset + 1)?
+        } else {
+            environment_entry.find('=')?
+        };
+    Some(&environment_entry[..separator_offset])
+}
+
+unsafe fn merge_environment_block(
+    environment: *mut c_void,
+    private_environment: &[(String, String)],
+) -> Result<Vec<u16>, String> {
+    if environment.is_null() {
+        return Err("Windows child-process environment is unavailable".into());
+    }
+    let environment_units = environment.cast::<u16>();
+    let mut entries = Vec::new();
+    let mut entry_start = 0usize;
+    loop {
+        let mut entry_end = entry_start;
+        while *environment_units.add(entry_end) != 0 {
+            entry_end += 1;
+        }
+        if entry_end == entry_start {
+            break;
+        }
+        let entry = String::from_utf16(std::slice::from_raw_parts(
+            environment_units.add(entry_start),
+            entry_end - entry_start,
+        ))
+        .map_err(|_| "Windows child-process environment is invalid".to_string())?;
+        entries.push(entry);
+        entry_start = entry_end + 1;
+    }
+
+    entries.retain(|entry| {
+        let Some(existing_name) = environment_entry_name(entry) else {
+            return true;
+        };
+        !existing_name
+            .to_ascii_uppercase()
+            .starts_with("PIXELS_RENDER_")
+    });
+    entries.extend(
+        private_environment
+            .iter()
+            .map(|(name, value)| format!("{name}={value}")),
+    );
+    entries.sort_by_key(|entry| entry.to_ascii_uppercase());
+
+    let mut merged_environment = Vec::new();
+    for entry in entries {
+        merged_environment.extend(entry.encode_utf16());
+        merged_environment.push(0);
+    }
+    merged_environment.push(0);
+    Ok(merged_environment)
+}
+
 impl ProcessManager for WindowsProcessManager {
     fn observe_exit(
         &self,
@@ -199,6 +314,40 @@ impl ProcessManager for WindowsProcessManager {
         drop(child);
         Ok(())
     }
+
+    fn start_process_as_service_with_private_environment(
+        &self,
+        work_dir: &str,
+        app_path: &str,
+        args: &[String],
+        private_environment: &[(String, String)],
+    ) -> Result<(), String> {
+        use std::os::windows::process::CommandExt;
+        validate_private_environment(private_environment)?;
+        let mut command = std::process::Command::new(app_path);
+        clear_inherited_private_environment(&mut command);
+        command
+            .args(args)
+            .envs(
+                private_environment
+                    .iter()
+                    .map(|(name, value)| (name, value)),
+            )
+            .current_dir(work_dir)
+            .creation_flags(windows::Win32::System::Threading::CREATE_NO_WINDOW.0)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+        let child = command
+            .spawn()
+            .map_err(|error| format!("Service-context Render launch failed: {error}"))?;
+        info!(
+            "Service-context Render launched with private environment, pid={}",
+            child.id()
+        );
+        drop(child);
+        Ok(())
+    }
     fn list_processes(&self) -> Result<Vec<ProcessSnapshot>, String> {
         let com = COMLibrary::new().map_err(|err| err.to_string())?;
         let wmi = WMIConnection::new(com).map_err(|err| err.to_string())?;
@@ -236,12 +385,34 @@ impl ProcessManager for WindowsProcessManager {
         app_path: &str,
         args: &[String],
     ) -> Result<(), String> {
+        self.start_process_as_active_user_with_private_environment(work_dir, app_path, args, &[])
+    }
+
+    fn start_process_as_active_user_with_private_environment(
+        &self,
+        work_dir: &str,
+        app_path: &str,
+        args: &[String],
+        private_environment: &[(String, String)],
+    ) -> Result<(), String> {
+        validate_private_environment(private_environment)?;
         let safe_args = redact_args(args);
         info!(
-            "start process as active user requested, work_dir={}, app_path={}, args={:?}",
-            work_dir, app_path, safe_args
+            "start process as active user requested, work_dir={}, app_path={}, args={:?}, private_environment_names={:?}",
+            work_dir,
+            app_path,
+            safe_args,
+            private_environment
+                .iter()
+                .map(|(name, _)| name.as_str())
+                .collect::<Vec<_>>()
         );
-        match start_process_with_service_token_session(work_dir, app_path, args) {
+        match start_process_with_service_token_session(
+            work_dir,
+            app_path,
+            args,
+            private_environment,
+        ) {
             Ok(()) => {
                 info!("start process as active user finished by service token session path");
                 Ok(())
@@ -251,7 +422,12 @@ impl ProcessManager for WindowsProcessManager {
                     "service token session launch failed, will fallback to WTS user token: {}",
                     service_err
                 );
-                match start_process_with_wts_user_token(work_dir, app_path, args) {
+                match start_process_with_wts_user_token(
+                    work_dir,
+                    app_path,
+                    args,
+                    private_environment,
+                ) {
                     Ok(()) => {
                         info!("start process as active user finished by WTS user token fallback");
                         Ok(())
@@ -263,7 +439,7 @@ impl ProcessManager for WindowsProcessManager {
                         warn!(
                             "token launch paths failed ({service_err}; {wts_err}); trying direct CreateProcess"
                         );
-                        match start_process_direct(work_dir, app_path, args) {
+                        match start_process_direct(work_dir, app_path, args, private_environment) {
                             Ok(()) => {
                                 info!("start process finished by direct CreateProcess fallback");
                                 Ok(())
@@ -293,7 +469,7 @@ impl ProcessManager for WindowsProcessManager {
             "start process as session user (WTS token only) requested, work_dir={}, app_path={}, args={:?}",
             work_dir, app_path, safe_args
         );
-        start_process_with_wts_user_token(work_dir, app_path, args)
+        start_process_with_wts_user_token(work_dir, app_path, args, &[])
     }
 }
 
@@ -301,6 +477,7 @@ fn start_process_with_service_token_session(
     work_dir: &str,
     app_path: &str,
     args: &[String],
+    private_environment: &[(String, String)],
 ) -> Result<(), String> {
     unsafe {
         info!("service token session launch begin");
@@ -372,6 +549,7 @@ fn start_process_with_service_token_session(
             work_dir,
             app_path,
             args,
+            private_environment,
         )
         .map_err(|err| format!("service token session launch failed: {err}"))
     }
@@ -381,6 +559,7 @@ fn start_process_with_wts_user_token(
     work_dir: &str,
     app_path: &str,
     args: &[String],
+    private_environment: &[(String, String)],
 ) -> Result<(), String> {
     unsafe {
         info!("WTS user token launch begin");
@@ -425,8 +604,15 @@ fn start_process_with_wts_user_token(
         }
         info!("WTS user token launch DuplicateTokenEx succeeded");
 
-        create_process_with_token("wts_user_token", primary_token, work_dir, app_path, args)
-            .map_err(|err| format!("WTS user token launch failed: {err}"))
+        create_process_with_token(
+            "wts_user_token",
+            primary_token,
+            work_dir,
+            app_path,
+            args,
+            private_environment,
+        )
+        .map_err(|err| format!("WTS user token launch failed: {err}"))
     }
 }
 
@@ -436,6 +622,7 @@ unsafe fn create_process_with_token(
     work_dir: &str,
     app_path: &str,
     args: &[String],
+    private_environment: &[(String, String)],
 ) -> Result<(), String> {
     let safe_args = redact_args(args);
     info!(
@@ -456,6 +643,16 @@ unsafe fn create_process_with_token(
         "CreateProcessAsUserW prepare CreateEnvironmentBlock succeeded, method={}, env_ptr={:?}",
         launch_method, environment
     );
+
+    let merged_environment_result = merge_environment_block(environment, private_environment);
+    let _ = DestroyEnvironmentBlock(environment);
+    let mut merged_environment = match merged_environment_result {
+        Ok(merged_environment) => merged_environment,
+        Err(error) => {
+            let _ = CloseHandle(primary_token);
+            return Err(error);
+        }
+    };
 
     let command = build_command_line(app_path, args);
     let safe_command = build_command_line(app_path, &safe_args);
@@ -485,13 +682,13 @@ unsafe fn create_process_with_token(
         None,
         false,
         PROCESS_CREATION_FLAGS(creation_flags),
-        Some(environment),
+        Some(merged_environment.as_ptr().cast_mut().cast()),
         PCWSTR(work_dir_w.as_ptr()),
         &startup_info,
         &mut process_info,
     );
 
-    let _ = DestroyEnvironmentBlock(environment);
+    merged_environment.fill(0);
     let _ = CloseHandle(primary_token);
     match result {
         Ok(()) => {
@@ -513,14 +710,25 @@ unsafe fn create_process_with_token(
     }
 }
 
-fn start_process_direct(work_dir: &str, app_path: &str, args: &[String]) -> Result<(), String> {
+fn start_process_direct(
+    work_dir: &str,
+    app_path: &str,
+    args: &[String],
+    private_environment: &[(String, String)],
+) -> Result<(), String> {
     let safe_args = redact_args(args);
     info!(
         "direct CreateProcess begin, work_dir={}, app_path={}, args={:?}",
         work_dir, app_path, safe_args
     );
     let mut cmd = std::process::Command::new(app_path);
+    clear_inherited_private_environment(&mut cmd);
     cmd.args(args)
+        .envs(
+            private_environment
+                .iter()
+                .map(|(name, value)| (name, value)),
+        )
         .current_dir(work_dir)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
@@ -574,7 +782,9 @@ fn escape_arg(arg: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_command_line, redact_args};
+    use super::{
+        build_command_line, merge_environment_block, redact_args, validate_private_environment,
+    };
 
     #[test]
     fn exit_observer_child_fixture() {
@@ -636,5 +846,54 @@ mod tests {
         assert!(line.contains("--user_session_token <redacted>"));
         assert!(!line.contains("local-secret"));
         assert!(!line.contains("session-secret"));
+    }
+
+    #[test]
+    fn private_environment_replaces_inherited_values_without_entering_command_line() {
+        let mut inherited_environment =
+            "Path=C:\\Windows\0PIXELS_RENDER_RELAY_TICKET=stale\0PIXELS_RENDER_UNUSED=stale-too\0\0"
+            .encode_utf16()
+            .collect::<Vec<_>>();
+        let private_environment = vec![
+            (
+                "PIXELS_RENDER_RELAY_TICKET".to_string(),
+                "fresh-ticket".to_string(),
+            ),
+            (
+                "PIXELS_RENDER_SERVICE_IPC_TOKEN".to_string(),
+                "ipc-secret".to_string(),
+            ),
+        ];
+        validate_private_environment(&private_environment).unwrap();
+        let merged = unsafe {
+            merge_environment_block(
+                inherited_environment.as_mut_ptr().cast(),
+                &private_environment,
+            )
+            .unwrap()
+        };
+        let merged_text = String::from_utf16_lossy(&merged);
+        assert!(merged_text.contains("Path=C:\\Windows\0"));
+        assert!(merged_text.contains("PIXELS_RENDER_RELAY_TICKET=fresh-ticket\0"));
+        assert!(merged_text.contains("PIXELS_RENDER_SERVICE_IPC_TOKEN=ipc-secret\0"));
+        assert!(!merged_text.contains("stale"));
+        let command_line = build_command_line("px_render.exe", &["--app_mode=desktop".into()]);
+        assert!(!command_line.contains("fresh-ticket"));
+        assert!(!command_line.contains("ipc-secret"));
+    }
+
+    #[test]
+    fn private_environment_rejects_unknown_duplicate_and_embedded_null_names() {
+        assert!(validate_private_environment(&[("RELAY_TICKET".into(), "value".into())]).is_err());
+        assert!(validate_private_environment(&[
+            ("PIXELS_RENDER_SECRET".into(), "first".into()),
+            ("pixels_render_secret".into(), "second".into()),
+        ])
+        .is_err());
+        assert!(validate_private_environment(&[(
+            "PIXELS_RENDER_SECRET".into(),
+            "invalid\0value".into(),
+        )])
+        .is_err());
     }
 }

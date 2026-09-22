@@ -78,6 +78,78 @@ const SERVICE_OWNED_RELAY_ARGUMENTS: [&str; 4] = [
 ];
 const RDP_RENDER_GRACEFUL_STOP_ATTEMPTS: u32 = 50;
 const RDP_RENDER_GRACEFUL_STOP_POLL_MS: u64 = 100;
+const RENDER_SERVICE_IPC_TOKEN_ENVIRONMENT: &str = "PIXELS_RENDER_SERVICE_IPC_TOKEN";
+const RENDER_RELAY_TICKET_ENVIRONMENT: &str = "PIXELS_RENDER_RELAY_TICKET";
+const RENDER_DEVICE_RANDOM_PASSWORD_ENVIRONMENT: &str = "PIXELS_RENDER_DEVICE_RANDOM_PASSWORD";
+const RENDER_DEVICE_SAFETY_PASSWORD_ENVIRONMENT: &str = "PIXELS_RENDER_DEVICE_SAFETY_PASSWORD_HASH";
+const RENDER_WEBVIEW_URL_ENVIRONMENT: &str = "PIXELS_RENDER_WEBVIEW_URL_B64";
+
+const PRIVATE_RENDER_ARGUMENTS: [(&str, &str); 5] = [
+    ("service_ipc_token", RENDER_SERVICE_IPC_TOKEN_ENVIRONMENT),
+    ("appkey", RENDER_RELAY_TICKET_ENVIRONMENT),
+    (
+        "device_random_pwd",
+        RENDER_DEVICE_RANDOM_PASSWORD_ENVIRONMENT,
+    ),
+    (
+        "device_safety_pwd",
+        RENDER_DEVICE_SAFETY_PASSWORD_ENVIRONMENT,
+    ),
+    ("webview_url_b64", RENDER_WEBVIEW_URL_ENVIRONMENT),
+];
+
+fn insert_private_render_environment(
+    private_environment: &mut std::collections::BTreeMap<String, String>,
+    name: &str,
+    value: String,
+) -> Result<(), String> {
+    if value.contains('\0')
+        || private_environment
+            .insert(name.to_string(), value)
+            .is_some()
+    {
+        return Err("duplicate or invalid private Render launch value".into());
+    }
+    Ok(())
+}
+
+fn take_private_render_arguments(
+    arguments: &mut Vec<String>,
+) -> Result<std::collections::BTreeMap<String, String>, String> {
+    let mut public_arguments = Vec::with_capacity(arguments.len());
+    let mut private_environment = std::collections::BTreeMap::new();
+    let mut argument_iterator = std::mem::take(arguments).into_iter();
+    while let Some(argument) = argument_iterator.next() {
+        let mut private_argument = None;
+        for (argument_name, environment_name) in PRIVATE_RENDER_ARGUMENTS {
+            let flag_name = format!("--{argument_name}");
+            if argument == flag_name {
+                let value = argument_iterator
+                    .next()
+                    .ok_or_else(|| format!("{flag_name} requires a value"))?;
+                private_argument = Some((environment_name, value));
+                break;
+            }
+            if let Some(value) = argument.strip_prefix(&format!("{flag_name}=")) {
+                private_argument = Some((environment_name, value.to_string()));
+                break;
+            }
+        }
+        if let Some((environment_name, value)) = private_argument {
+            insert_private_render_environment(&mut private_environment, environment_name, value)?;
+        } else {
+            public_arguments.push(argument);
+        }
+    }
+    *arguments = public_arguments;
+    Ok(private_environment)
+}
+
+fn private_environment_entries(
+    private_environment: std::collections::BTreeMap<String, String>,
+) -> Vec<(String, String)> {
+    private_environment.into_iter().collect()
+}
 
 fn strip_service_owned_relay_arguments(arguments: &mut Vec<String>) {
     let mut skip_following_value = false;
@@ -102,18 +174,18 @@ fn strip_service_owned_relay_arguments(arguments: &mut Vec<String>) {
 fn apply_node_relay_arguments(
     arguments: &mut Vec<String>,
     relay: Option<&px_node_protocol::RelayEndpoint>,
-) {
+) -> Option<String> {
     strip_service_owned_relay_arguments(arguments);
     let Some(relay) = relay else {
         arguments.push("--relay_enabled=false".to_string());
-        return;
+        return None;
     };
     arguments.extend([
         format!("--relay_server_host={}", relay.host),
         format!("--relay_server_port={}", relay.port),
-        format!("--appkey={}", relay.app_key),
         "--relay_enabled=true".to_string(),
     ]);
+    Some(relay.app_key.clone())
 }
 
 fn rebase_missing_desktop_launch(
@@ -427,6 +499,7 @@ impl ServiceRuntime {
     pub fn start_desktop(&mut self, mut spec: RenderLaunchSpec) -> Result<(), String> {
         strip_service_owned_relay_arguments(&mut spec.args);
         self.config.node.configure_render(&mut spec.args, true);
+        let mut private_environment = take_private_render_arguments(&mut spec.args)?;
         info!(
             "start desktop requested, work_dir={}, app_path={}",
             spec.work_dir, spec.app_path
@@ -441,14 +514,27 @@ impl ServiceRuntime {
             self.stop_desktop()?;
         }
         let mut secure_args = spec.args.clone();
-        apply_node_relay_arguments(&mut secure_args, self.node_control_relay.as_ref());
-        secure_args.retain(|arg| !arg.starts_with("--service_ipc_token="));
-        secure_args.push(format!("--service_ipc_token={}", self.ipc_token));
-        self.process_manager.start_process_as_active_user(
-            &spec.work_dir,
-            &spec.app_path,
-            &secure_args,
+        if let Some(relay_admission_ticket) =
+            apply_node_relay_arguments(&mut secure_args, self.node_control_relay.as_ref())
+        {
+            insert_private_render_environment(
+                &mut private_environment,
+                RENDER_RELAY_TICKET_ENVIRONMENT,
+                relay_admission_ticket,
+            )?;
+        }
+        insert_private_render_environment(
+            &mut private_environment,
+            RENDER_SERVICE_IPC_TOKEN_ENVIRONMENT,
+            self.ipc_token.clone(),
         )?;
+        self.process_manager
+            .start_process_as_active_user_with_private_environment(
+                &spec.work_dir,
+                &spec.app_path,
+                &secure_args,
+                &private_environment_entries(private_environment),
+            )?;
         if let Err(err) = self.start_user_proxy(&spec) {
             warn!("start user proxy failed: {err}");
         }
@@ -513,6 +599,9 @@ impl ServiceRuntime {
         let requires_render_readiness = is_webview || is_rdp || req.gpu_stable_key.is_some();
         let rdp_account = req.rdp_account.clone();
         let rdp_device_id = req.device_id.clone();
+        let webview_url_b64 = is_webview.then(|| req.webview_url_b64.clone());
+        let relay_admission_ticket =
+            (!req.relay_appkey.is_empty()).then(|| req.relay_appkey.clone());
         if is_rdp && rdp_account.is_none() {
             return Err("RDP workspace credential missing".into());
         }
@@ -559,6 +648,26 @@ impl ServiceRuntime {
         let port = record.listen_port;
         let mut launch = record.launch.clone();
         node_config.configure_render(&mut launch.args, false);
+        let mut private_environment = take_private_render_arguments(&mut launch.args)?;
+        if let Some(webview_url_b64) = webview_url_b64 {
+            insert_private_render_environment(
+                &mut private_environment,
+                RENDER_WEBVIEW_URL_ENVIRONMENT,
+                webview_url_b64,
+            )?;
+        }
+        if let Some(relay_admission_ticket) = relay_admission_ticket {
+            insert_private_render_environment(
+                &mut private_environment,
+                RENDER_RELAY_TICKET_ENVIRONMENT,
+                relay_admission_ticket,
+            )?;
+        }
+        insert_private_render_environment(
+            &mut private_environment,
+            RENDER_SERVICE_IPC_TOKEN_ENVIRONMENT,
+            ipc_token,
+        )?;
         let _rdp_bootstrap = if is_rdp {
             let account =
                 rdp_account.ok_or_else(|| "RDP workspace credential missing".to_string())?;
@@ -615,10 +724,6 @@ impl ServiceRuntime {
         } else {
             None
         };
-        launch
-            .args
-            .retain(|arg| !arg.starts_with("--service_ipc_token="));
-        launch.args.push(format!("--service_ipc_token={ipc_token}"));
         info!(
             "start app instance {}, mode={}, has_game={}, view={:?}, work_dir={}, port={}",
             instance_id,
@@ -650,16 +755,18 @@ impl ServiceRuntime {
                 }
                 return Err("RDP startup was cancelled before Render launch".into());
             }
-            process_manager.start_process_as_service(
+            process_manager.start_process_as_service_with_private_environment(
                 &launch.work_dir,
                 &launch.app_path,
                 &launch.args,
+                &private_environment_entries(private_environment),
             )
         } else {
-            process_manager.start_process_as_active_user(
+            process_manager.start_process_as_active_user_with_private_environment(
                 &launch.work_dir,
                 &launch.app_path,
                 &launch.args,
+                &private_environment_entries(private_environment),
             )
         };
         if let Err(err) = launch_result {
@@ -1623,6 +1730,7 @@ mod tests {
         list_entered: AtomicBool,
         processes: StdMutex<Vec<ProcessSnapshot>>,
         launches: StdMutex<Vec<RenderLaunchSpec>>,
+        private_environments: StdMutex<Vec<Vec<(String, String)>>>,
         session_user_launches: StdMutex<Vec<RenderLaunchSpec>>,
         kills: StdMutex<Vec<u32>>,
         next_pid: StdMutex<u32>,
@@ -1639,6 +1747,7 @@ mod tests {
                 list_entered: AtomicBool::new(false),
                 processes: StdMutex::new(processes),
                 launches: StdMutex::new(Vec::new()),
+                private_environments: StdMutex::new(Vec::new()),
                 session_user_launches: StdMutex::new(Vec::new()),
                 kills: StdMutex::new(Vec::new()),
                 next_pid: StdMutex::new(1000),
@@ -1728,6 +1837,35 @@ mod tests {
                 }
             }
             Ok(())
+        }
+
+        fn start_process_as_active_user_with_private_environment(
+            &self,
+            work_dir: &str,
+            app_path: &str,
+            args: &[String],
+            private_environment: &[(String, String)],
+        ) -> Result<(), String> {
+            self.private_environments
+                .lock()
+                .unwrap()
+                .push(private_environment.to_vec());
+            self.start_process_as_active_user(work_dir, app_path, args)
+        }
+
+        fn start_process_as_service_with_private_environment(
+            &self,
+            work_dir: &str,
+            app_path: &str,
+            args: &[String],
+            private_environment: &[(String, String)],
+        ) -> Result<(), String> {
+            self.start_process_as_active_user_with_private_environment(
+                work_dir,
+                app_path,
+                args,
+                private_environment,
+            )
         }
 
         fn start_process_as_session_user(
@@ -1886,15 +2024,25 @@ mod tests {
             .unwrap();
 
         let launches = manager.launches.lock().unwrap();
-        const EXPECTED_RELAY_ARGUMENTS: [&str; 4] = [
+        const EXPECTED_RELAY_ARGUMENTS: [&str; 3] = [
             "--relay_server_host=relay.example.test",
             "--relay_server_port=4605",
-            "--appkey=deployment-relay-key",
             "--relay_enabled=true",
         ];
         for argument in EXPECTED_RELAY_ARGUMENTS {
             assert!(launches[0].args.iter().any(|actual| actual == argument));
         }
+        assert!(!launches[0]
+            .args
+            .iter()
+            .any(|argument| argument.starts_with("--appkey=")));
+        let private_environments = manager.private_environments.lock().unwrap();
+        assert!(private_environments[0].iter().any(|(name, value)| {
+            name == RENDER_RELAY_TICKET_ENVIRONMENT && value == "deployment-relay-key"
+        }));
+        assert!(private_environments[0].iter().any(|(name, value)| {
+            name == RENDER_SERVICE_IPC_TOKEN_ENVIRONMENT && value == &runtime.ipc_token
+        }));
         let persisted = runtime.state.last_desktop_launch.as_ref().unwrap();
         assert!(!persisted.args.iter().any(|argument| {
             SERVICE_OWNED_RELAY_ARGUMENTS
@@ -2741,7 +2889,8 @@ mod tests {
             std::env::temp_dir().join("px_logs_webview_ready"),
         );
         let manager = Arc::new(MockProcessManager::new(Vec::new()));
-        let mut service = ServiceRuntime::new(config, manager, Arc::new(MockActions::new()));
+        let mut service =
+            ServiceRuntime::new(config, manager.clone(), Arc::new(MockActions::new()));
         service.state.last_desktop_launch = Some(RenderLaunchSpec {
             work_dir: dirs.work_dir_s,
             app_path: dirs.render_path.to_string_lossy().to_string(),
@@ -2789,6 +2938,28 @@ mod tests {
                 .state,
             service_core::AppInstanceState::Running
         );
+        let launches = manager.launches.lock().unwrap();
+        assert_eq!(launches.len(), 1);
+        assert!(launches[0].args.iter().all(|argument| {
+            !argument.starts_with("--webview_url_b64=")
+                && !argument.starts_with("--appkey=")
+                && !argument.starts_with("--service_ipc_token=")
+        }));
+        drop(launches);
+
+        let private_environments = manager.private_environments.lock().unwrap();
+        assert_eq!(private_environments.len(), 1);
+        let private_environment = &private_environments[0];
+        assert!(private_environment.iter().any(|(name, value)| {
+            name == RENDER_WEBVIEW_URL_ENVIRONMENT
+                && value == &URL_SAFE_NO_PAD.encode(b"https://example.com/app")
+        }));
+        assert!(private_environment.iter().any(|(name, value)| {
+            name == RENDER_RELAY_TICKET_ENVIRONMENT && value == "app-key"
+        }));
+        assert!(private_environment.iter().any(|(name, value)| {
+            name == RENDER_SERVICE_IPC_TOKEN_ENVIRONMENT && !value.is_empty()
+        }));
     }
 
     #[tokio::test]

@@ -1282,6 +1282,16 @@ mod tests {
             ));
             Ok(())
         }
+
+        fn start_process_as_active_user_with_private_environment(
+            &self,
+            work_dir: &str,
+            app_path: &str,
+            args: &[String],
+            _private_environment: &[(String, String)],
+        ) -> Result<(), String> {
+            self.start_process_as_active_user(work_dir, app_path, args)
+        }
     }
 
     struct MockActions;

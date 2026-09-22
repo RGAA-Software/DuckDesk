@@ -271,8 +271,9 @@ pub fn build_webview_launch_spec(
     req: &StartAppRequest,
     listen_port: u16,
 ) -> Result<RenderLaunchSpec, String> {
-    // Decode only to validate UTF-8 and URL structure. The original Base64URL
-    // is passed through so neither the URL nor its query is logged by Service.
+    // Decode only to validate UTF-8 and URL structure. Service transfers the
+    // original Base64URL through the private child-process environment so it
+    // never enters a persisted launch specification or process command line.
     let _ = decode_webview_url(&req.webview_url_b64)?;
     let work_dir = work_dir.into();
     let app_path = PathBuf::from(&work_dir).join(RENDER_EXE_NAME);
@@ -290,7 +291,6 @@ pub fn build_webview_launch_spec(
     let mut args = vec![
         "--logfile".to_string(),
         format!("--app_mode={APP_MODE_WEBVIEW}"),
-        format!("--webview_url_b64={}", req.webview_url_b64.trim()),
         "--capture_video=true".to_string(),
         "--capture_video_type=inner".to_string(),
         "--capture_audio=true".to_string(),
@@ -351,7 +351,6 @@ fn append_relay_arguments(args: &mut Vec<String>, req: &StartAppRequest) {
         format!("--relay_device_id={}", req.relay_device_id.trim()),
         format!("--relay_server_host={}", req.relay_server_host.trim()),
         format!("--relay_server_port={}", req.relay_server_port),
-        format!("--appkey={}", req.relay_appkey.trim()),
         "--relay_enabled=true".to_string(),
     ]);
 }
@@ -1150,10 +1149,14 @@ mod tests {
             .args
             .iter()
             .any(|arg| arg == "--capture_audio_type=inner"));
-        assert!(spec
+        assert!(!spec
             .args
             .iter()
-            .any(|arg| arg == &format!("--webview_url_b64={}", req.webview_url_b64)));
+            .any(|argument| argument.starts_with("--webview_url_b64=")));
+        assert!(!spec
+            .args
+            .iter()
+            .any(|argument| argument.starts_with("--appkey=")));
         assert!(spec
             .args
             .iter()
@@ -1291,11 +1294,19 @@ mod tests {
 
     #[test]
     fn failed_start_releases_port() {
-        let mut reg = AppInstanceRegistry::new().with_port_range(4913, 4913);
-        reg.begin_start(r"D:\Pixels", sample_req("f", 0)).unwrap();
-        reg.mark_failed("f", "spawn failed").unwrap();
-        let again = reg.begin_start(r"D:\Pixels", sample_req("g", 0)).unwrap();
-        assert_eq!(again.listen_port, 4913);
+        let available_port = free_port_range(1);
+        let mut registry =
+            AppInstanceRegistry::new().with_port_range(available_port, available_port);
+        registry
+            .begin_start(r"D:\Pixels", sample_req("failed-instance", 0))
+            .unwrap();
+        registry
+            .mark_failed("failed-instance", "spawn failed")
+            .unwrap();
+        let replacement = registry
+            .begin_start(r"D:\Pixels", sample_req("replacement-instance", 0))
+            .unwrap();
+        assert_eq!(replacement.listen_port, available_port);
     }
 
     #[test]
@@ -1433,23 +1444,46 @@ mod tests {
 
     #[test]
     fn prune_finished_removes_aged_records() {
-        let mut reg = AppInstanceRegistry::new();
-        reg.begin_start(r"D:\Pixels", sample_req("old", 4937))
+        let available_port = free_port_range(3);
+        let mut registry =
+            AppInstanceRegistry::new().with_port_range(available_port, available_port + 2);
+        registry
+            .begin_start(
+                r"D:\Pixels",
+                sample_req("old-finished", i32::from(available_port)),
+            )
             .unwrap();
-        reg.mark_failed("old", "boom").unwrap();
-        reg.begin_start(r"D:\Pixels", sample_req("new", 4938))
+        registry.mark_failed("old-finished", "boom").unwrap();
+        registry
+            .begin_start(
+                r"D:\Pixels",
+                sample_req("new-finished", i32::from(available_port + 1)),
+            )
             .unwrap();
-        reg.begin_stop("new").unwrap();
-        reg.mark_stopped("new").unwrap();
-        reg.begin_start(r"D:\Pixels", sample_req("act", 4939))
+        registry.begin_stop("new-finished").unwrap();
+        registry.mark_stopped("new-finished").unwrap();
+        registry
+            .begin_start(
+                r"D:\Pixels",
+                sample_req("active-instance", i32::from(available_port + 2)),
+            )
             .unwrap();
         // Age the "old" record beyond the TTL; "new" stays fresh.
-        reg.instances.get_mut("old").unwrap().finished_at =
-            Some(Instant::now() - FINISHED_RECORD_TTL - Duration::from_secs(1));
-        reg.prune_finished(FINISHED_RECORD_TTL);
-        assert!(reg.get("old").is_none());
-        assert!(reg.get("new").is_some(), "fresh finished record kept");
-        assert!(reg.get("act").is_some(), "active record kept");
+        registry
+            .instances
+            .get_mut("old-finished")
+            .unwrap()
+            .finished_at = Some(Instant::now() - FINISHED_RECORD_TTL - Duration::from_secs(1));
+        registry.prune_finished(FINISHED_RECORD_TTL);
+        assert!(registry.get("old-finished").is_none());
+        assert!(
+            registry.get("new-finished").is_some(),
+            "fresh finished record kept"
+        );
+        assert!(
+            registry.get("active-instance").is_some(),
+            "active record kept"
+        );
     }
 
     #[test]

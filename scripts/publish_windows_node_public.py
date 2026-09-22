@@ -8,7 +8,10 @@ import base64
 import hashlib
 import json
 import re
+import ssl
 import subprocess
+import urllib.parse
+import urllib.request
 import uuid
 from pathlib import Path
 
@@ -27,6 +30,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--product", required=True, choices=("cloud_node", "remote"))
     parser.add_argument("--distribution", default="development", choices=("development", "official", "customer"))
     parser.add_argument("--component", required=True, choices=("service", "render", "web"))
+    parser.add_argument(
+        "--console-base",
+        help="Authoritative Console HTTPS origin; defaults to https://<public-host>:4600",
+    )
+    parser.add_argument(
+        "--console-ca",
+        type=Path,
+        default=ROOT / ".env" / "public_console_ca.pem",
+        help="CA certificate used to authenticate the authoritative Console",
+    )
     parser.add_argument("--preflight-only", action="store_true")
     return parser.parse_args()
 
@@ -44,6 +57,36 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: source.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest().upper()
+
+
+def verify_current_console_identity(console_base: str, console_ca: Path | None = None) -> None:
+    parsed_base = urllib.parse.urlsplit(console_base)
+    if parsed_base.scheme != "https" or not parsed_base.hostname or parsed_base.username or parsed_base.password:
+        raise RuntimeError("Console preflight requires an HTTPS origin without embedded credentials")
+    identity_url = urllib.parse.urljoin(console_base.rstrip("/") + "/", ".well-known/pixels")
+    request = urllib.request.Request(identity_url, headers={"Accept": "application/json"})
+    if console_ca is not None and not console_ca.is_file():
+        raise RuntimeError(f"Console CA certificate is missing: {console_ca}")
+    tls_context = ssl.create_default_context(cafile=str(console_ca) if console_ca is not None else None)
+    if hasattr(ssl, "VERIFY_X509_STRICT"):
+        tls_context.verify_flags &= ~ssl.VERIFY_X509_STRICT
+    try:
+        with urllib.request.urlopen(request, timeout=10, context=tls_context) as response:
+            response_bytes = response.read(64 * 1024 + 1)
+    except OSError as error:
+        raise RuntimeError("Authoritative Console deployment identity cannot be reached") from error
+    if len(response_bytes) > 64 * 1024:
+        raise RuntimeError("Authoritative Console deployment identity response is too large")
+    try:
+        identity = json.loads(response_bytes.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise RuntimeError("Authoritative Console deployment identity is not valid JSON") from error
+    certificate_wire = identity.get("certificate_wire")
+    descriptor_wire = identity.get("descriptor_wire")
+    if not isinstance(certificate_wire, str) or not certificate_wire.startswith("PXDC2."):
+        raise RuntimeError("Focused publish requires the current PXDC2 Console identity")
+    if not isinstance(descriptor_wire, str) or not descriptor_wire.startswith("PXDD2."):
+        raise RuntimeError("Focused publish requires the current PXDD2 Console descriptor")
 
 
 def encoded_powershell(script: str) -> str:
@@ -97,8 +140,14 @@ $services = @(Get-CimInstance Win32_Service | Where-Object {{
 }})
 if ($services.Count -ne 1) {{ throw 'Service identity is ambiguous' }}
 $serviceName = $services[0].Name
+$serviceWasRunning = (Get-Service -Name $serviceName).Status -eq 'Running'
+$backup = Join-Path $directory ('service.before-' + [DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))
+[void](New-Item -ItemType Directory -Path $backup)
+Copy-Item -LiteralPath $target -Destination (Join-Path $backup 'px_service.exe') -Force
+Copy-Item -LiteralPath $configTarget -Destination (Join-Path $backup 'px_service.toml') -Force
+Copy-Item -LiteralPath $descriptorTarget -Destination (Join-Path $backup 'product-manifest.json') -Force
 try {{
-    if ((Get-Service -Name $serviceName).Status -ne 'Stopped') {{
+    if ($serviceWasRunning) {{
         Stop-Service -Name $serviceName -Force
         (Get-Service -Name $serviceName).WaitForStatus('Stopped', [TimeSpan]::FromSeconds(20))
     }}
@@ -109,8 +158,14 @@ try {{
     if ((Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash -ne '{exe_hash}') {{ throw 'Service deployment hash mismatch' }}
     if ((Get-FileHash -LiteralPath $configTarget -Algorithm SHA256).Hash -ne '{config_hash}') {{ throw 'Service config deployment hash mismatch' }}
     if ((Get-FileHash -LiteralPath $descriptorTarget -Algorithm SHA256).Hash -ne '{descriptor_hash}') {{ throw 'Product descriptor deployment hash mismatch' }}
+}} catch {{
+    Copy-Item -LiteralPath (Join-Path $backup 'px_service.exe') -Destination $target -Force
+    Copy-Item -LiteralPath (Join-Path $backup 'px_service.toml') -Destination $configTarget -Force
+    Copy-Item -LiteralPath (Join-Path $backup 'product-manifest.json') -Destination $descriptorTarget -Force
+    throw
 }} finally {{
-    if ((Get-Service -Name $serviceName).Status -ne 'Running') {{
+    Remove-Item -LiteralPath $staging, $configStaging, $descriptorStaging -Force -ErrorAction SilentlyContinue
+    if ($serviceWasRunning -and (Get-Service -Name $serviceName).Status -ne 'Running') {{
         Start-Service -Name $serviceName
         (Get-Service -Name $serviceName).WaitForStatus('Running', [TimeSpan]::FromSeconds(20))
     }}
@@ -122,16 +177,25 @@ try {{
     ExeHash = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash
     ConfigHash = (Get-FileHash -LiteralPath $configTarget -Algorithm SHA256).Hash
     DescriptorHash = (Get-FileHash -LiteralPath $descriptorTarget -Algorithm SHA256).Hash
+    RecoverableBackup = $backup
 }} | ConvertTo-Json -Compress
 """
 
 
-def render_script(remote_directory: str, product: str, distribution: str, exe_hash: str) -> str:
+def render_script(
+    remote_directory: str,
+    product: str,
+    distribution: str,
+    exe_hash: str,
+    rtc_hash: str,
+) -> str:
     return rf"""
 $ErrorActionPreference = 'Stop'
 $directory = '{remote_directory}'
 $target = Join-Path $directory 'px_render.exe'
 $staging = Join-Path $directory 'px_render.staged.exe'
+$rtcTarget = Join-Path $directory 'px_render_rtc.dll'
+$rtcStaging = Join-Path $directory 'px_render_rtc.staged.dll'
 $descriptorTarget = Join-Path $directory 'product-manifest.json'
 if (-not (Test-Path -LiteralPath $descriptorTarget -PathType Leaf)) {{ throw 'Focused publish requires an installed current product descriptor' }}
 $installedProduct = Get-Content -LiteralPath $descriptorTarget -Raw | ConvertFrom-Json
@@ -142,13 +206,19 @@ if ($installedProduct.schema_version -ne 3 -or $installedProduct.company -ne 'Pi
     throw 'Installed product identity does not match the requested focused publish'
 }}
 if ((Get-FileHash -LiteralPath $staging -Algorithm SHA256).Hash -ne '{exe_hash}') {{ throw 'Render staging hash mismatch' }}
+if ((Get-FileHash -LiteralPath $rtcStaging -Algorithm SHA256).Hash -ne '{rtc_hash}') {{ throw 'Render RTC staging hash mismatch' }}
 $services = @(Get-CimInstance Win32_Service | Where-Object {{
     $_.PathName -and $_.PathName.IndexOf((Join-Path $directory 'px_service.exe'), [StringComparison]::OrdinalIgnoreCase) -ge 0
 }})
 if ($services.Count -ne 1) {{ throw 'Service identity is ambiguous' }}
 $serviceName = $services[0].Name
+$serviceWasRunning = (Get-Service -Name $serviceName).Status -eq 'Running'
+$backup = Join-Path $directory ('render.before-' + [DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))
+[void](New-Item -ItemType Directory -Path $backup)
+Copy-Item -LiteralPath $target -Destination (Join-Path $backup 'px_render.exe') -Force
+Copy-Item -LiteralPath $rtcTarget -Destination (Join-Path $backup 'px_render_rtc.dll') -Force
 try {{
-    if ((Get-Service -Name $serviceName).Status -ne 'Stopped') {{
+    if ($serviceWasRunning) {{
         Stop-Service -Name $serviceName -Force
         (Get-Service -Name $serviceName).WaitForStatus('Stopped', [TimeSpan]::FromSeconds(20))
     }}
@@ -163,10 +233,16 @@ try {{
     }} while ([DateTime]::UtcNow -lt $deadline)
     if ($processes.Count -ne 0) {{ throw 'Render or Panel did not stop before deployment' }}
     Copy-Item -LiteralPath $staging -Destination $target -Force
-    Remove-Item -LiteralPath $staging -Force
+    Copy-Item -LiteralPath $rtcStaging -Destination $rtcTarget -Force
     if ((Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash -ne '{exe_hash}') {{ throw 'Render deployment hash mismatch' }}
+    if ((Get-FileHash -LiteralPath $rtcTarget -Algorithm SHA256).Hash -ne '{rtc_hash}') {{ throw 'Render RTC deployment hash mismatch' }}
+}} catch {{
+    Copy-Item -LiteralPath (Join-Path $backup 'px_render.exe') -Destination $target -Force
+    Copy-Item -LiteralPath (Join-Path $backup 'px_render_rtc.dll') -Destination $rtcTarget -Force
+    throw
 }} finally {{
-    if ((Get-Service -Name $serviceName).Status -ne 'Running') {{
+    Remove-Item -LiteralPath $staging, $rtcStaging -Force -ErrorAction SilentlyContinue
+    if ($serviceWasRunning -and (Get-Service -Name $serviceName).Status -ne 'Running') {{
         Start-Service -Name $serviceName
         (Get-Service -Name $serviceName).WaitForStatus('Running', [TimeSpan]::FromSeconds(20))
     }}
@@ -176,6 +252,8 @@ try {{
     Service = $serviceName
     State = (Get-Service -Name $serviceName).Status.ToString()
     ExeHash = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash
+    RtcHash = (Get-FileHash -LiteralPath $rtcTarget -Algorithm SHA256).Hash
+    RecoverableBackup = $backup
 }} | ConvertTo-Json -Compress
 """
 
@@ -276,6 +354,8 @@ def main() -> int:
     port = int(machine_value(machine_text, "SSH 端口").split("，", 1)[0].split(",", 1)[0])
     username = machine_value(machine_text, "用户名")
     password = machine_value(machine_text, "密码")
+    console_base = args.console_base or f"https://{host}:4600"
+    verify_current_console_identity(console_base, args.console_ca)
 
     if args.component == "service":
         sources = {
@@ -284,7 +364,10 @@ def main() -> int:
             "product-manifest.staged.json": dist_directory / "product-manifest.json",
         }
     elif args.component == "render":
-        sources = {"px_render.staged.exe": dist_directory / "px_render.exe"}
+        sources = {
+            "px_render.staged.exe": dist_directory / "px_render.exe",
+            "px_render_rtc.staged.dll": dist_directory / "px_render_rtc.dll",
+        }
     else:
         web_directory = dist_directory / "web_client"
         sources = {
@@ -373,10 +456,18 @@ def main() -> int:
         elif args.component == "render":
             result = run_powershell(
                 client,
-                render_script(remote_directory, args.product, args.distribution, expected_hashes["px_render.staged.exe"]),
+                render_script(
+                    remote_directory,
+                    args.product,
+                    args.distribution,
+                    expected_hashes["px_render.staged.exe"],
+                    expected_hashes["px_render_rtc.staged.dll"],
+                ),
             )
             if result.get("ExeHash") != expected_hashes["px_render.staged.exe"]:
                 raise RuntimeError("Remote Render hash verification failed")
+            if result.get("RtcHash") != expected_hashes["px_render_rtc.staged.dll"]:
+                raise RuntimeError("Remote Render RTC hash verification failed")
         else:
             result = run_powershell(
                 client,
