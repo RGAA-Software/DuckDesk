@@ -1781,6 +1781,11 @@ Android 设置页随后接通同一安全更新组合根：只有已登录用户
 feature-settings 新增完整“发现→准备→提交”状态机单测，当前 6/6 单测、App Kotlin 编译及 feature-settings/App Lint 377 个任务通过；尚未执行正式公网仓库和
 正式签名相邻 APK 的真机系统批准/拒绝/成功/失败矩阵。
 
+同日对已连接的 Xiaomi HyperOS 设备启动 Official Debug 覆盖安装短测，设备在线且现装 `yun.pixels.client.debug` 仍为 1.0.18；产品入口因当前构建环境没有注入
+审批的 `PIXELS_DEPLOYMENT_TRUST_STORE_FILE` 和 `PIXELS_UPDATE_ROOT_FILE`，在清理、升版和 Gradle 构建之前按设计失败关闭。未使用测试 key、已安装 APK 中的
+旧公开材料或服务器下载内容冒充审批根，手机和现有构建产物均未改变。因此本轮证据只证明预检门禁有效，不计作新更新链的真机验收；补齐审批公开材料后仍应使用
+`scripts_build/build_android_product.bat official debug install` 覆盖安装并执行设置页及 PackageInstaller 矩阵。
+
 | 阶段 | 当前未完成项 |
 |---|---|
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |
