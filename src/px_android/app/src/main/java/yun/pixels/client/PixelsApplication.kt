@@ -22,8 +22,8 @@ import yun.pixels.client.core.domain.device.DeviceDirectory
 import yun.pixels.client.core.domain.device.DeviceDiscovery
 import yun.pixels.client.core.domain.device.DeviceResolver
 import yun.pixels.client.core.domain.update.AndroidUpdatePreparationRepository
-import yun.pixels.client.core.network.AndroidReleaseIdentity
 import yun.pixels.client.core.network.AndroidApkDownloader
+import yun.pixels.client.core.network.AndroidReleaseIdentity
 import yun.pixels.client.core.network.AndroidTufTrustConfiguration
 import yun.pixels.client.core.network.AndroidTufTrustedRootManager
 import yun.pixels.client.core.network.AndroidTufRepositoryRefresher
@@ -34,6 +34,7 @@ import yun.pixels.client.core.network.ConsoleResourceConnectionRenewer
 import yun.pixels.client.core.network.ConsoleSessionCoordinator
 import yun.pixels.client.core.network.DeploymentIdentityConfiguration
 import yun.pixels.client.core.network.TufVerifiedAndroidUpdateRepository
+import yun.pixels.client.update.AndroidApkPlatformVerifier
 
 class PixelsApplication : Application() {
     lateinit var graph: PixelsAppGraph
@@ -102,6 +103,11 @@ class PixelsAppGraph(application: Application) {
         ConsoleAndroidUpdateRepository(consoleApi, consoleSessionRepository),
         AndroidTufRepositoryRefresher(androidTufTrustedRootManager),
         AndroidApkDownloader(File(application.filesDir, "updates/prepared")),
+        AndroidApkPlatformVerifier(
+            packageManager = application.packageManager,
+            expectedPackageName = application.packageName,
+            installedVersionCode = BuildConfig.VERSION_CODE.toLong(),
+        ),
     )
     val resourceConnectionRenewer = ConsoleResourceConnectionRenewer(consoleApi, consoleApi, consoleSessionRepository)
 }

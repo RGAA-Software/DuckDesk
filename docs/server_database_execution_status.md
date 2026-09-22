@@ -1764,6 +1764,12 @@ Android APK 安全暂存随后接入：只有本进程刚通过 Console 目录�
 SHA-256 校验；全部通过后才原子替换 prepared APK，失败或摘要不符即清理临时文件。core-network 当前 49/49、App Kotlin 编译及 core-network/App Lint
 372 个任务通过。当前未使用正式公网 TUF 仓库做端到端实测，也尚未复核 APK 平台签名、applicationId、版本字段或进入 PackageInstaller；prepared 文件不能直接安装。
 
+Android APK 平台身份门禁随后接入：PackageManager 从 prepared APK 读取归档身份，只接受与当前发行精确相同的 applicationId、与 Console/TUF 事实一致的
+versionCode/versionName、唯一当前签名者证书 DER SHA-256，并要求候选 versionCode 严格高于当前安装版本；解析失败、多签名者或任一字段不符都会从私有 prepared
+目录删除候选。core-network 49/49 与 App 8/8 单测、App Kotlin 编译及三模块 Lint 375 个任务通过。该门禁尚未接入 PackageInstaller 事务、安装结果回读和
+安装实例水位，正式公网
+TUF 仓库与正式签名 APK 的端到端验证也仍未执行。
+
 | 阶段 | 当前未完成项 |
 |---|---|
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |

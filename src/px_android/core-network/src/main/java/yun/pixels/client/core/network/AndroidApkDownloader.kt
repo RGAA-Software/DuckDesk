@@ -76,6 +76,14 @@ class AndroidApkDownloader private constructor(
         PreparedAndroidUpdate(release, finalPath.toAbsolutePath().normalize().toString())
     }
 
+    suspend fun discard(preparedUpdate: PreparedAndroidUpdate): Boolean = withContext(ioDispatcher) {
+        val stagedPath = runCatching { File(preparedUpdate.stagedApkPath).toPath().toAbsolutePath().normalize() }.getOrNull()
+            ?: return@withContext false
+        val privateDirectoryPath = stagingDirectory.toPath().toAbsolutePath().normalize()
+        if (stagedPath.parent != privateDirectoryPath || !stagedPath.fileName.toString().endsWith(".apk")) return@withContext false
+        runCatching { Files.deleteIfExists(stagedPath) }.getOrDefault(false)
+    }
+
     private fun preparePrivateDirectory(): Boolean = runCatching {
         Files.createDirectories(stagingDirectory.toPath())
         stagingDirectory.isDirectory && !Files.isSymbolicLink(stagingDirectory.toPath())

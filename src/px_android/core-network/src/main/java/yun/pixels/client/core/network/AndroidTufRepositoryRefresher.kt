@@ -13,6 +13,7 @@ import yun.pixels.client.core.domain.account.AccountResult
 import yun.pixels.client.core.domain.update.AndroidUpdateRepository
 import yun.pixels.client.core.domain.update.AndroidUpdatePreparationRepository
 import yun.pixels.client.core.domain.update.AndroidUpdateRelease
+import yun.pixels.client.core.domain.update.PreparedAndroidUpdateVerifier
 
 enum class AndroidTufRefreshResult {
     Success,
@@ -25,6 +26,7 @@ class TufVerifiedAndroidUpdateRepository(
     private val catalogRepository: AndroidUpdateRepository,
     private val repositoryRefresher: AndroidTufRepositoryRefresher,
     private val apkDownloader: AndroidApkDownloader,
+    private val preparedUpdateVerifier: PreparedAndroidUpdateVerifier,
 ) : AndroidUpdatePreparationRepository {
     private val workflowMutex = Mutex()
     private var approvedRelease: AndroidUpdateRelease? = null
@@ -50,6 +52,10 @@ class TufVerifiedAndroidUpdateRepository(
             ?: return@withLock AccountResult.Failure(AccountFailure.InvalidResponse)
         val preparedUpdate = apkDownloader.download(release)
             ?: return@withLock AccountResult.Failure(AccountFailure.NetworkUnavailable)
+        if (!preparedUpdateVerifier.verify(preparedUpdate)) {
+            apkDownloader.discard(preparedUpdate)
+            return@withLock AccountResult.Failure(AccountFailure.InvalidResponse)
+        }
         AccountResult.Success(preparedUpdate)
     }
 }

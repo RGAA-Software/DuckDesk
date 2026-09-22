@@ -483,8 +483,9 @@ timestamp/snapshot/targets 的纯验证内核已完成第一段：三个顶级�
 保存失败不会推进内存状态。Android 检查更新现已先通过受限 HTTPS 执行器逐版本获取 `${N}.root.json`，再获取 timestamp/snapshot/targets；执行器禁用
 重定向/缓存/压缩，限制超时和 1 MiB 响应，任何下载或信任失败都不会向 UI 返回未经验证的 release。只有本进程刚完成上述验证的精确 release ID 才能进入
 APK 下载；下载使用同源 HTTPS target 路径、禁用重定向/缓存/压缩、要求精确 Content-Length，并边写入应用私有临时文件边验证 TUF 固定的长度和 SHA-256，
-通过后才原子提交到 prepared 目录，失败和摘要不符均删除临时文件。尚未完成 APK 平台签名、applicationId、versionCode/versionName 复核、PackageInstaller
-安装事务和安装实例水位；公网正式仓库也仍须端到端实测，因此 prepared 文件仍不是可安装或已升级证据。
+通过后才原子提交到 prepared 目录，失败和摘要不符均删除临时文件。prepared APK 随后由 Android PackageManager 读取归档身份，只接受精确的当前
+applicationId、Console/TUF 固定的 versionCode/versionName、单一当前签名者证书 SHA-256，且候选 versionCode 必须严格大于当前安装版本；任何不匹配都会删除
+prepared 文件。尚未完成 PackageInstaller 安装事务和安装实例水位；公网正式仓库也仍须端到端实测，因此通过平台身份复核的 prepared 文件仍不是已升级证据。
 
 节点重启后的本地激活状态必须先于首次可调度状态上报完成收敛。有效租约内的 `authorized/applying` 一律阻断节点接客；租约过期的
 `applying` 只有在本机产品清单仍是精确旧 build 或已是精确目标 build 时才可清理。`installed` 必须与目标 build 一致；普通安装失败必须

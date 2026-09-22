@@ -35,3 +35,7 @@ interface AndroidUpdateRepository {
 interface AndroidUpdatePreparationRepository : AndroidUpdateRepository {
     suspend fun prepare(releaseId: String): AccountResult<PreparedAndroidUpdate>
 }
+
+fun interface PreparedAndroidUpdateVerifier {
+    fun verify(preparedUpdate: PreparedAndroidUpdate): Boolean
+}
