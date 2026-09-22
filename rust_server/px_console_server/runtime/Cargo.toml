@@ -10,7 +10,6 @@ pg-integration = ["px_pg/pg-integration", "px_console_store/pg-integration"]
 [dependencies]
 px_console_store = { path = "../storage" }
 px_credentials = { path = "../../px_credentials" }
-px_deployment_identity = { path = "../../px_deployment_identity" }
 px_pg = { path = "../../px_pg" }
 px_node_protocol = { path = "../../px_node_protocol" }
 px_private_files = { path = "../../px_private_files" }

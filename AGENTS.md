@@ -26,6 +26,16 @@
   identity) still apply. Versioned fresh-schema initialization and future upgrades between formal releases remain required; they do not
   authorize support for the retired development baseline. This does not authorize deleting unrelated databases or Windows workspaces.
 
+- Licensing simplification decision (2026-09-22): retain only the signed `PXLIC2` server-side license contract for customer authorization.
+  Auth issues the license; Console verifies it and enforces enabled services, expiry and the licensed concurrent-stream limit. Service,
+  Render, Panel, Windows Client, Web Client and Android must not parse, store or enforce the license. Retire the custom `PXDC2` deployment
+  certificate, `PXDD2` descriptor, `PXDP1` challenge, deployment trust stores, identity watermarks and credential-before-challenge gates from
+  the active product; do not replace them with another product PKI. Connections use normal HTTPS/TLS. Official clients keep their fixed
+  official endpoint; Customer clients allow an administrator-configured private endpoint and reject the known official endpoint. Upgrades
+  are operationally ordered Server first, then independently overwrite each node/client; do not build a distributed activation transaction.
+  From the first formal baseline onward, Server supports the declared current-client upgrade window through versioned APIs. This decision
+  does not restore retired development protocols or ports.
+
 - Network port decision (2026-09-14): port 20371 is fully retired and must not appear as a runtime default, fallback, probe target,
   test endpoint or deployment assumption. Consume the authoritative endpoint reported through current node configuration and Console
   connection descriptors. Current package defaults use desktop Render 4601 and dynamically allocate application Render ports from

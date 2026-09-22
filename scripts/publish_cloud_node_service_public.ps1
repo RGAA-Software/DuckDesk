@@ -2,7 +2,6 @@
 
 [CmdletBinding()]
 param(
-    [string]$ConsoleBase,
     [switch]$PreflightOnly
 )
 
@@ -14,9 +13,6 @@ $arguments = @(
     'cloud_node',
     '--component',
     'service')
-if ($ConsoleBase) {
-    $arguments += @('--console-base', $ConsoleBase)
-}
 if ($PreflightOnly) {
     $arguments += '--preflight-only'
 }

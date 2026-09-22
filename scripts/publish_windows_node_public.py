@@ -15,11 +15,6 @@ from pathlib import Path
 
 import paramiko
 
-try:
-    from scripts.public_console_identity import verify_current_console_identity
-except ModuleNotFoundError:
-    from public_console_identity import verify_current_console_identity
-
 ROOT = Path(__file__).resolve().parent.parent
 MACHINE_FILE = ROOT / ".env" / "test_machine.md"
 REMOTE_DIRECTORIES = {
@@ -33,16 +28,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--product", required=True, choices=("cloud_node", "remote"))
     parser.add_argument("--distribution", default="development", choices=("development", "official", "customer"))
     parser.add_argument("--component", required=True, choices=("service", "render", "web"))
-    parser.add_argument(
-        "--console-base",
-        help="Authoritative Console HTTPS origin; defaults to https://<public-host>:4600",
-    )
-    parser.add_argument(
-        "--console-ca",
-        type=Path,
-        default=ROOT / ".env" / "public_console_ca.pem",
-        help="CA certificate used to authenticate the authoritative Console",
-    )
     parser.add_argument("--preflight-only", action="store_true")
     return parser.parse_args()
 
@@ -354,9 +339,6 @@ def main() -> int:
     port = int(machine_value(machine_text, "SSH 端口").split("，", 1)[0].split(",", 1)[0])
     username = machine_value(machine_text, "用户名")
     password = machine_value(machine_text, "密码")
-    console_base = args.console_base or f"https://{host}:4600"
-    verify_current_console_identity(console_base, args.console_ca)
-
     if args.component == "service":
         sources = {
             "px_service.staged.exe": dist_directory / "px_service.exe",

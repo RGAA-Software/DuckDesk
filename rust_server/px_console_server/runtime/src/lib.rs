@@ -3,7 +3,6 @@
 mod application_api;
 mod config;
 mod deployment_api;
-mod deployment_identity;
 mod device_api;
 pub mod error;
 mod guest_api;
@@ -36,7 +35,6 @@ use axum::{
     Router,
 };
 pub use config::{ConfigurationError, ConsoleLaunch, ConsoleLaunchConfig, RelayEndpoint};
-pub use deployment_identity::{DeploymentIdentityLaunchConfig, DeploymentIdentityRuntime};
 use error::ApiError;
 pub use guest_source::GuestAdmission;
 pub use license::{LicenseAdmissionError, LicenseEntitlement, LicenseLaunchConfig, LicenseStatus};
@@ -71,13 +69,11 @@ pub(crate) struct StateData {
     management_events: Arc<management_events::ManagementEvents>,
     license: LicenseEntitlement,
     relay: Option<RelayEndpoint>,
-    deployment_identity: Option<Arc<DeploymentIdentityRuntime>>,
 }
 
 pub struct RuntimeResources {
     pub recording_cache: Option<(Arc<CacheRoot>, CacheOptions)>,
     pub relay: Option<RelayEndpoint>,
-    pub deployment_identity: Option<Arc<DeploymentIdentityRuntime>>,
 }
 impl StateData {
     fn active(&self) -> Result<(), ApiError> {
@@ -131,7 +127,6 @@ impl ConsoleRuntime {
             RuntimeResources {
                 recording_cache: None,
                 relay: None,
-                deployment_identity: None,
             },
             LicenseEntitlement::synthetic_for_integration(deployment),
         )
@@ -156,7 +151,6 @@ impl ConsoleRuntime {
             RuntimeResources {
                 recording_cache: Some((recording_cache_root, recording_cache_options)),
                 relay: None,
-                deployment_identity: None,
             },
             LicenseEntitlement::synthetic_for_integration(deployment),
         )
@@ -270,7 +264,6 @@ impl ConsoleRuntime {
             management_events: management_events::ManagementEvents::new(),
             license,
             relay: resources.relay,
-            deployment_identity: resources.deployment_identity,
         });
         let supervisor_cancellation = cancellation.clone();
         let supervisor = tokio::spawn(async move {
@@ -369,7 +362,6 @@ impl ConsoleRuntime {
             .merge(recording_cache_api::routes())
             .merge(recording_upload_api::routes())
             .merge(telemetry_alert_api::routes())
-            .merge(deployment_identity::routes())
             .route("/health/ready", get(ready))
             .route("/api/console/accounts", post(identity::register))
             .route("/api/console/sessions", post(identity::login))

@@ -3,30 +3,12 @@
 [CmdletBinding()]
 param(
     [string]$ComputerName = '39.71.45.66',
-    [string]$ConsoleBase,
-    [string]$ConsoleCa,
-    [switch]$PreflightOnly,
     [ValidateRange(1, 65535)]
     [int]$RelayPort = 4605
 )
 
 $ErrorActionPreference = 'Stop'
 $repository = Split-Path $PSScriptRoot -Parent
-$effectiveConsoleBase = if ($ConsoleBase) { $ConsoleBase } else { "https://${ComputerName}:4600" }
-$identityArguments = @(
-    (Join-Path $repository 'scripts\public_console_identity.py'),
-    '--console-base',
-    $effectiveConsoleBase)
-if ($ConsoleCa) {
-    $identityArguments += @('--console-ca', $ConsoleCa)
-}
-& python @identityArguments
-if ($LASTEXITCODE -ne 0) {
-    throw 'Focused Console/Relay deployment requires an already coordinated PXDC2/PXDD2 public stack.'
-}
-if ($PreflightOnly) {
-    return
-}
 $consoleSource = Join-Path $repository '.cache/console-dev/release/px_console.exe'
 $relaySource = Join-Path $repository '.cache/relay-dev/release/px_relay.exe'
 $machineFile = Join-Path $repository '.env/test_machine.md'

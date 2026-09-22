@@ -1,15 +1,8 @@
-use px_console_runtime::{
-    ConsoleLaunchConfig, DeploymentIdentityLaunchConfig, LicenseLaunchConfig,
-};
+use px_console_runtime::{ConsoleLaunchConfig, LicenseLaunchConfig};
 use px_console_store::{initialize_administrator, PasswordDigest, Username};
-use px_license::Distribution;
 use px_pg::{DatabaseConfig, Transport};
 use px_private_files::{private, CacheRoot};
 use rand::RngCore;
-use ring::{
-    rand::SystemRandom,
-    signature::{Ed25519KeyPair, KeyPair},
-};
 use std::{env, path::PathBuf};
 use uuid::Uuid;
 use zeroize::Zeroizing;
@@ -27,14 +20,10 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     match arguments.as_slice() {
         [command] if command == "bootstrap" => bootstrap().await,
         [command] if command == "generate-secrets" => generate_secrets(),
-        [command] if command == "generate-deployment-key" => generate_deployment_key(),
-        [command] if command == "validate-deployment-identity" => {
-            validate_deployment_identity().await
-        }
         [command] if command == "validate-environment" => validate_environment(),
         [command] if command == "validate-license" => validate_license().await,
         [command] if command == "initialize-recording-cache" => initialize_recording_cache(),
-        _ => Err("usage: px_console_admin <bootstrap|generate-secrets|generate-deployment-key|validate-deployment-identity|validate-environment|validate-license|initialize-recording-cache>; explicit provisioning only; configuration via environment".into()),
+        _ => Err("usage: px_console_admin <bootstrap|generate-secrets|validate-environment|validate-license|initialize-recording-cache>; explicit provisioning only; configuration via environment".into()),
     }
 }
 
@@ -73,69 +62,12 @@ fn optional(name: &str) -> Option<String> {
     env::var(name).ok().filter(|value| !value.is_empty())
 }
 
-async fn validate_deployment_identity() -> Result<(), Box<dyn std::error::Error>> {
-    let deployment_id = env::var("PIXELS_DEPLOYMENT_ID")?.parse::<Uuid>()?;
-    if deployment_id.is_nil() {
-        return Err("deployment identifier must not be nil".into());
-    }
-    let distribution = env::var("PIXELS_CONSOLE_DISTRIBUTION")?
-        .parse::<Distribution>()
-        .map_err(|_| "distribution must be official, customer, or oem")?;
-    let configuration = DeploymentIdentityLaunchConfig::new(
-        PathBuf::from(env::var("PIXELS_CONSOLE_DEPLOYMENT_CERTIFICATE")?),
-        PathBuf::from(env::var("PIXELS_CONSOLE_DEPLOYMENT_SIGNING_KEY")?),
-        PathBuf::from(env::var("PIXELS_CONSOLE_DEPLOYMENT_TRUST_STORE")?),
-        positive_number("PIXELS_CONSOLE_DEPLOYMENT_CERTIFICATE_VERSION")?,
-        positive_number("PIXELS_CONSOLE_DESCRIPTOR_REVISION")?,
-        positive_number("PIXELS_CONSOLE_DEPLOYMENT_TRUST_EPOCH")?,
-        positive_number("PIXELS_CONSOLE_MINIMUM_CLIENT_BUILD")?,
-        flag("PIXELS_CONSOLE_REGISTRATION")?,
-        flag("PIXELS_CONSOLE_GUESTS")?,
-    )?;
-    configuration
-        .load(
-            deployment_id,
-            distribution,
-            &env::var("PIXELS_CONSOLE_RELEASE_NAMESPACE")?,
-            optional("PIXELS_CONSOLE_OEM_ID").as_deref(),
-        )
-        .await?;
-    println!("Console deployment identity validated");
-    Ok(())
-}
-
-fn positive_number(name: &str) -> Result<u64, Box<dyn std::error::Error>> {
-    let value = env::var(name)?.parse::<u64>()?;
-    if value == 0 {
-        return Err(format!("{name} must be greater than zero").into());
-    }
-    Ok(value)
-}
-
 fn flag(name: &str) -> Result<bool, Box<dyn std::error::Error>> {
     match env::var(name).as_deref() {
         Ok("1") => Ok(true),
         Ok("0") | Err(env::VarError::NotPresent) => Ok(false),
         _ => Err(format!("{name} must be zero or one").into()),
     }
-}
-
-fn generate_deployment_key() -> Result<(), Box<dyn std::error::Error>> {
-    let signing_key_path = PathBuf::from(env::var("PIXELS_CONSOLE_DEPLOYMENT_SIGNING_KEY")?);
-    let signing_key_document = Zeroizing::new(
-        Ed25519KeyPair::generate_pkcs8(&SystemRandom::new())
-            .map_err(|_| "deployment key generation failed")?
-            .as_ref()
-            .to_vec(),
-    );
-    let signing_key = Ed25519KeyPair::from_pkcs8(&signing_key_document)
-        .map_err(|_| "generated deployment key is invalid")?;
-    private::create_private(&signing_key_path, &signing_key_document)?;
-    println!(
-        "deployment_public_key_hex={}",
-        hex::encode(signing_key.public_key().as_ref())
-    );
-    Ok(())
 }
 
 fn initialize_recording_cache() -> Result<(), Box<dyn std::error::Error>> {

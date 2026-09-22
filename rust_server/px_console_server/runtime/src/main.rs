@@ -23,7 +23,6 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         recording_cache_root,
         recording_cache_options,
         relay,
-        deployment_identity,
         license,
     } = ConsoleLaunchConfig::from_env()?.load().await?;
     let runtime = ConsoleRuntime::activate_product_with_cache(
@@ -35,7 +34,6 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         RuntimeResources {
             recording_cache: Some((recording_cache_root, recording_cache_options)),
             relay,
-            deployment_identity: Some(deployment_identity),
         },
         license,
     )

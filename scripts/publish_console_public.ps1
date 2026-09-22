@@ -2,29 +2,11 @@
 
 [CmdletBinding()]
 param(
-    [string]$ComputerName = '39.71.45.66',
-    [string]$ConsoleBase,
-    [string]$ConsoleCa,
-    [switch]$PreflightOnly
+    [string]$ComputerName = '39.71.45.66'
 )
 
 $ErrorActionPreference = 'Stop'
 $repository = Split-Path $PSScriptRoot -Parent
-$effectiveConsoleBase = if ($ConsoleBase) { $ConsoleBase } else { "https://${ComputerName}:4600" }
-$identityArguments = @(
-    (Join-Path $repository 'scripts\public_console_identity.py'),
-    '--console-base',
-    $effectiveConsoleBase)
-if ($ConsoleCa) {
-    $identityArguments += @('--console-ca', $ConsoleCa)
-}
-& python @identityArguments
-if ($LASTEXITCODE -ne 0) {
-    throw 'Focused Console deployment requires an already coordinated PXDC2/PXDD2 public stack.'
-}
-if ($PreflightOnly) {
-    return
-}
 $sourcePath = Join-Path $repository '.cache/console-dev/release/px_console.exe'
 $machinePath = Join-Path $repository '.env/test_machine.md'
 foreach ($requiredPath in @($sourcePath, $machinePath)) {
