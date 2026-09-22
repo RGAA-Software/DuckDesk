@@ -270,7 +270,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--source-dir", required=True, type=Path, help="Repository source root")
     parser.add_argument("--product", choices=("cloud_node", "client", "remote"), required=True)
     parser.add_argument("--distribution", choices=("development", "official", "customer", "oem"), required=True)
-    parser.add_argument("--deployment-policy-dir", type=Path)
+    parser.add_argument("--update-root-file", type=Path)
     parser.add_argument("--oem-profile", type=Path)
     parser.add_argument("--dist-dir", required=True, type=Path)
     return parser.parse_args()
@@ -365,21 +365,15 @@ def main() -> int:
     owned_pe = collect_artifacts(product_config, artifact_config, roots, staging_dir)
     signer_certificate_sha256 = None
     if args.distribution == "development":
-        if args.deployment_policy_dir is not None:
-            raise RuntimeError("development distributions must not accept release deployment policy inputs")
+        if args.update_root_file is not None:
+            raise RuntimeError("development distributions must not accept a release update root")
     else:
-        if args.deployment_policy_dir is None:
-            raise RuntimeError("release distributions require --deployment-policy-dir")
-        policy_directory = args.deployment_policy_dir.resolve()
-        expected_policy_directory = product_root / "deployment"
-        if policy_directory != expected_policy_directory:
-            raise RuntimeError(f"deployment policy directory must be {expected_policy_directory}; got {policy_directory}")
-        for policy_name in ("deployment-policy.json", "deployment-trust.json"):
-            policy_source = policy_directory / policy_name
-            if not policy_source.is_file():
-                raise RuntimeError(f"required deployment policy input is missing: {policy_source}")
-            copy_file(policy_source, staging_dir / "resources" / "deployment" / policy_name, staging_dir)
-        update_root_source = policy_directory / "update-root.json"
+        if args.update_root_file is None:
+            raise RuntimeError("release distributions require --update-root-file")
+        update_root_source = args.update_root_file.resolve()
+        expected_update_root = product_root / "update" / "update-root.json"
+        if update_root_source != expected_update_root:
+            raise RuntimeError(f"update root file must be {expected_update_root}; got {update_root_source}")
         if not update_root_source.is_file():
             raise RuntimeError(f"required TUF update root input is missing: {update_root_source}")
         copy_file(update_root_source, staging_dir / "resources" / "update" / "root.json", staging_dir)

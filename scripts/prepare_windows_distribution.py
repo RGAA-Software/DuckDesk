@@ -1,33 +1,20 @@
 #!/usr/bin/env python3
-"""Validate approved deployment identity inputs and emit Windows package policy."""
+"""Validate Windows release inputs and stage the signed TUF update root."""
 
 from __future__ import annotations
 
 import argparse
-import hashlib
 import ipaddress
 import json
 import os
 import shutil
 import sys
 import tempfile
-import uuid
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from oem_release_profile import OemReleaseProfile, load_oem_release_profile, sha256_bytes
+from oem_release_profile import load_oem_release_profile, sha256_bytes
 
-
-ENVIRONMENT_FIELDS = {
-    "trust_store": "PIXELS_DEPLOYMENT_TRUST_STORE_FILE",
-    "update_root": "PIXELS_UPDATE_ROOT_FILE",
-    "certificate_version": "PIXELS_DEPLOYMENT_CERTIFICATE_VERSION",
-    "descriptor_revision": "PIXELS_DESCRIPTOR_REVISION",
-    "trust_epoch": "PIXELS_DEPLOYMENT_TRUST_EPOCH",
-    "deployment_id": "PIXELS_EXPECTED_DEPLOYMENT_ID",
-    "official_origin": "PIXELS_OFFICIAL_CONSOLE_URL",
-    "oem_profile": "PIXELS_OEM_RELEASE_PROFILE",
-}
 
 MAXIMUM_UPDATE_ROOT_BYTES = 1024 * 1024
 
@@ -38,66 +25,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--distribution", required=True, choices=("official", "customer", "oem"))
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--validate-only", action="store_true")
-    parser.add_argument(
-        "--matrix-customer",
-        action="store_true",
-        help="Build the customer half of one official+customer transaction while ignoring official-only environment inputs.",
-    )
     return parser.parse_args()
-
-
-def required_positive_integer(name: str) -> int:
-    value = os.environ.get(name, "")
-    if not value.isascii() or not value.isdecimal() or value.startswith("0"):
-        raise RuntimeError(f"{name} must be an explicit positive integer")
-    number = int(value)
-    if number <= 0 or number > (2**63 - 1):
-        raise RuntimeError(f"{name} is outside the supported positive integer range")
-    return number
-
-
-def load_canonical_trust_store(path: Path) -> tuple[bytes, int]:
-    try:
-        trust_bytes = path.read_bytes()
-        trust_store = json.loads(trust_bytes.decode("utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise RuntimeError("the approved deployment trust store is unreadable or invalid") from error
-    if not isinstance(trust_store, dict) or list(trust_store) != ["schema_version", "trust_epoch", "trusted_keys"]:
-        raise RuntimeError("the deployment trust store must use the exact schema and canonical field order")
-    trust_epoch = trust_store.get("trust_epoch")
-    trusted_keys = trust_store.get("trusted_keys")
-    if trust_store.get("schema_version") != 1 or not isinstance(trust_epoch, int) or isinstance(trust_epoch, bool) or trust_epoch <= 0:
-        raise RuntimeError("the deployment trust store has an invalid schema version or trust epoch")
-    if not isinstance(trusted_keys, list) or not 1 <= len(trusted_keys) <= 16:
-        raise RuntimeError("the deployment trust store must contain between 1 and 16 trusted keys")
-    previous_key_id = ""
-    for trusted_key in trusted_keys:
-        if not isinstance(trusted_key, dict) or list(trusted_key) != ["key_id", "public_key_hex"]:
-            raise RuntimeError("each trusted key must use the exact canonical schema")
-        key_id = trusted_key.get("key_id")
-        public_key_hex = trusted_key.get("public_key_hex")
-        if not isinstance(key_id, str) or not isinstance(public_key_hex, str):
-            raise RuntimeError("trusted key values must be strings")
-        try:
-            public_key = bytes.fromhex(public_key_hex)
-        except ValueError as error:
-            raise RuntimeError("a trusted deployment public key is not lowercase hexadecimal") from error
-        if (
-            len(key_id) != 64
-            or key_id.lower() != key_id
-            or len(public_key_hex) != 64
-            or public_key_hex.lower() != public_key_hex
-            or len(public_key) != 32
-            or not any(public_key)
-            or hashlib.sha256(public_key).hexdigest() != key_id
-            or (previous_key_id and previous_key_id >= key_id)
-        ):
-            raise RuntimeError("the deployment trust store contains a malformed, mismatched, or unsorted key")
-        previous_key_id = key_id
-    canonical_bytes = json.dumps(trust_store, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-    if trust_bytes != canonical_bytes:
-        raise RuntimeError("the deployment trust store must be canonical UTF-8 JSON without a trailing newline")
-    return trust_bytes, trust_epoch
 
 
 def load_tuf_update_root(path: Path) -> bytes:
@@ -128,16 +56,6 @@ def load_tuf_update_root(path: Path) -> bytes:
     ):
         raise RuntimeError("the approved TUF update root is not a complete signed TUF 1.0 root")
     return root_bytes
-
-
-def canonical_deployment_id(value: str) -> str:
-    try:
-        parsed = uuid.UUID(value)
-    except ValueError as error:
-        raise RuntimeError("PIXELS_EXPECTED_DEPLOYMENT_ID must be a canonical non-nil UUID") from error
-    if parsed.int == 0 or str(parsed) != value:
-        raise RuntimeError("PIXELS_EXPECTED_DEPLOYMENT_ID must be a canonical non-nil UUID")
-    return value
 
 
 def canonical_https_origin(value: str) -> str:
@@ -175,67 +93,29 @@ def canonical_https_origin(value: str) -> str:
     return value
 
 
-def build_policy(
-    distribution: str,
-    trust_epoch: int,
-    matrix_customer: bool,
-    oem_profile: OemReleaseProfile | None,
-) -> dict[str, object]:
-    certificate_version = required_positive_integer(ENVIRONMENT_FIELDS["certificate_version"])
-    descriptor_revision = required_positive_integer(ENVIRONMENT_FIELDS["descriptor_revision"])
-    configured_epoch = required_positive_integer(ENVIRONMENT_FIELDS["trust_epoch"])
-    if configured_epoch != trust_epoch:
-        raise RuntimeError("PIXELS_DEPLOYMENT_TRUST_EPOCH must exactly match the approved trust store")
-    deployment_id = os.environ.get(ENVIRONMENT_FIELDS["deployment_id"], "").strip()
-    official_origin = os.environ.get(ENVIRONMENT_FIELDS["official_origin"], "").strip()
-    if distribution == "official":
-        if oem_profile is not None:
-            raise RuntimeError("Official Windows builds must not configure an OEM release profile")
-        if not deployment_id or not official_origin:
-            raise RuntimeError("Official Windows builds require the expected deployment ID and Console origin")
-        expected_deployment_id: str | None = canonical_deployment_id(deployment_id)
-        expected_origin: str | None = canonical_https_origin(official_origin)
-        release_namespace = "pixels.official"
-        oem_id: str | None = None
-    else:
-        if not matrix_customer and (deployment_id or official_origin):
-            raise RuntimeError("Private Windows builds must not configure Official deployment identity inputs")
-        expected_deployment_id = None
-        expected_origin = None
-        if distribution == "customer":
-            if oem_profile is not None:
-                raise RuntimeError("Customer Windows builds must not configure an OEM release profile")
-            release_namespace = "pixels.customer"
-            oem_id = None
-        else:
-            if oem_profile is None:
-                raise RuntimeError("OEM Windows builds require PIXELS_OEM_RELEASE_PROFILE")
-            oem_id = oem_profile.oem_id
-            release_namespace = oem_profile.release_namespace
-    return {
-        "schema_version": 2,
-        "distribution": distribution,
-        "release_namespace": release_namespace,
-        "oem_id": oem_id,
-        "expected_deployment_id": expected_deployment_id,
-        "official_console_origin": expected_origin,
-        "minimum_certificate_version": certificate_version,
-        "minimum_descriptor_revision": descriptor_revision,
-        "minimum_trust_epoch": configured_epoch,
-        "protocol_version": 1,
-    }
+def validate_distribution_inputs(distribution: str, update_root_bytes: bytes) -> None:
+    official_origin = os.environ.get("PIXELS_OFFICIAL_CONSOLE_URL", "").strip()
+    oem_profile_value = os.environ.get("PIXELS_OEM_RELEASE_PROFILE", "").strip()
+    if distribution in {"official", "customer"}:
+        if not official_origin:
+            raise RuntimeError("Official and Customer Windows builds require PIXELS_OFFICIAL_CONSOLE_URL")
+        canonical_https_origin(official_origin)
+        if oem_profile_value:
+            raise RuntimeError("Official and Customer Windows builds must not configure an OEM release profile")
+        return
+    if official_origin:
+        raise RuntimeError("OEM Windows builds must not configure the Pixels Official Console origin")
+    if not oem_profile_value:
+        raise RuntimeError("OEM Windows builds require PIXELS_OEM_RELEASE_PROFILE")
+    oem_profile = load_oem_release_profile(Path(oem_profile_value))
+    if sha256_bytes(update_root_bytes) != oem_profile.update_root_sha256:
+        raise RuntimeError("OEM release profile TUF root SHA-256 does not match the approved input")
 
 
-def publish_policy(output_dir: Path, policy: dict[str, object], trust_bytes: bytes, update_root_bytes: bytes) -> None:
+def publish_update_root(output_dir: Path, update_root_bytes: bytes) -> None:
     output_dir.parent.mkdir(parents=True, exist_ok=True)
     staging_dir = Path(tempfile.mkdtemp(prefix=f".{output_dir.name}.staging-", dir=output_dir.parent))
     try:
-        (staging_dir / "deployment-policy.json").write_text(
-            json.dumps(policy, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-            newline="\n",
-        )
-        (staging_dir / "deployment-trust.json").write_bytes(trust_bytes)
         (staging_dir / "update-root.json").write_bytes(update_root_bytes)
         if output_dir.exists():
             shutil.rmtree(output_dir)
@@ -246,37 +126,23 @@ def publish_policy(output_dir: Path, policy: dict[str, object], trust_bytes: byt
 
 def main() -> int:
     arguments = parse_args()
-    trust_store_value = os.environ.get(ENVIRONMENT_FIELDS["trust_store"], "").strip()
-    if not trust_store_value:
-        raise RuntimeError("PIXELS_DEPLOYMENT_TRUST_STORE_FILE must identify the approved canonical public trust store")
-    trust_store_path = Path(trust_store_value).resolve()
-    if not trust_store_path.is_file():
-        raise RuntimeError("PIXELS_DEPLOYMENT_TRUST_STORE_FILE does not identify a regular file")
-    trust_bytes, trust_epoch = load_canonical_trust_store(trust_store_path)
-    update_root_value = os.environ.get(ENVIRONMENT_FIELDS["update_root"], "").strip()
+    update_root_value = os.environ.get("PIXELS_UPDATE_ROOT_FILE", "").strip()
     if not update_root_value:
         raise RuntimeError("PIXELS_UPDATE_ROOT_FILE must identify the approved TUF update root")
     update_root_path = Path(update_root_value).resolve()
     if not update_root_path.is_file():
         raise RuntimeError("PIXELS_UPDATE_ROOT_FILE does not identify a regular file")
     update_root_bytes = load_tuf_update_root(update_root_path)
-    oem_profile_value = os.environ.get(ENVIRONMENT_FIELDS["oem_profile"], "").strip()
-    oem_profile = load_oem_release_profile(Path(oem_profile_value)) if oem_profile_value else None
-    if oem_profile is not None:
-        if sha256_bytes(trust_bytes) != oem_profile.deployment_trust_store_sha256:
-            raise RuntimeError("OEM release profile deployment trust store SHA-256 does not match the approved input")
-        if sha256_bytes(update_root_bytes) != oem_profile.update_root_sha256:
-            raise RuntimeError("OEM release profile TUF root SHA-256 does not match the approved input")
-    policy = build_policy(arguments.distribution, trust_epoch, arguments.matrix_customer, oem_profile)
+    validate_distribution_inputs(arguments.distribution, update_root_bytes)
     if arguments.validate_only:
         if arguments.output_dir is not None:
             raise RuntimeError("--output-dir cannot be combined with --validate-only")
-        print(f"Validated Windows {arguments.product}/{arguments.distribution} deployment identity inputs.")
+        print(f"Validated Windows {arguments.product}/{arguments.distribution} release inputs.")
         return 0
     if arguments.output_dir is None:
         raise RuntimeError("--output-dir is required unless --validate-only is used")
-    publish_policy(arguments.output_dir.resolve(), policy, trust_bytes, update_root_bytes)
-    print(f"Prepared Windows {arguments.product}/{arguments.distribution} deployment policy: {arguments.output_dir.resolve()}")
+    publish_update_root(arguments.output_dir.resolve(), update_root_bytes)
+    print(f"Prepared Windows {arguments.product}/{arguments.distribution} update trust: {arguments.output_dir.resolve()}")
     return 0
 
 

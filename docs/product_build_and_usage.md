@@ -7,14 +7,14 @@ Pixels 发布矩阵只生成 `official` 与 `customer`。OEM 是独立发行线�
 矩阵继续保持两项。Windows 与 Android 均已有独立 OEM 构建入口，Android、Web 与 Windows 原生 Panel/Client 均已消费 profile 品牌，但 OEM 商业交付仍
 保持关闭，直到使用审批密钥的独立 TUF 正式发布、激活任务和跨 Official/Customer/其他 OEM 的完整实物拒绝矩阵全部通过。测试夹具已经覆盖 OEM
 target 的权威签发、Service 验签/准备，以及同一制品替换成另一合法 OEM 身份时的安装前拒绝；该代码证据不能代替正式密钥、正式仓库和签名安装包验收。
-服务端发布目录、Auth `PXLIC2` 许可证和 `PXDC2/PXDD2` 部署身份已经能够签名表达并隔离 `oem.<oem_id>`；Windows Service、Panel、Web 与
-Android 的消费者也会精确拒绝发行域替换。独立 OEM 构建入口只生成待验收候选，不会发布 TUF、激活节点或开放商业交付；这些身份能力不能用于
+服务端发布目录和 Auth `PXLIC2` 许可证能够表达 `oem.<oem_id>`；客户端不解析许可证，也不再维护自定义部署证书/描述/挑战协议。
+独立 OEM 构建入口只生成待验收候选，不会发布 TUF、激活节点或开放商业交付；这些发行能力不能用于
 手工拼装 OEM 包，也不改变 Pixels 双发行构建命令。
 
 OEM 构建配置使用 `PIXELS_OEM_RELEASE_PROFILE` 指向的 schema 1 UTF-8 JSON，作为该 OEM 的唯一非秘密
-发行描述；Windows OEM deployment policy 预检不再接受裸 `PIXELS_OEM_ID`。描述必须同时固定 `oem_id/release_namespace`、品牌名、三个
+发行描述；Windows OEM 预检不再接受裸 `PIXELS_OEM_ID`。描述必须同时固定 `oem_id/release_namespace`、品牌名、三个
 Windows 产品各自的显示名/安装目录/卸载键/安装包 basename、Windows 和 Android 签名证书 SHA-256、独立 Android applicationId、
-Windows/Android/Web 品牌图标及逐件 SHA-256、deployment trust store SHA-256 和 TUF 初始 root SHA-256。会进入原生字符串资源的公司名、应用名、
+Windows/Android/Web 品牌图标及逐件 SHA-256、TUF 初始 root SHA-256。会进入原生字符串资源的公司名、应用名、
 Windows 产品名还不得包含引号或反斜杠。资源路径只能位于描述文件目录内；缺项、多余字段、路径逃逸、资源篡改、复用 Pixels 品牌/applicationId、
 重复 Windows 安装身份或根摘要不一致均在产生策略前失败。Official/
 Customer 构建反向拒绝该变量，避免 OEM 配置污染 Pixels 双发行矩阵。Windows/Android OEM 产物均由独立入口生成；商业交付仍保持关闭。
@@ -42,14 +42,14 @@ Web Client 的 OEM 品牌消费现已接通应用名、PNG 图标和 profile SHA
 ```text
 build_official/
 ├── cloud_node/{cmake,dist}/                         # 日常聚焦开发
-│   ├── {official,customer}/{cmake,cargo,web,rdp_policy,deployment,dist,installer,reports}/
-│   └── oem/<oem_id>/{cmake,cargo,web,rdp_policy,deployment,dist,installer,reports}/
+│   ├── {official,customer}/{cmake,cargo,web,rdp_policy,update,dist,installer,reports}/
+│   └── oem/<oem_id>/{cmake,cargo,web,rdp_policy,update,dist,installer,reports}/
 ├── client/{cmake,dist}/                             # 日常聚焦开发
-│   ├── {official,customer}/{cmake,cargo,deployment,dist,installer,reports}/
-│   └── oem/<oem_id>/{cmake,cargo,deployment,dist,installer,reports}/
+│   ├── {official,customer}/{cmake,cargo,update,dist,installer,reports}/
+│   └── oem/<oem_id>/{cmake,cargo,update,dist,installer,reports}/
 ├── remote/{cmake,dist}/                             # 日常聚焦开发
-│   ├── {official,customer}/{cmake,cargo,web,rdp_policy,deployment,dist,installer,reports}/
-│   └── oem/<oem_id>/{cmake,cargo,web,rdp_policy,deployment,dist,installer,reports}/
+│   ├── {official,customer}/{cmake,cargo,web,rdp_policy,update,dist,installer,reports}/
+│   └── oem/<oem_id>/{cmake,cargo,web,rdp_policy,update,dist,installer,reports}/
 └── android/
     ├── {official,customer}/{gradle,native,dist,reports}/
     └── oem/<oem_id>/{gradle,native,dist,reports}/
@@ -71,8 +71,8 @@ Windows Rust 使用仓库 `rust_client/.cargo/config.toml` 中的 MSVC `/Brepro`
 三层必须逐文件核对。产品清单只由完整产品构建从干净沙箱生成，聚焦构建不得用“重写清单”掩盖 dist 中其他文件的漂移。
 
 Cloud Node 与 Remote 的 Official/Customer Web Client 也是发行绑定制品，不是可在两种发行之间复制的通用静态目录。完整矩阵构建从对应
-`deployment` 目录注入 policy、approved trust store 和产品 build 水位；缺少材料、发行不匹配或非正 build 会在 Vite 构建阶段失败关闭。
-正式 bundle 只接受带 `console_origin` 的 Console 资源启动描述符，并在向 Render 使用 frontend token 前完成签名部署身份和 nonce 证明。
+对应发行沙箱构建并注入产品 build 水位；缺少发行输入或非正 build 会在 Vite 构建阶段失败关闭。
+正式 bundle 只接受带 `console_origin` 的 Console 资源启动描述符，并直接使用标准 HTTPS 连接 Console 与权威 Render 端点。
 未来 OEM Web/Windows/Android 产物必须从其 OEM 专属沙箱生成，并携带同一 OEM 命名空间；不得读取 Official/Customer 的已编译 bundle、
 update root 或安装清单。
 
@@ -80,11 +80,11 @@ update root 或安装清单。
 
 完整产品构建每次执行以下行为：
 
-1. 在任何清理或升版前验证 approved trust store、三项最低水位、Official deployment UUID 和规范 HTTPS origin；
+1. 在任何清理或升版前验证签名 TUF 初始根和规范 Official HTTPS origin；
 2. 删除目标产品整个旧沙箱；
 3. 只递增目标产品自己的版本号一次；
 4. 从干净目录分别构建同版本 Official 与 Customer 的全部 C++、Rust、Web、RDP 产物；
-5. 用严格白名单重新生成两套完整 `dist`，分别写入签名身份 policy/trust 公共材料；
+5. 用严格白名单重新生成两套完整 `dist`，分别写入签名 TUF 初始根；
 6. 校验 product、distribution、制品清单、SHA-256，并拒绝任何 ZLMediaKit/Coturn 退役文件名或组件目录；
 7. 分别生成支持覆盖安装、同发行升级和卸载的安装包。跨 Official/Customer 覆盖会要求先卸载。
 
@@ -123,10 +123,8 @@ Console 审批记录与 TUF `pixels` 元数据共同绑定。runner 使用前既
 OEM Host 的回滚缓存文件名额外绑定 `oem_id`；Service 的激活记录使用 schema 3 并固定 release namespace、OEM ID、不可变 profile SHA-256 和
 公司身份。安装完成后的 manifest 少一项、替换另一 OEM，或残留另一 OEM 的回滚包都不能被报告为安装成功。开发基线的旧 schema 2 激活记录不读取。
 
-执行前必须设置：`PIXELS_DEPLOYMENT_TRUST_STORE_FILE`、`PIXELS_UPDATE_ROOT_FILE`、`PIXELS_DEPLOYMENT_CERTIFICATE_VERSION`、
-`PIXELS_DESCRIPTOR_REVISION`、`PIXELS_DEPLOYMENT_TRUST_EPOCH`、`PIXELS_EXPECTED_DEPLOYMENT_ID` 和
-`PIXELS_OFFICIAL_CONSOLE_URL`。Customer 产物不会写入后两项；它们只用于同一矩阵事务中的 Official 半边。trust store 必须是离线签发流程输出的
-规范 JSON，不能使用服务器下载内容或测试 key。`PIXELS_UPDATE_ROOT_FILE` 必须是离线审批并签名的 TUF 1.0 初始根；Official 和 Customer
+执行前必须设置 `PIXELS_UPDATE_ROOT_FILE` 和 `PIXELS_OFFICIAL_CONSOLE_URL`。Official 把该 HTTPS origin 编译为固定入口；Customer
+把同一 origin 编译为禁止填写的官方入口，不提供任何自动回退。`PIXELS_UPDATE_ROOT_FILE` 必须是离线审批并签名的 TUF 1.0 初始根；Official 和 Customer
 都内置同一 Pixels 更新信任根，Customer 可使用自己的镜像地址，但不能以私有描述或重签方式改变制品发行属性。预检失败不会删除现有产物，
 也不会消耗版本号。
 
@@ -148,7 +146,7 @@ PowerShell 独立复核签名状态、签名者 SHA-256 与时间戳；任一项
 
 ### 2.2.1 独立构建 Windows OEM 候选
 
-先设置该 OEM 审批后的 profile、私有部署 trust store、独立 TUF 初始 root 和 Windows 签名输入。可先执行不清理、不升版的预检：
+先设置该 OEM 审批后的 profile、独立 TUF 初始 root 和 Windows 签名输入。可先执行不清理、不升版的预检：
 
 ```bat
 set PIXELS_OEM_RELEASE_PROFILE=D:\secure\north-star\oem-release-profile.json
@@ -281,14 +279,13 @@ Android 版本一次。任何缺失的身份、签名或 FFmpeg 合规输入都�
 版本和到期时间；OEM 构建还要求文件 SHA-256 与 profile 的 `update.root_sha256` 完全一致。不得从 Console 或下载源动态取得初始根。
 
 OEM 不加入上述双发行 Release 事务，而是在 `build_official/android/oem/<oem_id>/` 独立清理、升版和发布。OEM 入口只接受
-`PIXELS_OEM_RELEASE_PROFILE`，并校验实际 deployment trust store、独立 applicationId、应用名、前景/背景 PNG、`oem_id/release_namespace`、
+`PIXELS_OEM_RELEASE_PROFILE`，并校验独立 applicationId、应用名、前景/背景 PNG、`oem_id/release_namespace`、
 profile SHA-256 以及 Release 签名证书固定值；Pixels Official/Customer 反向拒绝所有 OEM 输入。OEM Debug/Release 均不能读取 Pixels 两个发行的
 已编译资源或改用 Pixels 签名。应用名同时用于中英文页面、账号/关于/隐私、通知、诊断、剪贴板和远控浮层；OEM Splash、launcher/round icon 与
 通知图标均使用 profile 品牌资源。签名域、协议头和开源法律声明仍保持 Pixels 技术/权利人标识，不属于可换品牌 UI。
 
-`official` 固定编译时的 HTTPS Console origin 与 deployment UUID，设置页不提供服务器编辑；`customer` 使用独立 applicationId 和输出沙箱，
-不允许编入 Official 的 UUID/URL，只接受用户填写且签名类别为 `private` 的部署。两类构建都必须内置同一审批后的公开 trust store 和 TUF 初始 root，并显式设置
-`PIXELS_DEPLOYMENT_CERTIFICATE_VERSION`、`PIXELS_DESCRIPTOR_REVISION`、`PIXELS_DEPLOYMENT_TRUST_EPOCH` 最低水位。
+`official` 固定编译时的 HTTPS Console origin，设置页不提供服务器编辑；`customer` 使用独立 applicationId 和输出沙箱，
+允许用户填写自己的私有 HTTPS Console，但拒绝编译时记录的 Official origin。两类构建都必须内置审批后的 TUF 初始 root。
 
 Release 必须使用上述统一入口，不能直接调用 Gradle 的 `assembleRelease`/`bundleRelease`。流水线从当前 Android native 构建实际产生的对象自动生成 LGPL relink kit，并根据 `VCPKG_ROOT`（默认 `C:\source\vcpkg`）中已安装的 SPDX 清单锁定和校验 FFmpeg n6.1 对应源码；不再手工提供旧源码包或旧 relink 包。正式签名来自被 Git 忽略的 `src/px_android/keystore.properties`，也可由完整的 `PIXELS_*` 签名变量提供。
 

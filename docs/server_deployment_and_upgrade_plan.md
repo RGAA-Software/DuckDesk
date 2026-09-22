@@ -18,7 +18,7 @@
 - 不做多企业 SaaS，不引入 TenantId、企业租户路由或跨租户数据库架构。平台内仍有多用户、角色、设备分组和资源 ACL。
 - 客户端分 Official 与 Customer 两种发行，不能通过普通运行时设置相互转换。
 - Official 只能连接受信任的官方平台；Customer 必须填写私有平台入口，且禁止连接官方平台。
-- Customer 失败时不回退官方 Console、Broker、Relay 或账号服务；官方平台不接受私有部署身份。
+- Customer 失败时不回退官方 Console、Broker、Relay 或账号服务；服务端按本部署签发的账号、节点和会话凭据隔离访问。
 - Cloud Node、Client、Remote、Android 继续独立演进版本。三个 Windows 产品继续互斥，Service 继续使用完整能力实现。
 - 不恢复旧开发协议、旧端点、旧授权串适配或旧设备嵌套云应用。未来新版本间的有限升级窗口单独定义。
 
@@ -26,14 +26,14 @@
 
 | 交付物 | 职责 | 发行或部署差异 |
 |---|---|---|
-| Pixels Server 套件 | Console、Broker、Relay、管理 Web、部署和备份升级工具 | 同一服务端制品，通过签名部署身份区分 official/private |
+| Pixels Server 套件 | Console、Broker、Relay、管理 Web、部署和备份升级工具 | 同一服务端制品，由部署配置和数据库实例标识区分运行环境 |
 | Cloud Node | 完整节点、Render、Service 和管理 Panel | Pixels official/customer 双发行；profile 绑定的 OEM 独立候选 |
 | Client | 访问方 Panel、Client、文件和 RDP 能力 | Pixels official/customer 双发行；profile 绑定的 OEM 独立候选 |
 | Remote | 桌面被控节点和对应访问能力 | Pixels official/customer 双发行；profile 绑定的 OEM 独立候选 |
 | Android | 移动访问方 | Pixels official/customer 双发行；profile 绑定的 OEM 独立发行 |
 
-许可证签发、部署证书签发与软件发布签名属于 Pixels 的发行基础设施，不是客户正常会话必经的在线服务。
-客户可以离线导入有效签名材料；验证私钥不进入客户端或私有服务端套件。
+许可证签发与软件发布签名属于 Pixels 的发行基础设施，不是客户正常会话必经的在线服务。
+Customer 可以离线导入有效 `PXLIC2` 许可证；Auth 私钥不进入客户端或私有服务端套件。
 商业首版交付 Linux 容器部署与 Windows 服务端安装方式，支持单机起步和同一部署内多 Render/多 Relay；
 两者使用相同配置 schema，多机拓扑增加部署配置而非代码分叉。P4 单机预览不是 P7 商业版的机器数量上限。
 数据库决策（2026-09-16）：PostgreSQL 为唯一主业务数据库，先完成独立数据库阶段，再实施服务拆分与新调度。
@@ -95,10 +95,9 @@ Console 多活和跨地区控制面属于后续专项，不通过复制进程绕
 product = cloud_node | client | remote | android
 distribution = official | customer
 release_channel = stable | preview
-deployment_kind = official | private
 ```
 
-product 决定能力，distribution 决定平台与更新策略，release_channel 决定发布节奏，deployment_kind 是服务端经验证的身份。
+product 决定能力，distribution 决定平台与更新策略，release_channel 决定发布节奏。
 `client_type=android` 等平台身份保持不变；不能将 android 改成 customer 或 panel。Service 不因 distribution 做能力裁剪。
 
 - 同一产品仍只有一条产品版本序列，不额外产生八条版本线；一次发布构建事务先分配一次产品版本，再分别完整构建所选 flavor。
@@ -106,7 +105,7 @@ product 决定能力，distribution 决定平台与更新策略，release_channe
 - 每次新的完整构建事务仍升版；日常 focused C++ 验证继续遵守现有不升版规则。
 - 目标输出为 `build_official/<product>/<distribution>/...`，所有 CMake、Cargo、Gradle、dist、installer、reports 均隔离。
 - Windows 完整产品入口一次预检并一次升版，随后构建同版本 `official` 与 `customer`；任一发行失败即整次事务失败，不能把另一半标记为完整矩阵。
-  日常聚焦 C++ 继续使用 `<product>/cmake` 与 `<product>/dist` 的 `development` 沙箱，它不含正式身份材料、不能制作安装包。
+  日常聚焦 C++ 继续使用 `<product>/cmake` 与 `<product>/dist` 的 `development` 沙箱，它不含正式更新签名材料、不能制作安装包。
 - Android 正式 Release 同样一次预检、一次升版并生成同版本 Official/Customer；单发行 Debug 只用于开发短测。只有双发行的身份、签名、合规材料
   和各自 release manifest 全部验证后才生成矩阵完成清单。
 - 不读取其他 flavor 的已编译产品文件，不把 flavor 编译宏留在公共缓存。切换此目录结构时同步修改构建文档和所有发布校验脚本。
@@ -120,8 +119,8 @@ product 决定能力，distribution 决定平台与更新策略，release_channe
 - 每个 OEM 发行必须在构建时绑定不可为空且全局唯一的 `oem_id/release_namespace`、应用/安装身份、发布者、初始 TUF 信任根和允许的私有
   更新策略。OEM A、OEM B、Pixels Official 和 Pixels Customer 之间均不得覆盖安装、共享更新元数据或回落到彼此的软件包。
 - OEM 非秘密发行描述采用严格 schema 1，并由 `PIXELS_OEM_RELEASE_PROFILE` 唯一指定。描述将品牌、Windows 三产品安装身份、Android
-  applicationId、各平台签名证书固定值、品牌资源摘要、deployment trust store 与 TUF 初始根摘要绑定为一个整体；构建过程不得再从若干可互相
-  矛盾的环境变量推断 OEM 身份。Windows deployment policy、Windows 独立 OEM 候选入口和 Android 独立 OEM 构建入口均执行该门禁；候选构建
+  applicationId、各平台签名证书固定值、品牌资源摘要与 TUF 初始根摘要绑定为一个整体；构建过程不得再从若干可互相
+  矛盾的环境变量推断 OEM 身份。Windows 独立 OEM 候选入口和 Android 独立 OEM 构建入口均执行该门禁；候选构建
   不等于 TUF 发布、节点激活或商业交付批准。
 - 三个 Windows 产品及其发行变体继续互斥。只有一个已安装发行，服务命名可沿用统一方案。
 - 卸载软件与删除账号、配置、工作区和用户数据分开；普通升级不调用卸载清理路径。保留的数据带平台/发行归属，禁止另一发行自动导入。
@@ -137,8 +136,7 @@ product 决定能力，distribution 决定平台与更新策略，release_channe
 
 Official 内置官方 HTTPS 引导入口及官方信任策略，不提供自定义服务器输入。官方域名轮换通过受信任的配置更新完成。
 Customer 首次启动填写私有 HTTPS 入口，验证成功后才展示登录；设置中可修改，首版同一客户端仅激活一个私有平台。
-OEM 客户端只接受其交付策略允许的 private 部署身份。是否由 OEM 固定私有入口或允许最终客户填写私有入口由该 OEM 的构建策略明确；
-两种情况都不得接受 Pixels Official 部署身份、官方业务入口或官方更新信任根，也不得静默切回 Pixels 品牌发行。
+OEM 客户端使用该 OEM 构建策略指定或允许填写的私有入口；不得内置 Pixels Official 业务入口或官方更新信任根，也不得静默切回 Pixels 品牌发行。
 可以保存多个配置档案，但并非首版必需；不做多平台同时在线。
 
 普通用户仅填一个入口。Console、Broker、Relay、升级服务及节点当前Render端点由私有管理员配置或节点上报、由平台按权限下发。
@@ -147,69 +145,33 @@ OEM 客户端只接受其交付策略允许的 private 部署身份。是否由 
 [Direct Host专项计划](direct_host_webrtc_scope_plan_20260919.md)。
 配置明确区分 listen、advertise、internal 地址，支持内网 DNS、IP SAN 和企业 CA；不将局域网地址一概禁止。
 
-### 3.2 部署证书与发现协议
+### 3.2 标准 HTTPS、端点与会话授权
 
-Console 已实现项目发现接口 `GET /.well-known/pixels` 与 nonce 持有证明接口 `POST /.well-known/pixels/challenge`；它们是项目协议，
-不宣称是已有行业标准。当前服务端切片公开验证平台身份，后续客户端通过认证后再获取授权范围内的动态端点。目标模型：
+自定义部署证书、平台描述、nonce 持有证明和部署 trust store 已退役。所有客户端使用标准 HTTPS 校验证书链与主机名；私有部署使用
+公开受信 CA，或由管理员按操作系统/设备规范安装企业 CA。产品不提供“跳过证书校验”开关，也不从业务响应动态信任新的 TLS 根。
 
-```text
-DeploymentIdentity
-  deployment_id
-  deployment_kind
-  distribution / release_namespace / oem_id
-  deployment_public_key
-  issuer_key_id / certificate_version / validity
-  vendor_signature
+Official 在构建时固定官方 Console HTTPS origin，设置页不可修改。Customer 在设置中保存一个规范私有 HTTPS origin，并在发送用户名、密码、
+bearer 或节点注册凭据前拒绝与构建时记录的官方 origin 完全相同的地址；失败不回退官方地址。该规则满足产品入口隔离，但不声称能从密码学上识别
+任意反向代理是否最终转发到官方服务，因此官方服务端还必须拒绝不属于其发行和部署的账号、节点、会话与 allocation 凭据。
 
-PlatformDescriptor
-  deployment_id / deployment_kind
-  distribution / release_namespace / oem_id
-  descriptor_revision / trust_epoch
-  api_versions / supported_protocol_range / minimum_client_build
-  authentication_methods / registration_policy
-  broker_endpoints / transport_capabilities
-  update_policy
-  deployment_signature
-```
-
-平台首次部署生成自己的密钥；Pixels 离线根签发 official 或 private 部署证书，绑定 DeploymentId、类别和部署公钥。
-商业授权额度是另一份许可证，不与该证书混用。私有管理员持有私有部署密钥，不能签发官方身份。
-TLS 按系统或管理员导入的 CA 验证主机名/链，再验证部署证书、描述签名和在线挑战的私钥持有证明；不依赖服务器自报 `private` 字段。
-部署描述不能自行添加新的根信任；轮换使用现有受信任根授权的证书链/版本，并定义过期和吊销流程。
-离线客户通过签名维护包更新信任材料；离线环境无法保证即时远程吊销，证书有效期与维护周期必须匹配。
-
-所有会话描述和受控服务身份绑定 deployment、角色、授权版本和有效范围。新 Broker/Relay 端点由平台授权，不能任意把账号令牌转发到描述中的 URL。
-Direct 对端地址可能动态变化，其身份通过会话授权和端点持有者证明验证，不能要求所有 Render 必须使用平台同一域名。
-TLS 证书轮换或域名更换不自动创建新 DeploymentId；恢复/克隆部署是否沿用身份须通过管理操作决定，不能复制后同时宣称唯一 owner。
-
-当前 `PXDC2` schema 2 部署证书、`PXDD2` schema 2 平台描述和 `PXDP1` 在线证明使用相互独立的签名域；旧 v1 开发 wire 直接无效。
-证书与描述同时签入 distribution/release_namespace/oem_id：Official 固定 `pixels.official/null`，Customer 固定 `pixels.customer/null`，
-OEM 固定 `oem.<oem_id>/<oem_id>`。Console 启动前校验数据库 deployment UUID、许可证精确发行域、部署证书类别与精确发行域、
-公私钥匹配、certificate version 与 trust epoch。平台描述最长 300 秒，在线证明最长 30 秒，
-请求 nonce 必须是 32 字节规范 base64url。已实现描述中的固定相对 Console API 路径、协议范围、最低客户端 build、认证与注册策略；
-Broker/Relay/更新端点仍须通过后续认证响应安全下发，不能用当前相对路径集合冒充目标模型全部完成。Android 已实现凭据发送前验签、nonce
-证明、持久单调水位、Official 固定端点、Customer 私有端点以及独立 applicationId/构建沙箱；Windows Service 也已在节点 token 发送前
-完成同源身份/nonce 验证和 machine-scope DPAPI 水位，并要求安装流程提供 approved trust store，不能从远端自举根信任。Windows Panel
-也已在密码、bearer、guest 与资源请求前完成同源 discovery/nonce 验证，以受保护水位固定身份；Official origin 只读，Customer 只接 private，
-账号与 guest 缓存按 origin+DeploymentId 隔离。Windows Service、Panel、Web Client、Android 已统一消费 v2 精确发行域并拒绝字段替换；
-正式 Android 双制品/真机证据、Windows 双发行 policy/trust 资源与独立输出及 OEM 正式签名实物矩阵仍属于 DB5/P0，完成前发行隔离不得判定通过。
-部署私钥生成、离线根/trust store 建立及证书签发工具已实现，操作与隔离
-边界见[部署身份离线签发与安装](deployment_identity_provisioning.md)。
+Console 登录后签发的资源 descriptor 是 Broker、Relay 和 Render 实际端点的唯一业务权威。客户端不能从旧固定端口、设备记录或本地缓存猜测端点，
+也不能把 Console 登录 token 任意发送给 descriptor 外的地址。Direct Render、Relay allocation、节点注册和资源会话继续使用短期、限范围、
+绑定 audience/会话/角色的凭据；数据库 deployment UUID 继续用于三库、备份恢复和本部署服务端数据的一致性，不对客户端公开成第二套身份协议。
 
 ### 3.3 Customer 禁止官方平台的准确边界
 
 1. 已知官方入口做地址预检，减少误填；不依赖官方 IP 黑名单，共享 CDN/IP 不能作为独立身份。
 2. 默认禁止自动跨来源重定向；需要迁移时先验证新来源。验证前不携带旧令牌、密码、Cookie 或设备注册凭据。
-3. Customer 只接受有效 private 部署证书；Official 只接受允许的 official 部署身份。
+3. Customer 拒绝构建时记录的 Official origin；Official 不提供服务器编辑入口。
 4. 认证、节点注册、Broker Attach、Relay allocation 均校验 deployment/audience/角色，私有平台凭据不能被官方服务接受。
-5. 官方地址、IP、别名、端口替换、反向代理以及混入官方端点的描述均纳入测试；原样代理官方身份仍被 Customer 拒绝。
+5. 官方规范地址、显式端口、大小写/尾斜杠规范化、重定向和描述中混入未授权端点均纳入测试；反向代理边界按上一节如实声明。
 
 此机制保证原版受支持客户端的发行隔离，以及不同部署凭据的服务端隔离。发行字符串、User-Agent、内置静态 secret 或代码签名本身，
 都不能向远端证明当前进程未被修改。攻击者若改客户端、持有合法官方账号，或自己重写协议代理，不能承诺仅靠上述设计绝对阻止。
 如需进一步限制官方接入设备，应增加服务端登记的每安装实例密钥及持有者证明；登记本身仍需可信发放或平台证明，不能信任自报 flavor。
 跨 Windows/Android 的强制可信执行证明是另一个安全项目，首版不伪装成已经具备。即使未来增加证明，仍需正常的账号 ACL、限流和吊销。
 
-OEM 在上述 private 部署身份校验外再增加本地发行门禁：安装身份、`oem_id/release_namespace`、TUF 初始根和 TUF target 自定义元数据必须
+OEM 增加本地发行门禁：安装身份、`oem_id/release_namespace`、TUF 初始根和 TUF target 自定义元数据必须
 同时一致。仅把官方域名换成代理、由私有 Console 返回官方包 URL、复制另一 OEM 的元数据或持有较高 build number，均不能进入安装阶段。
 OEM 更新策略和密钥由对应交付合同管理；Pixels 官方发布服务不把 OEM 客户端纳入自动升级目标，也不持有让 OEM 客户端信任官方包的
 兼容根。OEM 停止维护时进入明确的人工迁移/卸载流程，不能通过“最后一次更新”跨线变成 Official 或 Customer。
@@ -219,7 +181,7 @@ OEM 更新策略和密钥由对应交付合同管理；Pixels 官方发布服务
 Customer 切换流程：验证候选平台 → 检查活动会话/文件任务 → 用户结束或取消切换 → 停止旧连接和重试 → 原子切换配置 → 新平台登录。
 验证失败保留原配置；用户确认断开后不得偷偷恢复旧连接。保存失败不能留下“地址已新、身份仍旧”的半完成状态。
 
-- 登录凭据、设备身份、目录缓存、历史会话、文件恢复记录按 distribution + DeploymentId + 用户隔离。
+- 登录凭据、设备身份、目录缓存、历史会话、文件恢复记录按 distribution + Console origin + 用户隔离。
 - 切换增加本地 configuration generation；旧请求、UI 回调、下载和重连任务不得写入新平台状态。
 - 账号不能因同名、设备不能因同 ID 被跨平台复用。密钥和令牌使用系统安全存储。
 - Host 归属设置与访问方平台设置独立；修改访问平台不能把 Cloud Node/Remote Service 迁到另一个平台。
@@ -405,7 +367,7 @@ RDP 的 Windows Session、账号、Profile 和工作区应用继续保留，即�
 
 - 对业务和授权 schema 使用扩展 → 回填 → 切读写 → 后续版本收缩；首次升级不删除旧版本仍需的数据。
 - migration 具有版本、单 owner 锁、进度检查点和幂等重试；禁止多个实例启动时同时迁移。
-- 备份包括业务库、配置、部署身份、密钥恢复材料、授权记录与必要文件，并验证恢复到独立环境。
+- 备份包括业务库、配置、数据库 deployment UUID、密钥恢复材料、授权记录与必要文件，并验证恢复到独立环境。
 - 数据库备份和引擎升级按 [PostgreSQL 方案](postgresql_database_migration_plan.md) 实施：基础档小时 24/日 7/周 4/月 6，
   生产档使用 pgBackRest 依赖链与连续 WAL，不把逻辑导出当作 PITR，也不把数据库引擎升级混成应用 schema migration。
 - 代码回滚仅限旧代码仍支持当前 schema 的窗口；越过收缩点后采用前向修复或计划停机恢复，不能自动倒灌快照覆盖新业务写入。
@@ -523,8 +485,8 @@ Windows 软件组合验收 `pg-20260920-151630-d92d153c` 已以 449/449 个登�
 产品服务、生产前端与真实 Chromium、进程重启/断库恢复及三库 dump/restore 后的数据和结构对账。该结果关闭本轮实现的本地组合回归，
 但不把测试生成的 TUF 仓库、NSIS 语法编译或 development Service 制品冒充正式签名 Official/Customer 安装升级矩阵。
 
-当前 release catalog、Desk/Console PostgreSQL 发布目录、TUF `pixels.target` 元数据、Auth `PXLIC2`、部署身份、Console 和节点产品描述符均已实现
-严格 `oem_id/release_namespace` 字段，Desk 能保存不同 OEM 的同构建号版本，Console 运维页能显示命名空间。OEM 非秘密发行描述及 Windows policy
+当前 release catalog、Desk/Console PostgreSQL 发布目录、TUF `pixels.target` 元数据、Auth `PXLIC2`、Console 和节点产品描述符均已实现
+严格 `oem_id/release_namespace` 字段，Desk 能保存不同 OEM 的同构建号版本，Console 运维页能显示命名空间。OEM 非秘密发行描述
 前置门禁已绑定品牌/安装身份/签名者/独立根；Windows CMake、dist、NSIS、installer verifier 和 TUF ReleaseSpec 消费同一 profile，并以共享
 owner 记录保持所有产品/发行互斥。Windows OEM 候选入口现已逐产品串起独立清理、升版、Web/RDP/C++、安装器签名和安装包复核；OEM 包仍不得使用
 现有 Customer 构建入口冒充交付。Web 和 Android 包身份已接线，Android 运行界面/Splash/launcher/通知及 Windows 原生 Panel/Client 窗口、托盘、
@@ -577,7 +539,7 @@ HealthCheck 同时验证进程、协议、数据库、授权和代表性会话�
 - 两槽各有内部监听端口，部署清单登记并在创建/激活前检查冲突；不得共同绑定同一端口或探测旧固定端口。
   Console 稳定公网入口由独立受监督的反向代理持有，转发到当前槽的受限内部地址；API/管理 WS 切换允许断线并对账。
   Broker/Relay 原始协议端口按各自描述发布独立地址/端口，保留旧槽直至排空，不能假定 HTTP 代理移交媒体 Socket。
-- 每槽独立版本目录、运行目录、日志、临时文件及不可变配置 revision；共享的只有明确声明的业务数据库和稳定部署身份。
+- 每槽独立版本目录、运行目录、日志、临时文件及不可变配置 revision；共享的只有明确声明的业务数据库和稳定数据库 deployment UUID。
   凭据由受保护存储按最小权限提供；任务状态和激活清单在独立执行器的稳定数据根，不放待替换版本目录。
 - 新槽先以被动模式验证 readiness/schema/配置，不执行调度、outbox 或同作用域后台任务；旧 owner 停止新派发后，
   通过 PG 持久 owner 租约和更高 epoch 接管。节点必须确认新代际/拒绝旧代际，未对账节点暂停新调度；再切入口并排空旧槽。
@@ -616,11 +578,11 @@ DB-HA 可在数据库基线后与 P 阶段推进，但必须在自营公网/私�
 
 | 阶段 | 主要任务与产物 | 完成门槛 |
 |---|---|---|
-| P0 合同与基线 | 冻结 DeploymentIdentity、发现、注册/登录、Grant/epoch、错误码、升级清单/版本窗；盘点当前签名、安装和授权；确定中断预算 | 可评审协议样例、威胁模型、状态机、迁移/恢复步骤；参考源码缺失已解决或替代方案明确 |
+| P0 合同与基线 | 冻结标准 HTTPS 入口、注册/登录、Grant/epoch、错误码、升级清单/版本窗；盘点当前签名、安装和授权；确定中断预算 | 可评审协议样例、威胁模型、状态机、迁移/恢复步骤；参考源码缺失已解决或替代方案明确 |
 | DB0–DB5 数据库优先 | PostgreSQL 新模型/事务、Console/Auth/Desk 持久化、空库初始化、自动备份与恢复、功能回归 | 无 Mongo 数据导入或产品依赖/双写/fallback；并发和故障不假成功；新环境完整功能及备份恢复通过 |
 | DB-HA 高可用专项 | PostgreSQL 主备、Patroni/协调多数、读写入口、同步策略与旧主隔离 | 单主故障/分区/回归验证；RPO/RTO 实测，不能以三进程同机宣称容错 |
 | P1 发行与配置 | 四个产品 × 两种发行构建；各产品版本规则；Windows/Android 入口与安全存储、平台切换、Host 归属 | 完整包身份/hash 正确；官方与两套私有平台验证同名账号/同 ID 隔离；凭据不串平台 |
-| P2 Console 与授权 | 在当前 Rust 单体划业务/连接边界；部署身份、账号/ACL、许可证、持久 Grant/outbox、幂等、撤销与 epoch | 重复 Start 不创建第二实例，旧回执不覆盖新代际，重启/备份恢复不复活撤销授权 |
+| P2 Console 与授权 | 在当前 Rust 单体划业务/连接边界；账号/ACL、许可证、持久 Grant/outbox、幂等、撤销与 epoch | 重复 Start 不创建第二实例，旧回执不覆盖新代际，重启/备份恢复不复活撤销授权 |
 | P3 连接服务与资源池 | 拆 Broker/Relay；多 Render/多 Relay 身份、发现、容量门禁和分配；类型化多业务全链路、监控指标 | 公网和私网直连/Relay、多机接入及新容量准入验证；子进程退出不误停 Session；Console 重启不主动断媒体 |
 | P4 私有交付与安全升级 | Server 独立安装包/容器、配置向导、签名导入/更新、离线依赖，将 DB4 备份恢复工具纳入套件 | 干净机器安装、覆盖、同发行升级、拒绝错误包；断公网可独立运行；停机升级失败可恢复 |
 | P5 服务端在线升级 | schema 共存、唯一调度 owner、Console 切流、Broker 恢复、Relay 排空与版本保留 | N/N-1 发布矩阵；不断业务/允许重连分别量测；旧进程排空超时不擅自杀连接；失败切回通过 |
@@ -638,15 +600,15 @@ Windows 先功能验收，再 Android；使用配置的公网测试节点及独�
 
 | 场景 | 预期 |
 |---|---|
-| 多 Render/多 Relay 接入、重复注册、应用未就绪 | 部署身份/节点代际不串用；未验收容量不参与分配，新增容量只接满足条件的新业务 |
+| 多 Render/多 Relay 接入、重复注册、应用未就绪 | 节点身份/代际不串用；未验收容量不参与分配，新增容量只接满足条件的新业务 |
 | 多机重连风暴、批量升级失败或剩余容量不足 | 有界队列/退避，关键回执不丢；暂停后续批次，不同时排空整个资源池 |
 | 缩容遇保留工作区、本机存档、未知占用或 Relay 长期用户 | 阻止自动销毁/强制驱逐；有解释、审计和延期/明确维护路径 |
 | Console 停止、监控停止、监控样本过期 | Console 故障可独立告警；监控故障不误停业务，过期图表不变成准入依据 |
-| Customer 填官方 URL/IP/别名/转发入口 | 登录/设备注册之前拒绝官方部署身份，不泄露账号信息 |
-| 描述自报 private、实际官方证书，或篡改 Broker/Relay 地址 | 签名/部署/角色校验失败；不凭字段或域名外观放行 |
+| Customer 填规范官方 origin | 登录/设备注册之前本地拒绝，不泄露账号信息；不宣称识别任意反向代理 |
+| 描述篡改 Broker/Relay/Render 地址 | 会话授权、audience 或角色校验失败；不凭字段或域名外观放行 |
 | 官方服务收到私有 token/节点证书/allocation | audience/deployment/issuer 校验拒绝，不能因 ID 相同放行 |
 | 两个私有平台同账号名/设备 ID，切换时旧请求晚到 | 登录、缓存、文件恢复、UI 和节点归属不交叉 |
-| DNS/证书/部署签名密钥轮换 | 有授权轮换正常，无授权替换拒绝；无跳过证书选项 |
+| DNS/TLS 证书轮换 | 系统信任链和主机名验证通过才接受；无跳过证书选项 |
 | 私有部署禁止所有公网出站 | 登录、注册策略、会话、本地 Relay、导入许可证和离线升级通过 |
 | 更新 metadata/包篡改、旧清单重放、错 flavor/arch、路径穿越 | 激活前拒绝；原版仍可启动，记录失败原因 |
 | Console 双实例/迁移并发 | P5 A/B 精确 SCM 身份、独立端口/目录；单一调度 owner，旧命令拒绝，失败切回使用新 epoch；schema 迁移唯一执行者 |

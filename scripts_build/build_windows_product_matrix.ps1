@@ -47,7 +47,7 @@ Invoke-NativeChecked -FilePath $python.Source -Arguments @(
     $prepareScript, '--product', $Product, '--distribution', 'official', '--validate-only'
 )
 Invoke-NativeChecked -FilePath $python.Source -Arguments @(
-    $prepareScript, '--product', $Product, '--distribution', 'customer', '--matrix-customer', '--validate-only'
+    $prepareScript, '--product', $Product, '--distribution', 'customer', '--validate-only'
 )
 
 Invoke-NativeChecked -FilePath 'powershell.exe' -Arguments @(
@@ -77,13 +77,10 @@ if ($nodeRequired) {
 
 foreach ($distribution in @('official', 'customer')) {
     $distributionRoot = Join-Path $buildRoot $distribution
-    $deploymentDirectory = Join-Path $distributionRoot 'deployment'
+    $updateDirectory = Join-Path $distributionRoot 'update'
     $prepareArguments = @(
-        $prepareScript, '--product', $Product, '--distribution', $distribution, '--output-dir', $deploymentDirectory
+        $prepareScript, '--product', $Product, '--distribution', $distribution, '--output-dir', $updateDirectory
     )
-    if ($distribution -eq 'customer') {
-        $prepareArguments += '--matrix-customer'
-    }
     Invoke-NativeChecked -FilePath $python.Source -Arguments $prepareArguments
 
     if ($Product -in @('cloud_node', 'remote')) {
@@ -94,8 +91,6 @@ foreach ($distribution in @('official', 'customer')) {
     if ($nodeRequired) {
         $webOutput = Join-Path $distributionRoot 'web'
         $env:PIXELS_WEB_DISTRIBUTION = $distribution
-        $env:PIXELS_WEB_DEPLOYMENT_POLICY_FILE = Join-Path $deploymentDirectory 'deployment-policy.json'
-        $env:PIXELS_WEB_DEPLOYMENT_TRUST_FILE = Join-Path $deploymentDirectory 'deployment-trust.json'
         $env:PIXELS_WEB_CLIENT_BUILD = [string]$version.product_version_code
         Push-Location (Join-Path $repoRoot 'web\px_web_client')
         try {
@@ -103,8 +98,7 @@ foreach ($distribution in @('official', 'customer')) {
             Invoke-NativeChecked -FilePath 'npm.cmd' -Arguments @('run', 'build', '--', '--outDir', $webOutput, '--emptyOutDir')
         } finally {
             Pop-Location
-            Remove-Item Env:PIXELS_WEB_DISTRIBUTION, Env:PIXELS_WEB_DEPLOYMENT_POLICY_FILE, Env:PIXELS_WEB_DEPLOYMENT_TRUST_FILE, `
-                Env:PIXELS_WEB_CLIENT_BUILD -ErrorAction SilentlyContinue
+            Remove-Item Env:PIXELS_WEB_DISTRIBUTION, Env:PIXELS_WEB_CLIENT_BUILD -ErrorAction SilentlyContinue
         }
     }
 
@@ -113,7 +107,7 @@ foreach ($distribution in @('official', 'customer')) {
     $env:CPP_BUILD_DIR = "build_official\$Product\$distribution\cmake"
     $env:CPP_BUILD_JOBS = '18'
     $env:CPP_CMAKE_DISTRIBUTION_ARGS =
-        "-DPX_DEPLOYMENT_POLICY_DIR=build_official/$Product/$distribution/deployment " +
+        "-DPX_UPDATE_ROOT_FILE=build_official/$Product/$distribution/update/update-root.json " +
         "-DPX_OFFICIAL_CONSOLE_ORIGIN:STRING=`"$officialConsoleUrl`""
     try {
         Invoke-NativeChecked -FilePath 'cmd.exe' -Arguments @(

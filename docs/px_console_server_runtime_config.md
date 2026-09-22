@@ -35,12 +35,6 @@ Console 只从环境读取配置；发行包不携带真实配置、证书、私
 | `PIXELS_CONSOLE_LICENSE_STATE_DIRECTORY` | 数据库/备份之外的私有水位目录，保存 license revision、可信时间及 Auth recovery generation |
 | `PIXELS_CONSOLE_AUTH_VERIFY_URL` | 仅 Official 必填，固定为 HTTPS `/api/auth/licenses/verify`；Customer/OEM 必须完全不配置；本机开发可用 loopback HTTP |
 | `PIXELS_CONSOLE_AUTH_VERIFY_CA` | Official 可选的 Auth 私有 CA PEM；存在时只加入该 HTTPS 客户端的信任根，仍执行主机名与证书链校验；Customer/OEM 禁止配置 |
-| `PIXELS_CONSOLE_DEPLOYMENT_CERTIFICATE` | Pixels 离线根签发的 `PXDC2` 部署证书；绑定 deployment UUID、official/private 类别、精确发行域、部署公钥、版本和有效期 |
-| `PIXELS_CONSOLE_DEPLOYMENT_SIGNING_KEY` | 与部署证书公钥匹配的 Ed25519 PKCS#8 私钥；仅用于平台描述和在线 nonce 证明，不用于许可证或用户 token |
-| `PIXELS_CONSOLE_DEPLOYMENT_TRUST_STORE` | 规范编码的 Pixels 部署根公钥集合；不接受发现响应自行携带的新根 |
-| `PIXELS_CONSOLE_DEPLOYMENT_CERTIFICATE_VERSION` | 本部署允许的最低证书版本，必须大于零；用于撤下旧证书 |
-| `PIXELS_CONSOLE_DESCRIPTOR_REVISION` | 平台描述单调 revision，必须大于零；端点/策略变化时提升，不允许回退 |
-| `PIXELS_CONSOLE_DEPLOYMENT_TRUST_EPOCH` | 部署信任材料水位，必须与信任根文件一致且大于零 |
 | `PIXELS_CONSOLE_MINIMUM_CLIENT_BUILD` | 平台允许接入的最低客户端 build，必须大于零 |
 | `PIXELS_CONSOLE_LOCAL_DEVELOPMENT=1` | 仅显式本机开发：监听和 PG 都必须为 loopback，才允许无 TLS |
 
@@ -70,16 +64,10 @@ Console 实例均在覆盖前拒绝。安装器先确认当前实例已停止，
    独立空水位目录并设置 `PIXELS_CONSOLE_LICENSE_STATE_DIRECTORY`。Official 必须配置自己的 Auth HTTPS verify URL；Customer
    必须不配置任何 Auth URL，也不能把官方路径作为可填服务器。首次有效验证会 create-new 水位，后续只能提高 revision/可信时间；
    Auth recovery generation 改变时必须走恢复准入/轮换流程，进程不会自行重置水位。
-6. 先用 `px_console_admin generate-deployment-key` 在目标部署 create-new 部署私钥，再由不进入任何产品安装包的离线
-   `px_deployment_authority` 为同一 `PIXELS_DEPLOYMENT_ID` 签发部署证书；配置证书、部署私钥、部署根信任文件和四个单调版本变量。
-   `official` 许可证必须匹配 `official` 部署证书，`customer`/`oem` 必须匹配 `private`；许可证、证书与 Console 配置中的
-   distribution/release_namespace/oem_id 必须逐字段相等。数据库 UUID、证书 UUID、私钥公钥或 trust epoch
-   任一不一致都在监听前失败。部署证书与商业许可证是两套独立 wire，不得共用密钥或把许可证当平台身份证明。
-   完整的根初始化、轮换和验收见[部署身份离线签发与安装](deployment_identity_provisioning.md)。
-7. 创建仅服务身份、SYSTEM、Administrators 可访问的空缓存目录，设置 `PIXELS_DEPLOYMENT_ID` 和
+6. 创建仅服务身份、SYSTEM、Administrators 可访问的空缓存目录，设置 `PIXELS_DEPLOYMENT_ID` 和
    `PIXELS_CONSOLE_RECORDING_CACHE_DIRECTORY`，执行 `px_console_admin initialize-recording-cache`。工具只初始化空目录、写入
    deployment 身份且从不覆盖；复制其他部署的目录或手工创建标记都会被拒绝。
-8. 撤下 owner 和初始化口令，设置 runtime DSN、TLS、Origin、缓存限额及上表其余变量，启动 `px_console.exe`。
+7. 撤下 owner 和初始化口令，设置 runtime DSN、TLS、Origin、缓存限额及上表其余变量，启动 `px_console.exe`。
 
 Console 在打开数据库监听前完成许可证准入。Official 必须先由 Auth 数据库时钟在线确认当前 revision 且未撤销，再以本地受控信任根
 复核同一 wire；Customer 完全离线验签，因此只能以导入的许可证 revision/有效期和库外水位为界，不能宣称获知尚未导入的官方撤销。

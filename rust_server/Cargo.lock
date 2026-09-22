@@ -1921,34 +1921,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "px_deployment_authority"
-version = "3.2.9"
-dependencies = [
- "hex",
- "px_deployment_identity",
- "px_private_files",
- "ring",
- "tempfile",
- "uuid",
- "zeroize",
-]
-
-[[package]]
-name = "px_deployment_identity"
-version = "3.2.9"
-dependencies = [
- "base64",
- "hex",
- "px_release_catalog",
- "ring",
- "serde",
- "serde_json",
- "sha2",
- "thiserror",
- "uuid",
-]
-
-[[package]]
 name = "px_desk_server"
 version = "3.2.9"
 dependencies = [

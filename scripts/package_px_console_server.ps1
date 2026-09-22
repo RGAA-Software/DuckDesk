@@ -113,7 +113,7 @@ try {
         [Text.UTF8Encoding]::new($false)
     )
     Write-Host "Console release: $releaseDirectory"
-    Write-Host 'Configure PostgreSQL, deployment identity, private keys, TLS and public origin explicitly before startup.'
+    Write-Host 'Configure PostgreSQL, the PXLIC2 license, private keys, TLS and public origin explicitly before startup.'
 } finally {
     Pop-Location
     $env:SQLX_OFFLINE = $previousOffline

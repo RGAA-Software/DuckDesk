@@ -108,9 +108,9 @@ try {
         Invoke-NativeChecked -FilePath 'node.exe' -Arguments @((Join-Path $repositoryRoot 'scripts\sync_web_protos.mjs'))
     }
 
-    $deploymentDirectory = Join-Path $oemProductRoot 'deployment'
+    $updateDirectory = Join-Path $oemProductRoot 'update'
     Invoke-NativeChecked -FilePath $python.Source -Arguments @(
-        $prepareDistributionScript, '--product', $Product, '--distribution', 'oem', '--output-dir', $deploymentDirectory
+        $prepareDistributionScript, '--product', $Product, '--distribution', 'oem', '--output-dir', $updateDirectory
     )
 
     if ($Product -in @('cloud_node', 'remote')) {
@@ -121,8 +121,6 @@ try {
     if ($nodeRequired) {
         $webOutput = Join-Path $oemProductRoot 'web'
         $env:PIXELS_WEB_DISTRIBUTION = 'oem'
-        $env:PIXELS_WEB_DEPLOYMENT_POLICY_FILE = Join-Path $deploymentDirectory 'deployment-policy.json'
-        $env:PIXELS_WEB_DEPLOYMENT_TRUST_FILE = Join-Path $deploymentDirectory 'deployment-trust.json'
         $env:PIXELS_WEB_CLIENT_BUILD = [string]$assignedVersion.product_version_code
         $env:PIXELS_WEB_APPLICATION_NAME = [string]$oemConfiguration.application_name
         $env:PIXELS_WEB_ICON_FILE = [string]$oemConfiguration.web_icon_path
@@ -135,13 +133,12 @@ try {
             )
         } finally {
             Pop-Location
-            Remove-Item Env:PIXELS_WEB_DISTRIBUTION, Env:PIXELS_WEB_DEPLOYMENT_POLICY_FILE,
-                Env:PIXELS_WEB_DEPLOYMENT_TRUST_FILE, Env:PIXELS_WEB_CLIENT_BUILD, Env:PIXELS_WEB_APPLICATION_NAME,
+            Remove-Item Env:PIXELS_WEB_DISTRIBUTION, Env:PIXELS_WEB_CLIENT_BUILD, Env:PIXELS_WEB_APPLICATION_NAME,
                 Env:PIXELS_WEB_ICON_FILE, Env:PIXELS_WEB_OEM_PROFILE_SHA256 -ErrorAction SilentlyContinue
         }
     }
 
-    $deploymentCmakePath = $deploymentDirectory.Replace('\', '/')
+    $updateRootCmakePath = (Join-Path $updateDirectory 'update-root.json').Replace('\', '/')
     $profileCmakePath = $resolvedOemProfile.Replace('\', '/')
     $env:CPP_PRODUCT = $Product
     $env:CPP_DISTRIBUTION = 'oem'
@@ -149,7 +146,7 @@ try {
     $env:CPP_BUILD_DIR = "build_official\$Product\oem\$oemId\cmake"
     $env:CPP_BUILD_JOBS = '18'
     $env:CPP_CMAKE_DISTRIBUTION_ARGS = `
-        "-DPX_DEPLOYMENT_POLICY_DIR:PATH=`"$deploymentCmakePath`" -DPX_OEM_RELEASE_PROFILE:FILEPATH=`"$profileCmakePath`""
+        "-DPX_UPDATE_ROOT_FILE:FILEPATH=`"$updateRootCmakePath`" -DPX_OEM_RELEASE_PROFILE:FILEPATH=`"$profileCmakePath`""
     try {
         Invoke-NativeChecked -FilePath 'cmd.exe' -Arguments @(
             '/d', '/c', (Join-Path $repositoryRoot 'scripts\build_cpp_target.bat'), $productTarget

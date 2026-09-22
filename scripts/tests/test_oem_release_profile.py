@@ -44,7 +44,6 @@ class OemReleaseProfileTest(unittest.TestCase):
             "oem_id": "north-star",
             "release_namespace": "oem.north-star",
             "brand": {"company_name": "North Star Ltd.", "application_name": "North Star Cloud"},
-            "deployment": {"trust_store_sha256": "1" * 64},
             "update": {"root_sha256": "2" * 64},
             "windows": {
                 "publisher_name": "North Star Ltd.",

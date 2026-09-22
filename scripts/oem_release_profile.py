@@ -34,7 +34,6 @@ class OemReleaseProfile:
     release_namespace: str
     company_name: str
     application_name: str
-    deployment_trust_store_sha256: str
     update_root_sha256: str
     windows_publisher_name: str
     windows_signer_certificate_sha256: str
@@ -181,7 +180,6 @@ def load_oem_release_profile(path: Path) -> OemReleaseProfile:
         "oem_id",
         "release_namespace",
         "brand",
-        "deployment",
         "update",
         "windows",
         "android",
@@ -203,8 +201,6 @@ def load_oem_release_profile(path: Path) -> OemReleaseProfile:
     if company_name.casefold() == "pixels" or application_name.casefold() == "pixels":
         raise RuntimeError("OEM branding must not impersonate the Pixels product brand")
 
-    deployment = require_object(profile_document, "deployment", {"trust_store_sha256"})
-    deployment_trust_store_sha256 = require_sha256(deployment, "trust_store_sha256")
     update = require_object(profile_document, "update", {"root_sha256"})
     update_root_sha256 = require_sha256(update, "root_sha256")
 
@@ -259,7 +255,6 @@ def load_oem_release_profile(path: Path) -> OemReleaseProfile:
         release_namespace=release_namespace,
         company_name=company_name,
         application_name=application_name,
-        deployment_trust_store_sha256=deployment_trust_store_sha256,
         update_root_sha256=update_root_sha256,
         windows_publisher_name=windows_publisher_name,
         windows_signer_certificate_sha256=windows_signer_certificate_sha256,
@@ -308,7 +303,6 @@ def emit_android_json(profile: OemReleaseProfile) -> str:
         "application_name": profile.application_name,
         "application_id": profile.android_application_id,
         "signer_certificate_sha256": profile.android_signer_certificate_sha256,
-        "deployment_trust_store_sha256": profile.deployment_trust_store_sha256,
         "update_root_sha256": profile.update_root_sha256,
         "icon_foreground_path": str(profile.android_icon_foreground_path),
         "icon_background_path": str(profile.android_icon_background_path),
@@ -329,7 +323,6 @@ def emit_windows_json(profile: OemReleaseProfile, product: str) -> str:
         "application_name": profile.application_name,
         "publisher_name": profile.windows_publisher_name,
         "signer_certificate_sha256": profile.windows_signer_certificate_sha256,
-        "deployment_trust_store_sha256": profile.deployment_trust_store_sha256,
         "update_root_sha256": profile.update_root_sha256,
         "windows_icon_path": str(profile.windows_icon_path),
         "web_icon_path": str(profile.web_icon_path),

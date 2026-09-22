@@ -1,7 +1,7 @@
 // Disposable Console process + actual built Vue application + isolated PostgreSQL database.
 const assert = require("node:assert/strict");
 const { execFileSync, spawn } = require("node:child_process");
-const { createHash, createPrivateKey, generateKeyPairSync, randomUUID, sign } = require("node:crypto");
+const { createHash, createPrivateKey, randomUUID, sign } = require("node:crypto");
 const { once } = require("node:events");
 const fs = require("node:fs");
 const net = require("node:net");
@@ -37,9 +37,6 @@ const recordingCachePath = path.join(privateDirectory, "recording-cache");
 const licenseStatePath = path.join(privateDirectory, "license-state");
 const licenseTrustPath = path.join(privateDirectory, "license-trust.json");
 const licensePath = path.join(privateDirectory, "console.license");
-const deploymentSigningKeyPath = path.join(privateDirectory, "deployment-signing.pk8");
-const deploymentCertificatePath = path.join(privateDirectory, "deployment.certificate");
-const deploymentTrustPath = path.join(privateDirectory, "deployment-trust.json");
 const workspaceKeyId = randomUUID();
 const licenseAuthorityDeploymentId = randomUUID();
 let child;
@@ -69,29 +66,8 @@ function runExecutable(executable, arguments, environment) {
   });
 }
 
-function rawEd25519PublicKey(publicKey) {
-  const subjectPublicKeyInfo = publicKey.export({ format: "der", type: "spki" });
-  assert.equal(subjectPublicKeyInfo.length, 44);
-  return subjectPublicKeyInfo.subarray(subjectPublicKeyInfo.length - 32);
-}
-
 function keyId(publicKeyBytes) {
   return createHash("sha256").update(publicKeyBytes).digest("hex");
-}
-
-function ringEd25519PrivateKey(privateKey) {
-  const privateKeyJwk = privateKey.export({ format: "jwk" });
-  assert.equal(privateKeyJwk.crv, "Ed25519");
-  const seed = Buffer.from(privateKeyJwk.d, "base64url");
-  const publicKey = Buffer.from(privateKeyJwk.x, "base64url");
-  assert.equal(seed.length, 32);
-  assert.equal(publicKey.length, 32);
-  return Buffer.concat([
-    Buffer.from("3053020101300506032b657004220420", "hex"),
-    seed,
-    Buffer.from("a123032100", "hex"),
-    publicKey,
-  ]);
 }
 
 function signedWire(prefix, domain, payload, privateKey) {
@@ -100,7 +76,7 @@ function signedWire(prefix, domain, payload, privateKey) {
   return `${prefix}.${canonicalPayload.toString("base64url")}.${signature.toString("base64url")}`;
 }
 
-function provisionLicenseAndDeploymentIdentity() {
+function provisionLicense() {
   const now = Math.floor(Date.now() / 1000);
   const licenseKeyDocument = Buffer.from(
     "302e020100300506032b6570042204209d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
@@ -145,49 +121,6 @@ function provisionLicenseAndDeploymentIdentity() {
     signedWire("PXLIC2", "Pixels-License-v2\0", licensePayload, licensePrivateKey),
     { flag: "wx" },
   );
-
-  const vendorKeys = generateKeyPairSync("ed25519");
-  const deploymentKeys = generateKeyPairSync("ed25519");
-  const vendorPublicKey = rawEd25519PublicKey(vendorKeys.publicKey);
-  const deploymentPublicKey = rawEd25519PublicKey(deploymentKeys.publicKey);
-  const vendorKeyId = keyId(vendorPublicKey);
-  fs.writeFileSync(
-    deploymentSigningKeyPath,
-    ringEd25519PrivateKey(deploymentKeys.privateKey),
-    { flag: "wx" },
-  );
-  fs.writeFileSync(
-    deploymentTrustPath,
-    JSON.stringify({
-      schema_version: 1,
-      trust_epoch: 1,
-      trusted_keys: [{ key_id: vendorKeyId, public_key_hex: vendorPublicKey.toString("hex") }],
-    }),
-    { flag: "wx" },
-  );
-  const deploymentCertificate = {
-    schema_version: 2,
-    deployment_id: process.env.PIXELS_DEPLOYMENT_ID,
-    deployment_kind: "private",
-    distribution: "customer",
-    release_namespace: "pixels.customer",
-    oem_id: null,
-    deployment_public_key_hex: deploymentPublicKey.toString("hex"),
-    certificate_version: 1,
-    not_before: now - 60,
-    expires_at: now + 3600,
-    issuer_key_id: vendorKeyId,
-  };
-  fs.writeFileSync(
-    deploymentCertificatePath,
-    signedWire(
-      "PXDC2",
-      "Pixels-Deployment-Certificate-v2\0",
-      deploymentCertificate,
-      vendorKeys.privateKey,
-    ),
-    { flag: "wx" },
-  );
 }
 
 function createBrowserDatabase() {
@@ -229,7 +162,7 @@ function provisionConsole() {
   const identity = runExecutable("whoami", [], {}).trim();
   runExecutable("icacls", [privateDirectory, "/inheritance:r", "/grant:r", `${identity}:(OI)(CI)F`, "*S-1-5-18:(OI)(CI)F"], {});
   fs.mkdirSync(recordingCachePath);
-  provisionLicenseAndDeploymentIdentity();
+  provisionLicense();
   fs.writeFileSync(passwordPath, initialPassword, { flag: "wx" });
   runExecutable(administratorExecutable, ["generate-secrets"], {
     PIXELS_CONSOLE_GUEST_SOURCE_KEY: guestSourcePath,
@@ -309,12 +242,6 @@ async function startServer() {
     PIXELS_CONSOLE_LICENSE_TRUST_STORE: licenseTrustPath,
     PIXELS_CONSOLE_LICENSE_FILE: licensePath,
     PIXELS_CONSOLE_LICENSE_STATE_DIRECTORY: licenseStatePath,
-    PIXELS_CONSOLE_DEPLOYMENT_CERTIFICATE: deploymentCertificatePath,
-    PIXELS_CONSOLE_DEPLOYMENT_SIGNING_KEY: deploymentSigningKeyPath,
-    PIXELS_CONSOLE_DEPLOYMENT_TRUST_STORE: deploymentTrustPath,
-    PIXELS_CONSOLE_DEPLOYMENT_CERTIFICATE_VERSION: "1",
-    PIXELS_CONSOLE_DESCRIPTOR_REVISION: "1",
-    PIXELS_CONSOLE_DEPLOYMENT_TRUST_EPOCH: "1",
     PIXELS_CONSOLE_MINIMUM_CLIENT_BUILD: "1",
   };
   delete environment.PIXELS_CONSOLE_TLS_CERT;

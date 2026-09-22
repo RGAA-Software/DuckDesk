@@ -63,6 +63,6 @@ Current incomplete stage gates are tracked in [database execution status](../doc
 ## Other scripts
 
 - `collect_dist.py` — Collect one product/distribution's declared artifacts into its isolated `dist/` directory.
-- `prepare_windows_distribution.py` — Validate approved deployment trust material and prepare fail-closed Official/Customer package policy.
+- `prepare_windows_distribution.py` — Validate release flavor inputs and stage the signed TUF update root.
 - `../scripts_build/build_cpp_common.bat` — Build the `px_common` target through the supported focused-build entry point.
 - `build_tc_tests.bat` / `run_tc_tests.bat` — Build and run tc tests.

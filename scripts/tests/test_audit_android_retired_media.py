@@ -15,7 +15,7 @@ class AndroidRetiredMediaAuditTest(unittest.TestCase):
                 [
                     "AndroidManifest.xml",
                     "lib/arm64-v8a/libpixels_android_core.so",
-                    "assets/deployment/deployment-trust.json",
+                    "assets/update/root.json",
                 ]
             ),
             [],

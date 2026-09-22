@@ -26,7 +26,7 @@ class RetiredCentralMediaAuditTest(unittest.TestCase):
                 "px_render.exe",
                 "px_rtc.dll",
                 "web_client/assets/index.js",
-                "resources/deployment/deployment-policy.json",
+                "resources/update/root.json",
             }
         )
 
@@ -105,29 +105,7 @@ class DistributionUpdateTrustAuditTest(unittest.TestCase):
     def test_release_distribution_requires_update_root(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             distribution = Path(temporary_directory)
-            policy_path = distribution / "resources/deployment/deployment-policy.json"
-            policy_path.parent.mkdir(parents=True)
-            policy_path.write_text(
-                json.dumps(
-                    {
-                        "schema_version": 2,
-                        "distribution": "customer",
-                        "release_namespace": "pixels.customer",
-                        "oem_id": None,
-                        "expected_deployment_id": None,
-                        "official_console_origin": None,
-                        "minimum_certificate_version": 1,
-                        "minimum_descriptor_revision": 1,
-                        "minimum_trust_epoch": 1,
-                        "protocol_version": 1,
-                    }
-                ),
-                encoding="utf-8",
-            )
-            actual_files = {
-                "resources/deployment/deployment-policy.json",
-                "resources/deployment/deployment-trust.json",
-            }
+            actual_files: set[str] = set()
             with self.assertRaisesRegex(RuntimeError, "update trust"):
                 VERIFY_PRODUCT_DIST.verify_distribution_identity(
                     distribution,
@@ -157,8 +135,6 @@ class DistributionUpdateTrustAuditTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             distribution = Path(temporary_directory)
             actual_files = {
-                "resources/deployment/deployment-policy.json",
-                "resources/deployment/deployment-trust.json",
                 "resources/update/root.json",
             }
             with self.assertRaisesRegex(RuntimeError, "signer pin"):
@@ -177,28 +153,7 @@ class DistributionUpdateTrustAuditTest(unittest.TestCase):
     def test_release_distribution_rejects_pixels_pe_outside_owned_inventory(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             distribution = Path(temporary_directory)
-            policy_path = distribution / "resources/deployment/deployment-policy.json"
-            policy_path.parent.mkdir(parents=True)
-            policy_path.write_text(
-                json.dumps(
-                    {
-                        "schema_version": 2,
-                        "distribution": "customer",
-                        "release_namespace": "pixels.customer",
-                        "oem_id": None,
-                        "expected_deployment_id": None,
-                        "official_console_origin": None,
-                        "minimum_certificate_version": 1,
-                        "minimum_descriptor_revision": 1,
-                        "minimum_trust_epoch": 1,
-                        "protocol_version": 1,
-                    }
-                ),
-                encoding="utf-8",
-            )
             actual_files = {
-                "resources/deployment/deployment-policy.json",
-                "resources/deployment/deployment-trust.json",
                 "resources/update/root.json",
                 "px_client.exe",
                 "rdp/px_rdp_core.dll",
@@ -231,27 +186,10 @@ class DistributionUpdateTrustAuditTest(unittest.TestCase):
                     {"resources/update/root.json"},
                 )
 
-    def test_oem_distribution_requires_the_same_canonical_release_domain_in_manifest_and_policy(self) -> None:
+    def test_oem_distribution_requires_a_canonical_release_domain_in_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             distribution = Path(temporary_directory)
-            policy_path = distribution / "resources/deployment/deployment-policy.json"
-            policy_path.parent.mkdir(parents=True)
-            policy = {
-                "schema_version": 2,
-                "distribution": "oem",
-                "release_namespace": "oem.acme-cloud",
-                "oem_id": "acme-cloud",
-                "expected_deployment_id": None,
-                "official_console_origin": None,
-                "minimum_certificate_version": 1,
-                "minimum_descriptor_revision": 1,
-                "minimum_trust_epoch": 1,
-                "protocol_version": 1,
-            }
-            policy_path.write_text(json.dumps(policy), encoding="utf-8")
             actual_files = {
-                "resources/deployment/deployment-policy.json",
-                "resources/deployment/deployment-trust.json",
                 "resources/update/root.json",
                 "px_client.exe",
             }
@@ -266,8 +204,7 @@ class DistributionUpdateTrustAuditTest(unittest.TestCase):
             }
             with mock.patch.object(VERIFY_PRODUCT_DIST, "verify_file"):
                 VERIFY_PRODUCT_DIST.verify_distribution_identity(distribution, manifest, actual_files)
-                policy["release_namespace"] = "oem.other-brand"
-                policy_path.write_text(json.dumps(policy), encoding="utf-8")
+                manifest["release_namespace"] = "oem.other-brand"
                 with self.assertRaisesRegex(RuntimeError, "wrong release domain"):
                     VERIFY_PRODUCT_DIST.verify_distribution_identity(distribution, manifest, actual_files)
 
