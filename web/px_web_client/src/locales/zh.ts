@@ -31,7 +31,7 @@ export default {
     steps: {
       idle: '待命',
       init: '初始化 WebRTC 连接',
-      identity: '验证 Console 部署身份',
+      frontend: '读取会话授权',
       negotiate: '创建本地媒体协商 (Offer)',
       ice: '收集网络路径 (ICE)',
       signal: '向主机请求远程桌面',
@@ -43,9 +43,6 @@ export default {
       failed: '连接失败',
       done: '连接完成',
     },
-  },
-  security: {
-    deploymentIdentityRejected: '无法验证 Console 部署身份，未向主机发送任何会话凭据。',
   },
   clipboard: {
     sendRemote: '发送到远端剪贴板',

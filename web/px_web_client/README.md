@@ -34,27 +34,22 @@ npm run dev
 npm run build
 ```
 
-普通 `npm run build` 只生成 development 产物并输出到 `dist/`。正式 Official/Customer Web Client 不允许单独手工拼装，必须由
-Cloud Node 或 Remote 的完整产品矩阵构建生成；矩阵构建会把该发行对应的 deployment policy、approved trust store 和当前产品 build
-水位注入 Web bundle。缺少任何一项，或 policy 与发行类别不一致时，构建失败关闭。`vite.config.ts` 中 `base: './'` 为相对路径，产物可部署
-到 Render 的 `/web/` 子路径。
+普通 `npm run build` 生成 development 产物并输出到 `dist/`。正式 Official/Customer Web Client 由 Cloud Node 或 Remote 的完整产品矩阵构建生成。
+Web bundle 不携带许可证、部署证书或部署信任仓库；服务权限和并发 stream 额度由 Console 统一裁决。`vite.config.ts` 中 `base: './'` 为相对路径，
+产物可部署到 Render 的 `/web/` 子路径。
 
 OEM Web build 额外要求由已验证 release profile 派生 `PIXELS_WEB_APPLICATION_NAME`、`PIXELS_WEB_ICON_FILE` 和
 `PIXELS_WEB_OEM_PROFILE_SHA256`。应用名同时驱动 HTML 标题、中英文运行标题、加载页和浮球无障碍文本；图标必须是 2 MiB 以内的 PNG，并在构建时
 转为 bundle 内 data URL。Official/Customer/development 反向拒绝这三个变量，OEM 缺失任一值或 profile 摘要不是规范小写 SHA-256 也会失败。
 这些是底层构建门禁；OEM Web 只能由 `scripts_build/build_windows_oem_product.bat` 从已验证 profile 注入，不能靠手工设置环境变量生成交付包。
 
-## 部署身份门禁
+## 会话授权
 
-Console 生成的启动 URL fragment 必须携带 `console_origin`、资源会话 ID、revision 和一次性 frontend token。Official/Customer bundle 在创建
-`RTCPeerConnection`、向 Render 发送 token 或使用任何凭据前，先跨源访问 Console 的公开身份端点，验证 `PXDC2` schema 2 证书、
-`PXDD2` schema 2 短期描述、`PXDP1` nonce 持有证明、精确 distribution/release_namespace/oem_id、协议/build 水位和本地持久化单调水位。
-Official 只接受编译时固定的官方 HTTPS origin 与 deployment ID；Customer/OEM 只接受签名类别为 `private` 且与构建策略完全一致的发行域，
-并在首次成功后按 Console origin 固定 deployment ID。验证失败时不会回落到手工设备密码路径。
+Console 生成的启动 URL fragment 携带 `console_origin`、资源会话 ID、revision 和一次性 frontend token。Web Client 只把这份会话授权用于连接
+指定 Render，不读取或执行 `PXLIC2`。Console 在签发会话前完成服务权限和并发 stream 检查；Web Client 不再实现第二套部署身份协议。
 
 development bundle 保留本地手工连接入口用于聚焦开发，不构成 Official/Customer/OEM 产品行为。
 
 ## 部署
 
-Render 在同源 `/web/` 路径下托管本前端，RTC 信令仍走 Render 同源相对路径 `/alloc/local/rtc`。部署身份发现和 nonce proof 访问启动描述符指定的
-Console HTTPS origin；Console 仅对这两个不含账号凭据、且内容经过签名的公开端点开放 GET/POST CORS，不扩大其他 Console API 的跨域权限。
+Render 在同源 `/web/` 路径下托管本前端，RTC 信令仍走 Render 同源相对路径 `/alloc/local/rtc`。
