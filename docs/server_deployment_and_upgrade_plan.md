@@ -487,8 +487,9 @@ APK 下载；下载使用同源 HTTPS target 路径、禁用重定向/缓存/压
 applicationId、Console/TUF 固定的 versionCode/versionName、单一当前签名者证书 SHA-256，且候选 versionCode 必须严格大于当前安装版本；任何不匹配都会删除
 prepared 文件。进入 PackageInstaller session 时再次流式核对 APK 长度和 SHA-256，写入完成并 `fsync` 后先用独立 Keystore 密钥持久化精确 release/build/hash/session
 记录，再提交给系统安装器；普通 Android 设备明确进入系统用户批准，不尝试绕过平台授权。回调按 session ID 收敛等待批准、成功或失败，新进程只在自身
-versionCode 等于目标 build 时把记录推进为 installed；损坏状态、活动 session 重入和低于已安装水位的回退均 fail closed。尚未完成设置页检查/下载/安装交互接线、
-正式签名 APK 真机安装结果回读和公网正式仓库端到端实测，因此代码级 installed 记录仍不是正式发行验收证据。
+versionCode 等于目标 build 时把记录推进为 installed；损坏状态、活动 session 重入和低于已安装水位的回退均 fail closed。设置页对登录用户提供检查更新入口，按
+明确状态展示仓库检查、可用版本、下载验证、系统安装提交与失败结果；退出账号或更换 Console 会清除会话关联的候选 UI 状态。尚未完成正式签名 APK 真机安装
+结果回读和公网正式仓库端到端实测，因此代码级 installed 记录仍不是正式发行验收证据。
 
 节点重启后的本地激活状态必须先于首次可调度状态上报完成收敛。有效租约内的 `authorized/applying` 一律阻断节点接客；租约过期的
 `applying` 只有在本机产品清单仍是精确旧 build 或已是精确目标 build 时才可清理。`installed` 必须与目标 build 一致；普通安装失败必须

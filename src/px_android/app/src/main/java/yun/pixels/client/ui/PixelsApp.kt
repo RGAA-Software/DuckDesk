@@ -171,7 +171,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
     )
     val cloudAppsState by cloudAppsViewModel.state.collectAsStateWithLifecycle()
     val settingsViewModel: SettingsViewModel = viewModel(
-        factory = SettingsViewModel.factory(graph.consoleSessionRepository),
+        factory = SettingsViewModel.factory(graph.consoleSessionRepository, graph.updateRepository, graph.updateInstaller),
     )
     val settingsState by settingsViewModel.uiState.collectAsStateWithLifecycle()
     val currentTopLevelDestination = appDestination.topLevel

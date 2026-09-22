@@ -25,6 +25,11 @@ import yun.pixels.client.core.domain.account.AccountSession
 import yun.pixels.client.core.domain.account.AccountState
 import yun.pixels.client.core.domain.account.ConsoleEndpoint
 import yun.pixels.client.core.domain.account.ResourceConnection
+import yun.pixels.client.core.domain.update.AndroidUpdateArtifact
+import yun.pixels.client.core.domain.update.AndroidUpdateInstaller
+import yun.pixels.client.core.domain.update.AndroidUpdatePreparationRepository
+import yun.pixels.client.core.domain.update.AndroidUpdateRelease
+import yun.pixels.client.core.domain.update.PreparedAndroidUpdate
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SettingsViewModelTest {
@@ -43,7 +48,7 @@ class SettingsViewModelTest {
     @Test
     fun successfulLoginClearsPasswordAndShowsProfile() = runTest(dispatcher) {
         val repository = FakeAccountRepository()
-        val viewModel = SettingsViewModel(repository)
+        val viewModel = settingsViewModel(repository)
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         viewModel.onAction(SettingsAction.ConsoleEndpointChanged("https://console.example.com"))
         viewModel.onAction(SettingsAction.UsernameChanged("alice"))
@@ -60,7 +65,7 @@ class SettingsViewModelTest {
     @Test
     fun failedLoginClearsPasswordAndKeepsTypedFailure() = runTest(dispatcher) {
         val repository = FakeAccountRepository(AccountResult.Failure(AccountFailure.InvalidCredentials))
-        val viewModel = SettingsViewModel(repository)
+        val viewModel = settingsViewModel(repository)
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         viewModel.onAction(SettingsAction.ConsoleEndpointChanged("https://console.example.com"))
         viewModel.onAction(SettingsAction.UsernameChanged("alice"))
@@ -77,7 +82,7 @@ class SettingsViewModelTest {
     @Test
     fun restoredEndpointCanBeUsedForLoginWithoutEditingAddress() = runTest(dispatcher) {
         val repository = FakeAccountRepository(initialEndpoint = "https://console.example.com")
-        val viewModel = SettingsViewModel(repository)
+        val viewModel = settingsViewModel(repository)
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         advanceUntilIdle()
 
@@ -94,7 +99,7 @@ class SettingsViewModelTest {
     fun changingEndpointWhileSignedInRequiresConfirmationAndSignsOut() = runTest(dispatcher) {
         val repository = FakeAccountRepository(initialEndpoint = "https://old.example.com")
         repository.signIn("https://old.example.com", "alice")
-        val viewModel = SettingsViewModel(repository)
+        val viewModel = settingsViewModel(repository)
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         advanceUntilIdle()
 
@@ -118,7 +123,7 @@ class SettingsViewModelTest {
     @Test
     fun officialEndpointCannotBeEditedOrSaved() = runTest(dispatcher) {
         val repository = FakeAccountRepository(initialEndpoint = "https://official.example.com", endpointEditable = false)
-        val viewModel = SettingsViewModel(repository)
+        val viewModel = settingsViewModel(repository)
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         advanceUntilIdle()
 
@@ -132,6 +137,34 @@ class SettingsViewModelTest {
         assertEquals(emptyList<String>(), repository.savedEndpoints)
         assertEquals(emptyList<String>(), repository.testedEndpoints)
     }
+
+    @Test
+    fun verifiedUpdateFlowsFromDiscoveryThroughInstallerSubmission() = runTest(dispatcher) {
+        val accountRepository = FakeAccountRepository(initialEndpoint = "https://console.example.com")
+        accountRepository.signIn("https://console.example.com", "alice")
+        val updateRepository = FakeUpdateRepository()
+        val updateInstaller = FakeUpdateInstaller()
+        val viewModel = SettingsViewModel(accountRepository, updateRepository, updateInstaller)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+        advanceUntilIdle()
+
+        viewModel.onAction(SettingsAction.CheckUpdate)
+        advanceUntilIdle()
+
+        assertEquals(UpdateStatus.Available, viewModel.uiState.value.updateStatus)
+        assertEquals("1.2.3", viewModel.uiState.value.updateVersion)
+        assertEquals(TARGET_BUILD_NUMBER, viewModel.uiState.value.updateBuildNumber)
+
+        viewModel.onAction(SettingsAction.InstallUpdate)
+        advanceUntilIdle()
+
+        assertEquals(UpdateStatus.Submitted, viewModel.uiState.value.updateStatus)
+        assertEquals(APPROVED_RELEASE_ID, updateRepository.preparedReleaseId)
+        assertEquals(APPROVED_RELEASE_ID, updateInstaller.installedUpdate?.release?.releaseId)
+    }
+
+    private fun settingsViewModel(repository: ConsoleSessionRepository): SettingsViewModel =
+        SettingsViewModel(repository, FakeUpdateRepository(), FakeUpdateInstaller())
 }
 
 private class FakeAccountRepository(
@@ -198,3 +231,50 @@ private class FakeAccountRepository(
         expiresAtEpochMillis = Long.MAX_VALUE,
     )
 }
+
+private class FakeUpdateRepository : AndroidUpdatePreparationRepository {
+    private val release = updateRelease()
+    var preparedReleaseId: String? = null
+
+    override suspend fun latest(): AccountResult<AndroidUpdateRelease> = AccountResult.Success(release)
+
+    override suspend fun prepare(releaseId: String): AccountResult<PreparedAndroidUpdate> {
+        preparedReleaseId = releaseId
+        return if (releaseId == release.releaseId) {
+            AccountResult.Success(PreparedAndroidUpdate(release, "/private/prepared.apk"))
+        } else {
+            AccountResult.Failure(AccountFailure.InvalidResponse)
+        }
+    }
+}
+
+private class FakeUpdateInstaller : AndroidUpdateInstaller {
+    var installedUpdate: PreparedAndroidUpdate? = null
+
+    override suspend fun install(preparedUpdate: PreparedAndroidUpdate): AccountResult<Unit> {
+        installedUpdate = preparedUpdate
+        return AccountResult.Success(Unit)
+    }
+}
+
+private fun updateRelease() = AndroidUpdateRelease(
+    releaseId = APPROVED_RELEASE_ID,
+    repositoryPublicationSha256 = "11".repeat(32),
+    repositoryRootVersion = 1,
+    revision = 1,
+    createdAtEpochMillis = 1,
+    updatedAtEpochMillis = 1,
+    artifact = AndroidUpdateArtifact(
+        buildNumber = TARGET_BUILD_NUMBER,
+        version = "1.2.3",
+        metadataBaseUrl = "https://updates.example/metadata/",
+        targetsBaseUrl = "https://updates.example/targets/",
+        targetName = "android/android/official/stable/aarch64/123/pixels.apk",
+        sha256 = "22".repeat(32),
+        platformSignerSha256 = "33".repeat(32),
+        sizeBytes = 1024,
+    ),
+)
+
+private const val APPROVED_RELEASE_ID = "11111111-1111-4111-8111-111111111111"
+private const val TARGET_BUILD_NUMBER = 123L

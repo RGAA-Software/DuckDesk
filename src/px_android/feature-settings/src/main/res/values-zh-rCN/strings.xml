@@ -25,6 +25,15 @@
     <string name="security_body">Console 连接强制验证 HTTPS。私有网络直连可能使用未加密的 HTTP/WS。</string>
     <string name="about_title">关于 %1$s</string>
     <string name="version_format">版本 %1$s</string>
+    <string name="software_update_title">软件更新</string>
+    <string name="check_for_updates">检查更新</string>
+    <string name="update_sign_in_required">登录已验证的 Console 后即可检查更新。</string>
+    <string name="checking_for_updates">正在检查已验证的更新仓库…</string>
+    <string name="software_is_current">当前已是最新版本。</string>
+    <string name="update_available_format">发现版本 %1$s（构建 %2$d）。</string>
+    <string name="download_and_install">下载并安装</string>
+    <string name="preparing_update">正在下载并验证更新…</string>
+    <string name="update_submitted">已将通过验证的更新交给 Android，请完成系统安装确认。</string>
     <string name="privacy_title">隐私说明</string>
     <string name="privacy_body">%1$s 在本机保存电脑元数据。临时直连凭据、Console 会话和令牌使用 Android Keystore 支持的密钥加密。Console 通信强制验证 HTTPS；私有网络直连可能在该局域网内使用未加密的 HTTP 和 WebSocket。\n\n只有你主动发起语音通话并授予 Android 权限后才会访问麦克风。剪贴板、文件传输、录制和诊断分享只由明确的用户操作启动。临时文件保存在应用私有缓存中并自动过期。诊断报告包含构建、设备信息和近期应用日志，常见凭据、网址、地址与标识符会被脱敏；数据离开设备前由 Android 显示目标选择器。\n\n%1$s 不包含广告或分析 SDK，也不出售个人数据。清除应用数据会删除本机保存的账号会话、设备和临时文件。</string>
     <string name="open_source_title">开源许可</string>

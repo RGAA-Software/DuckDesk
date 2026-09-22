@@ -9,12 +9,19 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import yun.pixels.client.core.domain.account.ConsoleSessionRepository
+import yun.pixels.client.core.domain.account.AccountFailure
 import yun.pixels.client.core.domain.account.AccountResult
 import yun.pixels.client.core.domain.account.AccountState
 import yun.pixels.client.core.domain.account.ConsoleEndpoint
+import yun.pixels.client.core.domain.account.ConsoleSessionRepository
+import yun.pixels.client.core.domain.update.AndroidUpdateInstaller
+import yun.pixels.client.core.domain.update.AndroidUpdatePreparationRepository
 
-class SettingsViewModel(private val accountRepository: ConsoleSessionRepository) : ViewModel() {
+class SettingsViewModel(
+    private val accountRepository: ConsoleSessionRepository,
+    private val updateRepository: AndroidUpdatePreparationRepository,
+    private val updateInstaller: AndroidUpdateInstaller,
+) : ViewModel() {
     private val form = MutableStateFlow(SettingsUiState(endpointEditable = accountRepository.endpointEditable))
     val uiState = combine(form, accountRepository.state, accountRepository.endpoint, ::deriveUiState)
         .stateIn(
@@ -69,6 +76,8 @@ class SettingsViewModel(private val accountRepository: ConsoleSessionRepository)
             SettingsAction.Login -> login()
             SettingsAction.Register -> register()
             SettingsAction.Logout -> logout()
+            SettingsAction.CheckUpdate -> checkUpdate()
+            SettingsAction.InstallUpdate -> installUpdate()
             SettingsAction.DismissFailure -> form.update { it.copy(failure = null) }
         }
     }
@@ -99,6 +108,11 @@ class SettingsViewModel(private val accountRepository: ConsoleSessionRepository)
                         endpointEdited = false,
                         confirmEndpointChange = false,
                         failure = null,
+                        updateStatus = UpdateStatus.Idle,
+                        updateReleaseId = null,
+                        updateVersion = null,
+                        updateBuildNumber = null,
+                        updateFailure = null,
                     )
                 }
                 is AccountResult.Failure -> form.update { it.copy(confirmEndpointChange = false, failure = result.reason) }
@@ -142,7 +156,71 @@ class SettingsViewModel(private val accountRepository: ConsoleSessionRepository)
         viewModelScope.launch {
             form.update { it.copy(isLoading = true, failure = null) }
             accountRepository.logout()
-            form.update { it.copy(username = "", password = "", confirmPassword = "", isLoading = false, failure = null) }
+            form.update {
+                it.copy(
+                    username = "",
+                    password = "",
+                    confirmPassword = "",
+                    isLoading = false,
+                    failure = null,
+                    updateStatus = UpdateStatus.Idle,
+                    updateReleaseId = null,
+                    updateVersion = null,
+                    updateBuildNumber = null,
+                    updateFailure = null,
+                )
+            }
+        }
+    }
+
+    private fun checkUpdate() {
+        if (currentUiState().profile == null) return
+        viewModelScope.launch {
+            form.update { it.copy(updateStatus = UpdateStatus.Checking, updateFailure = null) }
+            when (val result = updateRepository.latest()) {
+                is AccountResult.Success -> form.update {
+                    it.copy(
+                        updateStatus = UpdateStatus.Available,
+                        updateReleaseId = result.value.releaseId,
+                        updateVersion = result.value.artifact.version,
+                        updateBuildNumber = result.value.artifact.buildNumber,
+                        updateFailure = null,
+                    )
+                }
+                is AccountResult.Failure -> if (result.reason == AccountFailure.NotFound) {
+                    form.update {
+                        it.copy(
+                            updateStatus = UpdateStatus.Current,
+                            updateReleaseId = null,
+                            updateVersion = null,
+                            updateBuildNumber = null,
+                            updateFailure = null,
+                        )
+                    }
+                } else {
+                    form.update { it.copy(updateStatus = UpdateStatus.Failed, updateFailure = result.reason) }
+                }
+            }
+        }
+    }
+
+    private fun installUpdate() {
+        val releaseId = currentUiState().updateReleaseId ?: return
+        viewModelScope.launch {
+            form.update { it.copy(updateStatus = UpdateStatus.Downloading, updateFailure = null) }
+            when (val prepared = updateRepository.prepare(releaseId)) {
+                is AccountResult.Failure -> form.update {
+                    it.copy(updateStatus = UpdateStatus.Failed, updateFailure = prepared.reason)
+                }
+                is AccountResult.Success -> when (val installed = updateInstaller.install(prepared.value)) {
+                    is AccountResult.Success -> form.update {
+                        it.copy(updateStatus = UpdateStatus.Submitted, updateFailure = null)
+                    }
+                    is AccountResult.Failure -> form.update {
+                        it.copy(updateStatus = UpdateStatus.Failed, updateFailure = installed.reason)
+                    }
+                }
+            }
         }
     }
 
@@ -168,9 +246,14 @@ class SettingsViewModel(private val accountRepository: ConsoleSessionRepository)
     }
 
     companion object {
-        fun factory(accountRepository: ConsoleSessionRepository): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+        fun factory(
+            accountRepository: ConsoleSessionRepository,
+            updateRepository: AndroidUpdatePreparationRepository,
+            updateInstaller: AndroidUpdateInstaller,
+        ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T = SettingsViewModel(accountRepository) as T
+            override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                SettingsViewModel(accountRepository, updateRepository, updateInstaller) as T
         }
     }
 

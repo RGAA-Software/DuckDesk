@@ -17,7 +17,22 @@ data class SettingsUiState(
     val confirmEndpointChange: Boolean = false,
     val profile: AccountProfile? = null,
     val failure: AccountFailure? = null,
+    val updateStatus: UpdateStatus = UpdateStatus.Idle,
+    val updateReleaseId: String? = null,
+    val updateVersion: String? = null,
+    val updateBuildNumber: Long? = null,
+    val updateFailure: AccountFailure? = null,
 )
+
+enum class UpdateStatus {
+    Idle,
+    Checking,
+    Current,
+    Available,
+    Downloading,
+    Submitted,
+    Failed,
+}
 
 sealed interface SettingsAction {
     data class ConsoleEndpointChanged(val value: String) : SettingsAction
@@ -43,6 +58,10 @@ sealed interface SettingsAction {
     data object Register : SettingsAction
 
     data object Logout : SettingsAction
+
+    data object CheckUpdate : SettingsAction
+
+    data object InstallUpdate : SettingsAction
 
     data object DismissFailure : SettingsAction
 }

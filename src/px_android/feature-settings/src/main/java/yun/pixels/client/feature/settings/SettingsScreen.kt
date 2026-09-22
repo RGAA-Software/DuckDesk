@@ -76,6 +76,8 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
+            Text(stringResource(R.string.software_update_title), style = MaterialTheme.typography.titleMedium)
+            UpdateControls(state, onAction)
             OutlinedButton(onClick = { informationDialog = InformationDialog.Privacy }, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.privacy_title))
             }
@@ -124,6 +126,54 @@ fun SettingsScreen(
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun UpdateControls(state: SettingsUiState, onAction: (SettingsAction) -> Unit) {
+    val operationActive = state.updateStatus == UpdateStatus.Checking || state.updateStatus == UpdateStatus.Downloading
+    OutlinedButton(
+        onClick = { onAction(SettingsAction.CheckUpdate) },
+        modifier = Modifier.fillMaxWidth(),
+        enabled = state.profile != null && !operationActive && state.updateStatus != UpdateStatus.Submitted,
+    ) {
+        Text(stringResource(R.string.check_for_updates))
+    }
+    when (state.updateStatus) {
+        UpdateStatus.Idle -> if (state.profile == null) {
+            Text(stringResource(R.string.update_sign_in_required), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        UpdateStatus.Checking -> UpdateProgress(R.string.checking_for_updates)
+        UpdateStatus.Current -> Text(stringResource(R.string.software_is_current), color = MaterialTheme.colorScheme.primary)
+        UpdateStatus.Available -> {
+            Text(
+                stringResource(
+                    R.string.update_available_format,
+                    state.updateVersion.orEmpty(),
+                    state.updateBuildNumber ?: 0,
+                ),
+            )
+            Button(onClick = { onAction(SettingsAction.InstallUpdate) }, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.download_and_install))
+            }
+        }
+        UpdateStatus.Downloading -> UpdateProgress(R.string.preparing_update)
+        UpdateStatus.Submitted -> Text(
+            stringResource(R.string.update_submitted),
+            color = MaterialTheme.colorScheme.primary,
+        )
+        UpdateStatus.Failed -> Text(
+            stringResource(state.updateFailure?.labelResource() ?: R.string.error_invalid_response),
+            color = MaterialTheme.colorScheme.error,
+        )
+    }
+}
+
+@Composable
+private fun UpdateProgress(labelResource: Int) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        CircularProgressIndicator()
+        Text(stringResource(labelResource))
     }
 }
 

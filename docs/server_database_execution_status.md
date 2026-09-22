@@ -1776,6 +1776,11 @@ release/build/hash/session/phase 记录用独立 Android Keystore AES-GCM 密钥
 普通设备明确要求 Android 系统安装批准，不实现静默绕过。当前尚未把该事务接入设置页用户操作，也未使用正式签名相邻版本 APK 在真机完成批准/拒绝/成功/失败
 结果矩阵；core-data 15/15、App 9/9 单测、App Kotlin 编译及 core-data/App Lint 383 个任务通过，这些真机项仍是下一切片验收项。
 
+Android 设置页随后接通同一安全更新组合根：只有已登录用户能检查当前 Console 派生的发行目录，界面明确区分检查中、最新、发现版本、下载验证、已提交系统安装和
+失败；安装按钮只能消费本轮验证得到的精确 release ID，不能填写 URL 或跳过 TUF/平台身份门禁。退出账号或切换私有 Console 会清空候选 UI 状态，中英文资源同步。
+feature-settings 新增完整“发现→准备→提交”状态机单测，当前 6/6 单测、App Kotlin 编译及 feature-settings/App Lint 377 个任务通过；尚未执行正式公网仓库和
+正式签名相邻 APK 的真机系统批准/拒绝/成功/失败矩阵。
+
 | 阶段 | 当前未完成项 |
 |---|---|
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |
