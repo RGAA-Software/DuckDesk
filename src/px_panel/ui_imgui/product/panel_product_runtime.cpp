@@ -1,17 +1,33 @@
 #include "panel_product_runtime.h"
 
+#include <string_view>
 #include <utility>
 
 #include "version_config.h"
 
 namespace px::panel::product {
+namespace {
+
+#ifndef PX_PRODUCT_DISTRIBUTION
+#define PX_PRODUCT_DISTRIBUTION "development"
+#endif
+#ifndef PX_OFFICIAL_CONSOLE_ORIGIN
+#define PX_OFFICIAL_CONSOLE_ORIGIN ""
+#endif
+
+constexpr std::string_view Distribution() { return PX_PRODUCT_DISTRIBUTION; }
+
+std::string FixedConsoleAddress() { return Distribution() == "official" ? std::string{PX_OFFICIAL_CONSOLE_ORIGIN} : std::string{}; }
+
+std::string ForbiddenConsoleAddress() { return Distribution() == "customer" ? std::string{PX_OFFICIAL_CONSOLE_ORIGIN} : std::string{}; }
+
+}  // namespace
 
 std::shared_ptr<PanelProductRuntime> PanelProductRuntime::Create(const std::filesystem::path& executableDirectory,
                                                                  const std::shared_ptr<ui::NotificationCenter>& notifications) {
-    const auto deploymentIdentity = PanelDeploymentIdentityGate::Create(executableDirectory, PROJECT_VERSION_CODE);
-    const auto config = PanelConfigStore::Create(executableDirectory, deploymentIdentity->OfficialConsoleAddress());
+    const auto config = PanelConfigStore::Create(executableDirectory, FixedConsoleAddress(), ForbiddenConsoleAddress());
     if (!config) return {};
-    const auto console = PanelConsoleSession::Create(config, deploymentIdentity);
+    const auto console = PanelConsoleSession::Create(config);
     const auto launcher = PanelClientLauncher::Create(config);
     const auto auditStore = PanelAuditStore::Create(config->DataDirectory());
     if (!auditStore) return {};
@@ -30,17 +46,16 @@ std::shared_ptr<PanelProductRuntime> PanelProductRuntime::Create(const std::file
     if (!osInfoSupervisor) return {};
 #endif
     const auto worker = PanelWorker::Create();
-    return std::make_shared<PanelProductRuntime>(config, deploymentIdentity, console, launcher, service, localServer, osInfoSupervisor, auditStore,
-                                                 worker, notifications);
+    return std::make_shared<PanelProductRuntime>(config, console, launcher, service, localServer, osInfoSupervisor, auditStore, worker,
+                                                 notifications);
 }
 
-PanelProductRuntime::PanelProductRuntime(std::shared_ptr<PanelConfigStore> config, std::shared_ptr<PanelDeploymentIdentityGate> deploymentIdentity,
-                                         std::shared_ptr<PanelConsoleSession> console, std::shared_ptr<PanelClientLauncher> launcher,
-                                         std::shared_ptr<PanelServiceBridge> service, std::shared_ptr<PanelLocalServer> localServer,
-                                         std::shared_ptr<PanelOsInfoSupervisor> osInfoSupervisor, std::shared_ptr<PanelAuditStore> auditStore,
-                                         std::shared_ptr<PanelWorker> worker, std::shared_ptr<ui::NotificationCenter> notifications)
+PanelProductRuntime::PanelProductRuntime(std::shared_ptr<PanelConfigStore> config, std::shared_ptr<PanelConsoleSession> console,
+                                         std::shared_ptr<PanelClientLauncher> launcher, std::shared_ptr<PanelServiceBridge> service,
+                                         std::shared_ptr<PanelLocalServer> localServer, std::shared_ptr<PanelOsInfoSupervisor> osInfoSupervisor,
+                                         std::shared_ptr<PanelAuditStore> auditStore, std::shared_ptr<PanelWorker> worker,
+                                         std::shared_ptr<ui::NotificationCenter> notifications)
     : config_{std::move(config)},
-      deploymentIdentity_{std::move(deploymentIdentity)},
       console_{std::move(console)},
       launcher_{std::move(launcher)},
       service_{std::move(service)},
@@ -60,7 +75,6 @@ PanelProductRuntime::~PanelProductRuntime() {
 }
 
 const std::shared_ptr<PanelConfigStore>& PanelProductRuntime::Config() const { return config_; }
-const std::shared_ptr<PanelDeploymentIdentityGate>& PanelProductRuntime::DeploymentIdentity() const { return deploymentIdentity_; }
 const std::shared_ptr<PanelConsoleSession>& PanelProductRuntime::Console() const { return console_; }
 const std::shared_ptr<PanelClientLauncher>& PanelProductRuntime::Launcher() const { return launcher_; }
 const std::shared_ptr<PanelServiceBridge>& PanelProductRuntime::Service() const { return service_; }

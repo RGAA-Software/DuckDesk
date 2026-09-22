@@ -9,7 +9,6 @@
 
 #include "account_port.h"
 #include "panel_config_store.h"
-#include "panel_deployment_identity_gate.h"
 #include "px_console_client/console_user_app_api.h"
 #include "px_console_client/console_user_device_api.h"
 
@@ -17,10 +16,9 @@ namespace px::panel::product {
 
 class PanelConsoleSession final {
 public:
-    static std::shared_ptr<PanelConsoleSession> Create(const std::shared_ptr<PanelConfigStore>& config,
-                                                       const std::shared_ptr<PanelDeploymentIdentityGate>& deploymentIdentity);
+    static std::shared_ptr<PanelConsoleSession> Create(const std::shared_ptr<PanelConfigStore>& config);
 
-    PanelConsoleSession(std::shared_ptr<PanelConfigStore> config, std::shared_ptr<PanelDeploymentIdentityGate> deploymentIdentity);
+    explicit PanelConsoleSession(std::shared_ptr<PanelConfigStore> config);
 
     [[nodiscard]] ui::AccountSnapshot Account() const;
     bool Login(const std::string& username, const std::string& password);
@@ -29,7 +27,7 @@ public:
     bool UpdatePassword(const std::string& currentPassword, const std::string& newPassword);
     bool UpdateAvatar(const std::string& imagePath);
     bool Logout();
-    void ForgetAccountIfDeploymentChanged(const std::string& consoleAddress, const std::string& deploymentId);
+    void ForgetAccountIfConsoleChanged(const std::string& consoleAddress);
     void SetAccountOperation(ui::AccountOperationState operation);
 
     [[nodiscard]] std::vector<std::shared_ptr<px_console::ConsoleUserDevice>> QueryDevices();
@@ -44,25 +42,21 @@ public:
     bool StopApplication(const std::string& instanceId);
 
 private:
-    [[nodiscard]] std::optional<px_console::VerifiedDeploymentIdentity> VerifyEndpoint(const ConsoleEndpoint& endpoint);
     [[nodiscard]] std::tuple<std::string, bool> ResourceToken(const ConsoleEndpoint& endpoint);
-    [[nodiscard]] std::wstring CredentialTarget(const ConsoleEndpoint& endpoint, const std::string& deploymentId) const;
-    [[nodiscard]] std::string ReadAccessToken(const ConsoleEndpoint& endpoint, const std::string& deploymentId) const;
-    bool WriteAccessToken(const ConsoleEndpoint& endpoint, const std::string& deploymentId, const std::string& token) const;
-    void DeleteAccessToken(const std::string& consoleAddress, const std::string& deploymentId) const;
+    [[nodiscard]] std::wstring CredentialTarget(const ConsoleEndpoint& endpoint) const;
+    [[nodiscard]] std::string ReadAccessToken(const ConsoleEndpoint& endpoint) const;
+    bool WriteAccessToken(const ConsoleEndpoint& endpoint, const std::string& token) const;
+    void DeleteAccessToken(const std::string& consoleAddress) const;
     void ClearLocalAccount();
 
     std::shared_ptr<PanelConfigStore> config_{};
-    std::shared_ptr<PanelDeploymentIdentityGate> deploymentIdentity_{};
     mutable std::mutex mutex_{};
     std::string userId_{};
     std::string username_{};
     std::string avatarPath_{};
     std::string accountConsoleAddress_{};
-    std::string accountDeploymentId_{};
     std::string guestToken_{};
     std::string guestConsoleAddress_{};
-    std::string guestDeploymentId_{};
     ui::AccountOperationState accountOperation_{ui::AccountOperationState::Idle};
 };
 

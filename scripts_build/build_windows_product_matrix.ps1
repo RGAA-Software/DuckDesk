@@ -12,6 +12,7 @@ $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $buildRoot = Join-Path $repoRoot "build_official\$Product"
 $python = Get-Command python -ErrorAction Stop
 $nodeRequired = $Product -in @('cloud_node', 'remote')
+$officialConsoleUrl = [Environment]::GetEnvironmentVariable('PIXELS_OFFICIAL_CONSOLE_URL')
 $target = switch ($Product) {
     'cloud_node' { 'px_build_cloud_node_all' }
     'client' { 'px_build_client_all' }
@@ -111,7 +112,9 @@ foreach ($distribution in @('official', 'customer')) {
     $env:CPP_DISTRIBUTION = $distribution
     $env:CPP_BUILD_DIR = "build_official\$Product\$distribution\cmake"
     $env:CPP_BUILD_JOBS = '18'
-    $env:CPP_CMAKE_DISTRIBUTION_ARGS = "-DPX_DEPLOYMENT_POLICY_DIR=build_official/$Product/$distribution/deployment"
+    $env:CPP_CMAKE_DISTRIBUTION_ARGS =
+        "-DPX_DEPLOYMENT_POLICY_DIR=build_official/$Product/$distribution/deployment " +
+        "-DPX_OFFICIAL_CONSOLE_ORIGIN:STRING=`"$officialConsoleUrl`""
     try {
         Invoke-NativeChecked -FilePath 'cmd.exe' -Arguments @(
             '/d', '/c', (Join-Path $repoRoot 'scripts\build_cpp_target.bat'), $target

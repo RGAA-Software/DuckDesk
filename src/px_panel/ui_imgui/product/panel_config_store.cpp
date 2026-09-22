@@ -191,25 +191,36 @@ std::optional<ConsoleEndpoint> ParseConsoleHttpsOrigin(std::string value) { retu
 
 bool ConsoleEndpoint::IsValid() const { return !baseUrl.empty() && !host.empty() && port > 0 && port <= 65535; }
 
-std::shared_ptr<PanelConfigStore> PanelConfigStore::Create(const std::filesystem::path& executableDirectory, std::string fixedConsoleAddress) {
+std::shared_ptr<PanelConfigStore> PanelConfigStore::Create(const std::filesystem::path& executableDirectory, std::string fixedConsoleAddress,
+                                                           std::string forbiddenConsoleAddress) {
+    if ((!fixedConsoleAddress.empty() && !ParseConsoleHttpsOrigin(fixedConsoleAddress)) ||
+        (!forbiddenConsoleAddress.empty() && !ParseConsoleHttpsOrigin(forbiddenConsoleAddress))) {
+        return {};
+    }
     const auto preferences = SharedPreference::Instance();
     const auto dataDirectory = std::filesystem::path{FolderUtil::GetProgramDataPath()} / "px_data";
     if (!preferences->Init(dataDirectory, "pixels.dat")) return {};
-    return std::make_shared<PanelConfigStore>(preferences, executableDirectory, std::move(fixedConsoleAddress));
+    return std::make_shared<PanelConfigStore>(preferences, executableDirectory, std::move(fixedConsoleAddress), std::move(forbiddenConsoleAddress));
 }
 
 PanelConfigStore::PanelConfigStore(std::shared_ptr<SharedPreference> preferences, std::filesystem::path executableDirectory,
-                                   std::string fixedConsoleAddress)
+                                   std::string fixedConsoleAddress, std::string forbiddenConsoleAddress)
     : preferences_{std::move(preferences)},
       executableDirectory_{std::move(executableDirectory)},
-      fixedConsoleAddress_{std::move(fixedConsoleAddress)} {}
+      fixedConsoleAddress_{std::move(fixedConsoleAddress)},
+      forbiddenConsoleAddress_{std::move(forbiddenConsoleAddress)} {}
 
-std::optional<ConsoleEndpoint> PanelConfigStore::ParseConsoleAddress(const std::string& value) const { return ParseConsoleHttpsOrigin(value); }
+std::optional<ConsoleEndpoint> PanelConfigStore::ParseConsoleAddress(const std::string& value) const {
+    const auto endpoint = ParseConsoleHttpsOrigin(value);
+    if (!endpoint || (!forbiddenConsoleAddress_.empty() && endpoint->baseUrl == forbiddenConsoleAddress_)) return std::nullopt;
+    return endpoint;
+}
 
 std::optional<ConsoleEndpoint> PanelConfigStore::Console() const { return ParseConsoleAddress(ConsoleAddress()); }
 std::string PanelConfigStore::ConsoleAddress() const {
     return fixedConsoleAddress_.empty() ? Read(preferences_, "console_server_url") : fixedConsoleAddress_;
 }
+bool PanelConfigStore::ConsoleAddressEditable() const { return fixedConsoleAddress_.empty(); }
 PanelIdentity PanelConfigStore::Identity() const {
     return {.deviceId = Read(preferences_, "device_id"),
             .deviceName = Read(preferences_, "device_name"),
@@ -323,7 +334,8 @@ CloudApplicationPreference PanelConfigStore::LoadCloudApplicationPreference(cons
 }
 
 bool PanelConfigStore::SaveNetwork(const std::string& consoleAddress, const ConsoleEndpoint& endpoint) {
-    if (!endpoint.IsValid() || consoleAddress != endpoint.baseUrl || (!fixedConsoleAddress_.empty() && consoleAddress != fixedConsoleAddress_)) {
+    if (!endpoint.IsValid() || consoleAddress != endpoint.baseUrl || consoleAddress == forbiddenConsoleAddress_ ||
+        (!fixedConsoleAddress_.empty() && consoleAddress != fixedConsoleAddress_)) {
         return false;
     }
     if (!fixedConsoleAddress_.empty()) return true;

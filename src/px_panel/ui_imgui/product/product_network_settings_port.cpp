@@ -3,6 +3,7 @@
 #include <utility>
 
 #include "panel_product_runtime.h"
+#include "px_console_client/console_api.h"
 #include "px_ui/product_brand.h"
 
 namespace px::panel::product {
@@ -13,7 +14,7 @@ public:
     explicit ProductNetworkSettingsPort(std::shared_ptr<PanelProductRuntime> runtime) : runtime_{std::move(runtime)} {
         const auto ports = runtime_->Config()->Ports();
         state_.settings = {.consoleAddress = runtime_->Config()->ConsoleAddress(),
-                           .consoleAddressEditable = runtime_->DeploymentIdentity()->Distribution() == PanelDistribution::Customer,
+                           .consoleAddressEditable = runtime_->Config()->ConsoleAddressEditable(),
                            .serviceManagementPort = ports.service,
                            .desktopConnectionPort = ports.desktop,
                            .applicationPorts = {ports.applicationFirst, ports.applicationLast},
@@ -52,7 +53,7 @@ public:
         const auto runtime = runtime_;
         const std::weak_ptr<ProductNetworkSettingsPort> weakSelf{shared_from_this()};
         static_cast<void>(runtime_->Worker()->Post([runtime, weakSelf, endpoint = *endpoint] {
-            const auto result = runtime->DeploymentIdentity()->VerifyAndSelect(endpoint.baseUrl, endpoint.host, endpoint.port);
+            const auto result = px_console::QueryConsoleReady(endpoint.host, endpoint.port);
             const auto self = weakSelf.lock();
             if (!self) return;
             if (result)
@@ -76,16 +77,15 @@ public:
         const auto runtime = runtime_;
         const std::weak_ptr<ProductNetworkSettingsPort> weakSelf{shared_from_this()};
         static_cast<void>(runtime_->Worker()->Post([runtime, weakSelf, consoleAddress = endpoint->baseUrl, endpoint = *endpoint] {
-            const auto deployment = runtime->DeploymentIdentity()->VerifyAndSelect(consoleAddress, endpoint.host, endpoint.port);
-            if (!deployment) {
-                if (const auto self = weakSelf.lock()) self->SetFailure(ui::NetworkOperation::Failed, "Console identity verification failed");
+            if (!px_console::QueryConsoleReady(endpoint.host, endpoint.port).value_or(false)) {
+                if (const auto self = weakSelf.lock()) self->SetFailure(ui::NetworkOperation::Failed, "Console is not ready");
                 return;
             }
             if (!runtime->Config()->SaveNetwork(consoleAddress, endpoint)) {
                 if (const auto self = weakSelf.lock()) self->SetFailure(ui::NetworkOperation::Failed, "Unable to save network settings");
                 return;
             }
-            runtime->Console()->ForgetAccountIfDeploymentChanged(consoleAddress, deployment->deploymentId);
+            runtime->Console()->ForgetAccountIfConsoleChanged(consoleAddress);
             const auto self = weakSelf.lock();
             if (!self) return;
             {

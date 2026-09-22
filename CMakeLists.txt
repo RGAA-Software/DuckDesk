@@ -66,6 +66,13 @@ if(NOT PX_DISTRIBUTION STREQUAL "development")
     endif()
 endif()
 
+set(PX_OFFICIAL_CONSOLE_ORIGIN "" CACHE STRING "Canonical HTTPS origin used by the Pixels Official distribution")
+if((PX_DISTRIBUTION STREQUAL "official" OR PX_DISTRIBUTION STREQUAL "customer") AND PX_OFFICIAL_CONSOLE_ORIGIN STREQUAL "")
+    message(FATAL_ERROR "Official and Customer release builds require PX_OFFICIAL_CONSOLE_ORIGIN")
+elseif(PX_DISTRIBUTION STREQUAL "development" AND NOT PX_OFFICIAL_CONSOLE_ORIGIN STREQUAL "")
+    message(FATAL_ERROR "Development builds must not configure PX_OFFICIAL_CONSOLE_ORIGIN")
+endif()
+
 set(PX_PRODUCT_MANIFEST_PATH "${CMAKE_SOURCE_DIR}/packaging/products/${PX_PRODUCT}.toml")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${PX_PRODUCT_MANIFEST_PATH}")
 execute_process(
@@ -512,6 +519,7 @@ foreach(PX_PRODUCT_EXECUTABLE IN ITEMS px_panel px_client px_render net_ws)
         target_compile_definitions(${PX_PRODUCT_EXECUTABLE} PRIVATE
             "PX_PRODUCT_EDITION_${PX_PRODUCT_EDITION}=1"
             "PX_PRODUCT_DISTRIBUTION=\"${PX_DISTRIBUTION}\""
+            "PX_OFFICIAL_CONSOLE_ORIGIN=\"${PX_OFFICIAL_CONSOLE_ORIGIN}\""
             "PX_PRODUCT_VERSION_NAME=\"${PX_PRODUCT_VERSION}\""
             "PX_PRODUCT_VERSION_CODE=${PX_PRODUCT_VERSION_CODE}")
     endif()

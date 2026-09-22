@@ -12,7 +12,6 @@
 #include "panel_client_launcher.h"
 #include "panel_config_store.h"
 #include "panel_console_session.h"
-#include "panel_deployment_identity_gate.h"
 #include "panel_local_server.h"
 #include "panel_os_info_supervisor.h"
 #include "panel_service_bridge.h"
@@ -29,15 +28,14 @@ class PanelProductRuntime final {
 public:
     static std::shared_ptr<PanelProductRuntime> Create(const std::filesystem::path& executableDirectory,
                                                        const std::shared_ptr<ui::NotificationCenter>& notifications);
-    PanelProductRuntime(std::shared_ptr<PanelConfigStore> config, std::shared_ptr<PanelDeploymentIdentityGate> deploymentIdentity,
-                        std::shared_ptr<PanelConsoleSession> console, std::shared_ptr<PanelClientLauncher> launcher,
-                        std::shared_ptr<PanelServiceBridge> service, std::shared_ptr<PanelLocalServer> localServer,
-                        std::shared_ptr<PanelOsInfoSupervisor> osInfoSupervisor, std::shared_ptr<PanelAuditStore> auditStore,
-                        std::shared_ptr<PanelWorker> worker, std::shared_ptr<ui::NotificationCenter> notifications);
+    PanelProductRuntime(std::shared_ptr<PanelConfigStore> config, std::shared_ptr<PanelConsoleSession> console,
+                        std::shared_ptr<PanelClientLauncher> launcher, std::shared_ptr<PanelServiceBridge> service,
+                        std::shared_ptr<PanelLocalServer> localServer, std::shared_ptr<PanelOsInfoSupervisor> osInfoSupervisor,
+                        std::shared_ptr<PanelAuditStore> auditStore, std::shared_ptr<PanelWorker> worker,
+                        std::shared_ptr<ui::NotificationCenter> notifications);
     ~PanelProductRuntime();
 
     [[nodiscard]] const std::shared_ptr<PanelConfigStore>& Config() const;
-    [[nodiscard]] const std::shared_ptr<PanelDeploymentIdentityGate>& DeploymentIdentity() const;
     [[nodiscard]] const std::shared_ptr<PanelConsoleSession>& Console() const;
     [[nodiscard]] const std::shared_ptr<PanelClientLauncher>& Launcher() const;
     [[nodiscard]] const std::shared_ptr<PanelServiceBridge>& Service() const;
@@ -49,7 +47,6 @@ public:
 
 private:
     std::shared_ptr<PanelConfigStore> config_{};
-    std::shared_ptr<PanelDeploymentIdentityGate> deploymentIdentity_{};
     std::shared_ptr<PanelConsoleSession> console_{};
     std::shared_ptr<PanelClientLauncher> launcher_{};
     std::shared_ptr<PanelServiceBridge> service_{};

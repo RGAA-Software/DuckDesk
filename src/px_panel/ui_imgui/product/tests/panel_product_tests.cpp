@@ -429,6 +429,21 @@ TEST(PanelConfigStoreTest, OfficialDistributionAlwaysUsesItsPackagedConsoleOrigi
     EXPECT_EQ(config->ConsoleAddress(), "https://official-console.example.test:8443");
 }
 
+TEST(PanelConfigStoreTest, CustomerDistributionRejectsTheOfficialConsoleOrigin) {
+    TemporaryDirectory directory{};
+    const auto preferences = std::make_shared<SharedPreference>();
+    ASSERT_TRUE(preferences->Init(directory.Path(), "preferences"));
+    const auto config =
+        std::make_shared<PanelConfigStore>(preferences, directory.Path(), std::string{}, "https://official-console.example.test:8443");
+
+    EXPECT_FALSE(config->ParseConsoleAddress("https://official-console.example.test:8443"));
+    EXPECT_FALSE(config->ParseConsoleAddress("https://official-console.example.test:8443/"));
+    const auto privateEndpoint = config->ParseConsoleAddress("https://private-console.example.test");
+    ASSERT_TRUE(privateEndpoint);
+    EXPECT_TRUE(config->SaveNetwork(privateEndpoint->baseUrl, *privateEndpoint));
+    EXPECT_EQ(config->ConsoleAddress(), privateEndpoint->baseUrl);
+}
+
 TEST(PanelLocalServerTest, RuntimeDesktopAccessUpdatesAreDeliveredOnTheRendererSessionThread) {
     TemporaryDirectory directory{};
     {

@@ -73,13 +73,16 @@ struct CloudApplicationPreference final {
 
 class PanelConfigStore final {
 public:
-    static std::shared_ptr<PanelConfigStore> Create(const std::filesystem::path& executableDirectory, std::string fixedConsoleAddress = {});
+    static std::shared_ptr<PanelConfigStore> Create(const std::filesystem::path& executableDirectory, std::string fixedConsoleAddress = {},
+                                                    std::string forbiddenConsoleAddress = {});
 
-    PanelConfigStore(std::shared_ptr<SharedPreference> preferences, std::filesystem::path executableDirectory, std::string fixedConsoleAddress = {});
+    PanelConfigStore(std::shared_ptr<SharedPreference> preferences, std::filesystem::path executableDirectory, std::string fixedConsoleAddress = {},
+                     std::string forbiddenConsoleAddress = {});
 
     [[nodiscard]] std::optional<ConsoleEndpoint> ParseConsoleAddress(const std::string& value) const;
     [[nodiscard]] std::optional<ConsoleEndpoint> Console() const;
     [[nodiscard]] std::string ConsoleAddress() const;
+    [[nodiscard]] bool ConsoleAddressEditable() const;
     [[nodiscard]] PanelIdentity Identity() const;
     [[nodiscard]] NodePorts Ports() const;
     [[nodiscard]] ui::SettingsSnapshot Settings() const;
@@ -119,6 +122,7 @@ private:
     std::shared_ptr<SharedPreference> preferences_{};
     std::filesystem::path executableDirectory_{};
     std::string fixedConsoleAddress_{};
+    std::string forbiddenConsoleAddress_{};
     mutable std::mutex mutex_{};
 };
 
