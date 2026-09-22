@@ -1,0 +1,33 @@
+[pixels]
+pg1-path=/var/lib/postgresql/18/docker
+pg1-user=pixels_admin
+
+[global]
+# Render these deployment-owned values into the private production configuration.
+# Do not use this example file directly.
+repo1-type=s3
+repo1-path=/pixels
+repo1-s3-bucket=REPLACE_WITH_PRIVATE_BUCKET
+repo1-s3-endpoint=REPLACE_WITH_VERIFIED_S3_ENDPOINT
+repo1-s3-region=REPLACE_WITH_S3_REGION
+repo1-s3-key-type=shared
+repo1-s3-uri-style=path
+repo1-storage-port=443
+repo1-storage-verify-tls=y
+repo1-cipher-type=aes-256-cbc
+repo1-retention-full=7
+repo1-retention-full-type=time
+repo1-retention-diff=4
+repo1-retention-history=365
+start-fast=y
+process-max=2
+log-level-console=info
+spool-path=/var/spool/pgbackrest
+
+# Inject these secrets through the process environment or the deployment secret store:
+# PGBACKREST_REPO1_S3_KEY
+# PGBACKREST_REPO1_S3_KEY_SECRET
+# PGBACKREST_REPO1_CIPHER_PASS
+
+[global:archive-push]
+compress-level=3
