@@ -14,6 +14,8 @@ param(
     [Parameter(Mandatory)]
     [ValidateScript({ Test-Path -LiteralPath $_ -PathType Leaf })]
     [string]$CertificateAuthority,
+    [string]$ClientExecutable = '',
+    [string]$ClientBuildExecutable = '',
     [string]$AppId = '',
     [switch]$Rdp,
     [switch]$ForceRelay,
@@ -44,8 +46,25 @@ param(
 $ErrorActionPreference = 'Stop'
 $ConsoleBase = $ConsoleBase.TrimEnd('/')
 $repository = Split-Path $PSScriptRoot -Parent
-$clientPath = Join-Path $repository 'build_official/client/dist/px_client.exe'
-$buildClientPath = Join-Path $repository 'build_official/client/cmake/src/px_deps/px_client.exe'
+
+function Resolve-AcceptancePath {
+    param(
+        [string]$ConfiguredPath,
+        [Parameter(Mandatory)]
+        [string]$DefaultRelativePath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ConfiguredPath)) {
+        return [IO.Path]::GetFullPath((Join-Path $repository $DefaultRelativePath))
+    }
+    if ([IO.Path]::IsPathRooted($ConfiguredPath)) {
+        return [IO.Path]::GetFullPath($ConfiguredPath)
+    }
+    return [IO.Path]::GetFullPath((Join-Path $repository $ConfiguredPath))
+}
+
+$clientPath = Resolve-AcceptancePath $ClientExecutable 'build_official/client/dist/px_client.exe'
+$buildClientPath = Resolve-AcceptancePath $ClientBuildExecutable 'build_official/client/cmake/src/px_deps/px_client.exe'
 $credentialsPath = Join-Path $repository '.env/public_test_user.json'
 $licensePath = Join-Path $repository '.env/public_license.json'
 $machinePath = Join-Path $repository '.env/test_machine.md'

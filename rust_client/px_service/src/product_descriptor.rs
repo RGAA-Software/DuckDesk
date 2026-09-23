@@ -41,7 +41,7 @@ pub struct ProductDescriptor {
     pub company: String,
     pub product_version: String,
     pub product_version_code: u32,
-    pub signer_certificate_sha256: Option<String>,
+    pub windows_code_signing: String,
     pub capabilities: Vec<String>,
 }
 
@@ -73,8 +73,8 @@ impl ProductDescriptor {
     }
 
     fn validate(&self) -> Result<(), String> {
-        if self.schema_version != 3 {
-            return Err("installed product descriptor must use schema 3".to_string());
+        if self.schema_version != 4 {
+            return Err("installed product descriptor must use schema 4".to_string());
         }
         if !matches!(
             self.distribution.as_str(),
@@ -117,15 +117,9 @@ impl ProductDescriptor {
         {
             return Err("installed product descriptor has an invalid product version".to_string());
         }
-        let signer_is_valid = self
-            .signer_certificate_sha256
-            .as_deref()
-            .is_some_and(valid_sha256);
-        if (self.distribution == "development" && self.signer_certificate_sha256.is_some())
-            || (self.distribution != "development" && !signer_is_valid)
-        {
+        if self.windows_code_signing != "unsigned" {
             return Err(
-                "installed product descriptor has an invalid signer certificate pin".to_string(),
+                "installed product descriptor has an invalid Windows signing policy".to_string(),
             );
         }
         let actual: HashSet<&str> = self.capabilities.iter().map(String::as_str).collect();
@@ -198,7 +192,7 @@ mod tests {
 
     fn descriptor(product: &str, edition: &str, capabilities: &[&str]) -> ProductDescriptor {
         ProductDescriptor {
-            schema_version: 3,
+            schema_version: 4,
             product: product.to_string(),
             distribution: "official".to_string(),
             release_namespace: Some("pixels.official".into()),
@@ -208,7 +202,7 @@ mod tests {
             company: "Pixels".to_string(),
             product_version: "3.3.67".to_string(),
             product_version_code: 30367,
-            signer_certificate_sha256: Some("b".repeat(64)),
+            windows_code_signing: "unsigned".to_string(),
             capabilities: capabilities.iter().map(|value| value.to_string()).collect(),
         }
     }
@@ -233,7 +227,7 @@ mod tests {
         invalid_distribution.distribution = "official-looking".to_string();
         assert!(invalid_distribution.validate().is_err());
         let mut retired_schema = descriptor("remote", "REMOTE", REMOTE_CAPABILITIES);
-        retired_schema.schema_version = 2;
+        retired_schema.schema_version = 3;
         assert!(retired_schema.validate().is_err());
         let mut mismatched_domain = descriptor("remote", "REMOTE", REMOTE_CAPABILITIES);
         mismatched_domain.release_namespace = Some("pixels.customer".into());
@@ -250,13 +244,12 @@ mod tests {
         oem.company = "Acme Systems".into();
         oem.oem_profile_sha256 = Some("f".repeat(63));
         assert!(oem.validate().is_err());
-        let mut missing_release_signer = descriptor("remote", "REMOTE", REMOTE_CAPABILITIES);
-        missing_release_signer.signer_certificate_sha256 = None;
-        assert!(missing_release_signer.validate().is_err());
+        let mut invalid_signing_policy = descriptor("remote", "REMOTE", REMOTE_CAPABILITIES);
+        invalid_signing_policy.windows_code_signing = "signed".into();
+        assert!(invalid_signing_policy.validate().is_err());
         let mut development = descriptor("remote", "REMOTE", REMOTE_CAPABILITIES);
         development.distribution = "development".into();
         development.release_namespace = None;
-        development.signer_certificate_sha256 = None;
         assert!(development.validate().is_ok());
     }
 }

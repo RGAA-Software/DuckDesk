@@ -13,15 +13,15 @@ target 的权威签发、Service 验签/准备，以及同一制品替换成另�
 
 OEM 构建配置使用 `PIXELS_OEM_RELEASE_PROFILE` 指向的 schema 1 UTF-8 JSON，作为该 OEM 的唯一非秘密
 发行描述；Windows OEM 预检不再接受裸 `PIXELS_OEM_ID`。描述必须同时固定 `oem_id/release_namespace`、品牌名、三个
-Windows 产品各自的显示名/安装目录/卸载键/安装包 basename、Windows 和 Android 签名证书 SHA-256、独立 Android applicationId、
+Windows 产品各自的显示名/安装目录/卸载键/安装包 basename、Windows 明确未签名策略、Android 签名证书 SHA-256、独立 Android applicationId、
 Windows/Android/Web 品牌图标及逐件 SHA-256、TUF 初始 root SHA-256。会进入原生字符串资源的公司名、应用名、
 Windows 产品名还不得包含引号或反斜杠。资源路径只能位于描述文件目录内；缺项、多余字段、路径逃逸、资源篡改、复用 Pixels 品牌/applicationId、
 重复 Windows 安装身份或根摘要不一致均在产生策略前失败。Official/
 Customer 构建反向拒绝该变量，避免 OEM 配置污染 Pixels 双发行矩阵。Windows/Android OEM 产物均由独立入口生成；商业交付仍保持关闭。
 
 Windows OEM 正式编排入口把 CMake/`collect_dist.py`/NSIS 和独立安装包复核串为一个升版事务，OEM 输出固定隔离到
-`build_official/<product>/oem/<oem_id>/`，CMake 产品水位使用 schema 2，dist 与 installer manifest 使用 schema 3 并携带精确发行域和
-profile SHA-256；OEM 公司名、图标、产品显示名、安装目录、卸载键、安装包 basename 与签名证书固定值不能在后段覆盖。安装器用共享受保护
+`build_official/<product>/oem/<oem_id>/`，CMake 产品水位使用 schema 2，dist 与 installer manifest 使用 schema 4 并携带精确发行域和
+profile SHA-256；OEM 公司名、图标、产品显示名、安装目录、卸载键、安装包 basename 与 `windows_code_signing=unsigned` 不能在后段覆盖。安装器用共享受保护
 owner 记录维持三个 Windows 产品及所有发行互斥，同时同一 product/domain/install identity 才允许覆盖安装。installer release verifier 和
 TUF ReleaseSpec 也把 OEM ID 纳入升级相等性和不可变 target 路径。Windows 原生 Panel/Client 的窗口、标题栏、托盘、通知、错误提示、关于页、
 截图/日志目录和 PE 元数据均使用编译期品牌；Client 不再绕过 profile 使用固定 ICO，Web PNG 同时作为三档桌面运行 Logo。未使用的顶层
@@ -134,7 +134,7 @@ Cloud Node、Client、Remote 都由用户或运维运行对应的完整安装包
 
 ### 2.2.1 独立构建 Windows OEM 候选
 
-先设置该 OEM 审批后的 profile、独立 TUF 初始 root 和 Windows 签名输入。可先执行不清理、不升版的预检：
+先设置该 OEM 审批后的 profile 和独立 TUF 初始 root。Windows 候选保持未签名，不接收 Windows 证书或时间戳输入。可先执行不清理、不升版的预检：
 
 ```bat
 set PIXELS_OEM_RELEASE_PROFILE=D:\secure\north-star\oem-release-profile.json
@@ -152,7 +152,7 @@ scripts_build\build_windows_oem_product.bat remote
 ```
 
 每次调用只清理 `build_official/<product>/oem/<oem_id>/`，不会删除该产品 development、Official、Customer 或另一 OEM 的产物。入口从已验证
-profile 派生 OEM ID、品牌、图标、安装身份和签名 pin，构建 OEM Web/RDP/C++ 完整 dist，签名安装器后再独立复核安装包目录。任何预检失败都发生在
+profile 派生 OEM ID、品牌、图标和安装身份，构建 OEM Web/RDP/C++ 完整 dist，并按未签名策略独立复核安装包目录。任何预检失败都发生在
 清理和升版前。该入口不生成或发布 TUF 仓库、不向 Console 登记版本、不批准激活，也不把候选标记为商业可交付；这些步骤继续经过第 2.2.2 节的
 独立审批边界和实物验收矩阵。
 
@@ -364,6 +364,8 @@ adb install -r build_official\android\official\dist\Pixels-official-<version>-fa
 ## 6. 日常聚焦验证
 
 只有在修改和验证单个 C++ 范围时使用聚焦入口；它们不升版、不构建完整安装包。产品参数是必填项：
+
+日常开发默认增量构建，不先清理构建树，也不重复完整双发行构建。只有构建树/生成配置已损坏、依赖边界发生必须重配的变化，或明确进入正式完整发布事务时才清理整编。
 
 ```bat
 scripts_build\build_cpp_product_panel.bat cloud_node 18

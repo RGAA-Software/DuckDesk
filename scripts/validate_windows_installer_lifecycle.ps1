@@ -298,7 +298,7 @@ $lifecycleReport = [ordered]@{
 if (-not $ExecuteLifecycle) {
     $lifecycleReport.completed_at = (Get-Date).ToUniversalTime().ToString("O")
     Write-LifecycleReport -Report $lifecycleReport
-    Write-Host "Signed installer pair preflight passed. No installation or uninstallation was performed."
+    Write-Host "Unsigned installer pair preflight passed. No installation or uninstallation was performed."
     exit 0
 }
 

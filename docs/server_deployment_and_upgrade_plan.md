@@ -114,13 +114,13 @@ product 决定能力，distribution 决定平台与更新策略，release_channe
 
 ### 2.2 安装与更新身份
 
-- Windows 升级只接受相同 product、distribution、架构和签名发行方；跨产品或跨发行拒绝覆盖，提示先卸载。
+- Windows 升级只接受相同 product、distribution、release namespace、OEM 身份、架构和安装身份；Windows 包明确未签名，不能把不存在的签名者当作升级边界。跨产品或跨发行拒绝覆盖，提示先卸载。
 - 发行身份分为三个互不兼容的产品线：`official` 是 Pixels 自营发行，`customer` 是 Pixels 品牌私有部署发行，`oem` 是交付给特定 OEM
   客户的定制发行。`oem` 不是 `customer` 的显示名称，也不能只靠换图标或服务器 URL 实现。
 - 每个 OEM 发行必须在构建时绑定不可为空且全局唯一的 `oem_id/release_namespace`、应用/安装身份、发布者、初始 TUF 信任根和允许的私有
   更新策略。OEM A、OEM B、Pixels Official 和 Pixels Customer 之间均不得覆盖安装、共享更新元数据或回落到彼此的软件包。
 - OEM 非秘密发行描述采用严格 schema 1，并由 `PIXELS_OEM_RELEASE_PROFILE` 唯一指定。描述将品牌、Windows 三产品安装身份、Android
-  applicationId、各平台签名证书固定值、品牌资源摘要与 TUF 初始根摘要绑定为一个整体；构建过程不得再从若干可互相
+  applicationId、Android 签名证书固定值、Windows 未签名策略、品牌资源摘要与 TUF 初始根摘要绑定为一个整体；构建过程不得再从若干可互相
   矛盾的环境变量推断 OEM 身份。Windows 独立 OEM 候选入口和 Android 独立 OEM 构建入口均执行该门禁；候选构建
   不等于 TUF 发布、节点激活或商业交付批准。
 - 三个 Windows 产品及其发行变体继续互斥。只有一个已安装发行，服务命名可沿用统一方案。
@@ -279,7 +279,7 @@ Compose/Docker/Windows SCM 只是启动工具，应用仍须实现 readiness、d
 
 1. 运维先升级并验证 Server，确认现有客户端协议仍可用；接口兼容由发布与测试流程保证。
 2. 在 Console 将目标节点设为维护/排空，停止向它分配新实例；已有用户未退出时延期或在已公告的维护窗口明确中断。
-3. 运维人员在目标机器运行对应产品、发行和架构的签名完整安装包，直接覆盖安装；不要卸载，不由 Console 远程执行任意安装命令。
+3. 运维人员在目标机器运行对应产品、发行和架构的未签名完整安装包，直接覆盖安装；不要卸载，不由 Console 远程执行任意安装命令。
 4. 安装后启动 Service，核对产品版本、节点重连、GPU/端口状态和一次代表性启动；通过后取消维护并恢复调度。
 5. 失败时该节点保持维护，由运维使用已验证的上一版本安装包再次覆盖或人工修复；其他节点不参与同一提交或回滚事务。
 
@@ -361,8 +361,8 @@ RDP 的 Windows Session、账号、Profile 和工作区应用继续保留，即�
 ### 7.3 更新源与签名
 
 Official 使用官方更新源；Customer 使用私有平台管理员批准的更新源或离线包，不自动请求官方业务或更新服务器。
-客户管理员可以手动取得 Pixels 签名包并导入内网镜像。制品来源与平台业务身份分开，镜像地址不改变制品发行属性。
-Customer 更新元数据来自当前私有平台的可信发布策略，但执行文件仍须通过 Pixels 发布签名；私有管理员不能靠重新签描述跨 flavor 装包。
+客户管理员可以手动取得经 Pixels 清单与 TUF 发布的完整包并导入内网镜像。制品来源与平台业务身份分开，镜像地址不改变制品发行属性。
+Customer 更新元数据来自当前私有平台的可信发布策略；Windows 执行文件保持未签名并依赖精确摘要和发行身份，私有管理员不能靠改写描述跨 flavor 装包。
 OEM 只使用对应 `oem_id/release_namespace` 的 OEM 更新仓库、离线包和独立 TUF 根。即使 Pixels 官网存在更高版本，OEM 客户端也不得查询、
 展示、下载或安装；OEM 仓库不可发布 Official/Customer 或另一 OEM 的目标。OEM 是否由 Pixels 代运维更新仓库不改变该信任域，托管服务也必须
 使用 OEM 独立域名/命名空间、密钥、审批和审计记录。
@@ -372,14 +372,14 @@ OEM 只使用对应 `oem_id/release_namespace` 的 OEM 更新仓库、离线包�
 依赖组件、最低更新器版本、重启要求、回滚条件、到期策略和签名 key ID。
 采用经过审查的更新框架/库实现信任根轮换、元数据一致性、防回滚/冻结；不能只把 MD5 换成 SHA-256 就声称安全更新完成。
 离线包使用明确的离线维护元数据有效期及信任根轮换链，不永久关闭元数据有效期检查。
-首次发行信任根内置，后续根轮换由既有根授权；HTTPS、包摘要与操作系统代码签名各自验证。
+首次发行信任根内置，后续根轮换由既有根授权；HTTPS 与包摘要独立验证，Android 另验平台签名，Windows 明确不设代码签名门禁。
 
 离线 `px_update_authority` 已提供新根和不可变候选仓库的生成基线：初始 root 强制 2–5 把 root key、门限至少 2，targets/snapshot/timestamp
 使用三把彼此及 root 均不同的角色 key；日常发布不接触 root 私钥。追加发布先验证旧仓库元数据及每个历史目标字节，三个角色版本自动递增，
 target name 不可复用；候选目录完整自验后一次提交并记录 `publication.json`。该工具不直接写线上目录；正式部署仍必须在独立临时位置同步，
 按 targets、targets/snapshot、最后 timestamp 的顺序原子切换，并保留上一份可验证候选用于回退。root 轮换和线上发布执行器仍须单独验收。
-Windows 发布先由 `prepare_windows_update_release.py` 使用外部审批 signer pin 调用独立安装器验证器，再从真实 manifest/制品生成不可变 target name
-和 ReleaseSpec；不允许人工抄 product/distribution/build、摘要或证书固定值后直接进入 TUF 签名。
+Windows 发布先由 `prepare_windows_update_release.py` 调用独立安装器验证器确认未签名策略，再从真实 manifest/制品生成不可变 target name
+和 ReleaseSpec；不允许人工抄 product/distribution/build 或摘要后直接进入 TUF 签名。
 
 root 轮换工具现强制 `N+1` 版本、晚于当前 root 的到期时间和旧/新两套门限交叉签名，并在落盘前分别用当前 root 与新 root 验证。轮换文件必须
 以版本化 root 元数据先行发布并等待客户端信任水位推进；旧 root key 的撤离是后续独立审批动作。追加候选已能验证上一仓库的连续 root 链，
@@ -392,15 +392,15 @@ CDN 缓存失效适配仍是选定正式基础设施后的部署层任务，不�
 
 Console 发布登记同时要求源站 `publication.json` 的精确 SHA-256，并把它和 ReleaseSpec 一起纳入 `request_id` 幂等摘要及不可变数据库事实。
 同一请求不能在保留制品字段时偷换仓库代际，runtime 也无权改写该固定值；审批/撤回事件因此可追溯到具体已发布候选。该摘要是审计绑定，不能替代
-客户端对 TUF 元数据、目标文件和平台代码签名的独立验证。
+客户端对 TUF 元数据和目标文件的独立验证；Android 还必须独立验证 APK 平台签名。
 登记请求由 `px_update_authority prepare-console-registration` 从无 pending journal 的已完成源站导出；它重新验证整库并排他写文件，操作员不抄写
 ReleaseSpec 或 publication SHA。生成请求不自动调用 Console、更不自动 approve，管理身份、变更审批和审计责任仍留在 Console 管理流程。
 
-Console 的发布目录保存 `metadata_base_url`、`targets_base_url`、`target_name`、目标大小、SHA-256、仓库发布摘要、根版本和平台签名证书
-DER SHA-256；最新记录为 pending/withdrawn 时不回退到更旧版本。该目录是发布审批和 Android 更新发现的输入，不是 Windows 节点安装授权。
+Console 的发布目录保存 `metadata_base_url`、`targets_base_url`、`target_name`、目标大小、SHA-256、仓库发布摘要、根版本和可空的平台签名证书
+DER SHA-256；Android 必须携带证书摘要，Windows/Linux 为空。最新记录为 pending/withdrawn 时不回退到更旧版本。该目录是发布审批和 Android 更新发现的输入，不是 Windows 节点安装授权。
 Cloud Node/Remote Service 不再检查该目录、不下载或暂存安装包、不回报 TUF 信任水位，也不接受 Console 激活租约。Windows 节点升级由运维取得
-对应 product/distribution/architecture 的签名完整安装包，在目标机独立验证并覆盖安装；安装器继续校验产品发行身份、文件摘要、Authenticode
-和批准签名者。Console 只从节点正常重连报告中看到当前产品版本与健康，不建立集中式完成提交或自动回滚事务。
+对应 product/distribution/architecture 的未签名完整安装包，在目标机独立验证并覆盖安装；安装器继续校验产品发行身份和文件摘要，
+不检查 Authenticode 或签名者。Console 只从节点正常重连报告中看到当前产品版本与健康，不建立集中式完成提交或自动回滚事务。
 离线 TUF 发布权威及发布目录继续用于制品仓库完整性、Android 消费器和未来明确立项的客户端更新，不得据此声称 Windows Service 已自动升级。
 Android 已完成第一段目录边界：`GET /api/console/updates/latest` 不接受查询参数且只接受 Android 会话，Console 从已验证许可证派生
 `android + 当前 distribution/release_namespace/oem_id + stable + android/aarch64`；Android 再以编译身份逐字段校验响应和不可变 target 路径。
@@ -432,26 +432,25 @@ versionCode 等于目标 build 时把记录推进为 installed；损坏状态、
 节点覆盖安装后必须以实际产品清单、Service 启动、Console 重连和代表性业务启动验收；失败节点保持维护，不因进程存在或端口监听就恢复调度。
 回退同样由运维运行已验证的上一版本完整安装包，不存在本地激活记录、租约过期收敛或 Console 代替操作员提交成功的行为。
 
-Windows 正式发行链现要求构建机证书存储中的明确代码签名证书，并同时固定 SHA-1 选择值和审批 SHA-256 指纹；不接受把 PFX 密码放入
-构建命令。清理/升版前验证私钥、代码签名 EKU、证书有效期、HTTPS RFC 3161 时间戳、SignTool 和固定 NSIS 版本。Pixels 自有 PE 在生成
-制品清单前签名，NSIS 3.12 在生成阶段签名卸载器，最终 Setup 再签名；三层均独立核对签名状态、审批指纹和时间戳。安装器已改为直接封装
-严格校验的 dist，退役旧 `Nsis7z`/`nsProcess` 与额外压缩层。正式证书尚未提供，所以该链目前只完成软件门禁、工具实编和缺输入失败关闭，
-仍不得把语法构建或旧的未签名安装包计作正式签名实物矩阵。
+Windows 正式发行链明确不使用 Authenticode 或 RFC 3161 时间戳，也不读取证书存储、PFX、SignTool 签名参数或签名者 pin。构建前仍验证
+TUF 初始根、产品/发行身份、固定 NSIS 版本和输出隔离；dist、卸载器和 Setup 均声明 `windows_code_signing=unsigned`。安装器直接封装
+严格校验的 dist，退役旧 `Nsis7z`/`nsProcess` 与额外压缩层。实物验收依赖精确文件集合与 SHA-256、全局产品互斥、同身份覆盖升级、
+中断修复、卸载和 Service 生命周期；未知发布者提示是私有部署已接受的系统行为，不是验收失败。
 
 安装包生命周期矩阵已有正式执行入口 `scripts/validate_windows_installer_lifecycle.ps1`。调用者必须从外部指定目标 product/distribution，默认
-只读预检两个版本目录：要求 schema 2、同产品、
-同发行、版本严格递增，并独立验证 Setup 的内容摘要、Authenticode 和时间戳。旧/新证书 SHA-256 都是外部必填输入：未轮换时两值相同，
-证书续期时分别传入经审核的旧/新固定值；相邻 manifest 的自我声明不能批准签名者、轮换、产品或发行。只有显式
+只读预检两个版本目录：要求当前 manifest schema、同产品、
+同发行、版本严格递增，并独立验证 Setup 内容摘要和 `windows_code_signing=unsigned`。相邻 manifest 的自我声明不能批准
+产品、发行、namespace 或 OEM 身份变化。只有显式
 `-ExecuteLifecycle`、管理员权限和三产品/`px_service` 全部不存在的干净专用 Windows 验收机才能进入变更阶段；顺序固定为旧版安装、升级、
-同版覆盖、卸载。每个已安装阶段重新核对 payload manifest 摘要、精确文件集、全部 artifact hash、自研 PE/Uninstall 签名、注册表版本和
+同版覆盖、卸载。每个已安装阶段重新核对 payload manifest 摘要、精确文件集、全部 artifact hash、未签名策略、注册表版本和
 Service 边界，失败保留现场和阶段报告，不自动清理后掩盖问题。六组 product×distribution 的正式报告及更新执行器的断网/安装失败/回滚失败
-注入仍需真实批准证书和候选包；当前代码与单元测试就绪不等于实物矩阵已通过。
+注入仍需真实候选包；当前代码与单元测试就绪不等于实物矩阵已通过。
 每组执行还可传入同发行的另一产品正式包：先安装冲突产品，断言目标安装以 1638 拒绝且冲突产品内容完全未变，再卸载；随后创建不启动的
 受控 `px_service` 注册探针，要求目标安装再次以 1638 拒绝。探针只在注册身份未被改变时由执行器清理，避免错误覆盖后误删真正的产品服务。
 
 Windows 软件组合验收 `pg-20260920-151630-d92d153c` 是旧实现的历史证据；其中节点激活部分已按 2026-09-22 决策退役。其余登记检查覆盖节点控制、三个 PostgreSQL
 产品服务、生产前端与真实 Chromium、进程重启/断库恢复及三库 dump/restore 后的数据和结构对账。该结果关闭本轮实现的本地组合回归，
-但不把测试生成的 TUF 仓库、NSIS 语法编译或 development Service 制品冒充正式签名 Official/Customer 安装升级矩阵。
+但不把测试生成的 TUF 仓库、NSIS 语法编译或 development Service 制品冒充正式 Official/Customer 安装升级矩阵。
 
 当前 release catalog、Desk/Console PostgreSQL 发布目录、TUF `pixels.target` 元数据、Auth `PXLIC2`、Console 和节点产品描述符均已实现
 严格 `oem_id/release_namespace` 字段，Desk 能保存不同 OEM 的同构建号版本，Console 运维页能显示命名空间。OEM 非秘密发行描述

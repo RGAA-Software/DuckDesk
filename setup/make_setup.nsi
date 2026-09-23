@@ -246,13 +246,33 @@ parsec_vdd_install_ok:
     CreateDirectory "$R2\Pixels\px_data"
     CreateDirectory "$R2\Pixels\px_data\updates"
     CreateDirectory "$R2\Pixels\px_data\updates\rollback"
-    nsExec::ExecToStack 'icacls "$R2\Pixels\px_data\updates" /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" /T /C'
+    ; Secure the cache root first, then make all existing descendants inherit
+    ; that ACL. Applying directory-only (OI)(CI) grants recursively can leave
+    ; an existing file with an empty DACL, which prevents the next installer
+    ; (including SYSTEM) from replacing the cached rollback package.
+    nsExec::ExecToStack 'icacls "$R2\Pixels\px_data\updates" /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" /C'
+    Pop $R0
+    Pop $R1
+    DetailPrint "$R1"
+    StrCmp $R0 "0" update_cache_root_acl_ready
+        SetErrorLevel 1603
+        Abort "Failed to protect the update cache: $R1"
+update_cache_root_acl_ready:
+    nsExec::ExecToStack 'icacls "$R2\Pixels\px_data\updates\*" /inheritance:e /T /C'
+    Pop $R0
+    Pop $R1
+    DetailPrint "$R1"
+    StrCmp $R0 "0" update_cache_child_inheritance_ready
+        SetErrorLevel 1603
+        Abort "Failed to restore update cache inheritance: $R1"
+update_cache_child_inheritance_ready:
+    nsExec::ExecToStack 'icacls "$R2\Pixels\px_data\updates\*" /reset /T /C'
     Pop $R0
     Pop $R1
     DetailPrint "$R1"
     StrCmp $R0 "0" update_cache_acl_ready
         SetErrorLevel 1603
-        Abort "Failed to protect the update cache: $R1"
+        Abort "Failed to normalize update cache permissions: $R1"
 update_cache_acl_ready:
     ClearErrors
 !if "${DISTRIBUTION}" == "oem"
@@ -450,7 +470,24 @@ resolve_existing_found:
     StrCmp $R2 "${RELEASE_NAMESPACE}" 0 resolve_existing_legacy
     StrCmp $R3 "${OEM_ID}" resolve_existing_distribution_ok resolve_existing_legacy
 resolve_existing_distribution_ok:
-    IfFileExists "$R0\product-edition.txt" 0 resolve_existing_legacy
+    IfFileExists "$R0\product-edition.txt" resolve_existing_owned 0
+    ; A terminated covering install can remove the old tree before the new
+    ; marker and uninstaller are written. Permit the same installer to repair
+    ; that state only when the independently stored global ownership record
+    ; still identifies this exact product, edition, and installation path.
+    ReadRegStr $R4 HKLM "Software\Pixels\ProductOwner" "ProductId"
+    ReadRegStr $R5 HKLM "Software\Pixels\ProductOwner" "Distribution"
+    ReadRegStr $R6 HKLM "Software\Pixels\ProductOwner" "ReleaseNamespace"
+    ReadRegStr $R7 HKLM "Software\Pixels\ProductOwner" "OemId"
+    ReadRegStr $0 HKLM "Software\Pixels\ProductOwner" "InstallLocation"
+    ReadRegStr $1 HKLM "Software\Pixels\ProductOwner" "UninstallKey"
+    StrCmp $R4 "${PRODUCT_ID}" 0 resolve_existing_legacy
+    StrCmp $R5 "${DISTRIBUTION}" 0 resolve_existing_legacy
+    StrCmp $R6 "${RELEASE_NAMESPACE}" 0 resolve_existing_legacy
+    StrCmp $R7 "${OEM_ID}" 0 resolve_existing_legacy
+    StrCmp $0 $R0 0 resolve_existing_legacy
+    StrCmp $1 "${UNINSTALL_KEY}" 0 resolve_existing_legacy
+resolve_existing_owned:
     StrCpy $INSTDIR $R0
     Goto resolve_existing_done
 resolve_existing_legacy:
@@ -476,7 +513,11 @@ Function CheckGlobalProductOwner
     StrCmp $R5 "${UNINSTALL_KEY}" 0 product_owner_conflict
     ReadRegStr $R7 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\$R5" "InstallLocation"
     StrCmp $R7 $R4 0 product_owner_conflict
-    IfFileExists "$R4\product-edition.txt" product_owner_done product_owner_conflict
+    ; Exact registry ownership is sufficient to enter the later repair check.
+    ; The payload marker may legitimately be absent after an interrupted
+    ; covering install. ResolveExistingInstallDirectory independently checks
+    ; the same ownership tuple before selecting the damaged directory.
+    Goto product_owner_done
 product_owner_conflict:
     StrCmp $R6 "" 0 +2
         StrCpy $R6 "unowned product installation"

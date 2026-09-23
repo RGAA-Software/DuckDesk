@@ -1,8 +1,8 @@
 product = "cloud_node"
 edition = "CLOUD_NODE"
 company = "Pixels"
-product_version = "3.3.75"
-product_version_code = 30375
+product_version = "3.3.78"
+product_version_code = 30378
 package_groups = ["desktop_client", "host_common", "rdp_host", "render_common", "browser_remote", "webview_host", "game_hook"]
 
 capabilities = [

@@ -2081,7 +2081,7 @@ mod tests {
 
     fn cloud_product() -> ProductDescriptor {
         ProductDescriptor {
-            schema_version: 3,
+            schema_version: 4,
             product: "cloud_node".into(),
             distribution: "official".into(),
             release_namespace: Some("pixels.official".into()),
@@ -2091,7 +2091,7 @@ mod tests {
             company: "Pixels".into(),
             product_version: "3.3.67".into(),
             product_version_code: 30367,
-            signer_certificate_sha256: Some("c".repeat(64)),
+            windows_code_signing: "unsigned".into(),
             capabilities: vec!["game_hook".into(), "webview_host".into()],
         }
     }

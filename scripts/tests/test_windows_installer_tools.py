@@ -13,6 +13,37 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
 class WindowsInstallerToolTest(unittest.TestCase):
+    def test_rollback_cache_acl_keeps_existing_installers_replaceable(self) -> None:
+        installer_source = (REPOSITORY_ROOT / "setup" / "make_setup.nsi").read_text(encoding="utf-8")
+
+        self.assertIn(
+            'icacls "$R2\\Pixels\\px_data\\updates" /inheritance:r /grant:r '
+            '"*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" /C',
+            installer_source,
+        )
+        self.assertIn('icacls "$R2\\Pixels\\px_data\\updates\\*" /inheritance:e /T /C', installer_source)
+        self.assertIn('icacls "$R2\\Pixels\\px_data\\updates\\*" /reset /T /C', installer_source)
+        self.assertNotIn(
+            '"*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" /T /C',
+            installer_source,
+        )
+
+    def test_interrupted_covering_install_remains_repairable_by_exact_owner(self) -> None:
+        installer_source = (REPOSITORY_ROOT / "setup" / "make_setup.nsi").read_text(encoding="utf-8")
+
+        repair_contract = (
+            'IfFileExists "$R0\\product-edition.txt" resolve_existing_owned 0',
+            'ReadRegStr $R4 HKLM "Software\\Pixels\\ProductOwner" "ProductId"',
+            'StrCmp $R4 "${PRODUCT_ID}" 0 resolve_existing_legacy',
+            'StrCmp $R5 "${DISTRIBUTION}" 0 resolve_existing_legacy',
+            'StrCmp $R6 "${RELEASE_NAMESPACE}" 0 resolve_existing_legacy',
+            'StrCmp $R7 "${OEM_ID}" 0 resolve_existing_legacy',
+            'StrCmp $0 $R0 0 resolve_existing_legacy',
+            'StrCmp $1 "${UNINSTALL_KEY}" 0 resolve_existing_legacy',
+        )
+        for required_instruction in repair_contract:
+            self.assertIn(required_instruction, installer_source)
+
     def test_repository_relative_nsis_configuration_resolves_from_setup_directory(self) -> None:
         configured_tool = find_nsis("../tools/nsis", REPOSITORY_ROOT)
         self.assertEqual(configured_tool, (REPOSITORY_ROOT / "tools" / "nsis" / "makensis.exe").resolve())
