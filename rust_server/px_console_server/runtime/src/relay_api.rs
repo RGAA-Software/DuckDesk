@@ -1,16 +1,22 @@
-use crate::{error::ApiError, request, StateData};
+use crate::{
+    error::ApiError,
+    request::{self, Input, Page, Params as Query, Route as Path},
+    StateData,
+};
 use axum::{
     extract::{
         ws::{Message, WebSocket},
         ConnectInfo, OriginalUri, State, WebSocketUpgrade,
     },
-    http::{header, HeaderMap},
+    http::{header, HeaderMap, StatusCode},
     response::Response,
-    routing::get,
-    Router,
+    routing::{get, patch},
+    Json, Router,
 };
 use futures_util::{SinkExt, StreamExt};
-use px_console_store::{RelayNodeConnection, RelayNodeReport};
+use px_console_store::{
+    RelayNodeConfiguration, RelayNodeConnection, RelayNodeReport, RelayNodeSpec,
+};
 use px_relay_control_protocol::{RelayRequest, RelayResponse, MAX_MESSAGE_BYTES};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::time::timeout;
@@ -22,7 +28,73 @@ const IDLE_DEADLINE: Duration = Duration::from_secs(35);
 const WRITE_DEADLINE: Duration = Duration::from_secs(5);
 
 pub(crate) fn routes() -> Router<Arc<StateData>> {
-    Router::new().route("/api/console/relay-control", get(upgrade))
+    Router::new()
+        .route("/api/console/relay-control", get(upgrade))
+        .route("/api/console/managed/relays", get(managed).post(create))
+        .route("/api/console/managed/relays/{id}", patch(configure))
+}
+
+async fn create(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    Input(spec): Input<RelayNodeSpec>,
+) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
+    let administrator = request::administrator(&state, &headers)?;
+    let (relay_token, credential) = request::mint();
+    let relay = state
+        .db
+        .relay_nodes()
+        .create(&administrator, &spec, &credential)
+        .await?;
+    Ok((
+        StatusCode::CREATED,
+        Json(serde_json::json!({"relay":relay,"relay_token":relay_token.as_str()})),
+    ))
+}
+
+async fn managed(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    Query(page): Query<Page>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    Ok(Json(serde_json::json!(
+        state
+            .db
+            .relay_nodes()
+            .list_managed(
+                &request::administrator(&state, &headers)?,
+                page.after,
+                page.limit,
+            )
+            .await?
+    )))
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RelayNodeChange {
+    revision: i64,
+    configuration: RelayNodeConfiguration,
+}
+
+async fn configure(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    Path(relay_node_id): Path<uuid::Uuid>,
+    Input(change): Input<RelayNodeChange>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    Ok(Json(serde_json::json!(
+        state
+            .db
+            .relay_nodes()
+            .configure(
+                &request::administrator(&state, &headers)?,
+                relay_node_id,
+                change.revision,
+                change.configuration,
+            )
+            .await?
+    )))
 }
 
 async fn upgrade(

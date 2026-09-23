@@ -1,13 +1,14 @@
 #[path = "support/runtime_fixture.rs"]
 mod fixture;
 
-use fixture::{login, start, PASSWORD};
-use px_console_store::{RelayNodeConfiguration, RelayNodeSpec, RelayNodeStore, TokenDigest};
+use fixture::{call, login, start, PASSWORD};
+use px_console_store::{RelayNodeStore, TokenDigest};
 use px_relay_server::{
     config::{ControlPlaneConfig, RelayConfig},
     control,
     server::{router_with_state, RelayServerState},
 };
+use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::net::TcpListener;
@@ -54,31 +55,49 @@ async fn relay_active_control_reports_capacity_converges_draining_and_fails_clos
     let console_router = runtime.router();
     let admin_secret = login(&console_router, "initial-admin", PASSWORD, "admin_web").await;
     let admin = digest(&admin_secret);
-    let relay_secret = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
+    let relay_name = format!("active-relay-{}", Uuid::new_v4());
+    let (create_status, created) = call(
+        &console_router,
+        "POST",
+        "/api/console/managed/relays",
+        "admin_web",
+        Some(&admin_secret),
+        json!({
+            "name": relay_name,
+            "public_host": "relay-active.example.test",
+            "public_port": 4605
+        }),
+    )
+    .await;
+    assert_eq!(create_status.as_u16(), 201, "{created}");
+    let relay_secret = created["relay_token"].as_str().unwrap().to_owned();
+    assert_eq!(relay_secret.len(), 64);
+    let relay_node_id = created["relay"]["id"].as_str().unwrap().parse().unwrap();
     let relay_nodes = RelayNodeStore::connect(&fixture::config("RUNTIME"), fixture::deployment())
         .await
         .unwrap();
-    let relay_node = relay_nodes
-        .create(
-            &admin,
-            &RelayNodeSpec {
-                name: format!("active-relay-{}", Uuid::new_v4()),
-                public_host: "relay-active.example.test".into(),
-                public_port: 4605,
-            },
-            &digest(&relay_secret),
-        )
-        .await
-        .unwrap();
+    let (list_status, listed) = call(
+        &console_router,
+        "GET",
+        "/api/console/managed/relays?limit=100",
+        "admin_web",
+        Some(&admin_secret),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(list_status.as_u16(), 200, "{listed}");
+    assert_eq!(listed.as_array().unwrap().len(), 1);
+    assert!(listed[0].get("relay_token").is_none());
 
     let console_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let console_address = console_listener.local_addr().unwrap();
     let console_stop = CancellationToken::new();
     let console_shutdown = console_stop.clone();
+    let server_router = console_router.clone();
     let console_server = tokio::spawn(async move {
         axum::serve(
             console_listener,
-            console_router.into_make_service_with_connect_info::<SocketAddr>(),
+            server_router.into_make_service_with_connect_info::<SocketAddr>(),
         )
         .with_graceful_shutdown(console_shutdown.cancelled_owned())
         .await
@@ -112,7 +131,7 @@ async fn relay_active_control_reports_capacity_converges_draining_and_fails_clos
             .unwrap();
     });
 
-    let reported_draining = wait_for_profile(&relay_nodes, &admin, relay_node.id, |profile| {
+    let reported_draining = wait_for_profile(&relay_nodes, &admin, relay_node_id, |profile| {
         profile.state == "ready" && profile.report_sequence >= 1
     })
     .await;
@@ -121,19 +140,46 @@ async fn relay_active_control_reports_capacity_converges_draining_and_fails_clos
     assert_eq!(reported_draining.max_connections, Some(4_096));
     assert_eq!(reported_draining.max_rooms, Some(2_048));
 
-    relay_nodes
-        .configure(
-            &admin,
-            relay_node.id,
-            reported_draining.revision,
-            RelayNodeConfiguration {
-                draining: false,
-                disabled: false,
-            },
-        )
-        .await
-        .unwrap();
-    let accepting = wait_for_profile(&relay_nodes, &admin, relay_node.id, |profile| {
+    let viewer_name = format!("relay-viewer-{}", Uuid::new_v4());
+    let (viewer_status, viewer_profile) = call(
+        &console_router,
+        "POST",
+        "/api/console/users",
+        "admin_web",
+        Some(&admin_secret),
+        json!({"username":viewer_name,"password":PASSWORD,"role":"viewer"}),
+    )
+    .await;
+    assert_eq!(viewer_status.as_u16(), 201, "{viewer_profile}");
+    let viewer_secret = login(&console_router, &viewer_name, PASSWORD, "admin_web").await;
+    let relay_path = format!("/api/console/managed/relays/{relay_node_id}");
+    let (viewer_change_status, _) = call(
+        &console_router,
+        "PATCH",
+        &relay_path,
+        "admin_web",
+        Some(&viewer_secret),
+        json!({
+            "revision": reported_draining.revision,
+            "configuration": {"draining": false, "disabled": false}
+        }),
+    )
+    .await;
+    assert_eq!(viewer_change_status.as_u16(), 403);
+    let (change_status, changed) = call(
+        &console_router,
+        "PATCH",
+        &relay_path,
+        "admin_web",
+        Some(&admin_secret),
+        json!({
+            "revision": reported_draining.revision,
+            "configuration": {"draining": false, "disabled": false}
+        }),
+    )
+    .await;
+    assert_eq!(change_status.as_u16(), 200, "{changed}");
+    let accepting = wait_for_profile(&relay_nodes, &admin, relay_node_id, |profile| {
         profile.reported_draining == Some(false) && profile.report_sequence >= 2
     })
     .await;

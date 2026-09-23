@@ -2,6 +2,7 @@
 import ApplicationCatalogCard from "@/views/apps/ApplicationCatalogCard.vue";
 import DeploymentInventoryCard from "@/views/apps/DeploymentInventoryCard.vue";
 import NodeInventoryCard from "@/views/apps/NodeInventoryCard.vue";
+import RelayInventoryCard from "@/views/apps/RelayInventoryCard.vue";
 import SchedulingPreviewCard from "@/views/apps/SchedulingPreviewCard.vue";
 </script>
 
@@ -9,6 +10,7 @@ import SchedulingPreviewCard from "@/views/apps/SchedulingPreviewCard.vue";
     <a-space direction="vertical" size="large" class="w-full">
         <ApplicationCatalogCard />
         <NodeInventoryCard />
+        <RelayInventoryCard />
         <DeploymentInventoryCard />
         <SchedulingPreviewCard />
     </a-space>

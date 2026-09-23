@@ -1945,3 +1945,11 @@ Relay，Node Start 与后续 CloudApplication session 读取同一持久绑定�
 endpoint 或冒充 Relay 可用。SQLx 292/292、instances 17/17、sessions 14/14、node-control 2/2、runtime 12/12 及严格 Release
 Clippy/rustfmt 通过，报告为 `pg-20260923-223407-8c23d74f`、`pg-20260923-223550-0164fd11`、
 `pg-20260923-223702-6b2b12be`。P3-2 至此完成；下一批 P3-3 只补 Relay 管理 API/页面和部署凭据闭环，不引入自动扩缩容或热迁移。
+
+P3-3 已完成 Relay 管理和部署凭据闭环。Console 新增受权创建、分页列表和 revision 配置 API；创建时只返回一次明文节点 token，数据库只保存摘要，
+Viewer 可读但不能修改 disabled/draining。运维页显示 endpoint、上报来源时间、版本、连接/房间容量、累计字节、期望/实际排空和明确不可调度原因，
+Unknown 不冒充健康，并通过独立 `relays` 管理事件刷新。公网覆盖脚本现消费管理 API/页面生成的一次性 SecureString token 和权威 Console control URL，
+不写数据库、不再配置静态 Relay host/port；Console launcher 只保留 app key，Relay 受限 launcher 保存 control URL、节点 token、app key 和独立控制 key。
+真实 PostgreSQL + Console + Relay 短闭环 1/1 PASS，覆盖列表不泄密、Viewer 写 403、Admin 排空变更、实际状态收敛和 Console 失联 fail-closed，
+报告 `pg-20260923-230053-a893a7b2`。前端聚焦测试 4/4、TypeScript、Vite 构建、严格 Release Clippy/rustfmt 和 PowerShell 语法通过。
+下一批 P3-4 仅执行双 Relay/双 Render-Service 的短功能验收，不提前引入长测、自动扩缩容或热迁移。

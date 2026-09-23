@@ -171,6 +171,8 @@ pub(crate) fn http_mutation(method: &Method, path: &str) -> Option<(&'static str
     let category =
         if suffix.starts_with("managed/nodes") || suffix.starts_with("managed/telemetry-alerts") {
             "nodes"
+        } else if suffix.starts_with("managed/relays") {
+            "relays"
         } else if suffix.starts_with("managed/devices") {
             "devices"
         } else if suffix.starts_with("managed/applications") {
@@ -435,6 +437,13 @@ mod tests {
         assert_eq!(
             http_mutation(&Method::POST, "/api/console/groups"),
             Some(("identities", None))
+        );
+        assert_eq!(
+            http_mutation(
+                &Method::PATCH,
+                &format!("/api/console/managed/relays/{resource_id}")
+            ),
+            Some(("relays", Some(resource_id)))
         );
         assert_eq!(
             http_mutation(&Method::GET, "/api/console/managed/nodes"),

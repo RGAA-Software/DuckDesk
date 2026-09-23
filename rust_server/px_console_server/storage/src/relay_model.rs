@@ -2,7 +2,8 @@ use crate::{RuntimeEpoch, StoreError, TokenDigest};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RelayNodeSpec {
     pub name: String,
     pub public_host: String,

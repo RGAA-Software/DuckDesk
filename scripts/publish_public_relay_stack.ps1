@@ -4,7 +4,12 @@
 param(
     [string]$ComputerName = '39.71.45.66',
     [ValidateRange(1, 65535)]
-    [int]$RelayPort = 4605
+    [int]$RelayPort = 4605,
+    [Parameter(Mandatory)]
+    [ValidatePattern('^wss?://')]
+    [string]$ConsoleControlUrl,
+    [Parameter(Mandatory)]
+    [Security.SecureString]$RelayNodeToken
 )
 
 $ErrorActionPreference = 'Stop'
@@ -23,7 +28,17 @@ $machineText = Get-Content -LiteralPath $machineFile -Raw -Encoding UTF8
 $password = [regex]::Match($machineText, '(?m)^\s*-\s*\u5bc6\u7801\s*[:\uff1a]\s*(.+?)\s*$').Groups[1].Value
 $machineName = [regex]::Match($machineText, '(?m)^\s*-\s*\u4e3b\u673a\u540d\s*[:\uff1a]\s*(.+?)\s*$').Groups[1].Value
 $relayAppKey = [string](Get-Content -LiteralPath $licenseFile -Raw | ConvertFrom-Json).appkey
-if (-not $password -or -not $machineName -or $relayAppKey.Length -lt 16) {
+$relayNodeTokenValue = [Net.NetworkCredential]::new('', $RelayNodeToken).Password
+$parsedControlUrl = $null
+if (-not [Uri]::TryCreate($ConsoleControlUrl, [UriKind]::Absolute, [ref]$parsedControlUrl) -or
+    $parsedControlUrl.Scheme -notin @('ws', 'wss') -or
+    -not [string]::IsNullOrEmpty($parsedControlUrl.UserInfo) -or
+    -not [string]::IsNullOrEmpty($parsedControlUrl.Query) -or
+    -not [string]::IsNullOrEmpty($parsedControlUrl.Fragment)) {
+    throw 'ConsoleControlUrl must be an absolute ws/wss URL without credentials, query, or fragment.'
+}
+if (-not $password -or -not $machineName -or $relayAppKey.Length -lt 16 -or
+    $relayNodeTokenValue -notmatch '^[0-9a-f]{64}$') {
     throw 'Public Relay deployment credentials or app key are incomplete.'
 }
 
@@ -44,8 +59,8 @@ try {
     }
     Copy-Item -LiteralPath $consoleSource -Destination 'D:\PixelsServer\app\bin\px_console.staged.exe' -ToSession $session -Force
     Copy-Item -LiteralPath $relaySource -Destination 'D:\PixelsServer\relay\px_relay.staged.exe' -ToSession $session -Force
-    Invoke-Command -Session $session -ArgumentList $ComputerName, $RelayPort, $relayAppKey, $consoleHash, $relayHash -ScriptBlock {
-        param($publicHost, $relayPort, $relayAppKey, $consoleHash, $relayHash)
+    Invoke-Command -Session $session -ArgumentList $RelayPort, $relayAppKey, $relayNodeTokenValue, $parsedControlUrl.AbsoluteUri, $consoleHash, $relayHash -ScriptBlock {
+        param($relayPort, $relayAppKey, $relayNodeToken, $consoleControlUrl, $consoleHash, $relayHash)
 
         $ErrorActionPreference = 'Stop'
         $serverRoot = 'D:\PixelsServer'
@@ -114,28 +129,29 @@ try {
         $consoleText = Get-Content -LiteralPath $consoleLauncher -Raw
         $consoleText = [regex]::Replace(
             $consoleText,
-            '(?m)^\s*\$env:PIXELS_RELAY_(?:PUBLIC_HOST|PUBLIC_PORT|APP_KEY)\s*=.*(?:\r?\n)?',
+            '(?m)^\s*\$env:PIXELS_RELAY_(?:PUBLIC_HOST|PUBLIC_PORT|APP_KEY|CONTROL_KEY)\s*=.*(?:\r?\n)?',
             '')
-        $escapedHost = $publicHost.Replace("'", "''")
         $escapedAppKey = $relayAppKey.Replace("'", "''")
         $escapedControlKey = $relayControlKey.Replace("'", "''")
-        $relayEnvironment = @"
-`$env:PIXELS_RELAY_PUBLIC_HOST = '$escapedHost'
-`$env:PIXELS_RELAY_PUBLIC_PORT = '$relayPort'
+        $escapedRelayNodeToken = $relayNodeToken.Replace("'", "''")
+        $escapedConsoleControlUrl = $consoleControlUrl.Replace("'", "''")
+        $relayAdmissionEnvironment = @"
 `$env:PIXELS_RELAY_APP_KEY = '$escapedAppKey'
-`$env:PIXELS_RELAY_CONTROL_KEY = '$escapedControlKey'
 
 "@
         if ($consoleText -notmatch '(?m)^\$consoleProcess\s*=') {
             throw 'Console launcher structure is not recognized.'
         }
-        $consoleText = [regex]::Replace($consoleText, '(?m)^(\$consoleProcess\s*=)', $relayEnvironment + '$1', 1)
+        $consoleText = [regex]::Replace($consoleText, '(?m)^(\$consoleProcess\s*=)', $relayAdmissionEnvironment + '$1', 1)
         [IO.File]::WriteAllText($consoleLauncher, $consoleText, [Text.UTF8Encoding]::new($false))
 
         $relayScript = @"
 `$ErrorActionPreference = 'Stop'
 `$env:PIXELS_RELAY_LISTEN = '0.0.0.0:$relayPort'
 `$env:PIXELS_RELAY_APP_KEY = '$escapedAppKey'
+`$env:PIXELS_RELAY_CONTROL_KEY = '$escapedControlKey'
+`$env:PIXELS_RELAY_CONSOLE_CONTROL_URL = '$escapedConsoleControlUrl'
+`$env:PIXELS_RELAY_NODE_TOKEN = '$escapedRelayNodeToken'
 `$env:PIXELS_RELAY_MAX_CONNECTIONS = '4096'
 `$env:PIXELS_RELAY_MAX_ROOMS = '2048'
 `$env:PIXELS_RELAY_OUTBOUND_QUEUE = '256'
@@ -216,5 +232,6 @@ finally {
     }
     Set-Item -LiteralPath $trustedHostsPath -Value $previousTrustedHosts -Force
     $relayAppKey = $null
+    $relayNodeTokenValue = $null
     $password = $null
 }

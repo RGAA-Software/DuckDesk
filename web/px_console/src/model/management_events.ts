@@ -7,6 +7,7 @@ const RECONNECT_DELAY_MS = 2_000;
 
 export type ManagementEventCategory =
     | "nodes"
+    | "relays"
     | "devices"
     | "applications"
     | "instances"

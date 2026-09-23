@@ -106,5 +106,21 @@ SQLx fresh-schema 元数据 292/292；实例预约 17/17、资源会话 14/14、
 Clippy/rustfmt 通过，报告分别为 `pg-20260923-223407-8c23d74f`、`pg-20260923-223550-0164fd11`、
 `pg-20260923-223702-6b2b12be`。P3-2 至此完成。
 
-下一批 P3-3 只补 Relay 管理 API/页面和部署凭据闭环：管理员创建节点时只返回一次明文 token，持久层只保存摘要；页面展示权威状态并控制
-disabled/draining。部署脚本通过受权 API 获取凭据，不直接写 PostgreSQL。该批不增加自动扩缩容、热迁移或额外票据体系。
+## 9. P3-3 已完成：Relay 管理与部署凭据闭环
+
+Console 已提供受权 `managed/relays` 创建、分页列表和带 revision 的配置 API。创建响应只返回一次 64 位节点 token，PostgreSQL 只保存摘要；后续列表
+和实时管理事件均不包含明文 token。Admin 可以修改 disabled/draining，Viewer 可以读取库存但写操作返回 403。
+
+Console 运维页现显示公开 endpoint、最后受认证上报时间、版本、当前/最大连接数与房间数、累计接收/转发字节、期望/实际 draining，以及按后端同一
+硬条件计算的明确不可调度原因；Unknown 不显示为健康。页面通过独立 `relays` 管理事件刷新，不轮询或接触 Relay 控制密钥。
+
+公网覆盖脚本不再接受或写入静态 Relay host/port，也不直接写 PostgreSQL。运维先从管理页面/API 登记 Relay 并安全保存一次性 token，再以
+`Read-Host -AsSecureString` 取得该 token，连同权威 Console `wss://.../api/console/relay-control` 地址传给脚本；受限 launcher 保存节点 token、
+Relay 数据面 app key 和独立 control key。Console launcher 只保留 app key。
+
+真实 PostgreSQL + Console + Relay 控制客户端 + Relay HTTP 状态短闭环 1/1 PASS，覆盖创建、列表不泄密、Viewer 写拒绝、Admin 取消排空、实际
+状态收敛及 Console 失联 fail-closed，报告 `pg-20260923-230053-a893a7b2`。前端 API/本地化聚焦测试 4/4、TypeScript 类型检查、Vite 正式构建、
+严格 Release Clippy/rustfmt 和 PowerShell 语法均通过。
+
+P3-3 至此完成。下一批 P3-4 只做两个 Relay 与至少两个 Render/Service 节点的短功能验收，确认容量选择、排空、失联和持久绑定；不做长时间压力
+测试、自动扩缩容或连接热迁移。
