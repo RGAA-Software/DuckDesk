@@ -7,7 +7,7 @@ param(
     [ValidateRange(0,65535)]
     [int]$Port = 0,
     [switch]$Linux,
-    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'backup-pg', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'auth-browser', 'catalog', 'update-authority', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'node-control', 'console-process', 'console-admin', 'console-browser')]
+    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'backup-pg', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'auth-browser', 'catalog', 'update-authority', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'distribution-isolation', 'node-control', 'console-process', 'console-admin', 'console-browser')]
     [string]$Suite = ''
 )
 
@@ -275,7 +275,7 @@ try {
     Set-LocalEnv 'PIXELS_TEST_CONTAINER' $container
     # Dedicated empty fixture databases keep bootstrap/last-administrator assertions platform-independent.
     foreach ($service in @('auth','console')) {
-        $fixtureKinds = if ($service -eq 'auth') { @('bootstrap') } else { @('control','bootstrap','api','directory','node_control','process','admin','browser_template') }
+        $fixtureKinds = if ($service -eq 'auth') { @('bootstrap') } else { @('control','bootstrap','api','directory','distribution_official','distribution_customer','node_control','process','admin','browser_template') }
         foreach ($fixtureKind in $fixtureKinds) {
         foreach ($platform in @('windows','linux')) {
             $fixtureDb = "pixels_${service}_${fixtureKind}_$platform"
@@ -285,8 +285,18 @@ try {
             Use-Service $service 'owner'
             Set-LocalEnv 'PIXELS_DATABASE_URL' ($env:PIXELS_DATABASE_URL -replace "/pixels_$service$","/$fixtureDb")
             Invoke-Checked $dbTool @('migrate',$service) | Out-Null
+            if ($service -eq 'console' -and $fixtureKind -eq 'distribution_customer') {
+                if (-not $secrets.ContainsKey('PIXELS_CUSTOMER_DEPLOYMENT_ID')) {
+                    $secrets.PIXELS_CUSTOMER_DEPLOYMENT_ID = [guid]::NewGuid().ToString()
+                }
+                Invoke-Checked 'docker' @('exec',$container,'psql','-X','-v','ON_ERROR_STOP=1','-U','pixels_admin','-d',$fixtureDb,'-c',
+                    "UPDATE pixels.deployment_identity SET deployment_id = '$($secrets.PIXELS_CUSTOMER_DEPLOYMENT_ID)'::uuid WHERE singleton") | Out-Null
+            }
         }
         }
+    }
+    if ($secrets.ContainsKey('PIXELS_CUSTOMER_DEPLOYMENT_ID')) {
+        Set-LocalEnv 'PIXELS_TEST_CUSTOMER_DEPLOYMENT_ID' $secrets.PIXELS_CUSTOMER_DEPLOYMENT_ID
     }
     if ($Action -eq 'Test') {
         # Infrastructure tests use their own synthetic table, not a product domain schema.
@@ -360,6 +370,7 @@ try {
         $suiteCounts = @{unit=19;identity=12;control=8;devices=8;applications=8;guests=9;nodes=11;deployments=6;instances=16;commands=16;workspaces=6;database=2;sessions=13;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=17;activity=8;updates=7;desk=8;catalog=4;'update-authority'=6;lease=6;postgres=15;accounts=9}
         $suiteCounts['console-api'] = 6
         $suiteCounts['directory-api'] = 7
+        $suiteCounts['distribution-isolation'] = 1
         $suiteCounts['node-control'] = 2
         $suiteCounts['console-process'] = 1
         $suiteCounts['console-admin'] = 3
@@ -368,8 +379,16 @@ try {
         $suiteCounts['auth-api'] = 9
         Set-LocalEnv 'SQLX_OFFLINE' 'true'
         Set-LocalEnv 'SQLX_OFFLINE_DIR' (Join-Path $repo 'rust_server/px_console_server/storage/.sqlx')
-        if ($Suite -in @('console-api','directory-api','node-control','console-process','console-admin')) {
-            $apiTest = if($Suite -eq 'console-api'){'identity_api'}elseif($Suite -eq 'directory-api'){'directory_api'}elseif($Suite -eq 'node-control'){'node_control'}elseif($Suite -eq 'console-process'){'process'}else{'admin'}
+        $runtimeTests = @{
+            'console-api' = 'identity_api'
+            'directory-api' = 'directory_api'
+            'distribution-isolation' = 'distribution_isolation'
+            'node-control' = 'node_control'
+            'console-process' = 'process'
+            'console-admin' = 'admin'
+        }
+        if ($runtimeTests.ContainsKey($Suite)) {
+            $apiTest = $runtimeTests[$Suite]
             $suiteArgs = @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--features','pg-integration','--test',$apiTest,'--target-dir',$targetDir)
         } elseif ($Suite -eq 'files') {
             $suiteArgs = @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_private_files','--features','integration-probe','--test','cache_files','--target-dir',$targetDir)

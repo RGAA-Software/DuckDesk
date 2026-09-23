@@ -1908,3 +1908,11 @@ Panel 隐藏启动 5 秒冒烟通过。该 development 产物不冒充正式安�
 `3F9D412445E76BCE90F47703ED22BF4E6B611B02AEAC22799F973964A6CBBAE8`。既有 Client 3.3.73→3.3.74 Official/Customer 相邻覆盖升级证据继续有效，
 本次未卸载当前软件重复执行破坏性生命周期矩阵。P1/P2-EXIT 目前只剩隔离 Customer 实环境的登录、目录、启停、额度和跨部署拒绝短闭环；
 在该闭环完成前不把 P1/P2 标记为整体完成。
+
+P1/P2 最后一项跨部署隔离随后用独立 fresh-schema 环境关闭。新增 `distribution-isolation` 聚焦套件会为 Official 和 Customer 建立不同
+deployment identity 的两套 Console PostgreSQL 数据库并启动两套真实 runtime；相同账号名可在各自部署独立注册、登录和读取目录，两个 token
+交叉使用均以 403 拒绝，Customer runtime 对 Official origin 同样以 403 拒绝。成功报告 `pg-20260923-211020-1a819566` 为 1/1 PASS，
+测试容器和卷已清理，严格 Release Clippy、修改文件 rustfmt、PowerShell 语法和可读命名门禁通过。结合此前 Windows/Android Customer 真实启停
+短测、`sessions` 13/13 与 `instances` 16/16 的服务和额度门禁，以及本次六套正式制品复核，P1/P2-EXIT 已完成。下一阶段进入 P3，
+仅处理 Broker/Relay 边界、多 Render/多 Relay 发现、容量门禁、资源池和多机短测；不重新引入中央 WebRTC signaling、TURN、自动升级编排或
+客户端许可证协议。商业发布前延期清单保持不变。

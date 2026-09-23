@@ -35,6 +35,13 @@ pub fn config(role: &str) -> DatabaseConfig {
     ));
     DatabaseConfig::parse(url.as_str(), Transport::LocalDevelopment).unwrap()
 }
+pub fn isolated_config(role: &str, database_name: &str) -> DatabaseConfig {
+    assert_eq!(env::var("PIXELS_PG_ISOLATED_TEST").as_deref(), Ok("1"));
+    let mut url =
+        url::Url::parse(&env::var(format!("PIXELS_TEST_CONSOLE_{role}_URL")).unwrap()).unwrap();
+    url.set_path(&format!("/{database_name}"));
+    DatabaseConfig::parse(url.as_str(), Transport::LocalDevelopment).unwrap()
+}
 pub fn deployment() -> Uuid {
     env::var("PIXELS_DEPLOYMENT_ID").unwrap().parse().unwrap()
 }
@@ -71,6 +78,38 @@ pub async fn start() -> ConsoleRuntime {
         vault(),
         policy(),
         guests(),
+    )
+    .await
+    .unwrap()
+}
+
+pub async fn start_isolated_deployment(
+    database_name: &str,
+    deployment_id: Uuid,
+    origin: &str,
+) -> ConsoleRuntime {
+    let database = isolated_config("RUNTIME", database_name);
+    let password_digest = px_credentials::hash(PASSWORD).unwrap();
+    initialize_administrator(
+        &isolated_config("OWNER", database_name),
+        deployment_id,
+        &Username::parse("initial-admin").unwrap(),
+        &PasswordDigest::parse(password_digest.to_string()).unwrap(),
+    )
+    .await
+    .unwrap();
+    ConsoleRuntime::activate(
+        &database,
+        deployment_id,
+        vault(),
+        IngressPolicy::new(origin, true, Duration::from_secs(3600), false).unwrap(),
+        GuestAdmission::for_isolated_test(
+            deployment_id,
+            Zeroizing::new([42; 32]),
+            true,
+            Duration::from_secs(3600),
+        )
+        .unwrap(),
     )
     .await
     .unwrap()

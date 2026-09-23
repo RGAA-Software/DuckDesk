@@ -161,8 +161,14 @@ development dist 的 Panel 隐藏启动 5 秒冒烟通过。
 `resources/icons/px_icon.png` 在六套 dist 中均不存在。Client Official/Customer 的相邻版本 3.3.73→3.3.74 覆盖升级已有同日实物证据，
 本批不通过卸载当前软件重复制造相同证据。
 
-本轮仍**没有**声明 P1/P2 整体出口完成。完整双发行制品门禁已经关闭；P1/P2-EXIT 只剩隔离 Customer 实环境的登录、目录、启动、停止、
-额度拒绝和跨部署拒绝短闭环。该闭环完成前不得进入 P3，也不得把制品通过等同于在线隔离通过。
+隔离 Customer 门禁随后通过一个新的聚焦集成入口关闭。`distribution-isolation` 每次建立两套独立 fresh-schema Console PostgreSQL 数据库，
+分别写入不同 deployment identity，启动两套真实 Console runtime，并用相同账号名完成各自注册、登录和目录访问；两个 token 互换后均以 403 拒绝，
+Customer runtime 收到 Official origin 也以 403 拒绝。成功报告为 `pg-20260923-211020-1a819566`，1/1 PASS，测试结束容器和卷已清理；
+严格 Release Clippy、修改文件 rustfmt、PowerShell 语法和可读命名门禁均通过。
+
+该隔离证据与本节已有 Windows/Android Customer 真实登录、目录、启动、停止短测，以及 `sessions` 13/13、`instances` 16/16 的服务越权、
+最后一槽并发、失败释放和额度拒绝证据共同构成 P1/P2-EXIT；没有复制另一套业务启停实现到隔离测试。至此 P1/P2 整体出口完成，可以进入 P3。
+延期的 Android fast-release、物理 AMD/Intel GPU、目标 Linux、独立对象存储灾难恢复和统一长测仍保持延期，不因本阶段完成而被改写为已通过。
 
 ## 7. 下一阶段接口
 
