@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
+cargo() {
+    local subcommand="$1"
+    shift
+    command cargo "$subcommand" --release "$@"
+}
 [[ "${PIXELS_PG_ISOLATED_TEST:-}" == 1 ]] || { echo 'Isolated harness required' >&2; exit 1; }
 repo="$(cd -- "$(dirname -- "$0")/../.." && pwd)"
 target="${XDG_CACHE_HOME:-${HOME}/.cache}/pixels-pg-cargo"
@@ -52,11 +58,11 @@ cargo build --offline --locked --manifest-path "$manifest" -p px_pg --bin px_db 
 for service in console auth desk; do
     key="PIXELS_TEST_${service^^}_RUNTIME_URL"
     export PIXELS_DATABASE_URL="${!key}"
-    "$target/debug/px_db" check "$service"
+    "$target/release/px_db" check "$service"
 done
-sha256sum "$target/debug/px_db"
-sha256sum "$target/debug/px_desk"
-sha256sum "$target/debug/px_auth"
-sha256sum "$target/debug/px_auth_admin"
-sha256sum "$target/debug/px_console_admin"
-sha256sum "$target/debug/px_cache_probe"
+sha256sum "$target/release/px_db"
+sha256sum "$target/release/px_desk"
+sha256sum "$target/release/px_auth"
+sha256sum "$target/release/px_auth_admin"
+sha256sum "$target/release/px_console_admin"
+sha256sum "$target/release/px_cache_probe"

@@ -71,6 +71,8 @@ if /I not "%BUILD_DIR%"=="%EXPECTED_BUILD_DIR%" (
 )
 set "BUILD_JOBS=%CPP_BUILD_JOBS%"
 if not defined BUILD_JOBS set "BUILD_JOBS=18"
+set "FAST_RELEASE=OFF"
+if /I "%BUILD_DISTRIBUTION%"=="development" set "FAST_RELEASE=ON"
 
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 set "VS_INSTALL_DIR="
@@ -107,6 +109,8 @@ if not exist "%PROTOC%" (
     exit /b 1
 )
 
+set "CONFIGURE_REQUIRED=0"
+if not exist "%BUILD_DIR%\build.ninja" set "CONFIGURE_REQUIRED=1"
 if exist "%BUILD_DIR%\build.ninja" if defined CPP_PRODUCT (
     findstr.exe /x /c:"PX_PRODUCT:STRING=%CPP_PRODUCT%" "%BUILD_DIR%\CMakeCache.txt" >nul 2>&1
     if errorlevel 1 (
@@ -118,22 +122,26 @@ if exist "%BUILD_DIR%\build.ninja" if defined CPP_PRODUCT (
         echo ERROR: %BUILD_DIR% is not configured for PX_DISTRIBUTION=%BUILD_DISTRIBUTION%.
         exit /b 1
     )
+    findstr.exe /x /c:"CMAKE_BUILD_TYPE:STRING=Release" "%BUILD_DIR%\CMakeCache.txt" >nul 2>&1
+    if errorlevel 1 set "CONFIGURE_REQUIRED=1"
+    findstr.exe /x /c:"PX_FAST_RELEASE:BOOL=%FAST_RELEASE%" "%BUILD_DIR%\CMakeCache.txt" >nul 2>&1
+    if errorlevel 1 set "CONFIGURE_REQUIRED=1"
 )
 
-if not exist "%BUILD_DIR%\build.ninja" (
-    echo C++ build tree does not exist; configuring CMake only: %CD%\%BUILD_DIR%
+if "%CONFIGURE_REQUIRED%"=="1" (
+    echo Configuring C++ Release tree: %CD%\%BUILD_DIR% ^(fast=%FAST_RELEASE%^)
     if defined CPP_PRODUCT (
-        cmake -S . -B "%BUILD_DIR%" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTARGET_TYPE=Official -DPX_PRODUCT=%CPP_PRODUCT% -DPX_DISTRIBUTION=%BUILD_DISTRIBUTION% %CPP_CMAKE_DISTRIBUTION_ARGS% -Wno-dev
+        cmake -S . -B "%BUILD_DIR%" -G Ninja -DCMAKE_BUILD_TYPE=Release -DPX_FAST_RELEASE=%FAST_RELEASE% -DTARGET_TYPE=Official -DPX_PRODUCT=%CPP_PRODUCT% -DPX_DISTRIBUTION=%BUILD_DISTRIBUTION% %CPP_CMAKE_DISTRIBUTION_ARGS% -Wno-dev
     ) else (
-        cmake -S . -B "%BUILD_DIR%" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTARGET_TYPE=Official -Wno-dev
+        cmake -S . -B "%BUILD_DIR%" -G Ninja -DCMAKE_BUILD_TYPE=Release -DPX_FAST_RELEASE=%FAST_RELEASE% -DTARGET_TYPE=Official -Wno-dev
     )
-    if errorlevel 1 exit /b %errorlevel%
+    if errorlevel 1 exit /b !errorlevel!
 )
 
 echo Incremental C++ build only. Build dir: %BUILD_DIR%, jobs: %BUILD_JOBS%
 echo Targets: %*
 cmake --build "%BUILD_DIR%" --parallel %BUILD_JOBS% --target %*
-if errorlevel 1 exit /b %errorlevel%
+if errorlevel 1 exit /b !errorlevel!
 
 echo DONE: %*
 endlocal

@@ -1,0 +1,211 @@
+{
+  "revision": "b6e7e8688114c6e3656dd45feac08668128a1998",
+  "reason": "Retire overdesigned distributed node update activation, trust reporting, and automatic Service updater; retain signed packages and independent overwrite installation.",
+  "files": [
+    {
+      "path": "docs/console_management_feature_parity.md",
+      "sha256": "8E4F589FDF718016138721A8E6A35E71D5C3F8A1CFD7FB2D69AA7C59C1FFCFC2",
+      "status": " M docs/console_management_feature_parity.md"
+    },
+    {
+      "path": "docs/postgresql_domain_contract.md",
+      "sha256": "828736461CAB50A5541B4396B7EA4A0772D8C8A6F113C3F1A961E4C4CA6A130F",
+      "status": " M docs/postgresql_domain_contract.md"
+    },
+    {
+      "path": "docs/product_build_and_usage.md",
+      "sha256": "87211FBCF96908739A042029748AC9F59B3982864F09448060F8AEC2534BD9A8",
+      "status": " M docs/product_build_and_usage.md"
+    },
+    {
+      "path": "docs/server_database_execution_status.md",
+      "sha256": "0E13C6F6934FA8AAE88E56C871470BD6155D88EE88FB4FCE1DB08081EA946C62",
+      "status": " M docs/server_database_execution_status.md"
+    },
+    {
+      "path": "docs/server_deployment_and_upgrade_plan.md",
+      "sha256": "95FDDB44109C9432A5DD903B4B9E6052940110021B75DA62F5FEFEFE117972AE",
+      "status": " M docs/server_deployment_and_upgrade_plan.md"
+    },
+    {
+      "path": "rust_client/px_service/Cargo.toml",
+      "sha256": "51039C4D4685B790B6C324DBEA2871130A71EC5FBB3EF4A55A9136342C96225A",
+      "status": ""
+    },
+    {
+      "path": "rust_client/px_service/src/main.rs",
+      "sha256": "DDA771854D5FCADB38B97CB62FA26A057482F439F7CD3837363A15727CA215D9",
+      "status": ""
+    },
+    {
+      "path": "rust_client/px_service/src/node_control_client.rs",
+      "sha256": "656D737D34BEE6E1CDD811F8862E730D6C37F0E7107D500727CA0A7EBE8C9D05",
+      "status": ""
+    },
+    {
+      "path": "rust_client/px_service/src/service_host.rs",
+      "sha256": "A94933A52F785D614190C245B7712662474F6D98ACF14B9EF3EB3BF516BE4D7B",
+      "status": ""
+    },
+    {
+      "path": "rust_client/px_service/src/update_activation.rs",
+      "sha256": "C702EE73A0DD4A5FCB8E5EE1040BA414D324BA5EC42A6466F9724F9E4E2961E9",
+      "status": ""
+    },
+    {
+      "path": "rust_client/px_service/src/update_preparation.rs",
+      "sha256": "C224A534C9934B1FC5DD196D64F0E5733BE584CDD086D4052D2EC5BA29251389",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/migrations/0019_update_catalog.sql",
+      "sha256": "A284C649099C239B1892D426083E2FF40FD2AB4A949906BFF87B48C06C6ED0A7",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/runtime/src/node_api.rs",
+      "sha256": "DA732534ABF6BF1634548FBC5516D53BA18D3C21466D893B7B72D076753A4E55",
+      "status": " M rust_server/px_console_server/runtime/src/node_api.rs"
+    },
+    {
+      "path": "rust_server/px_console_server/runtime/src/update_api.rs",
+      "sha256": "4915430BAC8815009B75367E7E589D72329A7E8BA5812C4C284D8F6038A141A8",
+      "status": " M rust_server/px_console_server/runtime/src/update_api.rs"
+    },
+    {
+      "path": "rust_server/px_console_server/runtime/tests/node_control.rs",
+      "sha256": "03589D8644DA3F495D6069380FAA4781C482745CBE00A7FAAA7F1C6056BE5366",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/storage/queries/active_node_update_activation.sql",
+      "sha256": "2C0DCFBA7D574DA43901A8321408FF2C74E61CC72AE3E59CC0E33D59025397EF",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/storage/queries/complete_node_update_activation.sql",
+      "sha256": "42AF876F26CA7FFFE90BA3BFD581798641D8E72877DDFFE352BB14B609620498",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/storage/queries/create_node_update_activation.sql",
+      "sha256": "FB7D3E12DB943D5613C1641E737868546585274AB212AE651F8A682C289D245D",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/storage/queries/expire_node_update_activation.sql",
+      "sha256": "7DCE8D7315E78DF4D26E5BC8C64F0A22DCC326058E100DCB5E30A9370F771C86",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/storage/queries/lock_node_update_activation.sql",
+      "sha256": "D1569F30B5F2A49557EE2BF5C67DF101FAC6B10AFC1CC04CBE39E60A2F8F4260",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/storage/queries/node_update_activation_status.sql",
+      "sha256": "0D8F0E5C7F12DE6ACD7A0053418CC86A66A7A9A548D897FE155FF0CCB0AAA0E6",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/storage/queries/node_update_trust_statuses.sql",
+      "sha256": "D388C500042FDB4C63CE2416235770B341214A9F62EDFBB9E39A7FD84DE37B09",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/storage/queries/node_update_trust_summary.sql",
+      "sha256": "3F7E80EB4C0ECA3ABC5BF4BC4B99D9B114A539776498E40FBE13A279E25B8833",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/storage/queries/record_node_update_trust.sql",
+      "sha256": "2CEF2A1CF9C437DA7AB98F5E7D65CEDCBFFD45704082AA29E7231500387F7DA0",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/storage/queries/reserve_instance.sql",
+      "sha256": "D6AE5CEE2D12D878393D29F86B44526AF5E3E31C9D9D9644DC8941D15FBA7E21",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/storage/queries/start_command_eligible.sql",
+      "sha256": "7B0C78A6CA80A66E897255B737B6212129EC743A89544D5255388B67A42F53AA",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/storage/src/lib.rs",
+      "sha256": "526C4BD93AE6B3F4ABBED82BB0F721162902A56F86D41A737000570AF7527A91",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/storage/src/nodes.rs",
+      "sha256": "38B037BA0C6620A4CBE9EC95D050CC3F1A1DA06E680E4D6F8EB436F9FE6ED7E1",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/storage/src/update_model.rs",
+      "sha256": "F013C69365FBF6496F132388C81286AC2A4F346A0A8A09018DDEA8E062E9B818",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/storage/src/updates.rs",
+      "sha256": "D97AFDD7C9652F94224158FECC8DB9B852B2E1646D723EDCEC358B7C80518B13",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/storage/tests/updates.rs",
+      "sha256": "ACA41E80FB9202C24E929CAE1CD51793D132D60BD15E043AEC75CA95512BB425",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_node_protocol/src/lib.rs",
+      "sha256": "174564F20666FE2F484535546304266B7E7E223E7A11E99A9F571ECC65E2DE6E",
+      "status": ""
+    },
+    {
+      "path": "web/px_console/src/locales/en.ts",
+      "sha256": "AB35DA09E1086AACBE3334AEA043ED996EFBBE70CC1638B2D1F86175F3C6B4AB",
+      "status": ""
+    },
+    {
+      "path": "web/px_console/src/locales/zh.ts",
+      "sha256": "461567EDF8EE52181E6098FEF309CB4C8AF4F997C88A3A2319C87B5EE5DFEC48",
+      "status": ""
+    },
+    {
+      "path": "web/px_console/src/model/managed_update_api.test.ts",
+      "sha256": "D765215B791C2BA025323F8BEA3540A818DB6BC608628A4FEA24F5ACEA855059",
+      "status": ""
+    },
+    {
+      "path": "web/px_console/src/model/managed_update_api.ts",
+      "sha256": "705BA6F2EAC62241630B94FD12E9066EB40DA47BC435FB6972CE97EC919BC2CE",
+      "status": ""
+    },
+    {
+      "path": "web/px_console/src/views/AppsView.vue",
+      "sha256": "2BA09FECBABF8C80D00EF617F3BBF11A0381D2F4569D0478CA1B67AC99300BC7",
+      "status": ""
+    },
+    {
+      "path": "web/px_console/src/views/apps/UpdateTrustCard.vue",
+      "sha256": "603A65A4CAA18C692611B84476DA1C735B8BED2109A11FCB23DEF7A9FBF32C7E",
+      "status": ""
+    },
+    {
+      "path": "web/px_pixels/src/locales/en.ts",
+      "sha256": "F50C8F65E9C377F0A91DEBC279B1482F808998D4E7A488D2876BF9520A3A5299",
+      "status": ""
+    },
+    {
+      "path": "web/px_pixels/src/locales/zh.ts",
+      "sha256": "AA69BDC44389CB5F84843578EA747D22B27EDACA13852CA80325B00B90E199DA",
+      "status": ""
+    },
+    {
+      "path": "web/px_pixels/src/views/PriceView.vue",
+      "sha256": "651C3785DB007FD3435C3361B2503CEB8103083F8746FAD0E26C7DFE892F38C4",
+      "status": ""
+    }
+  ]
+}

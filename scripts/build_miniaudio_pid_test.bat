@@ -40,7 +40,7 @@ if not "%VC_TOOLS_DIR%"=="" (
     set "INCLUDE=!VC_MSVC_DIR%\include;%INCLUDE%"
 )
 
-cmake -S . -B "%BUILD_DIR%" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTARGET_TYPE=Official -DPX_PRODUCT=%PRODUCT% -Wno-dev
+cmake -S . -B "%BUILD_DIR%" -G Ninja -DCMAKE_BUILD_TYPE=Release -DPX_FAST_RELEASE=ON -DTARGET_TYPE=Official -DPX_PRODUCT=%PRODUCT% -Wno-dev
 if errorlevel 1 exit /b %errorlevel%
 
 cmake --build "%BUILD_DIR%" --target test_miniaudio_pid_loopback -j%JOBS%

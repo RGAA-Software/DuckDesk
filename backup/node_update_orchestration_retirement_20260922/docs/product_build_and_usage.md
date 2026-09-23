@@ -1,0 +1,427 @@
+# Pixels 产品编译、产物与使用说明
+
+状态：当前唯一有效流程
+适用产品：Pixels Cloud Node、Pixels Client、Pixels Remote、Pixels Android
+
+Pixels 发布矩阵只生成 `official` 与 `customer`。OEM 是独立发行线，不得通过修改现有 Customer 的名称、图标、URL 或清单后交付；现有双发行
+矩阵继续保持两项。Windows 与 Android 均已有独立 OEM 构建入口，Android、Web 与 Windows 原生 Panel/Client 均已消费 profile 品牌，但 OEM 商业交付仍
+保持关闭，直到使用审批密钥的独立 TUF 正式发布、激活任务和跨 Official/Customer/其他 OEM 的完整实物拒绝矩阵全部通过。测试夹具已经覆盖 OEM
+target 的权威签发、Service 验签/准备，以及同一制品替换成另一合法 OEM 身份时的安装前拒绝；该代码证据不能代替正式密钥、正式仓库和签名安装包验收。
+服务端发布目录和 Auth `PXLIC2` 许可证能够表达 `oem.<oem_id>`；客户端不解析许可证，也不再维护自定义部署证书/描述/挑战协议。
+独立 OEM 构建入口只生成待验收候选，不会发布 TUF、激活节点或开放商业交付；这些发行能力不能用于
+手工拼装 OEM 包，也不改变 Pixels 双发行构建命令。
+
+OEM 构建配置使用 `PIXELS_OEM_RELEASE_PROFILE` 指向的 schema 1 UTF-8 JSON，作为该 OEM 的唯一非秘密
+发行描述；Windows OEM 预检不再接受裸 `PIXELS_OEM_ID`。描述必须同时固定 `oem_id/release_namespace`、品牌名、三个
+Windows 产品各自的显示名/安装目录/卸载键/安装包 basename、Windows 和 Android 签名证书 SHA-256、独立 Android applicationId、
+Windows/Android/Web 品牌图标及逐件 SHA-256、TUF 初始 root SHA-256。会进入原生字符串资源的公司名、应用名、
+Windows 产品名还不得包含引号或反斜杠。资源路径只能位于描述文件目录内；缺项、多余字段、路径逃逸、资源篡改、复用 Pixels 品牌/applicationId、
+重复 Windows 安装身份或根摘要不一致均在产生策略前失败。Official/
+Customer 构建反向拒绝该变量，避免 OEM 配置污染 Pixels 双发行矩阵。Windows/Android OEM 产物均由独立入口生成；商业交付仍保持关闭。
+
+Windows OEM 正式编排入口把 CMake/`collect_dist.py`/NSIS 和独立安装包复核串为一个升版事务，OEM 输出固定隔离到
+`build_official/<product>/oem/<oem_id>/`，CMake 产品水位使用 schema 2，dist 与 installer manifest 使用 schema 3 并携带精确发行域和
+profile SHA-256；OEM 公司名、图标、产品显示名、安装目录、卸载键、安装包 basename 与签名证书固定值不能在后段覆盖。安装器用共享受保护
+owner 记录维持三个 Windows 产品及所有发行互斥，同时同一 product/domain/install identity 才允许覆盖安装。installer release verifier 和
+TUF ReleaseSpec 也把 OEM ID 纳入升级相等性和不可变 target 路径。Windows 原生 Panel/Client 的窗口、标题栏、托盘、通知、错误提示、关于页、
+截图/日志目录和 PE 元数据均使用编译期品牌；Client 不再绕过 profile 使用固定 ICO，Web PNG 同时作为三档桌面运行 Logo。未使用的顶层
+`resources/icons/px_icon.png` 已从构建、发布和 dist manifest 删除，运行时只读取 `resources/icons/brand/`。禁止绕过正式入口直接调用底层参数
+拼装交付包。
+
+Web Client 的 OEM 品牌消费现已接通应用名、PNG 图标和 profile SHA-256：HTML/运行标题、加载页与浮球共用同一构建值，非 OEM 构建拒绝 OEM
+环境输入。日常 development Web 产物使用 `scripts_build/publish_web_client_development.ps1` 同步到 Cloud Node/Remote 独立沙箱，脚本逐文件
+核对源目录、产品 `web` 目录和 `dist/web_client` 的 SHA-256，随后刷新并完整验证产品 manifest。OEM Web 只能由 Windows OEM 产品入口注入；
+正式跨产品签名矩阵未完成前不得交付 OEM 包。
+
+旧的根 CMake 树、公共 `build_official/dist`、共享 Rust 编译产物、`build_client.bat`、旧端口和旧节点测试方案均已退役，不提供兼容入口。
+
+## 1. 产品与目录
+
+所有生成内容都位于对应产品的独立沙箱：
+
+```text
+build_official/
+├── cloud_node/{cmake,dist}/                         # 日常聚焦开发
+│   ├── {official,customer}/{cmake,cargo,web,rdp_policy,update,dist,installer,reports}/
+│   └── oem/<oem_id>/{cmake,cargo,web,rdp_policy,update,dist,installer,reports}/
+├── client/{cmake,dist}/                             # 日常聚焦开发
+│   ├── {official,customer}/{cmake,cargo,update,dist,installer,reports}/
+│   └── oem/<oem_id>/{cmake,cargo,update,dist,installer,reports}/
+├── remote/{cmake,dist}/                             # 日常聚焦开发
+│   ├── {official,customer}/{cmake,cargo,web,rdp_policy,update,dist,installer,reports}/
+│   └── oem/<oem_id>/{cmake,cargo,web,rdp_policy,update,dist,installer,reports}/
+└── android/
+    ├── {official,customer}/{gradle,native,dist,reports}/
+    └── oem/<oem_id>/{gradle,native,dist,reports}/
+```
+
+- `cmake`：该 Windows 产品专属 CMake/Ninja 构建树。
+- `cargo`：该产品专属 Rust target 和 staging；产品之间不复用已编译二进制。
+- `web`：Cloud Node 或 Remote 专属 Web Client 构建结果。
+- `rdp_policy`：Cloud Node 或 Remote 专属 RDP Policy 构建树。
+- `dist`：可运行的完整产品目录，也是安装包唯一输入。
+- `installer/<version>`：Windows 安装包和安装包清单。
+- `gradle`、`native`：Android Gradle 与 CMake/NDK 输出。
+- `reports`：产品专属测试和验收报告。
+
+下载缓存、依赖源码和工具链缓存可以共享；任何已编译产品文件不得跨产品目录读取。
+
+Windows Rust 使用仓库 `rust_client/.cargo/config.toml` 中的 MSVC `/Brepro`。Cloud Node 与 Remote 即使在各自独立的
+`CARGO_TARGET_DIR` 构建，共享 Service 在源码、依赖、编译参数和 revision 相同时也必须得到相同 SHA-256；构建、stage、dist
+三层必须逐文件核对。产品清单只由完整产品构建从干净沙箱生成，聚焦构建不得用“重写清单”掩盖 dist 中其他文件的漂移。
+
+Cloud Node 与 Remote 的 Official/Customer Web Client 也是发行绑定制品，不是可在两种发行之间复制的通用静态目录。完整矩阵构建从对应
+对应发行沙箱构建并注入产品 build 水位；缺少发行输入或非正 build 会在 Vite 构建阶段失败关闭。
+正式 bundle 只接受带 `console_origin` 的 Console 资源启动描述符，并直接使用标准 HTTPS 连接 Console 与权威 Render 端点。
+未来 OEM Web/Windows/Android 产物必须从其 OEM 专属沙箱生成，并携带同一 OEM 命名空间；不得读取 Official/Customer 的已编译 bundle、
+update root 或安装清单。
+
+## 2. 完整编译规则
+
+完整产品构建每次执行以下行为：
+
+1. 在任何清理或升版前验证签名 TUF 初始根和规范 Official HTTPS origin；
+2. 删除目标产品整个旧沙箱；
+3. 只递增目标产品自己的版本号一次；
+4. 从干净目录分别构建同版本 Official 与 Customer 的全部 C++、Rust、Web、RDP 产物；
+5. 用严格白名单重新生成两套完整 `dist`，分别写入签名 TUF 初始根；
+6. 校验 product、distribution、制品清单、SHA-256，并拒绝任何 ZLMediaKit/Coturn 退役文件名或组件目录；
+7. 分别生成支持覆盖安装、同发行升级和卸载的安装包。跨 Official/Customer 覆盖会要求先卸载。
+
+在仓库根目录 `D:\GoCloud\GammaRayPremium` 执行。不要从旧目录复制文件拼装产品。
+
+### 2.1 一次完整构建四个产品
+
+```bat
+scripts_build\build_all_products.bat
+```
+
+执行顺序为 Cloud Node、Client、Remote、Android Release；任一步失败立即停止。四个产品均独立升版。
+
+### 2.2 只完整构建一个 Windows 产品
+
+```bat
+scripts_build\build_official.bat cloud_node
+scripts_build\build_official.bat client
+scripts_build\build_official.bat remote
+```
+
+等价的直接入口为：
+
+```bat
+scripts_build\build_cloud_node.bat
+scripts_build\build_client_product.bat
+scripts_build\build_remote_product.bat
+```
+
+这些都是发布级完整构建；每条命令一次升版并同时构建 Official/Customer，不接受旧的 `full`、`incremental` 或 `reconfigure` 参数。
+
+Cloud Node/Remote 安装器会在每次成功覆盖时把当前完整安装包保存到受保护的机器更新缓存，供下一次升级失败时精确回滚。缓存 ACL 只允许
+SYSTEM 和本机管理员，Service 在授权升级前记录并保护旧包 SHA-256 及当前产品清单中的签名证书 DER SHA-256；新包的签名证书固定值由
+Console 审批记录与 TUF `pixels` 元数据共同绑定。runner 使用前既复核 Authenticode 链，也精确比对对应证书固定值。安装、覆盖升级、自动更新、回滚和
+卸载共用一个全局安装互斥锁；并发操作返回 Windows Installer busy（1618），不会同时改写安装目录或回滚点。
+OEM Host 的回滚缓存文件名额外绑定 `oem_id`；Service 的激活记录使用 schema 3 并固定 release namespace、OEM ID、不可变 profile SHA-256 和
+公司身份。安装完成后的 manifest 少一项、替换另一 OEM，或残留另一 OEM 的回滚包都不能被报告为安装成功。开发基线的旧 schema 2 激活记录不读取。
+
+执行前必须设置 `PIXELS_UPDATE_ROOT_FILE` 和 `PIXELS_OFFICIAL_CONSOLE_URL`。Official 把该 HTTPS origin 编译为固定入口；Customer
+把同一 origin 编译为禁止填写的官方入口，不提供任何自动回退。`PIXELS_UPDATE_ROOT_FILE` 必须是离线审批并签名的 TUF 1.0 初始根；Official 和 Customer
+都内置同一 Pixels 更新信任根，Customer 可使用自己的镜像地址，但不能以私有描述或重签方式改变制品发行属性。预检失败不会删除现有产物，
+也不会消耗版本号。
+
+Windows 正式构建还必须设置以下代码签名输入：
+
+- `PIXELS_WINDOWS_SIGNING_CERT_SHA1`：Windows `My` 证书存储中证书的精确 SHA-1 选择值；
+- `PIXELS_WINDOWS_SIGNING_CERT_SHA256`：审批记录中的证书原始 DER SHA-256 固定值，防止只凭较弱选择值误签；
+- `PIXELS_WINDOWS_SIGNING_STORE`：只能是 `current_user` 或 `local_machine`；
+- `PIXELS_WINDOWS_TIMESTAMP_URL`：无凭据的 HTTPS RFC 3161 时间戳地址；
+- `PIXELS_WINDOWS_SIGNTOOL`：可选的固定 `signtool.exe` 路径，未设置时使用 PATH 或已安装 Windows SDK。
+
+私钥必须已经由 Windows 证书存储、硬件令牌或构建机密钥提供者安全暴露给该证书；构建脚本不接受 PFX 密码参数，也不把私钥或密码写入
+命令行。清理和升版前的预检会核对双指纹、私钥可用性、代码签名 EKU、证书有效期、HTTPS 时间戳配置、SignTool 以及固定 NSIS 版本。
+正式 `dist` 中所有 Pixels 自有 PE、生成的 `Uninstall.exe` 和最终 Setup 均须使用同一审批证书签名并带时间戳，随后由 SignTool 和
+PowerShell 独立复核签名状态、签名者 SHA-256 与时间戳；任一项失败都不发布版本目录。
+
+仓库固定 NSIS 3.12（正式签名卸载器至少需要 3.08，项目要求不低于 3.11 的 SYSTEM 安全修复基线）。安装器直接封装已验证的 `dist`，
+不再使用旧 `Nsis7z`/`nsProcess` 插件和额外 `app.7z` 层；工具包按 vendored 字节处理，不能在提交时自动换行或格式化。
+
+### 2.2.1 独立构建 Windows OEM 候选
+
+先设置该 OEM 审批后的 profile、独立 TUF 初始 root 和 Windows 签名输入。可先执行不清理、不升版的预检：
+
+```bat
+set PIXELS_OEM_RELEASE_PROFILE=D:\secure\north-star\oem-release-profile.json
+scripts_build\build_windows_oem_product.bat cloud_node preflight
+scripts_build\build_windows_oem_product.bat client preflight
+scripts_build\build_windows_oem_product.bat remote preflight
+```
+
+正式候选逐产品独立升版和构建：
+
+```bat
+scripts_build\build_windows_oem_product.bat cloud_node
+scripts_build\build_windows_oem_product.bat client
+scripts_build\build_windows_oem_product.bat remote
+```
+
+每次调用只清理 `build_official/<product>/oem/<oem_id>/`，不会删除该产品 development、Official、Customer 或另一 OEM 的产物。入口从已验证
+profile 派生 OEM ID、品牌、图标、安装身份和签名 pin，构建 OEM Web/RDP/C++ 完整 dist，签名安装器后再独立复核安装包目录。任何预检失败都发生在
+清理和升版前。该入口不生成或发布 TUF 仓库、不向 Console 登记版本、不批准激活，也不把候选标记为商业可交付；这些步骤继续经过第 2.2.2 节的
+独立审批边界和实物验收矩阵。
+
+### 2.2.2 TUF 离线发布权威
+
+`px_update_authority` 是明确离线运行的更新仓库生成工具，不是在线服务，也不会上传、覆盖或切换正在提供服务的仓库。入口为：
+
+```bat
+cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority -- generate-key
+cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority -- create-root
+cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority -- rotate-root
+cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority -- publish
+cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority -- promote-filesystem
+cargo run --locked --manifest-path rust_server/Cargo.toml -p px_update_authority -- prepare-console-registration
+```
+
+`generate-key` 每次只通过 `PIXELS_TUF_KEY_OUTPUT` 创建一个新 Ed25519 PKCS#8 私钥，父目录必须已经按生产私钥目录限制权限，已有文件绝不覆盖。
+正式初始根至少使用 2 个、至多 5 个独立 root key，门限不得低于 2；targets、snapshot、timestamp 各用一个彼此及 root 都不同的 key。
+`create-root` 的输入为：
+
+- `PIXELS_TUF_ROOT_SIGNING_KEYS`：root 私钥绝对路径的 JSON 数组；
+- `PIXELS_TUF_ROOT_THRESHOLD`、`PIXELS_TUF_ROOT_VERSION`、`PIXELS_TUF_ROOT_EXPIRES_AT`；
+- `PIXELS_TUF_TARGETS_SIGNING_KEY`、`PIXELS_TUF_SNAPSHOT_SIGNING_KEY`、`PIXELS_TUF_TIMESTAMP_SIGNING_KEY`；
+- `PIXELS_TUF_ROOT_OUTPUT`：不存在的输出文件，时间使用带时区的 RFC 3339。
+
+`rotate-root` 额外要求 `PIXELS_TUF_CURRENT_ROOT_FILE` 和旧 root 私钥绝对路径 JSON 数组
+`PIXELS_TUF_CURRENT_ROOT_SIGNING_KEYS`；其余 root/角色 key、门限、到期和输出变量代表新根。版本只能由工具在当前版本上加一，新到期时间必须
+晚于当前 root。输出必须同时达到旧 root 门限和新 root 门限，工具会分别用旧、新 root 验证后才创建；只持新 key 生成的自签 root 会被拒绝。
+将轮换 root 作为 `<version>.root.json` 与仓库元数据按版本顺序发布并等待客户端水位推进后，才能离线撤去旧 key；不能用新 root 直接替换
+客户端内置的初始 root。
+
+`publish` 需要上述三个在线角色私钥，以及 `PIXELS_TUF_ROOT_FILE`、`PIXELS_RELEASE_SPEC_FILE`、`PIXELS_RELEASE_ARTIFACT`、
+`PIXELS_TUF_REPOSITORY_OUTPUT`、三个 `PIXELS_TUF_*_EXPIRES_AT`。追加发布时还必须给出 `PIXELS_TUF_PREVIOUS_REPOSITORY`。工具验证 root 自签门限、
+角色密钥隔离、到期顺序、ReleaseSpec、制品大小/SHA-256、历史仓库全部签名和全部历史目标字节；历史 target 的签名 Pixels 身份必须全部与
+新发布的 `distribution/release_namespace/oem_id` 一致，同一仓库可承载同发行域的多产品/多版本，但不能混入 Official、Customer 或另一 OEM。
+角色版本自动严格递增。每个 target name 永久
+不可复用，输出目录也不可覆盖。轮换后的第一次追加发布要求新 root 恰为上一仓库 root 的 `N+1` 且同时满足旧、新门限；新候选保留连续
+版本化 root 链，并从最早保留根重新验证整库，禁止把自签新根直接接到旧仓库。新输出在同父目录的随机 staging 中完整生成并由正式 `tough`
+客户端重新下载验证目标后才一次重命名提交，包含
+`metadata/`、`targets/` 和带 root/release 摘要及角色版本的 `publication.json`。
+
+Windows 的 `PIXELS_RELEASE_SPEC_FILE` 不手工抄写。从正式安装器版本目录生成：
+
+```bat
+python scripts\prepare_windows_update_release.py ^
+  --release-directory <build_official\product\distribution\installer\version> ^
+  --approved-signer-sha256 <外部审批的证书DER SHA-256> ^
+  --metadata-base-url https://updates.example/metadata/ ^
+  --targets-base-url https://updates.example/targets/ ^
+  --channel stable ^
+  --output <不存在的绝对release-spec.json路径>
+```
+
+该入口复用独立安装包验证器，重新检查 installer manifest、制品 SHA-256、Authenticode、时间戳和外部 signer pin，并从已验证事实生成固定的
+`windows/product/distribution/[oem_id/]channel/x86_64/build/installer` target name；输出使用排他创建且不覆盖。TUF 发布权威会再次从 spec
+派生并逐段复核这一路径，不能靠手工 JSON 把 Official、Customer、另一 OEM 或另一 build 的制品签入错误目录。生成后的 spec 和同一 installer 文件才交给
+`px_update_authority publish`，因此 TUF 发布不能靠修改 JSON 把另一产品、发行、build 或签名者带入目录。
+该路径规则由共享 release catalog 提供，发布权威、promotion 和 Windows Service 消费同一校验；节点不会把错误维度的普通安全相对路径当作合法 target。
+Desk 发布目录与 Console 审批目录也在写入前执行同一规则，Console 读回持久记录时再次校验；人工登记不能绕过生成器把错域路径留在数据库中。
+
+该命令只生成一个不可变候选目录。发布系统还必须把候选同步到独立临时位置、核对 `publication.json`，先提交 targets 与非 timestamp 元数据，
+最后原子切换 `timestamp.json`；不能直接对线上目录运行本工具。root 私钥保持离线，日常 `publish` 不接触 root 私钥。正式 Windows ReleaseSpec
+中的 `platform_signer_sha256` 必须来自已独立验证的安装器 manifest 和审批证书固定值，不能由仓库地址或 TUF 在线角色密钥替代。
+
+`promote-filesystem` 用于部署主机上的本地或挂载式静态源站目录，不执行 SSH、对象存储 API 或 CDN 刷新。必须提供绝对路径
+`PIXELS_TUF_CANDIDATE_REPOSITORY`、`PIXELS_TUF_LIVE_REPOSITORY`，以及审批系统在传输外独立固定的候选
+`publication.json` 小写 SHA-256：`PIXELS_TUF_APPROVED_PUBLICATION_SHA256`。首次发布先在 live 同父目录复制并完整验签，再用目录重命名提交；后续只接受
+三个在线角色版本各加一、历史目标不变且 root 链相同或追加一个合法根的下一代候选。promotion 会独立复核 manifest target 的不可变路径，并检查
+候选内所有签名 target 都属于 manifest 的精确发行域，因此由其他工具或误用同一角色 key 产生的混域候选也不能上线。执行器先发布不可变 targets/root，再逐文件原子切换
+`targets.json`、`snapshot.json`，最后切换 `timestamp.json` 和审计清单。切换前写入持久 `promotion.pending.json`；进程或主机在任一步中断后，必须用
+同一候选和同一审批 SHA 续跑，另一候选会 fail closed。成功后执行器重新从初始根加载线上目录、验证全部目标并删除 journal。
+
+源站发布成功后，调用 `/api/console/managed/updates` 登记同一 `publication.json` 中的 `release`，请求体除 `request_id` 和 `artifact` 外必须包含
+`repository_publication_sha256` 与 `repository_root_version`。前者是上述带外审批的小写 SHA-256，后者是工具从已验证的完整 root 链取得的末端版本；
+二者均作为不可变发布事实保存并与制品正文共同计算幂等摘要，同一 `request_id` 不能偷换仓库代际或根版本。登记仍只产生 `pending`，管理员应在
+源站验证和业务审批后显式 approve；不能把登记成功视为 TUF 验签或安装授权。
+
+不要人工拼装该请求。`prepare-console-registration` 要求 `PIXELS_TUF_LIVE_REPOSITORY`、非零 UUID
+`PIXELS_TUF_CONSOLE_REQUEST_ID` 和位于仓库外、尚不存在的绝对路径 `PIXELS_TUF_CONSOLE_REGISTRATION_OUTPUT`。工具拒绝仍有
+`promotion.pending.json` 的源站，重新从初始根验证元数据和全部目标，再排他生成可直接作为登记请求体的 JSON；重复执行不会覆盖已有审批文件。
+不要手工补 `repository_root_version`。节点更新检查始终携带当前已批准仓库描述，即使已安装 build 等于最新 build；Service 仍会用本机初始根、持久
+TUF datastore 和安全有效期策略刷新元数据。只有实际验签达到登记根版本后才向 Console 回报该发布代际的信任事实，包下载与激活仍是另一条门禁。
+管理员可查询 `GET /api/console/managed/updates/{id}/node-trust`。只有 `unknown_or_behind_node_count=0` 且最低确认版本达到要求，才具备继续评估旧根退役的
+必要条件；这不是自动退役授权。统计包含所有未删除的同产品节点（包括离线和禁用节点），并拒绝查询当前 Console 发行域之外的发布记录。
+具体节点通过 `GET /api/console/managed/updates/{id}/node-trust/nodes?limit=100&after=<uuid>` 按稳定 UUID 游标分页；响应包含节点状态、禁用标记、
+最后在线时间、实际确认的发布/摘要/根版本和确认时间。运维必须处理完整分页，不能只检查第一页或只看在线节点。
+
+### 2.3 完整构建 Android
+
+```bat
+scripts_build\build_android_product.bat official fast-release
+scripts_build\build_android_product.bat official fast-release install
+scripts_build\build_android_product.bat customer fast-release
+scripts_build\build_android_product.bat customer fast-release install
+scripts_build\build_android_product.bat release
+set PIXELS_OEM_RELEASE_PROFILE=D:\secure\north-star\oem-release-profile.json
+scripts_build\build_android_product.bat oem fast-release
+scripts_build\build_android_product.bat oem fast-release install
+scripts_build\build_android_product.bat oem release
+```
+
+- `fast-release`：执行 Release lint、Release 单元测试并生成完整签名 APK；关闭 R8/资源压缩，native 使用 O1，供日常短测。
+- `fast-release install`：使用 `adb install -r` 覆盖安装，不卸载现有应用。
+- `release`：一次预检和一次升版后，为 Official/Customer 生成同版本的签名 APK、AAB、mapping、native symbols、LGPL relink 材料和发布清单；
+  每份 APK/AAB 的 ZIP 条目还必须通过 ZLMediaKit/Coturn 退役组件审计，只有两边均通过才生成根 `release-matrix.json`。
+
+单发行 fast Release 每次调用先删除自己的旧沙箱并提升 Android 版本一次；正式 Release 先同时预检两个发行，再删除整个 Android 输出，且只提升
+Android 版本一次。任何缺失的身份、签名或 FFmpeg 合规输入都会在清理和升版前失败。旧的单发行 Release 调用不再提供兼容入口。
+
+所有 Android fast Release/正式 Release 产品构建还必须设置 `PIXELS_UPDATE_ROOT_FILE`，指向离线审批并签名的 TUF 1.0 初始 root。缺少文件或根文档结构不完整时，
+预检会在清理与升版前失败。该 root 以 BuildConfig 资源进入 APK，并在应用组合根创建时验证 Ed25519 key ID、自签门限、四个顶级角色、角色密钥隔离、
+版本和到期时间；OEM 构建还要求文件 SHA-256 与 profile 的 `update.root_sha256` 完全一致。不得从 Console 或下载源动态取得初始根。
+
+OEM 不加入上述双发行 Release 事务，而是在 `build_official/android/oem/<oem_id>/` 独立清理、升版和发布。OEM 入口只接受
+`PIXELS_OEM_RELEASE_PROFILE`，并校验独立 applicationId、应用名、前景/背景 PNG、`oem_id/release_namespace`、
+profile SHA-256 以及 Release 签名证书固定值；Pixels Official/Customer 反向拒绝所有 OEM 输入。OEM fast Release/正式 Release 均不能读取 Pixels 两个发行的
+已编译资源或改用 Pixels 签名。应用名同时用于中英文页面、账号/关于/隐私、通知、诊断、剪贴板和远控浮层；OEM Splash、launcher/round icon 与
+通知图标均使用 profile 品牌资源。签名域、协议头和开源法律声明仍保持 Pixels 技术/权利人标识，不属于可换品牌 UI。
+
+`official` 固定编译时的 HTTPS Console origin，设置页不提供服务器编辑；`customer` 使用独立 applicationId 和输出沙箱，
+允许用户填写自己的私有 HTTPS Console，但拒绝编译时记录的 Official origin。两类构建都必须内置审批后的 TUF 初始 root。
+
+Release 必须使用上述统一入口，不能直接调用 Gradle 的 `assembleRelease`/`bundleRelease`。流水线从当前 Android native 构建实际产生的对象自动生成 LGPL relink kit，并根据 `VCPKG_ROOT`（默认 `C:\source\vcpkg`）中已安装的 SPDX 清单锁定和校验 FFmpeg n6.1 对应源码；不再手工提供旧源码包或旧 relink 包。正式签名来自被 Git 忽略的 `src/px_android/keystore.properties`，也可由完整的 `PIXELS_*` 签名变量提供。
+
+## 3. Windows 产物与运行
+
+完整构建成功后从对应 `dist` 启动，不得使用 CMake 树里的 EXE 作为产品验收入口：
+
+```bat
+build_official\cloud_node\official\dist\px_panel.exe
+build_official\cloud_node\customer\dist\px_panel.exe
+build_official\client\official\dist\px_panel.exe
+build_official\client\customer\dist\px_panel.exe
+build_official\remote\official\dist\px_panel.exe
+build_official\remote\customer\dist\px_panel.exe
+```
+
+产品边界：
+
+- Cloud Node：完整节点能力，包含云应用、桌面 Host、Render、Service、RDP、WebView、Game Hook 和浏览器远控。
+- Client：控制端，包含云应用访问入口，不安装 Service、Render、虚拟显示或手柄组件。
+- Remote：桌面远控 Host，不包含云应用、Game Hook、WebView 或 CEF。
+
+三个 Windows 产品不能共存。安装器发现其他产品或手工安装的开发版 Service 时，会要求先卸载并终止安装；不会自动兼容、接管或迁移旧产品。
+
+安装包位置：
+
+```text
+build_official/<product>/<official|customer>/installer/<version>/
+```
+
+安装、升级或覆盖安装使用对应版本的 `PixelsCloudNode_<distribution>_*_Setup.exe`、`PixelsClient_<distribution>_*_Setup.exe` 或
+`PixelsRemote_<distribution>_*_Setup.exe`。安装器在注册表记录发行身份；同产品不同发行不能直接覆盖，须先卸载。卸载使用 Windows“已安装的应用”或产品卸载程序。
+
+正式签名包先做只读的新旧版本预检：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate_windows_installer_lifecycle.ps1 `
+    -ExpectedProduct client `
+    -ExpectedDistribution official `
+    -PreviousReleaseDirectory build_official/client/official/installer/<old-version> `
+    -CurrentReleaseDirectory build_official/client/official/installer/<new-version> `
+    -ConflictReleaseDirectory build_official/remote/official/installer/<current-version> `
+    -ApprovedPreviousSignerSha256 <approved-old-certificate-sha256> `
+    -ApprovedCurrentSignerSha256 <approved-new-certificate-sha256> `
+    -ReportPath build_official/client/reports/official-installer-lifecycle.json
+```
+
+该命令强制从命令行接收预期产品、预期发行和两个外部审批的证书 SHA-256，拒绝把相邻 manifest 的自我声明当成信任根，也拒绝用另一个
+合法签名的 Pixels 产品/发行替换目标；随后验证两个安装器的 schema、产品/发行、
+严格递增版本、安装器 SHA-256、Authenticode 状态和时间戳。无证书轮换时两个审批值相同，续期时分别给出旧值和新值；默认绝不安装或
+卸载。只有在专用、已提升权限且确认三个 Pixels 产品和 `px_service` 均不存在的干净 Windows 验收机上，才增加
+`-ExecuteLifecycle`。执行态依次验证旧版安装、同发行升级、同版覆盖、安装目录精确文件集及逐件 hash、自研 PE 与卸载器签名、Service 产品
+边界和最终卸载清理。提供另一产品的正式包时，还会先安装该产品，要求目标安装返回 1638 且原产品逐件不变，再清洁卸载；执行器也会注册
+一个不启动的受控 `px_service` 探针，要求目标安装同样返回 1638，随后只在探针身份未变化时删除它。每阶段原子写报告，产品失败后保留现场
+而不自动删除证据。Cloud Node、Client、Remote 的 Official/Customer 六组必须分别
+执行，不能用 development dist、自签名包或 NSIS 语法构建替代。
+两个审批值均为必填，不能使用通配、只提供新证书或从包内自我声明放宽签名者切换。
+
+## 4. Console 与连接配置
+
+产品只使用当前 Console 身份和权威连接描述：
+
+- Official 的 Console 地址来自已验证安装策略，设置页只读；Customer 在设置页填写私有 Console；
+- 支持当前账号登录、注册和云应用会话；
+- Android 使用 `client_type=android`；
+- Android 更新目录使用已登录 Android 会话访问零参数 `GET /api/console/updates/latest`；产品、发行域、stable、Android/aarch64 均由 Console 派生，
+  客户端提交任何查询维度都会被拒绝；
+- 不使用局域网测试机假设，不探测或回退到已退役端口；
+- Render 桌面端口和应用端口以 Console/节点返回的当前描述为准。
+
+当前 Android 接线只完成严格目录发现，不代表 TUF 验签、APK 下载或覆盖安装已经实现；不得从该 JSON 拼接直链并绕过后续 TUF 与平台签名门禁。
+
+## 5. Android 产物与安装
+
+开发期 fast Release APK 位于：
+
+```text
+build_official/android/<official|customer>/dist/Pixels-<distribution>-<version>-fast-release-arm64-v8a.apk
+```
+
+Release 产物位于：
+
+```text
+build_official/android/<official|customer>/dist/<version>/
+```
+
+该目录包含签名 APK、AAB、R8 mapping、native debug symbols、FFmpeg 对应源码、LGPL relink kit、第三方 notices 和记录全部 SHA-256、签名证书及 native Build ID 的 `release-manifest.json`。只有这些文件全部验证成功后，版本目录才会原子发布。
+
+手工覆盖安装：
+
+```bat
+adb install -r build_official\android\official\dist\Pixels-official-<version>-fast-release-arm64-v8a.apk
+```
+
+不要先卸载应用，否则会触发重新授权并丢失应用数据。
+
+## 6. 日常聚焦验证
+
+只有在修改和验证单个 C++ 范围时使用聚焦入口；它们不升版、不构建完整安装包。产品参数是必填项：
+
+```bat
+scripts_build\build_cpp_product_panel.bat cloud_node 18
+scripts_build\build_cpp_product_client.bat client 18
+scripts_build\build_cpp_product_render.bat remote 18
+scripts_build\build_cpp_product_panel_tests.bat client 18
+```
+
+聚焦入口固定使用 `PX_DISTRIBUTION=development` 和 `CMAKE_BUILD_TYPE=Release`，并启用 `PX_FAST_RELEASE=ON`（O1、Rust 增量
+Release）；仍把变化的运行文件发布到对应产品 `dist` 并核对 SHA-256。该目录不含正式发行策略/TUF 发布材料，不能冒充完整发布包。
+需要交付或制作安装包时，必须重新运行第 2 节的完整双发行构建，届时 `PX_FAST_RELEASE=OFF` 并使用完整优化 Release。
+
+## 7. 清理
+
+完整构建会自动清理目标产品。需要手工清理时：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts_build\clean_product_outputs.ps1 -Product cloud_node
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts_build\clean_product_outputs.ps1 -Product cloud_node -Distribution oem -OemId north-star
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts_build\clean_product_outputs.ps1 -Product all
+```
+
+OEM 定向清理只接受规范且非保留的 OEM ID。`all` 只删除仓库下的 `build_official` 生成目录；源码、下载缓存、外部工具链和服务器独立输出不受影响。
+删除后的产物只能通过重新构建恢复。
+
+## 8. 成功判定
+
+只有同时满足以下条件才算完成：
+
+- 构建命令返回 0；
+- `product-build.json` 与目标产品、版本和 CMake 目录一致；
+- `dist/product-manifest.json` 使用 schema 3，与产品清单一致，并强制携带 distribution、release_namespace、nullable oem_id 和 nullable
+  oem_profile_sha256；
+- `dist/artifact-manifest.json` 中全部 SHA-256 校验通过；
+- Windows 两种发行使用同一产品版本，安装包分别位于 `<official|customer>/installer/<version>`；
+- Windows OEM 候选位于 `oem/<oem_id>/installer/<version>`，manifest、Authenticode signer pin、profile 摘要和发行域复核一致；
+- 正式发布候选在专用 Windows 验收机完成对应的新旧签名安装包生命周期报告；
+- 没有公共 `build_official/dist`、公共 Rust 编译目录或其他产品制品混入。
+
+服务端 Console/Auth/Desk 有独立发布流程，不属于上述四个客户端产品沙箱。

@@ -164,6 +164,79 @@ async fn close_request_needs_node_proof_and_observer_policy_is_not_control_autho
     session_store.close().await;
     fixture.close().await;
 }
+
+#[tokio::test]
+async fn terminal_instance_closes_its_resource_sessions_and_releases_capacity() {
+    let (fixture, session_store, node, user, instance, session) = opened().await;
+    let ticket = token();
+    let descriptor = session_store
+        .descriptor(
+            ResourceCredential::User(&user),
+            ClientType::Android,
+            session.id,
+            session.revision,
+            &ticket,
+        )
+        .await
+        .unwrap();
+    session_store
+        .admit_frontend(&node, session.id, descriptor.session.revision, &ticket)
+        .await
+        .unwrap();
+
+    let stopping = fixture
+        .instances
+        .stop(
+            ResourceCredential::User(&user),
+            ClientType::Android,
+            node.epoch(),
+            instance.id,
+            instance.revision,
+        )
+        .await
+        .unwrap();
+    assert_eq!(stopping.state, "stopping");
+    let stop_command = fixture
+        .instances
+        .next_command(&node)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(matches!(
+        stop_command.action,
+        px_console_store::NodeCommandAction::Stop
+    ));
+    let stopped = fixture
+        .instances
+        .acknowledge_command(
+            &node,
+            &CommandReceipt {
+                command_id: stop_command.id,
+                lease_id: stop_command.lease_id,
+                instance_id: instance.id,
+                launch_id: stop_command.launch_id,
+                instance_revision: stop_command.instance_revision,
+                outcome: CommandOutcome::Absent,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(stopped.state, "stopped");
+
+    let (session_state, closed_at): (String, Option<chrono::DateTime<chrono::Utc>>) =
+        sqlx::query_as("SELECT state,closed_at FROM pixels.resource_sessions WHERE id=$1")
+            .bind(session.id)
+            .fetch_one(&fixture.owner)
+            .await
+            .unwrap();
+    assert_eq!(session_state, "closed");
+    assert!(closed_at.is_some());
+    assert!(session_store.list_node(&node).await.unwrap().is_empty());
+
+    session_store.close().await;
+    fixture.close().await;
+}
+
 #[tokio::test]
 async fn draining_keeps_existing_lease_but_endpoint_change_and_wrong_node_reject() {
     let (fixture, session_store, node, user, instance, session) = opened().await;

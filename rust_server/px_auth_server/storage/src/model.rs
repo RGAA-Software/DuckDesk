@@ -1,27 +1,13 @@
 use crate::AuthError;
-use px_license::{Distribution, LicensePayload, LicensedService, Mode, Product};
+use px_license::{LicensePayload, LicensedService};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-pub enum Activation {
-    Immediately,
-    At { timestamp: i64 },
-}
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LicenseTerms {
     pub customer_id: Uuid,
     pub deployment_id: Uuid,
-    pub product: Product,
-    pub distribution: Distribution,
-    pub release_namespace: String,
-    pub oem_id: Option<String>,
-    pub machine_sha256: String,
-    pub mode: Mode,
-    pub activation: Activation,
     pub expires_at: i64,
     pub max_streams: u32,
     pub services: Vec<LicensedService>,
@@ -41,18 +27,8 @@ impl LicenseTerms {
             schema: 2,
             license_id: id,
             deployment_id: self.deployment_id,
-            product: self.product,
-            distribution: self.distribution,
-            release_namespace: self.release_namespace.clone(),
-            oem_id: self.oem_id.clone(),
-            machine_sha256: self.machine_sha256.clone(),
             revision,
-            mode: self.mode,
             issued_at: now,
-            not_before: match self.activation {
-                Activation::Immediately => now,
-                Activation::At { timestamp } => timestamp,
-            },
             expires_at: self.expires_at,
             max_streams: self.max_streams,
             services: self.services.clone(),

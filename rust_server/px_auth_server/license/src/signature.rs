@@ -1,4 +1,4 @@
-use crate::{payload::hash_text, Distribution, LicenseError, LicensePayload, Product};
+use crate::{LicenseError, LicensePayload};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use ring::signature::{Ed25519KeyPair, KeyPair, UnparsedPublicKey, ED25519};
 use sha2::{Digest, Sha256};
@@ -48,17 +48,14 @@ impl LicenseSigner {
     }
 }
 
-pub struct VerifyContext<'a> {
+pub struct VerifyContext {
     pub deployment_id: Uuid,
-    pub product: Product,
-    pub distribution: Distribution,
-    pub release_namespace: &'a str,
-    pub oem_id: Option<&'a str>,
-    pub machine_sha256: &'a str,
     pub now: i64,
-    /// Independently retained trust state; restoring an old DB must not lower either value.
-    pub minimum_revision: i64,
-    pub last_trusted_time: i64,
+}
+impl VerifyContext {
+    pub fn new(deployment_id: Uuid, now: i64) -> Self {
+        Self { deployment_id, now }
+    }
 }
 pub struct LicenseVerifierSet {
     public_keys: BTreeMap<String, [u8; 32]>,
@@ -86,7 +83,7 @@ impl LicenseVerifierSet {
     pub fn verify(
         &self,
         wire: &str,
-        context: &VerifyContext<'_>,
+        context: &VerifyContext,
     ) -> Result<LicensePayload, LicenseError> {
         if wire.len() > MAX_WIRE_BYTES {
             return Err(LicenseError::Invalid);
@@ -122,19 +119,9 @@ impl LicenseVerifierSet {
         if untrusted_payload.canonical_bytes()? != bytes {
             return Err(LicenseError::Invalid);
         }
-        if context.minimum_revision < 1
-            || context.last_trusted_time < 0
-            || context.now < context.last_trusted_time
-            || context.deployment_id.is_nil()
-            || !hash_text(context.machine_sha256)
+        if context.deployment_id.is_nil()
             || untrusted_payload.deployment_id != context.deployment_id
-            || untrusted_payload.product != context.product
-            || untrusted_payload.distribution != context.distribution
-            || untrusted_payload.release_namespace != context.release_namespace
-            || untrusted_payload.oem_id.as_deref() != context.oem_id
-            || untrusted_payload.machine_sha256 != context.machine_sha256
-            || untrusted_payload.revision < context.minimum_revision
-            || untrusted_payload.not_before > context.now
+            || untrusted_payload.issued_at > context.now
             || untrusted_payload.expires_at <= context.now
         {
             return Err(LicenseError::Rejected);

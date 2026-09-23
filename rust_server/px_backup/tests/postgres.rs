@@ -280,7 +280,7 @@ fn target(fixture: &Fixture, service: BackupService, database: &str) -> BackupTa
 fn expected_schema_version(service: BackupService) -> u32 {
     match service {
         BackupService::Console => 29,
-        BackupService::Auth => 5,
+        BackupService::Auth => 4,
         BackupService::Desk => 3,
     }
 }
@@ -384,7 +384,7 @@ fn seed_recovery_security_records(tool: &DockerPgTool) {
         "INSERT INTO pixels.authors(id,username_normalized,password_hash,role) VALUES('20000000-0000-0000-0000-000000000001','recovery-author','{password_hash}','admin');\
          INSERT INTO pixels.author_sessions(id,author_id,token_hash,authorization_revision,expires_at) VALUES('20000000-0000-0000-0000-000000000002','20000000-0000-0000-0000-000000000001',decode(repeat('44',32),'hex'),1,clock_timestamp()+interval '1 hour');\
          INSERT INTO pixels.customers(id,name,name_normalized,remark) VALUES('20000000-0000-0000-0000-000000000003','Recovery Customer','recovery customer','');\
-         INSERT INTO pixels.licenses(id,customer_id,target_deployment,product,distribution,machine_sha256,revision,mode,not_before,expires_at,max_devices,max_sessions,features) VALUES('20000000-0000-0000-0000-000000000004','20000000-0000-0000-0000-000000000003','20000000-0000-0000-0000-000000000005','pixels_console','official',repeat('a',64),1,'licensed',clock_timestamp()-interval '1 hour',clock_timestamp()+interval '1 day',4,4,ARRAY['desktop']);\
+         INSERT INTO pixels.licenses(id,customer_id,target_deployment,revision,expires_at,max_streams,services) VALUES('20000000-0000-0000-0000-000000000004','20000000-0000-0000-0000-000000000003','20000000-0000-0000-0000-000000000005',1,clock_timestamp()+interval '1 day',4,ARRAY['desktop']);\
          INSERT INTO pixels.license_requests(author_id,request_id,body_sha256) VALUES('20000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000006',decode(repeat('55',32),'hex'));"
     );
     tool.execute(&[

@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.licenses(id,customer_id,target_deployment,revision,expires_at,max_streams,services)\nVALUES($1,$2,$3,1,$4,$5,$6)\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Timestamptz",
+        "Int8",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1db718ecd793f9026da13cb29003692be4fe40477ac4de369da7fbb5faca58a1"
+}

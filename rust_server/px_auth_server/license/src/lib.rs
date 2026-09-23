@@ -4,7 +4,7 @@ mod payload;
 mod signature;
 mod trust_store;
 
-pub use payload::{Distribution, LicensePayload, LicensedService, Mode, Product};
+pub use payload::{LicensePayload, LicensedService};
 pub use signature::{LicenseSigner, LicenseVerifierSet, VerifyContext};
 pub use trust_store::{LicenseTrustStore, TrustedPublicKey};
 
@@ -16,6 +16,6 @@ pub enum LicenseError {
     Key,
     #[error("invalid license signature")]
     Signature,
-    #[error("license binding, time or revision rejected")]
+    #[error("license binding or time rejected")]
     Rejected,
 }

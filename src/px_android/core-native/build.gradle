@@ -7,6 +7,7 @@ def configuredVcpkgRoot = providers.gradleProperty('pixelsVcpkgRoot')
     .orElse('C:/source/vcpkg')
     .get()
 def pixelsAndroidNativeRoot = providers.environmentVariable('PIXELS_ANDROID_NATIVE_ROOT').orNull?.trim()
+def fastRelease = providers.environmentVariable('PIXELS_FAST_RELEASE').orNull == '1'
 android {
     namespace = 'yun.pixels.client.core.nativebridge'
     compileSdk = 37
@@ -23,6 +24,9 @@ android {
             cmake {
                 cppFlags '-std=c++23'
                 arguments '-DANDROID_STL=c++_shared', "-DVCPKG_ROOT=${configuredVcpkgRoot}"
+                if (fastRelease) {
+                    arguments '-DCMAKE_C_FLAGS_RELEASE=-O1 -DNDEBUG', '-DCMAKE_CXX_FLAGS_RELEASE=-O1 -DNDEBUG'
+                }
                 targets 'pixels_android_core'
             }
         }

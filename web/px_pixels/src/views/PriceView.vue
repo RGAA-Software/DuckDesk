@@ -178,7 +178,7 @@ const goContactUs = () => {
           </ul>
         </div>
 
-        <!-- 设备授权 -->
+        <!-- 商业授权 -->
         <div v-reveal="120" class="cyber-panel goxr-accent cyber-corners relative flex flex-col p-6 md:p-8">
           <span class="goxr-tag absolute -top-0 right-6">{{ t('price.goxr.device.recommended') }}</span>
 

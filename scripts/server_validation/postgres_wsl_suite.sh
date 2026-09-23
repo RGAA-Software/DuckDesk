@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+cargo() {
+    local subcommand="$1"
+    shift
+    command cargo "$subcommand" --release "$@"
+}
+
 [[ "${PIXELS_PG_ISOLATED_TEST:-}" == 1 ]] || { echo 'Isolated harness required' >&2; exit 1; }
 [[ "$#" == 1 ]] || { echo 'usage: postgres_wsl_suite.sh <suite>' >&2; exit 2; }
 
@@ -15,8 +21,8 @@ case "$focused_suite" in
         cargo test --offline --locked --manifest-path "$manifest_path" \
             -p px_console_runtime --features pg-integration --test process \
             --target-dir "$target_directory" -- --test-threads=1
-        test -x "$target_directory/debug/px_console"
-        sha256sum "$target_directory/debug/px_console"
+        test -x "$target_directory/release/px_console"
+        sha256sum "$target_directory/release/px_console"
         ;;
     *)
         echo "unsupported focused Linux suite: $focused_suite" >&2

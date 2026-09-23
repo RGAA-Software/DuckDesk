@@ -49,7 +49,6 @@ CROSS JOIN LATERAL (
 ) gpu_usage
 WHERE a.id=$2 AND ($3::uuid IS NULL OR d.id=$3) AND NOT a.disabled AND a.deleted_at IS NULL AND NOT d.disabled
 AND NOT n.disabled AND NOT n.draining AND n.deleted_at IS NULL AND NOT v.disabled AND v.deleted_at IS NULL
-AND NOT EXISTS(SELECT 1 FROM pixels.node_update_tasks u WHERE u.node_id=n.id AND u.state='activating')
 AND n.state='ready' AND n.connection_hash IS NOT NULL AND n.last_seen>clock_timestamp()-interval '30 seconds'
 AND n.control_epoch=$9 AND $9=(SELECT epoch FROM pixels.control_runtime) AND n.public_host IS NOT NULL AND n.report_sequence>0
 AND d.observed_state='ready' AND d.observed_generation=n.generation AND d.observed_epoch=n.control_epoch

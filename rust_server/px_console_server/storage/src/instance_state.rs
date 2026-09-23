@@ -1,5 +1,6 @@
 use crate::{
-    instance_model::InstanceRow, node_lifecycle::NodeAuthority, InstanceStore, StoreError,
+    instance_model::InstanceRow, node_lifecycle::NodeAuthority, InstanceStore,
+    ResourceSessionStore, StoreError,
 };
 use sqlx::PgConnection;
 use uuid::Uuid;
@@ -86,6 +87,9 @@ pub(crate) async fn change(
     .fetch_one(&mut *connection)
     .await?;
     InstanceStore::event(connection, &next, event).await?;
+    if matches!(transition, Transition::Stopped | Transition::Failed) {
+        ResourceSessionStore::close_instance_sessions(connection, previous.id).await?;
+    }
     Ok(next)
 }
 pub(crate) async fn cancel(

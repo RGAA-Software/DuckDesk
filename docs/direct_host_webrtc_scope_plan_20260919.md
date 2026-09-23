@@ -202,6 +202,21 @@ DB5短期功能出口通过后统一长测：Relay长连接、Direct Host重复�
 以及公网真实录像本人下载和管理员副本生命周期均已通过。管理实时流也已完成公网在线事件、断线突发重放、严格序号、断库 fail-closed
 和恢复后重新认证；1026 条溢出窗口由进程内门禁覆盖，公网压力留到统一长测。
 
+2026-09-23 在全新公网 Console 空库、重新登记节点/应用/部署后，再次以当前 Service/Render 和 Windows Client 完成 Native Direct 与
+纯数据 Relay 两条短测：两者均取得动态 Render 端口、工作区和解码首帧，Relay 额外确认活动房间及双向实际载荷。Android 旧 1.0.18
+APK 因仍含已退役部署身份门禁而被拒绝作为当前证据；当前 Official 1.0.25 Debug/androidTest 从源码执行 487 项 Gradle 任务、退役媒体
+审计和 `adb install -r` 后，账号 CloudApplication 的 Direct/Relay 首帧、退出和停止分别 1/1 PASS，最终活动实例为 0。Debug 仅用于
+distribution-specific instrumentation 短测，不替代正式双发行 Release 或 Android Customer 验收。
+
+同日 Android Customer 1.0.28 已以独立包名验证可编辑私有 Console origin、账号登录、CloudApplication Native Direct 首帧和停止清理；
+编译注入的 Official origin 仍由单元测试确认不可保存。Customer Relay 首轮失败最终定位为开发数据库中的四条活动资源会话仍绑定已停止实例，
+导致 Console 在 descriptor/Relay 前因流数占满返回 403，而不是房间建立需要客户端重试。服务端现于实例进入 `Stopped`/`Failed` 的同一事务关闭
+该实例的活动资源会话，并使关联文件传输和连接观察失效；`sessions` PostgreSQL 专项 12/12 PASS，报告为
+`pg-20260923-094507-93cc77cc`。公网 Console 按全新 schema 重新初始化并登记当前节点、应用和部署，Relay 默认 10 秒入站空闲回收也已部署。
+撤销试探性客户端房间重试后，从当前源码重新构建并用 `adb install -r` 覆盖安装 Customer Debug/androidTest，公网账号 CloudApplication Relay
+真机用例 1/1 PASS，形成解码帧并正常停止。宽限期后活动实例/资源会话均为 0，Relay 为 2 个常驻连接、0 个房间，节点保持 `ready`；
+因此 Customer Relay 当前短测门禁已关闭，正式双发行签名与更新矩阵仍单独验收。
+
 退役媒体制品门禁现同时覆盖正式 Windows dist 与 Android APK/AAB；当前 Client 42 文件、Cloud Node 315 文件、Remote 77 文件及 5 个
 Android debug/androidTest APK 的独立实物扫描均通过，负向审计 8/8 通过。运行过的 development dist 中存在运行日志及聚焦同步后的陈旧
 manifest 摘要的问题也已修复：聚焦 C++/Rust 发布器会原子刷新 development 清单并排除 `px_logs/`，拒绝修改 Official/Customer 清单；
@@ -209,5 +224,5 @@ manifest 摘要的问题也已修复：聚焦 C++/Rust 发布器会原子刷新 
 release-only 构建必须从干净输出生成 Official/Customer 清单并执行签名和退役媒体联合门禁。
 
 当前仍不得冒充完成的事项：正式 approved 身份/签名材料下的 Windows/Android 双发行及更新回滚实物矩阵、Windows 安装/升级/卸载、
-Cloud Node/Remote Web 正式双发行、Android Customer 真机、AMD/Intel 物理 GPU 各一次短测、目标 Linux 与独立灾备故障域、正式安装包
+Cloud Node/Remote Web 正式双发行、AMD/Intel 物理 GPU 各一次短测、目标 Linux 与独立灾备故障域、正式安装包
 完整审计，以及最后统一长测。RDP 设备变化、长路径/ACL、重名/取消、规模和持续播放只进入统一长测，不再是 Direct Host 功能实现缺口。

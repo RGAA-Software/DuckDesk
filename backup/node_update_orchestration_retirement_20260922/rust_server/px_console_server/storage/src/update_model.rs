@@ -1,0 +1,210 @@
+use crate::StoreError;
+use chrono::{DateTime, Utc};
+use px_release_catalog::{ReleaseQuery, ReleaseSpec};
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UpdateDecision {
+    Approve,
+    Withdraw,
+}
+impl UpdateDecision {
+    pub(crate) fn state(self) -> &'static str {
+        match self {
+            Self::Approve => "approved",
+            Self::Withdraw => "withdrawn",
+        }
+    }
+}
+#[derive(Debug, Clone, Serialize)]
+pub struct UpdateRelease {
+    pub id: Uuid,
+    pub artifact: ReleaseSpec,
+    pub repository_publication_sha256: String,
+    pub repository_root_version: i64,
+    pub state: String,
+    pub revision: i64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+#[derive(sqlx::FromRow)]
+pub(crate) struct UpdateRow {
+    pub id: Uuid,
+    pub request_hash: Vec<u8>,
+    pub product: String,
+    pub distribution: String,
+    pub release_namespace: String,
+    pub oem_id: Option<String>,
+    pub channel: String,
+    pub os: String,
+    pub architecture: String,
+    pub build_number: i64,
+    pub version: String,
+    pub metadata_base_url: String,
+    pub targets_base_url: String,
+    pub target_name: String,
+    pub sha256: String,
+    pub repository_publication_sha256: String,
+    pub repository_root_version: i64,
+    pub platform_signer_sha256: Option<String>,
+    pub size_bytes: i64,
+    pub state: String,
+    pub revision: i64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct NodeUpdateActivation {
+    pub task_id: Uuid,
+    pub lease_id: Uuid,
+    pub lease_until: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UpdateActivationOutcome {
+    Installed,
+    Failed { error_code: String },
+}
+
+impl UpdateActivationOutcome {
+    pub(crate) fn fields(&self) -> (&'static str, Option<&str>) {
+        match self {
+            Self::Installed => ("installed", None),
+            Self::Failed { error_code } => ("failed", Some(error_code)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct NodeUpdateCompletion {
+    pub state: String,
+    pub revision: i64,
+    pub error_code: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct NodeUpdateTrust {
+    pub node_id: Uuid,
+    pub release_id: Uuid,
+    pub node_generation: i64,
+    pub repository_publication_sha256: String,
+    pub trusted_root_version: i64,
+    pub revision: i64,
+    pub observed_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct NodeUpdateTrustSummary {
+    pub release_id: Uuid,
+    pub repository_publication_sha256: String,
+    pub required_root_version: i64,
+    pub eligible_node_count: i64,
+    pub confirmed_node_count: i64,
+    pub unknown_or_behind_node_count: i64,
+    pub minimum_confirmed_root_version: Option<i64>,
+    pub oldest_confirmation_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct NodeUpdateTrustStatus {
+    pub node_id: Uuid,
+    pub device_id: Uuid,
+    pub node_state: String,
+    pub disabled: bool,
+    pub last_seen: Option<DateTime<Utc>>,
+    pub observed_release_id: Option<Uuid>,
+    pub repository_publication_sha256: Option<String>,
+    pub trusted_root_version: Option<i64>,
+    pub observed_at: Option<DateTime<Utc>>,
+    pub confirmed: bool,
+}
+
+#[derive(sqlx::FromRow)]
+pub(crate) struct NodeUpdateTrustSummaryRow {
+    pub eligible_node_count: i64,
+    pub confirmed_node_count: i64,
+    pub minimum_confirmed_root_version: Option<i64>,
+    pub oldest_confirmation_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UpdateTrustObservation {
+    pub release_id: Uuid,
+    pub repository_publication_sha256: String,
+    pub root_version: i64,
+}
+
+#[derive(sqlx::FromRow)]
+pub(crate) struct NodeUpdateActivationRow {
+    pub id: Uuid,
+    pub release_id: Uuid,
+    pub from_build_number: i64,
+    pub to_build_number: i64,
+    pub lease_id: Uuid,
+    pub lease_until: DateTime<Utc>,
+}
+
+#[derive(sqlx::FromRow)]
+pub(crate) struct NodeUpdateTaskRow {
+    pub id: Uuid,
+    pub to_build_number: i64,
+    pub state: String,
+    pub lease_id: Uuid,
+    pub revision: i64,
+    pub error_code: Option<String>,
+}
+
+impl NodeUpdateActivationRow {
+    pub(crate) fn grant(self) -> NodeUpdateActivation {
+        NodeUpdateActivation {
+            task_id: self.id,
+            lease_id: self.lease_id,
+            lease_until: self.lease_until,
+        }
+    }
+}
+impl UpdateRow {
+    pub(crate) fn view(self) -> Result<UpdateRelease, StoreError> {
+        let artifact = ReleaseSpec {
+            target: ReleaseQuery {
+                product: self.product.parse().map_err(|_| StoreError::Rejected)?,
+                distribution: self
+                    .distribution
+                    .parse()
+                    .map_err(|_| StoreError::Rejected)?,
+                release_namespace: self.release_namespace,
+                oem_id: self.oem_id,
+                channel: self.channel.parse().map_err(|_| StoreError::Rejected)?,
+                os: self.os.parse().map_err(|_| StoreError::Rejected)?,
+                architecture: self
+                    .architecture
+                    .parse()
+                    .map_err(|_| StoreError::Rejected)?,
+            },
+            build_number: self.build_number,
+            version: self.version,
+            metadata_base_url: self.metadata_base_url,
+            targets_base_url: self.targets_base_url,
+            target_name: self.target_name,
+            sha256: self.sha256,
+            platform_signer_sha256: self.platform_signer_sha256,
+            size_bytes: self.size_bytes,
+        };
+        artifact
+            .validate_immutable_target_name()
+            .map_err(|_| StoreError::Rejected)?;
+        Ok(UpdateRelease {
+            id: self.id,
+            artifact,
+            repository_publication_sha256: self.repository_publication_sha256,
+            repository_root_version: self.repository_root_version,
+            state: self.state,
+            revision: self.revision,
+            created_at: self.created_at,
+            updated_at: self.updated_at,
+        })
+    }
+}

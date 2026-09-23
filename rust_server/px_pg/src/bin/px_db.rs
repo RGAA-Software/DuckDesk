@@ -1,14 +1,24 @@
-use px_pg::{migrate, readiness, DatabaseConfig, DatabaseError, Service, Transport};
+use px_pg::{
+    migrate, provision_backup_role, readiness, DatabaseConfig, DatabaseError, Service, Transport,
+};
 use std::env;
 use uuid::Uuid;
+use zeroize::Zeroizing;
 
 #[path = "../catalog.rs"]
 mod catalog;
 
 async fn run() -> Result<(), DatabaseError> {
     let args: Vec<String> = env::args().skip(1).collect();
-    if args.len() != 2 || !matches!(args[0].as_str(), "migrate" | "check") {
-        eprintln!("usage: px_db <migrate|check> <console|auth|desk>; credentials via PIXELS_DATABASE_URL only");
+    if args.len() != 2
+        || !matches!(
+            args[0].as_str(),
+            "migrate" | "check" | "provision-backup-role"
+        )
+    {
+        eprintln!(
+            "usage: px_db <migrate|check|provision-backup-role> <console|auth|desk>; database credentials via PIXELS_DATABASE_URL"
+        );
         return Err(DatabaseError::Configuration);
     }
     let service = Service::parse(&args[1])?;
@@ -23,6 +33,16 @@ async fn run() -> Result<(), DatabaseError> {
         _ => return Err(DatabaseError::Configuration),
     };
     let config = DatabaseConfig::parse(&dsn, transport)?;
+    if args[0] == "provision-backup-role" {
+        let backup_password = Zeroizing::new(
+            env::var("PIXELS_BACKUP_ROLE_PASSWORD").map_err(|_| DatabaseError::Configuration)?,
+        );
+        env::remove_var("PIXELS_BACKUP_ROLE_PASSWORD");
+        let backup_role =
+            provision_backup_role(&config, service, deployment, &backup_password).await?;
+        println!("READY backup_role={backup_role}");
+        return Ok(());
+    }
     if args[0] == "migrate" {
         migrate(&config, service, deployment, catalog::migrations(service)).await?;
     }

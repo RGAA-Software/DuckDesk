@@ -16,35 +16,36 @@
 必须从仓库根目录使用统一产品入口：
 
 ```bat
-scripts_build\build_android_product.bat official debug
-scripts_build\build_android_product.bat official debug install
-scripts_build\build_android_product.bat customer debug
-scripts_build\build_android_product.bat customer debug install
+scripts_build\build_android_product.bat official fast-release
+scripts_build\build_android_product.bat official fast-release install
+scripts_build\build_android_product.bat customer fast-release
+scripts_build\build_android_product.bat customer fast-release install
 scripts_build\build_android_product.bat release
 set PIXELS_OEM_RELEASE_PROFILE=D:\secure\north-star\oem-release-profile.json
-scripts_build\build_android_product.bat oem debug
-scripts_build\build_android_product.bat oem debug install
+scripts_build\build_android_product.bat oem fast-release
+scripts_build\build_android_product.bat oem fast-release install
 scripts_build\build_android_product.bat oem release
 ```
 
-Debug 每次调用只删除所选发行类型的旧沙箱、独立提升 Android 版本，并构建完整目标；`debug install` 使用 `adb install -r` 覆盖安装，不卸载应用或
-清除用户数据。Release 在任何清理和升版前同时预检两种发行，随后只提升 Android 版本一次，并用同一版本构建隔离的 Official/Customer
+`fast-release` 每次调用只删除所选发行类型的旧沙箱、独立提升 Android 版本，并以 Release 运行语义、O1 native 优化、关闭 R8/资源压缩的方式
+构建完整可签名 APK；`fast-release install` 使用 `adb install -r` 覆盖安装，不卸载应用或清除用户数据。它只用于开发短测，不是发布候选。
+正式 `release` 在任何清理和升版前同时预检两种发行，随后只提升 Android 版本一次，并用同一版本构建隔离的 Official/Customer
 完整制品；旧的单发行 Release 入口不再支持。只有两份 release manifest 均通过才生成 `build_official/android/release-matrix.json`。
 构建前必须配置用于应用升级的 `PIXELS_UPDATE_ROOT_FILE`。Official 和 Customer 都必须注入
 `PIXELS_OFFICIAL_CONSOLE_URL`：Official 固定使用该地址且不提供编辑；Customer 只将它作为禁止地址，要求用户填写自己的私有部署地址。
 Console 连接使用标准 HTTPS，不再携带或校验部署身份证书、nonce、信任库或本地身份水印。
 
-OEM 不属于 Pixels 双发行矩阵。Debug/Release 分别清理并写入 `build_official/android/oem/<oem_id>/`；Release 必须使用与 profile 固定值相同的
+OEM 不属于 Pixels 双发行矩阵。fast Release/正式 Release 分别清理并写入 `build_official/android/oem/<oem_id>/`；二者都必须使用与 profile 固定值相同的
 Android 签名证书。applicationId、应用名、launcher/round icon、
 `oem_id/release_namespace` 和 profile SHA-256 均由同一 profile 注入，Official/Customer 反向拒绝这些 OEM 输入。
 运行界面使用编译注入的应用名；账号、关于、隐私、通知、诊断、剪贴板、远控和录像提示不硬编码 Pixels。OEM Splash、launcher/round icon 和通知
 小图标使用 profile 品牌资源。升级签名域、HTTP 协议头及开源法律声明保留 Pixels 技术/权利人标识，不能随 OEM 显示品牌改写。
 
-Debug APK：
+开发期 fast Release APK：
 
 ```text
-build_official/android/<official|customer>/dist/Pixels-<distribution>-<version>-debug-arm64-v8a.apk
-build_official/android/oem/<oem_id>/dist/OEM-<oem_id>-<version>-debug-arm64-v8a.apk
+build_official/android/<official|customer>/dist/Pixels-<distribution>-<version>-fast-release-arm64-v8a.apk
+build_official/android/oem/<oem_id>/dist/OEM-<oem_id>-<version>-fast-release-arm64-v8a.apk
 ```
 
 Release 目录：

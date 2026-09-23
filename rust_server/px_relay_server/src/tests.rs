@@ -162,6 +162,12 @@ fn replacement_connection_fences_stale_disconnect_and_removes_old_rooms() {
 }
 
 async fn start_server() -> (SocketAddr, JoinHandle<()>) {
+    start_server_with_idle_timeout(Duration::from_secs(10)).await
+}
+
+async fn start_server_with_idle_timeout(
+    connection_idle_timeout: Duration,
+) -> (SocketAddr, JoinHandle<()>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let config = RelayConfig {
@@ -171,11 +177,39 @@ async fn start_server() -> (SocketAddr, JoinHandle<()>) {
         max_rooms: 8,
         outbound_queue: 32,
         max_message_bytes: 1024 * 1024,
+        connection_idle_timeout,
     };
     let server = tokio::spawn(async move {
         axum::serve(listener, router(config)).await.unwrap();
     });
     (address, server)
+}
+
+#[tokio::test]
+async fn disconnects_a_silent_connection_after_the_idle_timeout() {
+    let (address, server) = start_server_with_idle_timeout(Duration::from_millis(100)).await;
+    let mut silent_client = connect(address, "silent-client", "").await;
+
+    let connection_result = tokio::time::timeout(Duration::from_secs(2), silent_client.next())
+        .await
+        .expect("silent Relay connection was not closed after its idle timeout");
+    assert!(connection_result.is_none() || connection_result.unwrap().is_err());
+
+    let mut replacement_client = connect(address, "silent-client", "").await;
+    send(
+        &mut replacement_client,
+        RelayMessage {
+            r#type: RelayMessageType::KRelayHello as i32,
+            hello: Some(RelayHello::default()),
+            ..Default::default()
+        },
+    )
+    .await;
+    assert_eq!(
+        receive(&mut replacement_client).await.r#type,
+        RelayMessageType::KRelayHello as i32
+    );
+    server.abort();
 }
 
 async fn connect(address: SocketAddr, device_id: &str, remote_device_id: &str) -> TestSocket {

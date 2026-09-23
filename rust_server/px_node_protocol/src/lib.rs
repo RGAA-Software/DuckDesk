@@ -2,7 +2,6 @@
 //! This crate contains no database, process or transport implementation.
 
 use chrono::{DateTime, Utc};
-use px_release_catalog::ReleaseSpec;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use zeroize::Zeroizing;
@@ -477,47 +476,6 @@ pub struct RecordingCacheUpload {
     pub valid_for_ms: u32,
 }
 
-/// An approved release offered to one authenticated node. The release catalog is policy
-/// metadata only: receiving this value never authorizes installation before the node's
-/// independent package-signature and anti-rollback checks succeed.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct NodeUpdateOffer {
-    pub release_id: Uuid,
-    pub policy_revision: i64,
-    pub artifact: ReleaseSpec,
-}
-
-/// The exact approved TUF repository generation an authenticated node must refresh.
-/// This is returned even when the node is already running the latest product build so
-/// root rotation does not depend on installing another package.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct NodeUpdateRepository {
-    pub release_id: Uuid,
-    pub repository_publication_sha256: String,
-    pub root_version: u64,
-    pub metadata_base_url: String,
-    pub targets_base_url: String,
-}
-
-/// A node-produced acknowledgement that it successfully refreshed and verified at
-/// least the root version declared by one approved repository generation.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct NodeUpdateTrustObservation {
-    pub release_id: Uuid,
-    pub repository_publication_sha256: String,
-    pub root_version: u64,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "result", rename_all = "snake_case", deny_unknown_fields)]
-pub enum UpdateActivationOutcome {
-    Installed,
-    Failed { error_code: String },
-}
-
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum NodeRequest {
@@ -614,23 +572,6 @@ pub enum NodeRequest {
         after: Option<Uuid>,
         limit: u16,
     },
-    CheckUpdate {
-        request_id: u64,
-        current_build_number: i64,
-        trust_observation: Option<NodeUpdateTrustObservation>,
-    },
-    BeginUpdateActivation {
-        request_id: u64,
-        release_id: Uuid,
-        policy_revision: i64,
-        prepared_sha256: String,
-    },
-    FinishUpdateActivation {
-        request_id: u64,
-        task_id: Uuid,
-        lease_id: Uuid,
-        outcome: UpdateActivationOutcome,
-    },
 }
 
 impl NodeRequest {
@@ -656,10 +597,7 @@ impl NodeRequest {
             | Self::BeginFileTransfer { request_id, .. }
             | Self::ReportFileTransfer { request_id, .. }
             | Self::ReportRecording { request_id, .. }
-            | Self::PollRecordingCache { request_id, .. }
-            | Self::CheckUpdate { request_id, .. }
-            | Self::BeginUpdateActivation { request_id, .. }
-            | Self::FinishUpdateActivation { request_id, .. } => *request_id,
+            | Self::PollRecordingCache { request_id, .. } => *request_id,
         }
     }
 }
@@ -791,23 +729,6 @@ pub enum NodeResponse {
         request_id: u64,
         uploads: Vec<RecordingCacheUpload>,
     },
-    UpdateChecked {
-        request_id: u64,
-        repository: Option<NodeUpdateRepository>,
-        offer: Option<Box<NodeUpdateOffer>>,
-    },
-    UpdateActivationGranted {
-        request_id: u64,
-        task_id: Uuid,
-        lease_id: Uuid,
-        lease_until: DateTime<Utc>,
-    },
-    UpdateActivationFinished {
-        request_id: u64,
-        state: String,
-        revision: i64,
-        error_code: Option<String>,
-    },
     Error {
         request_id: Option<u64>,
         code: String,
@@ -837,10 +758,7 @@ impl NodeResponse {
             | Self::FileTransferStarted { request_id, .. }
             | Self::FileTransferReported { request_id, .. }
             | Self::RecordingReported { request_id, .. }
-            | Self::RecordingCacheUploads { request_id, .. }
-            | Self::UpdateChecked { request_id, .. }
-            | Self::UpdateActivationGranted { request_id, .. }
-            | Self::UpdateActivationFinished { request_id, .. } => Some(*request_id),
+            | Self::RecordingCacheUploads { request_id, .. } => Some(*request_id),
             Self::Error { request_id, .. } => *request_id,
         }
     }
@@ -880,9 +798,6 @@ mod strict_empty {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use px_release_catalog::{
-        Architecture, Channel, Distribution, OperatingSystem, Product, ReleaseQuery,
-    };
 
     #[test]
     fn node_wire_is_tagged_strict_and_keeps_credentials_out_of_ordinary_responses() {
@@ -960,109 +875,5 @@ mod tests {
         assert_eq!(request_id, 7);
         assert_eq!(workspace.workspace_id, workspace_id);
         assert_eq!(workspace.password.as_str(), "a-secure-workspace-password");
-    }
-
-    #[test]
-    fn update_offer_is_explicit_strict_and_carries_no_install_authorization() {
-        let offer = NodeUpdateOffer {
-            release_id: Uuid::from_u128(5),
-            policy_revision: 2,
-            artifact: ReleaseSpec {
-                target: ReleaseQuery {
-                    product: Product::CloudNode,
-                    distribution: Distribution::Official,
-                    release_namespace: "pixels.official".into(),
-                    oem_id: None,
-                    channel: Channel::Stable,
-                    os: OperatingSystem::Windows,
-                    architecture: Architecture::X86_64,
-                },
-                build_number: 30368,
-                version: "3.3.68".into(),
-                metadata_base_url: "https://downloads.example.test/metadata/".into(),
-                targets_base_url: "https://downloads.example.test/targets/".into(),
-                target_name: "windows/cloud_node/official/stable/x86_64/30368/cloud-node.exe"
-                    .into(),
-                sha256: "a".repeat(64),
-                platform_signer_sha256: Some("b".repeat(64)),
-                size_bytes: 1024,
-            },
-        };
-        let encoded = serde_json::to_value(NodeResponse::UpdateChecked {
-            request_id: 9,
-            repository: Some(NodeUpdateRepository {
-                release_id: offer.release_id,
-                repository_publication_sha256: "c".repeat(64),
-                root_version: 2,
-                metadata_base_url: offer.artifact.metadata_base_url.clone(),
-                targets_base_url: offer.artifact.targets_base_url.clone(),
-            }),
-            offer: Some(Box::new(offer.clone())),
-        })
-        .unwrap();
-        assert_eq!(encoded["type"], "update_checked");
-        assert!(encoded.get("install_authorized").is_none());
-        let decoded: NodeResponse = serde_json::from_value(encoded.clone()).unwrap();
-        assert_eq!(decoded.request_id(), Some(9));
-        let mut unexpected = encoded;
-        unexpected["offer"]["signature_verified"] = serde_json::json!(true);
-        assert!(serde_json::from_value::<NodeResponse>(unexpected).is_err());
-        assert_eq!(offer.artifact.build_number, 30368);
-    }
-
-    #[test]
-    fn update_activation_is_a_separate_strict_lease_without_install_commands() {
-        let release_id = Uuid::from_u128(5);
-        let task_id = Uuid::from_u128(6);
-        let lease_id = Uuid::from_u128(7);
-        let request = NodeRequest::BeginUpdateActivation {
-            request_id: 10,
-            release_id,
-            policy_revision: 2,
-            prepared_sha256: "a".repeat(64),
-        };
-        let encoded = serde_json::to_value(request).unwrap();
-        assert_eq!(encoded["type"], "begin_update_activation");
-        assert!(encoded.get("installer_path").is_none());
-        assert!(encoded.get("command").is_none());
-        let decoded: NodeRequest = serde_json::from_value(encoded.clone()).unwrap();
-        assert_eq!(decoded.request_id(), 10);
-        let mut unexpected = encoded;
-        unexpected["force"] = serde_json::json!(true);
-        assert!(serde_json::from_value::<NodeRequest>(unexpected).is_err());
-
-        let response = NodeResponse::UpdateActivationGranted {
-            request_id: 10,
-            task_id,
-            lease_id,
-            lease_until: Utc::now() + chrono::TimeDelta::minutes(10),
-        };
-        let encoded = serde_json::to_value(response).unwrap();
-        assert_eq!(encoded["type"], "update_activation_granted");
-        assert!(encoded.get("installer_path").is_none());
-        assert!(encoded.get("shell_command").is_none());
-        assert_eq!(
-            serde_json::from_value::<NodeResponse>(encoded)
-                .unwrap()
-                .request_id(),
-            Some(10)
-        );
-
-        let finish = serde_json::json!({
-            "type":"finish_update_activation",
-            "request_id":11,
-            "task_id":task_id,
-            "lease_id":lease_id,
-            "outcome":{"result":"failed","error_code":"installer_failed"}
-        });
-        assert_eq!(
-            serde_json::from_value::<NodeRequest>(finish.clone())
-                .unwrap()
-                .request_id(),
-            11
-        );
-        let mut unexpected = finish;
-        unexpected["outcome"]["retry"] = serde_json::json!(true);
-        assert!(serde_json::from_value::<NodeRequest>(unexpected).is_err());
     }
 }

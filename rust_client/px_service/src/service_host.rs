@@ -52,8 +52,6 @@ pub struct ServiceRuntime {
         Option<mpsc::Receiver<crate::node_control_client::NodeControlOperation>>,
     pub(crate) node_control_identity: Option<crate::node_control_client::NodeControlIdentity>,
     pub(crate) node_control_relay: Option<px_node_protocol::RelayEndpoint>,
-    pub(crate) node_control_update_offer: Option<px_node_protocol::NodeUpdateOffer>,
-    pub(crate) node_control_prepared_update: Option<crate::update_preparation::PreparedUpdate>,
     pub(crate) file_transfer_outbox:
         Arc<std::sync::Mutex<crate::node_control_store::FileTransferOutboxStore>>,
     stop_tx: broadcast::Sender<()>,
@@ -263,8 +261,6 @@ impl ServiceRuntime {
             node_control_receiver: Some(node_control_receiver),
             node_control_identity: None,
             node_control_relay: None,
-            node_control_update_offer: None,
-            node_control_prepared_update: None,
             file_transfer_outbox,
             stop_tx,
         }

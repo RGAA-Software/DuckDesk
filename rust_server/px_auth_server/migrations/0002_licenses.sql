@@ -20,26 +20,16 @@ CREATE TABLE pixels.licenses (
     id UUID PRIMARY KEY,
     customer_id UUID NOT NULL REFERENCES pixels.customers(id),
     target_deployment UUID NOT NULL,
-    product TEXT NOT NULL CHECK (product IN ('pixels_console','gopico','clientbox','goagent')),
-    distribution TEXT NOT NULL CHECK (distribution IN ('official','customer','oem')),
-    release_namespace TEXT NOT NULL CHECK (release_namespace ~ '^[a-z0-9][a-z0-9.-]{1,34}[a-z0-9]$'),
-    oem_id TEXT CHECK (char_length(oem_id) BETWEEN 3 AND 32 AND oem_id ~ '^[a-z0-9]([a-z0-9-]{1,30}[a-z0-9])$' AND oem_id NOT IN ('pixels','official','customer','oem') AND oem_id NOT LIKE '%--%'),
-    machine_sha256 TEXT NOT NULL CHECK (machine_sha256 ~ '^[a-f0-9]{64}$'),
     revision BIGINT NOT NULL CHECK (revision>0),
-    mode TEXT NOT NULL CHECK (mode IN ('trial','licensed')),
-    not_before TIMESTAMPTZ NOT NULL,
     expires_at TIMESTAMPTZ NOT NULL,
     max_streams BIGINT NOT NULL CHECK (max_streams>0 AND max_streams<=4294967295),
     services TEXT[] NOT NULL CHECK (cardinality(services)>=1 AND cardinality(services)<=3 AND services <@ ARRAY['cloud_applications','desktop','rdp']::text[]),
     created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
     revoked_at TIMESTAMPTZ,
-    CHECK ((distribution='official' AND release_namespace='pixels.official' AND oem_id IS NULL)
-        OR (distribution='customer' AND release_namespace='pixels.customer' AND oem_id IS NULL)
-        OR (distribution='oem' AND release_namespace='oem.' || oem_id AND oem_id IS NOT NULL)),
-    CHECK (expires_at>not_before),
-    UNIQUE(target_deployment,product,machine_sha256)
+    CHECK (expires_at>created_at)
 );
+CREATE UNIQUE INDEX licenses_active_deployment ON pixels.licenses(target_deployment) WHERE revoked_at IS NULL;
 CREATE INDEX licenses_customer ON pixels.licenses(customer_id,created_at DESC,id);
 CREATE TABLE pixels.license_issuances (
     id UUID PRIMARY KEY,

@@ -1,4 +1,4 @@
-use px_pg::{DatabaseConfig, DatabaseError, Service, Transport};
+use px_pg::{provision_backup_role, DatabaseConfig, DatabaseError, Service, Transport};
 use sqlx::{migrate::Migrate, Connection, PgConnection, PgPool};
 use std::{env, time::Duration};
 use uuid::Uuid;
@@ -64,6 +64,147 @@ fn config(service: Service, owner: bool) -> DatabaseConfig {
     let key = format!("PIXELS_TEST_{}_{}_URL", service.name().to_uppercase(), role);
     let dsn = env::var(key).expect("required test DSN; missing database is a failure, not a skip");
     DatabaseConfig::parse(&dsn, Transport::LocalDevelopment).unwrap()
+}
+
+fn administrator_config(service: Service) -> DatabaseConfig {
+    let owner_dsn = env::var(format!(
+        "PIXELS_TEST_{}_OWNER_URL",
+        service.name().to_uppercase()
+    ))
+    .expect("required owner test DSN");
+    let administrator_password = env::var("PIXELS_TEST_PG_ADMIN_PASSWORD")
+        .expect("required PostgreSQL administrator password");
+    let mut administrator_url = url::Url::parse(&owner_dsn).unwrap();
+    administrator_url.set_username("pixels_admin").unwrap();
+    administrator_url
+        .set_password(Some(&administrator_password))
+        .unwrap();
+    DatabaseConfig::parse(administrator_url.as_str(), Transport::LocalDevelopment).unwrap()
+}
+
+fn backup_config(service: Service, password: &str) -> DatabaseConfig {
+    let owner_dsn = env::var(format!(
+        "PIXELS_TEST_{}_OWNER_URL",
+        service.name().to_uppercase()
+    ))
+    .expect("required owner test DSN");
+    let mut backup_url = url::Url::parse(&owner_dsn).unwrap();
+    backup_url.set_username(service.backup_role()).unwrap();
+    backup_url.set_password(Some(password)).unwrap();
+    DatabaseConfig::parse(backup_url.as_str(), Transport::LocalDevelopment).unwrap()
+}
+
+#[tokio::test]
+async fn backup_roles_are_read_only_isolated_and_rotatable() {
+    for service in [Service::Console, Service::Auth, Service::Desk] {
+        let initial_password = format!("{}-Initial_Backup", service.name().repeat(8));
+        let rotated_password = format!("{}-Rotated_Backup", service.name().repeat(8));
+        let administrator = administrator_config(service);
+        let backup_role =
+            provision_backup_role(&administrator, service, deployment(), &initial_password)
+                .await
+                .unwrap();
+        assert_eq!(backup_role, service.backup_role());
+
+        let backup = backup_config(service, &initial_password)
+            .connect()
+            .await
+            .unwrap();
+        let deployment_identity: (Uuid, String) =
+            sqlx::query_as("SELECT deployment_id,service FROM pixels.deployment_identity")
+                .fetch_one(&backup)
+                .await
+                .unwrap();
+        assert_eq!(
+            deployment_identity,
+            (deployment(), service.name().to_owned())
+        );
+
+        let table_privileges: (i64, i64) = sqlx::query_as(
+            "SELECT count(*),count(*) FILTER (WHERE has_table_privilege(CURRENT_USER,format('%I.%I',table_schema,table_name),'SELECT') AND NOT has_table_privilege(CURRENT_USER,format('%I.%I',table_schema,table_name),'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')) FROM information_schema.tables WHERE table_schema='pixels' AND table_type='BASE TABLE'",
+        )
+        .fetch_one(&backup)
+        .await
+        .unwrap();
+        assert!(table_privileges.0 > 0);
+        assert_eq!(table_privileges.1, table_privileges.0);
+        let denied_write =
+            sqlx::query("UPDATE pixels.deployment_identity SET service=service WHERE FALSE")
+                .execute(&backup)
+                .await
+                .unwrap_err();
+        assert_eq!(DatabaseError::from(denied_write), DatabaseError::Permission);
+        let denied_temporary_table =
+            sqlx::query("CREATE TEMP TABLE backup_write_probe(id integer)")
+                .execute(&backup)
+                .await
+                .unwrap_err();
+        assert_eq!(
+            DatabaseError::from(denied_temporary_table),
+            DatabaseError::Permission
+        );
+        backup.close().await;
+
+        provision_backup_role(&administrator, service, deployment(), &rotated_password)
+            .await
+            .unwrap();
+        assert_eq!(
+            backup_config(service, &initial_password)
+                .connect()
+                .await
+                .unwrap_err(),
+            DatabaseError::Permission
+        );
+        backup_config(service, &rotated_password)
+            .connect()
+            .await
+            .unwrap()
+            .close()
+            .await;
+
+        assert_eq!(
+            provision_backup_role(
+                &config(service, true),
+                service,
+                deployment(),
+                &rotated_password
+            )
+            .await,
+            Err(DatabaseError::Permission)
+        );
+        assert_eq!(
+            provision_backup_role(&administrator, service, Uuid::new_v4(), &rotated_password).await,
+            Err(DatabaseError::Identity)
+        );
+    }
+
+    for source_service in [Service::Console, Service::Auth, Service::Desk] {
+        let source_password = format!("{}-Rotated_Backup", source_service.name().repeat(8));
+        for target_service in [Service::Console, Service::Auth, Service::Desk] {
+            if source_service == target_service {
+                continue;
+            }
+            let owner_dsn = env::var(format!(
+                "PIXELS_TEST_{}_OWNER_URL",
+                target_service.name().to_uppercase()
+            ))
+            .unwrap();
+            let mut cross_service_url = url::Url::parse(&owner_dsn).unwrap();
+            cross_service_url
+                .set_username(source_service.backup_role())
+                .unwrap();
+            cross_service_url
+                .set_password(Some(&source_password))
+                .unwrap();
+            let cross_service_config =
+                DatabaseConfig::parse(cross_service_url.as_str(), Transport::LocalDevelopment)
+                    .unwrap();
+            assert_eq!(
+                cross_service_config.connect().await.unwrap_err(),
+                DatabaseError::Permission
+            );
+        }
+    }
 }
 
 async fn pool(service: Service, owner: bool) -> PgPool {

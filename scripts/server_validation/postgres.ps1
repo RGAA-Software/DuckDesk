@@ -7,7 +7,7 @@ param(
     [ValidateRange(0,65535)]
     [int]$Port = 0,
     [switch]$Linux,
-    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'backup-pg', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'catalog', 'update-authority', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'node-control', 'console-process', 'console-admin', 'console-browser')]
+    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'backup-pg', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'auth-browser', 'catalog', 'update-authority', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'node-control', 'console-process', 'console-admin', 'console-browser')]
     [string]$Suite = ''
 )
 
@@ -69,7 +69,7 @@ $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_de
 foreach ($service in @('console','auth','desk')) {
     $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo "rust_server/px_${service}_server/migrations") -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
 }
-if ($Action -eq 'TestSuite' -and $Suite -ne 'console-browser') {
+if ($Action -eq 'TestSuite' -and $Suite -notin @('console-browser','auth-browser')) {
     # Focused native checks do not build either web application. Excluding them also lets
     # frontend work continue without invalidating an unrelated long-running native test.
     $sourceFiles = @($sourceFiles | Where-Object { $_ -notmatch '^web[\\/]' })
@@ -85,6 +85,9 @@ function Set-LocalEnv([string]$Name, [string]$Value) {
 }
 
 function Invoke-Checked([string]$Exe, [string[]]$Arguments, [switch]$ExpectFailure, [int]$TimeoutSeconds = 600) {
+    if ($Exe -eq 'cargo' -and $Arguments.Count -gt 0 -and $Arguments[0] -in @('build','check','test') -and '--release' -notin $Arguments) {
+        $Arguments = @($Arguments[0], '--release') + $Arguments[1..($Arguments.Count - 1)]
+    }
     $script:commandIndex++
     $start = [Diagnostics.ProcessStartInfo]::new()
     $start.FileName = $Exe
@@ -157,6 +160,9 @@ function Use-Service([string]$Service, [string]$Role) {
 }
 
 try {
+    Set-LocalEnv 'CARGO_PROFILE_RELEASE_OPT_LEVEL' '1'
+    Set-LocalEnv 'CARGO_PROFILE_RELEASE_INCREMENTAL' 'true'
+    Set-LocalEnv 'CARGO_PROFILE_RELEASE_CODEGEN_UNITS' '256'
     if ($Action -in @('Down','Status') -and -not (Test-Path -LiteralPath $envFile)) {
         throw 'No development environment exists. Run postgres.ps1 Up first.'
     }
@@ -211,7 +217,7 @@ try {
     $fingerprints.image = (Invoke-Checked 'docker' @('inspect',$container,'--format','{{.Image}}')).Trim()
     Invoke-Checked 'cargo' @('build','--locked','--manifest-path',$manifest,'-p','px_pg','--target-dir',$targetDir) | Out-Null
     $exeName = if ($IsWindows) { 'px_db.exe' } else { 'px_db' }
-    $dbTool = Join-Path $targetDir "debug/$exeName"
+    $dbTool = Join-Path $targetDir "release/$exeName"
     $fingerprints.px_db = (Get-FileHash -LiteralPath $dbTool -Algorithm SHA256).Hash
     $fingerprints.px_db_initial_schema = $fingerprints.px_db
     $fingerprints.cargo_lock = (Get-FileHash -LiteralPath (Join-Path $repo 'rust_server/Cargo.lock') -Algorithm SHA256).Hash
@@ -242,9 +248,9 @@ try {
         # Explicit developer command, never performed implicitly by acceptance tests.
         # PostgreSQL/SQLx generate these files; this is not evidence that runtime tests passed.
         foreach ($item in @(
-            @{Service='console';Crate='px_console_store';Path='rust_server/px_console_server/storage';Count=288},
+            @{Service='console';Crate='px_console_store';Path='rust_server/px_console_server/storage';Count=278},
             @{Service='desk';Crate='px_desk_server';Path='rust_server/px_desk_server';Count=9},
-            @{Service='auth';Crate='px_auth_store';Path='rust_server/px_auth_server/storage';Count=34}
+            @{Service='auth';Crate='px_auth_store';Path='rust_server/px_auth_server/storage';Count=28}
         )) {
             Use-Service $item.Service 'runtime'
             Set-LocalEnv 'DATABASE_URL' $env:PIXELS_DATABASE_URL
@@ -298,11 +304,31 @@ try {
         Add-Step 'LINUX-BASELINE: pristine three-database snapshot isolated before Windows tests'
     }
     if ($Action -eq 'TestSuite') {
+        if ($Suite -eq 'auth-browser') {
+            Set-LocalEnv 'SQLX_OFFLINE' 'true'
+            Set-LocalEnv 'SQLX_OFFLINE_DIR' (Join-Path $repo 'rust_server/px_auth_server/storage/.sqlx')
+            $authApi = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_auth_server','--features','pg-integration','--test','postgres_api','--target-dir',$targetDir,'--','--test-threads=1')
+            Add-TestCases $authApi 'focused/auth-api' 9
+            Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_auth'),'run','build') | Out-Null
+            $authRuntime = Join-Path $targetDir 'release/px_auth.exe'
+            $authBrowser = Invoke-Checked 'node' @((Join-Path $PSScriptRoot 'auth_browser.cjs'),$authRuntime)
+            Write-Host $authBrowser
+            foreach ($case in @('auth-browser/login-create-customer','auth-browser/commit-response-loss-exact-retry','auth-browser/renew-and-revoke',
+                'auth-browser/language-theme-same-session','auth-browser/operator-create-visitor-denial-logout',
+                'auth-process/restart-preserves-session-and-revocation','auth-process/database-outage-fails-closed-and-recovers')) {
+                if (-not $authBrowser.Contains("PASS $case")) { throw "Auth functional assertion missing: $case" }
+                Add-Step "AUTH/$case"
+            }
+            $fingerprints.px_auth = (Get-FileHash -LiteralPath $authRuntime -Algorithm SHA256).Hash
+            Assert-SourceHashes
+            Add-Step 'FOCUSED-ONLY: Auth native API and built management UI browser flow; no restore or cross-platform acceptance'
+            return
+        }
         if ($Suite -eq 'console-browser') {
             Invoke-Checked 'cargo' @('build','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--features','pg-integration','--bins','--target-dir',$targetDir) | Out-Null
             Invoke-Checked 'cmd.exe' @('/d','/c','npm.cmd','--prefix',(Join-Path $repo 'web/px_console'),'run','build') | Out-Null
-            $consoleRuntime = Join-Path $targetDir 'debug/px_console.exe'
-            $consoleAdministrator = Join-Path $targetDir 'debug/px_console_admin.exe'
+            $consoleRuntime = Join-Path $targetDir 'release/px_console.exe'
+            $consoleAdministrator = Join-Path $targetDir 'release/px_console_admin.exe'
             $consoleBrowser = Invoke-Checked 'node' @((Join-Path $PSScriptRoot 'console_browser.cjs'),$consoleRuntime,$consoleAdministrator,$dbTool)
             Write-Host $consoleBrowser
             foreach ($case in @('console-browser/login-dashboard','console-browser/identity-create-user-group',
@@ -331,14 +357,14 @@ try {
             Invoke-Checked 'docker' @('exec',$container,'psql','-X','-v','ON_ERROR_STOP=1','-U','pixels_admin','-d','pixels_desk','-c',
                 "CREATE TABLE pixels.pg_fixture(id uuid PRIMARY KEY,version text NOT NULL,created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP); ALTER TABLE pixels.pg_fixture OWNER TO pixels_desk_owner; GRANT SELECT,INSERT,UPDATE,DELETE ON pixels.pg_fixture TO pixels_desk_runtime") | Out-Null
         }
-        $suiteCounts = @{unit=19;identity=12;control=8;devices=8;applications=8;guests=9;nodes=11;deployments=6;instances=16;commands=16;workspaces=6;database=2;sessions=11;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=17;activity=8;updates=11;desk=8;catalog=4;'update-authority'=6;lease=6;postgres=14;accounts=9}
+        $suiteCounts = @{unit=19;identity=12;control=8;devices=8;applications=8;guests=9;nodes=11;deployments=6;instances=16;commands=16;workspaces=6;database=2;sessions=12;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=17;activity=8;updates=7;desk=8;catalog=4;'update-authority'=6;lease=6;postgres=15;accounts=9}
         $suiteCounts['console-api'] = 6
         $suiteCounts['directory-api'] = 7
-        $suiteCounts['node-control'] = 3
+        $suiteCounts['node-control'] = 2
         $suiteCounts['console-process'] = 1
         $suiteCounts['console-admin'] = 3
         $suiteCounts['schema_gate'] = 4
-        $suiteCounts['auth'] = 9
+        $suiteCounts['auth'] = 5
         $suiteCounts['auth-api'] = 9
         Set-LocalEnv 'SQLX_OFFLINE' 'true'
         Set-LocalEnv 'SQLX_OFFLINE_DIR' (Join-Path $repo 'rust_server/px_console_server/storage/.sqlx')
@@ -376,6 +402,9 @@ try {
             Set-LocalEnv 'CARGO_HOME' $cargoHome
             $forward = @(
                 'CARGO_HOME/p',
+                'CARGO_PROFILE_RELEASE_OPT_LEVEL',
+                'CARGO_PROFILE_RELEASE_INCREMENTAL',
+                'CARGO_PROFILE_RELEASE_CODEGEN_UNITS',
                 'SQLX_OFFLINE',
                 'SQLX_OFFLINE_DIR/p',
                 'PIXELS_PG_ISOLATED_TEST',
@@ -414,7 +443,7 @@ try {
             ) -TimeoutSeconds 420
             Write-Host $linuxResult
             Add-TestCases $linuxResult "focused-linux/$Suite" $suiteCounts[$Suite]
-            if ($linuxResult -notmatch '(?m)^([a-f0-9]{64})\s+[^\r\n]+/debug/px_console\s*$') {
+            if ($linuxResult -notmatch '(?m)^([a-f0-9]{64})\s+[^\r\n]+/release/px_console\s*$') {
                 throw 'Missing focused Linux Console binary hash'
             }
             $fingerprints.linux_px_console = $Matches[1]
@@ -507,7 +536,7 @@ try {
     Add-TestCases $directoryApi 'native/console-directory-api' 7
     $nodeControl = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--features','pg-integration','--test','node_control','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $nodeControl
-    Add-TestCases $nodeControl 'native/console-node-control' 3
+    Add-TestCases $nodeControl 'native/console-node-control' 2
     $consoleProcess = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--features','pg-integration','--test','process','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $consoleProcess
     Add-TestCases $consoleProcess 'native/console-process' 1
@@ -614,7 +643,7 @@ try {
     $authCommitted = Join-Path $repo 'rust_server/px_auth_server/storage/.sqlx'
     $authExpected = @(Get-ChildItem -LiteralPath $authCommitted -Filter 'query-*.json' -File)
     $authActual = @(Get-ChildItem -LiteralPath $authMetadata -Filter 'query-*.json' -File)
-    if ($authExpected.Count -ne 34 -or $authActual.Count -ne 34) { throw 'Auth SQLx metadata must contain exactly 34 queries' }
+    if ($authExpected.Count -ne 28 -or $authActual.Count -ne 28) { throw 'Auth SQLx metadata must contain exactly 28 queries' }
     foreach ($expected in $authExpected) {
         $actual = Join-Path $authMetadata $expected.Name
         if (-not (Test-Path -LiteralPath $actual) -or (Get-FileHash -LiteralPath $expected.FullName).Hash -ne (Get-FileHash -LiteralPath $actual).Hash) {
@@ -623,24 +652,24 @@ try {
     }
     Set-LocalEnv 'SQLX_OFFLINE' 'true'
     Set-LocalEnv 'SQLX_OFFLINE_DIR' ''
-    Add-Step 'QUERY: 34 Auth queries compiled online; offline metadata matches'
+    Add-Step 'QUERY: 28 Auth queries compiled online; offline metadata matches'
     $authIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_auth_store','--features','pg-integration','--test','issuance','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $authIntegration
-    Add-TestCases $authIntegration 'native/auth-issuance' 9
-    Add-Step 'AUTH: transactional issuance, ordered notification outbox, exact retry, concurrent CAS, revocation, denied writes and injected rollback'
+    Add-TestCases $authIntegration 'native/auth-issuance' 5
+    Add-Step 'AUTH: transactional issuance, exact retry, concurrent CAS, revocation, denied writes and injected rollback'
     $authUnit = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_credentials','--lib','--target-dir',$targetDir)
     Add-TestCases $authUnit 'native/auth-security' 2
     $authApi = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_auth_server','--features','pg-integration','--test','postgres_api','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $authApi
     Add-TestCases $authApi 'native/auth-api' 9
     Add-Step 'AUTH-API: native startup, private file ACL, bootstrap races, login, roles, signing and revocation'
-    $fingerprints.px_auth = (Get-FileHash -LiteralPath (Join-Path $targetDir 'debug/px_auth.exe')).Hash
-    $fingerprints.px_auth_admin = (Get-FileHash -LiteralPath (Join-Path $targetDir 'debug/px_auth_admin.exe')).Hash
-    $consoleRuntime = Join-Path $targetDir 'debug/px_console.exe'
-    $consoleAdministrator = Join-Path $targetDir 'debug/px_console_admin.exe'
+    $fingerprints.px_auth = (Get-FileHash -LiteralPath (Join-Path $targetDir 'release/px_auth.exe')).Hash
+    $fingerprints.px_auth_admin = (Get-FileHash -LiteralPath (Join-Path $targetDir 'release/px_auth_admin.exe')).Hash
+    $consoleRuntime = Join-Path $targetDir 'release/px_console.exe'
+    $consoleAdministrator = Join-Path $targetDir 'release/px_console_admin.exe'
     $fingerprints.px_console = (Get-FileHash -LiteralPath $consoleRuntime).Hash
     $fingerprints.px_console_admin = (Get-FileHash -LiteralPath $consoleAdministrator).Hash
-    $deskTool = Join-Path $targetDir 'debug/px_desk.exe'
+    $deskTool = Join-Path $targetDir 'release/px_desk.exe'
     $fingerprints.px_desk = (Get-FileHash -LiteralPath $deskTool -Algorithm SHA256).Hash
     foreach ($webRoot in @('web/px_pixels','web/px_auth','web/px_console','web/px_web_client')) {
         $webPath = Join-Path $repo $webRoot
@@ -699,7 +728,7 @@ try {
         throw 'Web Client descriptor/media contract tests missing'
     }
     Add-Step 'WEB-CLIENT: Direct Host policy, Console descriptor forwarding, token redaction, media/control and voice contracts'
-    $authBrowser = Invoke-Checked 'node' @((Join-Path $PSScriptRoot 'auth_browser.cjs'),(Join-Path $targetDir 'debug/px_auth.exe'))
+    $authBrowser = Invoke-Checked 'node' @((Join-Path $PSScriptRoot 'auth_browser.cjs'),(Join-Path $targetDir 'release/px_auth.exe'))
     Write-Host $authBrowser
     foreach ($case in @('auth-browser/login-create-customer','auth-browser/commit-response-loss-exact-retry','auth-browser/renew-and-revoke',
         'auth-browser/language-theme-same-session','auth-browser/operator-create-visitor-denial-logout',
@@ -733,7 +762,19 @@ try {
         Add-Step 'LINUX-RESET: exact production database names rebuilt from pristine isolated baseline'
         $cargoHome = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path ([Environment]::GetFolderPath('UserProfile')) '.cargo' }
         Set-LocalEnv 'CARGO_HOME' $cargoHome
-        $forward = @('CARGO_HOME/p','SQLX_OFFLINE','SQLX_OFFLINE_DIR/p','PIXELS_PG_ISOLATED_TEST','PIXELS_TEST_CONTAINER','PIXELS_DEPLOYMENT_ID','PIXELS_PG_LOCAL_DEVELOPMENT','PIXELS_TEST_PG_ADMIN_PASSWORD')
+        $forward = @(
+            'CARGO_HOME/p',
+            'CARGO_PROFILE_RELEASE_OPT_LEVEL',
+            'CARGO_PROFILE_RELEASE_INCREMENTAL',
+            'CARGO_PROFILE_RELEASE_CODEGEN_UNITS',
+            'SQLX_OFFLINE',
+            'SQLX_OFFLINE_DIR/p',
+            'PIXELS_PG_ISOLATED_TEST',
+            'PIXELS_TEST_CONTAINER',
+            'PIXELS_DEPLOYMENT_ID',
+            'PIXELS_PG_LOCAL_DEVELOPMENT',
+            'PIXELS_TEST_PG_ADMIN_PASSWORD'
+        )
         foreach ($service in @('CONSOLE','AUTH','DESK')) {
             foreach ($role in @('OWNER','RUNTIME')) { $forward += "PIXELS_TEST_${service}_${role}_URL" }
         }
@@ -755,12 +796,12 @@ try {
             if ($linuxResult -notmatch "READY service=$service") { throw "Linux schema tool failed for $service" }
         }
         Add-TestCases $linuxResult 'linux' $nativeCatalog.Count
-        if ($linuxResult -notmatch '(?m)^([a-f0-9]{64})\s+[^\r\n]+/debug/px_db\s*$') { throw 'Missing Linux schema tool hash' }
+        if ($linuxResult -notmatch '(?m)^([a-f0-9]{64})\s+[^\r\n]+/release/px_db\s*$') { throw 'Missing Linux schema tool hash' }
         $fingerprints.linux_px_db = $Matches[1]
-        if ($linuxResult -notmatch '(?m)^([a-f0-9]{64})\s+[^\r\n]+/debug/px_desk\s*$') { throw 'Missing Linux Desk binary hash' }
+        if ($linuxResult -notmatch '(?m)^([a-f0-9]{64})\s+[^\r\n]+/release/px_desk\s*$') { throw 'Missing Linux Desk binary hash' }
         $fingerprints.linux_px_desk = $Matches[1]
         foreach ($tool in @('px_auth','px_auth_admin','px_console_admin','px_cache_probe')) {
-            if ($linuxResult -notmatch "(?m)^([a-f0-9]{64})\s+[^\r\n]+/debug/$tool\s*$") { throw "Missing Linux tool hash: $tool" }
+            if ($linuxResult -notmatch "(?m)^([a-f0-9]{64})\s+[^\r\n]+/release/$tool\s*$") { throw "Missing Linux tool hash: $tool" }
             $fingerprints["linux_$tool"] = $Matches[1]
         }
         Add-Step 'LINUX: native WSL Rust unit/integration tests and three schema readiness checks'
@@ -768,7 +809,7 @@ try {
     # Cargo integration targets may rebuild this binary with unified test dependency features.
     # Record and verify the exact final binary used by readiness/outage validation, not only the initial tool.
     $fingerprints.px_db = (Get-FileHash -LiteralPath $dbTool -Algorithm SHA256).Hash
-    $fingerprints.px_cache_probe = (Get-FileHash -LiteralPath (Join-Path $targetDir 'debug/px_cache_probe.exe') -Algorithm SHA256).Hash
+    $fingerprints.px_cache_probe = (Get-FileHash -LiteralPath (Join-Path $targetDir 'release/px_cache_probe.exe') -Algorithm SHA256).Hash
     foreach ($service in @('console','auth','desk')) {
         Use-Service $service 'runtime'
         Invoke-Checked $dbTool @('check',$service) | Out-Null
@@ -785,7 +826,7 @@ try {
     $count = (Invoke-Checked 'docker' @('exec',$container,'psql','-X','-U','pixels_admin','-d','pixels_desk','-Atc','SELECT count(*) FROM pixels.pg_fixture')).Trim()
     if ([int]$count -lt 2) { throw 'Committed test data did not survive PostgreSQL restart' }
     Add-Step 'ENV: committed rows survive restart'
-    $tablesByService = @{console=@('users','login_sessions','user_groups','group_members','authorization_outbox','authorization_audit','devices','user_devices','group_device_grants','device_audit','applications','group_app_grants','application_events','guest_sessions','guest_blocks','guest_source_blocks','guest_events','control_runtime','control_runs','nodes','node_audit','application_deployments','deployment_audit','instances','instance_commands','instance_events','instance_admin_actions','rdp_workspaces','workspace_secrets','workspace_audit','resource_sessions','resource_session_events','resource_session_retirements'); auth=@('authors','author_sessions','customers','licenses','license_issuances','license_requests','license_audit','license_notification_outbox'); desk=@('pg_fixture','feedback','versions','admin_sessions')}
+    $tablesByService = @{console=@('users','login_sessions','user_groups','group_members','authorization_outbox','authorization_audit','devices','user_devices','group_device_grants','device_audit','applications','group_app_grants','application_events','guest_sessions','guest_blocks','guest_source_blocks','guest_events','control_runtime','control_runs','nodes','node_audit','application_deployments','deployment_audit','instances','instance_commands','instance_events','instance_admin_actions','rdp_workspaces','workspace_secrets','workspace_audit','resource_sessions','resource_session_events','resource_session_retirements'); auth=@('authors','author_sessions','customers','licenses','license_issuances','license_requests','license_audit'); desk=@('pg_fixture','feedback','versions','admin_sessions')}
     $tablesByService.console += @('file_transfers','file_transfer_events','recordings','recording_events')
     $tablesByService.console += @('saved_connections','saved_connection_events')
     $tablesByService.console += @('cache_roots','cache_runs','cache_runtime','recording_cache','cache_blobs','cache_events')

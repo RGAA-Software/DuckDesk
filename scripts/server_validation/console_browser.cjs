@@ -34,11 +34,9 @@ const guestSourcePath = path.join(privateDirectory, "guest-source.key");
 const workspaceKeyPath = path.join(privateDirectory, "workspace.key");
 const passwordPath = path.join(privateDirectory, "initial-password.txt");
 const recordingCachePath = path.join(privateDirectory, "recording-cache");
-const licenseStatePath = path.join(privateDirectory, "license-state");
 const licenseTrustPath = path.join(privateDirectory, "license-trust.json");
 const licensePath = path.join(privateDirectory, "console.license");
 const workspaceKeyId = randomUUID();
-const licenseAuthorityDeploymentId = randomUUID();
 let child;
 let browser;
 let baseUrl;
@@ -85,13 +83,10 @@ function provisionLicense() {
   const licensePrivateKey = createPrivateKey({ key: licenseKeyDocument, format: "der", type: "pkcs8" });
   const licensePublicKey = Buffer.from("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a", "hex");
   const licenseKeyId = keyId(licensePublicKey);
-  fs.mkdirSync(licenseStatePath);
   fs.writeFileSync(
     licenseTrustPath,
     JSON.stringify({
-      schema_version: 1,
-      authority_deployment_id: licenseAuthorityDeploymentId,
-      recovery_generation: randomUUID(),
+      schema_version: 2,
       active_key_id: licenseKeyId,
       trusted_keys: [{ key_id: licenseKeyId, public_key_hex: licensePublicKey.toString("hex") }],
     }),
@@ -101,15 +96,8 @@ function provisionLicense() {
     schema: 2,
     license_id: randomUUID(),
     deployment_id: process.env.PIXELS_DEPLOYMENT_ID,
-    product: "pixels_console",
-    distribution: "customer",
-    release_namespace: "pixels.customer",
-    oem_id: null,
-    machine_sha256: "a".repeat(64),
     revision: 1,
-    mode: "licensed",
     issued_at: now - 10,
-    not_before: now - 10,
     expires_at: now + 3600,
     max_streams: 32,
     services: ["cloud_applications", "desktop", "rdp"],
@@ -236,11 +224,8 @@ async function startServer() {
     PIXELS_CONSOLE_RECORDING_CACHE_TTL_SECONDS: "60",
     PIXELS_CONSOLE_DISTRIBUTION: "customer",
     PIXELS_CONSOLE_RELEASE_NAMESPACE: "pixels.customer",
-    PIXELS_CONSOLE_MACHINE_SHA256: "a".repeat(64),
-    PIXELS_CONSOLE_LICENSE_AUTHORITY_DEPLOYMENT_ID: licenseAuthorityDeploymentId,
     PIXELS_CONSOLE_LICENSE_TRUST_STORE: licenseTrustPath,
     PIXELS_CONSOLE_LICENSE_FILE: licensePath,
-    PIXELS_CONSOLE_LICENSE_STATE_DIRECTORY: licenseStatePath,
     PIXELS_CONSOLE_MINIMUM_CLIENT_BUILD: "1",
   };
   delete environment.PIXELS_CONSOLE_TLS_CERT;

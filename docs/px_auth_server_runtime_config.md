@@ -1,7 +1,6 @@
 # Auth：PostgreSQL 新服务配置与开发
 
-> 2026-09-17。仅描述当前新实现。没有 Mongo、旧 TOML/JWT/HMAC、旧签名或旧 API 回退。
-> Console 及仓库外许可证消费者尚未完成切换，不能单独替换公网 Auth 后声称整体可用。
+> 2026-09-22。仅描述当前新实现。没有 Mongo、旧 TOML/JWT/HMAC、旧签名或旧 API 回退。
 
 ## 运行配置
 
@@ -12,7 +11,7 @@
 | PIXELS_AUTH_LISTEN | 显式监听地址；无隐式默认端口 |
 | PIXELS_AUTH_STATIC_DIRECTORY | 本次构建的 web/px_auth/dist 或发行包 static，必须有 index.html |
 | PIXELS_AUTH_SIGNING_KEY | ACL 保护的 PKCS#8 v2 二进制 Ed25519 私钥文件 |
-| PIXELS_AUTH_TRUST_STORE | ACL 保护、规范 JSON 的签名信任根；声明 Auth deployment、恢复代际、唯一活动 key 与最多 16 个受信公钥 |
+| PIXELS_AUTH_TRUST_STORE | ACL 保护、schema 2 规范 JSON 的许可证公钥 keyring；声明唯一活动 key 与最多 16 个受信公钥 |
 | PIXELS_AUTH_TLS_CERT / PIXELS_AUTH_TLS_KEY | 正式环境两者必填；受信证书/私钥，不接受跳过证书验证的客户端方案 |
 | PIXELS_AUTH_TRUSTED_PROXY_IP | 可选的单一可信反向代理 IP；只允许该 socket peer 提供恰好一个、无逗号的 `X-Forwarded-For` 客户端 IP |
 | PIXELS_AUTH_LOCAL_DEVELOPMENT=1 | 仅显式本机开发：监听及 PG 连接均限 loopback，才允许无 TLS |
@@ -20,21 +19,20 @@
 私钥不存数据库、不随包分发、不从旧 Base64 文件导入，不因缺失自动生成。
 Windows 文件及所有权只允许当前服务身份、SYSTEM、Administrators，其他主体的允许 ACE 拒绝；
 Unix 私钥拒绝 group/other 权限。文件类型/权限与读取在同一打开的句柄上检查，拒绝链接/重解析点。
-密钥或信任根缺失、活动私钥不匹配、信任根 deployment/恢复代际与 PG 不匹配、PG/schema 不匹配均在监听前失败并退出非零；
-恢复旧数据库但继续使用新信任根、或恢复旧信任根但连接新代际数据库都不能启动。运行时故障 ready=503，live=204。
+密钥或 keyring 缺失、活动私钥不匹配、PG/schema/deployment 不匹配均在监听前失败并退出非零。keyring 不绑定数据库恢复代际；
+数据库恢复安全仍由三库恢复封印独立保证。运行时故障 ready=503，live=204。
 业务入口和 ready 只接受最小权限 pixels_auth_runtime，拒绝 owner/超级用户或被授予建表等额外权限的 runtime。
 首次管理员初始化是独立 owner 工具，不改变业务启动的账号边界。
 
 首次配置可显式执行 px_auth_admin generate-key：先创建仅服务身份/SYSTEM/Administrators 可访问的目录
 （Unix 0700），设置 PIXELS_AUTH_SIGNING_KEY 为其中尚不存在的文件路径。工具检查目录权限、以 create-new
 创建并验证 PKCS#8 v2 文件，只输出公钥 hex 与 key_id；已有文件绝不覆盖，写入失败保留半成品供管理员检查。
-首次部署和每次轮换使用当前数据库 `pixels.recovery_security_state.recovery_generation`，设置
-`PIXELS_AUTH_TRUST_STORE` 为一个尚不存在的版本化文件，随后执行 `px_auth_admin create-trust-store`。
+首次部署和每次轮换把 `PIXELS_AUTH_TRUST_STORE` 设置为一个尚不存在的版本化文件，随后执行
+`px_auth_admin create-trust-store`。
 该命令从活动私钥派生 `active_key_id`；轮换宽限期可通过 `PIXELS_AUTH_ADDITIONAL_PUBLIC_KEYS`
 传入逗号分隔的旧公钥 hex，使已有未过期许可证继续验签。确认消费者已取得新根后，再生成一个不含旧公钥的新文件并切换配置，
-旧 key 立即撤回；命令始终 create-new，不覆盖当前根。私钥、信任根及恢复代际必须纳入恢复封印审批，
-信任根中的全部 key_id 同步写入备份外部见证的 `available_key_ids`。灾难恢复提升数据库代际后必须生成新私钥和只含新公钥的新信任根，
-不得把旧私钥或旧公钥带入新代际。密钥备份独立管理；不要使用仓库的公开测试 seed。
+旧 key 不再用于新签发；命令始终 create-new，不覆盖当前 keyring。私钥和 keyring 独立备份并纳入恢复审批，全部 key ID 同步记录在备份
+外部见证的 `available_key_ids`。数据库恢复代际不会隐式更换许可证签名 key；换 key 是显式运维动作。不要使用仓库的公开测试 seed。
 
 ## 初始管理员
 
@@ -66,29 +64,23 @@ Unix 私钥拒绝 group/other 权限。文件类型/权限与读取在同一打�
 | GET /licenses | admin/visitor UUID 游标分页，返回当前状态及最后签发 wire |
 | POST /licenses/issue | admin；request_id + request(create/renew)，先事务提交再返回 |
 | POST /licenses/{id}/revoke | admin；expected_revision CAS、撤销与审计同事务 |
-| POST /licenses/verify | 提交 wire 和明确目标绑定；先验签，再查当前 revision/撤销/有效期 |
 
 列表必须传 limit=1..100，可传 after UUID，无无界全量查询。
-签发 terms 明确 customer/deployment/product/distribution/release_namespace/oem_id/machine/mode/activation/expires/max_streams/services；
-发行域只能是 `official/pixels.official/null`、`customer/pixels.customer/null` 或 `oem/oem.<oem_id>/<oem_id>`，不能省略、推断或跨许可证续期改变；
-activation 为 immediately 或 at+timestamp，不用客户端猜签发时钟。
+签发 terms 只包含 customer、deployment、expires、max_streams 和 services；签发时间使用 Auth 数据库时间。
 同作者同 request_id 正文不同返回 409；相同请求返回完全相同已提交 wire。
-续期只能调整到期时间、最大 stream 数和授权服务，不能换客户/部署/产品/发行/机器身份。撤销后不能通过旧请求或续期“复活”。
+续期只能调整到期时间、最大 stream 数和授权服务，不能换客户或 deployment。撤销后不能通过旧请求或续期“复活”，但已经交付的
+离线签名副本仍有效到自身到期时间。
 签发中途失败回滚 license/request/audit；提交结果未知须按原 request_id 重试，不能制造新请求。
 签名字节/固定向量见[许可证契约](postgresql_license_contract.md)。
 
 管理网页提供中英、明暗主题、客户/账号/许可证管理，使用 same-origin；无公网 CDN 或硬编码服务器。
 只读角色不显示写入入口，服务端仍逐请求鉴权。
-私有离线验证的即时撤销和备份回退问题不能由此 API 解决；库外防回滚水位仍是 DB4/Console 准入门禁。
-
-`/licenses/verify` 同时是 Official Console 的认证消费者接触点。只有签名、deployment、product、精确发行域、machine 和时间全部通过后，
-Auth 才把该 license 截至数据库当前 revision 的通知 outbox 标为已接触并清除旧 lease；内部 lease UUID 从不出现在 HTTP。
-随后仍独立检查 wire 是否为当前 revision 且未撤销：旧 wire 的接触可以完成通知记账，但响应必为拒绝。响应丢失不会产生 fail-open，
-因为 Console 的在线新鲜度只由成功 currentness 响应推进。
+Auth 不提供在线许可证验证或通知 outbox。Console 只用受控 keyring 在本地验证 `PXLIC2`；需要缩短撤销收敛时间时签发较短有效期并由
+客户运维替换许可证，不能宣称离线副本会即时失效。
 
 ## 开发与发布
 
-日常：设置 SQLX_OFFLINE=true，cargo check/test 的目标为 px_auth_server / px_auth_store / px_license；
+日常：设置 SQLX_OFFLINE=true，使用快速 Release 执行 cargo check/test，目标为 px_auth_server / px_auth_store / px_license；
 target-dir=.cache/pg-cargo；网页 npm --prefix web/px_auth run build / run test:unit。
 Vite 开发代理只在显式 PIXELS_AUTH_DEV_TARGET 配置时启用，HTTPS 证书验证不关闭。
 

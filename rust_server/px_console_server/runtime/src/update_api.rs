@@ -10,7 +10,6 @@ use axum::{
     Json, Router,
 };
 use px_console_store::UpdateDecision;
-use px_license::Distribution as LicenseDistribution;
 use px_release_catalog::{
     Architecture, Channel, Distribution, OperatingSystem, Product, ReleaseQuery, ReleaseSpec,
 };
@@ -22,14 +21,6 @@ pub(crate) fn routes() -> Router<Arc<StateData>> {
     Router::new()
         .route("/api/console/managed/updates", get(managed).post(register))
         .route("/api/console/managed/updates/{id}", patch(decide))
-        .route(
-            "/api/console/managed/updates/{id}/node-trust",
-            get(node_trust),
-        )
-        .route(
-            "/api/console/managed/updates/{id}/node-trust/nodes",
-            get(node_trust_nodes),
-        )
         .route("/api/console/updates/latest", get(latest))
 }
 
@@ -108,62 +99,19 @@ async fn decide(
     ))
 }
 
-async fn node_trust(
-    State(state): State<Arc<StateData>>,
-    headers: HeaderMap,
-    Path(id): Path<Uuid>,
-) -> Result<Json<px_console_store::NodeUpdateTrustSummary>, ApiError> {
-    Ok(Json(
-        state
-            .db
-            .updates()
-            .node_trust_summary(
-                &request::administrator(&state, &headers)?,
-                id,
-                release_distribution(&state),
-            )
-            .await?,
-    ))
-}
-
 fn require_console_release_domain(
     state: &StateData,
     target: &ReleaseQuery,
 ) -> Result<(), ApiError> {
     let expected_distribution = release_distribution(state);
     let matches_console = target.distribution == expected_distribution
-        && target.release_namespace == state.license.payload.release_namespace
-        && target.oem_id == state.license.payload.oem_id;
+        && target.release_namespace == state.release.release_namespace
+        && target.oem_id == state.release.oem_id;
     matches_console.then_some(()).ok_or(ApiError::Rejected)
 }
 
-async fn node_trust_nodes(
-    State(state): State<Arc<StateData>>,
-    headers: HeaderMap,
-    Path(id): Path<Uuid>,
-    Query(page): Query<Page>,
-) -> Result<Json<Vec<px_console_store::NodeUpdateTrustStatus>>, ApiError> {
-    Ok(Json(
-        state
-            .db
-            .updates()
-            .node_trust_statuses(
-                &request::administrator(&state, &headers)?,
-                id,
-                release_distribution(&state),
-                page.after,
-                page.limit,
-            )
-            .await?,
-    ))
-}
-
 fn release_distribution(state: &StateData) -> Distribution {
-    match state.license.payload.distribution {
-        LicenseDistribution::Official => Distribution::Official,
-        LicenseDistribution::Customer => Distribution::Customer,
-        LicenseDistribution::Oem => Distribution::Oem,
-    }
+    state.release.distribution
 }
 
 async fn latest(
@@ -178,8 +126,8 @@ async fn latest(
     let target = ReleaseQuery {
         product: Product::Android,
         distribution: release_distribution(&state),
-        release_namespace: state.license.payload.release_namespace.clone(),
-        oem_id: state.license.payload.oem_id.clone(),
+        release_namespace: state.release.release_namespace.clone(),
+        oem_id: state.release.oem_id.clone(),
         channel: Channel::Stable,
         os: OperatingSystem::Android,
         architecture: Architecture::Aarch64,

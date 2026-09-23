@@ -8,6 +8,31 @@ use sqlx::PgConnection;
 use uuid::Uuid;
 
 impl ResourceSessionStore {
+    pub(crate) async fn close_instance_sessions(
+        connection: &mut PgConnection,
+        instance_id: Uuid,
+    ) -> Result<(), StoreError> {
+        let sessions = sqlx::query_file_as!(
+            SessionRow,
+            "queries/active_instance_resource_sessions.sql",
+            instance_id
+        )
+        .fetch_all(&mut *connection)
+        .await?;
+        for session in sessions {
+            crate::file_transfers::invalidate(
+                &mut *connection,
+                Some(session.node_id),
+                Some(session.id),
+            )
+            .await?;
+            crate::activity::invalidate(&mut *connection, Some(session.node_id), Some(session.id))
+                .await?;
+            Self::change(connection, &session, "closed").await?;
+        }
+        Ok(())
+    }
+
     pub(crate) async fn lock(
         connection: &mut PgConnection,
         id: Uuid,

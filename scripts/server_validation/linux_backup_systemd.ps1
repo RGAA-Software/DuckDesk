@@ -9,7 +9,7 @@ $serviceName = "pixels-backup@$deploymentId.service"
 $temporaryDirectory = Join-Path $repo ".cache/systemd-$deploymentId"
 $configPath = Join-Path $temporaryDirectory 'config.json'
 $linuxRepo = '/mnt/d/GoCloud/GammaRayPremium'
-$linuxBinary = "$linuxRepo/rust_server/target/debug/px_backup"
+$linuxBinary = "$linuxRepo/rust_server/target/release/px_backup"
 $linuxConfig = "$linuxRepo/.cache/systemd-$deploymentId/config.json"
 $linuxInstaller = "$linuxRepo/scripts/server_backup/install_linux_service.sh"
 $linuxUninstaller = "$linuxRepo/scripts/server_backup/uninstall_linux_service.sh"
@@ -35,7 +35,7 @@ function Invoke-Wsl([string]$Command, [switch]$Root) {
 try {
     $pidOne = Invoke-Wsl 'ps -p 1 -o comm='
     if ($pidOne.Trim() -ne 'systemd') { throw "WSL PID 1 is not systemd: $pidOne" }
-    Invoke-Wsl "cd '$linuxRepo/rust_server' && cargo build -p px_backup --offline --locked" | Out-Null
+    Invoke-Wsl "cd '$linuxRepo/rust_server' && cargo build --release -p px_backup --offline --locked" | Out-Null
     Invoke-Wsl "install -d -o root -g root -m 0755 '$validationToolRoot'; install -o root -g root -m 0755 /usr/bin/true '$validationToolRoot/pg_dump'; install -o root -g root -m 0755 /usr/bin/true '$validationToolRoot/pg_restore'" -Root | Out-Null
     $toolSha256 = (Invoke-Wsl "sha256sum '$validationToolRoot/pg_dump' | cut -d' ' -f1").Trim()
     if ($toolSha256 -notmatch '^[0-9a-f]{64}$') { throw 'Could not hash Linux validation tool' }

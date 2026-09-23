@@ -1,0 +1,26 @@
+{
+  "revision": "b6e7e8688114c6e3656dd45feac08668128a1998",
+  "reason": "Align dependent active plans with retirement of distributed update activation and trust reporting.",
+  "files": [
+    {
+      "path": "docs/cloud_application_scheduling_plan.md",
+      "sha256": "405516A763DE23AE1B619632CFF401C100B190CA15B5406E130F9438A02E044B",
+      "status": ""
+    },
+    {
+      "path": "docs/postgresql_console_runtime_contract.md",
+      "sha256": "8915784BD6CA3DDCBFC7FC915A765434A5E1BFB897062E1C8DF2C78412820B5F",
+      "status": ""
+    },
+    {
+      "path": "docs/server_incremental_validation_plan.md",
+      "sha256": "7796C4F443FD17E3035697AF97B4E46FE76B62F84C38D3BF39E55266AD69A6CD",
+      "status": ""
+    },
+    {
+      "path": "docs/service_operations_console_plan.md",
+      "sha256": "E3D72453CCD909BC349A04270ECA1489A7662535F2C273ED0B3C9A0657F46D71",
+      "status": ""
+    }
+  ]
+}

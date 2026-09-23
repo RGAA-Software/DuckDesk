@@ -17,6 +17,31 @@ if(NOT PX_DISTRIBUTION STREQUAL "development" AND NOT PX_DISTRIBUTION STREQUAL "
     message(FATAL_ERROR "PX_DISTRIBUTION must be development, official, customer, or oem; got '${PX_DISTRIBUTION}'")
 endif()
 
+option(PX_FAST_RELEASE "Use the incremental lightweight-optimization Release profile for focused development" OFF)
+if(PX_FAST_RELEASE)
+    if(NOT PX_DISTRIBUTION STREQUAL "development")
+        message(FATAL_ERROR "PX_FAST_RELEASE is only valid for the development distribution")
+    endif()
+    if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
+        message(FATAL_ERROR "PX_FAST_RELEASE requires CMAKE_BUILD_TYPE=Release")
+    endif()
+    if(MSVC)
+        foreach(PX_RELEASE_FLAGS CMAKE_C_FLAGS_RELEASE CMAKE_CXX_FLAGS_RELEASE)
+            string(REGEX REPLACE "/O[0-2dx]" "/O1" ${PX_RELEASE_FLAGS} "${${PX_RELEASE_FLAGS}}")
+            string(REGEX REPLACE "/Ob[0-3]" "/Ob1" ${PX_RELEASE_FLAGS} "${${PX_RELEASE_FLAGS}}")
+        endforeach()
+    else()
+        foreach(PX_RELEASE_FLAGS CMAKE_C_FLAGS_RELEASE CMAKE_CXX_FLAGS_RELEASE)
+            string(REGEX REPLACE "(^| )-O[0-3sgz]( |$)" "\\1-O1\\2" ${PX_RELEASE_FLAGS} "${${PX_RELEASE_FLAGS}}")
+        endforeach()
+    endif()
+    if((MSVC AND NOT CMAKE_CXX_FLAGS_RELEASE MATCHES "(^| )/O1( |$)") OR
+       (NOT MSVC AND NOT CMAKE_CXX_FLAGS_RELEASE MATCHES "(^| )-O1( |$)"))
+        message(FATAL_ERROR "PX_FAST_RELEASE could not establish the required C++ O1 optimization level")
+    endif()
+    message(STATUS "Pixels fast Release profile enabled (C++ O1, incremental Rust Release)")
+endif()
+
 set(PX_OEM_RELEASE_PROFILE "" CACHE FILEPATH "Immutable OEM release identity profile")
 if(PX_DISTRIBUTION STREQUAL "oem")
     if(PX_OEM_RELEASE_PROFILE STREQUAL "" OR NOT EXISTS "${PX_OEM_RELEASE_PROFILE}")
@@ -417,9 +442,16 @@ set(PX_PRODUCT_RUST_OUTPUT_DIR ${PX_PRODUCT_BUILD_ROOT}/cargo/stage)
 file(MAKE_DIRECTORY "${PX_PRODUCT_RUST_OUTPUT_DIR}")
 set(PX_RUST_PROFILE debug)
 set(PX_RUST_BUILD_FLAG "")
+set(PX_RUST_RELEASE_ENV "")
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(PX_RUST_PROFILE release)
     set(PX_RUST_BUILD_FLAG --release)
+endif()
+if(PX_FAST_RELEASE)
+    list(APPEND PX_RUST_RELEASE_ENV
+         "CARGO_PROFILE_RELEASE_OPT_LEVEL=1"
+         "CARGO_PROFILE_RELEASE_INCREMENTAL=true"
+         "CARGO_PROFILE_RELEASE_CODEGEN_UNITS=256")
 endif()
 set(PX_SYSINFO_RUST_EXE ${PX_RUST_TARGET_DIR}/${PX_RUST_PROFILE}/${PX_SYSINFO_EXE_NAME})
 set(PX_SERVICE_RUST_EXE ${PX_RUST_TARGET_DIR}/${PX_RUST_PROFILE}/${PX_SERVICE_EXE_NAME})
@@ -434,7 +466,7 @@ set(PX_USER_PROXY_STAGED_EXE ${PX_PRODUCT_RUST_OUTPUT_DIR}/${PX_USER_PROXY_EXE_N
 set(PX_UNINSTALL_STAGED_EXE ${PX_PROJECT_BINARY_PATH}/${PX_UNINSTALL_EXE_NAME})
 
 add_custom_target(px_osinfo_rust
-        COMMAND ${CMAKE_COMMAND} -E env "CARGO_TARGET_DIR=${PX_RUST_TARGET_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E env "CARGO_TARGET_DIR=${PX_RUST_TARGET_DIR}" ${PX_RUST_RELEASE_ENV}
                 ${CARGO_EXECUTABLE} build --locked --manifest-path ${PX_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_sysinfo --bin px_osinfo ${PX_RUST_BUILD_FLAG}
         WORKING_DIRECTORY ${PX_RUST_WORKSPACE_ROOT}
         COMMENT "Building Rust px_osinfo"
@@ -442,7 +474,7 @@ add_custom_target(px_osinfo_rust
 )
 
 add_custom_target(px_service_rust
-        COMMAND ${CMAKE_COMMAND} -E env "CARGO_TARGET_DIR=${PX_RUST_TARGET_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E env "CARGO_TARGET_DIR=${PX_RUST_TARGET_DIR}" ${PX_RUST_RELEASE_ENV}
                 ${CARGO_EXECUTABLE} build --locked --manifest-path ${PX_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_service --bin px_service ${PX_RUST_BUILD_FLAG}
         WORKING_DIRECTORY ${PX_RUST_WORKSPACE_ROOT}
         COMMENT "Building Rust px_service"
@@ -450,7 +482,7 @@ add_custom_target(px_service_rust
 )
 
 add_custom_target(px_service_manager_rust
-        COMMAND ${CMAKE_COMMAND} -E env "CARGO_TARGET_DIR=${PX_RUST_TARGET_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E env "CARGO_TARGET_DIR=${PX_RUST_TARGET_DIR}" ${PX_RUST_RELEASE_ENV}
                 ${CARGO_EXECUTABLE} build --locked --manifest-path ${PX_RUST_WORKSPACE_ROOT}/Cargo.toml -p service_manager --bin px_service_manager ${PX_RUST_BUILD_FLAG}
         WORKING_DIRECTORY ${PX_RUST_WORKSPACE_ROOT}
         COMMENT "Building Rust px_service_manager"
@@ -458,7 +490,7 @@ add_custom_target(px_service_manager_rust
 )
 
 add_custom_target(px_function_rust
-        COMMAND ${CMAKE_COMMAND} -E env "CARGO_TARGET_DIR=${PX_RUST_TARGET_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E env "CARGO_TARGET_DIR=${PX_RUST_TARGET_DIR}" ${PX_RUST_RELEASE_ENV}
                 ${CARGO_EXECUTABLE} build --locked --manifest-path ${PX_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_user_proxy --bin px_function ${PX_RUST_BUILD_FLAG}
         WORKING_DIRECTORY ${PX_RUST_WORKSPACE_ROOT}
         COMMENT "Building Rust px_function"
@@ -494,7 +526,7 @@ add_custom_target(px_function_stage
 )
 
 add_custom_target(px_uninstall_rust
-        COMMAND ${CMAKE_COMMAND} -E env "CARGO_TARGET_DIR=${PX_RUST_TARGET_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E env "CARGO_TARGET_DIR=${PX_RUST_TARGET_DIR}" ${PX_RUST_RELEASE_ENV}
                 ${CARGO_EXECUTABLE} build --locked --manifest-path ${PX_RUST_WORKSPACE_ROOT}/Cargo.toml -p px_uninstall --bin px_uninstall ${PX_RUST_BUILD_FLAG}
         WORKING_DIRECTORY ${PX_RUST_WORKSPACE_ROOT}
         COMMENT "Building Rust px_uninstall"

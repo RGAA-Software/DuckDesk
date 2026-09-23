@@ -98,14 +98,11 @@ Console 本地登记初始为 pending；admin 管理审批/撤回、viewer 只�
 主体 request_id + 制品正文及仓库发布摘要使原登记可精确重试，但不会撤销后续 withdraw；相同 request_id 换制品或仓库代际均拒绝，CAS/事件同事务，
 事件写失败则策略不改变。
 当前最高 build 未审批或已撤回时不自动返回低版本，避免目录查询制造隐式降级；明确再次审批仍须新的 CAS。
-单调版本水位、签名有效期和实际安装防回滚属于更新执行器，不能用该查询规则替代。
-认证节点的每次更新检查返回当前已批准仓库，即使节点已是最新 build；Service 独立完成 TUF 刷新后，在下一次检查中回报 release、publication SHA-256
-和该发布要求的 root version。Console 只接受与不可变发布记录精确一致的事实，并对 `node_id` 做单调 upsert；伪造摘要、错误根版本和水位倒退均拒绝。
-`pixels.node_update_trust` 是节点实际验证事实，不以“已下发仓库”或“已安装新包”推测信任，也不把 Console 响应本身算作水位。
-管理聚合按发布记录返回应纳管、已确认、未知/落后节点数、最低确认版本及最早确认时间；未删除的离线或禁用节点仍计入分母，跨部署发行域的发布记录拒绝
-聚合。该只读状态是旧根退役的必要证据，不是自动执行删除或提高最小根版本的命令。
-节点明细使用稳定 UUID 游标和 1–100 有界分页，返回在线状态、禁用状态、最后在线、已观察发布身份/根版本/时间及是否达到本次发布要求；运维消费者必须
-遍历完整分页，不能用首屏结果代替全量水位。
+单调版本水位、签名有效期和实际安装防回滚由实际消费更新的客户端在本地执行，不能用目录查询规则替代。
+Console 不向 Cloud Node/Remote Service 下发更新，不保存节点更新任务、激活租约或节点信任水位，也不提供集中式节点升级事务。
+`update_releases` 只保存经管理审批的发布目录事实，供 Android 等已实现的客户端发现流程和人工运维查询使用；它不表示任何节点已经下载、验签或安装。
+Windows 节点由运维人员在确认业务空闲或维护窗口后逐台运行对应签名安装包并覆盖安装，成功与否以该节点安装结果和重新连接后的正常产品版本/健康状态判断，
+不等待 Console 聚合全部节点后统一提交。
 
 2026-09-17 Windows 专项：Console 七组、Desk 七组真实 PG/API 测试通过，共同校验四组及 clippy 无警告。
 两份专项的 808 个登记源码 hash 已复核。后续完整 pg-20260917-084316-f0f4839f 的 503 项通过，
@@ -119,25 +116,23 @@ Console 审批/撤回使用管理写权限、revision CAS 和同事务事件，�
 ## 3. Auth 新许可证边界
 
 Auth 为官方签发组件，不是 Customer 运行依赖；私有 Console 使用预置可信公钥验证本部署离线许可证。
-新协议必须显式携带 schema、license UUID、发行/产品、目标 deployment、机器绑定、数量/功能额度、
-issued/not_before/expires、license revision、签名 key ID。签名载荷不可携带后台密码、app_secret 或数据库凭据。
+新协议只携带 schema、license UUID、目标 deployment、revision、issued/expires、并发 stream 上限、服务集合和签名 key ID。
+它不携带产品、发行、OEM、机器、`not_before` 或升级身份，也不可携带后台密码、app_secret 或数据库凭据。
 签名使用已有 Ed25519 原语；精确编码、字段/时间边界和独立固定向量见[新许可证字节契约](postgresql_license_contract.md)。
-签发/验证必须共用该契约，拒绝未知字段/版本/产品别名。
-不在读入时 normalize 老 product、补默认 product/mode 或重新序列化另一种格式来“试验签”。
+签发和 Console 本地验证必须共用该契约，拒绝未知字段或版本；不 normalize 旧字段、补默认值或重新序列化另一种格式来“试验签”。
 
 Auth 数据所有权：
 
 - authors 与 author_sessions：管理账号/角色、Argon2id hash、授权 revision、token hash/过期/撤销。
 - customers：正式 UUID 与客户显示名/备注，非空壳集合；不改变单部署模型，不引入在线多企业租户路由。
-- licenses：customer FK、目标 deployment、明确产品/发行、机器指纹、额度、起止时间、revision、revoked_at；
+- licenses：customer FK、目标 deployment、到期时间、stream 上限、服务集合、revision、revoked_at；
   唯一业务键防重复发放；撤销持久化且不可被旧签发请求覆盖。
 - license_issuances：license FK、签发 revision、key ID、精确 payload bytes/hash、signature、签发时间；
   先提交签发事实再返回，未知提交结果按 request_id 查重，不盲目再签发。
-- license_requests/audit/outbox：主体请求 ID + 正文 hash、结果引用、撤销/签发审计、通知状态；事务边界完整。
+- license_requests/audit：主体请求 ID + 正文 hash、结果引用及撤销/签发审计；事务边界完整。
 
-在线验证必须检查撤销和当前 revision；离线许可不能声称“官方撤销瞬间生效”。
-私有离线部署以本地受控更新许可证/撤销水位或到期为界；允许离线的最大有效期是显式许可证字段，不是无限延续。
-恢复旧库后必须先与独立保存的签发/撤销高水位对账；证据不足保持 RecoveryRequired，不签发、不恢复访问。
+系统不提供在线许可证验证。撤销阻止后续续期，但已交付副本继续有效到 `expires_at`；需要更短收敛时间时使用较短有效期并由运维替换。
+恢复 Auth 数据库后必须核对签发事实、审计和活动密钥；证据不足保持 RecoveryRequired，不签发新许可证。
 
 ## 4. 三库恢复集与 Windows 执行器
 

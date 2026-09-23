@@ -31,28 +31,9 @@ fn native_process_starts_serves_and_rejects_unsafe_configuration() {
     };
     assert_eq!(env::var("PIXELS_PG_ISOLATED_TEST").as_deref(), Ok("1"));
     let files = PrivateFiles::new();
-    let owner_config = DatabaseConfig::parse(
-        &env::var("PIXELS_TEST_AUTH_OWNER_URL").unwrap(),
-        Transport::LocalDevelopment,
-    )
-    .unwrap();
-    let recovery_generation = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(async {
-            let owner = owner_config.connect().await.unwrap();
-            let generation = sqlx::query_scalar::<_, Uuid>(
-                "SELECT recovery_generation FROM pixels.recovery_security_state WHERE singleton",
-            )
-            .fetch_one(&owner)
-            .await
-            .unwrap();
-            owner.close().await;
-            generation
-        });
-    files.write_trust_store("trust-store.json", recovery_generation);
-    files.write_trust_store("wrong-generation-trust-store.json", Uuid::new_v4());
+    let signer = LicenseSigner::from_pkcs8(&hex::decode(TEST_KEY).unwrap()).unwrap();
+    files.write_trust_store("trust-store.json", signer.public_key().try_into().unwrap());
+    files.write_trust_store("wrong-key-trust-store.json", [2; 32]);
     let command = || {
         let mut command = Command::new(env!("CARGO_BIN_EXE_px_auth"));
         command
@@ -146,7 +127,7 @@ fn native_process_starts_serves_and_rejects_unsafe_configuration() {
             "PIXELS_AUTH_TRUST_STORE",
             files
                 .path
-                .join("wrong-generation-trust-store.json")
+                .join("wrong-key-trust-store.json")
                 .to_string_lossy()
                 .into_owned(),
         ),
@@ -226,15 +207,8 @@ impl PrivateFiles {
         files
     }
 
-    fn write_trust_store(&self, file_name: &str, recovery_generation: Uuid) {
-        let signer = LicenseSigner::from_pkcs8(&hex::decode(TEST_KEY).unwrap()).unwrap();
-        let trust_store = LicenseTrustStore::new(
-            env::var("PIXELS_DEPLOYMENT_ID").unwrap().parse().unwrap(),
-            recovery_generation,
-            signer.public_key().try_into().unwrap(),
-            [],
-        )
-        .unwrap();
+    fn write_trust_store(&self, file_name: &str, public_key: [u8; 32]) {
+        let trust_store = LicenseTrustStore::new(public_key, []).unwrap();
         std::fs::write(
             self.path.join(file_name),
             trust_store.canonical_bytes().unwrap(),
@@ -316,7 +290,6 @@ fn explicit_trust_store_creation_supports_rotation_and_never_overwrites() {
     use std::process::{Command, Stdio};
     let files = PrivateFiles::new();
     let destination = files.path.join("generated-trust-store.json");
-    let recovery_generation = Uuid::new_v4();
     let additional_public_key = "2a".repeat(32);
     let command = || {
         let mut command = Command::new(env!("CARGO_BIN_EXE_px_auth_admin"));
@@ -324,10 +297,6 @@ fn explicit_trust_store_creation_supports_rotation_and_never_overwrites() {
             .arg("create-trust-store")
             .env("PIXELS_AUTH_SIGNING_KEY", files.path.join("signing.der"))
             .env("PIXELS_AUTH_TRUST_STORE", &destination)
-            .env(
-                "PIXELS_RECOVERY_GENERATION",
-                recovery_generation.to_string(),
-            )
             .env("PIXELS_AUTH_ADDITIONAL_PUBLIC_KEYS", &additional_public_key)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -352,7 +321,6 @@ fn explicit_trust_store_creation_supports_rotation_and_never_overwrites() {
         &px_private_files::private::read_private(&files.path.join("signing.der")).unwrap(),
     )
     .unwrap();
-    assert_eq!(trust_store.recovery_generation, recovery_generation);
     assert_eq!(trust_store.trusted_keys.len(), 2);
     trust_store.verify_active_signer(&signer).unwrap();
     let output = String::from_utf8(created.stdout).unwrap();
@@ -779,7 +747,7 @@ async fn admin_create_list_and_visitor_denials_have_no_hidden_write() {
     fixture.close().await;
 }
 #[tokio::test]
-async fn issuance_retry_online_verification_and_revocation_are_one_new_contract() {
+async fn issuance_renewal_and_revocation_use_the_minimal_license_contract() {
     let fixture = Fixture::new("admin").await;
     let token = fixture.login().await;
     let customer = call(
@@ -791,146 +759,57 @@ async fn issuance_retry_online_verification_and_revocation_are_one_new_contract(
     )
     .await;
     assert_eq!(customer.0, StatusCode::CREATED);
-    let deployment = Uuid::new_v4();
-    let terms = json!({"customer_id":customer.1["id"],"deployment_id":deployment,"product":"pixels_console","distribution":"customer","release_namespace":"pixels.customer","oem_id":null,"machine_sha256":"b".repeat(64),"mode":"licensed","activation":{"kind":"immediately"},"expires_at":chrono::Utc::now().timestamp()+86400,"max_streams":4,"services":["cloud_applications","desktop","rdp"]});
-    let issue = json!({"request_id":Uuid::new_v4(),"request":{"operation":"create","terms":terms}});
-    let first = call(
+    let terms = json!({
+        "customer_id":customer.1["id"],
+        "deployment_id":Uuid::new_v4(),
+        "expires_at":chrono::Utc::now().timestamp()+86400,
+        "max_streams":4,
+        "services":["cloud_applications","desktop","rdp"]
+    });
+    let issued = call(
         &fixture.app,
         "POST",
         "/api/auth/licenses/issue",
         Some(&token),
-        issue.clone(),
+        json!({"request_id":Uuid::new_v4(),"request":{"operation":"create","terms":terms}}),
     )
     .await;
-    assert_eq!(first.0, StatusCode::OK);
-    let license_id: Uuid = first.1["license_id"].as_str().unwrap().parse().unwrap();
-    let pending = |license_id: Uuid| {
-        let owner = fixture.owner.clone();
-        async move {
-            sqlx::query_scalar::<_, i64>(
-                "SELECT count(*) FROM pixels.license_notification_outbox WHERE license_id=$1 AND delivered_at IS NULL",
-            )
-            .bind(license_id)
-            .fetch_one(&owner)
-            .await
-            .unwrap()
-        }
-    };
-    assert_eq!(pending(license_id).await, 1);
-    assert_eq!(
-        first,
-        call(
-            &fixture.app,
-            "POST",
-            "/api/auth/licenses/issue",
-            Some(&token),
-            issue
-        )
-        .await
-    );
-    let verify = json!({"wire":first.1["wire"],"deployment_id":deployment,"product":"pixels_console","distribution":"customer","release_namespace":"pixels.customer","oem_id":null,"machine_sha256":"b".repeat(64)});
-    assert_eq!(
-        call(
-            &fixture.app,
-            "POST",
-            "/api/auth/licenses/verify",
-            None,
-            verify.clone()
-        )
-        .await
-        .0,
-        StatusCode::OK
-    );
-    assert_eq!(pending(license_id).await, 0);
-    let mut wrong = verify.clone();
-    wrong["deployment_id"] = json!(Uuid::new_v4());
-    assert_eq!(
-        call(
-            &fixture.app,
-            "POST",
-            "/api/auth/licenses/verify",
-            None,
-            wrong
-        )
-        .await
-        .0,
-        StatusCode::UNAUTHORIZED
-    );
-    let id = first.1["license_id"].as_str().unwrap();
-    let renewed=call(&fixture.app,"POST","/api/auth/licenses/issue",Some(&token),json!({"request_id":Uuid::new_v4(),"request":{"operation":"renew","license_id":id,"expected_revision":1,"terms":terms}})).await;
+    assert_eq!(issued.0, StatusCode::OK);
+    let license_id = issued.1["license_id"].as_str().unwrap();
+    let renewed = call(
+        &fixture.app,
+        "POST",
+        "/api/auth/licenses/issue",
+        Some(&token),
+        json!({"request_id":Uuid::new_v4(),"request":{"operation":"renew","license_id":license_id,"expected_revision":1,"terms":terms}}),
+    )
+    .await;
     assert_eq!(renewed.0, StatusCode::OK);
     assert_eq!(renewed.1["revision"], 2);
-    assert_eq!(pending(license_id).await, 1);
     assert_eq!(
         call(
             &fixture.app,
             "POST",
-            "/api/auth/licenses/verify",
-            None,
-            verify.clone()
-        )
-        .await
-        .0,
-        StatusCode::UNAUTHORIZED
-    );
-    assert_eq!(pending(license_id).await, 0);
-    let mut verify = verify;
-    verify["wire"] = renewed.1["wire"].clone();
-    assert_eq!(
-        call(
-            &fixture.app,
-            "POST",
-            "/api/auth/licenses/verify",
-            None,
-            verify.clone()
-        )
-        .await
-        .0,
-        StatusCode::OK
-    );
-    assert_eq!(pending(license_id).await, 0);
-    assert_eq!(
-        call(
-            &fixture.app,
-            "POST",
-            &format!("/api/auth/licenses/{id}/revoke"),
+            &format!("/api/auth/licenses/{license_id}/revoke"),
             Some(&token),
-            json!({"expected_revision":2})
+            json!({"expected_revision":2}),
         )
         .await
         .0,
         StatusCode::OK
     );
-    assert_eq!(pending(license_id).await, 1);
     assert_eq!(
         call(
             &fixture.app,
             "POST",
             "/api/auth/licenses/verify",
             None,
-            verify
+            json!({}),
         )
         .await
         .0,
-        StatusCode::UNAUTHORIZED
+        StatusCode::NOT_FOUND
     );
-    assert_eq!(pending(license_id).await, 0);
-    let rows = call(
-        &fixture.app,
-        "GET",
-        "/api/auth/licenses?limit=100",
-        Some(&token),
-        Value::Null,
-    )
-    .await
-    .1;
-    assert!(rows
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|row| row["license_id"] == id
-            && !row["revoked_at"].is_null()
-            && row["revision"] == 3));
     fixture.close().await;
 }
 #[tokio::test]

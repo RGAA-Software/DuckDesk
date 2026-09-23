@@ -1,9 +1,8 @@
 use crate::{LicenseError, LicenseSigner, LicenseVerifierSet};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
-use uuid::Uuid;
 
-const TRUST_STORE_SCHEMA_VERSION: u16 = 1;
+const TRUST_STORE_SCHEMA_VERSION: u16 = 2;
 const MAX_TRUST_STORE_BYTES: usize = 64 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -17,16 +16,12 @@ pub struct TrustedPublicKey {
 #[serde(deny_unknown_fields)]
 pub struct LicenseTrustStore {
     pub schema_version: u16,
-    pub authority_deployment_id: Uuid,
-    pub recovery_generation: Uuid,
     pub active_key_id: String,
     pub trusted_keys: Vec<TrustedPublicKey>,
 }
 
 impl LicenseTrustStore {
     pub fn new(
-        authority_deployment_id: Uuid,
-        recovery_generation: Uuid,
         active_public_key: [u8; 32],
         additional_public_keys: impl IntoIterator<Item = [u8; 32]>,
     ) -> Result<Self, LicenseError> {
@@ -43,8 +38,6 @@ impl LicenseTrustStore {
             .collect();
         let trust_store = Self {
             schema_version: TRUST_STORE_SCHEMA_VERSION,
-            authority_deployment_id,
-            recovery_generation,
             active_key_id,
             trusted_keys,
         };
@@ -89,8 +82,6 @@ impl LicenseTrustStore {
 
     fn validate(&self) -> Result<(), LicenseError> {
         if self.schema_version != TRUST_STORE_SCHEMA_VERSION
-            || self.authority_deployment_id.is_nil()
-            || self.recovery_generation.is_nil()
             || !valid_key_id(&self.active_key_id)
             || self.trusted_keys.is_empty()
             || self.trusted_keys.len() > 16

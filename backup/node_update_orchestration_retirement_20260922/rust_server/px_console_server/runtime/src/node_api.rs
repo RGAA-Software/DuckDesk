@@ -1,0 +1,949 @@
+use crate::{
+    error::ApiError,
+    node_wire::{NodeRequest, NodeResponse, MAX_MESSAGE_BYTES},
+    request::{self, Input, Page, Params as Query, Revision, Route as Path},
+    StateData,
+};
+use axum::{
+    extract::{
+        ws::{Message, WebSocket},
+        ConnectInfo, OriginalUri, State, WebSocketUpgrade,
+    },
+    http::{header, HeaderMap, StatusCode},
+    response::Response,
+    routing::{get, patch, post},
+    Json, Router,
+};
+use chrono::{DateTime, Utc};
+use futures_util::{SinkExt, StreamExt};
+use px_console_store::{
+    NodeConfiguration, NodeConnection, NodeProduct, NodeTelemetryTrend, TelemetryHistoryCursor,
+    TelemetryTrendRequest, WorkspaceCommandLease,
+};
+use px_release_catalog::{Architecture, Channel, OperatingSystem, Product, ReleaseQuery};
+use serde::Deserialize;
+use serde_json::{json, Value};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
+use tokio::time::timeout;
+use uuid::Uuid;
+use zeroize::Zeroizing;
+
+const AUTHENTICATION_DEADLINE: Duration = Duration::from_secs(5);
+const DATABASE_DEADLINE: Duration = Duration::from_secs(5);
+const IDLE_DEADLINE: Duration = Duration::from_secs(35);
+const WRITE_DEADLINE: Duration = Duration::from_secs(5);
+
+pub(crate) fn routes() -> Router<Arc<StateData>> {
+    Router::new()
+        .route("/api/console/node-control", get(upgrade))
+        .route("/api/console/managed/nodes", get(managed).post(create))
+        .route(
+            "/api/console/managed/nodes/{id}",
+            patch(configure).delete(remove),
+        )
+        .route(
+            "/api/console/managed/nodes/{id}/telemetry",
+            get(telemetry_history),
+        )
+        .route(
+            "/api/console/managed/nodes/{id}/telemetry/trend",
+            get(telemetry_trend),
+        )
+        .route("/api/console/managed/nodes/{id}/credential", post(rotate))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TelemetryPage {
+    before_received_at: Option<DateTime<Utc>>,
+    before_generation: Option<i64>,
+    before_sequence: Option<i64>,
+    limit: u32,
+}
+
+impl TelemetryPage {
+    fn cursor(&self) -> Result<Option<TelemetryHistoryCursor>, ApiError> {
+        match (
+            self.before_received_at,
+            self.before_generation,
+            self.before_sequence,
+        ) {
+            (None, None, None) => Ok(None),
+            (Some(received_at), Some(node_generation), Some(report_sequence)) => {
+                Ok(Some(TelemetryHistoryCursor {
+                    received_at,
+                    node_generation,
+                    report_sequence,
+                }))
+            }
+            _ => Err(ApiError::Invalid),
+        }
+    }
+}
+
+async fn telemetry_history(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    Path(node_id): Path<Uuid>,
+    Query(page): Query<TelemetryPage>,
+) -> Result<Json<Value>, ApiError> {
+    let cursor = page.cursor()?;
+    Ok(Json(json!(
+        state
+            .db
+            .nodes()
+            .list_telemetry_history(
+                &request::administrator(&state, &headers)?,
+                node_id,
+                cursor,
+                page.limit,
+            )
+            .await?
+    )))
+}
+
+async fn telemetry_trend(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    Path(node_id): Path<Uuid>,
+    Query(trend_request): Query<TelemetryTrendRequest>,
+) -> Result<Json<NodeTelemetryTrend>, ApiError> {
+    Ok(Json(
+        state
+            .db
+            .nodes()
+            .telemetry_trend(
+                &request::administrator(&state, &headers)?,
+                node_id,
+                trend_request,
+            )
+            .await?,
+    ))
+}
+
+async fn upgrade(
+    State(state): State<Arc<StateData>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    OriginalUri(uri): OriginalUri,
+    headers: HeaderMap,
+    websocket: WebSocketUpgrade,
+) -> Result<Response, ApiError> {
+    reject_node_headers(&headers, uri.query().is_some())?;
+    if !state
+        .node_limits
+        .allow(&format!("node-control:{}", peer.ip()), peer.ip())
+    {
+        return Err(ApiError::RateLimited);
+    }
+    let permit = state
+        .node_slots
+        .clone()
+        .try_acquire_owned()
+        .map_err(|_| ApiError::Unavailable)?;
+    let session_state = state.clone();
+    Ok(websocket
+        .max_message_size(MAX_MESSAGE_BYTES)
+        .max_frame_size(MAX_MESSAGE_BYTES)
+        .on_upgrade(move |socket| async move {
+            let _permit = permit;
+            session(socket, session_state).await;
+        }))
+}
+
+fn reject_node_headers(headers: &HeaderMap, has_query: bool) -> Result<(), ApiError> {
+    if has_query
+        || headers.contains_key(header::AUTHORIZATION)
+        || headers.contains_key(header::ORIGIN)
+        || headers.contains_key("x-pixels-client-type")
+        || headers
+            .keys()
+            .any(|key| key.as_str() == "forwarded" || key.as_str().starts_with("x-forwarded-"))
+    {
+        return Err(ApiError::Rejected);
+    }
+    Ok(())
+}
+
+async fn session(mut socket: WebSocket, state: Arc<StateData>) {
+    let Some(NodeRequest::Authenticate {
+        request_id,
+        node_token,
+    }) = receive(&mut socket, &state, AUTHENTICATION_DEADLINE).await
+    else {
+        let _ = send(
+            &mut socket,
+            &NodeResponse::Error {
+                request_id: None,
+                code: "authentication_required".into(),
+            },
+        )
+        .await;
+        let _ = socket.close().await;
+        return;
+    };
+    let token = Zeroizing::new(node_token);
+    let Some(credential) = request::secret_digest(&token) else {
+        let _ = send(
+            &mut socket,
+            &NodeResponse::Error {
+                request_id: Some(request_id),
+                code: "authentication_failed".into(),
+            },
+        )
+        .await;
+        let _ = socket.close().await;
+        return;
+    };
+    if request_id == 0 || state.active().is_err() {
+        let _ = socket.close().await;
+        return;
+    }
+    let (_, connection_key) = request::mint();
+    let connection = match timeout(
+        DATABASE_DEADLINE,
+        state
+            .db
+            .nodes()
+            .open_connection(state.epoch, &credential, &connection_key),
+    )
+    .await
+    {
+        Ok(Ok(connection)) => connection,
+        _ => {
+            let _ = send(
+                &mut socket,
+                &NodeResponse::Error {
+                    request_id: Some(request_id),
+                    code: "authentication_failed".into(),
+                },
+            )
+            .await;
+            let _ = socket.close().await;
+            return;
+        }
+    };
+    if send(
+        &mut socket,
+        &NodeResponse::Authenticated {
+            request_id,
+            node_id: connection.id(),
+            device_id: connection.device_id(),
+            generation: connection.generation(),
+            control_epoch: connection.epoch().value(),
+            relay: state
+                .relay
+                .as_ref()
+                .map(|endpoint| px_node_protocol::RelayEndpoint {
+                    host: endpoint.host.clone(),
+                    port: endpoint.port,
+                    app_key: endpoint.app_key.clone(),
+                }),
+        },
+    )
+    .await
+    .is_ok()
+    {
+        run_authenticated(&mut socket, &state, &connection, request_id).await;
+    }
+    let _ = timeout(
+        DATABASE_DEADLINE,
+        state.db.nodes().close_connection(&connection),
+    )
+    .await;
+    let _ = socket.close().await;
+}
+
+async fn run_authenticated(
+    socket: &mut WebSocket,
+    state: &StateData,
+    connection: &NodeConnection,
+    mut last_request_id: u64,
+) {
+    loop {
+        let Some(message) = receive(socket, state, IDLE_DEADLINE).await else {
+            return;
+        };
+        let request_id = message.request_id();
+        if request_id == 0
+            || request_id <= last_request_id
+            || matches!(message, NodeRequest::Authenticate { .. })
+        {
+            let _ = send(
+                socket,
+                &NodeResponse::Error {
+                    request_id: Some(request_id),
+                    code: "invalid_sequence".into(),
+                },
+            )
+            .await;
+            return;
+        }
+        last_request_id = request_id;
+        if state.active().is_err() {
+            return;
+        }
+        let response = match operation(state, connection, message).await {
+            Ok(response) => response,
+            Err(error) => NodeResponse::Error {
+                request_id: Some(request_id),
+                code: error_code(error).into(),
+            },
+        };
+        // Operation-level denials are part of the authenticated protocol. In
+        // particular, a frontend lease renewal must be rejected after its
+        // resource session starts closing without also invalidating the whole
+        // node connection. The node decides whether an error is recoverable;
+        // malformed sequencing and authentication failures are handled above
+        // and still close the socket.
+        if send(socket, &response).await.is_err() {
+            return;
+        }
+    }
+}
+
+async fn operation(
+    state: &StateData,
+    connection: &NodeConnection,
+    message: NodeRequest,
+) -> Result<NodeResponse, ApiError> {
+    let request_id = message.request_id();
+    let management_event = management_event(&message, connection.id());
+    let future = async {
+        match message {
+            NodeRequest::Report { report, .. } => {
+                let node = state
+                    .db
+                    .nodes()
+                    .report(connection, &crate::node_wire::report(report))
+                    .await?;
+                Ok(NodeResponse::Reported {
+                    request_id,
+                    state: node.state,
+                    endpoint_revision: node.endpoint_revision,
+                })
+            }
+            NodeRequest::ReportTelemetryBackfill { samples, .. } => {
+                let sample_ids = state
+                    .db
+                    .nodes()
+                    .report_telemetry_backfill(
+                        connection,
+                        &crate::node_wire::telemetry_backfill(samples),
+                    )
+                    .await?;
+                Ok(NodeResponse::TelemetryBackfilled {
+                    request_id,
+                    sample_ids,
+                })
+            }
+            NodeRequest::BeginReconciliation { .. } => Ok(NodeResponse::ReconciliationStarted {
+                request_id,
+                challenge: crate::node_wire::challenge(
+                    state
+                        .db
+                        .instances()
+                        .begin_reconciliation(connection)
+                        .await?,
+                ),
+            }),
+            NodeRequest::Reconcile { inventory, .. } => {
+                state
+                    .db
+                    .instances()
+                    .reconcile(connection, &crate::node_wire::inventory(inventory))
+                    .await?;
+                Ok(NodeResponse::Reconciled { request_id })
+            }
+            NodeRequest::PollCommand { .. } => Ok(NodeResponse::Command {
+                request_id,
+                command: state
+                    .db
+                    .instances()
+                    .next_command(connection)
+                    .await?
+                    .map(|command| crate::node_wire::command(command, state.relay.as_ref()))
+                    .map(Box::new),
+            }),
+            NodeRequest::FetchRdpWorkspace {
+                command_id,
+                lease_id,
+                ..
+            } => {
+                let credential = state
+                    .db
+                    .workspaces()
+                    .credentials_for_start(
+                        connection,
+                        WorkspaceCommandLease {
+                            command_id,
+                            lease_id,
+                        },
+                    )
+                    .await?;
+                Ok(NodeResponse::RdpWorkspace {
+                    request_id,
+                    workspace: crate::node_wire::rdp_workspace(credential)?,
+                })
+            }
+            NodeRequest::ConfirmRdpWorkspace {
+                command_id,
+                lease_id,
+                workspace_id,
+                windows_sid,
+                ..
+            } => {
+                state
+                    .db
+                    .workspaces()
+                    .confirm_account(
+                        connection,
+                        WorkspaceCommandLease {
+                            command_id,
+                            lease_id,
+                        },
+                        workspace_id,
+                        &windows_sid,
+                    )
+                    .await?;
+                Ok(NodeResponse::RdpWorkspaceConfirmed {
+                    request_id,
+                    workspace_id,
+                })
+            }
+            NodeRequest::AcknowledgeCommand { receipt, .. } => {
+                let instance = state
+                    .db
+                    .instances()
+                    .acknowledge_command(connection, &crate::node_wire::receipt(receipt))
+                    .await?;
+                Ok(NodeResponse::CommandAcknowledged {
+                    request_id,
+                    state: instance.state,
+                    revision: instance.revision,
+                })
+            }
+            NodeRequest::ReportDeployment {
+                deployment_id,
+                observation,
+                ..
+            } => {
+                state
+                    .db
+                    .deployments()
+                    .report(
+                        connection,
+                        deployment_id,
+                        &crate::node_wire::observation(observation),
+                    )
+                    .await?;
+                Ok(NodeResponse::DeploymentReported { request_id })
+            }
+            NodeRequest::ListDeployments { after, limit, .. } => {
+                let deployments = state
+                    .db
+                    .deployments()
+                    .list_node(connection, after, limit)
+                    .await?
+                    .into_iter()
+                    .map(crate::node_wire::assignment)
+                    .collect();
+                Ok(NodeResponse::Deployments {
+                    request_id,
+                    deployments,
+                })
+            }
+            NodeRequest::ListFrontends { .. } => Ok(NodeResponse::Frontends {
+                request_id,
+                frontends: state
+                    .db
+                    .resource_sessions()
+                    .list_node(connection)
+                    .await?
+                    .into_iter()
+                    .map(crate::node_wire::expected_frontend)
+                    .collect(),
+            }),
+            NodeRequest::AdmitFrontend {
+                session_id,
+                revision,
+                frontend_token,
+                ..
+            } => {
+                let token = Zeroizing::new(frontend_token);
+                let digest = request::secret_digest(&token).ok_or(ApiError::Invalid)?;
+                let grant = state
+                    .db
+                    .resource_sessions()
+                    .admit_frontend(connection, session_id, revision, &digest)
+                    .await?;
+                Ok(NodeResponse::FrontendAdmitted {
+                    request_id,
+                    grant: crate::node_wire::frontend_grant(grant),
+                })
+            }
+            NodeRequest::BeginFrontendRetirement { session_id, .. } => {
+                let retirement = state
+                    .db
+                    .resource_sessions()
+                    .begin_retirement(connection, session_id)
+                    .await?;
+                Ok(NodeResponse::FrontendRetirementStarted {
+                    request_id,
+                    retirement: crate::node_wire::frontend_retirement(retirement),
+                })
+            }
+            NodeRequest::FinishFrontendRetirement {
+                session_id,
+                challenge_id,
+                ..
+            } => {
+                let session = state
+                    .db
+                    .resource_sessions()
+                    .finish_retirement(connection, session_id, challenge_id)
+                    .await?;
+                Ok(NodeResponse::FrontendRetired {
+                    request_id,
+                    session_id: session.id,
+                    revision: session.revision,
+                })
+            }
+            NodeRequest::OpenChannel { channel, .. } => {
+                let channel = state
+                    .db
+                    .activity()
+                    .open_channel(connection, &crate::node_wire::open_channel(channel))
+                    .await?;
+                Ok(NodeResponse::ChannelOpened {
+                    request_id,
+                    channel_id: channel.id,
+                    state: channel.state,
+                    sequence: channel.sequence,
+                    revision: channel.revision,
+                })
+            }
+            NodeRequest::ReportChannel {
+                channel_id,
+                progress,
+                ..
+            } => {
+                let channel = state
+                    .db
+                    .activity()
+                    .report_channel(
+                        connection,
+                        channel_id,
+                        &crate::node_wire::channel_progress(progress),
+                    )
+                    .await?;
+                Ok(NodeResponse::ChannelReported {
+                    request_id,
+                    channel_id: channel.id,
+                    state: channel.state,
+                    sequence: channel.sequence,
+                    revision: channel.revision,
+                })
+            }
+            NodeRequest::BeginFileTransfer { transfer, .. } => {
+                let transfer = state
+                    .db
+                    .file_transfers()
+                    .begin(connection, &crate::node_wire::begin_file_transfer(transfer))
+                    .await?;
+                Ok(NodeResponse::FileTransferStarted {
+                    request_id,
+                    transfer_id: transfer.id,
+                    state: transfer.state,
+                    sequence: transfer.sequence,
+                    revision: transfer.revision,
+                })
+            }
+            NodeRequest::ReportFileTransfer {
+                transfer_id,
+                progress,
+                ..
+            } => {
+                let transfer = state
+                    .db
+                    .file_transfers()
+                    .report(
+                        connection,
+                        transfer_id,
+                        &crate::node_wire::transfer_progress(progress),
+                    )
+                    .await?;
+                Ok(NodeResponse::FileTransferReported {
+                    request_id,
+                    transfer_id: transfer.id,
+                    state: transfer.state,
+                    sequence: transfer.sequence,
+                    revision: transfer.revision,
+                })
+            }
+            NodeRequest::ReportRecording { recording, .. } => {
+                let recording = state
+                    .db
+                    .recordings()
+                    .report(connection, &crate::node_wire::recording_report(recording))
+                    .await?;
+                Ok(NodeResponse::RecordingReported {
+                    request_id,
+                    recording_id: recording.id,
+                    reported_present: recording.reported_present,
+                    source_sequence: recording.source_sequence,
+                    revision: recording.revision,
+                })
+            }
+            NodeRequest::PollRecordingCache { after, limit, .. } => {
+                let cache = state
+                    .recording_cache
+                    .as_ref()
+                    .ok_or(ApiError::Unavailable)?;
+                let attempts = state
+                    .db
+                    .recording_cache()
+                    .pending(cache, connection, after, u32::from(limit))
+                    .await?;
+                let mut uploads = Vec::with_capacity(attempts.len());
+                for attempt in attempts {
+                    if let Some(upload) = state.uploads.issue(connection, attempt)? {
+                        uploads.push(upload);
+                    }
+                }
+                Ok(NodeResponse::RecordingCacheUploads {
+                    request_id,
+                    uploads,
+                })
+            }
+            NodeRequest::CheckUpdate {
+                current_build_number,
+                trust_observation,
+                ..
+            } => {
+                let target = node_update_target(state, connection);
+                let trust_observation = trust_observation
+                    .map(|observation| -> Result<_, ApiError> {
+                        Ok(px_console_store::UpdateTrustObservation {
+                            release_id: observation.release_id,
+                            repository_publication_sha256: observation
+                                .repository_publication_sha256,
+                            root_version: i64::try_from(observation.root_version)
+                                .map_err(|_| ApiError::Invalid)?,
+                        })
+                    })
+                    .transpose()?;
+                let approved_release = state
+                    .db
+                    .updates()
+                    .check_for_node(
+                        connection,
+                        &target,
+                        current_build_number,
+                        trust_observation.as_ref(),
+                    )
+                    .await?;
+                let repository = approved_release
+                    .as_ref()
+                    .map(|release| -> Result<_, ApiError> {
+                        Ok(px_node_protocol::NodeUpdateRepository {
+                            release_id: release.id,
+                            repository_publication_sha256: release
+                                .repository_publication_sha256
+                                .clone(),
+                            root_version: u64::try_from(release.repository_root_version)
+                                .map_err(|_| ApiError::Internal)?,
+                            metadata_base_url: release.artifact.metadata_base_url.clone(),
+                            targets_base_url: release.artifact.targets_base_url.clone(),
+                        })
+                    })
+                    .transpose()?;
+                let offer = approved_release
+                    .filter(|release| release.artifact.build_number > current_build_number)
+                    .map(|release| {
+                        Box::new(px_node_protocol::NodeUpdateOffer {
+                            release_id: release.id,
+                            policy_revision: release.revision,
+                            artifact: release.artifact,
+                        })
+                    });
+                Ok(NodeResponse::UpdateChecked {
+                    request_id,
+                    repository,
+                    offer,
+                })
+            }
+            NodeRequest::BeginUpdateActivation {
+                release_id,
+                policy_revision,
+                prepared_sha256,
+                ..
+            } => {
+                let target = node_update_target(state, connection);
+                let activation = state
+                    .db
+                    .updates()
+                    .begin_activation(
+                        connection,
+                        &target,
+                        release_id,
+                        policy_revision,
+                        &prepared_sha256,
+                    )
+                    .await?;
+                Ok(NodeResponse::UpdateActivationGranted {
+                    request_id,
+                    task_id: activation.task_id,
+                    lease_id: activation.lease_id,
+                    lease_until: activation.lease_until,
+                })
+            }
+            NodeRequest::FinishUpdateActivation {
+                task_id,
+                lease_id,
+                outcome,
+                ..
+            } => {
+                let outcome = match outcome {
+                    px_node_protocol::UpdateActivationOutcome::Installed => {
+                        px_console_store::UpdateActivationOutcome::Installed
+                    }
+                    px_node_protocol::UpdateActivationOutcome::Failed { error_code } => {
+                        px_console_store::UpdateActivationOutcome::Failed { error_code }
+                    }
+                };
+                let completion = state
+                    .db
+                    .updates()
+                    .finish_activation(connection, task_id, lease_id, &outcome)
+                    .await?;
+                Ok(NodeResponse::UpdateActivationFinished {
+                    request_id,
+                    state: completion.state,
+                    revision: completion.revision,
+                    error_code: completion.error_code,
+                })
+            }
+            NodeRequest::Authenticate { .. } => Err(ApiError::Invalid),
+        }
+    };
+    let response = timeout(DATABASE_DEADLINE, future)
+        .await
+        .map_err(|_| ApiError::Unavailable)??;
+    if let Some((category, resource_id)) = management_event {
+        state.management_events.publish(category, resource_id);
+    }
+    Ok(response)
+}
+
+fn management_event(message: &NodeRequest, node_id: Uuid) -> Option<(&'static str, Option<Uuid>)> {
+    match message {
+        NodeRequest::Report { .. } | NodeRequest::ReportTelemetryBackfill { .. } => {
+            Some(("nodes", Some(node_id)))
+        }
+        NodeRequest::Reconcile { .. }
+        | NodeRequest::AcknowledgeCommand { .. }
+        | NodeRequest::ConfirmRdpWorkspace { .. } => Some(("instances", Some(node_id))),
+        NodeRequest::ReportDeployment { deployment_id, .. } => {
+            Some(("deployments", Some(*deployment_id)))
+        }
+        NodeRequest::AdmitFrontend { session_id, .. }
+        | NodeRequest::BeginFrontendRetirement { session_id, .. }
+        | NodeRequest::FinishFrontendRetirement { session_id, .. } => {
+            Some(("sessions", Some(*session_id)))
+        }
+        NodeRequest::OpenChannel { channel, .. } => Some(("sessions", Some(channel.session_id))),
+        NodeRequest::ReportChannel { channel_id, .. } => Some(("channels", Some(*channel_id))),
+        NodeRequest::BeginFileTransfer { .. } => Some(("file_transfers", Some(node_id))),
+        NodeRequest::ReportFileTransfer { transfer_id, .. } => {
+            Some(("file_transfers", Some(*transfer_id)))
+        }
+        NodeRequest::ReportRecording { recording, .. } => {
+            Some(("recordings", recording.session_id.or(Some(node_id))))
+        }
+        NodeRequest::Authenticate { .. }
+        | NodeRequest::BeginReconciliation { .. }
+        | NodeRequest::PollCommand { .. }
+        | NodeRequest::FetchRdpWorkspace { .. }
+        | NodeRequest::ListDeployments { .. }
+        | NodeRequest::ListFrontends { .. }
+        | NodeRequest::PollRecordingCache { .. }
+        | NodeRequest::CheckUpdate { .. } => None,
+        NodeRequest::BeginUpdateActivation { .. } | NodeRequest::FinishUpdateActivation { .. } => {
+            Some(("nodes", Some(node_id)))
+        }
+    }
+}
+
+fn node_update_target(state: &StateData, connection: &NodeConnection) -> ReleaseQuery {
+    let product = match connection.product() {
+        NodeProduct::CloudNode => Product::CloudNode,
+        NodeProduct::Remote => Product::Remote,
+    };
+    ReleaseQuery {
+        product,
+        distribution: state.release.distribution,
+        release_namespace: state.release.release_namespace.clone(),
+        oem_id: state.release.oem_id.clone(),
+        channel: Channel::Stable,
+        os: OperatingSystem::Windows,
+        architecture: Architecture::X86_64,
+    }
+}
+
+async fn receive(
+    socket: &mut WebSocket,
+    state: &StateData,
+    deadline: Duration,
+) -> Option<NodeRequest> {
+    loop {
+        let message = tokio::select! {
+            biased;
+            _ = state.cancellation.cancelled() => return None,
+            result = timeout(deadline, socket.next()) => result.ok()??.ok()?,
+        };
+        match message {
+            Message::Text(text) if text.len() <= MAX_MESSAGE_BYTES => {
+                return serde_json::from_str(&text).ok();
+            }
+            Message::Ping(payload) => {
+                if timeout(WRITE_DEADLINE, socket.send(Message::Pong(payload)))
+                    .await
+                    .is_err()
+                {
+                    return None;
+                }
+            }
+            Message::Pong(_) => {}
+            Message::Close(_) => return None,
+            Message::Text(_) | Message::Binary(_) => return None,
+        }
+    }
+}
+
+async fn send(socket: &mut WebSocket, response: &NodeResponse) -> Result<(), ()> {
+    let encoded = serde_json::to_string(response).map_err(|_| ())?;
+    if encoded.len() > MAX_MESSAGE_BYTES {
+        return Err(());
+    }
+    timeout(WRITE_DEADLINE, socket.send(Message::Text(encoded.into())))
+        .await
+        .map_err(|_| ())?
+        .map_err(|_| ())
+}
+
+fn error_code(error: ApiError) -> &'static str {
+    match error {
+        ApiError::Invalid => "invalid_input",
+        ApiError::Unauthorized => "unauthorized",
+        ApiError::Rejected => "rejected",
+        ApiError::NotFound => "not_found",
+        ApiError::Conflict => "conflict",
+        ApiError::RateLimited => "rate_limited",
+        ApiError::Unavailable => "unavailable",
+        ApiError::Internal => "internal",
+    }
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NewNode {
+    device_id: Uuid,
+    product: NodeProduct,
+    max_instances: u32,
+}
+async fn create(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    Input(input): Input<NewNode>,
+) -> Result<(StatusCode, Json<Value>), ApiError> {
+    let token = request::administrator(&state, &headers)?;
+    let (secret, digest) = request::mint();
+    let node = state
+        .db
+        .nodes()
+        .create(
+            &token,
+            input.device_id,
+            input.product,
+            &digest,
+            input.max_instances,
+        )
+        .await?;
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({"node":node,"node_token":secret.as_str()})),
+    ))
+}
+async fn managed(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    Query(page): Query<Page>,
+) -> Result<Json<Value>, ApiError> {
+    Ok(Json(json!(
+        state
+            .db
+            .nodes()
+            .list_managed_views(
+                &request::administrator(&state, &headers)?,
+                page.after,
+                page.limit
+            )
+            .await?
+    )))
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NodeChange {
+    revision: i64,
+    configuration: NodeConfiguration,
+}
+async fn configure(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    Input(input): Input<NodeChange>,
+) -> Result<Json<Value>, ApiError> {
+    Ok(Json(json!(
+        state
+            .db
+            .nodes()
+            .configure(
+                &request::administrator(&state, &headers)?,
+                id,
+                input.revision,
+                input.configuration
+            )
+            .await?
+    )))
+}
+async fn remove(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    Query(input): Query<Revision>,
+) -> Result<StatusCode, ApiError> {
+    state
+        .db
+        .nodes()
+        .delete(
+            &request::administrator(&state, &headers)?,
+            id,
+            input.revision,
+        )
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+async fn rotate(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    Input(input): Input<Revision>,
+) -> Result<Json<Value>, ApiError> {
+    let token = request::administrator(&state, &headers)?;
+    let (secret, digest) = request::mint();
+    let node = state
+        .db
+        .nodes()
+        .rotate_key(&token, id, input.revision, &digest)
+        .await?;
+    Ok(Json(json!({"node":node,"node_token":secret.as_str()})))
+}

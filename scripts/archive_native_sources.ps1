@@ -1,5 +1,6 @@
 param(
     [string]$Batch = 'native_transport_simplification',
+    [string]$Reason = 'Native SDK extraction and single UDP/FEC + WebSocket transport',
     [string[]]$Paths = @('src/px_deps/px_client_sdk', 'src/px_client_sdk', 'src/px_client', 'src/px_panel', 'src/px_android',
         'src/px_deps/CMakeLists.txt', 'src/CMakeLists.txt', 'CMakeLists.txt', 'scripts',
         'scripts_build')
@@ -27,6 +28,6 @@ $archiveManifest = foreach ($relative in $archiveFiles) {
     }
     [ordered]@{ path = $relative; sha256 = $originalHash; status = ((& git -C $archiveRepo status --porcelain -- $relative) -join "`n") }
 }
-$manifest = [ordered]@{ revision = $archiveRevision; reason = 'Native SDK extraction and single UDP/FEC + WebSocket transport'; files = @($archiveManifest) }
+$manifest = [ordered]@{ revision = $archiveRevision; reason = $Reason; files = @($archiveManifest) }
 $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $archiveRoot 'manifest.json') -Encoding UTF8
 Write-Host "Archived $($archiveManifest.Count) files with verified SHA-256: $archiveRoot"

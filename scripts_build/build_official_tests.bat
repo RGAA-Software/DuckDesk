@@ -82,7 +82,7 @@ for %%a in (%*) do (
 )
 
 if "%SKIP_CONFIGURE%"=="0" (
-    cmake -S . -B "%PRODUCT_BUILD_DIR%" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTARGET_TYPE=Official -DPX_PRODUCT=%CPP_PRODUCT% -Wno-dev
+    cmake -S . -B "%PRODUCT_BUILD_DIR%" -G Ninja -DCMAKE_BUILD_TYPE=Release -DPX_FAST_RELEASE=ON -DTARGET_TYPE=Official -DPX_PRODUCT=%CPP_PRODUCT% -Wno-dev
     if errorlevel 1 exit /b %errorlevel%
 )
 

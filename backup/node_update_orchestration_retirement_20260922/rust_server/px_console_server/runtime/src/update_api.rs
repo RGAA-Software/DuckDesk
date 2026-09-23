@@ -1,0 +1,185 @@
+use crate::{
+    error::ApiError,
+    request::{self, Input, Page, Params as Query, Route as Path},
+    StateData,
+};
+use axum::{
+    extract::{RawQuery, State},
+    http::{HeaderMap, StatusCode},
+    routing::{get, patch},
+    Json, Router,
+};
+use px_console_store::UpdateDecision;
+use px_release_catalog::{
+    Architecture, Channel, Distribution, OperatingSystem, Product, ReleaseQuery, ReleaseSpec,
+};
+use serde::Deserialize;
+use std::sync::Arc;
+use uuid::Uuid;
+
+pub(crate) fn routes() -> Router<Arc<StateData>> {
+    Router::new()
+        .route("/api/console/managed/updates", get(managed).post(register))
+        .route("/api/console/managed/updates/{id}", patch(decide))
+        .route(
+            "/api/console/managed/updates/{id}/node-trust",
+            get(node_trust),
+        )
+        .route(
+            "/api/console/managed/updates/{id}/node-trust/nodes",
+            get(node_trust_nodes),
+        )
+        .route("/api/console/updates/latest", get(latest))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NewRelease {
+    request_id: Uuid,
+    repository_publication_sha256: String,
+    repository_root_version: i64,
+    artifact: ReleaseSpec,
+}
+
+async fn register(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    Input(input): Input<NewRelease>,
+) -> Result<(StatusCode, Json<px_console_store::UpdateRelease>), ApiError> {
+    let administrator = request::administrator(&state, &headers)?;
+    require_console_release_domain(&state, &input.artifact.target)?;
+    let release = state
+        .db
+        .updates()
+        .register(
+            &administrator,
+            input.request_id,
+            &input.repository_publication_sha256,
+            input.repository_root_version,
+            &input.artifact,
+        )
+        .await?;
+    Ok((StatusCode::CREATED, Json(release)))
+}
+
+async fn managed(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    Query(page): Query<Page>,
+) -> Result<Json<Vec<px_console_store::UpdateRelease>>, ApiError> {
+    Ok(Json(
+        state
+            .db
+            .updates()
+            .list_managed(
+                &request::administrator(&state, &headers)?,
+                page.after,
+                page.limit,
+            )
+            .await?,
+    ))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReleaseDecision {
+    revision: i64,
+    decision: UpdateDecision,
+}
+
+async fn decide(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    Input(input): Input<ReleaseDecision>,
+) -> Result<Json<px_console_store::UpdateRelease>, ApiError> {
+    Ok(Json(
+        state
+            .db
+            .updates()
+            .decide(
+                &request::administrator(&state, &headers)?,
+                id,
+                input.revision,
+                input.decision,
+            )
+            .await?,
+    ))
+}
+
+async fn node_trust(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+) -> Result<Json<px_console_store::NodeUpdateTrustSummary>, ApiError> {
+    Ok(Json(
+        state
+            .db
+            .updates()
+            .node_trust_summary(
+                &request::administrator(&state, &headers)?,
+                id,
+                release_distribution(&state),
+            )
+            .await?,
+    ))
+}
+
+fn require_console_release_domain(
+    state: &StateData,
+    target: &ReleaseQuery,
+) -> Result<(), ApiError> {
+    let expected_distribution = release_distribution(state);
+    let matches_console = target.distribution == expected_distribution
+        && target.release_namespace == state.release.release_namespace
+        && target.oem_id == state.release.oem_id;
+    matches_console.then_some(()).ok_or(ApiError::Rejected)
+}
+
+async fn node_trust_nodes(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    Query(page): Query<Page>,
+) -> Result<Json<Vec<px_console_store::NodeUpdateTrustStatus>>, ApiError> {
+    Ok(Json(
+        state
+            .db
+            .updates()
+            .node_trust_statuses(
+                &request::administrator(&state, &headers)?,
+                id,
+                release_distribution(&state),
+                page.after,
+                page.limit,
+            )
+            .await?,
+    ))
+}
+
+fn release_distribution(state: &StateData) -> Distribution {
+    state.release.distribution
+}
+
+async fn latest(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    RawQuery(raw_query): RawQuery,
+) -> Result<Json<px_console_store::UpdateRelease>, ApiError> {
+    let (token, client) = request::context(&state, &headers)?;
+    if raw_query.is_some() || client != px_console_store::ClientType::Android {
+        return Err(ApiError::Rejected);
+    }
+    let target = ReleaseQuery {
+        product: Product::Android,
+        distribution: release_distribution(&state),
+        release_namespace: state.release.release_namespace.clone(),
+        oem_id: state.release.oem_id.clone(),
+        channel: Channel::Stable,
+        os: OperatingSystem::Android,
+        architecture: Architecture::Aarch64,
+    };
+    Ok(Json(
+        state.db.updates().latest(&token, client, &target).await?,
+    ))
+}

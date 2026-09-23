@@ -64,30 +64,18 @@ impl LicenseStore {
             .fetch_one(&mut *tx)
             .await?;
         let payload = terms.payload(id, revision, now.timestamp(), self.signer.key_id())?;
-        let not_before =
-            DateTime::from_timestamp(payload.not_before, 0).ok_or(AuthError::Invalid)?;
         let expires = DateTime::from_timestamp(terms.expires_at, 0).ok_or(AuthError::Invalid)?;
         let services = terms
             .services
             .iter()
             .map(enum_text)
             .collect::<Result<Vec<_>, _>>()?;
-        let product = enum_text(&terms.product)?;
-        let distribution = enum_text(&terms.distribution)?;
-        let mode = enum_text(&terms.mode)?;
         if revision == 1 {
             sqlx::query_file!(
                 "queries/insert_license.sql",
                 id,
                 terms.customer_id,
                 terms.deployment_id,
-                product,
-                distribution,
-                &terms.release_namespace,
-                terms.oem_id.as_deref(),
-                &terms.machine_sha256,
-                mode,
-                not_before,
                 expires,
                 i64::from(terms.max_streams),
                 &services
@@ -95,23 +83,16 @@ impl LicenseStore {
             .execute(&mut *tx)
             .await?;
         } else {
-            // Renewal changes entitlement, never customer/deployment/product/release-domain/machine identity.
+            // Renewal changes entitlement, never customer or deployment identity.
             let rows = sqlx::query_file!(
                 "queries/renew_license.sql",
                 id,
                 revision,
-                mode,
-                not_before,
                 expires,
                 i64::from(terms.max_streams),
                 &services,
                 terms.customer_id,
-                terms.deployment_id,
-                product,
-                distribution,
-                &terms.release_namespace,
-                terms.oem_id.as_deref(),
-                &terms.machine_sha256
+                terms.deployment_id
             )
             .execute(&mut *tx)
             .await?
@@ -140,16 +121,6 @@ impl LicenseStore {
             id,
             action,
             revision
-        )
-        .execute(&mut *tx)
-        .await?;
-        sqlx::query_file!(
-            "queries/insert_license_notification.sql",
-            Uuid::new_v4(),
-            id,
-            revision,
-            action,
-            Some(issuance)
         )
         .execute(&mut *tx)
         .await?;

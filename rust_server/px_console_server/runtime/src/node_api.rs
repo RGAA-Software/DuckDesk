@@ -20,11 +20,6 @@ use px_console_store::{
     NodeConfiguration, NodeConnection, NodeProduct, NodeTelemetryTrend, TelemetryHistoryCursor,
     TelemetryTrendRequest, WorkspaceCommandLease,
 };
-use px_license::Distribution as LicenseDistribution;
-use px_release_catalog::{
-    Architecture, Channel, Distribution as ReleaseDistribution, OperatingSystem, Product,
-    ReleaseQuery,
-};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
@@ -619,114 +614,6 @@ async fn operation(
                     uploads,
                 })
             }
-            NodeRequest::CheckUpdate {
-                current_build_number,
-                trust_observation,
-                ..
-            } => {
-                let target = node_update_target(state, connection);
-                let trust_observation = trust_observation
-                    .map(|observation| -> Result<_, ApiError> {
-                        Ok(px_console_store::UpdateTrustObservation {
-                            release_id: observation.release_id,
-                            repository_publication_sha256: observation
-                                .repository_publication_sha256,
-                            root_version: i64::try_from(observation.root_version)
-                                .map_err(|_| ApiError::Invalid)?,
-                        })
-                    })
-                    .transpose()?;
-                let approved_release = state
-                    .db
-                    .updates()
-                    .check_for_node(
-                        connection,
-                        &target,
-                        current_build_number,
-                        trust_observation.as_ref(),
-                    )
-                    .await?;
-                let repository = approved_release
-                    .as_ref()
-                    .map(|release| -> Result<_, ApiError> {
-                        Ok(px_node_protocol::NodeUpdateRepository {
-                            release_id: release.id,
-                            repository_publication_sha256: release
-                                .repository_publication_sha256
-                                .clone(),
-                            root_version: u64::try_from(release.repository_root_version)
-                                .map_err(|_| ApiError::Internal)?,
-                            metadata_base_url: release.artifact.metadata_base_url.clone(),
-                            targets_base_url: release.artifact.targets_base_url.clone(),
-                        })
-                    })
-                    .transpose()?;
-                let offer = approved_release
-                    .filter(|release| release.artifact.build_number > current_build_number)
-                    .map(|release| {
-                        Box::new(px_node_protocol::NodeUpdateOffer {
-                            release_id: release.id,
-                            policy_revision: release.revision,
-                            artifact: release.artifact,
-                        })
-                    });
-                Ok(NodeResponse::UpdateChecked {
-                    request_id,
-                    repository,
-                    offer,
-                })
-            }
-            NodeRequest::BeginUpdateActivation {
-                release_id,
-                policy_revision,
-                prepared_sha256,
-                ..
-            } => {
-                let target = node_update_target(state, connection);
-                let activation = state
-                    .db
-                    .updates()
-                    .begin_activation(
-                        connection,
-                        &target,
-                        release_id,
-                        policy_revision,
-                        &prepared_sha256,
-                    )
-                    .await?;
-                Ok(NodeResponse::UpdateActivationGranted {
-                    request_id,
-                    task_id: activation.task_id,
-                    lease_id: activation.lease_id,
-                    lease_until: activation.lease_until,
-                })
-            }
-            NodeRequest::FinishUpdateActivation {
-                task_id,
-                lease_id,
-                outcome,
-                ..
-            } => {
-                let outcome = match outcome {
-                    px_node_protocol::UpdateActivationOutcome::Installed => {
-                        px_console_store::UpdateActivationOutcome::Installed
-                    }
-                    px_node_protocol::UpdateActivationOutcome::Failed { error_code } => {
-                        px_console_store::UpdateActivationOutcome::Failed { error_code }
-                    }
-                };
-                let completion = state
-                    .db
-                    .updates()
-                    .finish_activation(connection, task_id, lease_id, &outcome)
-                    .await?;
-                Ok(NodeResponse::UpdateActivationFinished {
-                    request_id,
-                    state: completion.state,
-                    revision: completion.revision,
-                    error_code: completion.error_code,
-                })
-            }
             NodeRequest::Authenticate { .. } => Err(ApiError::Invalid),
         }
     };
@@ -770,32 +657,7 @@ fn management_event(message: &NodeRequest, node_id: Uuid) -> Option<(&'static st
         | NodeRequest::FetchRdpWorkspace { .. }
         | NodeRequest::ListDeployments { .. }
         | NodeRequest::ListFrontends { .. }
-        | NodeRequest::PollRecordingCache { .. }
-        | NodeRequest::CheckUpdate { .. } => None,
-        NodeRequest::BeginUpdateActivation { .. } | NodeRequest::FinishUpdateActivation { .. } => {
-            Some(("nodes", Some(node_id)))
-        }
-    }
-}
-
-fn node_update_target(state: &StateData, connection: &NodeConnection) -> ReleaseQuery {
-    let product = match connection.product() {
-        NodeProduct::CloudNode => Product::CloudNode,
-        NodeProduct::Remote => Product::Remote,
-    };
-    let distribution = match state.license.payload.distribution {
-        LicenseDistribution::Official => ReleaseDistribution::Official,
-        LicenseDistribution::Customer => ReleaseDistribution::Customer,
-        LicenseDistribution::Oem => ReleaseDistribution::Oem,
-    };
-    ReleaseQuery {
-        product,
-        distribution,
-        release_namespace: state.license.payload.release_namespace.clone(),
-        oem_id: state.license.payload.oem_id.clone(),
-        channel: Channel::Stable,
-        os: OperatingSystem::Windows,
-        architecture: Architecture::X86_64,
+        | NodeRequest::PollRecordingCache { .. } => None,
     }
 }
 

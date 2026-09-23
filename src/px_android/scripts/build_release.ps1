@@ -229,7 +229,7 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($revision)) {
 $env:PIXELS_GIT_REVISION = $revision
 $env:PIXELS_RELEASE_COMPLIANCE_DRIVER = '1'
 
-$tasks = @(':app:lintRelease', 'testDebugUnitTest', ':app:assembleRelease', ':app:bundleRelease', '--stacktrace')
+$tasks = @(':app:lintRelease', 'testReleaseUnitTest', ':app:assembleRelease', ':app:bundleRelease', '--stacktrace')
 if (-not $SkipClean) {
     $tasks = @('clean') + $tasks
 }

@@ -7,12 +7,12 @@ if /I "%~1"=="official" goto :configuration
 if /I "%~1"=="customer" goto :configuration
 if /I "%~1"=="oem" goto :oem_configuration
 
-echo Usage: %~nx0 official^|customer debug [install] ^| release ^| oem debug [install] ^| oem release
+echo Usage: %~nx0 official^|customer fast-release [install] ^| release ^| oem fast-release [install] ^| oem release
 exit /b 2
 
 :configuration
-if /I "%~2"=="debug" goto :run
-echo Usage: %~nx0 official^|customer debug [install] ^| release ^| oem debug [install] ^| oem release
+if /I "%~2"=="fast-release" goto :run
+echo Usage: %~nx0 official^|customer fast-release [install] ^| release ^| oem fast-release [install] ^| oem release
 exit /b 2
 
 :run
@@ -20,9 +20,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0build_android_prod
 exit /b %errorlevel%
 
 :oem_configuration
-if /I "%~2"=="debug" goto :run
+if /I "%~2"=="fast-release" goto :run
 if /I "%~2"=="release" goto :oem_release
-echo Usage: %~nx0 oem debug [install] ^| oem release
+echo Usage: %~nx0 oem fast-release [install] ^| oem release
 exit /b 2
 
 :oem_release

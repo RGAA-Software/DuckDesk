@@ -196,9 +196,15 @@ async fn serve_connection(state: RelayServerState, query: RelayQuery, socket: We
     };
     deliver(&state, replacement_deliveries).await;
 
-    while let Some(incoming) = websocket_receiver.next().await {
-        let Ok(message) = incoming else {
-            break;
+    loop {
+        let message = match tokio::time::timeout(
+            state.config.connection_idle_timeout,
+            websocket_receiver.next(),
+        )
+        .await
+        {
+            Ok(Some(Ok(message))) => message,
+            Ok(Some(Err(_))) | Ok(None) | Err(_) => break,
         };
         match message {
             Message::Binary(payload) => {

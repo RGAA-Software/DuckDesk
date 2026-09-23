@@ -64,9 +64,9 @@ async fn update_catalog_requires_explicit_approval_and_exact_client_identity() {
     )
     .await;
     assert_eq!(license_status_code, StatusCode::OK, "{license_status}");
-    assert_eq!(license_status["distribution"], "customer");
     assert_eq!(license_status["max_streams"], u32::MAX);
-    assert!(license_status["online_fresh_until"].is_null());
+    assert!(license_status.get("distribution").is_none());
+    assert!(license_status.get("online_fresh_until").is_none());
     assert_eq!(
         call(
             &router,

@@ -124,6 +124,7 @@ try {
 `$env:PIXELS_RELAY_MAX_ROOMS = '2048'
 `$env:PIXELS_RELAY_OUTBOUND_QUEUE = '256'
 `$env:PIXELS_RELAY_MAX_MESSAGE_BYTES = '8388608'
+`$env:PIXELS_RELAY_CONNECTION_IDLE_SECONDS = '10'
 `$env:RUST_LOG = 'px_relay_server=info'
 `$process = Start-Process -FilePath '$relayPath' -NoNewWindow -PassThru -Wait -RedirectStandardOutput '$serverRoot\logs\relay.stdout.log' -RedirectStandardError '$serverRoot\logs\relay.stderr.log'
 exit `$process.ExitCode

@@ -1,8 +1,6 @@
 use px_console_runtime::LicenseLaunchConfig;
 use px_console_store::{initialize_administrator, PasswordDigest, Username};
-use px_license::{
-    Distribution, LicensePayload, LicenseSigner, LicenseTrustStore, LicensedService, Mode, Product,
-};
+use px_license::{LicensePayload, LicenseSigner, LicenseTrustStore, LicensedService};
 use px_pg::{DatabaseConfig, Transport};
 use std::{
     env,
@@ -166,12 +164,9 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
     let workspace_key_path = private_directory.path().join("workspace.key");
     let static_directory = private_directory.path().join("web");
     let recording_cache_directory = private_directory.path().join("recording-cache");
-    let license_state_directory = private_directory.path().join("license-state");
     std::fs::create_dir(&static_directory).unwrap();
     std::fs::create_dir(&recording_cache_directory).unwrap();
-    std::fs::create_dir(&license_state_directory).unwrap();
     restrict_private_directory(&recording_cache_directory);
-    restrict_private_directory(&license_state_directory);
     std::fs::write(
         static_directory.join("index.html"),
         "pixels-console-process",
@@ -184,14 +179,7 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
         &hex::decode("3053020101300506032b6570042204209d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60a123032100d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a").unwrap(),
     )
     .unwrap();
-    let authority_deployment = Uuid::new_v4();
-    let trust_store = LicenseTrustStore::new(
-        authority_deployment,
-        Uuid::new_v4(),
-        signer.public_key().try_into().unwrap(),
-        [],
-    )
-    .unwrap();
+    let trust_store = LicenseTrustStore::new(signer.public_key().try_into().unwrap(), []).unwrap();
     let license_trust_path = private_directory.path().join("license-trust.json");
     let license_path = private_directory.path().join("console.license");
     px_private_files::private::create_private(
@@ -204,15 +192,8 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
         schema: 2,
         license_id: Uuid::new_v4(),
         deployment_id: deployment,
-        product: Product::PixelsConsole,
-        distribution: Distribution::Customer,
-        release_namespace: "pixels.customer".into(),
-        oem_id: None,
-        machine_sha256: "a".repeat(64),
         revision: 1,
-        mode: Mode::Licensed,
         issued_at: current_time - 10,
-        not_before: current_time - 10,
         expires_at: current_time + 3600,
         max_streams: 8,
         services: vec![
@@ -227,7 +208,6 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
         signer.sign(&license).unwrap().as_bytes(),
     )
     .unwrap();
-    px_private_files::private::verify_private_directory(&license_state_directory).unwrap();
     let trust_bytes =
         px_private_files::private::read_private_bounded(&license_trust_path, 65536).unwrap();
     let parsed_trust = LicenseTrustStore::from_canonical_bytes(&trust_bytes).unwrap();
@@ -238,36 +218,14 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
         .unwrap()
         .verify(
             wire,
-            &px_license::VerifyContext {
-                deployment_id: deployment,
-                product: Product::PixelsConsole,
-                distribution: Distribution::Customer,
-                release_namespace: "pixels.customer",
-                oem_id: None,
-                machine_sha256: &"a".repeat(64),
-                now: chrono::Utc::now().timestamp(),
-                minimum_revision: 1,
-                last_trusted_time: 0,
-            },
+            &px_license::VerifyContext::new(deployment, chrono::Utc::now().timestamp()),
         )
         .unwrap();
-    LicenseLaunchConfig::new(
-        "customer",
-        "pixels.customer".into(),
-        None,
-        "a".repeat(64),
-        authority_deployment,
-        license_trust_path.clone(),
-        license_path.clone(),
-        license_state_directory.clone(),
-        None,
-        None,
-        true,
-    )
-    .unwrap()
-    .admit(deployment)
-    .await
-    .unwrap();
+    LicenseLaunchConfig::new(license_trust_path.clone(), license_path.clone())
+        .unwrap()
+        .admit(deployment)
+        .await
+        .unwrap();
     drop(px_private_files::CacheRoot::initialize(&recording_cache_directory, deployment).unwrap());
     let workspace_key_id = Uuid::new_v4();
     let address = unused_loopback_address();
@@ -304,18 +262,8 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
             .env("PIXELS_CONSOLE_RECORDING_CACHE_TTL_SECONDS", "86400")
             .env("PIXELS_CONSOLE_DISTRIBUTION", "customer")
             .env("PIXELS_CONSOLE_RELEASE_NAMESPACE", "pixels.customer")
-            .env("PIXELS_CONSOLE_MACHINE_SHA256", "a".repeat(64))
-            .env(
-                "PIXELS_CONSOLE_LICENSE_AUTHORITY_DEPLOYMENT_ID",
-                authority_deployment.to_string(),
-            )
             .env("PIXELS_CONSOLE_LICENSE_TRUST_STORE", &license_trust_path)
             .env("PIXELS_CONSOLE_LICENSE_FILE", &license_path)
-            .env(
-                "PIXELS_CONSOLE_LICENSE_STATE_DIRECTORY",
-                &license_state_directory,
-            )
-            .env_remove("PIXELS_CONSOLE_AUTH_VERIFY_URL")
             .env_remove("PIXELS_CONSOLE_TLS_CERT")
             .env_remove("PIXELS_CONSOLE_TLS_KEY")
             .stdin(Stdio::null())

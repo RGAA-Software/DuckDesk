@@ -1,5 +1,33 @@
 # px_auth Linux / CN 部署记录
 
+> 2026-09-22 现行结论：Auth 只负责签发、续期和撤销 `PXLIC2` 管理记录，不再提供在线许可证验证端点。下列 2026-09-21
+> 摘要是当时部署证据；其中 `/api/auth/licenses/verify`、机器绑定、Console 在线 currentness 和库外水位已经被新契约废弃，不能作为
+> 当前实现或下一次部署的验收标准。CN 下一次部署必须直接替换为新 schema 和新二进制，不迁移开发数据或保留兼容路由。
+
+## 2026-09-22 最小许可证版本部署
+
+CN Auth 已按全新开发约束原地重建 `pixels_auth`，只执行当前四项 migration，不迁移 2026-09-21 的开发数据。当前发行目录为
+`/opt/pixels/auth/releases/3.2.11-521faf39eb94`，`px_auth`、`px_auth_admin`、`px_db` 的 SHA-256 分别为
+`521faf39eb94e54719dc12a749f0e294c4f2300c19c91acbaf1fa46b6ae6032c`、
+`fbcb6da4930668470cc3209305d1db3cc4a6c166dc8df4f196a978326491eed0`、
+`5bca7b57137df58fae4cd4051de8d5b252970d2f04d1824da50703dafe0d51c4`，均与本次聚焦 Linux Release 构建一致。
+`pixels-auth@63706848-cf7b-4a50-9652-f4fab461aa26.service` 与对应备份服务均为 enabled/active；公网 live/ready 为 204、首页为
+200，管理员登录、客户创建、最小许可证签发和注销通过，已退役 `/api/auth/licenses/verify` 返回 404。
+
+本次签发给“90”公网 Console 的最小 `PXLIC2` 只含 deployment、revision、签发/到期时间、`max_streams=4`、三个授权服务和
+key ID；许可证 ID 为 `9694c8aa-f3ac-40da-9a7f-75bbaeaa1774`。Console 已安装签名许可证和 schema 2 公钥信任文件，不再配置
+Auth 在线验证、机器摘要、Authority deployment、库外许可证水位或部署证书。
+
+备份配置中残留的 Auth schema 5 已修正为当前 schema 4；修改前的私有配置与调度状态已保存在远端 `config-history`，随后重新执行当前
+调度槽。恢复集 `4284840d-5e7a-4332-96ad-4a3577122a28` 已发布为 `verified`，其中 `auth.dump` 为 31,813 字节、SHA-256 为
+`24bff182a709519e9049bec6864de861c8a80a1bfe17f92350e3ddcc091e73b8`，manifest 明确记录 Auth schema 4。对应的本地真实三库
+备份、异地恢复和篡改拒绝专项报告为 `pg-20260922-191002-a0a00c21`。
+
+“90”公网 Console 也已换用当前聚焦 Release 二进制和全新 29 项 schema。旧 migration 19 checksum 与当前源码不一致，因此直接重建
+开发库而非增加兼容 migration；当前 deployment 为 `7c8b9e09-04c1-4b9f-a13f-07d15a4be097`。公网 live/ready 为 204、首页为
+200，管理员登录、本地许可证状态、会话注销及注销后拒绝均通过；许可证、信任文件和二进制与本机 SHA-256 一致。重建会清除旧节点、
+应用和用户开发数据，后续端到端云功能验收必须先让 Service/Render 按当前协议重新登记。
+
 ## 2026-09-21 PostgreSQL 新服务
 
 CN（`49.232.190.218`）只承载官方 Auth，公网入口为 `https://auth.rgaa.vip`。Console、Relay、Render 和节点仍在既有“90”公网环境，
@@ -11,7 +39,7 @@ CN（`49.232.190.218`）只承载官方 Auth，公网入口为 `https://auth.rga
 - PostgreSQL 18.6 镜像固定为
   `postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280`，容器
   `pixels-auth-postgres` 只发布 `127.0.0.1:54329`，使用单独持久卷，数据库连接使用 verify-full 和本部署私有 CA。
-- 只创建 `pixels_auth`、最小权限 `pixels_auth_owner`/`pixels_auth_runtime` 和用于三库备份对账的内部 deployment 记录；五项 migration、运行角色检查、
+- 只创建 `pixels_auth`、最小权限 `pixels_auth_owner`/`pixels_auth_runtime` 和用于三库备份对账的内部 deployment 记录；当时的五项 migration、运行角色检查、
   新 Ed25519 PKCS#8 私钥、与数据库 recovery generation 绑定的新信任根和一次性管理员初始化均完成。
 - 发行目录为 `/opt/pixels/auth/releases/3.2.11-0ae2966e34b3`，稳定链接为 `/opt/pixels/auth/current`。远端
   `px_auth`/`px_auth_admin`/`px_db` 与本次聚焦 Linux 构建 SHA-256 完全一致：
@@ -45,17 +73,12 @@ Console 和 Desk 标为“仍在 90 环境”的 not_applicable，只备份 CN �
 当前 `offsite_configured=false`，所以这只关闭 CN Auth 的本机定时备份门禁，不构成异机容灾；独立对象存储/备份机复制与异机恢复演练仍是
 DB4 剩余项。
 
-## “90”Console 消费者切换
+## Console 许可证消费边界
 
-“90”公网环境（`39.71.45.66`）的 Official Console 已原子切换到
-`https://auth.rgaa.vip/api/auth/licenses/verify`，Authority deployment 固定为
-`63706848-cf7b-4a50-9652-f4fab461aa26`。新 trust store 和许可证在本机、远端暂存和安装后均核对 SHA-256；许可证明确绑定现有
-Console deployment、machine、`pixels_console` 和 `official`，没有旧 Authority、旧路径或本机 Auth fallback。旧 launcher、trust store、
-许可证、库外水位和计划任务 XML 保留在“90”的
-`D:\PixelsServer\backups\auth-cn-switch-20260921081906`，只作显式人工回退证据。
+Console 不再请求 `auth.rgaa.vip` 验证许可证。运维从 Auth 管理面下载签名 `PXLIC2`，把许可证和 Auth 公钥信任根作为受控文件安装到
+目标 Console；Console 启动和业务准入只做本地签名、deployment、到期时间、服务集合和 stream 上限检查。Auth 中的撤销会阻止续期，
+但不会让已交付的离线副本瞬时失效。
 
-切换后 Console 从精确正式路径启动且 4600 正常监听；公网 `/health/live` 和 `/health/ready` 均为 204。随后停用“90”的
-`Pixels-Auth` 计划任务、终止其进程并确认 4602 不再监听；在本机 Auth 完全停止的条件下，每 5 秒探测一次 Console readiness，连续
-70.7 秒共 15 次全部返回 204，跨过两次 30 秒在线刷新和 40 秒 freshness fail-closed 边界。这证明“90”Console 已实际依赖 CN Auth，
-不是仅修改配置或继续命中旧本机服务。切换后的 Console 用户登录、本人资料、注销及已注销 token 拒绝也已短测通过。90 上不再承载
-运行中的 Auth，但未删除旧文件和可恢复备份。
+“90”公网环境（`39.71.45.66`）保留为 Console、Relay、Render 和客户端功能验收节点；它不再承载 Auth。当前 Console 已删除
+旧 verify URL、Authority deployment、机器指纹和许可证水位配置，并换用最小 `PXLIC2`。2026-09-21 的在线切换备份只能作为历史取证，
+不得恢复成活动兼容路径。

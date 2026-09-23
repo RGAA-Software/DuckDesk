@@ -648,18 +648,18 @@ export default {
                 features: [
                     "Free custom LOGO / company name",
                     "Free custom interface style",
-                    "Delivered with device licenses",
+                    "Delivered with signed service entitlements",
                 ],
             },
             device: {
                 name: "Enterprise Partnership",
                 price: "Contact Us",
-                recommended: "Per-device billing",
+                recommended: "Scope-based licensing",
                 features: [
-                    "Single headset license",
+                    "Authorized services and concurrent streams",
                     "PC Manager + PICO Agent + Android thin client",
                     "All features unlocked",
-                    "Online license refresh",
+                    "Offline-verifiable signed license",
                 ],
             },
         },
@@ -810,7 +810,7 @@ export default {
                 },
                 {
                     title: "License Management",
-                    desc: "Device quotas, trial and grace periods with online license refresh",
+                    desc: "Signed authorization for enabled services and concurrent stream limits",
                 },
             ],
             diffTitle: "What Sets It Apart",

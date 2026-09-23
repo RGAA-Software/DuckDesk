@@ -602,17 +602,17 @@ export default {
             custom: {
                 name: "定制 UI",
                 price: "免费",
-                features: ["免费定制 LOGO / 企业名称", "免费定制界面风格", "随设备授权交付"],
+                features: ["免费定制 LOGO / 企业名称", "免费定制界面风格", "随签名服务授权交付"],
             },
             device: {
                 name: "企业合作",
                 price: "请联系我们",
-                recommended: "按设备计费",
+                recommended: "按授权范围",
                 features: [
-                    "单台头显授权",
+                    "授权服务与并发流数量",
                     "PC 管理端 + PICO Agent + Android 瘦终端",
                     "全部功能解锁",
-                    "授权在线刷新",
+                    "可离线验签的签名许可证",
                 ],
             },
         },
@@ -733,7 +733,7 @@ export default {
                 { title: "Agent 批量升级", desc: "按版本识别头显代理，批量推送静默升级" },
                 { title: "批量任务记录", desc: "安装、卸载、升级任务进度与历史全程追溯" },
                 { title: "文件传输", desc: "批量推送文件到头显，进度可查、可取消" },
-                { title: "设备授权管理", desc: "设备配额、试用与宽限期，授权在线刷新" },
+                { title: "许可证管理", desc: "通过签名许可证授权服务范围与并发流上限" },
             ],
             diffTitle: "差异化能力",
             diffs: [

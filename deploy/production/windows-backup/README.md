@@ -34,6 +34,27 @@ metadata; the installer requires it and does not discover or trust an arbitrary 
 
 ## Install or upgrade
 
+Provision or rotate the service-specific backup login before writing the private `pgpass` file.
+This is an explicit administrative action; the daemon and installer never create database roles.
+The command accepts only the fixed `pixels_console_backup`, `pixels_auth_backup`, or
+`pixels_desk_backup` role selected by its service argument. It verifies the deployment/service
+identity first, requires a PostgreSQL superuser, removes all object privileges before granting only
+database `CONNECT`, schema `USAGE`, and table/sequence `SELECT`, and rejects role membership. The
+32–128 character password must contain only ASCII letters, digits, `-`, and `_` so it can be stored
+without escaping ambiguity in a private `pgpass` file:
+
+```powershell
+$env:PIXELS_DATABASE_URL = '<TLS PostgreSQL administrator DSN>'
+$env:PIXELS_DEPLOYMENT_ID = '<deployment UUID>'
+$env:PIXELS_BACKUP_ROLE_PASSWORD = '<generated private password>'
+px_db.exe provision-backup-role console
+Remove-Item Env:PIXELS_BACKUP_ROLE_PASSWORD
+```
+
+Use `auth` or `desk` only on the server that actually hosts that service database. A distributed
+deployment records the other two services as explicit `not_applicable` members; it does not copy
+their credentials onto this node or pretend a same-disk directory is offsite storage.
+
 Run elevated PowerShell 7 with the reviewed package path, manifest digest, and an absolute private
 schema-2 configuration path:
 

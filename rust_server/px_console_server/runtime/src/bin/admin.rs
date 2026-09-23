@@ -38,36 +38,13 @@ async fn validate_license() -> Result<(), Box<dyn std::error::Error>> {
     if deployment_id.is_nil() {
         return Err("deployment identifier must not be nil".into());
     }
-    let authority_deployment_id =
-        env::var("PIXELS_CONSOLE_LICENSE_AUTHORITY_DEPLOYMENT_ID")?.parse::<Uuid>()?;
     let configuration = LicenseLaunchConfig::new(
-        &env::var("PIXELS_CONSOLE_DISTRIBUTION")?,
-        env::var("PIXELS_CONSOLE_RELEASE_NAMESPACE")?,
-        optional("PIXELS_CONSOLE_OEM_ID"),
-        env::var("PIXELS_CONSOLE_MACHINE_SHA256")?,
-        authority_deployment_id,
         PathBuf::from(env::var("PIXELS_CONSOLE_LICENSE_TRUST_STORE")?),
         PathBuf::from(env::var("PIXELS_CONSOLE_LICENSE_FILE")?),
-        PathBuf::from(env::var("PIXELS_CONSOLE_LICENSE_STATE_DIRECTORY")?),
-        optional("PIXELS_CONSOLE_AUTH_VERIFY_URL"),
-        optional("PIXELS_CONSOLE_AUTH_VERIFY_CA").map(PathBuf::from),
-        flag("PIXELS_CONSOLE_LOCAL_DEVELOPMENT")?,
     )?;
     configuration.admit(deployment_id).await?;
     println!("Console license validated");
     Ok(())
-}
-
-fn optional(name: &str) -> Option<String> {
-    env::var(name).ok().filter(|value| !value.is_empty())
-}
-
-fn flag(name: &str) -> Result<bool, Box<dyn std::error::Error>> {
-    match env::var(name).as_deref() {
-        Ok("1") => Ok(true),
-        Ok("0") | Err(env::VarError::NotPresent) => Ok(false),
-        _ => Err(format!("{name} must be zero or one").into()),
-    }
 }
 
 fn initialize_recording_cache() -> Result<(), Box<dyn std::error::Error>> {

@@ -130,6 +130,7 @@ pub async fn start_with_cache_and_relay() -> (ConsoleRuntime, tempfile::TempDir)
                 port: 4605,
                 app_key: "isolated-relay-app-key".into(),
             }),
+            release: px_console_runtime::ReleaseIdentity::integration(),
         },
     )
     .await
@@ -152,6 +153,7 @@ pub async fn start_with_relay() -> ConsoleRuntime {
                 port: 4605,
                 app_key: "isolated-relay-app-key".into(),
             }),
+            release: px_console_runtime::ReleaseIdentity::integration(),
         },
     )
     .await

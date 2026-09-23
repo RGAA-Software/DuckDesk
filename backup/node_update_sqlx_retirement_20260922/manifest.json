@@ -1,0 +1,56 @@
+{
+  "revision": "b6e7e8688114c6e3656dd45feac08668128a1998",
+  "reason": "Retire SQLx offline metadata for removed node update activation and trust queries.",
+  "files": [
+    {
+      "path": "rust_server/px_console_server/storage/.sqlx/query-2c0dcfba7d574da43901a8321408ff2c74e61cc72ae3e59cc0e33d59025397ef.json",
+      "sha256": "F6C295205CBD66BDD9D60E27A0A40EDCF4DB2852877CB84C8E7CBE18322E1E8F",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/storage/.sqlx/query-2cef2a1cf9c437da7ab98f5e7d65cedcbffd45704082aa29e7231500387f7da0.json",
+      "sha256": "041E62589E82701350A03DB60954EE6D1DD6BBDCB3C9B4A75AD72241AE937938",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/storage/.sqlx/query-3f7e80eb4c0eca3abc5bf4bc4b99d9b114a539776498e40fbe13a279e25b8833.json",
+      "sha256": "EE28DBC0892FBC757267B14EC65EC6326496EAEABC6AFA1217D3388488A3FE0B",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/storage/.sqlx/query-42af876f26ca7fffe90ba3bfd581798641d8e72877ddffe352bb14b609620498.json",
+      "sha256": "65AFD8D3A17282CB91300F78B53E9FE9CF770B9C8D438FD12EF12CB87A20CCAF",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/storage/.sqlx/query-7b0c78a6ca80a66e897255b737b6212129ec743a89544d5255388b67a42f53aa.json",
+      "sha256": "73A4671E023486F04488FBCB6231A8AE7E40A93271BCE2A3AA93D58E52BBB34B",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/storage/.sqlx/query-7dce8d7315e78df4d26e5bc8c64f0a22dcc326058e100dcb5e30a9370f771c86.json",
+      "sha256": "79E34B3FC07DE77F5CB999773197F26A1FC26397EAB0CFFEF8F7A1BDE7BD32A4",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/storage/.sqlx/query-d1569f30b5f2a49557ee2bf5c67df101fac6b10afc1cc04cbe39e60a2f8f4260.json",
+      "sha256": "DA352FF637C1C505201736715EBEB2550970F5A2EFC60C9465251F4FDACED6E6",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/storage/.sqlx/query-d388c500042fdb4c63ce2416235770b341214a9f62edfbb9e39a7fd84de37b09.json",
+      "sha256": "D372CA07BF8ECAA226616086B31C867D54057259B75EA0BDA25CADF6BBBA6453",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/storage/.sqlx/query-d6ae5cee2d12d878393d29f86b44526af5e3e31c9d9d9644dc8941d15fba7e21.json",
+      "sha256": "203CBEAED49076404AECCBD6B130DE3269C8CACBA08D3B48EBD794B8E75E9A29",
+      "status": ""
+    },
+    {
+      "path": "rust_server/px_console_server/storage/.sqlx/query-fb7d3e12db943d5613c1641e737868546585274ab212ae651f8a682c289d245d.json",
+      "sha256": "FC548229D0A5C2B6044F8C3A20F89F670708511777F72391A0ABA2FA4EE7B034",
+      "status": ""
+    }
+  ]
+}

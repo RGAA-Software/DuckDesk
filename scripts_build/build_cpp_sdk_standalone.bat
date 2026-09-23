@@ -27,13 +27,13 @@ if "%SDK_PLATFORM%"=="windows" (
     if errorlevel 1 exit /b !errorlevel!
     set "VSLANG=1033"
     rem Use single-pass manifest embedding; no intermediate executable needs to be reopened.
-    cmake -S "%SDK_SOURCE%" -B "%SDK_BUILD_DIR%" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_TOOLCHAIN_FILE="%VCPKG_ROOT%/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows-static-release -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DCMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO="/debug /INCREMENTAL:NO" -DCMAKE_EXE_LINKER_FLAGS_DEBUG="/debug /INCREMENTAL:NO" -DPX_SDK_CORE_ONLY=%SDK_CORE_ONLY% -DBUILD_TESTING=ON
+    cmake -S "%SDK_SOURCE%" -B "%SDK_BUILD_DIR%" -G Ninja -DCMAKE_BUILD_TYPE=Release "-DCMAKE_C_FLAGS_RELEASE=/O1 /Ob1 /DNDEBUG" "-DCMAKE_CXX_FLAGS_RELEASE=/O1 /Ob1 /DNDEBUG" -DCMAKE_TOOLCHAIN_FILE="%VCPKG_ROOT%/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows-static-release -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DCMAKE_EXE_LINKER_FLAGS_RELEASE="/INCREMENTAL:NO" -DPX_SDK_CORE_ONLY=%SDK_CORE_ONLY% -DBUILD_TESTING=ON
 ) else if "%SDK_PLATFORM%"=="android" (
     if not defined ANDROID_NDK_HOME (
         echo ERROR: Set ANDROID_NDK_HOME to the installed Android NDK directory.
         exit /b 2
     )
-    cmake -S "%SDK_SOURCE%" -B "%SDK_BUILD_DIR%" -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_TOOLCHAIN_FILE="%VCPKG_ROOT%/scripts/buildsystems/vcpkg.cmake" -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE="!ANDROID_NDK_HOME!/build/cmake/android.toolchain.cmake" -DVCPKG_TARGET_TRIPLET=arm64-android -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-31 -DANDROID_STL=c++_shared -DPX_SDK_CORE_ONLY=%SDK_CORE_ONLY% -DBUILD_TESTING=OFF
+    cmake -S "%SDK_SOURCE%" -B "%SDK_BUILD_DIR%" -G Ninja -DCMAKE_BUILD_TYPE=Release "-DCMAKE_C_FLAGS_RELEASE=-O1 -DNDEBUG" "-DCMAKE_CXX_FLAGS_RELEASE=-O1 -DNDEBUG" -DCMAKE_TOOLCHAIN_FILE="%VCPKG_ROOT%/scripts/buildsystems/vcpkg.cmake" -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE="!ANDROID_NDK_HOME!/build/cmake/android.toolchain.cmake" -DVCPKG_TARGET_TRIPLET=arm64-android -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-31 -DANDROID_STL=c++_shared -DPX_SDK_CORE_ONLY=%SDK_CORE_ONLY% -DBUILD_TESTING=OFF
 ) else (
     echo ERROR: Unsupported SDK platform. Use windows or android.
     exit /b 2

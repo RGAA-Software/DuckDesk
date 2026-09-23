@@ -1,11 +1,9 @@
 //! Auth-owned transactional license issuance. No HTTP, Mongo or process globals.
 mod issuance;
 mod model;
-mod notifications;
 mod operators;
 
-pub use model::{Activation, Customer, IssueRequest, IssuedLicense, LicenseTerms};
-pub use notifications::{LicenseNotification, NotificationFailure};
+pub use model::{Customer, IssueRequest, IssuedLicense, LicenseTerms};
 pub use operators::{
     bootstrap_author, AuthorSummary, OperatorCredential, OperatorProfile, OperatorSession,
     OperatorStore,
@@ -42,17 +40,6 @@ impl LicenseStore {
     pub async fn ready(&self, deployment: Uuid) -> Result<(), AuthError> {
         px_pg::runtime_readiness(&self.pool, px_pg::Service::Auth, deployment, &MIGRATIONS).await?;
         Ok(())
-    }
-    pub async fn database_time(&self) -> Result<i64, AuthError> {
-        Ok(sqlx::query_file_scalar!("queries/database_time.sql")
-            .fetch_one(&self.pool)
-            .await?
-            .timestamp())
-    }
-    pub async fn recovery_generation(&self) -> Result<Uuid, AuthError> {
-        Ok(sqlx::query_file_scalar!("queries/recovery_generation.sql")
-            .fetch_one(&self.pool)
-            .await?)
     }
     pub async fn list_licenses(
         &self,
@@ -181,34 +168,8 @@ impl LicenseStore {
         )
         .execute(&mut *tx)
         .await?;
-        sqlx::query_file!(
-            "queries/insert_license_notification.sql",
-            Uuid::new_v4(),
-            license_id,
-            next,
-            "revoked",
-            None::<Uuid>
-        )
-        .execute(&mut *tx)
-        .await?;
         tx.commit().await?;
         Ok(next)
-    }
-    /// Auth online verification adds revocation/current revision to cryptographic verification at the caller.
-    pub async fn current(
-        &self,
-        license_id: Uuid,
-        revision: i64,
-    ) -> Result<IssuedLicense, AuthError> {
-        sqlx::query_file_as!(
-            IssuedLicense,
-            "queries/current_license.sql",
-            license_id,
-            revision
-        )
-        .fetch_optional(&self.pool)
-        .await?
-        .ok_or(AuthError::Rejected)
     }
 }
 

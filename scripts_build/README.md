@@ -18,7 +18,8 @@ scripts_build\build_android_product.bat release
 ```
 
 上述 Windows 入口每次都先完成两种发行的身份材料预检，再删除目标产品旧沙箱、独立升版一次，并构建 Official/Customer 两套完整产物。
-缺少 approved trust store、最低水位、Official deployment UUID 或 HTTPS origin 时，不清理、不升版。日常 C++ 聚焦验证才使用：
+缺少审批后的 TUF 初始根、规范 Official HTTPS origin 或对应 OEM release profile 时，不清理、不升版。日常 C++ 聚焦验证只使用
+`Release + PX_FAST_RELEASE=ON`，正式发行使用完整优化 Release：
 
 ```bat
 scripts_build\build_cpp_client.bat client
@@ -49,13 +50,13 @@ Android OEM 使用同一份 `PIXELS_OEM_RELEASE_PROFILE`，但不加入 Pixels �
 
 ```bat
 set PIXELS_OEM_RELEASE_PROFILE=D:\secure\north-star\oem-release-profile.json
-scripts_build\build_android_product.bat oem debug
-scripts_build\build_android_product.bat oem debug install
+scripts_build\build_android_product.bat oem fast-release
+scripts_build\build_android_product.bat oem fast-release install
 scripts_build\build_android_product.bat oem release
 ```
 
-输出固定隔离到 `build_official/android/oem/<oem_id>/`。入口校验 profile、deployment trust store、独立 applicationId、应用名、双层
-launcher 图标和 Android 签名证书固定值；OEM Release 独立升版，不能使用 Pixels Release 矩阵或 Pixels 签名。
+输出固定隔离到 `build_official/android/oem/<oem_id>/`。入口校验 profile、TUF 初始根、独立 applicationId、应用名、双层
+launcher 图标和 Android 签名证书固定值；OEM fast Release 用于开发短测，正式 OEM Release 独立升版，不能使用 Pixels Release 矩阵或 Pixels 签名。
 
 Windows OEM 同样不加入 Pixels 双发行矩阵。预检与逐产品完整候选入口为：
 

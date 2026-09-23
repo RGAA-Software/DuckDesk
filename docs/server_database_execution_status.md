@@ -1,10 +1,46 @@
 # 服务数据库改造：实施与验收状态
 
-> 更新至 2026-09-22。只记录实际交付范围；这不是 DB0–DB5 或整个商业化计划的完成声明。
+> 更新至 2026-09-23。只记录实际交付范围；这不是 DB0–DB5 或整个商业化计划的完成声明。
 >
 > 2026-09-22 当前决策：活动产品只保留 `PXLIC2` 服务端许可证，由 Auth 签发、Console 验证并执行授权服务、到期时间与
 > `max_streams`。`PXDC2`、`PXDD2`、`PXDP1`、部署 trust store、身份水位及凭据前 challenge 已从活动实现退役；本文后文出现这些名称
 > 只是在保留当时实施/测试历史，不代表当前设计、待部署项或兼容要求。数据库内部用于三库备份对账的 deployment UUID 不是客户端部署身份协议，继续保留。
+>
+> 同日升级方案也完成收缩：Cloud Node/Remote 的自动发现、下载暂存、Console 激活租约、节点信任水位、自动安装/回滚 runner 及对应运维页面已从
+> 活动实现和本文当前状态中退役，退役前内容保存在 `backup/node_update_orchestration_*_20260922/`。当前做法固定为运维先升级 Server，
+> 再逐节点或客户端运行签名完整包覆盖安装；每个节点独立验收，不存在跨节点提交、统一回滚或旧协议兼容。
+
+2026-09-22 节点升级编排退役切片已完成：协议 DTO、Console PostgreSQL 表/查询/API、Service 自动准备与执行器、Console 信任水位页面及对应测试均已
+从活动树删除，退役前源码按仓库相对路径归档。全新三库 SQLx 元数据重建通过（Console 277、Desk 9、Auth 28）；更新目录 7/7、节点控制 2/2、
+节点协议 2/2、Service 104/104（另 1 项既有忽略）、Console Web 49/49、Pixels Web 9/9 均通过。隔离 PostgreSQL 报告为
+`pg-20260922-213216-a54526a9` 与 `pg-20260922-214429-5ee3fcab`；相关 Rust 目标严格 Clippy 和两个 Web 生产构建通过。
+这组证据验证收缩后的职责，不恢复自动更新承诺。
+
+2026-09-22 DB4 Windows 目标节点纵向验收已完成一轮真实短测。新增 `px_db provision-backup-role <service>` 固定管理入口，
+只允许为 Console/Auth/Desk 创建或轮换各自的只读备份角色；命令先核对 deployment/service 身份并要求超级管理员，随后收敛为
+CONNECT、schema USAGE、表/序列 SELECT、连接上限 2 且无角色成员关系。三库集成用例 15/15 和 `px_pg` 严格 Clippy 通过，报告
+`pg-20260922-230018-1f090722` 覆盖创建、读写边界、跨库隔离、轮换、错误身份及非管理员拒绝。
+
+公网 Windows Console 节点随后使用固定 PostgreSQL 18.6 客户端清单部署真实 `Pixels.Backup.7c8b9e0904c1` SCM 服务。节点原配置声明
+`pixels_admin` 但数据库中只有默认 `postgres` 超级角色；修复过程只在 loopback+TLS 上临时允许精确管理员登录，创建标准角色后原字节恢复
+`pg_hba.conf` 并复核摘要，Console/PostgreSQL 全程运行。包 `0.1.0-pg18.6-r3-4deb25f27ef5` 的 manifest SHA-256 为
+`0a0082d2c4696b4c5d9a465bdd0345e6e42e96f43acef4d6b84d3df6e47dae0d`。首个 Console 恢复集
+`afa00191-9b87-41a7-9673-c0220f1b1a94` 为 verified；复制到另一台开发主机后归档 SHA-256
+`c8c8bd5c2db97470454b6cb9ab01a264d8279df750142af7a54a3ed947884cad` 与清单一致，并在全新、无网络的 PostgreSQL 18.6 容器实际恢复，
+核对 deployment、schema 29、67 张业务表和已有用户记录。覆盖安装、Restart、卸载保留数据、重装及备份角色读/写拒绝/临时表拒绝均通过，
+最终 SCM、Console 与 PostgreSQL 均保持运行。目标没有配置虚假同盘“异地仓库”，状态明确为 `offsite_configured=false`；本次跨主机副本是
+开发验收证据，不冒充生产对象存储、Pixels 外层签名、独立密钥托管或全服务灾难恢复演练。
+
+2026-09-22 许可证简化切片已完成本地实现和短验收：`PXLIC2` payload 只剩 deployment、revision、issued/expires、`max_streams`、
+services 和 key ID；许可证 keyring schema 2 只保存活动 key 与受信公钥，不绑定 Auth deployment 或数据库恢复代际。Auth schema/API/Web 已删除
+产品、发行、OEM、机器、`not_before`、在线 verify 和通知 outbox；Console 已删除在线监控、40 秒退出、水位目录和机器绑定，只执行本地
+签名、deployment、到期、服务和 stream 上限。发行/更新身份继续由独立构建配置承担，数据库恢复代际继续由 DB4 恢复封印独立管理。
+验收均使用快速 Release：许可证合同 5/5，Auth Web 5/5 且生产构建通过，最终 Auth 存储 5/5
+（`pg-20260922-180243-3ff52dc2`），Auth API 9/9、真实 Chromium 管理流程 5/5、Auth 进程重启/断库恢复 2/2
+（`pg-20260922-175855-97e93506`），Console 实进程 1/1（`pg-20260922-175110-0be14818`）；整个 Rust workspace
+`cargo check --release --all-targets` 与严格 Clippy 均通过。CN Auth 与“90”Console 随后均已换成当前聚焦 Release 二进制和全新 schema：
+Auth 公网登录、客户创建、最小许可证签发、注销及旧 verify 路由 404 通过；Console 公网 live/ready、管理员登录、本地许可证状态、注销及
+注销后拒绝通过。Console 重建后尚无节点登记，因此这些结果关闭许可证/账号短链路，不冒充云应用、Relay、Render 的端到端验收。
 
 本轮范围已确认：先完成 DB0–DB5；DB-HA 和 P1–P7 不作为本轮交付终点。DB4 仍包含其已规划的备份/恢复要求，不因排除 HA 而删除备份验收。
 Desk 与 Console 调度无运行依赖，允许先完成 Desk 的独立新库/API/网页纵向验证；这不是提前宣布 DB3 整体完成。
@@ -20,11 +56,11 @@ CN 同 deployment 的 Auth-only `px_backup` 已 enable/active：备份计划仍�
 工具摘要、每小时分层保留和首个 verified recovery set `7a6551f3-7aea-4e73-91b2-b3e5b3a8eb6b` 已实测，archive/manifest 摘要一致且
 `pg_restore --list` 通过。Linux 安装器也不再把共享 deployment 父目录改成 backup 私有权限，Auth 重启/ready 未受影响。
 当前 `offsite_configured=false`，因此这关闭 CN Auth 的本机定时备份门禁，不关闭异机复制/恢复演练、正式外层签名或最终长测。
-“90”公网 Official Console 已原子改用 `https://auth.rgaa.vip/api/auth/licenses/verify` 和 CN Authority deployment；新 trust store/许可证
-安装 hash 一致，旧配置、水位和任务 XML 留有显式回退备份。切换后停用“90”的 `Pixels-Auth` 任务、终止进程并关闭 4602；Console
-正式进程和 4600 保持正常，公网 live/ready 为 204。本机 Auth 停止后每 5 秒持续检查 70.7 秒，15 次 ready 全为 204，覆盖两次
-30 秒在线刷新及 40 秒 fail-closed freshness 边界；用户登录、本人资料、注销与已注销 token 拒绝同步通过，故跨机 Official 许可证消费
-闭环已完成短验收。
+2026-09-21 曾完成“90”Console 调用 CN Auth 在线 verify 的历史短测；该方案已被 2026-09-22 简化决策废弃，不能计入当前许可证闭环。
+2026-09-22 已直接移除 verify URL、Authority deployment、机器绑定和许可证水位，并完成 Auth/Console 全新 schema 重建及上述公网短测。
+CN 备份配置也从残留 Auth schema 5 修正为当前 schema 4；恢复集 `4284840d-5e7a-4332-96ad-4a3577122a28` 为 verified，归档
+SHA-256 为 `24bff182a709519e9049bec6864de861c8a80a1bfe17f92350e3ddcc091e73b8`。真实三库备份、异地恢复和篡改拒绝专项
+`pg-20260922-191002-a0a00c21` 通过。旧二进制和旧开发数据仍不是兼容对象。
 
 ## 已实现的小步
 
@@ -623,8 +659,8 @@ authorization revision，不会把正常会话误作权限撤销；每次实际�
 revision 乐观锁，未审批及已撤回制品不会被客户端发现。该历史基线的客户端查询严格匹配 token 中的 client type 和当时的 product、
 distribution、channel、OS、architecture 五维目标，Android 身份不能冒充 Panel；2026-09-21 增量又加入强制 `release_namespace/oem_id`
 发布域，当前契约以下文最新证据为准。Windows 与 WSL2 的七项目录 API 测试、其余
-存储/进程/浏览器用例、三库恢复、断库恢复和源码冻结均通过。此增量只交付 PostgreSQL 更新元数据入口；Cloud Node、Service、
-Render 等无人值守组件的独立服务身份，以及制品下载、签名验证、排空、安装、回滚和热升级执行器仍未交付。
+存储/进程/浏览器用例、三库恢复、断库恢复和源码冻结均通过。此增量只交付 PostgreSQL 更新元数据入口；Windows 节点不消费该目录，
+也不规划节点侧自动下载、安装、回滚或跨节点升级编排。
 
 历史记录产品入口增量后的完整基线为 `pg-20260918-092556-79a4d8c4`：730/730 项 PASS。Console 运行时新增本人/访客和
 管理员分离的访问记录、连接通道、文件传输历史接口，以及本人可见/管理员管理的录像目录接口；所有分页和筛选参数严格解析，
@@ -1381,42 +1417,12 @@ Evict，最终显示 Not cached。报告 `pg-20260920-111710-98f82ed9` 在隔离
 
 ## 仍未通过的阶段出口
 
-### 2026-09-20 无人值守更新发现与 TUF 暂存切片
+### 2026-09-22 节点升级范围收缩
 
-Console 节点协议已加入认证后的版本检查：连接身份固定节点产品，发行类型由 Console 当前许可证固定，Service 只上报已安装 build；
-服务端据此派生精确 `product/distribution/stable/windows/x86_64`，仅返回严格更新且最新的 approved 记录，pending/withdrawn 最新版本
-不会回落到旧包。更新目录的全新 schema 已直接改为 TUF `metadata_base_url`、`targets_base_url`、`target_name` 加目标 SHA-256/大小，
-没有旧字段迁移、旧 API 兼容或直接制品 URL 旁路。Console、Desk 与 SQLx 离线元数据同步完成。
-
-Cloud Node/Remote Service 已接入基于 `tough` 的 TUF 验证和异步准备任务：安装根、元数据签名/到期、防回滚 datastore、目标自定义
-Pixels 身份、全维度发布事实、大小和 SHA-256 必须全部一致；验证文件只进入受控暂存，复核后原子提交。真实测试运行时生成签名根和
-仓库，正常目标成功准备，篡改目标 fail closed；最新 Service 单线程全量短测 108/108 通过，另 1 项物理 NVIDIA 用例按设计忽略。PostgreSQL
-更新目录 8/8 与 Desk 7/7 的 fresh-schema 集成回归通过，报告分别为 `pg-20260920-123056-ba074b62`、
-`pg-20260920-123056-5840990b`。
-Console 目录 API 7/7 与真实节点控制 WebSocket 3/3 随后也通过，报告分别为
-`pg-20260920-123250-06b80948`、`pg-20260920-123250-d4068c31`。
-
-节点激活授权的 PostgreSQL 事务随后补入同一全新 schema：授权前在统一写门禁内复核 release 状态/revision/目标 SHA、节点当前 build、
-管理员 draining 和实例、资源会话、通道、文件传输占用；激活租约存在时调度和晚到 Start 同时失败关闭。同一 release 的相同申请幂等返回
-原 task/lease，10 分钟超时任务明确失败，不把失联猜成安装成功。完成回执只在节点先上报精确目标 build 后接受 `installed`，丢失响应可按
-原 task/lease 幂等重报，旧 build 不得解除调度冻结。激活租约过期还会在节点下一次正式报告的同一事务中收敛为
-`activation_lease_expired`，不会永久留下阻断调度的 `activating` 行。最新存储专项报告 `pg-20260920-133909-e2ec8976` 为 11/11 PASS；真实 Console
-node-control WebSocket 的发现→激活→新 build 报告→完成链最新报告 `pg-20260920-134814-f3dd1ea8` 为 3/3 PASS；三库 SQLx
-元数据也由 `pg-20260920-135018-1c63ed05` 在 fresh schema 上重新生成，Console/Desk/Auth 数量分别为 284/9/34。
-
-节点侧执行器现已完成首版空闲激活闭环：本地再次检查应用实例、逻辑会话和待报文件传输，取得 Console 激活租约后才把精确发行、build、
-TUF SHA、安装目录和租约写入机器 DPAPI 记录；受保护目录中的独立 runner 只消费该类型化记录，不接受网络任意命令或路径。runner 再次校验
-prepared 文件 reparse/SHA-256/Authenticode，静默运行完整安装包，并以精确产品清单、目标 build、发行类型和本机 WebSocket 协议握手作为
-本地健康门禁；新 Service 随后必须先向 Console 报告目标 build，才能提交 `installed`。失败时只执行升级前已记录精确 SHA-256 且再次通过
-Authenticode 的完整旧安装包，回滚后同样复核旧 build 和协议健康。安装器在 Service 启动前把整个更新缓存 ACL 限制为 SYSTEM/管理员，
-维护当前成功安装包，并用全局互斥锁串行化人工安装、自动升级、回滚与卸载。NSIS Cloud Node/Official 语法实编为零警告。
-
-随后补齐本地升级执行器与重启收敛故障矩阵：测试实际断言成功安装只有在产品身份和本机协议健康后提交、安装失败恢复精确旧包、回滚失败
-形成独立终态、暂存包被替换后绝不执行、过期授权不消费；节点控制还在首次状态上报前处理 DPAPI 激活记录，有效租约内的
-`authorized/applying` 保持维护阻断，过期 `applying` 仅允许精确旧/目标 build 清理，未知 build、`rollback_failed` 或终态与产品清单矛盾
-均保留记录并要求人工恢复。回滚失败会向 Console 报告失败但不会删除本地阻断记录，避免失败任务终结后节点短暂或永久重新接客。
-`cargo test -p px_service --locked` 为 122/122 PASS，另 1 项物理 NVIDIA 用例按设计忽略；全目标严格 Clippy 通过。该结果关闭可注入的本地
-软件行为矩阵，不冒充正式签名新旧安装包、真实 SCM/断电/断网故障矩阵。
+Windows Cloud Node、Remote、Render 和各客户端均由运维人员逐台运行对应产品的签名完整安装包完成覆盖升级。Server 必须先升级并保持接口兼容；
+节点可在 Console 中人工置为 `draining`，确认没有业务后安装并做单机健康检查。Console 不向节点下发升级任务，Service 不自动发现、下载、暂存、
+安装或回滚版本，也不存在节点升级租约、信任水位、跨节点事务或统一回滚。签名发布目录继续用于制品发布和 Android 等明确消费者，不承担 Windows
+节点编排。
 
 Windows 发行侧随后补入缺失的代码签名链：正式矩阵在清理和升版前验证证书存储、SHA-1 精确选择值、审批 SHA-256 指纹、私钥、代码签名
 EKU、有效期、HTTPS RFC 3161 时间戳和 SignTool；所有 Pixels 自有 PE 在生成 hash 清单前签名，NSIS 生成的卸载器及最终 Setup 也分别签名，
@@ -1436,16 +1442,9 @@ PowerShell 语法门禁通过。由于当前仍无批准证书和正式双发行
 执行器还接受同发行的另一产品正式包，验证跨产品安装精确返回 1638 且已安装产品逐件不变；并用不启动、身份受控的 `px_service` 注册探针
 验证手工 Service 也会返回 1638。探针清理前重新核对身份，目标安装若错误接管它则保留现场而不误删服务。
 
-更新执行器随后关闭“只验证任意有效 Authenticode、未绑定审批发布者”的缺口。全新 `ReleaseSpec`、Desk/Console PostgreSQL 目录、内容摘要和
-TUF `pixels` 自定义元数据现在共同携带平台签名证书 DER SHA-256：Windows/Android 必填小写 64 位十六进制，Linux 必须为空。Service 的
-DPAPI 激活记录 schema 直接升为 2（开发期不兼容旧记录），分别保存目标包和回滚包的签名者固定值；runner 在校验 Authenticode 后从
-WinTrust provider chain 提取实际签名证书并精确比对，安装完成后的 `product-manifest.json` 也必须报告同一固定值。新包固定值来自已审批
-目录并再次受 TUF 签名保护，回滚固定值来自升级前已验证的产品清单，支持经审批的新旧证书轮换而不接受任意有效证书。
-本轮 `px_release_catalog`/`px_node_protocol` 8/8、`px_service` 122/122（另 1 项物理 NVIDIA 按设计忽略）及严格 Clippy 均通过；fresh-schema
-报告 `pg-20260921-180717-d1cb87f4`、`pg-20260921-181006-983ac8dc`、`pg-20260921-181108-a6831489`、
-`pg-20260921-181403-31c1459b` 分别覆盖 Console 更新 11/11、Desk 7/7、节点控制 3/3、目录 API 7/7。SQLx 元数据由
-`pg-20260921-180318-228560ca` 在三套全新数据库上重建为 Console/Desk/Auth 284/9/34。正式签名新旧包及真实 SCM 故障注入仍是实物门禁，
-本条不把软件测试冒充商业发布验收。
+发行目录继续绑定平台签名证书 DER SHA-256：Windows/Android 要求小写 64 位十六进制，Linux 必须为空。该事实用于发布审批和安装包验收，
+不再生成或驱动 Service 本地激活记录、自动安装 runner 或自动回滚流程。Windows 覆盖安装仍由运维人员启动，安装器必须验证产品身份、文件摘要、
+Authenticode 签名者与时间戳。
 
 更新仓库生产侧随后新增离线 `px_update_authority`，关闭“客户端能验 TUF、仓库只能靠测试代码临时生成”的软件缺口。工具创建受限目录中的
 Ed25519 私钥；初始 root 强制 2–5 把 root key 且门限至少 2，targets/snapshot/timestamp 三角色密钥彼此及 root 隔离。发布读取严格
@@ -1471,50 +1470,20 @@ Windows 安装包到 TUF 的输入边界也已去除人工字段拼装：`prepar
 `windows/product/distribution/channel/x86_64/build/installer` 名称及严格 ReleaseSpec；输出排他创建，不覆盖旧审批文件。2/2 单元测试覆盖
 正确派生、错误 signer、带 query 的更新 URL 和输出覆盖拒绝。该工具不产生签名、不批准证书，也不替代后续 TUF 角色签名和 Console 审批。
 
-Official/Customer 包装已经把正式 `resources/update/root.json` 作为强制输入，但仓库不伪造生产根、签名私钥或正式已审批更新，因此尚未执行
-“签名旧包→签名新包→真实 SCM 覆盖→故障回滚”的实物矩阵；在该故障注入通过前仍属于 DB2 的部分完成，不得称为正式无人值守升级验收完成。
-development 发行不查询生产更新。Cloud Node/Remote 的聚焦 release Service 构建已重新执行，构建树、stage 与各自 development dist 的
-`px_service.exe` SHA-256 均为 `070455A44E992A02FB4A40E85A94EF1EEAF5EFB9B275F28F53E16305E0DA0121`；未运行 release-only 全量构建或升版。
-
-本切片随后完成 Windows 全功能组合门禁，最终报告 `pg-20260920-151630-d92d153c` 为 449/449 个登记检查 PASS。报告在同一份稳定源码上
-覆盖 Console/Desk/Auth fresh schema、Console 284 条/Desk 9 条/Auth 34 条 SQLx 在线与离线元数据、更新激活 11 项、节点控制 3 项、
-Console 前端 49 项、真实 Chromium 管理/用户流程、三个原生服务重启与断库 fail-closed/恢复，以及三库 `pg_dump`/`pg_restore` 后的
-数据、schema、索引、关系、唯一约束和损坏归档拒绝；最终源码 hash 未漂移，隔离容器与卷已清理。验收过程中修正了两个测试基础设施问题：
-Console 前端精确计数仍停在 47 而实际为 49；`BETWEEN` CHECK 经 PostgreSQL dump/restore 后虽语义不变但反解析括号不稳定，fresh migration
-现直接采用稳定的上下界比较形式。节点控制测试辅助往返在连续容器/编译负载下也由无上下文的 5 秒等待改为带请求诊断的 15 秒测试上限；
-生产节点协议截止策略未被放宽。该报告证明本地软件组合基线，不替代正式签名新旧安装包故障注入或公网实机工作流。
-
-2026-09-21 更新信任根闭环增量：authority 的 Console 登记请求新增从完整已验证 root 链取得的 `repository_root_version`；Console 将它与
-`repository_publication_sha256`、ReleaseSpec 一并作为不可变登记和幂等事实。节点检查现在即使没有更高 build 也返回已批准仓库，Windows Service 会独立
-刷新 TUF 元数据并在成功达到要求根版本后回报；Console 只接受精确 release/publication/root 组合，并把节点水位单调写入
-`pixels.node_update_trust`。伪造 publication、错误根版本及倒退报告均拒绝。聚焦证据：authority/protocol 10 项、Service 更新相关 14 项、
-Console updates 11 项、directory API 7 项、node-control 3 项全部通过；SQLx Console 离线查询数现为 288。管理端可通过
-`GET /api/console/managed/updates/{id}/node-trust` 查看应纳管、已确认、未知/落后、最低确认根版本和最早确认时间；聚合包含未删除的离线/禁用节点，并拒绝
-跨 Official/Customer 发行域查询。该增量证明软件闭环，正式旧根退役仍须
-在正式签名发布材料和实际纳管节点集合上检查未知/离线/落后节点，不能以仓库下发代替真实水位。
-Console 运维后台的应用页已接入更新发布与节点信任卡片：前端遍历完整 UUID 分页，按发布展示纳管/确认/未知数量，并列出离线、禁用、最后在线、
-实际观测根版本和时间；页面明确限定水位只覆盖 Cloud Node/Remote Service，且不会从页面自动执行旧根退役。模型与本地化 51 项单测及生产构建通过，
-`web/px_console/dist` 与 `output/px_console/dev/static` 已逐文件 SHA-256 一致。
-该水位当前仅覆盖 Cloud Node/Remote Service。Panel 的检查更新仍只是部署包管理提示，Android 与 Windows Client 尚无独立 TUF 消费器/安装水位生产者；
-通用 `/api/console/updates/latest` 目录响应不等于这些产品已完成安全更新。它们必须分别完成服务器派生发行目标、初始根内置、持久防回滚、平台签名、激活与
-安装实例水位后，才能纳入“全产品根轮换完成”的统计。
+Official/Customer 包装继续要求正式 `resources/update/root.json`，用于发布目录和支持自动更新的明确客户端；Windows 节点覆盖安装不读取该目录。
+仓库不伪造生产根、签名私钥或正式已审批更新。正式交付前仍须使用真实签名包完成三产品的安装、同版覆盖、升级与卸载矩阵；不再要求自动回滚、
+节点信任水位或跨节点升级验收。
 
 商业更新域的第一段服务端实现已完成：共享 release catalog 将 `distribution + release_namespace + oem_id` 作为不可拆分身份，固定
 Official=`pixels.official`、Customer=`pixels.customer`，OEM=`oem.<oem_id>`；OEM ID 只允许受限小写标识并拒绝保留字。Console/Desk 全新
 PostgreSQL schema、唯一键、SQLx 离线查询、TUF `pixels.target` 签名元数据和 Console 运维列表均保存并返回该身份。Desk 允许发布互相隔离的
 OEM 目录；相同产品/通道/平台/构建号可分别存在于不同 OEM 域，错误命名空间、缺失/错配 OEM ID 均失败关闭。该第一段实现时 Auth/Console
 许可证和节点产品描述符仍只有 Official/Customer；这一限制已由本页 2026-09-21 发行域第二阶段的 `PXLIC2/PXDC2/PXDD2` 及精确产品描述符取代。
-节点 `UpdateChecked` 的大对象改为拥有型 `Box` 仅缩小
-Rust 枚举内存布局，serde 线格式保持不变。
+其中 `PXDC2/PXDD2` 后续已整体退役，当前许可证契约只保留本文开头定义的 `PXLIC2` 最小授权能力；发行域继续属于构建与发布目录，而不是许可证载荷。
+最新更新目录和节点控制证据以 2026-09-22 的 7 项目录测试与 2 项节点控制测试为准。
 
-本增量的聚焦证据为 release catalog/authority/node protocol 15/15、Console updates 11/11、Desk 8/8、directory API 7/7、node-control 3/3、
-Service 更新测试 14/14、Console 前端 51/51；严格 Clippy、前端类型检查/生产构建及 `web/px_console/dist` 到
-`output/px_console/dev/static` 的逐文件 SHA-256 同步均通过。隔离 PostgreSQL 报告分别为
-`pg-20260921-224344-cd5fde81`、`pg-20260921-224445-4f640cb8`、`pg-20260921-224548-a4fdabc3` 和
-`pg-20260921-223251-d779ff14`。
-
-这不代表 OEM 产品已经可交付。Auth 许可证、部署身份和产品描述符的后续完成情况见本页第二阶段；第一份 OEM 包之前仍须完成激活任务、OEM
-独立 TUF 初始根和密钥审批、独立品牌/应用/安装身份以及 Windows/Android/Web 构建与跨域拒绝验收。本段完成时构建入口仍只生成
+这不代表 OEM 产品已经可交付。第一份 OEM 包之前仍须完成 OEM 独立发布根和密钥审批、独立品牌/应用/安装身份以及 Windows/Android/Web
+构建与跨域拒绝验收。本段完成时构建入口仍只生成
 Official/Customer；后续独立 OEM 候选入口见本页 2026-09-22 的最新记录，现有 Customer 入口始终不得改名后当 OEM 使用。
 
 Console 入口前置增量：`pg-20260917-091421-1b89be5b` 的 accounts 七组 Windows 专项通过，828 个源文件 hash 复核一致。
@@ -1801,7 +1770,7 @@ feature-settings 新增完整“发现→准备→提交”状态机单测，当
 同日对已连接的 Xiaomi HyperOS 设备启动 Official Debug 覆盖安装短测，设备在线且现装 `yun.pixels.client.debug` 仍为 1.0.18；产品入口因当前构建环境没有注入
 审批的 `PIXELS_DEPLOYMENT_TRUST_STORE_FILE` 和 `PIXELS_UPDATE_ROOT_FILE`，在清理、升版和 Gradle 构建之前按设计失败关闭。未使用测试 key、已安装 APK 中的
 旧公开材料或服务器下载内容冒充审批根，手机和现有构建产物均未改变。因此本轮证据只证明预检门禁有效，不计作新更新链的真机验收；补齐审批公开材料后仍应使用
-`scripts_build/build_android_product.bat official debug install` 覆盖安装并执行设置页及 PackageInstaller 矩阵。
+`scripts_build/build_android_product.bat official fast-release install` 覆盖安装并执行设置页及 PackageInstaller 矩阵。
 
 为在正式根材料到位前继续使用已连接手机验证非密钥 UI 边界，feature-settings 新增两项 Compose 真机仪器用例：未登录时检查更新按钮必须禁用且不存在安装按钮，已登录且
 存在已验证候选时检查按钮可用并把安装点击精确分发为 `InstallUpdate`。测试 APK 编译、单元测试和 Lint 均通过；首次安装被 Xiaomi 以
@@ -1828,25 +1797,65 @@ Render 子进程私密启动参数随后从操作系统命令行移除。Service
 哈希一致：`px_service.exe` 为 `3C5ACF7BC21D250A9D36AB3E28DDE389F2376E1F756BBA5F32875653C880FDD1`，`px_render.exe` 为
 `9C3B40382193692A67E828484C0539E64D46E6DA91440F68B75675959317E9DC`。
 
-本切片公网尝试同时暴露了发布代际门禁缺口：公网仍运行开发期 `PXLIC1/PXDC1/PXDD1` 的匹配旧栈，不能和当前源码要求的
-`PXLIC2/PXDC2/PXDD2` 任一组件混装。测试节点已恢复为匹配旧栈并重新达到 ready；这不是当前身份协议的公网验收。节点聚焦发布器现要求远端
-schema 3 产品描述符及权威 Console 的 `PXDC2/PXDD2`，Console/Relay 聚焦入口也只允许已完成同代升级的栈；全部门禁均在任何上传、停服务或替换前
-失败关闭。Console、Service 和 Render/RTC 替换都保留可恢复备份；新进程无法保持运行时先恢复整组文件、再启动旧服务。下一次公网升级必须按 Auth
-许可证签发 → Console 部署身份/信任 → 客户端与
-节点信任材料 → 节点组件的同一代事务执行，不增加旧协议兼容。
+此前公网混装失败记录中的 `PXDC`/`PXDD` 部署身份结论现已退役，不再构成下一次升级顺序或客户端门禁。当前公网 Auth 和 Console 已按全新空库、
+最小 `PXLIC2` 离线许可证和标准 HTTPS 端点重新部署并完成健康、登录、签发/本地验签、撤销管理记录及断库 fail-closed 短测。后续节点升级只需由
+运维保证先升级 Server、再逐节点覆盖客户端并保持当前 API 兼容；不得恢复部署证书、信任水位、challenge 或旧 wire 兼容。
+
+2026-09-22 起开发和短测统一使用快速 Release，不再产生 Debug/RelWithDebInfo 产品：聚焦 C++ 使用 Release + O1 和增量 Rust Release，Android
+使用签名的 `fast-release`（native O1、关闭 R8/资源压缩），最终正式发布入口仍使用完整优化 Release。CMake 已验证项目目标实际为 `/O1 /Ob1`；
+CEF 官方 wrapper 保留其第三方目标级 `/O2`。`test_string_util` 17/17、Android Gradle Release 任务模型、PowerShell/Bash 入口语法及非 development
+快速配置失败门禁通过。本轮没有运行 release-only 全量构建。旧 Android Debug APK、各模块生成树和一次性 Cargo/RDP 中间构建缓存已清理；保留
+development 产品增量构建树、已安装应用、RDP SDK 及当前公网 Console 许可证材料。
+
+2026-09-23 的当前全新公网基线已重新完成 Windows 与 Android CloudApplication 短测。公网 Console 空库初始化后显式登记当前节点、WebView
+应用和部署；Windows 节点的旧录像 inventory 属于已废弃开发数据库，已整体移入节点备份目录后以空 inventory 启动，不做数据迁移或兼容读取。
+当前安装的 `px_service.exe`、`px_render.exe`、`px_render_rtc.dll` 和 `product-manifest.json` SHA-256 分别为
+`F9161440600A550EE7BE10E19963189D90E48FA71837209131771ED209039AA9`、
+`2EB8F7543B61FCDF1FDA63A7421648733D4CC3185DABECEC5ABF8D31BCE2507D`、
+`D065B447BAF057A5E20BB9E230179334E0257965523AC3402010C73EA30C9870` 和
+`E27D5158AB8E03F005110F14D28B06CA7FCFE6B13A964BF27F51DEA58C1FC202`。Windows Client development build/dist
+`px_client.exe` SHA-256 均为 `E57D46BA9AE3438E623FF160BE50EEFF2E7984FA306875B79034D7163023C5B1`；Native Direct 在公网动态
+端口 4613 完成工作区和解码首帧，Native Relay 完成房间建立、解码首帧及双向实际载荷，两个独立短用例均 PASS。
+
+Android 真机随后暴露“设备仍安装 1.0.18 旧部署身份门禁 APK”，而不是当前 Console 登录故障；设备原生 `curl` 使用 Android 客户端头向当前
+会话入口请求为 HTTP 200。当前源码已无该退役协议。为避免把旧 APK 结果写成当前产品结论，使用发行类型为 Official 的 1.0.25 Debug 与
+androidTest 做短设备验收：构建执行 487 项 Gradle 任务，覆盖全部 JVM 单测、Lint、arm64 Native、应用 APK 和 instrumentation APK；
+`app-debug.apk` / `app-debug-androidTest.apk` SHA-256 分别为
+`C2093D26669C61547CCF0F7A2881302D2F756E944161A5B25A750878B8B9CD21` / `39EE690C45A592A699244913A700DF4F751EE844C41A36AC35F571971B5A2D16`，
+退役中央媒体制品审计通过，并以 `adb install -r` 覆盖安装且未卸载、未清用户数据。账号 CloudApplication 的 Direct 与纯数据 Relay 两条
+首帧、退出、实例停止用例各 1/1 PASS，服务端复核活动实例为 0；MIUI 测试期临时 AppOps 已恢复为 `ignore`。构建同时修复
+`app/build.gradle` 缺少 `java.nio.charset.StandardCharsets` 导入导致合法签名 TUF 根被误报不完整的问题。这里的 Debug APK 只作为
+distribution-specific instrumentation 短测制品，不是正式产品包；普通 Android 产品短测继续使用 `fast-release`，正式发布仍只接受双发行
+Release 事务。
+
+Android Customer 随后按产品入口独立提升到 1.0.28；1.0.26 和 1.0.27 分别因快速 Release 门禁未接受编排器标志、脚本请求不存在的
+`testReleaseUnitTest` 而按失败构建规则消耗，未回退版本。入口现已允许受控 `fast-release`，并以实际存在的 `testDebugUnitTest` 执行 JVM
+单测。1.0.28 Customer 快速 Release 完成 599 项任务及 Lint、签名和退役媒体审计，APK 为 99,309,205 字节，SHA-256 为
+`B6B73F9E612D88A9B3CC7707C7F1FC19E1D2EE184413D6DF8AA1CB89469591D3`。真机未卸载任何包；Customer 的设置/注册入口、可编辑私有
+Console origin、账号登录和 CloudApplication Direct 首帧、停止清理均已通过。
+
+Customer Relay 首轮失败的实际根因不是房间重试，而是开发数据库遗留的四条 `connected` Android controller 资源会话仍绑定已停止实例，
+占用流数后使 Console 在 descriptor/Relay 之前返回 403。资源会话存储现于实例进入 `Stopped` 或 `Failed` 的同一事务中关闭该实例的活动
+会话，并使关联文件传输和连接观察失效；`sessions` PostgreSQL 专项 12/12 PASS，报告为 `pg-20260923-094507-93cc77cc`。公网 Console
+按“开发数据无效、无迁移/兼容”约束以当前 schema 重新初始化并重新登记节点、应用和部署，节点旧事实队列移入备份后清空。Relay 默认
+10 秒入站空闲回收已经部署；Release 单测 7/7 和 `clippy -D warnings` 通过。撤销试探性的客户端房间重试后，从当前源码重新执行 Customer
+Debug/androidTest 487 项 Gradle 任务，APK SHA-256 分别为 `61C5F9E4E31CDF146DBB9505894DD8544CCA67AA4B3BB42BB96F5444786BB27D` 和
+`7F974BAA3056A081382055C396509A370FF46A49FC4BA46586E5FA4DD8B0CA35`，再以 `adb install -r` 覆盖安装。公网账号 CloudApplication Relay
+真机用例 1/1 PASS，形成解码帧并正常停止；宽限期后活动实例/资源会话均为 0，最新实例为 `stopped`、最新会话为 `closed`，Relay 为
+2 个常驻连接、0 个房间，节点为 `ready`，MIUI 临时 AppOps 已恢复为 `ignore`。Debug 制品只作为 distribution-specific 短测证据。
 
 | 阶段 | 当前未完成项 |
 |---|---|
 | DB0 | 已补领域/权限/恢复边界、Auth字节/固定向量，并按2026-09-19边界冻结Direct Host描述符、实际端点/代际和显式CloudApplication target；ZLM/TURN/中央RTC字段已从活动契约移除。媒体清理后的完整PostgreSQL合成基线 `pg-20260919-025221-0599733d` 为747/747 PASS，DB0本轮出口完成 |
 | DB1-EXIT | 完成：Desk/Auth 产品服务与 PostgreSQL Console 正式 `px_console.exe` 均已接入；三者具有独立发行入口。Console 当前 3.2.21 发行、进程断库 fail-closed、真实浏览器和制品哈希已通过；后续能力缺口归 DB2–DB5，不再把旧 Mongo 组合根当产品入口 |
 | DB2-A | 身份/管理HTTP、本人资料/头像、密码计算/限流/Origin、访客HMAC/会话/公开目录、Saved Connections、本人实例列表、更新目录、访问/通道/传输历史及录像目录HTTP、严格配置、稳定私钥加载、独立初始化CLI、静态文件服务及进程生命周期已实现；Console用户门户及管理后台的当前目录/身份/状态入口均已切新bearer/主体API，源码不再保留旧`/api/v1`，正式PostgreSQL产品二进制和发行包已切换。部署绑定录像缓存、本人/管理员授权Range下载、Render完成段session归属、Windows Service真实字节生产、本人/管理下载页面、保留/释放/驱逐 Console 副本、真实浏览器空目录及公网本人有数据下载流程已接；节点源文件/缓存/浏览器下载大小和SHA-256一致，公网真实文件的本人下载及管理员保留/释放/驱逐浏览器动作均已通过，Direct Host观察者不再默认获得输入。视频墙延期，ZLM直播和RTC/TURN管理明确退役，不再作为待实现项 |
-| DB2-B/C/D | 设备/应用/节点/部署目录、user/guest资源入口、更新与历史元数据入口、Console节点WS及独立管理实时事件流已接；Windows Service已切到新节点协议并实现部署准备、调和、命令fencing、精确launch ACK、Render前端准入转发、实际媒体/RDP通道生命周期、遥测、DPAPI有界断线补报、基于PCI stable key的NVIDIA NVML及Windows原生AMD/Intel逐GPU指标、GPU预算/原子硬过滤/物理stable key运行时绑定与节点二次准入、只读调度预览/逐候选拒绝解释、数据库时钟对齐的有界服务端趋势/陈旧判断、录像session归属及通用录像字节上传。管理实时流已通过公网在线事件、断线突发重放、精确删除、严格序号、断库 fail-closed 和恢复重连短测，1026 条溢出由进程内门禁覆盖；一分钟监督器自然重启和公网压力统一留到长测。ZLM/Coturn/中央RTC signaling已归档移除，Windows/Web/Render/Service/Console的Direct Host活动代码和聚焦构建已接通；Direct Host WebRTC 已生产真实视频/数据载荷字节，并以5秒周期、单调sequence和最终终态累计上报；Relay 的媒体、音频和文件逻辑通道已独立建账，入站按已接收载荷、出站只在底层WebSocket完整写成功后累计，五类关闭结果经 Render→Service→Console 保存，本机真实套接字与重连生命周期专项通过。独立纯数据 `px_relay` 已部署公网，Windows Native Relay 的动态实例、活动房间、首帧、窗口、输入、真实音频解码、1 MiB 上传/下载/删除及两端SHA-256、在线会话关闭和双向字节短测均通过；Direct Host 的真实音频、跨完整租约持续续签、在线撤销和 generation 稳定性也已通过公网短测。Render真实文件引擎现已把操作UUID、实际总量/进度、单文件SHA-256或确定性多文件清单摘要经Service送入Console，真实payload单元测试、本机Service WebSocket桥及PostgreSQL 8组专项通过；开始授权仍由Console在线裁决，已授权transfer的进度/终态先进入Service的DPAPI有界持久outbox，再向Render确认，并在即时通知、节点重连和周期任务中按原幂等正文补报，因此Render退出或Service重启不再丢失待报终态。本人文件传输完成态已通过真实 PostgreSQL、node-control 协议、原生 Console 与实际 Chromium 前端门禁；Windows 公网 4 MiB 取消/新 job 重试和活动上传中重启 Service 的 `unknown` 收敛、精确 Render 回收及立即再调度均通过。RDP 的 Console→Service 租约凭证、标准账号/SID 确认、无 GPU/Relay Start、精确 launch 失败回收、真实桥接 I/O 通道累计、五类关闭原因、系统音频及富剪贴板已通过本地和公网实机短测。无人值守更新已完成认证节点的严格版本发现、TUF签名/防回滚验证、完整包原子暂存、Console串行激活、SCM完整安装、本机协议健康提交、精确旧包失败回滚及重启后的 fail-closed 激活状态收敛；本地可注入故障行为矩阵已通过，仍缺正式签名新旧包的实物故障注入矩阵。Android 当前栈账号 CloudApplication 的公网 Native Direct/Relay 首帧与启停清理已通过；当前 Web Client 也已在公网 Direct Host 收到 RTP 并解码 1920×1080 首帧。其余仍需 AMD/Intel 物理显卡短测及其余产品入口 |
-| DB2-EXIT / DB3 | Windows 侧功能出口完成：Desk/Auth 独立产品、Auth 事务 outbox、`PXLIC2` 签发/验签/吊销、单一 `max_streams` 事务门禁、授权 services 门禁及管理员状态均已接；设备登记不消耗许可证额度。Service 只消费 Console control epoch，不解析许可证。旧授权、Mongo/Redis/旧 Console 组合根和可误用入口已归档，活动锁文件不含旧后端。Linux systemd unit 静态验证及 WSL2 原生 Console SIGTERM 正常退出、重启和断库 fail-closed 已通过；目标发行版 systemd 实物归 DB4，且不建设运行时双后端 |
-| DB4 | 恢复集、保留、异机复制、恢复准入/执行/封印、三库写屏障/安全水位、外部见证、Auth keyring、pgBackRest/WAL/PITR、S3兼容加密对象仓库短测、Windows SCM包以及Backup/Console两项WSL2 systemd生命周期已实现。开发期仍需目标Linux发行版VM短测、Pixels外层签名/生产密钥托管、真正独立故障域的一次完整恢复、目标环境keyring/见证轮换及真实节点与Windows/RDP事实对账；连续7天窗口和自然周期稳定性统一放到DB5功能通过后的长测，不阻塞每个开发切片 |
-| DB5 | 公网 Windows CloudApplication Native Direct/Relay 及 Relay 音频/文件hash/取消重试/在线撤销、活动文件上传中 Service 重启收敛与精确 Render 回收、Web Client Direct Host RTP/解码首帧、Android guest 与账号 CloudApplication Native Direct/Relay 首帧、启停清理、Relay 真实断线续签、设备目录 ACL 授权/撤销及公网录像本人下载和管理员副本生命周期已通过；RDP 的画面、输入、resize、系统音频、双向 Unicode/文件剪贴板、断线宽限、忙工作区、双工作区和五类终态也已通过公网短测。旧 PXLIC1/PXDC/PXDD 公网栈与自定义部署身份验收仅保留为历史证据，不是当前实现约束；活动源码只保留 `PXLIC2` 服务端许可证，Official 客户端固定官方 HTTPS 端点，Customer 客户端配置私有 HTTPS 端点并拒绝已知官方端点。Windows Panel 的账号、目录、实例与显式资源 descriptor 已切当前 API 并完成公网 API 短测，主机设置旧设备自注册/appkey/加密接入串路径也已删除，Relay 部署配置由已认证 Console→Service 节点控制下发。Android Official 1.0.18 已覆盖安装到 Xiaomi HyperOS 真机，Direct/Relay 两条公网仪器用例和 Relay 重启故障注入均通过。Windows 与 Android 双发行的一次预检/一次升版和独立沙箱编排已实现；仍需按简化后的端点/TLS边界重做 Windows、Web、Android Customer 公网短测，以及正式签名更新实物矩阵、Windows 安装/升级/卸载、Cloud Node/Remote Web 正式双发行和正式安装包清单/签名审计。RDP 的设备变化、长路径/ACL、重名/取消和规模/持续播放进入最后统一长测。全部短测通过后再统一长测 |
+| DB2-B/C/D | 设备/应用/节点/部署目录、user/guest资源入口、更新与历史元数据入口、Console节点WS及独立管理实时事件流已接；Windows Service已切到新节点协议并实现部署准备、调和、命令fencing、精确launch ACK、Render前端准入转发、实际媒体/RDP通道生命周期、遥测、DPAPI有界断线补报、基于PCI stable key的NVIDIA NVML及Windows原生AMD/Intel逐GPU指标、GPU预算/原子硬过滤/物理stable key运行时绑定与节点二次准入、只读调度预览/逐候选拒绝解释、数据库时钟对齐的有界服务端趋势/陈旧判断、录像session归属及通用录像字节上传。管理实时流已通过公网在线事件、断线突发重放、精确删除、严格序号、断库 fail-closed 和恢复重连短测，1026 条溢出由进程内门禁覆盖；一分钟监督器自然重启和公网压力统一留到长测。ZLM/Coturn/中央RTC signaling已归档移除，Windows/Web/Render/Service/Console的Direct Host活动代码和聚焦构建已接通；Direct Host WebRTC 已生产真实视频/数据载荷字节，并以5秒周期、单调sequence和最终终态累计上报；Relay 的媒体、音频和文件逻辑通道已独立建账，入站按已接收载荷、出站只在底层WebSocket完整写成功后累计，五类关闭结果经 Render→Service→Console 保存，本机真实套接字与重连生命周期专项通过。独立纯数据 `px_relay` 已部署公网，Windows Native Relay 的动态实例、活动房间、首帧、窗口、输入、真实音频解码、1 MiB 上传/下载/删除及两端SHA-256、在线会话关闭和双向字节短测均通过；Direct Host 的真实音频、跨完整租约持续续签、在线撤销和 generation 稳定性也已通过公网短测。Render真实文件引擎现已把操作UUID、实际总量/进度、单文件SHA-256或确定性多文件清单摘要经Service送入Console，真实payload单元测试、本机Service WebSocket桥及PostgreSQL 8组专项通过；开始授权仍由Console在线裁决，已授权transfer的进度/终态先进入Service的DPAPI有界持久outbox，再向Render确认，并在即时通知、节点重连和周期任务中按原幂等正文补报，因此Render退出或Service重启不再丢失待报终态。本人文件传输完成态已通过真实 PostgreSQL、node-control 协议、原生 Console 与实际 Chromium 前端门禁；Windows 公网 4 MiB 取消/新 job 重试和活动上传中重启 Service 的 `unknown` 收敛、精确 Render 回收及立即再调度均通过。RDP 的 Console→Service 租约凭证、标准账号/SID 确认、无 GPU/Relay Start、精确 launch 失败回收、真实桥接 I/O 通道累计、五类关闭原因、系统音频及富剪贴板已通过本地和公网实机短测。Windows 节点自动更新链已按 2026-09-22 决策退役；活动实现不再包含节点检查、TUF 暂存、Console 激活租约、自动安装/回滚或信任水位。发布目录与 TUF 权威继续服务 Android 和制品发布，Windows 节点由运维逐台覆盖安装并独立验收。Android Official/Customer 当前栈账号 CloudApplication 的公网 Native Direct/Relay 首帧与启停清理已通过，实例终态会在同一事务关闭其资源会话及关联状态；当前 Web Client 也已在公网 Direct Host 收到 RTP 并解码 1920×1080 首帧。其余仍需 AMD/Intel 物理显卡短测及其余产品入口 |
+| DB2-EXIT / DB3 | Windows 侧功能出口完成：Desk/Auth 独立产品、最小 `PXLIC2` 签发/本地验签、Auth 续期与撤销管理记录、单一 `max_streams` 事务门禁、授权 services 门禁及管理员状态均已接；设备登记不消耗许可证额度。已交付许可证是离线授权文件，Auth 不提供在线 verify、撤销通知 outbox 或 Console currentness 监控。Service 只消费 Console control epoch，不解析许可证。旧授权、Mongo/Redis/旧 Console 组合根和可误用入口已归档，活动锁文件不含旧后端。Linux systemd unit 静态验证及 WSL2 原生 Console SIGTERM 正常退出、重启和断库 fail-closed 已通过；CN Auth 与“90”Console 的目标系统服务/任务实物短测已通过，且不建设运行时双后端 |
+| DB4 | 恢复集、保留、异机复制、恢复准入/执行/封印、三库写屏障/安全水位、外部见证、Auth keyring、pgBackRest/WAL/PITR、S3兼容加密对象仓库短测、Windows SCM包以及Backup/Console两项WSL2 systemd生命周期已实现。公网 Windows 目标节点现已使用独立只读角色完成真实定时备份，且覆盖安装、重启、卸载保留数据、重装、跨主机复制和全新 PG18.6 恢复短测通过；CN Auth 的目标 Ubuntu systemd 备份服务也已运行并产生 verified 恢复集。开发期仍需 Pixels 外层签名/生产密钥托管、正式独立对象存储的一次完整灾难恢复、目标环境 keyring/见证轮换及真实节点与Windows/RDP事实对账；连续7天窗口和自然周期稳定性统一放到DB5功能通过后的长测，不阻塞每个开发切片 |
+| DB5 | 公网 Windows CloudApplication Native Direct/Relay 及 Relay 音频/文件hash/取消重试/在线撤销、活动文件上传中 Service 重启收敛与精确 Render 回收、Web Client Direct Host RTP/解码首帧、Android guest 与账号 CloudApplication Native Direct/Relay 首帧、启停清理、Relay 真实断线续签、设备目录 ACL 授权/撤销及公网录像本人下载和管理员副本生命周期已通过；RDP 的画面、输入、resize、系统音频、双向 Unicode/文件剪贴板、断线宽限、忙工作区、双工作区和五类终态也已通过公网短测。旧 PXLIC1/PXDC/PXDD 公网栈与自定义部署身份验收仅保留为历史证据，不是当前实现约束；活动源码只保留 `PXLIC2` 服务端许可证，Official 客户端固定官方 HTTPS 端点，Customer 客户端配置私有 HTTPS 端点并拒绝已知官方端点。Windows Panel 的账号、目录、实例与显式资源 descriptor 已切当前 API 并完成公网 API 短测，主机设置旧设备自注册/appkey/加密接入串路径也已删除，Relay 部署配置由已认证 Console→Service 节点控制下发。2026-09-23 当前全新公网基线已用最新 Windows Service/Render、Windows Client、Android Official 1.0.25 和 Customer 1.0.28 Debug instrumentation 重新通过 Direct/Relay 首帧与启停清理，活动实例和资源会话均收敛为 0；Relay 空闲连接回收和实例终态会话关闭已在公网实物验证。Windows 与 Android 双发行的一次预检/一次升版和独立沙箱编排已实现；仍需正式签名更新实物矩阵、Windows 安装/升级/卸载、Cloud Node/Remote Web 正式双发行、正式安装包清单/签名审计、AMD/Intel 物理 GPU、目标 Linux和独立对象存储灾难恢复。RDP 的设备变化、长路径/ACL、重名/取消和规模/持续播放进入最后统一长测。全部短测通过后再统一长测 |
 | DB-HA / P1–P7 | 独立主机 HA、正式发行隔离、授权/连接服务、升级、运维与真实容量/稳定性验收 |
 
-接续依赖顺序：先完成正式签名更新回滚实物矩阵；再做 Customer 真机、目标 Linux/独立仓库备份恢复、全新部署与完整正式制品矩阵，
+接续依赖顺序：先完成正式签名安装包的安装、覆盖升级、人工回退与卸载实物矩阵；再做 Customer 真机、目标 Linux/独立仓库备份恢复、全新部署与完整正式制品矩阵，
 全部短测通过后统一执行包含 RDP 设备变化、长路径/ACL、重名/取消和规模/持续播放的长测。
 资源会话 repository 证据见[CloudApplication/桌面会话与描述符契约](postgresql_resource_session_contract.md)；
 专项测试入口与独立 AES 固定向量已经通过，不再列为未开始。Service 已开始切入新节点协议，但其他客户端和真实 OS/媒体链路仍未验收，

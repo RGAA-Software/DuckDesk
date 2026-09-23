@@ -83,7 +83,7 @@ onMounted(() => run(load));
             <table>
                 <thead>
                     <tr>
-                        <th>{{ t("product") }}</th>
+                        <th>{{ t("services") }}</th>
                         <th>{{ t("deployment") }}</th>
                         <th>{{ t("expires") }}</th>
                         <th>{{ t("revision") }}</th>
@@ -98,9 +98,8 @@ onMounted(() => run(load));
                         :data-license="row.license_id"
                     >
                         <td>
-                            {{ t(payload.product) }}<br /><small
-                                >{{ t(payload.distribution) }} · {{ payload.release_namespace }} · {{ t(payload.mode) }}</small
-                            >
+                            {{ payload.services.map(service => t(service)).join(" · ") }}<br />
+                            <small>{{ t("streams") }}: {{ payload.max_streams }}</small>
                         </td>
                         <td class="mono">{{ payload.deployment_id }}<br />{{ row.license_id }}</td>
                         <td>{{ new Date(payload.expires_at * 1000).toISOString() }}</td>
@@ -111,9 +110,7 @@ onMounted(() => run(load));
                                     ? t("revoked")
                                     : payload.expires_at <= Date.now() / 1000
                                       ? t("expired")
-                                      : payload.not_before > Date.now() / 1000
-                                        ? t("future")
-                                        : t("active")
+                                      : t("active")
                             }}
                         </td>
                         <td>

@@ -34,8 +34,6 @@ url = "2"
 thiserror = "2"
 chrono = { version = "0.4.42", features = ["serde"] }
 tracing = "0.1"
-fs2 = "0.4"
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 tower-http = { version = "0.6", features = ["cors"] }
 
 [target.'cfg(unix)'.dependencies]
@@ -44,6 +42,7 @@ libc = "0.2"
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
 tokio-tungstenite = "0.28"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 sqlx = { version = "=0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "uuid"] }
 tempfile = "3"
 

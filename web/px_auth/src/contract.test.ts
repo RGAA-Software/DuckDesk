@@ -22,17 +22,10 @@ it("requires catalog parity and reuses the same UI state for languages and theme
     expect(t("licenses")).toBe(zh.licenses);
     expect(localStorage.getItem("pixels_auth_theme")).toBe("dark");
 });
-it("validates UUID, stream boundaries, products, sorted services and UTC expiration", () => {
+it("validates UUID, stream boundaries, sorted services and UTC expiration", () => {
     const terms: Terms = {
         customer_id: crypto.randomUUID(),
         deployment_id: crypto.randomUUID(),
-        product: "pixels_console",
-        distribution: "customer",
-        release_namespace: "pixels.customer",
-        oem_id: null,
-        machine_sha256: "a".repeat(64),
-        mode: "trial",
-        activation: { kind: "immediately" },
         expires_at: 2000000000,
         max_streams: 4294967295,
         services: ["desktop", "rdp"],
@@ -43,26 +36,11 @@ it("validates UUID, stream boundaries, products, sorted services and UTC expirat
         { max_streams: 0 },
         { expires_at: 1900000000 },
         { expires_at: Infinity },
-        { machine_sha256: "A".repeat(64) },
         { deployment_id: "00000000-0000-0000-0000-000000000000" },
         { services: ["rdp", "desktop"] },
-        { product: "console" },
-        { release_namespace: "pixels.official" },
-        { distribution: "oem", release_namespace: "oem.ACME", oem_id: "ACME" },
     ]) {
         expect(validTerms({ ...terms, ...patch } as Terms, 1900000000)).toBe(false);
     }
-    expect(
-        validTerms(
-            {
-                ...terms,
-                distribution: "oem",
-                release_namespace: "oem.acme-cloud",
-                oem_id: "acme-cloud",
-            },
-            1900000000,
-        ),
-    ).toBe(true);
 });
 it("retains request identity for unknown commits but resets after success or changed body", () => {
     const identity = requestIdentity(),

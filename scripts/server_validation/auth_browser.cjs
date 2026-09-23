@@ -60,13 +60,8 @@ async function run() {
   execFileSync('icacls', [directory, '/inheritance:r', '/grant:r', identity + ':(OI)(CI)F', '*S-1-5-18:(OI)(CI)F'], { windowsHide: true })
   fs.writeFileSync(path.join(directory, 'signing.der'), key, { flag: 'wx' })
   const keyId = createHash('sha256').update(publicKey).digest('hex')
-  const recoveryGeneration = docker('exec', container, 'psql', '-X', '-A', '-t', '-U', 'pixels_admin',
-    '-d', 'pixels_auth_bootstrap_windows', '-c', 'SELECT recovery_generation FROM pixels.recovery_security_state WHERE singleton').trim()
-  assert.match(recoveryGeneration, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
   fs.writeFileSync(path.join(directory, 'trust-store.json'), JSON.stringify({
-    schema_version: 1,
-    authority_deployment_id: process.env.PIXELS_DEPLOYMENT_ID,
-    recovery_generation: recoveryGeneration,
+    schema_version: 2,
     active_key_id: keyId,
     trusted_keys: [{ key_id: keyId, public_key_hex: publicKey.toString('hex') }]
   }), { flag: 'wx' })
@@ -105,10 +100,9 @@ async function run() {
   await page.getByRole('button', { name: 'Licenses', exact: true }).click()
   await page.getByRole('button', { name: 'Issue license', exact: true }).click()
   const form = page.locator('form')
-  const deployment = randomUUID(), machine = 'c'.repeat(64)
+  const deployment = randomUUID()
   await form.getByLabel('Customer UUID', { exact: true }).fill(customer.id)
   await form.getByLabel('Deployment UUID', { exact: true }).fill(deployment)
-  await form.getByLabel('Machine SHA-256', { exact: true }).fill(machine)
   // Lose an already-committed response: the UI must retain the same request ID for retry.
   let committed, requestId
   await page.route('**/api/auth/licenses/issue', async route => {
@@ -126,23 +120,18 @@ async function run() {
   assert.equal(retried.request().postDataJSON().request_id, requestId)
   assert.deepEqual(await retried.json(), committed)
   const row = page.locator('[data-license="' + committed.license_id + '"]'); await row.waitFor()
-  const verify = { wire: committed.wire, deployment_id: deployment, product: 'pixels_console', distribution: 'customer', machine_sha256: machine }
-  assert.equal((await api('/api/auth/licenses/verify', 'POST', verify)).status, 200)
+  assert.equal((await api('/api/auth/licenses/verify', 'POST', { wire: committed.wire })).status, 404)
   console.log('PASS auth-browser/commit-response-loss-exact-retry')
 
   await row.getByRole('button', { name: 'Renew', exact: true }).click()
   assert.equal(await form.getByLabel('Deployment UUID', { exact: true }).isDisabled(), true)
-  await form.getByLabel('Session limit', { exact: true }).fill('3')
+  await form.getByLabel('Maximum streams', { exact: true }).fill('3')
   const renewed = page.waitForResponse(r => r.url().endsWith('/api/auth/licenses/issue'))
   await form.getByRole('button', { name: 'Save', exact: true }).click()
   const renewal = await (await renewed).json(); assert.equal(renewal.revision, 2)
-  assert.equal((await api('/api/auth/licenses/verify', 'POST', verify)).status, 401)
-  verify.wire = renewal.wire
-  assert.equal((await api('/api/auth/licenses/verify', 'POST', verify)).status, 200)
   await row.getByRole('button', { name: 'Revoke', exact: true }).click()
   await page.locator('div.card').filter({ hasText: 'Revoke this license?' }).getByRole('button', { name: 'Revoke', exact: true }).click()
   await row.getByRole('cell', { name: 'Revoked', exact: true }).waitFor()
-  assert.equal((await api('/api/auth/licenses/verify', 'POST', verify)).status, 401)
   console.log('PASS auth-browser/renew-and-revoke')
 
   await page.getByLabel('Theme', { exact: true }).selectOption('light')
@@ -174,20 +163,19 @@ async function run() {
   await stopServer(); await startServer()
   assert.equal((await api('/api/auth/me', 'GET', undefined, visitorToken)).status, 200)
   assert.equal((await api('/api/auth/me', 'GET', undefined, token)).status, 401)
-  assert.equal((await api('/api/auth/licenses/verify', 'POST', verify)).status, 401)
   console.log('PASS auth-process/restart-preserves-session-and-revocation')
 
   docker('stop', '--time', '10', container); stopped = true
   assert.equal((await api('/health/ready')).status, 503)
   assert.equal((await api('/health/live')).status, 204)
-  assert.equal((await api('/api/auth/licenses/verify', 'POST', verify)).status, 503)
+  assert.equal((await api('/api/auth/me', 'GET', undefined, visitorToken)).status, 503)
   docker('start', container); stopped = false
   const recoveryDeadline = Date.now() + 30000
   while ((await api('/health/ready')).status !== 204) {
     if (Date.now() >= recoveryDeadline) throw new Error('Auth database recovery deadline')
     await new Promise(resolve => setTimeout(resolve, 500))
   }
-  assert.equal((await api('/api/auth/licenses/verify', 'POST', verify)).status, 401)
+  assert.equal((await api('/api/auth/me', 'GET', undefined, visitorToken)).status, 200)
   assert.deepEqual(pageErrors, []); assert.deepEqual(external, [])
   assert.ok(!output.includes(password) && !output.includes('Synthetic private remark'))
   console.log('PASS auth-process/database-outage-fails-closed-and-recovers')

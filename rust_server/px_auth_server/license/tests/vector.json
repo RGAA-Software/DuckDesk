@@ -5,15 +5,8 @@
     "schema": 2,
     "license_id": "11111111-1111-4111-8111-111111111111",
     "deployment_id": "22222222-2222-4222-8222-222222222222",
-    "product": "pixels_console",
-    "distribution": "customer",
-    "release_namespace": "pixels.customer",
-    "oem_id": null,
-    "machine_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "revision": 7,
-    "mode": "licensed",
     "issued_at": 1700000000,
-    "not_before": 1700000000,
     "expires_at": 1800000000,
     "max_streams": 8,
     "services": [
@@ -23,5 +16,5 @@
     ],
     "key_id": "21fe31dfa154a261626bf854046fd2271b7bed4b6abe45aa58877ef47f9721b9"
   },
-  "wire": "PXLIC2.eyJzY2hlbWEiOjIsImxpY2Vuc2VfaWQiOiIxMTExMTExMS0xMTExLTQxMTEtODExMS0xMTExMTExMTExMTEiLCJkZXBsb3ltZW50X2lkIjoiMjIyMjIyMjItMjIyMi00MjIyLTgyMjItMjIyMjIyMjIyMjIyIiwicHJvZHVjdCI6InBpeGVsc19jb25zb2xlIiwiZGlzdHJpYnV0aW9uIjoiY3VzdG9tZXIiLCJyZWxlYXNlX25hbWVzcGFjZSI6InBpeGVscy5jdXN0b21lciIsIm9lbV9pZCI6bnVsbCwibWFjaGluZV9zaGEyNTYiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwicmV2aXNpb24iOjcsIm1vZGUiOiJsaWNlbnNlZCIsImlzc3VlZF9hdCI6MTcwMDAwMDAwMCwibm90X2JlZm9yZSI6MTcwMDAwMDAwMCwiZXhwaXJlc19hdCI6MTgwMDAwMDAwMCwibWF4X3N0cmVhbXMiOjgsInNlcnZpY2VzIjpbImNsb3VkX2FwcGxpY2F0aW9ucyIsImRlc2t0b3AiLCJyZHAiXSwia2V5X2lkIjoiMjFmZTMxZGZhMTU0YTI2MTYyNmJmODU0MDQ2ZmQyMjcxYjdiZWQ0YjZhYmU0NWFhNTg4NzdlZjQ3Zjk3MjFiOSJ9.fUn7wGI4GU6Qf2N8P9_p49XRyWGyllEJzuoji94jiHS_stbxXG6EkSnmaPd6Hc6wADkv1dz_aLNZxoXV4QLPCQ"
+  "wire": "PXLIC2.eyJzY2hlbWEiOjIsImxpY2Vuc2VfaWQiOiIxMTExMTExMS0xMTExLTQxMTEtODExMS0xMTExMTExMTExMTEiLCJkZXBsb3ltZW50X2lkIjoiMjIyMjIyMjItMjIyMi00MjIyLTgyMjItMjIyMjIyMjIyMjIyIiwicmV2aXNpb24iOjcsImlzc3VlZF9hdCI6MTcwMDAwMDAwMCwiZXhwaXJlc19hdCI6MTgwMDAwMDAwMCwibWF4X3N0cmVhbXMiOjgsInNlcnZpY2VzIjpbImNsb3VkX2FwcGxpY2F0aW9ucyIsImRlc2t0b3AiLCJyZHAiXSwia2V5X2lkIjoiMjFmZTMxZGZhMTU0YTI2MTYyNmJmODU0MDQ2ZmQyMjcxYjdiZWQ0YjZhYmU0NWFhNTg4NzdlZjQ3Zjk3MjFiOSJ9.RCrxmO35F-Cz85_tBBouVto49V4wWF1sgcJSgm-Oaw897OTdKkb6SyPSiup33S3zs9kPKTzSx1G5aj14be_EAQ"
 }

@@ -1,5 +1,6 @@
 use crate::{
-    IngressPolicy, LicenseEntitlement, LicenseLaunchConfig, RuntimeSecrets, WorkspaceKeyFile,
+    IngressPolicy, LicenseEntitlement, LicenseLaunchConfig, ReleaseIdentity, RuntimeSecrets,
+    WorkspaceKeyFile,
 };
 use px_console_store::{CacheOptions, WorkspaceVault};
 use px_pg::{DatabaseConfig, Transport};
@@ -42,6 +43,7 @@ pub struct ConsoleLaunchConfig {
     recording_cache_directory: PathBuf,
     recording_cache_options: CacheOptions,
     relay: Option<RelayEndpoint>,
+    release: ReleaseIdentity,
     license: LicenseLaunchConfig,
 }
 
@@ -57,6 +59,7 @@ pub struct ConsoleLaunch {
     pub recording_cache_root: Arc<CacheRoot>,
     pub recording_cache_options: CacheOptions,
     pub relay: Option<RelayEndpoint>,
+    pub release: ReleaseIdentity,
     pub license: LicenseEntitlement,
 }
 
@@ -165,23 +168,14 @@ impl ConsoleLaunchConfig {
             }
             _ => return Err(ConfigurationError),
         };
-        let authority_deployment_id = required("PIXELS_CONSOLE_LICENSE_AUTHORITY_DEPLOYMENT_ID")?
-            .parse::<Uuid>()
-            .map_err(|_| ConfigurationError)?;
-        let license = LicenseLaunchConfig::new(
+        let release = ReleaseIdentity::new(
             &required("PIXELS_CONSOLE_DISTRIBUTION")?,
             required("PIXELS_CONSOLE_RELEASE_NAMESPACE")?,
             get("PIXELS_CONSOLE_OEM_ID").filter(|value| !value.is_empty()),
-            required("PIXELS_CONSOLE_MACHINE_SHA256")?,
-            authority_deployment_id,
+        )?;
+        let license = LicenseLaunchConfig::new(
             PathBuf::from(required("PIXELS_CONSOLE_LICENSE_TRUST_STORE")?),
             PathBuf::from(required("PIXELS_CONSOLE_LICENSE_FILE")?),
-            PathBuf::from(required("PIXELS_CONSOLE_LICENSE_STATE_DIRECTORY")?),
-            get("PIXELS_CONSOLE_AUTH_VERIFY_URL").filter(|value| !value.is_empty()),
-            get("PIXELS_CONSOLE_AUTH_VERIFY_CA")
-                .filter(|value| !value.is_empty())
-                .map(PathBuf::from),
-            local,
         )
         .map_err(|_| ConfigurationError)?;
         Ok(Self {
@@ -199,6 +193,7 @@ impl ConsoleLaunchConfig {
             recording_cache_directory,
             recording_cache_options,
             relay,
+            release,
             license,
         })
     }
@@ -253,6 +248,7 @@ impl ConsoleLaunchConfig {
             recording_cache_root,
             recording_cache_options: self.recording_cache_options,
             relay: self.relay,
+            release: self.release,
             license,
         })
     }
@@ -342,16 +338,11 @@ mod tests {
                 "PIXELS_CONSOLE_RECORDING_CACHE_TTL_SECONDS".into(),
                 "86400".into(),
             ),
-            (
-                "PIXELS_CONSOLE_LICENSE_AUTHORITY_DEPLOYMENT_ID".into(),
-                Uuid::new_v4().to_string(),
-            ),
             ("PIXELS_CONSOLE_DISTRIBUTION".into(), "customer".into()),
             (
                 "PIXELS_CONSOLE_RELEASE_NAMESPACE".into(),
                 "pixels.customer".into(),
             ),
-            ("PIXELS_CONSOLE_MACHINE_SHA256".into(), "a".repeat(64)),
             (
                 "PIXELS_CONSOLE_LICENSE_TRUST_STORE".into(),
                 "private/license-trust.json".into(),
@@ -359,10 +350,6 @@ mod tests {
             (
                 "PIXELS_CONSOLE_LICENSE_FILE".into(),
                 "private/console.license".into(),
-            ),
-            (
-                "PIXELS_CONSOLE_LICENSE_STATE_DIRECTORY".into(),
-                "private/license-state".into(),
             ),
         ])
     }
@@ -407,28 +394,6 @@ mod tests {
             "PIXELS_CONSOLE_RELEASE_NAMESPACE".into(),
             "pixels.official".into(),
         );
-        assert!(parse(&official).is_err());
-        official.insert(
-            "PIXELS_CONSOLE_AUTH_VERIFY_URL".into(),
-            "http://127.0.0.1:8444/api/auth/licenses/verify".into(),
-        );
         assert!(parse(&official).is_ok());
-        official.insert(
-            "PIXELS_CONSOLE_AUTH_VERIFY_CA".into(),
-            "private/auth-ca.pem".into(),
-        );
-        assert!(parse(&official).is_ok());
-        let mut customer = valid();
-        customer.insert(
-            "PIXELS_CONSOLE_AUTH_VERIFY_URL".into(),
-            "https://auth.example.test/api/auth/licenses/verify".into(),
-        );
-        assert!(parse(&customer).is_err());
-        let mut customer_with_ca = valid();
-        customer_with_ca.insert(
-            "PIXELS_CONSOLE_AUTH_VERIFY_CA".into(),
-            "private/auth-ca.pem".into(),
-        );
-        assert!(parse(&customer_with_ca).is_err());
     }
 }

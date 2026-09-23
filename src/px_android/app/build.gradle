@@ -2,6 +2,7 @@ import java.util.Properties
 import java.util.Locale
 import java.util.Base64
 import java.net.URI
+import java.nio.charset.StandardCharsets
 import groovy.json.JsonSlurper
 
 plugins {
@@ -150,6 +151,7 @@ def pixelsVersionName = pixelsVersionNameInput ?: '1.0.0'
 def pixelsCompany = pixelsCompanyInput ?: 'Pixels'
 def pixelsGitRevision = System.getenv('PIXELS_GIT_REVISION') ?: 'unknown'
 def releaseComplianceDriver = System.getenv('PIXELS_RELEASE_COMPLIANCE_DRIVER') == '1'
+def fastRelease = System.getenv('PIXELS_FAST_RELEASE') == '1'
 def effectiveApplicationId = deploymentDistribution == 'customer' ? 'yun.pixels.client.customer' :
     deploymentDistribution == 'oem' ? androidApplicationId : 'yun.pixels.client'
 def effectiveApplicationName = deploymentDistribution == 'oem' ? androidApplicationName : 'Pixels'
@@ -238,8 +240,8 @@ android {
             versionNameSuffix = '-debug'
         }
         release {
-            minifyEnabled = true
-            shrinkResources = true
+            minifyEnabled = !fastRelease
+            shrinkResources = !fastRelease
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             ndk {
                 debugSymbolLevel = 'FULL'
@@ -286,10 +288,10 @@ if (signedReleaseTaskRequested && !releaseSigningReady) {
             'or the equivalent values in the ignored keystore.properties file.',
     )
 }
-if (signedReleaseTaskRequested && !releaseComplianceDriver) {
+if (signedReleaseTaskRequested && !releaseComplianceDriver && !fastRelease) {
     throw new GradleException(
-        'Release packages must be built through scripts_build/build_android_product.bat release so corresponding source, ' +
-            'relink objects, symbols, signatures and the release manifest are generated and verified together.',
+        'Release packages must be built through scripts_build/build_android_product.bat fast-release or release so the selected ' +
+            'development or formal product workflow is validated and complete.',
     )
 }
 

@@ -116,12 +116,9 @@ scripts_build\build_remote_product.bat
 
 这些都是发布级完整构建；每条命令一次升版并同时构建 Official/Customer，不接受旧的 `full`、`incremental` 或 `reconfigure` 参数。
 
-Cloud Node/Remote 安装器会在每次成功覆盖时把当前完整安装包保存到受保护的机器更新缓存，供下一次升级失败时精确回滚。缓存 ACL 只允许
-SYSTEM 和本机管理员，Service 在授权升级前记录并保护旧包 SHA-256 及当前产品清单中的签名证书 DER SHA-256；新包的签名证书固定值由
-Console 审批记录与 TUF `pixels` 元数据共同绑定。runner 使用前既复核 Authenticode 链，也精确比对对应证书固定值。安装、覆盖升级、自动更新、回滚和
-卸载共用一个全局安装互斥锁；并发操作返回 Windows Installer busy（1618），不会同时改写安装目录或回滚点。
-OEM Host 的回滚缓存文件名额外绑定 `oem_id`；Service 的激活记录使用 schema 3 并固定 release namespace、OEM ID、不可变 profile SHA-256 和
-公司身份。安装完成后的 manifest 少一项、替换另一 OEM，或残留另一 OEM 的回滚包都不能被报告为安装成功。开发基线的旧 schema 2 激活记录不读取。
+Cloud Node、Client、Remote 都由用户或运维运行对应的签名完整安装包完成安装、同版覆盖或升级；Console 不向 Windows Service 下发、暂存或激活安装包。
+安装、覆盖升级和卸载共用一个全局安装互斥锁；并发操作返回 Windows Installer busy（1618），不会同时改写安装目录。
+失败恢复由运维使用已验证的上一版本完整包再次覆盖；不存在 Service 激活记录、自动回滚 runner 或跨节点提交事务。
 
 执行前必须设置 `PIXELS_UPDATE_ROOT_FILE` 和 `PIXELS_OFFICIAL_CONSOLE_URL`。Official 把该 HTTPS origin 编译为固定入口；Customer
 把同一 origin 编译为禁止填写的官方入口，不提供任何自动回退。`PIXELS_UPDATE_ROOT_FILE` 必须是离线审批并签名的 TUF 1.0 初始根；Official 和 Customer
@@ -245,42 +242,38 @@ Desk 发布目录与 Console 审批目录也在写入前执行同一规则，Con
 不要人工拼装该请求。`prepare-console-registration` 要求 `PIXELS_TUF_LIVE_REPOSITORY`、非零 UUID
 `PIXELS_TUF_CONSOLE_REQUEST_ID` 和位于仓库外、尚不存在的绝对路径 `PIXELS_TUF_CONSOLE_REGISTRATION_OUTPUT`。工具拒绝仍有
 `promotion.pending.json` 的源站，重新从初始根验证元数据和全部目标，再排他生成可直接作为登记请求体的 JSON；重复执行不会覆盖已有审批文件。
-不要手工补 `repository_root_version`。节点更新检查始终携带当前已批准仓库描述，即使已安装 build 等于最新 build；Service 仍会用本机初始根、持久
-TUF datastore 和安全有效期策略刷新元数据。只有实际验签达到登记根版本后才向 Console 回报该发布代际的信任事实，包下载与激活仍是另一条门禁。
-管理员可查询 `GET /api/console/managed/updates/{id}/node-trust`。只有 `unknown_or_behind_node_count=0` 且最低确认版本达到要求，才具备继续评估旧根退役的
-必要条件；这不是自动退役授权。统计包含所有未删除的同产品节点（包括离线和禁用节点），并拒绝查询当前 Console 发行域之外的发布记录。
-具体节点通过 `GET /api/console/managed/updates/{id}/node-trust/nodes?limit=100&after=<uuid>` 按稳定 UUID 游标分页；响应包含节点状态、禁用标记、
-最后在线时间、实际确认的发布/摘要/根版本和确认时间。运维必须处理完整分页，不能只检查第一页或只看在线节点。
+不要手工补 `repository_root_version`。Console 保存这些字段用于发布审计和已实现消费者的目录发现，但不向 Windows 节点发出更新 offer，
+也不提供节点信任聚合或激活 API。Windows 安装包由运维从已批准仓库或离线介质取得，并在目标机独立执行只读预检与覆盖安装。
 
 ### 2.3 完整构建 Android
 
 ```bat
-scripts_build\build_android_product.bat official debug
-scripts_build\build_android_product.bat official debug install
-scripts_build\build_android_product.bat customer debug
-scripts_build\build_android_product.bat customer debug install
+scripts_build\build_android_product.bat official fast-release
+scripts_build\build_android_product.bat official fast-release install
+scripts_build\build_android_product.bat customer fast-release
+scripts_build\build_android_product.bat customer fast-release install
 scripts_build\build_android_product.bat release
 set PIXELS_OEM_RELEASE_PROFILE=D:\secure\north-star\oem-release-profile.json
-scripts_build\build_android_product.bat oem debug
-scripts_build\build_android_product.bat oem debug install
+scripts_build\build_android_product.bat oem fast-release
+scripts_build\build_android_product.bat oem fast-release install
 scripts_build\build_android_product.bat oem release
 ```
 
-- `debug`：执行 lint、单元测试并生成完整 Debug APK。
-- `debug install`：使用 `adb install -r` 覆盖安装，不卸载现有应用。
+- `fast-release`：执行 Release lint、Release 单元测试并生成完整签名 APK；关闭 R8/资源压缩，native 使用 O1，供日常短测。
+- `fast-release install`：使用 `adb install -r` 覆盖安装，不卸载现有应用。
 - `release`：一次预检和一次升版后，为 Official/Customer 生成同版本的签名 APK、AAB、mapping、native symbols、LGPL relink 材料和发布清单；
   每份 APK/AAB 的 ZIP 条目还必须通过 ZLMediaKit/Coturn 退役组件审计，只有两边均通过才生成根 `release-matrix.json`。
 
-单发行 Debug 每次调用先删除自己的旧沙箱并提升 Android 版本一次；正式 Release 先同时预检两个发行，再删除整个 Android 输出，且只提升
+单发行 fast Release 每次调用先删除自己的旧沙箱并提升 Android 版本一次；正式 Release 先同时预检两个发行，再删除整个 Android 输出，且只提升
 Android 版本一次。任何缺失的身份、签名或 FFmpeg 合规输入都会在清理和升版前失败。旧的单发行 Release 调用不再提供兼容入口。
 
-所有 Android Debug/Release 产品构建还必须设置 `PIXELS_UPDATE_ROOT_FILE`，指向离线审批并签名的 TUF 1.0 初始 root。缺少文件或根文档结构不完整时，
+所有 Android fast Release/正式 Release 产品构建还必须设置 `PIXELS_UPDATE_ROOT_FILE`，指向离线审批并签名的 TUF 1.0 初始 root。缺少文件或根文档结构不完整时，
 预检会在清理与升版前失败。该 root 以 BuildConfig 资源进入 APK，并在应用组合根创建时验证 Ed25519 key ID、自签门限、四个顶级角色、角色密钥隔离、
 版本和到期时间；OEM 构建还要求文件 SHA-256 与 profile 的 `update.root_sha256` 完全一致。不得从 Console 或下载源动态取得初始根。
 
 OEM 不加入上述双发行 Release 事务，而是在 `build_official/android/oem/<oem_id>/` 独立清理、升版和发布。OEM 入口只接受
 `PIXELS_OEM_RELEASE_PROFILE`，并校验独立 applicationId、应用名、前景/背景 PNG、`oem_id/release_namespace`、
-profile SHA-256 以及 Release 签名证书固定值；Pixels Official/Customer 反向拒绝所有 OEM 输入。OEM Debug/Release 均不能读取 Pixels 两个发行的
+profile SHA-256 以及 Release 签名证书固定值；Pixels Official/Customer 反向拒绝所有 OEM 输入。OEM fast Release/正式 Release 均不能读取 Pixels 两个发行的
 已编译资源或改用 Pixels 签名。应用名同时用于中英文页面、账号/关于/隐私、通知、诊断、剪贴板和远控浮层；OEM Splash、launcher/round icon 与
 通知图标均使用 profile 品牌资源。签名域、协议头和开源法律声明仍保持 Pixels 技术/权利人标识，不属于可换品牌 UI。
 
@@ -360,10 +353,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate_windows_ins
 
 ## 5. Android 产物与安装
 
-Debug APK 位于：
+开发期 fast Release APK 位于：
 
 ```text
-build_official/android/<official|customer>/dist/Pixels-<distribution>-<version>-debug-arm64-v8a.apk
+build_official/android/<official|customer>/dist/Pixels-<distribution>-<version>-fast-release-arm64-v8a.apk
 ```
 
 Release 产物位于：
@@ -377,7 +370,7 @@ build_official/android/<official|customer>/dist/<version>/
 手工覆盖安装：
 
 ```bat
-adb install -r build_official\android\official\dist\Pixels-official-<version>-debug-arm64-v8a.apk
+adb install -r build_official\android\official\dist\Pixels-official-<version>-fast-release-arm64-v8a.apk
 ```
 
 不要先卸载应用，否则会触发重新授权并丢失应用数据。
@@ -393,8 +386,9 @@ scripts_build\build_cpp_product_render.bat remote 18
 scripts_build\build_cpp_product_panel_tests.bat client 18
 ```
 
-聚焦入口固定使用 `PX_DISTRIBUTION=development`，仍把变化的运行文件发布到对应产品 `dist` 并核对 SHA-256；该目录不含正式 deployment
-policy/trust，不能冒充完整发布包。需要交付或制作安装包时，必须重新运行第 2 节的完整双发行构建。
+聚焦入口固定使用 `PX_DISTRIBUTION=development` 和 `CMAKE_BUILD_TYPE=Release`，并启用 `PX_FAST_RELEASE=ON`（O1、Rust 增量
+Release）；仍把变化的运行文件发布到对应产品 `dist` 并核对 SHA-256。该目录不含正式发行策略/TUF 发布材料，不能冒充完整发布包。
+需要交付或制作安装包时，必须重新运行第 2 节的完整双发行构建，届时 `PX_FAST_RELEASE=OFF` 并使用完整优化 Release。
 
 ## 7. 清理
 

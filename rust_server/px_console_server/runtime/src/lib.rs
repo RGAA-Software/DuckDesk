@@ -68,12 +68,48 @@ pub(crate) struct StateData {
     uploads: Arc<recording_upload_api::UploadRegistry>,
     management_events: Arc<management_events::ManagementEvents>,
     license: LicenseEntitlement,
+    release: ReleaseIdentity,
     relay: Option<RelayEndpoint>,
 }
 
 pub struct RuntimeResources {
     pub recording_cache: Option<(Arc<CacheRoot>, CacheOptions)>,
     pub relay: Option<RelayEndpoint>,
+    pub release: ReleaseIdentity,
+}
+
+#[derive(Clone)]
+pub struct ReleaseIdentity {
+    pub distribution: px_release_catalog::Distribution,
+    pub release_namespace: String,
+    pub oem_id: Option<String>,
+}
+impl ReleaseIdentity {
+    pub fn new(
+        distribution: &str,
+        release_namespace: String,
+        oem_id: Option<String>,
+    ) -> Result<Self, ConfigurationError> {
+        let distribution: px_release_catalog::Distribution =
+            distribution.parse().map_err(|_| ConfigurationError)?;
+        distribution
+            .validate_release_domain(&release_namespace, oem_id.as_deref())
+            .map_err(|_| ConfigurationError)?;
+        Ok(Self {
+            distribution,
+            release_namespace,
+            oem_id,
+        })
+    }
+
+    #[cfg(feature = "pg-integration")]
+    pub fn integration() -> Self {
+        Self {
+            distribution: px_release_catalog::Distribution::Customer,
+            release_namespace: "pixels.customer".into(),
+            oem_id: None,
+        }
+    }
 }
 impl StateData {
     fn active(&self) -> Result<(), ApiError> {
@@ -110,7 +146,6 @@ impl StateData {
 pub struct ConsoleRuntime {
     state: Arc<StateData>,
     supervisor: JoinHandle<()>,
-    license_supervisor: Option<JoinHandle<()>>,
     telemetry_retention: JoinHandle<()>,
     cache_expiration: Option<JoinHandle<()>>,
 }
@@ -132,6 +167,7 @@ impl ConsoleRuntime {
             RuntimeResources {
                 recording_cache: None,
                 relay: None,
+                release: ReleaseIdentity::integration(),
             },
             LicenseEntitlement::synthetic_for_integration(deployment),
         )
@@ -156,6 +192,7 @@ impl ConsoleRuntime {
             RuntimeResources {
                 recording_cache: Some((recording_cache_root, recording_cache_options)),
                 relay: None,
+                release: ReleaseIdentity::integration(),
             },
             LicenseEntitlement::synthetic_for_integration(deployment),
         )
@@ -244,13 +281,6 @@ impl ConsoleRuntime {
             },
             None => None,
         };
-        // Database and cache admission can legitimately consume most of the online-license
-        // freshness window. Reconfirm currentness after all startup dependencies are ready so
-        // only an actual runtime authority outage starts the fail-closed deadline.
-        if license.online_refresh_interval().is_some() && license.refresh_online().await.is_err() {
-            db.close().await;
-            return Err(ApiError::Unavailable);
-        }
         let cancellation = CancellationToken::new();
         let state = Arc::new(StateData {
             db,
@@ -268,6 +298,7 @@ impl ConsoleRuntime {
             uploads: recording_upload_api::UploadRegistry::new(),
             management_events: management_events::ManagementEvents::new(),
             license,
+            release: resources.release,
             relay: resources.relay,
         });
         let supervisor_cancellation = cancellation.clone();
@@ -283,7 +314,6 @@ impl ConsoleRuntime {
                 }
             }
         });
-        let license_supervisor = state.license.spawn_online_supervisor(cancellation.clone());
         let telemetry_state = state.clone();
         let telemetry_cancellation = cancellation.clone();
         let telemetry_retention = tokio::spawn(async move {
@@ -345,7 +375,6 @@ impl ConsoleRuntime {
         Ok(Self {
             state,
             supervisor,
-            license_supervisor,
             telemetry_retention,
             cache_expiration,
         })
@@ -422,17 +451,11 @@ impl ConsoleRuntime {
     pub async fn shutdown(mut self) {
         self.state.cancellation.cancel();
         self.supervisor.abort();
-        if let Some(task) = &self.license_supervisor {
-            task.abort();
-        }
         self.telemetry_retention.abort();
         if let Some(task) = &self.cache_expiration {
             task.abort();
         }
         let _ = (&mut self.supervisor).await;
-        if let Some(mut task) = self.license_supervisor.take() {
-            let _ = (&mut task).await;
-        }
         let _ = (&mut self.telemetry_retention).await;
         if let Some(mut task) = self.cache_expiration.take() {
             let _ = (&mut task).await;
@@ -452,9 +475,6 @@ impl Drop for ConsoleRuntime {
     fn drop(&mut self) {
         self.state.cancellation.cancel();
         self.supervisor.abort();
-        if let Some(task) = &self.license_supervisor {
-            task.abort();
-        }
         self.telemetry_retention.abort();
         if let Some(task) = &self.cache_expiration {
             task.abort();

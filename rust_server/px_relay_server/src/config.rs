@@ -1,4 +1,4 @@
-use std::{env, net::SocketAddr};
+use std::{env, net::SocketAddr, time::Duration};
 
 #[derive(Clone)]
 pub struct RelayConfig {
@@ -8,6 +8,7 @@ pub struct RelayConfig {
     pub max_rooms: usize,
     pub outbound_queue: usize,
     pub max_message_bytes: usize,
+    pub connection_idle_timeout: Duration,
 }
 
 impl RelayConfig {
@@ -31,6 +32,12 @@ impl RelayConfig {
                 1_024,
                 64 * 1024 * 1024,
             )?,
+            connection_idle_timeout: Duration::from_secs(bounded(
+                "PIXELS_RELAY_CONNECTION_IDLE_SECONDS",
+                10,
+                3,
+                300,
+            )? as u64),
         })
     }
 }

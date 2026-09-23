@@ -10,8 +10,6 @@ mod product_descriptor;
 mod recording_inventory;
 mod service_host;
 mod service_windows;
-mod update_activation;
-mod update_preparation;
 mod user_proxy;
 mod virtual_display_manager;
 mod virtual_display_session;
@@ -75,10 +73,6 @@ struct Cli {
 
     #[arg(long, hide = true)]
     virtual_display_worker_nonce: Option<String>,
-
-    /// Internal SYSTEM child used only after a Console activation lease is persisted.
-    #[arg(long, default_value_t = false, hide = true, conflicts_with_all = ["configure_node_control", "clear_node_control", "port", "console", "virtual_display", "virtual_display_session_worker"])]
-    apply_authorized_update: bool,
 }
 
 #[tokio::main]
@@ -91,12 +85,6 @@ async fn main() {
         std::process::exit(5);
     }
     let cli = Cli::parse();
-    if cli.apply_authorized_update {
-        if update_activation::run_authorized_update().is_err() {
-            std::process::exit(4);
-        }
-        return;
-    }
     if cli.configure_node_control {
         if let Err(error) = node_control_store::configure_from_stdin() {
             eprintln!("node-control configuration failed: {error}");

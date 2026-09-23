@@ -1,0 +1,665 @@
+# Pixels 独立部署、客户端发行与升级实施计划
+
+> 日期：2026-09-16
+>
+> 状态：数据库底座及首批 repository 已开始实施；完整阶段尚未验收。用户已确定产品边界，后续技术方案和升级指标为建议基线。实际证据见[数据库实施状态](server_database_execution_status.md)。
+>
+> 关联：[服务端连接与业务架构](server_refactoring_plan.md)、[当前产品构建与使用](product_build_and_usage.md)。
+> 本文规定目标行为，不代表现有脚本已支持 flavor、新目录或在线升级；当前构建命令仍以产品构建文档为准。
+
+交互阅读：[服务拓扑与升级演示](server_topology.html)。单文件网页可离线打开，支持官方/私有部署切换、连接流程、Relay 和 Render 升级演示；所有状态与数字均为示意。
+
+## 0. 已确定的产品边界
+
+2026-09-16 补充：从全新 PostgreSQL 与新契约开发；旧环境只有开发数据，不做历史数据迁移，也不兼容旧协议、配置、接口、ID 或安装数据格式。受影响的服务、客户端、配置向导和测试同步更新，旧开发版不作为验收客户端。未来正式发行后的升级要求仍按第 6–7 节实施。
+
+- 服务端只有一套源码和组件实现：自营公网部署与客户私有部署使用相同的 Console、Broker、Relay 和节点协议。
+- 自营平台属于 Pixels 自己；客户取得服务端软件后独立部署、独立管理用户、设备、应用和数据。
+- 不做多企业 SaaS，不引入 TenantId、企业租户路由或跨租户数据库架构。平台内仍有多用户、角色、设备分组和资源 ACL。
+- 客户端分 Official 与 Customer 两种发行，不能通过普通运行时设置相互转换。
+- Official 只能连接受信任的官方平台；Customer 必须填写私有平台入口，且禁止连接官方平台。
+- Customer 失败时不回退官方 Console、Broker、Relay 或账号服务；服务端按本部署签发的账号、节点和会话凭据隔离访问。
+- Cloud Node、Client、Remote、Android 继续独立演进版本。三个 Windows 产品继续互斥，Service 继续使用完整能力实现。
+- 不恢复旧开发协议、旧端点、旧授权串适配或旧设备嵌套云应用。未来新版本间的有限升级窗口单独定义。
+
+## 1. 交付物与责任边界
+
+| 交付物 | 职责 | 发行或部署差异 |
+|---|---|---|
+| Pixels Server 套件 | Console、Broker、Relay、管理 Web、部署和备份升级工具 | 同一服务端制品，由部署配置和数据库实例标识区分运行环境 |
+| Cloud Node | 完整节点、Render、Service 和管理 Panel | Pixels official/customer 双发行；profile 绑定的 OEM 独立候选 |
+| Client | 访问方 Panel、Client、文件和 RDP 能力 | Pixels official/customer 双发行；profile 绑定的 OEM 独立候选 |
+| Remote | 桌面被控节点和对应访问能力 | Pixels official/customer 双发行；profile 绑定的 OEM 独立候选 |
+| Android | 移动访问方 | Pixels official/customer 双发行；profile 绑定的 OEM 独立发行 |
+
+许可证签发与软件发布签名属于 Pixels 的发行基础设施，不是客户正常会话必经的在线服务。
+Customer 可以离线导入有效 `PXLIC2` 许可证；Auth 私钥不进入客户端或私有服务端套件。
+商业首版交付 Linux 容器部署与 Windows 服务端安装方式，支持单机起步和同一部署内多 Render/多 Relay；
+两者使用相同配置 schema，多机拓扑增加部署配置而非代码分叉。P4 单机预览不是 P7 商业版的机器数量上限。
+数据库决策（2026-09-16）：PostgreSQL 为唯一主业务数据库，先完成独立数据库阶段，再实施服务拆分与新调度。
+这替代原“首次迁移保留现有数据库”的安排。旧环境没有有效数据，直接新建 PostgreSQL；不做 Mongo 数据转换或导入。模型、事务、备份保留及主备方案见
+[PostgreSQL 前置改造计划](postgresql_database_migration_plan.md)。不维护多数据库运行后端，不先扩建 MongoDB 集群。
+Windows 服务端仍受支持；Windows 原生本地 DB 首版采用基础备份，需要生产 PITR/HA 时连接验证过的 Linux PostgreSQL 服务。
+Redis 仅在集群路由/协调确有需求时引入，单机客户不强制安装。现有 Auth/Desk 职责先做依赖清点，不能因本计划直接删除。
+Auth 属于官方签发运维域，不作为 Customer 必装服务；Desk 按部署选装。两者的版本/hash、数据库、依赖、
+健康/维护与恢复均进入所属部署清单和统一运维，详见运维计划。首版采用写入/签发任务排空后的维护升级，
+不默认继承 Console 双槽热升级承诺；签名私钥不随通用 Server 套件下发。
+
+### 1.1 监控、部署编排与业务调度分工
+
+Prometheus 是指标监控工具，不是容器编排工具；Kubernetes 管理容器化工作负载，两者不能替代 Pixels 的业务调度。
+
+| 能力 | 本计划责任方 | 边界 |
+|---|---|---|
+| 指标历史、容量趋势与故障告警 | Prometheus + Alertmanager；运维图表可选 Grafana | 不作为授权、计费或资源预约权威，不根据图表用户数直接停机 |
+| 服务安装、托管与升级 | 初期使用成熟部署工具配合受限执行器、SCM/systemd/容器运行时 | 不自研通用容器编排平台，不允许多个监督者争抢同一进程 |
+| 云应用选机/逐 GPU 预约、Relay 分配、会话排空 | Console Cloud Runtime、Broker 与节点 Service | 保留业务权限、事务、代际、工作区归属和最终准入，不交给通用 Pod 调度器 |
+| 云主机购买/创建/销毁 | 首版由管理员使用云平台工具；云厂商 API 自动化后续立项 | 创建主机不等于已具备业务容量；销毁必须另有授权和数据保护门禁 |
+
+自营公网商业版将独立 Prometheus/Alertmanager 监控纳入交付与告警验收；小型私有部署可仅使用内置基础状态，
+大型私有部署可选装同一监控套件，数据留在本部署。配置/规则版本固定、保留与容量预算见运维计划第 6.4 节。
+Console 继续提供统一业务后台，Grafana 只是补充运维视图，不是另一个授权或操作入口。
+
+Kubernetes 不是首装或多机接入前提，后续根据服务数量、发布频率、故障恢复要求和运维能力决定是否引入，
+不按一个未经压测的“机器数阈值”强制切换。优先适配 Linux Console/Broker/Web，Relay 另验 TCP/UDP、稳定端点及长连接排空；
+即使采用 Kubernetes，也不能假定滚动替换自动迁移媒体连接或提供 Console 多活正确性。
+Windows Render 保留完整 Windows 主机 + px_service 的运行方式；本次不把交互桌面、GPU 驱动、Game Hook/CEF/RDP 改为容器。
+PostgreSQL 的高可用和备份仍按数据库专项验收，不能以使用编排工具替代。
+
+### 1.2 多机资源池与扩缩容阶段
+
+首版必须支持一个部署管理多台 Render 主机和多个 Relay，而不是每增加一台机器就再建一个独立 Console/用户库。
+机器按部署、用途、资源规格和故障域分组，可预留区域标签；区域标签不代表首版已交付跨地区多活或自动就近迁移。
+节点认证接入、资源发现、应用版本准备、验证入池、分批维护和安全退役属于首版；GPU 细则见调度计划第 4.3 节。
+
+- Render 扩容：管理员准备机器，Service 认证登记、上报整机/逐卡能力，受限部署任务准备应用并核验实际 GPU/模式，
+  只有 Ready 部署进入候选。缩容先关新准入，再等待活动用户、启动/预约、重连宽限、传输与保护资源对账完成。
+  保留 RDP 工作区、仅本机存档或未知占用时，不可自动销毁主机；普通退役不包含删除用户数据的授权。
+- Relay 扩容：向管理库存和 Broker 分配目录发布经验证的服务身份、可达端点、协议、区域和带宽预算；
+  Broker 按路径质量、实时容量及维护门禁分配新 allocation。新节点不吸走活动会话，不能仅加 DNS 记录便声称完成容量扩展。
+  缩容先停止新 allocation，等待旧会话/合法子通道和重连权利排空；无备用容量或长期用户按第 6.3 节延期或公告维护。
+- 批量升级按资源池/故障域设置小批验证、并发上限、最低剩余可用容量和失败暂停；无兼容应用部署的空机器不算备用容量。
+  任务持久化、重启可对账，不能一键同时排空整个池。服务发现撤销、凭据吊销和资产退役要有明确顺序与审计。
+- 后续云厂商自动扩容采用独立受限身份、幂等创建请求、资源归属标签、预算/数量上限、冷却时间及失败资源对账。
+  纳入 GPU 主机启动、驱动和应用预热时间，禁止“队列上涨即无限买机器”。API 超时先核查是否已创建，不重复采购或删除未知资产。
+
+首版规模上限由 P7 压测记录节点/管理连接数、遥测与任务吞吐、调度延迟、PG 负载和重连风暴后的恢复时间，
+不因单活动 Console 就认定只能管理一台机器，也不承诺无限扩展。超出验证容量先限流/限制新接入并提示扩容方案；
+Console 多活和跨地区控制面属于后续专项，不通过复制进程绕过唯一 owner。
+
+## 2. 发行、构建和安装身份
+
+### 2.1 独立维度
+
+```text
+product = cloud_node | client | remote | android
+distribution = official | customer
+release_channel = stable | preview
+```
+
+product 决定能力，distribution 决定平台与更新策略，release_channel 决定发布节奏。
+`client_type=android` 等平台身份保持不变；不能将 android 改成 customer 或 panel。Service 不因 distribution 做能力裁剪。
+
+- 同一产品仍只有一条产品版本序列，不额外产生八条版本线；一次发布构建事务先分配一次产品版本，再分别完整构建所选 flavor。
+- 同一事务的两个 flavor 使用同一产品版本，各有唯一 build ID、分发标记和制品摘要；失败的版本不回退复用。
+- 每次新的完整构建事务仍升版；日常 focused C++ 验证继续遵守现有不升版规则。
+- 目标输出为 `build_official/<product>/<distribution>/...`，所有 CMake、Cargo、Gradle、dist、installer、reports 均隔离。
+- Windows 完整产品入口一次预检并一次升版，随后构建同版本 `official` 与 `customer`；任一发行失败即整次事务失败，不能把另一半标记为完整矩阵。
+  日常聚焦 C++ 继续使用 `<product>/cmake` 与 `<product>/dist` 的 `development` 沙箱，它不含正式更新签名材料、不能制作安装包。
+- Android 正式 Release 同样一次预检、一次升版并生成同版本 Official/Customer；单发行 fast Release（O1、无 R8/资源压缩）只用于开发短测，
+  不再生成 Debug 产品产物。只有双发行的身份、签名、合规材料
+  和各自 release manifest 全部验证后才生成矩阵完成清单。
+- 不读取其他 flavor 的已编译产品文件，不把 flavor 编译宏留在公共缓存。切换此目录结构时同步修改构建文档和所有发布校验脚本。
+- Server 套件建立自己的版本与组件锁定清单，列出 Console/Broker/Relay/Web 的确切版本与摘要；不随意混装组件。
+
+### 2.2 安装与更新身份
+
+- Windows 升级只接受相同 product、distribution、架构和签名发行方；跨产品或跨发行拒绝覆盖，提示先卸载。
+- 发行身份分为三个互不兼容的产品线：`official` 是 Pixels 自营发行，`customer` 是 Pixels 品牌私有部署发行，`oem` 是交付给特定 OEM
+  客户的定制发行。`oem` 不是 `customer` 的显示名称，也不能只靠换图标或服务器 URL 实现。
+- 每个 OEM 发行必须在构建时绑定不可为空且全局唯一的 `oem_id/release_namespace`、应用/安装身份、发布者、初始 TUF 信任根和允许的私有
+  更新策略。OEM A、OEM B、Pixels Official 和 Pixels Customer 之间均不得覆盖安装、共享更新元数据或回落到彼此的软件包。
+- OEM 非秘密发行描述采用严格 schema 1，并由 `PIXELS_OEM_RELEASE_PROFILE` 唯一指定。描述将品牌、Windows 三产品安装身份、Android
+  applicationId、各平台签名证书固定值、品牌资源摘要与 TUF 初始根摘要绑定为一个整体；构建过程不得再从若干可互相
+  矛盾的环境变量推断 OEM 身份。Windows 独立 OEM 候选入口和 Android 独立 OEM 构建入口均执行该门禁；候选构建
+  不等于 TUF 发布、节点激活或商业交付批准。
+- 三个 Windows 产品及其发行变体继续互斥。只有一个已安装发行，服务命名可沿用统一方案。
+- 卸载软件与删除账号、配置、工作区和用户数据分开；普通升级不调用卸载清理路径。保留的数据带平台/发行归属，禁止另一发行自动导入。
+- Android 为 Pixels 两个发行分配不同 applicationId、显示标记和更新身份；每个 OEM 另由 profile 固定独立 applicationId、品牌和签名谱系。同一
+  发行域的后续 APK 保持 applicationId、签名谱系和递增 versionCode。
+- P0 定义新 Windows 安装身份与 Android applicationId/签名，冻结首次正式发行归属；不为旧开发包增加身份兼容或数据导入。
+- 新基线按全新安装验收，旧开发版不承诺原位升级；正式发行后的同产品/同发行版本继续验收覆盖安装与升级。
+- 更新身份、数据迁移与卸载边界同时测试；不能因为版本更高就接受另一个 flavor 的包。
+
+## 3. 平台发现、信任与隔离
+
+### 3.1 客户端配置体验
+
+Official 内置官方 HTTPS 引导入口及官方信任策略，不提供自定义服务器输入。官方域名轮换通过受信任的配置更新完成。
+Customer 首次启动填写私有 HTTPS 入口，验证成功后才展示登录；设置中可修改，首版同一客户端仅激活一个私有平台。
+OEM 客户端使用该 OEM 构建策略指定或允许填写的私有入口；不得内置 Pixels Official 业务入口或官方更新信任根，也不得静默切回 Pixels 品牌发行。
+可以保存多个配置档案，但并非首版必需；不做多平台同时在线。
+
+普通用户仅填一个入口。Console、Broker、Relay、升级服务及节点当前Render端点由私有管理员配置或节点上报、由平台按权限下发。
+控制入口可经过HTTPS反向代理；Relay及Direct Host WebRTC的实际Render TCP/WS与UDP端口需要独立防火墙说明，不能假定一条HTTPS
+代理承载全部流量。产品不再部署ZLMediaKit或Coturn/TURN，也不经Relay中转WebRTC协商；完整跨端约束见
+[Direct Host专项计划](direct_host_webrtc_scope_plan_20260919.md)。
+配置明确区分 listen、advertise、internal 地址，支持内网 DNS、IP SAN 和企业 CA；不将局域网地址一概禁止。
+
+### 3.2 标准 HTTPS、端点与会话授权
+
+自定义部署证书、平台描述、nonce 持有证明和部署 trust store 已退役。所有客户端使用标准 HTTPS 校验证书链与主机名；私有部署使用
+公开受信 CA，或由管理员按操作系统/设备规范安装企业 CA。产品不提供“跳过证书校验”开关，也不从业务响应动态信任新的 TLS 根。
+
+Official 在构建时固定官方 Console HTTPS origin，设置页不可修改。Customer 在设置中保存一个规范私有 HTTPS origin，并在发送用户名、密码、
+bearer 或节点注册凭据前拒绝与构建时记录的官方 origin 完全相同的地址；失败不回退官方地址。该规则满足产品入口隔离，但不声称能从密码学上识别
+任意反向代理是否最终转发到官方服务，因此官方服务端还必须拒绝不属于其发行和部署的账号、节点、会话与 allocation 凭据。
+
+Console 登录后签发的资源 descriptor 是 Broker、Relay 和 Render 实际端点的唯一业务权威。客户端不能从旧固定端口、设备记录或本地缓存猜测端点，
+也不能把 Console 登录 token 任意发送给 descriptor 外的地址。Direct Render、Relay allocation、节点注册和资源会话继续使用短期、限范围、
+绑定 audience/会话/角色的凭据；数据库 deployment UUID 继续用于三库、备份恢复和本部署服务端数据的一致性，不对客户端公开成第二套身份协议。
+
+### 3.3 Customer 禁止官方平台的准确边界
+
+1. 已知官方入口做地址预检，减少误填；不依赖官方 IP 黑名单，共享 CDN/IP 不能作为独立身份。
+2. 默认禁止自动跨来源重定向；需要迁移时先验证新来源。验证前不携带旧令牌、密码、Cookie 或设备注册凭据。
+3. Customer 拒绝构建时记录的 Official origin；Official 不提供服务器编辑入口。
+4. 认证、节点注册、Broker Attach、Relay allocation 均校验 deployment/audience/角色，私有平台凭据不能被官方服务接受。
+5. 官方规范地址、显式端口、大小写/尾斜杠规范化、重定向和描述中混入未授权端点均纳入测试；反向代理边界按上一节如实声明。
+
+此机制保证原版受支持客户端的发行隔离，以及不同部署凭据的服务端隔离。发行字符串、User-Agent、内置静态 secret 或代码签名本身，
+都不能向远端证明当前进程未被修改。攻击者若改客户端、持有合法官方账号，或自己重写协议代理，不能承诺仅靠上述设计绝对阻止。
+如需进一步限制官方接入设备，应增加服务端登记的每安装实例密钥及持有者证明；登记本身仍需可信发放或平台证明，不能信任自报 flavor。
+跨 Windows/Android 的强制可信执行证明是另一个安全项目，首版不伪装成已经具备。即使未来增加证明，仍需正常的账号 ACL、限流和吊销。
+
+OEM 增加本地发行门禁：安装身份、`oem_id/release_namespace`、TUF 初始根和 TUF target 自定义元数据必须
+同时一致。仅把官方域名换成代理、由私有 Console 返回官方包 URL、复制另一 OEM 的元数据或持有较高 build number，均不能进入安装阶段。
+OEM 更新策略和密钥由对应交付合同管理；Pixels 官方发布服务不把 OEM 客户端纳入自动升级目标，也不持有让 OEM 客户端信任官方包的
+兼容根。OEM 停止维护时进入明确的人工迁移/卸载流程，不能通过“最后一次更新”跨线变成 Official 或 Customer。
+
+## 4. 平台切换与节点归属
+
+Customer 切换流程：验证候选平台 → 检查活动会话/文件任务 → 用户结束或取消切换 → 停止旧连接和重试 → 原子切换配置 → 新平台登录。
+验证失败保留原配置；用户确认断开后不得偷偷恢复旧连接。保存失败不能留下“地址已新、身份仍旧”的半完成状态。
+
+- 登录凭据、设备身份、目录缓存、历史会话、文件恢复记录按 distribution + Console origin + 用户隔离。
+- 切换增加本地 configuration generation；旧请求、UI 回调、下载和重连任务不得写入新平台状态。
+- 账号不能因同名、设备不能因同 ID 被跨平台复用。密钥和令牌使用系统安全存储。
+- Host 归属设置与访问方平台设置独立；修改访问平台不能把 Cloud Node/Remote Service 迁到另一个平台。
+- 节点迁移需要管理员操作：排空、注销/吊销旧注册（旧平台不可达时记录待处置状态）、在新平台注册新身份；不能按旧 DeviceId 查询后自动认领。
+- UI 使用现有中英文、本地化键和主题模型，明确显示当前发行、平台和节点归属，禁止只靠颜色区分。
+
+## 5. 身份、权限、许可证与授权恢复
+
+### 5.1 独立职责
+
+| 机制 | 解决的问题 |
+|---|---|
+| 部署证书 | 当前连接的是哪套平台、official 还是 private |
+| 用户/设备/节点认证 | 谁发起当前请求 |
+| SessionGrant | 可以进入哪个会话、执行哪些能力 |
+| 商业许可证 | 此部署允许的功能、节点数、并发和期限 |
+| 发布签名 | 下载的包是否为该产品/发行的可信版本 |
+
+首版提供独立本地账号、管理员初始化、可关闭注册、角色/ACL、登录限流、密码恢复策略和管理员多因素认证；企业 OIDC 可作为后续集成。
+登录 access token 可过期/刷新/轮换，禁止短期一次性连接票据不等于认证凭据永不过期。
+设备注册可以使用受控的一次性注册凭据，其用途仅为身份登记，不进入后续每次重连流程。
+服务间认证采用明确的服务身份与权限，不能分发用户密码 hash 作为 Broker/Relay 通用凭据。
+
+### 5.2 许可证与离线模式
+
+同一套服务端支持联网授权和导入签名许可证；用户账号登录不依赖 Pixels 官方账号服务。
+许可证建议绑定部署 ID、功能、额度、期限和版本化授权策略；服务器仅验证，签发私钥保留在发行方。
+定义续期、迁机、密钥恢复、灾备和机器时间回退处理；不能只绑定单机硬件使双实例升级/灾备失效。
+授权服务不可达时按已验证缓存及合同宽限运行；超过授权策略限制新建资源/新会话，保留管理、导出和恢复能力。
+到期或撤销后的活动会话处置应明确展示；任何许可证错误都不删除用户数据、Windows 账号/Profile 或注销 Workspace。
+离线模式启动、登录、连接和更新均不访问官方平台，Web 字体/脚本、遥测、错误报告和网络探测一并检查。
+
+### 5.3 持久授权与中断策略
+
+Console 持久化 Session 授权依据、revocation revision、幂等结果和事件 outbox；Broker 保存运行缓存与可恢复检查点。
+跨组件命令使用稳定 request_id、正文摘要、结果记录和服务端 epoch；同 ID 不同正文拒绝，重试返回原结果。
+幂等键按 deployment、认证主体和操作类型划定作用域，结果保留覆盖声明的最大重试窗口；不能用不同用户相同 request_id 命中他人的结果。
+owner 接管必须 fencing，数据从旧备份恢复时也不能接受旧控制连接或让已撤销 Grant 复活。
+
+建议首版的故障策略为：
+
+- Console 短时不可用：已有数据路径继续；新业务授权暂停，不猜测 ACL。已有 Grant 的重连仅在预先授权的离线宽限内允许。
+- Service → Console 的节点管理长连接断开：该节点暂停新调度，保留实例/预约未知占用；既有业务不因管理断线被全部终止。
+  恢复连接后先完成身份/代际核验、快照与增量同步及任务对账，再恢复满足维护/资源门禁的准入；Broker 在线不能代替这一条件。
+- Broker 不可用：已认证 Direct/Relay 路径在授权宽限内继续；新路径分配和提权暂停，恢复后重新认证 Attach 同一 Session。
+- 授权变更通过持久事件传播并确认；接收不到撤销时不能承诺瞬时撤销。客户端、Render 和 Relay 均执行可验证的授权有效边界。
+- 高安全配置缩短有效边界；到期停止访问而不销毁 Workspace，执行下面的有界授权租约，不允许无限离线授权。
+- 主动停止、Session Closed 和配置切换禁止自动恢复；失效进程的晚到回执不能覆盖新的授权或版本。
+
+首版计划基线（待实现与故障注入验收）：SessionGrant 附带 `issued_at/not_after/lease_revision/offline_policy`，
+普通策略租约最长 300 秒、严格 fail-closed 策略最长 30 秒；建议分别每 60 秒/10 秒向 Console 权威续租。
+明确收到撤销立即停止访问；通信失联时只能用剩余有效期，不从断线、Broker 重启、客户端重连或收到旧事件时重新计时。
+续期必须重新校验持久撤销状态/授权版本，只有 Console 当前权威可签发，Broker 的心跳及缓存不能自行续期。
+Broker Attach、Render 的 Direct/Relay 数据访问和 Relay allocation 均检查租约；不能只在客户端或 Broker 检查而留下 Direct 旁路。
+Relay 只需获得绑定 allocation/session/代际的最小可信有效边界，无需读取端到端媒体或用户权限明细。
+
+统一预留最大 5 秒可信时钟偏差和 5 秒本地到期执行延迟，总容差不得超过 10 秒；
+从最后一次权威续期起，失联授权最晚普通 310 秒、严格 40 秒收敛到停止访问。
+本地以经校验的剩余有效期建立单调时钟截止点，重复租约不延长；重启重新验证可信时间，回拨/偏差超限或无法验证则 fail-closed。
+P0 冻结并版本化这些参数，发布可收紧不可静默放宽；达不到截止执行指标的组合不得宣称通过安全验收。
+到期可停止访问通道，但不删除 RDP 工作区；与 Render 最后客户端 5 秒退出宽限、许可证合同宽限是三个独立概念。
+必测 Console 长时间停机、撤销消息丢失、Direct 绕过 Broker、旧续期重放、重启/时钟回拨及各执行端单独分区。
+
+## 6. 热升级的能力分级
+
+不实施运行中 C++/Rust 进程内替换代码。通过新旧进程共存、切流、会话排空及可恢复重连实现在线升级。
+对外区分四种结果：配置热加载、已有业务不中断的滚动升级、允许短暂重连的升级、需维护窗口的停机升级。
+单个实例原地重启不是零停机；单机也能用临时双实例升级，但需要备用端口、入口切流、额外容量及受控的唯一调度 owner。
+
+阶段边界：DB0–DB5 至 P4 为单活动 Console + PostgreSQL 事务；P5 引入升级用 A/B 双实例，
+同一节点/调度作用域只有一个有效命令 owner，不是常态双活调度。单实例也保留重启/迟到命令 fencing。
+事务锁不能替代提交后副作用 fencing；Console 常态多活横向扩容仍属 P8，但多 Render/多 Relay 资源池属于首版。
+Windows P5 落地契约见第 7.6 节。
+
+| 组件 | 首版目标 | 必要条件与实际限制 |
+|---|---|---|
+| 日志级别、部分限流/新会话策略 | 白名单配置原子热加载 | 先验证新快照，失败保留旧快照；监听端口/数据库/平台身份不热改 |
+| Console API/调度 | 单机可恢复升级；双实例模式滚动切流 | DB 升级可共存、幂等、后台任务租约与 fencing；单实例期间新建连接可能暂停 |
+| Service ↔ Console 管理连接 | Console 切流时允许断线、重新认证并对账 | 节点命令单 owner/fencing；快照接续增量，未决启动不重复执行；同步完成前暂停节点新调度 |
+| Broker | 保留数据路径，信令重连恢复 | 可恢复 Grant、代际、客户端退避和去重；WSS 本身允许断开 |
+| Relay | 有替代容量时排空切换，无替代容量时公告维护升级 | 排空期间保留已有 allocation 的授权子通道/重连；维护中断和恢复按第 6.3 节执行 |
+| 活动 Relay 路径迁移 | 后续专项 | 备用 Relay 容量、双方提名、通道顺序与去重、密钥/代际切换；不能承诺零丢帧 |
+| Cloud Node/Remote Service | 首版等待节点排空后升级 | 尚未证明监督权移交前，禁止带活动实例重启并猜测认领进程 |
+| Render/Game Hook/WebView | 包预先准备，节点无用户后统一升级 | 进入维护排空后不接新会话；首版无需在同一节点同时承载新旧 Render |
+| RDP Proxy/Client | 允许中断协议连接再附着 | 保留 Windows Session/账号/应用，第二前端仍返回 busy |
+| Windows Panel/Client | 后台准备完整包，空闲/确认后重启升级 | 不承诺活动播放器或文件进程替换无中断；持久任务只在身份重新验证后恢复 |
+| Android | 下载后由系统覆盖安装，应用重启 | 保持签名/包身份，遵守安装确认；不能承诺无用户确认或会话不停 |
+| Web UI | 版本化静态资源，新访问使用新版 | 保留旧资源到活动页面窗口结束；不强制刷新进行中的浏览器远控 |
+| 驱动/系统组件 | 明确维护窗口 | 必要时重启 OS，不作为热升级范围 |
+
+“排空”可能长时间无法结束。默认允许延后或取消升级；超时不能静默杀连接。管理员选择强制维护时记录受影响会话并明确中断。
+安全紧急升级可以配置强制维护策略，但必须提前定义通知、截止时间和恢复行为，不以普通更新逻辑任意中断工作区。
+Compose/Docker/Windows SCM 只是启动工具，应用仍须实现 readiness、draining、恢复和退出顺序；不把编排工具自动等同于无损升级。
+
+### 6.1 节点无用户后的升级流程
+
+用户确定的首版部署假设：云游戏节点通常每卡承载一个实例，每台约 2–4 个并发用户。
+这用于选择简单的整节点空闲升级策略，不是写死的容量限制；实际实例/GPU 容量仍由节点配置和资源上报决定。
+首版不做活动 Render 状态迁移，也不要求同一节点的新旧 Render 同时运行。
+
+```text
+Serving → PackageReady → Draining → Quiesced → Upgrading → Verifying → Serving
+                                               ↘ Rollback / MaintenanceFailed
+```
+
+1. 节点继续服务时下载完整包，完成签名、产品/发行、依赖、磁盘空间和回滚条件检查；准备失败不进入维护。
+2. 准备好后进入持久化 Draining 状态，Console 停止向该节点分配新的实例和会话，节点本地也执行相同准入门禁。
+3. 已有用户继续使用；断线用户在既有重连宽限内仍可回到原 Session。排空不强制踢用户、不缩短 Render 现有退出宽限。
+4. 等活动用户为零，并确认既有重连保留、正在建连/启动的预约和依赖本次 runtime 的文件任务已结束或按既定策略安全完成。
+5. 原子封闭准入进入 Quiesced，再次核对节点真实状态。晚到 Start/Attach 根据维护代际拒绝，不能在零用户检查与停止之间插入新会话。
+6. 按各模式既有生命周期停止无人使用的旧 runtime，升级受影响组件并启动健康检查。常驻桌面 Render/允许回收的预热实例不必永远阻塞升级。
+7. 验证成功并上报新版本/健康后才恢复调度；失败按 schema/版本条件回滚，恢复失败则保持维护状态，禁止带病重新接客。
+
+“无用户”以逻辑 Session 和节点确认的使用状态为依据，不能只看 Console 在线数或某条 Socket；心跳丢失、网络故障及瞬时连接数为零都不是空闲证据。
+如果控制面或节点状态无法确认，暂停激活并保留当前服务，不猜测已经排空。重启后的节点先恢复维护任务和准入门禁，再决定是否接收新请求。
+空闲云游戏/WebView 实例按已明确的生命周期回收；配置要求保留且不能安全停止的实例仍需维护处置，不以零在线用户为由任意清理应用。
+RDP Workspace 的 Windows Session、账号、Profile 和工作区应用始终保留，只停止/更新 Render 或代理运行时。
+
+多节点平台按可用容量逐台执行，其他节点继续接新用户；单节点私有部署在升级窗口内暂时不可进入新会话，UI 明确显示维护状态。
+有用户长期不退出时可延后或取消，管理员强制维护另走显式中断流程。后台准备包不等于必须立即让所有节点一起排空。
+
+### 6.2 私有 Job 与后续监督权移交的边界
+
+现有安装器会停止 Service 并结束 Render 等进程；当前不能报告支持热升级。
+Game Hook 的现有私有 Job 使用 kill-on-close；关闭最后一个 Job 句柄可能结束任务内进程，不能先停 Render 再承诺游戏保留。
+首版按第 6.1 节等待用户及既有使用保留结束，再停止允许回收的 runtime，更新 Service/Render/CEF；涉及驱动则仍按维护和重启要求处理。
+普通升级不回收不属于本次实例的程序；仍保留私有 Job 成员关系 AND 规范完整路径的准入条件。
+
+后续若做 Service 无中断升级，必须先设计可验证的监督权移交或稳定的每实例 supervisor：从创建时就持有 Job/进程身份与私有控制通道，
+移交受认证且双方确认，失败仍由旧 owner 负责。该方案需单独评审和故障测试，绝不按 PID、端口或 exe 名称接管现存进程，
+也不能为升级取消 Job 约束。不能更新稳定 supervisor 本身而继续宣称这次升级无中断。
+
+### 6.3 Relay 冗余容量与单实例维护窗口
+
+用户确定：没有可用的替代 Relay 容量时，提前公告升级维护时间段，采用明确的短时中断和恢复流程，不承诺无感升级。
+判断依据是可承接流量的带宽、吞吐、连接容量及故障范围，不只是机器数量。多台都满载同样不能无损接替；
+同机不同端口的新旧实例仅在资源足够且不涉及整机重启时可作为软件升级方案，不能当作整机故障冗余。
+
+有替代容量时，新版检查通过后由 Broker 接新会话，旧版停止新 allocation 并服务既有会话直到排空。
+容量不会自动迁移已有连接；超过排空期限的用户需要预告后的受控重连，活动路径迁移仍是后续专项。
+
+单 Relay 或无替代容量时执行：
+
+1. 提前公告维护开始时间、预计结束时间、时区、受影响 Relay/连接类型，以及中转连接会断开的事实；维护任务在 Console 持久化。
+2. 完整包提前下载校验，检查回滚条件和恢复预算；准备失败则延期并更新公告，不先断开用户再下载。
+3. 维护开始时，Broker 和 Relay 一起关闭受影响范围的新 allocation 准入；到已公告的中断时点通知并断开剩余中转路径，再停止旧 Relay。
+4. 客户端收到类型化维护状态和建议重试时间，显示“服务器维护中”，暂停高频重试；临近恢复时使用有上限的退避与抖动，避免重连风暴。
+5. 激活新版并验证认证、allocation、通道转发及健康，再恢复分配。有效且未被主动停止的 Session 可重新认证并恢复，必要时分配新的 allocation generation。
+6. 升级失败按已验证条件回滚；恢复时间超出预计时更新维护公告，保持准入关闭，不能仅因进程启动就宣告恢复。
+
+通知和维护状态由 Console/Broker 提供，不依赖已经停止的 Relay 发送；错过推送、维护期间才启动的客户端也能查询。
+节点/客户端仍须核实会话授权、撤销和有效期，不能凭维护标志恢复已停止、已撤销或超期会话。
+仅升级 Relay 且其他组件正常时，不主动断开已建立 Direct 会话；需要回退到该 Relay 的新路径在维护期间仍可能不可用，UI 应准确说明范围。
+
+Relay 维护只停止传输，不向节点发送 StopInstance 或 Windows logoff。它仍可能触发现有的最后客户端断开计时：
+升级、验证、必要回滚和重连的总预算必须与各会话现有授权宽限及 Render 断线保留期限核对，不擅自延长或绕过既有超时行为。
+超出保留期限时不能保证云游戏/临时应用恢复原实例；必须延期、缩小维护范围，或提前明确告知实例可能结束，不能承诺一定保留。
+RDP 的 Windows Session、账号、Profile 和工作区应用继续保留，即使 Render/代理已经按既有超时退出，重新授权后也应重新附着原工作区。
+
+按当前 `src/px_render/rd_app.cpp` 的 `MsgClientDisconnected` 分支，不能把所有应用模式一律解释为 5 秒退出：
+
+| 模式/路径 | 维护中断的明确产品结论 |
+|---|---|
+| Game Hook | 启动保护已结束、曾有确认客户端、最后受跟踪客户端断开且 5 秒内无客户端恢复时，原 Render/本次私有 Job 应用结束；之后只能按业务流程新建，不称原实例恢复 |
+| RDP | 同样满足最后客户端 5 秒退出条件时，Render/代理退出；Windows 会话、账号、Profile、工作区应用保留，重新授权后启动运行时附着原工作区 |
+| WebView | 当前断开分支失焦/暂停激活后返回，不走上述 5 秒退出分支；单独验证其生命周期，不据此承诺无限保活或完全无影响 |
+| Direct 未受影响、仍有其他客户端，或冗余 Relay 自然排空 | 不满足上述最后客户端断开条件，不因维护公告主动结束实例 |
+
+当前启动保护与最后客户端宽限不同；宽限内新客户端恢复会取消退出。预检按实际模式/客户端状态展示影响，
+无法保证在期限内恢复的单 Relay 维护必须告知 Game Hook 原实例会按条件结束，而不是统一显示“稍后无损重连”。
+不为掩盖升级中断而修改既有宽限；P5/P6 分别验证小于/超过期限、其他客户端仍在线、WebView 分支与 RDP 工作区保留。
+
+## 7. 版本、数据与安全更新协议
+
+### 7.1 两种“兼容”明确分开
+
+本次全新开发不提供旧数据迁移、旧协议/配置/接口兼容、适配层或 fallback。建立新基线后，未来滚动升级仅针对正式发布的新系统版本，在明确窗口内验证当前与上一条已发布协议代际共同运行；不能借此恢复旧开发版兼容。
+这里的 N/N-1 指公布的协议代际，不是每次编译自增的产品 patch 号。每次发布列出精确可升级版本、最低客户端、协议和 schema 范围。
+不满足范围则阻止新会话并提示更新，或明确安排维护窗口；不能默默猜测字段、降级安全或永久保留旧实现。
+跨破坏性协议/schema 代际升级不承诺在线完成。若不允许任何未来版本共存，商业发行只能采用停机同步升级，无法提供滚动升级承诺。
+
+### 7.2 数据迁移和回滚
+
+- 对业务和授权 schema 使用扩展 → 回填 → 切读写 → 后续版本收缩；首次升级不删除旧版本仍需的数据。
+- migration 具有版本、单 owner 锁、进度检查点和幂等重试；禁止多个实例启动时同时迁移。
+- 备份包括业务库、配置、数据库 deployment UUID、密钥恢复材料、授权记录与必要文件，并验证恢复到独立环境。
+- 数据库备份和引擎升级按 [PostgreSQL 方案](postgresql_database_migration_plan.md) 实施：基础档小时 24/日 7/周 4/月 6，
+  生产档使用 pgBackRest 依赖链与连续 WAL，不把逻辑导出当作 PITR，也不把数据库引擎升级混成应用 schema migration。
+- 代码回滚仅限旧代码仍支持当前 schema 的窗口；越过收缩点后采用前向修复或计划停机恢复，不能自动倒灌快照覆盖新业务写入。
+- 恢复点、可接受数据损失与暂停写入窗口在升级任务中明确。升级暂停不计为云应用业务空闲，不误触发实例清理。
+- 软件版本允许的回滚与安全序列/授权 epoch 分开：回退程序不得回退撤销记录、信任根或安全防回滚下限。
+
+### 7.3 更新源与签名
+
+Official 使用官方更新源；Customer 使用私有平台管理员批准的更新源或离线包，不自动请求官方业务或更新服务器。
+客户管理员可以手动取得 Pixels 签名包并导入内网镜像。制品来源与平台业务身份分开，镜像地址不改变制品发行属性。
+Customer 更新元数据来自当前私有平台的可信发布策略，但执行文件仍须通过 Pixels 发布签名；私有管理员不能靠重新签描述跨 flavor 装包。
+OEM 只使用对应 `oem_id/release_namespace` 的 OEM 更新仓库、离线包和独立 TUF 根。即使 Pixels 官网存在更高版本，OEM 客户端也不得查询、
+展示、下载或安装；OEM 仓库不可发布 Official/Customer 或另一 OEM 的目标。OEM 是否由 Pixels 代运维更新仓库不改变该信任域，托管服务也必须
+使用 OEM 独立域名/命名空间、密钥、审批和审计记录。
+不恢复已归档的旧 `px_updater` 服务，更新器是有明确权限边界的新模块/辅助进程。
+
+发布清单至少包含：product、distribution、OS/arch、版本/build ID、安全序列、SHA-256/大小、发布者、协议/schema 范围、
+依赖组件、最低更新器版本、重启要求、回滚条件、到期策略和签名 key ID。
+采用经过审查的更新框架/库实现信任根轮换、元数据一致性、防回滚/冻结；不能只把 MD5 换成 SHA-256 就声称安全更新完成。
+离线包使用明确的离线维护元数据有效期及信任根轮换链，不永久关闭元数据有效期检查。
+首次发行信任根内置，后续根轮换由既有根授权；HTTPS、包摘要与操作系统代码签名各自验证。
+
+离线 `px_update_authority` 已提供新根和不可变候选仓库的生成基线：初始 root 强制 2–5 把 root key、门限至少 2，targets/snapshot/timestamp
+使用三把彼此及 root 均不同的角色 key；日常发布不接触 root 私钥。追加发布先验证旧仓库元数据及每个历史目标字节，三个角色版本自动递增，
+target name 不可复用；候选目录完整自验后一次提交并记录 `publication.json`。该工具不直接写线上目录；正式部署仍必须在独立临时位置同步，
+按 targets、targets/snapshot、最后 timestamp 的顺序原子切换，并保留上一份可验证候选用于回退。root 轮换和线上发布执行器仍须单独验收。
+Windows 发布先由 `prepare_windows_update_release.py` 使用外部审批 signer pin 调用独立安装器验证器，再从真实 manifest/制品生成不可变 target name
+和 ReleaseSpec；不允许人工抄 product/distribution/build、摘要或证书固定值后直接进入 TUF 签名。
+
+root 轮换工具现强制 `N+1` 版本、晚于当前 root 的到期时间和旧/新两套门限交叉签名，并在落盘前分别用当前 root 与新 root 验证。轮换文件必须
+以版本化 root 元数据先行发布并等待客户端信任水位推进；旧 root key 的撤离是后续独立审批动作。追加候选已能验证上一仓库的连续 root 链，
+仅接受相同 root 或经旧/新门限授权的 `N+1`，保留全部历史版本化 root，并从最早保留根重新加载候选。
+
+本地/挂载式静态源站已有 `promote-filesystem`：它要求候选审计清单的带外审批 SHA-256，首次整目录原子提交，后续强制精确下一代版本和历史对象
+不可变；持久 journal 支持在 targets、root 或非 timestamp 元数据切换中断后用同一候选续跑，最终始终以 `timestamp.json` 为客户端可见提交点并在
+完成后重新验证整库。执行器不内置云厂商凭据、SSH 传输或 CDN 刷新；公网使用时在源站主机或受控挂载目录执行。对象存储原生条件写、版本保留和
+CDN 缓存失效适配仍是选定正式基础设施后的部署层任务，不能把普通多文件上传声称为原子切换。
+
+Console 发布登记同时要求源站 `publication.json` 的精确 SHA-256，并把它和 ReleaseSpec 一起纳入 `request_id` 幂等摘要及不可变数据库事实。
+同一请求不能在保留制品字段时偷换仓库代际，runtime 也无权改写该固定值；审批/撤回事件因此可追溯到具体已发布候选。该摘要是审计绑定，不能替代
+客户端对 TUF 元数据、目标文件和平台代码签名的独立验证。
+登记请求由 `px_update_authority prepare-console-registration` 从无 pending journal 的已完成源站导出；它重新验证整库并排他写文件，操作员不抄写
+ReleaseSpec 或 publication SHA。生成请求不自动调用 Console、更不自动 approve，管理身份、变更审批和审计责任仍留在 Console 管理流程。
+
+当前实现基线使用 `tough` 的 TUF 1.0 客户端。Console 的已认证节点连接根据节点登记产品与 Console 许可证发行类型在服务端派生
+`product/distribution/stable/windows/x86_64`，节点只提交当前 build 和上一轮实际 TUF 验签事实，不能传入或降级目标维度。目录在存在最新已审批发布时
+始终返回其仓库代际供元数据/root 刷新；只有 build 严格更高时才额外返回安装 offer。
+最新版本处于 pending/withdrawn 时不回退到更旧版本。发布记录保存 `metadata_base_url`、`targets_base_url`、`target_name`、目标大小、
+SHA-256 和平台签名证书 DER SHA-256，不保存可绕开 TUF 的直接制品 URL。Windows/Android 发布必须提供平台签名证书固定值，Linux 发布
+必须为空；该字段进入发布内容摘要、PostgreSQL 约束和审批记录，不能在节点下载后临时补写。
+
+Cloud Node/Remote Service 从安装目录 `resources/update/root.json` 读取独立分发的初始可信根，按安全到期策略验证 root/timestamp/
+snapshot/targets、元数据大小上限与持久 datastore 防回滚状态。TUF target 的 `pixels` 自定义元数据必须逐项绑定 schema version、
+产品、发行类型、渠道、OS、architecture、build、版本与平台签名证书固定值；其目标大小和 SHA-256 还须与 Console 审批事实一致。下载只进入受控
+`.pending` 目录，复核内容后原子提交到 prepared 目录；残留暂存、符号链接/Windows reparse point 或任何不匹配均 fail closed。
+当前节点首版已实现“发现 + 验签 + 完整包暂存 + 本地空闲复核 + Console 激活租约 + SCM 完整包覆盖 + 本机协议健康 + Console 精确 build
+提交 + 失败回滚”。激活记录由机器 DPAPI 保护，安装器和回滚包均绑定精确 SHA-256、发行身份和各自审批的签名证书 DER SHA-256；runner
+不仅要求 Authenticode 链有效，还从 WinTrust provider chain 取得实际签名者证书并精确比对固定值。新包使用 TUF/Console 审批固定值，旧包
+使用当前已安装产品清单固定值，因此证书轮换不会把“任意有效代码签名”误当成批准发布者。更新缓存只允许
+SYSTEM/管理员访问，人工安装、自动升级、回滚和卸载使用同一个全局互斥锁。prepared 不会直接显示为 installed：新 Service 必须先完成
+产品清单和本机 WebSocket 健康检查，再向 Console 上报精确目标 build 并以原 task/lease 提交。尚未完成的是使用正式签名 Official/Customer
+新旧安装包进行真实 SCM、断网、安装失败和回滚失败故障注入，因此商业发行验收仍保持未通过。
+上述完整消费者、水位和运维接口当前只覆盖 Cloud Node/Remote Service。Panel 的检查更新仍是部署包管理提示；Windows Client 尚未实现独立消费者。
+Android 已完成第一段目录边界：`GET /api/console/updates/latest` 不接受查询参数且只接受 Android 会话，Console 从已验证许可证派生
+`android + 当前 distribution/release_namespace/oem_id + stable + android/aarch64`；Android 再以编译身份逐字段校验响应和不可变 target 路径。
+Android 构建也已强制内置审批初始 root，运行时独立验证 Ed25519 key ID、root 自签门限、顶级角色密钥隔离、版本和到期时间，OEM root 摘要须匹配 profile。
+连续 root 轮换的密码学内核也已实现：只接受 `N+1`，候选 root 必须同时满足当前 root 角色门限和候选 root 自签门限，单边授权、版本跳跃及签后篡改均拒绝。
+当前可信 root 及其最高版本已按 Android 发行域由 Keystore AES-GCM 保护并原子持久化；损坏、跨发行状态或保存失败均 fail closed，APK 内置根前进时也必须
+从已保存根完成精确 `N+1` 验证后才能提交。在线路径现按版本连续刷新 root，再验证 timestamp/snapshot/targets 并原子推进元数据水位；目录或元数据通过
+仍不能作为已升级证据，后续消费者也不得自行选择或回退维度。
+
+timestamp/snapshot/targets 的纯验证内核已完成第一段：三个顶级角色分别使用当前 root 授权 key 验签并校验有效期，timestamp→snapshot→targets
+逐层绑定精确版本、长度和 SHA-256；最终 signed target 必须与 Console 已审批目录的 target path、build、版本、大小、摘要、APK 签名者和完整 Android
+发行域逐项一致。三个角色的最高版本和对应完整元数据 SHA-256 已与 root 水位在同一 Keystore 保护状态内原子提交，任一角色降版或同版本换内容均拒绝；
+保存失败不会推进内存状态。Android 检查更新现已先通过受限 HTTPS 执行器逐版本获取 `${N}.root.json`，再获取 timestamp/snapshot/targets；执行器禁用
+重定向/缓存/压缩，限制超时和 1 MiB 响应，任何下载或信任失败都不会向 UI 返回未经验证的 release。只有本进程刚完成上述验证的精确 release ID 才能进入
+APK 下载；下载使用同源 HTTPS target 路径、禁用重定向/缓存/压缩、要求精确 Content-Length，并边写入应用私有临时文件边验证 TUF 固定的长度和 SHA-256，
+通过后才原子提交到 prepared 目录，失败和摘要不符均删除临时文件。prepared APK 随后由 Android PackageManager 读取归档身份，只接受精确的当前
+applicationId、Console/TUF 固定的 versionCode/versionName、单一当前签名者证书 SHA-256，且候选 versionCode 必须严格大于当前安装版本；任何不匹配都会删除
+prepared 文件。进入 PackageInstaller session 时再次流式核对 APK 长度和 SHA-256，写入完成并 `fsync` 后先用独立 Keystore 密钥持久化精确 release/build/hash/session
+记录，再提交给系统安装器；普通 Android 设备明确进入系统用户批准，不尝试绕过平台授权。回调按 session ID 收敛等待批准、成功或失败，新进程只在自身
+versionCode 等于目标 build 时把记录推进为 installed；损坏状态、活动 session 重入和低于已安装水位的回退均 fail closed。设置页对登录用户提供检查更新入口，按
+明确状态展示仓库检查、可用版本、下载验证、系统安装提交与失败结果；退出账号或更换 Console 会清除会话关联的候选 UI 状态。尚未完成正式签名 APK 真机安装
+结果回读和公网正式仓库端到端实测，因此代码级 installed 记录仍不是正式发行验收证据。
+
+设置页不再只保留点击提交时的进程内状态：ViewModel 初始化及 Activity 每次恢复前台时都会重新读取 Keystore 保护的安装记录，把 Submitted、等待系统批准及
+已应用待新进程确认统一显示为已提交，把平台失败显示为失败，并在新 build 启动完成 reconcile 后显示为当前版本。未登录页面不展示 release ID、build 或失败状态，
+但不会清除仍由 PackageInstaller 管理的全局安装事务；重新登录后再呈现其真实状态。该行为已由全模块 JVM 回归和 Android Lint 覆盖，正式签名相邻 APK 的批准、
+拒绝、成功、失败及重启结果仍必须在真机矩阵中验证。
+
+节点重启后的本地激活状态必须先于首次可调度状态上报完成收敛。有效租约内的 `authorized/applying` 一律阻断节点接客；租约过期的
+`applying` 只有在本机产品清单仍是精确旧 build 或已是精确目标 build 时才可清理。`installed` 必须与目标 build 一致；普通安装失败必须
+证明已经回到精确旧 build 才可报告并解除维护。`rollback_failed`、未知 build 或任何终态/产品清单矛盾均保留受保护记录并进入
+`RecoveryRequired`，即使 Console 已收到失败终态也不得把节点重新投入调度。当前执行器的成功、安装失败回滚、回滚失败、暂存包篡改、
+授权过期及上述重启收敛已由本地行为测试覆盖；这不替代正式代码签名安装包和真实 SCM 的实物故障注入矩阵。
+
+Windows 正式发行链现要求构建机证书存储中的明确代码签名证书，并同时固定 SHA-1 选择值和审批 SHA-256 指纹；不接受把 PFX 密码放入
+构建命令。清理/升版前验证私钥、代码签名 EKU、证书有效期、HTTPS RFC 3161 时间戳、SignTool 和固定 NSIS 版本。Pixels 自有 PE 在生成
+制品清单前签名，NSIS 3.12 在生成阶段签名卸载器，最终 Setup 再签名；三层均独立核对签名状态、审批指纹和时间戳。安装器已改为直接封装
+严格校验的 dist，退役旧 `Nsis7z`/`nsProcess` 与额外压缩层。正式证书尚未提供，所以该链目前只完成软件门禁、工具实编和缺输入失败关闭，
+仍不得把语法构建或旧的未签名安装包计作正式签名实物矩阵。
+
+安装包生命周期矩阵已有正式执行入口 `scripts/validate_windows_installer_lifecycle.ps1`。调用者必须从外部指定目标 product/distribution，默认
+只读预检两个版本目录：要求 schema 2、同产品、
+同发行、版本严格递增，并独立验证 Setup 的内容摘要、Authenticode 和时间戳。旧/新证书 SHA-256 都是外部必填输入：未轮换时两值相同，
+证书续期时分别传入经审核的旧/新固定值；相邻 manifest 的自我声明不能批准签名者、轮换、产品或发行。只有显式
+`-ExecuteLifecycle`、管理员权限和三产品/`px_service` 全部不存在的干净专用 Windows 验收机才能进入变更阶段；顺序固定为旧版安装、升级、
+同版覆盖、卸载。每个已安装阶段重新核对 payload manifest 摘要、精确文件集、全部 artifact hash、自研 PE/Uninstall 签名、注册表版本和
+Service 边界，失败保留现场和阶段报告，不自动清理后掩盖问题。六组 product×distribution 的正式报告及更新执行器的断网/安装失败/回滚失败
+注入仍需真实批准证书和候选包；当前代码与单元测试就绪不等于实物矩阵已通过。
+每组执行还可传入同发行的另一产品正式包：先安装冲突产品，断言目标安装以 1638 拒绝且冲突产品内容完全未变，再卸载；随后创建不启动的
+受控 `px_service` 注册探针，要求目标安装再次以 1638 拒绝。探针只在注册身份未被改变时由执行器清理，避免错误覆盖后误删真正的产品服务。
+
+Windows 软件组合验收 `pg-20260920-151630-d92d153c` 已以 449/449 个登记检查 PASS 覆盖更新目录/激活、节点控制、三个 PostgreSQL
+产品服务、生产前端与真实 Chromium、进程重启/断库恢复及三库 dump/restore 后的数据和结构对账。该结果关闭本轮实现的本地组合回归，
+但不把测试生成的 TUF 仓库、NSIS 语法编译或 development Service 制品冒充正式签名 Official/Customer 安装升级矩阵。
+
+当前 release catalog、Desk/Console PostgreSQL 发布目录、TUF `pixels.target` 元数据、Auth `PXLIC2`、Console 和节点产品描述符均已实现
+严格 `oem_id/release_namespace` 字段，Desk 能保存不同 OEM 的同构建号版本，Console 运维页能显示命名空间。OEM 非秘密发行描述
+前置门禁已绑定品牌/安装身份/签名者/独立根；Windows CMake、dist、NSIS、installer verifier 和 TUF ReleaseSpec 消费同一 profile，并以共享
+owner 记录保持所有产品/发行互斥。Windows OEM 候选入口现已逐产品串起独立清理、升版、Web/RDP/C++、安装器签名和安装包复核；OEM 包仍不得使用
+现有 Customer 构建入口冒充交付。Web 和 Android 包身份已接线，Android 运行界面/Splash/launcher/通知及 Windows 原生 Panel/Client 窗口、托盘、
+文案、运行 Logo 和 PE 品牌也已参数化。OEM Host 的 Service 描述符、激活记录、安装后身份复核和回滚缓存均已绑定精确 OEM/profile 身份。
+代码验收已证明发布权威能签发精确 OEM target，Service 能验签并准备该 target，且同制品被替换成另一合法 OEM 身份时会在安装前失败关闭；
+Console PostgreSQL 发布目录也已通过 OEM A/OEM B 同产品、同平台、同通道、同 build 并存及精确查询隔离的空库实测。P0 后续
+仍必须使用审批后的独立根/角色密钥完成正式 TUF 发布、Console 登记/批准、正式包节点激活实测和跨发行实物验收矩阵，再允许第一份全产品 OEM 商业交付。
+发布权威不能只信任上游生成器：签名前必须从 ReleaseSpec 独立派生
+`os/product/distribution/[oem_id/]channel/architecture/build/file`，并逐段匹配 target name；任一维度错位均不得创建候选仓库。
+追加发布还必须先验签历史仓库内每个 target 的 Pixels 身份，并要求全部历史 target 与新发布具有完全相同的
+`distribution/release_namespace/oem_id`。仓库可在同一发行域内服务多个产品，但不能通过追加操作逐步混入另一个 OEM 或 Pixels 发行。
+promotion 是独立门禁，不能假设候选必由本仓库 authority 生成；上线前必须再次执行相同的不可变路径和全仓发行域校验。
+不可变路径派生属于共享 release catalog 契约，authority、promotion 和各安装消费者必须调用同一实现。Windows Service 在接受 Console offer 与下载准备
+两个边界都执行该校验；Android 目录消费者已按相同分段顺序和发行域语义执行第一道校验。后续 Android TUF/安装边界及 Client 消费器仍必须再次执行，
+不能只把 target name 当普通安全相对路径或把目录校验冒充 TUF 验签。
+Desk 发布和 Console 登记同样在数据库写入前执行该契约，Console 从数据库重建 UpdateRelease 时再验一次；错误维度不得先进入目录后依赖下游兜底。
+
+下载可恢复，完整包先验证再解压；防路径穿越、链接逃逸、超大解压、符号链接/重解析点替换和校验后替换。
+高权限安装辅助进程只接受受保护的已验证 staging 及类型化任务，不执行 UI/服务器传来的任意命令或任意路径。
+更新任务采用持久单实例锁，防自动更新与人工安装同时修改产品；本地中断、断电和磁盘满均可恢复或明确失败。
+首版只发布完整包；差分更新后续再做，不改变每次完整构建和完整签名校验要求。
+
+### 7.4 更新状态机与目录
+
+```text
+Check → Download/Import → Verify → Preflight → Stage → Backup/Migrate
+      → Drain → Activate → HealthCheck → Commit → DeferredCleanup
+                                  ↘ RollbackAllowed / RecoveryRequired
+```
+
+每一步记录 task ID、安装身份、旧/新版本、schema、快照、进程代际和失败原因。断电后先对账，再继续，不简单重跑删除目录。
+此为逻辑状态序列；只有兼容性的在线扩展迁移可在 Drain 之前执行，破坏性迁移必须先停止新写入并排空，在维护窗口中进行。
+Windows 使用受保护的版本目录及 launcher/SCM 的已验证激活记录，更新器不覆盖自身正在运行的文件；活动进程退出前不删除对应版本依赖。
+业务数据、日志、许可证和部署配置放稳定数据根；版本目录不承载客户唯一数据。Linux 容器使用固定 digest 与独立数据卷。
+具体安装目录与 registry/包身份在 P0 定稿，升级的启动器/更新器自身也要有独立维护路径，不能循环依赖。
+HealthCheck 同时验证进程、协议、数据库、授权和代表性会话；端口监听成功不足以提交升级。
+清理仅作用于受控的非活动版本；保留上一可回退版本和任务记录，不递归删除整个产品数据根。
+
+### 7.5 升级顺序
+
+每个套件发布生成并验证依赖图，不能永久写死“总是服务端先升级”。常见的可共存发布顺序为：
+扩展 schema → 启动支持新旧协议的服务端组件 → 验证并切入流量 → 升级访问端/节点 → 排空旧 runtime → 后续版本收缩 schema。
+节点上的旧 Render 只能在声明的协议/安全支持窗口内保留；到维护截止仍活跃则延期或管理员明确结束，不能后台无限运行已失效安全版本。
+客户端升级失败不会自动升级服务器；私有管理员可固定版本和维护时间，并看到哪些节点阻止了整体升级。
+
+### 7.6 Windows 服务端 A/B 升级实例契约（P5）
+
+- 逻辑服务 ID 保持稳定，SCM 实例名为 `Pixels.<Console|Broker|Relay>.<deployment_short_id>.<A|B>`；
+  deployment 短 ID 必须经登记确认无冲突，显示名包含产品/部署/槽。执行器使用登记的精确服务名和进程创建身份，不按进程名扫杀。
+- 两槽各有内部监听端口，部署清单登记并在创建/激活前检查冲突；不得共同绑定同一端口或探测旧固定端口。
+  Console 稳定公网入口由独立受监督的反向代理持有，转发到当前槽的受限内部地址；API/管理 WS 切换允许断线并对账。
+  Broker/Relay 原始协议端口按各自描述发布独立地址/端口，保留旧槽直至排空，不能假定 HTTP 代理移交媒体 Socket。
+- 每槽独立版本目录、运行目录、日志、临时文件及不可变配置 revision；共享的只有明确声明的业务数据库和稳定数据库 deployment UUID。
+  凭据由受保护存储按最小权限提供；任务状态和激活清单在独立执行器的稳定数据根，不放待替换版本目录。
+- 新槽先以被动模式验证 readiness/schema/配置，不执行调度、outbox 或同作用域后台任务；旧 owner 停止新派发后，
+  通过 PG 持久 owner 租约和更高 epoch 接管。节点必须确认新代际/拒绝旧代际，未对账节点暂停新调度；再切入口并排空旧槽。
+- 失败切回也申请新 epoch，绝不恢复旧 epoch；验证旧二进制仍支持当前 schema，重新完成节点/任务对账后才开放。
+  不能安全回退则保持维护并前向修复。代理或执行器升级独立维护，不能依赖正在停机的 Console 自救。
+- P0 冻结命名/端口/ACL/目录清单，P4 交付单槽可恢复安装，P5 验证双槽并存、重启、切流断电、旧命令晚到、端口冲突及失败切回。
+  这是服务端同产品的升级槽，不放开 Windows Client/Remote/Cloud Node 三种产品的互斥安装规则，也不允许活动节点 runtime 双版本收养。
+
+## 8. 可观测性与商业验收基线
+
+服务管理职责、统一 Console 后台、每个组件的页面字段/操作、状态新鲜度及 Console 故障恢复见
+[服务管理与运维后台计划](service_operations_console_plan.md)。交互网页提供相应页面原型，不执行真实运维动作。
+
+云应用的机器/逐 GPU 候选、资源预约、实际 GPU 绑定及 RDP owner 亲和见
+[云应用业务管理与多 GPU 调度](cloud_application_scheduling_plan.md)。排空与新预约/Start 共用节点准入互锁，
+失联或租约超时不释放可能已运行的占用；升级门禁必须包含未决预约和启动任务。
+
+- 结构化日志关联 deployment/session/request/instance/path/update task，禁止输出口令、token 或完整证明材料。
+- 控制面与数据面分别提供健康、就绪、排空状态；升级期间不因暂时失去控制面心跳删除仍在运行的工作区。
+- 云节点 Service 直连 Console 的管理长连接与 Broker 会话信令连接分别监控；报告来源、时效和恢复规则见
+  [运维后台计划第 6 节](service_operations_console_plan.md#6-状态指标和事件如何进入后台)。Console 升级重连不得误判节点空闲或丢失预约。
+- 显示在线节点、会话、Relay 使用量、带宽、拒绝原因、版本分布、升级进度、证书/许可证期限。
+- 配额和限流由服务端执行；用户、节点、角色之间越权以及 private/official 凭据互用必须拒绝。
+- 记录可复现容量基线：硬件/OS、codec/分辨率/码率、并发模型、网络、版本和负载脚本；不凭静态连接数宣称容量。
+- P0 定义公网与私有单机各自的连接成功率、p95/p99 建连耗时、允许画面停顿、升级耗时、RTO/RPO。没有实测前不承诺可用性百分比。
+- 故障场景包括 Console/Broker/Relay 单独及组合故障、撤销期间断网、重连风暴、磁盘满、证书过期、数据恢复和升级断电。
+- 验收分层记录：逻辑 Session 是否保留、信令是否断开、媒体停顿多久、输入是否重复/丢失、文件是否校验一致、Workspace 是否完整。
+
+## 9. 实施阶段与完成条件
+
+执行本表时同时遵守[逐步开发与测试门禁](server_incremental_validation_plan.md)：每个增量先定义不变量和用例，再实现并留证；阶段交付须通过真实环境的必测项。第 8–11 节定义后续 P 阶段、客户端和商业发布验收，不以构建或模拟页面通过代替功能验收。
+
+所有阶段目前为待实施；不得把计划表当作完成清单。主顺序：必要 P0 契约 → DB0–DB5 → P1/P2 → P3 → P4 → P5/P6 → P7，P8 后续。
+DB0–DB5 的细分工作与门槛见 [数据库前置阶段](postgresql_database_migration_plan.md#9-前置执行顺序与完成条件)；
+DB-HA 可在数据库基线后与 P 阶段推进，但必须在自营公网/私有 HA 商业发布前通过。
+
+| 阶段 | 主要任务与产物 | 完成门槛 |
+|---|---|---|
+| P0 合同与基线 | 冻结标准 HTTPS 入口、注册/登录、Grant/epoch、错误码、升级清单/版本窗；盘点当前签名、安装和授权；确定中断预算 | 可评审协议样例、威胁模型、状态机、迁移/恢复步骤；参考源码缺失已解决或替代方案明确 |
+| DB0–DB5 数据库优先 | PostgreSQL 新模型/事务、Console/Auth/Desk 持久化、空库初始化、自动备份与恢复、功能回归 | 无 Mongo 数据导入或产品依赖/双写/fallback；并发和故障不假成功；新环境完整功能及备份恢复通过 |
+| DB-HA 高可用专项 | PostgreSQL 主备、Patroni/协调多数、读写入口、同步策略与旧主隔离 | 单主故障/分区/回归验证；RPO/RTO 实测，不能以三进程同机宣称容错 |
+| P1 发行与配置 | 四个产品 × 两种发行构建；各产品版本规则；Windows/Android 入口与安全存储、平台切换、Host 归属 | 完整包身份/hash 正确；官方与两套私有平台验证同名账号/同 ID 隔离；凭据不串平台 |
+| P2 Console 与授权 | 在当前 Rust 单体划业务/连接边界；账号/ACL、许可证、持久 Grant/outbox、幂等、撤销与 epoch | 重复 Start 不创建第二实例，旧回执不覆盖新代际，重启/备份恢复不复活撤销授权 |
+| P3 连接服务与资源池 | 拆 Broker/Relay；多 Render/多 Relay 身份、发现、容量门禁和分配；类型化多业务全链路、监控指标 | 公网和私网直连/Relay、多机接入及新容量准入验证；子进程退出不误停 Session；Console 重启不主动断媒体 |
+| P4 私有交付与安全升级 | Server 独立安装包/容器、配置向导、签名导入/更新、离线依赖，将 DB4 备份恢复工具纳入套件 | 干净机器安装、覆盖、同发行升级、拒绝错误包；断公网可独立运行；停机升级失败可恢复 |
+| P5 服务端在线升级 | schema 共存、唯一调度 owner、Console 切流、Broker 恢复、Relay 排空与版本保留 | N/N-1 发布矩阵；不断业务/允许重连分别量测；旧进程排空超时不擅自杀连接；失败切回通过 |
+| P6 节点和访问端升级 | 包预准备、应用分发与版本就绪、按池小批/分批升级、整节点门禁及安全退役；Windows 安装互锁、Android 覆盖恢复 | 排空与 Start/Attach/重连无竞态；剩余容量/失败暂停有效；不误杀 Job 外进程、不注销 Workspace；跨 flavor 包被拒绝 |
+| P7 商业发布 | 安全审查、多 Render/多 Relay 容量/恢复/升级演练、独立监控告警、操作手册及完整制品记录 | 多机与发行隔离矩阵通过，发布经测规模上限；Console 停机可独立告警；未达热升级指标降为维护升级 |
+| P8 后续优化 | 云厂商 API 自动扩缩容、Console 多活、跨地区调度、Kubernetes 适配、活动 Relay 路径迁移等 | 各项独立立项和验收；不包含首版已要求的多 Render/多 Relay、资源池及批量管理 |
+
+P1 的完整在线验收依赖 P2/P3，允许先完成构建和配置框架；P4/P6 的更新基础模块可并行设计，不能拖到发布后再补。
+这里“允许先完成”以数据库优先顺序为前提；不在 Mongo 上先做新授权/调度持久化。数据库备份不再等到 P4 才开始实现。
+为控制范围，P4 是可交付的单机预览里程碑；P7 才是本计划商业首版完成点，首版热升级能力只按第 6 节声明。
+Windows 先功能验收，再 Android；使用配置的公网测试节点及独立私有测试部署，不恢复旧局域网测试地址假设。
+正式阶段交付仍执行各产品完整构建和 SHA-256 校验；规划文档编辑本身不触发编译或部署。
+
+## 10. 必须执行的专项验收
+
+| 场景 | 预期 |
+|---|---|
+| 多 Render/多 Relay 接入、重复注册、应用未就绪 | 节点身份/代际不串用；未验收容量不参与分配，新增容量只接满足条件的新业务 |
+| 多机重连风暴、批量升级失败或剩余容量不足 | 有界队列/退避，关键回执不丢；暂停后续批次，不同时排空整个资源池 |
+| 缩容遇保留工作区、本机存档、未知占用或 Relay 长期用户 | 阻止自动销毁/强制驱逐；有解释、审计和延期/明确维护路径 |
+| Console 停止、监控停止、监控样本过期 | Console 故障可独立告警；监控故障不误停业务，过期图表不变成准入依据 |
+| Customer 填规范官方 origin | 登录/设备注册之前本地拒绝，不泄露账号信息；不宣称识别任意反向代理 |
+| 描述篡改 Broker/Relay/Render 地址 | 会话授权、audience 或角色校验失败；不凭字段或域名外观放行 |
+| 官方服务收到私有 token/节点证书/allocation | audience/deployment/issuer 校验拒绝，不能因 ID 相同放行 |
+| 两个私有平台同账号名/设备 ID，切换时旧请求晚到 | 登录、缓存、文件恢复、UI 和节点归属不交叉 |
+| DNS/TLS 证书轮换 | 系统信任链和主机名验证通过才接受；无跳过证书选项 |
+| 私有部署禁止所有公网出站 | 登录、注册策略、会话、本地 Relay、导入许可证和离线升级通过 |
+| 更新 metadata/包篡改、旧清单重放、错 flavor/arch、路径穿越 | 激活前拒绝；原版仍可启动，记录失败原因 |
+| Console 双实例/迁移并发 | P5 A/B 精确 SCM 身份、独立端口/目录；单一调度 owner，旧命令拒绝，失败切回使用新 epoch；schema 迁移唯一执行者 |
+| Console 失联、撤销丢失、Direct 旁路、时钟回拨 | Broker/Render/Relay 均执行租约；普通最晚 310 秒、严格最晚 40 秒停止访问，重连不延长，RDP 工作区保留 |
+| Broker 重启/owner 迁移与撤销并发 | Session 可在政策内恢复；旧代际和已撤销 Grant 均拒绝 |
+| Relay draining 时已有会话重连/新增文件子通道 | 仍按已有有效 allocation 服务；拒绝新 allocation，不能切断旧业务 |
+| 强制停止旧 Relay | 按维护策略提示中断或执行已验证迁移，不冒称现有 Socket 自动移交 |
+| 单 Relay/无替代容量的预告维护 | 公告可查询，新分配按范围关闭，中转客户端显示维护并有界重试，健康验证后恢复有效 Session |
+| Relay 维护时已有 Direct 会话、或错过推送的客户端 | Direct 不被主动停止；Relay 回退不可用有明确提示；新启动客户端能查询维护状态 |
+| Relay 升级失败、超出预计窗口或会话保留期限 | 更新公告并回滚/保持维护；不恢复已撤销会话，不承诺已超时云游戏原实例仍在，不注销 RDP 工作区 |
+| 活动 Game Hook/WebView/桌面 Render 升级 | 首版延期到排空；禁止杀进程后按端口收养替代 Render |
+| 包已准备、最后用户退出，但重连宽限或启动预约仍有效 | 继续 Draining，允许合规恢复原 Session，不提前停 runtime |
+| 封闭升级门禁与新 Start/Attach 并发，或维护期间节点重启 | 只有一个状态转换结果；晚到请求拒绝，重启恢复维护状态，不能新接用户后再停止进程 |
+| 节点无用户但保留 RDP Workspace 或受保护实例 | 只更新可停止的 runtime；不注销 Workspace，不擅自终止受保护应用 |
+| 多节点逐台升级、单节点维护、升级后健康检查失败 | 遵守容量预算；单节点提示维护；失败节点不恢复调度，安全回滚或留在维护 |
+| RDP 升级及第二前端 | 重连原 Windows Session；账号/Profile/应用保留；busy 策略不变 |
+| 下载/迁移/激活/健康检查任一步断电 | 持久状态可对账；可回滚则回滚，否则明确 RecoveryRequired，不能删除新数据 |
+| Android 同 flavor 覆盖、错误签名/另一 flavor 更新包 | 正常更新保留数据且允许重启；错误包不进入本产品升级流程 |
+
+## 11. 当前证据、限制与参考
+
+本次只读核对基线：Git `b547c0012`。以下是现状观察，不是漏洞利用测试或升级功能验收：
+
+- `src/px_panel/ui_imgui/product/panel_config_store.cpp`：现有网络保存把 Relay 主机设置成 Console 主机。
+- `src/px_panel/ui_imgui/product/product_network_settings_port.cpp`：先保存地址、再用现有设备 ID 查询/注册；需改为平台隔离的事务流程。
+- `src/px_android/feature-settings/.../SettingsViewModel.kt` 和 `core-data/.../AndroidConsoleSessionStore.kt`：已有入口编辑及带 endpoint 的加密会话保存，可作为迁移基础。
+- `rust_server/px_console_server/src/auth/console_auth_pull.rs`：现有在线许可证拉取跳过证书验证，商业交付前必须替换为正确信任链。
+- `rust_server/px_console_server/src/auth/console_auth_manager.rs`：现有流程不接受本地许可证文件，离线导入需新增。
+- `rust_server/px_console_server/src/update/update_info.rs`：旧元数据包含 MD5、地址、版本和 forced，不足以承载本计划签名与发行校验。
+- `setup/make_setup.nsi`：现有升级停止服务、结束进程并重建安装目录，属于停机覆盖安装。
+- `src/px_render/app/win/owned_game_process.cpp`：私有 Job 使用 `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`，升级必须保持其所有权约束。
+- 文档原参考 `E:/source/signaling_server`、`D:/dolit/client_customer_dolit` 及其 `client` 在当前机器不可用；
+  参考库当时含未提交修改，仅 commit ID 不能重建完整调研状态，需取得只读快照与 diff/摘要或重新选定可复现实现。
+
+实现比较与安全设计依据：
+
+- [Prometheus 概述](https://prometheus.io/docs/introduction/overview/)：指标采集与告警，不承担业务预约或容器编排。
+- [Kubernetes 概述](https://kubernetes.io/docs/concepts/overview/) 与 [Windows 容器说明](https://kubernetes.io/docs/concepts/windows/intro/)：编排职责与平台边界；Windows 容器支持不是本项目桌面运行模式已验证的证据。
+- 更新信任根、元数据一致性及防回滚/冻结参考 [TUF 规范](https://theupdateframework.github.io/specification/latest/)。
+
+根轮换发布不能等待下一次产品升版“顺带安装”。每次节点更新检查都返回当前已批准 TUF 仓库描述；Service 在没有新 target 时也刷新元数据，使用持久
+datastore 执行防回滚和安全有效期校验。authority 生成的 Console 登记请求同时固定 `publication.json` 摘要与末端 root version；节点只有实际验签
+达到该版本才回报确认。Console 按节点保存单调信任水位，错误发布身份和倒退报告 fail closed。删除旧 root、提高最小可信根或开始只由新根授权的发布前，
+运维必须以当前应纳管节点集合的真实水位为依据；未知、离线或落后节点不能被成功下发这一事实冒充已完成轮换。
+Console 的 `GET /api/console/managed/updates/{id}/node-trust` 返回当前发行域内的应纳管、确认及未知/落后数量；分母包含未删除的离线和禁用节点。
+只有未知/落后为零且最低确认根版本达标时，才可进入旧根退役的下一道人工审批，接口本身不得触发删除或改变客户端最小根。
+`GET /api/console/managed/updates/{id}/node-trust/nodes` 以 UUID 游标有界分页列出具体节点、状态、禁用标记、最后在线与已确认根；运维后台必须遍历完整分页，
+不可只显示在线节点或以第一页代表全集。
+- 排空需要应用及入口共同参与，参考 [Kubernetes 终止与连接排空说明](https://kubernetes.io/docs/tutorials/services/pods-and-endpoint-termination-flow/)；本计划不要求采用 Kubernetes。
+- Job 最后句柄关闭的行为参考 [Microsoft Job Objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects)。
+- Android 更新要区分下载与安装/重启，参考 [Android 应用内更新](https://developer.android.com/guide/playcore/in-app-updates)；Play 流程不作为私有离线部署的前置依赖。
+
+以上参考仅支撑对应机制。Windows/Android 的具体实现、包身份、数据库迁移与中断指标仍需按阶段实测。

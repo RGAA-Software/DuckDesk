@@ -6,7 +6,6 @@ use axum::{
 };
 use px_auth_store::IssueRequest;
 use px_credentials as credentials;
-use px_license::{Distribution, Product, VerifyContext};
 use rand::RngCore;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -193,57 +192,6 @@ pub async fn revoke(
 ) -> Result<Json<Value>, ApiError> {
     Ok(Json(
         json!({"revision":state.store.revoke(&bearer(&headers)?,id,input.expected_revision).await?}),
-    ))
-}
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Verify {
-    wire: String,
-    deployment_id: Uuid,
-    product: Product,
-    distribution: Distribution,
-    release_namespace: String,
-    oem_id: Option<String>,
-    machine_sha256: String,
-}
-pub async fn verify(
-    State(state): State<Arc<AppState>>,
-    Json(input): Json<Verify>,
-) -> Result<Json<Value>, ApiError> {
-    let now = state.store.database_time().await?;
-    let payload = state
-        .verifier
-        .verify(
-            &input.wire,
-            &VerifyContext {
-                deployment_id: input.deployment_id,
-                product: input.product,
-                distribution: input.distribution,
-                release_namespace: &input.release_namespace,
-                oem_id: input.oem_id.as_deref(),
-                machine_sha256: &input.machine_sha256,
-                now,
-                minimum_revision: 1,
-                last_trusted_time: 0,
-            },
-        )
-        .map_err(|_| ApiError::Unauthorized)?;
-    // The signed wire and all explicit target bindings authenticate this exact consumer
-    // contact. Internal outbox lease IDs remain private; revoked or superseded consumers
-    // still confirm contact before currentness is rejected, then fail closed locally.
-    state
-        .store
-        .acknowledge_consumer_contact(payload.license_id)
-        .await?;
-    let current = state
-        .store
-        .current(payload.license_id, payload.revision)
-        .await?;
-    if current.wire != input.wire {
-        return Err(ApiError::Unauthorized);
-    }
-    Ok(Json(
-        json!({"license_id":payload.license_id,"revision":payload.revision,"verified_at":now}),
     ))
 }
 pub async fn authors(
