@@ -1,8 +1,8 @@
 product = "remote"
 edition = "REMOTE"
 company = "Pixels"
-product_version = "3.3.76"
-product_version_code = 30376
+product_version = "3.3.77"
+product_version_code = 30377
 package_groups = ["desktop_client", "host_common", "rdp_host", "render_common", "browser_remote"]
 
 capabilities = [

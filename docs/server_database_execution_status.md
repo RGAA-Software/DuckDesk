@@ -1896,3 +1896,15 @@ schema 4 development dist；后续执行会先完整验证并复用当前 RDP SD
 通过 SHA-256 和依赖边界验证，
 Panel 隐藏启动 5 秒冒烟通过。该 development 产物不冒充正式安装包；
 完整双发行制品和隔离 Customer 实环境短测仍由 P1/P2-EXIT 负责。
+
+用户随后明确要求执行正式完整构建，P1/P2 的 Windows 双发行制品门禁已关闭。Cloud Node 3.3.79、Client 3.3.75、Remote 3.3.77 均在一次
+产品版本事务中生成 Official 与 Customer；六套 dist 独立复核分别为 314/314、41/41、76/76 件，schema 4、发行身份、依赖边界、精确文件集合
+和逐件 SHA-256 全部通过，旧顶层 `resources/icons/px_icon.png` 均不存在。安装包 SHA-256 为：Cloud Node Official
+`AF3017FD05BC22227DD84AF2513CFB6A33045C477A08F42845913443F12D9D3D`、Customer
+`457CB91CC8B0389D6D90F43436F5038A41A1E512B652A05AFD281D4FEC1187A2`；Client Official
+`D5C0B8AD20B98FDFE7DCBF9ED90D66F59DABA2BEFC6C9CEE9DD0FA7900D5A143`、Customer
+`FA5446D380A05C5D1C2C5016D184EE159644D92B1A359EBAB82075CD5EFBC509`；Remote Official
+`3F0E5E3C5D6784C2BBD33D8A450D7916940B4510BA769885E09E7130467EF043`、Customer
+`3F9D412445E76BCE90F47703ED22BF4E6B611B02AEAC22799F973964A6CBBAE8`。既有 Client 3.3.73→3.3.74 Official/Customer 相邻覆盖升级证据继续有效，
+本次未卸载当前软件重复执行破坏性生命周期矩阵。P1/P2-EXIT 目前只剩隔离 Customer 实环境的登录、目录、启停、额度和跨部署拒绝短闭环；
+在该闭环完成前不把 P1/P2 标记为整体完成。

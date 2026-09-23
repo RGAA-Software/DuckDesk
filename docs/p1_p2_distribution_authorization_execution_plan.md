@@ -148,8 +148,21 @@ development manifest。完整收集复核同时删除了 `artifact_groups.toml` 
 `px_osinfo.exe` 的 build/dist 摘要分别一致，
 development dist 的 Panel 隐藏启动 5 秒冒烟通过。
 
-本轮仍**没有**声明 P1/P2 整体出口完成。按工作区规则，未获明确“完整/正式构建”指令时不运行 `scripts_build/build_official.bat`。
-Official/Customer 完整双发行制品、安装生命周期和隔离 Customer 实环境短测仍属于 P1/P2-EXIT。
+随后按用户明确指令执行了一次 release-only 完整构建。三个 Windows 产品各自只升版一次，并在同一版本事务内同时生成 Official 与 Customer：
+
+| 产品 | 版本 | Official / Customer 文件数 | Official 安装包 SHA-256 | Customer 安装包 SHA-256 |
+|---|---:|---:|---|---|
+| Cloud Node | 3.3.79 | 314 / 314 | `AF3017FD05BC22227DD84AF2513CFB6A33045C477A08F42845913443F12D9D3D` | `457CB91CC8B0389D6D90F43436F5038A41A1E512B652A05AFD281D4FEC1187A2` |
+| Client | 3.3.75 | 41 / 41 | `D5C0B8AD20B98FDFE7DCBF9ED90D66F59DABA2BEFC6C9CEE9DD0FA7900D5A143` | `FA5446D380A05C5D1C2C5016D184EE159644D92B1A359EBAB82075CD5EFBC509` |
+| Remote | 3.3.77 | 76 / 76 | `3F0E5E3C5D6784C2BBD33D8A450D7916940B4510BA769885E09E7130467EF043` | `3F9D412445E76BCE90F47703ED22BF4E6B611B02AEAC22799F973964A6CBBAE8` |
+
+六套 dist 均由独立复核再次通过 schema 4、发行身份、依赖边界、精确文件集合和逐件 SHA-256 校验；`release_namespace` 分别为
+`pixels.official` 与 `pixels.customer`，Windows 签名策略仍明确为 `unsigned`。退役的顶层
+`resources/icons/px_icon.png` 在六套 dist 中均不存在。Client Official/Customer 的相邻版本 3.3.73→3.3.74 覆盖升级已有同日实物证据，
+本批不通过卸载当前软件重复制造相同证据。
+
+本轮仍**没有**声明 P1/P2 整体出口完成。完整双发行制品门禁已经关闭；P1/P2-EXIT 只剩隔离 Customer 实环境的登录、目录、启动、停止、
+额度拒绝和跨部署拒绝短闭环。该闭环完成前不得进入 P3，也不得把制品通过等同于在线隔离通过。
 
 ## 7. 下一阶段接口
 
