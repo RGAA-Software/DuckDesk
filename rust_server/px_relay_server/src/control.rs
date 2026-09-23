@@ -1,8 +1,10 @@
 use crate::server::RelayServerState;
 use futures_util::{SinkExt, StreamExt};
 use px_relay_control_protocol::{RelayReport, RelayRequest, RelayResponse, MAX_MESSAGE_BYTES};
-use std::time::Duration;
-use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
+use std::{sync::Arc, time::Duration};
+use tokio_tungstenite::{
+    connect_async_tls_with_config, tungstenite::Message, Connector, MaybeTlsStream, WebSocketStream,
+};
 use tokio_util::sync::CancellationToken;
 
 const CONNECT_RETRY: Duration = Duration::from_secs(1);
@@ -20,7 +22,11 @@ pub async fn run(state: RelayServerState, cancellation: CancellationToken) {
         if cancellation.is_cancelled() {
             return;
         }
-        match connect_async(&control_plane.url).await {
+        let connector = control_plane
+            .tls_config
+            .as_ref()
+            .map(|tls_config| Connector::Rustls(Arc::clone(tls_config)));
+        match connect_async_tls_with_config(&control_plane.url, None, false, connector).await {
             Ok((socket, _)) => {
                 if run_session(&state, &control_plane, socket, &cancellation)
                     .await

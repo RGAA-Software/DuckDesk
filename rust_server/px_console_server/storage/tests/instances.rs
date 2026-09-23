@@ -8,8 +8,9 @@ use px_console_store::{
     DeploymentTarget, DevicePlatform, DeviceStore, GpuResourceProfile, IdentityStore,
     NodeConnection, NodeGpuTelemetry, NodeProduct, NodeReport, NodeStore, NodeTelemetry,
     PasswordDigest, PlacementPreviewRequest, PlacementRejectionReason, PreparationState,
-    RelayNodeConfiguration, RelayNodeReport, RelayNodeSpec, RelayNodeStore, RuntimeEntitlement,
-    StoreError, TelemetryProbeState, TokenDigest, Username, VideoCodec, VideoSpec,
+    RelayNodeConfiguration, RelayNodeProfile, RelayNodeReport, RelayNodeSpec, RelayNodeStore,
+    RuntimeEntitlement, StoreError, TelemetryProbeState, TokenDigest, Username, VideoCodec,
+    VideoSpec,
 };
 use px_console_store::{
     GuestStore, InstanceStore, NodeConfiguration, OriginFingerprint, ResourceCredential,
@@ -377,32 +378,26 @@ fn request(app: Uuid) -> StartApplication {
     }
 }
 
-#[tokio::test]
-async fn application_reservation_binds_one_relay_and_start_keeps_it_after_draining() {
-    let fixture = Fixture::new().await;
-    let relay_nodes = RelayNodeStore::connect(
-        &config("RUNTIME"),
-        env::var("PIXELS_DEPLOYMENT_ID").unwrap().parse().unwrap(),
-    )
-    .await
-    .unwrap();
-    let (node, application, _) = fixture.prepared(DeploymentTarget::Webview, 2).await;
+struct RelayCurrentLoad {
+    connections: u32,
+    rooms: u32,
+}
+
+async fn ready_relay(
+    relay_nodes: &RelayNodeStore,
+    administrator: &TokenDigest,
+    node_connection: &NodeConnection,
+    relay_spec: RelayNodeSpec,
+    current_load: RelayCurrentLoad,
+) -> RelayNodeProfile {
     let credential = token();
     let created = relay_nodes
-        .create(
-            &fixture.admin,
-            &RelayNodeSpec {
-                name: format!("instance-relay-{}", Uuid::new_v4()),
-                public_host: "instance-relay.example.test".into(),
-                public_port: 4710,
-            },
-            &credential,
-        )
+        .create(administrator, &relay_spec, &credential)
         .await
         .unwrap();
     relay_nodes
         .configure(
-            &fixture.admin,
+            administrator,
             created.id,
             created.revision,
             RelayNodeConfiguration {
@@ -413,10 +408,10 @@ async fn application_reservation_binds_one_relay_and_start_keeps_it_after_draini
         .await
         .unwrap();
     let relay_connection = relay_nodes
-        .open_connection(node.epoch(), &credential, &token())
+        .open_connection(node_connection.epoch(), &credential, &token())
         .await
         .unwrap();
-    let ready_relay = relay_nodes
+    relay_nodes
         .report(
             &relay_connection,
             &RelayNodeReport {
@@ -424,43 +419,147 @@ async fn application_reservation_binds_one_relay_and_start_keeps_it_after_draini
                 product_version_code: 1,
                 draining: false,
                 max_connections: 100,
-                current_connections: 2,
-                max_rooms: 20,
-                current_rooms: 1,
+                current_connections: current_load.connections,
+                max_rooms: 50,
+                current_rooms: current_load.rooms,
                 uploaded_bytes: 0,
                 forwarded_bytes: 0,
             },
         )
         .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn two_nodes_and_two_relays_spread_new_work_without_migrating_existing_bindings() {
+    let fixture = Fixture::new().await;
+    let relay_nodes = RelayNodeStore::connect(
+        &config("RUNTIME"),
+        env::var("PIXELS_DEPLOYMENT_ID").unwrap().parse().unwrap(),
+    )
+    .await
+    .unwrap();
+    let (first_node, application, _) = fixture.prepared(DeploymentTarget::Webview, 2).await;
+    let (second_node_id, second_node_credential) = fixture.node().await;
+    let second_node = fixture
+        .nodes
+        .open_connection(first_node.epoch(), &second_node_credential, &token())
+        .await
         .unwrap();
-    let user = fixture.session("user", ClientType::Android).await;
-    let start_request = request(application.id);
-    let instance = fixture
+    fixture
+        .nodes
+        .report(&second_node, &node_report(1))
+        .await
+        .unwrap();
+    fixture
+        .nodes
+        .configure(
+            &fixture.admin,
+            second_node_id,
+            1,
+            NodeConfiguration {
+                draining: false,
+                disabled: false,
+                max_instances: 2,
+            },
+        )
+        .await
+        .unwrap();
+    let second_deployment = fixture
+        .deployments
+        .create(
+            &fixture.admin,
+            application.id,
+            second_node_id,
+            &settings(DeploymentTarget::Webview),
+        )
+        .await
+        .unwrap();
+    let mut second_deployment_configuration = settings(DeploymentTarget::Webview);
+    second_deployment_configuration.capacity = 2;
+    let second_deployment = fixture
+        .deployments
+        .configure(
+            &fixture.admin,
+            second_deployment.id,
+            second_deployment.revision,
+            &second_deployment_configuration,
+        )
+        .await
+        .unwrap();
+    fixture
+        .deployments
+        .report(
+            &second_node,
+            second_deployment.id,
+            &observation(&second_deployment, 1),
+        )
+        .await
+        .unwrap();
+    sqlx::query("UPDATE pixels.nodes SET state='ready' WHERE id=$1")
+        .bind(second_node_id)
+        .execute(&fixture.owner)
+        .await
+        .unwrap();
+
+    let busier_relay = ready_relay(
+        &relay_nodes,
+        &fixture.admin,
+        &first_node,
+        RelayNodeSpec {
+            name: format!("busier-relay-{}", Uuid::new_v4()),
+            public_host: "busier-relay.example.test".into(),
+            public_port: 4710,
+        },
+        RelayCurrentLoad {
+            connections: 40,
+            rooms: 20,
+        },
+    )
+    .await;
+    let quieter_relay = ready_relay(
+        &relay_nodes,
+        &fixture.admin,
+        &first_node,
+        RelayNodeSpec {
+            name: format!("quieter-relay-{}", Uuid::new_v4()),
+            public_host: "quieter-relay.example.test".into(),
+            public_port: 4711,
+        },
+        RelayCurrentLoad {
+            connections: 2,
+            rooms: 1,
+        },
+    )
+    .await;
+    let first_user = fixture.session("user", ClientType::Android).await;
+    let first_start_request = request(application.id);
+    let first_instance = fixture
         .instances
         .reserve(
-            ResourceCredential::User(&user),
+            ResourceCredential::User(&first_user),
             ClientType::Android,
-            node.epoch(),
-            &start_request,
+            first_node.epoch(),
+            &first_start_request,
         )
         .await
         .unwrap();
     let retry = fixture
         .instances
         .reserve(
-            ResourceCredential::User(&user),
+            ResourceCredential::User(&first_user),
             ClientType::Android,
-            node.epoch(),
-            &start_request,
+            first_node.epoch(),
+            &first_start_request,
         )
         .await
         .unwrap();
-    assert_eq!(retry.id, instance.id);
+    assert_eq!(retry.id, first_instance.id);
     relay_nodes
         .configure(
             &fixture.admin,
-            ready_relay.id,
-            ready_relay.revision,
+            quieter_relay.id,
+            quieter_relay.revision,
             RelayNodeConfiguration {
                 draining: true,
                 disabled: false,
@@ -468,17 +567,46 @@ async fn application_reservation_binds_one_relay_and_start_keeps_it_after_draini
         )
         .await
         .unwrap();
-    let command = fixture
+    let second_user = fixture.session("user", ClientType::Android).await;
+    let second_instance = fixture
         .instances
-        .next_command(&node)
+        .reserve(
+            ResourceCredential::User(&second_user),
+            ClientType::Android,
+            first_node.epoch(),
+            &request(application.id),
+        )
         .await
-        .unwrap()
         .unwrap();
-    let binding = command.relay.unwrap();
-    assert_eq!(binding.relay_node_id, ready_relay.id);
-    assert_eq!(binding.relay_generation, ready_relay.generation);
-    assert_eq!(binding.public_host, "instance-relay.example.test");
-    assert_eq!(binding.public_port, 4710);
+    let mut commands = Vec::new();
+    for node_connection in [&first_node, &second_node] {
+        if let Some(command) = fixture
+            .instances
+            .next_command(node_connection)
+            .await
+            .unwrap()
+        {
+            commands.push(command);
+        }
+    }
+    assert_eq!(commands.len(), 2);
+    let first_command = commands
+        .iter()
+        .find(|command| command.instance_id == first_instance.id)
+        .unwrap();
+    let first_binding = first_command.relay.as_ref().unwrap();
+    assert_eq!(first_binding.relay_node_id, quieter_relay.id);
+    assert_eq!(first_binding.relay_generation, quieter_relay.generation);
+    assert_eq!(first_binding.public_host, "quieter-relay.example.test");
+    assert_eq!(first_binding.public_port, 4711);
+    let second_command = commands
+        .iter()
+        .find(|command| command.instance_id == second_instance.id)
+        .unwrap();
+    let second_binding = second_command.relay.as_ref().unwrap();
+    assert_eq!(second_binding.relay_node_id, busier_relay.id);
+    assert_eq!(second_binding.public_host, "busier-relay.example.test");
+    assert_eq!(second_binding.public_port, 4710);
 
     relay_nodes.close().await;
     fixture.close().await;

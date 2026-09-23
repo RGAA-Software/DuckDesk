@@ -1953,3 +1953,11 @@ Unknown 不冒充健康，并通过独立 `relays` 管理事件刷新。公网�
 真实 PostgreSQL + Console + Relay 短闭环 1/1 PASS，覆盖列表不泄密、Viewer 写 403、Admin 排空变更、实际状态收敛和 Console 失联 fail-closed，
 报告 `pg-20260923-230053-a893a7b2`。前端聚焦测试 4/4、TypeScript、Vite 构建、严格 Release Clippy/rustfmt 和 PowerShell 语法通过。
 下一批 P3-4 仅执行双 Relay/双 Render-Service 的短功能验收，不提前引入长测、自动扩缩容或热迁移。
+
+2026-09-24 P3-4A 已完成双实例行为门禁和公网单节点闭环。Fresh PostgreSQL 下两个 Service/Render 连接、两个 Relay 库存节点完成按压力分散、
+排空后新请求切换、两个 Start 命令和已有绑定不迁移，17/17 PASS，报告 `pg-20260924-003635-1e88c8c2`；两个真实本地 Relay 进程独立
+上报、单节点排空、备用继续准入及 Console 停止 fail-closed 为 1/1 PASS，报告 `pg-20260924-002809-1d26fb06`。公网 Windows 节点已应用
+schema 0030–0032并部署当前 Console、管理页面和 Relay；私有 CA 通过严格 `PIXELS_RELAY_CONSOLE_CA_FILE` 接入，不存在跳过证书校验。
+公网 Relay 当前 `ready/fresh`、期望/实际均非排空、4605 可准入，安装 SHA-256
+`53FE39FA95A9B3179A80040D9DC83738D3B95D36383B96AED34DB091614A4935` 与开发输出一致，Console 静态页面 4 件文件逐件哈希一致。
+P3-4B 仍需第二台物理 Relay 和第二台物理 Render/Service 做跨机短测；当前证据不冒充物理双机，开发阶段不执行长测。

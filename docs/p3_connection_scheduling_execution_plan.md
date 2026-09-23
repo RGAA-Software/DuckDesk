@@ -14,7 +14,7 @@
 - Direct Host 与现有 Relay 数据模式的 Windows、Web、Android 短链路；
 - Relay 房间认证、反压、载荷统计、空闲回收和资源会话 admission ticket。
 
-当前缺口：Relay 已进入受认证服务库存并由 Console 按实时容量选择；尚缺运维管理 API/页面及多 Relay 实机验收。
+当前缺口：Relay 库存、管理页、实时容量选择及单台公网节点接入已完成；尚缺第二台物理 Relay 和第二台物理 Render/Service 的跨机短验收。
 机器池、CPU/内存/网络预算和多 Render 实机验收仍未完成。Broker 首版先作为 Console 内部的窄连接编排模块，不为拆进程而复制业务状态。
 
 ## 2. 约束
@@ -124,3 +124,21 @@ Relay 数据面 app key 和独立 control key。Console launcher 只保留 app k
 
 P3-3 至此完成。下一批 P3-4 只做两个 Relay 与至少两个 Render/Service 节点的短功能验收，确认容量选择、排空、失联和持久绑定；不做长时间压力
 测试、自动扩缩容或连接热迁移。
+
+## 10. P3-4A 已完成：双实例门禁与公网单节点闭环
+
+全新 PostgreSQL 环境下已用两个独立 Service/Render 节点连接和两个 Relay 库存节点完成调度短测：第一个实例选择较空闲 Relay，原 Relay 进入
+draining 后新实例选择备用 Relay，两个节点分别取得 Start 命令，已有实例绑定不迁移。17/17 PASS，最新报告为
+`pg-20260924-003635-1e88c8c2`。
+
+真实进程门禁启动两个独立 Relay HTTP/数据服务和两个控制客户端，验证两者独立上报、Viewer 写拒绝、Admin 只排空其中一个、另一个继续准入，
+以及 Console 停止后 Relay fail-closed；1/1 PASS，最新报告为 `pg-20260924-002809-1d26fb06`。这证明双 Relay 行为，不冒充两台物理机器。
+
+公网 Windows 节点已正式应用 schema 0030–0032，并部署当前 Console、管理页和 Relay。由于私有部署 Console 使用自己的 CA，Relay 增加可选
+`PIXELS_RELAY_CONSOLE_CA_FILE`：只为 `wss` 加载明确 CA，仍执行完整证书与主机名校验，不提供跳过校验。公网 Relay 通过
+`wss://39.71.45.66:4600/api/console/relay-control` 实际上报，Console 状态为 `ready/fresh`，期望和实际上报均为非 draining，公网 4605
+健康端点确认准入；Relay 安装 SHA-256 为 `53FE39FA95A9B3179A80040D9DC83738D3B95D36383B96AED34DB091614A4935`，与开发输出一致。
+Console 静态页面 4 件文件也已逐件与开发输出 SHA-256 对齐。
+
+严格 Release Clippy（含 PostgreSQL integration features）、rustfmt、PowerShell 语法及差异检查通过。P3-4B 只剩第二台物理 Relay 与第二台物理
+Render/Service 的跨机短测；待提供第二台实际主机后验证失联和新请求转移。开发阶段不运行长时间压力测试，统一长测仍在商业发布前门禁。

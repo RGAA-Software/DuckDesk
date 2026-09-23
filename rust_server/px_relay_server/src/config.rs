@@ -1,4 +1,4 @@
-use std::{env, net::SocketAddr, sync::Arc, time::Duration};
+use std::{env, fs::File, io::BufReader, net::SocketAddr, path::Path, sync::Arc, time::Duration};
 use zeroize::Zeroizing;
 
 #[derive(Clone)]
@@ -6,6 +6,7 @@ pub struct ControlPlaneConfig {
     pub url: String,
     pub token: Arc<Zeroizing<String>>,
     pub product_version_code: u32,
+    pub tls_config: Option<Arc<rustls::ClientConfig>>,
 }
 
 #[derive(Clone)]
@@ -49,6 +50,18 @@ impl RelayConfig {
                 "PIXELS_RELAY_CONSOLE_CONTROL_URL must be an absolute ws/wss URL without credentials, query or fragment".to_string(),
             );
         }
+        let tls_config = match env::var("PIXELS_RELAY_CONSOLE_CA_FILE") {
+            Ok(certificate_authority_path) if !certificate_authority_path.trim().is_empty() => {
+                if parsed_control_url.scheme() != "wss" {
+                    return Err(
+                        "PIXELS_RELAY_CONSOLE_CA_FILE requires a wss Console control URL"
+                            .to_string(),
+                    );
+                }
+                Some(load_tls_config(Path::new(&certificate_authority_path))?)
+            }
+            _ => None,
+        };
         let relay_token = Zeroizing::new(required("PIXELS_RELAY_NODE_TOKEN")?);
         if relay_token.len() != 64
             || !relay_token.bytes().all(|byte_value| {
@@ -83,9 +96,33 @@ impl RelayConfig {
                 url: parsed_control_url.to_string(),
                 token: Arc::new(relay_token),
                 product_version_code: package_version_code()?,
+                tls_config,
             }),
         })
     }
+}
+
+fn load_tls_config(certificate_authority_path: &Path) -> Result<Arc<rustls::ClientConfig>, String> {
+    let certificate_authority_file = File::open(certificate_authority_path)
+        .map_err(|error| format!("PIXELS_RELAY_CONSOLE_CA_FILE cannot be opened: {error}"))?;
+    let mut certificate_reader = BufReader::new(certificate_authority_file);
+    let certificates = rustls_pemfile::certs(&mut certificate_reader)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("PIXELS_RELAY_CONSOLE_CA_FILE is invalid: {error}"))?;
+    if certificates.is_empty() {
+        return Err("PIXELS_RELAY_CONSOLE_CA_FILE contains no certificates".to_string());
+    }
+    let certificate_count = certificates.len();
+    let mut root_store = rustls::RootCertStore::empty();
+    let (accepted_count, rejected_count) = root_store.add_parsable_certificates(certificates);
+    if accepted_count != certificate_count || rejected_count != 0 {
+        return Err("PIXELS_RELAY_CONSOLE_CA_FILE contains an invalid certificate".to_string());
+    }
+    Ok(Arc::new(
+        rustls::ClientConfig::builder()
+            .with_root_certificates(root_store)
+            .with_no_client_auth(),
+    ))
 }
 
 fn package_version_code() -> Result<u32, String> {

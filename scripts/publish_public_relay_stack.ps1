@@ -8,6 +8,7 @@ param(
     [Parameter(Mandatory)]
     [ValidatePattern('^wss?://')]
     [string]$ConsoleControlUrl,
+    [string]$RemoteConsoleCertificateAuthority = 'D:\PixelsServer\app\tls\console-ca.pem',
     [Parameter(Mandatory)]
     [Security.SecureString]$RelayNodeToken
 )
@@ -27,6 +28,7 @@ foreach ($path in @($consoleSource, $relaySource, $machineFile, $licenseFile)) {
 $machineText = Get-Content -LiteralPath $machineFile -Raw -Encoding UTF8
 $password = [regex]::Match($machineText, '(?m)^\s*-\s*\u5bc6\u7801\s*[:\uff1a]\s*(.+?)\s*$').Groups[1].Value
 $machineName = [regex]::Match($machineText, '(?m)^\s*-\s*\u4e3b\u673a\u540d\s*[:\uff1a]\s*(.+?)\s*$').Groups[1].Value
+$username = [regex]::Match($machineText, '(?m)^\s*-\s*\u7528\u6237\u540d\s*[:\uff1a]\s*(.+?)\s*$').Groups[1].Value
 $relayAppKey = [string](Get-Content -LiteralPath $licenseFile -Raw | ConvertFrom-Json).appkey
 $relayNodeTokenValue = [Net.NetworkCredential]::new('', $RelayNodeToken).Password
 $parsedControlUrl = $null
@@ -37,13 +39,14 @@ if (-not [Uri]::TryCreate($ConsoleControlUrl, [UriKind]::Absolute, [ref]$parsedC
     -not [string]::IsNullOrEmpty($parsedControlUrl.Fragment)) {
     throw 'ConsoleControlUrl must be an absolute ws/wss URL without credentials, query, or fragment.'
 }
-if (-not $password -or -not $machineName -or $relayAppKey.Length -lt 16 -or
+if (-not $password -or -not $machineName -or -not $username -or $relayAppKey.Length -lt 16 -or
     $relayNodeTokenValue -notmatch '^[0-9a-f]{64}$') {
     throw 'Public Relay deployment credentials or app key are incomplete.'
 }
+$qualifiedUsername = if ($username.Contains('\')) { $username } else { "$machineName\$username" }
 
 $credential = [pscredential]::new(
-    "$machineName\Administrator",
+    $qualifiedUsername,
     (ConvertTo-SecureString $password -AsPlainText -Force)
 )
 $consoleHash = (Get-FileHash -LiteralPath $consoleSource -Algorithm SHA256).Hash
@@ -59,8 +62,8 @@ try {
     }
     Copy-Item -LiteralPath $consoleSource -Destination 'D:\PixelsServer\app\bin\px_console.staged.exe' -ToSession $session -Force
     Copy-Item -LiteralPath $relaySource -Destination 'D:\PixelsServer\relay\px_relay.staged.exe' -ToSession $session -Force
-    Invoke-Command -Session $session -ArgumentList $RelayPort, $relayAppKey, $relayNodeTokenValue, $parsedControlUrl.AbsoluteUri, $consoleHash, $relayHash -ScriptBlock {
-        param($relayPort, $relayAppKey, $relayNodeToken, $consoleControlUrl, $consoleHash, $relayHash)
+    Invoke-Command -Session $session -ArgumentList $RelayPort, $relayAppKey, $relayNodeTokenValue, $parsedControlUrl.AbsoluteUri, $RemoteConsoleCertificateAuthority, $consoleHash, $relayHash -ScriptBlock {
+        param($relayPort, $relayAppKey, $relayNodeToken, $consoleControlUrl, $consoleCertificateAuthority, $consoleHash, $relayHash)
 
         $ErrorActionPreference = 'Stop'
         $serverRoot = 'D:\PixelsServer'
@@ -71,6 +74,10 @@ try {
         $relayPath = "$relayDirectory\px_relay.exe"
         $relayStaged = "$relayDirectory\px_relay.staged.exe"
         $relayLauncher = "$relayDirectory\start-relay.ps1"
+        if (([Uri]$consoleControlUrl).Scheme -eq 'wss' -and
+            -not (Test-Path -LiteralPath $consoleCertificateAuthority -PathType Leaf)) {
+            throw "Console certificate authority is missing: $consoleCertificateAuthority"
+        }
         $relayControlKey = $null
         if (Test-Path -LiteralPath $relayLauncher -PathType Leaf) {
             $existingRelayLauncher = Get-Content -LiteralPath $relayLauncher -Raw
@@ -82,8 +89,14 @@ try {
             }
         }
         if ([string]::IsNullOrWhiteSpace($relayControlKey)) {
-            $relayControlKey = [Convert]::ToHexString(
-                [Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).ToLowerInvariant()
+            $controlKeyBytes = New-Object byte[] 32
+            $randomNumberGenerator = [Security.Cryptography.RandomNumberGenerator]::Create()
+            try {
+                $randomNumberGenerator.GetBytes($controlKeyBytes)
+            } finally {
+                $randomNumberGenerator.Dispose()
+            }
+            $relayControlKey = -join ($controlKeyBytes | ForEach-Object { $_.ToString('x2') })
         }
         foreach ($artifact in @(@($consoleStaged, $consoleHash), @($relayStaged, $relayHash))) {
             if ((Get-FileHash -LiteralPath $artifact[0] -Algorithm SHA256).Hash -ne $artifact[1]) {
@@ -135,6 +148,12 @@ try {
         $escapedControlKey = $relayControlKey.Replace("'", "''")
         $escapedRelayNodeToken = $relayNodeToken.Replace("'", "''")
         $escapedConsoleControlUrl = $consoleControlUrl.Replace("'", "''")
+        $escapedConsoleCertificateAuthority = $consoleCertificateAuthority.Replace("'", "''")
+        $consoleCertificateAuthorityEnvironment = if (([Uri]$consoleControlUrl).Scheme -eq 'wss') {
+            "`$env:PIXELS_RELAY_CONSOLE_CA_FILE = '$escapedConsoleCertificateAuthority'`r`n"
+        } else {
+            ''
+        }
         $relayAdmissionEnvironment = @"
 `$env:PIXELS_RELAY_APP_KEY = '$escapedAppKey'
 
@@ -151,7 +170,7 @@ try {
 `$env:PIXELS_RELAY_APP_KEY = '$escapedAppKey'
 `$env:PIXELS_RELAY_CONTROL_KEY = '$escapedControlKey'
 `$env:PIXELS_RELAY_CONSOLE_CONTROL_URL = '$escapedConsoleControlUrl'
-`$env:PIXELS_RELAY_NODE_TOKEN = '$escapedRelayNodeToken'
+$consoleCertificateAuthorityEnvironment`$env:PIXELS_RELAY_NODE_TOKEN = '$escapedRelayNodeToken'
 `$env:PIXELS_RELAY_MAX_CONNECTIONS = '4096'
 `$env:PIXELS_RELAY_MAX_ROOMS = '2048'
 `$env:PIXELS_RELAY_OUTBOUND_QUEUE = '256'

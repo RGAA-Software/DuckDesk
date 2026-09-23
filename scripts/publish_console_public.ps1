@@ -18,12 +18,14 @@ foreach ($requiredPath in @($sourcePath, $machinePath)) {
 $machineText = Get-Content -LiteralPath $machinePath -Raw -Encoding UTF8
 $password = [regex]::Match($machineText, '(?m)^\s*-\s*\u5bc6\u7801\s*[:\uff1a]\s*(.+?)\s*$').Groups[1].Value
 $machineName = [regex]::Match($machineText, '(?m)^\s*-\s*\u4e3b\u673a\u540d\s*[:\uff1a]\s*(.+?)\s*$').Groups[1].Value
-if (-not $password -or -not $machineName) {
+$username = [regex]::Match($machineText, '(?m)^\s*-\s*\u7528\u6237\u540d\s*[:\uff1a]\s*(.+?)\s*$').Groups[1].Value
+if (-not $password -or -not $machineName -or -not $username) {
     throw 'Public test host machine-qualified credential is incomplete.'
 }
+$qualifiedUsername = if ($username.Contains('\')) { $username } else { "$machineName\$username" }
 
 $credential = [pscredential]::new(
-    "$machineName\Administrator",
+    $qualifiedUsername,
     (ConvertTo-SecureString $password -AsPlainText -Force)
 )
 $expectedHash = (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash
