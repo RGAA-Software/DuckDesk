@@ -2,8 +2,8 @@
 //! not independently connected services. Only this owner shuts down the shared pool.
 use crate::{
     ApplicationStore, ControlStore, DeploymentStore, DeviceStore, GroupStore, GuestStore,
-    IdentityStore, InstanceStore, NodeStore, StoreError, TelemetryAlertStore, WorkspaceStore,
-    WorkspaceVault,
+    IdentityStore, InstanceStore, NodeStore, RelayNodeStore, StoreError, TelemetryAlertStore,
+    WorkspaceStore, WorkspaceVault,
 };
 use px_pg::DatabaseConfig;
 use sqlx::PgPool;
@@ -126,6 +126,11 @@ impl ConsoleDatabase {
     }
     pub fn nodes(&self) -> NodeStore {
         NodeStore {
+            pool: self.pool.clone(),
+        }
+    }
+    pub fn relay_nodes(&self) -> RelayNodeStore {
+        RelayNodeStore {
             pool: self.pool.clone(),
         }
     }

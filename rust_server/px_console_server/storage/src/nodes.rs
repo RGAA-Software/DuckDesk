@@ -38,6 +38,9 @@ impl NodeStore {
         sqlx::query_file!("queries/reset_node_connections.sql")
             .execute(&mut *tx)
             .await?;
+        sqlx::query_file!("queries/reset_relay_connections.sql")
+            .execute(&mut *tx)
+            .await?;
         crate::node_lifecycle::invalidate(&mut tx, None).await?;
         tx.commit().await?;
         Ok(RuntimeEpoch(epoch))

@@ -7,7 +7,7 @@ param(
     [ValidateRange(0,65535)]
     [int]$Port = 0,
     [switch]$Linux,
-    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'backup-pg', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'auth-browser', 'catalog', 'update-authority', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'distribution-isolation', 'node-control', 'console-process', 'console-admin', 'console-browser')]
+    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'relay-nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'backup-pg', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'auth-browser', 'catalog', 'update-authority', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'distribution-isolation', 'node-control', 'console-process', 'console-admin', 'console-browser')]
     [string]$Suite = ''
 )
 
@@ -248,7 +248,7 @@ try {
         # Explicit developer command, never performed implicitly by acceptance tests.
         # PostgreSQL/SQLx generate these files; this is not evidence that runtime tests passed.
         foreach ($item in @(
-            @{Service='console';Crate='px_console_store';Path='rust_server/px_console_server/storage';Count=278},
+            @{Service='console';Crate='px_console_store';Path='rust_server/px_console_server/storage';Count=287},
             @{Service='desk';Crate='px_desk_server';Path='rust_server/px_desk_server';Count=9},
             @{Service='auth';Crate='px_auth_store';Path='rust_server/px_auth_server/storage';Count=28}
         )) {
@@ -257,7 +257,7 @@ try {
             Set-LocalEnv 'SQLX_OFFLINE' 'false'
             $generated = (New-Item -ItemType Directory -Path (Join-Path $reportDir "$($item.Service)-sqlx") -Force).FullName
             Set-LocalEnv 'SQLX_OFFLINE_DIR' $generated
-            Invoke-Checked 'cargo' @('check','--locked','--manifest-path',$manifest,'-p',$item.Crate,'--target-dir',$targetDir) | Out-Null
+            Invoke-Checked 'cargo' @('check','--release','--locked','--manifest-path',$manifest,'-p',$item.Crate,'--target-dir',$targetDir) | Out-Null
             $queries = @(Get-ChildItem -LiteralPath $generated -Filter 'query-*.json' -File)
             if ($queries.Count -ne $item.Count) { throw "Unexpected generated query count: $($item.Service)" }
             $destination = (New-Item -ItemType Directory -Path (Join-Path $repo "$($item.Path)/.sqlx") -Force).FullName
@@ -367,7 +367,7 @@ try {
             Invoke-Checked 'docker' @('exec',$container,'psql','-X','-v','ON_ERROR_STOP=1','-U','pixels_admin','-d','pixels_desk','-c',
                 "CREATE TABLE pixels.pg_fixture(id uuid PRIMARY KEY,version text NOT NULL,created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP); ALTER TABLE pixels.pg_fixture OWNER TO pixels_desk_owner; GRANT SELECT,INSERT,UPDATE,DELETE ON pixels.pg_fixture TO pixels_desk_runtime") | Out-Null
         }
-        $suiteCounts = @{unit=19;identity=12;control=8;devices=8;applications=8;guests=9;nodes=11;deployments=6;instances=16;commands=16;workspaces=6;database=2;sessions=13;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=17;activity=8;updates=7;desk=8;catalog=4;'update-authority'=6;lease=6;postgres=15;accounts=9}
+        $suiteCounts = @{unit=19;identity=12;control=8;devices=8;applications=8;guests=9;nodes=11;'relay-nodes'=3;deployments=6;instances=16;commands=16;workspaces=6;database=2;sessions=13;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=17;activity=8;updates=7;desk=8;catalog=4;'update-authority'=6;lease=6;postgres=15;accounts=9}
         $suiteCounts['console-api'] = 6
         $suiteCounts['directory-api'] = 7
         $suiteCounts['distribution-isolation'] = 1
@@ -410,8 +410,14 @@ try {
             $suiteArgs = @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_update_authority','--lib','--target-dir',$targetDir)
         } else {
             $suiteArgs = @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--target-dir',$targetDir)
-            if ($Suite -eq 'unit') { $suiteArgs += '--lib' } else { $suiteArgs += @('--test',$Suite) }
+            if ($Suite -eq 'unit') {
+                $suiteArgs += '--lib'
+            } else {
+                $testTarget = if ($Suite -eq 'relay-nodes') { 'relay_nodes' } else { $Suite }
+                $suiteArgs += @('--test',$testTarget)
+            }
         }
+        $suiteArgs = @($suiteArgs[0], '--release') + $suiteArgs[1..($suiteArgs.Count - 1)]
         $suiteArgs += @('--','--test-threads=1')
         $result = Invoke-Checked 'cargo' $suiteArgs
         Write-Host $result
@@ -521,7 +527,7 @@ try {
     $committedMetadata = Join-Path $repo 'rust_server/px_console_server/storage/.sqlx'
     $expectedQueries = @(Get-ChildItem -LiteralPath $committedMetadata -Filter 'query-*.json' -File)
     $actualQueries = @(Get-ChildItem -LiteralPath $queryMetadata -Filter 'query-*.json' -File)
-    if ($expectedQueries.Count -ne 284 -or $actualQueries.Count -ne $expectedQueries.Count) { throw 'Missing or extra SQLx query metadata' }
+    if ($expectedQueries.Count -ne 287 -or $actualQueries.Count -ne $expectedQueries.Count) { throw 'Missing or extra SQLx query metadata' }
     foreach ($expected in $expectedQueries) {
         $actual = Join-Path $queryMetadata $expected.Name
         if (-not (Test-Path -LiteralPath $actual) -or (Get-FileHash -LiteralPath $expected.FullName).Hash -ne (Get-FileHash -LiteralPath $actual).Hash) {
@@ -530,7 +536,7 @@ try {
     }
     Set-LocalEnv 'SQLX_OFFLINE' 'true'
     Set-LocalEnv 'SQLX_OFFLINE_DIR' $committedMetadata
-    Add-Step 'QUERY: 288 Console SQLx queries compiled against fresh PG; offline metadata matches'
+    Add-Step 'QUERY: 287 Console SQLx queries compiled against fresh PG; offline metadata matches'
     $identityUnit = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--lib','--target-dir',$targetDir)
     Add-TestCases $identityUnit 'native/identity-unit' 19
     $identityIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--test','identity','--target-dir',$targetDir,'--','--test-threads=1')
@@ -845,7 +851,7 @@ try {
     $count = (Invoke-Checked 'docker' @('exec',$container,'psql','-X','-U','pixels_admin','-d','pixels_desk','-Atc','SELECT count(*) FROM pixels.pg_fixture')).Trim()
     if ([int]$count -lt 2) { throw 'Committed test data did not survive PostgreSQL restart' }
     Add-Step 'ENV: committed rows survive restart'
-    $tablesByService = @{console=@('users','login_sessions','user_groups','group_members','authorization_outbox','authorization_audit','devices','user_devices','group_device_grants','device_audit','applications','group_app_grants','application_events','guest_sessions','guest_blocks','guest_source_blocks','guest_events','control_runtime','control_runs','nodes','node_audit','application_deployments','deployment_audit','instances','instance_commands','instance_events','instance_admin_actions','rdp_workspaces','workspace_secrets','workspace_audit','resource_sessions','resource_session_events','resource_session_retirements'); auth=@('authors','author_sessions','customers','licenses','license_issuances','license_requests','license_audit'); desk=@('pg_fixture','feedback','versions','admin_sessions')}
+    $tablesByService = @{console=@('users','login_sessions','user_groups','group_members','authorization_outbox','authorization_audit','devices','user_devices','group_device_grants','device_audit','applications','group_app_grants','application_events','guest_sessions','guest_blocks','guest_source_blocks','guest_events','control_runtime','control_runs','nodes','node_audit','relay_nodes','relay_node_audit','application_deployments','deployment_audit','instances','instance_commands','instance_events','instance_admin_actions','rdp_workspaces','workspace_secrets','workspace_audit','resource_sessions','resource_session_events','resource_session_retirements'); auth=@('authors','author_sessions','customers','licenses','license_issuances','license_requests','license_audit'); desk=@('pg_fixture','feedback','versions','admin_sessions')}
     $tablesByService.console += @('file_transfers','file_transfer_events','recordings','recording_events')
     $tablesByService.console += @('saved_connections','saved_connection_events')
     $tablesByService.console += @('cache_roots','cache_runs','cache_runtime','recording_cache','cache_blobs','cache_events')

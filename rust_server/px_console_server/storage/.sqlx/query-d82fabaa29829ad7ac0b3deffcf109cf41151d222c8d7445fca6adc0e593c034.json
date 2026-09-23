@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.relay_nodes\nSET connection_hash = NULL, state = 'offline'\nWHERE connection_hash IS NOT NULL\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "d82fabaa29829ad7ac0b3deffcf109cf41151d222c8d7445fca6adc0e593c034"
+}

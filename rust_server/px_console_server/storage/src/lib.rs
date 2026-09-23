@@ -37,6 +37,8 @@ mod reconciliation;
 mod recording_cache;
 mod recording_model;
 mod recordings;
+mod relay_model;
+mod relay_nodes;
 mod resource_policy;
 mod resource_sessions;
 mod saved_connection_model;
@@ -112,6 +114,10 @@ pub use reconciliation::{
 pub use recording_cache::RecordingCacheStore;
 pub use recording_model::{RecordingCodec, RecordingProfile, RecordingReport};
 pub use recordings::RecordingStore;
+pub use relay_model::{
+    RelayNodeConfiguration, RelayNodeConnection, RelayNodeProfile, RelayNodeReport, RelayNodeSpec,
+};
+pub use relay_nodes::RelayNodeStore;
 pub use resource_sessions::ResourceSessionStore;
 pub use saved_connection_model::{
     AudioCapturePreference, CreateSavedConnection, SavedConnection, SavedConnectionSettings,

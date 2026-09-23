@@ -60,6 +60,10 @@ name = "nodes"
 required-features = ["pg-integration"]
 
 [[test]]
+name = "relay_nodes"
+required-features = ["pg-integration"]
+
+[[test]]
 name = "deployments"
 required-features = ["pg-integration"]
 

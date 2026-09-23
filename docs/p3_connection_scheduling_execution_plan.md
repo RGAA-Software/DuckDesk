@@ -48,4 +48,22 @@ P3-1 先只上报调度必需的连接数、房间数、累计字节和容量。
 公网部署脚本在首次部署时生成 32 字节随机控制密钥，后续覆盖升级保留原密钥，且继续使用受限 launcher ACL。Release 单元及真实 WebSocket
 回归 8/8 PASS，严格 Release Clippy、rustfmt、PowerShell 语法和 `git diff --check` 通过。
 
-P3-0 不是多 Relay 完成声明。下一批从 P3-1 的 PostgreSQL Relay 服务库存和受认证状态生产者开始。
+P3-0 不是多 Relay 完成声明。
+
+## 5. P3-1A 已完成：Relay PostgreSQL 权威库存
+
+Console fresh schema 0030 已增加 `relay_nodes` 和仅保存摘要凭据的管理库存。当前已落地：
+
+- Relay 稳定 ID、唯一名称和唯一公网 host/port；
+- 安全默认值：新 Relay 初始为 offline 且期望 draining；
+- 管理员创建、分页查看和带 revision 的 disabled/draining 配置及审计；
+- 复用 Console runtime epoch，连接重建增加 generation，旧连接无法继续上报或关闭替代连接；
+- 上报 sequence 必须严格递增，连接数/房间数必须在 Relay 自报上限内，累计字节使用有界整数；
+- `fresh` 只代表 30 秒内受认证连接仍属于当前 Console epoch，不冒充 Ready 或可调度结论；
+- Console 新进程启动时同时使 Render/Service 节点和 Relay 旧连接失效，避免持久快照被当成实时状态。
+
+全新 PostgreSQL schema 的 SQLx 元数据 287/287 生成通过；Relay 库存短验收 3/3 PASS，既有节点代际回归 11/11 PASS，Release
+Clippy 和 rustfmt 通过。报告分别为 `pg-20260923-214413-9e59a565` 和 `pg-20260923-214608-f0a9f0b0`。
+
+P3-1 尚未整体完成。下一批 P3-1B 只实现 Relay 主动连接 Console 的受认证 WebSocket 状态生产者，把 P3-0 的实时计数写入本库存，
+并让 Console 下发期望 draining；不在这一批提前实现选择、绑定或管理页面。

@@ -1921,4 +1921,10 @@ P3 已按“复用现有能力、只补真实缺口”启动，执行入口见
 [P3 连接与多节点调度执行计划](p3_connection_scheduling_execution_plan.md)。首批 P3-0 为独立 `px_relay` 增加 32–512 字节独立控制密钥、
 受认证的动态 draining 和完整当前/最大连接、房间容量状态；排空时新 WebSocket 以 503 拒绝，已有连接继续工作，恢复后重新准入。
 公网覆盖脚本首次生成随机控制密钥并在后续升级保留，launcher ACL 不放宽。Release 单元及真实 WebSocket 8/8、严格 Release Clippy、
-rustfmt 和 PowerShell 语法通过。该切片不冒充多 Relay 完成；下一批是 PostgreSQL Relay 服务库存、受认证心跳和有时效的容量选择。
+rustfmt 和 PowerShell 语法通过。该切片不冒充多 Relay 完成。
+
+P3-1A 已完成 PostgreSQL Relay 权威库存：fresh schema 0030 增加唯一公开 endpoint、摘要凭据、管理员期望 draining/disabled、实际容量/占用、
+Console runtime epoch、连接 generation、严格 report sequence 和 30 秒 fresh 判定；新 Relay 安全默认排空，旧连接不能覆盖或关闭替代连接，
+Console 重启会使 Render/Service 与 Relay 的旧连接同时失效。SQLx fresh-schema 元数据 287/287、Relay 库存短验收 3/3、既有节点代际回归
+11/11 及严格 Release Clippy/rustfmt 均通过，报告为 `pg-20260923-214413-9e59a565`、`pg-20260923-214608-f0a9f0b0`。
+下一批 P3-1B 仅连接 Relay 主动到 Console 的受认证 WebSocket 状态生产者和 draining 收敛，不提前实现 Relay 选择、会话绑定或管理页面。
