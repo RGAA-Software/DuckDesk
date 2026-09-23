@@ -1864,6 +1864,8 @@ dependencies = [
  "px_pg",
  "px_private_files",
  "px_relay_admission",
+ "px_relay_control_protocol",
+ "px_relay_server",
  "px_release_catalog",
  "rand 0.9.2",
  "reqwest",
@@ -2009,6 +2011,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "px_relay_control_protocol"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "px_relay_server"
 version = "3.2.1"
 dependencies = [
@@ -2018,15 +2029,19 @@ dependencies = [
  "prost",
  "protocol",
  "px_relay_admission",
+ "px_relay_control_protocol",
  "reqwest",
  "serde",
  "serde_json",
  "subtle",
  "tokio",
  "tokio-tungstenite",
+ "tokio-util",
  "tracing",
  "tracing-subscriber",
+ "url",
  "uuid",
+ "zeroize",
 ]
 
 [[package]]
@@ -3003,8 +3018,12 @@ checksum = "d25a406cddcc431a75d3d9afc6a7c0f7428d4891dd973e4d54c56b46127bf857"
 dependencies = [
  "futures-util",
  "log",
+ "rustls",
+ "rustls-pki-types",
  "tokio",
+ "tokio-rustls",
  "tungstenite",
+ "webpki-roots 0.26.11",
 ]
 
 [[package]]
@@ -3261,6 +3280,8 @@ dependencies = [
  "httparse",
  "log",
  "rand 0.9.2",
+ "rustls",
+ "rustls-pki-types",
  "sha1",
  "thiserror",
  "utf-8",

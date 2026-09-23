@@ -179,6 +179,7 @@ async fn start_server_with_idle_timeout(
         outbound_queue: 32,
         max_message_bytes: 1024 * 1024,
         connection_idle_timeout,
+        control_plane: None,
     };
     let server = tokio::spawn(async move {
         axum::serve(listener, router(config)).await.unwrap();

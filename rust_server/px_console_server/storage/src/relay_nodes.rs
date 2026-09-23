@@ -145,6 +145,7 @@ impl RelayNodeStore {
             generation: relay_node.generation,
             epoch,
             key: connection_key.clone(),
+            desired_draining: relay_node.desired_draining,
         })
     }
 

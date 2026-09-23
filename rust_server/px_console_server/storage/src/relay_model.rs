@@ -101,6 +101,7 @@ pub struct RelayNodeConnection {
     pub(crate) generation: i64,
     pub(crate) epoch: RuntimeEpoch,
     pub(crate) key: TokenDigest,
+    pub(crate) desired_draining: bool,
 }
 
 impl RelayNodeConnection {
@@ -114,6 +115,10 @@ impl RelayNodeConnection {
 
     pub fn epoch(&self) -> RuntimeEpoch {
         self.epoch
+    }
+
+    pub fn desired_draining(&self) -> bool {
+        self.desired_draining
     }
 }
 

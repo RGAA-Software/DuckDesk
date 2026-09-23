@@ -14,6 +14,7 @@ px_pg = { path = "../../px_pg" }
 px_node_protocol = { path = "../../px_node_protocol" }
 px_private_files = { path = "../../px_private_files" }
 px_relay_admission = { path = "../../px_relay_admission" }
+px_relay_control_protocol = { path = "../../px_relay_control_protocol" }
 px_release_catalog = { path = "../../px_release_catalog" }
 px_license = { path = "../../px_auth_server/license" }
 axum = { version = "0.8.1", features = ["json", "ws"] }
@@ -40,6 +41,7 @@ tower-http = { version = "0.6", features = ["cors"] }
 libc = "0.2"
 
 [dev-dependencies]
+px_relay_server = { path = "../../px_relay_server" }
 tower = { version = "0.5", features = ["util"] }
 tokio-tungstenite = "0.28"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
@@ -56,6 +58,10 @@ required-features = ["pg-integration"]
 
 [[test]]
 name = "node_control"
+required-features = ["pg-integration"]
+
+[[test]]
+name = "relay_control"
 required-features = ["pg-integration"]
 
 [[test]]

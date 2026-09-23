@@ -19,6 +19,7 @@ mod policy;
 mod profile_api;
 mod recording_cache_api;
 mod recording_upload_api;
+mod relay_api;
 mod request;
 mod resource_api;
 mod saved_connection_api;
@@ -61,6 +62,7 @@ pub(crate) struct StateData {
     limits: px_credentials::LoginLimits,
     node_limits: px_credentials::LoginLimits,
     node_slots: Arc<Semaphore>,
+    relay_slots: Arc<Semaphore>,
     dummy: Zeroizing<String>,
     guests: GuestAdmission,
     epoch: RuntimeEpoch,
@@ -291,6 +293,7 @@ impl ConsoleRuntime {
             limits: Default::default(),
             node_limits: Default::default(),
             node_slots: Arc::new(Semaphore::new(node_wire::MAX_CONNECTIONS)),
+            relay_slots: Arc::new(Semaphore::new(px_relay_control_protocol::MAX_CONNECTIONS)),
             dummy,
             guests,
             epoch,
@@ -386,6 +389,7 @@ impl ConsoleRuntime {
             .merge(license_api::routes())
             .merge(management_events::routes())
             .merge(node_api::routes())
+            .merge(relay_api::routes())
             .merge(deployment_api::routes())
             .merge(guest_api::routes())
             .merge(resource_api::routes())
@@ -467,6 +471,12 @@ impl ConsoleRuntime {
             .node_slots
             .clone()
             .acquire_many_owned(node_wire::MAX_CONNECTIONS as u32)
+            .await;
+        let _relay_connections = self
+            .state
+            .relay_slots
+            .clone()
+            .acquire_many_owned(px_relay_control_protocol::MAX_CONNECTIONS as u32)
             .await;
         self.state.db.close().await;
     }

@@ -10,18 +10,22 @@ futures-util = "0.3"
 prost = "0.14.1"
 protocol = { path = "../../rust_base/protocol" }
 px_relay_admission = { path = "../px_relay_admission" }
+px_relay_control_protocol = { path = "../px_relay_control_protocol" }
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 subtle = "2"
 tokio = { version = "1.43", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-tungstenite = { version = "0.28", default-features = false, features = ["connect", "handshake", "rustls-tls-webpki-roots"] }
+tokio-util = "0.7"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+url = "2"
 uuid = { version = "1", features = ["v4"] }
+zeroize = "1.8"
 
 [dev-dependencies]
 http = "1"
 reqwest = { version = "0.12", default-features = false, features = ["json"] }
-serde_json = "1"
-tokio-tungstenite = "0.28"
 
 [[bin]]
 name = "px_relay"

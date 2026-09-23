@@ -34,6 +34,33 @@ pub struct RelayServerState {
     draining: Arc<AtomicBool>,
 }
 
+impl RelayServerState {
+    pub fn new(config: RelayConfig) -> Self {
+        let starts_draining = config.control_plane.is_some();
+        Self {
+            config,
+            registry: Arc::new(Mutex::new(RelayRegistry::default())),
+            draining: Arc::new(AtomicBool::new(starts_draining)),
+        }
+    }
+
+    pub(crate) fn config(&self) -> &RelayConfig {
+        &self.config
+    }
+
+    pub(crate) fn set_draining(&self, draining: bool) {
+        self.draining.store(draining, Ordering::Release);
+    }
+
+    pub(crate) fn is_draining(&self) -> bool {
+        self.draining.load(Ordering::Acquire)
+    }
+
+    pub(crate) async fn snapshot(&self) -> crate::state::RelaySnapshot {
+        self.registry.lock().await.snapshot()
+    }
+}
+
 #[derive(Deserialize)]
 struct RelayQuery {
     device_id: String,
@@ -73,16 +100,16 @@ struct DrainingResponse {
 }
 
 pub fn router(config: RelayConfig) -> Router {
+    router_with_state(RelayServerState::new(config))
+}
+
+pub fn router_with_state(state: RelayServerState) -> Router {
     Router::new()
         .route("/healthz", get(health))
         .route("/ping", get(ping))
         .route("/control/draining", axum::routing::post(set_draining))
         .route("/relay", get(websocket_upgrade))
-        .with_state(RelayServerState {
-            config,
-            registry: Arc::new(Mutex::new(RelayRegistry::default())),
-            draining: Arc::new(AtomicBool::new(false)),
-        })
+        .with_state(state)
 }
 
 async fn ping() -> &'static str {
@@ -91,7 +118,7 @@ async fn ping() -> &'static str {
 
 async fn health(State(state): State<RelayServerState>) -> Json<HealthResponse> {
     let snapshot = state.registry.lock().await.snapshot();
-    let accepting_new_connections = !state.draining.load(Ordering::Acquire);
+    let accepting_new_connections = !state.is_draining();
     Json(HealthResponse {
         status: if accepting_new_connections {
             "ok"
@@ -119,7 +146,7 @@ async fn set_draining(
     if !authorized_control(&state.config, &headers) {
         return Err(StatusCode::UNAUTHORIZED);
     }
-    state.draining.store(request.draining, Ordering::Release);
+    state.set_draining(request.draining);
     Ok(Json(DrainingResponse {
         status: if request.draining { "draining" } else { "ok" },
         accepting_new_connections: !request.draining,
@@ -147,7 +174,7 @@ async fn websocket_upgrade(
     Query(query): Query<RelayQuery>,
     websocket: WebSocketUpgrade,
 ) -> Response {
-    if state.draining.load(Ordering::Acquire) {
+    if state.is_draining() {
         return StatusCode::SERVICE_UNAVAILABLE.into_response();
     }
     if !valid_identity(&query.device_id)

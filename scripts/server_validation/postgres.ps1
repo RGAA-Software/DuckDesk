@@ -7,7 +7,7 @@ param(
     [ValidateRange(0,65535)]
     [int]$Port = 0,
     [switch]$Linux,
-    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'relay-nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'backup-pg', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'auth-browser', 'catalog', 'update-authority', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'distribution-isolation', 'node-control', 'console-process', 'console-admin', 'console-browser')]
+    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'relay-nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'backup-pg', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'auth-browser', 'catalog', 'update-authority', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'distribution-isolation', 'node-control', 'relay-control', 'console-process', 'console-admin', 'console-browser')]
     [string]$Suite = ''
 )
 
@@ -42,6 +42,7 @@ $fingerprints = @{}
 $sourceFiles = @('rust_server/Cargo.toml','rust_server/Cargo.lock')
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_credentials'),(Join-Path $repo 'rust_server/px_console_server/runtime') -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_node_protocol') -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
+$sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_relay_control_protocol'),(Join-Path $repo 'rust_server/px_relay_server') -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_backup') -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
 $sourceFiles += @('rust_server/px_auth_server/Cargo.toml','rust_server/px_auth_server/build.rs')
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $repo 'rust_server/px_auth_server/src'),(Join-Path $repo 'rust_server/px_auth_server/tests') -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($repo,$_.FullName) })
@@ -372,6 +373,7 @@ try {
         $suiteCounts['directory-api'] = 7
         $suiteCounts['distribution-isolation'] = 1
         $suiteCounts['node-control'] = 2
+        $suiteCounts['relay-control'] = 1
         $suiteCounts['console-process'] = 1
         $suiteCounts['console-admin'] = 3
         $suiteCounts['schema_gate'] = 4
@@ -384,6 +386,7 @@ try {
             'directory-api' = 'directory_api'
             'distribution-isolation' = 'distribution_isolation'
             'node-control' = 'node_control'
+            'relay-control' = 'relay_control'
             'console-process' = 'process'
             'console-admin' = 'admin'
         }

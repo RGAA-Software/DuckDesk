@@ -1927,4 +1927,8 @@ P3-1A 已完成 PostgreSQL Relay 权威库存：fresh schema 0030 增加唯一�
 Console runtime epoch、连接 generation、严格 report sequence 和 30 秒 fresh 判定；新 Relay 安全默认排空，旧连接不能覆盖或关闭替代连接，
 Console 重启会使 Render/Service 与 Relay 的旧连接同时失效。SQLx fresh-schema 元数据 287/287、Relay 库存短验收 3/3、既有节点代际回归
 11/11 及严格 Release Clippy/rustfmt 均通过，报告为 `pg-20260923-214413-9e59a565`、`pg-20260923-214608-f0a9f0b0`。
-下一批 P3-1B 仅连接 Relay 主动到 Console 的受认证 WebSocket 状态生产者和 draining 收敛，不提前实现 Relay 选择、会话绑定或管理页面。
+P3-1B 随后完成 Relay 主动连接 Console 的受认证 WebSocket 状态生产者：Relay 启动/失联安全默认排空，每 5 秒上报实时容量和累计字节，
+Console 以 `desired_draining` 下发权威状态并在变化时要求 Relay 立即确认；请求序号、报告序号、连接 generation 和 Console epoch 四层均受门禁，
+正常静默最长 15 秒 fail-closed，不中断已有数据连接。真实 Console + Relay + PostgreSQL + HTTP 健康状态闭环 1/1 PASS，报告
+`pg-20260923-221147-3e5ea134`；协议 1/1、既有 Relay 8/8 及严格 Release Clippy/rustfmt 均通过。P3-1 至此完成，下一批 P3-2 只做
+可分配 Relay 查询和资源会话原子稳定绑定，不提前做运维 UI、Socket 热迁移或资源池扩展。

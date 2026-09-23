@@ -65,5 +65,16 @@ Console fresh schema 0030 已增加 `relay_nodes` 和仅保存摘要凭据的管
 全新 PostgreSQL schema 的 SQLx 元数据 287/287 生成通过；Relay 库存短验收 3/3 PASS，既有节点代际回归 11/11 PASS，Release
 Clippy 和 rustfmt 通过。报告分别为 `pg-20260923-214413-9e59a565` 和 `pg-20260923-214608-f0a9f0b0`。
 
-P3-1 尚未整体完成。下一批 P3-1B 只实现 Relay 主动连接 Console 的受认证 WebSocket 状态生产者，把 P3-0 的实时计数写入本库存，
-并让 Console 下发期望 draining；不在这一批提前实现选择、绑定或管理页面。
+## 6. P3-1B 已完成：主动状态生产者
+
+Relay 现在通过独立的严格 JSON 协议主动连接 Console `/api/console/relay-control`，令牌只放在首帧而不进入 URL、header 或日志。Console 认证成功后
+绑定 runtime epoch 和连接 generation；Relay 每 5 秒上报连接数、房间数、累计上传/转发字节、容量、版本和实际 draining。请求 ID 与 report sequence
+分别严格递增，旧连接、乱序报告和失效 Console epoch 均不能更新库存。
+
+Console 的 `desired_draining` 是运行权威。Relay 启动和控制连接失效时默认排空；收到状态变化后立即补发一帧实际状态确认，正常静默时最长 15 秒
+fail-closed，已有数据连接不被强制迁移或中断。该协议只传服务状态，不新增客户端短期 ticket，也不承载 WebRTC signaling。
+
+真实 Console WebSocket + Relay 控制客户端 + PostgreSQL + Relay HTTP 健康状态短闭环 1/1 PASS，报告
+`pg-20260923-221147-3e5ea134`；共享协议 1/1、既有 Relay 数据路径回归 8/8 和严格 Release Clippy/rustfmt 均通过。
+
+P3-1 已完成。下一批进入 P3-2：只增加可分配 Relay 查询和资源会话的原子稳定绑定；不在该批实现运维页面、Socket 热迁移或机器池扩展。
