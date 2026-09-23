@@ -7,7 +7,7 @@ use axum::{
         ws::{Message, WebSocket, WebSocketUpgrade},
         Query, State,
     },
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::get,
     Json, Router,
@@ -17,7 +17,10 @@ use prost::Message as ProstMessage;
 use protocol::px_relay::{RelayCreateRoomRespMessage, RelayMessage, RelayMessageType};
 use serde::{Deserialize, Serialize};
 use std::{
-    sync::Arc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use subtle::ConstantTimeEq;
@@ -28,6 +31,7 @@ use uuid::Uuid;
 pub struct RelayServerState {
     config: RelayConfig,
     registry: Arc<Mutex<RelayRegistry>>,
+    draining: Arc<AtomicBool>,
 }
 
 #[derive(Deserialize)]
@@ -45,8 +49,11 @@ struct RelayQuery {
 #[derive(Serialize)]
 struct HealthResponse {
     status: &'static str,
+    accepting_new_connections: bool,
     connections: usize,
+    max_connections: usize,
     rooms: usize,
+    max_rooms: usize,
     uploaded_payload_bytes: u64,
     forwarded_payload_bytes: u64,
     creator_to_remote_payload_bytes: u64,
@@ -54,14 +61,27 @@ struct HealthResponse {
     dropped_messages: u64,
 }
 
+#[derive(Deserialize)]
+struct DrainingRequest {
+    draining: bool,
+}
+
+#[derive(Serialize)]
+struct DrainingResponse {
+    status: &'static str,
+    accepting_new_connections: bool,
+}
+
 pub fn router(config: RelayConfig) -> Router {
     Router::new()
         .route("/healthz", get(health))
         .route("/ping", get(ping))
+        .route("/control/draining", axum::routing::post(set_draining))
         .route("/relay", get(websocket_upgrade))
         .with_state(RelayServerState {
             config,
             registry: Arc::new(Mutex::new(RelayRegistry::default())),
+            draining: Arc::new(AtomicBool::new(false)),
         })
 }
 
@@ -71,10 +91,18 @@ async fn ping() -> &'static str {
 
 async fn health(State(state): State<RelayServerState>) -> Json<HealthResponse> {
     let snapshot = state.registry.lock().await.snapshot();
+    let accepting_new_connections = !state.draining.load(Ordering::Acquire);
     Json(HealthResponse {
-        status: "ok",
+        status: if accepting_new_connections {
+            "ok"
+        } else {
+            "draining"
+        },
+        accepting_new_connections,
         connections: snapshot.connections,
+        max_connections: state.config.max_connections,
         rooms: snapshot.rooms,
+        max_rooms: state.config.max_rooms,
         uploaded_payload_bytes: snapshot.uploaded_payload_bytes,
         forwarded_payload_bytes: snapshot.forwarded_payload_bytes,
         creator_to_remote_payload_bytes: snapshot.creator_to_remote_payload_bytes,
@@ -83,11 +111,45 @@ async fn health(State(state): State<RelayServerState>) -> Json<HealthResponse> {
     })
 }
 
+async fn set_draining(
+    State(state): State<RelayServerState>,
+    headers: HeaderMap,
+    Json(request): Json<DrainingRequest>,
+) -> Result<Json<DrainingResponse>, StatusCode> {
+    if !authorized_control(&state.config, &headers) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    state.draining.store(request.draining, Ordering::Release);
+    Ok(Json(DrainingResponse {
+        status: if request.draining { "draining" } else { "ok" },
+        accepting_new_connections: !request.draining,
+    }))
+}
+
+fn authorized_control(config: &RelayConfig, headers: &HeaderMap) -> bool {
+    let Some(authorization) = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+    else {
+        return false;
+    };
+    config
+        .control_key
+        .as_slice()
+        .ct_eq(authorization.as_bytes())
+        .unwrap_u8()
+        == 1
+}
+
 async fn websocket_upgrade(
     State(state): State<RelayServerState>,
     Query(query): Query<RelayQuery>,
     websocket: WebSocketUpgrade,
 ) -> Response {
+    if state.draining.load(Ordering::Acquire) {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    }
     if !valid_identity(&query.device_id)
         || (!query.remote_device_id.is_empty() && !valid_identity(&query.remote_device_id))
         || !authorized_admission(&state.config, &query)

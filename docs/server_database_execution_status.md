@@ -1916,3 +1916,9 @@ deployment identity 的两套 Console PostgreSQL 数据库并启动两套真实 
 短测、`sessions` 13/13 与 `instances` 16/16 的服务和额度门禁，以及本次六套正式制品复核，P1/P2-EXIT 已完成。下一阶段进入 P3，
 仅处理 Broker/Relay 边界、多 Render/多 Relay 发现、容量门禁、资源池和多机短测；不重新引入中央 WebRTC signaling、TURN、自动升级编排或
 客户端许可证协议。商业发布前延期清单保持不变。
+
+P3 已按“复用现有能力、只补真实缺口”启动，执行入口见
+[P3 连接与多节点调度执行计划](p3_connection_scheduling_execution_plan.md)。首批 P3-0 为独立 `px_relay` 增加 32–512 字节独立控制密钥、
+受认证的动态 draining 和完整当前/最大连接、房间容量状态；排空时新 WebSocket 以 503 拒绝，已有连接继续工作，恢复后重新准入。
+公网覆盖脚本首次生成随机控制密钥并在后续升级保留，launcher ACL 不放宽。Release 单元及真实 WebSocket 8/8、严格 Release Clippy、
+rustfmt 和 PowerShell 语法通过。该切片不冒充多 Relay 完成；下一批是 PostgreSQL Relay 服务库存、受认证心跳和有时效的容量选择。

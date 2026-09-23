@@ -56,6 +56,20 @@ try {
         $relayPath = "$relayDirectory\px_relay.exe"
         $relayStaged = "$relayDirectory\px_relay.staged.exe"
         $relayLauncher = "$relayDirectory\start-relay.ps1"
+        $relayControlKey = $null
+        if (Test-Path -LiteralPath $relayLauncher -PathType Leaf) {
+            $existingRelayLauncher = Get-Content -LiteralPath $relayLauncher -Raw
+            $controlKeyMatch = [regex]::Match(
+                $existingRelayLauncher,
+                "(?m)^\s*`\$env:PIXELS_RELAY_CONTROL_KEY\s*=\s*'([^']+)'\s*$")
+            if ($controlKeyMatch.Success) {
+                $relayControlKey = $controlKeyMatch.Groups[1].Value
+            }
+        }
+        if ([string]::IsNullOrWhiteSpace($relayControlKey)) {
+            $relayControlKey = [Convert]::ToHexString(
+                [Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).ToLowerInvariant()
+        }
         foreach ($artifact in @(@($consoleStaged, $consoleHash), @($relayStaged, $relayHash))) {
             if ((Get-FileHash -LiteralPath $artifact[0] -Algorithm SHA256).Hash -ne $artifact[1]) {
                 throw "Staged artifact hash mismatch: $($artifact[0])"
@@ -104,10 +118,12 @@ try {
             '')
         $escapedHost = $publicHost.Replace("'", "''")
         $escapedAppKey = $relayAppKey.Replace("'", "''")
+        $escapedControlKey = $relayControlKey.Replace("'", "''")
         $relayEnvironment = @"
 `$env:PIXELS_RELAY_PUBLIC_HOST = '$escapedHost'
 `$env:PIXELS_RELAY_PUBLIC_PORT = '$relayPort'
 `$env:PIXELS_RELAY_APP_KEY = '$escapedAppKey'
+`$env:PIXELS_RELAY_CONTROL_KEY = '$escapedControlKey'
 
 "@
         if ($consoleText -notmatch '(?m)^\$consoleProcess\s*=') {

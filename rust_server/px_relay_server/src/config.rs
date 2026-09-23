@@ -4,6 +4,7 @@ use std::{env, net::SocketAddr, time::Duration};
 pub struct RelayConfig {
     pub listen: SocketAddr,
     pub app_key: Vec<u8>,
+    pub control_key: Vec<u8>,
     pub max_connections: usize,
     pub max_rooms: usize,
     pub outbound_queue: usize,
@@ -20,9 +21,14 @@ impl RelayConfig {
         if app_key.len() < 16 || app_key.len() > 512 {
             return Err("PIXELS_RELAY_APP_KEY must contain 16-512 bytes".to_string());
         }
+        let control_key = required("PIXELS_RELAY_CONTROL_KEY")?.into_bytes();
+        if control_key.len() < 32 || control_key.len() > 512 {
+            return Err("PIXELS_RELAY_CONTROL_KEY must contain 32-512 bytes".to_string());
+        }
         Ok(Self {
             listen,
             app_key,
+            control_key,
             max_connections: bounded("PIXELS_RELAY_MAX_CONNECTIONS", 4_096, 2, 100_000)?,
             max_rooms: bounded("PIXELS_RELAY_MAX_ROOMS", 2_048, 1, 50_000)?,
             outbound_queue: bounded("PIXELS_RELAY_OUTBOUND_QUEUE", 256, 8, 8_192)?,

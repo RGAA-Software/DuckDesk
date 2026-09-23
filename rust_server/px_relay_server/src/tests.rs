@@ -173,6 +173,7 @@ async fn start_server_with_idle_timeout(
     let config = RelayConfig {
         listen: address,
         app_key: b"test-relay-app-key".to_vec(),
+        control_key: b"test-relay-control-key-32-bytes!!".to_vec(),
         max_connections: 16,
         max_rooms: 8,
         outbound_queue: 32,
@@ -183,6 +184,69 @@ async fn start_server_with_idle_timeout(
         axum::serve(listener, router(config)).await.unwrap();
     });
     (address, server)
+}
+
+#[tokio::test]
+async fn draining_rejects_new_connections_without_interrupting_existing_connections() {
+    let (address, server) = start_server().await;
+    let mut existing_client = connect(address, "existing-client", "").await;
+    let control_url = format!("http://{address}/control/draining");
+    let http_client = reqwest::Client::new();
+
+    let unauthorized = http_client
+        .post(&control_url)
+        .bearer_auth("wrong-control-key")
+        .json(&serde_json::json!({"draining":true}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(unauthorized.status(), reqwest::StatusCode::UNAUTHORIZED);
+
+    let draining = http_client
+        .post(&control_url)
+        .bearer_auth("test-relay-control-key-32-bytes!!")
+        .json(&serde_json::json!({"draining":true}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(draining.status(), reqwest::StatusCode::OK);
+    let draining_status: serde_json::Value = draining.json().await.unwrap();
+    assert_eq!(draining_status["status"], "draining");
+    assert_eq!(draining_status["accepting_new_connections"], false);
+
+    let rejected = connect_async(format!(
+        "ws://{address}/relay?device_id=new-client&remote_device_id=&device_name=test&stream_id=stream&appkey=test-relay-app-key"
+    ))
+    .await;
+    let tungstenite::Error::Http(response) = rejected.unwrap_err() else {
+        panic!("expected draining Relay to reject a new connection");
+    };
+    assert_eq!(response.status(), http::StatusCode::SERVICE_UNAVAILABLE);
+
+    send(
+        &mut existing_client,
+        RelayMessage {
+            r#type: RelayMessageType::KRelayHello as i32,
+            hello: Some(RelayHello::default()),
+            ..Default::default()
+        },
+    )
+    .await;
+    assert_eq!(
+        receive(&mut existing_client).await.r#type,
+        RelayMessageType::KRelayHello as i32
+    );
+
+    let resumed = http_client
+        .post(&control_url)
+        .bearer_auth("test-relay-control-key-32-bytes!!")
+        .json(&serde_json::json!({"draining":false}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resumed.status(), reqwest::StatusCode::OK);
+    let _new_client = connect(address, "new-client", "").await;
+    server.abort();
 }
 
 #[tokio::test]
