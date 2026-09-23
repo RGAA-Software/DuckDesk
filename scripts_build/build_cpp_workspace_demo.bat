@@ -11,6 +11,8 @@ if /I not "%~1"=="cloud_node" if /I not "%~1"=="client" if /I not "%~1"=="remote
 set "DEMO_PRODUCT=%~1"
 set "DEMO_BUILD_DIR=build_official\%DEMO_PRODUCT%\tools\workspace_demo"
 cd /d "%~dp0\.."
+rem CMake and Ninja must decode localized MSVC /showIncludes output as UTF-8.
+chcp 65001 >nul
 set "DEMO_VCPKG=%VCPKG_ROOT%"
 if not defined DEMO_VCPKG set "DEMO_VCPKG=C:\source\vcpkg"
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"

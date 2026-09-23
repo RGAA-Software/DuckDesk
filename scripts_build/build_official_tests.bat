@@ -2,6 +2,7 @@
 setlocal enabledelayedexpansion
 
 rem Keep MSVC /showIncludes output compatible with Ninja dependency parsing.
+chcp 65001 >nul
 set "VSLANG=1033"
 
 cd /d "%~dp0.." || exit /b 1

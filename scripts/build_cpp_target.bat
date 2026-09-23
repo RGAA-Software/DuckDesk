@@ -9,6 +9,8 @@ rem at build_official\<product>\cmake. Release orchestration sets
 rem CPP_DISTRIBUTION=official|customer|oem and uses a nested flavor tree.
 
 cd /d "%~dp0\.."
+rem CMake and Ninja must decode localized MSVC /showIncludes output as UTF-8.
+chcp 65001 >nul
 if "%~1"=="" (
     echo ERROR: at least one CMake target is required.
     echo Usage: scripts\build_cpp_target.bat target [target ...]

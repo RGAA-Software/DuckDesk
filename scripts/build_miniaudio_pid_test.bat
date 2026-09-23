@@ -1,6 +1,8 @@
 @echo off
 setlocal enabledelayedexpansion
 cd /d "%~dp0.."
+rem CMake and Ninja must decode localized MSVC /showIncludes output as UTF-8.
+chcp 65001 >nul
 
 if "%~1"=="" (
     echo Usage: %~nx0 cloud_node^|remote [jobs]
