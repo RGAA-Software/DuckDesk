@@ -8,11 +8,10 @@ import re
 from pathlib import Path
 
 
-PRODUCT_FILES = (
+TEXT_PRODUCT_FILES = (
     "cmake/product_icon.rc.in",
     "src/px_base/icon.rc.in",
     "src/px_client/icon.rc.in",
-    "src/px_panel/icon.rc.in",
     "src/px_render/rd_icon.rc.in",
     "src/px_render/network/webrtc/webrtc_transport_types.h",
     "src/px_render/architecture/modules/render_module.cpp",
@@ -22,12 +21,14 @@ PRODUCT_FILES = (
     "src/px_android/scripts/build_release.ps1",
 )
 
+REQUIRED_BINARY_FILES = ("src/px_panel/icon.ico",)
+
 RETIRED_BRAND = re.compile(r"rgaa", re.IGNORECASE)
 
 
 def validate(repo_root: Path) -> list[str]:
     errors: list[str] = []
-    for relative_name in PRODUCT_FILES:
+    for relative_name in TEXT_PRODUCT_FILES:
         path = repo_root / relative_name
         if not path.is_file():
             errors.append(f"missing product branding input: {relative_name}")
@@ -35,6 +36,9 @@ def validate(repo_root: Path) -> list[str]:
         for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
             if RETIRED_BRAND.search(line):
                 errors.append(f"retired RGAA product branding: {relative_name}:{line_number}")
+    for relative_name in REQUIRED_BINARY_FILES:
+        if not (repo_root / relative_name).is_file():
+            errors.append(f"missing product branding input: {relative_name}")
     return errors
 
 
@@ -48,7 +52,8 @@ def main() -> int:
         for error in errors:
             print(f"ERROR: {error}")
         return 1
-    print(f"OK: Pixels branding validated across {len(PRODUCT_FILES)} product-facing inputs")
+    input_count = len(TEXT_PRODUCT_FILES) + len(REQUIRED_BINARY_FILES)
+    print(f"OK: Pixels branding validated across {input_count} product-facing inputs")
     return 0
 
 
