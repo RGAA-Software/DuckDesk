@@ -18,12 +18,6 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-from windows_release_signing import (  # noqa: E402
-    load_configuration,
-    nsis_finalize_command,
-    preflight,
-    sign_file,
-)
 from oem_release_profile import OemReleaseProfile, OemWindowsProductIdentity, load_oem_release_profile  # noqa: E402
 
 
@@ -187,7 +181,7 @@ def require_supported_nsis(makensis: Path) -> Path:
         required = ".".join(str(component) for component in MINIMUM_NSIS_VERSION)
         actual = ".".join(str(component) for component in version)
         raise RuntimeError(
-            f"NSIS {required} or newer is required for signed uninstallers and the SYSTEM security fix; "
+            f"NSIS {required} or newer is required for the SYSTEM security fix; "
             f"got {actual}: {makensis}"
         )
     return makensis.resolve()
@@ -195,7 +189,10 @@ def require_supported_nsis(makensis: Path) -> Path:
 
 def find_nsis(configured_dir: str | None, repo_root: Path) -> Path:
     if configured_dir:
-        configured_path = Path(configured_dir) / "makensis.exe"
+        configured_directory = Path(configured_dir)
+        if not configured_directory.is_absolute():
+            configured_directory = repo_root / "setup" / configured_directory
+        configured_path = configured_directory.resolve() / "makensis.exe"
         if not configured_path.is_file():
             raise RuntimeError(f"configured makensis.exe is missing: {configured_path}")
         return require_supported_nsis(configured_path)
@@ -263,7 +260,6 @@ def create_installer(
     oem_id: str | None,
     product_identity: OemWindowsProductIdentity | None,
     icon_path: Path | None,
-    uninstaller_sign_command: str,
 ) -> Path:
     definition_values = {
         "OUTPUT_DIR": str(staging_dir),
@@ -275,7 +271,6 @@ def create_installer(
         "PRODUCT_VERSION_CODE": str(version_code),
         "COMPANY": company,
         "PUBLISHER_NAME": publisher_name,
-        "UNINSTALL_SIGN_COMMAND": uninstaller_sign_command,
     }
     if product_identity is not None:
         definition_values.update(
@@ -350,18 +345,11 @@ def main() -> int:
         publisher_name = company
         product_identity = None
         icon_path = None
-    signing_configuration = load_configuration()
-    preflight(signing_configuration)
-    if (
-        oem_profile is not None
-        and signing_configuration.certificate_sha256.lower() != oem_profile.windows_signer_certificate_sha256
-    ):
-        raise RuntimeError("Windows signing certificate does not match the OEM release profile")
     tool_config = load_tool_config(setup_dir)
     makensis = find_nsis(tool_config.get("nsis_dir_path"), repo_root)
     validate_pinned_nsis(repo_root, makensis)
     if args.preflight_only:
-        print("Windows installer signing and pinned toolchain preflight passed.")
+        print("Unsigned Windows installer policy and pinned toolchain preflight passed.")
         return 0
     distribution_directory = Path("oem") / oem_id if oem_id is not None else Path(args.distribution)
     expected_dist_dir = (repo_root / "build_official" / args.product / distribution_directory / "dist").resolve()
@@ -409,11 +397,9 @@ def main() -> int:
             oem_id,
             product_identity,
             icon_path,
-            nsis_finalize_command(signing_configuration),
         )
-        sign_file(installer, signing_configuration)
         release_manifest = {
-            "schema_version": 3,
+            "schema_version": 4,
             "product": args.product,
             "distribution": args.distribution,
             "release_namespace": release_namespace,
@@ -429,7 +415,7 @@ def main() -> int:
             "product_version": config["product_version"],
             "product_version_code": config["product_version_code"],
             "git_revision": manifest["git_revision"],
-            "signer_certificate_sha256": signing_configuration.certificate_sha256,
+            "windows_code_signing": "unsigned",
             "payload_manifest_sha256": sha256(dist_dir / "product-manifest.json"),
             "payload_artifact_count": len(manifest["artifacts"]),
             "installer": {"path": installer.name, "sha256": sha256(installer)},

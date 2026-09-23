@@ -36,7 +36,6 @@ class OemReleaseProfile:
     application_name: str
     update_root_sha256: str
     windows_publisher_name: str
-    windows_signer_certificate_sha256: str
     windows_icon_path: Path
     windows_products: dict[str, OemWindowsProductIdentity]
     android_application_id: str
@@ -207,10 +206,9 @@ def load_oem_release_profile(path: Path) -> OemReleaseProfile:
     windows = require_object(
         profile_document,
         "windows",
-        {"publisher_name", "signer_certificate_sha256", "icon", "products"},
+        {"publisher_name", "icon", "products"},
     )
     windows_publisher_name = require_embeddable_text(windows, "publisher_name")
-    windows_signer_certificate_sha256 = require_sha256(windows, "signer_certificate_sha256")
     windows_icon = windows.get("icon")
     if not isinstance(windows_icon, dict):
         raise RuntimeError("OEM Windows icon asset is invalid")
@@ -257,7 +255,6 @@ def load_oem_release_profile(path: Path) -> OemReleaseProfile:
         application_name=application_name,
         update_root_sha256=update_root_sha256,
         windows_publisher_name=windows_publisher_name,
-        windows_signer_certificate_sha256=windows_signer_certificate_sha256,
         windows_icon_path=windows_icon_path,
         windows_products=windows_products,
         android_application_id=android_application_id,
@@ -316,13 +313,13 @@ def emit_windows_json(profile: OemReleaseProfile, product: str) -> str:
         raise RuntimeError(f"unsupported OEM Windows product: {product}")
     product_identity = profile.windows_products[product]
     configuration = {
-        "schema_version": 1,
+        "schema_version": 2,
         "oem_id": profile.oem_id,
         "release_namespace": profile.release_namespace,
         "company_name": profile.company_name,
         "application_name": profile.application_name,
         "publisher_name": profile.windows_publisher_name,
-        "signer_certificate_sha256": profile.windows_signer_certificate_sha256,
+        "windows_code_signing": "unsigned",
         "update_root_sha256": profile.update_root_sha256,
         "windows_icon_path": str(profile.windows_icon_path),
         "web_icon_path": str(profile.web_icon_path),

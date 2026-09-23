@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify signed Pixels Windows installer releases and upgrade pairs."""
+"""Verify unsigned Pixels Windows installer releases and upgrade pairs."""
 
 from __future__ import annotations
 
@@ -10,13 +10,6 @@ import re
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Callable
-
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT / "scripts"))
-
-from windows_release_signing import normalized_hex, verify_file  # noqa: E402
 
 
 PRODUCT_BASENAMES = {
@@ -47,7 +40,7 @@ class VerifiedInstallerRelease:
     oem_profile_sha256: str | None
     product_version: str
     product_version_code: int
-    signer_certificate_sha256: str
+    windows_code_signing: str
     payload_manifest_sha256: str
     payload_artifact_count: int
     git_revision: str
@@ -59,7 +52,6 @@ def parse_arguments() -> argparse.Namespace:
 
     single_parser = subcommands.add_parser("single", help="Verify one installer release directory")
     single_parser.add_argument("--release-dir", type=Path, required=True)
-    single_parser.add_argument("--expected-signer-sha256", required=True)
     single_parser.add_argument("--output", type=Path)
 
     pair_parser = subcommands.add_parser("pair", help="Verify one same-channel upgrade pair")
@@ -67,14 +59,11 @@ def parse_arguments() -> argparse.Namespace:
     pair_parser.add_argument("--current", type=Path, required=True)
     pair_parser.add_argument("--expected-product", choices=tuple(PRODUCT_BASENAMES), required=True)
     pair_parser.add_argument("--expected-distribution", choices=tuple(VALID_DISTRIBUTIONS), required=True)
-    pair_parser.add_argument("--previous-signer-sha256", required=True)
-    pair_parser.add_argument("--current-signer-sha256", required=True)
     pair_parser.add_argument("--output", type=Path)
 
     installed_parser = subcommands.add_parser("installed", help="Verify one installed product against its release")
     installed_parser.add_argument("--release-dir", type=Path, required=True)
     installed_parser.add_argument("--install-dir", type=Path, required=True)
-    installed_parser.add_argument("--expected-signer-sha256", required=True)
     installed_parser.add_argument("--output", type=Path)
     return parser.parse_args()
 
@@ -129,7 +118,7 @@ def parse_product_version(version: str) -> tuple[int, int, int]:
 
 
 def validate_sha256(value: str, field_name: str) -> str:
-    normalized_value = normalized_hex(value)
+    normalized_value = value.replace(":", "").replace(" ", "").upper()
     if HEX_SHA256.fullmatch(normalized_value) is None:
         raise RuntimeError(f"installer manifest field must contain a SHA-256 digest: {field_name}")
     return normalized_value
@@ -137,8 +126,6 @@ def validate_sha256(value: str, field_name: str) -> str:
 
 def validate_release_directory(
     release_directory: Path,
-    signature_verifier: Callable[[Path, str], None] = verify_file,
-    expected_signer_sha256: str | None = None,
 ) -> VerifiedInstallerRelease:
     resolved_directory = release_directory.resolve()
     if not resolved_directory.is_dir():
@@ -158,12 +145,12 @@ def validate_release_directory(
         "product_version",
         "product_version_code",
         "git_revision",
-        "signer_certificate_sha256",
+        "windows_code_signing",
         "payload_manifest_sha256",
         "payload_artifact_count",
         "installer",
     }
-    if manifest.get("schema_version") != 3 or set(manifest) != expected_manifest_fields:
+    if manifest.get("schema_version") != 4 or set(manifest) != expected_manifest_fields:
         raise RuntimeError(f"unsupported installer manifest schema: {manifest.get('schema_version')}")
 
     product = require_string(manifest, "product")
@@ -177,14 +164,9 @@ def validate_release_directory(
     product_version = require_string(manifest, "product_version")
     product_version_code = require_positive_integer(manifest, "product_version_code")
     git_revision = require_string(manifest, "git_revision")
-    signer_certificate_sha256 = validate_sha256(
-        require_string(manifest, "signer_certificate_sha256"),
-        "signer_certificate_sha256",
-    )
-    if expected_signer_sha256 is not None:
-        approved_signer_sha256 = validate_sha256(expected_signer_sha256, "externally approved signer")
-        if signer_certificate_sha256 != approved_signer_sha256:
-            raise RuntimeError("installer manifest signer does not match the externally approved certificate pin")
+    windows_code_signing = require_string(manifest, "windows_code_signing")
+    if windows_code_signing != "unsigned":
+        raise RuntimeError("installer manifest must declare the unsigned Windows policy")
     payload_manifest_sha256 = validate_sha256(
         require_string(manifest, "payload_manifest_sha256"),
         "payload_manifest_sha256",
@@ -255,8 +237,6 @@ def validate_release_directory(
         raise RuntimeError(
             f"installer SHA-256 mismatch: expected={expected_installer_sha256}, actual={actual_installer_sha256}"
         )
-    signature_verifier(installer_path, signer_certificate_sha256)
-
     return VerifiedInstallerRelease(
         directory=str(resolved_directory),
         installer_path=str(installer_path),
@@ -271,7 +251,7 @@ def validate_release_directory(
         oem_profile_sha256=oem_profile_sha256,
         product_version=product_version,
         product_version_code=product_version_code,
-        signer_certificate_sha256=signer_certificate_sha256,
+        windows_code_signing=windows_code_signing,
         payload_manifest_sha256=payload_manifest_sha256,
         payload_artifact_count=payload_artifact_count,
         git_revision=git_revision,
@@ -281,25 +261,11 @@ def validate_release_directory(
 def validate_upgrade_pair(
     previous_directory: Path,
     current_directory: Path,
-    signature_verifier: Callable[[Path, str], None] = verify_file,
-    approved_signer_transition: tuple[str, str] | None = None,
     expected_product: str | None = None,
     expected_distribution: str | None = None,
 ) -> dict[str, object]:
-    if approved_signer_transition is None:
-        raise RuntimeError("upgrade pair requires externally approved previous and current signer pins")
-    approved_previous_signer = validate_sha256(approved_signer_transition[0], "previous signer approval")
-    approved_current_signer = validate_sha256(approved_signer_transition[1], "current signer approval")
-    previous_release = validate_release_directory(
-        previous_directory,
-        signature_verifier,
-        approved_previous_signer,
-    )
-    current_release = validate_release_directory(
-        current_directory,
-        signature_verifier,
-        approved_current_signer,
-    )
+    previous_release = validate_release_directory(previous_directory)
+    current_release = validate_release_directory(current_directory)
     if previous_release.product != current_release.product:
         raise RuntimeError("upgrade pair products do not match")
     if previous_release.distribution != current_release.distribution:
@@ -333,11 +299,7 @@ def validate_upgrade_pair(
         "distribution": current_release.distribution,
         "release_namespace": current_release.release_namespace,
         "oem_id": current_release.oem_id,
-        "signer_transition": {
-            "previous": previous_release.signer_certificate_sha256,
-            "current": current_release.signer_certificate_sha256,
-            "explicitly_approved": True,
-        },
+        "windows_code_signing": "unsigned",
         "previous": asdict(previous_release),
         "current": asdict(current_release),
     }
@@ -346,14 +308,8 @@ def validate_upgrade_pair(
 def validate_installed_product(
     release_directory: Path,
     install_directory: Path,
-    signature_verifier: Callable[[Path, str], None] = verify_file,
-    expected_signer_sha256: str | None = None,
 ) -> dict[str, object]:
-    verified_release = validate_release_directory(
-        release_directory,
-        signature_verifier,
-        expected_signer_sha256,
-    )
+    verified_release = validate_release_directory(release_directory)
     resolved_install_directory = install_directory.resolve()
     if not resolved_install_directory.is_dir():
         raise RuntimeError(f"installed product directory does not exist: {resolved_install_directory}")
@@ -369,7 +325,7 @@ def validate_installed_product(
         )
     product_manifest = read_json_object(product_manifest_path)
     expected_identity = {
-        "schema_version": 3,
+        "schema_version": 4,
         "product": verified_release.product,
         "distribution": verified_release.distribution,
         "release_namespace": verified_release.release_namespace,
@@ -377,7 +333,7 @@ def validate_installed_product(
         "company": verified_release.company,
         "product_version": verified_release.product_version,
         "product_version_code": verified_release.product_version_code,
-        "signer_certificate_sha256": verified_release.signer_certificate_sha256,
+        "windows_code_signing": "unsigned",
     }
     actual_identity = {field_name: product_manifest.get(field_name) for field_name in expected_identity}
     if actual_identity != expected_identity:
@@ -469,8 +425,6 @@ def validate_installed_product(
     for owned_pe_name in owned_pe:
         if owned_pe_name not in artifact_hashes:
             raise RuntimeError(f"installed owned PE is absent from the artifact inventory: {owned_pe_name}")
-        signature_verifier(resolved_install_directory / Path(owned_pe_name), verified_release.signer_certificate_sha256)
-    signature_verifier(resolved_install_directory / "Uninstall.exe", verified_release.signer_certificate_sha256)
 
     return {
         "schema_version": 1,
@@ -482,8 +436,8 @@ def validate_installed_product(
         "install_directory": str(resolved_install_directory),
         "payload_manifest_sha256": actual_payload_manifest_sha256,
         "artifact_count": len(artifact_hashes),
-        "owned_pe_signature_count": len(owned_pe),
-        "uninstaller_signature_verified": True,
+        "owned_pe_inventory_count": len(owned_pe),
+        "windows_code_signing": "unsigned",
     }
 
 
@@ -500,27 +454,16 @@ def write_result(result: dict[str, object], output_path: Path | None) -> None:
 def main() -> int:
     arguments = parse_arguments()
     if arguments.command == "single":
-        verified_release = validate_release_directory(
-            arguments.release_dir,
-            expected_signer_sha256=arguments.expected_signer_sha256,
-        )
+        verified_release = validate_release_directory(arguments.release_dir)
         write_result({"schema_version": 1, "release": asdict(verified_release)}, arguments.output)
         return 0
     if arguments.command == "installed":
-        installed_result = validate_installed_product(
-            arguments.release_dir,
-            arguments.install_dir,
-            expected_signer_sha256=arguments.expected_signer_sha256,
-        )
+        installed_result = validate_installed_product(arguments.release_dir, arguments.install_dir)
         write_result(installed_result, arguments.output)
         return 0
     matrix = validate_upgrade_pair(
         arguments.previous,
         arguments.current,
-        approved_signer_transition=(
-            arguments.previous_signer_sha256,
-            arguments.current_signer_sha256,
-        ),
         expected_product=arguments.expected_product,
         expected_distribution=arguments.expected_distribution,
     )

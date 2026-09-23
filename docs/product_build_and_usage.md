@@ -6,7 +6,7 @@
 Pixels 发布矩阵只生成 `official` 与 `customer`。OEM 是独立发行线，不得通过修改现有 Customer 的名称、图标、URL 或清单后交付；现有双发行
 矩阵继续保持两项。Windows 与 Android 均已有独立 OEM 构建入口，Android、Web 与 Windows 原生 Panel/Client 均已消费 profile 品牌，但 OEM 商业交付仍
 保持关闭，直到使用审批密钥的独立 TUF 正式发布、激活任务和跨 Official/Customer/其他 OEM 的完整实物拒绝矩阵全部通过。测试夹具已经覆盖 OEM
-target 的权威签发、Service 验签/准备，以及同一制品替换成另一合法 OEM 身份时的安装前拒绝；该代码证据不能代替正式密钥、正式仓库和签名安装包验收。
+target 的权威签发、Service 验签/准备，以及同一制品替换成另一合法 OEM 身份时的安装前拒绝；该代码证据不能代替正式 TUF 密钥、正式仓库和安装包实物验收。
 服务端发布目录和 Auth `PXLIC2` 许可证能够表达 `oem.<oem_id>`；客户端不解析许可证，也不再维护自定义部署证书/描述/挑战协议。
 独立 OEM 构建入口只生成待验收候选，不会发布 TUF、激活节点或开放商业交付；这些发行能力不能用于
 手工拼装 OEM 包，也不改变 Pixels 双发行构建命令。
@@ -116,7 +116,7 @@ scripts_build\build_remote_product.bat
 
 这些都是发布级完整构建；每条命令一次升版并同时构建 Official/Customer，不接受旧的 `full`、`incremental` 或 `reconfigure` 参数。
 
-Cloud Node、Client、Remote 都由用户或运维运行对应的签名完整安装包完成安装、同版覆盖或升级；Console 不向 Windows Service 下发、暂存或激活安装包。
+Cloud Node、Client、Remote 都由用户或运维运行对应的完整安装包完成安装、同版覆盖或升级；Console 不向 Windows Service 下发、暂存或激活安装包。
 安装、覆盖升级和卸载共用一个全局安装互斥锁；并发操作返回 Windows Installer busy（1618），不会同时改写安装目录。
 失败恢复由运维使用已验证的上一版本完整包再次覆盖；不存在 Service 激活记录、自动回滚 runner 或跨节点提交事务。
 
@@ -125,20 +125,11 @@ Cloud Node、Client、Remote 都由用户或运维运行对应的签名完整安
 都内置同一 Pixels 更新信任根，Customer 可使用自己的镜像地址，但不能以私有描述或重签方式改变制品发行属性。预检失败不会删除现有产物，
 也不会消耗版本号。
 
-Windows 正式构建还必须设置以下代码签名输入：
+2026-09-23 产品决定：Windows 制品不使用 Authenticode 代码签名，也不使用 RFC 3161 时间戳。私有部署的运维人员接受 Windows 的未知发布者或
+不安全提示后继续安装；构建入口不得要求、生成或伪造 Windows 签名证书。正式 `dist`、`Uninstall.exe` 和 Setup 均显式记录
+`windows_code_signing=unsigned`，验收以产品/发行身份、精确文件集合、SHA-256 清单、安装互斥及生命周期结果为准。Android 的签名门禁不受此决定影响。
 
-- `PIXELS_WINDOWS_SIGNING_CERT_SHA1`：Windows `My` 证书存储中证书的精确 SHA-1 选择值；
-- `PIXELS_WINDOWS_SIGNING_CERT_SHA256`：审批记录中的证书原始 DER SHA-256 固定值，防止只凭较弱选择值误签；
-- `PIXELS_WINDOWS_SIGNING_STORE`：只能是 `current_user` 或 `local_machine`；
-- `PIXELS_WINDOWS_TIMESTAMP_URL`：无凭据的 HTTPS RFC 3161 时间戳地址；
-- `PIXELS_WINDOWS_SIGNTOOL`：可选的固定 `signtool.exe` 路径，未设置时使用 PATH 或已安装 Windows SDK。
-
-私钥必须已经由 Windows 证书存储、硬件令牌或构建机密钥提供者安全暴露给该证书；构建脚本不接受 PFX 密码参数，也不把私钥或密码写入
-命令行。清理和升版前的预检会核对双指纹、私钥可用性、代码签名 EKU、证书有效期、HTTPS 时间戳配置、SignTool 以及固定 NSIS 版本。
-正式 `dist` 中所有 Pixels 自有 PE、生成的 `Uninstall.exe` 和最终 Setup 均须使用同一审批证书签名并带时间戳，随后由 SignTool 和
-PowerShell 独立复核签名状态、签名者 SHA-256 与时间戳；任一项失败都不发布版本目录。
-
-仓库固定 NSIS 3.12（正式签名卸载器至少需要 3.08，项目要求不低于 3.11 的 SYSTEM 安全修复基线）。安装器直接封装已验证的 `dist`，
+仓库固定 NSIS 3.12（项目要求不低于 3.11 的 SYSTEM 安全修复基线）。安装器直接封装已验证的 `dist`，
 不再使用旧 `Nsis7z`/`nsProcess` 插件和额外 `app.7z` 层；工具包按 vendored 字节处理，不能在提交时自动换行或格式化。
 
 ### 2.2.1 独立构建 Windows OEM 候选
@@ -208,23 +199,22 @@ Windows 的 `PIXELS_RELEASE_SPEC_FILE` 不手工抄写。从正式安装器版�
 ```bat
 python scripts\prepare_windows_update_release.py ^
   --release-directory <build_official\product\distribution\installer\version> ^
-  --approved-signer-sha256 <外部审批的证书DER SHA-256> ^
   --metadata-base-url https://updates.example/metadata/ ^
   --targets-base-url https://updates.example/targets/ ^
   --channel stable ^
   --output <不存在的绝对release-spec.json路径>
 ```
 
-该入口复用独立安装包验证器，重新检查 installer manifest、制品 SHA-256、Authenticode、时间戳和外部 signer pin，并从已验证事实生成固定的
+该入口复用独立安装包验证器，重新检查 installer manifest、unsigned 策略和制品 SHA-256，并从已验证事实生成固定的
 `windows/product/distribution/[oem_id/]channel/x86_64/build/installer` target name；输出使用排他创建且不覆盖。TUF 发布权威会再次从 spec
 派生并逐段复核这一路径，不能靠手工 JSON 把 Official、Customer、另一 OEM 或另一 build 的制品签入错误目录。生成后的 spec 和同一 installer 文件才交给
-`px_update_authority publish`，因此 TUF 发布不能靠修改 JSON 把另一产品、发行、build 或签名者带入目录。
+`px_update_authority publish`，因此 TUF 发布不能靠修改 JSON 把另一产品、发行或 build 带入目录。
 该路径规则由共享 release catalog 提供，发布权威、promotion 和 Windows Service 消费同一校验；节点不会把错误维度的普通安全相对路径当作合法 target。
 Desk 发布目录与 Console 审批目录也在写入前执行同一规则，Console 读回持久记录时再次校验；人工登记不能绕过生成器把错域路径留在数据库中。
 
 该命令只生成一个不可变候选目录。发布系统还必须把候选同步到独立临时位置、核对 `publication.json`，先提交 targets 与非 timestamp 元数据，
 最后原子切换 `timestamp.json`；不能直接对线上目录运行本工具。root 私钥保持离线，日常 `publish` 不接触 root 私钥。正式 Windows ReleaseSpec
-中的 `platform_signer_sha256` 必须来自已独立验证的安装器 manifest 和审批证书固定值，不能由仓库地址或 TUF 在线角色密钥替代。
+显式记录 `windows_code_signing=unsigned` 与空 `platform_signer_sha256`；制品完整性由 TUF 目标签名及精确 SHA-256 保护。
 
 `promote-filesystem` 用于部署主机上的本地或挂载式静态源站目录，不执行 SSH、对象存储 API 或 CDN 刷新。必须提供绝对路径
 `PIXELS_TUF_CANDIDATE_REPOSITORY`、`PIXELS_TUF_LIVE_REPOSITORY`，以及审批系统在传输外独立固定的候选
@@ -312,7 +302,7 @@ build_official/<product>/<official|customer>/installer/<version>/
 安装、升级或覆盖安装使用对应版本的 `PixelsCloudNode_<distribution>_*_Setup.exe`、`PixelsClient_<distribution>_*_Setup.exe` 或
 `PixelsRemote_<distribution>_*_Setup.exe`。安装器在注册表记录发行身份；同产品不同发行不能直接覆盖，须先卸载。卸载使用 Windows“已安装的应用”或产品卸载程序。
 
-正式签名包先做只读的新旧版本预检：
+正式安装包先做只读的新旧版本预检：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate_windows_installer_lifecycle.ps1 `
@@ -321,21 +311,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate_windows_ins
     -PreviousReleaseDirectory build_official/client/official/installer/<old-version> `
     -CurrentReleaseDirectory build_official/client/official/installer/<new-version> `
     -ConflictReleaseDirectory build_official/remote/official/installer/<current-version> `
-    -ApprovedPreviousSignerSha256 <approved-old-certificate-sha256> `
-    -ApprovedCurrentSignerSha256 <approved-new-certificate-sha256> `
     -ReportPath build_official/client/reports/official-installer-lifecycle.json
 ```
 
-该命令强制从命令行接收预期产品、预期发行和两个外部审批的证书 SHA-256，拒绝把相邻 manifest 的自我声明当成信任根，也拒绝用另一个
-合法签名的 Pixels 产品/发行替换目标；随后验证两个安装器的 schema、产品/发行、
-严格递增版本、安装器 SHA-256、Authenticode 状态和时间戳。无证书轮换时两个审批值相同，续期时分别给出旧值和新值；默认绝不安装或
+该命令强制从命令行接收预期产品和预期发行，拒绝用另一个 Pixels 产品/发行替换目标；随后验证两个安装器的 schema、产品/发行、
+严格递增版本、unsigned 策略和安装器 SHA-256。默认绝不安装或
 卸载。只有在专用、已提升权限且确认三个 Pixels 产品和 `px_service` 均不存在的干净 Windows 验收机上，才增加
-`-ExecuteLifecycle`。执行态依次验证旧版安装、同发行升级、同版覆盖、安装目录精确文件集及逐件 hash、自研 PE 与卸载器签名、Service 产品
+`-ExecuteLifecycle`。执行态依次验证旧版安装、同发行升级、同版覆盖、安装目录精确文件集及逐件 hash、owned PE 清单、Service 产品
 边界和最终卸载清理。提供另一产品的正式包时，还会先安装该产品，要求目标安装返回 1638 且原产品逐件不变，再清洁卸载；执行器也会注册
 一个不启动的受控 `px_service` 探针，要求目标安装同样返回 1638，随后只在探针身份未变化时删除它。每阶段原子写报告，产品失败后保留现场
 而不自动删除证据。Cloud Node、Client、Remote 的 Official/Customer 六组必须分别
-执行，不能用 development dist、自签名包或 NSIS 语法构建替代。
-两个审批值均为必填，不能使用通配、只提供新证书或从包内自我声明放宽签名者切换。
+执行，不能用 development dist 或 NSIS 语法构建替代。
 
 ## 4. Console 与连接配置
 
@@ -409,12 +395,12 @@ OEM 定向清理只接受规范且非保留的 OEM ID。`all` 只删除仓库下
 
 - 构建命令返回 0；
 - `product-build.json` 与目标产品、版本和 CMake 目录一致；
-- `dist/product-manifest.json` 使用 schema 3，与产品清单一致，并强制携带 distribution、release_namespace、nullable oem_id 和 nullable
+- `dist/product-manifest.json` 使用 schema 4，与产品清单一致，并强制携带 distribution、release_namespace、nullable oem_id 和 nullable
   oem_profile_sha256；
 - `dist/artifact-manifest.json` 中全部 SHA-256 校验通过；
 - Windows 两种发行使用同一产品版本，安装包分别位于 `<official|customer>/installer/<version>`；
-- Windows OEM 候选位于 `oem/<oem_id>/installer/<version>`，manifest、Authenticode signer pin、profile 摘要和发行域复核一致；
-- 正式发布候选在专用 Windows 验收机完成对应的新旧签名安装包生命周期报告；
+- Windows OEM 候选位于 `oem/<oem_id>/installer/<version>`，manifest、unsigned 策略、profile 摘要和发行域复核一致；
+- 正式发布候选在专用 Windows 验收机完成对应的新旧安装包生命周期报告；
 - 没有公共 `build_official/dist`、公共 Rust 编译目录或其他产品制品混入。
 
 服务端 Console/Auth/Desk 有独立发布流程，不属于上述四个客户端产品沙箱。

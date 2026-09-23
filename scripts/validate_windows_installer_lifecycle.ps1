@@ -21,14 +21,6 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$ReportPath,
 
-    [Parameter(Mandatory = $true)]
-    [ValidatePattern("^[0-9A-Fa-f]{64}$")]
-    [string]$ApprovedPreviousSignerSha256,
-
-    [Parameter(Mandatory = $true)]
-    [ValidatePattern("^[0-9A-Fa-f]{64}$")]
-    [string]$ApprovedCurrentSignerSha256,
-
     [switch]$ExecuteLifecycle
 )
 
@@ -186,7 +178,6 @@ function Invoke-InstalledVerification {
     param(
         [Parameter(Mandatory = $true)][string]$ReleaseDirectory,
         [Parameter(Mandatory = $true)][string]$InstallDirectory,
-        [Parameter(Mandatory = $true)][string]$ExpectedSignerSha256,
         [Parameter(Mandatory = $true)][string]$OutputPath
     )
 
@@ -195,7 +186,6 @@ function Invoke-InstalledVerification {
         "installed",
         "--release-dir", $ReleaseDirectory,
         "--install-dir", $InstallDirectory,
-        "--expected-signer-sha256", $ExpectedSignerSha256,
         "--output", $OutputPath
     ) -Operation "installed payload verification"
     return Get-Content -LiteralPath $OutputPath -Raw | ConvertFrom-Json
@@ -206,7 +196,6 @@ function Assert-InstalledState {
         [Parameter(Mandatory = $true)][string]$Product,
         [Parameter(Mandatory = $true)][string]$ExpectedDistribution,
         [Parameter(Mandatory = $true)][string]$ExpectedVersion,
-        [Parameter(Mandatory = $true)][string]$ExpectedSignerSha256,
         [Parameter(Mandatory = $true)][string]$ReleaseDirectory,
         [Parameter(Mandatory = $true)][string]$PhaseName
     )
@@ -244,7 +233,6 @@ function Assert-InstalledState {
     $installedVerification = Invoke-InstalledVerification `
         -ReleaseDirectory $ReleaseDirectory `
         -InstallDirectory $productDefinition.install_directory `
-        -ExpectedSignerSha256 $ExpectedSignerSha256 `
         -OutputPath $installedVerificationPath
     return [ordered]@{
         package_audit = $packageAudit
@@ -266,13 +254,9 @@ $releaseVerificationArguments.Add("--expected-distribution")
 $releaseVerificationArguments.Add($ExpectedDistribution)
 $releaseVerificationArguments.Add("--output")
 $releaseVerificationArguments.Add($matrixPath)
-$releaseVerificationArguments.Add("--previous-signer-sha256")
-$releaseVerificationArguments.Add($ApprovedPreviousSignerSha256)
-$releaseVerificationArguments.Add("--current-signer-sha256")
-$releaseVerificationArguments.Add($ApprovedCurrentSignerSha256)
 Invoke-CheckedProcess -ExecutablePath "python" -ArgumentList @(
     $releaseVerificationArguments.ToArray()
-) -Operation "signed installer pair preflight"
+) -Operation "unsigned installer pair preflight"
 $releaseMatrix = Get-Content -LiteralPath $matrixPath -Raw | ConvertFrom-Json
 $conflictRelease = $null
 if (-not [string]::IsNullOrWhiteSpace($ConflictReleaseDirectory)) {
@@ -281,9 +265,8 @@ if (-not [string]::IsNullOrWhiteSpace($ConflictReleaseDirectory)) {
         $releaseVerifier,
         "single",
         "--release-dir", ([System.IO.Path]::GetFullPath($ConflictReleaseDirectory)),
-        "--expected-signer-sha256", $ApprovedCurrentSignerSha256,
         "--output", $conflictReleasePath
-    ) -Operation "signed conflict installer preflight"
+    ) -Operation "unsigned conflict installer preflight"
     $conflictRelease = (Get-Content -LiteralPath $conflictReleasePath -Raw | ConvertFrom-Json).release
     if ([string]$conflictRelease.product -eq [string]$releaseMatrix.product) {
         throw "conflict installer must belong to a different Pixels product"
@@ -291,8 +274,8 @@ if (-not [string]::IsNullOrWhiteSpace($ConflictReleaseDirectory)) {
     if ([string]$conflictRelease.distribution -ne [string]$releaseMatrix.distribution) {
         throw "conflict installer must use the same distribution as the lifecycle pair"
     }
-    if ([string]$conflictRelease.signer_certificate_sha256 -ne [string]$releaseMatrix.current.signer_certificate_sha256) {
-        throw "conflict installer must use the current release signer certificate"
+    if ([string]$conflictRelease.windows_code_signing -ne "unsigned") {
+        throw "conflict installer must use the unsigned Windows policy"
     }
 }
 
@@ -341,7 +324,6 @@ try {
             -Product $conflictProduct `
             -ExpectedDistribution ([string]$conflictRelease.distribution) `
             -ExpectedVersion ([string]$conflictRelease.product_version) `
-            -ExpectedSignerSha256 $ApprovedCurrentSignerSha256 `
             -ReleaseDirectory ([string]$conflictRelease.directory) `
             -PhaseName "conflict_product_before_rejection"
         Invoke-ExpectedInstallerRejection `
@@ -352,7 +334,6 @@ try {
             -Product $conflictProduct `
             -ExpectedDistribution ([string]$conflictRelease.distribution) `
             -ExpectedVersion ([string]$conflictRelease.product_version) `
-            -ExpectedSignerSha256 $ApprovedCurrentSignerSha256 `
             -ReleaseDirectory ([string]$conflictRelease.directory) `
             -PhaseName "conflict_product_after_rejection"
         $lifecycleReport.phases.Add([ordered]@{
@@ -384,7 +365,6 @@ try {
         -Product $product `
         -ExpectedDistribution ([string]$releaseMatrix.distribution) `
         -ExpectedVersion ([string]$previousRelease.product_version) `
-        -ExpectedSignerSha256 $ApprovedPreviousSignerSha256 `
         -ReleaseDirectory ([string]$previousRelease.directory) `
         -PhaseName "previous_install"
     $lifecycleReport.phases.Add([ordered]@{ name = "previous_install"; status = "passed"; evidence = $previousState })
@@ -395,7 +375,6 @@ try {
         -Product $product `
         -ExpectedDistribution ([string]$releaseMatrix.distribution) `
         -ExpectedVersion ([string]$currentRelease.product_version) `
-        -ExpectedSignerSha256 $ApprovedCurrentSignerSha256 `
         -ReleaseDirectory ([string]$currentRelease.directory) `
         -PhaseName "upgrade"
     $lifecycleReport.phases.Add([ordered]@{ name = "upgrade"; status = "passed"; evidence = $upgradeState })
@@ -406,7 +385,6 @@ try {
         -Product $product `
         -ExpectedDistribution ([string]$releaseMatrix.distribution) `
         -ExpectedVersion ([string]$currentRelease.product_version) `
-        -ExpectedSignerSha256 $ApprovedCurrentSignerSha256 `
         -ReleaseDirectory ([string]$currentRelease.directory) `
         -PhaseName "same_version_cover"
     $lifecycleReport.phases.Add([ordered]@{ name = "same_version_cover"; status = "passed"; evidence = $coveringState })

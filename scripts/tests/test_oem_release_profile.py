@@ -47,7 +47,6 @@ class OemReleaseProfileTest(unittest.TestCase):
             "update": {"root_sha256": "2" * 64},
             "windows": {
                 "publisher_name": "North Star Ltd.",
-                "signer_certificate_sha256": "3" * 64,
                 "icon": build_asset_reference("windows.ico"),
                 "products": {
                     "cloud_node": {
@@ -108,7 +107,8 @@ class OemReleaseProfileTest(unittest.TestCase):
         self.assertEqual(windows_configuration["product"], "client")
         self.assertEqual(windows_configuration["product_name"], "North Star Client")
         self.assertEqual(windows_configuration["application_name"], "North Star Cloud")
-        self.assertEqual(windows_configuration["signer_certificate_sha256"], "3" * 64)
+        self.assertEqual(windows_configuration["schema_version"], 2)
+        self.assertEqual(windows_configuration["windows_code_signing"], "unsigned")
         self.assertEqual(Path(windows_configuration["web_icon_path"]), self.assets["web-icon.png"])
         self.assertEqual(windows_configuration["profile_sha256"], profile.profile_sha256)
 

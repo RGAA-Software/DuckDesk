@@ -5,7 +5,6 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 from scripts.collect_dist import sha256
 from scripts.refresh_development_dist import refresh
@@ -60,7 +59,7 @@ class DevelopmentManifestRefreshTest(unittest.TestCase):
             (distribution / "product-manifest.json").write_text(
                 json.dumps(
                     {
-                        "schema_version": 3,
+                        "schema_version": 4,
                         "product": "client",
                         "distribution": "development",
                         "release_namespace": None,
@@ -88,7 +87,7 @@ class DevelopmentManifestRefreshTest(unittest.TestCase):
             distribution = Path(temporary_directory) / "client" / "dist"
             distribution.mkdir(parents=True)
             (distribution / "product-manifest.json").write_text(
-                json.dumps({"schema_version": 3, "product": "client", "distribution": "official"}),
+                json.dumps({"schema_version": 4, "product": "client", "distribution": "official"}),
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(RuntimeError, "development distribution"):
@@ -125,19 +124,17 @@ class DistributionUpdateTrustAuditTest(unittest.TestCase):
                 "oem_profile_sha256": None,
                 "company": "Pixels",
                 "owned_pe": ["px_client.exe"],
-                "signer_certificate_sha256": "A" * 64,
+                "windows_code_signing": "unsigned",
             }
-            with mock.patch.object(VERIFY_PRODUCT_DIST, "verify_file") as verify_file:
-                VERIFY_PRODUCT_DIST.verify_distribution_identity(distribution, manifest, actual_files)
-                verify_file.assert_called_once_with(distribution / "px_client.exe", "A" * 64)
+            VERIFY_PRODUCT_DIST.verify_distribution_identity(distribution, manifest, actual_files)
 
-    def test_release_distribution_requires_signer_pin_and_owned_pe_inventory(self) -> None:
+    def test_release_distribution_requires_unsigned_policy_and_owned_pe_inventory(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             distribution = Path(temporary_directory)
             actual_files = {
                 "resources/update/root.json",
             }
-            with self.assertRaisesRegex(RuntimeError, "signer pin"):
+            with self.assertRaisesRegex(RuntimeError, "unsigned Windows policy"):
                 VERIFY_PRODUCT_DIST.verify_distribution_identity(
                     distribution,
                     {
@@ -165,11 +162,10 @@ class DistributionUpdateTrustAuditTest(unittest.TestCase):
                 "oem_profile_sha256": None,
                 "company": "Pixels",
                 "owned_pe": ["px_client.exe"],
-                "signer_certificate_sha256": "A" * 64,
+                "windows_code_signing": "unsigned",
             }
-            with mock.patch.object(VERIFY_PRODUCT_DIST, "verify_file"):
-                with self.assertRaisesRegex(RuntimeError, "unsigned Pixels PE"):
-                    VERIFY_PRODUCT_DIST.verify_distribution_identity(distribution, manifest, actual_files)
+            with self.assertRaisesRegex(RuntimeError, "untracked Pixels PE"):
+                VERIFY_PRODUCT_DIST.verify_distribution_identity(distribution, manifest, actual_files)
 
     def test_development_distribution_rejects_update_root(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -182,6 +178,7 @@ class DistributionUpdateTrustAuditTest(unittest.TestCase):
                         "oem_id": None,
                         "oem_profile_sha256": None,
                         "company": "Pixels",
+                        "windows_code_signing": "unsigned",
                     },
                     {"resources/update/root.json"},
                 )
@@ -200,13 +197,12 @@ class DistributionUpdateTrustAuditTest(unittest.TestCase):
                 "oem_profile_sha256": "B" * 64,
                 "company": "Acme Systems",
                 "owned_pe": ["px_client.exe"],
-                "signer_certificate_sha256": "A" * 64,
+                "windows_code_signing": "unsigned",
             }
-            with mock.patch.object(VERIFY_PRODUCT_DIST, "verify_file"):
+            VERIFY_PRODUCT_DIST.verify_distribution_identity(distribution, manifest, actual_files)
+            manifest["release_namespace"] = "oem.other-brand"
+            with self.assertRaisesRegex(RuntimeError, "wrong release domain"):
                 VERIFY_PRODUCT_DIST.verify_distribution_identity(distribution, manifest, actual_files)
-                manifest["release_namespace"] = "oem.other-brand"
-                with self.assertRaisesRegex(RuntimeError, "wrong release domain"):
-                    VERIFY_PRODUCT_DIST.verify_distribution_identity(distribution, manifest, actual_files)
 
 if __name__ == "__main__":
     unittest.main()

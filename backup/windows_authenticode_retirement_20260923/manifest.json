@@ -1,0 +1,16 @@
+{
+  "revision": "6491025fb2a385b095c4261d351d0a8141d96160",
+  "reason": "Retire Windows Authenticode and RFC 3161 signing after the private-deployment unsigned packaging decision.",
+  "files": [
+    {
+      "path": "scripts/windows_release_signing.py",
+      "sha256": "95AF714BD00430B6BDEB862711A75AB04037799D1F41F91E33BFF80E1BB861A5",
+      "status": ""
+    },
+    {
+      "path": "scripts/tests/test_windows_release_signing.py",
+      "sha256": "E19AB6AF1B59475773656966818C567D8FADA468A5BD353A9513BC6D537B015A",
+      "status": ""
+    }
+  ]
+}

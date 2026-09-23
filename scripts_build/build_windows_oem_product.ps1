@@ -163,8 +163,7 @@ try {
     $releaseDirectory = Join-Path $oemProductRoot "installer\$($assignedVersion.product_version)"
     Invoke-NativeChecked -FilePath $python.Source -Arguments @(
         (Join-Path $repositoryRoot 'scripts\verify_windows_installer_release.py'), 'single',
-        '--release-dir', $releaseDirectory,
-        '--expected-signer-sha256', ([string]$oemConfiguration.signer_certificate_sha256)
+        '--release-dir', $releaseDirectory
     )
 
     Write-Host "Completed $Product OEM $oemId release $($assignedVersion.product_version)."

@@ -42,7 +42,7 @@ try {
             throw "Current $expectedProduct product is not installed at $directory"
         }
         $descriptor = Get-Content -LiteralPath $descriptorPath -Raw | ConvertFrom-Json
-        if ($descriptor.schema_version -ne 3 -or $descriptor.company -ne 'Pixels' -or $descriptor.product -ne $expectedProduct) {
+        if ($descriptor.schema_version -ne 4 -or $descriptor.company -ne 'Pixels' -or $descriptor.product -ne $expectedProduct) {
             throw 'Installed public-node product descriptor does not match the requested product.'
         }
         [pscustomobject]@{

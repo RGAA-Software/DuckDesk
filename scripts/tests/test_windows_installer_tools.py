@@ -6,13 +6,17 @@ from pathlib import Path
 from unittest import mock
 
 from scripts.collect_dist import collect_artifacts
-from setup.make_setup import nsis_version, require_supported_nsis, stage_payload, validate_pinned_nsis
+from setup.make_setup import find_nsis, nsis_version, require_supported_nsis, stage_payload, validate_pinned_nsis
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
 class WindowsInstallerToolTest(unittest.TestCase):
+    def test_repository_relative_nsis_configuration_resolves_from_setup_directory(self) -> None:
+        configured_tool = find_nsis("../tools/nsis", REPOSITORY_ROOT)
+        self.assertEqual(configured_tool, (REPOSITORY_ROOT / "tools" / "nsis" / "makensis.exe").resolve())
+
     def test_repository_nsis_matches_the_pinned_release_toolchain(self) -> None:
         validate_pinned_nsis(REPOSITORY_ROOT, REPOSITORY_ROOT / "tools" / "nsis" / "makensis.exe")
 

@@ -1,5 +1,10 @@
 # Workspace delivery rules
 
+- Windows release decision (2026-09-23): Windows products are intentionally distributed without Authenticode code signing or RFC 3161
+  timestamping. Private-deployment operators accept the Windows unknown-publisher/security warning. Windows packaging, installation and
+  upgrade gates rely on immutable product/distribution identity, exact SHA-256 manifests, isolated outputs and installer lifecycle checks;
+  they must not require, synthesize or claim a Windows signer certificate. Android signing requirements remain unchanged.
+
 - `scripts_build\build_official.bat` is a release-only full build. Do not run it for routine
   development, focused verification, or incremental C++ changes unless the
   user explicitly requests a release/full build.

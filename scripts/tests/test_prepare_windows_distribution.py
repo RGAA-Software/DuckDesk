@@ -74,7 +74,6 @@ class PrepareWindowsDistributionTest(unittest.TestCase):
             "update": {"root_sha256": update_root_sha256 or self.file_sha256(self.update_root)},
             "windows": {
                 "publisher_name": "Acme Systems",
-                "signer_certificate_sha256": "1" * 64,
                 "icon": {"path": self.windows_icon.name, "sha256": self.file_sha256(self.windows_icon)},
                 "products": {
                     "cloud_node": {

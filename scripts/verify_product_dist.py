@@ -14,10 +14,8 @@ from pathlib import Path
 
 try:
     from scripts.refresh_development_dist import is_runtime_output
-    from scripts.windows_release_signing import normalized_hex, verify_file
 except ModuleNotFoundError:
     from refresh_development_dist import is_runtime_output
-    from windows_release_signing import normalized_hex, verify_file
 
 
 WINDOWS_PRODUCTS = {"cloud_node", "client", "remote"}
@@ -224,16 +222,15 @@ def verify_distribution_identity(dist_dir: Path, manifest: dict[str, object], ac
             or manifest.get("company") != "Pixels"
         ):
             raise RuntimeError("development distribution contains a release or OEM identity")
-        if manifest.get("signer_certificate_sha256") is not None:
-            raise RuntimeError("development distribution must not declare a release signer")
+        if manifest.get("windows_code_signing") != "unsigned":
+            raise RuntimeError("development distribution must declare the unsigned Windows policy")
         if update_root_path in actual_files:
             raise RuntimeError("development distribution contains release update trust resources")
         return
     if update_root_path not in actual_files:
         raise RuntimeError("release distribution is missing update trust resources")
-    signer_certificate_sha256 = normalized_hex(str(manifest.get("signer_certificate_sha256", "")))
-    if not re.fullmatch(r"[0-9A-F]{64}", signer_certificate_sha256):
-        raise RuntimeError("release distribution is missing its approved Authenticode signer pin")
+    if manifest.get("windows_code_signing") != "unsigned":
+        raise RuntimeError("release distribution must declare the unsigned Windows policy")
     owned_pe = manifest.get("owned_pe")
     if not isinstance(owned_pe, list) or not owned_pe or any(not isinstance(path, str) for path in owned_pe):
         raise RuntimeError("release distribution has an invalid owned PE inventory")
@@ -245,11 +242,9 @@ def verify_distribution_identity(dist_dir: Path, manifest: dict[str, object], ac
         if Path(relative_path).name.lower().startswith("px_")
         and Path(relative_path).suffix.lower() in {".exe", ".dll"}
     }
-    unsigned_pixels_pe = pixels_pe - set(owned_pe)
-    if unsigned_pixels_pe:
-        raise RuntimeError(f"release distribution has unsigned Pixels PE files: {sorted(unsigned_pixels_pe)}")
-    for relative_path in owned_pe:
-        verify_file(dist_dir / relative_path, signer_certificate_sha256)
+    untracked_pixels_pe = pixels_pe - set(owned_pe)
+    if untracked_pixels_pe:
+        raise RuntimeError(f"release distribution has untracked Pixels PE files: {sorted(untracked_pixels_pe)}")
     manifest_namespace = manifest.get("release_namespace")
     manifest_oem_id = manifest.get("oem_id")
     manifest_oem_profile_sha256 = manifest.get("oem_profile_sha256")
@@ -296,8 +291,8 @@ def main() -> int:
     product_manifest_path = dist_dir / "product-manifest.json"
     sums_path = dist_dir / "sha256sums.json"
     product_manifest = json.loads(product_manifest_path.read_text(encoding="utf-8"))
-    if not isinstance(product_manifest, dict) or product_manifest.get("schema_version") != 3:
-        raise RuntimeError("product manifest must use schema 3")
+    if not isinstance(product_manifest, dict) or product_manifest.get("schema_version") != 4:
+        raise RuntimeError("product manifest must use schema 4")
     sums = json.loads(sums_path.read_text(encoding="utf-8"))
     manifest_sums = {item["path"]: item["sha256"] for item in product_manifest["artifacts"]}
     if sums != manifest_sums:

@@ -10,9 +10,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from prepare_windows_update_release import build_release_spec, write_new_json
 
 
-SIGNER_PIN = "A" * 64
-
-
 class WindowsUpdateReleaseTests(unittest.TestCase):
     def create_release(
         self,
@@ -34,7 +31,7 @@ class WindowsUpdateReleaseTests(unittest.TestCase):
         (release_directory / "installer-manifest.json").write_text(
             json.dumps(
                 {
-                    "schema_version": 3,
+                    "schema_version": 4,
                     "product": "cloud_node",
                     "distribution": distribution,
                     "release_namespace": release_namespace,
@@ -46,7 +43,7 @@ class WindowsUpdateReleaseTests(unittest.TestCase):
                     "product_version": "3.3.80",
                     "product_version_code": 30380,
                     "git_revision": "a" * 40,
-                    "signer_certificate_sha256": SIGNER_PIN,
+                    "windows_code_signing": "unsigned",
                     "payload_manifest_sha256": "B" * 64,
                     "payload_artifact_count": 20,
                     "installer": {"path": installer_name, "sha256": installer_sha256},
@@ -59,22 +56,15 @@ class WindowsUpdateReleaseTests(unittest.TestCase):
     def test_verified_manifest_becomes_an_immutable_release_spec(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             release_directory = self.create_release(Path(temporary_directory))
-            verified_signatures: list[tuple[str, str]] = []
-
-            def signature_verifier(installer_path: Path, signer_pin: str) -> None:
-                verified_signatures.append((installer_path.name, signer_pin))
-
             release_spec, verified_release = build_release_spec(
                 release_directory,
-                SIGNER_PIN,
                 "https://updates.example.test/metadata/",
                 "https://updates.example.test/targets/",
                 "stable",
-                signature_verifier,
             )
             self.assertEqual(verified_release.product_version_code, 30380)
-            self.assertEqual(verified_signatures, [("PixelsCloudNode_official_3.3.80_Setup.exe", SIGNER_PIN)])
-            self.assertEqual(release_spec["platform_signer_sha256"], SIGNER_PIN.lower())
+            self.assertIsNone(release_spec["platform_signer_sha256"])
+            self.assertEqual(release_spec["windows_code_signing"], "unsigned")
             self.assertEqual(release_spec["build_number"], 30380)
             self.assertEqual(release_spec["target"]["release_namespace"], "pixels.official")
             self.assertIsNone(release_spec["target"]["oem_id"])
@@ -97,11 +87,9 @@ class WindowsUpdateReleaseTests(unittest.TestCase):
             )
             release_spec, verified_release = build_release_spec(
                 release_directory,
-                SIGNER_PIN,
                 "https://updates.acme.example/metadata/",
                 "https://updates.acme.example/targets/",
                 "stable",
-                lambda _installer_path, _signer_pin: None,
             )
             self.assertEqual(verified_release.oem_id, "acme-cloud")
             self.assertEqual(release_spec["target"]["release_namespace"], "oem.acme-cloud")
@@ -111,27 +99,16 @@ class WindowsUpdateReleaseTests(unittest.TestCase):
                 "windows/cloud_node/oem/acme-cloud/stable/x86_64/30380/AcmeCloudNode_oem_3.3.80_Setup.exe",
             )
 
-    def test_signer_urls_and_output_are_fail_closed(self) -> None:
+    def test_urls_and_output_are_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             temporary_path = Path(temporary_directory)
             release_directory = self.create_release(temporary_path)
             with self.assertRaises(RuntimeError):
                 build_release_spec(
                     release_directory,
-                    "C" * 64,
-                    "https://updates.example.test/metadata/",
-                    "https://updates.example.test/targets/",
-                    "stable",
-                    lambda _installer_path, _signer_pin: None,
-                )
-            with self.assertRaises(RuntimeError):
-                build_release_spec(
-                    release_directory,
-                    SIGNER_PIN,
                     "https://updates.example.test/metadata/?token=secret",
                     "https://updates.example.test/targets/",
                     "stable",
-                    lambda _installer_path, _signer_pin: None,
                 )
 
             output_path = temporary_path / "release-spec.json"

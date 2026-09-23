@@ -13,7 +13,6 @@ from scripts.verify_windows_installer_release import (
 )
 
 
-SIGNER_PIN = "A" * 64
 PAYLOAD_PIN = "B" * 64
 
 
@@ -26,7 +25,6 @@ class WindowsInstallerReleaseVerificationTests(unittest.TestCase):
         *,
         product: str = "client",
         distribution: str = "official",
-        signer_pin: str = SIGNER_PIN,
         oem_id: str | None = None,
         company: str = "Pixels",
         publisher_name: str | None = None,
@@ -47,7 +45,7 @@ class WindowsInstallerReleaseVerificationTests(unittest.TestCase):
         installer_path.write_bytes(f"signed installer {product} {distribution} {version}".encode("utf-8"))
         installer_sha256 = hashlib.sha256(installer_path.read_bytes()).hexdigest().upper()
         manifest = {
-            "schema_version": 3,
+            "schema_version": 4,
             "product": product,
             "distribution": distribution,
             "release_namespace": release_namespace,
@@ -59,7 +57,7 @@ class WindowsInstallerReleaseVerificationTests(unittest.TestCase):
             "product_version": version,
             "product_version_code": version_code,
             "git_revision": "1" * 40,
-            "signer_certificate_sha256": signer_pin,
+            "windows_code_signing": "unsigned",
             "payload_manifest_sha256": PAYLOAD_PIN,
             "payload_artifact_count": 12,
             "installer": {"path": installer_name, "sha256": installer_sha256},
@@ -70,22 +68,16 @@ class WindowsInstallerReleaseVerificationTests(unittest.TestCase):
         )
         return release_directory
 
-    @staticmethod
-    def accept_signature(_installer_path: Path, _signer_pin: str) -> None:
-        return None
-
     def test_valid_release_and_upgrade_pair(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             release_root = Path(temporary_directory)
             previous_directory = self.create_release(release_root, "3.3.72", 30372)
             current_directory = self.create_release(release_root, "3.3.73", 30373)
 
-            previous_release = validate_release_directory(previous_directory, self.accept_signature)
+            previous_release = validate_release_directory(previous_directory)
             upgrade_pair = validate_upgrade_pair(
                 previous_directory,
                 current_directory,
-                self.accept_signature,
-                approved_signer_transition=(SIGNER_PIN, SIGNER_PIN),
                 expected_product="client",
                 expected_distribution="official",
             )
@@ -101,14 +93,14 @@ class WindowsInstallerReleaseVerificationTests(unittest.TestCase):
             installer_path.write_bytes(b"tampered")
 
             with self.assertRaisesRegex(RuntimeError, "SHA-256 mismatch"):
-                validate_release_directory(release_directory, self.accept_signature)
+                validate_release_directory(release_directory)
 
     def test_version_code_must_match_three_component_version(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             release_directory = self.create_release(Path(temporary_directory), "3.3.72", 30373)
 
             with self.assertRaisesRegex(RuntimeError, "version code mismatch"):
-                validate_release_directory(release_directory, self.accept_signature)
+                validate_release_directory(release_directory)
 
     def test_upgrade_pair_rejects_distribution_switch(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -125,8 +117,6 @@ class WindowsInstallerReleaseVerificationTests(unittest.TestCase):
                 validate_upgrade_pair(
                     previous_directory,
                     current_directory,
-                    self.accept_signature,
-                    approved_signer_transition=(SIGNER_PIN, SIGNER_PIN),
                 )
 
     def test_oem_release_is_domain_bound_and_rejects_cross_oem_upgrade(self) -> None:
@@ -152,7 +142,7 @@ class WindowsInstallerReleaseVerificationTests(unittest.TestCase):
                 installer_basename="OtherClient",
                 oem_profile_sha256="D" * 64,
             )
-            verified_release = validate_release_directory(previous_directory, self.accept_signature)
+            verified_release = validate_release_directory(previous_directory)
             self.assertEqual(verified_release.release_namespace, "oem.acme-cloud")
             self.assertEqual(verified_release.oem_id, "acme-cloud")
 
@@ -160,31 +150,17 @@ class WindowsInstallerReleaseVerificationTests(unittest.TestCase):
                 validate_upgrade_pair(
                     previous_directory,
                     current_directory,
-                    self.accept_signature,
-                    approved_signer_transition=(SIGNER_PIN, SIGNER_PIN),
                 )
 
-    def test_upgrade_pair_requires_external_signer_approval_and_supports_approved_rotation(self) -> None:
+    def test_release_rejects_a_signed_policy_declaration(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
-            release_root = Path(temporary_directory)
-            previous_directory = self.create_release(release_root, "3.3.72", 30372)
-            current_directory = self.create_release(
-                release_root,
-                "3.3.73",
-                30373,
-                signer_pin="C" * 64,
-            )
-
-            with self.assertRaisesRegex(RuntimeError, "requires externally approved"):
-                validate_upgrade_pair(previous_directory, current_directory, self.accept_signature)
-
-            approved_pair = validate_upgrade_pair(
-                previous_directory,
-                current_directory,
-                self.accept_signature,
-                approved_signer_transition=(SIGNER_PIN, "C" * 64),
-            )
-            self.assertTrue(approved_pair["signer_transition"]["explicitly_approved"])
+            release_directory = self.create_release(Path(temporary_directory), "3.3.72", 30372)
+            manifest_path = release_directory / "installer-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["windows_code_signing"] = "signed"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "unsigned Windows policy"):
+                validate_release_directory(release_directory)
 
     def test_upgrade_pair_rejects_same_or_older_version(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -196,8 +172,6 @@ class WindowsInstallerReleaseVerificationTests(unittest.TestCase):
                 validate_upgrade_pair(
                     previous_directory,
                     current_directory,
-                    self.accept_signature,
-                    approved_signer_transition=(SIGNER_PIN, SIGNER_PIN),
                 )
 
     def test_upgrade_pair_rejects_a_validly_signed_but_unrequested_product(self) -> None:
@@ -220,8 +194,6 @@ class WindowsInstallerReleaseVerificationTests(unittest.TestCase):
                 validate_upgrade_pair(
                     previous_directory,
                     current_directory,
-                    self.accept_signature,
-                    approved_signer_transition=(SIGNER_PIN, SIGNER_PIN),
                     expected_product="client",
                     expected_distribution="official",
                 )
@@ -248,7 +220,7 @@ class WindowsInstallerReleaseVerificationTests(unittest.TestCase):
                     }
                 )
             product_manifest = {
-                "schema_version": 3,
+                "schema_version": 4,
                 "product": "client",
                 "distribution": "official",
                 "release_namespace": "pixels.official",
@@ -256,7 +228,7 @@ class WindowsInstallerReleaseVerificationTests(unittest.TestCase):
                 "company": "Pixels",
                 "product_version": "3.3.72",
                 "product_version_code": 30372,
-                "signer_certificate_sha256": SIGNER_PIN,
+                "windows_code_signing": "unsigned",
                 "owned_pe": ["px_panel.exe"],
                 "artifacts": artifacts,
             }
@@ -278,36 +250,14 @@ class WindowsInstallerReleaseVerificationTests(unittest.TestCase):
             ).hexdigest().upper()
             release_manifest["payload_artifact_count"] = len(artifacts)
             release_manifest_path.write_text(json.dumps(release_manifest), encoding="utf-8")
-            verified_signatures: list[str] = []
-
-            def record_signature(artifact_path: Path, signer_pin: str) -> None:
-                self.assertEqual(signer_pin, SIGNER_PIN)
-                verified_signatures.append(artifact_path.name)
-
             result = validate_installed_product(
                 release_directory,
                 install_directory,
-                record_signature,
-                expected_signer_sha256=SIGNER_PIN,
             )
 
             self.assertEqual(result["artifact_count"], 2)
-            self.assertEqual(verified_signatures, [
-                "PixelsClient_official_3.3.72_Setup.exe",
-                "px_panel.exe",
-                "Uninstall.exe",
-            ])
-
-    def test_external_signer_pin_cannot_be_replaced_by_manifest_self_declaration(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            release_directory = self.create_release(Path(temporary_directory), "3.3.72", 30372)
-
-            with self.assertRaisesRegex(RuntimeError, "externally approved certificate pin"):
-                validate_release_directory(
-                    release_directory,
-                    self.accept_signature,
-                    expected_signer_sha256="D" * 64,
-                )
+            self.assertEqual(result["owned_pe_inventory_count"], 1)
+            self.assertEqual(result["windows_code_signing"], "unsigned")
 
 
 if __name__ == "__main__":

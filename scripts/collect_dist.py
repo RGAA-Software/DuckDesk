@@ -17,10 +17,8 @@ from pathlib import Path
 
 try:
     from scripts.oem_release_profile import OemReleaseProfile, load_oem_release_profile
-    from scripts.windows_release_signing import load_configuration, preflight, sign_file
 except ModuleNotFoundError:
     from oem_release_profile import OemReleaseProfile, load_oem_release_profile
-    from windows_release_signing import load_configuration, preflight, sign_file
 
 
 GENERATED_MANIFESTS = {"product-manifest.json", "sha256sums.json", "licenses.json"}
@@ -160,7 +158,6 @@ def write_distribution_manifests(
     distribution: str,
     staging_dir: Path,
     owned_pe: list[str],
-    signer_certificate_sha256: str | None,
     release_namespace: str | None,
     oem_id: str | None,
     company: str,
@@ -179,7 +176,7 @@ def write_distribution_manifests(
     }
     licenses = sorted(path for path in hashes if "license" in path.lower() or path.endswith("SOURCE.md"))
     manifest = {
-        "schema_version": 3,
+        "schema_version": 4,
         "product": product_config["product"],
         "distribution": distribution,
         "release_namespace": release_namespace,
@@ -193,7 +190,7 @@ def write_distribution_manifests(
         "package_groups": product_config["package_groups"],
         "git_revision": revision,
         "owned_pe": owned_pe,
-        "signer_certificate_sha256": signer_certificate_sha256,
+        "windows_code_signing": "unsigned",
         "artifacts": [{"path": path, "sha256": digest} for path, digest in hashes.items()],
     }
     write_json_atomic(staging_dir / "sha256sums.json", hashes)
@@ -363,7 +360,6 @@ def main() -> int:
 
     atexit.register(cleanup)
     owned_pe = collect_artifacts(product_config, artifact_config, roots, staging_dir)
-    signer_certificate_sha256 = None
     if args.distribution == "development":
         if args.update_root_file is not None:
             raise RuntimeError("development distributions must not accept a release update root")
@@ -377,23 +373,12 @@ def main() -> int:
         if not update_root_source.is_file():
             raise RuntimeError(f"required TUF update root input is missing: {update_root_source}")
         copy_file(update_root_source, staging_dir / "resources" / "update" / "root.json", staging_dir)
-        signing_configuration = load_configuration()
-        preflight(signing_configuration)
-        if (
-            oem_profile is not None
-            and signing_configuration.certificate_sha256.lower() != oem_profile.windows_signer_certificate_sha256
-        ):
-            raise RuntimeError("Windows signing certificate does not match the OEM release profile")
-        for relative_path in owned_pe:
-            sign_file(staging_dir / relative_path, signing_configuration)
-        signer_certificate_sha256 = signing_configuration.certificate_sha256
     write_distribution_manifests(
         source_dir,
         product_config,
         args.distribution,
         staging_dir,
         owned_pe,
-        signer_certificate_sha256,
         release_namespace,
         oem_id,
         company,

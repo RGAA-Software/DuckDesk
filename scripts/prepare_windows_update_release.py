@@ -9,13 +9,11 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Callable
 from urllib.parse import urlsplit
 
 from verify_windows_installer_release import (
     VerifiedInstallerRelease,
     validate_release_directory,
-    verify_file,
 )
 
 
@@ -67,19 +65,13 @@ def immutable_target_name(release: VerifiedInstallerRelease, channel: str) -> st
 
 def build_release_spec(
     release_directory: Path,
-    approved_signer_sha256: str,
     metadata_base_url: str,
     targets_base_url: str,
     channel: str,
-    signature_verifier: Callable[[Path, str], None] = verify_file,
 ) -> tuple[dict[str, object], VerifiedInstallerRelease]:
     if channel not in CHANNELS:
         raise RuntimeError(f"unsupported release channel: {channel}")
-    verified_release = validate_release_directory(
-        release_directory,
-        signature_verifier=signature_verifier,
-        expected_signer_sha256=approved_signer_sha256,
-    )
+    verified_release = validate_release_directory(release_directory)
     release_spec: dict[str, object] = {
         "target": {
             "product": verified_release.product,
@@ -96,7 +88,8 @@ def build_release_spec(
         "targets_base_url": validate_base_url(targets_base_url, "targets_base_url"),
         "target_name": immutable_target_name(verified_release, channel),
         "sha256": verified_release.installer_sha256.lower(),
-        "platform_signer_sha256": verified_release.signer_certificate_sha256.lower(),
+        "windows_code_signing": "unsigned",
+        "platform_signer_sha256": None,
         "size_bytes": Path(verified_release.installer_path).stat().st_size,
     }
     return release_spec, verified_release
@@ -126,7 +119,6 @@ def write_new_json(output_path: Path, document: dict[str, object]) -> None:
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--release-directory", type=Path, required=True)
-    parser.add_argument("--approved-signer-sha256", required=True)
     parser.add_argument("--metadata-base-url", required=True)
     parser.add_argument("--targets-base-url", required=True)
     parser.add_argument("--channel", choices=sorted(CHANNELS), default="stable")
@@ -138,7 +130,6 @@ def main() -> int:
     arguments = parse_arguments()
     release_spec, verified_release = build_release_spec(
         arguments.release_directory,
-        arguments.approved_signer_sha256,
         arguments.metadata_base_url,
         arguments.targets_base_url,
         arguments.channel,

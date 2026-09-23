@@ -1419,32 +1419,28 @@ Evict，最终显示 Not cached。报告 `pg-20260920-111710-98f82ed9` 在隔离
 
 ### 2026-09-22 节点升级范围收缩
 
-Windows Cloud Node、Remote、Render 和各客户端均由运维人员逐台运行对应产品的签名完整安装包完成覆盖升级。Server 必须先升级并保持接口兼容；
+Windows Cloud Node、Remote、Render 和各客户端均由运维人员逐台运行对应产品的完整安装包完成覆盖升级。Server 必须先升级并保持接口兼容；
 节点可在 Console 中人工置为 `draining`，确认没有业务后安装并做单机健康检查。Console 不向节点下发升级任务，Service 不自动发现、下载、暂存、
-安装或回滚版本，也不存在节点升级租约、信任水位、跨节点事务或统一回滚。签名发布目录继续用于制品发布和 Android 等明确消费者，不承担 Windows
+安装或回滚版本，也不存在节点升级租约、信任水位、跨节点事务或统一回滚。TUF 发布目录继续用于制品发布和 Android 等明确消费者，不承担 Windows
 节点编排。
 
-Windows 发行侧随后补入缺失的代码签名链：正式矩阵在清理和升版前验证证书存储、SHA-1 精确选择值、审批 SHA-256 指纹、私钥、代码签名
-EKU、有效期、HTTPS RFC 3161 时间戳和 SignTool；所有 Pixels 自有 PE 在生成 hash 清单前签名，NSIS 生成的卸载器及最终 Setup 也分别签名，
-每次签名后独立核对 `Valid`、签名者固定值和时间戳。仓库工具从旧 3.06.1 插件合集收敛到固定 NSIS 3.12，安装器直接封装验证后的 dist，
-不再执行旧 `Nsis7z`/`nsProcess` 或构造 `app.7z`。26 项 Python 门禁、三个产品 NSIS 脚本实编、Client 45 文件真实 development dist
-直接封装及“未提供正式证书时预检必须失败且不清理、不升版”均通过；
-当前机器没有配置批准的正式代码签名证书固定值，因此没有运行 release-only 构建、没有消耗版本号，也没有把语法产物冒充正式制品。
+2026-09-23 产品决定取消 Windows Authenticode 和 RFC 3161 时间戳；私有部署接受未知发布者提示。正式矩阵不再读取证书存储、私钥、签名者 pin 或
+SignTool，所有 Pixels 自有 PE、NSIS 卸载器和 Setup 均保持未签名，并在 manifest 中显式记录 `windows_code_signing=unsigned`。仓库仍固定
+NSIS 3.12，安装器直接封装验证后的 dist，不执行旧 `Nsis7z`/`nsProcess` 或构造 `app.7z`；产品/发行身份、精确文件集合、SHA-256、互斥安装和
+生命周期结果继续作为交付门禁。Android 签名要求不变。
 
-签名链之后补齐了可直接消费正式旧/新包的 Windows 生命周期验收器。调用方必须外部指定预期 product/distribution；只读预检验证安装器
+Windows 生命周期验收器直接消费正式旧/新包。调用方必须外部指定预期 product/distribution；只读预检验证安装器
 manifest 与该目标一致、前后产品/发行一致、严格递增版本、同一
-签名者 pin、文件 SHA-256、Authenticode 与时间戳；旧/新证书 SHA-256 均为外部必填输入，未轮换时两值相同，证书续期时分别给出已审核
-旧/新固定值，拒绝把相邻 manifest 的自我声明当成信任根。执行态必须
+未签名策略及文件 SHA-256。执行态必须
 由管理员在三产品及 `px_service` 均不存在的干净专用机器显式开启，依次执行
 旧版安装、升级、同版覆盖和卸载。每个安装阶段按 release manifest 重新验证已安装 payload manifest、精确文件集合、全部 artifact hash、
-owned PE/Uninstall 签名、注册表版本及 Host/Client 的 Service 边界，阶段报告原子保存且失败不自动清理现场。新增 7 项验证器单元测试和
-PowerShell 语法门禁通过。由于当前仍无批准证书和正式双发行旧/新包，本条只关闭“矩阵没有可重复执行器”的软件缺口，不关闭 DB5 实物门禁。
+owned PE 清单、注册表版本及 Host/Client 的 Service 边界，阶段报告原子保存且失败不自动清理现场。验证器单元测试和 PowerShell 语法门禁通过；
+正式双发行旧/新包的实物矩阵仍单独关闭 DB5 门禁。
 执行器还接受同发行的另一产品正式包，验证跨产品安装精确返回 1638 且已安装产品逐件不变；并用不启动、身份受控的 `px_service` 注册探针
 验证手工 Service 也会返回 1638。探针清理前重新核对身份，目标安装若错误接管它则保留现场而不误删服务。
 
-发行目录继续绑定平台签名证书 DER SHA-256：Windows/Android 要求小写 64 位十六进制，Linux 必须为空。该事实用于发布审批和安装包验收，
-不再生成或驱动 Service 本地激活记录、自动安装 runner 或自动回滚流程。Windows 覆盖安装仍由运维人员启动，安装器必须验证产品身份、文件摘要、
-Authenticode 签名者与时间戳。
+发行目录中 Windows 平台签名明确为空，Android 继续绑定应用签名证书 SHA-256，Linux 为空。该事实用于发布审批和安装包验收，不再生成或驱动
+Service 本地激活记录、自动安装 runner 或自动回滚流程。Windows 覆盖安装仍由运维人员启动，安装器验证产品身份、文件摘要和未签名发行策略。
 
 更新仓库生产侧随后新增离线 `px_update_authority`，关闭“客户端能验 TUF、仓库只能靠测试代码临时生成”的软件缺口。工具创建受限目录中的
 Ed25519 私钥；初始 root 强制 2–5 把 root key 且门限至少 2，targets/snapshot/timestamp 三角色密钥彼此及 root 隔离。发布读取严格
@@ -1465,13 +1461,13 @@ Ed25519 私钥；初始 root 强制 2–5 把 root key 且门限至少 2，targe
 随后增加 `prepare-console-registration`，从已完成且无 pending journal 的源站重新验证整库，按外部非零 request ID 排他导出精确 Console 请求体；
 测试同时覆盖中断中的源站拒绝、成功导出字段一致和输出不覆盖，更新权威仍为 6/6。
 
-Windows 安装包到 TUF 的输入边界也已去除人工字段拼装：`prepare_windows_update_release.py` 要求调用方外部给出审批证书 DER SHA-256，复用正式
-安装包验证器重新核对 manifest、文件 hash、Authenticode、时间戳和 signer pin，再生成固定
+Windows 安装包到 TUF 的输入边界也已去除人工字段拼装：`prepare_windows_update_release.py` 复用正式
+安装包验证器重新核对 manifest、unsigned 策略和文件 hash，再生成固定
 `windows/product/distribution/channel/x86_64/build/installer` 名称及严格 ReleaseSpec；输出排他创建，不覆盖旧审批文件。2/2 单元测试覆盖
-正确派生、错误 signer、带 query 的更新 URL 和输出覆盖拒绝。该工具不产生签名、不批准证书，也不替代后续 TUF 角色签名和 Console 审批。
+正确派生、带 query 的更新 URL 和输出覆盖拒绝。该工具不产生 Windows 签名，也不替代后续 TUF 角色签名和 Console 审批。
 
 Official/Customer 包装继续要求正式 `resources/update/root.json`，用于发布目录和支持自动更新的明确客户端；Windows 节点覆盖安装不读取该目录。
-仓库不伪造生产根、签名私钥或正式已审批更新。正式交付前仍须使用真实签名包完成三产品的安装、同版覆盖、升级与卸载矩阵；不再要求自动回滚、
+仓库不伪造生产根、签名私钥或正式已审批更新。正式交付前仍须使用完整未签名包完成三产品的安装、同版覆盖、升级与卸载矩阵；不再要求自动回滚、
 节点信任水位或跨节点升级验收。
 
 商业更新域的第一段服务端实现已完成：共享 release catalog 将 `distribution + release_namespace + oem_id` 作为不可拆分身份，固定
@@ -1648,12 +1644,12 @@ theme=`Theme.Oem.Starting`、OEM 双图标，以及中英文运行资源无 Pixe
 及中英文本地化门禁通过。最终 `build_official/client/dist/px_client.exe` 与构建树 SHA-256 同为
 `C869E3A5BA633A111A74B1D66769035E41DF6E8ADBA58F58B3D648CA11C76D88`，Cloud Node Panel 对应哈希同为
 `582E5BE1D40C3CB363071C24772E3926B0068FC0D9A99177E2C39E8AF8D60676`；二进制资源反查分别为 Pixels Client 3.3.72 与 Pixels Cloud Node 3.3.74。
-这关闭 Windows 原生品牌代码门禁，不等于已生成或签名 OEM Release；独立 TUF、节点激活和跨发行实物矩阵仍保持关闭。
+这关闭 Windows 原生品牌代码门禁，不等于已生成 OEM Release；独立 TUF 和跨发行实物矩阵仍保持关闭。
 
-同日 Windows OEM 发布编排切片新增逐产品正式候选入口：在任何清理/升版前一次性验证 profile、deployment trust/TUF root、NSIS 和 OEM Windows
-签名证书，之后只清理 `build_official/<product>/oem/<oem_id>/`，独立升版并串行生成 OEM Web、RDP policy、C++ 完整 dist 和签名安装器，最后再次
-用 profile signer pin 复核真实安装包目录。通用 C++ 与 RDP policy 构建路径同步修正为带 OEM ID 的隔离树，定向清理拒绝保留字、路径逃逸和跨 OEM
-范围。该切片只开放受控候选生成入口；本轮未持有正式 OEM profile/私钥，因此没有执行 release-only 实编译，也不冒充独立 TUF 发布、节点激活或
+同日 Windows OEM 发布编排切片新增逐产品正式候选入口：在任何清理/升版前一次性验证 profile、deployment trust/TUF root 和 NSIS，之后只清理
+`build_official/<product>/oem/<oem_id>/`，独立升版并串行生成 OEM Web、RDP policy、C++ 完整 dist 和未签名安装器，最后再次复核真实安装包目录的
+unsigned 策略、profile 摘要和发行域。通用 C++ 与 RDP policy 构建路径同步修正为带 OEM ID 的隔离树，定向清理拒绝保留字、路径逃逸和跨 OEM
+范围。该切片只开放受控候选生成入口；本轮未持有正式 OEM profile，因此没有执行 release-only 实编译，也不冒充独立 TUF 发布或
 跨 Official/Customer/OEM 的安装实物验收。
 
 随后关闭 OEM Host 激活代码阻塞：`px_service` 不再把所有 schema 3 manifest 的公司强制写死为 Pixels，而是对 Official/Customer 保持 Pixels，
@@ -1855,7 +1851,7 @@ Debug/androidTest 487 项 Gradle 任务，APK SHA-256 分别为 `61C5F9E4E31CDF1
 | DB5 | 公网 Windows CloudApplication Native Direct/Relay 及 Relay 音频/文件hash/取消重试/在线撤销、活动文件上传中 Service 重启收敛与精确 Render 回收、Web Client Direct Host RTP/解码首帧、Android guest 与账号 CloudApplication Native Direct/Relay 首帧、启停清理、Relay 真实断线续签、设备目录 ACL 授权/撤销及公网录像本人下载和管理员副本生命周期已通过；RDP 的画面、输入、resize、系统音频、双向 Unicode/文件剪贴板、断线宽限、忙工作区、双工作区和五类终态也已通过公网短测。旧 PXLIC1/PXDC/PXDD 公网栈与自定义部署身份验收仅保留为历史证据，不是当前实现约束；活动源码只保留 `PXLIC2` 服务端许可证，Official 客户端固定官方 HTTPS 端点，Customer 客户端配置私有 HTTPS 端点并拒绝已知官方端点。Windows Panel 的账号、目录、实例与显式资源 descriptor 已切当前 API 并完成公网 API 短测，主机设置旧设备自注册/appkey/加密接入串路径也已删除，Relay 部署配置由已认证 Console→Service 节点控制下发。2026-09-23 当前全新公网基线已用最新 Windows Service/Render、Windows Client、Android Official 1.0.25 和 Customer 1.0.28 Debug instrumentation 重新通过 Direct/Relay 首帧与启停清理，活动实例和资源会话均收敛为 0；Relay 空闲连接回收和实例终态会话关闭已在公网实物验证。Windows 与 Android 双发行的一次预检/一次升版和独立沙箱编排已实现；仍需正式签名更新实物矩阵、Windows 安装/升级/卸载、Cloud Node/Remote Web 正式双发行、正式安装包清单/签名审计、AMD/Intel 物理 GPU、目标 Linux和独立对象存储灾难恢复。RDP 的设备变化、长路径/ACL、重名/取消和规模/持续播放进入最后统一长测。全部短测通过后再统一长测 |
 | DB-HA / P1–P7 | 独立主机 HA、正式发行隔离、授权/连接服务、升级、运维与真实容量/稳定性验收 |
 
-接续依赖顺序：先完成正式签名安装包的安装、覆盖升级、人工回退与卸载实物矩阵；再做 Customer 真机、目标 Linux/独立仓库备份恢复、全新部署与完整正式制品矩阵，
+接续依赖顺序：先完成正式未签名安装包的安装、覆盖升级、人工回退与卸载实物矩阵；再做 Customer 真机、目标 Linux/独立仓库备份恢复、全新部署与完整正式制品矩阵，
 全部短测通过后统一执行包含 RDP 设备变化、长路径/ACL、重名/取消和规模/持续播放的长测。
 资源会话 repository 证据见[CloudApplication/桌面会话与描述符契约](postgresql_resource_session_contract.md)；
 专项测试入口与独立 AES 固定向量已经通过，不再列为未开始。Service 已开始切入新节点协议，但其他客户端和真实 OS/媒体链路仍未验收，

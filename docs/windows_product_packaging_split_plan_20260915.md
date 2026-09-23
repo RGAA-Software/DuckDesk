@@ -511,6 +511,7 @@ PixelsRemote_<version>_Setup.exe
 ### 通用交付
 
 - 每个构建树产物与对应 `dist/<product>` 文件逐项 SHA-256 一致；
+- Windows 自研 PE、卸载器和三个安装器按私有部署策略保持未签名，允许 Windows 显示未知发布者提示；manifest 必须显式记录 unsigned，验收依赖精确 SHA-256 与安装身份；
 - Windows 自研 PE、三个安装器及卸载注册表的 Company/Publisher 均为 `Pixels`，Android 发布元数据使用 Pixels 品牌；产品界面、公开 author/vendor 字段和产品清单不存在 RGAA 品牌或组织链接；
 - 第三方组件保留自身真实 Company/Publisher/签名者，品牌检查不得篡改或误报第三方厂商；现行网络端点按权威配置独立验收，不以字符串替换冒充域名迁移；
 - 三个产品分别生成安装、同 Edition 覆盖安装和卸载测试报告；另外验证任意其他 Edition 或旧开发版存在时安装被明确阻止；

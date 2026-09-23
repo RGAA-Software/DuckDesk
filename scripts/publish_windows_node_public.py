@@ -85,7 +85,7 @@ $descriptorStaging = Join-Path $directory 'product-manifest.staged.json'
 if (-not (Test-Path -LiteralPath $descriptorTarget -PathType Leaf)) {{ throw 'Focused publish requires an installed current product descriptor' }}
 $installedProduct = Get-Content -LiteralPath $descriptorTarget -Raw | ConvertFrom-Json
 $expectedReleaseNamespace = if ('{distribution}' -eq 'development') {{ $null }} else {{ 'pixels.{distribution}' }}
-if ($installedProduct.schema_version -ne 3 -or $installedProduct.company -ne 'Pixels' -or $installedProduct.product -ne '{product}' -or
+if ($installedProduct.schema_version -ne 4 -or $installedProduct.company -ne 'Pixels' -or $installedProduct.product -ne '{product}' -or
     $installedProduct.distribution -ne '{distribution}' -or $installedProduct.release_namespace -ne $expectedReleaseNamespace -or
     $null -ne $installedProduct.oem_id) {{
     throw 'Installed product identity does not match the requested focused publish'
@@ -176,7 +176,7 @@ $descriptorTarget = Join-Path $directory 'product-manifest.json'
 if (-not (Test-Path -LiteralPath $descriptorTarget -PathType Leaf)) {{ throw 'Focused publish requires an installed current product descriptor' }}
 $installedProduct = Get-Content -LiteralPath $descriptorTarget -Raw | ConvertFrom-Json
 $expectedReleaseNamespace = if ('{distribution}' -eq 'development') {{ $null }} else {{ 'pixels.{distribution}' }}
-if ($installedProduct.schema_version -ne 3 -or $installedProduct.company -ne 'Pixels' -or $installedProduct.product -ne '{product}' -or
+if ($installedProduct.schema_version -ne 4 -or $installedProduct.company -ne 'Pixels' -or $installedProduct.product -ne '{product}' -or
     $installedProduct.distribution -ne '{distribution}' -or $installedProduct.release_namespace -ne $expectedReleaseNamespace -or
     $null -ne $installedProduct.oem_id) {{
     throw 'Installed product identity does not match the requested focused publish'
@@ -267,7 +267,7 @@ if (-not $resolvedStaging.StartsWith($resolvedDirectory, [StringComparison]::Ord
 if (-not (Test-Path -LiteralPath $descriptorTarget -PathType Leaf)) {{ throw 'Focused publish requires an installed current product descriptor' }}
 $installedProduct = Get-Content -LiteralPath $descriptorTarget -Raw | ConvertFrom-Json
 $expectedReleaseNamespace = if ('{distribution}' -eq 'development') {{ $null }} else {{ 'pixels.{distribution}' }}
-if ($installedProduct.schema_version -ne 3 -or $installedProduct.company -ne 'Pixels' -or $installedProduct.product -ne '{product}' -or
+if ($installedProduct.schema_version -ne 4 -or $installedProduct.company -ne 'Pixels' -or $installedProduct.product -ne '{product}' -or
     $installedProduct.distribution -ne '{distribution}' -or $installedProduct.release_namespace -ne $expectedReleaseNamespace -or
     $null -ne $installedProduct.oem_id) {{
     throw 'Installed product identity does not match the requested focused publish'
@@ -378,7 +378,7 @@ def main() -> int:
                     "Focused public publish requires a valid current product installation; run the product installer first"
                 ) from error
             expected_identity = {
-                "schema_version": 3,
+                "schema_version": 4,
                 "product": args.product,
                 "distribution": args.distribution,
                 "release_namespace": None if args.distribution == "development" else f"pixels.{args.distribution}",

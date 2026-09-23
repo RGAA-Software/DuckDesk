@@ -35,7 +35,7 @@ def refresh(distribution: Path) -> dict[str, str]:
     distribution = distribution.resolve()
     manifest_path = distribution / "product-manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if manifest.get("schema_version") != 3 or manifest.get("distribution") != "development":
+    if manifest.get("schema_version") != 4 or manifest.get("distribution") != "development":
         raise RuntimeError("only a schema 3 development distribution can be refreshed in place")
     product = manifest.get("product")
     if product not in {"client", "cloud_node", "remote"}:

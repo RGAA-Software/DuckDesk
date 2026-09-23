@@ -145,12 +145,6 @@ RequestExecutionLevel admin
 
 OutFile "${OUTPUT_DIR}\${INSTALLER_BASENAME}_${DISTRIBUTION}_${PRODUCT_VERSION}_Setup.exe"
 
-!ifndef UNINSTALL_SIGN_COMMAND
-    !error "UNINSTALL_SIGN_COMMAND is required"
-!endif
-
-!uninstfinalize '${UNINSTALL_SIGN_COMMAND}' = 0
-
 InstallDir "${INSTALL_DIR}"
 
 Name "${PRODUCT_NAME}"
@@ -225,7 +219,7 @@ replace_failed:
 replace_ready:
 
     ; 1. Install the already verified product payload directly. The release
-    ;    builder signs owned PE files before makensis reads this directory.
+    ;    builder verifies owned PE inventory and hashes before makensis reads this directory.
     SetOutPath "$INSTDIR"
     File /r "${OUTPUT_DIR}\app\*"
 
@@ -243,7 +237,7 @@ parsec_vdd_install_ok:
     ; 3. Install ViGEm joystick driver silently
     ExecWait '"$INSTDIR\px_joystick.exe" /S'
 
-    ; 4. Keep the last successfully installed, signed full installer outside
+    ; 4. Keep the last successfully installed full installer outside
     ; the replaceable installation tree. Restrict the entire update cache to
     ; SYSTEM and local administrators before the Service can consume it.
     ReadEnvStr $R2 "PUBLIC"
@@ -272,7 +266,7 @@ update_cache_public_missing:
         Abort "Windows PUBLIC directory is unavailable"
 update_cache_failed:
         SetErrorLevel 1603
-        Abort "Failed to publish the signed rollback installer"
+        Abort "Failed to publish the rollback installer"
 update_cache_ready:
 
     ; 5. Register or update the Windows service only after all runtime files
