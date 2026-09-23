@@ -1960,4 +1960,11 @@ Unknown 不冒充健康，并通过独立 `relays` 管理事件刷新。公网�
 schema 0030–0032并部署当前 Console、管理页面和 Relay；私有 CA 通过严格 `PIXELS_RELAY_CONSOLE_CA_FILE` 接入，不存在跳过证书校验。
 公网 Relay 当前 `ready/fresh`、期望/实际均非排空、4605 可准入，安装 SHA-256
 `53FE39FA95A9B3179A80040D9DC83738D3B95D36383B96AED34DB091614A4935` 与开发输出一致，Console 静态页面 4 件文件逐件哈希一致。
-P3-4B 仍需第二台物理 Relay 和第二台物理 Render/Service 做跨机短测；当前证据不冒充物理双机，开发阶段不执行长测。
+第二台物理 Relay 随后已部署到 SG Ubuntu 24.04 主机：systemd 受限运行，使用私有 CA 严格连接 Console WSS；公网 80 仅由 Nginx
+代理 `/relay` 和 `/healthz` 到本机 4605，Linux 安装文件 SHA-256 为
+`17F2E30B64129F83C8A9FE7FE38F08DD85CD8328920DDD43A45C7035FBA7370B`。Windows 主 Relay 排空时保留 2 条已有连接并以 503 拒绝新准入，
+同一时刻 SG 入口到达应用认证；SG 进程停止时 Console 正确观察到 offline/not fresh，Windows Relay 继续接单，重启后 SG 恢复
+ready/fresh。强制 SG Relay 的真实 Windows CloudApplication 已建立房间、传递 TCP 视频、解码关键帧并发送输入，SG 记录双向载荷
+651 / 12,448 字节。自动验收器随后因窗口句柄识别失败，且 Console 短暂丢失 runtime authority 后安全退出而未以 PASS 结束；Console 已重启，
+残留实例为 stopped，两台 Relay 均恢复 ok/accepting。该两项后续缺口不冒充已关闭。P3-4B 当前只剩第二台物理 Render/Service 的跨机短测，
+开发阶段不执行长测。

@@ -14,7 +14,7 @@
 - Direct Host 与现有 Relay 数据模式的 Windows、Web、Android 短链路；
 - Relay 房间认证、反压、载荷统计、空闲回收和资源会话 admission ticket。
 
-当前缺口：Relay 库存、管理页、实时容量选择及单台公网节点接入已完成；尚缺第二台物理 Relay 和第二台物理 Render/Service 的跨机短验收。
+当前缺口：Relay 库存、管理页、实时容量选择及两台物理 Relay 的跨机短验收已完成；尚缺第二台物理 Render/Service 的跨机短验收。
 机器池、CPU/内存/网络预算和多 Render 实机验收仍未完成。Broker 首版先作为 Console 内部的窄连接编排模块，不为拆进程而复制业务状态。
 
 ## 2. 约束
@@ -140,5 +140,18 @@ draining 后新实例选择备用 Relay，两个节点分别取得 Start 命令�
 健康端点确认准入；Relay 安装 SHA-256 为 `53FE39FA95A9B3179A80040D9DC83738D3B95D36383B96AED34DB091614A4935`，与开发输出一致。
 Console 静态页面 4 件文件也已逐件与开发输出 SHA-256 对齐。
 
-严格 Release Clippy（含 PostgreSQL integration features）、rustfmt、PowerShell 语法及差异检查通过。P3-4B 只剩第二台物理 Relay 与第二台物理
-Render/Service 的跨机短测；待提供第二台实际主机后验证失联和新请求转移。开发阶段不运行长时间压力测试，统一长测仍在商业发布前门禁。
+第二台物理 Relay 已部署到 SG Ubuntu 24.04 主机。`px_relay` 由 systemd 以受限动态用户运行，通过私有 CA 校验后的 WSS 连接当前
+Console；云安全组未开放 4605，因此只由既有 Nginx 在公网 80 精确代理 `/relay` 和 `/healthz` 到本机 4605，其余路径返回 404。Linux
+安装文件 SHA-256 为 `17F2E30B64129F83C8A9FE7FE38F08DD85CD8328920DDD43A45C7035FBA7370B`，与 WSL2 Release 输出一致。
+
+两台物理 Relay 的排空和故障短测已完成：Windows 主 Relay 排空时保留 2 条既有连接，新 WebSocket 准入返回 503；SG Relay 同一请求到达
+应用认证并返回 401，证明备用公网数据入口仍接单。恢复主 Relay 后实际 draining 收敛为 false。随后停止 SG systemd 服务，Console 将其标记为
+offline/not fresh，Windows Relay 保持 ready/accepting；重启后 SG 恢复 ready/fresh。一次强制指定 SG Relay 的真实 Windows
+CloudApplication 连接已建立房间、收到 TCP 媒体并解码关键帧，Client 记录输入发送成功；SG 健康计数记录双向载荷 651 / 12,448 字节。
+
+该 CloudApplication 自动验收进程不能记为完整 PASS：取证完成后，验收器未从 `Process.MainWindowHandle` 识别已渲染窗口；同时公网 Console
+因 `Console runtime authority was lost` 安全退出，导致清理请求超时。Console 计划任务已恢复并持续监听，残留实例最终为 stopped，两台 Relay
+均恢复 `ok/accepting`。后续应单独修复窗口识别门禁并定位 Console 权威短暂丢失，不把它们误归因于 SG Relay 数据面。
+
+严格 Release Clippy（含 PostgreSQL integration features）、rustfmt、PowerShell 语法及差异检查通过。P3-4B 现在只剩第二台物理
+Render/Service 的跨机短测；开发阶段不运行长时间压力测试，统一长测仍在商业发布前门禁。
