@@ -126,8 +126,8 @@ pub use saved_connection_model::{
 pub use saved_connections::SavedConnectionStore;
 pub use session_frontends::{ExpectedFrontend, FrontendGrant};
 pub use session_model::{
-    FrontendRetirement, OpenResourceSession, ResourceDescriptor, ResourceSession, SessionAccess,
-    SessionTarget,
+    FrontendRetirement, OpenResourceSession, RelayBinding, ResourceDescriptor, ResourceSession,
+    SessionAccess, SessionTarget,
 };
 pub use telemetry_alert_model::{
     TelemetryAlertCursor, TelemetryAlertEvent, TelemetryAlertFilter, TelemetryAlertMetric,

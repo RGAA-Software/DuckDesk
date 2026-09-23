@@ -5,7 +5,6 @@ use fixture::{
     call, login, register, resource_call, start_with_cache_and_relay, start_with_relay, PASSWORD,
 };
 use futures_util::{SinkExt, StreamExt};
-use px_relay_admission::verify;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::{net::SocketAddr, time::Duration};
@@ -531,27 +530,9 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     )
     .await;
     assert_eq!(status.as_u16(), 200, "{descriptor}");
-    assert_eq!(descriptor["relay"]["host"], "relay.example.test");
-    assert_eq!(descriptor["relay"]["port"], 4605);
-    let relay_admission = descriptor["relay"]["admission_ticket"]
-        .as_str()
-        .expect("Relay admission ticket");
-    assert_ne!(relay_admission, "isolated-relay-app-key");
-    let session_id = descriptor["descriptor"]["session"]["id"]
-        .as_str()
-        .and_then(|value| Uuid::parse_str(value).ok())
-        .expect("resource session id");
-    let remote_resource_id = descriptor["descriptor"]["session"]["target"]["instance_id"]
-        .as_str()
-        .and_then(|value| Uuid::parse_str(value).ok())
-        .expect("resource instance id");
-    assert!(verify(
-        b"isolated-relay-app-key",
-        relay_admission,
-        session_id,
-        remote_resource_id,
-        chrono::Utc::now().timestamp().try_into().unwrap()
-    ));
+    // A configured signing key is not a selectable Relay. The descriptor stays direct
+    // unless the resource-session transaction persisted an eligible inventory binding.
+    assert!(descriptor["relay"].is_null());
     let expected_frontends =
         exchange(&mut socket, json!({"type":"list_frontends","request_id":9})).await;
     assert_eq!(expected_frontends["type"], "frontends");

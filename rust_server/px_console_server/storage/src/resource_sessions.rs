@@ -2,8 +2,9 @@ use crate::{
     control,
     instances::AdmissionSubject,
     session_model::{SessionEndpoint, SessionRow},
-    ClientType, InstanceStore, OpenResourceSession, ResourceCredential, ResourceDescriptor,
-    ResourceSession, RuntimeEntitlement, SessionTarget, StoreError, TokenDigest,
+    ClientType, InstanceStore, OpenResourceSession, RelayBinding, ResourceCredential,
+    ResourceDescriptor, ResourceSession, RuntimeEntitlement, SessionTarget, StoreError,
+    TokenDigest,
 };
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -140,6 +141,18 @@ impl ResourceSessionStore {
         )
         .fetch_one(&mut *tx)
         .await?;
+        if endpoint.transport != "rdp" {
+            if let Some(relay) = Self::select_relay(&mut tx, endpoint.control_epoch).await? {
+                sqlx::query_file!(
+                    "queries/bind_resource_session_relay.sql",
+                    row.id,
+                    relay.relay_node_id,
+                    relay.relay_generation
+                )
+                .execute(&mut *tx)
+                .await?;
+            }
+        }
         Self::event(&mut tx, &row, "created").await?;
         let result = row.view()?;
         tx.commit().await?;
@@ -206,6 +219,10 @@ impl ResourceSessionStore {
         }
         Self::enforce_target_entitlement(&mut tx, row.view()?.target, entitlement).await?;
         let endpoint = Self::live_endpoint(&mut tx, &row).await?;
+        let relay =
+            sqlx::query_file_as!(RelayBinding, "queries/resource_session_relay.sql", row.id)
+                .fetch_optional(&mut *tx)
+                .await?;
         let issued = sqlx::query_file!(
             "queries/issue_resource_descriptor.sql",
             id,
@@ -224,6 +241,7 @@ impl ResourceSessionStore {
             host: endpoint.host,
             port: endpoint.port.try_into().map_err(|_| StoreError::Rejected)?,
             transport: endpoint.transport,
+            relay,
             rdp_domain: endpoint.rdp_domain,
             rdp_proxy_certificate_sha256: endpoint.rdp_proxy_certificate_sha256,
             expires_at: issued.expires_at,
@@ -355,5 +373,18 @@ impl ResourceSessionStore {
             return Err(StoreError::Rejected);
         }
         Ok(endpoint)
+    }
+
+    async fn select_relay(
+        connection: &mut sqlx::PgConnection,
+        control_epoch: i64,
+    ) -> Result<Option<RelayBinding>, StoreError> {
+        Ok(sqlx::query_file_as!(
+            RelayBinding,
+            "queries/select_relay_for_session.sql",
+            control_epoch
+        )
+        .fetch_optional(connection)
+        .await?)
     }
 }

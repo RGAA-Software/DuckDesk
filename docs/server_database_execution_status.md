@@ -1932,3 +1932,10 @@ Console 以 `desired_draining` 下发权威状态并在变化时要求 Relay 立
 正常静默最长 15 秒 fail-closed，不中断已有数据连接。真实 Console + Relay + PostgreSQL + HTTP 健康状态闭环 1/1 PASS，报告
 `pg-20260923-221147-3e5ea134`；协议 1/1、既有 Relay 8/8 及严格 Release Clippy/rustfmt 均通过。P3-1 至此完成，下一批 P3-2 只做
 可分配 Relay 查询和资源会话原子稳定绑定，不提前做运维 UI、Socket 热迁移或资源池扩展。
+
+P3-2A 已完成资源会话 Relay 稳定绑定。Fresh schema 0031 新增独立关系表；创建事务仅选择当前 Console epoch 下 30 秒内受认证、Ready、
+未禁用、期望/实际均未排空且连接/房间容量有余量的 Relay，并以实际压力稳定排序。绑定与会话原子提交，同 request 重试返回原绑定，已有会话不因
+Relay 后续排空或重连而迁移；RDP 永不绑定。Descriptor 只使用持久绑定，静态签名 key 不再冒充可用 Relay。SQLx 290/290、sessions
+14/14、node-control 2/2 及严格 Release Clippy/rustfmt 通过，报告 `pg-20260923-222240-541432a9`、
+`pg-20260923-222522-d8897efc`。P3-2B 下一步把绑定前移到非 RDP application instance，使 Node Start 和 cloud-application session
+读取同一选择结果。

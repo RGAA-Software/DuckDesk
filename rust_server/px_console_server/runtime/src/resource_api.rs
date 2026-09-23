@@ -237,7 +237,9 @@ async fn descriptor(
     };
     let relay = if descriptor.transport == "rdp" {
         None
-    } else if let Some(endpoint) = state.relay.as_ref() {
+    } else if let (Some(binding), Some(endpoint)) =
+        (descriptor.relay.as_ref(), state.relay.as_ref())
+    {
         let remote_resource_id = match descriptor.session.target {
             SessionTarget::Desktop { device_id } => device_id,
             SessionTarget::CloudApplication { instance_id, .. } => instance_id,
@@ -255,8 +257,11 @@ async fn descriptor(
         )
         .ok_or(ApiError::Unavailable)?;
         Some(RelayFrontendBootstrap {
-            host: endpoint.host.clone(),
-            port: endpoint.port,
+            host: binding.public_host.clone(),
+            port: binding
+                .public_port
+                .try_into()
+                .map_err(|_| ApiError::Unavailable)?,
             admission_ticket: admission_ticket.as_str().to_string(),
         })
     } else {

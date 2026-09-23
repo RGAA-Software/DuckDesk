@@ -78,3 +78,19 @@ fail-closed，已有数据连接不被强制迁移或中断。该协议只传服
 `pg-20260923-221147-3e5ea134`；共享协议 1/1、既有 Relay 数据路径回归 8/8 和严格 Release Clippy/rustfmt 均通过。
 
 P3-1 已完成。下一批进入 P3-2：只增加可分配 Relay 查询和资源会话的原子稳定绑定；不在该批实现运维页面、Socket 热迁移或机器池扩展。
+
+## 7. P3-2A 已完成：资源会话稳定绑定
+
+Fresh schema 0031 增加独立 `resource_session_relays` 关系，不污染既有会话身份对象。非 RDP 会话创建事务现在按以下硬条件选择 Relay：当前 Console
+epoch、30 秒内受认证状态、Ready、未禁用、期望和实际均未排空、连接/房间容量已知且仍有余量。排序只使用连接与房间两项实际压力并以稳定 ID
+打破平局；未知、满载、排空、过期或离线节点不会被选择。
+
+绑定和资源会话在同一事务提交；同一 request 重试复用原 session/relay，已有绑定不会因 Relay 后续排空或重连而迁移。容量判断同时观察 Relay 实报
+和当前未关闭绑定，资源会话创建已有的 PostgreSQL advisory transaction lock 保证并发判断不超售。RDP 不创建 Relay 绑定。Descriptor 只从持久绑定读取
+host/port；单独配置共享签名 key 不再伪装成可用 Relay。
+
+SQLx fresh-schema 元数据 290/290；资源会话 14/14、Console node-control 2/2 和严格 Release Clippy/rustfmt 通过，报告为
+`pg-20260923-222240-541432a9`、`pg-20260923-222522-d8897efc`。
+
+P3-2 尚未完成。下一批 P3-2B 把 Relay 绑定前移到非 RDP application instance 预留事务，Start command 和后续 cloud-application session
+复用同一绑定；桌面直连和 RDP 保持无 Relay Start 依赖。

@@ -3,9 +3,10 @@ mod fixture;
 use fixture::{config, node_report, request, token, Fixture};
 use px_console_store::{
     ApplicationInstance, ClientType, CommandOutcome, CommandReceipt, DeploymentTarget,
-    DeviceAccess, NodeConnection, OpenResourceSession, ResourceCredential, ResourceSession,
-    ResourceSessionStore, RuntimeEntitlement, SessionAccess, SessionTarget, StoreError,
-    TokenDigest, WorkspaceCommandLease, WorkspaceKey, WorkspaceStore, WorkspaceVault,
+    DeviceAccess, NodeConnection, OpenResourceSession, RelayNodeConfiguration, RelayNodeProfile,
+    RelayNodeReport, RelayNodeSpec, RelayNodeStore, ResourceCredential, ResourceSession,
+    ResourceSessionStore, RuntimeEntitlement, RuntimeEpoch, SessionAccess, SessionTarget,
+    StoreError, TokenDigest, WorkspaceCommandLease, WorkspaceKey, WorkspaceStore, WorkspaceVault,
 };
 use std::{env, sync::Arc, time::Duration};
 use tokio::sync::Barrier;
@@ -537,6 +538,166 @@ async fn opened() -> (
         .await
         .unwrap();
     (fixture, session_store, node, user, instance, session)
+}
+
+async fn ready_relay(
+    relay_nodes: &RelayNodeStore,
+    admin: &TokenDigest,
+    epoch: RuntimeEpoch,
+    name: &str,
+    port: u16,
+    max_rooms: u32,
+    current_rooms: u32,
+) -> RelayNodeProfile {
+    let credential = token();
+    let created = relay_nodes
+        .create(
+            admin,
+            &RelayNodeSpec {
+                name: format!("{name}-{}", Uuid::new_v4()),
+                public_host: format!("{name}.example.test"),
+                public_port: port,
+            },
+            &credential,
+        )
+        .await
+        .unwrap();
+    relay_nodes
+        .configure(
+            admin,
+            created.id,
+            created.revision,
+            RelayNodeConfiguration {
+                draining: false,
+                disabled: false,
+            },
+        )
+        .await
+        .unwrap();
+    let connection = relay_nodes
+        .open_connection(epoch, &credential, &token())
+        .await
+        .unwrap();
+    relay_nodes
+        .report(
+            &connection,
+            &RelayNodeReport {
+                sequence: 1,
+                product_version_code: 1,
+                draining: false,
+                max_connections: 100,
+                current_connections: 10,
+                max_rooms,
+                current_rooms,
+                uploaded_bytes: 0,
+                forwarded_bytes: 0,
+            },
+        )
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn relay_selection_uses_hard_capacity_filters_and_keeps_the_original_binding() {
+    let fixture = Fixture::new().await;
+    let session_store = store().await;
+    let relay_nodes = RelayNodeStore::connect(
+        &config("RUNTIME"),
+        env::var("PIXELS_DEPLOYMENT_ID").unwrap().parse().unwrap(),
+    )
+    .await
+    .unwrap();
+    let (node, application, _) = fixture.prepared(DeploymentTarget::Webview, 4).await;
+    let full_relay = ready_relay(
+        &relay_nodes,
+        &fixture.admin,
+        node.epoch(),
+        "full-relay",
+        4701,
+        1,
+        1,
+    )
+    .await;
+    let selected_relay = ready_relay(
+        &relay_nodes,
+        &fixture.admin,
+        node.epoch(),
+        "available-relay",
+        4702,
+        8,
+        1,
+    )
+    .await;
+    let user = fixture.session("user", ClientType::Android).await;
+    let instance = running(
+        &fixture,
+        &node,
+        application.id,
+        &user,
+        ClientType::Android,
+        false,
+    )
+    .await;
+    let request = open_request(application.id, instance.id);
+    let session = session_store
+        .open(
+            ResourceCredential::User(&user),
+            ClientType::Android,
+            &request,
+        )
+        .await
+        .unwrap();
+    let retried = session_store
+        .open(
+            ResourceCredential::User(&user),
+            ClientType::Android,
+            &request,
+        )
+        .await
+        .unwrap();
+    assert_eq!(retried.id, session.id);
+    let descriptor = session_store
+        .descriptor(
+            ResourceCredential::User(&user),
+            ClientType::Android,
+            session.id,
+            session.revision,
+            &token(),
+        )
+        .await
+        .unwrap();
+    let binding = descriptor.relay.as_ref().unwrap();
+    assert_eq!(binding.relay_node_id, selected_relay.id);
+    assert_ne!(binding.relay_node_id, full_relay.id);
+    assert_eq!(binding.public_port, 4702);
+
+    relay_nodes
+        .configure(
+            &fixture.admin,
+            selected_relay.id,
+            selected_relay.revision,
+            RelayNodeConfiguration {
+                draining: true,
+                disabled: false,
+            },
+        )
+        .await
+        .unwrap();
+    let renewed = session_store
+        .descriptor(
+            ResourceCredential::User(&user),
+            ClientType::Android,
+            session.id,
+            descriptor.session.revision,
+            &token(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(renewed.relay.unwrap().relay_node_id, selected_relay.id);
+
+    relay_nodes.close().await;
+    session_store.close().await;
+    fixture.close().await;
 }
 #[tokio::test]
 async fn android_targets_idempotency_owner_and_guest_are_explicit() {

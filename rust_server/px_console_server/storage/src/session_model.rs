@@ -93,10 +93,20 @@ pub struct ResourceDescriptor {
     pub port: u16,
     pub transport: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub relay: Option<RelayBinding>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub rdp_domain: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rdp_proxy_certificate_sha256: Option<String>,
     pub expires_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, sqlx::FromRow)]
+pub struct RelayBinding {
+    pub relay_node_id: Uuid,
+    pub relay_generation: i64,
+    pub public_host: String,
+    pub public_port: i32,
 }
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct FrontendRetirement {
