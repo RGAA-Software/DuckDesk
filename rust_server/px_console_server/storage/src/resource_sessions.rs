@@ -142,7 +142,17 @@ impl ResourceSessionStore {
         .fetch_one(&mut *tx)
         .await?;
         if endpoint.transport != "rdp" {
-            if let Some(relay) = Self::select_relay(&mut tx, endpoint.control_epoch).await? {
+            let relay = match request.target {
+                SessionTarget::CloudApplication { instance_id, .. } => {
+                    sqlx::query_file_as!(RelayBinding, "queries/instance_relay.sql", instance_id)
+                        .fetch_optional(&mut *tx)
+                        .await?
+                }
+                SessionTarget::Desktop { .. } => {
+                    crate::relay_selection::select(&mut tx, endpoint.control_epoch).await?
+                }
+            };
+            if let Some(relay) = relay {
                 sqlx::query_file!(
                     "queries/bind_resource_session_relay.sql",
                     row.id,
@@ -373,18 +383,5 @@ impl ResourceSessionStore {
             return Err(StoreError::Rejected);
         }
         Ok(endpoint)
-    }
-
-    async fn select_relay(
-        connection: &mut sqlx::PgConnection,
-        control_epoch: i64,
-    ) -> Result<Option<RelayBinding>, StoreError> {
-        Ok(sqlx::query_file_as!(
-            RelayBinding,
-            "queries/select_relay_for_session.sql",
-            control_epoch
-        )
-        .fetch_optional(connection)
-        .await?)
     }
 }

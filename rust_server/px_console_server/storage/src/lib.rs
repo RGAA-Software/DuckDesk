@@ -39,6 +39,7 @@ mod recording_model;
 mod recordings;
 mod relay_model;
 mod relay_nodes;
+mod relay_selection;
 mod resource_policy;
 mod resource_sessions;
 mod saved_connection_model;

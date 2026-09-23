@@ -468,14 +468,7 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     let start_command = exchange(&mut socket, json!({"type":"poll_command","request_id":7})).await;
     assert_eq!(start_command["type"], "command");
     assert_eq!(start_command["command"]["action"]["kind"], "start");
-    assert_eq!(
-        start_command["command"]["action"]["relay"],
-        json!({
-            "host":"relay.example.test",
-            "port":4605,
-            "app_key":"isolated-relay-app-key"
-        })
-    );
+    assert!(start_command["command"]["action"]["relay"].is_null());
     let running = exchange(
         &mut socket,
         json!({

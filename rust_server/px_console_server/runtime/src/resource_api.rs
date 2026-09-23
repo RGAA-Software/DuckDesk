@@ -237,8 +237,8 @@ async fn descriptor(
     };
     let relay = if descriptor.transport == "rdp" {
         None
-    } else if let (Some(binding), Some(endpoint)) =
-        (descriptor.relay.as_ref(), state.relay.as_ref())
+    } else if let (Some(binding), Some(admission)) =
+        (descriptor.relay.as_ref(), state.relay_admission.as_ref())
     {
         let remote_resource_id = match descriptor.session.target {
             SessionTarget::Desktop { device_id } => device_id,
@@ -249,7 +249,7 @@ async fn descriptor(
         let expires_at_unix_seconds =
             u64::try_from(descriptor.expires_at.timestamp()).map_err(|_| ApiError::Unavailable)?;
         let admission_ticket = px_relay_admission::issue(
-            endpoint.app_key.as_bytes(),
+            admission.app_key.as_bytes(),
             descriptor.session.id,
             remote_resource_id,
             now_unix_seconds,

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.instance_relays(instance_id, relay_node_id, relay_generation)\nVALUES ($1, $2, $3)\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4f7e32c1bc2900365f581f66e74e3857c687b2348866c90bdb516fd49eb06504"
+}

@@ -326,10 +326,7 @@ fn frontend_target(value: store::SessionTarget) -> wire::FrontendTarget {
     }
 }
 
-pub fn command(
-    value: store::NodeCommand,
-    relay: Option<&crate::RelayEndpoint>,
-) -> wire::NodeCommand {
+pub fn command(value: store::NodeCommand, relay_app_key: Option<&str>) -> wire::NodeCommand {
     wire::NodeCommand {
         id: value.id,
         instance_id: value.instance_id,
@@ -367,11 +364,15 @@ pub fn command(
                         compute_limit_per_mille: reservation.compute_limit_per_mille,
                         encoder_limit_per_mille: reservation.encoder_limit_per_mille,
                     }),
-                    relay: relay.filter(|_| !rdp).map(|endpoint| wire::RelayEndpoint {
-                        host: endpoint.host.clone(),
-                        port: endpoint.port,
-                        app_key: endpoint.app_key.clone(),
-                    }),
+                    relay: value.relay.filter(|_| !rdp).zip(relay_app_key).and_then(
+                        |(binding, app_key)| {
+                            Some(wire::RelayEndpoint {
+                                host: binding.public_host,
+                                port: binding.public_port.try_into().ok()?,
+                                app_key: app_key.to_string(),
+                            })
+                        },
+                    ),
                 }
             }
             store::NodeCommandAction::Stop => wire::NodeCommandAction::Stop,
@@ -407,5 +408,61 @@ fn video_spec(value: store::VideoSpec) -> wire::VideoSpec {
             store::VideoCodec::H265 => wire::VideoCodec::H265,
         },
         bitrate_kbps: value.bitrate_kbps,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+    use uuid::Uuid;
+
+    #[test]
+    fn start_command_uses_the_persisted_relay_endpoint_with_the_runtime_signing_key() {
+        let relay_node_id = Uuid::new_v4();
+        let stored_command = store::NodeCommand {
+            id: Uuid::new_v4(),
+            instance_id: Uuid::new_v4(),
+            launch_id: Uuid::new_v4(),
+            application_id: Uuid::new_v4(),
+            deployment_id: Uuid::new_v4(),
+            application_revision: 1,
+            deployment_revision: 1,
+            instance_revision: 1,
+            node_generation: 2,
+            control_epoch: 3,
+            endpoint_revision: 4,
+            lease_id: Uuid::new_v4(),
+            lease_until: Utc::now(),
+            deadline: Utc::now(),
+            relay: Some(store::RelayBinding {
+                relay_node_id,
+                relay_generation: 7,
+                public_host: "selected-relay.example.test".into(),
+                public_port: 4710,
+            }),
+            action: store::NodeCommandAction::Start {
+                port: 4613,
+                launch: store::ApplicationLaunch::Webview {
+                    entry_url: "https://example.test/application".into(),
+                    video: store::VideoSpec {
+                        codec: store::VideoCodec::H264,
+                        bitrate_kbps: 8_000,
+                    },
+                },
+                install_root: None,
+                gpu_reservation: None,
+            },
+        };
+        let mapped = command(stored_command, Some("deployment-relay-signing-key"));
+        let wire::NodeCommandAction::Start {
+            relay: Some(relay), ..
+        } = mapped.action
+        else {
+            panic!("expected a Relay-bound Start command");
+        };
+        assert_eq!(relay.host, "selected-relay.example.test");
+        assert_eq!(relay.port, 4710);
+        assert_eq!(relay.app_key, "deployment-relay-signing-key");
     }
 }

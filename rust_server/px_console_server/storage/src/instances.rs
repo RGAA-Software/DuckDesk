@@ -123,6 +123,18 @@ impl InstanceStore {
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(StoreError::NoCapacity)?;
+        if application.kind != "rdp" {
+            if let Some(relay) = crate::relay_selection::select(&mut tx, epoch.0).await? {
+                sqlx::query_file!(
+                    "queries/bind_instance_relay.sql",
+                    instance.id,
+                    relay.relay_node_id,
+                    relay.relay_generation
+                )
+                .execute(&mut *tx)
+                .await?;
+            }
+        }
         Self::command(&mut tx, &instance, "start").await?;
         Self::event(&mut tx, &instance, "reserved").await?;
         let result = instance.view()?;

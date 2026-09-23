@@ -6,7 +6,7 @@ use axum::{
     Router,
 };
 use px_console_runtime::{
-    ConsoleRuntime, GuestAdmission, IngressPolicy, RelayEndpoint, RuntimeResources,
+    ConsoleRuntime, GuestAdmission, IngressPolicy, RelayAdmission, RuntimeResources,
 };
 use px_console_store::{
     initialize_administrator, CacheOptions, PasswordDigest, Username, WorkspaceKey, WorkspaceVault,
@@ -164,9 +164,7 @@ pub async fn start_with_cache_and_relay() -> (ConsoleRuntime, tempfile::TempDir)
                     ttl_seconds: 3600,
                 },
             )),
-            relay: Some(RelayEndpoint {
-                host: "relay.example.test".into(),
-                port: 4605,
+            relay_admission: Some(RelayAdmission {
                 app_key: "isolated-relay-app-key".into(),
             }),
             release: px_console_runtime::ReleaseIdentity::integration(),
@@ -187,9 +185,7 @@ pub async fn start_with_relay() -> ConsoleRuntime {
         guests(),
         RuntimeResources {
             recording_cache: None,
-            relay: Some(RelayEndpoint {
-                host: "relay.example.test".into(),
-                port: 4605,
+            relay_admission: Some(RelayAdmission {
                 app_key: "isolated-relay-app-key".into(),
             }),
             release: px_console_runtime::ReleaseIdentity::integration(),

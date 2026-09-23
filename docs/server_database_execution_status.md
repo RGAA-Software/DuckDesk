@@ -1937,5 +1937,11 @@ P3-2A 已完成资源会话 Relay 稳定绑定。Fresh schema 0031 新增独立�
 未禁用、期望/实际均未排空且连接/房间容量有余量的 Relay，并以实际压力稳定排序。绑定与会话原子提交，同 request 重试返回原绑定，已有会话不因
 Relay 后续排空或重连而迁移；RDP 永不绑定。Descriptor 只使用持久绑定，静态签名 key 不再冒充可用 Relay。SQLx 290/290、sessions
 14/14、node-control 2/2 及严格 Release Clippy/rustfmt 通过，报告 `pg-20260923-222240-541432a9`、
-`pg-20260923-222522-d8897efc`。P3-2B 下一步把绑定前移到非 RDP application instance，使 Node Start 和 cloud-application session
-读取同一选择结果。
+`pg-20260923-222522-d8897efc`。
+
+P3-2B 已完成实例级 Relay 权威绑定。Fresh schema 0032 新增 `instance_relays`；非 RDP application instance 在预约节点/GPU 的事务内选择
+Relay，Node Start 与后续 CloudApplication session 读取同一持久绑定，已有实例不会因排空或重连被热迁移。Desktop 仍按资源会话选择，RDP
+不绑定 Relay。Console 已删除静态 `PIXELS_RELAY_PUBLIC_HOST/PORT` 配置，只用部署共享 app key 对数据库绑定签发准入票据，密钥本身不能生成
+endpoint 或冒充 Relay 可用。SQLx 292/292、instances 17/17、sessions 14/14、node-control 2/2、runtime 12/12 及严格 Release
+Clippy/rustfmt 通过，报告为 `pg-20260923-223407-8c23d74f`、`pg-20260923-223550-0164fd11`、
+`pg-20260923-223702-6b2b12be`。P3-2 至此完成；下一批 P3-3 只补 Relay 管理 API/页面和部署凭据闭环，不引入自动扩缩容或热迁移。

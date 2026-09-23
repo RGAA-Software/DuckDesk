@@ -1,9 +1,17 @@
 WITH active_bindings AS (
-    SELECT binding.relay_node_id, count(*)::bigint AS session_count
-    FROM pixels.resource_session_relays binding
-    JOIN pixels.resource_sessions session ON session.id = binding.session_id
-    WHERE session.closed_at IS NULL
-    GROUP BY binding.relay_node_id
+    SELECT relay_node_id, count(*)::bigint AS session_count
+    FROM (
+        SELECT binding.relay_node_id, binding.instance_id AS owner_id
+        FROM pixels.instance_relays binding
+        JOIN pixels.instances instance ON instance.id = binding.instance_id
+        WHERE instance.ended_at IS NULL
+        UNION ALL
+        SELECT binding.relay_node_id, binding.session_id AS owner_id
+        FROM pixels.resource_session_relays binding
+        JOIN pixels.resource_sessions session ON session.id = binding.session_id
+        WHERE session.closed_at IS NULL AND session.target_kind = 'desktop'
+    ) binding
+    GROUP BY relay_node_id
 )
 SELECT relay.id AS relay_node_id,
        relay.generation AS relay_generation,

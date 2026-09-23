@@ -35,7 +35,7 @@ use axum::{
     routing::{get, patch, post},
     Router,
 };
-pub use config::{ConfigurationError, ConsoleLaunch, ConsoleLaunchConfig, RelayEndpoint};
+pub use config::{ConfigurationError, ConsoleLaunch, ConsoleLaunchConfig, RelayAdmission};
 use error::ApiError;
 pub use guest_source::GuestAdmission;
 pub use license::{LicenseAdmissionError, LicenseEntitlement, LicenseLaunchConfig, LicenseStatus};
@@ -71,12 +71,12 @@ pub(crate) struct StateData {
     management_events: Arc<management_events::ManagementEvents>,
     license: LicenseEntitlement,
     release: ReleaseIdentity,
-    relay: Option<RelayEndpoint>,
+    relay_admission: Option<RelayAdmission>,
 }
 
 pub struct RuntimeResources {
     pub recording_cache: Option<(Arc<CacheRoot>, CacheOptions)>,
-    pub relay: Option<RelayEndpoint>,
+    pub relay_admission: Option<RelayAdmission>,
     pub release: ReleaseIdentity,
 }
 
@@ -168,7 +168,7 @@ impl ConsoleRuntime {
             guests,
             RuntimeResources {
                 recording_cache: None,
-                relay: None,
+                relay_admission: None,
                 release: ReleaseIdentity::integration(),
             },
             LicenseEntitlement::synthetic_for_integration(deployment),
@@ -193,7 +193,7 @@ impl ConsoleRuntime {
             guests,
             RuntimeResources {
                 recording_cache: Some((recording_cache_root, recording_cache_options)),
-                relay: None,
+                relay_admission: None,
                 release: ReleaseIdentity::integration(),
             },
             LicenseEntitlement::synthetic_for_integration(deployment),
@@ -302,7 +302,7 @@ impl ConsoleRuntime {
             management_events: management_events::ManagementEvents::new(),
             license,
             release: resources.release,
-            relay: resources.relay,
+            relay_admission: resources.relay_admission,
         });
         let supervisor_cancellation = cancellation.clone();
         let supervisor = tokio::spawn(async move {

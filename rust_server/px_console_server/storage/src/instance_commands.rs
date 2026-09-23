@@ -130,6 +130,17 @@ impl InstanceStore {
             )
             .fetch_one(&mut *tx)
             .await?;
+            let relay = if command.kind == "start" {
+                sqlx::query_file_as!(
+                    crate::RelayBinding,
+                    "queries/instance_relay.sql",
+                    instance.id
+                )
+                .fetch_optional(&mut *tx)
+                .await?
+            } else {
+                None
+            };
             let envelope = NodeCommand {
                 id: command.id,
                 instance_id: instance.id,
@@ -145,6 +156,7 @@ impl InstanceStore {
                 lease_id: lease,
                 lease_until,
                 deadline: command.deadline,
+                relay,
                 action,
             };
             tx.commit().await?;

@@ -14,8 +14,8 @@
 - Direct Host 与现有 Relay 数据模式的 Windows、Web、Android 短链路；
 - Relay 房间认证、反压、载荷统计、空闲回收和资源会话 admission ticket。
 
-当前缺口：Console 仍从一组三元环境变量取得单个 Relay，Relay 没有进入受认证服务库存，也没有由 Console 执行多节点容量选择。
-机器池、CPU/内存/网络预算和多 Relay 实机验收仍未完成。Broker 首版先作为 Console 内部的窄连接编排模块，不为拆进程而复制业务状态。
+当前缺口：Relay 已进入受认证服务库存并由 Console 按实时容量选择；尚缺运维管理 API/页面及多 Relay 实机验收。
+机器池、CPU/内存/网络预算和多 Render 实机验收仍未完成。Broker 首版先作为 Console 内部的窄连接编排模块，不为拆进程而复制业务状态。
 
 ## 2. 约束
 
@@ -92,5 +92,19 @@ host/port；单独配置共享签名 key 不再伪装成可用 Relay。
 SQLx fresh-schema 元数据 290/290；资源会话 14/14、Console node-control 2/2 和严格 Release Clippy/rustfmt 通过，报告为
 `pg-20260923-222240-541432a9`、`pg-20260923-222522-d8897efc`。
 
-P3-2 尚未完成。下一批 P3-2B 把 Relay 绑定前移到非 RDP application instance 预留事务，Start command 和后续 cloud-application session
-复用同一绑定；桌面直连和 RDP 保持无 Relay Start 依赖。
+## 8. P3-2B 已完成：实例、节点命令和会话使用同一 Relay
+
+Fresh schema 0032 增加 `instance_relays`。非 RDP application instance 在预约节点/GPU 的同一事务中选择并持久绑定 Relay；选择和实例容量
+预约共用 PostgreSQL advisory transaction lock，避免并发最后一槽超售。Node Start 从该实例绑定取得 host/port，后续 CloudApplication
+资源会话原子继承相同 relay ID、generation 和 endpoint，不执行第二次选择。实例已绑定后 Relay 排空或重连不会把运行中连接热迁移到另一节点。
+
+Desktop 会话仍在自己的资源会话事务中独立选择 Relay；RDP 不创建 Relay 绑定，也不获得 Relay Start 参数。Console 运行配置已删除静态
+`PIXELS_RELAY_PUBLIC_HOST/PORT`，仅保留部署共享 `PIXELS_RELAY_APP_KEY` 用于签发准入票据；没有数据库持久绑定时，单独配置密钥不会产生 Relay
+endpoint 或伪造可用性。
+
+SQLx fresh-schema 元数据 292/292；实例预约 17/17、资源会话 14/14、Console node-control 2/2、Console runtime 12/12 及严格 Release
+Clippy/rustfmt 通过，报告分别为 `pg-20260923-223407-8c23d74f`、`pg-20260923-223550-0164fd11`、
+`pg-20260923-223702-6b2b12be`。P3-2 至此完成。
+
+下一批 P3-3 只补 Relay 管理 API/页面和部署凭据闭环：管理员创建节点时只返回一次明文 token，持久层只保存摘要；页面展示权威状态并控制
+disabled/draining。部署脚本通过受权 API 获取凭据，不直接写 PostgreSQL。该批不增加自动扩缩容、热迁移或额外票据体系。

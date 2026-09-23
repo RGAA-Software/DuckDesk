@@ -229,14 +229,7 @@ async fn session(mut socket: WebSocket, state: Arc<StateData>) {
             device_id: connection.device_id(),
             generation: connection.generation(),
             control_epoch: connection.epoch().value(),
-            relay: state
-                .relay
-                .as_ref()
-                .map(|endpoint| px_node_protocol::RelayEndpoint {
-                    host: endpoint.host.clone(),
-                    port: endpoint.port,
-                    app_key: endpoint.app_key.clone(),
-                }),
+            relay: None,
         },
     )
     .await
@@ -360,7 +353,15 @@ async fn operation(
                     .instances()
                     .next_command(connection)
                     .await?
-                    .map(|command| crate::node_wire::command(command, state.relay.as_ref()))
+                    .map(|command| {
+                        crate::node_wire::command(
+                            command,
+                            state
+                                .relay_admission
+                                .as_ref()
+                                .map(|admission| admission.app_key.as_str()),
+                        )
+                    })
                     .map(Box::new),
             }),
             NodeRequest::FetchRdpWorkspace {

@@ -22,7 +22,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         guests,
         recording_cache_root,
         recording_cache_options,
-        relay,
+        relay_admission,
         release,
         license,
     } = ConsoleLaunchConfig::from_env()?.load().await?;
@@ -34,7 +34,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         guests,
         RuntimeResources {
             recording_cache: Some((recording_cache_root, recording_cache_options)),
-            relay,
+            relay_admission,
             release,
         },
         license,

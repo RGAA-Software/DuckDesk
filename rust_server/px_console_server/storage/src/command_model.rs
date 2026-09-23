@@ -1,4 +1,4 @@
-use crate::{ApplicationLaunch, StoreError, VideoCodec, VideoSpec};
+use crate::{ApplicationLaunch, RelayBinding, StoreError, VideoCodec, VideoSpec};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
@@ -42,6 +42,7 @@ pub struct NodeCommand {
     pub lease_id: Uuid,
     pub lease_until: DateTime<Utc>,
     pub deadline: DateTime<Utc>,
+    pub relay: Option<RelayBinding>,
     pub action: NodeCommandAction,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

@@ -8,8 +8,8 @@ use px_console_store::{
     DeploymentTarget, DevicePlatform, DeviceStore, GpuResourceProfile, IdentityStore,
     NodeConnection, NodeGpuTelemetry, NodeProduct, NodeReport, NodeStore, NodeTelemetry,
     PasswordDigest, PlacementPreviewRequest, PlacementRejectionReason, PreparationState,
-    RuntimeEntitlement, StoreError, TelemetryProbeState, TokenDigest, Username, VideoCodec,
-    VideoSpec,
+    RelayNodeConfiguration, RelayNodeReport, RelayNodeSpec, RelayNodeStore, RuntimeEntitlement,
+    StoreError, TelemetryProbeState, TokenDigest, Username, VideoCodec, VideoSpec,
 };
 use px_console_store::{
     GuestStore, InstanceStore, NodeConfiguration, OriginFingerprint, ResourceCredential,
@@ -375,6 +375,113 @@ fn request(app: Uuid) -> StartApplication {
         application_id: app,
         deployment_id: None,
     }
+}
+
+#[tokio::test]
+async fn application_reservation_binds_one_relay_and_start_keeps_it_after_draining() {
+    let fixture = Fixture::new().await;
+    let relay_nodes = RelayNodeStore::connect(
+        &config("RUNTIME"),
+        env::var("PIXELS_DEPLOYMENT_ID").unwrap().parse().unwrap(),
+    )
+    .await
+    .unwrap();
+    let (node, application, _) = fixture.prepared(DeploymentTarget::Webview, 2).await;
+    let credential = token();
+    let created = relay_nodes
+        .create(
+            &fixture.admin,
+            &RelayNodeSpec {
+                name: format!("instance-relay-{}", Uuid::new_v4()),
+                public_host: "instance-relay.example.test".into(),
+                public_port: 4710,
+            },
+            &credential,
+        )
+        .await
+        .unwrap();
+    relay_nodes
+        .configure(
+            &fixture.admin,
+            created.id,
+            created.revision,
+            RelayNodeConfiguration {
+                draining: false,
+                disabled: false,
+            },
+        )
+        .await
+        .unwrap();
+    let relay_connection = relay_nodes
+        .open_connection(node.epoch(), &credential, &token())
+        .await
+        .unwrap();
+    let ready_relay = relay_nodes
+        .report(
+            &relay_connection,
+            &RelayNodeReport {
+                sequence: 1,
+                product_version_code: 1,
+                draining: false,
+                max_connections: 100,
+                current_connections: 2,
+                max_rooms: 20,
+                current_rooms: 1,
+                uploaded_bytes: 0,
+                forwarded_bytes: 0,
+            },
+        )
+        .await
+        .unwrap();
+    let user = fixture.session("user", ClientType::Android).await;
+    let start_request = request(application.id);
+    let instance = fixture
+        .instances
+        .reserve(
+            ResourceCredential::User(&user),
+            ClientType::Android,
+            node.epoch(),
+            &start_request,
+        )
+        .await
+        .unwrap();
+    let retry = fixture
+        .instances
+        .reserve(
+            ResourceCredential::User(&user),
+            ClientType::Android,
+            node.epoch(),
+            &start_request,
+        )
+        .await
+        .unwrap();
+    assert_eq!(retry.id, instance.id);
+    relay_nodes
+        .configure(
+            &fixture.admin,
+            ready_relay.id,
+            ready_relay.revision,
+            RelayNodeConfiguration {
+                draining: true,
+                disabled: false,
+            },
+        )
+        .await
+        .unwrap();
+    let command = fixture
+        .instances
+        .next_command(&node)
+        .await
+        .unwrap()
+        .unwrap();
+    let binding = command.relay.unwrap();
+    assert_eq!(binding.relay_node_id, ready_relay.id);
+    assert_eq!(binding.relay_generation, ready_relay.generation);
+    assert_eq!(binding.public_host, "instance-relay.example.test");
+    assert_eq!(binding.public_port, 4710);
+
+    relay_nodes.close().await;
+    fixture.close().await;
 }
 
 #[tokio::test]
