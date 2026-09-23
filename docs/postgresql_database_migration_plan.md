@@ -336,8 +336,9 @@ Relay回归和Android CloudApplication显式目标仍必须验收。跨端影响
 
 实施入口：[本机 PostgreSQL 环境与基础测试](../deploy/development/postgres/README.md)、[身份存储契约与测试映射](postgresql_identity_contract.md)、
 [DB0 领域/权限/恢复边界](postgresql_domain_contract.md)、[Desk 新服务](px_desk_web_overview.md)。
-当前实现 DB1 基础、DB2-A 身份 repository 和 DB3 Desk/Auth 独立子集；Console 及许可证消费者尚待切换，隔离测试通过不代表 DB0–DB5 或三服务整体通过。
-Console 已继续扩展设备、应用、访客、节点、部署、实例/命令与工作区 repository；具体增量和证据以后面的状态索引为准。
+DB0–DB5 当前开发基线已于 2026-09-23 按确认范围收口；延期的目标 Linux、独立对象存储灾难恢复、硬件矩阵和统一长测仍保留为商业发布前清单，
+不冒充完成。具体实现、实物证据和范围决定以[实施与验收状态](server_database_execution_status.md)为准，下一阶段进入
+[P1/P2 发行隔离与最小授权](p1_p2_distribution_authorization_execution_plan.md)。
 已执行用例、修复缺陷、报告索引和剩余门禁集中记录在[实施与验收状态](server_database_execution_status.md)。
 
 每步的测试环境、输入/预期、故障注入和留证规则见[逐步开发与测试门禁](server_incremental_validation_plan.md)。其中第 4 节细化必要 P0/DB0/DB1 的八个小步，第 5–7 节定义 DB2–DB5 的出口；缺环境、跳过或未运行均不能算通过。

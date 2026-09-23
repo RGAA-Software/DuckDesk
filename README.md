@@ -12,13 +12,14 @@
 ## Usage
 #### [当前产品编译、安装与使用说明](docs/product_build_and_usage.md)
 
-服务改造规划（待实施）：[连接与业务架构](docs/server_refactoring_plan.md) · [独立部署、Official/Customer 发行与升级](docs/server_deployment_and_upgrade_plan.md) · [服务管理与运维后台](docs/service_operations_console_plan.md)
+服务商业化路线：[连接与业务架构](docs/server_refactoring_plan.md) · [独立部署、Official/Customer 发行与升级](docs/server_deployment_and_upgrade_plan.md) · [服务管理与运维后台](docs/service_operations_console_plan.md)
 
-优先实施：[PostgreSQL 数据库改造、备份与升级方案](docs/postgresql_database_migration_plan.md)（先 DB0–DB5，再推进服务拆分与 GPU 调度）。
+当前阶段：[P1/P2 发行隔离与最小授权执行计划](docs/p1_p2_distribution_authorization_execution_plan.md)。DB0–DB5 当前开发基线已按
+[实施与验收状态](docs/server_database_execution_status.md)记录的范围收口；延期项目仍保留为商业发布前门槛。
 
 新基线约束：按全新系统开发，不迁移旧开发数据，不做旧协议/配置/接口兼容、双写或回退；未来正式版本的升级能力单独验收。
 
-已开始落地：[本机 PostgreSQL 开发环境与基础验收入口](deploy/development/postgres/README.md)（独立新库，Auth/Desk 已接入，Console 逐领域实现）。
+PostgreSQL 基线：[数据库改造、备份与升级方案](docs/postgresql_database_migration_plan.md) · [本机开发环境与基础验收入口](deploy/development/postgres/README.md)。
 
 实际进度：[数据库实施与验收状态](docs/server_database_execution_status.md) · [身份、用户组与事务契约](docs/postgresql_identity_contract.md) · [设备授权](docs/postgresql_device_contract.md) · [应用目录](docs/postgresql_application_contract.md)。
 节点与运行时：[节点控制](docs/postgresql_node_contract.md) · [部署与预约](docs/postgresql_deployment_contract.md) · [实例/命令/对账](docs/postgresql_instance_contract.md) · [RDP 工作区凭据](docs/postgresql_workspace_contract.md)。

@@ -2,8 +2,9 @@
 
 > 决策日期：2026-09-19。
 >
-> 状态：活动代码、构建、归档清理及当前 Windows/Web/Android 公网功能短测已完成；正式双发行、Customer 真机、异机灾备、
-> AMD/Intel 真机和统一长测仍按第 8 节继续，尚未关闭 DB5 总出口。
+> 状态：活动代码、构建、归档清理、Windows/Web/Android 公网功能短测及 Windows 双发行安装升级矩阵已完成。
+> 2026-09-23 按用户确认的开发阶段范围收口 DB5；Android fast-release、AMD/Intel 真机、目标 Linux、独立灾备故障域和统一长测
+> 保留为商业发布前延期清单，不冒充完成，也不再阻塞下一开发阶段。
 >
 > 本文同时约束 Windows Client、Web Client、Android、Render、Service、Console 后端、Console 前端、Relay、安装包和 DB0–DB5
 > 验收。任一端单独修改都不能宣称本计划完成。
@@ -221,8 +222,8 @@ distribution-specific instrumentation 短测，不替代正式双发行 Release 
 Android debug/androidTest APK 的独立实物扫描均通过，负向审计 8/8 通过。运行过的 development dist 中存在运行日志及聚焦同步后的陈旧
 manifest 摘要的问题也已修复：聚焦 C++/Rust 发布器会原子刷新 development 清单并排除 `px_logs/`，拒绝修改 Official/Customer 清单；
 当前 Client 41 件、Cloud Node 315 件和 Remote 77 件完整文件集、SHA-256、许可证、PE 依赖及产品边界均通过。它们仍不冒充正式安装包；
-release-only 构建必须从干净输出生成 Official/Customer 清单并执行签名和退役媒体联合门禁。
+release-only 构建必须从干净输出生成 Official/Customer 清单，并执行 Windows 未签名策略、Android 平台签名和退役媒体联合门禁。
 
-当前仍不得冒充完成的事项：正式 approved 身份/签名材料下的 Windows/Android 双发行及更新回滚实物矩阵、Windows 安装/升级/卸载、
-Cloud Node/Remote Web 正式双发行、AMD/Intel 物理 GPU 各一次短测、目标 Linux 与独立灾备故障域、正式安装包
-完整审计，以及最后统一长测。RDP 设备变化、长路径/ACL、重名/取消、规模和持续播放只进入统一长测，不再是 Direct Host 功能实现缺口。
+Windows 未签名正式安装包、相邻版本覆盖升级和完整清单审计均已完成。仍不得冒充完成的商业发布前延期事项包括 Android fast-release、
+AMD/Intel 物理 GPU 各一次短测、目标 Linux、独立灾备故障域以及最后统一长测。RDP 设备变化、长路径/ACL、重名/取消、规模和持续播放
+只进入统一长测，不是 Direct Host 功能实现缺口，也不阻塞当前开发阶段收口。

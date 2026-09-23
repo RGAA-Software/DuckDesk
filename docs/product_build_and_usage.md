@@ -367,6 +367,17 @@ adb install -r build_official\android\official\dist\Pixels-official-<version>-fa
 
 日常开发默认增量构建，不先清理构建树，也不重复完整双发行构建。只有构建树/生成配置已损坏、依赖边界发生必须重配的变化，或明确进入正式完整发布事务时才清理整编。
 
+Client development `dist` 在清理后首次恢复完整运行目录时使用：
+
+```bat
+scripts_build\build_client_development.bat 18
+```
+
+它只生成 `build_official/client/{cmake,cargo,dist}` 下的 development 产物，不升版本、不生成安装包，也不会写入 Official/Customer/OEM
+目录。入口先按固定 revision、补丁、依赖清单、运行库摘要和 PE 依赖校验 RDP SDK：校验通过直接复用，缺失或不一致才重建。随后复用产品
+CMake 聚合目标增量构建 Panel、Client、`px_osinfo`，原子生成 schema 4 manifest 并验证全部文件摘要。完整 dist
+建立后，普通增量修改继续使用下列更小的目标入口。
+
 ```bat
 scripts_build\build_cpp_product_panel.bat cloud_node 18
 scripts_build\build_cpp_product_client.bat client 18

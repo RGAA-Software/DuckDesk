@@ -53,6 +53,82 @@ async fn license_stream_quota_and_service_gate_new_grants() {
 }
 
 #[tokio::test]
+async fn license_last_stream_slot_is_atomic_under_concurrent_grants() {
+    let (fixture, session_store, node, user, existing_instance, _existing_session) = opened().await;
+    let contender_instances = [
+        running(
+            &fixture,
+            &node,
+            existing_instance.application_id,
+            &user,
+            ClientType::Android,
+            false,
+        )
+        .await,
+        running(
+            &fixture,
+            &node,
+            existing_instance.application_id,
+            &user,
+            ClientType::Android,
+            false,
+        )
+        .await,
+    ];
+    let active_stream_count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM pixels.resource_sessions WHERE closed_at IS NULL")
+            .fetch_one(&fixture.owner)
+            .await
+            .unwrap();
+    let entitlement = RuntimeEntitlement::new(
+        u32::try_from(active_stream_count + 1).unwrap(),
+        true,
+        true,
+        true,
+    )
+    .unwrap();
+    let contender_count = contender_instances.len();
+    let start_barrier = Arc::new(Barrier::new(contender_count));
+    let mut grant_tasks = Vec::new();
+
+    for contender_instance in contender_instances {
+        let contender_store = session_store.clone();
+        let contender_user = user.clone();
+        let contender_barrier = start_barrier.clone();
+        let contender_request =
+            open_request(contender_instance.application_id, contender_instance.id);
+        grant_tasks.push(tokio::spawn(async move {
+            contender_barrier.wait().await;
+            contender_store
+                .open_with_entitlement(
+                    ResourceCredential::User(&contender_user),
+                    ClientType::Android,
+                    &contender_request,
+                    entitlement,
+                )
+                .await
+        }));
+    }
+
+    let mut granted_count = 0;
+    let mut license_rejection_count = 0;
+    for grant_task in grant_tasks {
+        match grant_task.await.unwrap() {
+            Ok(_) => granted_count += 1,
+            Err(StoreError::LicenseRestriction) => license_rejection_count += 1,
+            unexpected_result => {
+                panic!("unexpected concurrent grant result: {unexpected_result:?}")
+            }
+        }
+    }
+    assert_eq!(granted_count, 1);
+    assert_eq!(license_rejection_count, contender_count - 1);
+
+    session_store.close().await;
+    fixture.close().await;
+}
+
+#[tokio::test]
 async fn close_request_needs_node_proof_and_observer_policy_is_not_control_authority() {
     let (fixture, session_store, node, user, instance, session) = opened().await;
     let mut observer = open_request(instance.application_id, instance.id);

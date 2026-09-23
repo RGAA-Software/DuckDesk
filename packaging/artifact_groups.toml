@@ -48,11 +48,6 @@ destination = "resources/fonts/Roboto-Medium.ttf"
 
 [[groups.desktop_client]]
 root = "source"
-source = "web/px_web_client/src/assets/px_icon.png"
-destination = "resources/icons/px_icon.png"
-
-[[groups.desktop_client]]
-root = "source"
 source = "src/px_ui/resources/icons"
 destination = "resources/icons"
 kind = "tree"

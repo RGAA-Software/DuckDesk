@@ -35,6 +35,11 @@ scripts_build\build_cpp_android_common.bat px_common
 `build_official/<product>/dist` 并核对 SHA-256；发布运行产物位于 `build_official/<product>/<official|customer>/dist`。
 根 `build_official` 和公共 `dist` 不再是有效构建或运行目录。
 
+Client development `dist` 被清理或尚未初始化时，使用 `scripts_build\build_client_development.bat 18` 补齐完整可运行目录。该入口不升版、
+不制作安装包；它先校验并复用当前 RDP SDK，仅在缺失或来源/文件摘要不一致时重建，然后增量构建 Panel、Client 与 `px_osinfo`，随后原子生成
+schema 4 development manifest 并逐件验证 SHA-256。
+完整 development dist 已存在时，普通修改仍使用更小的 `build_cpp_product_*.bat` 入口。
+
 `build_cloud_node.bat`、`build_client_product.bat`、`build_remote_product.bat` 是发布流程，会运行 Web/Rust 等相关步骤并递增版本，
 不能用于普通 C++ 增量验证。`build_official_tests.bat` 是批量测试构建。
 

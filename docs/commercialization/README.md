@@ -12,3 +12,5 @@
 服务职责、Session、P2P 和 Relay 技术边界见 [Pixels 服务端改造计划](../server_refactoring_plan.md)。
 当前Direct Host WebRTC、Relay保留范围及ZLMediaKit/Coturn退役边界见
 [Direct Host WebRTC 与中央媒体能力收缩计划](../direct_host_webrtc_scope_plan_20260919.md)。
+当前开发阶段见 [P1/P2 发行隔离与最小授权执行计划](../p1_p2_distribution_authorization_execution_plan.md)；
+实际完成证据和延期边界以 [数据库实施与验收状态](../server_database_execution_status.md) 为准。

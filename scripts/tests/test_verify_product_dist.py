@@ -45,6 +45,22 @@ class RetiredCentralMediaAuditTest(unittest.TestCase):
                     VERIFY_PRODUCT_DIST.verify_retired_central_media_absent({"px_render.exe", retired_path})
 
 
+class WindowsProductBoundaryAuditTest(unittest.TestCase):
+    def test_rejects_retired_top_level_desktop_logo(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "retired desktop paths"):
+            VERIFY_PRODUCT_DIST.verify_windows_product_boundary(
+                Path("unused"),
+                "client",
+                {
+                    "px_client.exe",
+                    "px_rdp_client.dll",
+                    "px_rdp_core.dll",
+                    "px_rdp_winpr.dll",
+                    "resources/icons/px_icon.png",
+                },
+            )
+
+
 class DevelopmentManifestRefreshTest(unittest.TestCase):
     def test_refreshes_changed_artifacts_without_recording_runtime_logs(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

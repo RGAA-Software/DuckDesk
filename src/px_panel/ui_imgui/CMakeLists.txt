@@ -181,6 +181,7 @@ if(BUILD_TESTING AND TARGET GTest::gtest)
         product/panel_local_server.cpp
         product/panel_system_information.cpp
         product/panel_config_store.cpp
+        product/panel_console_session.cpp
         product/panel_worker.cpp
         product/windows_environment_probe.cpp
     )
@@ -188,6 +189,7 @@ if(BUILD_TESTING AND TARGET GTest::gtest)
     target_include_directories(px_panel_product_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/product)
     target_link_libraries(px_panel_product_tests PRIVATE
         px_common
+        px_console_client
         px_cp_message
         px_ui
         px_rp_message

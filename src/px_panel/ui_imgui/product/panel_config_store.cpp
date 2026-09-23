@@ -208,7 +208,10 @@ PanelConfigStore::PanelConfigStore(std::shared_ptr<SharedPreference> preferences
     : preferences_{std::move(preferences)},
       executableDirectory_{std::move(executableDirectory)},
       fixedConsoleAddress_{std::move(fixedConsoleAddress)},
-      forbiddenConsoleAddress_{std::move(forbiddenConsoleAddress)} {}
+      forbiddenConsoleAddress_{std::move(forbiddenConsoleAddress)} {
+    if (const auto fixedEndpoint = ParseConsoleHttpsOrigin(fixedConsoleAddress_)) fixedConsoleAddress_ = fixedEndpoint->baseUrl;
+    if (const auto forbiddenEndpoint = ParseConsoleHttpsOrigin(forbiddenConsoleAddress_)) forbiddenConsoleAddress_ = forbiddenEndpoint->baseUrl;
+}
 
 std::optional<ConsoleEndpoint> PanelConfigStore::ParseConsoleAddress(const std::string& value) const {
     const auto endpoint = ParseConsoleHttpsOrigin(value);

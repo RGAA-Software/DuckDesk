@@ -22,6 +22,7 @@
 #include "panel_config_store.h"
 #include "panel_connection_input.h"
 #include "panel_connection_links.h"
+#include "panel_console_session.h"
 #include "panel_device_name.h"
 #include "panel_local_server.h"
 #include "panel_navigation_model.h"
@@ -413,7 +414,7 @@ TEST(PanelConfigStoreTest, OfficialDistributionAlwaysUsesItsPackagedConsoleOrigi
     const auto preferences = std::make_shared<SharedPreference>();
     ASSERT_TRUE(preferences->Init(directory.Path(), "preferences"));
     ASSERT_TRUE(preferences->Put("console_server_url", "https://untrusted.example.test"));
-    const auto config = std::make_shared<PanelConfigStore>(preferences, directory.Path(), "https://official-console.example.test:8443");
+    const auto config = std::make_shared<PanelConfigStore>(preferences, directory.Path(), "https://OFFICIAL-console.example.test:8443/");
 
     EXPECT_EQ(config->ConsoleAddress(), "https://official-console.example.test:8443");
     const auto officialEndpoint = config->Console();
@@ -434,14 +435,39 @@ TEST(PanelConfigStoreTest, CustomerDistributionRejectsTheOfficialConsoleOrigin) 
     const auto preferences = std::make_shared<SharedPreference>();
     ASSERT_TRUE(preferences->Init(directory.Path(), "preferences"));
     const auto config =
-        std::make_shared<PanelConfigStore>(preferences, directory.Path(), std::string{}, "https://official-console.example.test:8443");
+        std::make_shared<PanelConfigStore>(preferences, directory.Path(), std::string{}, "https://OFFICIAL-console.example.test:443/");
 
-    EXPECT_FALSE(config->ParseConsoleAddress("https://official-console.example.test:8443"));
-    EXPECT_FALSE(config->ParseConsoleAddress("https://official-console.example.test:8443/"));
+    EXPECT_FALSE(config->ParseConsoleAddress("https://official-console.example.test"));
+    EXPECT_FALSE(config->ParseConsoleAddress("https://official-console.example.test:443/"));
     const auto privateEndpoint = config->ParseConsoleAddress("https://private-console.example.test");
     ASSERT_TRUE(privateEndpoint);
     EXPECT_TRUE(config->SaveNetwork(privateEndpoint->baseUrl, *privateEndpoint));
     EXPECT_EQ(config->ConsoleAddress(), privateEndpoint->baseUrl);
+}
+
+TEST(PanelConsoleSessionTest, ConsoleOriginChangeClearsThePreviousAccountBinding) {
+    TemporaryDirectory directory{};
+    const auto preferences = SharedPreference::Instance();
+    preferences->Release();
+    ASSERT_TRUE(preferences->Init(directory.Path(), "console-session-preferences"));
+    ASSERT_TRUE(preferences->Put("console_server_url", "https://private-console.example.test"));
+    ASSERT_TRUE(preferences->Put("console_user:uid", "user-1"));
+    ASSERT_TRUE(preferences->Put("console_user:username", "alice"));
+    ASSERT_TRUE(preferences->Put("console_user:avatar_path", "avatar.png"));
+    ASSERT_TRUE(preferences->Put("console_user:console_address", "https://private-console.example.test"));
+
+    const auto config = std::make_shared<PanelConfigStore>(preferences, directory.Path());
+    const auto session = PanelConsoleSession::Create(config);
+    session->ForgetAccountIfConsoleChanged("https://private-console.example.test");
+    EXPECT_EQ(preferences->Get("console_user:username"), "alice");
+
+    session->ForgetAccountIfConsoleChanged("https://other-private-console.example.test");
+    EXPECT_TRUE(preferences->Get("console_user:uid").empty());
+    EXPECT_TRUE(preferences->Get("console_user:username").empty());
+    EXPECT_TRUE(preferences->Get("console_user:avatar_path").empty());
+    EXPECT_TRUE(preferences->Get("console_user:console_address").empty());
+    EXPECT_FALSE(session->Account().loggedIn);
+    preferences->Release();
 }
 
 TEST(PanelLocalServerTest, RuntimeDesktopAccessUpdatesAreDeliveredOnTheRendererSessionThread) {

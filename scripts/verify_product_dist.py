@@ -48,6 +48,7 @@ RETIRED_CENTRAL_MEDIA_FILES = {
     "zlmediakit.exe",
 }
 RETIRED_CENTRAL_MEDIA_DIRECTORIES = {"coturn", "zlmediakit"}
+RETIRED_DESKTOP_PATHS = {"resources/icons/px_icon.png"}
 REQUIRED_RDP_CLIENT_FILES = {
     "px_rdp_client.dll",
     "px_rdp_core.dll",
@@ -166,6 +167,9 @@ def verify_retired_central_media_absent(actual_files: set[str]) -> None:
 def verify_windows_product_boundary(dist_dir: Path, product: str, actual_files: set[str]) -> None:
     verify_retired_central_media_absent(actual_files)
     lower_files = {relative.lower() for relative in actual_files}
+    retired_desktop_paths = lower_files & RETIRED_DESKTOP_PATHS
+    if retired_desktop_paths:
+        raise RuntimeError(f"distribution contains retired desktop paths: {sorted(retired_desktop_paths)}")
     retired = {Path(relative).name.lower() for relative in actual_files} & RETIRED_RDP_FILES
     if retired:
         raise RuntimeError(f"distribution contains retired RDP artifact names: {sorted(retired)}")

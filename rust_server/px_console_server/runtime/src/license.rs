@@ -182,7 +182,28 @@ mod tests {
         }
         #[cfg(windows)]
         {
-            let _ = path;
+            use std::os::windows::process::CommandExt;
+            let current_identity = std::process::Command::new("whoami")
+                .creation_flags(0x08000000)
+                .output()
+                .unwrap();
+            assert!(current_identity.status.success());
+            let identity_access = format!(
+                "{}:(OI)(CI)F",
+                String::from_utf8(current_identity.stdout).unwrap().trim()
+            );
+            let access_result = std::process::Command::new("icacls")
+                .arg(path)
+                .args([
+                    "/inheritance:r",
+                    "/grant:r",
+                    &identity_access,
+                    "*S-1-5-18:(OI)(CI)F",
+                ])
+                .creation_flags(0x08000000)
+                .output()
+                .unwrap();
+            assert!(access_result.status.success());
         }
     }
 }
