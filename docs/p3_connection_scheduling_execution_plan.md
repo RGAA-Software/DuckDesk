@@ -156,6 +156,15 @@ CloudApplication 连接已建立房间、收到 TCP 媒体并解码关键帧，C
 `38707DF4FA2BABBC7D3DAF2B8BB4345ACADA34E03BEABBBF84CDDCC6A44C568C`。Console 租约续签失败处增加脱敏错误类别日志，
 本次复测未再次失去权威；首次事件的根因仍待进一步定位，不能据单次恢复宣称已根治。
 
+2026-09-24 针对此偶发退出再核对当前运行代码：Windows 主进程的 `authority was lost` 来源是 PostgreSQL 专用会话租约取消；
+租约每秒续签、五秒到期，数据库探测失败后保持终止态，不在原进程内重新取得锁。90 的 PostgreSQL 服务和 Console 当前均正常，
+但旧 Console stderr 被计划任务后续启动覆盖，现场 PostgreSQL 日志亦未保留，故无法从现有证据区分瞬时数据库故障、探测超时或锁丢失，
+不得声称已找到首次事件根因。租约续签现在额外记录脱敏的超时、查询错误类别、锁丢失和本地截止时间类别；90 的启动脚本在覆盖
+stdout/stderr 前保留非空旧日志，归档失败只告警、不阻断启动。隔离 PostgreSQL 的六项租约专项（包括后端终止、进程退出、过期不可复活）
+全部通过，报告 `test-results/server_validation/pg-20260924-223255-21e274c3`。新版快速 Release Console 已覆盖到 90，
+程序 SHA-256 为 `67530AFF2A2EF0491B4C304AF6C6868C8CE4E635076FA583CFCE6C0575A99A5B`，任务运行且 readiness 为 204；
+部署前受权接口确认无活动资源会话、两台 Relay 均为零房间/零连接。本轮只补可追溯性和安全回归，不人为中断公网数据库或声称偶发故障已根治。
+
 严格 Release Clippy（含 PostgreSQL integration features）、rustfmt、PowerShell 语法及差异检查通过。P3-4B 现在只剩第二台物理
 Render/Service 的跨机短测；当前没有第二台物理 Render 主机，该门禁等硬件具备后执行，不阻塞 P4 开发。开发阶段不运行长时间压力测试，
 统一长测仍在商业发布前门禁。

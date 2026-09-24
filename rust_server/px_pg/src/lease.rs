@@ -127,15 +127,29 @@ impl ServiceLease {
         )
         .bind(LOCK)
         .fetch_one(connection)
-        .await?;
+        .await
+        .map_err(|error| {
+            let category = match &error {
+                sqlx::Error::Io(_) => "io",
+                sqlx::Error::Tls(_) => "tls",
+                sqlx::Error::Database(_) => "database",
+                _ => "other",
+            };
+            eprintln!("PostgreSQL service lease probe query failed: {category}");
+            DatabaseError::from(error)
+        })?;
         if held {
             Ok(())
         } else {
+            eprintln!("PostgreSQL service lease probe failed: advisory lock no longer held");
             Err(DatabaseError::Unavailable)
         }
     }
     pub async fn renew(&mut self) -> Result<(), DatabaseError> {
-        self.status.check()?;
+        if let Err(error) = self.status.check() {
+            eprintln!("PostgreSQL service lease renewal rejected: local deadline expired or lease already failed");
+            return Err(error);
+        }
         let started = Instant::now();
         let result = tokio::time::timeout(
             PROBE_TIMEOUT,
@@ -143,12 +157,22 @@ impl ServiceLease {
         )
         .await;
         match result {
-            Ok(Ok(())) => self.status.extend(started + LIFETIME),
+            Ok(Ok(())) => {
+                let extension = self.status.extend(started + LIFETIME);
+                if extension.is_err() {
+                    eprintln!(
+                        "PostgreSQL service lease renewal rejected: deadline expired during probe"
+                    );
+                }
+                extension
+            }
             Ok(Err(error)) => {
+                eprintln!("PostgreSQL service lease renewal probe failed: {error}");
                 self.status.fail();
                 Err(error)
             }
             Err(_) => {
+                eprintln!("PostgreSQL service lease renewal probe timed out");
                 self.status.fail();
                 Err(DatabaseError::Unavailable)
             }
