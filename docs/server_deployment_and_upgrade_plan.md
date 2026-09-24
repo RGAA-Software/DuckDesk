@@ -78,8 +78,8 @@ PostgreSQL 的高可用和备份仍按数据库专项验收，不能以使用编
 - Relay 扩容：向管理库存和 Broker 分配目录发布经验证的服务身份、可达端点、协议、区域和带宽预算；
   Broker 按路径质量、实时容量及维护门禁分配新 allocation。新节点不吸走活动会话，不能仅加 DNS 记录便声称完成容量扩展。
   缩容先停止新 allocation，等待旧会话/合法子通道和重连权利排空；无备用容量或长期用户按第 6.3 节延期或公告维护。
-- 批量升级按资源池/故障域设置小批验证、并发上限、最低剩余可用容量和失败暂停；无兼容应用部署的空机器不算备用容量。
-  任务持久化、重启可对账，不能一键同时排空整个池。服务发现撤销、凭据吊销和资产退役要有明确顺序与审计。
+- 节点升级由运维逐台确认维护状态、活动占用和剩余接客容量，再独立覆盖安装；无兼容应用部署的空机器不算备用容量。
+  首版不建立批量升级任务或一键排空整个池。服务发现撤销、凭据吊销和资产退役仍须有明确顺序与审计。
 - 后续云厂商自动扩容采用独立受限身份、幂等创建请求、资源归属标签、预算/数量上限、冷却时间及失败资源对账。
   纳入 GPU 主机启动、驱动和应用预热时间，禁止“队列上涨即无限买机器”。API 超时先核查是否已创建，不重复采购或删除未知资产。
 
@@ -534,9 +534,9 @@ DB-HA 可在数据库基线后与 P 阶段推进，但必须在自营公网/私�
 | P3 连接服务与资源池 | 拆 Broker/Relay；多 Render/多 Relay 身份、发现、容量门禁和分配；类型化多业务全链路、监控指标 | 公网和私网直连/Relay、多机接入及新容量准入验证；子进程退出不误停 Session；Console 重启不主动断媒体 |
 | P4 私有交付与安全升级 | Server 独立安装包/容器、配置向导、签名导入/更新、离线依赖，将 DB4 备份恢复工具纳入套件 | 干净机器安装、覆盖、同发行升级、拒绝错误包；断公网可独立运行；停机升级失败可人工恢复 |
 | P5 服务端升级兼容 | Server 先覆盖升级，验证当前客户端 API、数据库与节点重连；Relay 按容量选择排空或维护窗口 | 发布矩阵通过；维护影响准确；不引入 A/B 服务槽或分布式升级事务 |
-| P6 节点和访问端升级 | 运维逐节点排空并覆盖完整包；Windows 安装互锁、Android 系统覆盖安装 | 单节点失败不牵连其他节点；不误杀 Job 外进程、不注销 Workspace；跨 flavor 包被拒绝 |
+| P6 节点和访问端升级 | 运维逐节点排空并覆盖完整包；Windows 安装互锁；Android 使用同身份、同签名 APK 由系统覆盖安装 | 单节点失败不牵连其他节点；不误杀 Job 外进程、不注销 Workspace；跨 flavor 包被拒绝；Android 不设独立升级验收专项 |
 | P7 商业发布 | 安全审查、多 Render/多 Relay 容量/恢复/升级演练、独立监控告警、操作手册及完整制品记录 | 多机与发行隔离矩阵通过，发布经测规模上限；Console 停机可独立告警；未达热升级指标降为维护升级 |
-| P8 后续优化 | 云厂商 API 自动扩缩容、Console 多活、跨地区调度、Kubernetes 适配、活动 Relay 路径迁移等 | 各项独立立项和验收；不包含首版已要求的多 Render/多 Relay、资源池及批量管理 |
+| P8 后续优化 | 云厂商 API 自动扩缩容、Console 多活、跨地区调度、Kubernetes 适配、活动 Relay 路径迁移等 | 各项独立立项和验收；不包含首版已要求的多 Render/多 Relay 与资源池管理；自动批量升级不属于首版 |
 
 P1 的完整在线验收依赖 P2/P3，允许先完成构建和配置框架；P4/P6 的更新基础模块可并行设计，不能拖到发布后再补。
 这里“允许先完成”以数据库优先顺序为前提；不在 Mongo 上先做新授权/调度持久化。数据库备份不再等到 P4 才开始实现。
@@ -546,12 +546,129 @@ Windows 先功能验收，再 Android；使用配置的公网测试节点及独�
 
 P4 首批从 Linux Customer 候选制品边界开始。`scripts/assemble_private_server_candidate.py` 消费显式给出的 Linux `px_console`、
 `px_console_admin`、`px_db`、`px_relay`、Console 静态页面，以及可选的 `px_desk` 与其静态页面；生成全文件 SHA-256 清单，拒绝 Windows
-EXE、已有输出目录、源/目标嵌套和符号链接。它不打包 Auth 签发器或私钥：客户通过官方 Auth 获得 PXLIC2 文件，私有 Console 本地验签，
-不依赖官方在线服务。此切片只组装候选目录，不宣称已完成数据库初始化、许可证导入、服务安装、备份、离线运行或升级。
+EXE、非 x86-64 ELF、已有输出目录、源/目标嵌套和符号链接。清单记录 Console、Relay、Desk 和数据库工具各自的 Cargo 版本。
+日常候选构建运行 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts_build/build_private_server_candidate.ps1`：Windows 构建 Console/Desk
+网页，WSL Ubuntu-20.04 以快速 Release 配置构建五个 Linux 可执行文件，输出到新的 `build_official/private_server/candidates/<批次>`；
+可通过 `-Distribution` 与 `-Output` 指定 WSL 发行版及新目录。此入口不升版本、不执行正式发布优化，也不覆盖旧候选目录。
+对已有候选执行 `pwsh -NoProfile -File scripts/server_validation/postgres.ps1 TestSuite -Suite console-process -Linux -LinuxCandidate <候选目录>`：
+测试先逐件验证候选清单，用候选 `px_db` 检查 Console/Desk 空库初始化后的运行时 schema，再以一次性 PostgreSQL、测试签发的 PXLIC2
+运行候选包内的 Linux Console 和真实静态页面，检查启动、
+页面资源、正常 SIGTERM 重启及失去数据库权威后的退出；结束时清理隔离数据库。测试签名仅存在于测试夹具中，绝不进入候选包。
+同一命令将 `-Suite console-process` 改为 `-Suite desk`，还可运行候选 Desk 与真实门户静态页面的 8 项数据库/API/进程短测。
+改为 `-Suite relay-control` 则会启动候选包中的两条真实 Relay 进程，验证 Console 节点控制、独立启用/排空以及 Console 退出后的
+拒绝新连接。这些短测不代替受限 systemd 安装、生产 TLS、断公网或覆盖升级验收。
+候选包自带 `tools/verify_candidate.py`、`tools/install_linux_component.sh`、`tools/uninstall_linux_component.sh` 和 Console/Relay/Desk
+三个独立 systemd unit；包含 `px_backup` 时另带独立 Backup unit。
+Linux 运维先从可信交付渠道核对候选目录摘要，再执行 `python3 <候选>/tools/verify_candidate.py <候选>`；以 root 执行
+`sh <候选>/tools/install_linux_component.sh <console|relay|desk|backup> <部署UUID> <候选绝对路径> <0600私有配置文件绝对路径>`。
+Console/Relay/Desk 输入环境文件；Backup 输入 schema 2 JSON，必须精确绑定部署 UUID，安装到
+`/etc/pixels/<部署UUID>/backup/config.json`。每个组件单独切换 `/opt/pixels/private/<部署UUID>/current-<组件>`，可分别覆盖安装；
+它们共享按清单摘要命名的只读 release，
+不复制签发器、许可证私钥或真实配置。Console/Desk 环境中的静态目录必须分别指向该组件的 `current-.../static/...`；
+安装失败会恢复上一个指向、环境和 unit。卸载入口只停用指定组件，保留 release、配置和数据，显式清理另行授权。
+目前已对 WSL Relay 执行专用身份、拒绝宽权限配置、同包覆盖、启动失败回退和停用保留短测；Desk 在隔离 PostgreSQL 下
+以专用 systemd 身份启动候选程序并提供真实门户与 readiness，停用后保留配置和 release，随后清理隔离实例。
+Console 也在隔离 PostgreSQL 下以专用 systemd 身份启动候选程序，使用仅限测试的 PXLIC2 签名夹具和回环 HTTPS；
+独立测试 CA 签发 PostgreSQL 服务证书，候选 `px_db` 和 systemd Console 均用 `verify-full` 接入，换成无关信任根则拒绝。
+许可证、HTTPS 证书校验、本机页面、readiness、重启、错误许可证配置覆盖失败回滚及停用保留数据均通过；最终报告为
+`test-results/server_validation/pg-20260924-111911-dc01f27d`。
+测试签发夹具不进入候选包，测试 PG 私钥随隔离容器和卷清理。真实客户证书/许可证、正式 Linux 发行制品、断公网和
+跨版本覆盖仍未验收。
+它不打包 Auth 签发器或私钥：客户通过官方 Auth 获得 PXLIC2 文件，私有 Console 本地验签，
+不依赖官方在线服务。此切片只完成开发候选及隔离环境的安装短测，不宣称已完成目标客户环境的数据库初始化、
+真实许可证导入、生产 TLS、备份、离线运行或升级。
 
-后续按四个可独立验收的小步完成 P4：先接入有独立版本和摘要的 Linux 正式二进制；再做空库初始化、TLS/密钥/许可证导入与受限服务启动；
-然后纳入 DB4 备份恢复及离线依赖；最后执行干净安装、覆盖升级、断公网功能与失败恢复短测。第二台物理 Render/Service 等资源到位再补 P3
-跨机门禁，不阻塞这些单机工作。
+正式 Linux Customer Server 发行入口已实现但尚未执行完整发行构建：
+`pwsh -NoProfile -File scripts_build/build_private_server_release.ps1`。它预检未占用的输出版本，
+从 `scripts/server_private/server_suite_version.json` 独立预留一次套件版本；失败也不复用该版本。随后两套 Web 执行锁文件依赖安装，
+WSL 以完整优化 Release 编译 Console、Relay、Desk、数据库管理工具及 `px_backup`，输出到
+`build_official/private_server/customer/<套件版本>`，并制作同目录的 `.tar.gz` 与相对路径 `.sha256`。
+正式包 manifest 为 `pixels-private-server` schema 2，记录独立 suite version、`optimized-release`、Customer/Linux x86-64
+身份和各组件版本/逐文件摘要；开发候选仍为独立的 schema 1 身份，不能自称正式发行。正式包强制包含备份执行器但不携带
+真实备份配置、许可证私钥或 Auth 签发器；PostgreSQL 18.6 客户端工具链也是正式包的强制组成。覆盖安装在变更服务前拒绝正式版降级、同版本换字节或正式版被开发候选替换；
+相同包重试允许。当前只完成组装/验签/版本门禁的 20 项聚焦测试及入口语法检查，尚未生成正式优化包或执行正式包安装。
+安装器回滚另已在 WSL2 真正的 systemd 中覆盖三种旧状态：已启用且运行、已禁用但运行、已禁用且停止；
+新配置故意启动失败后分别恢复原配置、release 指向、运行与开机自启状态。复测包为仅重组既有运行字节的 97 件开发候选
+`20260924-rollback-check`，不是正式优化构建。
+日常快速候选构建现也编译 `px_backup`。以既有运行字节加新编译的备份执行器重组的
+`20260924-backup-check` 含 98 件文件，包内 `px_backup` 与 WSL 快速 Release 构建树 SHA-256 一致；
+包内程序短测对缺失私有配置以预期退出码 10 fail closed。它不包含 PostgreSQL/pgBackRest 离线工具链，不能冒充已完成备份部署。
+备份私有安装随后用 `20260924-backup-service-check` 99 件候选在 WSL2 真实 systemd 下短测通过：宽权限或其他部署 UUID
+的 JSON 在写入 release 前拒绝；有效 JSON 以 `pixels-backup` 身份发布 schema 2 状态，重启可恢复，停用保留配置、状态和 release。
+测试工具为独立目录中的 `/usr/bin/true` 替身且调度时间在未来，因此此项只验安装/生命周期，不宣称真实备份或恢复。
+对同一候选包还可执行
+`pwsh -NoProfile -File scripts/server_validation/postgres.ps1 TestSuite -Suite backup-candidate -Linux -LinuxCandidate <候选目录>`。
+短测在一次性 PostgreSQL 18 中运行包内 `px_backup`，使用摘要固定的测试包装器调用容器里的真实 `pg_dump`/`pg_restore`，
+核对 verified 清单及归档 SHA-256，再恢复到新库并对比修改前后的记录；报告
+`test-results/server_validation/pg-20260924-131532-1f9b0e1e` 为 PASS。容器和卷已清理。测试包装器不属于交付包，
+此项不等于生产离线 PostgreSQL 工具链、真实 systemd 定时备份或客户环境恢复验收。
+候选包自身的空库初始化可用同一入口改为 `-Suite bootstrap-candidate` 短测：测试在隔离 PG18 中创建带部署身份的全新
+Console/Desk 库，由包内 `px_db migrate` 分别迁移两次，再以运行时角色 `check`，并确认迁移前检查及错误部署 UUID 均拒绝。
+报告 `test-results/server_validation/pg-20260924-132318-2c7b9290` 为 PASS；不替代生产私有凭据/TLS 和正式安装验收。
+Backup 安装器现于发布 release 前预检 PostgreSQL 工具的绝对路径、可执行性及固定 SHA-256、部署目录内的私有数据库凭据、
+预置 TLS 根证书和服务用户的实际读取/执行权限；有效安装会把凭据归属设为 `pixels-backup` 且模式收紧为 0400。
+重组候选 `20260924-backup-final-check` 的六个 ELF 与前批次逐件摘要一致；WSL2 systemd 短测覆盖错误摘要、宽权限凭据、
+服务用户不可执行工具/不可读证书的拒绝，以及成功启动、重启和停用保留。该预检仍不能证明生产工具版本、证书信任链、
+实际定时备份或正式包交付。
+
+原生工具链构建入口为 `bash scripts_build/build_postgresql_client_toolchain.sh <新的WSL绝对输出目录>`；固定 PostgreSQL 18.6
+源码 SHA-256，以镜像下载、官方摘要验证后编译，输出两个客户端程序、`libpq`、OpenSSL 运行库、许可证和七文件清单。
+依赖宿主 glibc ≥2.31、`libz.so.1`；目前只在 WSL Ubuntu 20.04 实测，不宣称其他客户发行版已验收。
+Ubuntu 24.04 最小容器离线 ELF 预检通过：六个服务程序和包内 `pg_dump`/`pg_restore` 的动态库均可解析，
+PostgreSQL 工具可报告 18.6；但最小容器不含 Python3、systemctl、openssl、curl。部署宿主必须提供 systemd/PID 1、
+Python3 和安装脚本所用的标准系统工具；证书签发/运维探测还需另行提供 OpenSSL/curl。
+容器可加载性不等于 Ubuntu 24.04 真实 systemd 安装验收，目标发行版仍待确认。
+包内新增只读 `tools/preflight_linux_host.sh`，组件和 PostgreSQL 工具链安装前执行；它明确拒绝缺少 Python3、非 Linux x86-64、
+非 systemd PID 1 或缺少必需安装命令的宿主。110 件 `20260924-host-preflight` 完整开发候选的六个运行 ELF 与上批次
+SHA-256 完全相同，四服务短测报告 `test-results/server_validation/pg-20260924-160308-cce90874` 为 PASS；
+最小 Ubuntu 24.04 容器缺 Python3 时按预期在安装前拒绝。
+候选构建可显式传 `-PgToolchain <目录>`，正式发布构建会自行重建工具链。候选包内先执行
+`sh <候选>/tools/install_pg_toolchain.sh <候选绝对路径>`，只允许首次安装或同字节重试，再安装 Backup；Backup 配置中的两个工具
+路径必须指向 `/opt/pixels/postgresql/18/bin/` 且摘要与包内工具链一致。安装入口预检客户端可在目标宿主运行，拒绝同路径不同内容。
+`20260924-native-pg-final-check` 为 109 件开发候选，WSL2 原生工具链安装/同包重试、Backup systemd 生命周期通过。
+隔离 PG18 原生进程备份恢复报告 `test-results/server_validation/pg-20260924-140239-b8bf8853`；
+`-Suite backup-systemd-native -Linux -LinuxCandidate <候选目录>` 则使用包内工具和专用 systemd 身份经 `verify-full` TLS
+执行到点备份及新库恢复，并确认无关 CA 被拒绝；最终报告 `test-results/server_validation/pg-20260924-141404-b43896bc` 为 PASS。
+短测后隔离数据全部清理，不代替正式包、客户发行版矩阵、长周期稳定性及生产密钥管理验收。
+
+完整共部署的开发短测入口为 `pwsh -NoProfile -File scripts/server_validation/postgres.ps1 TestSuite -Suite full-systemd
+-Linux -LinuxCandidate build_official/private_server/candidates/20260924-native-pg-final-check`。在同一隔离部署中，
+Console、Relay、Desk 和 Backup 均以独立 systemd 身份运行；检查 Console/Desk 门户、管理员登录、同包覆盖及无效配置回滚，
+并执行包内 PostgreSQL 客户端工具的 TLS 备份与新库恢复。报告 `test-results/server_validation/pg-20260924-143725-684de506`
+为 PASS。测试许可证由仅限隔离验证的 fixture 签发，不进入候选包。后续同一测试入口增加实例专属的临时 systemd 网络策略：拒绝所有非回环 IP，
+只允许回环连接；四服务重启、Console/Desk readiness 和管理员登录保持正常。独立瞬时服务对照探针证明同一 WSL 宿主
+对非回环本地监听地址的连接在该策略下受阻；该对照已纳入自动验收，报告为
+`test-results/server_validation/pg-20260924-145036-a822e050`。最新重跑还让包内 `px_db` 在该部署中新建 Console/Desk 空库并重复迁移，
+四服务与备份恢复实际使用新库；bootstrap 的失败清理只触及本次确实创建成功的库。最终重跑报告
+`test-results/server_validation/pg-20260924-145938-803d57cd` 为 PASS。
+独立 `bootstrap-candidate` 还注入同名库碰撞并确认该预先存在的库未被失败清理删除，报告
+`test-results/server_validation/pg-20260924-150201-c32066a4` 为 PASS。
+此短测不覆盖客户实际断公网拓扑、外置 PostgreSQL/对象存储、
+相邻正式版本升级或生产配置。
+
+Ubuntu 24.04 x86_64 目标已由用户确认。正式入口首次保留 `1.0.0` 后因 `px_pixels` Vite 开发服务占用
+`lightningcss` 导致 Desk `npm ci` 中止，该版本不复用；停止该开发服务后，全量重试成功发布 `1.0.1`。
+110 件 Customer Server 完整目录为 `build_official/private_server/customer/1.0.1`，归档为 `1.0.1.tar.gz`，
+SHA-256 为 `991FF79AD8DEB49FACD63D39AB6049801213CA4DDF5B66BDAA3D8F8E50E6D58C`；
+归档解包后逐件清单校验通过。正式包在 Ubuntu 20.04 WSL systemd 的隔离共部署短测报告
+`test-results/server_validation/pg-20260924-162242-e576f5a0` 为 PASS。Ubuntu 24.04 最小容器完成 ELF/工具启动预检，
+但不是完整 systemd 环境。随后在现有 SG 公网 Ubuntu 24.04 systemd 主机执行正式包短测：归档和 110 件清单校验、
+宿主预检、随机 UUID 的 Relay 独立安装/同包覆盖/失败回滚/卸载注册均 PASS；临时文件与实例目录清理后，原
+`pixels-relay.service` 保持 active 且 MainPID 未变化。SG 原本没有 PostgreSQL 或 Docker；后续从固定摘要源码在随机
+临时目录原生编译 PG18.6，未安装数据库系统服务或 Docker。以仅监听回环的临时 PG、测试 CA 和 PXLIC2 fixture 完成
+Console/Desk 新库迁移及各自的 systemd 独立短测：Console 的 `verify-full` TLS、错误 CA 拒绝、HTTPS 页面、重启、
+同包覆盖与无效许可证回滚均通过；Desk 的就绪、页面和卸载注册通过。首轮 Console 失败是重建测试库时漏撤销
+`PUBLIC` 临时表权限，修正测试库后通过。Backup 采用包内 PG18.6 客户端工具，以 systemd 身份生成 verified 恢复点；
+369,361 字节归档摘要一致，错误 CA 被拒绝，恢复到新库后准确取得修改前记录。测试实例、临时 PG、工具链和源码均已
+清理，安装器创建的 `pixels-console`、`pixels-desk`、`pixels-backup` 系统账号按卸载注册契约保留；原 Relay 保持
+active、MainPID `1084164` 未变化。目标发行版各组件短测通过，但未在 SG 同时共部署四服务；
+测试 CA/本地信任认证不能代替生产凭据和客户断公网拓扑验收。
+
+2026-09-24 范围收口：Linux Customer Server 1.0.1 已在 Ubuntu 24.04 完成各组件独立短测、同包覆盖及失败恢复。
+现有正式包的安装顺序、配置来源和人工恢复边界见[私有部署操作入口](private_server_install_guide.md)。
+相邻正式版本覆盖未测；仅在下一次有实际功能变更的正常发版时顺带验证，不专门发布测试版本，也不阻塞当前开发。
+客户生产凭据、断公网拓扑和四服务在目标主机同时共部署仍未验收，不冒充商业交付通过；按实际交付需要再安排，
+不因当前阶段收口启动新一轮专项测试。第二台物理 Render/Service 的 P3 跨机门禁待资源具备后再补。
 
 ## 10. 必须执行的专项验收
 
@@ -583,7 +700,7 @@ EXE、已有输出目录、源/目标嵌套和符号链接。它不打包 Auth �
 | 多节点逐台升级、单节点维护、升级后健康检查失败 | 遵守容量预算；单节点提示维护；失败节点不恢复调度，安全回滚或留在维护 |
 | RDP 升级及第二前端 | 重连原 Windows Session；账号/Profile/应用保留；busy 策略不变 |
 | 覆盖安装或健康检查期间断电 | 保留业务数据与失败现场；节点保持维护，由运维重跑同包、覆盖上一版本或修复，不向其他节点传播状态 |
-| Android 同 flavor 覆盖、错误签名/另一 flavor 更新包 | 正常更新保留数据且允许重启；错误包不进入本产品升级流程 |
+| Android 系统覆盖安装 | 同包身份、同签名 APK 能安装即满足当前升级要求；系统拒绝错误签名或其他包身份，不设独立升级验收专项 |
 
 ## 11. 当前证据、限制与参考
 

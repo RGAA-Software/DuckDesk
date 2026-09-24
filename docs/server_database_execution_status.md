@@ -3,6 +3,11 @@
 > 更新至 2026-09-23。本文记录实际交付范围；DB0–DB5 当前开发基线已按本文末尾的范围决定收口，但这不是整个商业化计划或
 > 商业发布门槛的完成声明。
 >
+> 2026-09-24 升级收口决定：Android 不再保留独立升级验收待办；同包身份、同签名的 APK 能经系统覆盖安装，即满足当前升级要求，
+> 不为 PackageInstaller 或 fast-release 再单独组织升级测试。Linux Customer Server 1.0.1 已通过同包覆盖和失败恢复；
+> 相邻正式版本覆盖留到下一次有实际功能变更的正常发版时顺带验证，不为测试专门制作 1.0.2。下文较早的待测清单是历史记录，
+> 不再作为当前开发阶段的阻塞门槛；未执行的跨版本验证也不冒充已通过。
+>
 > 2026-09-22 当前决策：活动产品只保留 `PXLIC2` 服务端许可证，由 Auth 签发、Console 验证并执行授权服务、到期时间与
 > `max_streams`。`PXDC2`、`PXDD2`、`PXDP1`、部署 trust store、身份水位及凭据前 challenge 已从活动实现退役；本文后文出现这些名称
 > 只是在保留当时实施/测试历史，不代表当前设计、待部署项或兼容要求。数据库内部用于三库备份对账的 deployment UUID 不是客户端部署身份协议，继续保留。
@@ -1980,5 +1985,123 @@ Console 制品，远端安装 SHA-256 与本地一致，备份位于 `D:\PixelsS
 远端日志才具备新的脱敏错误类别证据；本次发布本身不证明旧事件根因。
 
 P4 首个私有交付切片已开始：新增 Linux Customer 服务端候选组装器，只接收 Console、Relay、数据库管理工具、Console 静态页面和可选
-Desk，输出逐件 SHA-256 清单，不接受 Auth 签发器或私钥。拒绝 Windows 二进制、输入输出目录嵌套和已有目标；5/5 聚焦用例通过。
-尚未接入独立版本的正式 Linux 制品、私有配置/空库初始化、备份恢复、断公网运行或覆盖升级，因此 P4 阶段出口保持未完成。
+Desk，输出逐件 SHA-256 清单，不接受 Auth 签发器或私钥。拒绝 Windows/非 x86-64 二进制、输入输出目录嵌套和已有目标。
+2026-09-24 新增 `scripts_build/build_private_server_candidate.ps1` 与 WSL 入口，实际完成 Console 3.2.21、Relay 3.2.1、
+Desk 3.2.9、数据库工具 0.1.0 的快速 Release 构建和两套网页构建。候选批次 `20260924-095409` 含 90 个文件；
+清单逐件重算 90/90 一致，5 个二进制与 WSL 构建树逐件摘要一致，均为 Linux x86-64 ELF；Windows 与 WSL 聚焦用例均为 7/7。
+候选批次随后通过 `console-process -Linux -LinuxCandidate` 短测：隔离 PG 三库全新初始化、90 件清单预检、真实候选
+`px_db check console`/`check desk`、Console 与静态页面启动/资源访问、SIGTERM 后重启、失去数据库权威后的 fail-closed
+均通过；Windows 侧同套进程测试也通过。最终短测报告：`test-results/server_validation/pg-20260924-101021-026bd5b4`。
+Desk 候选随后使用相同隔离 PG 方式完成 Windows/WSL 双侧 8/8 测试，包内 `px_desk` 与真实门户静态页通过启动、健康、旧路径拒绝、
+管理会话、反馈、版本发布及不安全配置拒绝；报告 `test-results/server_validation/pg-20260924-101400-9df7f901`。
+Relay 候选通过 Windows/WSL 双侧 `relay-control` 1/1：WSL 使用两个包内 `px_relay` 实进程向隔离 Console 登记、上报、独立接受/排空，
+并在 Console 停止后拒绝新连接；最终复测报告 `test-results/server_validation/pg-20260924-102141-a429429c`。
+P4 安装门禁继续推进：最终复测候选批次 `20260924-104108` 新增离线逐文件校验器、三个独立 systemd unit 及按组件覆盖/停用脚本，
+共 96 件；旧批次与新批次共有的 90 件文件摘要完全相同，因此上面的功能短测仍对应相同运行字节。
+组装/校验器 12/12 聚焦测试通过；WSL2 systemd 用新候选 Relay 实测宽权限配置拒绝、专用用户和 0400 环境、同包覆盖、
+故意启动失败后恢复旧配置/运行态、停用保留数据，隔离实例与 unit 清理完成。此项不等于 Console/Desk 生产配置安装或跨版本升级验收。
+Desk 随后在隔离 PG 上完成真实 systemd 启动：候选包内 `px_desk` 以 `pixels-desk` 身份运行，0600 输入环境安装为 0400，
+readiness 返回 204，真实门户 HTML 可访问；停用保留配置/release 后已清理隔离实例与 unit。Windows/WSL 双侧 8/8 复测及
+systemd 结果见 `test-results/server_validation/pg-20260924-104526-f34170a0`。Console 随后也用隔离 PG、仅限测试的 PXLIC2
+签名夹具和本机 HTTPS 完成真实 systemd 短测：包内 `px_console` 以 `pixels-console` 身份运行，环境文件安装为 0400，
+候选 `px_db` 和 systemd Console 均用独立测试 CA 下的 PostgreSQL `verify-full` 接入，无关信任根被拒绝；许可证校验、
+HTTPS 证书校验、readiness 204、包内页面、重启、错误许可证配置覆盖失败回滚及停用保留配置/数据均通过。
+测试实例与 unit、PG 容器和卷已清理。Windows/WSL 进程用例及 systemd 最终报告为
+`test-results/server_validation/pg-20260924-111911-dc01f27d`。测试签名夹具未打入候选包。
+真实客户证书/许可证私有安装与跨版本升级仍未验收。
+首次运行暴露 WSL 测试入口继承 Windows `protoc.exe` 的环境问题，已固定为 `/usr/bin/protoc` 后复测通过；一次性容器和卷已清理。
+P4 正式 Server Customer 发行入口随后补齐独立套件版本预留、完整优化 Release、锁定的 Console/Relay/Desk/DB/Backup
+组件版本与逐文件 SHA-256、压缩包摘要，以及正式版降级/同版换字节/开发候选替换拒绝。组装、验签、版本预留与覆盖身份
+聚焦测试为 19/19 PASS；发行脚本语法通过。此处是代码门禁，不是正式优化构建或安装验收；版本文件仍为下一个 `1.0.0`，
+本轮没有消耗发行版本。
+P4 安装器回滚随后修正了“旧服务已运行但未启用时，失败覆盖后变成停止”的状态丢失。WSL2 真实 systemd 使用 97 件重组开发候选
+`20260924-rollback-check`，验证已启用运行、已禁用运行、已禁用停止三种旧状态在坏配置覆盖失败后均恢复；隔离 unit/目录已清理。
+快速候选构建随后纳入 `px_backup`：`20260924-backup-check` 共 98 件，包内备份执行器与 WSL 构建树哈希一致，真实 Linux ELF
+能运行，缺失私有配置时按预期以退出码 10 拒绝。数据库/pgBackRest 离线工具链及真实备份恢复仍属 P4 待验收。
+备份私有安装随后以 99 件 `20260924-backup-service-check` 完成 WSL2 systemd 短测：宽权限和错部署 UUID 的配置在修改目标前拒绝，
+有效配置由独立 `pixels-backup` 身份运行并发布 schema 2 状态，重启及停用保留配置/状态/release 均通过；测试实例已精确清理。
+本 systemd 短测使用不执行数据库操作的替身工具和未来调度时间，不是实际备份/恢复证据。
+随后对同一 99 件候选包完成独立真实备份恢复短测：包内 `px_backup` 在隔离 PostgreSQL 18 上调用摘要固定的测试包装器，
+实际执行容器内 `pg_dump`/`pg_restore --list`，生成 verified 清单并核对归档 SHA-256；修改源库记录后恢复到全新目标库，
+证实目标库保留修改前记录、源库保留修改后记录。最终报告 `test-results/server_validation/pg-20260924-131532-1f9b0e1e`；
+容器、卷及临时文件均已清理。测试包装器不是生产环境 PostgreSQL 离线工具链，也未验证 systemd 身份下的实际备份调度。
+候选包自己的 `px_db` 也已在隔离 PG18 的全新 Console/Desk 数据库完成迁移、重复迁移、运行时检查；迁移前检查和错误
+deployment UUID 均被拒绝。报告 `test-results/server_validation/pg-20260924-132318-2c7b9290`，容器和卷已清理。
+这证明候选包二进制可从预置身份表的空库初始化，不等于生产私有凭据/TLS、正式安装或客户环境初始化验收。
+Backup 安装前置检查随后补齐：两个 PostgreSQL 工具必须是可执行的摘要固定文件，TLS 根证书必须预置，至少有一个
+required 数据库，凭据文件必须位于该部署的私有 Backup 目录且不得开放组/其他权限。安装器建立 `pixels-backup` 身份后、
+发布 release 前，还以该身份检查工具可执行和证书可读，并把凭据收紧为该身份独占的 0400 文件；文件描述符操作拒绝符号链接。
+仅重组已有运行字节的 99 件 `20260924-backup-final-check` 在 WSL2 systemd 通过宽权限、错部署 UUID、错误工具摘要、
+服务身份无法执行工具/读取证书的拒绝，以及有效安装、状态发布、重启、停用保留状态。六个包内 ELF 与此前候选 SHA-256 一致；
+实际 PG18 备份恢复短测对应相同运行字节，但并非 systemd 下真实调度或生产离线工具链验收。
+随后从 PostgreSQL 官方 18.6 源码按固定 SHA-256 `555610c24d53e4316da5b7d3fc25c279d96856d5e0e23ee308c328c5fa881d9f`
+在 WSL Ubuntu 20.04 构建 4.6 MB 原生客户端工具链，包含 `pg_dump`、`pg_restore`、`libpq`、OpenSSL 运行库及许可证；
+由七文件清单逐件核验，宿主仍需 glibc ≥2.31 和 `libz.so.1`。下载使用国内镜像，但构建前以官方摘要校验。
+快速候选 `20260924-native-pg-final-check` 将工具链纳入 109 件逐文件清单；正式发行入口也已改为每次构建并强制包含工具链，
+但本轮没有执行正式优化发布。WSL2 独立安装到 `/opt/pixels/postgresql/18`、重复安装、Backup 专用身份安装/重启/停用短测通过，
+错误工具摘要及权限门禁保持有效。最终隔离 PG18 原生进程备份恢复报告
+`test-results/server_validation/pg-20260924-140239-b8bf8853` 为 PASS。
+进一步的真实 systemd 短测由 `pixels-backup` 专用身份通过 `verify-full` TLS 连接一次性 PG18，按到点计划生成 verified
+归档；无关 CA 被 TLS 校验拒绝，修改源库后用包内 `pg_restore` 恢复到新库并读到修改前记录。最终报告
+`test-results/server_validation/pg-20260924-141404-b43896bc` 为 PASS。隔离部署目录、unit、容器和卷均已清理；
+WSL 中已安装的原生工具链保留用于后续开发验证。此项关闭开发候选“原生工具链 + systemd 真实短周期备份恢复”的短测缺口，
+不等于客户 Linux 发行版矩阵、长期调度、独立对象存储、生产密钥或正式版交付验收。
+同一 109 件开发候选随后完成四服务共部署短测：`-Suite full-systemd -Linux -LinuxCandidate
+build_official/private_server/candidates/20260924-native-pg-final-check` 在一个隔离部署 UUID 下安装 Console、Relay、Desk、Backup，
+验证三项在线服务、两个静态页面、Console 管理员登录、同包覆盖，以及无效许可证配置覆盖失败后仍能提供服务；
+Backup 由专用 systemd 身份完成 `verify-full` TLS 定时归档、无关 CA 拒绝和新库恢复。最终报告
+`test-results/server_validation/pg-20260924-143725-684de506` 为 PASS，隔离服务、配置、容器和卷已清理。
+随后给四项隔离 systemd 实例施加临时 `IPAddressDeny=any`、`IPAddressAllow=localhost`，重启后验证服务仍在线、
+Console/Desk readiness 和 Console 管理员登录正常。独立对照探针连接 WSL 非回环监听地址：普通瞬时服务成功，受相同限制的瞬时
+服务超时拒绝。对照探针已写入测试脚本，重跑报告 `test-results/server_validation/pg-20260924-145036-a822e050` 为 PASS；实例专属限制文件
+随测试清理。这是开发候选在“只允许回环内网依赖”下的短测，不等于客户网络拓扑、外置数据库/对象存储或生产断公网验收。
+最新共部署短测又在同一次隔离部署中调用包内 `px_db` 创建全新的 Console/Desk 数据库、重复迁移并验证错误部署身份拒绝；
+四服务、登录和备份恢复实际使用这两套新库。bootstrap 清理随后收紧为仅删除本次确实创建成功的库，
+最终重跑报告 `test-results/server_validation/pg-20260924-145938-803d57cd`
+为 PASS，测试数据库也随部署清理。开发候选的“包内空库初始化 → 共部署 → 恢复”短链路现已闭合；
+另在 `bootstrap-candidate` 增加已有库名碰撞注入，确认失败不会删除预先存在的库；报告
+`test-results/server_validation/pg-20260924-150201-c32066a4` 为 PASS。
+尚未执行相邻正式版本覆盖、客户实际断公网拓扑、目标发行版和正式发行构建。
+正式构建前只读预检：`build_private_server_release.sh` 语法、套件版本与候选清单/升级门禁共 11 项脚本测试通过；
+109 件候选的六个服务 ELF 与包内 `pg_dump`/`pg_restore` 在已有 Debian Bookworm x86_64 容器中以 `--network none`
+运行 `ldd`，所需动态库均可解析（PostgreSQL 客户端使用包内 `libpq`/OpenSSL 1.1，宿主提供 `libz`/glibc）。
+这只说明 ELF 依赖在 Debian 容器中齐全，不是客户目标机的功能验收。
+额外以 `docker.m.daocloud.io/library/ubuntu:24.04`（拉取摘要 `sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3`）
+在 `--network none` 下检查：六个服务 ELF 和 `pg_dump`/`pg_restore` 的动态依赖全部解析，后两者均报告 PostgreSQL 18.6。
+同一容器再以只读根文件系统、空配置启动六个服务入口，全部进入各自的参数/配置拒绝路径，未出现加载器或缺库错误。
+最小 Ubuntu 容器缺少 Python3、systemctl、openssl 与 curl；它不能直接执行私有服务安装/HTTPS 功能验收。
+这是目标发行版的二进制可加载性线索，不是宿主 systemd、生产配置或正式包验收。
+宿主门禁补成包内 `tools/preflight_linux_host.sh`：在任何组件安装前确认 Linux x86-64、Python 3.8+、systemd PID 1 和安装脚本
+依赖命令；PostgreSQL 工具链安装同样执行该门禁。只读脚本在 WSL Ubuntu 20.04 通过，在最小 Ubuntu 24.04 容器明确拒绝缺少
+Python3。重组的完整开发候选 `20260924-host-preflight` 为 110 件，六个服务 ELF 与前批次逐个 SHA-256 相同；其四服务共部署、
+包内空库初始化、管理员登录、覆盖失败回滚、原生备份恢复和受限网络短测报告
+`test-results/server_validation/pg-20260924-160308-cce90874` 为 PASS。此候选仍非正式发行制品。
+用户明确授权 Ubuntu 24.04 x86_64 目标的正式全量构建后，release-only 入口首先保留 `1.0.0`：Console Web 构建完成，
+但正在运行的 `px_pixels` Vite 服务占用 `lightningcss` 原生文件，Desk `npm ci` 因 Windows EPERM 中止。仅停止该开发服务
+及其子进程后，Desk `npm ci` 单独通过；按不可复用规则保留失败版本 `1.0.0`，正式重试使用 `1.0.1`。
+`1.0.1` 完成两套 Web、重新构建的 PostgreSQL 18.6 工具链及全优化 Rust Release，产出 110 件 Customer Server
+`build_official/private_server/customer/1.0.1` 与 22,563,280 字节归档 `1.0.1.tar.gz`。归档 SHA-256 为
+`991FF79AD8DEB49FACD63D39AB6049801213CA4DDF5B66BDAA3D8F8E50E6D58C`；校验文件、解包后二次逐件核验均通过。
+正式包在 WSL Ubuntu 20.04 隔离 systemd 的空库初始化、四服务共部署、登录、覆盖失败回滚、原生备份恢复和回环限定网络
+短测报告 `test-results/server_validation/pg-20260924-162242-e576f5a0` 为 PASS。Ubuntu 24.04 最小容器仅验证八个正式 ELF
+的动态库可解析、PostgreSQL 工具版本 18.6、六个服务入口能执行并按预期拒绝空配置；这不是 Ubuntu 24.04 真实
+systemd/生产配置安装验收。正式包同字节覆盖身份通过，正式包降为开发候选被拒绝；下一预留版本为 `1.0.2`。
+2026-09-24 按用户要求改用现有 SG 公网 Ubuntu 24.04 x86_64 主机，不在本机增装 WSL 发行版。主机 PID 1 为 systemd，
+既有 `pixels-relay.service` 正在对外服务；正式归档上传到随机临时目录后，归档 SHA-256 与上述值一致，解包后 110 件
+清单核验及宿主预检通过。以随机部署 UUID `9f45b77a-9783-46c7-b254-11de48d22c24` 运行包内安装器的真实
+Relay systemd 短测：独立身份启动、同包覆盖、活动/停止状态的失败回滚及卸载注册均 PASS。测试后该 UUID 的
+`/etc/pixels`、`/opt/pixels/private`、`/var/lib/pixels` 目录、测试 unit 和上传临时目录均已清理；原 Relay
+持续 active，MainPID 未变化。SG 原本没有 PostgreSQL 或 Docker，所以上述单组件短测不算四服务共部署验收。
+随后在 SG 的独立临时目录以固定 SHA-256 `555610c24d53e4316da5b7d3fc25c279d96856d5e0e23ee308c328c5fa881d9f`
+校验 PostgreSQL 18.6 源码，并以低优先级原生编译；Bison/Flex/M4 仅解包在同一临时目录，未安装系统数据库或 Docker。
+临时 PG 只监听 `127.0.0.1:55433`，使用本轮测试 CA/TLS 和测试专用的本地信任认证。正式包 `1.0.1` 为新 Console/Desk
+库迁移，Console 在独立 systemd 身份下完成测试 PXLIC2、`verify-full` 数据库 TLS、错误 CA 拒绝、HTTPS 页面、重启、
+同包覆盖及无效许可证配置回滚；Desk 完成数据库就绪、打包门户、独立身份和卸载注册，均 PASS。首轮 Console 失败由
+测试人员重建数据库时漏撤销 `PUBLIC` 的 `TEMPORARY` 权限引起；恢复原始建库权限后通过，产品权限门禁行为正确。
+包内 PostgreSQL 18.6 客户端工具链在 SG 校验并安装，Backup systemd 服务生成恢复点
+`ac3b19d3-23c6-42ac-9bbb-58154c9eb201`；369,361 字节归档与 verified 清单 SHA-256 一致，错误 TLS 根被拒绝，
+恢复到全新测试库后得到修改前 `before`，源库为修改后 `after`，PASS。测试 Backup 已卸载注册，临时 PG 已停止；
+测试部署目录、工具链、临时源码和服务 unit 均已清理，临时 PG 端口已关闭；安装器创建的专用系统账号
+`pixels-console`、`pixels-desk`、`pixels-backup` 按卸载注册契约保留。既有 `pixels-relay.service` 仍 active，
+MainPID `1084164` 未变化。本次是目标 Ubuntu 24.04 上各组件的独立短测，不是四服务同时共部署；生产数据库认证/密钥、客户断公网拓扑
+及相邻正式版本覆盖升级尚未验收，P4 出口仍未完成。

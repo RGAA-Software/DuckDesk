@@ -10,7 +10,13 @@ use px_relay_server::{
 };
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::{net::SocketAddr, sync::Arc, time::Duration};
+use std::{
+    env,
+    net::SocketAddr,
+    process::{Child, Command, Stdio},
+    sync::Arc,
+    time::Duration,
+};
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
@@ -78,9 +84,25 @@ async fn create_managed_relay(
 
 struct RunningRelay {
     address: SocketAddr,
-    cancellation: CancellationToken,
-    control_task: tokio::task::JoinHandle<()>,
-    server_task: tokio::task::JoinHandle<()>,
+    runtime: RelayRuntime,
+}
+
+enum RelayRuntime {
+    Embedded {
+        cancellation: CancellationToken,
+        control_task: tokio::task::JoinHandle<()>,
+        server_task: tokio::task::JoinHandle<()>,
+    },
+    Packaged(RelayChild),
+}
+
+struct RelayChild(Child);
+
+impl Drop for RelayChild {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
 }
 
 impl RunningRelay {
@@ -92,6 +114,31 @@ impl RunningRelay {
     ) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
+        if let Some(relay_binary) = env::var_os("PIXELS_TEST_RELAY_BINARY") {
+            drop(listener);
+            let relay_process = Command::new(relay_binary)
+                .env("PIXELS_RELAY_LISTEN", address.to_string())
+                .env("PIXELS_RELAY_APP_KEY", "integration-relay-app-key")
+                .env(
+                    "PIXELS_RELAY_CONTROL_KEY",
+                    "integration-relay-control-key-32",
+                )
+                .env(
+                    "PIXELS_RELAY_CONSOLE_CONTROL_URL",
+                    format!("ws://{console_address}/api/console/relay-control"),
+                )
+                .env("PIXELS_RELAY_NODE_TOKEN", relay_secret)
+                .env("PIXELS_RELAY_MAX_CONNECTIONS", max_connections.to_string())
+                .env("PIXELS_RELAY_MAX_ROOMS", max_rooms.to_string())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+                .unwrap();
+            return Self {
+                address,
+                runtime: RelayRuntime::Packaged(RelayChild(relay_process)),
+            };
+        }
         let relay_state = RelayServerState::new(RelayConfig {
             listen: address,
             app_key: b"integration-relay-app-key".to_vec(),
@@ -119,9 +166,11 @@ impl RunningRelay {
         });
         Self {
             address,
-            cancellation,
-            control_task,
-            server_task,
+            runtime: RelayRuntime::Embedded {
+                cancellation,
+                control_task,
+                server_task,
+            },
         }
     }
 
@@ -146,9 +195,21 @@ impl RunningRelay {
     }
 
     async fn shutdown(self) {
-        self.cancellation.cancel();
-        self.control_task.await.unwrap();
-        self.server_task.await.unwrap();
+        match self.runtime {
+            RelayRuntime::Embedded {
+                cancellation,
+                control_task,
+                server_task,
+            } => {
+                cancellation.cancel();
+                control_task.await.unwrap();
+                server_task.await.unwrap();
+            }
+            RelayRuntime::Packaged(mut relay_child) => {
+                let _ = relay_child.0.kill();
+                let _ = relay_child.0.wait();
+            }
+        }
     }
 }
 

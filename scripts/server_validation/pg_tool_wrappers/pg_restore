@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${PIXELS_PG_ISOLATED_TEST:-}" != 1 || ! "${PIXELS_TEST_CONTAINER:-}" =~ ^[a-f0-9]{12,64}$
+      || $# -ne 2 || "$1" != --list || ! -f "$2" ]]; then
+    echo "isolated PostgreSQL archive is required" >&2
+    exit 2
+fi
+docker exec -i "$PIXELS_TEST_CONTAINER" pg_restore --list <"$2" >/dev/null

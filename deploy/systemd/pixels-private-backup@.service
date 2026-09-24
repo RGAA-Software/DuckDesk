@@ -1,0 +1,39 @@
+[Unit]
+Description=Pixels private PostgreSQL backup executor for deployment %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pixels-backup
+Group=pixels-backup
+Environment=LD_LIBRARY_PATH=/opt/pixels/postgresql/18/lib
+Environment=PGSSLMODE=verify-full
+Environment=PGSSLROOTCERT=/etc/pixels/%i/backup/postgres-ca.crt
+ExecStart=/opt/pixels/private/%i/current-backup/bin/px_backup run /etc/pixels/%i/backup/config.json
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+KillMode=mixed
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadOnlyPaths=/etc/pixels/%i/backup
+ReadOnlyPaths=-/opt/pixels/postgresql/18
+ReadWritePaths=/var/lib/pixels/%i/backup
+
+[Install]
+WantedBy=multi-user.target

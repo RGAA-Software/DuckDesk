@@ -29,8 +29,14 @@ fn native_process_starts_serves_and_rejects_unsafe_configuration() {
         time::Duration,
     };
     assert_eq!(env::var("PIXELS_PG_ISOLATED_TEST").as_deref(), Ok("1"));
+    let desk_binary = env::var_os("PIXELS_TEST_DESK_BINARY")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_BIN_EXE_px_desk")));
+    let static_directory = env::var_os("PIXELS_TEST_DESK_STATIC_DIRECTORY")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/static"));
     let command = || {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_px_desk"));
+        let mut command = Command::new(&desk_binary);
         command
             .env(
                 "PIXELS_DATABASE_URL",
@@ -42,10 +48,7 @@ fn native_process_starts_serves_and_rejects_unsafe_configuration() {
                 "PIXELS_DESK_ADMIN_TOKEN_SHA256",
                 hex::encode(Sha256::digest(TOKEN.as_bytes())),
             )
-            .env(
-                "PIXELS_DESK_STATIC_DIRECTORY",
-                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/static"),
-            )
+            .env("PIXELS_DESK_STATIC_DIRECTORY", &static_directory)
             .env_remove("PIXELS_DESK_TLS_CERT")
             .env_remove("PIXELS_DESK_TLS_KEY")
             .stdout(Stdio::piped())
@@ -105,6 +108,9 @@ fn native_process_starts_serves_and_rejects_unsafe_configuration() {
             response.starts_with(&format!("HTTP/1.1 {status}")),
             "unexpected HTTP status"
         );
+        if path == "/" && env::var_os("PIXELS_TEST_DESK_STATIC_DIRECTORY").is_some() {
+            assert!(response.contains("<div id=\"app\"></div>"));
+        }
     }
     drop(server);
     // Refuse unsafe configuration or an owner DSN before binding; kill/reap if not.

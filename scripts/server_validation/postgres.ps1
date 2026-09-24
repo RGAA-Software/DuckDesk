@@ -7,7 +7,9 @@ param(
     [ValidateRange(0,65535)]
     [int]$Port = 0,
     [switch]$Linux,
-    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'relay-nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'backup-pg', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'auth-browser', 'catalog', 'update-authority', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'distribution-isolation', 'node-control', 'relay-control', 'console-process', 'console-admin', 'console-browser')]
+    [string]$LinuxCandidate = '',
+    [string]$PgToolchain = '',
+    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'relay-nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'backup-pg', 'backup-candidate', 'backup-systemd-native', 'full-systemd', 'bootstrap-candidate', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'auth-browser', 'catalog', 'update-authority', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'distribution-isolation', 'node-control', 'relay-control', 'console-process', 'console-admin', 'console-browser')]
     [string]$Suite = ''
 )
 
@@ -15,10 +17,16 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 if ($Action -eq 'TestSuite') {
     if (-not $Suite) { throw 'TestSuite requires an explicit -Suite' }
-    if ($Linux -and $Suite -ne 'console-process') {
-        throw '-Linux is currently supported only for the focused console-process suite; use Test -Linux for the full cross-platform gate.'
+    if ($Linux -and $Suite -notin @('console-process', 'desk', 'relay-control', 'backup-candidate', 'backup-systemd-native', 'full-systemd', 'bootstrap-candidate')) {
+        throw '-Linux is currently supported only for console-process, desk, relay-control, backup-candidate, backup-systemd-native, full-systemd and bootstrap-candidate focused suites.'
     }
 } elseif ($Suite) { throw '-Suite is only valid with TestSuite' }
+if ($LinuxCandidate -and ($Action -ne 'TestSuite' -or $Suite -notin @('console-process', 'desk', 'relay-control', 'backup-candidate', 'backup-systemd-native', 'full-systemd', 'bootstrap-candidate') -or -not $Linux)) {
+    throw '-LinuxCandidate requires TestSuite -Suite console-process/desk/relay-control/backup-candidate/backup-systemd-native/full-systemd/bootstrap-candidate -Linux'
+}
+if ($PgToolchain -and ($Action -ne 'TestSuite' -or $Suite -ne 'backup-candidate' -or -not $Linux -or -not $LinuxCandidate)) {
+    throw '-PgToolchain requires TestSuite -Suite backup-candidate -Linux -LinuxCandidate'
+}
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $dockerBin = 'C:\Program Files\Docker\Docker\resources\bin'
 if (Test-Path -LiteralPath $dockerBin) { $env:Path = "$dockerBin;$env:Path" }
@@ -274,6 +282,108 @@ try {
     }
     Set-LocalEnv 'PIXELS_PG_ISOLATED_TEST' '1'
     Set-LocalEnv 'PIXELS_TEST_CONTAINER' $container
+    if ($Action -eq 'TestSuite' -and $Suite -eq 'backup-candidate') {
+        if (-not $LinuxCandidate) { throw 'backup-candidate requires -LinuxCandidate' }
+        $candidatePath = [IO.Path]::GetFullPath($LinuxCandidate)
+        if (-not (Test-Path -LiteralPath $candidatePath -PathType Container)) { throw 'Linux backup candidate directory does not exist' }
+        $wslCandidatePath = (Invoke-Checked 'wsl' @('wslpath','-a',$candidatePath.Replace('\','/'))).Trim()
+        $wslScriptPath = (Invoke-Checked 'wsl' @('wslpath','-a',(Join-Path $PSScriptRoot 'private_backup_restore.sh').Replace('\','/'))).Trim()
+        $existingWslEnv = [Environment]::GetEnvironmentVariable('WSLENV')
+        $wslEnvEntries = @('PIXELS_PG_ISOLATED_TEST','PIXELS_TEST_CONTAINER','PIXELS_DEPLOYMENT_ID','PIXELS_TEST_CONSOLE_OWNER_URL')
+        if ($existingWslEnv) { $wslEnvEntries += $existingWslEnv }
+        Set-LocalEnv 'WSLENV' ($wslEnvEntries -join ':')
+        $backupArguments = @('--','bash',$wslScriptPath,$wslCandidatePath)
+        if ($PgToolchain) {
+            $toolchainPath = [IO.Path]::GetFullPath($PgToolchain)
+            if (-not (Test-Path -LiteralPath $toolchainPath -PathType Container)) { throw 'PostgreSQL client toolchain does not exist' }
+            $backupArguments += (Invoke-Checked 'wsl' @('wslpath','-a',$toolchainPath.Replace('\','/'))).Trim()
+        }
+        $backupResult = Invoke-Checked 'wsl' $backupArguments -TimeoutSeconds 120
+        if (-not $backupResult.Contains('PASS PRIVATE BACKUP RESTORE:')) { throw 'Packaged backup/restore assertion missing' }
+        Add-Step 'BACKUP-CANDIDATE: packaged Linux backup creates verified archive and restores pre-change PostgreSQL data'
+        Assert-SourceHashes
+        return
+    }
+    if ($Action -eq 'TestSuite' -and $Suite -eq 'backup-systemd-native') {
+        if (-not $LinuxCandidate) { throw 'backup-systemd-native requires -LinuxCandidate' }
+        $candidatePath = [IO.Path]::GetFullPath($LinuxCandidate)
+        if (-not (Test-Path -LiteralPath $candidatePath -PathType Container)) { throw 'Linux Backup candidate directory does not exist' }
+        $wslCandidatePath = (Invoke-Checked 'wsl' @('wslpath','-a',$candidatePath.Replace('\','/'))).Trim()
+        $wslScriptPath = (Invoke-Checked 'wsl' @('wslpath','-a',(Join-Path $PSScriptRoot 'private_backup_native_systemd.sh').Replace('\','/'))).Trim()
+        $forwardedVariables = @('PIXELS_PG_ISOLATED_TEST','PIXELS_TEST_CONTAINER','PIXELS_DEPLOYMENT_ID','PIXELS_TEST_CONSOLE_OWNER_URL')
+        $existingWslEnv = [Environment]::GetEnvironmentVariable('WSLENV')
+        if ($existingWslEnv) { $forwardedVariables += $existingWslEnv }
+        Set-LocalEnv 'WSLENV' ($forwardedVariables -join ':')
+        $systemdResult = Invoke-Checked 'wsl' @('-d','Ubuntu-20.04','-u','root','--','bash',$wslScriptPath,$wslCandidatePath) -TimeoutSeconds 180
+        if (-not $systemdResult.Contains('PASS PRIVATE BACKUP NATIVE SYSTEMD:')) { throw 'Native Backup systemd assertion missing' }
+        Add-Step 'BACKUP-SYSTEMD: packaged native tools completed scheduled verify-full PG18 backup and fresh-database restore'
+        Assert-SourceHashes
+        return
+    }
+    if ($Action -eq 'TestSuite' -and $Suite -eq 'full-systemd') {
+        if (-not $LinuxCandidate) { throw 'full-systemd requires -LinuxCandidate' }
+        $candidatePath = [IO.Path]::GetFullPath($LinuxCandidate)
+        if (-not (Test-Path -LiteralPath $candidatePath -PathType Container)) { throw 'Linux private candidate directory does not exist' }
+        $wslCandidatePath = (Invoke-Checked 'wsl' @('-d','Ubuntu-20.04','--exec','wslpath','-a',$candidatePath.Replace('\','/'))).Trim()
+        $wslScriptPath = (Invoke-Checked 'wsl' @('-d','Ubuntu-20.04','--exec','wslpath','-a',
+            (Join-Path $PSScriptRoot 'private_backup_native_systemd.sh').Replace('\','/'))).Trim()
+        $wslManifestPath = (Invoke-Checked 'wsl' @('-d','Ubuntu-20.04','--exec','wslpath','-a',
+            (Join-Path $repo 'rust_server/Cargo.toml').Replace('\','/'))).Trim()
+        $fixtureTarget = (Invoke-Checked 'wsl' @('-d','Ubuntu-20.04','--exec','bash','-lc',
+            'printf "%s" "${XDG_CACHE_HOME:-${HOME}/.cache}/pixels-pg-cargo"')).Trim()
+        $forwardedVariables = @('PIXELS_PG_ISOLATED_TEST','PIXELS_TEST_CONTAINER','PIXELS_DEPLOYMENT_ID',
+            'CARGO_PROFILE_RELEASE_OPT_LEVEL','CARGO_PROFILE_RELEASE_INCREMENTAL','CARGO_PROFILE_RELEASE_CODEGEN_UNITS',
+            'PIXELS_TEST_CONSOLE_OWNER_URL','PIXELS_TEST_CONSOLE_RUNTIME_URL',
+            'PIXELS_TEST_DESK_OWNER_URL','PIXELS_TEST_DESK_RUNTIME_URL')
+        $existingWslEnv = [Environment]::GetEnvironmentVariable('WSLENV')
+        if ($existingWslEnv) { $forwardedVariables += $existingWslEnv }
+        Set-LocalEnv 'WSLENV' ($forwardedVariables -join ':')
+        Set-LocalEnv 'CARGO_PROFILE_RELEASE_OPT_LEVEL' '1'
+        Set-LocalEnv 'CARGO_PROFILE_RELEASE_INCREMENTAL' 'true'
+        Set-LocalEnv 'CARGO_PROFILE_RELEASE_CODEGEN_UNITS' '256'
+        Invoke-Checked 'wsl' @('-d','Ubuntu-20.04','--exec','bash','-lc',
+            'PROTOC=/usr/bin/protoc SQLX_OFFLINE=true cargo build --offline --locked --release --manifest-path "$1" -p px_console_runtime --example private_console_fixture --target-dir "$2"',
+            'fixture-build',$wslManifestPath,$fixtureTarget) -TimeoutSeconds 180 | Out-Null
+        $fixtureBinary = "$fixtureTarget/release/examples/private_console_fixture"
+        $systemdResult = Invoke-Checked 'wsl' @('-d','Ubuntu-20.04','-u','root','--exec',
+            'timeout','--signal=TERM','--kill-after=10s','180','bash',$wslScriptPath,$wslCandidatePath,$fixtureBinary) -TimeoutSeconds 240
+        if (-not $systemdResult.Contains('PASS PRIVATE CANDIDATE BOOTSTRAP:')) { throw 'Packaged fresh-database bootstrap assertion missing' }
+        if (-not $systemdResult.Contains('PASS PRIVATE FULL SYSTEMD:')) { throw 'Integrated private systemd assertion missing' }
+        Add-Step 'FULL-SYSTEMD: packaged fresh-database bootstrap, four services, login, cover rollback, native restore and loopback-only offline restart passed'
+        Assert-SourceHashes
+        return
+    }
+    if ($Action -eq 'TestSuite' -and $Suite -eq 'bootstrap-candidate') {
+        if (-not $LinuxCandidate) { throw 'bootstrap-candidate requires -LinuxCandidate' }
+        $candidatePath = [IO.Path]::GetFullPath($LinuxCandidate)
+        if (-not (Test-Path -LiteralPath $candidatePath -PathType Container)) { throw 'Linux bootstrap candidate directory does not exist' }
+        $wslCandidatePath = (Invoke-Checked 'wsl' @('wslpath','-a',$candidatePath.Replace('\','/'))).Trim()
+        $wslScriptPath = (Invoke-Checked 'wsl' @('wslpath','-a',(Join-Path $PSScriptRoot 'private_candidate_bootstrap.sh').Replace('\','/'))).Trim()
+        $forwardedVariables = @('PIXELS_PG_ISOLATED_TEST','PIXELS_TEST_CONTAINER','PIXELS_DEPLOYMENT_ID')
+        foreach ($service in @('CONSOLE','DESK')) {
+            foreach ($role in @('OWNER','RUNTIME')) { $forwardedVariables += "PIXELS_TEST_${service}_${role}_URL" }
+        }
+        $existingWslEnv = [Environment]::GetEnvironmentVariable('WSLENV')
+        if ($existingWslEnv) { $forwardedVariables += $existingWslEnv }
+        Set-LocalEnv 'WSLENV' ($forwardedVariables -join ':')
+        $collisionDatabase = 'pixels_console_candidate_' + $secrets.PIXELS_DEPLOYMENT_ID.Substring(0,8)
+        Invoke-Checked 'docker' @('exec',$container,'createdb','-U','pixels_admin','-O','pixels_console_owner',$collisionDatabase) | Out-Null
+        try {
+            $collisionResult = Invoke-Checked 'wsl' @('--','bash',$wslScriptPath,$wslCandidatePath) -ExpectFailure -TimeoutSeconds 120
+            if ($collisionResult -notmatch 'already exists') { throw 'Candidate bootstrap collision did not reject the existing database' }
+            $preservedDatabase = (Invoke-Checked 'docker' @('exec',$container,'psql','-X','-At','-U','pixels_admin','-d','postgres',
+                '-c',"SELECT count(*) FROM pg_database WHERE datname = '$collisionDatabase'")).Trim()
+            if ($preservedDatabase -ne '1') { throw 'Failed bootstrap removed a pre-existing database' }
+        } finally {
+            Invoke-Checked 'docker' @('exec',$container,'dropdb','--force','-U','pixels_admin',$collisionDatabase) | Out-Null
+        }
+        Add-Step 'BOOTSTRAP-CANDIDATE: failed name collision preserves the pre-existing database'
+        $bootstrapResult = Invoke-Checked 'wsl' @('--','bash',$wslScriptPath,$wslCandidatePath) -TimeoutSeconds 120
+        if (-not $bootstrapResult.Contains('PASS PRIVATE CANDIDATE BOOTSTRAP:')) { throw 'Packaged database bootstrap assertion missing' }
+        Add-Step 'BOOTSTRAP-CANDIDATE: packaged Linux px_db initialized fresh Console and Desk databases and enforced deployment identity'
+        Assert-SourceHashes
+        return
+    }
     # Dedicated empty fixture databases keep bootstrap/last-administrator assertions platform-independent.
     foreach ($service in @('auth','console')) {
         $fixtureKinds = if ($service -eq 'auth') { @('bootstrap') } else { @('control','bootstrap','api','directory','distribution_official','distribution_customer','node_control','process','admin','browser_template') }
@@ -441,6 +551,14 @@ try {
                 'PIXELS_PG_LOCAL_DEVELOPMENT',
                 'PIXELS_TEST_PG_ADMIN_PASSWORD'
             )
+            if ($LinuxCandidate) {
+                $candidateDirectory = [IO.Path]::GetFullPath($LinuxCandidate)
+                if (-not (Test-Path -LiteralPath (Join-Path $candidateDirectory 'sha256.json') -PathType Leaf)) {
+                    throw 'Linux candidate manifest is missing'
+                }
+                Set-LocalEnv 'PIXELS_TEST_SERVER_CANDIDATE' $candidateDirectory
+                $forward += 'PIXELS_TEST_SERVER_CANDIDATE/p'
+            }
             foreach ($service in @('CONSOLE','AUTH','DESK')) {
                 foreach ($role in @('OWNER','RUNTIME')) { $forward += "PIXELS_TEST_${service}_${role}_URL" }
             }
@@ -471,11 +589,120 @@ try {
             ) -TimeoutSeconds 420
             Write-Host $linuxResult
             Add-TestCases $linuxResult "focused-linux/$Suite" $suiteCounts[$Suite]
-            if ($linuxResult -notmatch '(?m)^([a-f0-9]{64})\s+[^\r\n]+/release/px_console\s*$') {
-                throw 'Missing focused Linux Console binary hash'
+            $linuxBinaryName = switch ($Suite) {
+                'desk' { 'px_desk' }
+                'relay-control' { 'px_relay' }
+                default { 'px_console' }
             }
-            $fingerprints.linux_px_console = $Matches[1]
-            Add-Step 'LINUX-FOCUSED: native Console process received SIGTERM, exited cleanly, restarted, and failed closed after database authority loss'
+            if ($linuxResult -notmatch "(?m)^([a-f0-9]{64})\s+[^\r\n]+/release/$linuxBinaryName\s*$") {
+                throw "Missing focused Linux $linuxBinaryName binary hash"
+            }
+            $fingerprints["linux_$linuxBinaryName"] = $Matches[1]
+            if ($LinuxCandidate) {
+                if ($linuxResult -notmatch "(?m)^([a-f0-9]{64})\s+[^\r\n]+/bin/$linuxBinaryName\s*$") {
+                    throw "Missing candidate Linux $linuxBinaryName binary hash"
+                }
+                $fingerprints["candidate_linux_$linuxBinaryName"] = $Matches[1]
+                if ($Suite -eq 'relay-control') {
+                    Add-Step 'LINUX-CANDIDATE: manifest verified; two packaged Relay processes passed Console control and drain suite'
+                } else {
+                    Add-Step "LINUX-CANDIDATE: manifest verified; packaged $linuxBinaryName and static UI passed native process suite"
+                }
+            }
+            if ($Suite -eq 'desk' -and $LinuxCandidate) {
+                $linuxDeskScript = (Invoke-Checked 'wsl' @(
+                    '-d', 'Ubuntu-20.04', '--exec', 'wslpath', '-a',
+                    (Join-Path $PSScriptRoot 'private_desk_systemd.sh').Replace('\', '/')
+                )).Trim()
+                $linuxCandidatePath = (Invoke-Checked 'wsl' @(
+                    '-d', 'Ubuntu-20.04', '--exec', 'wslpath', '-a', $candidateDirectory.Replace('\', '/')
+                )).Trim()
+                $deskSystemdResult = Invoke-Checked 'wsl' @(
+                    '-d', 'Ubuntu-20.04', '-u', 'root', '--exec',
+                    'timeout', '--signal=TERM', '--kill-after=10s', '120',
+                    'bash', $linuxDeskScript, $linuxCandidatePath
+                ) -TimeoutSeconds 180
+                Write-Host $deskSystemdResult
+                if ($deskSystemdResult -notmatch 'PASS PRIVATE DESK SYSTEMD:') {
+                    throw 'Packaged Desk systemd acceptance did not report success'
+                }
+                Add-Step 'LINUX-SYSTEMD: packaged Desk served the portal under its dedicated identity and stopped without deleting state'
+            }
+            if ($Suite -eq 'console-process' -and $LinuxCandidate) {
+                if ($linuxResult -notmatch '(?m)^FIXTURE_BINARY=([^\r\n]+/private_console_fixture)\s*$') {
+                    throw 'Isolated Console license fixture binary was not built'
+                }
+                $linuxFixtureBinary = $Matches[1]
+                $postgresDataDirectory = (Invoke-Checked 'docker' @(
+                    'exec', '-u', 'postgres', $container, 'psql', '-X', '-U', 'pixels_admin', '-d', 'postgres', '-Atc', 'SHOW data_directory'
+                )).Trim()
+                if ($postgresDataDirectory -notmatch '^/var/lib/postgresql/[A-Za-z0-9/._-]+$') {
+                    throw 'Unexpected isolated PostgreSQL data directory'
+                }
+                $postgresTlsRootCertificate = "$postgresDataDirectory/private-console-root.crt"
+                $postgresTlsRootKey = "$postgresDataDirectory/private-console-root.key"
+                $postgresTlsCertificate = "$postgresDataDirectory/private-console-test.crt"
+                $postgresTlsKey = "$postgresDataDirectory/private-console-test.key"
+                $postgresTlsRequest = "$postgresDataDirectory/private-console-test.csr"
+                Invoke-Checked 'docker' @(
+                    'exec', '-u', 'postgres', $container, 'openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
+                    '-sha256', '-subj', '/CN=private-console-isolated-root', '-addext', 'basicConstraints=critical,CA:TRUE',
+                    '-addext', 'keyUsage=critical,keyCertSign,cRLSign', '-keyout', $postgresTlsRootKey, '-out', $postgresTlsRootCertificate
+                ) | Out-Null
+                Invoke-Checked 'docker' @(
+                    'exec', '-u', 'postgres', $container, 'openssl', 'req', '-newkey', 'rsa:2048', '-nodes', '-sha256',
+                    '-subj', '/CN=127.0.0.1', '-addext', 'subjectAltName=IP:127.0.0.1', '-addext', 'basicConstraints=critical,CA:FALSE',
+                    '-addext', 'extendedKeyUsage=serverAuth', '-keyout', $postgresTlsKey, '-out', $postgresTlsRequest
+                ) | Out-Null
+                Invoke-Checked 'docker' @(
+                    'exec', '-u', 'postgres', $container, 'openssl', 'x509', '-req', '-in', $postgresTlsRequest,
+                    '-CA', $postgresTlsRootCertificate, '-CAkey', $postgresTlsRootKey, '-CAcreateserial',
+                    '-out', $postgresTlsCertificate, '-days', '1', '-sha256', '-copy_extensions', 'copy'
+                ) | Out-Null
+                Invoke-Checked 'docker' @('exec', '-u', 'postgres', $container, 'chmod', '0600', $postgresTlsKey) | Out-Null
+                foreach ($setting in @(
+                    "ALTER SYSTEM SET ssl_cert_file = '$postgresTlsCertificate'",
+                    "ALTER SYSTEM SET ssl_key_file = '$postgresTlsKey'",
+                    'ALTER SYSTEM SET ssl = on'
+                )) {
+                    Invoke-Checked 'docker' @('exec', '-u', 'postgres', $container, 'psql', '-X', '-U', 'pixels_admin', '-d', 'postgres', '-c', $setting) | Out-Null
+                }
+                Invoke-Compose @('restart', '--timeout', '10', 'postgres') | Out-Null
+                Invoke-Compose @('up', '--detach', '--wait', '--wait-timeout', '120') | Out-Null
+                $postgresSslEnabled = (Invoke-Checked 'docker' @(
+                    'exec', '-u', 'postgres', $container, 'psql', '-X', '-U', 'pixels_admin', '-d', 'postgres', '-Atc', 'SHOW ssl'
+                )).Trim()
+                if ($postgresSslEnabled -ne 'on') { throw 'Isolated PostgreSQL did not enable TLS' }
+                $postgresTlsRoot = Join-Path $reportDir 'isolated-postgres-tls-root.crt'
+                Invoke-Checked 'docker' @('cp', "${container}:$postgresTlsRootCertificate", $postgresTlsRoot) | Out-Null
+                $linuxPostgresTlsRoot = (Invoke-Checked 'wsl' @(
+                    '-d', 'Ubuntu-20.04', '--exec', 'wslpath', '-a', $postgresTlsRoot.Replace('\', '/')
+                )).Trim()
+                $linuxConsoleScript = (Invoke-Checked 'wsl' @(
+                    '-d', 'Ubuntu-20.04', '--exec', 'wslpath', '-a',
+                    (Join-Path $PSScriptRoot 'private_console_systemd.sh').Replace('\', '/')
+                )).Trim()
+                $linuxCandidatePath = (Invoke-Checked 'wsl' @(
+                    '-d', 'Ubuntu-20.04', '--exec', 'wslpath', '-a', $candidateDirectory.Replace('\', '/')
+                )).Trim()
+                $consoleSystemdResult = Invoke-Checked 'wsl' @(
+                    '-d', 'Ubuntu-20.04', '-u', 'root', '--exec',
+                    'timeout', '--signal=TERM', '--kill-after=10s', '120',
+                    'bash', $linuxConsoleScript, $linuxCandidatePath, $linuxFixtureBinary, $linuxPostgresTlsRoot
+                ) -TimeoutSeconds 180
+                Write-Host $consoleSystemdResult
+                if ($consoleSystemdResult -notmatch 'PASS PRIVATE CONSOLE SYSTEMD:') {
+                    throw 'Packaged Console systemd acceptance did not report success'
+                }
+                Add-Step 'LINUX-SYSTEMD: packaged Console admitted isolated PXLIC2 and verified PostgreSQL TLS, served HTTPS, and restored failed cover install'
+            }
+            if ($Suite -eq 'console-process') {
+                Add-Step 'LINUX-FOCUSED: native Console process received SIGTERM, exited cleanly, restarted, and failed closed after database authority loss'
+            } elseif ($Suite -eq 'desk') {
+                Add-Step 'LINUX-FOCUSED: Desk native API and process tests passed with candidate binary and static UI'
+            } else {
+                Add-Step 'LINUX-FOCUSED: two packaged Relay processes converged, drained independently and failed closed after Console stop'
+            }
         }
         $fingerprints.px_db = (Get-FileHash -LiteralPath $dbTool -Algorithm SHA256).Hash
         Assert-SourceHashes
@@ -913,7 +1140,19 @@ try {
     }
     foreach ($entry in $savedEnv.GetEnumerator()) { [Environment]::SetEnvironmentVariable($entry.Key,$entry.Value) }
     if (Test-Path -LiteralPath $reportDir) {
-        $scope = if ($Action -eq 'TestSuite') { "Focused suite: $Suite; no full cross-platform or restore acceptance" } else { 'PG foundation, Console repositories, private cache IO, Auth and Desk products; full DB0-DB5 acceptance not complete' }
+        $scope = if ($Action -eq 'TestSuite' -and $Suite -eq 'backup-candidate' -and $PgToolchain) {
+            'Focused packaged Linux backup and fresh-database restore using pinned native PostgreSQL 18.6 client tools against isolated PG18; not systemd scheduling, production TLS or full P4 acceptance'
+        } elseif ($Action -eq 'TestSuite' -and $Suite -eq 'backup-candidate') {
+            'Focused Linux candidate backup and fresh-database restore against isolated PG18; Docker-backed test wrappers, not production offline toolchain or full P4 acceptance'
+        } elseif ($Action -eq 'TestSuite' -and $Suite -eq 'backup-systemd-native') {
+            'Focused real systemd Backup under dedicated identity with packaged native PostgreSQL 18.6 tools, verify-full TLS and isolated PG18 restore; not formal release or long-running scheduling acceptance'
+        } elseif ($Action -eq 'TestSuite' -and $Suite -eq 'full-systemd') {
+            'Focused integrated private Linux development candidate: packaged px_db initialized Console/Desk databases, then four systemd services ran in one isolated deployment with native PostgreSQL tools and temporary loopback-only egress; not formal release, production offline infrastructure or long-running acceptance'
+        } elseif ($Action -eq 'TestSuite' -and $Suite -eq 'bootstrap-candidate') {
+            'Focused packaged Linux px_db initialization and identity gate against isolated PG18; not full production configuration, TLS or P4 acceptance'
+        } elseif ($Action -eq 'TestSuite') {
+            "Focused suite: $Suite; no full cross-platform or restore acceptance"
+        } else { 'PG foundation, Console repositories, private cache IO, Auth and Desk products; full DB0-DB5 acceptance not complete' }
         $report = [ordered]@{run_id=$runId; revision=$revision; recorded_at=[DateTime]::UtcNow.ToString('o'); action=$Action; suite=$Suite; linux_requested=$Linux.IsPresent; project=$project; deployment=$secrets.PIXELS_DEPLOYMENT_ID; source_hashes=$sourceHashes; artifacts=$fingerprints; status=$(if($failed){'FAIL'}else{'PASS'}); cases=$steps; scope=$scope}
         [IO.File]::WriteAllText((Join-Path $reportDir 'report.json'),($report | ConvertTo-Json -Depth 8))
         Write-Host "Report: $reportDir"

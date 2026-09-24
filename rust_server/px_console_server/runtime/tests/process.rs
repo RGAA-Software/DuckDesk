@@ -6,7 +6,7 @@ use std::{
     env,
     io::{Read, Write},
     net::{SocketAddr, TcpListener, TcpStream},
-    path::Path,
+    path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     thread,
     time::{Duration, Instant},
@@ -162,17 +162,23 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
     restrict_private_directory(private_directory.path());
     let guest_key_path = private_directory.path().join("guest-source.key");
     let workspace_key_path = private_directory.path().join("workspace.key");
-    let static_directory = private_directory.path().join("web");
+    let candidate_static_directory =
+        env::var_os("PIXELS_TEST_CONSOLE_STATIC_DIRECTORY").map(PathBuf::from);
+    let static_directory = candidate_static_directory
+        .clone()
+        .unwrap_or_else(|| private_directory.path().join("web"));
     let recording_cache_directory = private_directory.path().join("recording-cache");
-    std::fs::create_dir(&static_directory).unwrap();
+    if candidate_static_directory.is_none() {
+        std::fs::create_dir(&static_directory).unwrap();
+        std::fs::write(
+            static_directory.join("index.html"),
+            "pixels-console-process",
+        )
+        .unwrap();
+        std::fs::write(static_directory.join("app.js"), "pixels-console-script").unwrap();
+    }
     std::fs::create_dir(&recording_cache_directory).unwrap();
     restrict_private_directory(&recording_cache_directory);
-    std::fs::write(
-        static_directory.join("index.html"),
-        "pixels-console-process",
-    )
-    .unwrap();
-    std::fs::write(static_directory.join("app.js"), "pixels-console-script").unwrap();
     px_private_files::private::create_private(&guest_key_path, &[41; 32]).unwrap();
     px_private_files::private::create_private(&workspace_key_path, &[42; 32]).unwrap();
     let signer = LicenseSigner::from_pkcs8(
@@ -234,8 +240,11 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
         "path": workspace_key_path,
     }]);
 
+    let console_binary = env::var_os("PIXELS_TEST_CONSOLE_BINARY")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_BIN_EXE_px_console")));
     let spawn_console = || {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_px_console"));
+        let mut command = Command::new(&console_binary);
         command
             .env("PIXELS_CONSOLE_LOCAL_DEVELOPMENT", "1")
             .env("PIXELS_DEPLOYMENT_ID", deployment.to_string())
@@ -278,11 +287,28 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
     let index_response = http_response(address, "/settings/profile").unwrap();
     assert!(index_response.starts_with("HTTP/1.1 200"));
     assert!(index_response.contains("content-type: text/html; charset=utf-8"));
-    assert!(index_response.ends_with("pixels-console-process"));
-    let asset_response = http_response(address, "/app.js").unwrap();
+    if candidate_static_directory.is_some() {
+        assert!(index_response.contains("<div id=\"app\"></div>"));
+    } else {
+        assert!(index_response.ends_with("pixels-console-process"));
+    }
+    let asset_path = if candidate_static_directory.is_some() {
+        let asset = std::fs::read_dir(static_directory.join("assets"))
+            .unwrap()
+            .filter_map(Result::ok)
+            .map(|asset_entry| asset_entry.file_name())
+            .find(|file_name| file_name.to_string_lossy().ends_with(".js"))
+            .expect("candidate web build must contain a JavaScript asset");
+        format!("/assets/{}", asset.to_string_lossy())
+    } else {
+        "/app.js".to_string()
+    };
+    let asset_response = http_response(address, &asset_path).unwrap();
     assert!(asset_response.starts_with("HTTP/1.1 200"));
     assert!(asset_response.contains("content-type: text/javascript; charset=utf-8"));
-    assert!(asset_response.ends_with("pixels-console-script"));
+    if candidate_static_directory.is_none() {
+        assert!(asset_response.ends_with("pixels-console-script"));
+    }
     assert!(http_response(address, "/api/retired")
         .unwrap()
         .starts_with("HTTP/1.1 404"));

@@ -1,0 +1,35 @@
+[Unit]
+Description=Pixels private Desk for deployment %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pixels-desk
+Group=pixels-desk
+EnvironmentFile=/etc/pixels/%i/private-desk.env
+ExecStart=/opt/pixels/private/%i/current-desk/bin/px_desk
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+KillMode=mixed
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadOnlyPaths=/etc/pixels/%i
+
+[Install]
+WantedBy=multi-user.target

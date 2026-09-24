@@ -35,15 +35,20 @@ Console 只从环境读取配置；发行包不携带真实配置、证书、私
 
 配置缺失、未知格式、私有文件权限过宽、静态目录无效、数据库身份/schema/deployment 不匹配，都会在监听前失败。
 数据库 authority 丢失后当前进程终止；监督器可以启动新进程，但同一进程不会重新取得权威继续服务。
-Linux 发行使用包内 `deploy/systemd/pixels-console@.service`：非零退出由 systemd 在 5 秒后重启，正常 SIGTERM 则有界关闭监听、任务和连接池，
+现有独立 Console Linux 服务入口使用 `deploy/systemd/pixels-console@.service`：非零退出由 systemd 在 5 秒后重启，正常 SIGTERM 则有界关闭监听、任务和连接池，
 不会被当成崩溃重启。实例 `%i` 是 deployment UUID；私有环境文件固定在 `/etc/pixels/%i/console.env`，可写运行状态固定在
 `/var/lib/pixels/%i/console`。不要再套一层进程守护器，也不要把密钥值写入 unit 文件。
 
-发行包同时携带 `deploy/linux/install_linux_service.sh` 与 `uninstall_linux_service.sh`。安装器只接受小写 deployment UUID、绝对普通可执行文件和
+该独立入口的脚本位于 `scripts/server_console/install_linux_service.sh` 与 `uninstall_linux_service.sh`。安装器只接受小写 deployment UUID、绝对普通可执行文件和
 权限不宽于 `0600` 的绝对环境文件；环境文件必须含与参数完全相同的 `PIXELS_DEPLOYMENT_ID`，未知的非赋值行、符号链接、宽权限文件和同机另一活动
 Console 实例均在覆盖前拒绝。安装器先确认当前实例已停止，再原子替换 `/opt/pixels/current/bin/px_console`，把私有环境以
 `pixels-console:pixels-console 0400` 安装，最后 enable/start 并检查 active。注销只停止并禁用指定实例，保留私有环境和运行数据，供升级回退、审计或
 显式授权的后续清理使用。
+
+私有 Customer Linux Server 套件另带 `pixels-private-console@.service` 及按组件安装/停用脚本；它把 Console、Relay、Desk 的当前 release
+指向分别管理，Console 静态路径固定为 `/opt/pixels/private/<deployment-uuid>/current-console/static/console`，环境文件为
+`/etc/pixels/<deployment-uuid>/private-console.env`。正式套件 `1.0.1` 的操作顺序见[私有部署操作入口](private_server_install_guide.md)，
+已验收范围见[部署与升级计划](server_deployment_and_upgrade_plan.md)；不要将独立 Console 开发入口的 `/opt/pixels/current` 路径与私有部署路径混用。
 
 ## 全新部署
 
