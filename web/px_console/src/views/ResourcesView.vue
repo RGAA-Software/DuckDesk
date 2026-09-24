@@ -8,6 +8,7 @@ import { listManagedResourceSessions, type ResourceSession } from "@/model/manag
 import { listManagedDeployments } from "@/model/managed_deployment_api";
 import { listManagedDevices } from "@/model/managed_device_api";
 import { listManagedNodes } from "@/model/managed_node_api";
+import LicenseStatusCard from "@/views/apps/LicenseStatusCard.vue";
 
 const { t } = useI18n();
 const loading = ref(false);
@@ -28,28 +29,25 @@ const recentSessions = computed(() => sessions.value.slice(0, 10));
 
 async function refresh() {
     loading.value = true;
-    try {
-        const [devices, users, applications, deployments, nodes, resourceSessions] =
-            await Promise.all([
-                listManagedDevices(),
-                listAllAdminUsers(),
-                listManagedApplications(),
-                listManagedDeployments(),
-                listManagedNodes(),
-                listManagedResourceSessions(),
-            ]);
-        totals.value = {
-            devices: devices.length,
-            users: users.length,
-            applications: applications.length,
-            deployments: deployments.length,
-            nodes: nodes.length,
-            freshNodes: nodes.filter(node => node.fresh && !node.disabled).length,
-        };
-        sessions.value = resourceSessions;
-    } finally {
+    const [devices, users, applications, deployments, nodes, resourceSessions] = await Promise.all([
+        listManagedDevices(),
+        listAllAdminUsers(),
+        listManagedApplications(),
+        listManagedDeployments(),
+        listManagedNodes(),
+        listManagedResourceSessions(),
+    ]).finally(() => {
         loading.value = false;
-    }
+    });
+    totals.value = {
+        devices: devices.length,
+        users: users.length,
+        applications: applications.length,
+        deployments: deployments.length,
+        nodes: nodes.length,
+        freshNodes: nodes.filter(node => node.fresh && !node.disabled).length,
+    };
+    sessions.value = resourceSessions;
 }
 
 function target(session: ResourceSession) {
@@ -68,6 +66,7 @@ useManagementRefresh(
 <template>
     <a-spin :spinning="loading">
         <a-space direction="vertical" size="large" class="w-full">
+            <LicenseStatusCard />
             <a-row :gutter="16">
                 <a-col :span="4"
                     ><a-card
