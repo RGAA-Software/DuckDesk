@@ -47,7 +47,7 @@ Console 实例均在覆盖前拒绝。安装器先确认当前实例已停止，
 
 私有 Customer Linux Server 套件另带 `pixels-private-console@.service` 及按组件安装/停用脚本；它把 Console、Relay、Desk 的当前 release
 指向分别管理，Console 静态路径固定为 `/opt/pixels/private/<deployment-uuid>/current-console/static/console`，环境文件为
-`/etc/pixels/<deployment-uuid>/private-console.env`。正式套件 `1.0.1` 的操作顺序见[私有部署操作入口](private_server_install_guide.md)，
+`/etc/pixels/<deployment-uuid>/private-console.env`。正式套件 `1.0.2` 的操作顺序见[私有部署操作入口](private_server_install_guide.md)，
 已验收范围见[部署与升级计划](server_deployment_and_upgrade_plan.md)；不要将独立 Console 开发入口的 `/opt/pixels/current` 路径与私有部署路径混用。
 
 ## 全新部署
