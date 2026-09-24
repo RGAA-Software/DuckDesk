@@ -313,7 +313,11 @@ impl ConsoleRuntime {
                 tokio::select! {
                     biased;
                     _=supervisor_cancellation.cancelled()=>break,
-                    _=interval.tick()=>if lease.renew().await.is_err(){supervisor_cancellation.cancel();break},
+                    _=interval.tick()=>if let Err(error) = lease.renew().await {
+                        eprintln!("Console runtime lease renewal failed: {error}");
+                        supervisor_cancellation.cancel();
+                        break;
+                    },
                 }
             }
         });

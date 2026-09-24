@@ -1965,6 +1965,12 @@ schema 0030–0032并部署当前 Console、管理页面和 Relay；私有 CA �
 `17F2E30B64129F83C8A9FE7FE38F08DD85CD8328920DDD43A45C7035FBA7370B`。Windows 主 Relay 排空时保留 2 条已有连接并以 503 拒绝新准入，
 同一时刻 SG 入口到达应用认证；SG 进程停止时 Console 正确观察到 offline/not fresh，Windows Relay 继续接单，重启后 SG 恢复
 ready/fresh。强制 SG Relay 的真实 Windows CloudApplication 已建立房间、传递 TCP 视频、解码关键帧并发送输入，SG 记录双向载荷
-651 / 12,448 字节。自动验收器随后因窗口句柄识别失败，且 Console 短暂丢失 runtime authority 后安全退出而未以 PASS 结束；Console 已重启，
-残留实例为 stopped，两台 Relay 均恢复 ok/accepting。该两项后续缺口不冒充已关闭。P3-4B 当前只剩第二台物理 Render/Service 的跨机短测，
-开发阶段不执行长测。
+651 / 12,448 字节。首轮自动验收器因 `Process.MainWindowHandle` 未识别实际窗口而失败，Console 也曾因 runtime authority 丢失
+安全退出；恢复后残留实例为 stopped，两台 Relay 为 ok/accepting。将验收器改为按 Client PID 枚举最大可见顶层窗口后，同一 SG Relay
+真实云应用短验收完整 PASS，含工作区窗口、解码首帧、输入、房间及双向字节，脚本退出 0。Console 租约失效处已补脱敏错误类别日志；首次失权
+根因仍未复现定位。P3-4B 当前只剩第二台物理 Render/Service 的跨机短测；因暂时没有第二台物理 Render 主机，该门禁待资源具备后
+执行，不阻塞 P4 开发。开发阶段不执行长测。
+
+Console 脱敏租约诊断版已通过聚焦 Release 检查与编译，本地 `px_console.exe` SHA-256 为
+`A0B19FB57039503F6DECBFE3031785B94FA7F983D5CF49A1220A7056E617EFDD`。公网发布和一次只读 WinRM 登录均被目标主机以
+`Access is denied` 拒绝；远端 Console 未替换，因此目前公网不能凭此版本定位旧失权事件。恢复部署访问后，只发布该精确制品并核对远端摘要。

@@ -149,9 +149,13 @@ Console；云安全组未开放 4605，因此只由既有 Nginx 在公网 80 精
 offline/not fresh，Windows Relay 保持 ready/accepting；重启后 SG 恢复 ready/fresh。一次强制指定 SG Relay 的真实 Windows
 CloudApplication 连接已建立房间、收到 TCP 媒体并解码关键帧，Client 记录输入发送成功；SG 健康计数记录双向载荷 651 / 12,448 字节。
 
-该 CloudApplication 自动验收进程不能记为完整 PASS：取证完成后，验收器未从 `Process.MainWindowHandle` 识别已渲染窗口；同时公网 Console
-因 `Console runtime authority was lost` 安全退出，导致清理请求超时。Console 计划任务已恢复并持续监听，残留实例最终为 stopped，两台 Relay
-均恢复 `ok/accepting`。后续应单独修复窗口识别门禁并定位 Console 权威短暂丢失，不把它们误归因于 SG Relay 数据面。
+首轮 CloudApplication 自动验收未通过：验收器未从 `Process.MainWindowHandle` 识别已渲染窗口；同时公网 Console 因
+`Console runtime authority was lost` 安全退出，导致清理请求超时。Console 计划任务恢复后，残留实例为 stopped，两台 Relay 均恢复
+`ok/accepting`。随后验收器改为按 Client PID 枚举最大可见顶层窗口，同一 SG Relay 链路重跑完整 PASS：工作区窗口、解码首帧、输入、房间和
+双向载荷均通过，脚本退出码 0；Client build/dist SHA-256 均为
+`38707DF4FA2BABBC7D3DAF2B8BB4345ACADA34E03BEABBBF84CDDCC6A44C568C`。Console 租约续签失败处增加脱敏错误类别日志，
+本次复测未再次失去权威；首次事件的根因仍待进一步定位，不能据单次恢复宣称已根治。
 
 严格 Release Clippy（含 PostgreSQL integration features）、rustfmt、PowerShell 语法及差异检查通过。P3-4B 现在只剩第二台物理
-Render/Service 的跨机短测；开发阶段不运行长时间压力测试，统一长测仍在商业发布前门禁。
+Render/Service 的跨机短测；当前没有第二台物理 Render 主机，该门禁等硬件具备后执行，不阻塞 P4 开发。开发阶段不运行长时间压力测试，
+统一长测仍在商业发布前门禁。

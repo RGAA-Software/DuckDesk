@@ -69,6 +69,56 @@ $credentialsPath = Join-Path $repository '.env/public_test_user.json'
 $licensePath = Join-Path $repository '.env/public_license.json'
 $machinePath = Join-Path $repository '.env/test_machine.md'
 $clientLogPath = Join-Path (Split-Path $clientPath -Parent) 'px_logs/px_client.log'
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+
+public static class PixelsWorkspaceWindowProbe {
+    private delegate bool WindowVisitor(IntPtr window, IntPtr context);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WindowRect {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumWindows(WindowVisitor visitor, IntPtr context);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(IntPtr window);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowRect(IntPtr window, out WindowRect bounds);
+
+    public static IntPtr FindLargestVisibleWindow(uint targetProcessId) {
+        IntPtr workspaceWindow = IntPtr.Zero;
+        long largestArea = 0;
+        WindowVisitor visitor = (window, context) => {
+            GetWindowThreadProcessId(window, out uint windowProcessId);
+            if (windowProcessId != targetProcessId || !IsWindowVisible(window)
+                || !GetWindowRect(window, out WindowRect bounds)) {
+                return true;
+            }
+            long width = Math.Max(0, (long)bounds.Right - bounds.Left);
+            long height = Math.Max(0, (long)bounds.Bottom - bounds.Top);
+            long area = width * height;
+            if (area > largestArea) {
+                largestArea = area;
+                workspaceWindow = window;
+            }
+            return true;
+        };
+        EnumWindows(visitor, IntPtr.Zero);
+        return workspaceWindow;
+    }
+}
+'@
 $trustedRoot = [Security.Cryptography.X509Certificates.X509Certificate2]::CreateFromPem(
     [IO.File]::ReadAllText((Resolve-Path -LiteralPath $CertificateAuthority).Path))
 $certificatePolicy = [Security.Cryptography.X509Certificates.X509ChainPolicy]::new()
@@ -590,12 +640,14 @@ audioContext.resume();setInterval(()=>audioContext.resume(),500);
     $clientDeadline = [DateTime]::UtcNow.AddSeconds($ClientTimeoutSeconds)
     $frameReady = $false
     $workspaceReady = $false
+    $workspaceWindowHandle = [IntPtr]::Zero
     $qtModuleCount = $null
     $fileTransportReady = $false
     do {
         Start-Sleep -Milliseconds 500
         $clientProcess.Refresh()
-        $workspaceReady = $workspaceReady -or $clientProcess.MainWindowHandle -ne [IntPtr]::Zero
+        $workspaceWindowHandle = [PixelsWorkspaceWindowProbe]::FindLargestVisibleWindow([uint32]$clientProcess.Id)
+        $workspaceReady = $workspaceReady -or $workspaceWindowHandle -ne [IntPtr]::Zero
         if ($null -eq $qtModuleCount -and -not $clientProcess.HasExited) {
             $qtModuleCount = @($clientProcess.Modules | Where-Object { $_.ModuleName -match '^Qt\d' }).Count
         }
@@ -617,7 +669,7 @@ audioContext.resume();setInterval(()=>audioContext.resume(),500);
             throw "Windows Client exited before acceptance completed: exit=$($clientProcess.ExitCode)"
         }
     } while ((-not $frameReady -or
-            (-not ($ExerciseAudio -or $exerciseAnyFileTransfer) -and $clientProcess.MainWindowHandle -eq [IntPtr]::Zero)) -and
+            (-not ($ExerciseAudio -or $exerciseAnyFileTransfer) -and $workspaceWindowHandle -eq [IntPtr]::Zero)) -and
         [DateTime]::UtcNow -lt $clientDeadline)
 
     if (-not $frameReady) {
@@ -649,10 +701,10 @@ public static class PixelsCloudInputProbe {
 }
 '@
         $window = [PixelsCloudInputProbe+Rect]::new()
-        if (-not [PixelsCloudInputProbe]::GetWindowRect($clientProcess.MainWindowHandle, [ref]$window)) {
+        if (-not [PixelsCloudInputProbe]::GetWindowRect($workspaceWindowHandle, [ref]$window)) {
             throw 'Windows Client workspace bounds could not be read for input acceptance.'
         }
-        [void][PixelsCloudInputProbe]::SetForegroundWindow($clientProcess.MainWindowHandle)
+        [void][PixelsCloudInputProbe]::SetForegroundWindow($workspaceWindowHandle)
         $inputX = [int](($window.Left + $window.Right) / 2)
         $inputY = [int](($window.Top + $window.Bottom) / 2)
         [void][PixelsCloudInputProbe]::SetCursorPos($inputX, $inputY)
