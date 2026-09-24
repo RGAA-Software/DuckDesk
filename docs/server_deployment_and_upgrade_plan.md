@@ -667,6 +667,8 @@ active、MainPID `1084164` 未变化。目标发行版各组件短测通过，�
 2026-09-24 范围收口：Linux Customer Server 1.0.1 已在 Ubuntu 24.04 完成各组件独立短测、同包覆盖及失败恢复。
 现有正式包的安装顺序、配置来源和人工恢复边界见[私有部署操作入口](private_server_install_guide.md)。
 随后随实际文档/UI 变更正式发布 1.0.2：116 件清单及解包归档均校验通过，归档 SHA-256 为 `80083A81675503973118CF83B1B96DA200D8B88F18A0836BBDFED450C1A4AF37`。Ubuntu 20.04 WSL 的隔离 full-systemd 短测通过四服务、新库、登录、覆盖失败回滚、原生备份恢复和回环离线重启；报告为 `test-results/server_validation/pg-20260924-202853-83f79526`。同环境另以 1.0.1 安装 Relay 后覆盖为 1.0.2，确认服务持续 active、当前 release 指向新清单摘要且降级被拒绝。目标 SG Ubuntu 24.04 主机也完成两版归档和清单校验、随机 UUID 的 Relay 1.0.1 → 1.0.2 覆盖、运行状态和降级拒绝短测，随后清理临时包与测试实例；既有 `pixels-relay.service` 仍 active。这证明相邻版本的 Relay 覆盖，不扩大为 Console/Desk/Backup 三组件在目标主机上的跨版本验收。
+
+P5/P6 针对本次相邻版本的增量核对：1.0.1 与 1.0.2 清单中共有 108 件逐字节同摘要；全部六个服务/管理可执行文件、Desk 静态资源、systemd 单元与安装工具均未变。差异仅为 Console 静态入口/JS 与新增的离线文档、四项配置样板。因此本次没有服务 API、节点或访问端制品升级，不能凭此宣称通用的跨版本 API 窗口和 P6 节点矩阵通过。受影响的 Console 许可证状态 API/页面聚焦测试为 3/3 PASS；正式包的 `index.html` 指向新 JS，JS 含 `/api/console/managed/license` 与许可证页面键；既有 1.0.2 full-systemd 报告已覆盖管理员登录。无需重复覆盖 Windows/Android 客户端或另造一个安装包。
 客户生产凭据、断公网拓扑和四服务在目标主机同时共部署仍未验收，不冒充商业交付通过；按实际交付需要再安排，
 不因当前阶段收口启动新一轮专项测试。第二台物理 Render/Service 的 P3 跨机门禁待资源具备后再补。
 
