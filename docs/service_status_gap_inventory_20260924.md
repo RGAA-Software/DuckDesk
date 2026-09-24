@@ -13,3 +13,9 @@
 | Auth | 官方独立 `/health/live`、`/health/ready` | 官方许可证签发域，不属于 Customer Console 管理对象 | 不在私有后台探测或操作官方 Auth |
 
 边界：页面上的“新鲜”只表示所显示快照或样本足够近，不能替代业务调度的服务器端准入检查。浏览器与 Console 失联时，管理事件状态已标记为断开/过期；不能把最后一张缓存快照当作正在运行的进程证明。后续如要把 Backup、Desk 或独立 Render 纳入统一健康页，必须先定义其认证、部署归属、上报时间和失联语义，并按真实运维需求另行实施。
+
+## 公网短测（2026-09-24）
+
+- 将快速 Release Console 与同次构建的四个网页文件一起部署到公网 90；程序及网页文件 SHA-256 均在目标机校验，原程序与网页保留于 `D:\PixelsServer\backups\console-before-20260924135704`。
+- `/health/ready` 返回 204，首页及新 JavaScript 资源返回 200；受权管理接口读到一台新鲜、就绪的云节点及两台新鲜、就绪的 Relay。
+- SG Relay 在零房间、零连接时短暂排空，接口观测到 `reported_draining=true`，随后恢复并观测到 `ready`、`reported_draining=false`。未进行长时间运行或有用户会话时的切换测试。
