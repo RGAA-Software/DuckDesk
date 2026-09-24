@@ -26,6 +26,7 @@ FORBIDDEN_NAMES = {
     "license.pxlic2",
 }
 SOURCE_ROOT = Path(__file__).resolve().parents[1]
+EXAMPLE_ROOT = SOURCE_ROOT / "deploy/private_server/examples"
 PACKAGE_VERSION = re.compile(r'^version\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+)"\s*$')
 SUITE_VERSION = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
 
@@ -159,6 +160,20 @@ def assemble(arguments: argparse.Namespace) -> dict[str, object]:
             copy_static_tree(arguments.desk_static, destination / "static" / "desk")
         if pg_toolchain is not None:
             copy_pg_toolchain(pg_toolchain, destination / "postgresql" / "18")
+        example_directory = destination / "examples"
+        example_directory.mkdir()
+        example_names = ["README.md", "console.env.example", "relay.env.example"]
+        if arguments.desk is not None:
+            example_names.append("desk.env.example")
+        if backup_executable is not None:
+            example_names.append("backup.json.example")
+        for example_name in example_names:
+            example_source = EXAMPLE_ROOT / example_name
+            example_destination = example_directory / example_name
+            require_regular_file(example_source)
+            shutil.copy2(example_source, example_destination)
+            if sha256(example_source) != sha256(example_destination):
+                raise RuntimeError(f"Copied configuration example hash mismatch: {example_name}")
         verifier_directory = destination / "tools"
         verifier_directory.mkdir()
         verifier_source = SOURCE_ROOT / "scripts/verify_private_server_candidate.py"

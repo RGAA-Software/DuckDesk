@@ -73,6 +73,10 @@ class PrivateServerCandidateTests(unittest.TestCase):
         self.assertEqual(manifest["component_versions"]["relay"], "3.2.1")
         self.assertEqual(manifest["artifacts"]["bin/px_console"], sha256(candidate / "bin/px_console"))
         self.assertEqual(manifest["artifacts"]["static/console/index.html"], sha256(candidate / "static/console/index.html"))
+        self.assertEqual(manifest["artifacts"]["examples/console.env.example"], sha256(candidate / "examples/console.env.example"))
+        self.assertIn("examples/relay.env.example", manifest["artifacts"])
+        self.assertNotIn("examples/desk.env.example", manifest["artifacts"])
+        self.assertNotIn("examples/backup.json.example", manifest["artifacts"])
         self.assertEqual(json.loads((candidate / "sha256.json").read_text(encoding="utf-8")), manifest)
         self.assertFalse((candidate / "bin/px_auth").exists())
 
@@ -95,6 +99,7 @@ class PrivateServerCandidateTests(unittest.TestCase):
         self.assertEqual(manifest["component_versions"]["desk"], "3.2.9")
         self.assertIn("bin/px_desk", manifest["artifacts"])
         self.assertIn("static/desk/index.html", manifest["artifacts"])
+        self.assertIn("examples/desk.env.example", manifest["artifacts"])
 
     def test_rejects_wrong_linux_architecture(self) -> None:
         (self.sources / "px_relay").write_bytes(b"\x7fELF\x02\x01" + b"\x00" * 12 + b"\xb7\x00")
@@ -141,6 +146,12 @@ class PrivateServerCandidateTests(unittest.TestCase):
         self.assertEqual(manifest["component_versions"]["console"], "3.2.21")
         self.assertEqual(manifest["component_versions"]["backup"], "0.1.0")
         self.assertIn("postgresql/18/bin/pg_dump", manifest["artifacts"])
+        self.assertIn("examples/backup.json.example", manifest["artifacts"])
+        backup_example = json.loads((self.root / "candidate/examples/backup.json.example").read_text(encoding="utf-8"))
+        self.assertEqual(backup_example["schema_version"], 2)
+        self.assertEqual(backup_example["pg_dump_sha256"], "0" * 64)
+        self.assertEqual([target["state"] for target in backup_example["plan"]["targets"]],
+                         ["required", "not_applicable", "required"])
 
     def test_rejects_invalid_formal_suite_version_before_creating_output(self) -> None:
         arguments = self.arguments()

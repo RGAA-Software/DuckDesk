@@ -1,0 +1,62 @@
+{
+  "schema_version": 2,
+  "deployment_id": "11111111-1111-4111-8111-111111111111",
+  "repository_root": "/var/lib/pixels/11111111-1111-4111-8111-111111111111/backup/repository",
+  "offsite_repository_root": null,
+  "scheduler_root": "/var/lib/pixels/11111111-1111-4111-8111-111111111111/backup/scheduler",
+  "status_root": "/var/lib/pixels/11111111-1111-4111-8111-111111111111/backup/status",
+  "pg_dump_path": "/opt/pixels/postgresql/18/bin/pg_dump",
+  "pg_dump_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "pg_restore_path": "/opt/pixels/postgresql/18/bin/pg_restore",
+  "pg_restore_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "command_timeout_seconds": 3600,
+  "poll_interval_seconds": 60,
+  "schedule": {
+    "deployment_id": "11111111-1111-4111-8111-111111111111",
+    "anchor_unix": 1,
+    "period_seconds": 86400
+  },
+  "retention": {
+    "hourly": 24,
+    "daily": 7,
+    "weekly": 4,
+    "monthly": 6,
+    "pre_upgrade": 5,
+    "manual_days": 30
+  },
+  "offsite_retention": null,
+  "plan": {
+    "deployment_id": "11111111-1111-4111-8111-111111111111",
+    "kind": "independent",
+    "write_barrier_proof_file": null,
+    "retention": ["daily"],
+    "previous_recovery_set_id": null,
+    "targets": [
+      {
+        "state": "required",
+        "database": {
+          "service": "console",
+          "host": "pg.customer.example",
+          "port": 5432,
+          "database": "pixels_console",
+          "username": "pixels_console_backup",
+          "password_file": "/etc/pixels/11111111-1111-4111-8111-111111111111/backup/console.pgpass",
+          "schema_version": 0
+        }
+      },
+      { "state": "not_applicable", "service": "auth", "reason": "Auth signer is not installed in the private Server" },
+      {
+        "state": "required",
+        "database": {
+          "service": "desk",
+          "host": "pg.customer.example",
+          "port": 5432,
+          "database": "pixels_desk",
+          "username": "pixels_desk_backup",
+          "password_file": "/etc/pixels/11111111-1111-4111-8111-111111111111/backup/desk.pgpass",
+          "schema_version": 0
+        }
+      }
+    ]
+  }
+}
