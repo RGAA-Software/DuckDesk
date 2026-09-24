@@ -221,6 +221,9 @@ async fn session(mut socket: WebSocket, state: Arc<StateData>) {
             return;
         }
     };
+    state
+        .management_events
+        .publish("nodes", Some(connection.id()));
     if send(
         &mut socket,
         &NodeResponse::Authenticated {
@@ -242,6 +245,9 @@ async fn session(mut socket: WebSocket, state: Arc<StateData>) {
         state.db.nodes().close_connection(&connection),
     )
     .await;
+    state
+        .management_events
+        .publish("nodes", Some(connection.id()));
     let _ = socket.close().await;
 }
 

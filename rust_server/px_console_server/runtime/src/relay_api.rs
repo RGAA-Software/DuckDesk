@@ -182,6 +182,9 @@ async fn session(mut socket: WebSocket, state: Arc<StateData>) {
             return;
         }
     };
+    state
+        .management_events
+        .publish("relays", Some(connection.id()));
     if send(
         &mut socket,
         &RelayResponse::Authenticated {
@@ -202,6 +205,9 @@ async fn session(mut socket: WebSocket, state: Arc<StateData>) {
         state.db.relay_nodes().close_connection(&connection),
     )
     .await;
+    state
+        .management_events
+        .publish("relays", Some(connection.id()));
     let _ = socket.close().await;
 }
 
@@ -267,6 +273,11 @@ async fn run_authenticated(
                 },
             )
             .await;
+        if stored.is_ok() {
+            state
+                .management_events
+                .publish("relays", Some(connection.id()));
+        }
         let response = match stored {
             Ok(profile) => RelayResponse::Reported {
                 request_id,

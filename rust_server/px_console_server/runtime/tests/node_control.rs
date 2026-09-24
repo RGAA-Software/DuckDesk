@@ -265,6 +265,16 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     assert_eq!(authenticated["type"], "authenticated");
     assert_eq!(authenticated["node_id"], node["node"]["id"]);
     assert!(authenticated.get("node_token").is_none());
+    let connected_event = tokio::time::timeout(Duration::from_secs(5), management_socket.next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    let connected_event: Value = serde_json::from_str(connected_event.to_text().unwrap()).unwrap();
+    assert_eq!(connected_event["type"], "event");
+    assert_eq!(connected_event["category"], "nodes");
+    assert_eq!(connected_event["resource_id"], node["node"]["id"]);
+    assert_eq!(connected_event["sequence"], initial_management_sequence + 2);
 
     let report = exchange(
         &mut socket,
@@ -321,7 +331,7 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     assert_eq!(management_event["resource_id"], node["node"]["id"]);
     assert_eq!(
         management_event["sequence"],
-        initial_management_sequence + 2
+        initial_management_sequence + 3
     );
 
     let viewer_name = format!("viewer-{}", Uuid::new_v4());

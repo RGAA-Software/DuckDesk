@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { message } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
 import { useManagementRefresh } from "@/model/management_events.ts";
+import { managementSnapshotCurrent } from "@/model/management_snapshot";
 import {
     configureManagedRelay,
     createManagedRelay,
@@ -19,6 +20,12 @@ const editorOpen = ref(false);
 const editing = ref<ManagedRelay>();
 const credentialOpen = ref(false);
 const relayToken = ref("");
+const monotonicNowMs = ref(performance.now());
+const snapshotObservedAtMs = ref<number>();
+let statusClockTimer: number | undefined;
+const snapshotCurrent = computed(
+    () => managementSnapshotCurrent(snapshotObservedAtMs.value, monotonicNowMs.value),
+);
 const form = reactive({
     name: "",
     publicHost: "",
@@ -31,7 +38,14 @@ async function refresh(): Promise<void> {
     loading.value = true;
     try {
         relays.value = await listManagedRelays();
-    } finally {
+        monotonicNowMs.value = performance.now();
+        snapshotObservedAtMs.value = monotonicNowMs.value;
+    }
+    catch {
+        snapshotObservedAtMs.value = undefined;
+        message.error(t("relays.loadFailed"));
+    }
+    finally {
         loading.value = false;
     }
 }
@@ -72,14 +86,16 @@ async function save(): Promise<void> {
                 draining: form.draining,
                 disabled: form.disabled,
             });
-        } else {
+        }
+        else {
             const created = await createManagedRelay(form.name, form.publicHost, form.publicPort);
             relayToken.value = created.relay_token;
             credentialOpen.value = true;
         }
         editorOpen.value = false;
         await refresh();
-    } finally {
+    }
+    finally {
         saving.value = false;
     }
 }
@@ -91,7 +107,9 @@ async function copyCredential(): Promise<void> {
 
 function eligibilityKey(relay: ManagedRelay): string {
     if (relay.disabled) return "relays.reasons.disabled";
-    if (!relay.fresh || relay.state !== "ready") return "relays.reasons.offline";
+    if (!snapshotCurrent.value) return "relays.reasons.unknownStatus";
+    if (!relay.fresh) return "relays.reasons.offline";
+    if (relay.state !== "ready") return "relays.reasons.notReady";
     if (relay.desired_draining) return "relays.reasons.desiredDraining";
     if (relay.reported_draining === null) return "relays.reasons.unknownDrain";
     if (relay.reported_draining) return "relays.reasons.reportedDraining";
@@ -141,6 +159,14 @@ function formatTimestamp(timestamp: string | null): string {
 }
 
 onMounted(refresh);
+onMounted(() => {
+    statusClockTimer = window.setInterval(() => {
+        monotonicNowMs.value = performance.now();
+    }, 5_000);
+});
+onBeforeUnmount(() => {
+    if (statusClockTimer !== undefined) window.clearInterval(statusClockTimer);
+});
 useManagementRefresh(["relays"], refresh);
 </script>
 
@@ -171,19 +197,27 @@ useManagementRefresh(["relays"], refresh);
             </a-table-column>
             <a-table-column :title="t('relays.connections')">
                 <template #default="{ record }">
-                    {{ formatCapacity(record.current_connections, record.max_connections) }}
+                    {{
+                        record.fresh && snapshotCurrent
+                            ? formatCapacity(record.current_connections, record.max_connections)
+                            : t("relays.unknown")
+                    }}
                 </template>
             </a-table-column>
             <a-table-column :title="t('relays.rooms')">
                 <template #default="{ record }">
-                    {{ formatCapacity(record.current_rooms, record.max_rooms) }}
+                    {{
+                        record.fresh && snapshotCurrent
+                            ? formatCapacity(record.current_rooms, record.max_rooms)
+                            : t("relays.unknown")
+                    }}
                 </template>
             </a-table-column>
             <a-table-column :title="t('relays.drainState')">
                 <template #default="{ record }">
                     {{ record.desired_draining ? t("relays.on") : t("relays.off") }} /
                     {{
-                        record.reported_draining === null
+                        !record.fresh || !snapshotCurrent || record.reported_draining === null
                             ? t("relays.unknown")
                             : record.reported_draining
                               ? t("relays.on")
@@ -193,8 +227,8 @@ useManagementRefresh(["relays"], refresh);
             </a-table-column>
             <a-table-column :title="t('relays.traffic')">
                 <template #default="{ record }">
-                    {{ formatBytes(record.uploaded_bytes) }} /
-                    {{ formatBytes(record.forwarded_bytes) }}
+                    {{ record.fresh && snapshotCurrent ? formatBytes(record.uploaded_bytes) : t("relays.unknown") }} /
+                    {{ record.fresh && snapshotCurrent ? formatBytes(record.forwarded_bytes) : t("relays.unknown") }}
                 </template>
             </a-table-column>
             <a-table-column :title="t('relays.lastSeen')">

@@ -2,6 +2,7 @@
 mod fixture;
 
 use fixture::{call, login, start, PASSWORD};
+use futures_util::{SinkExt, StreamExt};
 use px_console_store::{RelayNodeStore, TokenDigest};
 use px_relay_server::{
     config::{ControlPlaneConfig, RelayConfig},
@@ -18,6 +19,10 @@ use std::{
     time::Duration,
 };
 use tokio::net::TcpListener;
+use tokio_tungstenite::{
+    connect_async,
+    tungstenite::{client::IntoClientRequest, http::HeaderValue, Message},
+};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 use zeroize::Zeroizing;
@@ -270,6 +275,26 @@ async fn two_relays_converge_independently_and_fail_closed_when_console_stops() 
         .unwrap();
     });
 
+    let mut management_request = format!("ws://{console_address}/api/console/managed/events")
+        .into_client_request()
+        .unwrap();
+    management_request
+        .headers_mut()
+        .insert("origin", HeaderValue::from_static(fixture::ORIGIN));
+    let (mut management_socket, _) = connect_async(management_request).await.unwrap();
+    management_socket
+        .send(Message::Text(
+            json!({"type":"authenticate","token":admin_secret,"stream_id":null,"after":null})
+                .to_string()
+                .into(),
+        ))
+        .await
+        .unwrap();
+    let management_ready = management_socket.next().await.unwrap().unwrap();
+    let management_ready: Value =
+        serde_json::from_str(management_ready.to_text().unwrap()).unwrap();
+    assert_eq!(management_ready["type"], "ready");
+
     let first_relay = RunningRelay::start(console_address, first_relay_secret, 4_096, 2_048).await;
     let second_relay =
         RunningRelay::start(console_address, second_relay_secret, 2_048, 1_024).await;
@@ -284,6 +309,23 @@ async fn two_relays_converge_independently_and_fail_closed_when_console_stops() 
             profile.state == "ready" && profile.report_sequence >= 1
         })
         .await;
+    let mut first_relay_events = 0;
+    while first_relay_events < 2 {
+        let management_message =
+            tokio::time::timeout(Duration::from_secs(10), management_socket.next())
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
+        let management_event: Value =
+            serde_json::from_str(management_message.to_text().unwrap()).unwrap();
+        if management_event["type"] == "event"
+            && management_event["category"] == "relays"
+            && management_event["resource_id"] == first_relay_node_id.to_string()
+        {
+            first_relay_events += 1;
+        }
+    }
     assert!(first_reported_draining.fresh);
     assert_eq!(first_reported_draining.reported_draining, Some(true));
     assert_eq!(first_reported_draining.max_connections, Some(4_096));

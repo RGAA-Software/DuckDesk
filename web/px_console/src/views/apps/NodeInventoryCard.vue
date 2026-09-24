@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { useManagementRefresh } from "@/model/management_events.ts";
 import TelemetryTrendChart from "@/views/apps/TelemetryTrendChart.vue";
 import { Modal, message } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
 import { copyText } from "@/util/clipboard";
 import { listManagedDevices, type ManagedDevice } from "@/model/managed_device_api";
+import { managementSnapshotCurrent } from "@/model/management_snapshot";
+import { currentNodeTelemetry, nodeOperationalStatus } from "@/model/node_operational_status";
 import {
     configureManagedNode,
     createManagedNode,
@@ -42,6 +44,13 @@ const telemetryHistoryLoading = ref(false);
 const telemetryHistoryNode = ref<ManagedNode>();
 const telemetryHistory = ref<NodeTelemetryHistory[]>([]);
 const telemetryTrend = ref<NodeTelemetryTrend>();
+const observedAtMs = ref(Date.now());
+const monotonicNowMs = ref(performance.now());
+const snapshotObservedAtMs = ref<number>();
+let statusClockTimer: number | undefined;
+const snapshotCurrent = computed(
+    () => managementSnapshotCurrent(snapshotObservedAtMs.value, monotonicNowMs.value),
+);
 
 const availableDevices = computed(() => {
     const assigned = new Set(nodes.value.map(node => node.device_id));
@@ -54,14 +63,24 @@ const availableDevices = computed(() => {
 
 async function refresh() {
     loading.value = true;
-    const [managedNodes, managedDevices] = await Promise.all([
-        listManagedNodes(),
-        listManagedDevices(),
-    ]).finally(() => {
+    try {
+        const [managedNodes, managedDevices] = await Promise.all([
+            listManagedNodes(),
+            listManagedDevices(),
+        ]);
+        nodes.value = managedNodes;
+        devices.value = managedDevices;
+        observedAtMs.value = Date.now();
+        monotonicNowMs.value = performance.now();
+        snapshotObservedAtMs.value = monotonicNowMs.value;
+    }
+    catch {
+        snapshotObservedAtMs.value = undefined;
+        message.error(t("nodes.loadFailed"));
+    }
+    finally {
         loading.value = false;
-    });
-    nodes.value = managedNodes;
-    devices.value = managedDevices;
+    }
 }
 
 function create() {
@@ -200,12 +219,23 @@ function formatProbeState(state: NodeTelemetry["probe_state"] | undefined): stri
     return state ? t(`nodes.telemetryStates.${state}`) : t("nodes.unknown");
 }
 
-function formatTimestamp(timestamp: string | undefined): string {
+function formatTimestamp(timestamp: string | null | undefined): string {
     if (!timestamp) return t("nodes.unknown");
+    const parsedTimestamp = new Date(timestamp);
+    if (Number.isNaN(parsedTimestamp.getTime())) return t("nodes.unknown");
     return new Intl.DateTimeFormat(locale.value, {
         dateStyle: "medium",
         timeStyle: "medium",
-    }).format(new Date(timestamp));
+    }).format(parsedTimestamp);
+}
+
+function telemetryFor(node: ManagedNode): NodeTelemetry | null {
+    return currentNodeTelemetry(node, observedAtMs.value, snapshotCurrent.value);
+}
+
+function nodeStatusColor(node: ManagedNode): string {
+    const status = nodeOperationalStatus(node, snapshotCurrent.value);
+    return status === "ready" ? "green" : status === "offline" || status === "disabled" ? "default" : "orange";
 }
 
 function telemetryHistoryKey(sample: NodeTelemetryHistory): string {
@@ -220,6 +250,15 @@ function formatAge(seconds: number | null | undefined): string {
 }
 
 onMounted(refresh);
+onMounted(() => {
+    statusClockTimer = window.setInterval(() => {
+        observedAtMs.value = Date.now();
+        monotonicNowMs.value = performance.now();
+    }, 5_000);
+});
+onBeforeUnmount(() => {
+    if (statusClockTimer !== undefined) window.clearInterval(statusClockTimer);
+});
 useManagementRefresh(["nodes", "instances"], refresh);
 </script>
 
@@ -240,34 +279,44 @@ useManagementRefresh(["nodes", "instances"], refresh);
             <template #expandedRowRender="{ record }">
                 <a-descriptions bordered size="small" :column="3">
                     <a-descriptions-item :label="t('nodes.telemetryState')">
-                        {{ formatProbeState(record.telemetry?.probe_state) }}
+                        {{
+                            record.telemetry && !telemetryFor(record)
+                                ? t("nodes.telemetryStale")
+                                : formatProbeState(telemetryFor(record)?.probe_state)
+                        }}
                     </a-descriptions-item>
                     <a-descriptions-item :label="t('nodes.sampledAt')">
                         {{ formatTimestamp(record.telemetry?.sampled_at) }}
                     </a-descriptions-item>
+                    <a-descriptions-item :label="t('nodes.lastSeen')">
+                        {{ formatTimestamp(record.last_seen) }}
+                    </a-descriptions-item>
+                    <a-descriptions-item :label="t('nodes.version')">
+                        {{ record.product_version_code ?? t("nodes.unknown") }}
+                    </a-descriptions-item>
                     <a-descriptions-item :label="t('nodes.cpu')">
-                        {{ formatPercent(record.telemetry?.cpu_utilization_per_mille ?? null) }} /
-                        {{ record.telemetry?.logical_processors ?? t("nodes.unknown") }}
+                        {{ formatPercent(telemetryFor(record)?.cpu_utilization_per_mille ?? null) }} /
+                        {{ telemetryFor(record)?.logical_processors ?? t("nodes.unknown") }}
                         {{ t("nodes.logicalProcessors") }}
                     </a-descriptions-item>
                     <a-descriptions-item :label="t('nodes.memory')">
                         {{
                             formatUsage(
-                                record.telemetry?.memory_total_bytes ?? null,
-                                record.telemetry?.memory_available_bytes ?? null,
+                                telemetryFor(record)?.memory_total_bytes ?? null,
+                                telemetryFor(record)?.memory_available_bytes ?? null,
                             )
                         }}
                     </a-descriptions-item>
                     <a-descriptions-item :label="t('nodes.disk')">
                         {{
                             formatUsage(
-                                record.telemetry?.disk_total_bytes ?? null,
-                                record.telemetry?.disk_free_bytes ?? null,
+                                telemetryFor(record)?.disk_total_bytes ?? null,
+                                telemetryFor(record)?.disk_free_bytes ?? null,
                             )
                         }}
                     </a-descriptions-item>
                     <a-descriptions-item :label="t('nodes.gpuInventoryRevision')">
-                        {{ record.telemetry?.gpu_inventory_revision ?? t("nodes.unknown") }}
+                        {{ telemetryFor(record)?.gpu_inventory_revision ?? t("nodes.unknown") }}
                     </a-descriptions-item>
                 </a-descriptions>
                 <a-table
@@ -281,22 +330,32 @@ useManagementRefresh(["nodes", "instances"], refresh);
                     <a-table-column :title="t('nodes.gpuStableKey')" data-index="stable_key" />
                     <a-table-column :title="t('nodes.gpuRuntimeBinding')">
                         <template #default="{ record: gpu }">{{
-                            gpu.runtime_binding_ready ? t("nodes.verified") : t("nodes.unverified")
+                            !telemetryFor(record)
+                                ? t("nodes.unknown")
+                                : gpu.runtime_binding_ready
+                                  ? t("nodes.verified")
+                                  : t("nodes.unverified")
                         }}</template>
                     </a-table-column>
                     <a-table-column :title="t('nodes.gpuMemory')">
                         <template #default="{ record: gpu }">{{
-                            formatConsumed(gpu.dedicated_memory_bytes, gpu.used_memory_bytes)
+                            telemetryFor(record)
+                                ? formatConsumed(gpu.dedicated_memory_bytes, gpu.used_memory_bytes)
+                                : t("nodes.unknown")
                         }}</template>
                     </a-table-column>
                     <a-table-column :title="t('nodes.gpuUtilization')">
                         <template #default="{ record: gpu }">{{
-                            formatPercent(gpu.utilization_per_mille)
+                            telemetryFor(record)
+                                ? formatPercent(gpu.utilization_per_mille)
+                                : t("nodes.unknown")
                         }}</template>
                     </a-table-column>
                     <a-table-column :title="t('nodes.encoderUtilization')">
                         <template #default="{ record: gpu }">{{
-                            formatPercent(gpu.encoder_utilization_per_mille)
+                            telemetryFor(record)
+                                ? formatPercent(gpu.encoder_utilization_per_mille)
+                                : t("nodes.unknown")
                         }}</template>
                     </a-table-column>
                     <template #emptyText>{{ t("nodes.noGpuInventory") }}</template>
@@ -312,23 +371,22 @@ useManagementRefresh(["nodes", "instances"], refresh);
             >
             <a-table-column :title="t('nodes.state')"
                 ><template #default="{ record }"
-                    ><a-tag :color="record.fresh && !record.disabled ? 'green' : 'default'"
-                        >{{ record.state }} /
-                        {{ record.fresh ? t("nodes.fresh") : t("nodes.stale") }}</a-tag
+                    ><a-tag :color="nodeStatusColor(record)"
+                        >{{ t(`nodes.operationalStates.${nodeOperationalStatus(record, snapshotCurrent)}`) }}</a-tag
                     ></template
                 ></a-table-column
             >
             <a-table-column :title="t('nodes.capacity')" data-index="max_instances" />
             <a-table-column :title="t('nodes.cpu')">
                 <template #default="{ record }">{{
-                    formatPercent(record.telemetry?.cpu_utilization_per_mille ?? null)
+                    formatPercent(telemetryFor(record)?.cpu_utilization_per_mille ?? null)
                 }}</template>
             </a-table-column>
             <a-table-column :title="t('nodes.memory')">
                 <template #default="{ record }">{{
                     formatUsage(
-                        record.telemetry?.memory_total_bytes ?? null,
-                        record.telemetry?.memory_available_bytes ?? null,
+                        telemetryFor(record)?.memory_total_bytes ?? null,
+                        telemetryFor(record)?.memory_available_bytes ?? null,
                     )
                 }}</template>
             </a-table-column>

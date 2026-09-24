@@ -202,6 +202,8 @@ export default {
             "The latest 100 accepted samples are shown. Unknown measurements remain unknown and are never displayed as zero.",
         historyTitle: "Telemetry history — {node}",
         logicalProcessors: "logical processors",
+        lastSeen: "Last authenticated report",
+        loadFailed: "Node status could not be refreshed",
         memory: "Memory used / total",
         noGpuInventory: "No GPU inventory is available",
         noHistory: "No telemetry history is available",
@@ -213,11 +215,20 @@ export default {
         state: "Connection state",
         sampledAt: "Sampled at",
         sequence: "Report sequence",
+        operationalStates: {
+            ready: "Ready",
+            draining: "Draining",
+            disabled: "Disabled",
+            offline: "Offline or report expired",
+            notReady: "Not ready",
+            unknown: "Status not recently confirmed",
+        },
         statusNotice:
-            "Online means a recent authenticated report only. Scheduling rechecks drain state, capabilities, endpoint revision, and capacity.",
+            "Status follows authenticated reports. Old telemetry is hidden; scheduling still checks capabilities, endpoint revision, and capacity.",
         title: "Node identities and status",
         telemetryState: "Telemetry state",
         telemetryStates: { ready: "Ready", partial: "Partial", unavailable: "Unavailable" },
+        telemetryStale: "Old sample — current metrics unknown",
         trendDescription:
             "Server-aggregated node CPU, memory, disk, GPU, and encoder utilization trends. Gaps represent missing or unknown measurements.",
         trendCoverage: "{known}/{total} known",
@@ -235,6 +246,7 @@ export default {
         },
         trendTitle: "Telemetry trends",
         unknown: "Unknown",
+        version: "Version code",
         confirm: {
             deleteImpact:
                 "The node identity, connection, and scheduling eligibility will become invalid. Drain active sessions first.",
@@ -261,6 +273,7 @@ export default {
         endpoint: "Public endpoint",
         host: "Public host",
         lastSeen: "Last report",
+        loadFailed: "Relay status could not be refreshed",
         name: "Name",
         off: "No",
         on: "Yes",
@@ -281,9 +294,11 @@ export default {
             eligible: "Eligible",
             full: "Capacity full",
             offline: "Offline or stale",
+            notReady: "Connected but not ready",
             reportedDraining: "Relay reports draining",
             unknownCapacity: "Capacity unknown",
             unknownDrain: "Drain state unknown",
+            unknownStatus: "Status not recently confirmed",
         },
     },
     deployments: {
