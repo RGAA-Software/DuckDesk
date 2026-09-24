@@ -79,6 +79,20 @@ DB4 剩余项。
 
 ## Console 许可证消费边界
 
+2026-09-25 短验收：使用 CN Auth 中已有、明确标为测试用途的客户 `Pixels Official public validation`
+（`84368115-c76d-455d-9667-dc55dd6ce673`），为全新的隔离 Customer deployment
+`7b934787-f4e0-4cc4-aa41-03222a5960c6` 签发了两小时有效的 `PXLIC2`
+（license `e0837fc1-227b-4bff-bbb9-6889cf94ad0b`），仅授权 `cloud_applications` 和 1 路并发 stream。
+现有 Release `px_console_admin` 使用当前 Auth 公钥信任文件离线导入成功，换成错误 deployment ID 后拒绝；未覆盖“90”的现有许可证，
+也未在客户机器上正式安装。隔离 PostgreSQL 的 `sessions` 聚焦套件 14/14 通过，其中包含服务权限拦截与最后一个 stream 名额的
+并发原子性检查；报告为 `test-results/server_validation/pg-20260925-021002-310c206e/report.json`。这些是签发/本地校验与
+仓储层功能的组合证据，不等于真实私有部署的完整端到端验收。可重复的短测入口为 `scripts/test_cn_private_license.ps1`；
+默认只做现有许可证预检，显式传入 `-Issue` 才会在该测试客户名下再签发一张短期许可证。
+
+本次发现 CN Auth 服务器时钟约比执行验收的 Windows 机器快 11 秒。Console 按 `issued_at` 拒绝尚未生效的许可证，因此签发后
+立即导入可能暂时失败；脚本只等待签发时间到达，没有调整 CN 时钟。前两次诊断尝试也在同一测试客户名下产生了两小时有效的
+测试签发记录，未交付客户，将按到期时间失效。正式运维应保持 Auth 与 Console 主机时间同步；本次不扩展为证书专项验收。
+
 Console 不再请求 `auth.rgaa.vip` 验证许可证。运维从 Auth 管理面下载签名 `PXLIC2`，把许可证和 Auth 公钥信任根作为受控文件安装到
 目标 Console；Console 启动和业务准入只做本地签名、deployment、到期时间、服务集合和 stream 上限检查。Auth 中的撤销会阻止续期，
 但不会让已交付的离线副本瞬时失效。
