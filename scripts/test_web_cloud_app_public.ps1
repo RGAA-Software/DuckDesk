@@ -13,6 +13,7 @@ param(
     [ValidateScript({ Test-Path -LiteralPath $_ -PathType Leaf })]
     [string]$CertificateAuthority = '.env/public_console_ca.pem',
     [string]$AppId = '',
+    [string]$WebAssetRoot = '',
     [ValidateScript({ Test-Path -LiteralPath $_ -PathType Leaf })]
     [string]$BrowserPath = 'C:/Program Files/Google/Chrome/Application/chrome.exe',
     [ValidateRange(15, 180)]
@@ -26,7 +27,11 @@ $ConsoleBase = $ConsoleBase.TrimEnd('/')
 $repository = Split-Path $PSScriptRoot -Parent
 $credentialsPath = Join-Path $repository '.env/public_test_user.json'
 $browserProbePath = Join-Path $PSScriptRoot 'test_web_cloud_app_browser.mjs'
-$webAssetRoot = Join-Path $repository 'build_official/cloud_node/dist/web_client'
+$webAssetRoot = if ($WebAssetRoot) {
+    [IO.Path]::GetFullPath($WebAssetRoot)
+} else {
+    Join-Path $repository 'build_official/cloud_node/dist/web_client'
+}
 
 foreach ($requiredPath in @($CertificateAuthority, $credentialsPath, $browserProbePath, (Join-Path $webAssetRoot 'index.html'))) {
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
