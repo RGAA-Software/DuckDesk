@@ -174,6 +174,12 @@ def assemble(arguments: argparse.Namespace) -> dict[str, object]:
             shutil.copy2(example_source, example_destination)
             if sha256(example_source) != sha256(example_destination):
                 raise RuntimeError(f"Copied configuration example hash mismatch: {example_name}")
+        installation_guide_source = SOURCE_ROOT / "deploy/private_server/INSTALL.md"
+        require_regular_file(installation_guide_source)
+        installation_guide_destination = destination / "INSTALL.md"
+        shutil.copy2(installation_guide_source, installation_guide_destination)
+        if sha256(installation_guide_source) != sha256(installation_guide_destination):
+            raise RuntimeError("Copied installation guide hash mismatch")
         verifier_directory = destination / "tools"
         verifier_directory.mkdir()
         verifier_source = SOURCE_ROOT / "scripts/verify_private_server_candidate.py"

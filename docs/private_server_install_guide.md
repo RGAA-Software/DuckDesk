@@ -8,6 +8,7 @@
 - 为客户部署固定一个小写 deployment UUID；准备独立 PostgreSQL 18 数据库、owner/runtime/备份角色、服务可验证的 PostgreSQL CA、HTTPS 证书、域名与 DNS。套件附带 PostgreSQL 客户端工具，**不安装 PostgreSQL 服务**。
 - 从 Auth 正式签发流程取得绑定该 deployment UUID 的 `PXLIC2` 许可证和受信签发公钥文件。签发私钥、测试许可证和真实数据库口令均不在套件内；私有 Console 本地验签，正常会话不依赖 Auth 在线服务。
 - 下次正常发版的套件内 `examples/` 提供四项无密钥配置样板；当前已发布的 1.0.1 不含这些样板，不得修改其不可变归档。源码样板位于 [`deploy/private_server/examples/`](../deploy/private_server/examples/README.md)，请先读其占位值说明。
+- 下次正常发版还会把独立可读的 [`INSTALL.md`](../deploy/private_server/INSTALL.md) 打进套件根目录；包内样板只引用该包内指南，客户离线取得完整包即可读取安装步骤。
 - 在安装前准备 Console、Relay、Desk（如使用）各自的私有环境文件，以及 Backup 的 schema 2 JSON 和数据库凭据文件。输入配置须为绝对普通文件、权限不宽于 `0600`，不得用测试环境的 CA、口令或许可证。Console 的完整变量及首次初始化顺序见[Console 运行配置](px_console_server_runtime_config.md#全新部署)，Relay 控制/端点配置见[P3 连接实施计划](p3_connection_scheduling_execution_plan.md)，Desk 配置见[Desk 运行配置](px_desk_web_overview.md)，备份保留规则见[PostgreSQL 方案](postgresql_database_migration_plan.md)。
 
 ## 2. 全新安装顺序

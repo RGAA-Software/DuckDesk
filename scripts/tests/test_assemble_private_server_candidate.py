@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -74,6 +75,10 @@ class PrivateServerCandidateTests(unittest.TestCase):
         self.assertEqual(manifest["artifacts"]["bin/px_console"], sha256(candidate / "bin/px_console"))
         self.assertEqual(manifest["artifacts"]["static/console/index.html"], sha256(candidate / "static/console/index.html"))
         self.assertEqual(manifest["artifacts"]["examples/console.env.example"], sha256(candidate / "examples/console.env.example"))
+        self.assertEqual(manifest["artifacts"]["INSTALL.md"], sha256(candidate / "INSTALL.md"))
+        for documentation_path in (candidate / "INSTALL.md", candidate / "examples/README.md"):
+            for relative_link in re.findall(r"\]\(([^)]+)\)", documentation_path.read_text(encoding="utf-8")):
+                self.assertTrue((documentation_path.parent / relative_link).is_file(), relative_link)
         self.assertIn("examples/relay.env.example", manifest["artifacts"])
         self.assertNotIn("examples/desk.env.example", manifest["artifacts"])
         self.assertNotIn("examples/backup.json.example", manifest["artifacts"])
