@@ -4,7 +4,7 @@
 
 | 对象 | 当前权威状态来源 | 后台现状与实际缺口 | 本批处理 |
 |---|---|---|---|
-| Console | `/health/live`、`/health/ready`；就绪检查包含数据库 | 管理页面本身依赖 Console，但没有独立于 Console 的故障观察者；Console 停机时无法靠该页面自报健康 | 不伪造“在线”；故障时用宿主 systemd/SCM 和本地诊断入口 |
+| Console | `/health/live`、`/health/ready`；就绪检查包含数据库 | 管理页面本身依赖 Console，不能靠页面自报健康 | 公网 90 的宿主计划任务独立检查 readiness，将故障/恢复写入本机 Windows Application 事件日志；其他部署仍使用各自宿主监控 |
 | Relay | 受认证 Relay control 上报，`GET /api/console/managed/relays` 返回状态、代际、新鲜度、排空、容量、流量、最后上报和版本 | 库存页已有，但正常上报/断开未推送管理事件；过期后仍显示旧连接数、流量和实际排空值 | 上报/连接/断开后推送 `relays` 事件；过期数值显示未知，区分“已连接但未就绪” |
 | Service 节点 | 受认证 node control 上报，`GET /api/console/managed/nodes` 返回状态、代际、新鲜度、最后上报、版本及采样时间 | 库存页已有，但“近期上报”被直接涂绿，未区分未就绪/排空；旧 CPU/GPU 值被当作当前值 | 连接/断开推送 `nodes` 事件；明确状态分类，30 秒外的遥测隐藏为未知，展示最后上报和版本 |
 | Render | 节点管理通道报告的实例/命令状态，没有独立 Render 心跳 | 不能把 Service 在线等同 Render 正常，也不能把保留的 RDP 工作区当作运行中的 Render | 继续使用实例状态；没有独立来源时不新增 Render“健康”标签 |
@@ -19,3 +19,10 @@
 - 将快速 Release Console 与同次构建的四个网页文件一起部署到公网 90；程序及网页文件 SHA-256 均在目标机校验，原程序与网页保留于 `D:\PixelsServer\backups\console-before-20260924135704`。
 - `/health/ready` 返回 204，首页及新 JavaScript 资源返回 200；受权管理接口读到一台新鲜、就绪的云节点及两台新鲜、就绪的 Relay。
 - SG Relay 在零房间、零连接时短暂排空，接口观测到 `reported_draining=true`，随后恢复并观测到 `ready`、`reported_draining=false`。未进行长时间运行或有用户会话时的切换测试。
+
+## Console 宿主本地事件（2026-09-25）
+
+- `scripts/install_public_console_health.ps1` 在公网 90 安装 `Pixels-Console-Health` 计划任务，以 SYSTEM 身份每分钟独立运行 `scripts/check_public_console_health.ps1`；它不依赖 Console 页面或进程。探针要求 `/health/ready` 精确返回 204，连续两次失败仅写一次 Application 错误事件 4101，恢复后仅写一次信息事件 4102。事件源为 `PixelsConsoleHealth`；状态保存在 `D:\PixelsServer\data\console-health\state.json`。
+- 90 当前测试证书没有与公网 IP 匹配的 SAN，探针只信任本机配置的 `console.crt` 精确证书指纹并检查有效期，不使用无条件跳过证书校验。证书轮换后需重新运行一次健康检查；探针若持续失败，会按上述规则记录事件。
+- 已验证计划任务真实返回 0、HTTP 204；隔离状态文件的短测得到 `none → failed → none → recovered`，对应事件 4101/4102 各一次。此处是本机事件记录，不是异机监控或短信/邮件/Webhook 送达；主机断电或网络整体失联不能由这台主机自己告警。用户明确选择暂不配置外发通知，因此不把本项算作 P7 的独立告警完整出口。
+- 重装探针：在仓库根目录执行 `pwsh -NoProfile -File scripts/install_public_console_health.ps1`；在 90 上查看事件：`Get-WinEvent -FilterHashtable @{LogName='Application'; ProviderName='PixelsConsoleHealth'}`。不需要启动 Console 管理网页。
