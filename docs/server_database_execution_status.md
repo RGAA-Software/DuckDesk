@@ -1973,7 +1973,11 @@ ready/fresh。强制 SG Relay 的真实 Windows CloudApplication 已建立房间
 
 Console 脱敏租约诊断版已通过聚焦 Release 检查与编译，本地 `px_console.exe` SHA-256 为
 `A0B19FB57039503F6DECBFE3031785B94FA7F983D5CF49A1220A7056E617EFDD`。公网发布和一次只读 WinRM 登录均被目标主机以
-`Access is denied` 拒绝；远端 Console 未替换，因此目前公网不能凭此版本定位旧失权事件。恢复部署访问后，只发布该精确制品并核对远端摘要。
+`Access is denied` 拒绝，当时远端 Console 未替换。随后复查公网测试机配置，确认 SSH 监听端口为 5300（22 不开放），但该账号的 SSH 密码认证
+仍被 OpenSSH 拒绝；使用机器限定用户名 `WIN-RASS8RC6V3H\Administrator` 的 WinRM 已恢复可用。通过现有带备份发布脚本部署上述精确
+Console 制品，远端安装 SHA-256 与本地一致，备份位于 `D:\PixelsServer\backups\console-before-20260924014224`。计划任务持续运行，
+公网 Console 返回 HTTP 200，Windows 与 SG 两台 Relay 均为 `ok/accepting`，SG 房间归零。今后若再次失去 runtime authority，
+远端日志才具备新的脱敏错误类别证据；本次发布本身不证明旧事件根因。
 
 P4 首个私有交付切片已开始：新增 Linux Customer 服务端候选组装器，只接收 Console、Relay、数据库管理工具、Console 静态页面和可选
 Desk，输出逐件 SHA-256 清单，不接受 Auth 签发器或私钥。拒绝 Windows 二进制、输入输出目录嵌套和已有目标；5/5 聚焦用例通过。
