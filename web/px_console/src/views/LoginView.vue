@@ -3,7 +3,7 @@ import { ref } from "vue";
 import { notification } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
-import iconLogo from "@/assets/ic_logo.png";
+import PixelsBrand from "@/components/PixelsBrand.vue";
 import { loginAdmin } from "@/model/admin_session_api";
 
 const { t } = useI18n();
@@ -36,7 +36,7 @@ async function login() {
     <div class="min-h-screen flex items-center justify-center">
         <a-card :title="t('adminLogin.title')" style="width: 420px">
             <div class="flex justify-center" style="margin-bottom: 24px">
-                <a-image :src="iconLogo" class="w-38" :preview="false" />
+                <PixelsBrand class="text-3xl" />
             </div>
             <a-alert
                 type="info"

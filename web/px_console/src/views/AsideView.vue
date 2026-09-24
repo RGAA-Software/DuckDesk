@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import iconLogo from "@/assets/ic_logo.png";
+import PixelsBrand from "@/components/PixelsBrand.vue";
 
 import {
     ApiOutlined,
@@ -58,7 +58,7 @@ const handleClickLogo = async () => {
     <div class="h-full">
         <div class="h-8"></div>
         <div class="flex justify-center">
-            <img :src="iconLogo" class="w-38 cursor-pointer" @click="handleClickLogo" />
+            <PixelsBrand class="cursor-pointer text-2xl" @click="handleClickLogo" />
         </div>
 
         <div class="h-8"></div>

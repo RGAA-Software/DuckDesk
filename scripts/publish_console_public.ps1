@@ -10,7 +10,9 @@ $repository = Split-Path $PSScriptRoot -Parent
 $sourcePath = Join-Path $repository '.cache/console-dev/release/px_console.exe'
 $webDirectory = Join-Path $repository 'web/px_console/dist'
 $machinePath = Join-Path $repository '.env/test_machine.md'
-foreach ($requiredPath in @($sourcePath, $machinePath)) {
+$supervisorPath = Join-Path $PSScriptRoot 'run_public_console_supervised.ps1'
+$preserveLogsPath = Join-Path $PSScriptRoot 'preserve_public_console_logs.ps1'
+foreach ($requiredPath in @($sourcePath, $machinePath, $supervisorPath, $preserveLogsPath)) {
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
         throw "Public Console deployment input is missing: $requiredPath"
     }
@@ -47,6 +49,68 @@ $session = $null
 try {
     Set-Item -LiteralPath $trustedHostsPath -Value $ComputerName -Force
     $session = New-PSSession -ComputerName $ComputerName -Credential $credential
+    Copy-Item -LiteralPath $supervisorPath -Destination 'D:\PixelsServer\config\run-console-supervised.stage.ps1' -ToSession $session -Force
+    Copy-Item -LiteralPath $preserveLogsPath -Destination 'D:\PixelsServer\config\preserve-console-logs.stage.ps1' -ToSession $session -Force
+    Invoke-Command -Session $session -ArgumentList @(
+        (Get-FileHash -LiteralPath $supervisorPath -Algorithm SHA256).Hash,
+        (Get-FileHash -LiteralPath $preserveLogsPath -Algorithm SHA256).Hash
+    ) -ScriptBlock {
+        param($supervisorHash, $preserveLogsHash)
+
+        $configDirectory = 'D:\PixelsServer\config'
+        $launcherPath = Join-Path $configDirectory 'start-console.ps1'
+        $supervisorStagePath = Join-Path $configDirectory 'run-console-supervised.stage.ps1'
+        $supervisorTargetPath = Join-Path $configDirectory 'run-console-supervised.ps1'
+        $preserveStagePath = Join-Path $configDirectory 'preserve-console-logs.stage.ps1'
+        $preserveTargetPath = Join-Path $configDirectory 'preserve-console-logs.ps1'
+        $stagedScripts = @(
+            @{ path = $supervisorStagePath; hash = $supervisorHash },
+            @{ path = $preserveStagePath; hash = $preserveLogsHash }
+        )
+        foreach ($stagedScript in $stagedScripts) {
+            if ((Get-FileHash -LiteralPath $stagedScript.path -Algorithm SHA256).Hash -ne $stagedScript.hash) {
+                throw "Console supervision staged file hash mismatch: $($stagedScript.path)"
+            }
+            $parseTokens = $null
+            $parseErrors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($stagedScript.path, [ref]$parseTokens, [ref]$parseErrors)
+            if ($parseErrors) {
+                throw "Console supervision staged file has invalid PowerShell syntax: $($stagedScript.path)"
+            }
+        }
+        if (-not (Test-Path -LiteralPath $launcherPath -PathType Leaf)) {
+            throw 'Console launcher is missing.'
+        }
+        $launcherText = Get-Content -LiteralPath $launcherPath -Raw
+        $supervisorCall = '& "$serverRoot\config\run-console-supervised.ps1" -ServerRoot $serverRoot'
+        if (-not $launcherText.Contains($supervisorCall)) {
+            $launcherTailCandidates = [regex]::Matches(
+                $launcherText,
+                '(?m)^\s*(?:& "\$serverRoot\\config\\preserve-console-logs\.ps1"|while \(\$true\) \{)'
+            )
+            if ($launcherTailCandidates.Count -eq 0) {
+                throw 'Console launcher tail is not a known unsupervised or supervised form.'
+            }
+            $launcherTail = $launcherTailCandidates[$launcherTailCandidates.Count - 1]
+            $updatedLauncher = $launcherText.Substring(0, $launcherTail.Index).TrimEnd() + "`r`n`r`n" + $supervisorCall + "`r`n"
+            $parseTokens = $null
+            $parseErrors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseInput($updatedLauncher, [ref]$parseTokens, [ref]$parseErrors)
+            if ($parseErrors) {
+                throw 'Updated Console launcher has invalid PowerShell syntax.'
+            }
+            $backupPath = Join-Path $configDirectory ('start-console.before-supervision-' + [DateTime]::UtcNow.ToString('yyyyMMddHHmmss') + '.ps1')
+            Copy-Item -LiteralPath $launcherPath -Destination $backupPath
+            [IO.File]::WriteAllText($launcherPath, $updatedLauncher, [Text.UTF8Encoding]::new($false))
+        }
+        Copy-Item -LiteralPath $supervisorStagePath -Destination $supervisorTargetPath -Force
+        Copy-Item -LiteralPath $preserveStagePath -Destination $preserveTargetPath -Force
+        if ((Get-FileHash -LiteralPath $supervisorTargetPath -Algorithm SHA256).Hash -ne $supervisorHash -or
+            (Get-FileHash -LiteralPath $preserveTargetPath -Algorithm SHA256).Hash -ne $preserveLogsHash) {
+            throw 'Installed Console supervision file hash mismatch.'
+        }
+        Remove-Item -LiteralPath $supervisorStagePath, $preserveStagePath -Force
+    }
     Copy-Item -LiteralPath $sourcePath -Destination 'D:\PixelsServer\app\bin\px_console.staged.exe' -ToSession $session -Force
     Invoke-Command -Session $session -ArgumentList $stageName -ScriptBlock {
         param($stageName)
