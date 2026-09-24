@@ -5,7 +5,7 @@
 ## 1. 交付物与部署前准备
 
 - 取得同一发行批次的 `1.0.2.tar.gz` 和 `1.0.2.tar.gz.sha256`，先在归档所在目录执行 `sha256sum -c 1.0.2.tar.gz.sha256`。解包后目录名为 `1.0.2`；执行 `python3 <解包绝对路径>/tools/verify_candidate.py <解包绝对路径>` 和 `sh <解包绝对路径>/tools/preflight_linux_host.sh`。不要使用 development 候选目录代替正式 Customer 包。
-- 为客户部署固定一个小写 deployment UUID；准备独立 PostgreSQL 18 数据库、owner/runtime/备份角色、服务可验证的 PostgreSQL CA、HTTPS 证书、域名与 DNS。套件附带 PostgreSQL 客户端工具，**不安装 PostgreSQL 服务**。
+- 为客户部署固定一个小写 deployment UUID；准备独立 PostgreSQL 18 数据库、owner/runtime/备份角色、客户自己的 PostgreSQL CA 与 HTTPS 证书、域名或 IP。CA 和证书可以由客户自行生成或自签，不要求公有 CA 签发；客户负责其终端的信任配置。本阶段不对客户证书的签发来源逐张做专项验证。套件附带 PostgreSQL 客户端工具，**不安装 PostgreSQL 服务**。
 - 从 Auth 正式签发流程取得绑定该 deployment UUID 的 `PXLIC2` 许可证和受信签发公钥文件。签发私钥、测试许可证和真实数据库口令均不在套件内；私有 Console 本地验签，正常会话不依赖 Auth 在线服务。
 - 1.0.2 套件内 `examples/` 提供四项无密钥配置样板；1.0.1 不含这些样板，不得修改其不可变归档。源码样板位于 [`deploy/private_server/examples/`](../deploy/private_server/examples/README.md)，请先读其占位值说明。
 - 1.0.2 套件根目录已包含独立可读的 [`INSTALL.md`](../deploy/private_server/INSTALL.md)；包内样板只引用该包内指南，客户离线取得完整包即可读取安装步骤。

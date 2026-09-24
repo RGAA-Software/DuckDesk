@@ -5,7 +5,7 @@
 ## 准备
 
 1. 从可信渠道取得同批次的版本归档及其 `.sha256` 文件，在归档目录执行 `sha256sum -c VERSION.tar.gz.sha256`（将 `VERSION` 换成实际版本）。解包后设定其**绝对路径**为 `package_dir`，再执行 `python3 "$package_dir/tools/verify_candidate.py" "$package_dir"` 和 `sh "$package_dir/tools/preflight_linux_host.sh"`。不要混用 development 候选与正式包。
-2. 为本次部署生成一个固定的小写 UUID。准备 PostgreSQL 18 的 Console/Desk 空库及 owner、runtime、只读 backup 角色，并为数据库连接准备可验证的 CA；准备服务 HTTPS 证书、域名和 DNS。将绑定该部署 UUID 的 `PXLIC2` 许可证及 Auth 公钥信任文件安全放入客户私有目录。私有 Console 本地验签，不依赖 Auth 在线服务。
+2. 为本次部署生成一个固定的小写 UUID。准备 PostgreSQL 18 的 Console/Desk 空库及 owner、runtime、只读 backup 角色，以及客户自己的数据库 CA 和服务 HTTPS 证书；CA 和证书可自行生成或自签，不要求公有 CA。客户负责终端的信任配置和实际域名或 IP。将绑定该部署 UUID 的 `PXLIC2` 许可证及 Auth 公钥信任文件安全放入客户私有目录。私有 Console 本地验签，不依赖 Auth 在线服务；本阶段不逐张验证客户证书的签发来源。
 3. 阅读 [`examples/README.md`](examples/README.md)，复制适用的 `console.env.example`、`relay.env.example`、`desk.env.example`、`backup.json.example` 到包外的私有路径。替换所有 `REPLACE`、示例 UUID/域名、Backup 的零 SHA-256/零 schema 版本；用 `chmod 0600` 或更严保护输入文件。样板不是真实配置，不能直接安装。
 4. 用包内 `bin/px_db` 分别对 Console、Desk 空库执行 `migrate`，再以 runtime 角色执行 `check`。该工具读取 `PIXELS_DATABASE_URL` 和 `PIXELS_DEPLOYMENT_ID`；生产 PostgreSQL 连接必须使用 `verify-full`，不得打开本机开发豁免。用包内 `bin/px_console_admin generate-secrets` 生成 Console 密钥：提供 `PIXELS_CONSOLE_GUEST_SOURCE_KEY`、新文件路径 `PIXELS_CONSOLE_WORKSPACE_KEY` 和新 UUID `PIXELS_CONSOLE_WORKSPACE_KEY_ID`，再把该 UUID/路径填入样板的 `PIXELS_CONSOLE_WORKSPACE_ACTIVE_KEY`/`PIXELS_CONSOLE_WORKSPACE_KEYS`。用 `bootstrap` 初始化首个管理员时提供 owner `PIXELS_DATABASE_URL`、`PIXELS_DEPLOYMENT_ID`、`PIXELS_CONSOLE_INITIAL_USERNAME` 和私有 `PIXELS_CONSOLE_INITIAL_PASSWORD_FILE`；用 `initialize-recording-cache` 初始化空缓存时提供 `PIXELS_DEPLOYMENT_ID`、`PIXELS_CONSOLE_RECORDING_CACHE_DIRECTORY`。完成后撤下 owner 与初始口令。Relay 必须先在 Console 登记并取得一次性 node token。
 
