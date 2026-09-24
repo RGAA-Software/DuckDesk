@@ -9,7 +9,7 @@ param(
     [switch]$Linux,
     [string]$LinuxCandidate = '',
     [string]$PgToolchain = '',
-    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'relay-nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'backup-pg', 'backup-candidate', 'backup-systemd-native', 'full-systemd', 'bootstrap-candidate', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'auth-browser', 'catalog', 'update-authority', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'distribution-isolation', 'node-control', 'relay-control', 'console-process', 'console-admin', 'console-browser')]
+    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'relay-nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'backup-pg', 'backup-candidate', 'backup-systemd-native', 'full-systemd', 'bootstrap-candidate', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'auth-browser', 'catalog', 'update-authority', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'cn-license', 'distribution-isolation', 'node-control', 'relay-control', 'console-process', 'console-admin', 'console-browser')]
     [string]$Suite = ''
 )
 
@@ -387,6 +387,7 @@ try {
     # Dedicated empty fixture databases keep bootstrap/last-administrator assertions platform-independent.
     foreach ($service in @('auth','console')) {
         $fixtureKinds = if ($service -eq 'auth') { @('bootstrap') } else { @('control','bootstrap','api','directory','distribution_official','distribution_customer','node_control','process','admin','browser_template') }
+        if ($service -eq 'console' -and $Action -eq 'TestSuite' -and $Suite -eq 'cn-license') { $fixtureKinds += 'cn_license' }
         foreach ($fixtureKind in $fixtureKinds) {
         foreach ($platform in @('windows','linux')) {
             $fixtureDb = "pixels_${service}_${fixtureKind}_$platform"
@@ -481,6 +482,7 @@ try {
         $suiteCounts = @{unit=19;identity=12;control=8;devices=8;applications=8;guests=9;nodes=11;'relay-nodes'=3;deployments=6;instances=17;commands=16;workspaces=6;database=2;sessions=14;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=17;activity=8;updates=7;desk=8;catalog=4;'update-authority'=6;lease=6;postgres=15;accounts=9}
         $suiteCounts['console-api'] = 6
         $suiteCounts['directory-api'] = 7
+        $suiteCounts['cn-license'] = 1
         $suiteCounts['distribution-isolation'] = 1
         $suiteCounts['node-control'] = 2
         $suiteCounts['relay-control'] = 1
@@ -494,6 +496,7 @@ try {
         $runtimeTests = @{
             'console-api' = 'identity_api'
             'directory-api' = 'directory_api'
+            'cn-license' = 'cn_license'
             'distribution-isolation' = 'distribution_isolation'
             'node-control' = 'node_control'
             'relay-control' = 'relay_control'
@@ -501,6 +504,14 @@ try {
             'console-admin' = 'admin'
         }
         if ($runtimeTests.ContainsKey($Suite)) {
+            if ($Suite -eq 'cn-license') {
+                $licenseHandoff = Invoke-Checked 'pwsh' @('-NoProfile','-File',(Join-Path $repo 'scripts/test_cn_private_license.ps1'),'-Issue',
+                    '-DeploymentId',$secrets.PIXELS_DEPLOYMENT_ID,'-OutputDirectory',$localDir) -TimeoutSeconds 120
+                if ($licenseHandoff -notmatch 'PASS') { throw 'CN Auth license handoff did not pass' }
+                Set-LocalEnv 'PIXELS_TEST_CN_LICENSE_TRUST_STORE' (Join-Path $localDir 'auth-trust-store.json')
+                Set-LocalEnv 'PIXELS_TEST_CN_LICENSE_FILE' (Join-Path $localDir 'console.license')
+                Add-Step 'CN-LICENSE: formal Auth signed an isolated Customer deployment license; no public Console license changed'
+            }
             $apiTest = $runtimeTests[$Suite]
             $suiteArgs = @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--features','pg-integration','--test',$apiTest,'--target-dir',$targetDir)
         } elseif ($Suite -eq 'files') {
@@ -1126,6 +1137,17 @@ try {
     $steps.Add([ordered]@{case='execution'; status='FAIL'; reason=$_.Exception.Message})
     Write-Host "FAIL: $($_.Exception.Message)"
 } finally {
+    if ($Action -eq 'TestSuite' -and $Suite -eq 'cn-license') {
+        foreach ($testLicenseFile in @('auth-trust-store.json','console.license')) {
+            $testLicensePath = Join-Path $localDir $testLicenseFile
+            try {
+                if (Test-Path -LiteralPath $testLicensePath -PathType Leaf) { Remove-Item -LiteralPath $testLicensePath -Force }
+            } catch {
+                $failed = $true
+                $steps.Add([ordered]@{case='license-cleanup'; status='FAIL'; reason=$_.Exception.Message})
+            }
+        }
+    }
     if ($Action -in @('Test','TestSuite','PrepareQueries') -and $started) {
         try {
             # This project is generated uniquely by this invocation; never touches the development volume.

@@ -93,6 +93,15 @@ DB4 剩余项。
 立即导入可能暂时失败；脚本只等待签发时间到达，没有调整 CN 时钟。前两次诊断尝试也在同一测试客户名下产生了两小时有效的
 测试签发记录，未交付客户，将按到期时间失效。正式运维应保持 Auth 与 Console 主机时间同步；本次不扩展为证书专项验收。
 
+同日进一步使用 `scripts/server_validation/postgres.ps1 TestSuite -Suite cn-license` 完成运行时短闭环：脚本为隔离 PostgreSQL
+deployment 显式签发新许可证，将信任文件和许可证仅交给该测试进程；真实 `ConsoleRuntime` 加载后，管理员登录并读取到
+`cloud_applications`、`max_streams=1` 的许可证摘要。Android 用户启动未授权 RDP 返回 403，启动已授权 WebView 则越过
+许可证门禁、因隔离环境无 Render 节点返回 503；两种请求均未留下实例。最终报告
+`test-results/server_validation/pg-20260925-022437-e818efe8/report.json` 为 1/1 PASS，严格 Release Clippy 通过，
+测试数据库/容器/卷与本地许可证副本已清理，“90”现有许可证及部署未改。此测试在正式 Auth 的现有测试客户名下又产生了短期
+签发记录；它们只会自然到期，不作为实际客户交付。因为没有真实 Render，本次没有执行“第一路占用、第二路拒绝、停止后释放”
+的客户端链路；这些额度行为仍由隔离 PostgreSQL `sessions` 14/14 专项证明，不能合并声称为真实私有环境全链路通过。
+
 Console 不再请求 `auth.rgaa.vip` 验证许可证。运维从 Auth 管理面下载签名 `PXLIC2`，把许可证和 Auth 公钥信任根作为受控文件安装到
 目标 Console；Console 启动和业务准入只做本地签名、deployment、到期时间、服务集合和 stream 上限检查。Auth 中的撤销会阻止续期，
 但不会让已交付的离线副本瞬时失效。

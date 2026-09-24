@@ -26,7 +26,7 @@ pub fn config(role: &str) -> DatabaseConfig {
         url::Url::parse(&env::var(format!("PIXELS_TEST_CONSOLE_{role}_URL")).unwrap()).unwrap();
     assert!(matches!(
         crate::FIXTURE_KIND,
-        "api" | "directory" | "node_control"
+        "api" | "directory" | "node_control" | "cn_license"
     ));
     let platform = if cfg!(windows) { "windows" } else { "linux" };
     url.set_path(&format!(

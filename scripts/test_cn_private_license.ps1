@@ -4,7 +4,9 @@
 param(
     [string]$ConsoleAdminPath = '.cache/pg-cargo/release/px_console_admin.exe',
     [string]$PublicTestHost = '39.71.45.66',
-    [switch]$Issue
+    [switch]$Issue,
+    [guid]$DeploymentId,
+    [string]$OutputDirectory = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -12,6 +14,12 @@ $repository = Split-Path $PSScriptRoot -Parent
 $authConfiguration = Get-Content (Join-Path $repository '.env/auth_rgaa_vip.json') -Raw | ConvertFrom-Json
 $machineText = Get-Content (Join-Path $repository '.env/test_machine.md') -Raw -Encoding UTF8
 $consoleAdmin = [IO.Path]::GetFullPath((Join-Path $repository $ConsoleAdminPath))
+if ($OutputDirectory -and (-not $Issue -or $DeploymentId -eq [guid]::Empty)) {
+    throw 'Exporting a test license requires -Issue and an explicit deployment ID.'
+}
+if ($OutputDirectory -and -not (Test-Path -LiteralPath $OutputDirectory -PathType Container)) {
+    throw 'The isolated output directory must already exist.'
+}
 if (-not (Test-Path -LiteralPath $consoleAdmin -PathType Leaf)) {
     throw 'Focused Release px_console_admin is missing.'
 }
@@ -85,7 +93,7 @@ try {
         throw 'The existing CN Auth validation customer was not uniquely identified; no license was issued.'
     }
 
-    $deploymentId = [guid]::NewGuid().ToString()
+    $deploymentId = if ($DeploymentId -eq [guid]::Empty) { [guid]::NewGuid().ToString() } else { $DeploymentId.ToString() }
     $issueResponse = Invoke-RestMethod -Method Post -Uri "$authOrigin/api/auth/licenses/issue" -Headers $authHeaders `
         -ContentType 'application/json' -Body (@{
             request_id = [guid]::NewGuid().ToString()
@@ -135,6 +143,16 @@ try {
     & $consoleAdmin validate-license *> $null
     if ($LASTEXITCODE -eq 0) {
         throw 'Customer Console accepted a signed license for another deployment.'
+    }
+    if ($OutputDirectory) {
+        $resolvedOutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
+        $isolatedEnvironmentRoot = [IO.Path]::GetFullPath((Join-Path $repository '.env'))
+        if (-not $resolvedOutputDirectory.StartsWith($isolatedEnvironmentRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase) -or
+            -not ([IO.Path]::GetFileName($resolvedOutputDirectory) -like 'pixels-pg-*')) {
+            throw 'Test license export is restricted to an isolated PostgreSQL test directory.'
+        }
+        [IO.File]::WriteAllBytes((Join-Path $resolvedOutputDirectory 'auth-trust-store.json'), $trustBytes)
+        [IO.File]::WriteAllText((Join-Path $resolvedOutputDirectory 'console.license'), [string]$issueResponse.wire, [Text.UTF8Encoding]::new($false))
     }
     [pscustomobject]@{
         Result = 'PASS'
