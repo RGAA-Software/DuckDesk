@@ -87,7 +87,7 @@ DB4 剩余项。
 也未在客户机器上正式安装。隔离 PostgreSQL 的 `sessions` 聚焦套件 14/14 通过，其中包含服务权限拦截与最后一个 stream 名额的
 并发原子性检查；报告为 `test-results/server_validation/pg-20260925-021002-310c206e/report.json`。这些是签发/本地校验与
 仓储层功能的组合证据，不等于真实私有部署的完整端到端验收。可重复的短测入口为 `scripts/test_cn_private_license.ps1`；
-默认只做现有许可证预检，显式传入 `-Issue` 才会在该测试客户名下再签发一张短期许可证。
+当前默认只检查仓库中固定的公开 Auth 公钥测试 fixture 的 key ID；该 fixture 曾从 90 的现有公钥信任文件提取，但运行时不访问 90，也不预检 90 的现有许可证。显式传入 `-Issue` 才会在该测试客户名下再签发一张短期许可证，并用该公钥及真实 `px_console_admin` 离线验签。公钥轮换时须由可信 Auth 运维渠道更新此 fixture；它不是客户交付的信任根，也不包含签发私钥。
 
 本次发现 CN Auth 服务器时钟约比执行验收的 Windows 机器快 11 秒。Console 按 `issued_at` 拒绝尚未生效的许可证，因此签发后
 立即导入可能暂时失败；脚本只等待签发时间到达，没有调整 CN 时钟。前两次诊断尝试也在同一测试客户名下产生了两小时有效的
@@ -108,6 +108,8 @@ deployment 显式签发新许可证，将信任文件和许可证仅交给该测
 副本已清理。首次扩展运行因测试代码将 JSON 字符串中的 UUID 连同引号放入停止 URL，收到 400；修正测试 URL 后复跑通过，
 未改产品代码。此次新增的 CN 测试签发记录同样只会到期，不交付客户。节点为协议级模拟，没有物理 Render、媒体画面或真实客户端，
 所以这关闭的是 Console 运行时授权额度链路，不是私有部署的端到端云应用验收。
+
+2026-09-25 又以不依赖 90 的固定公开公钥 fixture 运行同一 `cn-license` 短测，CN 实签 wire 在隔离 Console 完成离线验签、准入和 1 路额度占用/释放；`test-results/server_validation/pg-20260925-091307-b350fb85/report.json` 为 1/1 PASS。测试只增添短期 Auth 测试签发记录，未修改 90 部署。Customer Linux 的许可证文件替换工具另在隔离 systemd 环境完成错误 deployment 拒绝与正确替换后 readiness 验证，报告 `test-results/server_validation/pg-20260925-090757-134e6d21/report.json`。这仍不是客户真实凭据或正式 Customer 包的生产验收。
 
 Console 不再请求 `auth.rgaa.vip` 验证许可证。运维从 Auth 管理面下载签名 `PXLIC2`，把许可证和 Auth 公钥信任根作为受控文件安装到
 目标 Console；Console 启动和业务准入只做本地签名、deployment、到期时间、服务集合和 stream 上限检查。Auth 中的撤销会阻止续期，

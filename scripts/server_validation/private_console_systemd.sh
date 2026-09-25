@@ -162,6 +162,33 @@ index_response=$("${console_curl[@]}" --fail "$console_origin/")
 systemctl restart "$service_name"
 wait_for_console_ready
 
+wrong_license_directory="$fixture_directory/wrong-license"
+install -d -m 0700 "$wrong_license_directory"
+"$fixture_binary" "$(cat /proc/sys/kernel/random/uuid)" "$wrong_license_directory"
+license_before=$(sha256sum "$secret_directory/console.license" | cut -d ' ' -f 1)
+pid_before=$(systemctl show "$service_name" --property=MainPID --value)
+if /bin/sh "$candidate_directory/tools/renew_console_license.sh" "$deployment_id" \
+    "$wrong_license_directory/license-trust.json" "$wrong_license_directory/console.license"; then
+    echo "Console accepted a replacement license for another deployment" >&2
+    exit 1
+fi
+[[ $(sha256sum "$secret_directory/console.license" | cut -d ' ' -f 1) == "$license_before" ]] || {
+    echo "rejected license changed the installed file" >&2; exit 1;
+}
+[[ $(systemctl show "$service_name" --property=MainPID --value) == "$pid_before" ]] || {
+    echo "rejected license restarted Console" >&2; exit 1;
+}
+
+replacement_directory="$fixture_directory/replacement-license"
+install -d -m 0700 "$replacement_directory"
+"$fixture_binary" "$deployment_id" "$replacement_directory"
+/bin/sh "$candidate_directory/tools/renew_console_license.sh" "$deployment_id" \
+    "$replacement_directory/license-trust.json" "$replacement_directory/console.license"
+[[ $(sha256sum "$secret_directory/console.license" | cut -d ' ' -f 1) != "$license_before" ]] || {
+    echo "Console license replacement did not publish new bytes" >&2; exit 1;
+}
+wait_for_console_ready
+
 invalid_environment="$fixture_directory/invalid-console.env"
 sed "s|^PIXELS_CONSOLE_LICENSE_FILE=.*|PIXELS_CONSOLE_LICENSE_FILE=$secret_directory/missing.license|" \
     "$source_environment" >"$invalid_environment"
@@ -182,4 +209,4 @@ wait_for_console_ready
 [[ -f "$configuration_root/private-console.env" && -d "$release_root/releases" && -d "$cache_directory" ]] || {
     echo "Console unregister removed preserved state" >&2; exit 1;
 }
-echo "PASS PRIVATE CONSOLE SYSTEMD: isolated PXLIC2, verify-full PG, wrong-root rejection, HTTPS, restart, rollback and unregister"
+echo "PASS PRIVATE CONSOLE SYSTEMD: isolated PXLIC2, verify-full PG, rejected wrong-deployment renewal, successful license replacement, HTTPS, restart, rollback and unregister"

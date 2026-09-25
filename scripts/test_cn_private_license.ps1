@@ -3,7 +3,7 @@
 [CmdletBinding()]
 param(
     [string]$ConsoleAdminPath = '.cache/pg-cargo/release/px_console_admin.exe',
-    [string]$PublicTestHost = '39.71.45.66',
+    [string]$TrustStorePath = 'scripts/server_validation/fixtures/cn_auth_public_trust_20260925.json',
     [switch]$Issue,
     [guid]$DeploymentId,
     [string]$OutputDirectory = ''
@@ -12,8 +12,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $repository = Split-Path $PSScriptRoot -Parent
 $authConfiguration = Get-Content (Join-Path $repository '.env/auth_rgaa_vip.json') -Raw | ConvertFrom-Json
-$machineText = Get-Content (Join-Path $repository '.env/test_machine.md') -Raw -Encoding UTF8
 $consoleAdmin = [IO.Path]::GetFullPath((Join-Path $repository $ConsoleAdminPath))
+$trustedPublicKeyPath = [IO.Path]::GetFullPath((Join-Path $repository $TrustStorePath))
 if ($OutputDirectory -and (-not $Issue -or $DeploymentId -eq [guid]::Empty)) {
     throw 'Exporting a test license requires -Issue and an explicit deployment ID.'
 }
@@ -23,35 +23,25 @@ if ($OutputDirectory -and -not (Test-Path -LiteralPath $OutputDirectory -PathTyp
 if (-not (Test-Path -LiteralPath $consoleAdmin -PathType Leaf)) {
     throw 'Focused Release px_console_admin is missing.'
 }
-$machinePassword = [regex]::Match($machineText, '(?m)^\s*-\s*\u5bc6\u7801\s*[:\uff1a]\s*(.+?)\s*$').Groups[1].Value
-$machineName = [regex]::Match($machineText, '(?m)^\s*-\s*\u4e3b\u673a\u540d\s*[:\uff1a]\s*(.+?)\s*$').Groups[1].Value
-$machineUsername = [regex]::Match($machineText, '(?m)^\s*-\s*\u7528\u6237\u540d\s*[:\uff1a]\s*(.+?)\s*$').Groups[1].Value
-if (-not $machinePassword -or -not $machineName -or -not $machineUsername) {
-    throw 'Public test host credential is incomplete.'
+if (-not (Test-Path -LiteralPath $trustedPublicKeyPath -PathType Leaf)) {
+    throw 'Pinned public Auth trust fixture is missing.'
 }
-$qualifiedUsername = if ($machineUsername.Contains('\')) { $machineUsername } else { "$machineName\$machineUsername" }
-$credential = [pscredential]::new($qualifiedUsername, (ConvertTo-SecureString $machinePassword -AsPlainText -Force))
 $authOrigin = ([Uri]$authConfiguration.url).GetLeftPart([UriPartial]::Authority)
 $temporaryRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
 $temporaryDirectory = Join-Path $temporaryRoot ('pixels-cn-license-' + [guid]::NewGuid().ToString('N'))
 $authToken = ''
-$remoteSession = $null
-$trustedHostsPath = 'WSMan:\localhost\Client\TrustedHosts'
-$previousTrustedHosts = (Get-Item -LiteralPath $trustedHostsPath).Value
 try {
-    Set-Item -LiteralPath $trustedHostsPath -Value $PublicTestHost -Force
-    $remoteSession = New-PSSession -ComputerName $PublicTestHost -Credential $credential
-    $installedMaterial = Invoke-Command -Session $remoteSession -ScriptBlock {
-        [pscustomobject]@{
-            trust_bytes = [IO.File]::ReadAllBytes('D:\PixelsServer\secrets\console\auth-trust-store.json')
-            license_bytes = [IO.File]::ReadAllBytes('D:\PixelsServer\secrets\console\license.pxlic')
-            deployment_id = [string]((Get-Content 'D:\PixelsServer\config\stack-secrets.json' -Raw | ConvertFrom-Json).DeploymentId)
-        }
-    }
-    $trustBytes = [byte[]]$installedMaterial.trust_bytes
+    $trustText = [Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($trustedPublicKeyPath)).TrimEnd([char[]]@([char]13, [char]10))
+    $trustBytes = [Text.Encoding]::UTF8.GetBytes($trustText)
     $trustStore = [Text.Encoding]::UTF8.GetString([byte[]]$trustBytes) | ConvertFrom-Json
     if ($trustStore.schema_version -ne 2 -or $trustStore.trusted_keys.Count -ne 1) {
-        throw 'The installed Auth public trust store is not the expected minimal PXLIC2 form.'
+        throw 'Pinned Auth public trust fixture is not the expected minimal PXLIC2 form.'
+    }
+    $pinnedPublicKey = [Convert]::FromHexString([string]$trustStore.trusted_keys[0].public_key_hex)
+    $calculatedKeyId = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($pinnedPublicKey)).ToLowerInvariant()
+    if ($pinnedPublicKey.Length -ne 32 -or $calculatedKeyId -ne $trustStore.active_key_id -or
+        $trustStore.trusted_keys[0].key_id -ne $calculatedKeyId) {
+        throw 'Pinned Auth public trust fixture has an invalid key ID.'
     }
 
     [void](New-Item -ItemType Directory -Path $temporaryDirectory)
@@ -63,16 +53,8 @@ try {
     $trustPath = Join-Path $temporaryDirectory 'auth-trust-store.json'
     $licensePath = Join-Path $temporaryDirectory 'console.license'
     [IO.File]::WriteAllBytes($trustPath, $trustBytes)
-    [IO.File]::WriteAllBytes($licensePath, [byte[]]$installedMaterial.license_bytes)
-    $env:PIXELS_DEPLOYMENT_ID = [string]$installedMaterial.deployment_id
-    $env:PIXELS_CONSOLE_LICENSE_TRUST_STORE = $trustPath
-    $env:PIXELS_CONSOLE_LICENSE_FILE = $licensePath
-    $preflightOutput = & $consoleAdmin validate-license 2>&1
-    if ($LASTEXITCODE -ne 0 -or $preflightOutput -notmatch 'Console license validated') {
-        throw "Existing public test license preflight failed; no new license was issued: $preflightOutput"
-    }
     if (-not $Issue) {
-        [pscustomobject]@{ Result = 'PASS'; ExistingLicensePreflight = $true }
+        [pscustomobject]@{ Result = 'PASS'; PinnedTrustKeyId = [string]$trustStore.active_key_id; TrustFixtureHash = (Get-FileHash -LiteralPath $trustedPublicKeyPath -Algorithm SHA256).Hash }
         return
     }
     $authHealth = Invoke-WebRequest -Uri "$authOrigin/health/ready"
@@ -175,11 +157,6 @@ try {
             Write-Warning 'CN Auth acceptance login cleanup failed.'
         }
     }
-    if ($remoteSession) {
-        Remove-PSSession $remoteSession
-    }
-    Set-Item -LiteralPath $trustedHostsPath -Value $previousTrustedHosts -Force
-    $machinePassword = $null
     $authConfiguration.password = $null
     if (Test-Path -LiteralPath $temporaryDirectory -PathType Container) {
         $resolvedDirectory = [IO.Path]::GetFullPath($temporaryDirectory)

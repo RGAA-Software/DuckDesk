@@ -190,6 +190,7 @@ def assemble(arguments: argparse.Namespace) -> dict[str, object]:
         shutil.copy2(upgrade_check_source, verifier_directory / "check_upgrade.py")
         for tool_name in (
             "preflight_linux_host.sh", "install_linux_component.sh", "uninstall_linux_component.sh",
+            "renew_console_license.sh",
             "install_pg_toolchain.sh", "verify_pg_toolchain.py",
         ):
             tool_source = SOURCE_ROOT / "scripts/server_private" / tool_name

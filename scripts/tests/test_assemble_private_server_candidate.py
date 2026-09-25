@@ -105,6 +105,7 @@ class PrivateServerCandidateTests(unittest.TestCase):
         self.assertIn("bin/px_desk", manifest["artifacts"])
         self.assertIn("static/desk/index.html", manifest["artifacts"])
         self.assertIn("examples/desk.env.example", manifest["artifacts"])
+        self.assertIn("tools/renew_console_license.sh", manifest["artifacts"])
 
     def test_rejects_wrong_linux_architecture(self) -> None:
         (self.sources / "px_relay").write_bytes(b"\x7fELF\x02\x01" + b"\x00" * 12 + b"\xb7\x00")
