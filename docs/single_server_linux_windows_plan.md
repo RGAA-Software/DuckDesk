@@ -1,5 +1,7 @@
 # Customer Single Server：Linux 与 Windows 实施计划
 
+> 2026-09-26 公网短验收：正式 1.0.5 Windows Setup 已在 90（公网地址 `39.71.45.66`）对 1.0.4 原地覆盖，未卸载；安装登记为 1.0.5，Console/Relay/Backup SCM 服务运行。CN Auth 签发的短期 PXLIC2 生效，Console readiness 204、Relay ready/fresh、Backup 有 verified 恢复点且无告警；Cloud Node 使用新 Console 的一次性节点身份重新接入，最终 ready/fresh。旧节点的 4 条录像索引引用已废弃的开发数据库会话，原文件按 SHA-256 归档于 90 的 `D:\PixelsServer\backups\old-node-recording-inventory-20260926`，录像文件未删。Windows 首次安装时 rcgen 默认给 CA 与服务器证书相同 subject 的问题已修复，并加入证书链回归测试；本次在 90 的证书轮换使用独立 subject 与 AKI/SKI。正式 1.0.5 Linux Compose 包也已生成，未在客户主机部署。随后以新 Console 中创建的 WebView 应用和测试用户，Windows Client 两次完成登录、启动实例、直连动态 Render `39.71.45.66:4613`、解码画面、关闭会话与停止实例；第二次成功证明第一次退出后 stream 配额和端口可复用。这是 Windows Native Direct 云应用短验收，不覆盖 Android、Web Client、RDP、音频、文件传输、原生 Ubuntu 主机或客户生产环境。
+
 > 2026-09-26 更新：1.0.3 的预制配置安装流程已由 1.0.4 一键安装流程替代。Windows Setup 单 EXE 与 Linux 版本镜像/Compose 共用 Rust 首次初始化逻辑；不要求预制 JSON、env、证书或许可证。下文 1.0.3 数据和前置清单仅为历史记录，不能当作当前安装说明。当前操作见 [Windows Setup](../deploy/single_server/windows/README.md) 和 [Linux Compose](../deploy/single_server/linux/README.md)。
 
 ## 0. 一键安装目标与最小改造

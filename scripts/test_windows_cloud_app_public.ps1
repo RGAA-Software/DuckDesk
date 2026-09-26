@@ -16,6 +16,7 @@ param(
     [string]$CertificateAuthority,
     [string]$ClientExecutable = '',
     [string]$ClientBuildExecutable = '',
+    [string]$CredentialsPath = '',
     [string]$AppId = '',
     [switch]$Rdp,
     [switch]$ForceRelay,
@@ -65,7 +66,7 @@ function Resolve-AcceptancePath {
 
 $clientPath = Resolve-AcceptancePath $ClientExecutable 'build_official/client/dist/px_client.exe'
 $buildClientPath = Resolve-AcceptancePath $ClientBuildExecutable 'build_official/client/cmake/src/px_deps/px_client.exe'
-$credentialsPath = Join-Path $repository '.env/public_test_user.json'
+$credentialsPath = Resolve-AcceptancePath $CredentialsPath '.env/public_test_user.json'
 $licensePath = Join-Path $repository '.env/public_license.json'
 $machinePath = Join-Path $repository '.env/test_machine.md'
 $clientLogPath = Join-Path (Split-Path $clientPath -Parent) 'px_logs/px_client.log'

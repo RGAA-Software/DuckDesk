@@ -49,6 +49,7 @@ px_relay_server = { path = "../../px_relay_server" }
 tower = { version = "0.5", features = ["util"] }
 tokio-tungstenite = "0.28"
 tempfile = "3"
+x509-parser = { version = "0.18.1", features = ["verify"] }
 
 [[test]]
 name = "identity_api"

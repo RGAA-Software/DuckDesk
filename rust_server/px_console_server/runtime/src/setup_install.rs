@@ -4,7 +4,7 @@ use px_pg::{migrate, provision_backup_role, DatabaseConfig, Service, Transport};
 use px_private_files::{private, CacheRoot};
 use rand::RngCore;
 use rcgen::{
-    BasicConstraints, CertificateParams, ExtendedKeyUsagePurpose, IsCa, Issuer, KeyPair,
+    BasicConstraints, CertificateParams, DnType, ExtendedKeyUsagePurpose, IsCa, Issuer, KeyPair,
     KeyUsagePurpose,
 };
 use serde::Deserialize;
@@ -544,6 +544,9 @@ fn generate_console_certificate(
     host: &str,
 ) -> Result<(String, String, String), SingleServerSetupError> {
     let mut certificate_authority_params = CertificateParams::default();
+    certificate_authority_params
+        .distinguished_name
+        .push(DnType::CommonName, "Pixels Single Server CA");
     certificate_authority_params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
     certificate_authority_params.key_usages =
         vec![KeyUsagePurpose::KeyCertSign, KeyUsagePurpose::CrlSign];
@@ -560,6 +563,9 @@ fn generate_console_certificate(
         "127.0.0.1".to_owned(),
     ])
     .map_err(|_| SingleServerSetupError::Private)?;
+    server_params
+        .distinguished_name
+        .push(DnType::CommonName, "Pixels Console");
     server_params.extended_key_usages = vec![ExtendedKeyUsagePurpose::ServerAuth];
     server_params.key_usages = vec![
         KeyUsagePurpose::DigitalSignature,
@@ -650,4 +656,33 @@ fn write_backup_config(
 fn tool_hash(path: &Path) -> Result<String, SingleServerSetupError> {
     let bytes = fs::read(path).map_err(|_| SingleServerSetupError::Package)?;
     Ok(hex::encode(Sha256::digest(bytes)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::generate_console_certificate;
+    use x509_parser::{parse_x509_certificate, pem::parse_x509_pem};
+
+    #[test]
+    fn console_certificate_has_a_distinct_signing_authority() {
+        let (authority_pem, server_pem, _server_key) =
+            generate_console_certificate("39.71.45.66").expect("console certificate generation");
+        let (_, authority_block) = parse_x509_pem(authority_pem.as_bytes()).expect("authority PEM");
+        let (_, server_block) = parse_x509_pem(server_pem.as_bytes()).expect("server PEM");
+        let (_, authority_certificate) =
+            parse_x509_certificate(&authority_block.contents).expect("authority certificate");
+        let (_, server_certificate) =
+            parse_x509_certificate(&server_block.contents).expect("server certificate");
+        assert_ne!(
+            authority_certificate.subject(),
+            server_certificate.subject()
+        );
+        assert_eq!(server_certificate.issuer(), authority_certificate.subject());
+        authority_certificate
+            .verify_signature(None)
+            .expect("authority self-signature");
+        server_certificate
+            .verify_signature(Some(authority_certificate.public_key()))
+            .expect("server signature");
+    }
 }
