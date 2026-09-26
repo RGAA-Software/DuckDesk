@@ -60,8 +60,6 @@ class PrivateServerCandidateTests(unittest.TestCase):
             database_admin=self.sources / "px_db",
             relay=self.sources / "px_relay",
             console_static=self.console_static,
-            desk=None,
-            desk_static=None,
             output=self.root / "candidate",
         )
 
@@ -91,20 +89,10 @@ class PrivateServerCandidateTests(unittest.TestCase):
             assemble(self.arguments())
         self.assertFalse((self.root / "candidate").exists())
 
-    def test_optional_desk_has_its_own_version_and_static_assets(self) -> None:
-        desk_executable = self.sources / "px_desk"
-        desk_executable.write_bytes(b"\x7fELF\x02\x01" + b"\x00" * 12 + b"\x3e\x00desk")
-        desk_static = self.sources / "desk-static"
-        desk_static.mkdir()
-        (desk_static / "index.html").write_text("Pixels Desk", encoding="utf-8")
-        arguments = self.arguments()
-        arguments.desk = desk_executable
-        arguments.desk_static = desk_static
-        manifest = assemble(arguments)
-        self.assertEqual(manifest["component_versions"]["desk"], "3.2.9")
-        self.assertIn("bin/px_desk", manifest["artifacts"])
-        self.assertIn("static/desk/index.html", manifest["artifacts"])
-        self.assertIn("examples/desk.env.example", manifest["artifacts"])
+    def test_customer_package_excludes_official_website(self) -> None:
+        manifest = assemble(self.arguments())
+        self.assertNotIn("desk", manifest["component_versions"])
+        self.assertFalse(any("desk" in artifact_name for artifact_name in manifest["artifacts"]))
         self.assertIn("tools/renew_console_license.sh", manifest["artifacts"])
 
     def test_rejects_wrong_linux_architecture(self) -> None:
@@ -157,7 +145,7 @@ class PrivateServerCandidateTests(unittest.TestCase):
         self.assertEqual(backup_example["schema_version"], 2)
         self.assertEqual(backup_example["pg_dump_sha256"], "0" * 64)
         self.assertEqual([target["state"] for target in backup_example["plan"]["targets"]],
-                         ["required", "not_applicable", "required"])
+                         ["required", "not_applicable", "not_applicable"])
 
     def test_rejects_invalid_formal_suite_version_before_creating_output(self) -> None:
         arguments = self.arguments()

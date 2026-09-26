@@ -16,8 +16,9 @@ px_private_files = { path = "../../px_private_files" }
 px_relay_admission = { path = "../../px_relay_admission" }
 px_relay_control_protocol = { path = "../../px_relay_control_protocol" }
 px_release_catalog = { path = "../../px_release_catalog" }
+px_server_service = { path = "../../px_server_service" }
 px_license = { path = "../../px_auth_server/license" }
-axum = { version = "0.8.1", features = ["json", "ws"] }
+axum = { version = "0.8.1", features = ["json", "ws", "macros"] }
 axum-server = { version = "0.8.0", features = ["tls-rustls-no-provider"] }
 futures-util = "0.3"
 tokio = { version = "1.43", features = ["fs", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
@@ -28,6 +29,9 @@ serde_json = "1"
 uuid = { version = "1", features = ["v4", "serde"] }
 zeroize = "1.8"
 sha2 = "0.10"
+sqlx = { version = "=0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "uuid", "migrate", "macros"] }
+rcgen = "=0.14.10"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 ring = "0.17"
 rand = "0.9"
 hex = "0.4"
@@ -44,8 +48,6 @@ libc = "0.2"
 px_relay_server = { path = "../../px_relay_server" }
 tower = { version = "0.5", features = ["util"] }
 tokio-tungstenite = "0.28"
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-sqlx = { version = "=0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "uuid"] }
 tempfile = "3"
 
 [[test]]

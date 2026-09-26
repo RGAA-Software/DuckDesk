@@ -70,7 +70,28 @@ fn main() -> ExitCode {
 }
 
 fn run() -> Result<(), &'static str> {
-    let arguments = env::args_os().collect::<Vec<_>>();
+    let mut arguments = env::args_os().collect::<Vec<_>>();
+    if arguments.len() == 7
+        && arguments[1] == "run"
+        && arguments[3] == "--wait-env-file"
+        && arguments[5] == "--wait-marker"
+    {
+        let environment_path = PathBuf::from(&arguments[4]);
+        while !environment_path.is_file() {
+            thread::sleep(Duration::from_secs(2));
+        }
+        let marker_path = PathBuf::from(&arguments[6]);
+        while !marker_path.is_file() {
+            thread::sleep(Duration::from_secs(2));
+        }
+        px_server_service::load_environment_file(&environment_path)
+            .map_err(|_| "configuration rejected")?;
+        let root_certificate =
+            env::var("PIXELS_BACKUP_PG_SSL_ROOT_CERT").map_err(|_| "configuration rejected")?;
+        env::set_var("PGSSLROOTCERT", root_certificate);
+        env::set_var("PGSSLMODE", "verify-full");
+        arguments.truncate(3);
+    }
     if arguments.len() < 3 {
         return Err("usage: px_backup run|service|barrier-acquire|barrier-release|witness-record|restore-provision|restore-execute|restore-seal|restore-evaluate|restore-approve <private-config-path> [private-approval-path]");
     }

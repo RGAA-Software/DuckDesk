@@ -82,7 +82,11 @@ pub async fn login(
     if client == ClientType::AdminWeb && credential.role == Role::User {
         return Err(ApiError::Unauthorized);
     }
-    state.active()?;
+    if client == ClientType::AdminWeb {
+        state.operational()?;
+    } else {
+        state.active()?;
+    }
     let (token, digest) = request::mint();
     let session = identity
         .issue_session(
@@ -161,7 +165,11 @@ pub async fn change_password(
     })
     .await
     .map_err(|_| ApiError::Internal)??;
-    state.active()?;
+    if client == ClientType::AdminWeb {
+        state.operational()?;
+    } else {
+        state.active()?;
+    }
     identity
         .change_password(
             &token,

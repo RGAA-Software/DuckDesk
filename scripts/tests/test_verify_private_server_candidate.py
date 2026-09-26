@@ -36,8 +36,6 @@ class PrivateServerVerifierTests(unittest.TestCase):
                 database_admin=sources / "px_db",
                 relay=sources / "px_relay",
                 console_static=static_directory,
-                desk=None,
-                desk_static=None,
                 output=self.candidate,
             )
         )

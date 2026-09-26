@@ -2,7 +2,7 @@
 set -eu
 
 if [ "$#" -ne 4 ]; then
-    echo "usage: install_linux_component.sh <console|relay|desk|backup> <deployment-uuid> <absolute-candidate-directory> <absolute-private-config-file>" >&2
+    echo "usage: install_linux_component.sh <console|relay|backup> <deployment-uuid> <absolute-candidate-directory> <absolute-private-config-file>" >&2
     exit 2
 fi
 if ! command -v python3 >/dev/null 2>&1; then
@@ -18,7 +18,7 @@ component=$1
 deployment_id=$2
 candidate_directory=$3
 source_environment=$4
-case "$component" in console|relay|desk|backup) ;; *) echo "unknown component" >&2; exit 4 ;; esac
+case "$component" in console|relay|backup) ;; *) echo "unknown component" >&2; exit 4 ;; esac
 if ! printf '%s\n' "$deployment_id" | grep -Eq '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'; then
     echo "deployment ID must be a lowercase UUID" >&2
     exit 4
@@ -108,10 +108,6 @@ if [ "$component" = console ]; then
     grep -Fxq 'PIXELS_CONSOLE_RELEASE_NAMESPACE=pixels.customer' "$source_environment" || { echo "Customer release namespace is required" >&2; exit 4; }
     grep -Fxq "PIXELS_CONSOLE_STATIC_DIRECTORY=/opt/pixels/private/$deployment_id/current-console/static/console" "$source_environment" || {
         echo "Console static path must point to its independent current release" >&2; exit 4;
-    }
-elif [ "$component" = desk ]; then
-    grep -Fxq "PIXELS_DESK_STATIC_DIRECTORY=/opt/pixels/private/$deployment_id/current-desk/static/desk" "$source_environment" || {
-        echo "Desk static path must point to its independent current release" >&2; exit 4;
     }
 fi
 

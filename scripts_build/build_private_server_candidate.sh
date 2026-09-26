@@ -32,7 +32,6 @@ cargo build --locked --release \
     -p px_console_runtime --bin px_console --bin px_console_admin \
     -p px_pg --bin px_db \
     -p px_relay_server --bin px_relay \
-    -p px_desk_server --bin px_desk \
     -p px_backup --bin px_backup
 
 python3 "$source_root/scripts/assemble_private_server_candidate.py" \
@@ -41,8 +40,6 @@ python3 "$source_root/scripts/assemble_private_server_candidate.py" \
     --database-admin "$CARGO_TARGET_DIR/release/px_db" \
     --relay "$CARGO_TARGET_DIR/release/px_relay" \
     --backup "$CARGO_TARGET_DIR/release/px_backup" \
-    --desk "$CARGO_TARGET_DIR/release/px_desk" \
     --console-static "$source_root/web/px_console/dist" \
-    --desk-static "$source_root/web/px_pixels/dist" \
     "${pg_toolchain_arguments[@]}" \
     --output "$candidate_output"

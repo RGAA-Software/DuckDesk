@@ -4,13 +4,61 @@ use tokio_util::sync::CancellationToken;
 
 #[tokio::main]
 async fn main() {
-    if let Err(error) = run().await {
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--wait-env-file")) {
+        let Some(configuration_path) = std::env::args_os().nth(2) else {
+            eprintln!("Console configuration path is missing");
+            std::process::exit(2);
+        };
+        let configuration_path = std::path::PathBuf::from(configuration_path);
+        while !configuration_path.is_file() {
+            tokio::time::sleep(Duration::from_secs(2)).await;
+        }
+        if std::env::args_os().nth(3).as_deref() == Some(std::ffi::OsStr::new("--wait-marker")) {
+            let Some(marker_path) = std::env::args_os().nth(4) else {
+                eprintln!("Console readiness marker path is missing");
+                std::process::exit(2);
+            };
+            while !std::path::Path::new(&marker_path).is_file() {
+                tokio::time::sleep(Duration::from_secs(2)).await;
+            }
+        }
+        if let Err(error) = px_server_service::load_environment_file(&configuration_path) {
+            eprintln!("Console configuration failed: {error}");
+            std::process::exit(2);
+        }
+    }
+    #[cfg(windows)]
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--service")) {
+        let Some(configuration_path) = std::env::args_os().nth(2) else {
+            eprintln!("Console service configuration path is missing");
+            std::process::exit(2);
+        };
+        if let Err(error) =
+            px_server_service::load_environment_file(std::path::Path::new(&configuration_path))
+                .and_then(|_| px_server_service::dispatch("Pixels.Console", run_windows_service))
+        {
+            eprintln!("Console Windows service failed: {error}");
+            std::process::exit(1);
+        }
+        return;
+    }
+    if let Err(error) = run(CancellationToken::new()).await {
         eprintln!("Console startup/runtime failed: {error}");
         std::process::exit(1);
     }
 }
 
-async fn run() -> Result<(), Box<dyn std::error::Error>> {
+#[cfg(windows)]
+fn run_windows_service(
+    runtime: &tokio::runtime::Runtime,
+    stop_token: CancellationToken,
+) -> Result<(), String> {
+    runtime
+        .block_on(run(stop_token))
+        .map_err(|error| error.to_string())
+}
+
+async fn run(stop_token: CancellationToken) -> Result<(), Box<dyn std::error::Error>> {
     let ConsoleLaunch {
         database,
         deployment,
@@ -25,8 +73,9 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         relay_admission,
         release,
         license,
+        license_config,
     } = ConsoleLaunchConfig::from_env()?.load().await?;
-    let runtime = ConsoleRuntime::activate_product_with_cache(
+    let runtime = ConsoleRuntime::activate_product_with_cache_optional(
         &database,
         deployment,
         vault,
@@ -38,6 +87,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
             release,
         },
         license,
+        license_config,
     )
     .await?;
     let cancellation = runtime.cancellation_token();
@@ -54,7 +104,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         let shutdown_handle = server_handle.clone();
         let shutdown_cancellation = cancellation.clone();
         let shutdown_task = tokio::spawn(async move {
-            wait_for_shutdown(shutdown_cancellation).await;
+            wait_for_shutdown(shutdown_cancellation, stop_token.clone()).await;
             shutdown_handle.graceful_shutdown(Some(Duration::from_secs(10)));
         });
         println!("Console listening https://{address}");
@@ -70,7 +120,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
             tokio::net::TcpListener::from_std(listener)?,
             application.into_make_service_with_connect_info::<std::net::SocketAddr>(),
         )
-        .with_graceful_shutdown(wait_for_shutdown(cancellation.clone()))
+        .with_graceful_shutdown(wait_for_shutdown(cancellation.clone(), stop_token))
         .await
     };
     let authority_lost = cancellation.is_cancelled();
@@ -83,15 +133,16 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[cfg(windows)]
-async fn wait_for_shutdown(cancellation: CancellationToken) {
+async fn wait_for_shutdown(cancellation: CancellationToken, stop_token: CancellationToken) {
     tokio::select! {
         _ = cancellation.cancelled() => {}
+        _ = stop_token.cancelled() => {}
         _ = tokio::signal::ctrl_c() => {}
     }
 }
 
 #[cfg(unix)]
-async fn wait_for_shutdown(cancellation: CancellationToken) {
+async fn wait_for_shutdown(cancellation: CancellationToken, stop_token: CancellationToken) {
     use tokio::signal::unix::{signal, SignalKind};
 
     let Ok(mut terminate) = signal(SignalKind::terminate()) else {
@@ -100,6 +151,7 @@ async fn wait_for_shutdown(cancellation: CancellationToken) {
     };
     tokio::select! {
         _ = cancellation.cancelled() => {}
+        _ = stop_token.cancelled() => {}
         _ = tokio::signal::ctrl_c() => {}
         _ = terminate.recv() => {}
     }

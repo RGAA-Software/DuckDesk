@@ -58,7 +58,8 @@ pub struct ConsoleLaunch {
     pub recording_cache_options: CacheOptions,
     pub relay_admission: Option<RelayAdmission>,
     pub release: ReleaseIdentity,
-    pub license: LicenseEntitlement,
+    pub license: Option<LicenseEntitlement>,
+    pub license_config: LicenseLaunchConfig,
 }
 
 impl ConsoleLaunchConfig {
@@ -219,11 +220,15 @@ impl ConsoleLaunchConfig {
         .await
         .map_err(|_| ConfigurationError)?
         .map_err(|_| ConfigurationError)?;
-        let license = self
-            .license
-            .admit(self.deployment)
-            .await
-            .map_err(|_| ConfigurationError)?;
+        let license = match self.license.clone().admit_if_present(self.deployment).await {
+            Ok(license) => license,
+            Err(_) => {
+                tracing::warn!(
+                    "Console license is invalid; administrator recovery remains available"
+                );
+                None
+            }
+        };
         Ok(ConsoleLaunch {
             database: self.database,
             deployment: self.deployment,
@@ -238,6 +243,7 @@ impl ConsoleLaunchConfig {
             relay_admission: self.relay_admission,
             release: self.release,
             license,
+            license_config: self.license,
         })
     }
 }

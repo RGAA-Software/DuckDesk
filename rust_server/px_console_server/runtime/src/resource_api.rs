@@ -101,7 +101,7 @@ async fn start(
             context.client,
             state.epoch,
             &value,
-            state.entitlement(),
+            state.entitlement()?,
         )
         .await?;
     Ok((StatusCode::CREATED, Json(result)))
@@ -173,7 +173,7 @@ async fn open(
             context.credential(),
             context.client,
             &value,
-            state.entitlement(),
+            state.entitlement()?,
         )
         .await?;
     Ok((StatusCode::CREATED, Json(result)))
@@ -211,7 +211,7 @@ async fn descriptor(
             id,
             value.revision,
             &digest,
-            state.entitlement(),
+            state.entitlement()?,
         )
         .await?;
     let rdp = if descriptor.transport == "rdp" {

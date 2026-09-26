@@ -75,7 +75,11 @@ try {
         throw 'The existing CN Auth validation customer was not uniquely identified; no license was issued.'
     }
 
-    $deploymentId = if ($DeploymentId -eq [guid]::Empty) { [guid]::NewGuid().ToString() } else { $DeploymentId.ToString() }
+    $deploymentId = if (-not $PSBoundParameters.ContainsKey('DeploymentId') -or $DeploymentId -eq [guid]::Empty) {
+        [guid]::NewGuid().ToString()
+    } else {
+        $DeploymentId.ToString()
+    }
     $issueResponse = Invoke-RestMethod -Method Post -Uri "$authOrigin/api/auth/licenses/issue" -Headers $authHeaders `
         -ContentType 'application/json' -Body (@{
             request_id = [guid]::NewGuid().ToString()

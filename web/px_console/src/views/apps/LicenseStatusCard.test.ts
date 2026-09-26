@@ -1,11 +1,12 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { ref } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getManagedLicenseStatus } from "@/model/managed_license_api";
+import { getManagedLicenseStatus, installManagedLicense } from "@/model/managed_license_api";
 import LicenseStatusCard from "./LicenseStatusCard.vue";
 
 vi.mock("@/model/managed_license_api", () => ({
     getManagedLicenseStatus: vi.fn(),
+    installManagedLicense: vi.fn(),
 }));
 
 vi.mock("vue-i18n", () => ({
@@ -66,6 +67,17 @@ describe("license status card", () => {
 
         expect(wrapper.text()).toContain("dashboard.licenseUnavailable");
         expect(wrapper.text()).not.toContain("00000000-0000-0000-0000-000000000001");
+        wrapper.unmount();
+    });
+
+    it("shows the authorization action while no license is installed", async () => {
+        vi.mocked(getManagedLicenseStatus).mockResolvedValue(null);
+        const wrapper = mountLicenseCard();
+        await flushPromises();
+
+        expect(wrapper.text()).toContain("dashboard.licenseNotActivated");
+        expect(wrapper.find('input[type="file"]').exists()).toBe(true);
+        expect(installManagedLicense).not.toHaveBeenCalled();
         wrapper.unmount();
     });
 });

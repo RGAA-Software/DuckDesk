@@ -11,6 +11,7 @@ prost = "0.14.1"
 protocol = { path = "../../rust_base/protocol" }
 px_relay_admission = { path = "../px_relay_admission" }
 px_relay_control_protocol = { path = "../px_relay_control_protocol" }
+px_server_service = { path = "../px_server_service" }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 rustls-pemfile = "2.2"
 serde = { version = "1", features = ["derive"] }

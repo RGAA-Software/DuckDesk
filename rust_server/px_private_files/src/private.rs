@@ -59,6 +59,56 @@ pub fn create_private(path: &Path, bytes: &[u8]) -> Result<(), &'static str> {
     Ok(())
 }
 
+/// Replace an existing private file without publishing a partially written version.
+/// The caller must validate the new contents before calling this function.
+pub fn replace_private(path: &Path, bytes: &[u8]) -> Result<(), &'static str> {
+    if bytes.is_empty() || bytes.len() > 4096 {
+        return Err("invalid private material size");
+    }
+    let parent = path
+        .parent()
+        .ok_or("private material requires a parent directory")?;
+    verify_private_directory(parent)?;
+    read_private(path)?;
+    let temporary_path = parent.join(format!(".pixels-private-{}", uuid::Uuid::new_v4()));
+    create_private(&temporary_path, bytes)?;
+    let replace_result = publish_replacement(&temporary_path, path);
+    if replace_result.is_err() {
+        let _ = std::fs::remove_file(&temporary_path);
+    }
+    replace_result?;
+    if read_private(path)?.as_slice() != bytes {
+        return Err("private material replacement verification failed");
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn publish_replacement(source: &Path, target: &Path) -> Result<(), &'static str> {
+    std::fs::rename(source, target).map_err(|_| "private material replacement failed")
+}
+
+#[cfg(windows)]
+fn publish_replacement(source: &Path, target: &Path) -> Result<(), &'static str> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::{
+        MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
+    };
+    let source_path: Vec<u16> = source.as_os_str().encode_wide().chain(Some(0)).collect();
+    let target_path: Vec<u16> = target.as_os_str().encode_wide().chain(Some(0)).collect();
+    if unsafe {
+        MoveFileExW(
+            source_path.as_ptr(),
+            target_path.as_ptr(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+    } == 0
+    {
+        return Err("private material replacement failed");
+    }
+    Ok(())
+}
+
 /// Verifies an existing private directory through the same handle used for type and ACL checks.
 pub fn verify_private_directory(path: &Path) -> Result<(), &'static str> {
     let mut options = OpenOptions::new();

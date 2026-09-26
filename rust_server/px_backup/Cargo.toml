@@ -10,6 +10,7 @@ pg-integration = []
 [dependencies]
 fs2 = "=0.4.3"
 px_private_files = { path = "../px_private_files" }
+px_server_service = { path = "../px_server_service" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"

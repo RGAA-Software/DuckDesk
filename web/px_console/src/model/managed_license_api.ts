@@ -10,7 +10,12 @@ export interface ManagedLicenseStatus {
     services: LicensedService[];
 }
 
-export async function getManagedLicenseStatus(): Promise<ManagedLicenseStatus> {
-    const response = await axiosHttp.get<ManagedLicenseStatus>("/api/console/managed/license");
+export async function getManagedLicenseStatus(): Promise<ManagedLicenseStatus | null> {
+    const response = await axiosHttp.get<ManagedLicenseStatus | null>("/api/console/managed/license");
+    return response.data;
+}
+
+export async function installManagedLicense(wire: string): Promise<ManagedLicenseStatus> {
+    const response = await axiosHttp.put<ManagedLicenseStatus>("/api/console/managed/license", { wire });
     return response.data;
 }

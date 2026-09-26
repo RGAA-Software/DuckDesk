@@ -35,11 +35,10 @@ REQUIRED_ARTIFACTS = {
     "tools/verify_pg_toolchain.py",
     "systemd/pixels-private-console@.service",
     "systemd/pixels-private-relay@.service",
-    "systemd/pixels-private-desk@.service",
 }
 HASH_FORMAT = re.compile(r"[0-9A-F]{64}")
 VERSION_FORMAT = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
-FORBIDDEN_NAMES = {"px_auth", "px_auth_admin", "auth.env", "signing.key", "private.key", "license.pxlic2"}
+FORBIDDEN_NAMES = {"px_auth", "px_auth_admin", "px_desk", "auth.env", "signing.key", "private.key", "license.pxlic2"}
 
 
 def file_hash(artifact_path: Path) -> str:
@@ -88,8 +87,9 @@ def verify(candidate_directory: Path) -> dict[str, object]:
             actual_artifacts.add(artifact_path.relative_to(candidate_directory).as_posix())
     if set(artifact_hashes) != actual_artifacts or not REQUIRED_ARTIFACTS.issubset(actual_artifacts):
         raise ValueError("Candidate file list does not match its manifest")
-    if ("bin/px_desk" in actual_artifacts) != ("static/desk/index.html" in actual_artifacts):
-        raise ValueError("Desk binary and static page must be paired")
+    if any(artifact_name == "bin/px_desk" or artifact_name.startswith(("static/desk/", "systemd/pixels-private-desk", "examples/desk."))
+           for artifact_name in actual_artifacts):
+        raise ValueError("Desk belongs to the official website, not the Customer Server")
     if manifest["product"] == "pixels-private-server" and "bin/px_backup" not in actual_artifacts:
         raise ValueError("Formal Server release requires its backup executor")
     pg_toolchain_present = "postgresql/18/sha256.json" in actual_artifacts
@@ -104,8 +104,6 @@ def verify(candidate_directory: Path) -> dict[str, object]:
     expected_versions = {"console", "database_tool", "relay"}
     if "bin/px_backup" in actual_artifacts:
         expected_versions.add("backup")
-    if "bin/px_desk" in actual_artifacts:
-        expected_versions.add("desk")
     if set(versions) != expected_versions or any(
         not isinstance(version, str) or not VERSION_FORMAT.fullmatch(version) for version in versions.values()
     ):
@@ -118,7 +116,7 @@ def verify(candidate_directory: Path) -> dict[str, object]:
             raise ValueError(f"Invalid candidate artifact entry: {artifact_name}")
         if file_hash(candidate_directory / artifact_name) != expected_hash:
             raise ValueError(f"Candidate artifact hash mismatch: {artifact_name}")
-    for executable_name in ("px_console", "px_console_admin", "px_db", "px_relay", "px_desk", "px_backup"):
+    for executable_name in ("px_console", "px_console_admin", "px_db", "px_relay", "px_backup"):
         executable_path = candidate_directory / "bin" / executable_name
         if not executable_path.is_file():
             continue

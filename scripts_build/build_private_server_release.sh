@@ -12,8 +12,12 @@ suite_version=$2
 if [[ -f "$HOME/.cargo/env" ]]; then
     source "$HOME/.cargo/env"
 fi
-if [[ -e "$release_output" || -e "$release_output.tar.gz" ]]; then
-    echo "Formal Server release output already exists" >&2
+if [[ -e "$release_output" && ! -d "$release_output/windows" ]]; then
+    echo "Formal Server release output is not the prepared Windows version" >&2
+    exit 2
+fi
+if [[ -e "$release_output/PixelsServer_${suite_version}_Linux.tar.gz" ]]; then
+    echo "Formal Linux Server release already exists" >&2
     exit 2
 fi
 toolchain_workspace=$(mktemp -d -t pixels-private-release-toolchain-XXXXXXXX)
@@ -42,7 +46,6 @@ cargo build --locked --release \
     -p px_console_runtime --bin px_console --bin px_console_admin \
     -p px_pg --bin px_db \
     -p px_relay_server --bin px_relay \
-    -p px_desk_server --bin px_desk \
     -p px_backup --bin px_backup
 
 python3 "$source_root/scripts/assemble_private_server_candidate.py" \
@@ -52,14 +55,19 @@ python3 "$source_root/scripts/assemble_private_server_candidate.py" \
     --relay "$CARGO_TARGET_DIR/release/px_relay" \
     --backup "$CARGO_TARGET_DIR/release/px_backup" \
     --pg-toolchain "$toolchain_workspace/postgresql-18" \
-    --desk "$CARGO_TARGET_DIR/release/px_desk" \
     --console-static "$source_root/web/px_console/dist" \
-    --desk-static "$source_root/web/px_pixels/dist" \
     --suite-version "$suite_version" \
-    --output "$release_output"
+    --output "$toolchain_workspace/payload"
 
-python3 "$release_output/tools/verify_candidate.py" "$release_output"
-tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner \
-    -czf "$release_output.tar.gz" -C "$(dirname "$release_output")" "$(basename "$release_output")"
-(cd "$(dirname "$release_output")" && sha256sum "$(basename "$release_output").tar.gz" >"$(basename "$release_output").tar.gz.sha256")
-echo "Private Server Customer release: $release_output.tar.gz"
+python3 "$toolchain_workspace/payload/tools/verify_candidate.py" "$toolchain_workspace/payload"
+bash "$source_root/scripts_build/build_single_server_linux_image.sh" \
+    "$toolchain_workspace/payload" "pixels-server:$suite_version" "$toolchain_workspace/pixels-server.tar"
+image_sha256=$(sha256sum "$toolchain_workspace/pixels-server.tar" | cut -d ' ' -f 1)
+mkdir -p "$release_output"
+python3 "$source_root/scripts/assemble_single_server_linux_bundle.py" \
+    --image-archive "$toolchain_workspace/pixels-server.tar" \
+    --image-sha256 "$image_sha256" \
+    --suite-version "$suite_version" \
+    --build-profile optimized-release \
+    --output "$release_output/PixelsServer_${suite_version}_Linux.tar.gz"
+echo "Private Server Customer Compose release: $release_output/PixelsServer_${suite_version}_Linux.tar.gz"

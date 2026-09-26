@@ -1,0 +1,66 @@
+name: pixels-server
+
+x-pixels-image: &pixels-image pixels-server:1.0.4
+x-pixels-config: &pixels-config
+  type: volume
+  source: pixels_config
+  target: /etc/pixels
+x-pixels-data: &pixels-data
+  type: volume
+  source: pixels_data
+  target: /var/lib/pixels
+
+services:
+  setup:
+    image: *pixels-image
+    user: "0:0"
+    command: [/opt/pixels/bin/px_console_admin, setup-server, /etc/pixels, /var/lib/pixels, /opt/pixels, /opt/pixels, linux, -]
+    ports:
+      - "127.0.0.1:4700:4700"
+    volumes:
+      - *pixels-config
+      - *pixels-data
+    restart: "no"
+
+  console:
+    image: *pixels-image
+    user: "10001:10001"
+    command: [/opt/pixels/bin/px_console, --wait-env-file, /etc/pixels/console.env, --wait-marker, /etc/pixels/setup.ready]
+    ports:
+      - "4600:4600"
+    volumes:
+      - *pixels-config
+      - *pixels-data
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  relay:
+    image: *pixels-image
+    user: "10002:10002"
+    command: [/opt/pixels/bin/px_relay, --wait-env-file, /etc/pixels/relay.env, --wait-marker, /etc/pixels/relay.ready]
+    ports:
+      - "4605:4605"
+    volumes:
+      - *pixels-config
+    depends_on:
+      console:
+        condition: service_started
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  backup:
+    image: *pixels-image
+    user: "10003:10003"
+    command: [/opt/pixels/bin/px_backup, run, /etc/pixels/backup.json, --wait-env-file, /etc/pixels/backup.env, --wait-marker, /etc/pixels/setup.ready]
+    volumes:
+      - *pixels-config
+      - *pixels-data
+    depends_on:
+      console:
+        condition: service_started
+    restart: unless-stopped
+    stop_grace_period: 60s
+
+volumes:
+  pixels_config:
+  pixels_data:

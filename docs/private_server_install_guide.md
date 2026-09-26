@@ -2,6 +2,10 @@
 
 适用范围：当前正式套件 `1.0.2`，目标 Ubuntu 24.04 x86_64、systemd。本文是现有安装入口的操作顺序，不宣称真实客户生产凭据、断公网拓扑或四服务同机生产部署已经验收。后续正常发版时替换套件版本；不为跨版本测试专门发布新包。
 
+下一版 Customer Single Server 的产品边界已经改为 Console、Relay、Backup；`px_desk` 属于官网，不再进入客户 Server 包。Linux 改用 Docker Compose 一键部署、Windows 使用原生 Setup；PostgreSQL 等基础环境由运维单独提供，详见[双平台实施计划](single_server_linux_windows_plan.md)。下面涉及 Desk 和 systemd 的步骤仅说明已发布 1.0.2 的实际内容，不是下一版要求。
+
+新方案的操作入口：[Linux Compose](../deploy/single_server/linux/README.md)、[Windows Setup](../deploy/single_server/windows/README.md)。1.0.3 双平台优化制品已构建并校验；Linux 与 Windows 均已完成隔离环境真实业务短测，Windows 还完成同部署直接覆盖和 SCM 卸载生命周期短测。Windows Setup 图形界面和原生 Ubuntu 24.04 主机仍未验收。升级直接覆盖安装，卸载只移除 Pixels 运行项和程序，保留数据库、私有配置与备份。以下 1.0.2 systemd 步骤只适用于旧发行包，不应用于新的 Compose 包。
+
 ## 1. 交付物与部署前准备
 
 - 取得同一发行批次的 `1.0.2.tar.gz` 和 `1.0.2.tar.gz.sha256`，先在归档所在目录执行 `sha256sum -c 1.0.2.tar.gz.sha256`。解包后目录名为 `1.0.2`；执行 `python3 <解包绝对路径>/tools/verify_candidate.py <解包绝对路径>` 和 `sh <解包绝对路径>/tools/preflight_linux_host.sh`。不要使用 development 候选目录代替正式 Customer 包。

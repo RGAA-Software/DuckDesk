@@ -126,13 +126,6 @@ def assemble(arguments: argparse.Namespace) -> dict[str, object]:
         raise ValueError("PostgreSQL client toolchain requires the backup executor")
     if backup_executable is not None:
         executable_sources["px_backup"] = backup_executable
-    if arguments.desk is not None:
-        if arguments.desk_static is None:
-            raise ValueError("Desk executable requires Desk static assets")
-        executable_sources["px_desk"] = arguments.desk
-    elif arguments.desk_static is not None:
-        raise ValueError("Desk static assets require a Desk executable")
-
     destination = arguments.output.resolve()
     if destination.exists():
         raise ValueError(f"Candidate output already exists: {destination}")
@@ -140,10 +133,6 @@ def assemble(arguments: argparse.Namespace) -> dict[str, object]:
         resolved_source = source.resolve()
         if destination == resolved_source or destination in resolved_source.parents or resolved_source in destination.parents:
             raise ValueError("Candidate output and input sources must be separate")
-    if arguments.desk_static is not None:
-        resolved_desk_static = arguments.desk_static.resolve()
-        if destination == resolved_desk_static or destination in resolved_desk_static.parents or resolved_desk_static in destination.parents:
-            raise ValueError("Candidate output and Desk static assets must be separate")
     if pg_toolchain is not None:
         resolved_pg_toolchain = pg_toolchain.resolve()
         if destination == resolved_pg_toolchain or destination in resolved_pg_toolchain.parents or resolved_pg_toolchain in destination.parents:
@@ -156,15 +145,18 @@ def assemble(arguments: argparse.Namespace) -> dict[str, object]:
         for executable_name, source in executable_sources.items():
             copy_executable(source, binary_directory / executable_name)
         copy_static_tree(arguments.console_static, destination / "static" / "console")
-        if arguments.desk_static is not None:
-            copy_static_tree(arguments.desk_static, destination / "static" / "desk")
         if pg_toolchain is not None:
             copy_pg_toolchain(pg_toolchain, destination / "postgresql" / "18")
+            trust_source = SOURCE_ROOT / "deploy/single_server/assets/license-trust.json"
+            require_regular_file(trust_source)
+            trust_destination = destination / "assets/license-trust.json"
+            trust_destination.parent.mkdir()
+            shutil.copy2(trust_source, trust_destination)
+            if sha256(trust_source) != sha256(trust_destination):
+                raise RuntimeError("Copied license public trust differs")
         example_directory = destination / "examples"
         example_directory.mkdir()
         example_names = ["README.md", "console.env.example", "relay.env.example"]
-        if arguments.desk is not None:
-            example_names.append("desk.env.example")
         if backup_executable is not None:
             example_names.append("backup.json.example")
         for example_name in example_names:
@@ -198,7 +190,7 @@ def assemble(arguments: argparse.Namespace) -> dict[str, object]:
             shutil.copy2(tool_source, verifier_directory / tool_name)
         systemd_directory = destination / "systemd"
         systemd_directory.mkdir()
-        component_names = ["console", "relay", "desk"]
+        component_names = ["console", "relay"]
         if backup_executable is not None:
             component_names.append("backup")
         for component_name in component_names:
@@ -224,8 +216,6 @@ def assemble(arguments: argparse.Namespace) -> dict[str, object]:
                 "relay": package_version(SOURCE_ROOT / "rust_server/px_relay_server/Cargo.toml"),
                 **({"backup": package_version(SOURCE_ROOT / "rust_server/px_backup/Cargo.toml")}
                    if backup_executable is not None else {}),
-                **({"desk": package_version(SOURCE_ROOT / "rust_server/px_desk_server/Cargo.toml")}
-                   if arguments.desk is not None else {}),
             },
             "artifacts": artifact_hashes,
         }
@@ -251,8 +241,6 @@ def main() -> int:
     parser.add_argument("--backup", type=Path, help="PostgreSQL backup and restore executor; mandatory for formal releases")
     parser.add_argument("--pg-toolchain", type=Path, help="Pinned PostgreSQL 18.6 client toolchain; mandatory for formal releases")
     parser.add_argument("--console-static", required=True, type=Path)
-    parser.add_argument("--desk", type=Path)
-    parser.add_argument("--desk-static", type=Path)
     parser.add_argument("--suite-version", help="Formal Customer release version; omit for development candidate")
     parser.add_argument("--output", required=True, type=Path)
     arguments = parser.parse_args()

@@ -24,12 +24,16 @@ mod request;
 mod resource_api;
 mod saved_connection_api;
 mod secrets;
+mod setup_database;
+mod setup_install;
+mod setup_preflight;
+mod setup_web;
 mod static_files;
 mod telemetry_alert_api;
 mod update_api;
 use axum::{
     extract::{DefaultBodyLimit, State},
-    http::{header, HeaderValue, StatusCode},
+    http::{header, HeaderValue, Method, StatusCode},
     middleware::{self, Next},
     response::Response,
     routing::{get, patch, post},
@@ -41,13 +45,24 @@ pub use guest_source::GuestAdmission;
 pub use license::{LicenseAdmissionError, LicenseEntitlement, LicenseLaunchConfig, LicenseStatus};
 pub use policy::IngressPolicy;
 use px_console_store::{
-    CacheOptions, CacheRuntime, ConsoleDatabase, RuntimeEntitlement, RuntimeEpoch, WorkspaceVault,
+    CacheOptions, CacheRuntime, ClientType, ConsoleDatabase, RuntimeEntitlement, RuntimeEpoch,
+    WorkspaceVault,
 };
 use px_license::LicensedService;
 use px_pg::{DatabaseConfig, LeaseStatus, Service, ServiceLease};
 use px_private_files::CacheRoot;
 pub use secrets::{RuntimeSecrets, WorkspaceKeyFile};
-use std::{sync::Arc, time::Duration};
+pub use setup_database::{provision_fresh_console_database, ConsoleDatabaseCredentials};
+pub use setup_install::{
+    activate_single_server_relay, initialize_single_server, SingleServerLayout,
+    SingleServerSetupError, SingleServerSetupInput, SingleServerSetupResult,
+};
+pub use setup_preflight::{check_postgresql_administrator, SetupDatabaseError};
+pub use setup_web::run_single_server_setup;
+use std::{
+    sync::{Arc, RwLock},
+    time::Duration,
+};
 use tokio::{sync::Semaphore, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
@@ -55,6 +70,7 @@ use zeroize::Zeroizing;
 
 pub(crate) struct StateData {
     db: ConsoleDatabase,
+    deployment: Uuid,
     lease: LeaseStatus,
     cancellation: CancellationToken,
     policy: IngressPolicy,
@@ -69,7 +85,8 @@ pub(crate) struct StateData {
     recording_cache: Option<CacheRuntime>,
     uploads: Arc<recording_upload_api::UploadRegistry>,
     management_events: Arc<management_events::ManagementEvents>,
-    license: LicenseEntitlement,
+    license: RwLock<Option<LicenseEntitlement>>,
+    license_config: Option<LicenseLaunchConfig>,
     release: ReleaseIdentity,
     relay_admission: Option<RelayAdmission>,
 }
@@ -114,34 +131,42 @@ impl ReleaseIdentity {
     }
 }
 impl StateData {
-    fn active(&self) -> Result<(), ApiError> {
+    fn operational(&self) -> Result<(), ApiError> {
         if self.cancellation.is_cancelled() {
             return Err(ApiError::Unavailable);
         }
         self.lease.check()?;
+        Ok(())
+    }
+
+    fn active(&self) -> Result<(), ApiError> {
+        self.operational()?;
         self.license
+            .read()
+            .map_err(|_| ApiError::Unavailable)?
+            .as_ref()
+            .ok_or(ApiError::Unavailable)?
             .validate_now()
             .map_err(|_| ApiError::Unavailable)?;
         Ok(())
     }
 
-    fn entitlement(&self) -> RuntimeEntitlement {
+    fn entitlement(&self) -> Result<RuntimeEntitlement, ApiError> {
+        let license = self.license.read().map_err(|_| ApiError::Unavailable)?;
+        let entitlement = license.as_ref().ok_or(ApiError::Unavailable)?;
         RuntimeEntitlement::new(
-            self.license.payload.max_streams,
-            self.license
+            entitlement.payload.max_streams,
+            entitlement
                 .payload
                 .services
                 .contains(&LicensedService::CloudApplications),
-            self.license
+            entitlement
                 .payload
                 .services
                 .contains(&LicensedService::Desktop),
-            self.license
-                .payload
-                .services
-                .contains(&LicensedService::Rdp),
+            entitlement.payload.services.contains(&LicensedService::Rdp),
         )
-        .expect("a verified license always contains valid nonzero limits")
+        .map_err(|_| ApiError::Unavailable)
     }
 }
 /// Owner of the lease renewal task and the shared database pool.
@@ -171,7 +196,8 @@ impl ConsoleRuntime {
                 relay_admission: None,
                 release: ReleaseIdentity::integration(),
             },
-            LicenseEntitlement::synthetic_for_integration(deployment),
+            Some(LicenseEntitlement::synthetic_for_integration(deployment)),
+            None,
         )
         .await
     }
@@ -196,7 +222,8 @@ impl ConsoleRuntime {
                 relay_admission: None,
                 release: ReleaseIdentity::integration(),
             },
-            LicenseEntitlement::synthetic_for_integration(deployment),
+            Some(LicenseEntitlement::synthetic_for_integration(deployment)),
+            None,
         )
         .await
     }
@@ -216,7 +243,8 @@ impl ConsoleRuntime {
             policy,
             guests,
             resources,
-            LicenseEntitlement::synthetic_for_integration(deployment),
+            Some(LicenseEntitlement::synthetic_for_integration(deployment)),
+            None,
         )
         .await
     }
@@ -230,7 +258,36 @@ impl ConsoleRuntime {
         license: LicenseEntitlement,
     ) -> Result<Self, ApiError> {
         Self::activate_inner(
-            database, deployment, vault, policy, guests, resources, license,
+            database,
+            deployment,
+            vault,
+            policy,
+            guests,
+            resources,
+            Some(license),
+            None,
+        )
+        .await
+    }
+    pub async fn activate_product_with_cache_optional(
+        database: &DatabaseConfig,
+        deployment: Uuid,
+        vault: Arc<WorkspaceVault>,
+        policy: IngressPolicy,
+        guests: GuestAdmission,
+        resources: RuntimeResources,
+        license: Option<LicenseEntitlement>,
+        license_config: LicenseLaunchConfig,
+    ) -> Result<Self, ApiError> {
+        Self::activate_inner(
+            database,
+            deployment,
+            vault,
+            policy,
+            guests,
+            resources,
+            license,
+            Some(license_config),
         )
         .await
     }
@@ -241,7 +298,8 @@ impl ConsoleRuntime {
         policy: IngressPolicy,
         guests: GuestAdmission,
         resources: RuntimeResources,
-        license: LicenseEntitlement,
+        license: Option<LicenseEntitlement>,
+        license_config: Option<LicenseLaunchConfig>,
     ) -> Result<Self, ApiError> {
         if !guests.matches(deployment) {
             return Err(ApiError::Invalid);
@@ -286,6 +344,7 @@ impl ConsoleRuntime {
         let cancellation = CancellationToken::new();
         let state = Arc::new(StateData {
             db,
+            deployment,
             lease: lease.status(),
             cancellation: cancellation.clone(),
             policy,
@@ -300,7 +359,8 @@ impl ConsoleRuntime {
             recording_cache,
             uploads: recording_upload_api::UploadRegistry::new(),
             management_events: management_events::ManagementEvents::new(),
-            license,
+            license: RwLock::new(license),
+            license_config,
             release: resources.release,
             relay_admission: resources.relay_admission,
         });
@@ -508,12 +568,22 @@ async fn admission(
     request: axum::extract::Request,
     next: Next,
 ) -> Result<Response, ApiError> {
-    state.active()?;
     let method = request.method().clone();
     let path = request.uri().path().to_owned();
+    let administrator_recovery =
+        allows_license_recovery(&method, &path, request::client(request.headers()).ok());
+    if administrator_recovery {
+        state.operational()?;
+    } else {
+        state.active()?;
+    }
     let mut response = next.run(request).await;
     // Never return a freshly minted capability after this activation lost authority.
-    state.active()?;
+    if administrator_recovery {
+        state.operational()?;
+    } else {
+        state.active()?;
+    }
     response
         .headers_mut()
         .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
@@ -527,4 +597,60 @@ async fn admission(
         }
     }
     Ok(response)
+}
+
+fn allows_license_recovery(method: &Method, path: &str, client: Option<ClientType>) -> bool {
+    client == Some(ClientType::AdminWeb)
+        && matches!(
+            (method.clone(), path),
+            (Method::POST, "/api/console/sessions")
+                | (Method::GET, "/api/console/session")
+                | (Method::DELETE, "/api/console/session")
+                | (Method::PATCH, "/api/console/password")
+                | (Method::GET, "/api/console/managed/license")
+                | (Method::PUT, "/api/console/managed/license")
+                | (Method::GET, "/api/console/managed/relays")
+                | (Method::POST, "/api/console/managed/relays")
+        )
+}
+
+#[cfg(test)]
+mod recovery_tests {
+    use super::*;
+
+    #[test]
+    fn only_explicit_administrator_routes_are_available_without_a_license() {
+        assert!(allows_license_recovery(
+            &Method::POST,
+            "/api/console/sessions",
+            Some(ClientType::AdminWeb)
+        ));
+        assert!(allows_license_recovery(
+            &Method::PUT,
+            "/api/console/managed/license",
+            Some(ClientType::AdminWeb)
+        ));
+        assert!(allows_license_recovery(
+            &Method::POST,
+            "/api/console/managed/relays",
+            Some(ClientType::AdminWeb)
+        ));
+        for (method, path) in [
+            (Method::GET, "/api/console/managed/deployments"),
+            (Method::POST, "/api/console/accounts"),
+            (Method::POST, "/api/console/resource-sessions"),
+            (Method::GET, "/api/console/managed/license/extra"),
+        ] {
+            assert!(!allows_license_recovery(
+                &method,
+                path,
+                Some(ClientType::AdminWeb)
+            ));
+        }
+        assert!(!allows_license_recovery(
+            &Method::PUT,
+            "/api/console/managed/license",
+            Some(ClientType::Panel)
+        ));
+    }
 }

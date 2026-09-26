@@ -48,7 +48,7 @@ class PrivateServerExampleTests(unittest.TestCase):
         self.assertEqual(backup_example["pg_dump_sha256"], "0" * 64)
         self.assertEqual(backup_example["pg_restore_sha256"], "0" * 64)
         self.assertEqual([target["state"] for target in backup_example["plan"]["targets"]],
-                         ["required", "not_applicable", "required"])
+                     ["required", "not_applicable", "not_applicable"])
         for target in backup_example["plan"]["targets"]:
             if target["state"] == "required":
                 self.assertEqual(target["database"]["schema_version"], 0)
