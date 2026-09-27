@@ -8,7 +8,7 @@ fi
 deployment_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$deployment_directory"
 docker compose run --rm --no-deps -T --user 0:0 --entrypoint /bin/bash backup \
-    /opt/pixels/restore_console.sh "$1"
+    /opt/pixels/restore_console.sh "$1" </dev/null
 read -r -p 'Restore this backup into a new isolated Console database? Type RESTORE: ' confirmation
 [[ "$confirmation" == RESTORE ]] || { echo 'Cancelled; no database was created.'; exit 0; }
 read -r -p 'PostgreSQL administrator role: ' postgres_user

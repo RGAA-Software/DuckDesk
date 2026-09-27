@@ -19,8 +19,8 @@ from setup.make_single_server import validate_package
 class SingleServerWindowsPackageTests(unittest.TestCase):
     @unittest.skipUnless(os.name == "nt", "Windows recovery entry uses PowerShell")
     def test_console_recovery_preflight_verifies_archive_without_creating_database(self) -> None:
-        power_shell = shutil.which("pwsh") or shutil.which("powershell")
-        if power_shell is None:
+        power_shells = [shell for name in ("powershell", "pwsh") if (shell := shutil.which(name))]
+        if not power_shells:
             self.skipTest("PowerShell is unavailable")
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -74,16 +74,19 @@ class SingleServerWindowsPackageTests(unittest.TestCase):
                 json.dumps({"files": package_files}), encoding="utf-8",
             )
             script = Path(__file__).resolve().parents[2] / "deploy/single_server/windows/restore_console.ps1"
-            command = [power_shell, "-NoProfile", "-File", str(script), "-ConfigRoot", str(config_root),
-                       "-InstallRoot", str(install_root), "-RecoverySetId", recovery_set_id]
-            accepted = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace")
-            self.assertEqual(accepted.returncode, 0, accepted.stderr)
-            self.assertIn("Preflight only", accepted.stdout)
+            commands = [[power_shell, "-NoProfile", "-File", str(script), "-ConfigRoot", str(config_root),
+                         "-InstallRoot", str(install_root), "-RecoverySetId", recovery_set_id]
+                        for power_shell in power_shells]
+            for command in commands:
+                accepted = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace")
+                self.assertEqual(accepted.returncode, 0, accepted.stderr)
+                self.assertIn("Preflight only", accepted.stdout)
             self.assertFalse((root / f"pixels_console_restore_{recovery_set_id.replace('-', '')}").exists())
             archive.write_bytes(b"tampered")
-            rejected = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace")
-            self.assertNotEqual(rejected.returncode, 0)
-            self.assertIn("SHA-256 differs", rejected.stderr)
+            for command in commands:
+                rejected = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace")
+                self.assertNotEqual(rejected.returncode, 0)
+                self.assertIn("SHA-256 differs", rejected.stderr)
 
     def test_three_services_and_tools_without_desk_or_auth(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

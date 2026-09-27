@@ -39,3 +39,7 @@ $pixelsServer = Get-ItemProperty 'HKLM:\Software\Pixels\SingleServer'
 ## 恢复后的边界
 
 看到“Restored and verified”仅表示归档已进入新库且 Console 部署身份相符，不表示业务已切换。当前日常备份属于独立恢复集，现有恢复准入规则不会自动批准它上线。切换前仍需维护窗口、权限与外部事实对账，并明确处理备份之后发生的会话、授权和节点变更；本命令故意不自动执行切换或清理。任何步骤失败都保留原库和新库现场，由运维调查，不要反复换库名试图掩盖失败。
+
+## 2026-09-28 短验收
+
+正式 Customer Server 1.0.10 的 Windows Setup 与 Linux Compose 包已在一次性 PostgreSQL 18.6 上分别执行包内恢复命令。测试先备份 `before-backup`，再把原库改为 `after-backup`；两平台恢复后均确认隔离新库为 `before-backup`、原库仍为 `after-backup`、部署身份一致，且原本运行的 Backup SCM 测试服务或 Compose 测试容器已重新运行。测试密码包含冒号和反斜杠，覆盖 `pgpass` 转义。Windows 以 PowerShell 5.1 执行；包和归档 SHA-256 另行核对。测试服务/容器与数据库已清理，没有接入 90 或操作客户业务库。此短测验证恢复命令和停启编排，不冒充真实客户环境的业务切换或长期备份验收；1.0.8 和 1.0.9 不作为此恢复功能的最终交付包。

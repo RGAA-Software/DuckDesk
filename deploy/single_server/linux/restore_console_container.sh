@@ -77,8 +77,8 @@ IFS= read -r postgres_password || { echo 'PostgreSQL administrator password is r
 temporary_directory=$(mktemp -d -t pixels-console-restore-XXXXXXXX)
 trap 'rm -f -- "$temporary_directory/pgpass"; rmdir -- "$temporary_directory"' EXIT
 chmod 0700 "$temporary_directory"
-escaped_password=${postgres_password//\/\\}
-escaped_password=${escaped_password//:/\:}
+escaped_password=${postgres_password//\\/\\\\}
+escaped_password=${escaped_password//:/\\:}
 printf '%s:%s:*:%s:%s\n' "$database_host" "$database_port" "$postgres_user" "$escaped_password" >"$temporary_directory/pgpass"
 unset postgres_password escaped_password
 chmod 0600 "$temporary_directory/pgpass"
