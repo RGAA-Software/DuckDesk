@@ -92,7 +92,8 @@ def assemble(binary_directory: Path, static_directory: Path, postgresql_director
             copy_file(postgresql_directory / relative_path, output_directory / "postgresql" / relative_path)
         copy_file(ROOT / "deploy/single_server/assets/license-trust.json",
                   output_directory / "assets/license-trust.json")
-        for script_name in ("install.ps1", "uninstall.ps1", "stage_setup.ps1"):
+        copy_file(ROOT / "docs/single_server_console_restore.md", output_directory / "restore_console.md")
+        for script_name in ("install.ps1", "uninstall.ps1", "stage_setup.ps1", "restore_console.ps1"):
             copy_file(ROOT / "deploy" / "single_server" / "windows" / script_name,
                       output_directory / script_name)
         files = {

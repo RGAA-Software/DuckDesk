@@ -23,8 +23,10 @@ class SingleServerLinuxBundleTests(unittest.TestCase):
                 prefix = "PixelsServer_1.0.3_Linux/"
                 manifest_file = bundle.extractfile(prefix + "sha256.json")
                 compose_file = bundle.extractfile(prefix + "compose.yaml")
+                restore_file = bundle.extractfile(prefix + "restore_console.sh")
                 self.assertIsNotNone(manifest_file)
                 self.assertIsNotNone(compose_file)
+                self.assertIsNotNone(restore_file)
                 manifest = json.load(manifest_file)
                 compose = compose_file.read().decode("utf-8")
             self.assertEqual(manifest["files"]["pixels-server-1.0.3.tar"], image_hash)
@@ -32,6 +34,7 @@ class SingleServerLinuxBundleTests(unittest.TestCase):
             for service in ("setup:", "console:", "relay:", "backup:"):
                 self.assertIn(service, compose)
             self.assertIn("pixels-server:1.0.3", compose)
+            self.assertIn("restore_console.sh", manifest["files"])
             self.assertIn("127.0.0.1:4700:4700", compose)
             self.assertNotIn("env_file:", compose)
             self.assertNotIn("PIXELS_CONFIG_DIR", compose)

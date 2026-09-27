@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEPLOYMENT_ROOT = ROOT / "deploy/single_server/linux"
-DEPLOYMENT_FILES = ("compose.yaml", "deploy.sh", "README.md")
+DEPLOYMENT_FILES = ("compose.yaml", "deploy.sh", "restore_console.sh", "README.md")
 
 
 def sha256(path: Path) -> str:
@@ -62,7 +62,7 @@ def assemble(image_archive: Path, expected_hash: str, version: str, output: Path
                 if replacement_count != 1:
                     raise ValueError("Compose must contain exactly one versioned Server image")
             target.write_bytes(source_bytes)
-            if filename == "deploy.sh":
+            if filename in {"deploy.sh", "restore_console.sh"}:
                 target.chmod(0o755)
             files[filename] = sha256(target)
         manifest = {

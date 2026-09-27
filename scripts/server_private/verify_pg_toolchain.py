@@ -15,6 +15,8 @@ SOURCE_SHA256 = "555610c24d53e4316da5b7d3fc25c279d96856d5e0e23ee308c328c5fa881d9
 REQUIRED_ARTIFACTS = {
     "bin/pg_dump",
     "bin/pg_restore",
+    "bin/createdb",
+    "bin/psql",
     "lib/libpq.so.5",
     "lib/libssl.so.1.1",
     "lib/libcrypto.so.1.1",
@@ -57,7 +59,7 @@ def verify(toolchain_directory: Path) -> dict[str, object]:
         actual_hash = hashlib.sha256((toolchain_directory / artifact_name).read_bytes()).hexdigest()
         if actual_hash != expected_hash:
             raise ValueError(f"PostgreSQL toolchain artifact hash mismatch: {artifact_name}")
-    for executable_name in ("pg_dump", "pg_restore"):
+    for executable_name in ("pg_dump", "pg_restore", "createdb", "psql"):
         executable_path = toolchain_directory / "bin" / executable_name
         if not os.access(executable_path, os.X_OK):
             raise ValueError(f"PostgreSQL toolchain executable lacks execute permission: {executable_name}")

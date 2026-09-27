@@ -21,6 +21,10 @@ if [[ -e "$archive_path" ]]; then
 fi
 python3 "$source_root/scripts/verify_private_server_candidate.py" "$candidate_directory"
 python3 "$source_root/scripts/server_private/verify_pg_toolchain.py" "$candidate_directory/postgresql/18"
+[[ -f "$candidate_directory/tools/restore_console.sh" && ! -L "$candidate_directory/tools/restore_console.sh" ]] || {
+    echo 'Console restore command is missing from the verified candidate.' >&2
+    exit 2
+}
 docker build --pull=false --tag "$image_tag" --file "$source_root/deploy/single_server/linux/Dockerfile" "$candidate_directory"
 docker save --output "$archive_path" "$image_tag"
 sha256sum "$archive_path" > "$archive_path.sha256"

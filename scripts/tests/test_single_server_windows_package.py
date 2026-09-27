@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+import uuid
 from pathlib import Path
 from unittest.mock import patch
 
@@ -15,6 +17,74 @@ from setup.make_single_server import validate_package
 
 
 class SingleServerWindowsPackageTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == "nt", "Windows recovery entry uses PowerShell")
+    def test_console_recovery_preflight_verifies_archive_without_creating_database(self) -> None:
+        power_shell = shutil.which("pwsh") or shutil.which("powershell")
+        if power_shell is None:
+            self.skipTest("PowerShell is unavailable")
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            config_root = root / "config"
+            install_root = root / "installed"
+            recovery_set_id = str(uuid.uuid4())
+            deployment_id = str(uuid.uuid4())
+            repository = root / "repository"
+            recovery_set = repository / recovery_set_id
+            recovery_set.mkdir(parents=True)
+            config_root.mkdir()
+            tool_directory = install_root / "current" / "postgresql" / "bin"
+            tool_directory.mkdir(parents=True)
+            archive = recovery_set / "console.dump"
+            archive.write_bytes(b"console-only-test-archive")
+            archive_hash = hashlib.sha256(archive.read_bytes()).hexdigest()
+            (config_root / "postgresql-ca.crt").write_text("test-ca", encoding="ascii")
+            backup_config = {
+                "schema_version": 2, "deployment_id": deployment_id,
+                "repository_root": str(repository), "plan": {
+                    "kind": "independent", "deployment_id": deployment_id,
+                    "targets": [
+                        {"service": "console", "state": "required", "database": {
+                            "database": "pixels_console", "host": "localhost", "port": 5432,
+                        }},
+                        {"service": "auth", "state": "not_applicable"},
+                        {"service": "desk", "state": "not_applicable"},
+                    ],
+                },
+            }
+            (config_root / "backup.json").write_text(json.dumps(backup_config), encoding="utf-8")
+            manifest = {
+                "schema_version": 3, "recovery_set_id": recovery_set_id, "deployment_id": deployment_id,
+                "kind": "independent", "status": "verified",
+                "security_evidence": {"state": "unavailable", "reason": "independent_backup"},
+                "members": [
+                    {"service": "console", "member": {"state": "required", "database": "pixels_console",
+                                                      "schema_version": 42, "archive_file": "console.dump",
+                                                      "archive_sha256": archive_hash}},
+                    {"service": "auth", "member": {"state": "not_applicable"}},
+                    {"service": "desk", "member": {"state": "not_applicable"}},
+                ],
+            }
+            (recovery_set / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+            package_files = {}
+            for tool_name in ("createdb.exe", "pg_restore.exe", "psql.exe"):
+                tool = tool_directory / tool_name
+                tool.write_bytes(b"MZ" + tool_name.encode("ascii"))
+                package_files[f"postgresql/bin/{tool_name}"] = hashlib.sha256(tool.read_bytes()).hexdigest()
+            (install_root / "current" / "sha256.json").write_text(
+                json.dumps({"files": package_files}), encoding="utf-8",
+            )
+            script = Path(__file__).resolve().parents[2] / "deploy/single_server/windows/restore_console.ps1"
+            command = [power_shell, "-NoProfile", "-File", str(script), "-ConfigRoot", str(config_root),
+                       "-InstallRoot", str(install_root), "-RecoverySetId", recovery_set_id]
+            accepted = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace")
+            self.assertEqual(accepted.returncode, 0, accepted.stderr)
+            self.assertIn("Preflight only", accepted.stdout)
+            self.assertFalse((root / f"pixels_console_restore_{recovery_set_id.replace('-', '')}").exists())
+            archive.write_bytes(b"tampered")
+            rejected = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace")
+            self.assertNotEqual(rejected.returncode, 0)
+            self.assertIn("SHA-256 differs", rejected.stderr)
+
     def test_three_services_and_tools_without_desk_or_auth(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -27,17 +97,19 @@ class SingleServerWindowsPackageTests(unittest.TestCase):
                 (binaries / binary_name).write_bytes(b"MZ" + binary_name.encode())
             (static / "index.html").write_text("<html>Console</html>", encoding="utf-8")
             (postgresql / "bin").mkdir()
-            for tool_name in ("pg_dump.exe", "pg_restore.exe"):
+            for tool_name in ("pg_dump.exe", "pg_restore.exe", "createdb.exe", "psql.exe"):
                 (postgresql / "bin" / tool_name).write_bytes(b"MZ" + tool_name.encode())
             output = root / "package"
             with patch("scripts.assemble_single_server_windows.verify_postgresql_client",
-                       return_value=["bin/pg_dump.exe", "bin/pg_restore.exe"]):
+                       return_value=["bin/pg_dump.exe", "bin/pg_restore.exe", "bin/createdb.exe", "bin/psql.exe"]):
                 assemble(binaries, static, postgresql, output, "1.0.3")
             version, manifest_hash = validate_package(output)
             self.assertEqual(version, "1.0.3")
             self.assertEqual(len(manifest_hash), 64)
             manifest = json.loads((output / "sha256.json").read_text(encoding="utf-8"))
             self.assertIn("stage_setup.ps1", manifest["files"])
+            self.assertIn("restore_console.ps1", manifest["files"])
+            self.assertIn("restore_console.md", manifest["files"])
             self.assertIn("assets/license-trust.json", manifest["files"])
             self.assertNotIn("bin/px_desk.exe", manifest["files"])
             self.assertNotIn("bin/px_auth.exe", manifest["files"])
@@ -57,11 +129,11 @@ class SingleServerWindowsPackageTests(unittest.TestCase):
                 (binaries / binary_name).write_bytes(b"MZ" + binary_name.encode())
             (static / "index.html").write_text("<html>Console</html>", encoding="utf-8")
             (postgresql / "bin").mkdir()
-            for tool_name in ("pg_dump.exe", "pg_restore.exe"):
+            for tool_name in ("pg_dump.exe", "pg_restore.exe", "createdb.exe", "psql.exe"):
                 (postgresql / "bin" / tool_name).write_bytes(b"MZ" + tool_name.encode())
             package = root / "package"
             with patch("scripts.assemble_single_server_windows.verify_postgresql_client",
-                       return_value=["bin/pg_dump.exe", "bin/pg_restore.exe"]):
+                       return_value=["bin/pg_dump.exe", "bin/pg_restore.exe", "bin/createdb.exe", "bin/psql.exe"]):
                 assemble(binaries, static, postgresql, package, "1.0.3")
             setup = root / "PixelsServer_1.0.3_Setup.exe"
             repository_root = Path(__file__).resolve().parents[2]
@@ -87,11 +159,11 @@ class SingleServerWindowsPackageTests(unittest.TestCase):
             for binary_name in BINARIES:
                 (binaries / binary_name).write_bytes(b"MZ" + binary_name.encode())
             (static / "index.html").write_text("<html>Console</html>", encoding="utf-8")
-            for tool_name in ("pg_dump.exe", "pg_restore.exe"):
+            for tool_name in ("pg_dump.exe", "pg_restore.exe", "createdb.exe", "psql.exe"):
                 (postgresql / "bin" / tool_name).write_bytes(b"MZ" + tool_name.encode())
             package = root / "package"
             with patch("scripts.assemble_single_server_windows.verify_postgresql_client",
-                       return_value=["bin/pg_dump.exe", "bin/pg_restore.exe"]):
+                       return_value=["bin/pg_dump.exe", "bin/pg_restore.exe", "bin/createdb.exe", "bin/psql.exe"]):
                 assemble(binaries, static, postgresql, package, "1.0.3")
             deployment_id = "11111111-1111-4111-8111-111111111111"
             for environment_name in ("console.env", "relay.env"):

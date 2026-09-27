@@ -7,6 +7,9 @@ tools/nsis/** binary
 third_party/freerdp/vcpkg.json text eol=lf
 deploy/development/postgres/*.sh text eol=lf
 deploy/development/postgres/*.yaml text eol=lf
+deploy/single_server/linux/*.sh text eol=lf
+scripts_build/build_postgresql_client_toolchain.sh text eol=lf
+scripts_build/build_single_server_linux_image.sh text eol=lf
 rust_server/px_*_server/migrations/*.sql text eol=lf
 rust_server/px_console_server/storage/queries/*.sql text eol=lf
 rust_server/px_console_server/storage/.sqlx/*.json text eol=lf

@@ -21,7 +21,8 @@ REQUIRED_FILES = {
     "bin/px_console.exe", "bin/px_console_admin.exe", "bin/px_db.exe",
     "bin/px_relay.exe", "bin/px_backup.exe", "static/console/index.html",
     "postgresql/bin/pg_dump.exe", "postgresql/bin/pg_restore.exe", "install.ps1", "uninstall.ps1",
-    "stage_setup.ps1", "assets/license-trust.json",
+    "stage_setup.ps1", "restore_console.ps1", "postgresql/bin/createdb.exe", "postgresql/bin/psql.exe",
+    "assets/license-trust.json", "restore_console.md",
 }
 
 

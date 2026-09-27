@@ -147,6 +147,11 @@ def assemble(arguments: argparse.Namespace) -> dict[str, object]:
         copy_static_tree(arguments.console_static, destination / "static" / "console")
         if pg_toolchain is not None:
             copy_pg_toolchain(pg_toolchain, destination / "postgresql" / "18")
+            restore_script = SOURCE_ROOT / "deploy/single_server/linux/restore_console_container.sh"
+            require_regular_file(restore_script)
+            restore_destination = destination / "tools/restore_console.sh"
+            restore_destination.parent.mkdir(exist_ok=True)
+            shutil.copy2(restore_script, restore_destination)
             trust_source = SOURCE_ROOT / "deploy/single_server/assets/license-trust.json"
             require_regular_file(trust_source)
             trust_destination = destination / "assets/license-trust.json"
@@ -173,7 +178,7 @@ def assemble(arguments: argparse.Namespace) -> dict[str, object]:
         if sha256(installation_guide_source) != sha256(installation_guide_destination):
             raise RuntimeError("Copied installation guide hash mismatch")
         verifier_directory = destination / "tools"
-        verifier_directory.mkdir()
+        verifier_directory.mkdir(exist_ok=True)
         verifier_source = SOURCE_ROOT / "scripts/verify_private_server_candidate.py"
         require_regular_file(verifier_source)
         shutil.copy2(verifier_source, verifier_directory / "verify_candidate.py")

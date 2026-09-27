@@ -45,13 +45,16 @@ make -j"$(nproc)" >"$build_directory/build.log"
 make install DESTDIR="$build_directory/staged" >"$build_directory/install.log"
 
 staged_directory="$build_directory/staged/opt/pixels/postgresql/18"
-[[ -x "$staged_directory/bin/pg_dump" && -x "$staged_directory/bin/pg_restore" ]] || {
+[[ -x "$staged_directory/bin/pg_dump" && -x "$staged_directory/bin/pg_restore" &&
+   -x "$staged_directory/bin/createdb" && -x "$staged_directory/bin/psql" ]] || {
     echo "PostgreSQL client tools were not built" >&2
     exit 2
 }
 mkdir -p "$output_directory/bin" "$output_directory/lib" "$output_directory/licenses"
 install -m 0755 "$staged_directory/bin/pg_dump" "$output_directory/bin/pg_dump"
 install -m 0755 "$staged_directory/bin/pg_restore" "$output_directory/bin/pg_restore"
+install -m 0755 "$staged_directory/bin/createdb" "$output_directory/bin/createdb"
+install -m 0755 "$staged_directory/bin/psql" "$output_directory/bin/psql"
 install -m 0644 -T "$(realpath -e "$staged_directory/lib/libpq.so.5")" "$output_directory/lib/libpq.so.5"
 for shared_library in libssl.so.1.1 libcrypto.so.1.1; do
     install -m 0644 "/usr/lib/x86_64-linux-gnu/$shared_library" "$output_directory/lib/$shared_library"
@@ -61,6 +64,8 @@ install -m 0644 /usr/share/doc/libssl1.1/copyright "$output_directory/licenses/O
 
 LD_LIBRARY_PATH="$output_directory/lib" "$output_directory/bin/pg_dump" --version | grep -Fx "pg_dump (PostgreSQL) $postgresql_version"
 LD_LIBRARY_PATH="$output_directory/lib" "$output_directory/bin/pg_restore" --version | grep -Fx "pg_restore (PostgreSQL) $postgresql_version"
+LD_LIBRARY_PATH="$output_directory/lib" "$output_directory/bin/createdb" --version | grep -Fx "createdb (PostgreSQL) $postgresql_version"
+LD_LIBRARY_PATH="$output_directory/lib" "$output_directory/bin/psql" --version | grep -Fx "psql (PostgreSQL) $postgresql_version"
 python3 - "$output_directory" "$source_url" "$download_url" "$source_sha256" "$postgresql_version" <<'PY'
 import hashlib
 import json

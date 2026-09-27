@@ -52,7 +52,7 @@ class SingleServerWindowsCoverTests(unittest.TestCase):
             ], check=True, capture_output=True, text=True)
             for binary_name in BINARIES:
                 shutil.copy2(test_service, binary_directory / binary_name)
-            for tool_name in ("pg_dump.exe", "pg_restore.exe"):
+            for tool_name in ("pg_dump.exe", "pg_restore.exe", "createdb.exe", "psql.exe"):
                 (postgresql_directory / "bin" / tool_name).write_bytes(b"MZ" + tool_name.encode())
 
             deployment_id = str(uuid.uuid4())
@@ -119,7 +119,7 @@ class SingleServerWindowsCoverTests(unittest.TestCase):
                     )
                     package_directory = test_root / f"package-{release_number}"
                     with patch("scripts.assemble_single_server_windows.verify_postgresql_client",
-                               return_value=["bin/pg_dump.exe", "bin/pg_restore.exe"]):
+                               return_value=["bin/pg_dump.exe", "bin/pg_restore.exe", "bin/createdb.exe", "bin/psql.exe"]):
                         assemble(binary_directory, static_directory, postgresql_directory,
                                  package_directory, "1.0.3")
                     _, manifest_hash = validate_package(package_directory)
