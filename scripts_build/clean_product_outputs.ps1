@@ -4,7 +4,7 @@ param(
     [ValidateSet('cloud_node', 'client', 'remote', 'android', 'all')]
     [string]$Product,
 
-    [ValidateSet('', 'oem')]
+    [ValidateSet('', 'official', 'oem')]
     [string]$Distribution = '',
 
     [string]$OemId = ''
@@ -41,6 +41,8 @@ $targets = if ($Product -eq 'all') {
     @($buildRoot)
 } elseif ($Distribution -eq 'oem') {
     @([IO.Path]::GetFullPath((Join-Path $buildRoot "$Product\oem\$OemId")))
+} elseif ($Distribution -eq 'official') {
+    @([IO.Path]::GetFullPath((Join-Path $buildRoot "$Product\official")))
 } else {
     @([IO.Path]::GetFullPath((Join-Path $buildRoot $Product)))
 }
@@ -58,5 +60,5 @@ foreach ($target in $targets) {
 }
 
 [IO.Directory]::CreateDirectory($buildRoot) | Out-Null
-$cleanupIdentity = if ($Distribution -eq 'oem') { "$Product/oem/$OemId" } else { $Product }
+$cleanupIdentity = if ($Distribution -eq 'oem') { "$Product/oem/$OemId" } elseif ($Distribution -eq 'official') { "$Product/official" } else { $Product }
 Write-Host "Product output cleanup complete: $cleanupIdentity"

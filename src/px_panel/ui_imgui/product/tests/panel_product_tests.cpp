@@ -29,11 +29,19 @@
 #include "panel_system_information.h"
 #include "panel_worker.h"
 #include "px_common/base64.h"
+#include "px_common/http_client.h"
 #include "px_common/shared_preference.h"
+#include "px_console_client/console_http_client.h"
 #include "px_render_panel_message.pb.h"
 #include "windows_environment_probe.h"
 
 namespace px::panel::product {
+
+TEST(PanelConsoleHttpsTest, KeepsHttpsButAcceptsPrivateCertificates) {
+    const auto consoleClient = px_console::MakeConsoleHttpClient("private-console.example", 4600, "/health/ready");
+    ASSERT_NE(consoleClient, nullptr);
+    EXPECT_FALSE(consoleClient->IsPeerVerificationEnabled());
+}
 
 TEST(PanelProductNavigation, MatchesTheConfiguredProductCapabilities) {
     const auto hasPage = [](const ui::PanelPage page) {
@@ -443,6 +451,26 @@ TEST(PanelConfigStoreTest, CustomerDistributionRejectsTheOfficialConsoleOrigin) 
     ASSERT_TRUE(privateEndpoint);
     EXPECT_TRUE(config->SaveNetwork(privateEndpoint->baseUrl, *privateEndpoint));
     EXPECT_EQ(config->ConsoleAddress(), privateEndpoint->baseUrl);
+}
+
+TEST(PanelConfigStoreTest, UnifiedPixelsPackageSelectsOfficialOrCustomConsole) {
+    TemporaryDirectory directory{};
+    const auto preferences = std::make_shared<SharedPreference>();
+    ASSERT_TRUE(preferences->Init(directory.Path(), "preferences"));
+    const auto config = std::make_shared<PanelConfigStore>(preferences, directory.Path(), std::string{},
+                                                           "https://OFFICIAL-console.example.test:443/");
+
+    EXPECT_EQ(config->ConsoleAddress(), "https://official-console.example.test");
+    ASSERT_TRUE(config->Console());
+    EXPECT_EQ(config->Console()->host, "official-console.example.test");
+    EXPECT_FALSE(config->ParseConsoleAddress("https://official-console.example.test"));
+
+    const auto privateEndpoint = config->ParseConsoleAddress("https://private-console.example.test");
+    ASSERT_TRUE(privateEndpoint);
+    ASSERT_TRUE(config->SaveNetwork(privateEndpoint->baseUrl, *privateEndpoint));
+    EXPECT_EQ(config->ConsoleAddress(), privateEndpoint->baseUrl);
+    ASSERT_TRUE(config->SaveOfficialNetwork());
+    EXPECT_EQ(config->ConsoleAddress(), "https://official-console.example.test");
 }
 
 TEST(PanelConsoleSessionTest, ConsoleOriginChangeClearsThePreviousAccountBinding) {

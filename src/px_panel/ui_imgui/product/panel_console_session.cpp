@@ -277,7 +277,7 @@ bool PanelConsoleSession::WriteAccessToken(const ConsoleEndpoint& endpoint, cons
 }
 
 void PanelConsoleSession::DeleteAccessToken(const std::string& consoleAddress) const {
-    const auto endpoint = config_->ParseConsoleAddress(consoleAddress);
+    const auto endpoint = ParseConsoleHttpsOrigin(consoleAddress);
     if (!endpoint) return;
     const auto target = CredentialTarget(*endpoint);
     static_cast<void>(CredDeleteW(target.c_str(), CRED_TYPE_GENERIC, 0));

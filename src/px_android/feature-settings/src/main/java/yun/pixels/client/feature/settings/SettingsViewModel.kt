@@ -25,13 +25,21 @@ class SettingsViewModel(
     private val updateInstaller: AndroidUpdateInstaller,
 ) : ViewModel() {
     private val form = MutableStateFlow(
-        installationUiState(SettingsUiState(endpointEditable = accountRepository.endpointEditable)),
+        installationUiState(
+            SettingsUiState(
+                endpointEditable = accountRepository.endpointEditable,
+                officialEndpointAvailable = accountRepository.officialEndpoint != null,
+            ),
+        ),
     )
     val uiState = combine(form, accountRepository.state, accountRepository.endpoint, ::deriveUiState)
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
-            SettingsUiState(endpointEditable = accountRepository.endpointEditable),
+            SettingsUiState(
+                endpointEditable = accountRepository.endpointEditable,
+                officialEndpointAvailable = accountRepository.officialEndpoint != null,
+            ),
         )
 
     private fun deriveUiState(
@@ -40,9 +48,12 @@ class SettingsViewModel(
         endpoint: ConsoleEndpoint?,
     ): SettingsUiState {
         val endpointValue = if (formState.endpointEdited) formState.consoleEndpoint else endpoint?.baseUrl.orEmpty()
+        val resolvedFormState = formState.copy(
+            officialModeSelected = !formState.endpointEdited && endpoint != null && endpoint == accountRepository.officialEndpoint,
+        )
         return when (accountState) {
-            AccountState.Loading -> formState.copy(consoleEndpoint = endpointValue, isLoading = true, profile = null)
-            AccountState.SignedOut -> formState.copy(
+            AccountState.Loading -> resolvedFormState.copy(consoleEndpoint = endpointValue, isLoading = true, profile = null)
+            AccountState.SignedOut -> resolvedFormState.copy(
                 consoleEndpoint = endpointValue,
                 isLoading = false,
                 profile = null,
@@ -52,7 +63,7 @@ class SettingsViewModel(
                 updateBuildNumber = null,
                 updateFailure = null,
             )
-            is AccountState.SignedIn -> formState.copy(
+            is AccountState.SignedIn -> resolvedFormState.copy(
                 consoleEndpoint = endpointValue,
                 username = accountState.session.profile.username,
                 password = "",
@@ -71,6 +82,7 @@ class SettingsViewModel(
                     it.copy(
                         consoleEndpoint = action.value,
                         endpointEdited = true,
+                        officialSelectionRequested = false,
                         endpointTested = false,
                         failure = null,
                     )
@@ -80,6 +92,21 @@ class SettingsViewModel(
             is SettingsAction.PasswordChanged -> form.update { it.copy(password = action.value, failure = null) }
             is SettingsAction.ConfirmPasswordChanged -> form.update { it.copy(confirmPassword = action.value, failure = null) }
             SettingsAction.SaveEndpoint -> saveEndpoint()
+            SettingsAction.UseOfficialEndpoint -> {
+                val officialEndpoint = accountRepository.officialEndpoint
+                if (officialEndpoint != null) {
+                    form.update {
+                        it.copy(
+                            consoleEndpoint = officialEndpoint.baseUrl,
+                            endpointEdited = true,
+                            officialSelectionRequested = true,
+                            endpointTested = false,
+                            failure = null,
+                        )
+                    }
+                    saveEndpoint()
+                }
+            }
             SettingsAction.ConfirmEndpointChange -> saveEndpointNow()
             SettingsAction.CancelEndpointChange -> form.update { it.copy(confirmEndpointChange = false) }
             SettingsAction.TestEndpoint -> testEndpoint()
@@ -149,14 +176,17 @@ class SettingsViewModel(
     private fun saveEndpointNow() {
         if (!accountRepository.endpointEditable) return
         val endpoint = currentUiState().consoleEndpoint
+        val selectOfficialEndpoint = currentUiState().officialSelectionRequested
         if (endpoint.isBlank()) return
         viewModelScope.launch {
-            when (val result = accountRepository.saveEndpoint(endpoint)) {
+            val result = if (selectOfficialEndpoint) accountRepository.selectOfficialEndpoint() else accountRepository.saveEndpoint(endpoint)
+            when (result) {
                 is AccountResult.Success -> form.update {
                     it.copy(
                         consoleEndpoint = result.value.baseUrl,
                         endpointTested = false,
                         endpointEdited = false,
+                        officialSelectionRequested = false,
                         confirmEndpointChange = false,
                         failure = null,
                         updateStatus = UpdateStatus.Idle,

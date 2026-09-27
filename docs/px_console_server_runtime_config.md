@@ -80,10 +80,10 @@ Service 不读取 `PXLIC2`，只执行通过 Console 数据库事务与当前 co
 
 ## 客户端端点与 TLS
 
-客户端只使用正常 HTTPS/TLS 验证服务器身份，不再使用自定义部署证书、签名 descriptor、challenge/proof 或客户端持久化身份水位。
-Official 构建固定连接 Pixels 官方 Console，设置页不能改写；Customer 构建由管理员填写自己的私有部署地址，并必须拒绝已知官方地址。
-OEM 使用自身发行配置提供的私有地址策略。私有部署的 CA 和 HTTPS 证书可由客户自行生成或自签，不要求公有 CA；
-客户负责使其终端信任所用证书。用户名、密码、Cookie 和 token 仍沿用当前 HTTPS 连接路径，本阶段不做证书签发来源的专项验证。
+原生客户端继续使用 HTTPS/TLS，但不强制校验 Console 证书链或主机名；不再使用自定义部署证书、签名 descriptor、challenge/proof 或客户端持久化身份水位。
+Pixels 的 Cloud Node、Client、Remote 和 Android 各只有一个包：设置页显式选择内置官方 Console，或填写自定义私有 Console；
+自定义地址必须拒绝已知官方地址。OEM 使用自身发行配置提供的私有地址策略。私有部署的 CA 和 HTTPS 证书可由客户自行生成或自签，不要求公有 CA；
+原生客户端无需安装或信任私有 CA；普通浏览器仍按自身策略处理证书提示。用户名、密码、Cookie 和 token 仍沿用当前 HTTPS 连接路径；不校验证书会降低原生客户端对服务器身份的确认能力，不改变账号与许可证校验。
 
 客户端通过版本化 API 获取业务能力和当前 Render 连接描述；这些响应不承担第二套服务器 PKI。Windows Client、Web Client、Android、Panel、
 Service、Render 与 Console 必须共同遵守同一端点来源和 API 版本窗口，不能恢复已退役的 `PXDC2`、`PXDD2` 或 `PXDP1` 路径。

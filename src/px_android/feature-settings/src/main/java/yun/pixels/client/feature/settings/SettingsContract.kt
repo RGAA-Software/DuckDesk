@@ -14,6 +14,9 @@ data class SettingsUiState(
     val endpointTested: Boolean = false,
     val endpointEdited: Boolean = false,
     val endpointEditable: Boolean = true,
+    val officialEndpointAvailable: Boolean = false,
+    val officialModeSelected: Boolean = false,
+    val officialSelectionRequested: Boolean = false,
     val confirmEndpointChange: Boolean = false,
     val profile: AccountProfile? = null,
     val failure: AccountFailure? = null,
@@ -44,6 +47,8 @@ sealed interface SettingsAction {
     data class ConfirmPasswordChanged(val value: String) : SettingsAction
 
     data object SaveEndpoint : SettingsAction
+
+    data object UseOfficialEndpoint : SettingsAction
 
     data object ConfirmEndpointChange : SettingsAction
 

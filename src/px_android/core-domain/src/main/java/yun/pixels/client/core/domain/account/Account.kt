@@ -121,8 +121,12 @@ interface ConsoleSessionRepository : AccountRepository {
     val endpoint: StateFlow<ConsoleEndpoint?>
     val endpointEditable: Boolean
         get() = true
+    val officialEndpoint: ConsoleEndpoint?
+        get() = null
 
     suspend fun saveEndpoint(endpoint: String): AccountResult<ConsoleEndpoint>
+
+    suspend fun selectOfficialEndpoint(): AccountResult<ConsoleEndpoint> = AccountResult.Failure(AccountFailure.InvalidEndpoint)
 
     suspend fun testEndpoint(endpoint: String): AccountResult<ConsoleEndpoint>
 

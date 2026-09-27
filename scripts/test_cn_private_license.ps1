@@ -6,7 +6,9 @@ param(
     [string]$TrustStorePath = 'scripts/server_validation/fixtures/cn_auth_public_trust_20260925.json',
     [switch]$Issue,
     [guid]$DeploymentId,
-    [string]$OutputDirectory = ''
+    [string]$OutputDirectory = '',
+    [guid]$RenewLicenseId,
+    [int]$ExpectedRevision = 0
 )
 
 $ErrorActionPreference = 'Stop'
@@ -16,6 +18,10 @@ $consoleAdmin = [IO.Path]::GetFullPath((Join-Path $repository $ConsoleAdminPath)
 $trustedPublicKeyPath = [IO.Path]::GetFullPath((Join-Path $repository $TrustStorePath))
 if ($OutputDirectory -and (-not $Issue -or $DeploymentId -eq [guid]::Empty)) {
     throw 'Exporting a test license requires -Issue and an explicit deployment ID.'
+}
+if (($RenewLicenseId -ne [guid]::Empty -and $ExpectedRevision -lt 1) -or
+    ($RenewLicenseId -eq [guid]::Empty -and $ExpectedRevision -ne 0)) {
+    throw 'License renewal requires an existing license ID and positive expected revision.'
 }
 if ($OutputDirectory -and -not (Test-Path -LiteralPath $OutputDirectory -PathType Container)) {
     throw 'The isolated output directory must already exist.'
@@ -80,19 +86,35 @@ try {
     } else {
         $DeploymentId.ToString()
     }
+    $issueRequest = if ($RenewLicenseId -ne [guid]::Empty) {
+        @{
+            operation = 'renew'
+            license_id = $RenewLicenseId.ToString()
+            expected_revision = $ExpectedRevision
+            terms = @{
+                customer_id = [string]$testCustomers[0].id
+                deployment_id = $deploymentId
+                expires_at = [DateTimeOffset]::UtcNow.AddHours(2).ToUnixTimeSeconds()
+                max_streams = 1
+                services = @('cloud_applications')
+            }
+        }
+    } else {
+        @{
+            operation = 'create'
+            terms = @{
+                customer_id = [string]$testCustomers[0].id
+                deployment_id = $deploymentId
+                expires_at = [DateTimeOffset]::UtcNow.AddHours(2).ToUnixTimeSeconds()
+                max_streams = 1
+                services = @('cloud_applications')
+            }
+        }
+    }
     $issueResponse = Invoke-RestMethod -Method Post -Uri "$authOrigin/api/auth/licenses/issue" -Headers $authHeaders `
         -ContentType 'application/json' -Body (@{
             request_id = [guid]::NewGuid().ToString()
-            request = @{
-                operation = 'create'
-                terms = @{
-                    customer_id = [string]$testCustomers[0].id
-                    deployment_id = $deploymentId
-                    expires_at = [DateTimeOffset]::UtcNow.AddHours(2).ToUnixTimeSeconds()
-                    max_streams = 1
-                    services = @('cloud_applications')
-                }
-            }
+            request = $issueRequest
         } | ConvertTo-Json -Depth 6)
     if (-not [string]$issueResponse.wire -or -not [string]$issueResponse.license_id) {
         throw 'CN Auth did not return a signed PXLIC2 wire.'

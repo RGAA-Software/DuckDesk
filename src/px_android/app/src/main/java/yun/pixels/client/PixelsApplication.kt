@@ -77,8 +77,7 @@ class PixelsAppGraph(application: Application) {
         api = consoleApi,
         endpointStore = DataStoreConsoleEndpointStore.create(application, applicationScope),
         sessionStore = AndroidConsoleSessionStore.create(application, applicationScope),
-        fixedEndpoint = BuildConfig.OFFICIAL_CONSOLE_URL.takeIf { BuildConfig.DEPLOYMENT_DISTRIBUTION == "official" },
-        forbiddenEndpoint = BuildConfig.OFFICIAL_CONSOLE_URL.takeIf { BuildConfig.DEPLOYMENT_DISTRIBUTION == "customer" },
+        officialEndpoint = BuildConfig.OFFICIAL_CONSOLE_URL.takeIf { BuildConfig.DEPLOYMENT_DISTRIBUTION == "official" },
     ).also { repository -> applicationScope.launch { repository.restore() } }
     val accountRepository: AccountRepository = consoleSessionRepository
     val applicationRepository: ApplicationRepository = ConsoleApplicationRepository(consoleApi, consoleSessionRepository)

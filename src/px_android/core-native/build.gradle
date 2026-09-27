@@ -25,7 +25,13 @@ android {
                 cppFlags '-std=c++23'
                 arguments '-DANDROID_STL=c++_shared', "-DVCPKG_ROOT=${configuredVcpkgRoot}"
                 if (fastRelease) {
-                    arguments '-DCMAKE_C_FLAGS_RELEASE=-O1 -DNDEBUG', '-DCMAKE_CXX_FLAGS_RELEASE=-O1 -DNDEBUG'
+                    arguments '-DCMAKE_C_FLAGS_RELEASE=-O1 -DNDEBUG',
+                        '-DCMAKE_CXX_FLAGS_RELEASE=-O1 -DNDEBUG',
+                        '-DCMAKE_C_FLAGS_RELWITHDEBINFO=-O1 -DNDEBUG',
+                        '-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=-O1 -DNDEBUG'
+                } else {
+                    arguments '-DCMAKE_C_FLAGS_RELWITHDEBINFO=-O3 -DNDEBUG',
+                        '-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=-O3 -DNDEBUG'
                 }
                 targets 'pixels_android_core'
             }

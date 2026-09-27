@@ -219,11 +219,17 @@ std::optional<ConsoleEndpoint> PanelConfigStore::ParseConsoleAddress(const std::
     return endpoint;
 }
 
-std::optional<ConsoleEndpoint> PanelConfigStore::Console() const { return ParseConsoleAddress(ConsoleAddress()); }
+std::optional<ConsoleEndpoint> PanelConfigStore::Console() const {
+    const auto address = ConsoleAddress();
+    return address == forbiddenConsoleAddress_ ? ParseConsoleHttpsOrigin(address) : ParseConsoleAddress(address);
+}
 std::string PanelConfigStore::ConsoleAddress() const {
-    return fixedConsoleAddress_.empty() ? Read(preferences_, "console_server_url") : fixedConsoleAddress_;
+    if (!fixedConsoleAddress_.empty()) return fixedConsoleAddress_;
+    const auto savedAddress = Read(preferences_, "console_server_url");
+    return savedAddress.empty() ? forbiddenConsoleAddress_ : savedAddress;
 }
 bool PanelConfigStore::ConsoleAddressEditable() const { return fixedConsoleAddress_.empty(); }
+std::string PanelConfigStore::OfficialConsoleAddress() const { return forbiddenConsoleAddress_; }
 PanelIdentity PanelConfigStore::Identity() const {
     return {.deviceId = Read(preferences_, "device_id"),
             .deviceName = Read(preferences_, "device_name"),
@@ -344,6 +350,12 @@ bool PanelConfigStore::SaveNetwork(const std::string& consoleAddress, const Cons
     if (!fixedConsoleAddress_.empty()) return true;
     const std::scoped_lock lock{mutex_};
     return preferences_->Put("console_server_url", consoleAddress);
+}
+
+bool PanelConfigStore::SaveOfficialNetwork() {
+    if (forbiddenConsoleAddress_.empty() || !fixedConsoleAddress_.empty()) return false;
+    const std::scoped_lock lock{mutex_};
+    return preferences_->Put("console_server_url", forbiddenConsoleAddress_);
 }
 
 bool PanelConfigStore::SaveIdentity(const PanelIdentity& identity) {

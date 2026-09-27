@@ -41,12 +41,13 @@ void NetworkSettingsPresenter::Synchronize() {
     }
     auto draft = page_.Draft();
     draft.consolePort = state.settings.consolePort;
+    draft.officialConsoleAvailable = state.settings.officialConsoleAvailable;
     draft.serviceManagementPort = state.settings.serviceManagementPort;
     draft.desktopConnectionPort = state.settings.desktopConnectionPort;
     draft.applicationPorts = state.settings.applicationPorts;
     draft.rtcPorts = state.settings.rtcPorts;
     draft.panelListeningPort = state.settings.panelListeningPort;
-    if (draft.consoleAddress.empty()) {
+    if (draft.consoleAddress.empty() || state.operation == NetworkOperation::SavedNeedsRestart) {
         draft.consoleAddress = state.settings.consoleAddress;
     }
     page_.SetDraft(std::move(draft));
@@ -89,6 +90,9 @@ void NetworkSettingsPresenter::Draw(const px::ui::Localizer& localizer) {
         break;
     case NetworkPageAction::SaveRequested:
             port_->Save(draft.consoleAddress);
+        break;
+    case NetworkPageAction::UseOfficialRequested:
+            port_->UseOfficial();
         break;
     case NetworkPageAction::None:
         break;

@@ -31,6 +31,7 @@ class NetworkSettingsPort {
     virtual void ParseConsoleAddress(std::string consoleAddress) = 0;
     virtual void Verify(std::string consoleAddress) = 0;
     virtual void Save(std::string consoleAddress) = 0;
+    virtual void UseOfficial() = 0;
     virtual void RestartRender() = 0;
     virtual void Acknowledge() = 0;
 };

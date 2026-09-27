@@ -12,6 +12,7 @@ enum class NetworkPageAction : std::uint8_t {
     ConsoleAddressChanged,
     VerifyRequested,
     SaveRequested,
+    UseOfficialRequested,
 };
 
 class NetworkSettingsPage final {

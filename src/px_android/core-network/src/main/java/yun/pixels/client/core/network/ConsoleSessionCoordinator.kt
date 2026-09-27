@@ -22,28 +22,26 @@ class ConsoleSessionCoordinator(
     private val endpointStore: ConsoleEndpointStore,
     private val sessionStore: AccountSessionStore,
     private val now: () -> Long = System::currentTimeMillis,
-    fixedEndpoint: String? = null,
-    forbiddenEndpoint: String? = null,
+    officialEndpoint: String? = null,
 ) : ConsoleSessionRepository {
-    private val fixedConsoleEndpoint = fixedEndpoint?.let(::normalizeEndpoint)
-    private val forbiddenConsoleEndpoint = forbiddenEndpoint?.let(::normalizeEndpoint)
-    private val invalidEndpointPolicy =
-        fixedEndpoint != null && fixedConsoleEndpoint == null || forbiddenEndpoint != null && forbiddenConsoleEndpoint == null
+    override val officialEndpoint = officialEndpoint?.let(::normalizeEndpoint)
+    private val invalidEndpointPolicy = officialEndpoint != null && this.officialEndpoint == null
     private val mutableState = MutableStateFlow<AccountState>(AccountState.Loading)
     private val mutableEndpoint = MutableStateFlow<ConsoleEndpoint?>(null)
+    private val endpointMutationMutex = Mutex()
+    private var endpointGeneration = 0L
     private val guestMutex = Mutex()
     private var guestSession: GuestSession? = null
 
     override val state: StateFlow<AccountState> = mutableState.asStateFlow()
     override val endpoint: StateFlow<ConsoleEndpoint?> = mutableEndpoint.asStateFlow()
-    override val endpointEditable: Boolean = fixedConsoleEndpoint == null
+    override val endpointEditable: Boolean = true
 
     override suspend fun restore() {
         check(!invalidEndpointPolicy) { "Console endpoint policy is invalid" }
-        val storedEndpoint = endpointStore.load()?.takeUnless { it == forbiddenConsoleEndpoint }
-        val endpoint = fixedConsoleEndpoint ?: storedEndpoint
-        if (fixedConsoleEndpoint != null && storedEndpoint != fixedConsoleEndpoint) endpointStore.save(fixedConsoleEndpoint)
-        if (fixedConsoleEndpoint == null && storedEndpoint == null) endpointStore.clear()
+        val storedEndpoint = endpointStore.load()
+        val endpoint = storedEndpoint ?: officialEndpoint
+        if (storedEndpoint == null && officialEndpoint == null) endpointStore.clear()
         mutableEndpoint.value = endpoint
         val session = sessionStore.load()?.takeIf {
             endpoint != null && it.endpoint == endpoint && it.expiresAtEpochMillis > now()
@@ -55,22 +53,32 @@ class ConsoleSessionCoordinator(
     override suspend fun saveEndpoint(endpoint: String): AccountResult<ConsoleEndpoint> {
         val normalized = normalizeEndpoint(endpoint)
             ?: return AccountResult.Failure(AccountFailure.InvalidEndpoint)
-        if (fixedConsoleEndpoint != null && normalized != fixedConsoleEndpoint || normalized == forbiddenConsoleEndpoint) {
+        if (normalized == officialEndpoint) {
             return AccountResult.Failure(AccountFailure.InvalidEndpoint)
         }
+        return activateEndpoint(normalized)
+    }
+
+    override suspend fun selectOfficialEndpoint(): AccountResult<ConsoleEndpoint> {
+        val selectedEndpoint = officialEndpoint ?: return AccountResult.Failure(AccountFailure.InvalidEndpoint)
+        return activateEndpoint(selectedEndpoint)
+    }
+
+    private suspend fun activateEndpoint(normalized: ConsoleEndpoint): AccountResult<ConsoleEndpoint> = endpointMutationMutex.withLock {
         if (mutableEndpoint.value != normalized) {
             sessionStore.clear()
             guestMutex.withLock { guestSession = null }
             mutableState.value = AccountState.SignedOut
             mutableEndpoint.value = normalized
             endpointStore.save(normalized)
+            endpointGeneration += 1
         }
-        return AccountResult.Success(normalized)
+        AccountResult.Success(normalized)
     }
 
     override suspend fun testEndpoint(endpoint: String): AccountResult<ConsoleEndpoint> =
         if (normalizeEndpoint(endpoint).let { normalized ->
-                normalized == null || fixedConsoleEndpoint != null && normalized != fixedConsoleEndpoint || normalized == forbiddenConsoleEndpoint
+                normalized == null || normalized == officialEndpoint && mutableEndpoint.value != officialEndpoint
             }
         ) {
             AccountResult.Failure(AccountFailure.InvalidEndpoint)
@@ -79,20 +87,35 @@ class ConsoleSessionCoordinator(
         }
 
     override suspend fun login(endpoint: String, username: String, password: String): AccountResult<AccountSession> {
-        val saved = saveEndpoint(endpoint)
+        val saved = if (normalizeEndpoint(endpoint) == officialEndpoint && mutableEndpoint.value == officialEndpoint && officialEndpoint != null) {
+            selectOfficialEndpoint()
+        } else {
+            saveEndpoint(endpoint)
+        }
         if (saved is AccountResult.Failure) return saved
         val normalized = (saved as AccountResult.Success).value
-        mutableState.value = AccountState.Loading
-        return when (val result = api.login(normalized.baseUrl, username, password)) {
-            is AccountResult.Success -> {
-                sessionStore.save(result.value)
-                guestMutex.withLock { guestSession = null }
-                mutableState.value = AccountState.SignedIn(result.value)
-                result
+        val loginGeneration = endpointMutationMutex.withLock {
+            if (mutableEndpoint.value != normalized) return AccountResult.Failure(AccountFailure.InvalidEndpoint)
+            mutableState.value = AccountState.Loading
+            endpointGeneration
+        }
+        val result = api.login(normalized.baseUrl, username, password)
+        return endpointMutationMutex.withLock {
+            if (endpointGeneration != loginGeneration || mutableEndpoint.value != normalized) {
+                return@withLock AccountResult.Failure(AccountFailure.InvalidEndpoint)
             }
-            is AccountResult.Failure -> {
-                mutableState.value = AccountState.SignedOut
-                result
+            when (result) {
+                is AccountResult.Success -> {
+                    if (result.value.endpoint != normalized) return@withLock AccountResult.Failure(AccountFailure.InvalidResponse)
+                    sessionStore.save(result.value)
+                    guestMutex.withLock { guestSession = null }
+                    mutableState.value = AccountState.SignedIn(result.value)
+                    result
+                }
+                is AccountResult.Failure -> {
+                    mutableState.value = AccountState.SignedOut
+                    result
+                }
             }
         }
     }

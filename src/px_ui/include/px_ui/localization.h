@@ -22,6 +22,7 @@ enum class TextId : std::uint16_t {
     SettingsNetwork,
     ConnectionAddresses,
     ConsoleAddress,
+    UseOfficialConsole,
     ResolvedConsoleEndpoint,
     ConsoleService,
     ConsoleApiPurpose,

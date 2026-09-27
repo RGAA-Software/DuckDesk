@@ -34,8 +34,8 @@ class PublicConsoleSmokeTest {
         val activity = composeRule.activity
         composeRule.onNodeWithText(activity.getString(R.string.navigation_settings)).performClick()
         if (BuildConfig.DEPLOYMENT_DISTRIBUTION == "official") {
-            composeRule.onNodeWithText(activity.getString(SettingsR.string.official_console_endpoint)).fetchSemanticsNode()
-            composeRule.onAllNodesWithText(activity.getString(SettingsR.string.console_endpoint)).assertCountEquals(0)
+            composeRule.onNodeWithText(activity.getString(SettingsR.string.use_official_console)).fetchSemanticsNode()
+            composeRule.onNodeWithText(activity.getString(SettingsR.string.custom_console_endpoint)).fetchSemanticsNode()
         } else {
             composeRule.onNodeWithText(activity.getString(SettingsR.string.console_endpoint)).fetchSemanticsNode()
         }
@@ -57,10 +57,6 @@ class PublicConsoleSmokeTest {
         val password = arguments.getString("password")
         val consoleEndpoint = arguments.getString("consoleEndpoint")
         assumeTrue("public test credentials were not supplied", !username.isNullOrBlank() && !password.isNullOrBlank())
-        assumeTrue(
-            "customer test Console endpoint was not supplied",
-            BuildConfig.DEPLOYMENT_DISTRIBUTION == "official" || !consoleEndpoint.isNullOrBlank(),
-        )
         val requiredUsername = requireNotNull(username)
         val requiredPassword = requireNotNull(password)
         val activity = composeRule.activity
@@ -68,10 +64,8 @@ class PublicConsoleSmokeTest {
         composeRule.onNodeWithText(activity.getString(R.string.navigation_settings)).performClick()
         val alreadySignedIn = composeRule.onAllNodesWithText(activity.getString(SettingsR.string.sign_out)).fetchSemanticsNodes().isNotEmpty()
         if (!alreadySignedIn) {
-            if (BuildConfig.DEPLOYMENT_DISTRIBUTION == "customer") {
-                composeRule.onNodeWithText(activity.getString(SettingsR.string.console_endpoint))
-                    .performTextReplacement(requireNotNull(consoleEndpoint))
-                composeRule.onNodeWithText(activity.getString(SettingsR.string.save_endpoint)).performClick()
+            if (!consoleEndpoint.isNullOrBlank()) {
+                selectConsoleEndpoint(consoleEndpoint)
             }
             composeRule.onNodeWithText(activity.getString(SettingsR.string.username)).performTextReplacement(requiredUsername)
             composeRule.onNodeWithText(activity.getString(SettingsR.string.password)).performTextReplacement(requiredPassword)
@@ -159,16 +153,25 @@ class PublicConsoleSmokeTest {
         val activity = composeRule.activity
         composeRule.onNodeWithText(activity.getString(R.string.navigation_settings)).performClick()
         if (composeRule.onAllNodesWithText(activity.getString(SettingsR.string.sign_out)).fetchSemanticsNodes().isNotEmpty()) return
-        if (BuildConfig.DEPLOYMENT_DISTRIBUTION == "customer") {
-            composeRule.onNodeWithText(activity.getString(SettingsR.string.console_endpoint))
-                .performTextReplacement(requireNotNull(consoleEndpoint))
-            composeRule.onNodeWithText(activity.getString(SettingsR.string.save_endpoint)).performClick()
+        if (!consoleEndpoint.isNullOrBlank()) {
+            selectConsoleEndpoint(consoleEndpoint)
         }
         composeRule.onNodeWithText(activity.getString(SettingsR.string.username)).performTextReplacement(username)
         composeRule.onNodeWithText(activity.getString(SettingsR.string.password)).performTextReplacement(password)
         composeRule.onNodeWithText(activity.getString(SettingsR.string.sign_in)).performClick()
         composeRule.waitUntil(timeoutMillis = 15_000) {
             composeRule.onAllNodesWithText(activity.getString(SettingsR.string.sign_out)).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    private fun selectConsoleEndpoint(consoleEndpoint: String) {
+        val activity = composeRule.activity
+        if (consoleEndpoint.trimEnd('/') == BuildConfig.OFFICIAL_CONSOLE_URL.trimEnd('/')) {
+            composeRule.onNodeWithText(activity.getString(SettingsR.string.use_official_console)).performClick()
+        } else {
+            composeRule.onNodeWithText(activity.getString(SettingsR.string.custom_console_endpoint))
+                .performTextReplacement(consoleEndpoint)
+            composeRule.onNodeWithText(activity.getString(SettingsR.string.save_endpoint)).performClick()
         }
     }
 

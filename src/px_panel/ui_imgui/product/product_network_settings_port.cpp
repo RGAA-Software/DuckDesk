@@ -15,6 +15,7 @@ public:
         const auto ports = runtime_->Config()->Ports();
         state_.settings = {.consoleAddress = runtime_->Config()->ConsoleAddress(),
                            .consoleAddressEditable = runtime_->Config()->ConsoleAddressEditable(),
+                           .officialConsoleAvailable = !runtime_->Config()->OfficialConsoleAddress().empty(),
                            .serviceManagementPort = ports.service,
                            .desktopConnectionPort = ports.desktop,
                            .applicationPorts = {ports.applicationFirst, ports.applicationLast},
@@ -97,6 +98,21 @@ public:
             }
             runtime->Notify(false, std::string{px::ui::ApplicationName()}, "Network settings saved");
         }));
+    }
+
+    void UseOfficial() override {
+        const auto officialAddress = runtime_->Config()->OfficialConsoleAddress();
+        const auto officialEndpoint = ParseConsoleHttpsOrigin(officialAddress);
+        if (!officialEndpoint || !runtime_->Config()->SaveOfficialNetwork()) {
+            SetFailure(ui::NetworkOperation::Failed, "Unable to select official Console");
+            return;
+        }
+        runtime_->Console()->ForgetAccountIfConsoleChanged(officialAddress);
+        const std::scoped_lock lock{mutex_};
+        state_.settings.consoleAddress = officialAddress;
+        ApplyEndpointLocked(officialEndpoint);
+        state_.operation = ui::NetworkOperation::SavedNeedsRestart;
+        state_.detail.clear();
     }
 
     void RestartRender() override {

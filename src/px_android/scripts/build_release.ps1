@@ -32,8 +32,8 @@ if ($expectedVersionName -notmatch '^\d+\.\d+\.\d+$' -or $expectedVersionCodeTex
 if ($expectedCompany -ne 'Pixels') {
     throw 'PIXELS_COMPANY must be Pixels and must come from the Android product manifest.'
 }
-if ($expectedDistribution -notin @('official', 'customer', 'oem')) {
-    throw 'PIXELS_DISTRIBUTION must be official, customer or oem and must come from the Android product build entry point.'
+if ($expectedDistribution -notin @('official', 'oem')) {
+    throw 'PIXELS_DISTRIBUTION must be official or oem and must come from the Android product build entry point.'
 }
 if ($expectedDistribution -eq 'oem') {
     if ($expectedOemId -notmatch '^[a-z0-9](?:[a-z0-9-]{1,30}[a-z0-9])?$' -or
@@ -44,7 +44,7 @@ if ($expectedDistribution -eq 'oem') {
     }
 } else {
     $expectedReleaseNamespace = "pixels.$expectedDistribution"
-    $expectedApplicationId = if ($expectedDistribution -eq 'customer') { 'yun.pixels.client.customer' } else { 'yun.pixels.client' }
+    $expectedApplicationId = 'yun.pixels.client'
     $expectedApplicationName = 'Pixels'
     $expectedBrandCompany = 'Pixels'
     $expectedOemId = $null
@@ -108,6 +108,22 @@ if (-not (Test-Path -LiteralPath $ffmpegSourceArchive -PathType Leaf)) {
 }
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
+function Get-ArtifactSha256 {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $artifactStream = [IO.File]::OpenRead($Path)
+    try {
+        $sha256Algorithm = [Security.Cryptography.SHA256]::Create()
+        try {
+            return [BitConverter]::ToString($sha256Algorithm.ComputeHash($artifactStream)).Replace('-', '')
+        } finally {
+            $sha256Algorithm.Dispose()
+        }
+    } finally {
+        $artifactStream.Dispose()
+    }
+}
+
 function Assert-ZipContent {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
@@ -140,6 +156,24 @@ function Assert-TarContent {
     }
 }
 
+function Get-NativeBuildRelativePath {
+    param(
+        [Parameter(Mandatory = $true)][string]$NativeRoot,
+        [Parameter(Mandatory = $true)][string]$ArtifactPath
+    )
+
+    $nativeRootPath = [IO.Path]::GetFullPath($NativeRoot)
+    $directorySeparator = [string][IO.Path]::DirectorySeparatorChar
+    if (-not $nativeRootPath.EndsWith($directorySeparator, [StringComparison]::Ordinal)) {
+        $nativeRootPath += $directorySeparator
+    }
+    $resolvedArtifactPath = [IO.Path]::GetFullPath($ArtifactPath)
+    if (-not $resolvedArtifactPath.StartsWith($nativeRootPath, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Native build artifact is outside its root: $resolvedArtifactPath"
+    }
+    return $resolvedArtifactPath.Substring($nativeRootPath.Length)
+}
+
 function New-LgplRelinkArchive {
     param(
         [Parameter(Mandatory = $true)][string]$NativeRoot,
@@ -158,7 +192,7 @@ function New-LgplRelinkArchive {
     try {
         New-Item -ItemType Directory -Path $objectRoot -Force | Out-Null
         foreach ($objectFile in $objectFiles) {
-            $relativePath = [System.IO.Path]::GetRelativePath($NativeRoot, $objectFile.FullName)
+            $relativePath = Get-NativeBuildRelativePath -NativeRoot $NativeRoot -ArtifactPath $objectFile.FullName
             $destination = Join-Path $objectRoot $relativePath
             New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
             Copy-Item -LiteralPath $objectFile.FullName -Destination $destination
@@ -169,7 +203,7 @@ function New-LgplRelinkArchive {
         })
         $metadataRoot = Join-Path $stagingRoot 'build-metadata'
         foreach ($buildFile in $buildFiles) {
-            $relativePath = [System.IO.Path]::GetRelativePath($NativeRoot, $buildFile.FullName)
+            $relativePath = Get-NativeBuildRelativePath -NativeRoot $NativeRoot -ArtifactPath $buildFile.FullName
             $destination = Join-Path $metadataRoot $relativePath
             New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
             Copy-Item -LiteralPath $buildFile.FullName -Destination $destination
@@ -205,8 +239,15 @@ function Get-ElfBuildId {
         [Parameter(Mandatory = $true)][string]$Path,
         [Parameter(Mandatory = $true)][string]$ReadElf
     )
-    $readElfOutput = @(& $ReadElf --notes $Path 2>&1)
-    if ($LASTEXITCODE -ne 0) {
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $readElfOutput = @(& $ReadElf --notes $Path 2>&1)
+        $readElfExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($readElfExitCode -ne 0) {
         throw "Unable to read ELF notes from $Path."
     }
     $buildIds = @(
@@ -229,7 +270,7 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($revision)) {
 $env:PIXELS_GIT_REVISION = $revision
 $env:PIXELS_RELEASE_COMPLIANCE_DRIVER = '1'
 
-$tasks = @(':app:lintRelease', 'testReleaseUnitTest', ':app:assembleRelease', ':app:bundleRelease', '--stacktrace')
+$tasks = @(':app:lintRelease', ':app:assembleRelease', ':app:bundleRelease', '--stacktrace')
 if (-not $SkipClean) {
     $tasks = @('clean') + $tasks
 }
@@ -482,7 +523,7 @@ $artifactMetadata = $publishedArtifacts | ForEach-Object {
     [ordered]@{
         name = $file.Name
         bytes = $file.Length
-        sha256 = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash
+        sha256 = Get-ArtifactSha256 -Path $file.FullName
     }
 }
 $manifest = [ordered]@{

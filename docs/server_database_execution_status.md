@@ -1,5 +1,9 @@
 # 服务数据库改造：实施与验收状态
 
+> 发行说明（2026-09-27）：本文后文的 Official/Customer 双客户端包、六个 Windows Setup、两个 Android APK 及其版本号是当时的历史验收记录，
+> 不是当前发行方式。现行 Pixels Cloud Node、Client、Remote 各一个 Setup，Android 一个 APK；运行时在设置中选择官方或私有 Console。
+> 当前构建、安装与升级命令以[产品编译与使用说明](product_build_and_usage.md)为准。
+
 > 更新至 2026-09-23。本文记录实际交付范围；DB0–DB5 当前开发基线已按本文末尾的范围决定收口，但这不是整个商业化计划或
 > 商业发布门槛的完成声明。
 >

@@ -25,10 +25,26 @@ function Invoke-NativeChecked {
     }
 }
 
+function Get-ReleaseManifestSha256 {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $manifestStream = [IO.File]::OpenRead($Path)
+    try {
+        $sha256Algorithm = [Security.Cryptography.SHA256]::Create()
+        try {
+            return [BitConverter]::ToString($sha256Algorithm.ComputeHash($manifestStream)).Replace('-', '')
+        } finally {
+            $sha256Algorithm.Dispose()
+        }
+    } finally {
+        $manifestStream.Dispose()
+    }
+}
+
 function Invoke-DistributionBuilder {
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet('official', 'customer')]
+        [ValidateSet('official')]
         [string]$Distribution,
         [Parameter(Mandatory = $true)]
         [string[]]$Arguments
@@ -36,7 +52,7 @@ function Invoke-DistributionBuilder {
 
     $officialConsoleUrl = [Environment]::GetEnvironmentVariable('PIXELS_OFFICIAL_CONSOLE_URL')
     if ([string]::IsNullOrWhiteSpace($officialConsoleUrl)) {
-        throw 'Official and Customer Android release builds require PIXELS_OFFICIAL_CONSOLE_URL.'
+        throw 'Pixels Android release builds require PIXELS_OFFICIAL_CONSOLE_URL.'
     }
     $builderArguments = @(
         '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $distributionBuilder,
@@ -99,7 +115,6 @@ function Assert-ReleaseInputs {
 
 Assert-ReleaseInputs
 Invoke-DistributionBuilder -Distribution official -Arguments @('-PreflightOnly')
-Invoke-DistributionBuilder -Distribution customer -Arguments @('-PreflightOnly')
 
 $expectedBuildRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot 'build_official'))
 $expectedOutputRoot = [IO.Path]::GetFullPath((Join-Path $expectedBuildRoot 'android'))
@@ -108,12 +123,17 @@ if ($androidOutputRoot -ne $expectedOutputRoot -or
     $androidOutputRoot -eq [IO.Path]::GetPathRoot($androidOutputRoot)) {
     throw "Refusing to clean unsafe Android output root: $androidOutputRoot"
 }
-if ([IO.Directory]::Exists($androidOutputRoot)) {
-    [IO.Directory]::Delete($androidOutputRoot, $true)
-} elseif ([IO.File]::Exists($androidOutputRoot)) {
+if ([IO.File]::Exists($androidOutputRoot)) {
     throw "Expected an Android output directory but found a file: $androidOutputRoot"
 }
 [IO.Directory]::CreateDirectory($androidOutputRoot) | Out-Null
+$officialOutputRoot = [IO.Path]::GetFullPath((Join-Path $androidOutputRoot 'official'))
+if (-not $officialOutputRoot.StartsWith($androidOutputRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Refusing to clean unsafe Pixels Android output: $officialOutputRoot"
+}
+if ([IO.Directory]::Exists($officialOutputRoot)) {
+    [IO.Directory]::Delete($officialOutputRoot, $true)
+}
 
 $versionOutput = @(& $python.Source $versionTool --product android --bump --json 2>&1)
 if ($LASTEXITCODE -ne 0) {
@@ -134,9 +154,8 @@ $assignedArguments = @(
     '-AssignedCompany', [string]$version.company
 )
 Invoke-DistributionBuilder -Distribution official -Arguments $assignedArguments
-Invoke-DistributionBuilder -Distribution customer -Arguments $assignedArguments
 
-$distributionManifests = foreach ($distribution in @('official', 'customer')) {
+$distributionManifests = foreach ($distribution in @('official')) {
     $manifestPath = Join-Path $androidOutputRoot "$distribution\dist\$($version.product_version)\release-manifest.json"
     if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
         throw "Android $distribution release manifest is missing: $manifestPath"
@@ -148,8 +167,8 @@ $distributionManifests = foreach ($distribution in @('official', 'customer')) {
     }
     [ordered]@{
         distribution = $distribution
-        manifest = [IO.Path]::GetRelativePath($androidOutputRoot, $manifestPath).Replace('\', '/')
-        sha256 = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash
+        manifest = "$distribution/dist/$($version.product_version)/release-manifest.json"
+        sha256 = Get-ReleaseManifestSha256 -Path $manifestPath
     }
 }
 $matrixManifest = [ordered]@{
@@ -166,4 +185,4 @@ $matrixManifestPath = Join-Path $androidOutputRoot 'release-matrix.json'
 $matrixManifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $matrixStagingPath -Encoding utf8
 Move-Item -LiteralPath $matrixStagingPath -Destination $matrixManifestPath -Force
 
-Write-Host "Completed Pixels Android $($version.product_version) official+customer release matrix."
+Write-Host "Completed Pixels Android $($version.product_version) single-APK release."

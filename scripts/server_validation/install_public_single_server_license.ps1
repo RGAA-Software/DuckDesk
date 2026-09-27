@@ -3,12 +3,15 @@
 [CmdletBinding()]
 param(
     [string]$ComputerName = '39.71.45.66',
+    [string]$LicensePath = '',
     [switch]$VerifyOnly
 )
 
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-$licensePath = Join-Path $repositoryRoot '.env/pixels-pg-single-server-20260926-c4fdfa68/console.license'
+$licensePath = if ($LicensePath) { [IO.Path]::GetFullPath($LicensePath) } else {
+    Join-Path $repositoryRoot '.env/pixels-pg-single-server-20260926-c4fdfa68/console.license'
+}
 $certificateAuthorityPath = Join-Path $repositoryRoot '.env/public_single_server_console_ca.pem'
 $importScript = Join-Path $PSScriptRoot 'import_single_server_license.py'
 if (-not (Test-Path -LiteralPath $licensePath -PathType Leaf)) {
@@ -19,14 +22,11 @@ $password = [regex]::Match($machineText, '(?m)^\s*-\s*\u5bc6\u7801\s*[:\uff1a]\s
 $machineName = [regex]::Match($machineText, '(?m)^\s*-\s*\u4e3b\u673a\u540d\s*[:\uff1a]\s*(.+?)\s*$').Groups[1].Value
 if (-not $password -or -not $machineName) { throw 'Public test host credential is incomplete.' }
 $credential = [pscredential]::new("$machineName\Administrator", (ConvertTo-SecureString $password -AsPlainText -Force))
-$trustedHostsPath = 'WSMan:\localhost\Client\TrustedHosts'
-$previousTrustedHosts = (Get-Item -LiteralPath $trustedHostsPath).Value
 $remoteSession = $null
 $temporaryRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
 $temporaryDirectory = Join-Path $temporaryRoot ('pixels-single-license-' + [guid]::NewGuid().ToString('N'))
 $temporaryPasswordFile = Join-Path $temporaryDirectory 'admin-password'
 try {
-    Set-Item -LiteralPath $trustedHostsPath -Value $ComputerName -Force
     $remoteSession = New-PSSession -ComputerName $ComputerName -Credential $credential
     $remoteCertificateAuthority = 'C:\ProgramData\Pixels\Server\config\console-ca.crt'
     $remoteCertificateHash = Invoke-Command -Session $remoteSession -ArgumentList $remoteCertificateAuthority `
@@ -67,5 +67,4 @@ try {
         }
     }
     if ($remoteSession) { Remove-PSSession $remoteSession }
-    Set-Item -LiteralPath $trustedHostsPath -Value $previousTrustedHosts -Force
 }

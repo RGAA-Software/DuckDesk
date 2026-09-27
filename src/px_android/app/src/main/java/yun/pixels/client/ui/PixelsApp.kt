@@ -153,12 +153,11 @@ fun PixelsApp(graph: PixelsAppGraph) {
             remoteBinder = null
         }
     }
-    val codeScanner = remember(context) {
-        val options = GmsBarcodeScannerOptions.Builder()
+    val codeScannerOptions = remember {
+        GmsBarcodeScannerOptions.Builder()
             .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
             .enableAutoZoom()
             .build()
-        GmsBarcodeScanning.getClient(context, options)
     }
     val deviceHomeViewModel: DeviceHomeViewModel = viewModel(
         factory = DeviceHomeViewModel.factory(
@@ -383,7 +382,7 @@ fun PixelsApp(graph: PixelsAppGraph) {
                                     deviceHomeViewModel.onAction(action)
                                 }
                             }
-                            DeviceHomeAction.ScanCode -> codeScanner.startScan()
+                            DeviceHomeAction.ScanCode -> GmsBarcodeScanning.getClient(context, codeScannerOptions).startScan()
                                 .addOnSuccessListener { barcode ->
                                     val value = barcode.rawValue.orEmpty().trim()
                                     if (value.isEmpty()) {

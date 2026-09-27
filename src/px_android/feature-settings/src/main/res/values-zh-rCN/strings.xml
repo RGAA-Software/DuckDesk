@@ -3,6 +3,9 @@
     <string name="account_title">%1$s 账号</string>
     <string name="console_title">PX Console</string>
     <string name="console_endpoint">Console 地址</string>
+    <string name="custom_console_endpoint">自定义 Console 地址</string>
+    <string name="use_official_console">使用官方 Console</string>
+    <string name="official_console_selected">当前使用官方 Console：%1$s</string>
     <string name="official_console_endpoint">官方版本固定使用已验证的官方 Console。</string>
     <string name="username">用户名</string>
     <string name="password">密码</string>

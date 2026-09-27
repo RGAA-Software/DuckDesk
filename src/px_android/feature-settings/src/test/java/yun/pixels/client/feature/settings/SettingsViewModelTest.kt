@@ -142,6 +142,24 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun unifiedPackageSelectsTheOfficialEndpointExplicitly() = runTest(dispatcher) {
+        val repository = FakeAccountRepository(
+            initialEndpoint = "https://private.example.com",
+            officialEndpoint = ConsoleEndpoint("https://official.example.com"),
+        )
+        val viewModel = settingsViewModel(repository)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+        advanceUntilIdle()
+
+        viewModel.onAction(SettingsAction.UseOfficialEndpoint)
+        advanceUntilIdle()
+
+        assertEquals("https://official.example.com", viewModel.uiState.value.consoleEndpoint)
+        assertEquals(listOf("https://official.example.com"), repository.savedEndpoints)
+        assertEquals(false, viewModel.uiState.value.officialSelectionRequested)
+    }
+
+    @Test
     fun verifiedUpdateFlowsFromDiscoveryThroughInstallerSubmission() = runTest(dispatcher) {
         val accountRepository = FakeAccountRepository(initialEndpoint = "https://console.example.com")
         accountRepository.signIn("https://console.example.com", "alice")
@@ -207,6 +225,7 @@ private class FakeAccountRepository(
     private val loginResult: AccountResult<AccountSession>? = null,
     initialEndpoint: String? = null,
     override val endpointEditable: Boolean = true,
+    override val officialEndpoint: ConsoleEndpoint? = null,
 ) : ConsoleSessionRepository {
     private val mutableState = MutableStateFlow<AccountState>(AccountState.SignedOut)
     override val state: StateFlow<AccountState> = mutableState
@@ -251,6 +270,9 @@ private class FakeAccountRepository(
         savedEndpoints += endpoint
         return AccountResult.Success(value)
     }
+
+    override suspend fun selectOfficialEndpoint(): AccountResult<ConsoleEndpoint> =
+        officialEndpoint?.let { saveEndpoint(it.baseUrl) } ?: AccountResult.Failure(AccountFailure.InvalidEndpoint)
 
     override suspend fun testEndpoint(endpoint: String): AccountResult<ConsoleEndpoint> {
         testedEndpoints += endpoint

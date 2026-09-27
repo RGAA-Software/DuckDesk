@@ -1,10 +1,10 @@
 @echo off
 if "%~1"=="" (
-    echo Usage: %~nx0 ^<cloud_node^|client^|remote^> ^<official^|customer^> [dist-dir]
+    echo Usage: %~nx0 ^<cloud_node^|client^|remote^> official [dist-dir]
     exit /b 2
 )
-if /I not "%~2"=="official" if /I not "%~2"=="customer" (
-    echo ERROR: distribution must be official or customer.
+if /I not "%~2"=="official" (
+    echo ERROR: Pixels installers use the single official publisher identity.
     exit /b 2
 )
 

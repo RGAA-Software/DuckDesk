@@ -15,3 +15,9 @@
 # Preserve useful release crash locations while keeping source file names private.
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
+
+# The Play Services code scanner is created on demand. Its ML Kit component
+# factories must retain their identities after R8 optimizes the release APK.
+-keep class com.google.mlkit.** { *; }
+-keep class com.google.android.gms.internal.mlkit_code_scanner.** { *; }
+-keep class com.google.android.gms.internal.mlkit_common.** { *; }

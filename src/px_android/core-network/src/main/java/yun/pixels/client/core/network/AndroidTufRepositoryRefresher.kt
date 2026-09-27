@@ -2,7 +2,6 @@ package yun.pixels.client.core.network
 
 import java.io.ByteArrayOutputStream
 import java.net.URI
-import javax.net.ssl.HttpsURLConnection
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -156,7 +155,7 @@ private fun resolveMetadataUrl(baseUri: URI, fileName: String): String? = runCat
 
 private fun executeBoundedHttpsGet(url: String, maximumBytes: Int): ByteArray? {
     if (maximumBytes !in 1..MAXIMUM_METADATA_BYTES) return null
-    val connection = runCatching { URI(url).toURL().openConnection() as HttpsURLConnection }.getOrNull() ?: return null
+    val connection = runCatching { openClientHttpsConnection(url) }.getOrNull() ?: return null
     return try {
         connection.requestMethod = "GET"
         connection.connectTimeout = CONNECT_TIMEOUT_MILLIS

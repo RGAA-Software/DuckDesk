@@ -1,5 +1,10 @@
 # P1/P2 发行隔离与最小授权执行计划
 
+> 历史执行记录：本文记录 2026-09-23 的 Official/Customer 双包阶段及当时的验收证据。2026-09-27 起该客户端发行方案已退役；
+> Cloud Node、Client、Remote 各一个 Pixels Setup，Android 一个 Pixels APK，官方/私有 Console 在设置中切换。下文双包任务、版本矩阵和完成定义
+> 不再是当前构建或验收指令。现行构建方式见 [产品编译与使用](product_build_and_usage.md)，后续开发入口见
+> [P3 连接与多节点调度计划](p3_connection_scheduling_execution_plan.md)。
+
 > 计划日期：2026-09-23。
 >
 > 前置状态：DB0–DB5 当前开发基线已按确认范围收口。本文是下一阶段实施入口，不是完成声明。

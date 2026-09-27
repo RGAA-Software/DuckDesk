@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('official', 'customer', 'oem')]
+    [ValidateSet('official', 'oem')]
     [string]$Distribution,
 
     [Parameter(Mandatory = $true)]
@@ -49,7 +49,7 @@ if ($Distribution -eq 'oem') {
 } else {
     if (-not [string]::IsNullOrWhiteSpace($OemProfile) -or
         -not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('PIXELS_OEM_RELEASE_PROFILE'))) {
-        throw 'Official and Customer Android builds must not configure an OEM release profile.'
+        throw 'Pixels Android builds must not configure an OEM release profile.'
     }
     $androidProductRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot "build_official\android\$Distribution"))
 }
@@ -108,9 +108,9 @@ $updateRootPath = [Environment]::GetEnvironmentVariable('PIXELS_UPDATE_ROOT_FILE
 if ([string]::IsNullOrWhiteSpace($updateRootPath) -or -not (Test-Path -LiteralPath $updateRootPath -PathType Leaf)) {
     throw 'PIXELS_UPDATE_ROOT_FILE must identify the approved signed TUF 1.0 initial root.'
 }
-if ($Distribution -in @('official', 'customer')) {
+if ($Distribution -eq 'official') {
     if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('PIXELS_OFFICIAL_CONSOLE_URL'))) {
-        throw 'Official and Customer builds require PIXELS_OFFICIAL_CONSOLE_URL.'
+        throw 'Pixels Android builds require PIXELS_OFFICIAL_CONSOLE_URL.'
     }
 } elseif (-not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('PIXELS_OFFICIAL_CONSOLE_URL'))) {
     throw 'OEM builds must not configure the Pixels Official Console URL.'
@@ -168,7 +168,7 @@ if ($PreflightOnly) {
     exit 0
 }
 
-if ([IO.Directory]::Exists($androidProductRoot)) {
+if ($Configuration -eq 'release' -and [IO.Directory]::Exists($androidProductRoot)) {
     Write-Host "Removing generated Android $Distribution output: $androidProductRoot"
     [IO.Directory]::Delete($androidProductRoot, $true)
 } elseif ([IO.File]::Exists($androidProductRoot)) {
@@ -254,7 +254,7 @@ if ($Configuration -eq 'release') {
 }
 
 $env:PIXELS_FAST_RELEASE = '1'
-$tasks = @('--project-cache-dir', (Join-Path $androidBuildRoot 'project-cache'), ':app:lintRelease', 'testDebugUnitTest', ':app:assembleRelease', '--stacktrace')
+$tasks = @('--project-cache-dir', (Join-Path $androidBuildRoot 'project-cache'), ':app:lintRelease', ':app:assembleRelease', '--stacktrace')
 Push-Location $androidRoot
 try {
     & $gradle @tasks

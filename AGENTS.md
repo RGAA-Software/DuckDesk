@@ -2,7 +2,7 @@
 
 - Windows release decision (2026-09-23): Windows products are intentionally distributed without Authenticode code signing or RFC 3161
   timestamping. Private-deployment operators accept the Windows unknown-publisher/security warning. Windows packaging, installation and
-  upgrade gates rely on immutable product/distribution identity, exact SHA-256 manifests, isolated outputs and installer lifecycle checks;
+  upgrade gates rely on immutable product/publisher identity, exact SHA-256 manifests, isolated outputs and installer lifecycle checks;
   they must not require, synthesize or claim a Windows signer certificate. Android signing requirements remain unchanged.
 
 - `scripts_build\build_official.bat` is a release-only full build. Do not run it for routine
@@ -16,16 +16,20 @@
   and web assets when applicable) has been synchronized into `build_official\<product>\dist`.
 - Before reporting a build ready for validation, verify that the relevant build-tree artifacts and their `build_official\<product>\dist` copies have
   matching SHA-256 hashes. If a destination file is in use, stop the corresponding process, publish the artifact, and re-run the hash check.
-- Focused development builds use `build_official\<product>\{cmake,dist}` with `PX_DISTRIBUTION=development`. Release-only full builds produce both
-  `build_official\<product>\official\...` and `build_official\<product>\customer\...` in one version transaction; do not copy either flavor back into
-  the development dist or treat a development dist as an installable Official/Customer package.
+- Focused development builds use `build_official\<product>\{cmake,dist}` with `PX_DISTRIBUTION=development`. Release-only full builds produce one
+  Pixels-owned package per Windows product under `build_official\<product>\official\...`; the retained `official` release identity means Pixels
+  publisher/update trust, not a fixed runtime Console. Do not copy it back into development dist or treat development dist as installable.
 - Build-configuration decision (2026-09-22): project development, focused verification and device checks use Release configuration only;
   do not generate or use Debug or RelWithDebInfo product artifacts. Routine builds use a fast, incremental Release profile with lightweight
   optimization. Only final publication/full-release entry points enable the fully optimized Release profile. Both profiles retain Release
-  runtime semantics; development artifacts may be labeled `fast-release` and are not installable Official/Customer publication artifacts.
-- Android short device checks remain distribution-specific but must also use the fast Release profile. Final Android publication uses
-  `scripts_build\build_android_product.bat release` and must preflight and build Official plus Customer with one shared Android version; a
-  single-flavor final Release is not a supported product build.
+  runtime semantics; development artifacts may be labeled `fast-release` and are not installable Pixels publication artifacts.
+- Android short device checks use the single Pixels fast Release APK. Final Android publication uses
+  `scripts_build\build_android_product.bat release` and preflights/builds one signed Pixels APK with one Android version.
+- Installation/upgrade acceptance decision (2026-09-27): every real installation test must use the freshly built complete product package,
+  including Server applications. On Windows, install or overwrite with the product Setup; on Linux, deploy the built container images with
+  Compose; on Android, overwrite-install the built APK. Verify the package/image identity and SHA-256 before deployment, then verify the
+  installed/running version, service readiness and focused function. Do not substitute manual executable/DLL/web-asset copying for a package
+  installation. This does not turn routine focused development builds into mandatory full release builds when no installation is requested.
 
 # Project-wide modern C++ ownership and asynchronous safety
 
@@ -40,8 +44,10 @@
   Auth issues the license; Console verifies it and enforces enabled services, expiry and the licensed concurrent-stream limit. Service,
   Render, Panel, Windows Client, Web Client and Android must not parse, store or enforce the license. Retire the custom `PXDC2` deployment
   certificate, `PXDD2` descriptor, `PXDP1` challenge, deployment trust stores, identity watermarks and credential-before-challenge gates from
-  the active product; do not replace them with another product PKI. Connections use normal HTTPS/TLS. Official clients keep their fixed
-  official endpoint; Customer clients allow an administrator-configured private endpoint and reject the known official endpoint. Upgrades
+  the active product; do not replace them with another product PKI. Connections use normal HTTPS/TLS. Pixels Cloud Node, Client, Remote
+  and Android each have one Pixels-owned package. Their settings explicitly select the fixed official Console or a custom private HTTPS
+  Console; the custom-address input rejects the known official address. The Pixels package keeps one publisher/update identity independent
+  of the selected Console. OEM-branded releases remain separate products. Upgrades
   are operationally ordered Server first, then independently overwrite each node/client; do not build a distributed activation transaction.
   From the first formal baseline onward, Server supports the declared current-client upgrade window through versioned APIs. This decision
   does not restore retired development protocols or ports.

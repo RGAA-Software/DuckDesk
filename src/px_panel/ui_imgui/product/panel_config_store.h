@@ -83,6 +83,7 @@ public:
     [[nodiscard]] std::optional<ConsoleEndpoint> Console() const;
     [[nodiscard]] std::string ConsoleAddress() const;
     [[nodiscard]] bool ConsoleAddressEditable() const;
+    [[nodiscard]] std::string OfficialConsoleAddress() const;
     [[nodiscard]] PanelIdentity Identity() const;
     [[nodiscard]] NodePorts Ports() const;
     [[nodiscard]] ui::SettingsSnapshot Settings() const;
@@ -95,6 +96,7 @@ public:
     [[nodiscard]] CloudApplicationPreference LoadCloudApplicationPreference(const std::string& applicationId) const;
 
     bool SaveNetwork(const std::string& consoleAddress, const ConsoleEndpoint& endpoint);
+    bool SaveOfficialNetwork();
     bool SaveIdentity(const PanelIdentity& identity);
     bool SaveCustomDeviceName(const std::string& deviceName);
     bool SaveGeneral(const ui::GeneralSettings& settings);

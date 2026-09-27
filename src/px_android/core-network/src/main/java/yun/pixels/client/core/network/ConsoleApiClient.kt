@@ -5,7 +5,6 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.util.UUID
-import javax.net.ssl.HttpsURLConnection
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -600,7 +599,7 @@ private fun executeHttpsRequest(
     subjectKind: String?,
     body: JSONObject?,
 ): HttpResponse? {
-    val connection = runCatching { URI(endpoint.baseUrl).resolve(path).toURL().openConnection() as HttpsURLConnection }.getOrNull()
+    val connection = runCatching { openClientHttpsConnection(URI(endpoint.baseUrl).resolve(path).toString()) }.getOrNull()
         ?: return null
     return try {
         connection.requestMethod = method

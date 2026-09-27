@@ -127,18 +127,21 @@ class PrepareWindowsDistributionTest(unittest.TestCase):
             check=False,
         )
 
-    def test_official_and_customer_stage_only_update_root(self) -> None:
-        for distribution in ("official", "customer"):
-            with self.subTest(distribution=distribution):
-                output_directory = self.root / distribution
-                result = self.run_script(distribution, "--output-dir", str(output_directory))
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(list(output_directory.iterdir()), [output_directory / "update-root.json"])
-                self.assertEqual((output_directory / "update-root.json").read_bytes(), self.update_root.read_bytes())
+    def test_pixels_package_stages_only_update_root(self) -> None:
+        output_directory = self.root / "official"
+        result = self.run_script("official", "--output-dir", str(output_directory))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(list(output_directory.iterdir()), [output_directory / "update-root.json"])
+        self.assertEqual((output_directory / "update-root.json").read_bytes(), self.update_root.read_bytes())
 
-    def test_pixels_distributions_require_canonical_official_origin(self) -> None:
+    def test_retired_customer_package_is_rejected(self) -> None:
+        result = self.run_script("customer", "--validate-only")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("invalid choice", result.stderr)
+
+    def test_pixels_package_requires_canonical_official_origin(self) -> None:
         missing_origin = self.environment | {"PIXELS_OFFICIAL_CONSOLE_URL": ""}
-        self.assertNotEqual(self.run_script("customer", "--validate-only", environment=missing_origin).returncode, 0)
+        self.assertNotEqual(self.run_script("official", "--validate-only", environment=missing_origin).returncode, 0)
         invalid_origin = self.environment | {"PIXELS_OFFICIAL_CONSOLE_URL": "https://CONSOLE.pixels.example:443"}
         self.assertNotEqual(self.run_script("official", "--validate-only", environment=invalid_origin).returncode, 0)
 
@@ -155,7 +158,7 @@ class PrepareWindowsDistributionTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("TUF root SHA-256", result.stderr)
 
-    def test_distribution_flavors_reject_foreign_identity_inputs(self) -> None:
+    def test_release_domains_reject_foreign_identity_inputs(self) -> None:
         official_environment = self.environment | {"PIXELS_OEM_RELEASE_PROFILE": str(self.oem_profile)}
         self.assertNotEqual(self.run_script("official", "--validate-only", environment=official_environment).returncode, 0)
         oem_environment = self.environment | {"PIXELS_OEM_RELEASE_PROFILE": str(self.oem_profile)}

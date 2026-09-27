@@ -13,6 +13,7 @@ struct PortRange final {
 struct NetworkSettingsDraft final {
     std::string consoleAddress{};
     bool consoleAddressEditable{true};
+    bool officialConsoleAvailable{false};
     std::optional<int> consolePort{};
     int serviceManagementPort{4603};
     int desktopConnectionPort{4601};

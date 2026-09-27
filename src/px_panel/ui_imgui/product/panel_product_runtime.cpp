@@ -17,15 +17,13 @@ namespace {
 
 constexpr std::string_view Distribution() { return PX_PRODUCT_DISTRIBUTION; }
 
-std::string FixedConsoleAddress() { return Distribution() == "official" ? std::string{PX_OFFICIAL_CONSOLE_ORIGIN} : std::string{}; }
-
-std::string ForbiddenConsoleAddress() { return Distribution() == "customer" ? std::string{PX_OFFICIAL_CONSOLE_ORIGIN} : std::string{}; }
+std::string OfficialConsoleAddress() { return Distribution() == "official" ? std::string{PX_OFFICIAL_CONSOLE_ORIGIN} : std::string{}; }
 
 }  // namespace
 
 std::shared_ptr<PanelProductRuntime> PanelProductRuntime::Create(const std::filesystem::path& executableDirectory,
                                                                  const std::shared_ptr<ui::NotificationCenter>& notifications) {
-    const auto config = PanelConfigStore::Create(executableDirectory, FixedConsoleAddress(), ForbiddenConsoleAddress());
+    const auto config = PanelConfigStore::Create(executableDirectory, {}, OfficialConsoleAddress());
     if (!config) return {};
     const auto console = PanelConsoleSession::Create(config);
     const auto launcher = PanelClientLauncher::Create(config);

@@ -22,7 +22,7 @@ MAXIMUM_UPDATE_ROOT_BYTES = 1024 * 1024
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--product", required=True, choices=("cloud_node", "client", "remote"))
-    parser.add_argument("--distribution", required=True, choices=("official", "customer", "oem"))
+    parser.add_argument("--distribution", required=True, choices=("official", "oem"))
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--validate-only", action="store_true")
     return parser.parse_args()
@@ -96,12 +96,12 @@ def canonical_https_origin(value: str) -> str:
 def validate_distribution_inputs(distribution: str, update_root_bytes: bytes) -> None:
     official_origin = os.environ.get("PIXELS_OFFICIAL_CONSOLE_URL", "").strip()
     oem_profile_value = os.environ.get("PIXELS_OEM_RELEASE_PROFILE", "").strip()
-    if distribution in {"official", "customer"}:
+    if distribution == "official":
         if not official_origin:
-            raise RuntimeError("Official and Customer Windows builds require PIXELS_OFFICIAL_CONSOLE_URL")
+            raise RuntimeError("Pixels Windows builds require PIXELS_OFFICIAL_CONSOLE_URL")
         canonical_https_origin(official_origin)
         if oem_profile_value:
-            raise RuntimeError("Official and Customer Windows builds must not configure an OEM release profile")
+            raise RuntimeError("Pixels Windows builds must not configure an OEM release profile")
         return
     if official_origin:
         raise RuntimeError("OEM Windows builds must not configure the Pixels Official Console origin")

@@ -19,10 +19,8 @@ Unicode true
     !error "DISTRIBUTION is required"
 !endif
 !if "${DISTRIBUTION}" != "official"
-!if "${DISTRIBUTION}" != "customer"
 !if "${DISTRIBUTION}" != "oem"
-    !error "DISTRIBUTION must be official, customer, or oem"
-!endif
+    !error "DISTRIBUTION must be official or oem"
 !endif
 !endif
 !ifndef COMPANY
@@ -46,16 +44,6 @@ Unicode true
 !endif
 !if "${OEM_ID}" != ""
     !error "Official OEM_ID must be empty"
-!endif
-!else if "${DISTRIBUTION}" == "customer"
-!if "${COMPANY}" != "Pixels"
-    !error "Customer COMPANY must be Pixels"
-!endif
-!if "${RELEASE_NAMESPACE}" != "pixels.customer"
-    !error "Customer RELEASE_NAMESPACE must be pixels.customer"
-!endif
-!if "${OEM_ID}" != ""
-    !error "Customer OEM_ID must be empty"
 !endif
 !else
 !if "${COMPANY}" == "Pixels"
@@ -401,7 +389,7 @@ Function .onInit
     SetRegView 64
     SetShellVarContext all
 
-    ; A shared ownership record makes every current Official, Customer and OEM
+    ; A shared ownership record makes every current Pixels and OEM
     ; package mutually exclusive even though each OEM has independent uninstall
     ; keys and installation directories.
     Call CheckGlobalProductOwner

@@ -1,5 +1,8 @@
 package yun.pixels.client.core.network
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -65,45 +68,73 @@ class ConsoleSessionCoordinatorTest {
     }
 
     @Test
-    fun officialEndpointIsFixedAndCannotBeReplaced() = runTest {
+    fun unifiedPixelsPackageSwitchesBetweenOfficialAndCustomEndpoints() = runTest {
+        val officialEndpoint = ConsoleEndpoint("https://official-console.example")
         val repository = ConsoleSessionCoordinator(
             FakeApi(),
-            FakeEndpointStore(),
+            FakeEndpointStore(null),
             FakeSessionStore(),
-            fixedEndpoint = "https://official-console.example",
+            officialEndpoint = officialEndpoint.baseUrl,
         )
 
         repository.restore()
-
-        assertEquals(ConsoleEndpoint("https://official-console.example"), repository.endpoint.value)
-        assertEquals(false, repository.endpointEditable)
-        assertEquals(
-            AccountResult.Failure(AccountFailure.InvalidEndpoint),
-            repository.saveEndpoint("https://private-console.example"),
-        )
-    }
-
-    @Test
-    fun customerEndpointRejectsTheOfficialConsole() = runTest {
-        val repository = ConsoleSessionCoordinator(
-            FakeApi(),
-            FakeEndpointStore(ConsoleEndpoint("https://official-console.example")),
-            FakeSessionStore(),
-            forbiddenEndpoint = "https://official-console.example",
-        )
-
-        repository.restore()
-
-        assertEquals(null, repository.endpoint.value)
+        assertEquals(officialEndpoint, repository.endpoint.value)
         assertTrue(repository.endpointEditable)
         assertEquals(
             AccountResult.Failure(AccountFailure.InvalidEndpoint),
-            repository.saveEndpoint("https://official-console.example/"),
+            repository.saveEndpoint(officialEndpoint.baseUrl),
         )
         assertEquals(
             AccountResult.Success(ConsoleEndpoint("https://private-console.example")),
             repository.saveEndpoint("https://private-console.example"),
         )
+        assertEquals(AccountResult.Success(officialEndpoint), repository.selectOfficialEndpoint())
+        assertEquals(officialEndpoint, repository.endpoint.value)
+    }
+
+    @Test
+    fun switchingConsoleClearsThePreviousAccount() = runTest {
+        val officialEndpoint = ConsoleEndpoint("https://official-console.example")
+        val privateEndpoint = ConsoleEndpoint("https://private-console.example")
+        val privateSession = session(expiresAt = 200, endpoint = privateEndpoint)
+        val sessionStore = FakeSessionStore(privateSession)
+        val repository = ConsoleSessionCoordinator(
+            FakeApi(),
+            FakeEndpointStore(privateEndpoint),
+            sessionStore,
+            now = { 100 },
+            officialEndpoint = officialEndpoint.baseUrl,
+        )
+
+        repository.restore()
+        assertEquals(AccountState.SignedIn(privateSession), repository.state.value)
+        assertEquals(AccountResult.Success(officialEndpoint), repository.selectOfficialEndpoint())
+        assertEquals(AccountState.SignedOut, repository.state.value)
+        assertEquals(null, sessionStore.session)
+    }
+
+    @Test
+    fun completedLoginCannotRestoreAnAccountAfterConsoleSwitch() = runTest {
+        val officialEndpoint = ConsoleEndpoint("https://official-console.example")
+        val privateEndpoint = ConsoleEndpoint("https://private-console.example")
+        val pendingLogin = CompletableDeferred<AccountResult<AccountSession>>()
+        val sessionStore = FakeSessionStore()
+        val repository = ConsoleSessionCoordinator(
+            FakeApi(loginOperation = { pendingLogin.await() }),
+            FakeEndpointStore(privateEndpoint),
+            sessionStore,
+            officialEndpoint = officialEndpoint.baseUrl,
+        )
+        repository.restore()
+
+        val loginResult = async { repository.login(privateEndpoint.baseUrl, "alice", "password") }
+        runCurrent()
+        assertEquals(AccountResult.Success(officialEndpoint), repository.selectOfficialEndpoint())
+        pendingLogin.complete(AccountResult.Success(session(expiresAt = 200, endpoint = privateEndpoint)))
+
+        assertEquals(AccountResult.Failure(AccountFailure.InvalidEndpoint), loginResult.await())
+        assertEquals(AccountState.SignedOut, repository.state.value)
+        assertEquals(null, sessionStore.session)
     }
 
     @Test
@@ -121,8 +152,8 @@ class ConsoleSessionCoordinatorTest {
         assertEquals(AccountState.SignedIn(signedIn), repository.state.value)
     }
 
-    private fun session(expiresAt: Long) = AccountSession(
-        endpoint = ConsoleEndpoint("https://console.example"),
+    private fun session(expiresAt: Long, endpoint: ConsoleEndpoint = ConsoleEndpoint("https://console.example")) = AccountSession(
+        endpoint = endpoint,
         profile = AccountProfile("u1", "alice", null, false),
         accessToken = "token",
         expiresAtEpochMillis = expiresAt,
@@ -154,6 +185,7 @@ private class FakeSessionStore(var session: AccountSession? = null) : AccountSes
 
 private class FakeApi(
     private val loginResult: AccountResult<AccountSession> = AccountResult.Failure(AccountFailure.InvalidCredentials),
+    private val loginOperation: (suspend () -> AccountResult<AccountSession>)? = null,
     private val devicesResult: AccountResult<List<AccountDevice>> = AccountResult.Success(emptyList()),
     private val connectionResult: AccountResult<ResourceConnection> = AccountResult.Failure(AccountFailure.AuthenticationRequired),
 ) : ConsoleAccountApi {
@@ -165,7 +197,7 @@ private class FakeApi(
     override suspend fun register(endpoint: ConsoleEndpoint, username: String, password: String) =
         AccountResult.Success(AccountProfile("new", username, null, false))
 
-    override suspend fun login(endpointInput: String, username: String, password: String) = loginResult
+    override suspend fun login(endpointInput: String, username: String, password: String) = loginOperation?.invoke() ?: loginResult
 
     override suspend fun logout(session: AccountSession): AccountResult<Unit> = AccountResult.Success(Unit)
 

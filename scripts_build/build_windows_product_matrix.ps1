@@ -46,12 +46,9 @@ $prepareScript = Join-Path $repoRoot 'scripts\prepare_windows_distribution.py'
 Invoke-NativeChecked -FilePath $python.Source -Arguments @(
     $prepareScript, '--product', $Product, '--distribution', 'official', '--validate-only'
 )
-Invoke-NativeChecked -FilePath $python.Source -Arguments @(
-    $prepareScript, '--product', $Product, '--distribution', 'customer', '--validate-only'
-)
-
 Invoke-NativeChecked -FilePath 'powershell.exe' -Arguments @(
-    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'clean_product_outputs.ps1'), '-Product', $Product
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'clean_product_outputs.ps1'), '-Product', $Product,
+    '-Distribution', 'official'
 )
 if ($Product -eq 'cloud_node') {
     Invoke-NativeChecked -FilePath 'powershell.exe' -Arguments @(
@@ -75,7 +72,7 @@ if ($nodeRequired) {
     Invoke-NativeChecked -FilePath 'node.exe' -Arguments @((Join-Path $repoRoot 'scripts\sync_web_protos.mjs'))
 }
 
-foreach ($distribution in @('official', 'customer')) {
+foreach ($distribution in @('official')) {
     $distributionRoot = Join-Path $buildRoot $distribution
     $updateDirectory = Join-Path $distributionRoot 'update'
     $prepareArguments = @(
@@ -122,4 +119,4 @@ foreach ($distribution in @('official', 'customer')) {
     )
 }
 
-Write-Host "Completed Pixels $Product $($version.product_version) official+customer release matrix."
+Write-Host "Completed Pixels $Product $($version.product_version) single-package release."

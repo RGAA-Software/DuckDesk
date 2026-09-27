@@ -4,15 +4,14 @@ cd /d "%~dp0.." || exit /b 1
 
 if /I "%~1"=="release" goto :release
 if /I "%~1"=="official" goto :configuration
-if /I "%~1"=="customer" goto :configuration
 if /I "%~1"=="oem" goto :oem_configuration
 
-echo Usage: %~nx0 official^|customer fast-release [install] ^| release ^| oem fast-release [install] ^| oem release
+echo Usage: %~nx0 official fast-release [install] ^| release ^| oem fast-release [install] ^| oem release
 exit /b 2
 
 :configuration
 if /I "%~2"=="fast-release" goto :run
-echo Usage: %~nx0 official^|customer fast-release [install] ^| release ^| oem fast-release [install] ^| oem release
+echo Usage: %~nx0 official fast-release [install] ^| release ^| oem fast-release [install] ^| oem release
 exit /b 2
 
 :run

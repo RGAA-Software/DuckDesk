@@ -59,6 +59,11 @@ NetworkPageAction NetworkSettingsPage::Draw(const px::ui::Localizer& localizer) 
 
     px::ui::FieldLabel(text(px::ui::TextId::ConsoleAddress));
     px::ui::FieldDescription(text(px::ui::TextId::ConsoleAddressHint));
+    if (draft_.officialConsoleAvailable &&
+        px::ui::ActionButton({"network-use-official"}, text(px::ui::TextId::UseOfficialConsole),
+                             {.variant = px::ui::ButtonVariant::Outline, .width = px::ui::Scale(190.0F)})) {
+        return NetworkPageAction::UseOfficialRequested;
+    }
     static_cast<void>(
         px::ui::TextField({"console-address"}, draft_.consoleAddress, "https://console.example.com", {.readOnly = !draft_.consoleAddressEditable}));
     if (ImGui::IsItemDeactivatedAfterEdit()) {

@@ -3,6 +3,9 @@
     <string name="account_title">%1$s account</string>
     <string name="console_title">PX Console</string>
     <string name="console_endpoint">Console address</string>
+    <string name="custom_console_endpoint">Custom Console address</string>
+    <string name="use_official_console">Use official Console</string>
+    <string name="official_console_selected">Official Console selected: %1$s</string>
     <string name="official_console_endpoint">This official build uses the verified official Console.</string>
     <string name="username">Username</string>
     <string name="password">Password</string>

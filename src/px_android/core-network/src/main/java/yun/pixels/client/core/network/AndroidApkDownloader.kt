@@ -9,7 +9,6 @@ import java.nio.file.StandardCopyOption
 import java.nio.file.StandardOpenOption
 import java.security.MessageDigest
 import java.util.UUID
-import javax.net.ssl.HttpsURLConnection
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -119,7 +118,7 @@ private fun executeApkRequest(
     expectedBytes: Long,
     acceptChunk: (ByteArray, Int) -> Boolean,
 ): Boolean {
-    val connection = runCatching { URI(url).toURL().openConnection() as HttpsURLConnection }.getOrNull() ?: return false
+    val connection = runCatching { openClientHttpsConnection(url) }.getOrNull() ?: return false
     return try {
         connection.requestMethod = "GET"
         connection.connectTimeout = CONNECT_TIMEOUT_MILLIS

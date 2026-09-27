@@ -193,20 +193,30 @@ private fun ConsoleEndpointForm(state: SettingsUiState, onAction: (SettingsActio
         Text(state.consoleEndpoint, style = MaterialTheme.typography.bodyLarge)
         return
     }
+    if (state.officialEndpointAvailable) {
+        OutlinedButton(onClick = { onAction(SettingsAction.UseOfficialEndpoint) }) {
+            Text(stringResource(R.string.use_official_console))
+        }
+        if (state.officialModeSelected) {
+            Text(stringResource(R.string.official_console_selected, state.consoleEndpoint))
+        }
+    }
     OutlinedTextField(
-        value = state.consoleEndpoint,
+        value = if (state.officialModeSelected) "" else state.consoleEndpoint,
         onValueChange = { onAction(SettingsAction.ConsoleEndpointChanged(it)) },
         modifier = Modifier.fillMaxWidth(),
-        label = { Text(stringResource(R.string.console_endpoint)) },
+        label = { Text(stringResource(R.string.custom_console_endpoint)) },
         placeholder = { Text("https://console.example.com") },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
     )
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        OutlinedButton(onClick = { onAction(SettingsAction.TestEndpoint) }, enabled = !state.endpointTesting) {
+        OutlinedButton(onClick = { onAction(SettingsAction.TestEndpoint) }, enabled = !state.endpointTesting && !state.officialModeSelected) {
             if (state.endpointTesting) CircularProgressIndicator() else Text(stringResource(R.string.test_connection))
         }
-        Button(onClick = { onAction(SettingsAction.SaveEndpoint) }) { Text(stringResource(R.string.save_endpoint)) }
+        Button(onClick = { onAction(SettingsAction.SaveEndpoint) }, enabled = !state.officialModeSelected) {
+            Text(stringResource(R.string.save_endpoint))
+        }
     }
     if (state.endpointTested) Text(stringResource(R.string.connection_succeeded), color = MaterialTheme.colorScheme.primary)
 }

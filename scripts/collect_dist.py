@@ -266,7 +266,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--build-dir", required=True, type=Path, help="Product CMake binary directory")
     parser.add_argument("--source-dir", required=True, type=Path, help="Repository source root")
     parser.add_argument("--product", choices=("cloud_node", "client", "remote"), required=True)
-    parser.add_argument("--distribution", choices=("development", "official", "customer", "oem"), required=True)
+    parser.add_argument("--distribution", choices=("development", "official", "oem"), required=True)
     parser.add_argument("--update-root-file", type=Path)
     parser.add_argument("--oem-profile", type=Path)
     parser.add_argument("--dist-dir", required=True, type=Path)
@@ -288,7 +288,7 @@ def main() -> int:
         oem_profile_sha256: str | None = oem_profile.profile_sha256.upper()
     else:
         if args.oem_profile is not None:
-            raise RuntimeError("Development, Official, and Customer distributions must not receive --oem-profile")
+            raise RuntimeError("Development and Pixels distributions must not receive --oem-profile")
         oem_profile = None
         release_namespace = None if args.distribution == "development" else f"pixels.{args.distribution}"
         oem_id = None

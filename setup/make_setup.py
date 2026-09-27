@@ -72,7 +72,7 @@ RETIRED_RDP_NAMES = {
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--product", required=True, choices=PRODUCTS)
-    parser.add_argument("--distribution", required=True, choices=("official", "customer", "oem"))
+    parser.add_argument("--distribution", required=True, choices=("official", "oem"))
     parser.add_argument("--oem-profile", type=Path, help="Immutable OEM release profile; required only for OEM builds")
     parser.add_argument("--dist-dir", type=Path, help="Verified product dist directory")
     parser.add_argument("--output-root", type=Path, help="Installer output root")
@@ -337,7 +337,7 @@ def main() -> int:
         icon_path: Path | None = oem_profile.windows_icon_path
     else:
         if args.oem_profile is not None:
-            raise RuntimeError("Official and Customer installers must not receive --oem-profile")
+            raise RuntimeError("Pixels installers must not receive --oem-profile")
         oem_profile = None
         release_namespace = f"pixels.{args.distribution}"
         oem_id = None

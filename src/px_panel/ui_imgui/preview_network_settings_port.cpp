@@ -34,6 +34,11 @@ class PreviewNetworkSettingsPort final : public NetworkSettingsPort {
         state_.operation = NetworkOperation::Idle;
     }
 
+    void UseOfficial() override {
+        const std::scoped_lock lock{mutex_};
+        state_.operation = NetworkOperation::Idle;
+    }
+
     void RestartRender() override {}
 
     void Acknowledge() override {

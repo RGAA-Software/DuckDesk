@@ -14,12 +14,11 @@ class HttpClient;
 
 namespace px_console {
 
-// whether the Console server requires ssl(https), default true for old deployments.
-// the panel process syncs this switch from PxSettings(console_ssl_enable).
+// Console connections always use HTTPS. The retained setter cannot disable it.
 void SetConsoleSslEnabled(bool enabled);
 bool IsConsoleSslEnabled();
 
-// Make an HTTPS client to Console. The legacy setting cannot downgrade it.
+// Make an HTTPS client to Console without requiring certificate or hostname validation.
 std::shared_ptr<px::HttpClient> MakeConsoleHttpClient(const std::string& host, int port, const std::string& path, int timeout_ms = 2000);
 void SetPanelRequestHeaders(const std::shared_ptr<px::HttpClient>& client, const std::string& access_token = {},
                             const std::string& subject_kind = {});
