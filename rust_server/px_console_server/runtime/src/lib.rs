@@ -1,6 +1,8 @@
 //! New Console runtime composition. No Mongo or legacy transport adapter.
 //! The product executable is switched only after all domain ingress is connected.
 mod application_api;
+mod backup_api;
+mod backup_control_upgrade;
 mod config;
 mod deployment_api;
 mod device_api;
@@ -39,6 +41,7 @@ use axum::{
     routing::{get, patch, post},
     Router,
 };
+pub use backup_control_upgrade::upgrade_single_server_backup_control;
 pub use config::{ConfigurationError, ConsoleLaunch, ConsoleLaunchConfig, RelayAdmission};
 use error::ApiError;
 pub use guest_source::GuestAdmission;
@@ -79,6 +82,7 @@ pub(crate) struct StateData {
     node_limits: px_credentials::LoginLimits,
     node_slots: Arc<Semaphore>,
     relay_slots: Arc<Semaphore>,
+    backup_slots: Arc<Semaphore>,
     dummy: Zeroizing<String>,
     guests: GuestAdmission,
     epoch: RuntimeEpoch,
@@ -89,12 +93,14 @@ pub(crate) struct StateData {
     license_config: Option<LicenseLaunchConfig>,
     release: ReleaseIdentity,
     relay_admission: Option<RelayAdmission>,
+    backup_control: Option<Arc<backup_api::BackupControl>>,
 }
 
 pub struct RuntimeResources {
     pub recording_cache: Option<(Arc<CacheRoot>, CacheOptions)>,
     pub relay_admission: Option<RelayAdmission>,
     pub release: ReleaseIdentity,
+    pub backup_control_token: Option<Zeroizing<String>>,
 }
 
 #[derive(Clone)]
@@ -195,6 +201,7 @@ impl ConsoleRuntime {
                 recording_cache: None,
                 relay_admission: None,
                 release: ReleaseIdentity::integration(),
+                backup_control_token: None,
             },
             Some(LicenseEntitlement::synthetic_for_integration(deployment)),
             None,
@@ -221,6 +228,7 @@ impl ConsoleRuntime {
                 recording_cache: Some((recording_cache_root, recording_cache_options)),
                 relay_admission: None,
                 release: ReleaseIdentity::integration(),
+                backup_control_token: None,
             },
             Some(LicenseEntitlement::synthetic_for_integration(deployment)),
             None,
@@ -353,6 +361,7 @@ impl ConsoleRuntime {
             node_limits: Default::default(),
             node_slots: Arc::new(Semaphore::new(node_wire::MAX_CONNECTIONS)),
             relay_slots: Arc::new(Semaphore::new(px_relay_control_protocol::MAX_CONNECTIONS)),
+            backup_slots: Arc::new(Semaphore::new(2)),
             dummy,
             guests,
             epoch,
@@ -363,6 +372,10 @@ impl ConsoleRuntime {
             license_config,
             release: resources.release,
             relay_admission: resources.relay_admission,
+            backup_control: resources
+                .backup_control_token
+                .map(|token| backup_api::BackupControl::new(token).map(Arc::new))
+                .transpose()?,
         });
         let supervisor_cancellation = cancellation.clone();
         let supervisor = tokio::spawn(async move {
@@ -454,6 +467,7 @@ impl ConsoleRuntime {
             .merge(management_events::routes())
             .merge(node_api::routes())
             .merge(relay_api::routes())
+            .merge(backup_api::routes())
             .merge(deployment_api::routes())
             .merge(guest_api::routes())
             .merge(resource_api::routes())
@@ -600,6 +614,9 @@ async fn admission(
 }
 
 fn allows_license_recovery(method: &Method, path: &str, client: Option<ClientType>) -> bool {
+    if method == Method::GET && path == "/api/console/backup-control" {
+        return true;
+    }
     client == Some(ClientType::AdminWeb)
         && matches!(
             (method.clone(), path),
@@ -611,6 +628,8 @@ fn allows_license_recovery(method: &Method, path: &str, client: Option<ClientTyp
                 | (Method::PUT, "/api/console/managed/license")
                 | (Method::GET, "/api/console/managed/relays")
                 | (Method::POST, "/api/console/managed/relays")
+                | (Method::GET, "/api/console/managed/backup")
+                | (Method::POST, "/api/console/managed/backup/trigger")
         )
 }
 
@@ -634,6 +653,21 @@ mod recovery_tests {
             &Method::POST,
             "/api/console/managed/relays",
             Some(ClientType::AdminWeb)
+        ));
+        assert!(allows_license_recovery(
+            &Method::GET,
+            "/api/console/backup-control",
+            None
+        ));
+        assert!(allows_license_recovery(
+            &Method::POST,
+            "/api/console/managed/backup/trigger",
+            Some(ClientType::AdminWeb)
+        ));
+        assert!(!allows_license_recovery(
+            &Method::POST,
+            "/api/console/managed/backup/trigger",
+            Some(ClientType::Panel)
         ));
         for (method, path) in [
             (Method::GET, "/api/console/managed/deployments"),

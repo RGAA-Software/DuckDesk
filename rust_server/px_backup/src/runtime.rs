@@ -1,7 +1,7 @@
 use crate::{
     BackupCancellation, BackupError, BackupPlan, BackupRepository, BackupRunner,
-    BackupScheduleConfig, BackupTask, BackupTaskOutcome, BackupTaskStore, LogicalBackupTool,
-    PinnedPgTools, RepositoryError, RetentionPolicy, SchedulerError,
+    BackupScheduleConfig, BackupTask, BackupTaskKind, BackupTaskOutcome, BackupTaskStore,
+    LogicalBackupTool, PinnedPgTools, RepositoryError, RetentionPolicy, SchedulerError,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -27,6 +27,8 @@ pub enum BackupDaemonError {
     Repository,
     #[error("backup daemon scheduler is unavailable")]
     Scheduler,
+    #[error("backup daemon already has an active or queued task")]
+    Busy,
     #[error("backup daemon status is unavailable")]
     Status,
     #[error("pinned PostgreSQL tools are unavailable")]
@@ -64,6 +66,16 @@ pub struct BackupDaemonConfig {
     pub retention: RetentionPolicy,
     pub offsite_retention: Option<RetentionPolicy>,
     pub plan: BackupPlan,
+    #[serde(default)]
+    pub control: Option<BackupControlConfig>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BackupControlConfig {
+    pub console_url: String,
+    pub console_ca_file: PathBuf,
+    pub token: String,
 }
 
 impl BackupDaemonConfig {
@@ -91,6 +103,10 @@ impl BackupDaemonConfig {
                 .offsite_retention
                 .is_some_and(|retention| !valid_retention(retention))
             || self.offsite_repository_root.is_some() != self.offsite_retention.is_some()
+            || self
+                .control
+                .as_ref()
+                .is_some_and(|control| !control.valid())
         {
             return Err(BackupDaemonError::InvalidConfig);
         }
@@ -123,6 +139,27 @@ impl BackupDaemonConfig {
             return Err(BackupDaemonError::InvalidConfig);
         }
         Ok(())
+    }
+}
+
+impl BackupControlConfig {
+    fn valid(&self) -> bool {
+        let Ok(url) = url::Url::parse(&self.console_url) else {
+            return false;
+        };
+        url.scheme() == "wss"
+            && url.host_str().is_some()
+            && url.path() == "/api/console/backup-control"
+            && url.username().is_empty()
+            && url.password().is_none()
+            && url.query().is_none()
+            && url.fragment().is_none()
+            && self.console_ca_file.is_absolute()
+            && self.token.len() == 64
+            && self
+                .token
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
     }
 }
 
@@ -237,15 +274,45 @@ impl<T: LogicalBackupTool> BackupDaemon<T> {
         Duration::from_secs(self.config.poll_interval_seconds)
     }
 
+    pub fn control_config(&self) -> Option<&BackupControlConfig> {
+        self.config.control.as_ref()
+    }
+
+    pub fn status_path(&self) -> PathBuf {
+        self.config.status_root.join("status.json")
+    }
+
+    pub fn deployment_id(&self) -> Uuid {
+        self.config.deployment_id
+    }
+
+    pub fn enqueue_manual(
+        &mut self,
+        task_id: Uuid,
+        now_unix: u64,
+    ) -> Result<(), BackupDaemonError> {
+        self.scheduler
+            .enqueue_manual(task_id)
+            .map_err(|error| match error {
+                SchedulerError::Busy => BackupDaemonError::Busy,
+                _ => BackupDaemonError::Scheduler,
+            })?;
+        self.publish_status(now_unix)
+    }
+
     pub fn run_due(&mut self, now_unix: u64) -> Result<bool, BackupDaemonError> {
         let Some(task) = self.scheduler.poll(now_unix)? else {
             self.publish_status(now_unix)?;
             return Ok(false);
         };
         self.publish_status(now_unix)?;
+        let mut plan = self.config.plan.clone();
+        if task.kind == BackupTaskKind::Manual {
+            plan.retention = [crate::RetentionClass::Manual].into();
+        }
         let (outcome, discard_local_incomplete, discard_offsite_incomplete) = match self
             .runner
-            .run(&self.repository, &self.config.plan)
+            .run(&self.repository, &plan)
         {
             Ok(manifest) => {
                 let mut failure_code = None;
@@ -672,6 +739,7 @@ mod tests {
             let fake_dump_path = temporary_directory.path().join("pg_dump");
             let fake_restore_path = temporary_directory.path().join("pg_restore");
             let config = BackupDaemonConfig {
+                control: None,
                 schema_version: BACKUP_DAEMON_CONFIG_SCHEMA_VERSION,
                 deployment_id,
                 repository_root,
@@ -769,6 +837,38 @@ mod tests {
 
     fn read_published_metrics(status_root: &Path) -> String {
         fs::read_to_string(status_root.join("metrics.prom")).unwrap()
+    }
+
+    #[test]
+    fn manual_request_uses_existing_executor_and_manual_retention() {
+        let fixture = RuntimeFixture::new();
+        let mut daemon = BackupDaemon::open_with_tool(
+            fixture.config.clone(),
+            TestBackupTool {
+                behavior: ToolBehavior::Succeed,
+            },
+            BackupCancellation::default(),
+            1_000,
+        )
+        .unwrap();
+        assert!(daemon.run_due(1_000).unwrap());
+        daemon.enqueue_manual(Uuid::new_v4(), 1_001).unwrap();
+        assert!(daemon.run_due(1_001).unwrap());
+        drop(daemon);
+        let repository = BackupRepository::open(
+            &fixture.config.repository_root,
+            fixture.config.deployment_id,
+        )
+        .unwrap();
+        let manifests = repository.manifests().unwrap();
+        assert_eq!(manifests.len(), 2);
+        assert_eq!(
+            manifests
+                .iter()
+                .filter(|manifest| manifest.retention == BTreeSet::from([RetentionClass::Manual]))
+                .count(),
+            1
+        );
     }
 
     #[test]

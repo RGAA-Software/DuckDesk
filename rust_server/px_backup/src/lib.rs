@@ -2,6 +2,7 @@
 //! This crate does not execute database tools or accept arbitrary commands.
 
 mod barrier;
+mod control_protocol;
 mod executor;
 mod manifest;
 mod recovery_seal;
@@ -18,6 +19,7 @@ pub use barrier::{
     PinnedPgWriteBarrierCoordinator, WriteBarrierCoordinatorPlan, WriteBarrierDatabaseTarget,
     WriteBarrierError,
 };
+pub use control_protocol::{BackupToConsole, ConsoleToBackup, MAX_CONTROL_MESSAGE_BYTES};
 pub use executor::{
     BackupCancellation, BackupError, BackupPlan, BackupRunner, BackupTarget, DatabaseTarget,
     LogicalBackupTool, PinnedPgTools, WriteBarrierProof, WriteBarrierServiceAttestation,
@@ -51,11 +53,11 @@ pub use restore_store::{
 };
 pub use retention::{retained_set_ids, RetentionClass, RetentionPolicy};
 pub use runtime::{
-    BackupDaemon, BackupDaemonConfig, BackupDaemonError, BackupDaemonStatus, BackupRuntimeAlert,
-    BACKUP_DAEMON_CONFIG_SCHEMA_VERSION, BACKUP_DAEMON_STATUS_SCHEMA_VERSION,
+    BackupControlConfig, BackupDaemon, BackupDaemonConfig, BackupDaemonError, BackupDaemonStatus,
+    BackupRuntimeAlert, BACKUP_DAEMON_CONFIG_SCHEMA_VERSION, BACKUP_DAEMON_STATUS_SCHEMA_VERSION,
 };
 pub use scheduler::{
-    BackupScheduleConfig, BackupTask, BackupTaskOutcome, BackupTaskSnapshot, BackupTaskStore,
-    SchedulerError,
+    BackupScheduleConfig, BackupTask, BackupTaskKind, BackupTaskOutcome, BackupTaskSnapshot,
+    BackupTaskStore, SchedulerError,
 };
 pub use witness_store::{RecordedRecoveryWitness, RecoveryWitnessStore, WitnessStoreError};

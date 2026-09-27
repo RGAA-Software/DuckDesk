@@ -106,6 +106,10 @@ Prometheus/Alertmanager 负责监控告警，不执行部署或业务调度；Ku
 
 ### 3.2 数据库与备份页面（DB4 前置交付）
 
+2026-09-27 实施切片：仅为当前 Single Server 的 Backup 增加受认证的 Backup→Console WSS 控制/状态连接。首次初始化生成专用随机令牌，分别存入受限的 `console.env` 与 `backup.json`；Backup 校验本部署 Console CA，主动连接 `/api/console/backup-control`，每 5 秒上报自身状态。Console 管理员通过 `/api/console/managed/backup` 查看在线状态与最近结果，通过 `POST /api/console/managed/backup/trigger` 请求立即备份；网页“数据库备份”卡使用这两个管理员 HTTP API，不直接连 Backup。手动请求先写入现有 Backup 调度状态，再由唯一的 Backup 执行器串行处理，恢复集标记为 `manual`；执行中拒绝第二个请求。Console 离线时定时备份继续独立运行。本切片不改变数据库/媒体/其他服务的通信，不包含恢复、下载或锁定操作；后者仍属下述待实施范围。
+
+交付补充（2026-09-27）：Single Server 1.0.7 的 Windows Setup 和 Linux `deploy.sh` 可在同一部署缺少控制字段时补齐私有配置，重复安装保留令牌，冲突则拒绝。90 的正式 Windows Setup 原地覆盖及网页按钮短测通过，最新恢复集为 `verified/manual`；Linux 镜像在隔离 Docker 命名卷上通过首次补齐、重复保留、单侧修复和冲突拒绝。Linux 完整运行中 Compose 集群的覆盖未在客户主机验收，不能用命名卷短测冒充该结果。
+
 数据库已确定为 PostgreSQL，具体备份档位与数量以 [数据库方案第 6 节](postgresql_database_migration_plan.md#6-自动备份与保留策略) 为准。
 页面展示主版本/schema、可写角色、连接池、主备与归档延迟、备份计划/时区/保留、仓库容量、最后可恢复时间和恢复验证结果。
 基础档默认小时 24/日 7/周 4/月 6；生产档展示全量/差异/增量依赖和连续 WAL 窗口，不能把恢复点数当裸文件删除数。

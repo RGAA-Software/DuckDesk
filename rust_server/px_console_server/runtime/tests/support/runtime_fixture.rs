@@ -168,6 +168,7 @@ pub async fn start_with_cache_and_relay() -> (ConsoleRuntime, tempfile::TempDir)
                 app_key: "isolated-relay-app-key".into(),
             }),
             release: px_console_runtime::ReleaseIdentity::integration(),
+            backup_control_token: None,
         },
     )
     .await
@@ -189,6 +190,7 @@ pub async fn start_with_relay() -> ConsoleRuntime {
                 app_key: "isolated-relay-app-key".into(),
             }),
             release: px_console_runtime::ReleaseIdentity::integration(),
+            backup_control_token: None,
         },
     )
     .await

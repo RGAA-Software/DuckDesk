@@ -40,5 +40,7 @@ PY
 docker load --input "$archive_name"
 docker image inspect "$(python3 -c 'import json; print(json.load(open("sha256.json"))["image"])')" >/dev/null
 docker compose config --quiet
+docker compose run --rm --no-deps -T --user 0:0 setup \
+    /opt/pixels/bin/px_console_admin upgrade-backup-control /etc/pixels linux
 docker compose up -d
 echo 'On first install, open http://127.0.0.1:4700/ on this host to finish setup.'

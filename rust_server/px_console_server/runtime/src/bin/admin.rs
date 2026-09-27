@@ -1,7 +1,7 @@
 use px_console_runtime::{
     check_postgresql_administrator, initialize_single_server, provision_fresh_console_database,
-    run_single_server_setup, ConsoleDatabaseCredentials, ConsoleLaunchConfig, LicenseLaunchConfig,
-    SingleServerLayout, SingleServerSetupInput,
+    run_single_server_setup, upgrade_single_server_backup_control, ConsoleDatabaseCredentials,
+    ConsoleLaunchConfig, LicenseLaunchConfig, SingleServerLayout, SingleServerSetupInput,
 };
 use px_console_store::{initialize_administrator, PasswordDigest, Username};
 use px_pg::{DatabaseConfig, Transport};
@@ -63,6 +63,10 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         [command] if command == "initialize-recording-cache" => initialize_recording_cache(),
         [command] if command == "check-setup-database" => check_setup_database().await,
         [command] if command == "initialize-setup-database" => initialize_setup_database().await,
+        [command, configuration_root, platform] if command == "upgrade-backup-control" => {
+            upgrade_single_server_backup_control(&PathBuf::from(configuration_root), platform)?;
+            Ok(())
+        }
         [command, configuration_root, data_root, runtime_root, package_root, platform]
             if command == "initialize-single-server" =>
         {
@@ -96,7 +100,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
             )
             .await
         }
-        _ => Err("usage: px_console_admin <bootstrap|generate-secrets|validate-environment|validate-license|initialize-recording-cache|check-setup-database|initialize-setup-database|initialize-single-server>; explicit provisioning only; configuration via environment or setup JSON on stdin".into()),
+        _ => Err("usage: px_console_admin <bootstrap|generate-secrets|validate-environment|validate-license|initialize-recording-cache|check-setup-database|initialize-setup-database|initialize-single-server|upgrade-backup-control>; explicit provisioning only; configuration via environment or setup JSON on stdin".into()),
     }
 }
 

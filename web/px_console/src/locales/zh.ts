@@ -1,4 +1,21 @@
 export default {
+    backup: {
+        title: "数据库备份",
+        refresh: "刷新",
+        trigger: "立即备份",
+        offline: "备份服务未连接或状态已过期",
+        state: "状态",
+        running: "备份中",
+        idle: "空闲",
+        lastSuccess: "最近成功",
+        recoverySet: "恢复集",
+        lastFailure: "最近错误",
+        never: "暂无",
+        none: "无",
+        loadFailed: "读取备份状态失败",
+        accepted: "备份任务已接受",
+        triggerFailed: "无法启动备份，请刷新状态后重试",
+    },
     realtime: {
         connected: "实时",
         connecting: "连接中",

@@ -309,6 +309,7 @@ pub async fn initialize_single_server(
     let relay_app_key = random_secret();
     let relay_control_key = random_secret();
     let relay_token = random_secret();
+    let backup_control_token = random_secret();
     let relay_control_host = if layout.linux_container {
         "console"
     } else {
@@ -343,6 +344,7 @@ pub async fn initialize_single_server(
          PIXELS_CONSOLE_RECORDING_CACHE_TTL_SECONDS=86400\n\
          PIXELS_CONSOLE_LICENSE_TRUST_STORE={}\n\
          PIXELS_CONSOLE_LICENSE_FILE={}\n\
+         PIXELS_CONSOLE_BACKUP_CONTROL_TOKEN={}\n\
          PIXELS_RELAY_APP_KEY={}\n",
         runtime_url.as_str(),
         static_directory.display(),
@@ -355,6 +357,7 @@ pub async fn initialize_single_server(
             .config_root
             .join("console/license/console.license")
             .display(),
+        backup_control_token.as_str(),
         relay_app_key.as_str(),
     ));
     let relay_environment = Zeroizing::new(format!(
@@ -371,7 +374,15 @@ pub async fn initialize_single_server(
         console_ca_path.display(),
         relay_token.as_str(),
     ));
-    write_backup_config(&input, layout, deployment_id, &password_file)?;
+    write_backup_config(
+        &input,
+        layout,
+        deployment_id,
+        &password_file,
+        relay_control_host,
+        backup_control_token.as_str(),
+        &console_ca_path,
+    )?;
     private::create_private(
         &layout.config_root.join("console.env"),
         console_environment.as_bytes(),
@@ -587,6 +598,9 @@ fn write_backup_config(
     layout: &SingleServerLayout,
     deployment_id: Uuid,
     password_file: &Path,
+    console_host: &str,
+    control_token: &str,
+    console_ca_path: &Path,
 ) -> Result<(), SingleServerSetupError> {
     let console_schema_version = CONSOLE_MIGRATIONS
         .migrations
@@ -627,6 +641,11 @@ fn write_backup_config(
         "pg_restore_sha256":restore_hash,
         "command_timeout_seconds":3600,
         "poll_interval_seconds":60,
+        "control":{
+            "console_url":format!("wss://{console_host}:4600/api/console/backup-control"),
+            "console_ca_file":console_ca_path,
+            "token":control_token
+        },
         "schedule":{"deployment_id":deployment_id,"anchor_unix":anchor_unix,"period_seconds":86400},
         "retention":{"hourly":24,"daily":7,"weekly":4,"monthly":6,"pre_upgrade":5,"manual_days":30},
         "offsite_retention":null,

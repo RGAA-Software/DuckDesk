@@ -110,6 +110,7 @@ fn run_service_runtime(stopping: Arc<AtomicBool>) -> Result<(), u32> {
             BackupDaemonError::ConfigUnavailable => 42_u32,
             BackupDaemonError::Repository => 43_u32,
             BackupDaemonError::Scheduler => 44_u32,
+            BackupDaemonError::Busy => 44_u32,
             BackupDaemonError::Status => 45_u32,
             BackupDaemonError::Tool => 46_u32,
         })?;

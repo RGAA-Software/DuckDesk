@@ -9,6 +9,7 @@ pg-integration = ["px_pg/pg-integration", "px_console_store/pg-integration"]
 
 [dependencies]
 px_console_store = { path = "../storage" }
+px_backup = { path = "../../px_backup" }
 px_credentials = { path = "../../px_credentials" }
 px_pg = { path = "../../px_pg" }
 px_node_protocol = { path = "../../px_node_protocol" }
@@ -29,6 +30,7 @@ serde_json = "1"
 uuid = { version = "1", features = ["v4", "serde"] }
 zeroize = "1.8"
 sha2 = "0.10"
+subtle = "2"
 sqlx = { version = "=0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "uuid", "migrate", "macros"] }
 rcgen = "=0.14.10"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

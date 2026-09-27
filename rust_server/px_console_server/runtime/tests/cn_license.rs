@@ -108,6 +108,7 @@ async fn cn_signed_customer_license_controls_live_console_api() {
             recording_cache: None,
             relay_admission: None,
             release: ReleaseIdentity::integration(),
+            backup_control_token: None,
         },
         license,
     )

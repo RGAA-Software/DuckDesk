@@ -1,3 +1,4 @@
+mod control_client;
 mod restore_command;
 #[cfg(windows)]
 mod windows_service;
@@ -172,17 +173,54 @@ fn run_daemon(
     mut daemon: BackupDaemon<PinnedPgTools>,
     stopping: Arc<AtomicBool>,
 ) -> Result<(), &'static str> {
+    let (manual_sender, manual_receiver) = std::sync::mpsc::channel();
+    let executing = Arc::new(AtomicBool::new(false));
+    let control_thread = daemon.control_config().cloned().map(|control| {
+        let status_path = daemon.status_path();
+        let deployment_id = daemon.deployment_id();
+        let stopping = Arc::clone(&stopping);
+        let executing = Arc::clone(&executing);
+        thread::spawn(move || {
+            control_client::run(
+                control,
+                status_path,
+                deployment_id,
+                manual_sender,
+                stopping,
+                executing,
+            )
+        })
+    });
     while !stop_requested(&stopping) {
+        executing.store(true, Ordering::Release);
         daemon
             .run_due(now_unix()?)
             .map_err(|_| "backup daemon failed closed")?;
+        executing.store(false, Ordering::Release);
         let poll_interval = daemon.poll_interval();
         let mut elapsed = Duration::ZERO;
         while elapsed < poll_interval && !stop_requested(&stopping) {
+            if let Ok(request) = manual_receiver.try_recv() {
+                let result = daemon
+                    .enqueue_manual(request.task_id, now_unix()?)
+                    .map_err(|error| match error {
+                        px_backup::BackupDaemonError::Busy => "busy",
+                        _ => "unavailable",
+                    });
+                let accepted = result.is_ok();
+                let _ = request.result.send(result);
+                if accepted {
+                    break;
+                }
+            }
             let sleep_duration = (poll_interval - elapsed).min(Duration::from_millis(100));
             thread::sleep(sleep_duration);
             elapsed += sleep_duration;
         }
+    }
+    stopping.store(true, Ordering::Release);
+    if let Some(control_thread) = control_thread {
+        let _ = control_thread.join();
     }
     Ok(())
 }

@@ -1,4 +1,21 @@
 export default {
+    backup: {
+        title: "Database backup",
+        refresh: "Refresh",
+        trigger: "Back up now",
+        offline: "Backup service is disconnected or its status is stale",
+        state: "State",
+        running: "Running",
+        idle: "Idle",
+        lastSuccess: "Last success",
+        recoverySet: "Recovery set",
+        lastFailure: "Last error",
+        never: "None yet",
+        none: "None",
+        loadFailed: "Could not load backup status",
+        accepted: "Backup task accepted",
+        triggerFailed: "Could not start backup; refresh the status and retry",
+    },
     realtime: {
         connected: "Live",
         connecting: "Connecting",

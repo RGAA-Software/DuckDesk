@@ -95,6 +95,8 @@ impl BackupTaskOutcome {
 #[serde(deny_unknown_fields)]
 pub struct BackupTask {
     pub task_id: Uuid,
+    #[serde(default)]
+    pub kind: BackupTaskKind,
     pub scheduled_at_unix: u64,
     pub attempt: u32,
     pub started_at_unix: u64,
@@ -102,9 +104,19 @@ pub struct BackupTask {
     pub outcome: Option<BackupTaskOutcome>,
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BackupTaskKind {
+    #[default]
+    Scheduled,
+    Manual,
+}
+
 impl BackupTask {
     fn validate(&self, deployment_id: Uuid) -> Result<(), SchedulerError> {
-        if self.task_id != task_id(deployment_id, self.scheduled_at_unix)
+        if (self.kind == BackupTaskKind::Scheduled
+            && self.task_id != task_id(deployment_id, self.scheduled_at_unix))
+            || self.task_id.is_nil()
             || self.scheduled_at_unix == 0
             || self.attempt == 0
             || self.started_at_unix < self.scheduled_at_unix
@@ -139,6 +151,8 @@ struct PersistedState {
     revision: u64,
     last_started_schedule_unix: Option<u64>,
     pending_scheduled_at_unix: Option<u64>,
+    #[serde(default)]
+    pending_manual_task_id: Option<Uuid>,
     active: Option<BackupTask>,
     recent: Vec<BackupTask>,
 }
@@ -153,6 +167,7 @@ impl PersistedState {
             revision: 1,
             last_started_schedule_unix: None,
             pending_scheduled_at_unix: None,
+            pending_manual_task_id: None,
             active: None,
             recent: Vec::new(),
         }
@@ -165,6 +180,9 @@ impl PersistedState {
             || self.period_seconds != config.period_seconds
             || self.revision == 0
             || self.recent.len() > MAX_HISTORY
+            || self
+                .pending_manual_task_id
+                .is_some_and(|task_id| task_id.is_nil())
         {
             return Err(SchedulerError::Corrupt);
         }
@@ -242,6 +260,21 @@ impl BackupTaskStore {
             }
             return Ok(None);
         }
+        if let Some(manual_task_id) = next.pending_manual_task_id.take() {
+            let task = BackupTask {
+                task_id: manual_task_id,
+                kind: BackupTaskKind::Manual,
+                scheduled_at_unix: now_unix,
+                attempt: 1,
+                started_at_unix: now_unix,
+                completed_at_unix: None,
+                outcome: None,
+            };
+            task.validate(self.config.deployment_id)?;
+            next.active = Some(task.clone());
+            self.commit(next)?;
+            return Ok(Some(task));
+        }
         let scheduled = if let Some(pending) = next.pending_scheduled_at_unix.take() {
             Some(pending)
         } else {
@@ -265,6 +298,7 @@ impl BackupTaskStore {
             .ok_or(SchedulerError::Corrupt)?;
         let task = BackupTask {
             task_id,
+            kind: BackupTaskKind::Scheduled,
             scheduled_at_unix,
             attempt,
             started_at_unix: now_unix,
@@ -279,6 +313,28 @@ impl BackupTaskStore {
         next.active = Some(task.clone());
         self.commit(next)?;
         Ok(Some(task))
+    }
+
+    pub fn enqueue_manual(&mut self, task_id: Uuid) -> Result<(), SchedulerError> {
+        if task_id.is_nil() {
+            return Err(SchedulerError::InvalidInput);
+        }
+        if self.state.pending_manual_task_id == Some(task_id)
+            || self
+                .state
+                .active
+                .as_ref()
+                .is_some_and(|task| task.task_id == task_id)
+            || self.state.recent.iter().any(|task| task.task_id == task_id)
+        {
+            return Ok(());
+        }
+        if self.state.pending_manual_task_id.is_some() || self.state.active.is_some() {
+            return Err(SchedulerError::Busy);
+        }
+        let mut next = self.state.clone();
+        next.pending_manual_task_id = Some(task_id);
+        self.commit(next)
     }
 
     pub fn complete(
@@ -319,14 +375,15 @@ impl BackupTaskStore {
             next.recent.remove(0);
         }
         let latest_due = self.config.latest_due(now_unix)?;
-        next.pending_scheduled_at_unix = Some(
-            next.pending_scheduled_at_unix
-                .into_iter()
-                .chain(latest_due)
-                .chain([interrupted.scheduled_at_unix])
-                .max()
-                .ok_or(SchedulerError::Corrupt)?,
-        );
+        next.pending_scheduled_at_unix = next
+            .pending_scheduled_at_unix
+            .into_iter()
+            .chain(latest_due)
+            .chain(
+                (interrupted.kind == BackupTaskKind::Scheduled)
+                    .then_some(interrupted.scheduled_at_unix),
+            )
+            .max();
         self.commit(next)?;
         Ok(true)
     }
@@ -616,6 +673,35 @@ mod tests {
                 .unwrap();
             assert!(result.status.success());
         }
+    }
+
+    #[test]
+    fn manual_task_is_durable_single_flight_and_not_retried_after_interruption() {
+        let fixture = Fixture::new();
+        let manual_task_id = Uuid::new_v4();
+        {
+            let mut store = BackupTaskStore::open(&fixture.root, fixture.config).unwrap();
+            store.enqueue_manual(manual_task_id).unwrap();
+            assert_eq!(
+                store.enqueue_manual(Uuid::new_v4()),
+                Err(SchedulerError::Busy)
+            );
+            let task = store.poll(1_001).unwrap().unwrap();
+            assert_eq!(task.task_id, manual_task_id);
+            assert_eq!(task.kind, BackupTaskKind::Manual);
+            assert_eq!(
+                store.enqueue_manual(Uuid::new_v4()),
+                Err(SchedulerError::Busy)
+            );
+        }
+        let mut reopened = BackupTaskStore::open(&fixture.root, fixture.config).unwrap();
+        reopened.reconcile_after_restart(1_002).unwrap();
+        assert_eq!(
+            reopened.snapshot().recent[0].outcome,
+            Some(BackupTaskOutcome::Interrupted)
+        );
+        assert!(reopened.snapshot().active.is_none());
+        assert!(reopened.poll(1_002).unwrap().is_some());
     }
 
     #[test]

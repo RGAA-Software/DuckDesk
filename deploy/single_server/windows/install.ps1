@@ -286,6 +286,9 @@ $stagePath = Join-Path $resolvedInstall "stage-$([Guid]::NewGuid().ToString('N')
 $previousPath = Join-Path $resolvedInstall "previous-$([Guid]::NewGuid().ToString('N'))"
 $createdServices = [System.Collections.Generic.List[string]]::new()
 $swapAttempted = $false
+$configurationUpgradeAttempted = $false
+$previousConsoleConfigBytes = [IO.File]::ReadAllBytes((Join-Path $resolvedConfig 'console.env'))
+$previousBackupConfigBytes = [IO.File]::ReadAllBytes((Join-Path $resolvedConfig 'backup.json'))
 New-Item -ItemType Directory -Path $stagePath | Out-Null
 try {
     foreach ($relativePath in $actualPaths) {
@@ -307,6 +310,10 @@ try {
     $swapAttempted = $true
     if (Test-Path -LiteralPath $currentPath) { Move-Item -LiteralPath $currentPath -Destination $previousPath }
     Move-Item -LiteralPath $stagePath -Destination $currentPath
+    $configurationUpgradeAttempted = $true
+    & (Join-Path $currentPath 'bin/px_console_admin.exe') upgrade-backup-control $resolvedConfig windows
+    if ($LASTEXITCODE -ne 0) { throw 'Backup control configuration upgrade failed.' }
+    $backupConfig = Get-Content -LiteralPath (Join-Path $resolvedConfig 'backup.json') -Raw | ConvertFrom-Json
     $serviceCommands = @{
         'Pixels.Console' = "`"$(Join-Path $currentPath 'bin/px_console.exe')`" --service `"$(Join-Path $resolvedConfig 'console.env')`""
         'Pixels.Relay' = "`"$(Join-Path $currentPath 'bin/px_relay.exe')`" --service `"$(Join-Path $resolvedConfig 'relay.env')`""
@@ -337,6 +344,9 @@ try {
     $consoleEnvironment = Join-Path $resolvedConfig 'console.env'
     $postgresqlRootCertificate = Get-PostgreSqlRootCertificatePath -EnvironmentPath $consoleEnvironment
     $relayRootCertificate = Get-EnvironmentValue -Path (Join-Path $resolvedConfig 'relay.env') -Name 'PIXELS_RELAY_CONSOLE_CA_FILE'
+    $backupRootCertificate = if ($null -ne $backupConfig.control) { [string]$backupConfig.control.console_ca_file } else { $null }
+    $backupSharesRelayRoot = $null -ne $backupRootCertificate -and
+        [IO.Path]::GetFullPath($backupRootCertificate) -ieq [IO.Path]::GetFullPath($relayRootCertificate)
     foreach ($fieldName in @('PIXELS_CONSOLE_TLS_CERT', 'PIXELS_CONSOLE_TLS_KEY', 'PIXELS_CONSOLE_GUEST_SOURCE_KEY',
             'PIXELS_CONSOLE_LICENSE_TRUST_STORE')) {
         Protect-ReferencedServiceFile -Path (Get-EnvironmentValue -Path $consoleEnvironment -Name $fieldName) -ServiceNames @('Pixels.Console')
@@ -346,7 +356,13 @@ try {
         Protect-ReferencedServiceFile -Path $postgresqlRootCertificate -ServiceNames @('Pixels.Console', $backupName, 'Pixels.Relay')
     } else {
         Protect-ReferencedServiceFile -Path $postgresqlRootCertificate -ServiceNames @('Pixels.Console', $backupName)
-        Protect-ReferencedServiceFile -Path $relayRootCertificate -ServiceNames @('Pixels.Relay')
+        $relayReaders = if ($backupSharesRelayRoot) { @('Pixels.Relay', $backupName) } else { @('Pixels.Relay') }
+        Protect-ReferencedServiceFile -Path $relayRootCertificate -ServiceNames $relayReaders
+    }
+    if ($null -ne $backupRootCertificate -and
+        [IO.Path]::GetFullPath($backupRootCertificate) -ine [IO.Path]::GetFullPath($postgresqlRootCertificate) -and
+        [IO.Path]::GetFullPath($backupRootCertificate) -ine [IO.Path]::GetFullPath($relayRootCertificate)) {
+        Protect-ReferencedServiceFile -Path $backupRootCertificate -ServiceNames @($backupName)
     }
     $workspaceKeys = Get-EnvironmentValue -Path $consoleEnvironment -Name 'PIXELS_CONSOLE_WORKSPACE_KEYS' | ConvertFrom-Json
     foreach ($workspaceKey in $workspaceKeys) {
@@ -411,6 +427,10 @@ try {
                 Remove-ItemProperty -LiteralPath "HKLM:\SYSTEM\CurrentControlSet\Services\$backupName" `
                     -Name Environment -ErrorAction SilentlyContinue
             }
+        }
+        if ($configurationUpgradeAttempted) {
+            [IO.File]::WriteAllBytes((Join-Path $resolvedConfig 'console.env'), $previousConsoleConfigBytes)
+            [IO.File]::WriteAllBytes((Join-Path $resolvedConfig 'backup.json'), $previousBackupConfigBytes)
         }
         foreach ($serviceName in $serviceNames) {
             if ($serviceWasRunning[$serviceName]) { & sc.exe start $serviceName 2>&1 | Out-Null }
