@@ -29,7 +29,10 @@ from single_server_windows_smoke import (
 )
 
 
-PACKAGE_ROOT = REPOSITORY_ROOT / ".cache/backup-control-e2e-package-20260927"
+PACKAGE_ROOT = Path(os.environ.get(
+    "PIXELS_BACKUP_E2E_PACKAGE_ROOT",
+    str(REPOSITORY_ROOT / ".cache/backup-control-e2e-package-20260927"),
+))
 RUNTIME_BIN_ROOT = Path(os.environ.get("PIXELS_BACKUP_E2E_BIN_ROOT", str(PACKAGE_ROOT / "bin")))
 
 
@@ -259,6 +262,23 @@ ALTER SYSTEM SET ssl_key_file = '/var/lib/postgresql/server.key';
                         preflight_body.get("recovery_set", {}).get("recovery_set_id") != manual_recovery_set):
                     raise RuntimeError(f"Read-only preflight failed: HTTP {preflight_code}, {preflight_body}")
                 print("PASS inventory and read-only preflight identify the same manual recovery set", flush=True)
+
+                browser_environment = os.environ.copy()
+                browser_environment.update({
+                    "PIXELS_PUBLIC_CONSOLE_URL": "https://localhost:4600",
+                    "PIXELS_PUBLIC_CONSOLE_USERNAME": "backup-admin",
+                    "PIXELS_PUBLIC_CONSOLE_PASSWORD": administrator_password,
+                })
+                browser_result = subprocess.run(
+                    ["npx.cmd", "playwright", "test", "e2e-public/admin-backup.public.spec.ts",
+                     "--config=playwright.public.config.ts"],
+                    cwd=REPOSITORY_ROOT / "web/px_console", env=browser_environment,
+                    capture_output=True, text=True, encoding="utf-8", errors="replace",
+                    check=False, timeout=150,
+                )
+                if browser_result.returncode != 0:
+                    raise RuntimeError(f"Backup browser check failed: {browser_result.stdout[-1500:]} {browser_result.stderr[-1000:]}")
+                print("PASS packaged Console page displays and preflights a verified recovery set", flush=True)
 
                 postgres_sql(postgres_container, "postgres", "CREATE DATABASE pixels_console_restore;")
                 restore_environment = os.environ.copy()

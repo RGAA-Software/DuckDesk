@@ -30,4 +30,13 @@ test("administrator triggers and observes a new verified backup from the page", 
     await expect(recoverySetCell).not.toHaveText(previousRecoverySet, { timeout: 90_000 });
     await expect(recoverySetCell).toHaveText(/^[0-9a-f-]{36}$/);
     await expect(triggerButton).toBeEnabled();
+    const currentRecoverySet = (await recoverySetCell.textContent())?.trim();
+    if (!currentRecoverySet) throw new Error("The new recovery set is unavailable.");
+    const inventoryRow = backupCard.locator("tr.ant-table-row").filter({ hasText: currentRecoverySet });
+    await expect(inventoryRow).toBeVisible();
+    await inventoryRow.getByRole("button", { name: "只读预检" }).click();
+    const preflight = page.getByRole("dialog", { name: "只读预检" });
+    await expect(preflight).toContainText(currentRecoverySet);
+    await expect(preflight).toContainText("恢复准入");
+    await expect(preflight).toContainText("未评估");
 });
