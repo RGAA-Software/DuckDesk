@@ -30,6 +30,7 @@ from single_server_windows_smoke import (
 
 
 PACKAGE_ROOT = REPOSITORY_ROOT / ".cache/backup-control-e2e-package-20260927"
+RUNTIME_BIN_ROOT = Path(os.environ.get("PIXELS_BACKUP_E2E_BIN_ROOT", str(PACKAGE_ROOT / "bin")))
 
 
 def console_request(port: int, certificate: Path, method: str, route: str,
@@ -174,7 +175,7 @@ ALTER SYSTEM SET ssl_key_file = '/var/lib/postgresql/server.key';
 
             with console_log.open("w", encoding="utf-8") as console_output, backup_log.open("w", encoding="utf-8") as backup_output:
                 console_process = subprocess.Popen(
-                    [str(PACKAGE_ROOT / "bin/px_console.exe"), "--wait-env-file", str(config_root / "console.env")],
+                    [str(RUNTIME_BIN_ROOT / "px_console.exe"), "--wait-env-file", str(config_root / "console.env")],
                     stdout=console_output, stderr=subprocess.STDOUT, text=True,
                     creationflags=subprocess.CREATE_NO_WINDOW,
                 )
@@ -198,7 +199,7 @@ ALTER SYSTEM SET ssl_key_file = '/var/lib/postgresql/server.key';
                 backup_environment = os.environ.copy()
                 backup_environment.update({"PGSSLMODE": "verify-full", "PGSSLROOTCERT": str(pg_ca)})
                 backup_process = subprocess.Popen(
-                    [str(PACKAGE_ROOT / "bin/px_backup.exe"), "run", str(config_root / "backup.json")],
+                    [str(RUNTIME_BIN_ROOT / "px_backup.exe"), "run", str(config_root / "backup.json")],
                     stdout=backup_output, stderr=subprocess.STDOUT, text=True, env=backup_environment,
                     creationflags=subprocess.CREATE_NO_WINDOW,
                 )
@@ -237,6 +238,27 @@ ALTER SYSTEM SET ssl_key_file = '/var/lib/postgresql/server.key';
                 if console_member["archive_sha256"] != hashlib.sha256(archive.read_bytes()).hexdigest():
                     raise RuntimeError("Manual recovery archive hash mismatch")
                 print("PASS manual task completed through WSS with a verified manual recovery set", flush=True)
+
+                inventory_code, inventory_body = console_request(
+                    4600, console_ca, "GET", "/api/console/managed/backup/recovery-sets",
+                    token=administrator_token,
+                )
+                if inventory_code != 200 or not isinstance(inventory_body, dict):
+                    raise RuntimeError(f"Recovery-set inventory failed: HTTP {inventory_code}, {inventory_body}")
+                listed_recovery_sets = inventory_body.get("recovery_sets", [])
+                if not any(recovery_set["recovery_set_id"] == manual_recovery_set for recovery_set in listed_recovery_sets):
+                    raise RuntimeError("Manual recovery set is missing from the verified inventory")
+                preflight_code, preflight_body = console_request(
+                    4600, console_ca, "GET",
+                    f"/api/console/managed/backup/recovery-sets/{manual_recovery_set}/preflight",
+                    token=administrator_token,
+                )
+                if (preflight_code != 200 or not isinstance(preflight_body, dict) or
+                        preflight_body.get("repository_integrity") != "verified_at_snapshot" or
+                        preflight_body.get("restore_admission") != "not_evaluated" or
+                        preflight_body.get("recovery_set", {}).get("recovery_set_id") != manual_recovery_set):
+                    raise RuntimeError(f"Read-only preflight failed: HTTP {preflight_code}, {preflight_body}")
+                print("PASS inventory and read-only preflight identify the same manual recovery set", flush=True)
 
                 postgres_sql(postgres_container, "postgres", "CREATE DATABASE pixels_console_restore;")
                 restore_environment = os.environ.copy()

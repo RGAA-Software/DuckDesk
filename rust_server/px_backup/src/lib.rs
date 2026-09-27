@@ -54,7 +54,8 @@ pub use restore_store::{
 pub use retention::{retained_set_ids, RetentionClass, RetentionPolicy};
 pub use runtime::{
     BackupControlConfig, BackupDaemon, BackupDaemonConfig, BackupDaemonError, BackupDaemonStatus,
-    BackupRuntimeAlert, BACKUP_DAEMON_CONFIG_SCHEMA_VERSION, BACKUP_DAEMON_STATUS_SCHEMA_VERSION,
+    BackupRuntimeAlert, VerifiedRecoverySet, BACKUP_DAEMON_CONFIG_SCHEMA_VERSION,
+    BACKUP_DAEMON_STATUS_SCHEMA_VERSION,
 };
 pub use scheduler::{
     BackupScheduleConfig, BackupTask, BackupTaskKind, BackupTaskOutcome, BackupTaskSnapshot,

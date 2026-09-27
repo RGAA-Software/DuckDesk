@@ -617,6 +617,16 @@ fn allows_license_recovery(method: &Method, path: &str, client: Option<ClientTyp
     if method == Method::GET && path == "/api/console/backup-control" {
         return true;
     }
+    if client == Some(ClientType::AdminWeb) && method == Method::GET {
+        if let Some(recovery_set_id) = path
+            .strip_prefix("/api/console/managed/backup/recovery-sets/")
+            .and_then(|suffix| suffix.strip_suffix("/preflight"))
+        {
+            if Uuid::parse_str(recovery_set_id).is_ok() {
+                return true;
+            }
+        }
+    }
     client == Some(ClientType::AdminWeb)
         && matches!(
             (method.clone(), path),
@@ -629,6 +639,7 @@ fn allows_license_recovery(method: &Method, path: &str, client: Option<ClientTyp
                 | (Method::GET, "/api/console/managed/relays")
                 | (Method::POST, "/api/console/managed/relays")
                 | (Method::GET, "/api/console/managed/backup")
+                | (Method::GET, "/api/console/managed/backup/recovery-sets")
                 | (Method::POST, "/api/console/managed/backup/trigger")
         )
 }
@@ -662,6 +673,21 @@ mod recovery_tests {
         assert!(allows_license_recovery(
             &Method::POST,
             "/api/console/managed/backup/trigger",
+            Some(ClientType::AdminWeb)
+        ));
+        assert!(allows_license_recovery(
+            &Method::GET,
+            "/api/console/managed/backup/recovery-sets",
+            Some(ClientType::AdminWeb)
+        ));
+        assert!(allows_license_recovery(
+            &Method::GET,
+            "/api/console/managed/backup/recovery-sets/11111111-1111-1111-1111-111111111111/preflight",
+            Some(ClientType::AdminWeb)
+        ));
+        assert!(!allows_license_recovery(
+            &Method::GET,
+            "/api/console/managed/backup/recovery-sets/not-a-uuid/preflight",
             Some(ClientType::AdminWeb)
         ));
         assert!(!allows_license_recovery(

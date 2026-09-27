@@ -22,6 +22,34 @@ export interface ManagedBackup {
     reported_at_unix: number | null;
 }
 
+export interface VerifiedRecoverySet {
+    recovery_set_id: string;
+    kind: string;
+    status: string;
+    created_at_unix: number;
+    completed_at_unix: number | null;
+    retention: string[];
+    checked_at_unix: number;
+}
+
+export interface RecoverySetPreflight {
+    recovery_set: VerifiedRecoverySet;
+    repository_integrity: "verified_at_snapshot";
+    restore_admission: "not_evaluated";
+}
+
+export async function getVerifiedRecoverySets(): Promise<VerifiedRecoverySet[]> {
+    const response = await axiosHttp.get<{ recovery_sets: VerifiedRecoverySet[] }>("/api/console/managed/backup/recovery-sets");
+    return response.data.recovery_sets;
+}
+
+export async function preflightRecoverySet(recoverySetId: string): Promise<RecoverySetPreflight> {
+    const response = await axiosHttp.get<RecoverySetPreflight>(
+        `/api/console/managed/backup/recovery-sets/${encodeURIComponent(recoverySetId)}/preflight`,
+    );
+    return response.data;
+}
+
 export async function getManagedBackup(): Promise<ManagedBackup> {
     const response = await axiosHttp.get<ManagedBackup>("/api/console/managed/backup");
     return response.data;

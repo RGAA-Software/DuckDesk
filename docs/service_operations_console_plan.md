@@ -109,6 +109,9 @@ Prometheus/Alertmanager 负责监控告警，不执行部署或业务调度；Ku
 2026-09-27 实施切片：仅为当前 Single Server 的 Backup 增加受认证的 Backup→Console WSS 控制/状态连接。首次初始化生成专用随机令牌，分别存入受限的 `console.env` 与 `backup.json`；Backup 校验本部署 Console CA，主动连接 `/api/console/backup-control`，每 5 秒上报自身状态。Console 管理员通过 `/api/console/managed/backup` 查看在线状态与最近结果，通过 `POST /api/console/managed/backup/trigger` 请求立即备份；网页“数据库备份”卡使用这两个管理员 HTTP API，不直接连 Backup。手动请求先写入现有 Backup 调度状态，再由唯一的 Backup 执行器串行处理，恢复集标记为 `manual`；执行中拒绝第二个请求。Console 离线时定时备份继续独立运行。本切片不改变数据库/媒体/其他服务的通信，不包含恢复、下载或锁定操作；后者仍属下述待实施范围。
 
 交付补充（2026-09-27）：Single Server 1.0.7 的 Windows Setup 和 Linux `deploy.sh` 可在同一部署缺少控制字段时补齐私有配置，重复安装保留令牌，冲突则拒绝。90 的正式 Windows Setup 原地覆盖及网页按钮短测通过，最新恢复集为 `verified/manual`；Linux 镜像在隔离 Docker 命名卷上通过首次补齐、重复保留、单侧修复和冲突拒绝。Linux 完整运行中 Compose 集群的覆盖未在客户主机验收，不能用命名卷短测冒充该结果。
+正式 1.0.6 的 Linux 说明遗漏升级所需的配置补齐步骤，已由 1.0.7 替代，不应再作为交付包使用。
+
+下一切片（2026-09-27，开发环境短测）：Backup 在原有状态上报中加入最近 20 个已验证恢复集的 ID、类型、完成时间、保留类别和校验时间；数据来自 Backup 仓库的归档哈希与依赖图校验。Console 仅缓存上报快照，并向管理员提供 `GET /api/console/managed/backup/recovery-sets` 与 `GET /api/console/managed/backup/recovery-sets/{id}/preflight`，断连或状态超过 30 秒时拒绝。网页预检只说明“上次上报时仓库完整性已验证”，明确恢复准入未评估；它不重新校验当前磁盘状态、不执行恢复。恢复仍使用现有受控 CLI。隔离 PostgreSQL 18 短测已验证网页 API 返回的手动恢复集 ID 与独立空库实际恢复的归档相同；尚未打包或部署到 90，1.0.7 正式包不含此切片。
 
 数据库已确定为 PostgreSQL，具体备份档位与数量以 [数据库方案第 6 节](postgresql_database_migration_plan.md#6-自动备份与保留策略) 为准。
 页面展示主版本/schema、可写角色、连接池、主备与归档延迟、备份计划/时区/保留、仓库容量、最后可恢复时间和恢复验证结果。

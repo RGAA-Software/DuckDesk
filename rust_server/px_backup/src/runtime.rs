@@ -13,7 +13,8 @@ use std::{
 use uuid::Uuid;
 
 pub const BACKUP_DAEMON_CONFIG_SCHEMA_VERSION: u32 = 2;
-pub const BACKUP_DAEMON_STATUS_SCHEMA_VERSION: u32 = 2;
+pub const BACKUP_DAEMON_STATUS_SCHEMA_VERSION: u32 = 3;
+const RECENT_RECOVERY_SET_LIMIT: usize = 20;
 const MAX_STATUS_BYTES: usize = 64 * 1024;
 const MAX_METRICS_BYTES: usize = 16 * 1024;
 
@@ -191,6 +192,7 @@ pub struct BackupDaemonStatus {
     pub last_success_at_unix: Option<u64>,
     pub last_recovery_set_id: Option<Uuid>,
     pub last_local_recovery_set_id: Option<Uuid>,
+    pub recent_recovery_sets: Vec<VerifiedRecoverySet>,
     pub offsite_configured: bool,
     pub offsite_repository_healthy: bool,
     pub last_offsite_recovery_set_id: Option<Uuid>,
@@ -198,6 +200,18 @@ pub struct BackupDaemonStatus {
     pub consecutive_failures: u32,
     pub overdue: bool,
     pub alerts: Vec<BackupRuntimeAlert>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct VerifiedRecoverySet {
+    pub recovery_set_id: Uuid,
+    pub kind: crate::RecoverySetKind,
+    pub status: crate::RecoverySetStatus,
+    pub created_at_unix: u64,
+    pub completed_at_unix: Option<u64>,
+    pub retention: std::collections::BTreeSet<crate::RetentionClass>,
+    pub checked_at_unix: u64,
 }
 
 pub struct BackupDaemon<T> {
@@ -418,7 +432,31 @@ impl<T: LogicalBackupTool> BackupDaemon<T> {
         if overdue {
             alerts.push(BackupRuntimeAlert::BackupOverdue);
         }
-        let last_local_recovery_set_id = newest_verified_recovery_set_id(&self.repository)?;
+        let mut verified_manifests = self.repository.manifests()?;
+        verified_manifests.retain(|manifest| manifest.status.is_verified());
+        verified_manifests.sort_by_key(|manifest| {
+            std::cmp::Reverse((
+                manifest.completed_at_unix,
+                manifest.created_at_unix,
+                manifest.recovery_set_id,
+            ))
+        });
+        let last_local_recovery_set_id = verified_manifests
+            .first()
+            .map(|manifest| manifest.recovery_set_id);
+        let recent_recovery_sets = verified_manifests
+            .into_iter()
+            .take(RECENT_RECOVERY_SET_LIMIT)
+            .map(|manifest| VerifiedRecoverySet {
+                recovery_set_id: manifest.recovery_set_id,
+                kind: manifest.kind,
+                status: manifest.status,
+                created_at_unix: manifest.created_at_unix,
+                completed_at_unix: manifest.completed_at_unix,
+                retention: manifest.retention,
+                checked_at_unix: now_unix,
+            })
+            .collect();
         let (offsite_repository_healthy, last_offsite_recovery_set_id) =
             if let Some(offsite_repository) = &self.offsite_repository {
                 match newest_verified_recovery_set_id(offsite_repository) {
@@ -438,6 +476,7 @@ impl<T: LogicalBackupTool> BackupDaemon<T> {
             last_success_at_unix,
             last_recovery_set_id,
             last_local_recovery_set_id,
+            recent_recovery_sets,
             offsite_configured: self.offsite_repository.is_some(),
             offsite_repository_healthy,
             last_offsite_recovery_set_id,
@@ -890,6 +929,12 @@ mod tests {
         assert_eq!(status.consecutive_failures, 0);
         assert_eq!(status.last_success_at_unix, Some(1_000));
         assert!(status.last_recovery_set_id.is_some());
+        assert_eq!(status.recent_recovery_sets.len(), 1);
+        assert_eq!(
+            status.recent_recovery_sets[0].recovery_set_id,
+            status.last_local_recovery_set_id.unwrap()
+        );
+        assert_eq!(status.recent_recovery_sets[0].checked_at_unix, 1_001);
         assert!(!status.overdue);
         assert!(status.alerts.is_empty());
         assert!(fixture.config.status_root.join("status.json").is_file());

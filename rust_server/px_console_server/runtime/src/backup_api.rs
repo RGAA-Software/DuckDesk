@@ -2,7 +2,7 @@ use crate::{error::ApiError, request, StateData};
 use axum::{
     extract::{
         ws::{Message, WebSocket},
-        ConnectInfo, OriginalUri, State, WebSocketUpgrade,
+        ConnectInfo, OriginalUri, Path, State, WebSocketUpgrade,
     },
     http::{header, HeaderMap},
     response::Response,
@@ -26,6 +26,7 @@ use zeroize::Zeroizing;
 
 const AUTHENTICATION_TIMEOUT: Duration = Duration::from_secs(5);
 const TRIGGER_TIMEOUT: Duration = Duration::from_secs(10);
+const STATUS_FRESHNESS_SECONDS: u64 = 30;
 
 pub(crate) struct BackupControl {
     token_digest: [u8; 32],
@@ -65,6 +66,14 @@ pub(crate) fn routes() -> Router<Arc<StateData>> {
         .route("/api/console/backup-control", get(upgrade))
         .route("/api/console/managed/backup", get(status))
         .route(
+            "/api/console/managed/backup/recovery-sets",
+            get(recovery_sets),
+        )
+        .route(
+            "/api/console/managed/backup/recovery-sets/{id}/preflight",
+            get(recovery_set_preflight),
+        )
+        .route(
             "/api/console/managed/backup/trigger",
             axum::routing::post(trigger),
         )
@@ -96,6 +105,59 @@ async fn status(
         "connected":connected,
         "status":snapshot.as_ref().map(|(status, _)| status),
         "reported_at_unix":snapshot.map(|(_, reported_at)| reported_at),
+    })))
+}
+
+async fn current_status(state: &StateData) -> Result<BackupDaemonStatus, ApiError> {
+    let control = state.backup_control.as_ref().ok_or(ApiError::Unavailable)?;
+    if control.connection.lock().await.is_none() {
+        return Err(ApiError::Unavailable);
+    }
+    let (snapshot, reported_at_unix) = control
+        .status
+        .lock()
+        .await
+        .clone()
+        .ok_or(ApiError::Unavailable)?;
+    let now_unix = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| ApiError::Unavailable)?
+        .as_secs();
+    if now_unix.saturating_sub(reported_at_unix) >= STATUS_FRESHNESS_SECONDS {
+        return Err(ApiError::Unavailable);
+    }
+    Ok(snapshot)
+}
+
+async fn recovery_sets(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    state.operational()?;
+    administrator(&state, &headers).await?;
+    let snapshot = current_status(&state).await?;
+    Ok(Json(
+        serde_json::json!({ "recovery_sets": snapshot.recent_recovery_sets }),
+    ))
+}
+
+async fn recovery_set_preflight(
+    State(state): State<Arc<StateData>>,
+    Path(recovery_set_id): Path<Uuid>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    state.operational()?;
+    administrator(&state, &headers).await?;
+    let snapshot = current_status(&state).await?;
+    let recovery_set = snapshot
+        .recent_recovery_sets
+        .iter()
+        .find(|candidate| candidate.recovery_set_id == recovery_set_id)
+        .ok_or(ApiError::NotFound)?;
+    Ok(Json(serde_json::json!({
+        "recovery_set": recovery_set,
+        "repository_integrity": "verified_at_snapshot",
+        "restore_admission": "not_evaluated",
     })))
 }
 
