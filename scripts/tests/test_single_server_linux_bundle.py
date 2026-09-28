@@ -30,7 +30,7 @@ class SingleServerLinuxBundleTests(unittest.TestCase):
                 manifest = json.load(manifest_file)
                 compose = compose_file.read().decode("utf-8")
             self.assertEqual(manifest["files"]["pixels-server-1.0.3.tar"], image_hash)
-            self.assertEqual(manifest["distribution"], "customer")
+            self.assertEqual(manifest["distribution"], "official")
             for service in ("setup:", "console:", "relay:", "backup:"):
                 self.assertIn(service, compose)
             self.assertIn("pixels-server:1.0.3", compose)

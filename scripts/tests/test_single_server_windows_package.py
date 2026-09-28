@@ -116,6 +116,12 @@ class SingleServerWindowsPackageTests(unittest.TestCase):
             self.assertIn("assets/license-trust.json", manifest["files"])
             self.assertNotIn("bin/px_desk.exe", manifest["files"])
             self.assertNotIn("bin/px_auth.exe", manifest["files"])
+            retired_manifest = dict(manifest)
+            retired_manifest["distribution"] = "customer"
+            (output / "sha256.json").write_text(json.dumps(retired_manifest), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "identity"):
+                validate_package(output)
+            (output / "sha256.json").write_text(json.dumps(manifest), encoding="utf-8")
             (output / "bin" / "px_relay.exe").write_bytes(b"tampered")
             with self.assertRaises(ValueError):
                 validate_package(output)
@@ -169,8 +175,11 @@ class SingleServerWindowsPackageTests(unittest.TestCase):
                        return_value=["bin/pg_dump.exe", "bin/pg_restore.exe", "bin/createdb.exe", "bin/psql.exe"]):
                 assemble(binaries, static, postgresql, package, "1.0.3")
             deployment_id = "11111111-1111-4111-8111-111111111111"
-            for environment_name in ("console.env", "relay.env"):
-                (config / environment_name).write_text(f"PIXELS_DEPLOYMENT_ID={deployment_id}\n", encoding="utf-8")
+            (config / "console.env").write_text(
+                f"PIXELS_DEPLOYMENT_ID={deployment_id}\nPIXELS_CONSOLE_DISTRIBUTION=official\n"
+                "PIXELS_CONSOLE_RELEASE_NAMESPACE=pixels.official\n", encoding="utf-8",
+            )
+            (config / "relay.env").write_text(f"PIXELS_DEPLOYMENT_ID={deployment_id}\n", encoding="utf-8")
             (config / "backup.json").write_text(json.dumps({
                 "schema_version": 2, "deployment_id": deployment_id,
                 "plan": {"targets": [
@@ -189,6 +198,19 @@ class SingleServerWindowsPackageTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("PREFLIGHT_OK", result.stdout)
             self.assertFalse((root / "install").exists())
+            official_environment = (config / "console.env").read_text(encoding="utf-8")
+            (config / "console.env").write_text(
+                official_environment.replace("official", "customer"), encoding="utf-8",
+            )
+            retired_distribution = subprocess.run([
+                "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(package / "install.ps1"),
+                "-PackageRoot", str(package), "-ExpectedManifestSha256", manifest_hash,
+                "-ConfigRoot", str(config), "-DataRoot", str(persistent_data),
+                "-InstallRoot", str(root / "install"), "-PreflightOnly",
+            ], capture_output=True, text=True)
+            self.assertNotEqual(retired_distribution.returncode, 0)
+            self.assertIn("Official release identity", retired_distribution.stderr)
+            (config / "console.env").write_text(official_environment, encoding="utf-8")
             installation = root / "install"
             installation.mkdir()
             (installation / "deployment.id").write_text(deployment_id + "\n", encoding="utf-8")
@@ -229,7 +251,7 @@ class SingleServerWindowsPackageTests(unittest.TestCase):
             old_release.mkdir()
             (old_release / "px_console.exe").write_bytes(b"MZold")
             (current_release / "sha256.json").write_text(json.dumps({
-                "product": "pixels-single-server", "distribution": "customer",
+                "product": "pixels-single-server", "distribution": "official",
                 "platform": "windows-x86_64",
             }), encoding="utf-8")
             repository_root = Path(__file__).resolve().parents[2]

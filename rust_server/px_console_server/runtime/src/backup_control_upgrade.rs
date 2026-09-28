@@ -42,6 +42,12 @@ pub fn upgrade_single_server_backup_control(
         std::str::from_utf8(&console_bytes).map_err(|_| "invalid Console environment")?;
     let relay_environment =
         std::str::from_utf8(&relay_bytes).map_err(|_| "invalid Relay environment")?;
+    if environment_value(console_environment, "PIXELS_CONSOLE_DISTRIBUTION")? != Some("official")
+        || environment_value(console_environment, "PIXELS_CONSOLE_RELEASE_NAMESPACE")?
+            != Some("pixels.official")
+    {
+        return Err("Single Server requires the Official release identity".into());
+    }
     let console_deployment = environment_value(console_environment, "PIXELS_DEPLOYMENT_ID")?
         .ok_or("Console deployment identity is missing")?;
     let relay_deployment = environment_value(relay_environment, "PIXELS_DEPLOYMENT_ID")?
@@ -203,7 +209,7 @@ mod tests {
         fs::write(config_root.join("console-ca.crt"), b"test-ca").unwrap();
         fs::write(
             config_root.join("console.env"),
-            format!("PIXELS_DEPLOYMENT_ID={deployment_id}\n"),
+            format!("PIXELS_DEPLOYMENT_ID={deployment_id}\nPIXELS_CONSOLE_DISTRIBUTION=official\nPIXELS_CONSOLE_RELEASE_NAMESPACE=pixels.official\n"),
         )
         .unwrap();
         fs::write(
@@ -217,6 +223,17 @@ mod tests {
         fs::write(
             config_root.join("backup.json"),
             format!("{{\"deployment_id\":\"{deployment_id}\"}}"),
+        )
+        .unwrap();
+        fs::write(
+            config_root.join("console.env"),
+            format!("PIXELS_DEPLOYMENT_ID={deployment_id}\nPIXELS_CONSOLE_DISTRIBUTION=customer\nPIXELS_CONSOLE_RELEASE_NAMESPACE=pixels.customer\n"),
+        )
+        .unwrap();
+        assert!(upgrade_single_server_backup_control(config_root, "windows").is_err());
+        fs::write(
+            config_root.join("console.env"),
+            format!("PIXELS_DEPLOYMENT_ID={deployment_id}\nPIXELS_CONSOLE_DISTRIBUTION=official\nPIXELS_CONSOLE_RELEASE_NAMESPACE=pixels.official\n"),
         )
         .unwrap();
         assert!(upgrade_single_server_backup_control(config_root, "windows").unwrap());

@@ -42,4 +42,4 @@ if ($LASTEXITCODE -ne 0) { throw 'Optimized Windows Server package assembly fail
 $setupPath = Join-Path $resolvedOutput "PixelsServer_${SuiteVersion}_Setup.exe"
 & python.exe (Join-Path $repositoryRoot 'setup/make_single_server.py') --package $packageDirectory --output $setupPath
 if ($LASTEXITCODE -ne 0) { throw 'Windows Server Setup build failed.' }
-Write-Output "Windows Customer Server release: $setupPath"
+Write-Output "Windows Official Server release: $setupPath"

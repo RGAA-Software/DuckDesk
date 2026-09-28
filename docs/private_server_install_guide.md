@@ -1,5 +1,7 @@
 # Linux Customer Server 私有部署操作入口
 
+> 本文保留旧 Linux ELF 发行记录。当前 Single Server 只发行 Pixels `official` 包，官方自用与私有部署通过首次初始化参数区分；请按[当前产品构建与使用说明](product_build_and_usage.md#24-single-server-独立发行)及[Linux Compose 安装说明](../deploy/single_server/linux/README.md)操作。下文 Customer 包路径和 systemd 命令不适用于新包。
+
 适用范围：当前正式套件 `1.0.2`，目标 Ubuntu 24.04 x86_64、systemd。本文是现有安装入口的操作顺序，不宣称真实客户生产凭据、断公网拓扑或四服务同机生产部署已经验收。后续正常发版时替换套件版本；不为跨版本测试专门发布新包。
 
 下一版 Customer Single Server 的产品边界已经改为 Console、Relay、Backup；`px_desk` 属于官网，不再进入客户 Server 包。Linux 改用 Docker Compose 一键部署、Windows 使用原生 Setup；PostgreSQL 等基础环境由运维单独提供，详见[双平台实施计划](single_server_linux_windows_plan.md)。下面涉及 Desk 和 systemd 的步骤仅说明已发布 1.0.2 的实际内容，不是下一版要求。

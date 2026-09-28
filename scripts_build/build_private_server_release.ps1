@@ -7,7 +7,7 @@ $projectRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $versionScript = Join-Path $projectRoot 'scripts/server_private/server_suite_version.py'
 $nextVersion = (& python $versionScript).Trim()
 if ($LASTEXITCODE -ne 0 -or -not $nextVersion) { throw 'Unable to read the next Server suite version' }
-$releaseRoot = Join-Path $projectRoot 'build_official/private_server/customer'
+$releaseRoot = Join-Path $projectRoot 'build_official/private_server/official'
 $releaseOutput = Join-Path $releaseRoot $nextVersion
 if (Test-Path -LiteralPath $releaseOutput) {
     $existingEntries = @(Get-ChildItem -LiteralPath $releaseOutput -Name)
@@ -20,7 +20,7 @@ if (Test-Path -LiteralPath $releaseOutput) {
         throw "Server release output is not an isolated Windows-only version: $releaseOutput"
     }
     $manifestIdentity = Get-Content -LiteralPath $windowsManifest -Raw | ConvertFrom-Json
-    if ($manifestIdentity.suite_version -ne $nextVersion -or $manifestIdentity.distribution -ne 'customer' -or
+    if ($manifestIdentity.suite_version -ne $nextVersion -or $manifestIdentity.distribution -ne 'official' -or
         $manifestIdentity.build_profile -ne 'optimized-release') {
         throw 'Existing Windows Server package does not match the formal suite version.'
     }
@@ -45,4 +45,4 @@ if ($LASTEXITCODE -ne 0) { throw 'Console web dependency installation failed' }
 if ($LASTEXITCODE -ne 0) { throw 'Console web build failed' }
 & wsl.exe -d $Distribution -- bash "$linuxRoot/scripts_build/build_private_server_release.sh" $linuxOutput $reservedVersion
 if ($LASTEXITCODE -ne 0) { throw 'Linux private Server release build failed' }
-Write-Output "Private Server Customer Compose release: $releaseOutput/PixelsServer_${reservedVersion}_Linux.tar.gz"
+Write-Output "Private Server Official Compose release: $releaseOutput/PixelsServer_${reservedVersion}_Linux.tar.gz"

@@ -72,6 +72,8 @@ class SingleServerWindowsCoverTests(unittest.TestCase):
 
             console_fields = {
                 "PIXELS_DEPLOYMENT_ID": deployment_id,
+                "PIXELS_CONSOLE_DISTRIBUTION": "official",
+                "PIXELS_CONSOLE_RELEASE_NAMESPACE": "pixels.official",
                 "PIXELS_CONSOLE_DATABASE_URL": "postgresql://fixture:fixture@localhost:5432/fixture?sslrootcert="
                 + (configuration_directory / "postgres-ca.crt").as_posix(),
                 "PIXELS_CONSOLE_TLS_CERT": str(configuration_directory / "console-tls.crt"),
@@ -132,7 +134,7 @@ class SingleServerWindowsCoverTests(unittest.TestCase):
                         "-InstallRoot", str(installation_directory),
                     ], capture_output=True, text=True)
                     self.assertEqual(installation.returncode, 0, installation.stderr + installation.stdout)
-                    self.assertIn("RUNNING customer-server", installation.stdout)
+                    self.assertIn("RUNNING official-server", installation.stdout)
                     self.assertEqual((installation_directory / "current/static/console/index.html").read_text(
                         encoding="utf-8"), f"release-{release_number}")
                     self.assertEqual(retained_file.read_text(encoding="utf-8"), "keep")

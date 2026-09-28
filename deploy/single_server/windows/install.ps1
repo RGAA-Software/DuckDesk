@@ -197,7 +197,7 @@ if ((Get-LowerHash -Path $manifestPath) -cne $ExpectedManifestSha256) {
 }
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
 if ($manifest.schema_version -ne 1 -or $manifest.product -cne 'pixels-single-server' -or
-    $manifest.distribution -cne 'customer' -or $manifest.platform -cne 'windows-x86_64' -or
+    $manifest.distribution -cne 'official' -or $manifest.platform -cne 'windows-x86_64' -or
     [string]$manifest.suite_version -cnotmatch '^\d+\.\d+\.\d+$') { throw 'Package identity is invalid.' }
 $expectedPaths = @($manifest.files.PSObject.Properties.Name)
 $actualPaths = @(Get-ChildItem -LiteralPath $resolvedPackage -File -Recurse | ForEach-Object {
@@ -251,6 +251,12 @@ foreach ($environmentName in @('console.env', 'relay.env')) {
     }
     if (Select-String -LiteralPath $environmentPath -Pattern 'REPLACE' -Quiet) { throw "$environmentName still contains a placeholder." }
 }
+$consoleEnvironmentLines = @(Get-Content -LiteralPath (Join-Path $resolvedConfig 'console.env'))
+foreach ($requiredLine in @('PIXELS_CONSOLE_DISTRIBUTION=official', 'PIXELS_CONSOLE_RELEASE_NAMESPACE=pixels.official')) {
+    if (@($consoleEnvironmentLines | Where-Object { $_ -ceq $requiredLine }).Count -ne 1) {
+        throw 'Console configuration must use the Official release identity.'
+    }
+}
 $otherBackup = @(Get-Service -Name 'Pixels.Backup.*' -ErrorAction SilentlyContinue |
     Where-Object Name -cne $backupName)
 if ($otherBackup.Count -gt 0) { throw 'Another Pixels Backup deployment is installed; uninstall it explicitly first.' }
@@ -277,7 +283,7 @@ foreach ($serviceName in $serviceNames) {
     $serviceWasRunning[$serviceName] = $null -ne $service -and $service.Status -ne 'Stopped'
 }
 if ($PreflightOnly) {
-    Write-Output "PREFLIGHT_OK customer-server $($manifest.suite_version) deployment=$deploymentId"
+    Write-Output "PREFLIGHT_OK official-server $($manifest.suite_version) deployment=$deploymentId"
     return
 }
 
@@ -397,7 +403,7 @@ try {
         try { Remove-ReleaseDirectory -Path $previousPath -Parent $resolvedInstall }
         catch { Write-Warning "Previous program cleanup was deferred: $($_.Exception.Message)" }
     }
-    Write-Output "RUNNING customer-server $($manifest.suite_version) deployment=$deploymentId"
+    Write-Output "RUNNING official-server $($manifest.suite_version) deployment=$deploymentId"
 } catch {
     $installError = $_
     if ($swapAttempted) {

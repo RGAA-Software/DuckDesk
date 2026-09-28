@@ -1,4 +1,6 @@
-# Pixels Customer Single Server · Linux
+# Pixels Official Single Server · Linux
+
+Official 是镜像/归档发行身份，不是固定服务器地址。官方自用与私有部署使用同一包；公网主机、数据库和证书在首次初始化时配置。
 
 安装 Docker Engine/Compose，另行提供可通过 TLS `verify-full` 访问的 PostgreSQL 18。PostgreSQL 不在 Pixels 包内。
 

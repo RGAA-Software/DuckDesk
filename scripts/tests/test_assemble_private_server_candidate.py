@@ -63,11 +63,11 @@ class PrivateServerCandidateTests(unittest.TestCase):
             output=self.root / "candidate",
         )
 
-    def test_assembles_hash_checked_customer_files_without_auth(self) -> None:
+    def test_assembles_hash_checked_official_files_without_auth(self) -> None:
         manifest = assemble(self.arguments())
         candidate = self.root / "candidate"
         self.assertFalse(manifest["contains_auth_signer"])
-        self.assertEqual(manifest["distribution"], "customer")
+        self.assertEqual(manifest["distribution"], "official")
         self.assertEqual(manifest["platform"], "linux-x86_64")
         self.assertEqual(manifest["component_versions"]["relay"], "3.2.1")
         self.assertEqual(manifest["artifacts"]["bin/px_console"], sha256(candidate / "bin/px_console"))
@@ -89,7 +89,7 @@ class PrivateServerCandidateTests(unittest.TestCase):
             assemble(self.arguments())
         self.assertFalse((self.root / "candidate").exists())
 
-    def test_customer_package_excludes_official_website(self) -> None:
+    def test_server_package_excludes_website(self) -> None:
         manifest = assemble(self.arguments())
         self.assertNotIn("desk", manifest["component_versions"])
         self.assertFalse(any("desk" in artifact_name for artifact_name in manifest["artifacts"]))

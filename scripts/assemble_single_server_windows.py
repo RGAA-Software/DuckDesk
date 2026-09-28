@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assemble a strict Customer Single Server Windows candidate from explicit inputs."""
+"""Assemble a strict Official Single Server Windows candidate from explicit inputs."""
 
 from __future__ import annotations
 
@@ -101,11 +101,11 @@ def assemble(binary_directory: Path, static_directory: Path, postgresql_director
             for source in sorted(output_directory.rglob("*")) if source.is_file()
         }
         if any("desk" in name.lower() or "auth" in name.lower() for name in files):
-            raise ValueError("Customer Server cannot contain Desk or Auth")
+            raise ValueError("Single Server cannot contain Desk or Auth")
         manifest = {
             "schema_version": 1,
             "product": "pixels-single-server",
-            "distribution": "customer",
+            "distribution": "official",
             "platform": "windows-x86_64",
             "suite_version": suite_version,
             "build_profile": build_profile,

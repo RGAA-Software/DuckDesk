@@ -68,7 +68,7 @@ def assemble(image_archive: Path, expected_hash: str, version: str, output: Path
         manifest = {
             "schema_version": 1,
             "product": "pixels-single-server",
-            "distribution": "customer",
+            "distribution": "official",
             "platform": "linux-x86_64-compose",
             "suite_version": version,
             "build_profile": build_profile,

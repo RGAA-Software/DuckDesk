@@ -10,7 +10,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $setupPath = Join-Path $repositoryRoot `
-    "build_official/private_server/customer/$SuiteVersion/windows/PixelsServer_${SuiteVersion}_Setup.exe"
+    "build_official/private_server/official/$SuiteVersion/windows/PixelsServer_${SuiteVersion}_Setup.exe"
 $checksumPath = "$setupPath.sha256"
 if (-not (Test-Path -LiteralPath $setupPath -PathType Leaf) -or
     -not (Test-Path -LiteralPath $checksumPath -PathType Leaf)) {

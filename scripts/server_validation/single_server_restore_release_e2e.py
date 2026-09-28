@@ -20,8 +20,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-RELEASE_VERSION = os.getenv("PIXELS_RESTORE_RELEASE_VERSION", "1.0.10")
-RELEASE = ROOT / "build_official/private_server/customer" / RELEASE_VERSION
+RELEASE_VERSION = os.getenv("PIXELS_RESTORE_RELEASE_VERSION", "1.0.11")
+RELEASE = ROOT / "build_official/private_server/official" / RELEASE_VERSION
 WINDOWS_PACKAGE = RELEASE / "windows/package"
 LINUX_BUNDLE = RELEASE / f"PixelsServer_{RELEASE_VERSION}_Linux.tar.gz"
 CSC = Path(r"C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe")

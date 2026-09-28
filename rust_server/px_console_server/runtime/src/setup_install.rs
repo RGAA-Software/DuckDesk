@@ -322,8 +322,8 @@ pub async fn initialize_single_server(
     }]);
     let console_environment = Zeroizing::new(format!(
         "PIXELS_DEPLOYMENT_ID={deployment_id}\n\
-         PIXELS_CONSOLE_DISTRIBUTION=customer\n\
-         PIXELS_CONSOLE_RELEASE_NAMESPACE=pixels.customer\n\
+         PIXELS_CONSOLE_DISTRIBUTION=official\n\
+         PIXELS_CONSOLE_RELEASE_NAMESPACE=pixels.official\n\
          PIXELS_CONSOLE_LOCAL_DEVELOPMENT=0\n\
          PIXELS_CONSOLE_DATABASE_URL={}\n\
          PIXELS_CONSOLE_LISTEN=0.0.0.0:4600\n\
@@ -662,7 +662,7 @@ fn write_backup_config(
                     "password_file":password_file,"schema_version":console_schema_version
                 }},
                 {"state":"not_applicable","service":"auth","reason":"Auth signer is not installed in the private Server"},
-                {"state":"not_applicable","service":"desk","reason":"Desk is the official website and is not installed in Customer Server"}
+                {"state":"not_applicable","service":"desk","reason":"Desk is the website and is not installed in Single Server"}
             ]
         }
     });

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the unsigned Customer Single Server Setup from an exact Windows package."""
+"""Build the unsigned Official Single Server Setup from an exact Windows package."""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def validate_package(package_root: Path) -> tuple[str, str]:
     manifest_path = package_root / "sha256.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if (manifest.get("schema_version") != 1 or manifest.get("product") != "pixels-single-server"
-            or manifest.get("distribution") != "customer" or manifest.get("platform") != "windows-x86_64"):
+            or manifest.get("distribution") != "official" or manifest.get("platform") != "windows-x86_64"):
         raise ValueError("Windows package identity is invalid")
     if manifest.get("build_profile") not in {"fast-release", "optimized-release"}:
         raise ValueError("Windows package build profile is invalid")

@@ -52,7 +52,7 @@ class PrivateServerVerifierTests(unittest.TestCase):
                 manifest["artifacts"][artifact_name] = sha256(artifact_path)
 
     def test_accepts_intact_candidate(self) -> None:
-        self.assertEqual(verify(self.candidate)["distribution"], "customer")
+        self.assertEqual(verify(self.candidate)["distribution"], "official")
 
     def test_rejects_changed_binary(self) -> None:
         with (self.candidate / "bin/px_relay").open("ab") as relay_binary:
@@ -68,7 +68,7 @@ class PrivateServerVerifierTests(unittest.TestCase):
     def test_rejects_wrong_identity(self) -> None:
         manifest_path = self.candidate / "sha256.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        manifest["distribution"] = "official"
+        manifest["distribution"] = "customer"
         manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "identity"):
             verify(self.candidate)

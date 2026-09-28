@@ -104,8 +104,8 @@ else
     fi
 fi
 if [ "$component" = console ]; then
-    grep -Fxq 'PIXELS_CONSOLE_DISTRIBUTION=customer' "$source_environment" || { echo "Customer Console distribution is required" >&2; exit 4; }
-    grep -Fxq 'PIXELS_CONSOLE_RELEASE_NAMESPACE=pixels.customer' "$source_environment" || { echo "Customer release namespace is required" >&2; exit 4; }
+    grep -Fxq 'PIXELS_CONSOLE_DISTRIBUTION=official' "$source_environment" || { echo "Official Console distribution is required" >&2; exit 4; }
+    grep -Fxq 'PIXELS_CONSOLE_RELEASE_NAMESPACE=pixels.official' "$source_environment" || { echo "Official release namespace is required" >&2; exit 4; }
     grep -Fxq "PIXELS_CONSOLE_STATIC_DIRECTORY=/opt/pixels/private/$deployment_id/current-console/static/console" "$source_environment" || {
         echo "Console static path must point to its independent current release" >&2; exit 4;
     }

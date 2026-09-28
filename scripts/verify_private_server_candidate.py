@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify every file in a Linux Customer server candidate before installation."""
+"""Verify every file in a Linux Official server candidate before installation."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from pathlib import Path, PurePosixPath
 
 COMMON_IDENTITY = {
     "platform": "linux-x86_64",
-    "distribution": "customer",
+    "distribution": "official",
     "contains_auth_signer": False,
 }
 PACKAGE_IDENTITIES = {
@@ -89,7 +89,7 @@ def verify(candidate_directory: Path) -> dict[str, object]:
         raise ValueError("Candidate file list does not match its manifest")
     if any(artifact_name == "bin/px_desk" or artifact_name.startswith(("static/desk/", "systemd/pixels-private-desk", "examples/desk."))
            for artifact_name in actual_artifacts):
-        raise ValueError("Desk belongs to the official website, not the Customer Server")
+        raise ValueError("Desk belongs to the website, not the Single Server")
     if manifest["product"] == "pixels-private-server" and "bin/px_backup" not in actual_artifacts:
         raise ValueError("Formal Server release requires its backup executor")
     pg_toolchain_present = "postgresql/18/sha256.json" in actual_artifacts

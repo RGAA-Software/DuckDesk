@@ -224,8 +224,8 @@ GRANT SELECT ON pixels.deployment_identity TO pixels_console_runtime;
 
             console_environment = {
                 "PIXELS_DEPLOYMENT_ID": deployment_id,
-                "PIXELS_CONSOLE_DISTRIBUTION": "customer",
-                "PIXELS_CONSOLE_RELEASE_NAMESPACE": "pixels.customer",
+                "PIXELS_CONSOLE_DISTRIBUTION": "official",
+                "PIXELS_CONSOLE_RELEASE_NAMESPACE": "pixels.official",
                 "PIXELS_CONSOLE_LOCAL_DEVELOPMENT": "0",
                 "PIXELS_CONSOLE_DATABASE_URL": runtime_url,
                 "PIXELS_CONSOLE_LISTEN": "0.0.0.0:4600",

@@ -1,7 +1,7 @@
 # Pixels 产品编译、产物与使用说明
 
 状态：当前唯一有效流程
-适用产品：Pixels Cloud Node、Pixels Client、Pixels Remote、Pixels Android
+适用产品：Pixels Cloud Node、Pixels Client、Pixels Remote、Pixels Android、Pixels Single Server
 
 Pixels 自有发行从 2026-09-27 起每个产品只生成一个包：Windows Cloud Node、Client、Remote 各一个 Setup，Android 一个 APK。
 内部 `official` 发行身份现在表示 Pixels 发布者与更新信任域，不再表示只能连接官方服务器；设置中可选固定官方 Console，或填写自定义私有 HTTPS Console，自定义输入拒绝官方地址。OEM 是独立定制发行线，不得通过修改 Pixels 包的名称、图标、URL 或清单后交付。Windows 与 Android 均已有独立 OEM 构建入口，Android、Web 与 Windows 原生 Panel/Client 均已消费 profile 品牌，但 OEM 商业交付仍
@@ -34,6 +34,12 @@ Web Client 的 OEM 品牌消费现已接通应用名、PNG 图标和 profile SHA
 
 旧的根 CMake 树、公共 `build_official/dist`、共享 Rust 编译产物、`build_client.bat`、旧端口和旧节点测试方案均已退役，不提供兼容入口。
 
+Single Server 也只有一个 Pixels `official` 发行包：Windows 一个 Setup、Linux 一个 Compose 归档，不再生成 `customer` 包。这里的
+`official` 只标识 Pixels 发布者和包身份，不固定 Console 公网主机、PostgreSQL 地址、证书或许可证；官方自用与客户私有部署使用
+相同程序，通过首次初始化参数形成各自独立的 deployment。Server 不加入下文四个客户端产品的 `build_all_products.bat` 事务，
+由独立套件版本构建。当前发行目录为 `build_official/private_server/official/<version>/`。此前
+`docs/single_server_linux_windows_plan.md` 中的 Customer 发行描述属于开发历史，不再定义当前打包身份。
+
 ## 1. 产品与目录
 
 所有生成内容都位于对应产品的独立沙箱：
@@ -49,9 +55,10 @@ build_official/
 ├── remote/{cmake,dist}/                             # 日常聚焦开发
 │   ├── official/{cmake,cargo,web,rdp_policy,update,dist,installer,reports}/
 │   └── oem/<oem_id>/{cmake,cargo,web,rdp_policy,update,dist,installer,reports}/
-└── android/
-    ├── official/{gradle,native,dist,reports}/
-    └── oem/<oem_id>/{gradle,native,dist,reports}/
+├── android/
+│   ├── official/{gradle,native,dist,reports}/
+│   └── oem/<oem_id>/{gradle,native,dist,reports}/
+└── private_server/official/<version>/{windows,PixelsServer_<version>_Linux.tar.gz}
 ```
 
 - `cmake`：该 Windows 产品专属 CMake/Ninja 构建树。
@@ -268,6 +275,15 @@ Pixels APK 使用 `yun.pixels.client`，默认选择编译时的官方 HTTPS Con
 自定义输入拒绝官方地址。APK 内置审批后的 TUF 初始 root，选择服务器不会改变签名和升级身份。
 
 Release 必须使用上述统一入口，不能直接调用 Gradle 的 `assembleRelease`/`bundleRelease`。流水线从当前 Android native 构建实际产生的对象自动生成 LGPL relink kit，并根据 `VCPKG_ROOT`（默认 `C:\source\vcpkg`）中已安装的 SPDX 清单锁定和校验 FFmpeg n6.1 对应源码；不再手工提供旧源码包或旧 relink 包。正式签名来自被 Git 忽略的 `src/px_android/keystore.properties`，也可由完整的 `PIXELS_*` 签名变量提供。
+
+### 2.4 Single Server 独立发行
+
+Single Server 使用自己的套件版本，不参与四个客户端产品的升版。正式 Windows 与 Linux 制品写入同一个
+`build_official/private_server/official/<version>/`，包清单和首次初始化的 Console 环境均固定为
+`distribution=official`、`release_namespace=pixels.official`。Windows Setup 未签名；Linux 包内为版本固定的镜像与 Compose。
+官方自用与客户私有部署使用同一包，只在首次安装时分别配置公网主机、PostgreSQL、证书、管理员和许可证。旧 `customer` 配置
+不作为新包的覆盖升级输入；开发基线无需兼容转换。安装和恢复命令分别见 [Windows 说明](../deploy/single_server/windows/README.md)、
+[Linux 说明](../deploy/single_server/linux/README.md) 与 [Console 恢复说明](single_server_console_restore.md)。
 
 ## 3. Windows 产物与运行
 

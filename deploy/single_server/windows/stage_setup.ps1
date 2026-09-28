@@ -45,7 +45,7 @@ $manifestPath = Join-Path $package 'sha256.json'
 if ((Get-Hash $manifestPath) -cne $ExpectedManifestSha256) { throw 'Package manifest differs.' }
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
 if ($manifest.schema_version -ne 1 -or $manifest.product -cne 'pixels-single-server' -or
-    $manifest.distribution -cne 'customer' -or $manifest.platform -cne 'windows-x86_64') {
+    $manifest.distribution -cne 'official' -or $manifest.platform -cne 'windows-x86_64') {
     throw 'Package identity differs.'
 }
 $expectedPaths = @($manifest.files.PSObject.Properties.Name)

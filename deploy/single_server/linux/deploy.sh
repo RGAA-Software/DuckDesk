@@ -27,7 +27,8 @@ import sys
 
 archive = pathlib.Path(sys.argv[1])
 manifest = json.loads(pathlib.Path('sha256.json').read_text(encoding='utf-8'))
-if manifest.get('product') != 'pixels-single-server' or manifest.get('platform') != 'linux-x86_64-compose':
+if (manifest.get('product') != 'pixels-single-server' or manifest.get('distribution') != 'official'
+        or manifest.get('platform') != 'linux-x86_64-compose'):
     raise SystemExit('Package identity differs.')
 files = manifest['files']
 for name, expected in files.items():

@@ -19,13 +19,13 @@ service_name="pixels-private-console@$deployment_id.service"
 console_admin="/opt/pixels/private/$deployment_id/current-console/bin/px_console_admin"
 if [ -L "$configuration_root" ] || [ ! -d "$configuration_root" ] || [ -L "$environment_file" ] || [ ! -f "$environment_file" ] ||
    [ ! -x "$console_admin" ] || ! systemctl is-active --quiet "$service_name" || ! id pixels-console >/dev/null 2>&1; then
-    echo "an installed, active Customer Console is required" >&2
+    echo "an installed, active Official Console is required" >&2
     exit 3
 fi
 if ! grep -Fxq "PIXELS_DEPLOYMENT_ID=$deployment_id" "$environment_file" ||
-   ! grep -Fxq 'PIXELS_CONSOLE_DISTRIBUTION=customer' "$environment_file" ||
-   ! grep -Fxq 'PIXELS_CONSOLE_RELEASE_NAMESPACE=pixels.customer' "$environment_file"; then
-    echo "Console configuration is not bound to this Customer deployment" >&2
+   ! grep -Fxq 'PIXELS_CONSOLE_DISTRIBUTION=official' "$environment_file" ||
+   ! grep -Fxq 'PIXELS_CONSOLE_RELEASE_NAMESPACE=pixels.official' "$environment_file"; then
+    echo "Console configuration is not bound to this Official deployment" >&2
     exit 3
 fi
 
@@ -97,4 +97,4 @@ runuser -u pixels-console -- env PIXELS_DEPLOYMENT_ID="$deployment_id" \
     PIXELS_CONSOLE_LICENSE_TRUST_STORE="$trust_target" PIXELS_CONSOLE_LICENSE_FILE="$license_target" \
     "$console_admin" validate-license
 stopped=0
-echo "PASS Customer Console license replacement: $deployment_id"
+echo "PASS Official Console license replacement: $deployment_id"

@@ -15,7 +15,7 @@ if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
 }
 if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) { throw 'Installed package manifest is missing.' }
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-if ($manifest.product -cne 'pixels-single-server' -or $manifest.distribution -cne 'customer' -or
+if ($manifest.product -cne 'pixels-single-server' -or $manifest.distribution -cne 'official' -or
     $manifest.platform -cne 'windows-x86_64') { throw 'Installed product identity differs.' }
 $serviceNames = @('Pixels.Setup', 'Pixels.Console', 'Pixels.Relay')
 $serviceNames += @(Get-Service -Name 'Pixels.Backup.*' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name)

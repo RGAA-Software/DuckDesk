@@ -30,7 +30,7 @@ from setup.make_single_server import validate_package
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 PACKAGE_ROOT = Path(os.getenv(
     "PIXELS_SINGLE_SERVER_PACKAGE",
-    REPOSITORY_ROOT / "build_official/private_server/customer/1.0.3/windows/package",
+    REPOSITORY_ROOT / "build_official/private_server/official/1.0.11/windows/package",
 )).resolve()
 LICENSE_FIXTURE = "/tmp/pixels-private-server-target/release/examples/private_console_fixture"
 POSTGRES_IMAGE = "postgres:18.6"
@@ -238,8 +238,8 @@ GRANT SELECT ON pixels.deployment_identity TO pixels_console_runtime;
 
             console_environment = {
                 "PIXELS_DEPLOYMENT_ID": deployment_id,
-                "PIXELS_CONSOLE_DISTRIBUTION": "customer",
-                "PIXELS_CONSOLE_RELEASE_NAMESPACE": "pixels.customer",
+                "PIXELS_CONSOLE_DISTRIBUTION": "official",
+                "PIXELS_CONSOLE_RELEASE_NAMESPACE": "pixels.official",
                 "PIXELS_CONSOLE_LOCAL_DEVELOPMENT": "0",
                 "PIXELS_CONSOLE_DATABASE_URL": runtime_url,
                 "PIXELS_CONSOLE_LISTEN": f"127.0.0.1:{console_port}",
@@ -412,7 +412,7 @@ GRANT SELECT ON pixels.deployment_identity TO pixels_console_runtime;
                                     str(PACKAGE_ROOT), "-ExpectedManifestSha256", manifest_hash,
                                     "-ConfigRoot", str(config_root), "-DataRoot", str(data_root),
                                     "-InstallRoot", str(install_root)])
-            if "RUNNING customer-server" not in installation:
+            if "RUNNING official-server" not in installation:
                 raise RuntimeError("Installer did not report three running services")
             if any(service_state(service_name) != "RUNNING" for service_name in
                    ("Pixels.Console", "Pixels.Relay", backup_service)):
@@ -489,7 +489,7 @@ GRANT SELECT ON pixels.deployment_identity TO pixels_console_runtime;
                                             str(PACKAGE_ROOT), "-ExpectedManifestSha256", manifest_hash,
                                             "-ConfigRoot", str(config_root), "-DataRoot", str(data_root),
                                             "-InstallRoot", str(install_root)])
-            if ("RUNNING customer-server" not in covered_installation or
+            if ("RUNNING official-server" not in covered_installation or
                 retained_marker.read_text(encoding="utf-8") != "retained" or
                 any(service_state(service_name) != "RUNNING" for service_name in
                     ("Pixels.Console", "Pixels.Relay", backup_service))):

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assemble a Linux customer server candidate from explicitly built artifacts.
+"""Assemble a Linux official server candidate from explicitly built artifacts.
 
 This does not initialize PostgreSQL or install services. It never includes Auth.
 """
@@ -56,7 +56,7 @@ def require_regular_file(artifact_path: Path) -> None:
     if artifact_path.is_symlink() or not artifact_path.is_file():
         raise ValueError(f"Expected a regular file: {artifact_path}")
     if artifact_path.name.lower() in FORBIDDEN_NAMES:
-        raise ValueError(f"Private customer bundle forbids: {artifact_path.name}")
+        raise ValueError(f"Single Server bundle forbids: {artifact_path.name}")
 
 
 def copy_executable(source: Path, destination: Path) -> None:
@@ -213,7 +213,7 @@ def assemble(arguments: argparse.Namespace) -> dict[str, object]:
             "schema_version": 2 if suite_version is not None else 1,
             "product": "pixels-private-server" if suite_version is not None else "pixels-private-server-candidate",
             "platform": "linux-x86_64",
-            "distribution": "customer",
+            "distribution": "official",
             "contains_auth_signer": False,
             "component_versions": {
                 "console": package_version(SOURCE_ROOT / "rust_server/px_console_server/runtime/Cargo.toml"),
@@ -246,7 +246,7 @@ def main() -> int:
     parser.add_argument("--backup", type=Path, help="PostgreSQL backup and restore executor; mandatory for formal releases")
     parser.add_argument("--pg-toolchain", type=Path, help="Pinned PostgreSQL 18.6 client toolchain; mandatory for formal releases")
     parser.add_argument("--console-static", required=True, type=Path)
-    parser.add_argument("--suite-version", help="Formal Customer release version; omit for development candidate")
+    parser.add_argument("--suite-version", help="Formal Official release version; omit for development candidate")
     parser.add_argument("--output", required=True, type=Path)
     arguments = parser.parse_args()
     manifest = assemble(arguments)

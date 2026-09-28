@@ -70,4 +70,4 @@ python3 "$source_root/scripts/assemble_single_server_linux_bundle.py" \
     --suite-version "$suite_version" \
     --build-profile optimized-release \
     --output "$release_output/PixelsServer_${suite_version}_Linux.tar.gz"
-echo "Private Server Customer Compose release: $release_output/PixelsServer_${suite_version}_Linux.tar.gz"
+echo "Private Server Official Compose release: $release_output/PixelsServer_${suite_version}_Linux.tar.gz"

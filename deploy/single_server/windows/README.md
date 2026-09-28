@@ -1,4 +1,6 @@
-# Pixels Customer Single Server · Windows
+# Pixels Official Single Server · Windows
+
+Official 是安装包发行身份，不是固定服务器地址。官方自用与私有部署使用同一包；公网主机、数据库和证书在首次初始化时配置。
 
 运行版本化 `PixelsServer_<version>_Setup.exe`，选择安装目录、私有配置目录和持久数据目录。Windows 会显示“未知发布者”；本产品按决定不做 Authenticode 签名。Setup 内含 Console、Relay、Backup、Console Web、PostgreSQL 18 **客户端**工具以及初始化程序，不含 PostgreSQL 服务、Auth、Desk 或许可证私钥。
 
