@@ -37,6 +37,38 @@ TEST(MediaStream, ProtectedVideoMetadataSurvivesLossOfFirstShard) {
         EXPECT_EQ(delivered->width, frame.width);
     }
 }
+
+TEST(MediaStream, PublicPathSizedKeyframeRecoversMissingInitialShards) {
+    VideoFrame keyframe{};
+    keyframe.kind = VideoFrameKind::kIdr;
+    keyframe.codec = VideoCodec::kH264;
+    keyframe.stream = 0;
+    keyframe.monitor = "primary-monitor";
+    keyframe.width = 3840;
+    keyframe.height = 2160;
+    keyframe.frame_index = 1;
+    keyframe.encoded.assign(150000, 0x79);
+
+    VideoPacketParameters packet_parameters{};
+    packet_parameters.datagram_size = 1048;
+    const auto packetized_keyframe = PacketizeVideoFrame(keyframe, packet_parameters);
+    ASSERT_TRUE(packetized_keyframe);
+    ASSERT_GE(packetized_keyframe->packets.size(), 170U);
+    ASSERT_LE(packetized_keyframe->packets.size(), 200U);
+
+    VideoStreamReceiver receiver{};
+    std::optional<VideoFrame> received_keyframe{};
+    for (std::size_t packet_index = 10; packet_index < packetized_keyframe->packets.size(); ++packet_index) {
+        const auto datagram = ParseMedia(packetized_keyframe->packets[packet_index]);
+        ASSERT_TRUE(datagram);
+        auto feed_result = receiver.Feed(*datagram, 1000000 + packet_index);
+        if (feed_result.frame) {
+            received_keyframe = std::move(feed_result.frame);
+        }
+    }
+    ASSERT_TRUE(received_keyframe);
+    EXPECT_EQ(received_keyframe->encoded, keyframe.encoded);
+}
 TEST(MediaStream, TruncatedFirstDatagramDoesNotPinTheStreamShardSize) {
     VideoFrame frame{};
     frame.kind = VideoFrameKind::kIdr;

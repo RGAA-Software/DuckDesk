@@ -53,6 +53,17 @@ struct VideoPacketPacing final {
     }
 };
 
+// A public path cannot absorb an entire large IDR at the socket's GSO burst rate.
+// Spread video datagrams within each frame; audio keeps its existing small-packet path.
+struct UdpVideoBurstPacing final {
+    static constexpr std::size_t kPacketsPerBatch = 8;
+    static constexpr std::uint64_t kWireBitsPerSecond = 50'000'000;
+
+    [[nodiscard]] static std::chrono::nanoseconds Duration(const std::uint64_t wire_bytes) {
+        return std::chrono::nanoseconds(wire_bytes * 8'000'000'000ULL / kWireBitsPerSecond);
+    }
+};
+
 // Only actually encoded timestamps occupy the reference window; capture timestamps may skip.
 // A queued request is not a recovery confirmation. The encoder confirms only after output.
 class ReferenceRecovery final {

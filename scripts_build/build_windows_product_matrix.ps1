@@ -2,7 +2,9 @@
 param(
     [Parameter(Mandatory = $true)]
     [ValidateSet('cloud_node', 'client', 'remote')]
-    [string]$Product
+    [string]$Product,
+
+    [switch]$Incremental
 )
 
 $ErrorActionPreference = 'Stop'
@@ -46,10 +48,18 @@ $prepareScript = Join-Path $repoRoot 'scripts\prepare_windows_distribution.py'
 Invoke-NativeChecked -FilePath $python.Source -Arguments @(
     $prepareScript, '--product', $Product, '--distribution', 'official', '--validate-only'
 )
-Invoke-NativeChecked -FilePath 'powershell.exe' -Arguments @(
-    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'clean_product_outputs.ps1'), '-Product', $Product,
-    '-Distribution', 'official'
-)
+if ($Incremental) {
+    $existingBuildCache = Join-Path $buildRoot 'official\cmake\CMakeCache.txt'
+    if (-not (Test-Path -LiteralPath $existingBuildCache -PathType Leaf)) {
+        throw "Incremental packaging requires an existing optimized $Product/official build tree."
+    }
+    Write-Host "Reusing optimized $Product/official build tree for incremental packaging."
+} else {
+    Invoke-NativeChecked -FilePath 'powershell.exe' -Arguments @(
+        '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'clean_product_outputs.ps1'), '-Product', $Product,
+        '-Distribution', 'official'
+    )
+}
 if ($Product -eq 'cloud_node') {
     Invoke-NativeChecked -FilePath 'powershell.exe' -Arguments @(
         '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $repoRoot 'third_party\cef\fetch_cef.ps1')

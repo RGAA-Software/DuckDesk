@@ -43,6 +43,12 @@ TEST(VideoPacketPacing, UsesSunshineBurstRateInsteadOfEncoderBudget) {
     EXPECT_EQ(VideoPacketPacing::Duration(wire_packet_bytes * 20), VideoPacketPacing::Duration(wire_packet_bytes) * 20);
     EXPECT_LT(VideoPacketPacing::Duration(275 * 1024), std::chrono::milliseconds(3));
 }
+TEST(UdpVideoBurstPacing, SpreadsPublicPathKeyframeAcrossSmallBatches) {
+    constexpr std::uint64_t wire_packet_bytes = 1096;
+    EXPECT_EQ(UdpVideoBurstPacing::kPacketsPerBatch, 8U);
+    EXPECT_GT(UdpVideoBurstPacing::Duration(188 * wire_packet_bytes), std::chrono::milliseconds(30));
+    EXPECT_LT(UdpVideoBurstPacing::Duration(188 * wire_packet_bytes), std::chrono::milliseconds(40));
+}
 TEST(ReferenceRecovery, CoalescesRequestsAndUsesEncodedHistoryNotCaptureDistance) {
     ReferenceRecovery recovery{};
     for (std::uint64_t timestamp = 10; timestamp <= 100; timestamp += 10)

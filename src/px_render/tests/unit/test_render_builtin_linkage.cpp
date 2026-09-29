@@ -169,6 +169,12 @@ TEST(RenderBuiltinLinkageTest, WsUsesExplicitNetworkCapabilitiesWithWeakLifetime
     EXPECT_FALSE(ws->RenewLogicalSessionLease(LogicalSessionGrant{}, 0));
 }
 
+TEST(RenderBuiltinLinkageTest, NvencKeyframeRequestsReturnWithoutActiveEncoder) {
+    const auto nvenc_encoder = std::make_shared<NvencEncoderModule>();
+    nvenc_encoder->RequestKeyFrame();
+    nvenc_encoder->RequestKeyFrame("");
+}
+
 struct IpcMediaIngressProbe final {
     std::uint64_t video_frame_index = 0;
     std::uint64_t audio_frame_index = 0;

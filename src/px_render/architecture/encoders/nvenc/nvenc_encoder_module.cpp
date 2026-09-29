@@ -51,23 +51,23 @@ namespace px
     void NvencEncoderModule::RequestKeyFrame() {
         const std::lock_guard lock(encoders_mutex_);
         VideoEncoderModule::RequestKeyFrame();
-        if (IsWorking()) {
-            for (const auto& [monitor_index, video_encoder] : video_encoders_) {
+        if (enabled_.load()) {
+            for (const auto& [monitor_name, video_encoder] : video_encoders_) {
                 video_encoder->InsertIdr();
             }
         }
     }
 
-    void NvencEncoderModule::RequestKeyFrame(const std::string& mon_name) {
-        const std::lock_guard lock(encoders_mutex_);
-        if (mon_name.empty()) {
+    void NvencEncoderModule::RequestKeyFrame(const std::string& monitor_name) {
+        if (monitor_name.empty()) {
             RequestKeyFrame();
             return;
         }
+        const std::lock_guard lock(encoders_mutex_);
         // 只给目标屏补 IDR,其它屏的 delta 链不动(RTC 多 track 按屏定向)
-        auto it = video_encoders_.find(mon_name);
-        if (it != video_encoders_.end() && it->second) {
-            it->second->InsertIdr();
+        const auto video_encoder = video_encoders_.find(monitor_name);
+        if (video_encoder != video_encoders_.end() && video_encoder->second) {
+            video_encoder->second->InsertIdr();
         }
     }
 
