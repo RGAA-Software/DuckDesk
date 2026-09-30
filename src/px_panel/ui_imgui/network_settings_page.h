@@ -24,7 +24,7 @@ class NetworkSettingsPage final {
 
   private:
     NetworkSettingsDraft draft_{};
-    px::ui::TextId status_{px::ui::TextId::PreviewInitialStatus};
+    px::ui::TextId status_{px::ui::TextId::NetworkIdleStatus};
 };
 
 } // namespace px::panel::ui

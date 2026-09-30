@@ -5,6 +5,7 @@ param(
     [ValidateSet('Show', 'Screenshot', 'Click', 'Type', 'Paste', 'Key', 'Wheel')]
     [string]$Action = 'Screenshot',
     [string]$PanelPath = '',
+    [string]$ProcessName = 'px_panel',
     [string]$OutputPath = '',
     [int]$X = 0,
     [int]$Y = 0,
@@ -19,6 +20,7 @@ Add-Type @'
 using System;
 using System.Runtime.InteropServices;
 public static class PixelsPanelUi {
+    [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr window, int command);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out Rect rect);
@@ -43,14 +45,18 @@ public static class PixelsPanelUi {
 }
 '@
 
+# Window rectangles, capture bounds and injected mouse coordinates must share
+# physical pixels on scaled Windows desktops.
+[void][PixelsPanelUi]::SetProcessDPIAware()
+
 function Get-PanelWindow {
-    $process = Get-Process -Name px_panel -ErrorAction SilentlyContinue | Where-Object MainWindowHandle -ne 0 | Select-Object -First 1
+    $process = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue | Where-Object MainWindowHandle -ne 0 | Select-Object -First 1
     if (-not $process -and $PanelPath) {
-        Start-Process -FilePath $PanelPath -WorkingDirectory (Split-Path $PanelPath -Parent)
+        Start-Process -FilePath $PanelPath -WorkingDirectory (Split-Path $PanelPath -Parent) -WindowStyle Normal
         $deadline = (Get-Date).AddSeconds(10)
         do {
             Start-Sleep -Milliseconds 250
-            $process = Get-Process -Name px_panel -ErrorAction SilentlyContinue | Where-Object MainWindowHandle -ne 0 | Select-Object -First 1
+            $process = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue | Where-Object MainWindowHandle -ne 0 | Select-Object -First 1
         } until ($process -or (Get-Date) -ge $deadline)
     }
     if (-not $process) { throw 'px_panel has no interactive window' }

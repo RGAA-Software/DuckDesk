@@ -81,6 +81,7 @@ ClientWindow::ClientWindow(std::reference_wrapper<px::desktop::DesktopShell> she
 ClientWindow::~ClientWindow() = default;
 
 void ClientWindow::Draw() {
+    shell_.get().SetLanguage(english_ ? px::ui::Language::English : px::ui::Language::SimplifiedChinese);
     const bool english = english_;
     const auto text = [english](const ClientText id) { return ClientTextValue(id, english).data(); };
     SynchronizeClipboard();

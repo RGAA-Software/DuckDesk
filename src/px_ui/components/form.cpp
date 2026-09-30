@@ -1,15 +1,16 @@
 #include "px_ui/components/form.h"
 
-#include "px_ui/components/button.h"
-#include "px_ui/style_scope.h"
-#include "px_ui/theme_tokens.h"
-
 #include <imgui.h>
 #include <misc/cpp/imgui_stdlib.h>
 
 #include <algorithm>
 #include <limits>
 #include <string>
+
+#include "px_ui/components/button.h"
+#include "px_ui/components/data_view.h"
+#include "px_ui/style_scope.h"
+#include "px_ui/theme_tokens.h"
 
 namespace px::ui {
 namespace {
@@ -20,17 +21,16 @@ std::string HiddenLabel(const std::string_view id) {
     return label;
 }
 
-bool HasVisibleLabel(const std::string_view label) noexcept {
-    return !label.empty() && !label.starts_with("##");
-}
+bool HasVisibleLabel(const std::string_view label) noexcept { return !label.empty() && !label.starts_with("##"); }
 
 void BeginFieldStyle(const FieldOptions& options, const ThemeTokens& tokens, const UiMetrics& metrics) {
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, metrics.controlRadius);
     const float horizontalPadding{options.leadingIcon.has_value() ? metrics.spacingMd + metrics.iconDefault + metrics.spacingSm : metrics.spacingMd};
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{horizontalPadding, metrics.spacingSm * 0.75F});
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, tokens.background);
+    const float verticalPadding{std::max(0.0F, (metrics.controlDefault - ImGui::GetFontSize()) * 0.5F)};
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{horizontalPadding, verticalPadding});
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, tokens.secondary);
     ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, tokens.muted);
-    ImGui::PushStyleColor(ImGuiCol_FrameBgActive, tokens.background);
+    ImGui::PushStyleColor(ImGuiCol_FrameBgActive, tokens.secondary);
     ImGui::PushStyleColor(ImGuiCol_Border, options.invalid ? tokens.destructive : tokens.input);
 }
 
@@ -56,11 +56,9 @@ void EndFieldStyle() {
     ImGui::PopStyleVar(2);
 }
 
-} // namespace
+}  // namespace
 
-void FieldLabel(const std::string_view label) {
-    ImGui::TextUnformatted(label.data(), label.data() + label.size());
-}
+void FieldLabel(const std::string_view label) { ImGui::TextUnformatted(label.data(), label.data() + label.size()); }
 
 void FieldDescription(const std::string_view description) {
     const ThemeTokens tokens{CurrentThemeTokens()};
@@ -71,7 +69,7 @@ void FieldDescription(const std::string_view description) {
 
 void FieldError(const std::string_view error) {
     const ThemeTokens tokens{CurrentThemeTokens()};
-    ImGui::PushStyleColor(ImGuiCol_Text, tokens.destructive);
+    ImGui::PushStyleColor(ImGuiCol_Text, tokens.destructiveText);
     ImGui::TextWrapped("%.*s", static_cast<int>(error.size()), error.data());
     ImGui::PopStyleColor();
 }
@@ -102,14 +100,15 @@ bool SearchField(const WidgetId id, std::string& value, const std::string_view h
 bool PasswordField(const WidgetId id, std::string& value, const std::string_view hint, const FieldOptions& options) {
     const ScopedId scopedId{id.value};
     const UiMetrics metrics{MetricsFor(ImGui::GetStyle().FontScaleDpi)};
-    const float actionSize{ImGui::GetFrameHeight()};
-    const float actionGap{10.0F * metrics.scale};
+    const float actionSize{metrics.controlDefault};
+    const float actionGap{metrics.spacingSm};
     const float totalWidth{options.width > 0.0F ? options.width : ImGui::GetContentRegionAvail().x};
     FieldOptions fieldOptions{options};
-    fieldOptions.width = std::max(metrics.controlLg * 2.0F, totalWidth - actionSize - actionGap);
+    fieldOptions.width = std::max(1.0F, totalWidth - actionSize - actionGap);
     ImGuiStorage& storage{*ImGui::GetStateStorage()};
     const ImGuiID revealId{ImGui::GetID("password-revealed")};
     const bool revealed{storage.GetBool(revealId)};
+    const ScopedDisabled disabled{options.disabled};
     bool changed{TextField({"password-value"}, value, hint, fieldOptions, revealed ? ImGuiInputTextFlags_None : ImGuiInputTextFlags_Password)};
     ImGui::SameLine(0.0F, actionGap);
     if (IconAction({"password-visibility"}, revealed ? VectorIcon::EyeOff : VectorIcon::Eye, {},
@@ -139,15 +138,18 @@ bool NumberField(const WidgetId id, int& value, const int step, const int fastSt
     const UiMetrics metrics{MetricsFor(ImGui::GetStyle().FontScaleDpi)};
     const ScopedId scopedId{id.value};
     const ScopedDisabled disabled{options.disabled};
-    const float buttonWidth{metrics.controlDefault};
+    const float buttonWidth{metrics.iconLg};
     const float totalWidth{options.width > 0.0F ? options.width : ImGui::GetContentRegionAvail().x};
-    const float fieldWidth{std::max(metrics.controlLg * 1.5F, totalWidth - buttonWidth * 2.0F)};
+    const float fieldWidth{std::max(1.0F, totalWidth - buttonWidth)};
+    ImGui::BeginGroup();
     ImGui::SetNextItemWidth(fieldWidth);
     BeginFieldStyle(options, tokens, metrics);
     const std::string label{HiddenLabel(id.value)};
     bool changed{ImGui::InputInt(label.c_str(), &value, 0, 0)};
     EndFieldStyle();
     DrawFieldDecoration(options, tokens, metrics);
+    const ImVec2 fieldMinimum{ImGui::GetItemRectMin()};
+    const ImVec2 fieldMaximum{ImGui::GetItemRectMax()};
     const int resolvedStep{ImGui::GetIO().KeyCtrl ? fastStep : step};
     const auto applyDelta = [&value, &changed, resolvedStep](const int direction) {
         const long long candidate{static_cast<long long>(value) + static_cast<long long>(resolvedStep) * direction};
@@ -155,14 +157,22 @@ bool NumberField(const WidgetId id, int& value, const int step, const int fastSt
             std::clamp(candidate, static_cast<long long>(std::numeric_limits<int>::min()), static_cast<long long>(std::numeric_limits<int>::max())));
         changed = true;
     };
-    ImGui::SameLine(0.0F, 0.0F);
-    if (IconAction({"number-decrease"}, VectorIcon::Minus, {}, {.variant = ButtonVariant::Outline, .size = WidgetSize::Icon})) {
-        applyDelta(-1);
+    const float stepHeight{(fieldMaximum.y - fieldMinimum.y) * 0.5F};
+    for (const int direction : {1, -1}) {
+        ImGui::SetCursorScreenPos({fieldMaximum.x, fieldMinimum.y + (direction > 0 ? 0.0F : stepHeight)});
+        if (ImGui::InvisibleButton(direction > 0 ? "number-increase" : "number-decrease", {buttonWidth, stepHeight}, ImGuiButtonFlags_EnableNav)) {
+            applyDelta(direction);
+        }
+        const ImVec2 stepMinimum{ImGui::GetItemRectMin()};
+        const ImVec2 stepMaximum{ImGui::GetItemRectMax()};
+        ImDrawList& draw{*ImGui::GetWindowDrawList()};
+        draw.AddRectFilled(stepMinimum, stepMaximum, ImGui::GetColorU32(ImGui::IsItemHovered() ? tokens.accent : tokens.secondary));
+        draw.AddRect(stepMinimum, stepMaximum, ImGui::GetColorU32(tokens.input));
+        DrawVectorIcon(direction > 0 ? VectorIcon::Plus : VectorIcon::Minus,
+                       {stepMinimum.x + (buttonWidth - metrics.iconSm) * 0.5F, stepMinimum.y + (stepHeight - metrics.iconSm) * 0.5F}, metrics.iconSm,
+                       ImGui::GetColorU32(tokens.foreground));
     }
-    ImGui::SameLine(0.0F, 0.0F);
-    if (IconAction({"number-increase"}, VectorIcon::Plus, {}, {.variant = ButtonVariant::Outline, .size = WidgetSize::Icon})) {
-        applyDelta(1);
-    }
+    ImGui::EndGroup();
     return changed;
 }
 
@@ -172,6 +182,8 @@ bool SliderIntField(const WidgetId id, int& value, const int minimum, const int 
     const ThemeTokens tokens{CurrentThemeTokens()};
     const UiMetrics metrics{MetricsFor(ImGui::GetStyle().FontScaleDpi)};
     const ScopedStyleVar rounding{ImGuiStyleVar_FrameRounding, metrics.controlRadius};
+    const ScopedStyleVar framePadding{ImGuiStyleVar_FramePadding,
+                                      ImVec2{metrics.spacingMd, std::max(0.0F, (metrics.controlDefault - ImGui::GetFontSize()) * 0.5F)}};
     const ScopedStyleColor frame{ImGuiCol_FrameBg, tokens.secondary};
     const ScopedStyleColor hovered{ImGuiCol_FrameBgHovered, tokens.muted};
     const ScopedStyleColor active{ImGuiCol_FrameBgActive, tokens.muted};
@@ -186,11 +198,11 @@ bool CheckboxField(const WidgetId id, const std::string_view label, bool& value,
     const ScopedDisabled disabledScope{disabled};
     const ThemeTokens tokens{CurrentThemeTokens()};
     const UiMetrics metrics{MetricsFor(ImGui::GetStyle().FontScaleDpi)};
-    const float boxSize{metrics.iconLg};
+    const float boxSize{metrics.checkboxSize};
     const bool hasLabel{HasVisibleLabel(label)};
     const ImVec2 textSize{hasLabel ? ImGui::CalcTextSize(label.data(), label.data() + label.size()) : ImVec2{}};
-    const ImVec2 totalSize{boxSize + (hasLabel ? metrics.spacingSm + textSize.x : 0.0F), std::max(boxSize, textSize.y)};
-    const bool pressed{ImGui::InvisibleButton("##checkbox", totalSize)};
+    const ImVec2 totalSize{boxSize + (hasLabel ? metrics.spacingSm + textSize.x : 0.0F), std::max(metrics.controlDefault, textSize.y)};
+    const bool pressed{ImGui::InvisibleButton("##checkbox", totalSize, ImGuiButtonFlags_EnableNav)};
     if (pressed) {
         value = !value;
     }
@@ -226,21 +238,23 @@ bool ToggleSwitch(const WidgetId id, const std::string_view label, bool& value, 
     const ScopedDisabled disabledScope{disabled};
     const ThemeTokens tokens{CurrentThemeTokens()};
     const UiMetrics metrics{MetricsFor(ImGui::GetStyle().FontScaleDpi)};
-    const ImVec2 switchSize{metrics.controlDefault * 1.15F, metrics.controlDefault * 0.58F};
+    const ImVec2 switchSize{metrics.switchWidth, metrics.switchHeight};
     const ImVec2 textSize{ImGui::CalcTextSize(label.data(), label.data() + label.size())};
     const float labelWidth{label.empty() ? 0.0F : metrics.spacingSm + textSize.x};
     const float iconWidth{icon.has_value() ? metrics.spacingSm + metrics.iconDefault : 0.0F};
-    const ImVec2 totalSize{switchSize.x + iconWidth + labelWidth, std::max(switchSize.y, std::max(textSize.y, metrics.iconDefault))};
-    const bool pressed{ImGui::InvisibleButton("##switch", totalSize)};
+    const ImVec2 totalSize{switchSize.x + iconWidth + labelWidth, std::max(metrics.controlDefault, textSize.y)};
+    const bool pressed{ImGui::InvisibleButton("##switch", totalSize, ImGuiButtonFlags_EnableNav)};
     if (pressed) {
         value = !value;
     }
-    const ImVec2 minimum{ImGui::GetItemRectMin()};
+    const ImVec2 itemMinimum{ImGui::GetItemRectMin()};
+    const ImVec2 minimum{itemMinimum.x, itemMinimum.y + (totalSize.y - switchSize.y) * 0.5F};
     const ImVec2 maximum{minimum.x + switchSize.x, minimum.y + switchSize.y};
-    const ImVec4 track{value ? tokens.primary : (ImGui::IsItemHovered() ? tokens.input : tokens.secondary)};
+    const ImVec4 track{value ? tokens.primary
+                             : ImVec4{tokens.foreground.x, tokens.foreground.y, tokens.foreground.z, ImGui::IsItemHovered() ? 0.35F : 0.25F}};
     ImDrawList& draw{*ImGui::GetWindowDrawList()};
     draw.AddRectFilled(minimum, maximum, ImGui::GetColorU32(track), switchSize.y * 0.5F);
-    const float radius{switchSize.y * 0.5F - metrics.borderWidth * 2.0F};
+    const float radius{switchSize.y * 0.5F - metrics.borderWidth};
     const float centerX{value ? maximum.x - switchSize.y * 0.5F : minimum.x + switchSize.y * 0.5F};
     draw.AddCircleFilled({centerX, minimum.y + switchSize.y * 0.5F}, radius, ImGui::GetColorU32(tokens.primaryForeground));
     float labelLeft{maximum.x};
@@ -252,7 +266,7 @@ bool ToggleSwitch(const WidgetId id, const std::string_view label, bool& value, 
     }
     if (!label.empty()) {
         const std::string visible{label};
-        draw.AddText({labelLeft + metrics.spacingSm, minimum.y + (switchSize.y - textSize.y) * 0.5F}, ImGui::GetColorU32(tokens.foreground),
+        draw.AddText({labelLeft + metrics.spacingSm, minimum.y + (maximum.y - minimum.y - textSize.y) * 0.5F}, ImGui::GetColorU32(tokens.foreground),
                      visible.c_str());
     }
     if (ImGui::IsItemFocused()) {
@@ -278,9 +292,13 @@ bool SelectField(const WidgetId id, int& value, const std::span<const SelectOpti
     }
     ImGui::SetNextItemWidth(width != 0.0F ? width : -1.0F);
     const ScopedStyleVar rounding{ImGuiStyleVar_FrameRounding, metrics.controlRadius};
-    const ScopedStyleColor frame{ImGuiCol_FrameBg, tokens.background};
+    const ScopedStyleVar framePadding{ImGuiStyleVar_FramePadding,
+                                      ImVec2{metrics.spacingMd, std::max(0.0F, (metrics.controlDefault - ImGui::GetFontSize()) * 0.5F)}};
+    const ScopedStyleColor frame{ImGuiCol_FrameBg, tokens.secondary};
     const ScopedStyleColor hovered{ImGuiCol_FrameBgHovered, tokens.muted};
     const ScopedStyleColor border{ImGuiCol_Border, tokens.input};
+    const ScopedStyleColor arrowBackground{ImGuiCol_Button, tokens.secondary};
+    const ScopedStyleColor arrowHovered{ImGuiCol_ButtonHovered, tokens.muted};
     const std::string label{HiddenLabel(id.value)};
     const std::string previewText{preview};
     bool changed{false};
@@ -289,22 +307,29 @@ bool SelectField(const WidgetId id, int& value, const std::span<const SelectOpti
     const ImVec2 fieldMaximum{ImGui::GetItemRectMax()};
     const bool fieldFocused{ImGui::IsItemFocused()};
     if (open) {
-        for (const SelectOption& option : options) {
-            const bool selected{option.value == value};
-            const std::string optionText{option.label};
-            if (ImGui::Selectable(optionText.c_str(), selected)) {
-                value = option.value;
-                changed = true;
-            }
-            if (selected) {
-                const ImVec2 minimum{ImGui::GetItemRectMin()};
-                const ImVec2 maximum{ImGui::GetItemRectMax()};
-                DrawVectorIcon(VectorIcon::Check,
-                               {maximum.x - metrics.spacingSm - metrics.iconSm, minimum.y + (maximum.y - minimum.y - metrics.iconSm) * 0.5F},
-                               metrics.iconSm, ImGui::GetColorU32(tokens.primary));
-            }
-            if (selected) {
-                ImGui::SetItemDefaultFocus();
+        {
+            const ScopedStyleVar optionSpacing{ImGuiStyleVar_ItemSpacing, ImVec2{metrics.spacingSm, 0.0F}};
+            const ScopedStyleVar optionAlignment{ImGuiStyleVar_SelectableTextAlign, ImVec2{0.0F, 0.5F}};
+            const ScopedStyleColor selectionColor{ImGuiCol_Header, tokens.accent};
+            const ScopedStyleColor selectionHover{ImGuiCol_HeaderHovered, tokens.muted};
+            for (const SelectOption& option : options) {
+                const ScopedId optionId{std::to_string(option.value)};
+                const bool selected{option.value == value};
+                const std::string optionText{EllipsizedText(option.label, std::max(1.0F, ImGui::GetContentRegionAvail().x - metrics.controlDefault))};
+                if (ImGui::Selectable(optionText.c_str(), selected, ImGuiSelectableFlags_None, {0.0F, metrics.controlDefault})) {
+                    value = option.value;
+                    changed = true;
+                }
+                if (selected) {
+                    const ImVec2 minimum{ImGui::GetItemRectMin()};
+                    const ImVec2 maximum{ImGui::GetItemRectMax()};
+                    DrawVectorIcon(VectorIcon::Check,
+                                   {maximum.x - metrics.spacingSm - metrics.iconSm, minimum.y + (maximum.y - minimum.y - metrics.iconSm) * 0.5F},
+                                   metrics.iconSm, ImGui::GetColorU32(tokens.primaryText));
+                }
+                if (selected) {
+                    ImGui::SetItemDefaultFocus();
+                }
             }
         }
         ImGui::EndCombo();
@@ -319,4 +344,4 @@ bool SelectField(const WidgetId id, int& value, const std::span<const SelectOpti
     return changed;
 }
 
-} // namespace px::ui
+}  // namespace px::ui

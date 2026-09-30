@@ -1,36 +1,37 @@
 #include "px_ui/components/overlay.h"
 
-#include "px_ui/components/button.h"
-#include "px_ui/components/surface.h"
-#include "px_ui/style_scope.h"
-#include "px_ui/theme_tokens.h"
-
 #include <imgui.h>
 
 #include <algorithm>
 #include <string>
+
+#include "px_ui/components/button.h"
+#include "px_ui/components/data_view.h"
+#include "px_ui/components/surface.h"
+#include "px_ui/style_scope.h"
+#include "px_ui/theme_tokens.h"
 
 namespace px::ui {
 namespace {
 
 ImVec4 ToneColor(const BadgeVariant tone, const ThemeTokens& tokens) noexcept {
     switch (tone) {
-    case BadgeVariant::Success:
-        return tokens.success;
-    case BadgeVariant::Warning:
-        return tokens.warning;
-    case BadgeVariant::Destructive:
-        return tokens.destructive;
-    case BadgeVariant::Default:
-        return tokens.primary;
-    case BadgeVariant::Outline:
-    case BadgeVariant::Secondary:
-    default:
-        return tokens.mutedForeground;
+        case BadgeVariant::Success:
+            return tokens.success;
+        case BadgeVariant::Warning:
+            return tokens.warning;
+        case BadgeVariant::Destructive:
+            return tokens.destructiveText;
+        case BadgeVariant::Default:
+            return tokens.primaryText;
+        case BadgeVariant::Outline:
+        case BadgeVariant::Secondary:
+        default:
+            return tokens.mutedForeground;
     }
 }
 
-} // namespace
+}  // namespace
 
 void OpenModal(const WidgetId id) {
     const std::string value{id.value};
@@ -62,16 +63,15 @@ PopupScope::~PopupScope() {
     }
 }
 
-bool PopupScope::Open() const noexcept {
-    return open_;
-}
+bool PopupScope::Open() const noexcept { return open_; }
 
 ModalScope::ModalScope(const WidgetId id, const float width, const ImGuiWindowFlags flags) : id_{id.value} {
     const ImGuiViewport& viewport{*ImGui::GetMainViewport()};
     const ThemeTokens tokens{CurrentThemeTokens()};
     const UiMetrics metrics{MetricsFor(ImGui::GetStyle().FontScaleDpi)};
     ImGui::SetNextWindowPos(viewport.GetCenter(), ImGuiCond_Appearing, {0.5F, 0.5F});
-    ImGui::SetNextWindowSizeConstraints({width * metrics.scale, 0.0F}, {width * metrics.scale, viewport.WorkSize.y - metrics.spacingXl * 2.0F});
+    const float resolvedWidth{std::min(width * metrics.scale, std::max(1.0F, viewport.WorkSize.x - metrics.spacingLg * 2.0F))};
+    ImGui::SetNextWindowSizeConstraints({resolvedWidth, 0.0F}, {resolvedWidth, std::max(1.0F, viewport.WorkSize.y - metrics.spacingLg * 2.0F)});
     ImGui::PushStyleColor(ImGuiCol_PopupBg, tokens.popover);
     if (EnhancedVisualEffectsEnabled()) {
         ImVec4 translucent{tokens.popover};
@@ -81,7 +81,7 @@ ModalScope::ModalScope(const WidgetId id, const float width, const ImGuiWindowFl
     }
     ImGui::PushStyleColor(ImGuiCol_Border, tokens.border);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, metrics.popupRadius);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{metrics.spacingXl, metrics.spacingXl});
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{metrics.spacingXl, metrics.spacingLg});
     constexpr ImGuiWindowFlags dialogFlags{ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
                                            ImGuiWindowFlags_NoSavedSettings};
     open_ = ImGui::BeginPopupModal(id_.c_str(), {}, flags | dialogFlags);
@@ -95,9 +95,7 @@ ModalScope::~ModalScope() {
     }
 }
 
-bool ModalScope::Open() const noexcept {
-    return open_;
-}
+bool ModalScope::Open() const noexcept { return open_; }
 
 ContextMenuScope::ContextMenuScope(const WidgetId id) : id_{id.value} {
     const ThemeTokens tokens{CurrentThemeTokens()};
@@ -120,9 +118,7 @@ ContextMenuScope::~ContextMenuScope() {
     }
 }
 
-bool ContextMenuScope::Open() const noexcept {
-    return open_;
-}
+bool ContextMenuScope::Open() const noexcept { return open_; }
 
 PopupMenuScope::PopupMenuScope(const WidgetId id) : id_{id.value} {
     const ThemeTokens tokens{CurrentThemeTokens()};
@@ -140,13 +136,10 @@ PopupMenuScope::PopupMenuScope(const WidgetId id) : id_{id.value} {
 }
 
 PopupMenuScope::~PopupMenuScope() {
-    if (open_)
-        ImGui::EndPopup();
+    if (open_) ImGui::EndPopup();
 }
 
-bool PopupMenuScope::Open() const noexcept {
-    return open_;
-}
+bool PopupMenuScope::Open() const noexcept { return open_; }
 
 bool DialogHeader(const WidgetId closeId, const std::string_view title, const std::string_view description, const DialogHeaderOptions& options) {
     const ThemeTokens tokens{CurrentThemeTokens()};
@@ -155,13 +148,13 @@ bool DialogHeader(const WidgetId closeId, const std::string_view title, const st
     const float availableWidth{ImGui::GetContentRegionAvail().x};
     const float mediaSize{options.icon.has_value() ? metrics.controlLg : 0.0F};
     const float contentLeft{start.x + (options.icon.has_value() ? mediaSize + metrics.spacingMd : 0.0F)};
-    const float closeSize{options.closeable ? metrics.controlXs : 0.0F};
+    const float closeSize{options.closeable ? metrics.controlSm : 0.0F};
     const float titleHeight{ImGui::GetTextLineHeight() * 1.125F};
     const float headerHeight{std::max({mediaSize, closeSize, titleHeight})};
     bool closeRequested{};
     if (options.closeable) {
         ImGui::SetCursorScreenPos({start.x + availableWidth - closeSize, start.y + (headerHeight - closeSize) * 0.5F});
-        closeRequested = IconAction(closeId, VectorIcon::Close, {}, {.variant = ButtonVariant::Ghost, .size = WidgetSize::IconXs, .circular = true});
+        closeRequested = IconAction(closeId, VectorIcon::Close, {}, {.variant = ButtonVariant::Ghost, .size = WidgetSize::IconSm, .circular = true});
     }
     if (options.icon.has_value()) {
         ImDrawList& draw{*ImGui::GetWindowDrawList()};
@@ -174,13 +167,13 @@ bool DialogHeader(const WidgetId closeId, const std::string_view title, const st
     }
     ImGui::SetWindowFontScale(1.125F);
     ImGui::SetCursorScreenPos({contentLeft, start.y + (headerHeight - titleHeight) * 0.5F});
-    StrongText(title);
+    ClippedText(title, std::max(1.0F, availableWidth - (contentLeft - start.x) - closeSize - metrics.spacingSm));
     ImGui::SetWindowFontScale(1.0F);
     float contentBottom{start.y + headerHeight};
     if (!description.empty()) {
         ImGui::SetCursorScreenPos({start.x, contentBottom + metrics.spacingMd});
         ImGui::PushStyleColor(ImGuiCol_Text, tokens.mutedForeground);
-        ImGui::PushTextWrapPos(start.x + availableWidth);
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + availableWidth);
         ImGui::TextWrapped("%.*s", static_cast<int>(description.size()), description.data());
         ImGui::PopTextWrapPos();
         ImGui::PopStyleColor();
@@ -251,19 +244,19 @@ bool MenuAction(const WidgetId id, const std::string_view label, const MenuActio
     const UiMetrics metrics{MetricsFor(ImGui::GetStyle().FontScaleDpi)};
     const ScopedId scopedId{id.value};
     const ScopedDisabled disabled{!options.enabled};
-    const float height{metrics.controlSm};
+    const float height{metrics.controlDefault};
     const ImVec2 textSize{ImGui::CalcTextSize(label.data(), label.data() + label.size())};
     const ImVec2 shortcutSize{ImGui::CalcTextSize(options.shortcut.data(), options.shortcut.data() + options.shortcut.size())};
     const float naturalWidth{metrics.spacingSm * 2.0F + textSize.x + (options.icon.has_value() ? metrics.iconDefault + metrics.spacingSm : 0.0F) +
                              (!options.shortcut.empty() ? shortcutSize.x + metrics.spacingXl : 0.0F) +
                              (options.selected ? metrics.iconDefault + metrics.spacingSm : 0.0F)};
-    const float itemWidth{std::max(204.0F * metrics.scale, naturalWidth)};
-    const bool pressed{ImGui::InvisibleButton("##menu-action", {itemWidth, height})};
+    const float itemWidth{std::min(404.0F * metrics.scale, std::max(204.0F * metrics.scale, naturalWidth))};
+    const bool pressed{ImGui::InvisibleButton("##menu-action", {itemWidth, height}, ImGuiButtonFlags_EnableNav)};
     const ImVec2 minimum{ImGui::GetItemRectMin()};
     const ImVec2 maximum{ImGui::GetItemRectMax()};
     const float itemHeight{maximum.y - minimum.y};
     const ImVec4 foreground{!options.enabled                                  ? tokens.mutedForeground
-                            : options.variant == MenuItemVariant::Destructive ? tokens.destructive
+                            : options.variant == MenuItemVariant::Destructive ? tokens.destructiveText
                                                                               : tokens.foreground};
     const float iconSize{metrics.iconDefault};
     ImDrawList& draw{*ImGui::GetWindowDrawList()};
@@ -275,7 +268,10 @@ bool MenuAction(const WidgetId id, const std::string_view label, const MenuActio
         DrawVectorIcon(*options.icon, {textLeft, minimum.y + (itemHeight - iconSize) * 0.5F}, iconSize, ImGui::GetColorU32(foreground));
         textLeft += iconSize + metrics.spacingSm;
     }
-    const std::string visible{label};
+    const float reservedRight{metrics.spacingSm + (options.selected ? iconSize + metrics.spacingSm : 0.0F) +
+                              (!options.shortcut.empty() ? shortcutSize.x + metrics.spacingXl : 0.0F)};
+    const std::string visible{EllipsizedText(label, std::max(1.0F, maximum.x - textLeft - reservedRight))};
+    draw.PushClipRect(minimum, maximum, true);
     draw.AddText({textLeft, minimum.y + (itemHeight - textSize.y) * 0.5F}, ImGui::GetColorU32(foreground), visible.c_str());
     if (!options.shortcut.empty()) {
         const std::string shortcut{options.shortcut};
@@ -285,8 +281,11 @@ bool MenuAction(const WidgetId id, const std::string_view label, const MenuActio
     }
     if (options.selected) {
         DrawVectorIcon(VectorIcon::Check, {maximum.x - metrics.spacingSm - iconSize, minimum.y + (itemHeight - iconSize) * 0.5F}, iconSize,
-                       ImGui::GetColorU32(tokens.primary));
+                       ImGui::GetColorU32(tokens.primaryText));
     }
+    draw.PopClipRect();
+    if (ImGui::IsItemFocused()) draw.AddRect(minimum, maximum, ImGui::GetColorU32(tokens.ring), metrics.controlRadius);
+    if (visible != label) Tooltip(label);
     if (pressed) {
         ImGui::CloseCurrentPopup();
     }
@@ -297,4 +296,4 @@ bool MenuAction(const WidgetId id, const std::string_view label, const bool enab
     return MenuAction(id, label, {.enabled = enabled, .selected = selected});
 }
 
-} // namespace px::ui
+}  // namespace px::ui

@@ -130,6 +130,7 @@ int main(int argc, char* argv[]) {  // NOLINT(pixels-raw-pointer-boundary): proc
             const auto activeShell = weakShell.lock();
             if (!activeShell) return;
             const auto action = panel.Draw(activeShell->PlatformIcons());
+            activeShell->SetLanguage(panel.CurrentLanguage());
             if (action.selectedTheme.has_value()) {
                 activeShell->SetTheme(*action.selectedTheme);
             }

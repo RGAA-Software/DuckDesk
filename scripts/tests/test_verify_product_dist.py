@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -62,6 +63,54 @@ class WindowsProductBoundaryAuditTest(unittest.TestCase):
 
 
 class DevelopmentManifestRefreshTest(unittest.TestCase):
+    def test_creates_missing_manifest_from_the_current_development_build_stamp(self) -> None:
+        for product in ("client", "cloud_node", "remote"):
+            with self.subTest(product=product), tempfile.TemporaryDirectory() as temporary_directory:
+                product_root = Path(temporary_directory) / product
+                distribution = product_root / "dist"
+                distribution.mkdir(parents=True)
+                executable = distribution / "px_panel.exe"
+                executable.write_bytes(b"current-panel")
+                with (REPOSITORY_ROOT / "packaging" / "products" / f"{product}.toml").open("rb") as configuration_file:
+                    product_config = tomllib.load(configuration_file)
+                build_stamp = {
+                    "schema_version": 2,
+                    "product": product,
+                    "distribution": "development",
+                    "release_namespace": None,
+                    "oem_id": None,
+                    "oem_profile_sha256": None,
+                    "edition": product_config["edition"],
+                    "company": "Pixels",
+                    "product_version": product_config["product_version"],
+                    "product_version_code": product_config["product_version_code"],
+                    "git_revision": "focused-build",
+                    "cmake_binary_dir": f"build_official/{product}/cmake",
+                }
+                (product_root / "product-build.json").write_text(json.dumps(build_stamp), encoding="utf-8")
+
+                hashes = refresh(distribution)
+
+                manifest = json.loads((distribution / "product-manifest.json").read_text(encoding="utf-8"))
+                self.assertEqual(manifest["product"], product)
+                self.assertEqual(manifest["distribution"], "development")
+                self.assertEqual(manifest["capabilities"], product_config["capabilities"])
+                self.assertEqual(manifest["owned_pe"], ["px_panel.exe"])
+                self.assertEqual(manifest["artifacts"], [{"path": "px_panel.exe", "sha256": hashes["px_panel.exe"]}])
+
+    def test_missing_manifest_cannot_relabel_a_release_build_as_development(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            product_root = Path(temporary_directory) / "client"
+            distribution = product_root / "dist"
+            distribution.mkdir(parents=True)
+            (product_root / "product-build.json").write_text(
+                json.dumps({"schema_version": 2, "product": "client", "distribution": "official"}),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(RuntimeError, "mismatched product build stamp"):
+                refresh(distribution)
+            self.assertFalse((distribution / "product-manifest.json").exists())
+
     def test_refreshes_changed_artifacts_without_recording_runtime_logs(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             product_root = Path(temporary_directory) / "client"
@@ -93,6 +142,10 @@ class DevelopmentManifestRefreshTest(unittest.TestCase):
             self.assertEqual(hashes, {"px_client.exe": sha256(executable)})
             manifest = json.loads((distribution / "product-manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(manifest["artifacts"], [{"path": "px_client.exe", "sha256": sha256(executable)}])
+            with (REPOSITORY_ROOT / "packaging" / "products" / "client.toml").open("rb") as configuration_file:
+                product_config = tomllib.load(configuration_file)
+            self.assertEqual(manifest["product_version"], product_config["product_version"])
+            self.assertEqual(manifest["product_version_code"], product_config["product_version_code"])
             self.assertEqual(
                 json.loads((distribution / "sha256sums.json").read_text(encoding="utf-8")),
                 hashes,

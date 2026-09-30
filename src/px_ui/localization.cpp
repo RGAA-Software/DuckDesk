@@ -288,6 +288,12 @@ constexpr Catalog kEnglish{
     "min",
     "Unknown",
     "Machine information is not available yet.",
+    "Ready. Verify or save the Console address.",
+    "Minimize",
+    "Maximize",
+    "Restore",
+    "Close",
+    "Succeeded",
 };
 
 constexpr Catalog kSimplifiedChinese{
@@ -566,6 +572,12 @@ constexpr Catalog kSimplifiedChinese{
     "分钟",
     "未知",
     "暂未获取到机器信息。",
+    "可验证或保存 Console 地址。",
+    "最小化",
+    "最大化",
+    "还原",
+    "关闭",
+    "成功",
 };
 
 static_assert(kEnglish.size() == kTextCount);

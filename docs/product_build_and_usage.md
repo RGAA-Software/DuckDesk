@@ -399,6 +399,25 @@ scripts_build\build_cpp_product_panel_tests.bat client 18
 Release）；仍把变化的运行文件发布到对应产品 `dist` 并核对 SHA-256。该目录不含正式发行策略/TUF 发布材料，不能冒充完整发布包。
 需要交付或制作安装包时，必须重新运行第 2 节的完整产品构建，届时 `PX_FAST_RELEASE=OFF` 并使用完整优化 Release。
 
+修改共用主题、控件或桌面布局后，使用下面的 UI 聚焦入口。每个产品都会一起增量构建并发布 `px_panel.exe`（主界面）和
+`px_client.exe`（远程连接窗口），避免只更新连接窗口而留下旧主界面：
+
+Windows 三个桌面产品共用 Ant Design 尺寸基准（逻辑像素）：默认控件 32、小号 24、大号 40、基础字号 14、控件圆角 6、
+卡片/弹窗圆角 8、开关轨道 44×22、复选框 16。间距使用 4/8/12/16/24；紧凑数据表格采用 32 的最小行高、
+8×4 单元格内边距并固定滚动表头。Pixels 品牌色和浅色/深色主题仍由共享语义令牌控制；填充色与文字强调色分别定义。
+页面不另设控件高度或配色。旧的 Xs 调用也使用 24，不再产生 20 高度的按钮。DPI 缩放从统一基准计算，不累积修改样式。
+控件回归覆盖两种主题、100%/125%/150%/200% 缩放、输入框与按钮对齐、数字步进、分段选择及密码显隐按钮禁用状态，
+并用实际鼠标/键盘事件覆盖下拉框展开与 Esc 关闭、检查弹出窗口样式栈。此轮只调整 Windows 桌面产品，不改 Console Web 或 Android。
+
+```bat
+scripts_build\build_cpp_product_ui.bat cloud_node 18
+scripts_build\build_cpp_product_ui.bat client 18
+scripts_build\build_cpp_product_ui.bat remote 18
+```
+
+聚焦发布会自动创建或刷新 development `product-manifest.json`。清单缺失时，工具核对当前产品的 `product-build.json` 后生成
+产品身份、能力和实际文件摘要；不要求先运行完整发行构建。它只描述当前开发目录里的产物，不能作为完整安装包验收证明。
+
 ## 7. 清理
 
 完整构建会自动清理目标产品。需要手工清理时：

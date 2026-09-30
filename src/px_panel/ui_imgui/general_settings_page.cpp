@@ -1,5 +1,10 @@
 #include "general_settings_page.h"
 
+#include <imgui.h>
+
+#include <array>
+#include <utility>
+
 #include "px_ui/components/button.h"
 #include "px_ui/components/form.h"
 #include "px_ui/components/navigation.h"
@@ -8,33 +13,28 @@
 #include "px_ui/layout_metrics.h"
 #include "version_config.h"
 
-#include <imgui.h>
-
-#include <array>
-#include <utility>
-
 namespace px::panel::ui {
 namespace {
 
 px::ui::TextId ResultText(const GeneralSaveResult result) {
     switch (result) {
-    case GeneralSaveResult::InvalidBitrate:
-        return px::ui::TextId::InvalidBitrate;
-    case GeneralSaveResult::InvalidFrameRate:
-        return px::ui::TextId::InvalidFrameRate;
-    case GeneralSaveResult::InvalidResolution:
-        return px::ui::TextId::InvalidResolution;
-    case GeneralSaveResult::UnsupportedResolution:
-        return px::ui::TextId::UnsupportedResolution;
-    case GeneralSaveResult::InvalidAspectRatio:
-        return px::ui::TextId::InvalidAspectRatio;
-    case GeneralSaveResult::Saved:
-        return px::ui::TextId::Saved;
+        case GeneralSaveResult::InvalidBitrate:
+            return px::ui::TextId::InvalidBitrate;
+        case GeneralSaveResult::InvalidFrameRate:
+            return px::ui::TextId::InvalidFrameRate;
+        case GeneralSaveResult::InvalidResolution:
+            return px::ui::TextId::InvalidResolution;
+        case GeneralSaveResult::UnsupportedResolution:
+            return px::ui::TextId::UnsupportedResolution;
+        case GeneralSaveResult::InvalidAspectRatio:
+            return px::ui::TextId::InvalidAspectRatio;
+        case GeneralSaveResult::Saved:
+            return px::ui::TextId::Saved;
     }
     return px::ui::TextId::OperationFailed;
 }
 
-} // namespace
+}  // namespace
 
 GeneralSettingsPage::GeneralSettingsPage(std::shared_ptr<SettingsPort> port, std::shared_ptr<ServerStatusPort> serverStatusPort)
     : port_{std::move(port)}, serverStatusPort_{std::move(serverStatusPort)} {}
@@ -59,16 +59,14 @@ std::optional<px::ui::Theme> GeneralSettingsPage::Draw(px::ui::Localizer& locali
         ImGui::AlignTextToFramePadding();
         px::ui::MutedText(localizer.Text(px::ui::TextId::Language));
         ImGui::TableNextColumn();
-        if (px::ui::SegmentedItem({"language-zh-cn"}, localizer.Text(px::ui::TextId::SimplifiedChinese),
-                                  localizer.CurrentLanguage() == px::ui::Language::SimplifiedChinese, 0.0F, px::ui::WidgetSize::Xs)) {
-            localizer.SetLanguage(px::ui::Language::SimplifiedChinese);
-            port_->SetLanguage(px::ui::Language::SimplifiedChinese);
-        }
-        ImGui::SameLine();
-        if (px::ui::SegmentedItem({"language-en"}, localizer.Text(px::ui::TextId::English), localizer.CurrentLanguage() == px::ui::Language::English,
-                                  0.0F, px::ui::WidgetSize::Xs)) {
-            localizer.SetLanguage(px::ui::Language::English);
-            port_->SetLanguage(px::ui::Language::English);
+        const std::array languageOptions{
+            px::ui::SelectOption{static_cast<int>(px::ui::Language::SimplifiedChinese), localizer.Text(px::ui::TextId::SimplifiedChinese)},
+            px::ui::SelectOption{static_cast<int>(px::ui::Language::English), localizer.Text(px::ui::TextId::English)}};
+        int selectedLanguage{static_cast<int>(localizer.CurrentLanguage())};
+        if (px::ui::SegmentedControl({"general-language"}, selectedLanguage, languageOptions)) {
+            const auto language{static_cast<px::ui::Language>(selectedLanguage)};
+            localizer.SetLanguage(language);
+            port_->SetLanguage(language);
         }
 
         ImGui::TableNextRow(ImGuiTableRowFlags_None, px::ui::Scale(40.0F));
@@ -76,16 +74,11 @@ std::optional<px::ui::Theme> GeneralSettingsPage::Draw(px::ui::Localizer& locali
         ImGui::AlignTextToFramePadding();
         px::ui::MutedText(localizer.Text(px::ui::TextId::Theme));
         ImGui::TableNextColumn();
-        if (px::ui::SegmentedItem({"theme-dark"}, localizer.Text(px::ui::TextId::DarkTheme), theme == px::ui::Theme::Dark, 0.0F,
-                                  px::ui::WidgetSize::Xs)) {
-            theme = px::ui::Theme::Dark;
-            selectedTheme = theme;
-            port_->SetTheme(theme);
-        }
-        ImGui::SameLine();
-        if (px::ui::SegmentedItem({"theme-light"}, localizer.Text(px::ui::TextId::LightTheme), theme == px::ui::Theme::Light, 0.0F,
-                                  px::ui::WidgetSize::Xs)) {
-            theme = px::ui::Theme::Light;
+        const std::array themeOptions{px::ui::SelectOption{static_cast<int>(px::ui::Theme::Dark), localizer.Text(px::ui::TextId::DarkTheme)},
+                                      px::ui::SelectOption{static_cast<int>(px::ui::Theme::Light), localizer.Text(px::ui::TextId::LightTheme)}};
+        int selectedAppearance{static_cast<int>(theme)};
+        if (px::ui::SegmentedControl({"general-theme"}, selectedAppearance, themeOptions)) {
+            theme = static_cast<px::ui::Theme>(selectedAppearance);
             selectedTheme = theme;
             port_->SetTheme(theme);
         }
@@ -229,4 +222,4 @@ std::optional<px::ui::Theme> GeneralSettingsPage::Draw(px::ui::Localizer& locali
     return selectedTheme;
 }
 
-} // namespace px::panel::ui
+}  // namespace px::panel::ui

@@ -1,21 +1,19 @@
 #include "px_ui/components/button.h"
 
-#include "px_ui/components/overlay.h"
-#include "px_ui/style_scope.h"
-#include "px_ui/theme_tokens.h"
-
 #include <imgui.h>
 
 #include <algorithm>
 #include <cmath>
 #include <string>
 
+#include "px_ui/components/overlay.h"
+#include "px_ui/style_scope.h"
+#include "px_ui/theme_tokens.h"
+
 namespace px::ui {
 namespace {
 
-ImVec4 WithAlpha(const ImVec4 color, const float alpha) noexcept {
-    return {color.x, color.y, color.z, alpha};
-}
+ImVec4 WithAlpha(const ImVec4 color, const float alpha) noexcept { return {color.x, color.y, color.z, alpha}; }
 
 ImVec4 Mix(const ImVec4 left, const ImVec4 right, const float amount) noexcept {
     return {left.x + (right.x - left.x) * amount, left.y + (right.y - left.y) * amount, left.z + (right.z - left.z) * amount,
@@ -32,47 +30,47 @@ struct ButtonPalette final {
 
 ButtonPalette PaletteFor(const ButtonVariant variant, const ThemeTokens& tokens) noexcept {
     switch (variant) {
-    case ButtonVariant::Accent:
-        return {tokens.accent, Mix(tokens.accent, tokens.foreground, 0.06F), Mix(tokens.accent, tokens.foreground, 0.10F), tokens.accentForeground,
-                tokens.accent};
-    case ButtonVariant::Secondary:
-        return {tokens.secondary, Mix(tokens.secondary, tokens.foreground, 0.08F), Mix(tokens.secondary, tokens.foreground, 0.14F),
-                tokens.secondaryForeground, tokens.secondary};
-    case ButtonVariant::Outline:
-        return {WithAlpha(tokens.background, 0.0F), tokens.accent, Mix(tokens.accent, tokens.foreground, 0.06F), tokens.foreground, tokens.input};
-    case ButtonVariant::Ghost:
-        return {WithAlpha(tokens.background, 0.0F), tokens.muted, tokens.accent, tokens.foreground, WithAlpha(tokens.border, 0.0F)};
-    case ButtonVariant::GhostDestructive:
-        return {WithAlpha(tokens.background, 0.0F), tokens.destructive, Mix(tokens.destructive, tokens.background, 0.18F),
-                tokens.destructiveForeground, WithAlpha(tokens.border, 0.0F)};
-    case ButtonVariant::Destructive:
-        return {tokens.destructive, Mix(tokens.destructive, tokens.foreground, 0.08F), Mix(tokens.destructive, tokens.background, 0.12F),
-                tokens.destructiveForeground, tokens.destructive};
-    case ButtonVariant::Link:
-        return {WithAlpha(tokens.background, 0.0F), WithAlpha(tokens.background, 0.0F), WithAlpha(tokens.background, 0.0F), tokens.primary,
-                WithAlpha(tokens.border, 0.0F)};
-    case ButtonVariant::Primary:
-    default:
-        return {tokens.primary, Mix(tokens.primary, tokens.foreground, 0.08F), Mix(tokens.primary, tokens.background, 0.12F),
-                tokens.primaryForeground, tokens.primary};
+        case ButtonVariant::Accent:
+            return {tokens.accent, Mix(tokens.accent, tokens.foreground, 0.06F), Mix(tokens.accent, tokens.foreground, 0.10F),
+                    tokens.accentForeground, tokens.accent};
+        case ButtonVariant::Secondary:
+            return {tokens.secondary, Mix(tokens.secondary, tokens.foreground, 0.08F), Mix(tokens.secondary, tokens.foreground, 0.14F),
+                    tokens.secondaryForeground, tokens.secondary};
+        case ButtonVariant::Outline:
+            return {WithAlpha(tokens.background, 0.0F), tokens.accent, Mix(tokens.accent, tokens.foreground, 0.06F), tokens.foreground, tokens.input};
+        case ButtonVariant::Ghost:
+            return {WithAlpha(tokens.background, 0.0F), tokens.muted, tokens.accent, tokens.foreground, WithAlpha(tokens.border, 0.0F)};
+        case ButtonVariant::GhostDestructive:
+            return {WithAlpha(tokens.background, 0.0F), tokens.destructive, Mix(tokens.destructive, tokens.background, 0.18F),
+                    tokens.destructiveForeground, WithAlpha(tokens.border, 0.0F)};
+        case ButtonVariant::Destructive:
+            return {tokens.destructive, Mix(tokens.destructive, tokens.foreground, 0.08F), Mix(tokens.destructive, tokens.background, 0.12F),
+                    tokens.destructiveForeground, tokens.destructive};
+        case ButtonVariant::Link:
+            return {WithAlpha(tokens.background, 0.0F), WithAlpha(tokens.background, 0.0F), WithAlpha(tokens.background, 0.0F),
+                    tokens.accentForeground, WithAlpha(tokens.border, 0.0F)};
+        case ButtonVariant::Primary:
+        default:
+            return {tokens.primary, Mix(tokens.primary, tokens.foreground, 0.08F), Mix(tokens.primary, tokens.background, 0.12F),
+                    tokens.primaryForeground, tokens.primary};
     }
 }
 
 float HeightFor(const WidgetSize size, const UiMetrics& metrics) noexcept {
     switch (size) {
-    case WidgetSize::Xs:
-    case WidgetSize::IconXs:
-        return metrics.controlXs;
-    case WidgetSize::Sm:
-    case WidgetSize::IconSm:
-        return metrics.controlSm;
-    case WidgetSize::Lg:
-    case WidgetSize::IconLg:
-        return metrics.controlLg;
-    case WidgetSize::Default:
-    case WidgetSize::Icon:
-    default:
-        return metrics.controlDefault;
+        case WidgetSize::Xs:
+        case WidgetSize::IconXs:
+            return metrics.controlXs;
+        case WidgetSize::Sm:
+        case WidgetSize::IconSm:
+            return metrics.controlSm;
+        case WidgetSize::Lg:
+        case WidgetSize::IconLg:
+            return metrics.controlLg;
+        case WidgetSize::Default:
+        case WidgetSize::Icon:
+        default:
+            return metrics.controlDefault;
     }
 }
 
@@ -90,12 +88,13 @@ bool IsIconSize(const WidgetSize size) noexcept {
     return size == WidgetSize::IconXs || size == WidgetSize::IconSm || size == WidgetSize::Icon || size == WidgetSize::IconLg;
 }
 
-} // namespace
+}  // namespace
 
 bool ActionButton(const WidgetId id, const std::string_view label, const ButtonOptions& options) {
     const ThemeTokens tokens{CurrentThemeTokens()};
     const UiMetrics metrics{MetricsFor(ImGui::GetStyle().FontScaleDpi)};
-    const ButtonPalette palette{PaletteFor(options.variant, tokens)};
+    ButtonPalette palette{PaletteFor(options.variant, tokens)};
+    if (options.textColor) palette.text = *options.textColor;
     const float height{options.height > 0.0F ? options.height : HeightFor(options.size, metrics)};
     const float iconSize{IconSizeFor(options.size, metrics)};
     const bool iconOnly{IsIconSize(options.size) && options.icon.has_value()};
@@ -109,6 +108,8 @@ bool ActionButton(const WidgetId id, const std::string_view label, const ButtonO
     const ScopedId scopedId{id.value};
     const ScopedDisabled disabled{options.disabled || options.busy};
     const ScopedStyleVar rounding{ImGuiStyleVar_FrameRounding, options.circular ? height * 0.5F : metrics.controlRadius};
+    const ScopedStyleVar framePadding{ImGuiStyleVar_FramePadding,
+                                      ImVec2{ImGui::GetStyle().FramePadding.x, std::max(0.0F, (height - ImGui::GetFontSize()) * 0.5F)}};
     const ScopedStyleVar frameBorder{ImGuiStyleVar_FrameBorderSize, exactCircle ? 0.0F : ImGui::GetStyle().FrameBorderSize};
     const ScopedStyleColor normal{ImGuiCol_Button, exactCircle ? transparent : palette.normal};
     const ScopedStyleColor hovered{ImGuiCol_ButtonHovered, exactCircle ? transparent : palette.hovered};
@@ -119,15 +120,16 @@ bool ActionButton(const WidgetId id, const std::string_view label, const ButtonO
 
     const ImVec2 minimum{ImGui::GetItemRectMin()};
     const ImVec2 maximum{ImGui::GetItemRectMax()};
+    const ImVec2 renderedSize{maximum.x - minimum.x, maximum.y - minimum.y};
     ImDrawList& draw{*ImGui::GetWindowDrawList()};
     const bool destructiveGhost{options.variant == ButtonVariant::GhostDestructive};
-    const bool visualHover{destructiveGhost && ImGui::IsMouseHoveringRect(minimum, maximum, false)};
+    const bool visualHover{destructiveGhost && !options.disabled && !options.busy && ImGui::IsItemHovered()};
+    draw.PushClipRect(minimum, maximum, true);
     if (exactCircle) {
         const ImVec4 background{ImGui::IsItemActive() ? palette.active : visualHover || ImGui::IsItemHovered() ? palette.hovered : palette.normal};
-        const ImVec2 center{minimum.x + size.x * 0.5F, minimum.y + size.y * 0.5F};
+        const ImVec2 center{minimum.x + renderedSize.x * 0.5F, minimum.y + renderedSize.y * 0.5F};
         constexpr int circleSegments{48};
-        if (background.w > 0.0F)
-            draw.AddCircleFilled(center, height * 0.5F, ImGui::GetColorU32(background), circleSegments);
+        if (background.w > 0.0F) draw.AddCircleFilled(center, height * 0.5F, ImGui::GetColorU32(background), circleSegments);
         if (palette.border.w > 0.0F)
             draw.AddCircle(center, height * 0.5F - metrics.borderWidth * 0.5F, ImGui::GetColorU32(palette.border), circleSegments,
                            metrics.borderWidth);
@@ -135,11 +137,11 @@ bool ActionButton(const WidgetId id, const std::string_view label, const ButtonO
         const ImVec4 background{ImGui::IsItemActive() ? palette.active : palette.hovered};
         draw.AddRectFilled(minimum, maximum, ImGui::GetColorU32(background), metrics.controlRadius);
     }
-    const ImVec4 contentColor{destructiveGhost && !visualHover ? tokens.destructive : palette.text};
+    const ImVec4 contentColor{destructiveGhost && !visualHover ? tokens.destructiveText : palette.text};
     const ImU32 color{ImGui::GetColorU32(contentColor)};
     if (options.busy) {
         const float radius{metrics.iconSm * 0.42F};
-        const ImVec2 center{minimum.x + size.x * 0.5F, minimum.y + size.y * 0.5F};
+        const ImVec2 center{minimum.x + renderedSize.x * 0.5F, minimum.y + renderedSize.y * 0.5F};
         constexpr int segments{20};
         const float start{static_cast<float>(std::fmod(ImGui::GetTime() * 5.0, 6.283185307179586))};
         draw.PathClear();
@@ -148,11 +150,14 @@ bool ActionButton(const WidgetId id, const std::string_view label, const ButtonO
             draw.PathLineTo({center.x + std::cos(angle) * radius, center.y + std::sin(angle) * radius});
         }
         draw.PathStroke(color, ImDrawFlags_None, std::max(1.5F, metrics.borderWidth * 1.5F));
+        draw.PopClipRect();
         return false;
     }
 
-    float left{options.contentAlignment == ButtonContentAlignment::Leading ? minimum.x + options.contentInset
-                                                                           : minimum.x + (size.x - contentWidth) * 0.5F};
+    float left{options.contentAlignment == ButtonContentAlignment::Leading
+                   ? minimum.x + options.contentInset
+                   : minimum.x +
+                         (iconOnly ? (renderedSize.x - contentWidth) * 0.5F : std::max(metrics.spacingSm, (renderedSize.x - contentWidth) * 0.5F))};
     if (options.icon.has_value() && !options.iconTrailing) {
         DrawVectorIcon(*options.icon, {left, minimum.y + (maximum.y - minimum.y - iconSize) * 0.5F}, iconSize, color);
         left += iconOnly ? 0.0F : iconSize + metrics.spacingSm;
@@ -171,6 +176,7 @@ bool ActionButton(const WidgetId id, const std::string_view label, const ButtonO
         const float underlineY{minimum.y + (maximum.y - minimum.y + textSize.y) * 0.5F + metrics.borderWidth};
         draw.AddLine({left, underlineY}, {left + textSize.x, underlineY}, color, metrics.borderWidth);
     }
+    draw.PopClipRect();
     return pressed;
 }
 
@@ -187,4 +193,4 @@ bool IconAction(const WidgetId id, const VectorIcon icon, const std::string_view
     return pressed;
 }
 
-} // namespace px::ui
+}  // namespace px::ui

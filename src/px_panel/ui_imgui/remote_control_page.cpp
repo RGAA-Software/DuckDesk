@@ -31,9 +31,11 @@ void IdentityLabel(const std::string_view label, const std::string& value, const
     ImGui::TextDisabled("%.*s", static_cast<int>(label.size()), label.data());
     ImGui::TableNextColumn();
     if (strong) {
-        px::ui::StrongText(value.empty() ? "--" : value);
+        ImGui::SetWindowFontScale(1.05F);
+        px::ui::ClippedText(value.empty() ? "--" : value);
+        ImGui::SetWindowFontScale(1.0F);
     } else {
-        ImGui::TextUnformatted(value.empty() ? "--" : value.c_str());
+        px::ui::ClippedText(value.empty() ? "--" : value);
     }
     ImGui::TableNextColumn();
 }
@@ -84,7 +86,7 @@ void RemoteControlPage::DrawIdentity(const RemoteControlState& state, const px::
     const float gap{layout::CardGap()};
     const float availableWidth{ImGui::GetContentRegionAvail().x};
     const float cardWidth{(availableWidth - gap) * 0.46F};
-    const float cardHeight{px::ui::Scale(185.0F)};
+    const float cardHeight{px::ui::Scale(224.0F)};
     {
         px::ui::CardScope identity{{"local-identity"}, {cardWidth, cardHeight}, fixedCardFlags};
         if (identity.Visible()) {
@@ -96,7 +98,7 @@ void RemoteControlPage::DrawIdentity(const RemoteControlState& state, const px::
             ImGui::TableSetupColumn("value", ImGuiTableColumnFlags_WidthStretch);
             ImGui::TableSetupColumn("actions", ImGuiTableColumnFlags_WidthFixed, px::ui::Scale(92.0F));
             const px::ui::ThemeTokens tokens{px::ui::CurrentThemeTokens()};
-            ImGui::PushStyleColor(ImGuiCol_Text, tokens.primary);
+            ImGui::PushStyleColor(ImGuiCol_Text, tokens.primaryText);
             IdentityLabel(localizer.Text(px::ui::TextId::DeviceId), FormatDeviceId(state.deviceId), true);
             ImGui::PopStyleColor();
             if (px::ui::IconAction({"copy-device-id"}, px::ui::VectorIcon::Copy, localizer.Text(px::ui::TextId::Copy),
@@ -159,13 +161,13 @@ void RemoteControlPage::DrawIdentity(const RemoteControlState& state, const px::
             px::ui::Tooltip(state.desktopLink);
             ImGui::SameLine(0.0F, ImGui::GetStyle().ItemSpacing.x);
             if (px::ui::IconAction({"copy-desktop-link"}, px::ui::VectorIcon::Copy, localizer.Text(px::ui::TextId::Copy),
-                                   {.variant = px::ui::ButtonVariant::Outline, .size = px::ui::WidgetSize::IconSm})) {
+                                   {.variant = px::ui::ButtonVariant::Outline, .size = px::ui::WidgetSize::Icon})) {
                 port_->CopyText(state.desktopLink);
             }
             ImGui::SameLine(0.0F, ImGui::GetStyle().ItemSpacing.x);
             if (px::ui::IconAction(
                     {"qr-desktop-link"}, px::ui::VectorIcon::QrCode, localizer.Text(px::ui::TextId::QrCode),
-                    {.variant = px::ui::ButtonVariant::Outline, .size = px::ui::WidgetSize::IconSm, .disabled = state.desktopLink.empty()})) {
+                    {.variant = px::ui::ButtonVariant::Outline, .size = px::ui::WidgetSize::Icon, .disabled = state.desktopLink.empty()})) {
                 qrDialog_.Open(state.desktopLink, ConnectionQrKind::DesktopLink);
             }
             px::ui::FieldLabel(localizer.Text(px::ui::TextId::WebClientAddress));
@@ -177,13 +179,13 @@ void RemoteControlPage::DrawIdentity(const RemoteControlState& state, const px::
             px::ui::Tooltip(state.webClientAddress);
             ImGui::SameLine(0.0F, ImGui::GetStyle().ItemSpacing.x);
             if (px::ui::IconAction({"copy-web-client-address"}, px::ui::VectorIcon::Copy, localizer.Text(px::ui::TextId::Copy),
-                                   {.variant = px::ui::ButtonVariant::Outline, .size = px::ui::WidgetSize::IconSm})) {
+                                   {.variant = px::ui::ButtonVariant::Outline, .size = px::ui::WidgetSize::Icon})) {
                 port_->CopyText(state.webClientAddress);
             }
             ImGui::SameLine(0.0F, ImGui::GetStyle().ItemSpacing.x);
             if (px::ui::IconAction(
                     {"qr-web-client-address"}, px::ui::VectorIcon::QrCode, localizer.Text(px::ui::TextId::QrCode),
-                    {.variant = px::ui::ButtonVariant::Outline, .size = px::ui::WidgetSize::IconSm, .disabled = state.webClientAddress.empty()})) {
+                    {.variant = px::ui::ButtonVariant::Outline, .size = px::ui::WidgetSize::Icon, .disabled = state.webClientAddress.empty()})) {
                 qrDialog_.Open(state.webClientAddress, ConnectionQrKind::WebClientAddress);
             }
         }
@@ -249,16 +251,15 @@ void RemoteControlPage::DrawConnections(const RemoteControlState& state, const p
         px::ui::CardScope connection{{"connection-workflow"}, {0.0F, px::ui::Scale(94.0F)}, fixedCardFlags};
         if (connection.Visible()) {
             px::ui::SectionTitle(localizer.Text(px::ui::TextId::ConnectToRemoteDevice));
-            const float actionWidth{px::ui::Scale(78.0F)};
+            const auto connectLabel{localizer.Text(px::ui::TextId::Connect)};
+            const float actionWidth{std::max(
+                px::ui::Scale(96.0F), ImGui::CalcTextSize(connectLabel.data(), connectLabel.data() + connectLabel.size()).x + px::ui::Scale(48.0F))};
             const float fittingFieldWidth{ImGui::GetContentRegionAvail().x - actionWidth - ImGui::GetStyle().ItemSpacing.x};
             static_cast<void>(px::ui::TextField({"remote-device"}, remoteDeviceId_, localizer.Text(px::ui::TextId::RemoteDeviceId),
                                                 {.width = fittingFieldWidth, .leadingIcon = px::ui::VectorIcon::Connect}));
             ImGui::SameLine();
             if (px::ui::ActionButton({"connect-device"}, localizer.Text(px::ui::TextId::Connect),
-                                     {.size = px::ui::WidgetSize::Sm,
-                                      .icon = px::ui::VectorIcon::Connect,
-                                      .width = actionWidth,
-                                      .disabled = remoteDeviceId_.empty()})) {
+                                     {.icon = px::ui::VectorIcon::Connect, .width = actionWidth, .disabled = remoteDeviceId_.empty()})) {
                 if (port_->RequiresPassword(remoteDeviceId_)) {
                     directTarget_ = remoteDeviceId_;
                     directPassword_.clear();

@@ -286,6 +286,12 @@ enum class TextId : std::uint16_t {
     Minutes,
     Unknown,
     MachineInformationUnavailable,
+    NetworkIdleStatus,
+    WindowMinimize,
+    WindowMaximize,
+    WindowRestore,
+    WindowClose,
+    Succeeded,
     Count,
 };
 

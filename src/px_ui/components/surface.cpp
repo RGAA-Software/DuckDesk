@@ -1,10 +1,10 @@
 #include "px_ui/components/surface.h"
 
-#include "px_ui/theme_tokens.h"
-
 #include <imgui.h>
 
 #include <algorithm>
+
+#include "px_ui/theme_tokens.h"
 
 namespace px::ui {
 
@@ -23,13 +23,9 @@ CardScope::CardScope(const WidgetId id, const ImVec2 size, const ImGuiWindowFlag
     ImGui::PopStyleColor(2);
 }
 
-CardScope::~CardScope() {
-    ImGui::EndChild();
-}
+CardScope::~CardScope() { ImGui::EndChild(); }
 
-bool CardScope::Visible() const noexcept {
-    return visible_;
-}
+bool CardScope::Visible() const noexcept { return visible_; }
 
 void PageTitle(const std::string_view title) {
     const float scale{ImGui::GetStyle().FontScaleDpi};
@@ -48,7 +44,7 @@ void SectionTitle(const std::string_view title) {
 void StrongText(const std::string_view text) {
     const bool hasMediumFont{ImGui::GetIO().Fonts->Fonts.Size > 1};
     if (hasMediumFont) {
-        ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[1], 0.0F); // NOLINT(pixels-raw-pointer-boundary): Dear ImGui font registry ABI.
+        ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[1], 0.0F);  // NOLINT(pixels-raw-pointer-boundary): Dear ImGui font registry ABI.
     }
     ImGui::TextUnformatted(text.data(), text.data() + text.size());
     if (hasMediumFont) {
@@ -69,33 +65,33 @@ void StatusBadge(const std::string_view text, const BadgeVariant variant) {
     ImVec4 foreground{tokens.secondaryForeground};
     ImVec4 border{tokens.border};
     switch (variant) {
-    case BadgeVariant::Success:
-        background = {tokens.success.x, tokens.success.y, tokens.success.z, 0.14F};
-        foreground = tokens.success;
-        border = {tokens.success.x, tokens.success.y, tokens.success.z, 0.38F};
-        break;
-    case BadgeVariant::Warning:
-        background = {tokens.warning.x, tokens.warning.y, tokens.warning.z, 0.14F};
-        foreground = tokens.warning;
-        border = {tokens.warning.x, tokens.warning.y, tokens.warning.z, 0.38F};
-        break;
-    case BadgeVariant::Destructive:
-        background = {tokens.destructive.x, tokens.destructive.y, tokens.destructive.z, 0.14F};
-        foreground = tokens.destructive;
-        border = {tokens.destructive.x, tokens.destructive.y, tokens.destructive.z, 0.38F};
-        break;
-    case BadgeVariant::Outline:
-        background = {tokens.background.x, tokens.background.y, tokens.background.z, 0.0F};
-        foreground = tokens.foreground;
-        break;
-    case BadgeVariant::Default:
-        background = tokens.primary;
-        foreground = tokens.primaryForeground;
-        border = tokens.primary;
-        break;
-    case BadgeVariant::Secondary:
-    default:
-        break;
+        case BadgeVariant::Success:
+            background = {tokens.success.x, tokens.success.y, tokens.success.z, 0.14F};
+            foreground = tokens.success;
+            border = {tokens.success.x, tokens.success.y, tokens.success.z, 0.38F};
+            break;
+        case BadgeVariant::Warning:
+            background = {tokens.warning.x, tokens.warning.y, tokens.warning.z, 0.14F};
+            foreground = tokens.warning;
+            border = {tokens.warning.x, tokens.warning.y, tokens.warning.z, 0.38F};
+            break;
+        case BadgeVariant::Destructive:
+            background = {tokens.destructive.x, tokens.destructive.y, tokens.destructive.z, 0.14F};
+            foreground = tokens.destructiveText;
+            border = {tokens.destructive.x, tokens.destructive.y, tokens.destructive.z, 0.38F};
+            break;
+        case BadgeVariant::Outline:
+            background = {tokens.background.x, tokens.background.y, tokens.background.z, 0.0F};
+            foreground = tokens.foreground;
+            break;
+        case BadgeVariant::Default:
+            background = tokens.primary;
+            foreground = tokens.primaryForeground;
+            border = tokens.primary;
+            break;
+        case BadgeVariant::Secondary:
+        default:
+            break;
     }
     const UiMetrics metrics{MetricsFor(ImGui::GetStyle().FontScaleDpi)};
     const ImVec2 textSize{ImGui::CalcTextSize(text.data(), text.data() + text.size())};
@@ -116,4 +112,4 @@ void HorizontalSeparator() {
     ImGui::PopStyleColor();
 }
 
-} // namespace px::ui
+}  // namespace px::ui

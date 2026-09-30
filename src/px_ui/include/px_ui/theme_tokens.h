@@ -1,7 +1,7 @@
 #pragma once
-#include "px_ui/px_ui_theme.h"
-
 #include <imgui.h>
+
+#include "px_ui/px_ui_theme.h"
 
 namespace px::ui {
 
@@ -12,6 +12,7 @@ struct ThemeTokens final {
     ImVec4 popover{};
     ImVec4 primary{};
     ImVec4 primaryForeground{};
+    ImVec4 primaryText{};
     ImVec4 secondary{};
     ImVec4 secondaryForeground{};
     ImVec4 muted{};
@@ -20,6 +21,7 @@ struct ThemeTokens final {
     ImVec4 accentForeground{};
     ImVec4 destructive{};
     ImVec4 destructiveForeground{};
+    ImVec4 destructiveText{};
     ImVec4 border{};
     ImVec4 input{};
     ImVec4 ring{};
@@ -29,13 +31,19 @@ struct ThemeTokens final {
 
 struct UiMetrics final {
     float scale{1.0F};
+    // Match Ant Design's small/default/large control heights at 1x DPI.
     float controlXs{24.0F};
-    float controlSm{32.0F};
-    float controlDefault{36.0F};
+    float controlSm{24.0F};
+    float controlDefault{32.0F};
     float controlLg{40.0F};
     float controlRadius{6.0F};
-    float cardRadius{10.0F};
-    float popupRadius{10.0F};
+    float cardRadius{8.0F};
+    float popupRadius{8.0F};
+    float fontSize{14.0F};
+    float checkboxSize{16.0F};
+    float switchWidth{44.0F};
+    float switchHeight{22.0F};
+    float tableRowHeight{32.0F};
     float borderWidth{1.0F};
     float spacingXs{4.0F};
     float spacingSm{8.0F};
@@ -51,4 +59,4 @@ struct UiMetrics final {
 [[nodiscard]] ThemeTokens CurrentThemeTokens() noexcept;
 [[nodiscard]] UiMetrics MetricsFor(float scale) noexcept;
 
-} // namespace px::ui
+}  // namespace px::ui

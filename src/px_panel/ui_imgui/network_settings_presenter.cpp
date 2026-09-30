@@ -28,7 +28,7 @@ px::ui::TextId NetworkSettingsPresenter::StatusText(const NetworkOperation opera
     case NetworkOperation::Failed:
         return px::ui::TextId::OperationFailed;
     case NetworkOperation::Idle:
-        return px::ui::TextId::PreviewInitialStatus;
+        return px::ui::TextId::NetworkIdleStatus;
     }
     return px::ui::TextId::OperationFailed;
 }

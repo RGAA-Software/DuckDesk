@@ -1,5 +1,11 @@
 #include "security_records_page.h"
 
+#include <SDL3/SDL.h>
+#include <imgui.h>
+
+#include <string>
+#include <utility>
+
 #include "px_ui/components/button.h"
 #include "px_ui/components/data_view.h"
 #include "px_ui/components/form.h"
@@ -7,12 +13,8 @@
 #include "px_ui/components/overlay.h"
 #include "px_ui/components/surface.h"
 #include "px_ui/layout_metrics.h"
-
-#include <SDL3/SDL.h>
-#include <imgui.h>
-
-#include <string>
-#include <utility>
+#include "px_ui/style_scope.h"
+#include "px_ui/theme_tokens.h"
 
 namespace px::panel::ui {
 
@@ -23,9 +25,7 @@ void SecurityRecordsPage::Draw(const px::ui::Localizer& localizer) {
     DrawContent(localizer);
 }
 
-void SecurityRecordsPage::DrawEmbedded(const px::ui::Localizer& localizer) {
-    DrawContent(localizer);
-}
+void SecurityRecordsPage::DrawEmbedded(const px::ui::Localizer& localizer) { DrawContent(localizer); }
 
 void SecurityRecordsPage::DrawContent(const px::ui::Localizer& localizer) {
     if (px::ui::TabItem({"security-visits"}, localizer.Text(px::ui::TextId::VisitHistory), selected_ == SecurityRecordKind::Visit,
@@ -37,9 +37,9 @@ void SecurityRecordsPage::DrawContent(const px::ui::Localizer& localizer) {
                         px::ui::Scale(100.0F))) {
         selected_ = SecurityRecordKind::FileTransfer;
     }
-    ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - px::ui::Scale(88.0F));
+    ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - px::ui::Scale(96.0F));
     if (px::ui::ActionButton({"security-clear-all"}, localizer.Text(px::ui::TextId::ClearAll),
-                             {.variant = px::ui::ButtonVariant::Destructive, .size = px::ui::WidgetSize::Sm, .width = px::ui::Scale(88.0F)})) {
+                             {.variant = px::ui::ButtonVariant::Destructive, .width = px::ui::Scale(96.0F)})) {
         deleteAll_ = true;
         pendingDeleteId_ = 0;
         openDeleteDialog_ = true;
@@ -63,54 +63,62 @@ void SecurityRecordsPage::DrawRecords(const px::ui::Localizer& localizer) {
     }
     const bool visits{selected_ == SecurityRecordKind::Visit};
     const int columns{visits ? 7 : 8};
-    if (!ImGui::BeginTable("SecurityRecords", columns, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_ScrollX)) {
+    const px::ui::UiMetrics metrics{px::ui::MetricsFor(ImGui::GetStyle().FontScaleDpi)};
+    const px::ui::ScopedStyleVar cellPadding{ImGuiStyleVar_CellPadding, ImVec2{metrics.spacingSm, metrics.spacingXs}};
+    const ImGuiTableFlags tableFlags{ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable |
+                                     ImGuiTableFlags_SizingStretchProp};
+    if (!ImGui::BeginTable(visits ? "SecurityVisits" : "SecurityTransfers", columns, tableFlags, {0.0F, ImGui::GetContentRegionAvail().y})) {
         return;
     }
-    ImGui::TableSetupColumn(localizer.Text(visits ? px::ui::TextId::ConnectionType : px::ui::TextId::Result).data());
-    ImGui::TableSetupColumn(localizer.Text(px::ui::TextId::StartTime).data());
-    ImGui::TableSetupColumn(localizer.Text(px::ui::TextId::EndTime).data());
-    ImGui::TableSetupColumn(localizer.Text(px::ui::TextId::VisitorDevice).data());
-    ImGui::TableSetupColumn(localizer.Text(px::ui::TextId::TargetDevice).data());
+    ImGui::TableSetupScrollFreeze(0, 1);
+    ImGui::TableSetupColumn(localizer.Text(visits ? px::ui::TextId::ConnectionType : px::ui::TextId::Result).data(),
+                            ImGuiTableColumnFlags_WidthStretch, 0.6F);
+    ImGui::TableSetupColumn(localizer.Text(px::ui::TextId::StartTime).data(), ImGuiTableColumnFlags_WidthStretch, 1.3F);
+    ImGui::TableSetupColumn(localizer.Text(px::ui::TextId::EndTime).data(), ImGuiTableColumnFlags_WidthStretch, 1.3F);
+    ImGui::TableSetupColumn(localizer.Text(px::ui::TextId::VisitorDevice).data(), ImGuiTableColumnFlags_WidthStretch, 1.0F);
+    ImGui::TableSetupColumn(localizer.Text(px::ui::TextId::TargetDevice).data(), ImGuiTableColumnFlags_WidthStretch, 1.0F);
     if (visits) {
-        ImGui::TableSetupColumn(localizer.Text(px::ui::TextId::Duration).data());
+        ImGui::TableSetupColumn(localizer.Text(px::ui::TextId::Duration).data(), ImGuiTableColumnFlags_WidthStretch, 0.7F);
     } else {
-        ImGui::TableSetupColumn(localizer.Text(px::ui::TextId::Direction).data());
-        ImGui::TableSetupColumn(localizer.Text(px::ui::TextId::FileName).data());
+        ImGui::TableSetupColumn(localizer.Text(px::ui::TextId::Direction).data(), ImGuiTableColumnFlags_WidthStretch, 0.7F);
+        ImGui::TableSetupColumn(localizer.Text(px::ui::TextId::FileName).data(), ImGuiTableColumnFlags_WidthStretch, 1.2F);
     }
-    ImGui::TableSetupColumn(localizer.Text(px::ui::TextId::Actions).data());
+    ImGui::TableSetupColumn(localizer.Text(px::ui::TextId::Actions).data(), ImGuiTableColumnFlags_WidthFixed,
+                            metrics.controlSm * 3.0F + metrics.spacingXs * 2.0F);
     ImGui::TableHeadersRow();
     for (const auto& record : records) {
         ImGui::PushID(record.id);
-        ImGui::TableNextRow();
+        ImGui::TableNextRow(ImGuiTableRowFlags_None, metrics.tableRowHeight);
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted((visits ? record.type : (record.succeeded ? "OK" : "Failed")).c_str());
+        px::ui::ClippedText(visits ? std::string_view{record.type}
+                                   : localizer.Text(record.succeeded ? px::ui::TextId::Succeeded : px::ui::TextId::OperationFailed));
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted(record.startedAt.c_str());
+        px::ui::ClippedText(record.startedAt);
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted(record.endedAt.c_str());
+        px::ui::ClippedText(record.endedAt);
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted(record.visitor.c_str());
+        px::ui::ClippedText(record.visitor);
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted(record.target.c_str());
+        px::ui::ClippedText(record.target);
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted((visits ? record.duration : record.direction).c_str());
+        px::ui::ClippedText(visits ? record.duration : record.direction);
         if (!visits) {
             ImGui::TableNextColumn();
-            ImGui::TextUnformatted(record.fileName.c_str());
+            px::ui::ClippedText(record.fileName);
         }
         ImGui::TableNextColumn();
         if (px::ui::IconAction({"record-copy"}, px::ui::VectorIcon::Copy, localizer.Text(px::ui::TextId::Copy),
-                               {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::IconXs})) {
+                               {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::IconSm})) {
             SDL_SetClipboardText(record.plainText.c_str());
         }
-        ImGui::SameLine();
-        if (px::ui::ActionButton({"record-copy-json"}, localizer.Text(px::ui::TextId::CopyJson),
-                                 {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Xs})) {
+        ImGui::SameLine(0.0F, metrics.spacingXs);
+        if (px::ui::IconAction({"record-copy-json"}, px::ui::VectorIcon::File, localizer.Text(px::ui::TextId::CopyJson),
+                               {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::IconSm})) {
             SDL_SetClipboardText(record.json.c_str());
         }
-        ImGui::SameLine();
+        ImGui::SameLine(0.0F, metrics.spacingXs);
         if (px::ui::IconAction({"record-delete"}, px::ui::VectorIcon::Trash, localizer.Text(px::ui::TextId::Delete),
-                               {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::IconXs})) {
+                               {.variant = px::ui::ButtonVariant::GhostDestructive, .size = px::ui::WidgetSize::IconSm})) {
             deleteAll_ = false;
             pendingDeleteId_ = record.id;
             openDeleteDialog_ = true;
@@ -154,4 +162,4 @@ void SecurityRecordsPage::DrawDeleteDialog(const px::ui::Localizer& localizer) {
     }
 }
 
-} // namespace px::panel::ui
+}  // namespace px::panel::ui

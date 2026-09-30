@@ -98,6 +98,7 @@ struct DesktopShell::Impl final {
     std::optional<ImGuiSession> imgui{};
     bool running{true};
     px::ui::Theme theme{px::ui::Theme::Dark};
+    px::ui::Localizer localizer{};
     bool enhancedVisualEffects{true};
     SdlTray tray{};
     bool minimizeToTray{false};
@@ -221,7 +222,7 @@ int DesktopShell::Run(const RenderCallback& render, const InputCallback& input) 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{});
         ImGui::Begin("PixelsRoot", nullptr, rootFlags);
         ImGui::PopStyleVar();
-        if (!DrawTitleBar(impl_->window, impl_->chrome, impl_->imgui->Logo(), impl_->titleBarTitle)) {
+        if (!DrawTitleBar(impl_->window, impl_->chrome, impl_->imgui->Logo(), impl_->localizer, impl_->titleBarTitle)) {
             SDL_Event closeEvent{};
             closeEvent.type = SDL_EVENT_WINDOW_CLOSE_REQUESTED;
             static_cast<void>(SDL_PushEvent(&closeEvent));
@@ -258,6 +259,8 @@ bool DesktopShell::SetTheme(const px::ui::Theme theme) {
     impl_->theme = theme;
     return impl_->imgui->ApplyAppearance(theme, impl_->window.DisplayScale(), impl_->enhancedVisualEffects);
 }
+
+void DesktopShell::SetLanguage(const px::ui::Language language) { impl_->localizer.SetLanguage(language); }
 
 bool DesktopShell::SetEnhancedVisualEffects(const bool enabled) {
     impl_->enhancedVisualEffects = enabled;

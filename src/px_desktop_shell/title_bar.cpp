@@ -2,15 +2,18 @@
 
 #include <imgui.h>
 
+#include <algorithm>
 #include <string>
 #include <string_view>
 
 #include "brand_logo.h"
+#include "pixels_product_version_config.h"
+#include "px_ui/components/data_view.h"
+#include "px_ui/components/overlay.h"
 #include "px_ui/layout_metrics.h"
 #include "px_ui/product_brand.h"
 #include "px_ui/theme_tokens.h"
 #include "px_ui/vector_icon.h"
-#include "pixels_product_version_config.h"
 #include "window_host.h"
 
 namespace px::desktop {
@@ -21,7 +24,7 @@ bool CircularCaptionButton(const px::ui::VectorIcon icon, const std::string_view
     const float iconSize{px::ui::Scale(16.0F)};
     const float radius{px::ui::Scale(14.0F)};
     const std::string controlId{"##title-" + std::string{id}};
-    const bool pressed{ImGui::InvisibleButton(controlId.c_str(), {size, size})};
+    const bool pressed{ImGui::InvisibleButton(controlId.c_str(), {size, size}, ImGuiButtonFlags_EnableNav)};
     const ImVec2 minimum{ImGui::GetItemRectMin()};
     const ImVec2 center{minimum.x + size * 0.5F, minimum.y + size * 0.5F};
     const px::ui::ThemeTokens tokens{px::ui::CurrentThemeTokens()};
@@ -32,16 +35,14 @@ bool CircularCaptionButton(const px::ui::VectorIcon icon, const std::string_view
     }
     const ImVec4 iconColor{destructive && ImGui::IsItemHovered() ? tokens.destructiveForeground : tokens.foreground};
     px::ui::DrawVectorIcon(icon, {center.x - iconSize * 0.5F, center.y - iconSize * 0.5F}, iconSize, ImGui::GetColorU32(iconColor));
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) {
-        const std::string visible{tooltip};
-        ImGui::SetTooltip("%s", visible.c_str());
-    }
+    px::ui::Tooltip(tooltip);
     return pressed;
 }
 
 }  // namespace
 
-bool DrawTitleBar(WindowHost& window, const WindowChromeConfig& chrome, const BrandLogo& logo, const std::string_view titleOverride) {
+bool DrawTitleBar(WindowHost& window, const WindowChromeConfig& chrome, const BrandLogo& logo, const px::ui::Localizer& localizer,
+                  const std::string_view titleOverride) {
     const float titleBarHeight{px::ui::Scale(static_cast<float>(kTitleBarLogicalHeight))};
     const float buttonWidth{px::ui::Scale(static_cast<float>(kCaptionButtonLogicalWidth))};
     const float buttonCount{1.0F + (chrome.showMinimizeButton ? 1.0F : 0.0F) + (chrome.showMaximizeButton ? 1.0F : 0.0F)};
@@ -58,25 +59,30 @@ bool DrawTitleBar(WindowHost& window, const WindowChromeConfig& chrome, const Br
     const px::ui::ThemeTokens tokens{px::ui::CurrentThemeTokens()};
     logo.Draw({logoLeft, logoTop}, logoSize);
     const std::string title{titleOverride.empty() ? std::string{px::ui::ApplicationName()} + "(V" PROJECT_VERSION ")" : titleOverride};
-    const ImVec2 titleSize{ImGui::CalcTextSize(title.c_str())};
+    const float titleLeft{logoLeft + logoSize + px::ui::Scale(8.0F)};
+    const float titleRight{origin.x + ImGui::GetContentRegionAvail().x - buttonWidth * buttonCount};
+    const std::string visibleTitle{px::ui::EllipsizedText(title, std::max(1.0F, titleRight - titleLeft - px::ui::Scale(8.0F)))};
+    const ImVec2 titleSize{ImGui::CalcTextSize(visibleTitle.c_str())};
+    ImGui::GetWindowDrawList()->PushClipRect({titleLeft, origin.y}, {titleRight, origin.y + titleBarHeight}, true);
     ImGui::GetWindowDrawList()->AddText({logoLeft + logoSize + px::ui::Scale(8.0F), origin.y + (titleBarHeight - titleSize.y) * 0.5F},
-                                        ImGui::GetColorU32(tokens.foreground), title.c_str());
+                                        ImGui::GetColorU32(tokens.foreground), visibleTitle.c_str());
+    ImGui::GetWindowDrawList()->PopClipRect();
 
     ImGui::SetCursorScreenPos({origin.x + ImGui::GetContentRegionAvail().x - buttonWidth * buttonCount, origin.y});
     if (chrome.showMinimizeButton) {
-        if (CircularCaptionButton(px::ui::VectorIcon::Minimize, "window-minimize", "Minimize", false)) {
+        if (CircularCaptionButton(px::ui::VectorIcon::Minimize, "window-minimize", localizer.Text(px::ui::TextId::WindowMinimize), false)) {
             window.Minimize();
         }
         ImGui::SameLine(0.0F, 0.0F);
     }
     if (chrome.showMaximizeButton) {
         if (CircularCaptionButton(window.IsMaximized() ? px::ui::VectorIcon::Restore : px::ui::VectorIcon::Maximize, "window-maximize",
-                                  window.IsMaximized() ? "Restore" : "Maximize", false)) {
+                                  localizer.Text(window.IsMaximized() ? px::ui::TextId::WindowRestore : px::ui::TextId::WindowMaximize), false)) {
             window.ToggleMaximize();
         }
         ImGui::SameLine(0.0F, 0.0F);
     }
-    const bool keepRunning{!CircularCaptionButton(px::ui::VectorIcon::Close, "window-close", "Close", true)};
+    const bool keepRunning{!CircularCaptionButton(px::ui::VectorIcon::Close, "window-close", localizer.Text(px::ui::TextId::WindowClose), true)};
     ImGui::EndChild();
     return keepRunning;
 }

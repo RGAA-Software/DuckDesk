@@ -41,6 +41,7 @@ class PanelPreview final {
     explicit PanelPreview(PanelPreviewServices services);
 
     PanelPreviewAction Draw(const px::desktop::PlatformIconAtlas& platformIcons);
+    px::ui::Language CurrentLanguage() const noexcept { return localizer_.CurrentLanguage(); }
 
   private:
     PanelPreviewAction DrawSettingsPage();

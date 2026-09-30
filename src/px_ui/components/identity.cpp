@@ -1,17 +1,17 @@
 #include "px_ui/components/identity.h"
 
+#include <imgui.h>
+
 #include "px_ui/components/overlay.h"
 #include "px_ui/style_scope.h"
 #include "px_ui/theme_tokens.h"
-
-#include <imgui.h>
 
 namespace px::ui {
 
 bool AvatarButton(const WidgetId id, const std::string_view tooltip, const float size, const bool emphasized) {
     const ScopedId scopedId{id.value};
     const ThemeTokens tokens{CurrentThemeTokens()};
-    const bool pressed{ImGui::InvisibleButton("##avatar", {size, size})};
+    const bool pressed{ImGui::InvisibleButton("##avatar", {size, size}, ImGuiButtonFlags_EnableNav)};
     const ImVec2 minimum{ImGui::GetItemRectMin()};
     const ImVec2 maximum{ImGui::GetItemRectMax()};
     const ImVec2 center{minimum.x + size * 0.5F, minimum.y + size * 0.5F};
@@ -26,4 +26,4 @@ bool AvatarButton(const WidgetId id, const std::string_view tooltip, const float
     return pressed;
 }
 
-} // namespace px::ui
+}  // namespace px::ui

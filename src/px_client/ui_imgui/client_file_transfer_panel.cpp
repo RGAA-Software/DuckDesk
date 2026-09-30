@@ -72,8 +72,7 @@ void ClientFileTransferPanel::Draw(const std::shared_ptr<ClientSession>& session
             ImGui::TableNextColumn();
             static_cast<void>(px::ui::TextField({"remote-path"}, remotePath_));
             ImGui::TableNextColumn();
-            if (px::ui::ActionButton({"open-remote-path"}, text(ClientText::Open),
-                                     {.variant = px::ui::ButtonVariant::Outline, .size = px::ui::WidgetSize::Sm, .width = -1.0F})) {
+            if (px::ui::ActionButton({"open-remote-path"}, text(ClientText::Open), {.variant = px::ui::ButtonVariant::Outline, .width = -1.0F})) {
                 static_cast<void>(session->ListRemoteDirectory(remotePath_));
             }
 
@@ -85,7 +84,7 @@ void ClientFileTransferPanel::Draw(const std::shared_ptr<ClientSession>& session
             static_cast<void>(px::ui::TextField({"local-path"}, localPath_));
             ImGui::TableNextColumn();
             if (px::ui::ActionButton({"upload-local-path"}, text(ClientText::UploadLocalPath),
-                                     {.size = px::ui::WidgetSize::Sm, .icon = px::ui::VectorIcon::FileTransfer, .width = -1.0F})) {
+                                     {.icon = px::ui::VectorIcon::FileTransfer, .width = -1.0F})) {
                 static_cast<void>(session->StartUpload(localPath_, remotePath_));
             }
             ImGui::EndTable();
@@ -103,6 +102,7 @@ void ClientFileTransferPanel::Draw(const std::shared_ptr<ClientSession>& session
                 ImGui::TableSetupColumn(text(ClientText::Name));
                 ImGui::TableSetupColumn(text(ClientText::Type), ImGuiTableColumnFlags_WidthFixed, 100.0F);
                 ImGui::TableSetupColumn(text(ClientText::Size), ImGuiTableColumnFlags_WidthFixed, 150.0F);
+                ImGui::TableSetupScrollFreeze(0, 1);
                 ImGui::TableHeadersRow();
                 for (const auto& entry : session->RemoteEntries()) {
                     ImGui::TableNextRow();

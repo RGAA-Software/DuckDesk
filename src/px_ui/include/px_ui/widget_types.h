@@ -1,11 +1,11 @@
 #pragma once
 
-#include "px_ui/vector_icon.h"
-
 #include <imgui.h>
 
 #include <optional>
 #include <string_view>
+
+#include "px_ui/vector_icon.h"
 
 namespace px::ui {
 
@@ -30,6 +30,7 @@ struct ButtonOptions final {
     bool circular{false};
     bool disabled{false};
     bool busy{false};
+    std::optional<ImVec4> textColor{};
 };
 
 struct FieldOptions final {
@@ -40,4 +41,4 @@ struct FieldOptions final {
     bool readOnly{false};
 };
 
-} // namespace px::ui
+}  // namespace px::ui

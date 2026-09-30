@@ -186,17 +186,17 @@ std::optional<std::string> DrawFilePathBar(const std::string_view id, const std:
                                            const std::span<const FilePathChoice> locations, const float width, std::string& editablePath,
                                            bool& editing, bool& requestFocus) {
     const auto tokens = px::ui::CurrentThemeTokens();
-    const float height{px::ui::Scale(35.0F)};
-    constexpr float edgePadding{5.0F};
-    constexpr float dropdownWidth{32.0F};
-    constexpr float separatorWidth{16.0F};
+    const float height{px::ui::Scale(32.0F)};
+    const float edgePadding{px::ui::Scale(4.0F)};
+    const float dropdownWidth{px::ui::Scale(32.0F)};
+    const float separatorWidth{px::ui::Scale(16.0F)};
     std::optional<std::string> navigation{};
     const std::string scopeId{id};
     ImGui::PushID(scopeId.c_str());
-    ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 6.0F);
-    ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 1.0F);
+    ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, px::ui::Scale(6.0F));
+    ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, px::ui::Scale(1.0F));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{});
-    ImGui::PushStyleColor(ImGuiCol_ChildBg, tokens.input);
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, tokens.secondary);
     ImGui::PushStyleColor(ImGuiCol_Border, tokens.border);
     const bool visible{
         ImGui::BeginChild("path-bar", {width, height}, ImGuiChildFlags_Borders, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)};
@@ -205,7 +205,7 @@ std::optional<std::string> DrawFilePathBar(const std::string_view id, const std:
     if (visible) {
         const float contentWidth{std::max(1.0F, width - dropdownWidth - edgePadding * 2.0F)};
         if (editing) {
-            ImGui::SetCursorPos({edgePadding, 2.0F});
+            ImGui::SetCursorPos({edgePadding, px::ui::Scale(2.0F)});
             if (requestFocus) {
                 ImGui::SetKeyboardFocusHere();
                 requestFocus = false;
@@ -214,14 +214,14 @@ std::optional<std::string> DrawFilePathBar(const std::string_view id, const std:
             ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(0, 0, 0, 0));
             ImGui::PushStyleColor(ImGuiCol_FrameBgActive, IM_COL32(0, 0, 0, 0));
             ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0F);
-            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{7.0F, 7.0F});
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
+                                ImVec2{px::ui::Scale(8.0F), std::max(0.0F, (height - px::ui::Scale(4.0F) - ImGui::GetFontSize()) * 0.5F)});
             ImGui::SetNextItemWidth(contentWidth);
             if (ImGui::InputText("##editable-path", &editablePath, ImGuiInputTextFlags_EnterReturnsTrue)) {
                 navigation = editablePath;
                 editing = false;
             }
-            if (ImGui::IsKeyPressed(ImGuiKey_Escape))
-                editing = false;
+            if (ImGui::IsKeyPressed(ImGuiKey_Escape)) editing = false;
             ImGui::PopStyleVar(2);
             ImGui::PopStyleColor(3);
         } else {
@@ -230,24 +230,25 @@ std::optional<std::string> DrawFilePathBar(const std::string_view id, const std:
             segmentWidths.reserve(segments.size());
             float requiredWidth{};
             for (std::size_t index{}; index < segments.size(); ++index) {
-                const float segmentWidth{std::clamp(ImGui::CalcTextSize(segments[index].label.c_str()).x + 16.0F, 30.0F, contentWidth)};
+                const float segmentWidth{
+                    std::clamp(ImGui::CalcTextSize(segments[index].label.c_str()).x + px::ui::Scale(16.0F), px::ui::Scale(30.0F), contentWidth)};
                 segmentWidths.push_back(segmentWidth);
                 requiredWidth += segmentWidth + (index == 0U ? 0.0F : separatorWidth);
             }
             std::size_t firstVisible{};
-            constexpr float ellipsisWidth{32.0F};
+            const float ellipsisWidth{px::ui::Scale(32.0F)};
             while (firstVisible + 1U < segments.size() && requiredWidth > contentWidth) {
                 requiredWidth -= segmentWidths[firstVisible] + separatorWidth;
                 ++firstVisible;
             }
             float cursorX{edgePadding};
             if (firstVisible > 0U) {
-                ImGui::SetCursorPos({cursorX, 2.0F});
-                if (ImGui::InvisibleButton("breadcrumb-overflow", {ellipsisWidth, height - 4.0F}))
+                ImGui::SetCursorPos({cursorX, px::ui::Scale(2.0F)});
+                if (ImGui::InvisibleButton("breadcrumb-overflow", {ellipsisWidth, height - px::ui::Scale(4.0F)}, ImGuiButtonFlags_EnableNav))
                     ImGui::OpenPopup("path-locations");
                 if (ImGui::IsItemHovered())
                     ImGui::GetWindowDrawList()->AddRectFilled(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), ImGui::GetColorU32(tokens.accent),
-                                                              4.0F);
+                                                              px::ui::Scale(4.0F));
                 const ImVec2 itemMinimum{ImGui::GetItemRectMin()};
                 const ImVec2 itemMaximum{ImGui::GetItemRectMax()};
                 const ImVec2 textSize{ImGui::CalcTextSize("...")};
@@ -259,25 +260,26 @@ std::optional<std::string> DrawFilePathBar(const std::string_view id, const std:
             for (std::size_t index{firstVisible}; index < segments.size(); ++index) {
                 if (cursorX > edgePadding) {
                     px::ui::DrawVectorIcon(px::ui::VectorIcon::ChevronRight,
-                                           {ImGui::GetWindowPos().x + cursorX + 1.0F, ImGui::GetWindowPos().y + 11.0F}, 12.0F,
-                                           ImGui::GetColorU32(tokens.mutedForeground));
+                                           {ImGui::GetWindowPos().x + cursorX + px::ui::Scale(1.0F), ImGui::GetWindowPos().y + px::ui::Scale(10.0F)},
+                                           px::ui::Scale(12.0F), ImGui::GetColorU32(tokens.mutedForeground));
                     cursorX += separatorWidth;
                 }
-                const float available{std::max(30.0F, contentWidth - cursorX + edgePadding)};
+                const float available{std::max(px::ui::Scale(30.0F), contentWidth - cursorX + edgePadding)};
                 const float segmentWidth{std::min(segmentWidths[index], available)};
-                ImGui::SetCursorPos({cursorX, 2.0F});
+                ImGui::SetCursorPos({cursorX, px::ui::Scale(2.0F)});
                 const std::string segmentId{"breadcrumb-" + std::to_string(index)};
-                const bool pressed{ImGui::InvisibleButton(segmentId.c_str(), {segmentWidth, height - 4.0F})};
+                const bool pressed{
+                    ImGui::InvisibleButton(segmentId.c_str(), {segmentWidth, height - px::ui::Scale(4.0F)}, ImGuiButtonFlags_EnableNav)};
                 if (ImGui::IsItemHovered())
                     ImGui::GetWindowDrawList()->AddRectFilled(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), ImGui::GetColorU32(tokens.accent),
-                                                              4.0F);
+                                                              px::ui::Scale(4.0F));
                 const ImVec2 itemMinimum{ImGui::GetItemRectMin()};
                 const ImVec2 itemMaximum{ImGui::GetItemRectMax()};
                 const ImVec2 textSize{ImGui::CalcTextSize(segments[index].label.c_str())};
                 ImGui::GetWindowDrawList()->PushClipRect(itemMinimum, itemMaximum, true);
-                ImGui::GetWindowDrawList()->AddText({itemMinimum.x + 8.0F, itemMinimum.y + (itemMaximum.y - itemMinimum.y - textSize.y) * 0.5F},
-                                                    ImGui::GetColorU32(index + 1U == segments.size() ? tokens.foreground : tokens.mutedForeground),
-                                                    segments[index].label.c_str());
+                ImGui::GetWindowDrawList()->AddText(
+                    {itemMinimum.x + px::ui::Scale(8.0F), itemMinimum.y + (itemMaximum.y - itemMinimum.y - textSize.y) * 0.5F},
+                    ImGui::GetColorU32(index + 1U == segments.size() ? tokens.foreground : tokens.mutedForeground), segments[index].label.c_str());
                 ImGui::GetWindowDrawList()->PopClipRect();
                 if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
                     editablePath = std::string{path};
@@ -290,15 +292,18 @@ std::optional<std::string> DrawFilePathBar(const std::string_view id, const std:
             }
         }
 
-        ImGui::SetCursorPos({width - dropdownWidth, 2.0F});
-        if (ImGui::InvisibleButton("location-dropdown", {dropdownWidth - 2.0F, height - 4.0F}))
+        ImGui::SetCursorPos({width - dropdownWidth, px::ui::Scale(2.0F)});
+        if (ImGui::InvisibleButton("location-dropdown", {dropdownWidth - px::ui::Scale(2.0F), height - px::ui::Scale(4.0F)},
+                                   ImGuiButtonFlags_EnableNav))
             ImGui::OpenPopup("path-locations");
         if (ImGui::IsItemHovered())
-            ImGui::GetWindowDrawList()->AddRectFilled(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), ImGui::GetColorU32(tokens.accent), 4.0F);
+            ImGui::GetWindowDrawList()->AddRectFilled(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), ImGui::GetColorU32(tokens.accent),
+                                                      px::ui::Scale(4.0F));
         const ImVec2 center{(ImGui::GetItemRectMin().x + ImGui::GetItemRectMax().x) * 0.5F,
-                            (ImGui::GetItemRectMin().y + ImGui::GetItemRectMax().y) * 0.5F + 1.0F};
-        ImGui::GetWindowDrawList()->AddTriangleFilled({center.x - 4.0F, center.y - 2.0F}, {center.x + 4.0F, center.y - 2.0F},
-                                                      {center.x, center.y + 3.0F}, ImGui::GetColorU32(tokens.mutedForeground));
+                            (ImGui::GetItemRectMin().y + ImGui::GetItemRectMax().y) * 0.5F + px::ui::Scale(1.0F)};
+        ImGui::GetWindowDrawList()->AddTriangleFilled({center.x - px::ui::Scale(4.0F), center.y - px::ui::Scale(2.0F)},
+                                                      {center.x + px::ui::Scale(4.0F), center.y - px::ui::Scale(2.0F)},
+                                                      {center.x, center.y + px::ui::Scale(3.0F)}, ImGui::GetColorU32(tokens.mutedForeground));
 
         const px::ui::PopupMenuScope popup{{"path-locations"}};
         if (popup.Open()) {
@@ -318,13 +323,15 @@ void DrawComputerIdentity(const px::desktop::PlatformIconAtlas& icons, const px:
                           const std::string_view subtitle, const std::string_view detail = {}) {
     const auto tokens = px::ui::CurrentThemeTokens();
     const ImVec2 topLeft{ImGui::GetCursorScreenPos()};
-    constexpr float tileSize{50.0F};
+    const float tileSize{px::ui::Scale(50.0F)};
     ImGui::Dummy({tileSize, tileSize});
-    ImGui::GetWindowDrawList()->AddRectFilled(topLeft, {topLeft.x + tileSize, topLeft.y + tileSize}, ImGui::GetColorU32(tokens.accent), 8.0F);
+    ImGui::GetWindowDrawList()->AddRectFilled(topLeft, {topLeft.x + tileSize, topLeft.y + tileSize}, ImGui::GetColorU32(tokens.accent),
+                                              px::ui::Scale(8.0F));
     if (platform == px::ui::DevicePlatform::Unknown)
-        px::ui::DrawVectorIcon(px::ui::VectorIcon::Monitor, {topLeft.x + 13.0F, topLeft.y + 13.0F}, 24.0F, ImGui::GetColorU32(tokens.primary));
+        px::ui::DrawVectorIcon(px::ui::VectorIcon::Monitor, {topLeft.x + px::ui::Scale(13.0F), topLeft.y + px::ui::Scale(13.0F)},
+                               px::ui::Scale(24.0F), ImGui::GetColorU32(tokens.primaryText));
     else
-        icons.Draw(platform, {topLeft.x + 9.0F, topLeft.y + 9.0F}, 32.0F, IM_COL32_WHITE);
+        icons.Draw(platform, {topLeft.x + px::ui::Scale(9.0F), topLeft.y + px::ui::Scale(9.0F)}, px::ui::Scale(32.0F), IM_COL32_WHITE);
     ImGui::SameLine();
     ImGui::BeginGroup();
     const float lineCount{detail.empty() ? 2.0F : 3.0F};
@@ -333,8 +340,7 @@ void DrawComputerIdentity(const px::desktop::PlatformIconAtlas& icons, const px:
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {ImGui::GetStyle().ItemSpacing.x, 0.0F});
     px::ui::StrongText(title);
     px::ui::MutedText(subtitle);
-    if (!detail.empty())
-        px::ui::MutedText(detail);
+    if (!detail.empty()) px::ui::MutedText(detail);
     ImGui::PopStyleVar();
     ImGui::EndGroup();
 }
@@ -424,6 +430,7 @@ void ClientFileTransferWindow::HandleInput(const px::desktop::DesktopInputEvent&
 }
 
 void ClientFileTransferWindow::Draw() {
+    shell_.get().SetLanguage(english_ ? px::ui::Language::English : px::ui::Language::SimplifiedChinese);
     if (!shown_) {
         shown_ = true;
         shell_.get().RequestShowAndRaise();
@@ -483,14 +490,14 @@ void ClientFileTransferWindow::Draw() {
                 px::ui::DialogHeader({"standalone-overwrite-close"}, text(ClientText::DestinationExists), overwrite->path,
                                      {.icon = px::ui::VectorIcon::TriangleAlert, .tone = px::ui::BadgeVariant::Warning, .closeable = false}));
             static_cast<void>(px::ui::CheckboxField({"standalone-overwrite-all"}, text(ClientText::ApplyToAll), applyOverwriteToAll_));
-            px::ui::DialogFooter(272.0F);
+            px::ui::DialogFooter(px::ui::Scale(272.0F));
             if (px::ui::ActionButton({"standalone-overwrite-skip"}, text(ClientText::Skip),
-                                     {.variant = px::ui::ButtonVariant::Outline, .width = 130.0F})) {
+                                     {.variant = px::ui::ButtonVariant::Outline, .width = px::ui::Scale(130.0F)})) {
                 static_cast<void>(session_->ConfirmOverwrite(false, applyOverwriteToAll_));
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
-            if (px::ui::ActionButton({"standalone-overwrite-confirm"}, text(ClientText::Overwrite), {.width = 130.0F})) {
+            if (px::ui::ActionButton({"standalone-overwrite-confirm"}, text(ClientText::Overwrite), {.width = px::ui::Scale(130.0F)})) {
                 static_cast<void>(session_->ConfirmOverwrite(true, applyOverwriteToAll_));
                 ImGui::CloseCurrentPopup();
             }
@@ -501,7 +508,7 @@ void ClientFileTransferWindow::Draw() {
 void ClientFileTransferWindow::DrawLocalPane() {
     const auto text = [english = english_](const ClientText id) { return ClientTextValue(id, english).data(); };
     const float height{ImGui::GetContentRegionAvail().y};
-    const float navigationHeight{px::ui::Scale(35.0F)};
+    const float navigationHeight{px::ui::Scale(32.0F)};
     px::ui::CardScope card{{"local-file-pane"}, {0.0F, height}};
     if (!card.Visible())
         return;
@@ -529,8 +536,7 @@ void ClientFileTransferWindow::DrawLocalPane() {
         static_cast<void>(localFiles_.Refresh());
     if (px::ui::IconAction({"local-home"}, px::ui::VectorIcon::Home, text(ClientText::Home),
                            {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon})) {
-        if (localFiles_.NavigateHome())
-            localSelection_.Clear();
+        if (localFiles_.NavigateHome()) localSelection_.Clear();
     }
     ImGui::SameLine();
     if (px::ui::IconAction({"local-new-folder"}, px::ui::VectorIcon::Plus, text(ClientText::NewFolder),
@@ -545,7 +551,7 @@ void ClientFileTransferWindow::DrawLocalPane() {
                            {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon}))
         ImGui::OpenPopup("local-file-more");
     const bool connected{session_->Snapshot().state == ClientConnectionState::Connected};
-    constexpr float transferButtonWidth{96.0F};
+    const float transferButtonWidth{px::ui::Scale(96.0F)};
     ImGui::SameLine(std::max(ImGui::GetCursorPosX(), ImGui::GetContentRegionMax().x - transferButtonWidth));
     if (px::ui::ActionButton({"send-selected"}, text(ClientText::Send),
                              {.icon = px::ui::VectorIcon::ChevronRight,
@@ -575,9 +581,10 @@ void ClientFileTransferWindow::DrawLocalPane() {
                                           (localComputerView ? ImGuiTableFlags_None : ImGuiTableFlags_Sortable)};
     if (ImGui::BeginTable("local-files", 3, localTableFlags, {0.0F, ImGui::GetContentRegionAvail().y})) {
         ImGui::TableSetupColumn(text(ClientText::Name), localComputerView ? ImGuiTableColumnFlags_None : ImGuiTableColumnFlags_DefaultSort);
-        ImGui::TableSetupColumn(text(ClientText::Modified), ImGuiTableColumnFlags_WidthFixed, 132.0F);
-        ImGui::TableSetupColumn(text(ClientText::Size), ImGuiTableColumnFlags_WidthFixed, 82.0F);
-        const float rowHeight{px::ui::Scale(35.0F)};
+        ImGui::TableSetupColumn(text(ClientText::Modified), ImGuiTableColumnFlags_WidthFixed, px::ui::Scale(132.0F));
+        ImGui::TableSetupColumn(text(ClientText::Size), ImGuiTableColumnFlags_WidthFixed, px::ui::Scale(82.0F));
+        ImGui::TableSetupScrollFreeze(0, 1);
+        const float rowHeight{px::ui::Scale(32.0F)};
         const float headerPaddingY{std::max(0.0F, (rowHeight - ImGui::GetTextLineHeight()) * 0.5F)};
         ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, {px::ui::Scale(10.0F), headerPaddingY});
         DrawFileTableHeaders(
@@ -585,14 +592,14 @@ void ClientFileTransferWindow::DrawLocalPane() {
             rowHeight);
         ImGui::PopStyleVar();
         if (!localComputerView) {
-            ImGuiTableSortSpecs* sortSpecs = ImGui::TableGetSortSpecs(); // NOLINT(pixels-raw-pointer-boundary): Dear ImGui borrowed ABI
-            if (sortSpecs && sortSpecs->SpecsCount > 0 && sortSpecs->SpecsDirty) {
-                const auto& specification = sortSpecs->Specs[0];
+            if (ImGui::TableGetSortSpecs() != nullptr && ImGui::TableGetSortSpecs()->SpecsCount > 0 && ImGui::TableGetSortSpecs()->SpecsDirty) {
+                auto& sortSpecifications{*ImGui::TableGetSortSpecs()};
+                const auto& specification = sortSpecifications.Specs[0];
                 localSort_.column = specification.ColumnIndex == 1   ? ClientFileSortColumn::Modified
                                     : specification.ColumnIndex == 2 ? ClientFileSortColumn::Size
                                                                      : ClientFileSortColumn::Name;
                 localSort_.ascending = specification.SortDirection != ImGuiSortDirection_Descending;
-                sortSpecs->SpecsDirty = false;
+                sortSpecifications.SpecsDirty = false;
             }
         }
         const auto visibleItems = VisibleLocalItems();
@@ -639,7 +646,7 @@ void ClientFileTransferWindow::DrawLocalPane() {
 void ClientFileTransferWindow::DrawRemotePane() {
     const auto text = [english = english_](const ClientText id) { return ClientTextValue(id, english).data(); };
     const float height{ImGui::GetContentRegionAvail().y};
-    const float navigationHeight{px::ui::Scale(35.0F)};
+    const float navigationHeight{px::ui::Scale(32.0F)};
     px::ui::CardScope card{{"remote-file-pane"}, {0.0F, height}};
     if (!card.Visible())
         return;
@@ -667,10 +674,9 @@ void ClientFileTransferWindow::DrawRemotePane() {
     if (px::ui::IconAction({"remote-refresh"}, px::ui::VectorIcon::Refresh, text(ClientText::Refresh),
                            {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::Icon, .height = navigationHeight}))
         NavigateRemote(remotePath_, false);
-    if (!remotePathEditing_)
-        remotePath_ = session_->RemotePath();
+    if (!remotePathEditing_) remotePath_ = session_->RemotePath();
     const bool connected{session_->Snapshot().state == ClientConnectionState::Connected};
-    constexpr float transferButtonWidth{96.0F};
+    const float transferButtonWidth{px::ui::Scale(96.0F)};
     if (px::ui::ActionButton(
             {"receive-selected"}, text(ClientText::Receive),
             {.icon = px::ui::VectorIcon::ChevronLeft, .width = transferButtonWidth, .disabled = remoteSelection_.Empty() || !connected})) {
@@ -721,9 +727,10 @@ void ClientFileTransferWindow::DrawRemotePane() {
                                            (remoteComputerView ? ImGuiTableFlags_None : ImGuiTableFlags_Sortable)};
     if (ImGui::BeginTable("remote-files-standalone", 3, remoteTableFlags, {0.0F, ImGui::GetContentRegionAvail().y})) {
         ImGui::TableSetupColumn(text(ClientText::Name), remoteComputerView ? ImGuiTableColumnFlags_None : ImGuiTableColumnFlags_DefaultSort);
-        ImGui::TableSetupColumn(text(ClientText::Modified), ImGuiTableColumnFlags_WidthFixed, 132.0F);
-        ImGui::TableSetupColumn(text(ClientText::Size), ImGuiTableColumnFlags_WidthFixed, 82.0F);
-        const float rowHeight{px::ui::Scale(35.0F)};
+        ImGui::TableSetupColumn(text(ClientText::Modified), ImGuiTableColumnFlags_WidthFixed, px::ui::Scale(132.0F));
+        ImGui::TableSetupColumn(text(ClientText::Size), ImGuiTableColumnFlags_WidthFixed, px::ui::Scale(82.0F));
+        ImGui::TableSetupScrollFreeze(0, 1);
+        const float rowHeight{px::ui::Scale(32.0F)};
         const float headerPaddingY{std::max(0.0F, (rowHeight - ImGui::GetTextLineHeight()) * 0.5F)};
         ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, {px::ui::Scale(10.0F), headerPaddingY});
         DrawFileTableHeaders(
@@ -731,14 +738,14 @@ void ClientFileTransferWindow::DrawRemotePane() {
             rowHeight);
         ImGui::PopStyleVar();
         if (!remoteComputerView) {
-            ImGuiTableSortSpecs* sortSpecs = ImGui::TableGetSortSpecs(); // NOLINT(pixels-raw-pointer-boundary): Dear ImGui borrowed ABI
-            if (sortSpecs && sortSpecs->SpecsCount > 0 && sortSpecs->SpecsDirty) {
-                const auto& specification = sortSpecs->Specs[0];
+            if (ImGui::TableGetSortSpecs() != nullptr && ImGui::TableGetSortSpecs()->SpecsCount > 0 && ImGui::TableGetSortSpecs()->SpecsDirty) {
+                auto& sortSpecifications{*ImGui::TableGetSortSpecs()};
+                const auto& specification = sortSpecifications.Specs[0];
                 remoteSort_.column = specification.ColumnIndex == 1   ? ClientFileSortColumn::Modified
                                      : specification.ColumnIndex == 2 ? ClientFileSortColumn::Size
                                                                       : ClientFileSortColumn::Name;
                 remoteSort_.ascending = specification.SortDirection != ImGuiSortDirection_Descending;
-                sortSpecs->SpecsDirty = false;
+                sortSpecifications.SpecsDirty = false;
             }
         }
         const auto visibleItems = VisibleRemoteItems();
@@ -803,12 +810,13 @@ void ClientFileTransferWindow::DrawTransferQueue() {
     ImGui::SetCursorPosY(titleTop + titleHeight + metrics.spacingSm);
 
     constexpr int columnCount{8};
-    const float rowHeight{px::ui::Scale(35.0F)};
+    const float rowHeight{px::ui::Scale(32.0F)};
     const ImVec2 tableMinimum{ImGui::GetCursorScreenPos()};
     const float tableWidth{ImGui::GetContentRegionAvail().x};
     const float tableHeight{ImGui::GetContentRegionAvail().y};
     if (!ImGui::BeginTable("transfer-queue-table", columnCount, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_ScrollY, {0.0F, tableHeight}))
         return;
+    ImGui::TableSetupScrollFreeze(0, 1);
     ImGui::TableSetupColumn(text(ClientText::Name), ImGuiTableColumnFlags_WidthStretch, 1.4F);
     ImGui::TableSetupColumn(text(ClientText::Type), ImGuiTableColumnFlags_WidthFixed, px::ui::Scale(76.0F));
     ImGui::TableSetupColumn(text(ClientText::Files), ImGuiTableColumnFlags_WidthFixed, px::ui::Scale(68.0F));
@@ -819,11 +827,11 @@ void ClientFileTransferWindow::DrawTransferQueue() {
     ImGui::TableSetupColumn(text(ClientText::Actions), ImGuiTableColumnFlags_WidthFixed, px::ui::Scale(176.0F));
     const float headerPaddingY{std::max(0.0F, (rowHeight - ImGui::GetTextLineHeight()) * 0.5F)};
     ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, {px::ui::Scale(10.0F), headerPaddingY});
-    DrawTransferTableHeaders({std::string_view{text(ClientText::Name)}, std::string_view{text(ClientText::Type)},
-                              std::string_view{text(ClientText::Files)}, std::string_view{text(ClientText::Progress)},
-                              std::string_view{text(ClientText::Size)}, std::string_view{text(ClientText::Speed)},
-                              std::string_view{text(ClientText::Status)}, std::string_view{text(ClientText::Actions)}},
-                             rowHeight);
+    DrawTransferTableHeaders(
+        {std::string_view{text(ClientText::Name)}, std::string_view{text(ClientText::Type)}, std::string_view{text(ClientText::Files)},
+         std::string_view{text(ClientText::Progress)}, std::string_view{text(ClientText::Size)}, std::string_view{text(ClientText::Speed)},
+         std::string_view{text(ClientText::Status)}, std::string_view{text(ClientText::Actions)}},
+        rowHeight);
     ImGui::PopStyleVar();
     ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, {ImGui::GetStyle().CellPadding.x, 0.0F});
     for (const auto& job : jobs) {
@@ -833,8 +841,7 @@ void ClientFileTransferWindow::DrawTransferQueue() {
         const std::string jobName{job.name.empty() ? std::format("#{}", job.id) : job.name};
         static_cast<void>(px::ui::SelectableRow({"transfer-job-row"}, jobName, false,
                                                 ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap, {0.0F, rowHeight}));
-        if (!job.error.empty() && ImGui::IsItemHovered())
-            ImGui::SetTooltip("%s", job.error.c_str());
+        if (!job.error.empty() && ImGui::IsItemHovered()) ImGui::SetTooltip("%s", job.error.c_str());
 
         ImGui::TableNextColumn();
         CenterTableCellText(rowHeight);

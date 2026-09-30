@@ -10,7 +10,7 @@ ImVec4 Rgba(const int red, const int green, const int blue, const float alpha = 
     return {static_cast<float>(red) / divisor, static_cast<float>(green) / divisor, static_cast<float>(blue) / divisor, alpha};
 }
 
-} // namespace
+}  // namespace
 
 ThemeTokens ThemeTokensFor(const Theme theme) noexcept {
     if (theme == Theme::Light) {
@@ -20,6 +20,7 @@ ThemeTokens ThemeTokensFor(const Theme theme) noexcept {
                            .popover = Rgba(255, 255, 255),
                            .primary = Rgba(0, 127, 73),
                            .primaryForeground = Rgba(255, 255, 255),
+                           .primaryText = Rgba(0, 107, 61),
                            .secondary = Rgba(244, 244, 245),
                            .secondaryForeground = Rgba(39, 39, 42),
                            .muted = Rgba(244, 244, 245),
@@ -28,31 +29,34 @@ ThemeTokens ThemeTokensFor(const Theme theme) noexcept {
                            .accentForeground = Rgba(0, 107, 61),
                            .destructive = Rgba(220, 38, 38),
                            .destructiveForeground = Rgba(255, 255, 255),
+                           .destructiveText = Rgba(190, 24, 38),
                            .border = Rgba(228, 228, 231),
                            .input = Rgba(212, 212, 216),
                            .ring = Rgba(0, 154, 89),
                            .success = Rgba(22, 163, 74),
                            .warning = Rgba(217, 119, 6)};
     }
-    return ThemeTokens{.background = Rgba(9, 9, 11),
-                       .foreground = Rgba(250, 250, 250),
-                       .card = Rgba(16, 16, 20),
-                       .popover = Rgba(24, 24, 27),
-                       .primary = Rgba(0, 154, 89),
+    return ThemeTokens{.background = Rgba(34, 49, 67),
+                       .foreground = Rgba(242, 247, 251),
+                       .card = Rgba(45, 64, 84),
+                       .popover = Rgba(53, 75, 96),
+                       .primary = Rgba(8, 127, 104),
                        .primaryForeground = Rgba(255, 255, 255),
-                       .secondary = Rgba(39, 39, 42),
-                       .secondaryForeground = Rgba(250, 250, 250),
-                       .muted = Rgba(24, 24, 27),
-                       .mutedForeground = Rgba(161, 161, 170),
-                       .accent = Rgba(5, 46, 34),
-                       .accentForeground = Rgba(140, 238, 192),
-                       .destructive = Rgba(239, 68, 68),
+                       .primaryText = Rgba(99, 215, 186),
+                       .secondary = Rgba(58, 79, 101),
+                       .secondaryForeground = Rgba(235, 244, 249),
+                       .muted = Rgba(70, 91, 113),
+                       .mutedForeground = Rgba(201, 214, 226),
+                       .accent = Rgba(29, 98, 89),
+                       .accentForeground = Rgba(216, 251, 241),
+                       .destructive = Rgba(190, 45, 63),
                        .destructiveForeground = Rgba(255, 255, 255),
-                       .border = Rgba(39, 39, 42),
-                       .input = Rgba(63, 63, 70),
-                       .ring = Rgba(140, 238, 192),
-                       .success = Rgba(34, 197, 94),
-                       .warning = Rgba(245, 158, 11)};
+                       .destructiveText = Rgba(255, 158, 153),
+                       .border = Rgba(88, 111, 135),
+                       .input = Rgba(105, 129, 151),
+                       .ring = Rgba(83, 212, 179),
+                       .success = Rgba(78, 208, 153),
+                       .warning = Rgba(246, 194, 103)};
 }
 
 ThemeTokens CurrentThemeTokens() noexcept {
@@ -65,12 +69,17 @@ UiMetrics MetricsFor(const float scale) noexcept {
     const float safeScale{std::max(0.5F, scale)};
     return UiMetrics{.scale = safeScale,
                      .controlXs = 24.0F * safeScale,
-                     .controlSm = 28.0F * safeScale,
-                     .controlDefault = 34.0F * safeScale,
-                     .controlLg = 38.0F * safeScale,
+                     .controlSm = 24.0F * safeScale,
+                     .controlDefault = 32.0F * safeScale,
+                     .controlLg = 40.0F * safeScale,
                      .controlRadius = 6.0F * safeScale,
-                     .cardRadius = 10.0F * safeScale,
-                     .popupRadius = 10.0F * safeScale,
+                     .cardRadius = 8.0F * safeScale,
+                     .popupRadius = 8.0F * safeScale,
+                     .fontSize = 14.0F * safeScale,
+                     .checkboxSize = 16.0F * safeScale,
+                     .switchWidth = 44.0F * safeScale,
+                     .switchHeight = 22.0F * safeScale,
+                     .tableRowHeight = 32.0F * safeScale,
                      .borderWidth = std::max(1.0F, safeScale),
                      .spacingXs = 4.0F * safeScale,
                      .spacingSm = 8.0F * safeScale,
@@ -82,4 +91,4 @@ UiMetrics MetricsFor(const float scale) noexcept {
                      .iconLg = 20.0F * safeScale};
 }
 
-} // namespace px::ui
+}  // namespace px::ui

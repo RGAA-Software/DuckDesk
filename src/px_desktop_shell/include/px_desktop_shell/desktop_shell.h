@@ -8,6 +8,7 @@
 #include <string>
 
 #include "px_ui/px_ui_theme.h"
+#include "px_ui/localization.h"
 
 namespace px {
 class RawImage;
@@ -73,6 +74,7 @@ public:
     [[nodiscard]] const PlatformIconAtlas& PlatformIcons() const noexcept;
     [[nodiscard]] const BrandLogo& Logo() const noexcept;
     bool SetTheme(px::ui::Theme theme);
+    void SetLanguage(px::ui::Language language);
     bool SetEnhancedVisualEffects(bool enabled);
     bool ToggleFullscreen();
     void RequestExit() noexcept;

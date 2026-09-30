@@ -1,15 +1,44 @@
 #include "px_ui/components/data_view.h"
 
-#include "px_ui/style_scope.h"
-#include "px_ui/theme_tokens.h"
-
 #include <imgui.h>
 
 #include <algorithm>
 #include <cmath>
 #include <string>
 
+#include "px_ui/components/overlay.h"
+#include "px_ui/style_scope.h"
+#include "px_ui/theme_tokens.h"
+
 namespace px::ui {
+
+std::string EllipsizedText(const std::string_view text, const float maximumWidth) {
+    if (ImGui::CalcTextSize(text.data(), text.data() + text.size()).x <= maximumWidth) return std::string{text};
+    constexpr std::string_view suffix{"..."};
+    if (ImGui::CalcTextSize(suffix.data(), suffix.data() + suffix.size()).x > maximumWidth) return {};
+    std::size_t fittingLength{};
+    for (std::size_t boundary{}; boundary < text.size();) {
+        ++boundary;
+        while (boundary < text.size() && (static_cast<unsigned char>(text[boundary]) & 0xC0U) == 0x80U) ++boundary;
+        const std::string candidate{std::string{text.substr(0, boundary)} + std::string{suffix}};
+        if (ImGui::CalcTextSize(candidate.c_str()).x > maximumWidth) break;
+        fittingLength = boundary;
+    }
+    return std::string{text.substr(0, fittingLength)} + std::string{suffix};
+}
+
+void ClippedText(const std::string_view text, const float width) {
+    const float resolvedWidth{std::max(1.0F, width > 0.0F ? width : ImGui::GetContentRegionAvail().x)};
+    const ImVec2 minimum{ImGui::GetCursorScreenPos()};
+    const ImVec2 maximum{minimum.x + resolvedWidth, minimum.y + ImGui::GetTextLineHeight()};
+    const std::string visible{EllipsizedText(text, resolvedWidth)};
+    ImGui::Dummy({resolvedWidth, maximum.y - minimum.y});
+    ImDrawList& draw{*ImGui::GetWindowDrawList()};
+    draw.PushClipRect(minimum, maximum, true);
+    draw.AddText(minimum, ImGui::GetColorU32(ImGuiCol_Text), visible.c_str());
+    draw.PopClipRect();
+    if (visible != text) Tooltip(text);
+}
 
 void KeyValueRow(const std::string_view label, const std::string_view value, const float labelWidth) {
     const ThemeTokens tokens{CurrentThemeTokens()};
@@ -28,13 +57,17 @@ void EmptyState(const VectorIcon icon, const std::string_view title, const std::
     const float iconSize{metrics.iconLg * 1.4F};
     DrawVectorIcon(icon, {start.x + (width - iconSize) * 0.5F, start.y}, iconSize, ImGui::GetColorU32(tokens.mutedForeground));
     ImGui::Dummy({width, iconSize + metrics.spacingSm});
-    const ImVec2 titleSize{ImGui::CalcTextSize(title.data(), title.data() + title.size())};
+    const ImVec2 titleSize{ImGui::CalcTextSize(title.data(), title.data() + title.size(), false, width)};
     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (width - titleSize.x) * 0.5F);
+    ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + titleSize.x);
     ImGui::TextUnformatted(title.data(), title.data() + title.size());
-    const ImVec2 descriptionSize{ImGui::CalcTextSize(description.data(), description.data() + description.size())};
+    ImGui::PopTextWrapPos();
+    const ImVec2 descriptionSize{ImGui::CalcTextSize(description.data(), description.data() + description.size(), false, width)};
     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (width - descriptionSize.x) * 0.5F);
+    ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + descriptionSize.x);
     ImGui::PushStyleColor(ImGuiCol_Text, tokens.mutedForeground);
     ImGui::TextUnformatted(description.data(), description.data() + description.size());
+    ImGui::PopTextWrapPos();
     ImGui::PopStyleColor();
 }
 
@@ -91,6 +124,7 @@ bool SelectableIconRow(const WidgetId id, const VectorIcon icon, const std::stri
     const ThemeTokens tokens{CurrentThemeTokens()};
     const UiMetrics metrics{MetricsFor(ImGui::GetStyle().FontScaleDpi)};
     const ScopedId scopedId{id.value};
+    const float availableWidth{ImGui::GetContentRegionAvail().x};
     ImGui::PushStyleColor(ImGuiCol_Header, tokens.accent);
     ImGui::PushStyleColor(ImGuiCol_HeaderHovered, tokens.muted);
     ImGui::PushStyleColor(ImGuiCol_HeaderActive, tokens.accent);
@@ -102,11 +136,14 @@ bool SelectableIconRow(const WidgetId id, const VectorIcon icon, const std::stri
     const float iconSize{metrics.iconDefault};
     DrawVectorIcon(icon, {minimum.x + metrics.spacingSm, minimum.y + (maximum.y - minimum.y - iconSize) * 0.5F}, iconSize,
                    ImGui::GetColorU32(icon == VectorIcon::Folder ? tokens.primary : tokens.mutedForeground));
-    const std::string visible{label};
+    const std::string visible{EllipsizedText(label, std::max(1.0F, availableWidth - metrics.spacingSm * 3.0F - iconSize))};
     const ImVec2 textSize{ImGui::CalcTextSize(visible.c_str())};
+    ImGui::GetWindowDrawList()->PushClipRect(minimum, {minimum.x + availableWidth, maximum.y}, true);
     ImGui::GetWindowDrawList()->AddText({minimum.x + metrics.spacingSm * 2.0F + iconSize, minimum.y + (maximum.y - minimum.y - textSize.y) * 0.5F},
                                         ImGui::GetColorU32(tokens.foreground), visible.c_str());
+    ImGui::GetWindowDrawList()->PopClipRect();
+    if (visible != label) Tooltip(label);
     return pressed;
 }
 
-} // namespace px::ui
+}  // namespace px::ui
