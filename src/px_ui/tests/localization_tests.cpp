@@ -27,6 +27,9 @@ int main() {
     if (localizer.Text(px::ui::TextId::CloudApplications) != "云端应用") {
         return 8;
     }
+    if (localizer.Text(px::ui::TextId::ForceTcp) != "使用 TCP 通道") {
+        return 16;
+    }
     if (localizer.Text(px::ui::TextId::ConnectionRemotePreflightUnavailable) !=
         "远程设备不支持连接前置探测，请更新远程设备上的 " + std::string{px::ui::ApplicationName()} + "。") {
         return 10;
@@ -43,6 +46,9 @@ int main() {
     }
     if (localizer.Text(px::ui::TextId::CloudApplications) != "Cloud Apps") {
         return 9;
+    }
+    if (localizer.Text(px::ui::TextId::ForceTcp) != "Use TCP channel") {
+        return 17;
     }
     if (localizer.Text(px::ui::TextId::ConnectionRemotePreflightUnavailable) !=
         "The remote device does not support connection preflight. Update " + std::string{px::ui::ApplicationName()} + " on the remote device.") {

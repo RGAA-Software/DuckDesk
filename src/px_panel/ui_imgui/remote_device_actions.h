@@ -16,6 +16,7 @@ class RemoteDeviceActions final {
 
     void Start(const RemoteDeviceCard& device, bool viewOnly);
     void Edit(const RemoteDeviceCard& device);
+    void SetTcpChannelEnabled(const RemoteDeviceCard& device, bool enabled);
     void FileTransfer(const RemoteDeviceCard& device);
     void Command(const RemoteDeviceCard& device, RemoteDeviceCommand command);
     void Remove(const RemoteDeviceCard& device);

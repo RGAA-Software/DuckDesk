@@ -37,6 +37,13 @@ void RemoteDeviceActions::Edit(const RemoteDeviceCard& device) {
     openEditor_ = true;
 }
 
+void RemoteDeviceActions::SetTcpChannelEnabled(const RemoteDeviceCard& device, const bool enabled) {
+    auto updatedDevice = device;
+    updatedDevice.forceTcp = enabled;
+    updatedDevice.forceRelay = false;
+    port_->SaveDevice(std::move(updatedDevice));
+}
+
 void RemoteDeviceActions::FileTransfer(const RemoteDeviceCard& device) {
     if (port_->RequiresDevicePassword(device)) {
         pendingStreamId_ = device.streamId;
@@ -66,8 +73,12 @@ void RemoteDeviceActions::DrawContextMenu(const RemoteDeviceCard& device, const 
     if (px::ui::MenuAction({"device-view"}, localizer.Text(px::ui::TextId::ViewOnly), {.icon = px::ui::VectorIcon::Eye}))
         Start(device, true);
     px::ui::MenuSeparator();
-    if (px::ui::MenuAction({"device-edit"}, localizer.Text(px::ui::TextId::EditDevice), {.icon = px::ui::VectorIcon::Pencil}))
-        Edit(device);
+    if (px::ui::MenuAction({"device-use-tcp"}, localizer.Text(px::ui::TextId::ForceTcp),
+                           {.icon = px::ui::VectorIcon::Connect, .selected = device.forceTcp})) {
+        SetTcpChannelEnabled(device, !device.forceTcp);
+    }
+    px::ui::MenuSeparator();
+    if (px::ui::MenuAction({"device-edit"}, localizer.Text(px::ui::TextId::EditDevice), {.icon = px::ui::VectorIcon::Pencil})) Edit(device);
     if (px::ui::MenuAction({"device-files"}, localizer.Text(px::ui::TextId::FileTransfer), {.icon = px::ui::VectorIcon::FileTransfer}))
         FileTransfer(device);
     px::ui::MenuSeparator();

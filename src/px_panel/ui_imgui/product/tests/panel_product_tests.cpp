@@ -448,6 +448,12 @@ TEST(PanelConfigStoreTest, PersistsAndClearsConnectionPreferences) {
     EXPECT_TRUE(loadedRemote->clipboard);
     EXPECT_TRUE(loadedRemote->viewOnly);
     EXPECT_TRUE(loadedRemote->forceTcp);
+    EXPECT_FALSE(loadedRemote->forceRelay);
+    const auto reopenedConfig = std::make_shared<PanelConfigStore>(preferences, directory.Path());
+    const auto reopenedPreference = reopenedConfig->LoadRemoteDevicePreference("device-1");
+    ASSERT_TRUE(reopenedPreference);
+    EXPECT_TRUE(reopenedPreference->forceTcp);
+    EXPECT_FALSE(reopenedPreference->forceRelay);
 
     ASSERT_TRUE(
         config->SaveRemoteDeviceHistory({.deviceId = "device-1",

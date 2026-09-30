@@ -173,6 +173,7 @@ add_custom_command(TARGET px_ui_component_gallery POST_BUILD
 if(BUILD_TESTING AND TARGET GTest::gtest)
     add_executable(px_panel_product_tests
         product/tests/panel_product_tests.cpp
+        product/tests/remote_device_actions_tests.cpp
         product/environment_diagnostics.cpp
         product/panel_audit_store.cpp
         product/connection_progress_tracker.cpp
@@ -192,6 +193,7 @@ if(BUILD_TESTING AND TARGET GTest::gtest)
     target_link_libraries(px_panel_product_tests PRIVATE
         px_common
         px_console_client
+        px_panel_imgui_views
         px_cp_message
         px_ui
         px_rp_message

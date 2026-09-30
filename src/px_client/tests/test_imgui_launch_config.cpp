@@ -24,6 +24,23 @@ TEST(ClientImguiLaunchConfigTest, ParsesDirectPasswordLaunch) {
     EXPECT_EQ(config->remotePasswordHash, "password-hash");
     EXPECT_FALSE(config->lightTheme);
     EXPECT_TRUE(config->enhancedVisualEffects);
+    EXPECT_FALSE(config->forceTcp);
+    EXPECT_FALSE(config->forceRelay);
+}
+
+TEST(ClientImguiLaunchConfigTest, ExplicitTcpUsesDirectEndpointWithoutRelayConfiguration) {
+    const auto config = ParseClientLaunchEnvelope(R"({
+        "schema":1,"host":"192.168.31.90","port":4601,"stream_id":"direct-tcp","device_id":"client-uuid",
+        "remote_device_id":"device-uuid","connection_nonce":"nonce","remote_password_hash":"password-hash",
+        "force_tcp":true,"force_relay":false
+    })");
+    ASSERT_TRUE(config);
+    EXPECT_TRUE(config->forceTcp);
+    EXPECT_FALSE(config->forceRelay);
+    EXPECT_TRUE(config->relayHost.empty());
+    EXPECT_EQ(config->relayPort, 0);
+    EXPECT_EQ(config->host, "192.168.31.90");
+    EXPECT_EQ(config->port, 4601);
 }
 
 TEST(ClientImguiLaunchConfigTest, ParsesAppearanceWithoutChangingConnectionRequirements) {
