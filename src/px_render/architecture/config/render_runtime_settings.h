@@ -7,6 +7,8 @@ namespace px {
 
 struct RenderRuntimeSettings final {
     std::string device_id;
+    std::string public_device_code;
+    std::string console_origin;
     std::string application_instance_id;
     std::string device_random_password;
     std::string device_safety_password;

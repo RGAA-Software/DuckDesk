@@ -4,6 +4,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "px_common/secret_buffer.h"
@@ -12,14 +13,16 @@
 namespace px::panel::product {
 
 enum class ConnectionInputKind : std::uint8_t {
-    DeviceId,
+    DeviceCode,
     SharedLink,
     DirectEndpoint,
 };
 
 struct ParsedConnectionInput final {
-    ConnectionInputKind kind{ConnectionInputKind::DeviceId};
+    ConnectionInputKind kind{ConnectionInputKind::DeviceCode};
     std::string deviceId{};
+    std::string publicDeviceCode{};
+    std::string consoleOrigin{};
     std::string displayName{};
     px::ui::DevicePlatform platform{px::ui::DevicePlatform::Unknown};
     std::vector<std::string> hosts{};
@@ -36,5 +39,7 @@ struct ParsedConnectionInput final {
 
 [[nodiscard]] std::optional<ParsedConnectionInput> ParseConnectionInput(std::string value, int defaultPort);
 [[nodiscard]] bool ConnectionInputNeedsPassword(const std::string& value);
+[[nodiscard]] bool ConnectionIdentityMatches(const ParsedConnectionInput& target, std::string_view actualDeviceId,
+                                             std::string_view actualPublicCode, std::string_view actualConsoleOrigin);
 
 }  // namespace px::panel::product

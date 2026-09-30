@@ -168,6 +168,8 @@ public:
                                std::function<void(const MsgVirtualDisplayServiceResult&)>&& callback);
     [[nodiscard]] PxAwaitable<PxResult<ConsoleFrontendGrant>> AdmitConsoleFrontend(ConsoleFrontendAdmissionRequest request,
                                                                                    std::chrono::steady_clock::time_point deadline);
+    [[nodiscard]] PxAwaitable<PxResult<std::uint32_t>> RequestDirectStream(std::string stream_id, bool release,
+                                                                          std::chrono::steady_clock::time_point deadline);
     void OpenConsoleResourceChannel(std::string connection_key, std::string logical_session_id, ConsoleResourceChannelKind channel_kind);
     void RecordConsoleResourceTraffic(const std::string& connection_key, std::uint64_t sent_bytes, std::uint64_t received_bytes);
     void CloseConsoleResourceChannel(const std::string& connection_key, ResourceChannelCloseOutcome outcome);

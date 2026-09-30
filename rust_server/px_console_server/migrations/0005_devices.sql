@@ -1,6 +1,6 @@
 CREATE TABLE pixels.devices (
     id UUID PRIMARY KEY,
-    public_code TEXT NOT NULL UNIQUE CHECK (public_code ~ '^[0-9]{12}$'),
+    public_code TEXT NOT NULL UNIQUE CHECK (public_code ~ '^[0-9]{9}$'),
     name TEXT NOT NULL CHECK (char_length(name)>=1 AND char_length(name)<=128 AND name=btrim(name)),
     platform TEXT NOT NULL CHECK (platform IN ('windows','linux','macos','android')),
     enrollment_hash BYTEA NOT NULL UNIQUE CHECK (octet_length(enrollment_hash)=32),

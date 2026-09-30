@@ -293,6 +293,7 @@ target_link_libraries(test_render_builtin_linkage PRIVATE
     cap_dda cap_gdi enc_ffmpeg enc_amf enc_nvenc net_ws net_udp net_relay
     GTest::gtest GTest::gtest_main)
 add_test(NAME render_builtin_linkage COMMAND test_render_builtin_linkage)
+set_tests_properties(render_builtin_linkage PROPERTIES TIMEOUT 15)
 
 set_tests_properties(
     render_architecture_core

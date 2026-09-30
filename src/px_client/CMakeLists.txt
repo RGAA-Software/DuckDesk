@@ -27,11 +27,17 @@ add_library(px_client_imgui_runtime STATIC
     ui_imgui/client_session_input.cpp
     ui_imgui/client_session_lifecycle.cpp
     ui_imgui/client_session_rdp.cpp
+    ui_imgui/client_session_statistics.cpp
+    ui_imgui/client_screenshot.cpp
+    ui_imgui/client_recording_feedback.cpp
+    ui_imgui/client_statistics_overlay.cpp
+    ui_imgui/client_statistics_format.cpp
     ui_imgui/client_startup_dialog.cpp
     ui_imgui/client_text.cpp
     ui_imgui/client_video_frame.cpp
     ui_imgui/client_window.cpp
     ui_imgui/client_toolbar.cpp
+    ui_imgui/client_ui_settings.cpp
     rdp/rdp_frame.cpp
     rdp/rdp_clipboard_channel.cpp
     rdp/rdp_clipboard_files.cpp
@@ -70,6 +76,26 @@ add_custom_command(TARGET px_client POST_BUILD
 pixels_stage_rdp_client(px_client)
 
 if(BUILD_TESTING AND TARGET GTest::gtest)
+    add_executable(test_client_recording_feedback tests/test_client_recording_feedback.cpp ui_imgui/client_recording_feedback.cpp ui_imgui/client_text.cpp)
+    target_include_directories(test_client_recording_feedback PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ui_imgui)
+    target_link_libraries(test_client_recording_feedback PRIVATE pixels::sdk px_ui px_common GTest::gtest GTest::gtest_main)
+    add_test(NAME client_recording_feedback COMMAND test_client_recording_feedback)
+
+    add_executable(test_client_screenshot tests/test_client_screenshot.cpp ui_imgui/client_screenshot.cpp ui_imgui/client_video_frame.cpp)
+    target_include_directories(test_client_screenshot PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ui_imgui)
+    target_link_libraries(test_client_screenshot PRIVATE pixels::sdk px_ui SDL3::SDL3-static GTest::gtest GTest::gtest_main)
+    add_test(NAME client_screenshot COMMAND test_client_screenshot)
+
+    add_executable(test_client_statistics tests/test_client_statistics.cpp ui_imgui/client_statistics_format.cpp ui_imgui/client_text.cpp)
+    target_include_directories(test_client_statistics PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ui_imgui)
+    target_link_libraries(test_client_statistics PRIVATE px_ui GTest::gtest GTest::gtest_main)
+    add_test(NAME client_statistics COMMAND test_client_statistics)
+
+    add_executable(test_client_controller_position tests/test_client_controller_position.cpp ui_imgui/client_ui_settings.cpp)
+    target_include_directories(test_client_controller_position PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ui_imgui)
+    target_link_libraries(test_client_controller_position PRIVATE px_common GTest::gtest GTest::gtest_main)
+    add_test(NAME client_controller_position COMMAND test_client_controller_position)
+
     add_executable(test_client_imgui_launch_config tests/test_imgui_launch_config.cpp ui_imgui/client_launch_config.cpp)
     target_include_directories(test_client_imgui_launch_config PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ui_imgui)
     target_link_libraries(test_client_imgui_launch_config PRIVATE px_common nlohmann_json::nlohmann_json GTest::gtest GTest::gtest_main)

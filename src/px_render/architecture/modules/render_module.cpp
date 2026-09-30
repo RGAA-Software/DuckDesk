@@ -87,6 +87,8 @@ bool RenderModule::Start(const RenderModuleConfiguration& configuration) {
     Logger::InitLog(log_path, true);
 
     settings_.device_id = configuration_.device_id;
+    settings_.public_device_code = configuration_.public_device_code;
+    settings_.console_origin = configuration_.console_origin;
     settings_.application_instance_id = configuration_.application_instance_id;
     settings_.direct_allow_takeover = configuration_.direct_allow_takeover;
     settings_.relay_enabled = configuration_.relay_enabled;
@@ -200,7 +202,14 @@ void RenderModule::OnClientDisconnected(const std::string&, const std::string&) 
 
 void RenderModule::HandleMessage(const std::shared_ptr<Message>&) {}
 
-void RenderModule::UpdateSettings(const RenderModuleSettings& settings) { settings_ = settings; }
+void RenderModule::UpdateSettings(const RenderModuleSettings& settings) {
+    settings_ = settings;
+    // Identity belongs to this Render process, not to a Panel settings refresh.
+    settings_.device_id = configuration_.device_id;
+    settings_.public_device_code = configuration_.public_device_code;
+    settings_.console_origin = configuration_.console_origin;
+    settings_.application_instance_id = configuration_.application_instance_id;
+}
 
 void RenderModule::HandleAppEvent(const std::shared_ptr<AppBaseEvent>& event) {
     if (!event || event->type_ != AppBaseEvent::EType::kConnectedClientCount) {

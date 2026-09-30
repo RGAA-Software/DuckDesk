@@ -82,18 +82,23 @@ public:
                 if (const auto self = weakSelf.lock()) self->SetFailure(ui::NetworkOperation::Failed, "Console is not ready");
                 return;
             }
+            const auto currentConsole = runtime->Config()->Console();
+            const bool consoleChanged = !currentConsole || currentConsole->baseUrl != consoleAddress;
             if (!runtime->Config()->SaveNetwork(consoleAddress, endpoint)) {
                 if (const auto self = weakSelf.lock()) self->SetFailure(ui::NetworkOperation::Failed, "Unable to save network settings");
                 return;
             }
             runtime->Console()->ForgetAccountIfConsoleChanged(consoleAddress);
+            if (consoleChanged) {
+                if (const auto service = runtime->Service()) static_cast<void>(service->StopRender());
+            }
             const auto self = weakSelf.lock();
             if (!self) return;
             {
                 const std::scoped_lock lock{self->mutex_};
                 self->state_.settings.consoleAddress = std::move(consoleAddress);
                 self->ApplyEndpointLocked(endpoint);
-                self->state_.operation = ui::NetworkOperation::SavedNeedsRestart;
+                self->state_.operation = ui::NetworkOperation::Saved;
                 self->state_.detail.clear();
             }
             runtime->Notify(false, std::string{px::ui::ApplicationName()}, "Network settings saved");
@@ -103,15 +108,20 @@ public:
     void UseOfficial() override {
         const auto officialAddress = runtime_->Config()->OfficialConsoleAddress();
         const auto officialEndpoint = ParseConsoleHttpsOrigin(officialAddress);
+        const auto currentConsole = runtime_->Config()->Console();
+        const bool consoleChanged = !currentConsole || currentConsole->baseUrl != officialAddress;
         if (!officialEndpoint || !runtime_->Config()->SaveOfficialNetwork()) {
             SetFailure(ui::NetworkOperation::Failed, "Unable to select official Console");
             return;
         }
         runtime_->Console()->ForgetAccountIfConsoleChanged(officialAddress);
+        if (consoleChanged) {
+            if (const auto service = runtime_->Service()) static_cast<void>(service->StopRender());
+        }
         const std::scoped_lock lock{mutex_};
         state_.settings.consoleAddress = officialAddress;
         ApplyEndpointLocked(officialEndpoint);
-        state_.operation = ui::NetworkOperation::SavedNeedsRestart;
+        state_.operation = ui::NetworkOperation::Saved;
         state_.detail.clear();
     }
 

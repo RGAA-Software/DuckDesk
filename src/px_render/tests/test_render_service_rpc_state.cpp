@@ -5,6 +5,7 @@
 #include <memory>
 
 #include "network/render_service_rpc_state.h"
+#include "network/direct_stream_id.h"
 #include "px_common/async_runtime.h"
 #include "px_common/uuid.h"
 
@@ -24,6 +25,15 @@ TEST(RenderServiceRpcState, CanonicalUuidMatchesServiceProtocolIdentity) {
         const auto value = identifier[index];
         EXPECT_TRUE((value >= '0' && value <= '9') || (value >= 'a' && value <= 'f')) << "index=" << index;
     }
+}
+
+TEST(RenderServiceRpcState, DirectQuotaIdentityIsStablePerNodeAndLogicalSession) {
+    const auto first_id = DirectStreamQuotaId("node-1", "password:stream-1");
+    EXPECT_EQ(first_id.size(), 36U);
+    EXPECT_EQ(first_id, DirectStreamQuotaId("node-1", "password:stream-1"));
+    EXPECT_NE(first_id, DirectStreamQuotaId("node-2", "password:stream-1"));
+    EXPECT_NE(first_id, DirectStreamQuotaId("node-1", "password:stream-2"));
+    EXPECT_TRUE(DirectStreamQuotaId("", "password:stream-1").empty());
 }
 
 template <typename T>

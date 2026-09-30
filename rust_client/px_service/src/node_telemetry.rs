@@ -5,7 +5,39 @@ use chrono::Utc;
 use px_node_protocol::{NodeGpuTelemetry, NodeTelemetry, TelemetryProbeState};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use wmi::{COMLibrary, WMIConnection};
+
+const PROBE_TIMEOUT: Duration = Duration::from_secs(5);
+
+#[derive(Clone, Default)]
+pub(crate) struct NodeTelemetrySampler {
+    active_probe: Arc<Mutex<()>>,
+}
+
+impl NodeTelemetrySampler {
+    pub(crate) async fn sample(&self) -> NodeTelemetry {
+        let active_probe = Arc::clone(&self.active_probe);
+        let probe = tokio::task::spawn_blocking(move || {
+            let Ok(_probe_guard) = active_probe.try_lock() else {
+                return unavailable();
+            };
+            sample()
+        });
+        match tokio::time::timeout(PROBE_TIMEOUT, probe).await {
+            Ok(Ok(telemetry)) => telemetry,
+            Ok(Err(error)) => {
+                tracing::warn!(%error, "node telemetry worker failed");
+                unavailable()
+            }
+            Err(_) => {
+                tracing::warn!("node telemetry probe exceeded its deadline");
+                unavailable()
+            }
+        }
+    }
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]

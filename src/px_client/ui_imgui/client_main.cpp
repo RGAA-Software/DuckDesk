@@ -17,7 +17,9 @@
 #include "client_session.h"
 #include "client_startup_dialog.h"
 #include "client_text.h"
+#include "client_ui_settings.h"
 #include "client_window.h"
+#include "px_common/folder_util.h"
 #include "px_common/log.h"
 #include "px_desktop_shell/desktop_shell.h"
 #include "px_ui/product_brand.h"
@@ -106,6 +108,7 @@ int main() {
          .initiallyVisible = false,
          .continuousTextInput = true,
          .continuousRendering = true,
+         .edgeToEdgeContent = !config->fileTransferOnly,
          .preferVulkanVideo = !config->fileTransferOnly && !config->rdp && !config->disableVulkan && config->decoder != "Software"});
     if (!shellResult) {
         static_cast<void>(px::client::imgui::ShowStartupDialog(
@@ -152,7 +155,16 @@ int main() {
             },
             [&window](const px::desktop::DesktopInputEvent& event) { window.HandleInput(event); });
     } else {
-        px::client::imgui::ClientWindow window{std::ref(shell), session, english, darkTheme, config->enhancedVisualEffects};
+        const auto settingsDirectory = px::FolderUtil::GetProgramDataPath(std::string{px::ui::StorageDirectoryName()});
+        const auto databaseDirectory = settingsDirectory.empty() ? std::filesystem::path{} : std::filesystem::path{settingsDirectory} / "px_data";
+        const auto databaseName =
+            px::client::imgui::ClientUiSettings::DatabaseName(PROJECT_PRODUCT, config->consoleOrigin, config->remoteDeviceId, config->rdpAccount);
+        px::client::imgui::ClientWindow window{std::ref(shell),
+                                               session,
+                                               english,
+                                               darkTheme,
+                                               config->enhancedVisualEffects,
+                                               px::client::imgui::ClientUiSettings::Open(databaseDirectory, databaseName)};
         result = shell.Run(
             [&window, &audioAcceptance, &fileTransferAcceptance] {
                 window.Draw();

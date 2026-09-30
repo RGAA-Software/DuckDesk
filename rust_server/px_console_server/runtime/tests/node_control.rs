@@ -458,6 +458,37 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
     .await;
     assert_eq!(reconciled, json!({"type":"reconciled","request_id":6}));
 
+    let public_code = device["device"]["public_code"].as_str().unwrap();
+    let (lookup_status, endpoint) = call(
+        &router,
+        "GET",
+        &format!("/api/console/public/devices/{public_code}"),
+        "panel",
+        None,
+        Value::Null,
+    )
+    .await;
+    assert_eq!(lookup_status.as_u16(), 200, "{endpoint}");
+    assert_eq!(endpoint["device_id"], device["device"]["id"]);
+    assert_eq!(endpoint["public_code"], public_code);
+    assert_eq!(endpoint["name"], "node-control-device");
+    assert_eq!(endpoint["host"], "node.example.test");
+    assert_eq!(endpoint["port"], 4601);
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            "/api/console/public/devices/invalid",
+            "panel",
+            None,
+            Value::Null,
+        )
+        .await
+        .0
+        .as_u16(),
+        400
+    );
+
     let username = register(&router).await;
     let user = login(&router, &username, PASSWORD, "android").await;
     let (status, instance) = resource_call(

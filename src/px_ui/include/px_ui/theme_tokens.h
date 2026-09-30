@@ -27,6 +27,9 @@ struct ThemeTokens final {
     ImVec4 ring{};
     ImVec4 success{};
     ImVec4 warning{};
+    ImVec4 videoOverlayForeground{};
+    ImVec4 videoOverlayOutline{};
+    ImVec4 videoRecordingForeground{};
 };
 
 struct UiMetrics final {

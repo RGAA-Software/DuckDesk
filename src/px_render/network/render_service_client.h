@@ -53,6 +53,8 @@ public:
     PxAwaitable<PxResult<MsgFrontendAdmissionServiceResult>> RequestFrontendAdmissionAsync(std::string request_id, std::string session_id,
                                                                                            std::int64_t revision, std::string frontend_token,
                                                                                            std::chrono::steady_clock::time_point deadline);
+    PxAwaitable<PxResult<MsgDirectStreamServiceResult>> RequestDirectStreamAsync(std::string request_id, std::string stream_id, bool release,
+                                                                                 std::chrono::steady_clock::time_point deadline);
     PxAwaitable<PxResult<MsgResourceChannelServiceResult>> RequestResourceChannelOpenAsync(std::string request_id, std::string source_id,
                                                                                            std::string session_id, int channel_kind,
                                                                                            std::chrono::steady_clock::time_point deadline);

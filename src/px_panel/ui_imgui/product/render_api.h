@@ -16,6 +16,8 @@ namespace px {
 class RenderConfiguration {
   public:
     std::string device_id_{};
+    std::string public_device_code_{};
+    std::string console_origin_{};
     std::string relay_host_{};
     int relay_port_{0};
     bool access_policy_known_{};

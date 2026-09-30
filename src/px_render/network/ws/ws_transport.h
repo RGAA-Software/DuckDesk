@@ -105,6 +105,8 @@ public:
         std::function<PxAwaitable<PxResult<ConsoleFrontendGrant>>(
             ConsoleFrontendAdmissionRequest,
             std::chrono::steady_clock::time_point)>;
+    using DirectStreamAuthorizer =
+        std::function<PxAwaitable<PxResult<std::uint32_t>>(std::string, bool, std::chrono::steady_clock::time_point)>;
     using LogicalLeaseRenewer = std::function<bool(const LogicalSessionGrant&, std::int64_t)>;
 
     void ConfigureNetworkServices(NetworkBroadcaster network_broadcaster, FileTransferBroadcaster file_transfer_broadcaster,
@@ -129,10 +131,13 @@ public:
     void ConfigureIpcMediaIngress(IpcVideoFrameSink video_sink,
                                   IpcAudioFrameSink audio_sink);
     void ConfigureFrontendAuthorizer(FrontendAuthorizer authorizer);
+    void ConfigureDirectStreamAuthorizer(DirectStreamAuthorizer authorizer);
     void ConfigureLogicalLeaseRenewer(LogicalLeaseRenewer renewer);
     [[nodiscard]] PxAwaitable<PxResult<ConsoleFrontendGrant>> AdmitFrontend(
         ConsoleFrontendAdmissionRequest request,
         std::chrono::steady_clock::time_point deadline) const;
+    [[nodiscard]] PxAwaitable<PxResult<std::uint32_t>> RequestDirectStream(
+        std::string stream_id, bool release, std::chrono::steady_clock::time_point deadline) const;
     [[nodiscard]] bool RequiresConsoleFrontendAdmission() const noexcept;
     [[nodiscard]] bool RenewLogicalSessionLease(const LogicalSessionGrant& grant, std::int64_t now_ms) const;
     void SubmitIpcVideoFrame(const CaptureVideoFrame& frame) const;
@@ -166,6 +171,7 @@ private:
     IpcVideoFrameSink ipc_video_frame_sink_;
     IpcAudioFrameSink ipc_audio_frame_sink_;
     FrontendAuthorizer frontend_authorizer_;
+    DirectStreamAuthorizer direct_stream_authorizer_{};
     LogicalLeaseRenewer logical_lease_renewer_;
     // exe 侧通过插件参数下发("app_mode");DLL 内的 RdSettings
     // 单例是独立副本不可用

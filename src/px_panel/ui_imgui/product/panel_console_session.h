@@ -31,6 +31,7 @@ public:
     void SetAccountOperation(ui::AccountOperationState operation);
 
     [[nodiscard]] std::vector<std::shared_ptr<px_console::ConsoleUserDevice>> QueryDevices();
+    [[nodiscard]] std::optional<px_console::ConsolePublicDeviceEndpoint> ResolvePublicDeviceCode(const std::string& publicDeviceCode);
     [[nodiscard]] std::optional<px_console::ConsoleNativeDeviceConnection> QueryNativeDeviceConnection(const std::string& deviceId,
                                                                                                        bool viewOnly = false);
     [[nodiscard]] std::vector<px_console::ConsoleUserApplication> QueryApplications();

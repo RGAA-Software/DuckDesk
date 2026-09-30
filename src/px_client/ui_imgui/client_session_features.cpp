@@ -303,11 +303,12 @@ bool ClientSession::StartRecording() {
     std::shared_ptr<px::RecordingSession> recording{};
     {
         const std::scoped_lock lock{mutex_};
-        std::erase_if(finishingRecordings_, [](const auto& item) { return item->WaitFor(std::chrono::milliseconds::zero()); });
-        if (recording_ || finishingRecordings_.size() >= 4U || !sdk_) return false;
+        std::erase_if(finishingRecordings_,
+                      [](const auto& recordingSession) { return recordingSession->WaitFor(std::chrono::milliseconds::zero()); });
+        if (recording_ || finishingRecordings_.size() >= 4U || !sdk_ || config_.rdp || stopped_.load()) return false;
         const std::filesystem::path directory =
             config_.recordingPath.empty() ? std::filesystem::current_path() / "recordings" : std::filesystem::u8path(config_.recordingPath);
-        const std::string id{"recording-" + std::to_string(px::TimeUtil::GetCurrentTimestamp())};
+        const std::string recordingId{"recording-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())};
         const std::weak_ptr<ClientSession> weakSelf{shared_from_this()};
         recording = px::RecordingSession::Create({.writer = {.dir = directory.string(),
                                                              .monitor_name = monitorName_,
@@ -317,16 +318,22 @@ bool ClientSession::StartRecording() {
                                                                  [weakSdk = std::weak_ptr<px::ThunderSdk>(sdk_)] {
                                                                      if (const auto sdk = weakSdk.lock()) sdk->RequestVideoKeyFrame();
                                                                  }}},
-                                                 {.finished = [weakSelf, id](const px::RecordingSessionResult& result) {
+                                                 {.finished = [weakSelf, recordingId, directory](const px::RecordingSessionResult& result) {
+                                                     LOGI("Recording finished: run={}, error={}, video_packets={}, completed_files={}",
+                                                          recordingId, result.error, result.video_packets, result.completed_files.size());
                                                      if (const auto self = weakSelf.lock()) {
                                                          const std::scoped_lock stateLock{self->mutex_};
-                                                         if (self->recordingId_ == id) self->recordingId_.clear();
-                                                         if (!result.error.empty()) self->status_ = "Recording failed: " + result.error;
+                                                         if (self->recordingId_ == recordingId) {
+                                                             self->recordingId_.clear();
+                                                             if (self->recording_) self->finishingRecordings_.push_back(std::move(self->recording_));
+                                                         }
+                                                         self->recordingResults_.push_back(MakeRecordingResult(result, directory));
                                                      }
                                                  }});
         if (!recording || !recording->Start()) return false;
         recording_ = recording;
-        recordingId_ = id;
+        recordingId_ = recordingId;
+        LOGI("Recording started: run={}", recordingId);
     }
     sdk_->RequestVideoKeyFrame();
     return true;
@@ -343,6 +350,11 @@ bool ClientSession::StopRecording() {
     }
     recording->Stop();
     return true;
+}
+
+std::vector<ClientRecordingResult> ClientSession::TakeRecordingResults() {
+    const std::scoped_lock lock{mutex_};
+    return std::exchange(recordingResults_, {});
 }
 
 bool ClientSession::StartVoiceCall() {

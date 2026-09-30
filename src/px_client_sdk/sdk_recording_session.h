@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <filesystem>
 #include <future>
 #include <memory>
 #include <mutex>
@@ -29,6 +30,7 @@ struct RecordingSessionResult final {
     std::uint64_t video_packets{};
     std::uint64_t audio_packets{};
     std::uint64_t audio_gap_packets{};
+    std::vector<std::filesystem::path> completed_files{};
 };
 
 struct RecordingSessionCallbacks final {

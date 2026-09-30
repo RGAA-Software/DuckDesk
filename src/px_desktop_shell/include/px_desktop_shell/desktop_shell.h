@@ -7,8 +7,8 @@
 #include <span>
 #include <string>
 
-#include "px_ui/px_ui_theme.h"
 #include "px_ui/localization.h"
+#include "px_ui/px_ui_theme.h"
 
 namespace px {
 class RawImage;
@@ -44,6 +44,7 @@ struct WindowConfig {
     bool minimizeToTray{false};
     bool continuousTextInput{false};
     bool continuousRendering{false};
+    bool edgeToEdgeContent{false};
     bool preferVulkanVideo{false};
     bool showMinimizeButton{true};
     bool showMaximizeButton{true};
@@ -77,6 +78,7 @@ public:
     void SetLanguage(px::ui::Language language);
     bool SetEnhancedVisualEffects(bool enabled);
     bool ToggleFullscreen();
+    [[nodiscard]] bool IsFullscreen() const noexcept;
     void RequestExit() noexcept;
     void CancelCloseRequest() noexcept;
     void RequestShowAndRaise() noexcept;

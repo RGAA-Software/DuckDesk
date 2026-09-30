@@ -155,7 +155,7 @@ async fn directory_identity_is_separate_from_enrollment_and_no_secrets_are_retur
         .create(&fixture.admin, "办公室 一号", DevicePlatform::Windows, &key)
         .await
         .unwrap();
-    assert_eq!(device.public_code.len(), 12);
+    assert_eq!(device.public_code.len(), 9);
     assert!(device.public_code.bytes().all(|byte| byte.is_ascii_digit()));
     assert_ne!(device.id.to_string(), device.public_code);
     assert_eq!(

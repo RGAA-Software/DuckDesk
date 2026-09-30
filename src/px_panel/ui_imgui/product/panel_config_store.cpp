@@ -1,12 +1,15 @@
 #include "panel_config_store.h"
 
 #include <algorithm>
+#include <array>
+#include <asio/ip/address_v6.hpp>
 #include <cctype>
 #include <charconv>
 #include <fstream>
 #include <functional>
 #include <map>
 #include <nlohmann/json.hpp>
+#include <openssl/rand.h>
 #include <string_view>
 #include <system_error>
 #include <utility>
@@ -18,6 +21,13 @@
 
 namespace px::panel::product {
 namespace {
+
+constexpr std::string_view kTemporaryPasswordAlphabet{"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"};
+
+bool IsValidPublicDeviceCode(const std::string_view publicDeviceCode) {
+    return publicDeviceCode.size() == 9 &&
+           std::ranges::all_of(publicDeviceCode, [](const char digit) { return digit >= '0' && digit <= '9'; });
+}
 
 std::string Read(const std::shared_ptr<SharedPreference>& preferences, const std::string& key, const std::string& fallback = {}) {
     return preferences->Get(key, fallback);
@@ -104,6 +114,32 @@ bool ValidIpv6Literal(const std::string_view host) {
     return leftGroups && rightGroups && *leftGroups + *rightGroups < 8;
 }
 
+bool IsValidNodeAccessHost(const std::string_view host) {
+    return host != "0.0.0.0" && host != "[::]" &&
+           (ValidIpv4Literal(host) || ValidDnsHost(host) ||
+            (host.size() > 2 && host.front() == '[' && host.back() == ']' && ValidIpv6Literal(host.substr(1, host.size() - 2))));
+}
+
+std::optional<nlohmann::json> ReadCachedNodeIdentity(const std::shared_ptr<SharedPreference>& preferences,
+                                                     const std::string& consoleAddress, const std::string& deviceId) {
+    if (deviceId.empty()) return std::nullopt;
+    try {
+        const auto savedIdentity = Read(preferences, "local_public_device_code");
+        if (savedIdentity.empty()) return std::nullopt;
+        auto identity = nlohmann::json::parse(savedIdentity);
+        const auto savedConsole = ParseConsoleHttpsOrigin(identity.value("console_origin", std::string{}));
+        const auto selectedConsole = ParseConsoleHttpsOrigin(consoleAddress);
+        if (!savedConsole || !selectedConsole || savedConsole->baseUrl != selectedConsole->baseUrl ||
+            identity.value("device_id", std::string{}) != deviceId ||
+            !IsValidPublicDeviceCode(identity.value("public_code", std::string{}))) {
+            return std::nullopt;
+        }
+        return std::make_optional(std::move(identity));
+    } catch (...) {
+        return std::nullopt;
+    }
+}
+
 std::optional<int> ParsePort(const std::string_view text) {
     int port{};
     const auto result = std::from_chars(text.data(), text.data() + text.size(), port);
@@ -112,7 +148,11 @@ std::optional<int> ParsePort(const std::string_view text) {
 
 std::optional<ConsoleEndpoint> ParseHttpsConsoleAddress(std::string value) {
     constexpr std::string_view prefix{"https://"};
-    if (!value.starts_with(prefix)) return std::nullopt;
+    if (value.size() < prefix.size() || !std::equal(prefix.begin(), prefix.end(), value.begin(), [](const char expected, const char actual) {
+            return expected == static_cast<char>(std::tolower(static_cast<unsigned char>(actual)));
+        })) {
+        return std::nullopt;
+    }
     value.erase(0, prefix.size());
     if (value.ends_with('/')) value.pop_back();
     if (value.empty() || value.find_first_of("/?#@ \\\t\r\n") != std::string::npos) return std::nullopt;
@@ -147,6 +187,13 @@ std::optional<ConsoleEndpoint> ParseHttpsConsoleAddress(std::string value) {
         !ipv6 && std::ranges::all_of(host, [](const unsigned char character) { return std::isdigit(character) != 0 || character == '.'; });
     if (!(ipv6 ? ValidIpv6Literal(host) : (decimalAddress ? ValidIpv4Literal(host) : ValidDnsHost(host))) || host == "0.0.0.0" || host == "::") {
         return std::nullopt;
+    }
+    if (ipv6) {
+        try {
+            host = asio::ip::make_address_v6(host).to_string();
+        } catch (...) {
+            return std::nullopt;
+        }
     }
     std::ranges::transform(host, host.begin(), [](const unsigned char character) { return static_cast<char>(std::tolower(character)); });
     std::string normalized{prefix};
@@ -186,6 +233,27 @@ std::map<std::string, int> ReadNodePortOverrides(const std::filesystem::path& pa
 }
 
 }  // namespace
+
+bool IsValidTemporaryPassword(const std::string_view password) {
+    return password.size() == 8 && std::ranges::all_of(password, [](const char character) {
+        return kTemporaryPasswordAlphabet.contains(character);
+    });
+}
+
+std::optional<std::string> GenerateTemporaryPassword() {
+    std::string password{};
+    password.reserve(8);
+    while (password.size() < 8) {
+        std::array<unsigned char, 16> randomBytes{};
+        if (RAND_priv_bytes(randomBytes.data(), static_cast<int>(randomBytes.size())) != 1) return std::nullopt;
+        for (const unsigned char randomByte : randomBytes) {
+            if (randomByte >= 252) continue;
+            password.push_back(kTemporaryPasswordAlphabet[randomByte % kTemporaryPasswordAlphabet.size()]);
+            if (password.size() == 8) break;
+        }
+    }
+    return password;
+}
 
 std::optional<ConsoleEndpoint> ParseConsoleHttpsOrigin(std::string value) { return ParseHttpsConsoleAddress(std::move(value)); }
 
@@ -235,6 +303,18 @@ PanelIdentity PanelConfigStore::Identity() const {
             .deviceName = Read(preferences_, "device_name"),
             .randomPassword = Read(preferences_, "device_random_pwd"),
             .securityPasswordHash = Read(preferences_, "device_safety_pwd")};
+}
+
+std::string PanelConfigStore::CachedPublicDeviceCode(const std::string& deviceId) const {
+    const auto identity = ReadCachedNodeIdentity(preferences_, ConsoleAddress(), deviceId);
+    return identity ? identity->value("public_code", std::string{}) : std::string{};
+}
+
+std::string PanelConfigStore::CachedNodeAccessHost(const std::string& deviceId) const {
+    const auto identity = ReadCachedNodeIdentity(preferences_, ConsoleAddress(), deviceId);
+    if (!identity) return {};
+    const auto nodeAccessHost = identity->value("access_host", std::string{});
+    return IsValidNodeAccessHost(nodeAccessHost) ? nodeAccessHost : std::string{};
 }
 
 NodePorts PanelConfigStore::Ports() const {
@@ -288,12 +368,12 @@ bool PanelConfigStore::IncomingRemoteAccessEnabled() const { return ReadBool(pre
 bool PanelConfigStore::DeviceNameIsCustom() const { return ReadBool(preferences_, "device_name_custom", false); }
 
 bool PanelConfigStore::RemoteDeviceHidden(const std::string& deviceId) const {
-    return !deviceId.empty() && ReadBool(preferences_, "panel_remote_device_hidden:" + deviceId, false);
+    return !deviceId.empty() && ReadBool(preferences_, "panel_remote_device_hidden:" + ConsoleAddress() + ":" + deviceId, false);
 }
 
 std::optional<RemoteDevicePreference> PanelConfigStore::LoadRemoteDevicePreference(const std::string& deviceId) const {
     try {
-        const std::string value{Read(preferences_, "panel_remote_device:" + deviceId)};
+        const std::string value{Read(preferences_, "panel_remote_device:" + ConsoleAddress() + ":" + deviceId)};
         if (value.empty()) return std::nullopt;
         const auto root = nlohmann::json::parse(value);
         return RemoteDevicePreference{.name = root.value("name", std::string{}),
@@ -314,16 +394,23 @@ std::optional<RemoteDevicePreference> PanelConfigStore::LoadRemoteDevicePreferen
 
 std::vector<RemoteDeviceHistory> PanelConfigStore::LoadRemoteDeviceHistory() const {
     std::vector<RemoteDeviceHistory> result{};
-    preferences_->Visit([&result](const std::string& key, const std::string& value) {
-        if (!key.starts_with("panel_remote_device_history:")) return;
+    const std::string selectedOrigin{ConsoleAddress()};
+    const std::string historyPrefix{"panel_remote_device_history:" + selectedOrigin + ":"};
+    preferences_->Visit([&result, &historyPrefix, &selectedOrigin](const std::string& key, const std::string& value) {
+        if (!key.starts_with(historyPrefix)) return;
         try {
             const auto root = nlohmann::json::parse(value);
             RemoteDeviceHistory item{.deviceId = root.value("device_id", std::string{}),
+                                     .publicDeviceCode = root.value("public_device_code", std::string{}),
+                                     .consoleOrigin = root.value("console_origin", std::string{}),
                                      .name = root.value("name", std::string{}),
                                      .host = root.value("host", std::string{}),
                                      .port = root.value("port", 0),
                                      .lastConnectedAt = root.value("last_connected_at", std::int64_t{})};
-            if (!item.deviceId.empty()) result.push_back(std::move(item));
+            if (!item.deviceId.empty() && item.consoleOrigin == selectedOrigin &&
+                (item.publicDeviceCode.empty() || IsValidPublicDeviceCode(item.publicDeviceCode))) {
+                result.push_back(std::move(item));
+            }
         } catch (...) {
         }
     });
@@ -348,20 +435,44 @@ bool PanelConfigStore::SaveNetwork(const std::string& consoleAddress, const Cons
         return false;
     }
     if (!fixedConsoleAddress_.empty()) return true;
-    const std::scoped_lock lock{mutex_};
-    return preferences_->Put("console_server_url", consoleAddress);
+    return SelectConsoleAddress(consoleAddress);
 }
 
 bool PanelConfigStore::SaveOfficialNetwork() {
     if (forbiddenConsoleAddress_.empty() || !fixedConsoleAddress_.empty()) return false;
+    return SelectConsoleAddress(forbiddenConsoleAddress_);
+}
+
+bool PanelConfigStore::SelectConsoleAddress(const std::string& consoleAddress) {
+    const auto currentAddress = ParseConsoleHttpsOrigin(ConsoleAddress());
+    const bool changed = !currentAddress || currentAddress->baseUrl != consoleAddress;
+    const auto replacementPassword = changed ? GenerateTemporaryPassword() : std::optional<std::string>{};
+    if (changed && !replacementPassword) return false;
     const std::scoped_lock lock{mutex_};
-    return preferences_->Put("console_server_url", forbiddenConsoleAddress_);
+    if (!preferences_->Put("console_server_url", consoleAddress)) return false;
+    if (!changed) return true;
+    return preferences_->Remove("local_public_device_code") && preferences_->Put("device_id", "") &&
+           preferences_->Put("device_random_pwd", *replacementPassword);
 }
 
 bool PanelConfigStore::SaveIdentity(const PanelIdentity& identity) {
     const std::scoped_lock lock{mutex_};
     return preferences_->Put("device_id", identity.deviceId) && preferences_->Put("device_name", identity.deviceName) &&
            preferences_->Put("device_random_pwd", identity.randomPassword) && preferences_->Put("device_safety_pwd", identity.securityPasswordHash);
+}
+
+bool PanelConfigStore::SavePublicDeviceCode(const std::string& deviceId, const std::string& publicDeviceCode,
+                                            const std::string& nodeAccessHost) {
+    if (deviceId.empty() || !IsValidPublicDeviceCode(publicDeviceCode) || !IsValidNodeAccessHost(nodeAccessHost)) return false;
+    if (CachedPublicDeviceCode(deviceId) == publicDeviceCode && CachedNodeAccessHost(deviceId) == nodeAccessHost) return true;
+    const auto consoleAddress = ParseConsoleHttpsOrigin(ConsoleAddress());
+    if (!consoleAddress) return false;
+    const nlohmann::json identity{{"console_origin", consoleAddress->baseUrl},
+                                  {"device_id", deviceId},
+                                  {"public_code", publicDeviceCode},
+                                  {"access_host", nodeAccessHost}};
+    const std::scoped_lock lock{mutex_};
+    return preferences_->Put("local_public_device_code", identity.dump());
 }
 
 bool PanelConfigStore::SaveCustomDeviceName(const std::string& deviceName) {
@@ -422,34 +533,42 @@ bool PanelConfigStore::SaveRemoteDevicePreference(const std::string& deviceId, c
                               {"wait_debug", preference.waitForDebugger},
                               {"force_gdi", preference.forceGdiCapture},
                               {"disable_vulkan", preference.disableVulkan}};
-    return preferences_->Put("panel_remote_device:" + deviceId, root.dump());
+    return preferences_->Put("panel_remote_device:" + ConsoleAddress() + ":" + deviceId, root.dump());
 }
 
 bool PanelConfigStore::DeleteRemoteDevicePreference(const std::string& deviceId) {
-    return !deviceId.empty() && preferences_->Remove("panel_remote_device:" + deviceId);
+    return !deviceId.empty() && preferences_->Remove("panel_remote_device:" + ConsoleAddress() + ":" + deviceId);
 }
 
 bool PanelConfigStore::SaveRemoteDeviceHistory(const RemoteDeviceHistory& device) {
-    if (device.deviceId.empty()) return false;
+    if (device.deviceId.empty() || (!device.publicDeviceCode.empty() && !IsValidPublicDeviceCode(device.publicDeviceCode))) return false;
+    const std::string consoleOrigin{device.consoleOrigin.empty() ? ConsoleAddress() : device.consoleOrigin};
+    if (!device.publicDeviceCode.empty() && consoleOrigin.empty()) return false;
+    if (!consoleOrigin.empty()) {
+        const auto parsedOrigin = ParseConsoleHttpsOrigin(consoleOrigin);
+        if (!parsedOrigin || parsedOrigin->baseUrl != consoleOrigin) return false;
+    }
     const nlohmann::json root{{"device_id", device.deviceId},
+                              {"public_device_code", device.publicDeviceCode},
+                              {"console_origin", consoleOrigin},
                               {"name", device.name},
                               {"host", device.host},
                               {"port", device.port},
                               {"last_connected_at", device.lastConnectedAt}};
-    return preferences_->Put("panel_remote_device_history:" + device.deviceId, root.dump());
+    return preferences_->Put("panel_remote_device_history:" + consoleOrigin + ":" + device.deviceId, root.dump());
 }
 
 bool PanelConfigStore::DeleteRemoteDeviceHistory(const std::string& deviceId) {
-    return !deviceId.empty() && preferences_->Remove("panel_remote_device_history:" + deviceId);
+    return !deviceId.empty() && preferences_->Remove("panel_remote_device_history:" + ConsoleAddress() + ":" + deviceId);
 }
 
 bool PanelConfigStore::HideRemoteDevice(const std::string& deviceId) {
-    return !deviceId.empty() && preferences_->Put("panel_remote_device_hidden:" + deviceId, "true");
+    return !deviceId.empty() && preferences_->Put("panel_remote_device_hidden:" + ConsoleAddress() + ":" + deviceId, "true");
 }
 
 bool PanelConfigStore::UnhideRemoteDevice(const std::string& deviceId) {
     if (deviceId.empty()) return false;
-    static_cast<void>(preferences_->Remove("panel_remote_device_hidden:" + deviceId));
+    static_cast<void>(preferences_->Remove("panel_remote_device_hidden:" + ConsoleAddress() + ":" + deviceId));
     return true;
 }
 
@@ -461,6 +580,7 @@ bool PanelConfigStore::SaveCloudApplicationPreference(const std::string& applica
 
 void PanelConfigStore::Clear() {
     for (const std::string key : {"device_id", "device_name", "device_name_custom", "device_random_pwd", "device_safety_pwd", "console_server_url",
+                                  "local_public_device_code",
                                   "incoming_remote_access_enabled"}) {
         static_cast<void>(preferences_->Remove(key));
     }

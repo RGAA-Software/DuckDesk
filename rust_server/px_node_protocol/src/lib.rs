@@ -479,6 +479,11 @@ pub struct RecordingCacheUpload {
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum NodeRequest {
+    Enroll {
+        request_id: u64,
+        installation_key: String,
+        product: String,
+    },
     Authenticate {
         request_id: u64,
         node_token: String,
@@ -536,6 +541,14 @@ pub enum NodeRequest {
         revision: i64,
         frontend_token: String,
     },
+    AdmitDirectStream {
+        request_id: u64,
+        stream_id: Uuid,
+    },
+    ReleaseDirectStream {
+        request_id: u64,
+        stream_id: Uuid,
+    },
     BeginFrontendRetirement {
         request_id: u64,
         session_id: Uuid,
@@ -577,7 +590,8 @@ pub enum NodeRequest {
 impl NodeRequest {
     pub fn request_id(&self) -> u64 {
         match self {
-            Self::Authenticate { request_id, .. }
+            Self::Enroll { request_id, .. }
+            | Self::Authenticate { request_id, .. }
             | Self::Report { request_id, .. }
             | Self::ReportTelemetryBackfill { request_id, .. }
             | Self::BeginReconciliation { request_id }
@@ -590,6 +604,8 @@ impl NodeRequest {
             | Self::ListDeployments { request_id, .. }
             | Self::ListFrontends { request_id }
             | Self::AdmitFrontend { request_id, .. }
+            | Self::AdmitDirectStream { request_id, .. }
+            | Self::ReleaseDirectStream { request_id, .. }
             | Self::BeginFrontendRetirement { request_id, .. }
             | Self::FinishFrontendRetirement { request_id, .. }
             | Self::OpenChannel { request_id, .. }
@@ -629,6 +645,7 @@ pub enum NodeResponse {
         request_id: u64,
         node_id: Uuid,
         device_id: Uuid,
+        public_device_code: String,
         generation: i64,
         control_epoch: i64,
         relay: Option<RelayEndpoint>,
@@ -680,6 +697,15 @@ pub enum NodeResponse {
     FrontendAdmitted {
         request_id: u64,
         grant: FrontendGrant,
+    },
+    DirectStreamAdmitted {
+        request_id: u64,
+        stream_id: Uuid,
+        valid_for_ms: u32,
+    },
+    DirectStreamReleased {
+        request_id: u64,
+        stream_id: Uuid,
     },
     FrontendRetirementStarted {
         request_id: u64,
@@ -751,6 +777,8 @@ impl NodeResponse {
             | Self::Deployments { request_id, .. }
             | Self::Frontends { request_id, .. }
             | Self::FrontendAdmitted { request_id, .. }
+            | Self::DirectStreamAdmitted { request_id, .. }
+            | Self::DirectStreamReleased { request_id, .. }
             | Self::FrontendRetirementStarted { request_id, .. }
             | Self::FrontendRetired { request_id, .. }
             | Self::ChannelOpened { request_id, .. }
@@ -823,6 +851,7 @@ mod tests {
             request_id: 1,
             node_id: Uuid::nil(),
             device_id: Uuid::nil(),
+            public_device_code: "123456789".into(),
             generation: 2,
             control_epoch: 3,
             relay: None,

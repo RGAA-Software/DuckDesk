@@ -1,30 +1,31 @@
 #pragma once
 
+#include <array>
+#include <chrono>
+#include <functional>
+#include <memory>
+#include <optional>
+#include <unordered_map>
+
 #include "client_input_mapper.h"
 #include "client_session.h"
 #include "px_desktop_shell/desktop_shell.h"
 #include "rdp/rdp_windows_clipboard.h"
 
-#include <functional>
-#include <chrono>
-#include <array>
-#include <memory>
-#include <optional>
-#include <unordered_map>
-
 namespace px::client::imgui {
 
 class ClientToolbar;
+class ClientUiSettings;
 
 class ClientWindow final {
-  public:
+public:
     ClientWindow(std::reference_wrapper<px::desktop::DesktopShell> shell, std::shared_ptr<ClientSession> session, bool english, bool darkTheme,
-                 bool enhancedVisualEffects);
+                 bool enhancedVisualEffects, ClientUiSettings settings);
     ~ClientWindow();
     void Draw();
     void HandleInput(const px::desktop::DesktopInputEvent& event);
 
-  private:
+private:
     [[nodiscard]] bool InVideo(float x, float y) const noexcept;
     void ReleasePressedInput();
     void SynchronizeClipboard();
@@ -59,4 +60,4 @@ class ClientWindow final {
     std::chrono::steady_clock::time_point nextMouseRouteLog_{};
 };
 
-} // namespace px::client::imgui
+}  // namespace px::client::imgui

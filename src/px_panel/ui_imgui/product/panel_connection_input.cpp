@@ -8,6 +8,7 @@
 #include <system_error>
 
 #include "px_common/base64.h"
+#include "panel_config_store.h"
 
 namespace px::panel::product {
 namespace {
@@ -19,8 +20,8 @@ std::string Trim(std::string value) {
     return value;
 }
 
-bool IsDeviceId(const std::string& value) {
-    return !value.empty() && std::ranges::all_of(value, [](const unsigned char character) { return std::isdigit(character) != 0; });
+bool IsDeviceCode(const std::string& value) {
+    return value.size() == 9 && std::ranges::all_of(value, [](const unsigned char character) { return std::isdigit(character) != 0; });
 }
 
 std::optional<int> ParsePort(const std::string_view value) {
@@ -34,9 +35,16 @@ std::optional<ParsedConnectionInput> ParseSharedLink(const std::string& value) {
         const auto payload = nlohmann::json::parse(Base64::Base64Decode(value.substr(std::string_view{"link://"}.size())));
         ParsedConnectionInput result{.kind = ConnectionInputKind::SharedLink,
                                      .deviceId = payload.value("did", ""),
+                                     .publicDeviceCode = payload.value("pc", ""),
+                                     .consoleOrigin = payload.value("co", ""),
                                      .displayName = payload.value("dn", ""),
                                      .port = payload.value("rdpt", 0),
                                      .password = payload.value("rpwd", "")};
+        if (result.deviceId.empty() || !IsDeviceCode(result.publicDeviceCode)) {
+            return std::nullopt;
+        }
+        const auto origin = ParseConsoleHttpsOrigin(result.consoleOrigin);
+        if (!origin || origin->baseUrl != result.consoleOrigin) return std::nullopt;
         if (const auto addresses = payload.find("ips"); addresses != payload.end() && addresses->is_array()) {
             for (const auto& address : *addresses) {
                 if (address.is_object()) {
@@ -106,15 +114,25 @@ std::optional<ParsedConnectionInput> ParseConnectionInput(std::string value, con
     if (value.starts_with("link://")) {
         return ParseSharedLink(value);
     }
-    if (IsDeviceId(value)) {
-        return ParsedConnectionInput{.kind = ConnectionInputKind::DeviceId, .deviceId = std::move(value)};
+    if (IsDeviceCode(value)) {
+        return ParsedConnectionInput{.kind = ConnectionInputKind::DeviceCode, .publicDeviceCode = std::move(value)};
+    }
+    if (std::ranges::all_of(value, [](const unsigned char character) { return std::isdigit(character) != 0; })) {
+        return std::nullopt;
     }
     return ParseDirectEndpoint(std::move(value), defaultPort);
 }
 
 bool ConnectionInputNeedsPassword(const std::string& value) {
     const auto parsed = ParseConnectionInput(value, 4601);
-    return parsed && parsed->kind != ConnectionInputKind::SharedLink;
+    return parsed && (parsed->kind == ConnectionInputKind::DirectEndpoint || parsed->kind == ConnectionInputKind::DeviceCode);
+}
+
+bool ConnectionIdentityMatches(const ParsedConnectionInput& target, const std::string_view actualDeviceId,
+                               const std::string_view actualPublicCode, const std::string_view actualConsoleOrigin) {
+    if (actualDeviceId.empty() || (!target.deviceId.empty() && target.deviceId != actualDeviceId)) return false;
+    if (target.publicDeviceCode.empty()) return true;
+    return !target.consoleOrigin.empty() && target.publicDeviceCode == actualPublicCode && target.consoleOrigin == actualConsoleOrigin;
 }
 
 } // namespace px::panel::product

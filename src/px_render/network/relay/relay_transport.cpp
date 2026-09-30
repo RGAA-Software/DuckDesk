@@ -21,10 +21,12 @@ bool RelayTransport::Start(const RenderModuleConfiguration& configuration) {
         return false;
     }
     FrontendAuthorizer frontend_authorizer;
+    DirectStreamAuthorizer direct_stream_authorizer;
     LogicalLeaseRenewer logical_lease_renewer;
     {
         std::scoped_lock lock(frontend_services_mutex_);
         frontend_authorizer = frontend_authorizer_;
+        direct_stream_authorizer = direct_stream_authorizer_;
         logical_lease_renewer = logical_lease_renewer_;
     }
     const auto runtime = RelayTransportRuntime::Create(RelayTransportRuntimeConfig{
@@ -35,6 +37,7 @@ bool RelayTransport::Start(const RenderModuleConfiguration& configuration) {
         .settings = settings_,
         .async_runtime = async_runtime_,
         .frontend_authorizer = std::move(frontend_authorizer),
+        .direct_stream_authorizer = std::move(direct_stream_authorizer),
         .logical_lease_renewer = std::move(logical_lease_renewer),
     });
     if (!runtime) {
@@ -124,6 +127,14 @@ void RelayTransport::ConfigureFrontendAuthorizer(FrontendAuthorizer authorizer) 
     frontend_authorizer_ = authorizer;
     if (const auto runtime = runtime_.load()) {
         runtime->ConfigureFrontendAuthorizer(std::move(authorizer));
+    }
+}
+
+void RelayTransport::ConfigureDirectStreamAuthorizer(DirectStreamAuthorizer authorizer) {
+    std::scoped_lock lock(frontend_services_mutex_);
+    direct_stream_authorizer_ = authorizer;
+    if (const auto runtime = runtime_.load()) {
+        runtime->ConfigureDirectStreamAuthorizer(std::move(authorizer));
     }
 }
 

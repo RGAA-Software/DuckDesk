@@ -138,30 +138,15 @@ bool ClientSession::RemoveVirtualDisplay() {
     return false;
 }
 
-std::optional<std::string> ClientSession::SaveScreenshot() const {
+ScreenshotResult ClientSession::SaveScreenshot() const {
     std::shared_ptr<ClientVideoFrame> frame{};
     {
         const std::scoped_lock lock{mutex_};
         frame = latestFrame_;
     }
-    if (!frame || frame->width <= 0 || frame->height <= 0 || frame->bgra.empty()) return std::nullopt;
-    std::array<wchar_t, MAX_PATH> documents{};
-    const auto length = GetEnvironmentVariableW(L"USERPROFILE", documents.data(), static_cast<DWORD>(documents.size()));
-    if (length == 0 || length >= documents.size()) return std::nullopt;
-    const auto directory = std::filesystem::path{documents.data()} / "Documents" / px::ui::StorageDirectoryName() / "Screenshots";
-    std::error_code error{};
-    std::filesystem::create_directories(directory, error);
-    if (error) return std::nullopt;
-    const auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-    const auto path = directory / std::format("Screenshot-{}.bmp", timestamp);
-    struct SurfaceDeleter final {
-        void operator()(SDL_Surface* surface) const noexcept {  // NOLINT(pixels-raw-pointer-boundary): SDL-owned surface ABI.
-            SDL_DestroySurface(surface);
-        }
-    };
-    const std::unique_ptr<SDL_Surface, SurfaceDeleter> surface{
-        SDL_CreateSurfaceFrom(frame->width, frame->height, SDL_PIXELFORMAT_BGRA32, frame->bgra.data(), frame->width * 4)};
-    if (!surface || !SDL_SaveBMP(surface.get(), path.string().c_str())) return std::nullopt;
-    return path.string();
+    const auto directory = DefaultScreenshotDirectory();
+    if (!directory) return {.status = ScreenshotStatus::DirectoryUnavailable};
+    const auto timestamp = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    return SaveScreenshotFile(frame, *directory / std::format("Screenshot-{}.bmp", timestamp));
 }
 }  // namespace px::client::imgui

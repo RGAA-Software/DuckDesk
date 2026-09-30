@@ -49,8 +49,11 @@ public:
     void HandleMessageAck(const std::shared_ptr<NetMessageAck>& ack);
     using FrontendAuthorizer =
         std::function<PxAwaitable<PxResult<ConsoleFrontendGrant>>(ConsoleFrontendAdmissionRequest, std::chrono::steady_clock::time_point)>;
+    using DirectStreamAuthorizer =
+        std::function<PxAwaitable<PxResult<std::uint32_t>>(std::string, bool, std::chrono::steady_clock::time_point)>;
     using LogicalLeaseRenewer = std::function<bool(const LogicalSessionGrant&, std::int64_t)>;
     void ConfigureFrontendAuthorizer(FrontendAuthorizer authorizer);
+    void ConfigureDirectStreamAuthorizer(DirectStreamAuthorizer authorizer);
     void ConfigureLogicalLeaseRenewer(LogicalLeaseRenewer renewer);
 
 private:
@@ -59,6 +62,7 @@ private:
     NetSyncInfo route_info_;
     mutable std::mutex frontend_services_mutex_{};
     FrontendAuthorizer frontend_authorizer_{};
+    DirectStreamAuthorizer direct_stream_authorizer_{};
     LogicalLeaseRenewer logical_lease_renewer_{};
 };
 

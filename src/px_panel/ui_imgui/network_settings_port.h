@@ -13,7 +13,7 @@ enum class NetworkOperation {
     Verifying,
     Verified,
     Saving,
-    SavedNeedsRestart,
+    Saved,
     Failed,
 };
 

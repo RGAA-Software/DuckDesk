@@ -22,6 +22,107 @@ fn config(role: &str) -> DatabaseConfig {
 }
 
 #[tokio::test]
+async fn new_node_enrolls_automatically_and_reuses_its_console_identity() {
+    let fixture = Fixture::new().await;
+    let epoch = fixture.nodes.begin_runtime().await.unwrap();
+    let installation_key = token();
+    let first_connection = fixture
+        .nodes
+        .enroll_connection(epoch, &installation_key, &token(), NodeProduct::CloudNode)
+        .await
+        .unwrap();
+    assert_eq!(first_connection.public_device_code().len(), 9);
+    assert!(first_connection
+        .public_device_code()
+        .bytes()
+        .all(|digit| digit.is_ascii_digit()));
+    let second_connection = fixture
+        .nodes
+        .enroll_connection(epoch, &installation_key, &token(), NodeProduct::CloudNode)
+        .await
+        .unwrap();
+    assert_eq!(first_connection.id(), second_connection.id());
+    assert_eq!(first_connection.device_id(), second_connection.device_id());
+    assert_eq!(
+        first_connection.public_device_code(),
+        second_connection.public_device_code()
+    );
+    fixture.close().await;
+}
+
+#[tokio::test]
+async fn public_device_code_resolves_only_a_ready_connected_node() {
+    let fixture = Fixture::new().await;
+    let (node, key) = fixture.node().await;
+    let public_code: String =
+        sqlx::query_scalar("SELECT public_code FROM pixels.devices WHERE id=$1")
+            .bind(node.device_id)
+            .fetch_one(&fixture.owner)
+            .await
+            .unwrap();
+    assert!(matches!(
+        fixture.devices.resolve_public_code(&public_code).await,
+        Err(StoreError::NotFound)
+    ));
+    assert!(matches!(
+        fixture.devices.resolve_public_code("123").await,
+        Err(StoreError::InvalidInput)
+    ));
+
+    let epoch = fixture.nodes.begin_runtime().await.unwrap();
+    let connection = fixture
+        .nodes
+        .open_connection(epoch, &key, &token())
+        .await
+        .unwrap();
+    fixture.nodes.report(&connection, &report(1)).await.unwrap();
+    sqlx::query("UPDATE pixels.nodes SET state='ready' WHERE id=$1")
+        .bind(node.id)
+        .execute(&fixture.owner)
+        .await
+        .unwrap();
+    let endpoint = fixture
+        .devices
+        .resolve_public_code(&public_code)
+        .await
+        .unwrap();
+    assert_eq!(endpoint.device_id, node.device_id);
+    assert_eq!(endpoint.public_code, public_code);
+    assert_eq!(endpoint.name, "节点");
+    assert_eq!(endpoint.host, "node.example.test");
+    assert_eq!(endpoint.port, 4601);
+
+    fixture.nodes.close_connection(&connection).await.unwrap();
+    assert!(matches!(
+        fixture.devices.resolve_public_code(&public_code).await,
+        Err(StoreError::NotFound)
+    ));
+    fixture.close().await;
+}
+
+#[tokio::test]
+async fn remote_enrollment_preserves_product_and_rejects_product_switch() {
+    let fixture = Fixture::new().await;
+    let epoch = fixture.nodes.begin_runtime().await.unwrap();
+    let installation_key = token();
+    let remote_connection = fixture
+        .nodes
+        .enroll_connection(epoch, &installation_key, &token(), NodeProduct::Remote)
+        .await
+        .unwrap();
+    assert_eq!(remote_connection.product(), NodeProduct::Remote);
+    assert_eq!(remote_connection.public_device_code().len(), 9);
+    assert!(matches!(
+        fixture
+            .nodes
+            .enroll_connection(epoch, &installation_key, &token(), NodeProduct::CloudNode)
+            .await,
+        Err(StoreError::Rejected)
+    ));
+    fixture.close().await;
+}
+
+#[tokio::test]
 async fn telemetry_alerts_require_consecutive_samples_and_preserve_acknowledgement_until_recovery()
 {
     let fixture = Fixture::new().await;

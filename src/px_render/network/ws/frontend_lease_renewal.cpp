@@ -99,6 +99,31 @@ void WebSocketFrontendLeaseRenewalCoordinator::Start(WebSocketFrontendLeaseIdent
     }
 }
 
+void WebSocketFrontendLeaseRenewalCoordinator::StartDirect(WebSocketDirectLeaseIdentity identity, const std::uint32_t initial_valid_for_ms) {
+    if (identity.quota_id.empty() || identity.binding_id.empty() || !async_scope_ || !async_scope_->IsAccepting() || initial_valid_for_ms == 0) {
+        return;
+    }
+    const auto control = std::make_shared<RenewalControl>();
+    control->direct_quota_id = identity.quota_id;
+    {
+        std::scoped_lock lock(controls_mutex_);
+        const auto existing = controls_.find(identity.binding_id);
+        if (existing != controls_.end()) {
+            existing->second->current.store(false, std::memory_order_release);
+        }
+        controls_.insert_or_assign(identity.binding_id, control);
+    }
+    const auto weak_owner = weak_from_this();
+    const bool spawned = async_scope_->Spawn(
+        "console-direct-stream-lease-renewal", [weak_owner, control, identity = std::move(identity), initial_valid_for_ms]() mutable {
+            return RunDirect(std::move(weak_owner), std::move(control), std::move(identity), initial_valid_for_ms);
+        });
+    if (!spawned) {
+        control->current.store(false, std::memory_order_release);
+        RemoveCurrent(control);
+    }
+}
+
 void WebSocketFrontendLeaseRenewalCoordinator::Cancel(const std::string& binding_id) {
     std::shared_ptr<RenewalControl> control{};
     {
@@ -111,6 +136,27 @@ void WebSocketFrontendLeaseRenewalCoordinator::Cancel(const std::string& binding
         controls_.erase(found);
     }
     control->current.store(false, std::memory_order_release);
+    if (!control->direct_quota_id.empty() && async_scope_) {
+        const auto weak_owner = weak_from_this();
+        const auto quota_id = control->direct_quota_id;
+        static_cast<void>(
+            async_scope_->Spawn("console-direct-stream-release", [weak_owner, quota_id] { return ReleaseDirect(weak_owner, quota_id); }));
+    }
+}
+
+PxAwaitable<void> WebSocketFrontendLeaseRenewalCoordinator::ReleaseDirect(std::weak_ptr<WebSocketFrontendLeaseRenewalCoordinator> weak_owner,
+                                                                          std::string quota_id) {
+    const auto owner = weak_owner.lock();
+    const auto transport = owner ? owner->transport_.lock() : nullptr;
+    if (!transport) {
+        co_return;
+    }
+    const auto released =
+        co_await transport->RequestDirectStream(std::move(quota_id), true, std::chrono::steady_clock::now() + std::chrono::seconds(12));
+    if (!released.HasValue()) {
+        LOGW("event=session.direct_stream_release component=net_ws operation=release outcome=failed code={} recoverable=true",
+             released.Error().StableCode());
+    }
 }
 
 PxAwaitable<void> WebSocketFrontendLeaseRenewalCoordinator::Run(std::weak_ptr<WebSocketFrontendLeaseRenewalCoordinator> weak_owner,
@@ -164,6 +210,49 @@ PxAwaitable<void> WebSocketFrontendLeaseRenewalCoordinator::Run(std::weak_ptr<We
     }
 }
 
+PxAwaitable<void> WebSocketFrontendLeaseRenewalCoordinator::RunDirect(
+    std::weak_ptr<WebSocketFrontendLeaseRenewalCoordinator> weak_owner, std::shared_ptr<RenewalControl> control,
+    WebSocketDirectLeaseIdentity identity, std::uint32_t valid_for_ms) {
+    auto lease_deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(valid_for_ms);
+    auto delay = RenewalDelay(valid_for_ms);
+    for (;;) {
+        const auto waited = co_await WaitForAsyncDelay(delay, "direct_stream_lease_delay");
+        const auto owner = weak_owner.lock();
+        if (!waited || !owner || !control->current.load(std::memory_order_acquire)) {
+            co_return;
+        }
+        const auto transport = owner->transport_.lock();
+        if (!transport) {
+            co_return;
+        }
+        const auto now = std::chrono::steady_clock::now();
+        auto renewed = co_await transport->RequestDirectStream(identity.quota_id, false, std::min(now + std::chrono::seconds(12), lease_deadline));
+        if (!control->current.load(std::memory_order_acquire)) {
+            co_await ReleaseDirect(weak_owner, identity.quota_id);
+            co_return;
+        }
+        if (!renewed.HasValue()) {
+            const auto retry_at = std::chrono::steady_clock::now();
+            if (renewed.Error().retryable && retry_at < lease_deadline) {
+                delay = std::min(std::chrono::milliseconds(2000), std::chrono::duration_cast<std::chrono::milliseconds>(lease_deadline - retry_at));
+                continue;
+            }
+            owner->TerminateDirect(identity, control, renewed.Error().StableCode());
+            co_return;
+        }
+        const auto remaining_ms = renewed.TakeValue();
+        auto renewed_logical_grant = identity.logical_grant;
+        const auto now_ms = CurrentSystemMilliseconds();
+        renewed_logical_grant.expires_at_ms = now_ms + static_cast<std::int64_t>(remaining_ms);
+        if (remaining_ms == 0 || !transport->RenewLogicalSessionLease(renewed_logical_grant, now_ms)) {
+            owner->TerminateDirect(identity, control, "LOGICAL_LEASE_RENEWAL_REJECTED");
+            co_return;
+        }
+        lease_deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(remaining_ms);
+        delay = RenewalDelay(remaining_ms);
+    }
+}
+
 void WebSocketFrontendLeaseRenewalCoordinator::TerminateCurrent(const WebSocketFrontendLeaseIdentity& identity,
                                                                 const std::shared_ptr<RenewalControl>& control, const std::string& reason) {
     if (!control->current.exchange(false, std::memory_order_acq_rel)) {
@@ -186,6 +275,30 @@ void WebSocketFrontendLeaseRenewalCoordinator::TerminateCurrent(const WebSocketF
         "event=session.lease component=net_ws operation=renew outcome=revoked code=LOGICAL_LEASE_REVOKED recoverable=false "
         "session={} reason={}",
         PrivacyLogId(identity.logical_grant.logical_session_id), reason);
+    RemoveCurrent(control);
+}
+
+void WebSocketFrontendLeaseRenewalCoordinator::TerminateDirect(const WebSocketDirectLeaseIdentity& identity,
+                                                               const std::shared_ptr<RenewalControl>& control, const std::string& reason) {
+    if (!control->current.exchange(false, std::memory_order_acq_rel)) {
+        return;
+    }
+    if (const auto transport = transport_.lock()) {
+        if (!identity.allocation_id.empty()) {
+            static_cast<void>(transport->RevokeLocalRtcInstance(identity.device_id, identity.stream_id, identity.allocation_id));
+        }
+        const auto close = std::make_shared<CloseLogicalSessionBindingEvent>();
+        close->logical_session_id_ = identity.logical_grant.logical_session_id;
+        close->binding_id_ = identity.binding_id;
+        close->preserve_reconnect_grace_ = false;
+        transport->EmitEvent(close);
+    }
+    if (identity.terminate_transport) {
+        identity.terminate_transport();
+    }
+    LOGW("event=session.lease component=net_ws operation=renew_direct outcome=revoked code=DIRECT_LEASE_REVOKED recoverable=false "
+         "session={} reason={}",
+         PrivacyLogId(identity.logical_grant.logical_session_id), reason);
     RemoveCurrent(control);
 }
 

@@ -121,6 +121,27 @@ impl NodeControlStore {
             .map(Some)
     }
 
+    pub fn configure_console_origin(&self, console_origin: &str) -> Result<bool, String> {
+        let (endpoint, host) = node_endpoint_from_console_origin(console_origin)?;
+        if self
+            .load()?
+            .is_some_and(|configuration| configuration.endpoint == endpoint)
+        {
+            return Ok(false);
+        }
+        let configuration = NodeControlConfiguration {
+            endpoint,
+            node_token: Zeroizing::new(format!(
+                "{:032x}{:032x}",
+                Uuid::new_v4().as_u128(),
+                Uuid::new_v4().as_u128()
+            )),
+            public_host: host,
+        };
+        self.save(&configuration)?;
+        Ok(true)
+    }
+
     pub fn save(&self, configuration: &NodeControlConfiguration) -> Result<(), String> {
         configuration.validate()?;
         platform::ensure_private_directory(&self.directory)?;
@@ -158,6 +179,29 @@ impl NodeControlStore {
     fn file_path(&self) -> &Path {
         &self.file_path
     }
+}
+
+fn node_endpoint_from_console_origin(console_origin: &str) -> Result<(String, String), String> {
+    let mut url = url::Url::parse(console_origin)
+        .map_err(|_| "Console address must be an HTTPS origin".to_string())?;
+    if url.scheme() != "https"
+        || url.host().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || !matches!(url.path(), "" | "/")
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err("Console address must be an HTTPS origin".into());
+    }
+    let host = url
+        .host_str()
+        .ok_or_else(|| "Console address has no host".to_string())?
+        .to_string();
+    url.set_scheme("wss")
+        .map_err(|_| "Console address cannot be used for WebSocket".to_string())?;
+    url.set_path("/api/console/node-control");
+    Ok((url.to_string(), host))
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -932,6 +976,33 @@ pub(crate) mod platform {
 mod tests {
     use super::*;
 
+    #[test]
+    fn console_origin_produces_node_endpoint_without_extra_user_inputs() {
+        assert_eq!(
+            node_endpoint_from_console_origin("https://console.example.test:4600").unwrap(),
+            (
+                "wss://console.example.test:4600/api/console/node-control".to_string(),
+                "console.example.test".to_string(),
+            )
+        );
+        assert_eq!(
+            node_endpoint_from_console_origin("HTTPS://CONSOLE.EXAMPLE.TEST:443/")
+                .unwrap()
+                .0,
+            node_endpoint_from_console_origin("https://console.example.test")
+                .unwrap()
+                .0,
+        );
+        for invalid_origin in [
+            "http://console.example.test",
+            "https://console.example.test/path",
+            "https://user@console.example.test",
+            "https://console.example.test?query=1",
+        ] {
+            assert!(node_endpoint_from_console_origin(invalid_origin).is_err());
+        }
+    }
+
     fn configuration() -> NodeControlConfiguration {
         NodeControlConfiguration {
             endpoint: "wss://console.example.com/api/console/node-control".into(),
@@ -1006,6 +1077,16 @@ mod tests {
         let value = configuration();
         store.save(&value).unwrap();
         assert_eq!(store.load().unwrap(), Some(value.clone()));
+        assert!(!store
+            .configure_console_origin("https://CONSOLE.example.com:443/")
+            .unwrap());
+        assert_eq!(store.load().unwrap(), Some(value.clone()));
+        assert!(store
+            .configure_console_origin("https://other-console.example.com/")
+            .unwrap());
+        let switched = store.load().unwrap().unwrap();
+        assert_ne!(switched.endpoint, value.endpoint);
+        assert_ne!(switched.node_token.as_str(), value.node_token.as_str());
         let encrypted = std::fs::read(store.file_path()).unwrap();
         assert!(!encrypted
             .windows(64)

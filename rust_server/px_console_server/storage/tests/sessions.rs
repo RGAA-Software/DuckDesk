@@ -3,15 +3,83 @@ mod fixture;
 use fixture::{config, node_report, request, token, Fixture};
 use px_console_store::{
     ApplicationInstance, ClientType, CommandOutcome, CommandReceipt, DeploymentTarget,
-    DeviceAccess, NodeConnection, OpenResourceSession, RelayNodeConfiguration, RelayNodeProfile,
-    RelayNodeReport, RelayNodeSpec, RelayNodeStore, ResourceCredential, ResourceSession,
-    ResourceSessionStore, RuntimeEntitlement, RuntimeEpoch, SessionAccess, SessionTarget,
-    StoreError, TokenDigest, WorkspaceCommandLease, WorkspaceKey, WorkspaceStore, WorkspaceVault,
+    DeviceAccess, DirectStreamStore, NodeConnection, OpenResourceSession, RelayNodeConfiguration,
+    RelayNodeProfile, RelayNodeReport, RelayNodeSpec, RelayNodeStore, ResourceCredential,
+    ResourceSession, ResourceSessionStore, RuntimeEntitlement, RuntimeEpoch, SessionAccess,
+    SessionTarget, StoreError, TokenDigest, WorkspaceCommandLease, WorkspaceKey, WorkspaceStore,
+    WorkspaceVault,
 };
 use std::{env, sync::Arc, time::Duration};
 use tokio::sync::Barrier;
 use uuid::Uuid;
 use zeroize::Zeroizing;
+
+#[tokio::test]
+async fn direct_streams_share_the_license_quota_with_resource_sessions() {
+    let (fixture, session_store, node, _user, _instance, _session) = opened().await;
+    let deployment: Uuid = env::var("PIXELS_DEPLOYMENT_ID").unwrap().parse().unwrap();
+    let direct_store = DirectStreamStore::connect(&config("RUNTIME"), deployment)
+        .await
+        .unwrap();
+    let active_sessions: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM pixels.resource_sessions WHERE closed_at IS NULL")
+            .fetch_one(&fixture.owner)
+            .await
+            .unwrap();
+    let entitlement = RuntimeEntitlement::new(
+        u32::try_from(active_sessions + 1).unwrap(),
+        true,
+        true,
+        true,
+    )
+    .unwrap();
+    let first_stream = Uuid::new_v4();
+    let second_stream = Uuid::new_v4();
+    let first_expiration = direct_store
+        .admit(&node, first_stream, entitlement)
+        .await
+        .unwrap();
+    assert!(
+        direct_store
+            .admit(&node, first_stream, entitlement)
+            .await
+            .unwrap()
+            >= first_expiration
+    );
+    let reduced_entitlement =
+        RuntimeEntitlement::new(u32::try_from(active_sessions).unwrap(), true, true, true).unwrap();
+    assert_eq!(
+        direct_store
+            .admit(&node, first_stream, reduced_entitlement)
+            .await,
+        Err(StoreError::LicenseRestriction)
+    );
+    assert_eq!(
+        direct_store.admit(&node, second_stream, entitlement).await,
+        Err(StoreError::LicenseRestriction)
+    );
+    direct_store.release(&node, first_stream).await.unwrap();
+    assert!(direct_store
+        .admit(&node, second_stream, entitlement)
+        .await
+        .is_ok());
+    assert_eq!(
+        direct_store
+            .admit(
+                &node,
+                Uuid::new_v4(),
+                RuntimeEntitlement::new(u32::MAX, true, true, true)
+                    .unwrap()
+                    .with_starter_mode_limit()
+            )
+            .await,
+        Err(StoreError::LicenseRestriction)
+    );
+    direct_store.release(&node, second_stream).await.unwrap();
+    direct_store.close().await;
+    session_store.close().await;
+    fixture.close().await;
+}
 
 #[tokio::test]
 async fn license_stream_quota_and_service_gate_new_grants() {
@@ -49,6 +117,50 @@ async fn license_stream_quota_and_service_gate_new_grants() {
             .await
             .unwrap();
     assert!(descriptor_hash.is_none());
+    session_store.close().await;
+    fixture.close().await;
+}
+
+#[tokio::test]
+async fn starter_license_allows_only_one_webview_stream() {
+    let (fixture, session_store, node, user, existing_instance, _existing_session) = opened().await;
+    let next_instance = running(
+        &fixture,
+        &node,
+        existing_instance.application_id,
+        &user,
+        ClientType::Android,
+        false,
+    )
+    .await;
+    let next_request = open_request(next_instance.application_id, next_instance.id);
+    let starter = RuntimeEntitlement::new(u32::MAX, true, true, true)
+        .unwrap()
+        .with_starter_mode_limit();
+    assert_eq!(
+        session_store
+            .open_with_entitlement(
+                ResourceCredential::User(&user),
+                ClientType::Android,
+                &next_request,
+                starter,
+            )
+            .await,
+        Err(StoreError::LicenseRestriction)
+    );
+    let upgraded = RuntimeEntitlement::new(u32::MAX, true, true, true).unwrap();
+    let upgraded_result = session_store
+        .open_with_entitlement(
+            ResourceCredential::User(&user),
+            ClientType::Android,
+            &next_request,
+            upgraded,
+        )
+        .await;
+    assert!(
+        upgraded_result.is_ok(),
+        "upgraded license: {upgraded_result:?}"
+    );
     session_store.close().await;
     fixture.close().await;
 }

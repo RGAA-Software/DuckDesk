@@ -33,7 +33,8 @@ bool Matches(const RemoteDeviceCard& device, const std::string& query) {
     if (query.empty())
         return true;
     const std::string lowered{Lowercase(query)};
-    return Lowercase(device.name).contains(lowered) || Lowercase(device.deviceId).contains(lowered) || Lowercase(device.host).contains(lowered);
+    return Lowercase(device.name).contains(lowered) || Lowercase(device.publicDeviceCode).contains(lowered) ||
+           Lowercase(device.host).contains(lowered);
 }
 
 std::string DeviceIdentity(const RemoteDeviceCard& device) {
@@ -50,10 +51,10 @@ std::string FormatDeviceId(const std::string& value) {
 }
 
 std::string DeviceAddress(const RemoteDeviceCard& device) {
-    if (!device.deviceId.empty()) {
-        return FormatDeviceId(device.deviceId);
+    if (!device.publicDeviceCode.empty()) {
+        return FormatDeviceId(device.publicDeviceCode);
     }
-    return device.host.empty() ? device.streamId : device.host;
+    return device.host.empty() ? "--" : device.host;
 }
 
 void DetailRow(const std::string_view label, const std::string& value) {
@@ -128,7 +129,7 @@ void DeviceListPage::Draw(const px::ui::Localizer& localizer, const px::desktop:
                                    ImGui::GetColorU32(tokens.primary));
                 draw.AddCircleFilled({ImGui::GetItemRectMax().x - px::ui::Scale(11.0F), minimum.y + px::ui::Scale(12.0F)}, px::ui::Scale(3.0F),
                                      ImGui::GetColorU32(device.online ? tokens.success : tokens.mutedForeground));
-                const std::string name{device.name.empty() ? identity : device.name};
+                const std::string name{device.name.empty() ? DeviceAddress(device) : device.name};
                 draw.AddText({minimum.x + px::ui::Scale(50.0F), minimum.y + px::ui::Scale(8.0F)}, ImGui::GetColorU32(ImGuiCol_Text), name.c_str());
                 const std::string address{DeviceAddress(device)};
                 draw.AddText({minimum.x + px::ui::Scale(50.0F), minimum.y + px::ui::Scale(31.0F)}, ImGui::GetColorU32(ImGuiCol_TextDisabled),
@@ -176,7 +177,7 @@ void DeviceListPage::Draw(const px::ui::Localizer& localizer, const px::desktop:
                 ImGui::SameLine(0.0F, px::ui::Scale(6.0F));
                 if (px::ui::IconAction({"device-list-copy-id"}, px::ui::VectorIcon::Copy, localizer.Text(px::ui::TextId::Copy),
                                        {.variant = px::ui::ButtonVariant::Ghost, .size = px::ui::WidgetSize::IconXs})) {
-                    port_->CopyText(selected->deviceId.empty() ? selected->host : selected->deviceId);
+                    port_->CopyText(selected->publicDeviceCode.empty() ? selected->host : selected->publicDeviceCode);
                 }
                 ImGui::SetCursorScreenPos({heroStart.x, heroStart.y + heroIconSize + px::ui::Scale(14.0F)});
 
@@ -201,7 +202,8 @@ void DeviceListPage::Draw(const px::ui::Localizer& localizer, const px::desktop:
                 if (ImGui::BeginTable("DeviceDetailsTable", 2, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_BordersInnerH)) {
                     ImGui::TableSetupColumn("label", ImGuiTableColumnFlags_WidthFixed, px::ui::Scale(112.0F));
                     ImGui::TableSetupColumn("value", ImGuiTableColumnFlags_WidthStretch);
-                    DetailRow(localizer.Text(px::ui::TextId::DeviceId), FormatDeviceId(selected->deviceId));
+                    DetailRow(localizer.Text(px::ui::TextId::DeviceId),
+                              selected->publicDeviceCode.empty() ? "--" : FormatDeviceId(selected->publicDeviceCode));
                     DetailRow(localizer.Text(px::ui::TextId::DeviceName), selected->name);
                     DetailRow(localizer.Text(px::ui::TextId::Host), selected->host);
                     DetailRow(localizer.Text(px::ui::TextId::Port), selected->port > 0 ? std::to_string(selected->port) : std::string{});

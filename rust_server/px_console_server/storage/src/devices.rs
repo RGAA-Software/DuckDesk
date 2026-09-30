@@ -44,6 +44,14 @@ pub struct DeviceIdentity {
     pub id: Uuid,
     pub revision: i64,
 }
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, sqlx::FromRow)]
+pub struct PublicDeviceEndpoint {
+    pub device_id: Uuid,
+    pub public_code: String,
+    pub name: String,
+    pub host: String,
+    pub port: i32,
+}
 #[derive(Clone)]
 pub struct DeviceStore {
     pub(crate) pool: PgPool,
@@ -66,6 +74,26 @@ fn valid_page(limit: u32) -> Result<(), StoreError> {
 }
 
 impl DeviceStore {
+    pub async fn resolve_public_code(
+        &self,
+        code: &str,
+    ) -> Result<PublicDeviceEndpoint, StoreError> {
+        if code.len() != 9 || !code.bytes().all(|digit| digit.is_ascii_digit()) {
+            return Err(StoreError::InvalidInput);
+        }
+        let mut transaction = self.pool.begin().await?;
+        control::read_gate(&mut transaction).await?;
+        let endpoint = sqlx::query_as::<_, PublicDeviceEndpoint>(include_str!(
+            "../queries/resolve_public_device.sql"
+        ))
+        .bind(code)
+        .fetch_optional(&mut *transaction)
+        .await?
+        .ok_or(StoreError::NotFound)?;
+        transaction.commit().await?;
+        Ok(endpoint)
+    }
+
     #[cfg(feature = "pg-integration")]
     pub async fn connect(
         config: &px_pg::DatabaseConfig,
@@ -92,7 +120,7 @@ impl DeviceStore {
         let actor = control::authorize(&mut tx, token, true).await?;
         // Public lookup number, never a credential; unrelated to hardware/owner identity.
         // Unique constraints reject a collision without creating a partially registered device.
-        let code = format!("{:012}", Uuid::new_v4().as_u128() % 1_000_000_000_000);
+        let code = format!("{:09}", Uuid::new_v4().as_u128() % 1_000_000_000);
         let device = sqlx::query_file_as!(
             DeviceProfile,
             "queries/create_device.sql",

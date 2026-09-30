@@ -23,6 +23,8 @@ struct ServiceSnapshot final {
     bool nodeControlReady{};
     std::string nodeId{};
     std::string deviceId{};
+    std::string publicDeviceCode{};
+    std::string authenticatedConsoleOrigin{};
     std::string nodeAccessHost{};
     std::int64_t nodeGeneration{};
     std::int64_t controlEpoch{};
@@ -30,8 +32,8 @@ struct ServiceSnapshot final {
 
 class PanelServiceBridge final {
 public:
-    static std::shared_ptr<PanelServiceBridge> Create(const std::shared_ptr<PanelConfigStore>& config);
-    explicit PanelServiceBridge(std::shared_ptr<PanelConfigStore> config);
+    static std::shared_ptr<PanelServiceBridge> Create(const std::shared_ptr<PanelConfigStore>& config, bool restartRenderOnConnect = false);
+    explicit PanelServiceBridge(std::shared_ptr<PanelConfigStore> config, bool restartRenderOnConnect = false);
     ~PanelServiceBridge();
 
     PanelServiceBridge(const PanelServiceBridge&) = delete;
@@ -39,6 +41,7 @@ public:
 
     [[nodiscard]] ServiceSnapshot Snapshot() const;
     bool RestartRender();
+    bool StopRender();
     void Stop();
 
 private:

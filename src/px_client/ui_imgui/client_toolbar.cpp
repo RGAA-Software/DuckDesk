@@ -4,14 +4,18 @@
 #include <imgui.h>
 
 #include <algorithm>
+#include <array>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
 #include "client_session.h"
+#include "client_recording_feedback.h"
 #include "client_text.h"
 #include "px_common/log.h"
+#include "px_common/folder_util.h"
+#include "px_common/file_util.h"
 #include "px_desktop_shell/brand_logo.h"
 #include "px_desktop_shell/desktop_shell.h"
 #include "px_ui/components/button.h"
@@ -30,25 +34,56 @@ namespace {
 constexpr ImGuiWindowFlags kOverlayFlags{ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
                                          ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoFocusOnAppearing};
 
+constexpr std::array<px::ui::SelectOption, 5> kFrameRateOptions{{{15, "15"}, {30, "30"}, {60, "60"}, {90, "90"}, {120, "120"}}};
+
 float ClampMenuY(const ImGuiViewport& viewport, const float desired, const float estimatedHeight) noexcept {
     const float minimum{viewport.WorkPos.y + ImGui::GetFontSize()};
     const float maximum{viewport.WorkPos.y + viewport.WorkSize.y - estimatedHeight - ImGui::GetFontSize()};
     return std::clamp(desired, minimum, std::max(minimum, maximum));
 }
 
+px::ui::ToastMessage ScreenshotToast(const ScreenshotResult& result, const bool english) {
+    const bool saved{result.status == ScreenshotStatus::Saved};
+    ClientText detailKey{ClientText::ScreenshotWriteFailed};
+    switch (result.status) {
+        case ScreenshotStatus::Saved: detailKey = ClientText::ScreenshotRevealFile; break;
+        case ScreenshotStatus::NoFrame: detailKey = ClientText::ScreenshotNoFrame; break;
+        case ScreenshotStatus::ReadbackFailed: detailKey = ClientText::ScreenshotReadbackFailed; break;
+        case ScreenshotStatus::DirectoryUnavailable: detailKey = ClientText::ScreenshotDirectoryFailed; break;
+        case ScreenshotStatus::WriteFailed: break;
+    }
+    px::ui::ToastMessage message{.title = std::string{ClientTextValue(saved ? ClientText::ScreenshotSaved : ClientText::ScreenshotFailed, english)},
+                                .description = std::string{ClientTextValue(detailKey, english)},
+                                .variant = saved ? px::ui::FeedbackVariant::Success : px::ui::FeedbackVariant::Error,
+                                .duration = std::chrono::seconds{6}};
+    const auto directory = result.path.parent_path();
+    std::error_code directoryError{};
+    if (!directory.empty() && std::filesystem::is_directory(directory, directoryError)) {
+        const auto encodedPath = result.path.u8string();
+        message.description += "\n" + std::string{encodedPath.begin(), encodedPath.end()};
+        if (!saved) message.description += "\n" + std::string{ClientTextValue(ClientText::ScreenshotOpenFolder, english)};
+        if (saved) message.onClick = [savedFile = result.path] { px::FileUtil::SelectFileInExplorer(savedFile); };
+        else message.onClick = [directory] { px::FolderUtil::OpenDir(directory); };
+    }
+    return message;
+}
+
 }  // namespace
 
-ClientToolbar::ClientToolbar(const bool enhancedVisualEffects) : enhancedVisualEffects_{enhancedVisualEffects} {}
+ClientToolbar::ClientToolbar(const bool enhancedVisualEffects, ClientUiSettings settings)
+    : enhancedVisualEffects_{enhancedVisualEffects}, settings_{std::move(settings)}, launcherPosition_{settings_.LoadControllerPosition()} {}
 
 bool ClientToolbar::Bounds::Contains(const float pointX, const float pointY) const noexcept {
     return width > 0.0F && height > 0.0F && pointX >= x && pointY >= y && pointX < x + width && pointY < y + height;
 }
 
 bool ClientToolbar::CapturesPointer(const float x, const float y) const noexcept {
-    return launcherBounds_.Contains(x, y) || navigationBounds_.Contains(x, y) || sectionBounds_.Contains(x, y);
+    return launcherBounds_.Contains(x, y) || navigationBounds_.Contains(x, y) || sectionBounds_.Contains(x, y) ||
+           captureToasts_.CapturesPointer(x, y);
 }
 
 bool ClientToolbar::HandlePointerEvent(const px::desktop::DesktopInputEvent& event) {
+    if (captureToasts_.CapturesPointer(event.x, event.y)) return true;
     if (dismissPointerDown_) {
         if (event.type == SDL_EVENT_MOUSE_BUTTON_UP && event.mouseButton == SDL_BUTTON_LEFT) dismissPointerDown_ = false;
         return true;
@@ -78,8 +113,12 @@ bool ClientToolbar::HandlePointerEvent(const px::desktop::DesktopInputEvent& eve
         const float deltaY{event.y - dragOriginY_};
         launcherDragged_ = launcherDragged_ || deltaX * deltaX + deltaY * deltaY >= 16.0F;
         if (launcherDragged_) {
-            launcherX_ = std::clamp(dragOriginLauncherX_ + deltaX, workX_, std::max(workX_, workX_ + workWidth_ - launcherDiameter_));
-            launcherY_ = std::clamp(dragOriginLauncherY_ + deltaY, workY_, std::max(workY_, workY_ + workHeight_ - launcherDiameter_));
+            const auto position = controllerArea_.Clamp({dragOriginLauncherX_ + deltaX, dragOriginLauncherY_ + deltaY});
+            launcherX_ = position.x;
+            launcherY_ = position.y;
+            launcherPosition_ = controllerArea_.Normalize(position);
+            launcherBounds_.x = launcherX_;
+            launcherBounds_.y = launcherY_;
         }
         return true;
     }
@@ -91,6 +130,7 @@ bool ClientToolbar::HandlePointerEvent(const px::desktop::DesktopInputEvent& eve
             sectionNeedsFocus_ = false;
             LOGI("Client input route: floating controller click, menu_open={}", expanded_);
         } else if (launcherDragged_) {
+            if (launcherPosition_ && !settings_.SaveControllerPosition(*launcherPosition_)) LOGW("Could not save floating controller position");
             LOGI("Client input route: floating controller moved x={:.1f} y={:.1f}", launcherX_, launcherY_);
         }
         launcherPointerDown_ = false;
@@ -101,14 +141,14 @@ bool ClientToolbar::HandlePointerEvent(const px::desktop::DesktopInputEvent& eve
 }
 
 ClientToolbarAction ClientToolbar::Draw(const std::shared_ptr<ClientSession>& session, const px::desktop::BrandLogo& logo, const bool english,
-                                        const bool darkTheme) {
+                                        const bool darkTheme, const bool fullscreen) {
     ClientToolbarAction action{};
     bool hovered{DrawLauncher(logo)};
+    const auto snapshot = session->Snapshot();
     if (expanded_) {
-        const auto snapshot = session->Snapshot();
         hovered = DrawNavigation(snapshot, logo, english, action) || hovered;
         if (sectionExpanded_) {
-            hovered = DrawSection(session, snapshot, english, darkTheme, action) || hovered;
+            hovered = DrawSection(session, snapshot, english, darkTheme, fullscreen, action) || hovered;
         } else {
             sectionBounds_ = {};
         }
@@ -116,27 +156,34 @@ ClientToolbarAction ClientToolbar::Draw(const std::shared_ptr<ClientSession>& se
         navigationBounds_ = {};
         sectionBounds_ = {};
     }
+    statisticsOverlay_.SetVisible(showStatistics_);
+    statisticsOverlay_.SetLanguage(english);
+    statisticsOverlay_.Draw(*session, controllerArea_);
+    for (const auto& recordingResult : session->TakeRecordingResults()) {
+        if (recordingResult.status == RecordingResultStatus::Failed) LOGW("Recording failed: {}", recordingResult.error);
+        captureToasts_.Push(RecordingToast(recordingResult, english));
+    }
+    // Re-read after menu actions so the indicator switches immediately when Record/Stop is clicked.
+    const bool recording{session->Snapshot().recording};
+    const auto now = std::chrono::steady_clock::now();
+    if (recording && !recordingStartedAt_) recordingStartedAt_ = now;
+    if (!recording) recordingStartedAt_.reset();
+    const double elapsedSeconds{recordingStartedAt_ ? std::chrono::duration<double>(now - *recordingStartedAt_).count() : 0.0};
+    const float recordingInset{DrawRecordingIndicator(recording, controllerArea_, elapsedSeconds, english)};
+    captureToasts_.Draw(px::ui::ToastPlacement::TopRight, controllerArea_.top - ImGui::GetMainViewport()->WorkPos.y + recordingInset);
     return action;
 }
 
 bool ClientToolbar::DrawLauncher(const px::desktop::BrandLogo& logo) {
-    const auto& viewport = *ImGui::GetMainViewport();
     const float fontSize{ImGui::GetFontSize()};
     const float diameter{fontSize * 2.8F};
-    workX_ = viewport.WorkPos.x;
-    workY_ = viewport.WorkPos.y;
-    workWidth_ = viewport.WorkSize.x;
-    workHeight_ = viewport.WorkSize.y;
-    launcherDiameter_ = diameter;
-    if (!launcherPositionInitialized_) {
-        launcherX_ = viewport.WorkPos.x + viewport.WorkSize.x - diameter - fontSize;
-        launcherY_ = viewport.WorkPos.y + (viewport.WorkSize.y - diameter) * 0.5F;
-        launcherPositionInitialized_ = true;
-        LOGI("Client floating controller initialized x={:.1f} y={:.1f} viewport=({:.1f},{:.1f},{:.1f},{:.1f})", launcherX_, launcherY_, workX_,
-             workY_, workWidth_, workHeight_);
-    }
-    launcherX_ = std::clamp(launcherX_, workX_, std::max(workX_, workX_ + workWidth_ - diameter));
-    launcherY_ = std::clamp(launcherY_, workY_, std::max(workY_, workY_ + workHeight_ - diameter));
+    // Draw runs at the root content origin, after its title bar and before the video. Fullscreen has no title bar.
+    const ImVec2 contentOrigin{ImGui::GetCursorScreenPos()};
+    const ImVec2 contentSize{ImGui::GetContentRegionAvail()};
+    controllerArea_ = {contentOrigin.x, contentOrigin.y, contentSize.x, contentSize.y, diameter};
+    const auto position = controllerArea_.Restore(launcherPosition_, fontSize);
+    launcherX_ = position.x;
+    launcherY_ = position.y;
     launcherBounds_ = {.x = launcherX_, .y = launcherY_, .width = diameter, .height = diameter};
     const ImVec2 mouse{ImGui::GetIO().MousePos};
     const bool hovered{launcherBounds_.Contains(mouse.x, mouse.y)};
@@ -145,6 +192,8 @@ bool ClientToolbar::DrawLauncher(const px::desktop::BrandLogo& logo) {
     // The controller must remain above the root video window even after the root receives focus.
     // Pointer routing is handled from SDL events, so a focusable ImGui overlay window is neither needed nor desirable here.
     ImDrawList& drawList{*ImGui::GetForegroundDrawList()};
+    // Clip the shadow and border as well, so no part of the ball paints over the title bar.
+    drawList.PushClipRect(contentOrigin, {contentOrigin.x + contentSize.x, contentOrigin.y + contentSize.y}, true);
     const px::ui::ThemeTokens tokens{px::ui::CurrentThemeTokens()};
     if (px::ui::EnhancedVisualEffectsEnabled()) {
         drawList.AddCircleFilled(center, radius + 10.0F, ImGui::GetColorU32(ImVec4{0.0F, 0.0F, 0.0F, 0.05F}), 48);
@@ -157,6 +206,7 @@ bool ClientToolbar::DrawLauncher(const px::desktop::BrandLogo& logo) {
                        std::max(1.0F, ImGui::GetStyle().FontScaleDpi));
     const float logoSize{diameter * 0.62F};
     logo.Draw(drawList, {center.x - logoSize * 0.5F, center.y - logoSize * 0.5F}, logoSize);
+    drawList.PopClipRect();
     if (hovered) {
         px::ui::ShowTooltip(px::ui::ApplicationName());
     }
@@ -169,12 +219,14 @@ bool ClientToolbar::DrawNavigation(const ClientSessionSnapshot& snapshot, const 
     const auto& viewport = *ImGui::GetMainViewport();
     const px::ui::UiMetrics metrics{px::ui::MetricsFor(ImGui::GetStyle().FontScaleDpi)};
     const float menuWidth{220.0F * metrics.scale};
-    const float menuHeight{282.0F * metrics.scale};
+    const float menuHeight{242.0F * metrics.scale};
     const float spacing{metrics.spacingMd};
     const bool openLeft{launcherBounds_.x + launcherBounds_.width * 0.5F > viewport.WorkPos.x + viewport.WorkSize.x * 0.5F};
     const float navigationX{openLeft ? launcherBounds_.x - menuWidth - spacing : launcherBounds_.x + launcherBounds_.width + spacing};
-    const float y{ClampMenuY(viewport, launcherBounds_.y + launcherBounds_.height * 0.5F - menuHeight * 0.5F, menuHeight)};
-    ImGui::SetNextWindowPos({navigationX, y}, ImGuiCond_Always);
+    // Clamp both menus as one group so a taller section cannot break their top alignment.
+    const float menuGroupHeight{sectionExpanded_ ? std::max(menuHeight, sectionBounds_.height) : menuHeight};
+    const float navigationY{ClampMenuY(viewport, launcherBounds_.y + launcherBounds_.height * 0.5F - menuHeight * 0.5F, menuGroupHeight)};
+    ImGui::SetNextWindowPos({navigationX, navigationY}, ImGuiCond_Always);
     ImGui::SetNextWindowSize({menuWidth, 0.0F}, ImGuiCond_Always);
     const px::ui::ThemeTokens tokens{px::ui::CurrentThemeTokens()};
     ImGui::SetNextWindowBgAlpha(px::ui::EnhancedVisualEffectsEnabled() ? 0.94F : 1.0F);
@@ -230,7 +282,7 @@ bool ClientToolbar::DrawNavigation(const ClientSessionSnapshot& snapshot, const 
     navigationItem(text(ClientText::Display), Section::Display);
     navigationItem(text(ClientText::Control), Section::Control);
     navigationItem(text(ClientText::Tools), Section::Tools);
-    navigationItem(text(ClientText::Voice), Section::Voice, snapshot.voiceAvailable);
+    // Voice implementation is retained; its menu entry is temporarily hidden by product decision.
     navigationItem(text(ClientText::Settings), Section::Settings);
     navigationItem(text(ClientText::ExitControl), Section::Exit);
 
@@ -243,20 +295,15 @@ bool ClientToolbar::DrawNavigation(const ClientSessionSnapshot& snapshot, const 
 }
 
 bool ClientToolbar::DrawSection(const std::shared_ptr<ClientSession>& session, const ClientSessionSnapshot& snapshot, const bool english,
-                                const bool darkTheme, ClientToolbarAction& action) {
+                                const bool darkTheme, const bool fullscreen, ClientToolbarAction& action) {
     const auto text = [english](const ClientText id) { return ClientTextValue(id, english).data(); };
     const auto& viewport = *ImGui::GetMainViewport();
     const px::ui::UiMetrics metrics{px::ui::MetricsFor(ImGui::GetStyle().FontScaleDpi)};
-    const float navigationWidth{220.0F * metrics.scale};
-    const float sectionWidth{310.0F * metrics.scale};
-    const float menuHeight{430.0F * metrics.scale};
+    const float sectionWidth{navigationBounds_.width};
     const float spacing{metrics.spacingSm};
     const bool openLeft{launcherBounds_.x + launcherBounds_.width * 0.5F > viewport.WorkPos.x + viewport.WorkSize.x * 0.5F};
-    const float navigationX{openLeft ? launcherBounds_.x - navigationWidth - metrics.spacingMd
-                                     : launcherBounds_.x + launcherBounds_.width + metrics.spacingMd};
-    const float sectionX{openLeft ? navigationX - sectionWidth - spacing : navigationX + navigationWidth + spacing};
-    const float y{ClampMenuY(viewport, launcherBounds_.y + launcherBounds_.height * 0.5F - menuHeight * 0.5F, menuHeight)};
-    ImGui::SetNextWindowPos({sectionX, y}, ImGuiCond_Always);
+    const float sectionX{openLeft ? navigationBounds_.x - sectionWidth - spacing : navigationBounds_.x + navigationBounds_.width + spacing};
+    ImGui::SetNextWindowPos({sectionX, navigationBounds_.y}, ImGuiCond_Always);
     ImGui::SetNextWindowSize({sectionWidth, 0.0F}, ImGuiCond_Always);
     const px::ui::ThemeTokens tokens{px::ui::CurrentThemeTokens()};
     ImGui::SetNextWindowBgAlpha(px::ui::EnhancedVisualEffectsEnabled() ? 0.94F : 1.0F);
@@ -267,7 +314,7 @@ bool ClientToolbar::DrawSection(const std::shared_ptr<ClientSession>& session, c
     const px::ui::ScopedStyleColor background{ImGuiCol_WindowBg, tokens.popover};
     const px::ui::ScopedStyleColor border{ImGuiCol_Border, tokens.border};
     const px::ui::ScopedStyleVar rounding{ImGuiStyleVar_WindowRounding, metrics.popupRadius};
-    const px::ui::ScopedStyleVar padding{ImGuiStyleVar_WindowPadding, ImVec2{metrics.spacingLg, metrics.spacingLg}};
+    const px::ui::ScopedStyleVar padding{ImGuiStyleVar_WindowPadding, ImVec2{metrics.spacingMd, metrics.spacingMd}};
     const px::ui::ScopedStyleVar spacingStyle{ImGuiStyleVar_ItemSpacing, ImVec2{metrics.spacingSm, metrics.spacingSm}};
     ImGui::Begin("##pixels-controller-section", {}, kOverlayFlags);
 
@@ -309,16 +356,11 @@ bool ClientToolbar::DrawSection(const std::shared_ptr<ClientSession>& session, c
             }
         }
         px::ui::FieldLabel(text(ClientText::FrameRate));
-        if (px::ui::SliderIntField({"client-frame-rate"}, frameRate_, 15, 120)) static_cast<void>(session->SetFrameRate(frameRate_));
-        if (px::ui::ToggleSwitch({"client-audio"}, text(ClientText::Audio), audioEnabled_, false,
-                                 audioEnabled_ ? px::ui::VectorIcon::Volume : px::ui::VectorIcon::VolumeOff))
-            static_cast<void>(session->SetAudioEnabled(audioEnabled_));
-        if (px::ui::ActionButton({"client-fullscreen"}, text(ClientText::Fullscreen),
-                                 {.variant = px::ui::ButtonVariant::Secondary,
-                                  .icon = px::ui::VectorIcon::Maximize,
-                                  .width = -1.0F,
-                                  .contentAlignment = px::ui::ButtonContentAlignment::Leading,
-                                  .contentInset = metrics.spacingMd}))
+        if (px::ui::SelectField({"client-frame-rate"}, frameRate_, kFrameRateOptions)) static_cast<void>(session->SetFrameRate(frameRate_));
+        // Read actual window state every frame; a failed transition must not leave the switch in a fictional state.
+        bool requestedFullscreen{fullscreen};
+        if (px::ui::ToggleSwitch({"client-fullscreen"}, text(ClientText::Fullscreen), requestedFullscreen, false,
+                                 fullscreen ? px::ui::VectorIcon::Restore : px::ui::VectorIcon::Maximize))
             action.toggleFullscreen = true;
         if (snapshot.virtualDisplayAvailable) {
             px::ui::HorizontalSeparator();
@@ -329,7 +371,7 @@ bool ClientToolbar::DrawSection(const std::shared_ptr<ClientSession>& session, c
                                      {.variant = px::ui::ButtonVariant::Outline,
                                       .size = px::ui::WidgetSize::Sm,
                                       .icon = px::ui::VectorIcon::Plus,
-                                      .width = (sectionWidth - metrics.spacingLg * 2.0F - metrics.spacingSm) * 0.5F,
+                                      .width = (sectionWidth - metrics.spacingMd * 2.0F - metrics.spacingSm) * 0.5F,
                                       .disabled = snapshot.virtualDisplayBusy || snapshot.virtualDisplayCount >= snapshot.virtualDisplayMaximum}))
                 static_cast<void>(session->CreateVirtualDisplay());
             ImGui::SameLine();
@@ -337,20 +379,23 @@ bool ClientToolbar::DrawSection(const std::shared_ptr<ClientSession>& session, c
                                      {.variant = px::ui::ButtonVariant::Outline,
                                       .size = px::ui::WidgetSize::Sm,
                                       .icon = px::ui::VectorIcon::Minus,
-                                      .width = (sectionWidth - metrics.spacingLg * 2.0F - metrics.spacingSm) * 0.5F,
+                                      .width = (sectionWidth - metrics.spacingMd * 2.0F - metrics.spacingSm) * 0.5F,
                                       .disabled = snapshot.virtualDisplayBusy || snapshot.virtualDisplayCount == 0U}))
                 static_cast<void>(session->RemoveVirtualDisplay());
         }
     } else if (section_ == Section::Control) {
         px::ui::SectionTitle(text(ClientText::Control));
         px::ui::HorizontalSeparator();
+        if (px::ui::ToggleSwitch({"client-audio"}, text(ClientText::Audio), audioEnabled_, false,
+                                 audioEnabled_ ? px::ui::VectorIcon::Volume : px::ui::VectorIcon::VolumeOff))
+            static_cast<void>(session->SetAudioEnabled(audioEnabled_));
         if (px::ui::ActionButton({"client-secure-attention"}, text(ClientText::SecureAttention),
-                                 {.icon = px::ui::VectorIcon::Shield,
+                                 {.variant = px::ui::ButtonVariant::Secondary,
+                                  .icon = px::ui::VectorIcon::Shield,
                                   .width = -1.0F,
                                   .contentAlignment = px::ui::ButtonContentAlignment::Leading,
                                   .contentInset = metrics.spacingMd}))
             static_cast<void>(session->SendSecureAttention());
-        px::ui::FieldDescription(text(ClientText::ControlDescription));
     } else if (section_ == Section::Tools) {
         px::ui::SectionTitle(text(ClientText::Tools));
         px::ui::HorizontalSeparator();
@@ -359,8 +404,13 @@ bool ClientToolbar::DrawSection(const std::shared_ptr<ClientSession>& session, c
                                   .icon = px::ui::VectorIcon::Camera,
                                   .width = -1.0F,
                                   .contentAlignment = px::ui::ButtonContentAlignment::Leading,
-                                  .contentInset = metrics.spacingMd}))
-            screenshotStatus_ = session->SaveScreenshot().value_or(text(ClientText::ScreenshotFailed));
+                                  .contentInset = metrics.spacingMd})) {
+            const auto result = session->SaveScreenshot();
+            if (result.status != ScreenshotStatus::Saved) {
+                LOGW("Screenshot failed, status={}, error={}", static_cast<int>(result.status), result.error);
+            }
+            captureToasts_.Push(ScreenshotToast(result, english));
+        }
         if (snapshot.recording) {
             if (px::ui::ActionButton({"client-record-stop"}, text(ClientText::StopRecording),
                                      {.variant = px::ui::ButtonVariant::Destructive,
@@ -375,16 +425,15 @@ bool ClientToolbar::DrawSection(const std::shared_ptr<ClientSession>& session, c
                                          .width = -1.0F,
                                          .contentAlignment = px::ui::ButtonContentAlignment::Leading,
                                          .contentInset = metrics.spacingMd})) {
-            static_cast<void>(session->StartRecording());
+            if (!session->StartRecording()) {
+                captureToasts_.Push({.title = text(ClientText::RecordingStartFailed),
+                                     .description = text(ClientText::RecordingStartFailedDetail),
+                                     .variant = px::ui::FeedbackVariant::Error,
+                                     .duration = std::chrono::seconds{6}});
+            }
         }
         static_cast<void>(
             px::ui::ToggleSwitch({"client-statistics"}, text(ClientText::Statistics), showStatistics_, false, px::ui::VectorIcon::Activity));
-        if (showStatistics_) {
-            const std::string statistics{"FPS " + std::to_string(snapshot.framesPerSecond) + " | " + std::to_string(snapshot.latencyMilliseconds) +
-                                         " ms | " + std::to_string(snapshot.bitrateKbps) + " Kbps | " + snapshot.decoder};
-            px::ui::FieldDescription(statistics);
-        }
-        if (!screenshotStatus_.empty()) px::ui::FieldDescription(screenshotStatus_);
     } else if (section_ == Section::Voice) {
         px::ui::SectionTitle(text(ClientText::Voice));
         px::ui::HorizontalSeparator();

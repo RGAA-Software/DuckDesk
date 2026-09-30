@@ -23,7 +23,9 @@
 #include "px_render/architecture/events/render_event.h"
 #include "px_render/architecture/runtime/await_callback.h"
 #include "px_render/network/transport_types.h"
+#include "px_render/network/direct_stream_id.h"
 #include "version_config.h"
+#include "frontend_lease_renewal.h"
 #include "ws_callback_workflow.h"
 #include "ws_transport.h"
 
@@ -52,6 +54,8 @@ struct RtcPasswordAdmission {
     int64_t expires_at_ms_ = 0;
     bool allow_observer_ = true;
     bool allow_takeover_ = true;
+    std::string direct_quota_id_{};
+    std::uint32_t direct_valid_for_ms_{};
 };
 
 struct DeferredHttpReply {
@@ -222,7 +226,8 @@ private:
 HttpHandler::HttpHandler(std::weak_ptr<WsTransport> transport, std::shared_ptr<PxAsyncScope> async_scope)
     : transport_(std::move(transport)),
       async_scope_(std::move(async_scope)),
-      frontend_lease_renewals_(std::make_shared<FrontendLeaseRenewalCoordinator>(transport_, async_scope_)) {}
+      frontend_lease_renewals_(std::make_shared<FrontendLeaseRenewalCoordinator>(transport_, async_scope_)),
+      direct_stream_lease_renewals_(std::make_shared<WebSocketFrontendLeaseRenewalCoordinator>(transport_, async_scope_)) {}
 
 std::string HttpHandler::GetErrorMessage(int code) {
     if (code == kHandlerErrVerifySafetyPasswordFailed) {
@@ -278,6 +283,8 @@ void HttpHandler::HandleGetRenderConfiguration(http::web_request& req, http::web
     const auto& settings = transport->Settings();
     nlohmann::json obj;
     obj["device_id"] = settings.device_id;
+    obj["public_device_code"] = settings.public_device_code;
+    obj["console_origin"] = settings.console_origin;
     obj["relay_host"] = settings.relay_host;
     obj["relay_port"] = std::atoi(settings.relay_port.c_str());
     obj["incoming_remote_access_enabled"] = settings.incoming_remote_access_enabled;
@@ -500,15 +507,29 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(std::weak_ptr<HttpHandler> 
         }
         const auto stream_id =
             requested_stream_id.empty() ? std::string("password:") + MD5::Hex(remote_address + "|" + client_nonce) : requested_stream_id;
+        const auto logical_session_id = std::string("password:") + MD5::Hex(device_id + "|" + stream_id + "|" + client_nonce);
+        const auto quota_id = DirectStreamQuotaId(transport->Settings().device_id, logical_session_id);
+        if (quota_id.empty()) {
+            complete(make_reply(kHandlerErrConsoleAdmissionRejected, http::status::forbidden));
+            co_return;
+        }
+        auto direct_grant = co_await transport->RequestDirectStream(quota_id, false, std::chrono::steady_clock::now() + std::chrono::seconds(12));
+        if (!direct_grant.HasValue() || direct_grant.Value() == 0) {
+            complete(make_reply(kHandlerErrConsoleAdmissionRejected, http::status::forbidden));
+            co_return;
+        }
+        const auto valid_for_ms = direct_grant.TakeValue();
         authentication = RtcPasswordAdmission{
             .permissions_ = {"view", "input", "clipboard", "file", "audio"},
-            .logical_session_id_ = std::string("password:") + MD5::Hex(device_id + "|" + stream_id + "|" + client_nonce),
+            .logical_session_id_ = logical_session_id,
             .stream_id_ = stream_id,
             .join_mode_ = "control",
             .subject_id_ = std::string("password:") + MD5::Hex(remote_address + "|" + client_nonce),
-            .expires_at_ms_ = 0,
+            .expires_at_ms_ = CurrentSystemMilliseconds() + static_cast<std::int64_t>(valid_for_ms),
             .allow_observer_ = false,
             .allow_takeover_ = transport->Settings().direct_allow_takeover,
+            .direct_quota_id_ = quota_id,
+            .direct_valid_for_ms_ = valid_for_ms,
         };
     }
 
@@ -634,6 +655,17 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(std::weak_ptr<HttpHandler> 
                 .binding_id = admitted_binding_id,
             },
             std::move(frontend_token), console_frontend_grant->valid_for_ms);
+    } else if (!authentication.direct_quota_id_.empty() && self->direct_stream_lease_renewals_) {
+        self->direct_stream_lease_renewals_->StartDirect(
+            WebSocketDirectLeaseIdentity{
+                .quota_id = authentication.direct_quota_id_,
+                .logical_grant = admission_grant,
+                .device_id = device_id,
+                .stream_id = authentication.stream_id_,
+                .allocation_id = rtc_allocation_id,
+                .binding_id = admitted_binding_id,
+            },
+            authentication.direct_valid_for_ms_);
     }
     nlohmann::json result;
     result["answer_sdp"] = reply_info->answer_sdp_;

@@ -74,12 +74,29 @@ impl ResourceSessionStore {
             tx.commit().await?;
             return Ok(result);
         }
-        Self::enforce_target_entitlement(&mut tx, request.target, entitlement).await?;
+        let target_category =
+            Self::enforce_target_entitlement(&mut tx, request.target, entitlement).await?;
         sqlx::query("SELECT pg_advisory_xact_lock(5788347791197331458)")
             .execute(&mut *tx)
             .await?;
+        if entitlement.starter_mode_limit {
+            let active_in_category: i64 = sqlx::query_scalar(
+                "SELECT (SELECT count(*) FROM pixels.resource_sessions AS resource_session \
+                 LEFT JOIN pixels.instances AS instance ON instance.id=resource_session.instance_id \
+                 WHERE resource_session.closed_at IS NULL AND \
+                 (($1='desktop' AND resource_session.target_kind='desktop') OR instance.kind=$1)) + \
+                 (SELECT count(*) FROM pixels.direct_streams WHERE $1='desktop' AND expires_at > clock_timestamp())",
+            )
+            .bind(&target_category)
+            .fetch_one(&mut *tx)
+            .await?;
+            if active_in_category >= 1 {
+                return Err(StoreError::LicenseRestriction);
+            }
+        }
         let active_sessions: i64 = sqlx::query_scalar(
-            "SELECT count(*) FROM pixels.resource_sessions WHERE closed_at IS NULL",
+            "SELECT (SELECT count(*) FROM pixels.resource_sessions WHERE closed_at IS NULL) + \
+             (SELECT count(*) FROM pixels.direct_streams WHERE expires_at > clock_timestamp())",
         )
         .fetch_one(&mut *tx)
         .await?;
@@ -264,9 +281,10 @@ impl ResourceSessionStore {
         connection: &mut sqlx::PgConnection,
         target: SessionTarget,
         entitlement: RuntimeEntitlement,
-    ) -> Result<(), StoreError> {
-        let permitted = match target {
-            SessionTarget::Desktop { .. } => entitlement.desktop,
+    ) -> Result<String, StoreError> {
+        let category = match target {
+            SessionTarget::Desktop { .. } if entitlement.desktop => "desktop".to_owned(),
+            SessionTarget::Desktop { .. } => return Err(StoreError::LicenseRestriction),
             SessionTarget::CloudApplication {
                 application_id,
                 instance_id,
@@ -279,13 +297,13 @@ impl ResourceSessionStore {
                 .fetch_optional(&mut *connection)
                 .await?
                 .ok_or(StoreError::Rejected)?;
-                entitlement.permits_application_kind(&kind)
+                if !entitlement.permits_application_kind(&kind) {
+                    return Err(StoreError::LicenseRestriction);
+                }
+                kind
             }
         };
-        if !permitted {
-            return Err(StoreError::LicenseRestriction);
-        }
-        Ok(())
+        Ok(category)
     }
     pub async fn request_close(
         &self,

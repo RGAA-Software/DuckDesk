@@ -381,6 +381,11 @@ void WsTransport::ConfigureFrontendAuthorizer(FrontendAuthorizer authorizer) {
     frontend_authorizer_ = std::move(authorizer);
 }
 
+void WsTransport::ConfigureDirectStreamAuthorizer(DirectStreamAuthorizer authorizer) {
+    std::scoped_lock lock(network_services_mutex_);
+    direct_stream_authorizer_ = std::move(authorizer);
+}
+
 void WsTransport::ConfigureLogicalLeaseRenewer(LogicalLeaseRenewer renewer) {
     std::scoped_lock lock(network_services_mutex_);
     logical_lease_renewer_ = std::move(renewer);
@@ -402,6 +407,20 @@ PxAwaitable<PxResult<ConsoleFrontendGrant>> WsTransport::AdmitFrontend(
             "Console frontend authorizer is unavailable", true));
     }
     co_return co_await authorizer(std::move(request), deadline);
+}
+
+PxAwaitable<PxResult<std::uint32_t>> WsTransport::RequestDirectStream(
+    std::string stream_id, const bool release, const std::chrono::steady_clock::time_point deadline) const {
+    DirectStreamAuthorizer authorizer;
+    {
+        std::scoped_lock lock(network_services_mutex_);
+        authorizer = direct_stream_authorizer_;
+    }
+    if (!authorizer) {
+        co_return PxResult<std::uint32_t>::Failure(MakePxAsyncError(
+            PxAsyncErrorCode::kServiceNotConnected, "direct_stream_admission", "Console direct stream authorizer is unavailable", true));
+    }
+    co_return co_await authorizer(std::move(stream_id), release, deadline);
 }
 
 bool WsTransport::RequiresConsoleFrontendAdmission() const noexcept {

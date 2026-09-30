@@ -9,14 +9,15 @@
 
 #include "panel_device_name.h"
 #include "px_common/log.h"
-#include "px_common/uuid.h"
 #include "px_service_message.pb.h"
 
 namespace px::panel::product {
 
 struct PanelServiceBridge::State final {
-    explicit State(std::shared_ptr<PanelConfigStore> value) : config{std::move(value)} {}
+    explicit State(std::shared_ptr<PanelConfigStore> value, const bool restartOnConnect)
+        : config{std::move(value)}, restartRenderOnConnect{restartOnConnect} {}
     std::shared_ptr<PanelConfigStore> config{};
+    std::atomic_bool restartRenderOnConnect{};
     mutable std::mutex mutex{};
     std::condition_variable_any wakeup{};
     std::shared_ptr<asio2::ws_client> client{};
@@ -25,18 +26,25 @@ struct PanelServiceBridge::State final {
     bool nodeControlReady{};
     std::string nodeId{};
     std::string deviceId{};
+    std::string publicDeviceCode{};
+    std::string authenticatedConsoleOrigin{};
+    std::string renderDeviceId{};
+    std::string renderPublicDeviceCode{};
+    std::string renderConsoleOrigin{};
     std::string nodeAccessHost{};
     std::int64_t nodeGeneration{};
     std::int64_t controlEpoch{};
     std::atomic_int64_t heartbeatIndex{};
 };
 
-std::shared_ptr<PanelServiceBridge> PanelServiceBridge::Create(const std::shared_ptr<PanelConfigStore>& config) {
-    return std::make_shared<PanelServiceBridge>(config);
+std::shared_ptr<PanelServiceBridge> PanelServiceBridge::Create(const std::shared_ptr<PanelConfigStore>& config,
+                                                              const bool restartRenderOnConnect) {
+    return std::make_shared<PanelServiceBridge>(config, restartRenderOnConnect);
 }
 
-PanelServiceBridge::PanelServiceBridge(std::shared_ptr<PanelConfigStore> config)
-    : state_{std::make_shared<State>(std::move(config))}, thread_{[state = state_](const std::stop_token token) { Run(state, token); }} {}
+PanelServiceBridge::PanelServiceBridge(std::shared_ptr<PanelConfigStore> config, const bool restartRenderOnConnect)
+    : state_{std::make_shared<State>(std::move(config), restartRenderOnConnect)},
+      thread_{[state = state_](const std::stop_token token) { Run(state, token); }} {}
 
 PanelServiceBridge::~PanelServiceBridge() { Stop(); }
 
@@ -48,6 +56,8 @@ ServiceSnapshot PanelServiceBridge::Snapshot() const {
             .nodeControlReady = state_->nodeControlReady,
             .nodeId = state_->nodeId,
             .deviceId = state_->deviceId,
+            .publicDeviceCode = state_->publicDeviceCode,
+            .authenticatedConsoleOrigin = state_->authenticatedConsoleOrigin,
             .nodeAccessHost = state_->nodeAccessHost,
             .nodeGeneration = state_->nodeGeneration,
             .controlEpoch = state_->controlEpoch};
@@ -56,6 +66,21 @@ ServiceSnapshot PanelServiceBridge::Snapshot() const {
 bool PanelServiceBridge::RestartRender() {
     if (!state_ || !state_->connected.load(std::memory_order_acquire)) return false;
     SendRenderCommand(state_, true);
+    return true;
+}
+
+bool PanelServiceBridge::StopRender() {
+    if (!state_ || !state_->connected.load(std::memory_order_acquire)) return false;
+    ServiceMessage message{};
+    message.set_type(ServiceMessageType::kSrvStopServer);
+    static_cast<void>(message.mutable_stop_server());
+    std::shared_ptr<asio2::ws_client> client{};
+    {
+        const std::scoped_lock lock{state_->mutex};
+        client = state_->client;
+    }
+    if (!client || !client->is_started()) return false;
+    client->async_send(message.SerializeAsString());
     return true;
 }
 
@@ -104,8 +129,9 @@ void PanelServiceBridge::Run(const std::shared_ptr<State>& state, const std::sto
             if (current) {
                 current->post_queued_event([weakState] {
                     if (const auto ready = weakState.lock()) {
+                        if (ready->config->Identity().deviceId.empty()) return;
                         try {
-                            SendRenderCommand(ready, false);
+                            SendRenderCommand(ready, ready->restartRenderOnConnect.exchange(false, std::memory_order_acq_rel));
                         } catch (const std::exception& error) {
                             LOGE("Panel service startup command failed: {}", error.what());
                         } catch (...) {
@@ -124,6 +150,8 @@ void PanelServiceBridge::Run(const std::shared_ptr<State>& state, const std::sto
                     active->nodeControlReady = false;
                     active->nodeId.clear();
                     active->deviceId.clear();
+                    active->publicDeviceCode.clear();
+                    active->authenticatedConsoleOrigin.clear();
                     active->nodeAccessHost.clear();
                     active->nodeGeneration = 0;
                     active->controlEpoch = 0;
@@ -139,29 +167,55 @@ void PanelServiceBridge::Run(const std::shared_ptr<State>& state, const std::sto
             if (message.type() == ServiceMessageType::kSrvHeartBeatResp) {
                 const auto& heartbeat = message.heart_beat_resp();
                 active->renderRunning.store(heartbeat.render_status() == RenderStatus::kWorking, std::memory_order_release);
-                bool identityChanged{};
+                bool identityNeedsUpdate{};
+                const auto authenticatedConsole = ParseConsoleHttpsOrigin(heartbeat.authenticated_console_origin());
+                const auto selectedConsole = ParseConsoleHttpsOrigin(active->config->ConsoleAddress());
+                const bool identityBelongsToSelectedConsole = authenticatedConsole && selectedConsole &&
+                                                              authenticatedConsole->baseUrl == selectedConsole->baseUrl;
+                bool renderIdentityNeedsUpdate{};
                 {
                     const std::scoped_lock lock{active->mutex};
-                    active->nodeControlReady = heartbeat.node_control_ready();
-                    active->nodeId = heartbeat.node_id();
-                    active->deviceId = heartbeat.device_id();
-                    active->nodeAccessHost = heartbeat.node_access_host();
-                    active->nodeGeneration = heartbeat.node_generation();
-                    active->controlEpoch = heartbeat.control_epoch();
+                    active->nodeControlReady = heartbeat.node_control_ready() && identityBelongsToSelectedConsole;
+                    active->nodeId = active->nodeControlReady ? heartbeat.node_id() : std::string{};
+                    active->deviceId = active->nodeControlReady ? heartbeat.device_id() : std::string{};
+                    active->publicDeviceCode = active->nodeControlReady ? heartbeat.public_device_code() : std::string{};
+                    active->authenticatedConsoleOrigin =
+                        active->nodeControlReady ? authenticatedConsole->baseUrl : std::string{};
+                    renderIdentityNeedsUpdate = active->nodeControlReady && !active->publicDeviceCode.empty() &&
+                                                (active->renderDeviceId != active->deviceId ||
+                                                 active->renderPublicDeviceCode != active->publicDeviceCode ||
+                                                 active->renderConsoleOrigin != active->authenticatedConsoleOrigin);
+                    active->nodeAccessHost = active->nodeControlReady ? heartbeat.node_access_host() : std::string{};
+                    active->nodeGeneration = active->nodeControlReady ? heartbeat.node_generation() : 0;
+                    active->controlEpoch = active->nodeControlReady ? heartbeat.control_epoch() : 0;
                     const auto identity = active->config->Identity();
-                    identityChanged = active->nodeControlReady && !active->deviceId.empty() && identity.deviceId != active->deviceId;
+                    identityNeedsUpdate = active->nodeControlReady && !active->deviceId.empty() &&
+                                          (identity.deviceId != active->deviceId || !IsValidTemporaryPassword(identity.randomPassword));
                 }
-                if (identityChanged) {
+                if (identityNeedsUpdate) {
                     auto identity = active->config->Identity();
                     identity.deviceId = heartbeat.device_id();
                     if (identity.deviceName.empty()) identity.deviceName = BuildDefaultDeviceName();
-                    if (identity.randomPassword.empty()) identity.randomPassword = px::GetUUID();
+                    if (!IsValidTemporaryPassword(identity.randomPassword)) {
+                        const auto replacementPassword = GenerateTemporaryPassword();
+                        if (!replacementPassword) {
+                            LOGE("Panel could not generate a temporary password");
+                            return;
+                        }
+                        identity.randomPassword = *replacementPassword;
+                    }
                     if (active->config->SaveIdentity(identity)) {
                         LOGI("Panel adopted the Service node device identity: {}", identity.deviceId);
                         SendRenderCommand(active, true);
                     } else {
                         LOGE("Panel could not persist the Service node device identity");
                     }
+                } else if (renderIdentityNeedsUpdate) {
+                    SendRenderCommand(active, true);
+                }
+                if (identityBelongsToSelectedConsole && heartbeat.node_control_ready() && !heartbeat.public_device_code().empty() &&
+                    !active->config->SavePublicDeviceCode(heartbeat.device_id(), heartbeat.public_device_code(), heartbeat.node_access_host())) {
+                    LOGE("Panel could not persist the Service public device code and access host");
                 }
             }
         });
@@ -195,6 +249,7 @@ void PanelServiceBridge::SendHeartbeat(const std::shared_ptr<State>& state) {
     auto& heartbeat = *message.mutable_heart_beat();
     heartbeat.set_index(state->heartbeatIndex.fetch_add(1, std::memory_order_acq_rel));
     heartbeat.set_from("panel");
+    heartbeat.set_console_address(state->config->ConsoleAddress());
     std::shared_ptr<asio2::ws_client> client{};
     {
         const std::scoped_lock lock{state->mutex};
@@ -205,6 +260,19 @@ void PanelServiceBridge::SendHeartbeat(const std::shared_ptr<State>& state) {
 
 void PanelServiceBridge::SendRenderCommand(const std::shared_ptr<State>& state, const bool restart) {
     const auto identity = state->config->Identity();
+    const auto selectedConsole = ParseConsoleHttpsOrigin(state->config->ConsoleAddress());
+    std::string publicDeviceCode{state->config->CachedPublicDeviceCode(identity.deviceId)};
+    std::string consoleOrigin{publicDeviceCode.empty() || !selectedConsole ? std::string{} : selectedConsole->baseUrl};
+    {
+        const std::scoped_lock lock{state->mutex};
+        if (state->nodeControlReady && state->deviceId == identity.deviceId) {
+            publicDeviceCode = state->publicDeviceCode;
+            consoleOrigin = state->authenticatedConsoleOrigin;
+        }
+        state->renderDeviceId = identity.deviceId;
+        state->renderPublicDeviceCode = publicDeviceCode;
+        state->renderConsoleOrigin = consoleOrigin;
+    }
     const auto ports = state->config->Ports();
     const auto settings = state->config->Settings();
     std::vector<std::string> arguments{
@@ -229,6 +297,8 @@ void PanelServiceBridge::SendRenderCommand(const std::shared_ptr<State>& state, 
         "--app_game_args=",
         "--debug_block=false",
         std::format("--device_id={}", identity.deviceId),
+        std::format("--public_device_code={}", publicDeviceCode),
+        std::format("--console_origin={}", consoleOrigin),
         std::format("--device_random_pwd={}", identity.randomPassword),
         std::format("--device_safety_pwd={}", identity.securityPasswordHash),
         "--panel_server_host=127.0.0.1",

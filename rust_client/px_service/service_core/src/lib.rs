@@ -23,15 +23,15 @@ pub use process::{
     collect_process_tree, find_pids_for_game_exe, ProcessKind, ProcessSnapshot, RenderMode,
 };
 pub use proto::{
-    decode_service_message, encode_service_message, MsgFileTransferBeginRequest,
-    MsgFileTransferReportRequest, MsgFileTransferResult, MsgFrontendAdmissionRequest,
-    MsgFrontendAdmissionResult, MsgHeartBeat, MsgHeartBeatResp, MsgRecordingFinalized,
-    MsgRecordingFinalizedResult, MsgReqCtrlAltDelete, MsgResourceChannelOpenRequest,
-    MsgResourceChannelOpenResult, MsgResourceChannelReportRequest, MsgResourceChannelReportResult,
-    MsgRestartServer, MsgStartServer, MsgStopServer, MsgVirtualDisplayRequest,
-    MsgVirtualDisplayResult, RenderStatus, ResourceChannelKind, ResourceChannelOutcome,
-    ServiceFileTransferDirection, ServiceFileTransferOutcome, ServiceMessage, ServiceMessageType,
-    VirtualDisplayOperation,
+    decode_service_message, encode_service_message, MsgDirectStreamRequest, MsgDirectStreamResult,
+    MsgFileTransferBeginRequest, MsgFileTransferReportRequest, MsgFileTransferResult,
+    MsgFrontendAdmissionRequest, MsgFrontendAdmissionResult, MsgHeartBeat, MsgHeartBeatResp,
+    MsgRecordingFinalized, MsgRecordingFinalizedResult, MsgReqCtrlAltDelete,
+    MsgResourceChannelOpenRequest, MsgResourceChannelOpenResult, MsgResourceChannelReportRequest,
+    MsgResourceChannelReportResult, MsgRestartServer, MsgStartServer, MsgStopServer,
+    MsgVirtualDisplayRequest, MsgVirtualDisplayResult, RenderStatus, ResourceChannelKind,
+    ResourceChannelOutcome, ServiceFileTransferDirection, ServiceFileTransferOutcome,
+    ServiceMessage, ServiceMessageType, VirtualDisplayOperation,
 };
 pub use state::{RenderLaunchSpec, ServiceState, RENDER_HEARTBEAT_TIMEOUT, RENDER_STARTUP_GRACE};
 pub use storage::{PersistedServiceState, ServiceStorage};

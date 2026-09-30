@@ -471,7 +471,10 @@ void WsPanelClient::ParseNetMessage(const std::string& msg) {
                      static_cast<int>(settings.IncomingAccessProduct()));
                 return;
             }
-            settings.device_id_ = sub.device_id();
+            if (settings.device_id_.empty() || sub.device_id() != settings.device_id_) {
+                LOGW("event=panel.settings component=render_panel operation=ignore outcome=rejected reason=device_identity_mismatch");
+                return;
+            }
             settings.device_random_pwd_ = sub.device_random_pwd();
             settings.device_safety_pwd_ = sub.device_safety_pwd();
             settings.can_be_operated_ = sub.can_be_operated();
@@ -488,6 +491,9 @@ void WsPanelClient::ParseNetMessage(const std::string& msg) {
 
             module_registry_->SyncModuleSettings(RenderRuntimeSettings{
                 .device_id = settings.device_id_,
+                .public_device_code = settings.public_device_code_,
+                .console_origin = settings.console_origin_,
+                .application_instance_id = settings.device_id_,
                 .device_random_password = settings.device_random_pwd_,
                 .device_safety_password = settings.device_safety_pwd_,
                 .relay_host = settings.relay_host_,

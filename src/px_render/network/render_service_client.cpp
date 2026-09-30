@@ -420,6 +420,19 @@ void RenderServiceClient::ParseMessage(const std::string& msg) {
                 "request_id={}",
                 result.request_id_);
         }
+    } else if (sm.type() == ServiceMessageType::kSrvDirectStreamResult) {
+        const auto& admission = sm.direct_stream_result();
+        MsgDirectStreamServiceResult result;
+        result.request_id_ = admission.request_id();
+        result.accepted_ = admission.accepted();
+        result.error_code_ = admission.error_code();
+        result.stream_id_ = admission.stream_id();
+        result.valid_for_ms_ = admission.valid_for_ms();
+        const auto state = SnapshotAsyncState();
+        if (!state.rpc_state || !state.rpc_state->direct_stream_requests_->Complete(
+                                    result.request_id_, PxResult<MsgDirectStreamServiceResult>::Success(result))) {
+            LOGW("Ignore late or unknown direct stream response: request_id={}", result.request_id_);
+        }
     } else if (sm.type() == ServiceMessageType::kSrvResourceChannelOpenResult) {
         const auto& channel = sm.resource_channel_open_result();
         MsgResourceChannelServiceResult result;
@@ -733,13 +746,14 @@ void RenderServiceClient::FailPendingRequests(const PxAsyncError& error) {
     }
     const auto display_count = state.rpc_state->virtual_display_requests_->FailAll(error);
     const auto admission_count = state.rpc_state->frontend_admission_requests_->FailAll(error);
+    const auto direct_stream_count = state.rpc_state->direct_stream_requests_->FailAll(error);
     const auto resource_channel_count = state.rpc_state->resource_channel_requests_->FailAll(error);
     const auto file_transfer_count = state.rpc_state->file_transfer_requests_->FailAll(error);
-    if (display_count != 0 || admission_count != 0 || resource_channel_count != 0 || file_transfer_count != 0) {
+    if (display_count != 0 || admission_count != 0 || direct_stream_count != 0 || resource_channel_count != 0 || file_transfer_count != 0) {
         LOGW(
             "Render Service pending requests failed: virtual_displays={}, "
-            "frontend_admissions={}, resource_channels={}, file_transfers={}, code={}",
-            display_count, admission_count, resource_channel_count, file_transfer_count, error.StableCode());
+            "frontend_admissions={}, direct_streams={}, resource_channels={}, file_transfers={}, code={}",
+            display_count, admission_count, direct_stream_count, resource_channel_count, file_transfer_count, error.StableCode());
     }
 }
 
@@ -919,6 +933,36 @@ PxAwaitable<PxResult<MsgFrontendAdmissionServiceResult>> RenderServiceClient::Re
             request_id, PxResult<MsgFrontendAdmissionServiceResult>::Failure(send_result.Error())));
     }
     co_return co_await WaitForRegisteredRequest(state.rpc_state->frontend_admission_requests_, request_id, request_operation, deadline);
+}
+
+PxAwaitable<PxResult<MsgDirectStreamServiceResult>> RenderServiceClient::RequestDirectStreamAsync(
+    std::string request_id, std::string stream_id, const bool release, const std::chrono::steady_clock::time_point deadline) {
+    if (request_id.empty() || stream_id.empty()) {
+        co_return PxResult<MsgDirectStreamServiceResult>::Failure(
+            MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument, "direct_stream_admission", "direct stream request is invalid"));
+    }
+    const auto state = SnapshotAsyncState();
+    if (!IsAlive() || !websocket_upgraded_.load(std::memory_order_acquire) || !state.rpc_state) {
+        co_return PxResult<MsgDirectStreamServiceResult>::Failure(
+            MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected, "direct_stream_admission", "Render is not connected to Service", true));
+    }
+    auto registered = state.rpc_state->direct_stream_requests_->Register(request_id);
+    if (!registered.HasValue()) {
+        co_return PxResult<MsgDirectStreamServiceResult>::Failure(registered.Error());
+    }
+    const auto request_operation = registered.Value();
+    px::ServiceMessage message;
+    message.set_type(ServiceMessageType::kSrvDirectStreamRequest);
+    auto& request = *message.mutable_direct_stream_request();
+    request.set_request_id(request_id);
+    request.set_stream_id(std::move(stream_id));
+    request.set_release(release);
+    const auto send_result = TryPostNetMessage(message.SerializeAsString());
+    if (!send_result.HasValue()) {
+        static_cast<void>(state.rpc_state->direct_stream_requests_->Complete(
+            request_id, PxResult<MsgDirectStreamServiceResult>::Failure(send_result.Error())));
+    }
+    co_return co_await WaitForRegisteredRequest(state.rpc_state->direct_stream_requests_, request_id, request_operation, deadline);
 }
 
 PxAwaitable<PxResult<MsgResourceChannelServiceResult>> RenderServiceClient::RequestResourceChannelOpenAsync(

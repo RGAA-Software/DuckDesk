@@ -61,6 +61,7 @@
 #include "px_common/shared_preference.h"
 #include "px_common/string_util.h"
 #include "px_common/thread.h"
+#include "px_common/uuid.h"
 #include "px_common/time_util.h"
 #include "px_common/virtual_display_limits.h"
 #include "px_common/win32/d3d11_wrapper.h"
@@ -2479,6 +2480,26 @@ PxAwaitable<PxResult<ConsoleFrontendGrant>> RdApplication::AdmitConsoleFrontend(
         .access_role = std::move(admitted.access_role_),
         .valid_for_ms = admitted.valid_for_ms_,
     });
+}
+
+PxAwaitable<PxResult<std::uint32_t>> RdApplication::RequestDirectStream(
+    std::string stream_id, const bool release, const std::chrono::steady_clock::time_point deadline) {
+    if (!service_client_ || !service_client_->IsAlive()) {
+        co_return PxResult<std::uint32_t>::Failure(
+            MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected, "direct_stream_admission", "px_service is unavailable", true));
+    }
+    const auto expected_stream_id = stream_id;
+    auto response = co_await service_client_->RequestDirectStreamAsync(GetCanonicalUUID(), std::move(stream_id), release, deadline);
+    if (!response.HasValue()) {
+        co_return PxResult<std::uint32_t>::Failure(response.Error());
+    }
+    auto result = response.TakeValue();
+    if (!result.accepted_ || result.stream_id_ != expected_stream_id || (!release && result.valid_for_ms_ == 0)) {
+        co_return PxResult<std::uint32_t>::Failure(MakePxAsyncError(
+            PxAsyncErrorCode::kServiceRejected, "direct_stream_admission", "Console rejected direct stream admission", false,
+            result.error_code_.empty() ? "ADMISSION_REJECTED" : result.error_code_));
+    }
+    co_return PxResult<std::uint32_t>::Success(result.valid_for_ms_);
 }
 
 void RdApplication::OpenConsoleResourceChannel(std::string connection_key, std::string logical_session_id,

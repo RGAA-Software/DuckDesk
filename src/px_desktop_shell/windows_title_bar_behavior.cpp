@@ -1,16 +1,17 @@
 #include "windows_title_bar_behavior.h"
 
-#include "title_bar.h"
-
+#include <SDL3/SDL.h>
 #include <windows.h>
+
+// Win32 extension headers require windows.h to be included first.
 #include <commctrl.h>
 #include <dwmapi.h>
 #include <windowsx.h>
 
-#include <SDL3/SDL.h>
-
 #include <memory>
 #include <utility>
+
+#include "title_bar.h"
 
 namespace px::desktop {
 namespace {
@@ -21,6 +22,7 @@ constexpr int kMinimumWindowWidth{900};
 constexpr int kMinimumWindowHeight{600};
 constexpr UINT_PTR kSubclassId{0x50584D42};
 constexpr DWORD_PTR kAllowTitleBarMaximize{1};
+constexpr DWORD_PTR kMaximizeButtonPressed{2};
 
 bool IsMaximizeButton(const HWND window, const LPARAM position) {
     RECT clientBounds{};
@@ -50,7 +52,7 @@ LRESULT CALLBACK TitleBarSubclass(const HWND window, const UINT message, const W
     }
     if (message == WM_GETMINMAXINFO) {
         const LRESULT result{DefSubclassProc(window, message, wParam, lParam)};
-        auto& limits{*reinterpret_cast<MINMAXINFO*>(lParam)}; // NOLINT(pixels-raw-pointer-boundary): Win32 message ABI.
+        auto& limits{*reinterpret_cast<MINMAXINFO*>(lParam)};  // NOLINT(pixels-raw-pointer-boundary): Win32 message ABI.
         const UINT dpi{GetDpiForWindow(window)};
         limits.ptMinTrackSize.x = MulDiv(kMinimumWindowWidth, static_cast<int>(dpi), USER_DEFAULT_SCREEN_DPI);
         limits.ptMinTrackSize.y = MulDiv(kMinimumWindowHeight, static_cast<int>(dpi), USER_DEFAULT_SCREEN_DPI);
@@ -62,7 +64,7 @@ LRESULT CALLBACK TitleBarSubclass(const HWND window, const UINT message, const W
         return DefWindowProcW(window, message, wParam, lParam);
     }
     if (message == WM_DPICHANGED) {
-        const RECT suggestedBounds{*reinterpret_cast<const RECT*>(lParam)}; // NOLINT(pixels-raw-pointer-boundary): Win32 message ABI.
+        const RECT suggestedBounds{*reinterpret_cast<const RECT*>(lParam)};  // NOLINT(pixels-raw-pointer-boundary): Win32 message ABI.
         // SDL must observe the DPI transition so its display association and mouse-coordinate
         // state remain synchronized. It intentionally keeps the old physical client size, so
         // apply the platform's logical-size-preserving rectangle after SDL has returned.
@@ -74,17 +76,35 @@ LRESULT CALLBACK TitleBarSubclass(const HWND window, const UINT message, const W
     if (message == WM_NCLBUTTONDBLCLK && wParam == HTCAPTION && (behaviorFlags & kAllowTitleBarMaximize) == 0) {
         return 0;
     }
-    if (message == WM_NCHITTEST && (behaviorFlags & kAllowTitleBarMaximize) != 0 && IsMaximizeButton(window, lParam)) {
+    if (message == WM_NCHITTEST && (behaviorFlags & kAllowTitleBarMaximize) != 0 && (GetWindowLongPtrW(window, GWL_STYLE) & WS_MAXIMIZEBOX) != 0 &&
+        IsMaximizeButton(window, lParam)) {
         return HTMAXBUTTON;
     }
-    if (message == WM_NCLBUTTONUP && wParam == HTMAXBUTTON) {
-        ShowWindow(window, IsZoomed(window) ? SW_RESTORE : SW_MAXIMIZE);
+    if (message == WM_NCLBUTTONDOWN && wParam == HTMAXBUTTON && (behaviorFlags & kAllowTitleBarMaximize) != 0) {
+        // SDL's borderless window does not complete the native caption-button workflow.
+        // Capture the press ourselves; its release is a client-area WM_LBUTTONUP, not necessarily WM_NCLBUTTONUP.
+        SetWindowSubclass(window, TitleBarSubclass, kSubclassId, behaviorFlags | kMaximizeButtonPressed);
+        SetCapture(window);
         return 0;
+    }
+    if ((message == WM_LBUTTONUP || message == WM_NCLBUTTONUP) && (behaviorFlags & kMaximizeButtonPressed) != 0) {
+        POINT releasePosition{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
+        const bool hasPosition{message == WM_NCLBUTTONUP || ClientToScreen(window, &releasePosition)};
+        SetWindowSubclass(window, TitleBarSubclass, kSubclassId, behaviorFlags & ~kMaximizeButtonPressed);
+        ReleaseCapture();
+        if (hasPosition && IsMaximizeButton(window, MAKELPARAM(releasePosition.x, releasePosition.y))) {
+            ShowWindow(window, IsZoomed(window) ? SW_RESTORE : SW_MAXIMIZE);
+        }
+        return 0;
+    }
+    if ((message == WM_CAPTURECHANGED || message == WM_CANCELMODE) && (behaviorFlags & kMaximizeButtonPressed) != 0) {
+        SetWindowSubclass(window, TitleBarSubclass, kSubclassId, behaviorFlags & ~kMaximizeButtonPressed);
+        if (message == WM_CANCELMODE && GetCapture() == window) ReleaseCapture();
     }
     return DefSubclassProc(window, message, wParam, lParam);
 }
 
-} // namespace
+}  // namespace
 
 struct WindowsTitleBarBehavior::Impl final {
     HWND window{};
@@ -137,4 +157,4 @@ WindowsTitleBarBehavior::WindowsTitleBarBehavior(WindowsTitleBarBehavior&&) noex
 WindowsTitleBarBehavior& WindowsTitleBarBehavior::operator=(WindowsTitleBarBehavior&&) noexcept = default;
 WindowsTitleBarBehavior::~WindowsTitleBarBehavior() = default;
 
-} // namespace px::desktop
+}  // namespace px::desktop

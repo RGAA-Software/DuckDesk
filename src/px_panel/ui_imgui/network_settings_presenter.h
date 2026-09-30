@@ -16,7 +16,6 @@ class NetworkSettingsPresenter final {
   private:
     px::ui::TextId StatusText(NetworkOperation operation) const noexcept;
     void Synchronize();
-    void DrawRestartConfirmation(const px::ui::Localizer& localizer);
 
     std::shared_ptr<NetworkSettingsPort> port_{};
     NetworkSettingsPage page_{};

@@ -53,7 +53,15 @@ void ToastHost::Push(ToastMessage message) {
     }
 }
 
-void ToastHost::Draw() {
+bool ToastHost::CapturesPointer(const float pointX, const float pointY) const noexcept {
+    const auto now{std::chrono::steady_clock::now()};
+    return std::ranges::any_of(entries_, [now, pointX, pointY](const Entry& entry) {
+        return now < entry.expiresAt && pointX >= entry.minimum.x && pointY >= entry.minimum.y && pointX < entry.maximum.x &&
+               pointY < entry.maximum.y;
+    });
+}
+
+void ToastHost::Draw(const ToastPlacement placement, const float topInset) {
     const auto now{std::chrono::steady_clock::now()};
     std::erase_if(entries_, [now](const Entry& entry) { return now >= entry.expiresAt; });
     if (entries_.empty()) {
@@ -63,7 +71,9 @@ void ToastHost::Draw() {
     const UiMetrics metrics{MetricsFor(ImGui::GetStyle().FontScaleDpi)};
     const ImGuiViewport& viewport{*ImGui::GetMainViewport()};
     float bottom{viewport.WorkPos.y + viewport.WorkSize.y - metrics.spacingLg};
+    float top{viewport.WorkPos.y + std::max(0.0F, topInset) + metrics.spacingLg};
     std::vector<std::uint64_t> dismissed{};
+    std::vector<std::function<void()>> clickActions{};
     for (auto iterator{entries_.rbegin()}; iterator != entries_.rend(); ++iterator) {
         Entry& entry{*iterator};
         const float width{std::min(360.0F * metrics.scale, std::max(1.0F, viewport.WorkSize.x - metrics.spacingLg * 2.0F))};
@@ -75,7 +85,11 @@ void ToastHost::Draw() {
         const float height{titleHeight + metrics.spacingMd * 2.0F +
                            (entry.message.description.empty() ? 0.0F : descriptionSize.y + metrics.spacingXs)};
         bottom -= height;
-        ImGui::SetNextWindowPos({viewport.WorkPos.x + viewport.WorkSize.x - width - metrics.spacingLg, bottom});
+        const ImVec2 position{viewport.WorkPos.x + viewport.WorkSize.x - width - metrics.spacingLg,
+                              placement == ToastPlacement::TopRight ? top : bottom};
+        entry.minimum = position;
+        entry.maximum = {position.x + width, position.y + height};
+        ImGui::SetNextWindowPos(position);
         ImGui::SetNextWindowSize({width, height});
         ImVec4 background{tokens.popover};
         background.w = EnhancedVisualEffectsEnabled() ? 0.96F : 1.0F;
@@ -85,7 +99,8 @@ void ToastHost::Draw() {
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{metrics.spacingLg, metrics.spacingMd});
         const std::string windowId{"##px-toast-" + std::to_string(entry.id)};
         if (ImGui::Begin(windowId.c_str(), {},
-                         ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoNavFocus)) {
+                         ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoNavFocus |
+                             ImGuiWindowFlags_NoFocusOnAppearing)) {
             const ImVec4 accent{AccentFor(entry.message.variant, tokens)};
             const ImVec2 start{ImGui::GetCursorScreenPos()};
             DrawVectorIcon(IconFor(entry.message.variant), start, metrics.iconDefault, ImGui::GetColorU32(accent));
@@ -99,6 +114,7 @@ void ToastHost::Draw() {
                            {.variant = ButtonVariant::GhostDestructive, .size = WidgetSize::IconXs, .circular = true})) {
                 dismissed.push_back(entry.id);
             }
+            const bool overCloseButton{ImGui::IsItemHovered()};
             if (!entry.message.description.empty()) {
                 ImGui::SetCursorScreenPos({start.x + metrics.iconDefault + metrics.spacingSm, start.y + titleHeight + metrics.spacingXs});
                 ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + textWidth);
@@ -107,13 +123,25 @@ void ToastHost::Draw() {
                 ImGui::PopStyleColor();
                 ImGui::PopTextWrapPos();
             }
+            if (ImGui::IsWindowHovered() && entry.message.onClick && !overCloseButton) {
+                ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+                // Keep the actionable path readable while the user is pointing at it.
+                entry.expiresAt = std::chrono::steady_clock::now() + entry.message.duration;
+                if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                    clickActions.push_back(entry.message.onClick);
+                    dismissed.push_back(entry.id);
+                }
+            }
         }
         ImGui::End();
         ImGui::PopStyleVar(2);
         ImGui::PopStyleColor(2);
         bottom -= metrics.spacingSm;
+        top += height + metrics.spacingSm;
     }
     std::erase_if(entries_, [&dismissed](const Entry& entry) { return std::ranges::find(dismissed, entry.id) != dismissed.end(); });
+    // Run value-owned actions only after iteration, so an action can safely push/clear host messages.
+    for (const auto& clickAction : clickActions) clickAction();
 }
 
 void ToastHost::Clear() noexcept { entries_.clear(); }

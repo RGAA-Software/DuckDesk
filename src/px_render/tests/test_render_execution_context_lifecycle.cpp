@@ -86,6 +86,39 @@ TEST_F(RenderExecutionContextLifecycleTest, ModuleUnregisterAndDestroySilenceSav
     EXPECT_EQ(callback_count->load(), 0);
 }
 
+TEST_F(RenderExecutionContextLifecycleTest, PanelSettingsRefreshPreservesStartupIdentity) {
+    const auto module = std::make_shared<TestRenderModule>();
+    ASSERT_TRUE(module->Start(RenderModuleConfiguration{
+        .async_runtime = runtime_,
+        .instance_name = "identity-test",
+        .device_id = "desktop-device-id",
+        .public_device_code = "934886467",
+        .console_origin = "https://39.71.45.66:4600",
+        .application_instance_id = "desktop-device-id",
+    }));
+
+    module->UpdateSettings(RenderModuleSettings{.device_random_password = "UPDATED123"});
+    auto settings = module->Settings();
+    EXPECT_EQ(settings.device_id, "desktop-device-id");
+    EXPECT_EQ(settings.public_device_code, "934886467");
+    EXPECT_EQ(settings.console_origin, "https://39.71.45.66:4600");
+    EXPECT_EQ(settings.application_instance_id, "desktop-device-id");
+    EXPECT_EQ(settings.device_random_password, "UPDATED123");
+
+    module->UpdateSettings(RenderModuleSettings{
+        .device_id = "other-device-id",
+        .public_device_code = "111222333",
+        .console_origin = "https://other-console.example",
+        .application_instance_id = "other-instance-id",
+    });
+    settings = module->Settings();
+    EXPECT_EQ(settings.device_id, "desktop-device-id");
+    EXPECT_EQ(settings.public_device_code, "934886467");
+    EXPECT_EQ(settings.console_origin, "https://39.71.45.66:4600");
+    EXPECT_EQ(settings.application_instance_id, "desktop-device-id");
+    EXPECT_TRUE(module->Destroy());
+}
+
 TEST_F(RenderExecutionContextLifecycleTest, ModuleCanShutdownFromEventCallback) {
     const auto module = std::make_shared<TestRenderModule>();
     ASSERT_TRUE(module->Start(RenderModuleConfiguration{.async_runtime = runtime_, .instance_name = "callback-stop"}));

@@ -120,6 +120,7 @@ async fn handle_connection(
     });
 
     let mut registered_renders: Vec<String> = Vec::new();
+    let mut selected_console_address = String::new();
     while let Some(message) = stream.next().await {
         let message = match message {
             Ok(message) => message,
@@ -157,6 +158,28 @@ async fn handle_connection(
                     continue;
                 }
                 if let Some(hb) = sm.heart_beat.as_ref() {
+                    if hb.from == "panel"
+                        && !hb.console_address.is_empty()
+                        && hb.console_address != selected_console_address
+                    {
+                        let console_address = hb.console_address.clone();
+                        let data_root = runtime.lock().await.config.data_root.clone();
+                        let configured_address = console_address.clone();
+                        match tokio::task::spawn_blocking(move || {
+                            crate::node_control_store::NodeControlStore::new(data_root)
+                                .configure_console_origin(&configured_address)
+                        })
+                        .await
+                        {
+                            Ok(Ok(_)) => selected_console_address = console_address,
+                            Ok(Err(error)) => {
+                                tracing::warn!(%error, "Console address could not be applied to Service")
+                            }
+                            Err(error) => {
+                                tracing::warn!(%error, "Console address update task failed")
+                            }
+                        }
+                    }
                     if hb.from.starts_with("render_") && !registered_renders.contains(&hb.from) {
                         runtime
                             .lock()
@@ -217,6 +240,25 @@ async fn handle_connection(
                             session_id,
                             revision,
                             frontend_token,
+                        )
+                        .await;
+                        let _ = operation_tx.send(encode_service_message(&response));
+                    });
+                    None
+                }
+                service_core::command::Command::DirectStream {
+                    request_id,
+                    stream_id,
+                    release,
+                } => {
+                    let operation_runtime = runtime.clone();
+                    let operation_tx = tx.clone();
+                    tokio::spawn(async move {
+                        let response = process_direct_stream(
+                            operation_runtime,
+                            request_id,
+                            stream_id,
+                            release,
                         )
                         .await;
                         let _ = operation_tx.send(encode_service_message(&response));
@@ -813,6 +855,66 @@ async fn process_resource_channel_report(
     response.sequence = receipt.sequence;
     response.revision = receipt.revision;
     resource_channel_report_service_message(response)
+}
+
+async fn process_direct_stream(
+    runtime: Arc<Mutex<ServiceRuntime>>,
+    request_id: String,
+    stream_id: String,
+    release: bool,
+) -> service_core::ServiceMessage {
+    let started_at = std::time::Instant::now();
+    let mut response = service_core::MsgDirectStreamResult {
+        request_id,
+        stream_id,
+        ..Default::default()
+    };
+    let parsed_stream_id = match uuid::Uuid::parse_str(&response.stream_id) {
+        Ok(stream_id) if !stream_id.is_nil() && !response.request_id.is_empty() => stream_id,
+        _ => {
+            response.error_code = "INVALID_REQUEST".into();
+            return direct_stream_service_message(response);
+        }
+    };
+    let node_control_sender = runtime.lock().await.node_control_sender.clone();
+    let (completion, result) = tokio::sync::oneshot::channel();
+    if node_control_sender
+        .try_send(
+            crate::node_control_client::NodeControlOperation::DirectStream {
+                stream_id: parsed_stream_id,
+                release,
+                completion,
+            },
+        )
+        .is_err()
+    {
+        response.error_code = "NODE_CONTROL_UNAVAILABLE".into();
+        return direct_stream_service_message(response);
+    }
+    match tokio::time::timeout(std::time::Duration::from_secs(12), result).await {
+        Ok(Ok(Ok(valid_for_ms))) => {
+            response.valid_for_ms = valid_for_ms.saturating_sub(
+                u32::try_from(started_at.elapsed().as_millis()).unwrap_or(u32::MAX),
+            );
+            response.accepted = release || response.valid_for_ms > 0;
+            if !response.accepted {
+                response.error_code = "ADMISSION_EXPIRED".into();
+            }
+        }
+        Ok(Ok(Err(_))) => response.error_code = "ADMISSION_REJECTED".into(),
+        Ok(Err(_)) | Err(_) => response.error_code = "NODE_CONTROL_UNAVAILABLE".into(),
+    }
+    direct_stream_service_message(response)
+}
+
+fn direct_stream_service_message(
+    result: service_core::MsgDirectStreamResult,
+) -> service_core::ServiceMessage {
+    service_core::ServiceMessage {
+        r#type: service_core::ServiceMessageType::DirectStreamResult as i32,
+        direct_stream_result: Some(result),
+        ..Default::default()
+    }
 }
 
 fn frontend_admission_service_message(

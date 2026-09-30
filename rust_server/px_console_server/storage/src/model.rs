@@ -36,6 +36,7 @@ pub struct RuntimeEntitlement {
     pub cloud_applications: bool,
     pub desktop: bool,
     pub rdp: bool,
+    pub starter_mode_limit: bool,
 }
 
 impl RuntimeEntitlement {
@@ -53,7 +54,13 @@ impl RuntimeEntitlement {
             cloud_applications,
             desktop,
             rdp,
+            starter_mode_limit: false,
         })
+    }
+
+    pub fn with_starter_mode_limit(mut self) -> Self {
+        self.starter_mode_limit = true;
+        self
     }
 
     #[cfg(feature = "pg-integration")]
@@ -63,6 +70,7 @@ impl RuntimeEntitlement {
             cloud_applications: true,
             desktop: true,
             rdp: true,
+            starter_mode_limit: false,
         }
     }
 

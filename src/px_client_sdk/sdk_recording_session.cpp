@@ -166,6 +166,7 @@ void RecordingSession::Run(std::shared_ptr<State> state) {
         state->worker_id = std::this_thread::get_id();
     }
     RecordingSessionResult result{};
+    const auto completedFiles = std::make_shared<std::vector<std::filesystem::path>>();
     std::map<std::size_t, std::shared_ptr<RecordWriter>> writers{};
     try {
         if (state->callbacks.started)
@@ -193,6 +194,11 @@ void RecordingSession::Run(std::shared_ptr<State> state) {
                 auto& writer = writers[index];
                 if (!writer) {
                     auto config = state->config.writer;
+                    const auto segmentCompleted = config.on_segment_completed;
+                    config.on_segment_completed = [completedFiles, segmentCompleted](const RecordCompletedSegment& segment) {
+                        completedFiles->emplace_back(segment.path);
+                        if (segmentCompleted) segmentCompleted(segment);
+                    };
                     if (state->config.monitor_count > 1)
                         config.monitor_name = "mon" + std::to_string(index);
                     config.monitor_name += "_" + state->run_id;
@@ -256,6 +262,7 @@ void RecordingSession::Run(std::shared_ptr<State> state) {
     else if (result.video_packets != 0 && result.error.empty())
         result.error = "recording_no_keyframe";
     writers.clear(); // FFmpeg resources are destroyed on the same worker before completion is published.
+    result.completed_files = std::move(*completedFiles);
     try {
         if (state->callbacks.finished)
             state->callbacks.finished(result);

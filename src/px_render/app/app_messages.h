@@ -226,6 +226,15 @@ public:
     std::uint32_t valid_for_ms_ = 0;
 };
 
+class MsgDirectStreamServiceResult {
+public:
+    std::string request_id_;
+    bool accepted_ = false;
+    std::string error_code_;
+    std::string stream_id_;
+    std::uint32_t valid_for_ms_ = 0;
+};
+
 class MsgResourceChannelServiceResult {
 public:
     std::string request_id_;

@@ -31,8 +31,18 @@ struct ConsoleNativeDeviceConnection final {
     std::string relay_admission_ticket{};
 };
 
+struct ConsolePublicDeviceEndpoint final {
+    std::string device_id{};
+    std::string public_code{};
+    std::string name{};
+    std::string host{};
+    int port{};
+};
+
 class ConsoleUserDeviceApi {
 public:
+    static px::Result<ConsolePublicDeviceEndpoint, ConsoleApiError> ResolvePublicCode(const std::string& host, int port,
+                                                                                     const std::string& public_code);
     // query user-devices
     static px::Result<std::vector<std::shared_ptr<ConsoleUserDevice>>, ConsoleApiError> QueryUserBindDevices(const std::string& host, int port,
                                                                                                              const std::string& access_token);

@@ -226,6 +226,11 @@ TEST(SdkRecordingSession, ConcurrentRunsFinalizeDifferentRealMp4Files) {
     EXPECT_TRUE(second->Completion().get().error.empty()) << second->Completion().get().error;
     EXPECT_EQ(first->Completion().get().directories.size(), 1U);
     EXPECT_EQ(second->Completion().get().directories.size(), 1U);
+    ASSERT_EQ(first->Completion().get().completed_files.size(), 1U);
+    ASSERT_EQ(second->Completion().get().completed_files.size(), 1U);
+    EXPECT_NE(first->Completion().get().completed_files.front(), second->Completion().get().completed_files.front());
+    EXPECT_TRUE(std::filesystem::is_regular_file(first->Completion().get().completed_files.front()));
+    EXPECT_TRUE(std::filesystem::is_regular_file(second->Completion().get().completed_files.front()));
     std::size_t count{};
     for (const auto& entry : std::filesystem::directory_iterator(directory.path)) {
         EXPECT_EQ(entry.path().extension(), ".mp4");
@@ -255,6 +260,26 @@ TEST(SdkRecordingSession, UdpLossIsAnOrderedGapNotAnEncodedPacket) {
     EXPECT_EQ(result.audio_gap_packets, 1U);
 }
 
+TEST(SdkRecordingSession, CompletionReturnsExactFileAndPreservesSegmentObserver) {
+    const RecordingTestDirectory directory{};
+    auto config = Config();
+    config.writer.dir = directory.path.string();
+    const auto observedFiles = std::make_shared<std::vector<std::filesystem::path>>();
+    config.writer.on_segment_completed = [observedFiles](const RecordCompletedSegment& segment) { observedFiles->emplace_back(segment.path); };
+    const auto session = RecordingSession::Create(config);
+    ASSERT_TRUE(session->Start());
+    ASSERT_EQ(session->Submit(Keyframe()), RecordingSubmitResult::kAccepted);
+    session->Stop();
+    ASSERT_TRUE(session->WaitFor(2s));
+    const auto result = session->Completion().get();
+    EXPECT_TRUE(result.error.empty());
+    ASSERT_EQ(result.completed_files.size(), 1U);
+    EXPECT_EQ(result.completed_files, *observedFiles);
+    EXPECT_EQ(result.completed_files.front().parent_path(), directory.path);
+    EXPECT_EQ(result.completed_files.front().extension(), ".mp4");
+    EXPECT_TRUE(std::filesystem::is_regular_file(result.completed_files.front()));
+}
+
 TEST(SdkRecordingSession, UnwritableOutputCannotReportSuccess) {
     const RecordingTestDirectory directory{};
     const auto blocker = directory.path / "not-a-directory";
@@ -268,6 +293,7 @@ TEST(SdkRecordingSession, UnwritableOutputCannotReportSuccess) {
     ASSERT_TRUE(session->WaitFor(2s));
     EXPECT_EQ(session->Completion().get().error, "recording_file_open_failed");
     EXPECT_TRUE(session->Completion().get().directories.empty());
+    EXPECT_TRUE(session->Completion().get().completed_files.empty());
 }
 
 TEST(SdkRecordingSession, WaitingForKeyframeCannotReportAPlayableRecording) {

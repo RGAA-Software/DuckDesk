@@ -24,6 +24,7 @@
 #include "panel_connection_links.h"
 #include "panel_console_session.h"
 #include "panel_device_name.h"
+#include "panel_device_presence.h"
 #include "panel_local_server.h"
 #include "panel_navigation_model.h"
 #include "panel_system_information.h"
@@ -36,6 +37,95 @@
 #include "windows_environment_probe.h"
 
 namespace px::panel::product {
+
+TEST(PanelDevicePresence, RecentAndBoundCardsUseLivePublicLookupAndRefreshTheEndpoint) {
+    std::vector<ui::RemoteDeviceCard> devices{{.streamId = "direct-device-uuid",
+                                               .deviceId = "device-uuid",
+                                               .publicDeviceCode = "934886467",
+                                               .consoleOrigin = "https://CONSOLE.example.test:443/",
+                                               .host = "old-host",
+                                               .port = 4601},
+                                              {.streamId = "console-device-device-uuid",
+                                               .deviceId = "device-uuid",
+                                               .publicDeviceCode = "934886467",
+                                               .consoleOrigin = "https://console.example.test"}};
+    int lookupCount{};
+    RefreshConsoleDevicePresence(devices, "https://console.example.test", [&lookupCount](const std::string& publicDeviceCode) {
+        ++lookupCount;
+        return std::optional{px_console::ConsolePublicDeviceEndpoint{
+            .device_id = "device-uuid", .public_code = publicDeviceCode, .host = "current-host", .port = 4613}};
+    });
+    EXPECT_EQ(lookupCount, 1);
+    for (const auto& device : devices) {
+        EXPECT_TRUE(device.online);
+        EXPECT_EQ(device.host, "current-host");
+        EXPECT_EQ(device.port, 4613);
+    }
+}
+
+TEST(PanelDevicePresence, OfflineAndUnavailableLookupClearPreviouslyOnlineStatus) {
+    std::vector<ui::RemoteDeviceCard> devices{{.deviceId = "device-uuid",
+                                               .publicDeviceCode = "934886467",
+                                               .consoleOrigin = "https://console.example.test",
+                                               .online = true,
+                                               .host = "last-known-host",
+                                               .port = 4601}};
+    RefreshConsoleDevicePresence(devices, "https://console.example.test",
+                                 [](const std::string&) { return std::optional<px_console::ConsolePublicDeviceEndpoint>{}; });
+    EXPECT_FALSE(devices.front().online);
+    EXPECT_EQ(devices.front().host, "last-known-host");
+    devices.front().online = true;
+    RefreshConsoleDevicePresence(devices, "https://console.example.test", {});
+    EXPECT_FALSE(devices.front().online);
+}
+
+TEST(PanelDevicePresence, DoesNotQueryAnotherConsoleOrAnInvalidBinding) {
+    std::vector<ui::RemoteDeviceCard> devices{
+        {.deviceId = "device-uuid", .publicDeviceCode = "934886467", .consoleOrigin = "https://other-console.example.test", .online = true},
+        {.deviceId = "device-uuid", .publicDeviceCode = "93488646", .consoleOrigin = "https://console.example.test", .online = true},
+        {.deviceId = "device-uuid", .publicDeviceCode = "93488646X", .consoleOrigin = "https://console.example.test", .online = true},
+        {.publicDeviceCode = "934886467", .consoleOrigin = "https://console.example.test", .online = true}};
+    int lookupCount{};
+    RefreshConsoleDevicePresence(devices, "https://console.example.test", [&lookupCount](const std::string&) {
+        ++lookupCount;
+        return std::optional<px_console::ConsolePublicDeviceEndpoint>{};
+    });
+    EXPECT_EQ(lookupCount, 0);
+    for (const auto& device : devices) EXPECT_FALSE(device.online);
+}
+
+TEST(PanelDevicePresence, RejectsReassignedCodesAndInvalidResolvedEndpoints) {
+    const auto endpointIsOnline = [](const px_console::ConsolePublicDeviceEndpoint& endpoint) {
+        std::vector<ui::RemoteDeviceCard> devices{{.deviceId = "device-uuid",
+                                                   .publicDeviceCode = "934886467",
+                                                   .consoleOrigin = "https://console.example.test",
+                                                   .host = "old-host",
+                                                   .port = 4601}};
+        RefreshConsoleDevicePresence(devices, "https://console.example.test", [endpoint](const std::string&) { return std::optional{endpoint}; });
+        if (!devices.front().online) EXPECT_EQ(devices.front().host, "old-host");
+        return devices.front().online;
+    };
+    EXPECT_FALSE(endpointIsOnline({.device_id = "another-uuid", .public_code = "934886467", .host = "host", .port = 4601}));
+    EXPECT_FALSE(endpointIsOnline({.device_id = "device-uuid", .public_code = "934886468", .host = "host", .port = 4601}));
+    EXPECT_FALSE(endpointIsOnline({.device_id = "device-uuid", .public_code = "934886467", .port = 4601}));
+    EXPECT_FALSE(endpointIsOnline({.device_id = "device-uuid", .public_code = "934886467", .host = "host", .port = 0}));
+    EXPECT_FALSE(endpointIsOnline({.device_id = "device-uuid", .public_code = "934886467", .host = "host", .port = 65536}));
+    EXPECT_TRUE(endpointIsOnline({.device_id = "device-uuid", .public_code = "934886467", .host = "host", .port = 4601}));
+}
+
+TEST(PanelDevicePresence, RepeatedRefreshTracksOnlineOfflineAndReconnectWithoutCreatingSessions) {
+    std::vector<ui::RemoteDeviceCard> devices{
+        {.deviceId = "device-uuid", .publicDeviceCode = "934886467", .consoleOrigin = "https://console.example.test"}};
+    for (int refreshIndex{}; refreshIndex < 6; ++refreshIndex) {
+        const bool online{refreshIndex % 2 == 0};
+        RefreshConsoleDevicePresence(devices, "https://console.example.test", [online](const std::string& publicDeviceCode) {
+            return online ? std::optional{px_console::ConsolePublicDeviceEndpoint{
+                                .device_id = "device-uuid", .public_code = publicDeviceCode, .host = "host", .port = 4601}}
+                          : std::nullopt;
+        });
+        EXPECT_EQ(devices.front().online, online);
+    }
+}
 
 TEST(PanelConsoleHttpsTest, KeepsHttpsButAcceptsPrivateCertificates) {
     const auto consoleClient = px_console::MakeConsoleHttpClient("private-console.example", 4600, "/health/ready");
@@ -332,6 +422,9 @@ TEST(PanelConfigStoreTest, PersistsAndClearsConnectionPreferences) {
     const auto preferences = std::make_shared<SharedPreference>();
     ASSERT_TRUE(preferences->Init(directory.Path(), "preferences"));
     const auto config = std::make_shared<PanelConfigStore>(preferences, directory.Path());
+    const auto console = config->ParseConsoleAddress("https://console.example.test/");
+    ASSERT_TRUE(console);
+    ASSERT_TRUE(config->SaveNetwork(console->baseUrl, *console));
 
     EXPECT_TRUE(config->IncomingRemoteAccessEnabled());
     ASSERT_TRUE(config->SaveIncomingRemoteAccessEnabled(false));
@@ -357,11 +450,33 @@ TEST(PanelConfigStoreTest, PersistsAndClearsConnectionPreferences) {
     EXPECT_TRUE(loadedRemote->forceTcp);
 
     ASSERT_TRUE(
-        config->SaveRemoteDeviceHistory({.deviceId = "device-1", .name = "Office node", .host = "192.168.1.8", .port = 4601, .lastConnectedAt = 42}));
+        config->SaveRemoteDeviceHistory({.deviceId = "device-1",
+                                         .publicDeviceCode = "123456789",
+                                         .consoleOrigin = console->baseUrl,
+                                         .name = "Office node",
+                                         .host = "192.168.1.8",
+                                         .port = 4601,
+                                         .lastConnectedAt = 42}));
     const auto history = config->LoadRemoteDeviceHistory();
     ASSERT_EQ(history.size(), 1);
     EXPECT_EQ(history.front().deviceId, "device-1");
+    EXPECT_EQ(history.front().publicDeviceCode, "123456789");
+    EXPECT_EQ(history.front().consoleOrigin, console->baseUrl);
     EXPECT_EQ(history.front().host, "192.168.1.8");
+    const auto otherConsole = config->ParseConsoleAddress("https://other-console.example.test/");
+    ASSERT_TRUE(otherConsole);
+    ASSERT_TRUE(config->SaveNetwork(otherConsole->baseUrl, *otherConsole));
+    EXPECT_TRUE(config->LoadRemoteDeviceHistory().empty());
+    EXPECT_FALSE(config->LoadRemoteDevicePreference("device-1"));
+    ASSERT_TRUE(config->SaveRemoteDeviceHistory({.deviceId = "device-1",
+                                                 .publicDeviceCode = "123456789",
+                                                 .consoleOrigin = otherConsole->baseUrl,
+                                                 .host = "198.51.100.8",
+                                                 .port = 4601}));
+    ASSERT_TRUE(config->SaveNetwork(console->baseUrl, *console));
+    ASSERT_EQ(config->LoadRemoteDeviceHistory().size(), 1);
+    EXPECT_EQ(config->LoadRemoteDeviceHistory().front().host, "192.168.1.8");
+    EXPECT_TRUE(config->LoadRemoteDevicePreference("device-1").has_value());
     ASSERT_TRUE(config->HideRemoteDevice("device-1"));
     EXPECT_TRUE(config->RemoteDeviceHidden("device-1"));
     ASSERT_TRUE(config->UnhideRemoteDevice("device-1"));
@@ -396,6 +511,9 @@ TEST(PanelConfigStoreTest, AcceptsOnlyNormalizedHttpsConsoleAddresses) {
     EXPECT_EQ(endpoint->baseUrl, "https://console.example.test:8443");
     EXPECT_EQ(endpoint->host, "console.example.test");
     EXPECT_EQ(endpoint->port, 8443);
+    const auto equivalentEndpoint = config->ParseConsoleAddress("HTTPS://CONSOLE.EXAMPLE.TEST:8443");
+    ASSERT_TRUE(equivalentEndpoint);
+    EXPECT_EQ(equivalentEndpoint->baseUrl, endpoint->baseUrl);
     EXPECT_FALSE(config->ParseConsoleAddress("http://console.example.test"));
     EXPECT_FALSE(config->ParseConsoleAddress("https://user@console.example.test"));
     EXPECT_FALSE(config->ParseConsoleAddress("https://console.example.test/api"));
@@ -408,6 +526,9 @@ TEST(PanelConfigStoreTest, AcceptsOnlyNormalizedHttpsConsoleAddresses) {
     ASSERT_TRUE(ipv6Endpoint);
     EXPECT_EQ(ipv6Endpoint->baseUrl, "https://[2001:db8::10]");
     EXPECT_EQ(ipv6Endpoint->host, "2001:db8::10");
+    const auto equivalentIpv6Endpoint = config->ParseConsoleAddress("https://[2001:0db8:0:0:0:0:0:10]:443/");
+    ASSERT_TRUE(equivalentIpv6Endpoint);
+    EXPECT_EQ(equivalentIpv6Endpoint->baseUrl, ipv6Endpoint->baseUrl);
 
     ASSERT_TRUE(config->SaveNetwork(endpoint->baseUrl, *endpoint));
     EXPECT_EQ(config->ConsoleAddress(), endpoint->baseUrl);
@@ -451,6 +572,62 @@ TEST(PanelConfigStoreTest, CustomerDistributionRejectsTheOfficialConsoleOrigin) 
     ASSERT_TRUE(privateEndpoint);
     EXPECT_TRUE(config->SaveNetwork(privateEndpoint->baseUrl, *privateEndpoint));
     EXPECT_EQ(config->ConsoleAddress(), privateEndpoint->baseUrl);
+}
+
+TEST(PanelConfigStoreTest, PersistsPublicCodeAndPasswordUntilConsoleReallyChanges) {
+    TemporaryDirectory directory{};
+    const auto preferences = std::make_shared<SharedPreference>();
+    ASSERT_TRUE(preferences->Init(directory.Path(), "preferences"));
+    const auto config = std::make_shared<PanelConfigStore>(preferences, directory.Path());
+    const auto firstConsole = config->ParseConsoleAddress("https://EXAMPLE.test:443/");
+    ASSERT_TRUE(firstConsole);
+    ASSERT_TRUE(config->SaveNetwork(firstConsole->baseUrl, *firstConsole));
+    PanelIdentity identity{.deviceId = "device-uuid", .deviceName = "Studio", .randomPassword = "ABCD1234"};
+    ASSERT_TRUE(config->SaveIdentity(identity));
+    ASSERT_TRUE(config->SavePublicDeviceCode(identity.deviceId, "123456789", "39.71.45.66"));
+    EXPECT_FALSE(config->SavePublicDeviceCode(identity.deviceId, "not-a-code", "39.71.45.66"));
+    EXPECT_FALSE(config->SavePublicDeviceCode(identity.deviceId, "123456789", "39.71.45.66:4601"));
+
+    const auto restartedConfig = std::make_shared<PanelConfigStore>(preferences, directory.Path());
+    EXPECT_EQ(restartedConfig->CachedPublicDeviceCode(identity.deviceId), "123456789");
+    EXPECT_EQ(restartedConfig->CachedNodeAccessHost(identity.deviceId), "39.71.45.66");
+    EXPECT_EQ(restartedConfig->Identity().randomPassword, "ABCD1234");
+    const auto offlineLinks = BuildPanelConnectionLinks(restartedConfig->Identity(), restartedConfig->Ports(),
+                                                        restartedConfig->CachedPublicDeviceCode(identity.deviceId),
+                                                        restartedConfig->ConsoleAddress(),
+                                                        restartedConfig->CachedNodeAccessHost(identity.deviceId), {});
+    ASSERT_TRUE(offlineLinks.desktop.starts_with("link://"));
+    const auto offlinePayload = nlohmann::json::parse(Base64::Base64Decode(offlineLinks.desktop.substr(7)));
+    ASSERT_EQ(offlinePayload.at("ips").size(), 1);
+    EXPECT_EQ(offlinePayload.at("ips").at(0).at("ip"), "39.71.45.66");
+
+    const auto equivalentConsole = restartedConfig->ParseConsoleAddress("https://example.test/");
+    ASSERT_TRUE(equivalentConsole);
+    ASSERT_TRUE(restartedConfig->SaveNetwork(equivalentConsole->baseUrl, *equivalentConsole));
+    EXPECT_EQ(restartedConfig->CachedPublicDeviceCode(identity.deviceId), "123456789");
+    EXPECT_EQ(restartedConfig->CachedNodeAccessHost(identity.deviceId), "39.71.45.66");
+    EXPECT_EQ(restartedConfig->Identity().randomPassword, "ABCD1234");
+
+    const auto secondConsole = restartedConfig->ParseConsoleAddress("https://example.test:4600/");
+    ASSERT_TRUE(secondConsole);
+    ASSERT_TRUE(restartedConfig->SaveNetwork(secondConsole->baseUrl, *secondConsole));
+    EXPECT_TRUE(restartedConfig->Identity().deviceId.empty());
+    EXPECT_TRUE(restartedConfig->CachedPublicDeviceCode(identity.deviceId).empty());
+    EXPECT_TRUE(restartedConfig->CachedNodeAccessHost(identity.deviceId).empty());
+    EXPECT_EQ(restartedConfig->Identity().deviceName, "Studio");
+    EXPECT_TRUE(IsValidTemporaryPassword(restartedConfig->Identity().randomPassword));
+    EXPECT_NE(restartedConfig->Identity().randomPassword, "ABCD1234");
+}
+
+TEST(PanelConfigStoreTest, GeneratesOnlyEightUppercaseLettersAndDigits) {
+    EXPECT_FALSE(IsValidTemporaryPassword("zJ/w2EPV"));
+    EXPECT_FALSE(IsValidTemporaryPassword("abcd1234"));
+    EXPECT_TRUE(IsValidTemporaryPassword("ABCD1234"));
+    for (int attempt = 0; attempt < 100; ++attempt) {
+        const auto password = GenerateTemporaryPassword();
+        ASSERT_TRUE(password);
+        EXPECT_TRUE(IsValidTemporaryPassword(*password));
+    }
 }
 
 TEST(PanelConfigStoreTest, UnifiedPixelsPackageSelectsOfficialOrCustomConsole) {
@@ -598,15 +775,17 @@ TEST(PanelLocalServerTest, ReceivesPxOsInfoSnapshotsOverTheLocalSystemInformatio
 }
 
 TEST(PanelConnectionLinksTest, PreservesCompleteDesktopAndWebConnectionPayloads) {
-    const PanelIdentity identity{.deviceId = "109022351", .deviceName = "Pixels Public Node", .randomPassword = "temporary"};
+    const PanelIdentity identity{.deviceId = "device-uuid", .deviceName = "Pixels Public Node", .randomPassword = "temporary"};
     const NodePorts ports{};
-    const auto links = BuildPanelConnectionLinks(identity, ports, "39.71.45.66", {"192.168.1.8"});
+    const auto links = BuildPanelConnectionLinks(identity, ports, "109022351", "https://console.example.test", "39.71.45.66", {"192.168.1.8"});
     ASSERT_TRUE(links.desktop.starts_with("link://"));
     const auto desktopPayload = nlohmann::json::parse(Base64::Base64Decode(links.desktop.substr(7)));
     EXPECT_EQ(desktopPayload.at("did"), identity.deviceId);
+    EXPECT_EQ(desktopPayload.at("pc"), "109022351");
+    EXPECT_EQ(desktopPayload.at("co"), "https://console.example.test");
     EXPECT_EQ(desktopPayload.at("dn"), identity.deviceName);
     EXPECT_EQ(desktopPayload.at("rpwd"), identity.randomPassword);
-    EXPECT_EQ(desktopPayload.at("iidx"), 12);
+    EXPECT_EQ(desktopPayload.at("iidx"), 1);
     ASSERT_EQ(desktopPayload.at("ips").size(), 1);
     EXPECT_EQ(desktopPayload.at("ips").at(0).at("ip"), "39.71.45.66");
     EXPECT_EQ(desktopPayload.at("ppt"), ports.panel);
@@ -635,7 +814,8 @@ TEST(PanelConnectionLinksTest, PreservesCompleteDesktopAndWebConnectionPayloads)
 
 TEST(PanelConnectionLinksTest, UsesFirstLocalAddressWhenNoPublicAddressIsConfigured) {
     const PanelIdentity identity{.deviceId = "101", .deviceName = "Pixels", .randomPassword = "temporary"};
-    const auto links = BuildPanelConnectionLinks(identity, NodePorts{}, {}, {"192.168.1.8", "10.0.0.2"});
+    const auto links = BuildPanelConnectionLinks(identity, NodePorts{}, "109022351", "https://console.example.test", {},
+                                                 {"192.168.1.8", "10.0.0.2"});
 
     EXPECT_TRUE(links.web.starts_with("http://192.168.1.8:4601/web/?c="));
     EXPECT_EQ(links.web.find("127.0.0.1"), std::string::npos);
@@ -648,18 +828,35 @@ TEST(PanelConnectionLinksTest, UsesFirstLocalAddressWhenNoPublicAddressIsConfigu
     EXPECT_TRUE(ResolveNodeAccessHost({}, {"127.0.0.1"}).empty());
 }
 
+TEST(PanelConnectionLinksTest, DoesNotPublishUnroutableLinkWhenAddressIsUnknown) {
+    const PanelIdentity identity{.deviceId = "109022351", .deviceName = "Pixels", .randomPassword = "ABCD1234"};
+    const auto links = BuildPanelConnectionLinks(identity, NodePorts{}, "109022351", "https://console.example.test", {}, {});
+    EXPECT_TRUE(links.desktop.empty());
+    EXPECT_TRUE(links.web.empty());
+    EXPECT_TRUE(BuildPanelConnectionLinks(identity, NodePorts{}, {}, {}, "39.71.45.66", {}).desktop.empty());
+}
+
 TEST(PanelConnectionInputTest, DistinguishesDeviceLinkAndDirectEndpointInputs) {
     const auto device = ParseConnectionInput(" 109022351 ", 4601);
     ASSERT_TRUE(device);
-    EXPECT_EQ(device->kind, ConnectionInputKind::DeviceId);
-    EXPECT_EQ(device->deviceId, "109022351");
+    EXPECT_EQ(device->kind, ConnectionInputKind::DeviceCode);
+    EXPECT_EQ(device->publicDeviceCode, "109022351");
+    EXPECT_TRUE(device->deviceId.empty());
+    EXPECT_FALSE(ParseConnectionInput("10902235", 4601));
 
-    const PanelIdentity identity{.deviceId = "109022351", .deviceName = "Pixels Public Node", .randomPassword = "temporary"};
-    const auto links = BuildPanelConnectionLinks(identity, NodePorts{}, "39.71.45.66", {});
+    const PanelIdentity identity{.deviceId = "device-uuid", .deviceName = "Pixels Public Node", .randomPassword = "temporary"};
+    const auto links = BuildPanelConnectionLinks(identity, NodePorts{}, "109022351", "https://console.example.test", "39.71.45.66", {});
     const auto shared = ParseConnectionInput(links.desktop, 4601);
     ASSERT_TRUE(shared);
     EXPECT_EQ(shared->kind, ConnectionInputKind::SharedLink);
     EXPECT_EQ(shared->deviceId, identity.deviceId);
+    EXPECT_EQ(shared->publicDeviceCode, "109022351");
+    EXPECT_EQ(shared->consoleOrigin, "https://console.example.test");
+    EXPECT_TRUE(ConnectionIdentityMatches(*shared, identity.deviceId, "109022351", "https://console.example.test"));
+    EXPECT_FALSE(ConnectionIdentityMatches(*shared, identity.deviceId, "109022352", "https://console.example.test"));
+    EXPECT_FALSE(ConnectionIdentityMatches(*shared, "another-device", "109022351", "https://console.example.test"));
+    EXPECT_FALSE(ConnectionIdentityMatches(*shared, identity.deviceId, "109022351", "https://other-console.example.test"));
+    EXPECT_FALSE(ConnectionIdentityMatches(*shared, {}, "109022351", "https://console.example.test"));
     EXPECT_EQ(shared->displayName, identity.deviceName);
     EXPECT_EQ(shared->password, identity.randomPassword);
     ASSERT_EQ(shared->hosts.size(), 1);
@@ -677,6 +874,13 @@ TEST(PanelConnectionInputTest, DistinguishesDeviceLinkAndDirectEndpointInputs) {
     EXPECT_TRUE(ConnectionInputNeedsPassword("39.71.45.66"));
     EXPECT_TRUE(ConnectionInputNeedsPassword("109022351"));
     EXPECT_FALSE(ConnectionInputNeedsPassword(links.desktop));
+
+    auto invalidBinding = nlohmann::json::parse(Base64::Base64Decode(links.desktop.substr(7)));
+    invalidBinding.erase("co");
+    EXPECT_FALSE(ParseConnectionInput("link://" + Base64::Base64Encode(invalidBinding.dump()), 4601));
+    invalidBinding = nlohmann::json::parse(Base64::Base64Decode(links.desktop.substr(7)));
+    invalidBinding.erase("pc");
+    EXPECT_FALSE(ParseConnectionInput("link://" + Base64::Base64Encode(invalidBinding.dump()), 4601));
 }
 
 }  // namespace

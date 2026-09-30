@@ -7,9 +7,10 @@ mod generated {
 }
 
 pub use generated::{
-    MsgAppInstanceReady, MsgFileTransferBeginRequest, MsgFileTransferReportRequest,
-    MsgFileTransferResult, MsgFrontendAdmissionRequest, MsgFrontendAdmissionResult, MsgHeartBeat,
-    MsgHeartBeatResp, MsgRecordingFinalized, MsgRecordingFinalizedResult, MsgReqCtrlAltDelete,
+    MsgAppInstanceReady, MsgDirectStreamRequest, MsgDirectStreamResult,
+    MsgFileTransferBeginRequest, MsgFileTransferReportRequest, MsgFileTransferResult,
+    MsgFrontendAdmissionRequest, MsgFrontendAdmissionResult, MsgHeartBeat, MsgHeartBeatResp,
+    MsgRecordingFinalized, MsgRecordingFinalizedResult, MsgReqCtrlAltDelete,
     MsgResourceChannelOpenRequest, MsgResourceChannelOpenResult, MsgResourceChannelReportRequest,
     MsgResourceChannelReportResult, MsgRestartServer, MsgStartServer, MsgStopServer,
     MsgVirtualDisplayRequest, MsgVirtualDisplayResult, RenderStatus, ResourceChannelKind,
@@ -40,6 +41,8 @@ impl ServiceMessageType {
     pub const FileTransferBeginResult: Self = Self::KSrvFileTransferBeginResult;
     pub const FileTransferReportRequest: Self = Self::KSrvFileTransferReportRequest;
     pub const FileTransferReportResult: Self = Self::KSrvFileTransferReportResult;
+    pub const DirectStreamRequest: Self = Self::KSrvDirectStreamRequest;
+    pub const DirectStreamResult: Self = Self::KSrvDirectStreamResult;
 }
 
 #[allow(non_upper_case_globals)]

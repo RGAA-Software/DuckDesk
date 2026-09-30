@@ -1,6 +1,5 @@
 #include "panel_product_runtime.h"
 
-#include <string_view>
 #include <utility>
 
 #include "version_config.h"
@@ -8,16 +7,9 @@
 namespace px::panel::product {
 namespace {
 
-#ifndef PX_PRODUCT_DISTRIBUTION
-#define PX_PRODUCT_DISTRIBUTION "development"
-#endif
-#ifndef PX_OFFICIAL_CONSOLE_ORIGIN
-#define PX_OFFICIAL_CONSOLE_ORIGIN ""
-#endif
-
-constexpr std::string_view Distribution() { return PX_PRODUCT_DISTRIBUTION; }
-
-std::string OfficialConsoleAddress() { return Distribution() == "official" ? std::string{PX_OFFICIAL_CONSOLE_ORIGIN} : std::string{}; }
+// No production Console origin has been assigned yet. Require the operator to
+// configure the endpoint instead of presenting the test server as official.
+std::string OfficialConsoleAddress() { return {}; }
 
 }  // namespace
 
@@ -25,6 +17,14 @@ std::shared_ptr<PanelProductRuntime> PanelProductRuntime::Create(const std::file
                                                                  const std::shared_ptr<ui::NotificationCenter>& notifications) {
     const auto config = PanelConfigStore::Create(executableDirectory, {}, OfficialConsoleAddress());
     if (!config) return {};
+    auto identity = config->Identity();
+    const bool passwordRotated = !IsValidTemporaryPassword(identity.randomPassword);
+    if (passwordRotated) {
+        const auto replacementPassword = GenerateTemporaryPassword();
+        if (!replacementPassword) return {};
+        identity.randomPassword = *replacementPassword;
+        if (!config->SaveIdentity(identity)) return {};
+    }
     const auto console = PanelConsoleSession::Create(config);
     const auto launcher = PanelClientLauncher::Create(config);
     const auto auditStore = PanelAuditStore::Create(config->DataDirectory());
@@ -34,7 +34,7 @@ std::shared_ptr<PanelProductRuntime> PanelProductRuntime::Create(const std::file
     std::shared_ptr<PanelServiceBridge> service{};
     std::shared_ptr<PanelOsInfoSupervisor> osInfoSupervisor{};
 #if PX_CAPABILITY_DESKTOP_HOST
-    service = PanelServiceBridge::Create(config);
+    service = PanelServiceBridge::Create(config, passwordRotated);
     const std::weak_ptr<PanelServiceBridge> weakService{service};
     localServer->SetRestartHandler([weakService] {
         if (const auto activeService = weakService.lock()) static_cast<void>(activeService->RestartRender());

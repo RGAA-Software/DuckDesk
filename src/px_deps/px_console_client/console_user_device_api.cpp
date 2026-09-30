@@ -1,5 +1,6 @@
 #include "console_user_device_api.h"
 
+#include <algorithm>
 #include <map>
 #include <nlohmann/json.hpp>
 #include <string_view>
@@ -26,6 +27,35 @@ px::Result<Value, ConsoleApiError> HttpError(const std::string_view operation, c
 }
 
 }  // namespace
+
+px::Result<ConsolePublicDeviceEndpoint, ConsoleApiError> ConsoleUserDeviceApi::ResolvePublicCode(const std::string& host, const int port,
+                                                                                                 const std::string& public_code) {
+    if (public_code.size() != 9 ||
+        !std::ranges::all_of(public_code, [](const char digit) { return digit >= '0' && digit <= '9'; })) {
+        return TcErr(ConsoleApiError::kInvalidParams);
+    }
+    const auto client = MakeConsoleHttpClient(host, port, "/api/console/public/devices/" + public_code, 3'000);
+    SetPanelRequestHeaders(client);
+    const auto response = client->Request();
+    if (response.status != 200 || response.body.empty()) {
+        return HttpError<ConsolePublicDeviceEndpoint>("ResolvePublicCode", response);
+    }
+    try {
+        const auto payload = json::parse(response.body);
+        ConsolePublicDeviceEndpoint endpoint{.device_id = payload.at("device_id").get<std::string>(),
+                                             .public_code = payload.at("public_code").get<std::string>(),
+                                             .name = payload.at("name").get<std::string>(),
+                                             .host = payload.at("host").get<std::string>(),
+                                             .port = payload.at("port").get<int>()};
+        if (endpoint.device_id.empty() || endpoint.public_code != public_code || endpoint.name.empty() || endpoint.host.empty() ||
+            endpoint.port <= 0 || endpoint.port > 65535) {
+            return TcErr(ConsoleApiError::kParseJsonFailed);
+        }
+        return endpoint;
+    } catch (const std::exception&) {
+        return TcErr(ConsoleApiError::kParseJsonFailed);
+    }
+}
 
 px::Result<std::vector<std::shared_ptr<ConsoleUserDevice>>, ConsoleApiError> ConsoleUserDeviceApi::QueryUserBindDevices(
     const std::string& host, const int port, const std::string& access_token) {

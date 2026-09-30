@@ -13,6 +13,8 @@ use px_node_protocol::{
     RdpWorkspaceCredential, RecordingCacheUpload, RelayEndpoint, RuntimeInventory,
     TelemetryBackfillSample, TransferDirection, VideoCodec, MAX_MESSAGE_BYTES,
 };
+use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
+use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use service_core::{AppInstanceState, StartAppRequest};
 use tokio::net::TcpStream;
 use tokio::sync::{oneshot, Mutex};
@@ -20,7 +22,7 @@ use tokio::task::JoinSet;
 use tokio::time::{sleep, timeout};
 use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 use tokio_tungstenite::tungstenite::Message;
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
+use tokio_tungstenite::{Connector, MaybeTlsStream, WebSocketStream};
 use tokio_util::io::ReaderStream;
 use tracing::{info, warn};
 use uuid::Uuid;
@@ -35,10 +37,76 @@ use crate::service_host::ServiceRuntime;
 
 type NodeSocket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
+#[derive(Debug)]
+struct UnverifiedConsoleCertificate {
+    crypto_provider: Arc<rustls::crypto::CryptoProvider>,
+}
+
+impl ServerCertVerifier for UnverifiedConsoleCertificate {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &CertificateDer<'_>,
+        _intermediates: &[CertificateDer<'_>],
+        _server_name: &ServerName<'_>,
+        _ocsp_response: &[u8],
+        _now: UnixTime,
+    ) -> Result<ServerCertVerified, rustls::Error> {
+        Ok(ServerCertVerified::assertion())
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        message: &[u8],
+        certificate: &CertificateDer<'_>,
+        signature: &rustls::DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, rustls::Error> {
+        rustls::crypto::verify_tls12_signature(
+            message,
+            certificate,
+            signature,
+            &self.crypto_provider.signature_verification_algorithms,
+        )
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        message: &[u8],
+        certificate: &CertificateDer<'_>,
+        signature: &rustls::DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, rustls::Error> {
+        rustls::crypto::verify_tls13_signature(
+            message,
+            certificate,
+            signature,
+            &self.crypto_provider.signature_verification_algorithms,
+        )
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
+        self.crypto_provider
+            .signature_verification_algorithms
+            .supported_schemes()
+    }
+}
+
+fn console_websocket_connector() -> Result<Connector, String> {
+    let crypto_provider = Arc::new(rustls::crypto::ring::default_provider());
+    let tls_config = rustls::ClientConfig::builder_with_provider(Arc::clone(&crypto_provider))
+        .with_safe_default_protocol_versions()
+        .map_err(|error| format!("Console TLS configuration is invalid: {error}"))?
+        .dangerous()
+        .with_custom_certificate_verifier(Arc::new(UnverifiedConsoleCertificate {
+            crypto_provider,
+        }))
+        .with_no_client_auth();
+    Ok(Connector::Rustls(Arc::new(tls_config)))
+}
+
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(8);
 const EXCHANGE_TIMEOUT: Duration = Duration::from_secs(10);
 const RECONNECT_DELAY: Duration = Duration::from_secs(2);
 const CONFIGURATION_POLL: Duration = Duration::from_secs(5);
+const ACTIVE_CONFIGURATION_POLL: Duration = Duration::from_secs(1);
 const COMMAND_POLL: Duration = Duration::from_secs(1);
 const REPORT_INTERVAL: Duration = Duration::from_secs(15);
 const FRONTEND_FAIL_CLOSED_LEASE: Duration = Duration::from_secs(30);
@@ -54,6 +122,7 @@ pub(crate) struct NodeControlIdentity {
 
 struct NodeControlAuthentication {
     identity: NodeControlIdentity,
+    public_device_code: String,
     relay: Option<RelayEndpoint>,
 }
 
@@ -82,6 +151,11 @@ pub(crate) enum NodeControlOperation {
         revision: i64,
         frontend_token: zeroize::Zeroizing<String>,
         completion: oneshot::Sender<Result<px_node_protocol::FrontendGrant, String>>,
+    },
+    DirectStream {
+        stream_id: Uuid,
+        release: bool,
+        completion: oneshot::Sender<Result<u32, String>>,
     },
     OpenChannel {
         source_id: Uuid,
@@ -139,10 +213,11 @@ impl ProtocolSession {
         Ok(id)
     }
 
-    fn authenticate(&mut self, token: &str) -> Result<NodeRequest, String> {
-        Ok(NodeRequest::Authenticate {
+    fn authenticate(&mut self, token: &str, product: &str) -> Result<NodeRequest, String> {
+        Ok(NodeRequest::Enroll {
             request_id: self.request_id()?,
-            node_token: token.to_string(),
+            installation_key: token.to_string(),
+            product: product.to_string(),
         })
     }
 
@@ -156,12 +231,17 @@ impl ProtocolSession {
                 request_id,
                 node_id,
                 device_id,
+                public_device_code,
                 generation,
                 control_epoch,
                 relay,
             } if request_id == expected_request_id
                 && !node_id.is_nil()
                 && !device_id.is_nil()
+                && public_device_code.len() == 9
+                && public_device_code
+                    .bytes()
+                    .all(|digit| digit.is_ascii_digit())
                 && generation > 0
                 && control_epoch > 0
                 && relay.as_ref().is_none_or(valid_relay_endpoint) =>
@@ -173,7 +253,11 @@ impl ProtocolSession {
                     control_epoch,
                 };
                 self.identity = Some(identity);
-                Ok(NodeControlAuthentication { identity, relay })
+                Ok(NodeControlAuthentication {
+                    identity,
+                    public_device_code,
+                    relay,
+                })
             }
             NodeResponse::Error { code, .. } => {
                 Err(format!("node-control authentication rejected: {code}"))
@@ -228,6 +312,7 @@ pub async fn node_control_loop(
     };
     let telemetry_backlog =
         TelemetryBacklogStore::new(runtime.lock().await.config.data_root.clone());
+    let telemetry_sampler = crate::node_telemetry::NodeTelemetrySampler::default();
     let mut last_offline_sample = std::time::Instant::now()
         .checked_sub(REPORT_INTERVAL)
         .unwrap_or_else(std::time::Instant::now);
@@ -252,9 +337,11 @@ pub async fn node_control_loop(
         }
         let connection_context = NodeConnectionContext {
             configuration: &configuration,
+            store: &store,
             product: &product,
             recording_inventory: &recording_inventory,
             telemetry_backlog: &telemetry_backlog,
+            telemetry_sampler: &telemetry_sampler,
             file_transfer_outbox: &file_transfer_outbox,
         };
         let connection_result =
@@ -262,18 +349,19 @@ pub async fn node_control_loop(
         let mut runtime = runtime.lock().await;
         runtime.rdp_console_trusted = false;
         runtime.node_control_identity = None;
+        runtime.node_public_code.clear();
+        runtime.authenticated_console_origin.clear();
         runtime.node_control_relay = None;
         drop(runtime);
         match connection_result {
             Ok(ConnectionEnd::Stopped) => return Ok(()),
+            Ok(ConnectionEnd::ConfigurationChanged) => continue,
             Err(error) => {
                 warn!(%error, "node-control connection ended");
                 if last_offline_sample.elapsed() >= REPORT_INTERVAL {
-                    if let Err(backlog_error) = telemetry_backlog.append(
-                        tokio::task::spawn_blocking(crate::node_telemetry::sample)
-                            .await
-                            .unwrap_or_else(|_| crate::node_telemetry::unavailable()),
-                    ) {
+                    if let Err(backlog_error) =
+                        telemetry_backlog.append(telemetry_sampler.sample().await)
+                    {
                         warn!(error = %backlog_error, "offline node telemetry could not be queued");
                     }
                     last_offline_sample = std::time::Instant::now();
@@ -289,13 +377,16 @@ pub async fn node_control_loop(
 
 enum ConnectionEnd {
     Stopped,
+    ConfigurationChanged,
 }
 
 struct NodeConnectionContext<'a> {
     configuration: &'a NodeControlConfiguration,
+    store: &'a NodeControlStore,
     product: &'a ProductDescriptor,
     recording_inventory: &'a Arc<std::sync::Mutex<RecordingInventory>>,
     telemetry_backlog: &'a TelemetryBacklogStore,
+    telemetry_sampler: &'a crate::node_telemetry::NodeTelemetrySampler,
     file_transfer_outbox: &'a Arc<std::sync::Mutex<FileTransferOutboxStore>>,
 }
 
@@ -309,9 +400,11 @@ async fn run_connection(
     let product = context.product;
     let recording_inventory = context.recording_inventory;
     let telemetry_backlog = context.telemetry_backlog;
+    let telemetry_sampler = context.telemetry_sampler;
     let file_transfer_outbox = context.file_transfer_outbox;
     let http = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
+        .danger_accept_invalid_certs(true)
         .timeout(EXCHANGE_TIMEOUT)
         .build()
         .map_err(|_| "Console identity HTTP client cannot be created".to_string())?;
@@ -322,10 +415,11 @@ async fn run_connection(
         _ = stop_rx.recv() => return Ok(ConnectionEnd::Stopped),
         result = timeout(
             CONNECT_TIMEOUT,
-            tokio_tungstenite::connect_async_with_config(
+            tokio_tungstenite::connect_async_tls_with_config(
                 configuration.endpoint.as_str(),
                 Some(websocket),
                 false,
+                Some(console_websocket_connector()?),
             ),
         ) => result,
     };
@@ -333,15 +427,23 @@ async fn run_connection(
         .map_err(|_| "node-control connection timed out".to_string())?
         .map_err(|error| format!("node-control connection failed: {error}"))?;
     let mut session = ProtocolSession::new();
-    let authentication = session.authenticate(&configuration.node_token)?;
+    let authentication = session.authenticate(&configuration.node_token, &product.product)?;
     let authentication_id = authentication.request_id();
     let response = exchange(&mut socket, authentication).await?;
     let authentication = session.accept_authentication(authentication_id, response)?;
+    let mut authenticated_console_origin = url::Url::parse(&configuration.endpoint)
+        .map_err(|_| "authenticated Console endpoint is invalid".to_string())?;
+    authenticated_console_origin
+        .set_scheme("https")
+        .map_err(|_| "authenticated Console origin is invalid".to_string())?;
+    authenticated_console_origin.set_path("/");
     {
         let mut runtime = runtime.lock().await;
         runtime.rdp_console_trusted = true;
         let relay_changed = runtime.node_control_relay != authentication.relay;
         runtime.node_control_identity = Some(authentication.identity);
+        runtime.node_public_code = authentication.public_device_code;
+        runtime.authenticated_console_origin = authenticated_console_origin.to_string();
         runtime.node_control_relay = authentication.relay.clone();
         if relay_changed && runtime.state.desktop_alive {
             if let Some(launch) = runtime.state.last_desktop_launch.clone() {
@@ -364,6 +466,7 @@ async fn run_connection(
         runtime,
         configuration,
         product,
+        telemetry_sampler,
         1,
     )
     .await?;
@@ -373,6 +476,7 @@ async fn run_connection(
         &mut socket,
         &mut session,
         product,
+        telemetry_sampler,
         report_outcome.endpoint_revision,
         1,
     )
@@ -404,6 +508,9 @@ async fn run_connection(
     let mut command_polls = tokio::time::interval(COMMAND_POLL);
     command_polls.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     command_polls.tick().await;
+    let mut configuration_polls = tokio::time::interval(ACTIVE_CONFIGURATION_POLL);
+    configuration_polls.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    configuration_polls.tick().await;
     let console_endpoint = url::Url::parse(&configuration.endpoint)
         .map_err(|_| "node-control endpoint cannot be reused for recording upload".to_string())?;
     let mut upload_tasks = JoinSet::new();
@@ -412,6 +519,16 @@ async fn run_connection(
             _ = stop_rx.recv() => {
                 let _ = socket.close(None).await;
                 return Ok(ConnectionEnd::Stopped);
+            }
+            _ = configuration_polls.tick() => {
+                let store = context.store.clone();
+                let selected_configuration = tokio::task::spawn_blocking(move || store.load())
+                    .await
+                    .map_err(|_| "node-control configuration check failed".to_string())??;
+                if selected_configuration.as_ref() != Some(configuration) {
+                    let _ = socket.close(None).await;
+                    return Ok(ConnectionEnd::ConfigurationChanged);
+                }
             }
             _ = reports.tick() => {
                 report_sequence = report_sequence.checked_add(1)
@@ -423,6 +540,7 @@ async fn run_connection(
                     runtime,
                     configuration,
                     product,
+                    telemetry_sampler,
                     report_sequence,
                 ).await?;
                 if report_outcome.state == "reconciling" {
@@ -434,6 +552,7 @@ async fn run_connection(
                     &mut socket,
                     &mut session,
                     product,
+                    telemetry_sampler,
                     report_outcome.endpoint_revision,
                     report_sequence,
                 ).await?;
@@ -480,6 +599,7 @@ async fn run_connection(
                                 &command,
                                 rdp_workspace,
                                 authentication.identity,
+                                telemetry_sampler,
                             )
                             .await?;
                             if matches!(outcome, CommandOutcome::Running { .. }) {
@@ -690,6 +810,53 @@ async fn execute_operation(
     operation: NodeControlOperation,
 ) -> Result<(), String> {
     match operation {
+        NodeControlOperation::DirectStream {
+            stream_id,
+            release,
+            completion,
+        } => {
+            let request_id = session.request_id()?;
+            let request = if release {
+                NodeRequest::ReleaseDirectStream {
+                    request_id,
+                    stream_id,
+                }
+            } else {
+                NodeRequest::AdmitDirectStream {
+                    request_id,
+                    stream_id,
+                }
+            };
+            let (result, reset_connection) = match exchange(socket, request).await {
+                Ok(NodeResponse::DirectStreamAdmitted {
+                    request_id: response_id,
+                    stream_id: response_stream_id,
+                    valid_for_ms,
+                }) if !release
+                    && response_id == request_id
+                    && response_stream_id == stream_id
+                    && valid_for_ms > 0 =>
+                {
+                    (Ok(valid_for_ms), false)
+                }
+                Ok(NodeResponse::DirectStreamReleased {
+                    request_id: response_id,
+                    stream_id: response_stream_id,
+                }) if release && response_id == request_id && response_stream_id == stream_id => {
+                    (Ok(0), false)
+                }
+                Ok(NodeResponse::Error { code, .. }) => {
+                    (Err(format!("direct stream rejected: {code}")), false)
+                }
+                Ok(_) => (Err("unexpected direct stream response".into()), true),
+                Err(error) => (Err(error), true),
+            };
+            let _ = completion.send(result);
+            if reset_connection {
+                return Err("node-control protocol failed during direct stream admission".into());
+            }
+            Ok(())
+        }
         NodeControlOperation::AdmitFrontend {
             session_id,
             revision,
@@ -958,16 +1125,11 @@ async fn report(
     runtime: &Arc<Mutex<ServiceRuntime>>,
     configuration: &NodeControlConfiguration,
     product: &ProductDescriptor,
+    telemetry_sampler: &crate::node_telemetry::NodeTelemetrySampler,
     sequence: u64,
 ) -> Result<NodeReportOutcome, String> {
     let node = runtime.lock().await.config.node.clone();
-    let telemetry = match tokio::task::spawn_blocking(crate::node_telemetry::sample).await {
-        Ok(telemetry) => telemetry,
-        Err(error) => {
-            tracing::warn!(error = %error, "node telemetry worker failed");
-            crate::node_telemetry::unavailable()
-        }
-    };
+    let telemetry = telemetry_sampler.sample().await;
     let capability = |name: &str| product.capabilities.iter().any(|value| value == name);
     let rdp_configuration = if capability("rdp_host") {
         std::env::current_exe()
@@ -1067,10 +1229,11 @@ async fn sync_deployments(
     socket: &mut NodeSocket,
     session: &mut ProtocolSession,
     product: &ProductDescriptor,
+    telemetry_sampler: &crate::node_telemetry::NodeTelemetrySampler,
     endpoint_revision: i64,
     sequence: u64,
 ) -> Result<(), String> {
-    let telemetry = crate::node_telemetry::sample();
+    let telemetry = telemetry_sampler.sample().await;
     let mut after = None;
     loop {
         let request = NodeRequest::ListDeployments {
@@ -1535,12 +1698,20 @@ async fn execute_command(
     command: &NodeCommand,
     rdp_workspace: Option<RdpWorkspaceCredential>,
     identity: NodeControlIdentity,
+    telemetry_sampler: &crate::node_telemetry::NodeTelemetrySampler,
 ) -> CommandOutcome {
     let deadline = std::cmp::min(command.lease_until, command.deadline);
     if deadline <= Utc::now() {
         return CommandOutcome::Unknown;
     }
-    let outcome = execute_command_before_deadline(runtime, command, rdp_workspace, identity).await;
+    let outcome = execute_command_before_deadline(
+        runtime,
+        command,
+        rdp_workspace,
+        identity,
+        telemetry_sampler,
+    )
+    .await;
     if deadline > Utc::now() {
         return outcome;
     }
@@ -1564,6 +1735,7 @@ async fn execute_command_while_servicing_operations(
     command: &NodeCommand,
     rdp_workspace: Option<RdpWorkspaceCredential>,
     identity: NodeControlIdentity,
+    telemetry_sampler: &crate::node_telemetry::NodeTelemetrySampler,
 ) -> Result<CommandOutcome, String> {
     let CommandExecutionIo {
         socket,
@@ -1571,7 +1743,8 @@ async fn execute_command_while_servicing_operations(
         operations,
         file_transfer_outbox,
     } = command_execution_io;
-    let command_execution = execute_command(runtime, command, rdp_workspace, identity);
+    let command_execution =
+        execute_command(runtime, command, rdp_workspace, identity, telemetry_sampler);
     tokio::pin!(command_execution);
     loop {
         tokio::select! {
@@ -1602,6 +1775,7 @@ async fn execute_command_before_deadline(
     command: &NodeCommand,
     rdp_workspace: Option<RdpWorkspaceCredential>,
     identity: NodeControlIdentity,
+    telemetry_sampler: &crate::node_telemetry::NodeTelemetrySampler,
 ) -> CommandOutcome {
     match &command.action {
         NodeCommandAction::Start {
@@ -1621,7 +1795,9 @@ async fn execute_command_before_deadline(
                     warn!(command_id = %command.id, "node start command has no GPU reservation");
                     return CommandOutcome::Absent;
                 };
-                if let Err(error) = validate_gpu_reservation(gpu_reservation) {
+                if let Err(error) =
+                    validate_gpu_reservation(gpu_reservation, telemetry_sampler).await
+                {
                     warn!(command_id = %command.id, %error, "node GPU admission rejected the start command");
                     return CommandOutcome::Absent;
                 }
@@ -1708,8 +1884,11 @@ async fn execute_command_before_deadline(
     }
 }
 
-fn validate_gpu_reservation(reservation: &GpuReservation) -> Result<(), String> {
-    validate_gpu_reservation_against(&crate::node_telemetry::sample(), reservation)
+async fn validate_gpu_reservation(
+    reservation: &GpuReservation,
+    telemetry_sampler: &crate::node_telemetry::NodeTelemetrySampler,
+) -> Result<(), String> {
+    validate_gpu_reservation_against(&telemetry_sampler.sample().await, reservation)
 }
 
 fn validate_gpu_reservation_against(
@@ -1945,6 +2124,9 @@ async fn exchange(
         .map_err(|_| "node-control write timed out".to_string())?
         .map_err(|error| format!("node-control write failed: {error}"))?;
     match &mut request {
+        NodeRequest::Enroll {
+            installation_key, ..
+        } => installation_key.zeroize(),
         NodeRequest::Authenticate { node_token, .. } => node_token.zeroize(),
         NodeRequest::AdmitFrontend { frontend_token, .. } => frontend_token.zeroize(),
         _ => {}
@@ -1982,6 +2164,28 @@ mod tests {
     use super::*;
     use chrono::TimeDelta;
     use px_node_protocol::{TransferProgress, VideoSpec};
+
+    #[test]
+    fn console_websocket_connector_accepts_untrusted_certificates() {
+        assert!(matches!(
+            console_websocket_connector().unwrap(),
+            Connector::Rustls(_)
+        ));
+        let verifier = UnverifiedConsoleCertificate {
+            crypto_provider: Arc::new(rustls::crypto::ring::default_provider()),
+        };
+        let invalid_certificate = CertificateDer::from(vec![0x00]);
+        let server_name = ServerName::try_from("console.example.test").unwrap();
+        assert!(verifier
+            .verify_server_cert(
+                &invalid_certificate,
+                &[],
+                &server_name,
+                &[],
+                UnixTime::now(),
+            )
+            .is_ok());
+    }
 
     #[test]
     fn frontend_retirement_requires_a_fresh_render_snapshot_or_full_lease_expiry() {
@@ -2155,8 +2359,9 @@ mod tests {
     #[test]
     fn request_ids_are_strictly_increasing_and_authentication_is_bound() {
         let mut session = ProtocolSession::new();
-        let request = session.authenticate(&"a".repeat(64)).unwrap();
+        let request = session.authenticate(&"a".repeat(64), "remote").unwrap();
         assert_eq!(request.request_id(), 1);
+        assert!(matches!(request, NodeRequest::Enroll { product, .. } if product == "remote"));
         let node_id = Uuid::new_v4();
         let device_id = Uuid::new_v4();
         let identity = session
@@ -2166,6 +2371,7 @@ mod tests {
                     request_id: 1,
                     node_id,
                     device_id,
+                    public_device_code: "123456789".into(),
                     generation: 4,
                     control_epoch: 5,
                     relay: None,
@@ -2443,13 +2649,14 @@ mod tests {
             };
             let request: NodeRequest = serde_json::from_str(&text).unwrap();
             assert_eq!(request.request_id(), 1);
-            assert!(matches!(request, NodeRequest::Authenticate { .. }));
+            assert!(matches!(request, NodeRequest::Enroll { .. }));
             socket
                 .send(Message::Text(
                     serde_json::to_string(&NodeResponse::Authenticated {
                         request_id: 1,
                         node_id,
                         device_id,
+                        public_device_code: "123456789".into(),
                         generation: 2,
                         control_epoch: 3,
                         relay: None,
@@ -2464,9 +2671,10 @@ mod tests {
         let (mut socket, _) = tokio_tungstenite::connect_async(endpoint).await.unwrap();
         let response = exchange(
             &mut socket,
-            NodeRequest::Authenticate {
+            NodeRequest::Enroll {
                 request_id: 1,
-                node_token: "a".repeat(64),
+                installation_key: "a".repeat(64),
+                product: "cloud_node".into(),
             },
         )
         .await

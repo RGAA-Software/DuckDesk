@@ -4,7 +4,7 @@ use crate::{
     StateData,
 };
 use axum::{
-    extract::State,
+    extract::{ConnectInfo, State},
     http::{HeaderMap, StatusCode},
     routing::{get, patch, post},
     Json, Router,
@@ -12,7 +12,7 @@ use axum::{
 use px_console_store::{DeviceAccess, DevicePlatform};
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
 use uuid::Uuid;
 
 pub(crate) fn routes() -> Router<Arc<StateData>> {
@@ -29,6 +29,28 @@ pub(crate) fn routes() -> Router<Arc<StateData>> {
         .route("/api/console/managed/devices/{id}/credential", post(rotate))
         .route("/api/console/devices", get(visible))
         .route("/api/console/devices/{id}", get(device))
+        .route(
+            "/api/console/public/devices/{code}",
+            get(resolve_public_code),
+        )
+}
+async fn resolve_public_code(
+    State(state): State<Arc<StateData>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(code): Path<String>,
+) -> Result<Json<Value>, ApiError> {
+    if code.len() != 9 || !code.bytes().all(|digit| digit.is_ascii_digit()) {
+        return Err(ApiError::Invalid);
+    }
+    if !state.lookup_limits.allow(&code, peer.ip()) {
+        return Err(ApiError::RateLimited);
+    }
+    state.active()?;
+    if !state.entitlement()?.desktop {
+        return Err(ApiError::Rejected);
+    }
+    let endpoint = state.db.devices().resolve_public_code(&code).await?;
+    Ok(Json(json!(endpoint)))
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]

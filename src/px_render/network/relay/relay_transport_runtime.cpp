@@ -18,6 +18,7 @@
 #include "px_common/secret_buffer.h"
 #include "px_common/time_util.h"
 #include "px_common/uuid.h"
+#include "px_render/network/direct_stream_id.h"
 #include "px_common/ws_control_signal.h"
 #include "px_message.pb.h"
 #include "px_relay_client/relay_connected_info.h"
@@ -119,6 +120,7 @@ std::shared_ptr<RelayTransportRuntime> RelayTransportRuntime::Create(RelayTransp
 
 RelayTransportRuntime::RelayTransportRuntime(RelayTransportRuntimeConfig config) : config_(std::move(config)) {
     frontend_authorizer_ = config_.frontend_authorizer;
+    direct_stream_authorizer_ = config_.direct_stream_authorizer;
     logical_lease_renewer_ = config_.logical_lease_renewer;
 }
 
@@ -217,6 +219,11 @@ void RelayTransportRuntime::ConfigureFrontendAuthorizer(RelayFrontendAuthorizer 
     frontend_authorizer_ = std::move(authorizer);
 }
 
+void RelayTransportRuntime::ConfigureDirectStreamAuthorizer(RelayDirectStreamAuthorizer authorizer) {
+    std::scoped_lock lock(frontend_services_mutex_);
+    direct_stream_authorizer_ = std::move(authorizer);
+}
+
 void RelayTransportRuntime::ConfigureLogicalLeaseRenewer(RelayLogicalLeaseRenewer renewer) {
     std::scoped_lock lock(frontend_services_mutex_);
     logical_lease_renewer_ = std::move(renewer);
@@ -273,6 +280,20 @@ PxAwaitable<PxResult<ConsoleFrontendGrant>> RelayTransportRuntime::AuthorizeFron
             MakePxAsyncError(PxAsyncErrorCode::kServiceNotConnected, "relay_frontend_admission", "Console frontend authorizer is unavailable", true));
     }
     co_return co_await authorizer(std::move(request), deadline);
+}
+
+PxAwaitable<PxResult<std::uint32_t>> RelayTransportRuntime::AuthorizeDirectStream(
+    std::string stream_id, const bool release, const std::chrono::steady_clock::time_point deadline) const {
+    RelayDirectStreamAuthorizer authorizer;
+    {
+        std::scoped_lock lock(frontend_services_mutex_);
+        authorizer = direct_stream_authorizer_;
+    }
+    if (!authorizer) {
+        co_return PxResult<std::uint32_t>::Failure(MakePxAsyncError(
+            PxAsyncErrorCode::kServiceNotConnected, "relay_direct_admission", "Console direct stream authorizer is unavailable", true));
+    }
+    co_return co_await authorizer(std::move(stream_id), release, deadline);
 }
 
 bool RelayTransportRuntime::RenewLogicalLease(const LogicalSessionGrant& grant, const std::int64_t now_ms) const {
@@ -346,6 +367,51 @@ PxAwaitable<void> RelayTransportRuntime::AuthorizeMediaControl(std::weak_ptr<Rel
         weak_server, generation, message, std::move(visitor_device_id), std::move(logical_grant),
         controller ? std::vector<std::string>{"view", "audio", "input", "clipboard", "file"} : std::vector<std::string>{"view", "audio"},
         std::move(lease));
+}
+
+PxAwaitable<void> RelayTransportRuntime::AuthorizeDirectMediaControl(std::weak_ptr<RelayTransportRuntime> weak_runtime,
+                                                                     std::weak_ptr<RelayServerSdk> weak_server, const std::uint64_t generation,
+                                                                     std::shared_ptr<RelayMessage> message, std::string visitor_device_id) {
+    const auto runtime = weak_runtime.lock();
+    const auto server = weak_server.lock();
+    if (!runtime || !server || !message || !runtime->IsCurrentMediaGeneration(generation)) {
+        co_return;
+    }
+    const auto& request = message->request_control();
+    const auto logical_session_id = "relay-session:" + request.room_id();
+    const auto quota_id = DirectStreamQuotaId(runtime->ConfigSnapshot().settings.device_id, logical_session_id);
+    if (quota_id.empty()) {
+        server->RespondToControl(message, false, "direct stream identity is invalid");
+        co_return;
+    }
+    auto admitted = co_await runtime->AuthorizeDirectStream(quota_id, false, std::chrono::steady_clock::now() + std::chrono::seconds(12));
+    if (!runtime->IsCurrentMediaGeneration(generation)) {
+        co_return;
+    }
+    if (!admitted.HasValue() || admitted.Value() == 0) {
+        server->RespondToControl(message, false, "Console direct stream admission was rejected");
+        co_return;
+    }
+    const auto valid_for_ms = admitted.TakeValue();
+    auto logical_grant = LogicalSessionGrant{
+        .logical_session_id = logical_session_id,
+        .stream_id = request.stream_id(),
+        .subject_id = visitor_device_id,
+        .join_mode = "control",
+        .expires_at_ms = CurrentSystemMilliseconds() + static_cast<std::int64_t>(valid_for_ms),
+        .allow_observer = false,
+        .allow_takeover = false,
+        .input_allowed = true,
+    };
+    runtime->DispatchMediaAdmission(
+        weak_server, generation, message, std::move(visitor_device_id), logical_grant, {"view", "audio", "input", "clipboard", "file"},
+        FrontendLeaseRegistration{
+            .logical_grant = std::move(logical_grant),
+            .room_id = request.room_id(),
+            .binding_id = "relay:" + request.room_id(),
+            .direct_quota_id = quota_id,
+            .direct_valid_for_ms = valid_for_ms,
+        });
 }
 
 PxAwaitable<void> RelayTransportRuntime::AuthorizeFileTransferControl(std::weak_ptr<RelayTransportRuntime> weak_runtime,
@@ -550,8 +616,10 @@ void RelayTransportRuntime::DispatchFileTransferAdmission(std::weak_ptr<RelaySer
 }
 
 bool RelayTransportRuntime::StartFrontendLease(FrontendLeaseRegistration registration) {
-    if (!frontend_scope_ || !frontend_scope_->IsAccepting() || registration.room_id.empty() || !registration.token ||
-        registration.expected_grant.valid_for_ms == 0) {
+    const bool direct_stream = !registration.direct_quota_id.empty();
+    const auto valid_for_ms = direct_stream ? registration.direct_valid_for_ms : registration.expected_grant.valid_for_ms;
+    if (!frontend_scope_ || !frontend_scope_->IsAccepting() || registration.room_id.empty() || valid_for_ms == 0 ||
+        (!direct_stream && !registration.token)) {
         return false;
     }
     const auto control = std::make_shared<FrontendLeaseControl>();
@@ -563,7 +631,6 @@ bool RelayTransportRuntime::StartFrontendLease(FrontendLeaseRegistration registr
         }
         frontend_leases_.insert_or_assign(registration.room_id, control);
     }
-    const auto valid_for_ms = registration.expected_grant.valid_for_ms;
     const auto room_id = registration.room_id;
     const auto weak_self = weak_from_this();
     if (!frontend_scope_->Spawn("relay-frontend-lease-renewal", [weak_self, control, registration = std::move(registration), valid_for_ms]() mutable {
@@ -588,40 +655,59 @@ PxAwaitable<void> RelayTransportRuntime::RunFrontendLease(std::weak_ptr<RelayTra
             co_return;
         }
         const auto now = std::chrono::steady_clock::now();
-        auto renewed = co_await runtime->AuthorizeFrontend(
-            ConsoleFrontendAdmissionRequest{
-                .request_id = GetUUID(),
-                .session_id = registration.expected_grant.session_id,
-                .revision = registration.descriptor_revision,
-                .frontend_token = std::string{registration.token->View()},
-            },
-            std::min(now + std::chrono::seconds(12), lease_deadline));
+        const auto request_deadline = std::min(now + std::chrono::seconds(12), lease_deadline);
+        std::uint32_t renewed_valid_for_ms{};
+        bool renewal_retryable{};
+        std::string rejection_reason{};
+        if (!registration.direct_quota_id.empty()) {
+            auto renewed = co_await runtime->AuthorizeDirectStream(registration.direct_quota_id, false, request_deadline);
+            if (renewed.HasValue()) {
+                renewed_valid_for_ms = renewed.TakeValue();
+            } else {
+                renewal_retryable = renewed.Error().retryable;
+                rejection_reason = renewed.Error().StableCode();
+            }
+        } else {
+            auto renewed = co_await runtime->AuthorizeFrontend(
+                ConsoleFrontendAdmissionRequest{
+                    .request_id = GetUUID(),
+                    .session_id = registration.expected_grant.session_id,
+                    .revision = registration.descriptor_revision,
+                    .frontend_token = std::string{registration.token->View()},
+                }, request_deadline);
+            if (renewed.HasValue()) {
+                const auto grant = renewed.TakeValue();
+                if (HasSameFrontendIdentity(registration.expected_grant, grant)) {
+                    renewed_valid_for_ms = grant.valid_for_ms;
+                } else {
+                    rejection_reason = "FRONTEND_LEASE_IDENTITY_CHANGED";
+                }
+            } else {
+                renewal_retryable = renewed.Error().retryable;
+                rejection_reason = renewed.Error().StableCode();
+            }
+        }
         if (!control->current.load(std::memory_order_acquire)) {
             co_return;
         }
-        if (!renewed.HasValue()) {
+        if (renewed_valid_for_ms == 0) {
             const auto retry_time = std::chrono::steady_clock::now();
-            if (renewed.Error().retryable && retry_time < lease_deadline) {
+            if (renewal_retryable && retry_time < lease_deadline) {
                 delay = std::min(std::chrono::milliseconds(2000), std::chrono::duration_cast<std::chrono::milliseconds>(lease_deadline - retry_time));
                 continue;
             }
-            runtime->TerminateFrontendLease(registration, control, renewed.Error().StableCode());
-            co_return;
-        }
-        const auto grant = renewed.TakeValue();
-        if (!HasSameFrontendIdentity(registration.expected_grant, grant)) {
-            runtime->TerminateFrontendLease(registration, control, "FRONTEND_LEASE_IDENTITY_CHANGED");
+            runtime->TerminateFrontendLease(registration, control, rejection_reason.empty() ? "ADMISSION_EXPIRED" : rejection_reason);
             co_return;
         }
         auto renewed_logical_grant = registration.logical_grant;
         const auto now_ms = CurrentSystemMilliseconds();
-        renewed_logical_grant.expires_at_ms = now_ms + static_cast<std::int64_t>(grant.valid_for_ms);
+        renewed_logical_grant.expires_at_ms = now_ms + static_cast<std::int64_t>(renewed_valid_for_ms);
         if (!runtime->RenewLogicalLease(renewed_logical_grant, now_ms)) {
             runtime->TerminateFrontendLease(registration, control, "LOGICAL_LEASE_RENEWAL_REJECTED");
             co_return;
         }
-        lease_deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(grant.valid_for_ms);
-        delay = FrontendRenewalDelay(grant.valid_for_ms);
+        lease_deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(renewed_valid_for_ms);
+        delay = FrontendRenewalDelay(renewed_valid_for_ms);
     }
 }
 
@@ -868,19 +954,13 @@ void RelayTransportRuntime::ConnectMedia(const RelayTransportRuntimeConfig& conf
                 server->RespondToControl(message, false, "device password was rejected");
                 return;
             }
-            const auto logical_session_id = "relay-session:" + request.room_id();
-            self->DispatchMediaAdmission(weak_sdk, generation, message, visitor_device_id,
-                                         LogicalSessionGrant{
-                                             .logical_session_id = logical_session_id,
-                                             .stream_id = request.stream_id(),
-                                             .subject_id = visitor_device_id,
-                                             .join_mode = "control",
-                                             .expires_at_ms = 0,
-                                             .allow_observer = false,
-                                             .allow_takeover = false,
-                                             .input_allowed = true,
-                                         },
-                                         {"view", "audio", "input", "clipboard", "file"}, std::nullopt);
+            message->mutable_request_control()->clear_safety_pwd_md5();
+            const auto scope = self->frontend_scope_;
+            if (!scope || !scope->Spawn("relay-direct-stream-admission", [weak_self, weak_sdk, generation, message, visitor_device_id]() {
+                    return AuthorizeDirectMediaControl(weak_self, weak_sdk, generation, message, visitor_device_id);
+                })) {
+                server->RespondToControl(message, false, "Console direct stream admission is unavailable");
+            }
         });
     sdk->SetOnRoomPreparedCallback([weak_self, generation](const std::shared_ptr<RelayMessage>& message) {
         const auto self = weak_self.lock();

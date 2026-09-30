@@ -43,6 +43,7 @@ bool CircularCaptionButton(const px::ui::VectorIcon icon, const std::string_view
 
 bool DrawTitleBar(WindowHost& window, const WindowChromeConfig& chrome, const BrandLogo& logo, const px::ui::Localizer& localizer,
                   const std::string_view titleOverride) {
+    if (window.IsFullscreen()) return true;
     const float titleBarHeight{px::ui::Scale(static_cast<float>(kTitleBarLogicalHeight))};
     const float buttonWidth{px::ui::Scale(static_cast<float>(kCaptionButtonLogicalWidth))};
     const float buttonCount{1.0F + (chrome.showMinimizeButton ? 1.0F : 0.0F) + (chrome.showMaximizeButton ? 1.0F : 0.0F)};

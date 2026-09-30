@@ -61,6 +61,8 @@ DEFINE_string(app_game_args, "", "");
 
 DEFINE_bool(debug_block, false, "block the render process");
 DEFINE_string(device_id, "", "device id");
+DEFINE_string(public_device_code, "", "Console public device code");
+DEFINE_string(console_origin, "", "authenticated Console origin");
 DEFINE_string(relay_device_id, "", "independent relay identity for a child render");
 
 DEFINE_string(relay_server_host, "", "relay host");
@@ -187,6 +189,8 @@ bool UpdateSettings(RdSettings& settings) {
 
     settings.block_debug_ = FLAGS_debug_block;
     settings.device_id_ = FLAGS_device_id;
+    settings.public_device_code_ = FLAGS_public_device_code;
+    settings.console_origin_ = FLAGS_console_origin;
     settings.relay_device_id_ = FLAGS_relay_device_id;
     bool private_environment_loaded = true;
     private_environment_loaded &= ReadAndClearPrivateEnvironment(L"PIXELS_RENDER_DEVICE_RANDOM_PASSWORD", settings.device_random_pwd_);

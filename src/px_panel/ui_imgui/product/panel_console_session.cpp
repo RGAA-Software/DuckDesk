@@ -157,6 +157,13 @@ std::vector<std::shared_ptr<px_console::ConsoleUserDevice>> PanelConsoleSession:
     return result ? result.value() : std::vector<std::shared_ptr<px_console::ConsoleUserDevice>>{};
 }
 
+std::optional<px_console::ConsolePublicDeviceEndpoint> PanelConsoleSession::ResolvePublicDeviceCode(const std::string& publicDeviceCode) {
+    const auto endpoint = config_->Console();
+    if (!endpoint) return std::nullopt;
+    auto resolved = px_console::ConsoleUserDeviceApi::ResolvePublicCode(endpoint->host, endpoint->port, publicDeviceCode);
+    return resolved ? std::optional{std::move(resolved.value())} : std::nullopt;
+}
+
 std::optional<px_console::ConsoleNativeDeviceConnection> PanelConsoleSession::QueryNativeDeviceConnection(const std::string& deviceId,
                                                                                                           const bool viewOnly) {
     const auto endpoint = config_->Console();

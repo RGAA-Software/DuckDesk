@@ -1,19 +1,25 @@
 # PostgreSQL 设备目录与授权契约
 
-> 2026-09-17，Console DB2-B repository 增量。实现入口 `px_console_store::DeviceStore`。
-> 不代表设备登记 HTTP/WS、节点在线、真实桌面连接或全部 Console 已切换。实际验收见[实施状态](server_database_execution_status.md)。
+> 2026-09-29 更新：Console 设备码解析已接入当前节点在线状态；真实跨机连接仍以端到端验收为准。
+> 实现入口 `px_console_store::DeviceStore`，实施状态见[实施状态](server_database_execution_status.md)。
 
 ## 身份与配置
 
-设备数据库身份为 UUID，公开查找编号 `public_code` 是独立生成的 12 位数字字符串，唯一且不可修改。
+设备数据库身份为 UUID，公开查找编号 `public_code` 是独立生成的 9 位数字字符串，唯一且不可修改。
 公开编号不是口令、不由机器硬件散列推导，也不能作为 owner、node 或 CloudApplication target。
 数据库 UUID、公开编号、设备登记凭据、节点控制身份彼此分开；不解析旧开发版编号或恢复旧 seed/MD5 逻辑。
 编号冲突由唯一约束拒绝，创建事务无任何残留，调用方不能把冲突解释成已登记的同一机器。
 
-当前登记由管理员授权创建；业务层生成 CSPRNG 高熵凭据，只把 32 字节 SHA-256 摘要交给 repository。
+当前节点可由 Service 首次接入自动登记；管理员登记仍要求授权。业务层生成 CSPRNG 高熵凭据，只把 32 字节 SHA-256 摘要交给 repository。
 `DeviceProfile` 只含 id、公开编号、显示名称、平台、disabled、revision、registered_at，不含摘要、密码或凭据。
 设备凭据只验证设备身份，不能用于管理员登录或节点命令；成功验证不是在线证明，也不分配默认 endpoint。
-本增量没有直接公开的匿名登记、密码连接/分享链接接口，后续统一入口需独立授权/限流，不得把编号变成凭据。
+`GET /api/console/public/devices/{code}` 只对 9 位数字开放，按来源 IP 与设备码限流，仅返回在线且未停用节点的 UUID、设备码、名称和 Render host/port。
+它不返回密码、不构成授权票据；客户端仍须核对 Render 回报的设备码、UUID、Console origin，并完成 Render 密码验证。
+匿名登记不存在。分享链接也携带并校验这组三元绑定，不接受缺少设备码或 Console origin 的旧格式。
+公开解析本身不创建资源会话，也不占用许可证名额。账号资源会话与设备密码直连的媒体流共用 Console 的 PostgreSQL 并发计数：
+Render 验证设备密码后，经本机 Service 的现有节点 WebSocket 向 Console 申请 30 秒租期；WS、直连 WebRTC 和 Relay 数据转发的媒体入口均须在获准后才绑定逻辑会话，存续期间续租，拒绝或到期时断开。WS 媒体绑定正常关闭时主动释放占用；进程或网络异常时仍以短租期兜底回收。
+Console 仅认可当前已认证节点；许可证过期、桌面服务未授权或并发用尽时拒绝。设备码和分享链接使用同一条 Render 密码直连入口，无额外用户配置或客户端许可证逻辑。
+节点异常断开后租期至多保留 30 秒，过期记录在下次申请时清理。纯文件传输不作为媒体 stream 计数。此项已通过短数据库测试，跨机安装包验收仍以实测结果为准。
 
 名称 1–128 个 Unicode 标量，无控制字符/首尾空白；平台为 windows/linux/macos/android 明确枚举。
 数据库约束同时约束平台、编号长度、hash 长度、正 revision 与外键。平台在登记时确定，不通过普通改名接口改写。
@@ -54,4 +60,4 @@
 8. UUID 稳定游标分页、条数限制、到期即拒绝、关闭数据库连接池后不返回成功。
 
 运行器在 Windows/Linux 执行，SQLx 在线编译/离线元数据一致性、三库数据/索引/约束恢复包含新四表。
-当前未完成：登记/连接 HTTP/WS、节点凭据代际、公开编号查找入口及其限流、实际撤销投递、桌面密码/分享访问、客户端接入。
+公开编号查找与限流已实现；此处早期 DB2-B 验证清单不代表完整产品验收，跨机连接和发行包以当前专项测试为准。

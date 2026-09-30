@@ -16,6 +16,7 @@
 #include "app/app_messages.h"
 #include "app/win/ipc_peer_identity.h"
 #include "frontend_lease_renewal.h"
+#include "px_render/network/direct_stream_id.h"
 #include "http_handler.h"
 #include "message_type_ids.h"
 #include "network/ws_media_router.h"
@@ -102,6 +103,8 @@ struct WsPasswordAdmission {
     std::optional<ConsoleFrontendGrant> console_frontend_grant_{};
     std::string descriptor_session_id_{};
     std::int64_t descriptor_revision_{};
+    std::string direct_quota_id_{};
+    std::uint32_t direct_valid_for_ms_{};
 };
 
 static void RejectWebSocketSession(std::shared_ptr<asio2::http_session> session, const std::string_view control_signal) {
@@ -135,7 +138,7 @@ static void DispatchCloseLogicalSessionBinding(const std::weak_ptr<WsTransport>&
 
 static PxAwaitable<PxResult<WsPasswordAdmission>> AuthenticateWsPasswordAsync(std::weak_ptr<WsTransport> transport,
                                                                               std::unordered_map<std::string, std::string> query_parameters,
-                                                                              std::string remote_address) {
+                                                                              std::string remote_address, const bool media_stream) {
     const auto owner = transport.lock();
     const auto stream_iterator = query_parameters.find("stream_id");
     const auto nonce_iterator = query_parameters.find("client_nonce");
@@ -157,28 +160,47 @@ static PxAwaitable<PxResult<WsPasswordAdmission>> AuthenticateWsPasswordAsync(st
     // RDP runtime authorization sends this identifier through Console's strict
     // binding validator, whose portable identifier alphabet is [A-Za-z0-9_-].
     const std::string logical_session_id{"password-" + MD5::Hex(stream_iterator->second + "|" + nonce_iterator->second + "|" + remote_address)};
+    std::string quota_id{};
+    std::uint32_t valid_for_ms{};
+    if (media_stream) {
+        quota_id = DirectStreamQuotaId(settings.device_id, logical_session_id);
+        if (quota_id.empty()) {
+            co_return PxResult<WsPasswordAdmission>::Failure(
+                MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument, "direct_stream_admission", "direct stream identity is invalid"));
+        }
+        auto direct_grant = co_await owner->RequestDirectStream(quota_id, false, std::chrono::steady_clock::now() + std::chrono::seconds(12));
+        if (!direct_grant.HasValue() || direct_grant.Value() == 0) {
+            co_return PxResult<WsPasswordAdmission>::Failure(
+                direct_grant.HasValue()
+                    ? MakePxAsyncError(PxAsyncErrorCode::kServiceRejected, "direct_stream_admission", "Console denied direct stream")
+                                        : direct_grant.Error());
+        }
+        valid_for_ms = direct_grant.TakeValue();
+    }
     co_return PxResult<WsPasswordAdmission>::Success(WsPasswordAdmission{
         .permissions_ = {"view", "input", "clipboard", "file", "audio", "rdp"},
         .logical_session_id_ = logical_session_id,
         .stream_id_ = stream_iterator->second,
         .join_mode_ = "control",
         .subject_id_ = "password:" + MD5::Hex(remote_address + "|" + nonce_iterator->second),
-        .expires_at_ms_ = 0,
+        .expires_at_ms_ = valid_for_ms == 0 ? 0 : CurrentSystemMilliseconds() + static_cast<std::int64_t>(valid_for_ms),
         .allow_observer_ = false,
         .allow_takeover_ = true,
+        .direct_quota_id_ = quota_id,
+        .direct_valid_for_ms_ = valid_for_ms,
     });
 }
 
 static PxAwaitable<PxResult<WsPasswordAdmission>> AuthenticateWebSocketAsync(std::weak_ptr<WsTransport> transport,
                                                                              std::unordered_map<std::string, std::string> query_parameters,
-                                                                             std::string remote_address) {
+                                                                             std::string remote_address, const bool media_stream) {
     const auto owner = transport.lock();
     if (!owner) {
         co_return PxResult<WsPasswordAdmission>::Failure(
             MakePxAsyncError(PxAsyncErrorCode::kServiceStopped, "ws_frontend_auth", "transport is unavailable", true, "TRANSPORT_UNAVAILABLE"));
     }
     if (!owner->RequiresConsoleFrontendAdmission()) {
-        co_return co_await AuthenticateWsPasswordAsync(std::move(transport), std::move(query_parameters), std::move(remote_address));
+        co_return co_await AuthenticateWsPasswordAsync(std::move(transport), std::move(query_parameters), std::move(remote_address), media_stream);
     }
 
     auto descriptor = ConsumeWebSocketFrontendDescriptor(query_parameters);
@@ -1307,7 +1329,7 @@ PxAwaitable<void> WsServer::OpenWebSocketAsync(std::weak_ptr<WsServer> owner, st
         co_return;
     }
     const auto transport = server->transport_;
-    auto authentication_result = co_await AuthenticateWebSocketAsync(transport, query_parameters, session->remote_address());
+    auto authentication_result = co_await AuthenticateWebSocketAsync(transport, query_parameters, session->remote_address(), path == kUrlMedia);
     if (!authentication_result.HasValue()) {
         const auto& error = authentication_result.Error();
         LOGW(
@@ -1415,6 +1437,26 @@ PxAwaitable<void> WsServer::OpenWebSocketAsync(std::weak_ptr<WsServer> owner, st
                     },
             },
             authentication.frontend_token_, authentication.console_frontend_grant_->valid_for_ms);
+    } else if (!authentication.direct_quota_id_.empty() && server->frontend_lease_renewals_) {
+        const std::weak_ptr<asio2::http_session> weak_session{session};
+        server->frontend_lease_renewals_->StartDirect(
+            WebSocketDirectLeaseIdentity{
+                .quota_id = authentication.direct_quota_id_,
+                .logical_grant = logical_grant,
+                .binding_id = binding_id,
+                .terminate_transport = [owner, weak_session, socket_fd] {
+                    if (const auto active_server = owner.lock()) {
+                        const auto router = active_server->stream_routers_.TryGet(socket_fd);
+                        if (router && *router) {
+                            (*router)->MarkResourcePolicyRevoked();
+                        }
+                    }
+                    if (const auto active_session = weak_session.lock()) {
+                        active_session->post_queued_event([active_session] { active_session->stop(); });
+                    }
+                },
+            },
+            authentication.direct_valid_for_ms_);
     }
     session->post_queued_event([owner, transport, session, path = std::move(path), query_parameters = std::move(query_parameters),
                                 authentication = std::move(authentication), admission = std::move(admission), binding_id, socket_fd]() mutable {

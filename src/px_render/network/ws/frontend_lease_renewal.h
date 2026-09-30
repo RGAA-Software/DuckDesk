@@ -56,21 +56,37 @@ struct WebSocketFrontendLeaseIdentity final {
     std::function<void()> terminate_transport{};
 };
 
+struct WebSocketDirectLeaseIdentity final {
+    std::string quota_id{};
+    LogicalSessionGrant logical_grant{};
+    std::string device_id{};
+    std::string stream_id{};
+    std::string allocation_id{};
+    std::string binding_id{};
+    std::function<void()> terminate_transport{};
+};
+
 class WebSocketFrontendLeaseRenewalCoordinator final : public std::enable_shared_from_this<WebSocketFrontendLeaseRenewalCoordinator> {
 public:
     WebSocketFrontendLeaseRenewalCoordinator(std::weak_ptr<WsTransport> transport, std::shared_ptr<PxAsyncScope> async_scope);
 
     void Start(WebSocketFrontendLeaseIdentity identity, std::shared_ptr<WebSocketFrontendToken> token, std::uint32_t initial_valid_for_ms);
+    void StartDirect(WebSocketDirectLeaseIdentity identity, std::uint32_t initial_valid_for_ms);
     void Cancel(const std::string& binding_id);
 
 private:
     struct RenewalControl final {
         std::atomic_bool current{true};
+        std::string direct_quota_id{};
     };
 
     static PxAwaitable<void> Run(std::weak_ptr<WebSocketFrontendLeaseRenewalCoordinator> owner, std::shared_ptr<RenewalControl> control,
                                  WebSocketFrontendLeaseIdentity identity, std::shared_ptr<WebSocketFrontendToken> token, std::uint32_t valid_for_ms);
+    static PxAwaitable<void> RunDirect(std::weak_ptr<WebSocketFrontendLeaseRenewalCoordinator> owner, std::shared_ptr<RenewalControl> control,
+                                       WebSocketDirectLeaseIdentity identity, std::uint32_t valid_for_ms);
+    static PxAwaitable<void> ReleaseDirect(std::weak_ptr<WebSocketFrontendLeaseRenewalCoordinator> owner, std::string quota_id);
     void TerminateCurrent(const WebSocketFrontendLeaseIdentity& identity, const std::shared_ptr<RenewalControl>& control, const std::string& reason);
+    void TerminateDirect(const WebSocketDirectLeaseIdentity& identity, const std::shared_ptr<RenewalControl>& control, const std::string& reason);
     void RemoveCurrent(const std::shared_ptr<RenewalControl>& expected_control);
 
     std::weak_ptr<WsTransport> transport_{};

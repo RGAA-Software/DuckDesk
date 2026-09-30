@@ -34,7 +34,10 @@ ThemeTokens ThemeTokensFor(const Theme theme) noexcept {
                            .input = Rgba(212, 212, 216),
                            .ring = Rgba(0, 154, 89),
                            .success = Rgba(22, 163, 74),
-                           .warning = Rgba(217, 119, 6)};
+                           .warning = Rgba(217, 119, 6),
+                           .videoOverlayForeground = Rgba(255, 255, 255),
+                           .videoOverlayOutline = Rgba(0, 0, 0, 0.9F),
+                           .videoRecordingForeground = Rgba(255, 59, 48)};
     }
     return ThemeTokens{.background = Rgba(34, 49, 67),
                        .foreground = Rgba(242, 247, 251),
@@ -56,7 +59,10 @@ ThemeTokens ThemeTokensFor(const Theme theme) noexcept {
                        .input = Rgba(105, 129, 151),
                        .ring = Rgba(83, 212, 179),
                        .success = Rgba(78, 208, 153),
-                       .warning = Rgba(246, 194, 103)};
+                       .warning = Rgba(246, 194, 103),
+                       .videoOverlayForeground = Rgba(255, 255, 255),
+                       .videoOverlayOutline = Rgba(0, 0, 0, 0.9F),
+                       .videoRecordingForeground = Rgba(255, 59, 48)};
 }
 
 ThemeTokens CurrentThemeTokens() noexcept {

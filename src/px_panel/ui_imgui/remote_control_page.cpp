@@ -72,10 +72,10 @@ std::string FormatDeviceId(const std::string& value) {
 }
 
 std::string DeviceAddress(const RemoteDeviceCard& device) {
-    if (!device.deviceId.empty()) {
-        return FormatDeviceId(device.deviceId);
+    if (!device.publicDeviceCode.empty()) {
+        return FormatDeviceId(device.publicDeviceCode);
     }
-    return device.host.empty() ? device.streamId : device.host;
+    return device.host.empty() ? "--" : device.host;
 }
 
 } // namespace

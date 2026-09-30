@@ -16,6 +16,7 @@ mod control;
 mod database;
 mod deployment_model;
 mod deployments;
+mod direct_streams;
 mod devices;
 mod file_metadata;
 mod file_transfers;
@@ -83,7 +84,10 @@ pub use deployment_model::{
     PreparationState,
 };
 pub use deployments::DeploymentStore;
-pub use devices::{DeviceAccess, DeviceIdentity, DevicePlatform, DeviceProfile, DeviceStore};
+pub use direct_streams::DirectStreamStore;
+pub use devices::{
+    DeviceAccess, DeviceIdentity, DevicePlatform, DeviceProfile, DeviceStore, PublicDeviceEndpoint,
+};
 pub use file_transfers::FileTransferStore;
 pub use groups::{GroupProfile, GroupStore};
 pub use guest_events::GuestEvent;

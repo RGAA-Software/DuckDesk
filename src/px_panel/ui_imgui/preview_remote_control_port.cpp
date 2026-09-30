@@ -47,8 +47,9 @@ class PreviewRemoteControlPort final : public RemoteControlPort {
     bool RequiresPassword(const std::string&) const override {
         return false;
     }
+    bool RequiresDevicePassword(const RemoteDeviceCard&) const override { return false; }
     void Connect(std::string, std::string, bool) override {}
-    void StartStream(const std::string&, bool) override {}
+    void StartStream(const std::string&, std::string, bool) override {}
     void StopStream(const std::string&) override {}
     void StartFileTransfer(const std::string&, std::string) override {}
     void SendDeviceCommand(const std::string&, RemoteDeviceCommand) override {}

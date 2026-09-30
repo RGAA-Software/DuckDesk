@@ -36,6 +36,8 @@ Result<RenderConfiguration, int> RenderApi::GetRenderConfiguration(
             RenderConfiguration configuration;
             configuration.device_id_ =
                 configuration_json["device_id"].get<std::string>();
+            configuration.public_device_code_ = configuration_json.value("public_device_code", std::string{});
+            configuration.console_origin_ = configuration_json.value("console_origin", std::string{});
             configuration.relay_host_ =
                 configuration_json["relay_host"].get<std::string>();
             configuration.relay_port_ =

@@ -51,6 +51,8 @@ pub struct ServiceRuntime {
     pub(crate) node_control_receiver:
         Option<mpsc::Receiver<crate::node_control_client::NodeControlOperation>>,
     pub(crate) node_control_identity: Option<crate::node_control_client::NodeControlIdentity>,
+    pub(crate) node_public_code: String,
+    pub(crate) authenticated_console_origin: String,
     pub(crate) node_control_relay: Option<px_node_protocol::RelayEndpoint>,
     pub(crate) file_transfer_outbox:
         Arc<std::sync::Mutex<crate::node_control_store::FileTransferOutboxStore>>,
@@ -260,6 +262,8 @@ impl ServiceRuntime {
             node_control_sender,
             node_control_receiver: Some(node_control_receiver),
             node_control_identity: None,
+            node_public_code: String::new(),
+            authenticated_console_origin: String::new(),
             node_control_relay: None,
             file_transfer_outbox,
             stop_tx,
@@ -463,6 +467,9 @@ impl ServiceRuntime {
                 ) {
                     heartbeat.node_id = identity.node_id.to_string();
                     heartbeat.device_id = identity.device_id.to_string();
+                    heartbeat.public_device_code = self.node_public_code.clone();
+                    heartbeat.authenticated_console_origin =
+                        self.authenticated_console_origin.clone();
                     heartbeat.node_generation = identity.generation;
                     heartbeat.control_epoch = identity.control_epoch;
                     heartbeat.node_control_ready = true;
@@ -479,6 +486,9 @@ impl ServiceRuntime {
             }
             Command::AdmitFrontend { .. } => {
                 Err("frontend admission must use the asynchronous service path".to_string())
+            }
+            Command::DirectStream { .. } => {
+                Err("direct stream admission must use the asynchronous service path".to_string())
             }
             Command::OpenResourceChannel { .. } | Command::ReportResourceChannel { .. } => Err(
                 "resource channel operations must use the asynchronous service path".to_string(),
@@ -2063,6 +2073,8 @@ mod tests {
             generation: 7,
             control_epoch: 11,
         });
+        runtime.node_public_code = "123456789".to_string();
+        runtime.authenticated_console_origin = "https://console.example.test/".to_string();
         runtime.sync_process_state().unwrap();
         let response = runtime
             .handle_command(Command::HeartBeat {
@@ -2083,6 +2095,11 @@ mod tests {
         assert_eq!(heartbeat.node_generation, 7);
         assert_eq!(heartbeat.control_epoch, 11);
         assert_eq!(heartbeat.node_access_host, "render.example.test");
+        assert_eq!(heartbeat.public_device_code, "123456789");
+        assert_eq!(
+            heartbeat.authenticated_console_origin,
+            "https://console.example.test/"
+        );
     }
 
     #[test]

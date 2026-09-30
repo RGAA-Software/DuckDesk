@@ -25,6 +25,8 @@ enum ServiceMessageType {
   kSrvFileTransferBeginResult = 21;
   kSrvFileTransferReportRequest = 22;
   kSrvFileTransferReportResult = 23;
+  kSrvDirectStreamRequest = 24;
+  kSrvDirectStreamResult = 25;
 }
 
 enum VirtualDisplayOperation {
@@ -62,6 +64,8 @@ message MsgHeartBeat {
   // JSON snapshot of Render logical sessions. It is transported only on the
   // reliable Render-Service control channel and forwarded by Service.
   string logical_sessions_json = 4;
+  // Panel's selected Console origin. Empty for Render heartbeats.
+  string console_address = 5;
 }
 
 message MsgHeartBeatResp {
@@ -75,6 +79,9 @@ message MsgHeartBeatResp {
   bool node_control_ready = 7;
   // Current client-reachable host from the authenticated Service node configuration.
   string node_access_host = 8;
+    string public_device_code = 9;
+    // Console origin that authenticated this Service identity.
+    string authenticated_console_origin = 10;
 }
 
 message MsgReqCtrlAltDelete {
@@ -133,6 +140,20 @@ message MsgFrontendAdmissionResult {
   string client_type = 10;
   string access_role = 11;
   uint32 valid_for_ms = 12;
+}
+
+message MsgDirectStreamRequest {
+  string request_id = 1;
+  string stream_id = 2;
+  bool release = 3;
+}
+
+message MsgDirectStreamResult {
+  string request_id = 1;
+  bool accepted = 2;
+  string error_code = 3;
+  string stream_id = 4;
+  uint32 valid_for_ms = 5;
 }
 
 enum ResourceChannelKind {
@@ -271,4 +292,6 @@ message ServiceMessage {
   MsgFileTransferResult file_transfer_begin_result = 23;
   MsgFileTransferReportRequest file_transfer_report_request = 24;
   MsgFileTransferResult file_transfer_report_result = 25;
+  MsgDirectStreamRequest direct_stream_request = 26;
+  MsgDirectStreamResult direct_stream_result = 27;
 }

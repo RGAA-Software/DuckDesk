@@ -141,6 +141,7 @@ void DrawStep(const px::ui::Localizer& localizer, const ConnectionProgressStep& 
     const float textLeft{minimum.x + metrics.spacingMd + iconSize + metrics.spacingMd};
     const float detailWidth{width - (textLeft - minimum.x) - metrics.spacingMd};
     const ImVec2 detailSize{step.detail.empty() ? ImVec2{} : ImGui::CalcTextSize(step.detail.c_str(), {}, false, detailWidth)};
+    const float textHeight{ImGui::GetTextLineHeight() + (step.detail.empty() ? 0.0F : metrics.spacingXs + detailSize.y)};
     const float rowHeight{step.detail.empty() ? 48.0F * metrics.scale
                                               : std::max(66.0F * metrics.scale,
                                                          metrics.spacingSm * 2.0F + ImGui::GetTextLineHeight() + metrics.spacingXs + detailSize.y)};
@@ -151,23 +152,26 @@ void DrawStep(const px::ui::Localizer& localizer, const ConnectionProgressStep& 
 
     const ImVec2 iconPosition{minimum.x + metrics.spacingMd, minimum.y + (rowHeight - iconSize) * 0.5F};
     if (step.state == ConnectionStepState::Running) {
-        ImGui::SetCursorScreenPos({iconPosition.x, minimum.y + (rowHeight - metrics.controlSm) * 0.5F});
+        const float spinnerRadius{iconSize * 0.42F};
+        const float spinnerSize{spinnerRadius * 2.0F + metrics.spacingXs * 2.0F};
+        ImGui::SetCursorScreenPos({iconPosition.x + (iconSize - spinnerSize) * 0.5F, minimum.y + (rowHeight - spinnerSize) * 0.5F});
         const std::string spinnerId{"connection-step-spinner-" + std::to_string(index)};
-        px::ui::LoadingSpinner({spinnerId}, iconSize * 0.42F);
+        px::ui::LoadingSpinner({spinnerId}, spinnerRadius);
     } else {
         const px::ui::VectorIcon icon{step.state == ConnectionStepState::Succeeded ? px::ui::VectorIcon::CircleCheck : px::ui::VectorIcon::Info};
         const ImVec4 color{step.state == ConnectionStepState::Succeeded ? tokens.success : tokens.mutedForeground};
         px::ui::DrawVectorIcon(icon, iconPosition, iconSize, ImGui::GetColorU32(color));
     }
 
-    ImGui::SetCursorScreenPos({textLeft, minimum.y + metrics.spacingSm});
+    const float textTop{minimum.y + (rowHeight - textHeight) * 0.5F};
+    ImGui::SetCursorScreenPos({textLeft, textTop});
     px::ui::StrongText(localizer.Text(StepText(step.kind)));
     const float badgeWidth{112.0F * metrics.scale};
     ImGui::SameLine();
-    ImGui::SetCursorScreenPos({minimum.x + width - badgeWidth, minimum.y + metrics.spacingSm - metrics.spacingXs});
+    ImGui::SetCursorScreenPos({minimum.x + width - badgeWidth, minimum.y + (rowHeight - metrics.controlSm) * 0.5F});
     px::ui::StatusBadge(StatusText(localizer, step.state), BadgeFor(step.state));
     if (!step.detail.empty()) {
-        ImGui::SetCursorScreenPos({textLeft, minimum.y + metrics.spacingSm + ImGui::GetTextLineHeight() + metrics.spacingXs});
+        ImGui::SetCursorScreenPos({textLeft, textTop + ImGui::GetTextLineHeight() + metrics.spacingXs});
         ImGui::PushTextWrapPos(minimum.x + width - metrics.spacingMd);
         px::ui::MutedText(step.detail);
         ImGui::PopTextWrapPos();

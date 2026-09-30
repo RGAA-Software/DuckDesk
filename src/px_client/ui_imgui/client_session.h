@@ -9,6 +9,9 @@
 #include <vector>
 
 #include "client_launch_config.h"
+#include "client_statistics.h"
+#include "client_screenshot.h"
+#include "client_recording_result.h"
 #include "rdp/rdp_clipboard_content.h"
 #include "client_video_frame.h"
 
@@ -120,6 +123,7 @@ public:
     static std::shared_ptr<ClientSession> Create(ClientLaunchConfig config, std::shared_ptr<px::WindowsVideoResources> videoResources);
     ClientSession(ClientLaunchConfig config, std::shared_ptr<px::WindowsVideoResources> videoResources);
     ~ClientSession();
+    [[nodiscard]] ClientStatisticsSnapshot StatisticsSnapshot() const;
 
     bool Initialize();
     void Start();
@@ -142,7 +146,7 @@ public:
     bool SetAudioEnabled(bool enabled);
     bool CreateVirtualDisplay();
     bool RemoveVirtualDisplay();
-    [[nodiscard]] std::optional<std::string> SaveScreenshot() const;
+    [[nodiscard]] ScreenshotResult SaveScreenshot() const;
     [[nodiscard]] std::vector<ClientTransferJob> TransferJobs() const;
     [[nodiscard]] std::vector<ClientRemoteEntry> RemoteEntries() const;
     [[nodiscard]] std::vector<ClientRemoteEntry> RemoteLocations() const;
@@ -163,6 +167,7 @@ public:
     [[nodiscard]] std::optional<ClientFileOperationResult> TakeRemoteFileOperationResult();
     bool StartRecording();
     bool StopRecording();
+    [[nodiscard]] std::vector<ClientRecordingResult> TakeRecordingResults();
     bool StartVoiceCall();
     bool StopVoiceCall();
     bool SetVoiceMicrophoneMuted(bool muted);
@@ -189,6 +194,7 @@ private:
     std::shared_ptr<px::ft::FtAsyncSession> fileTransfer_{};
     std::shared_ptr<px::RecordingSession> recording_{};
     std::vector<std::shared_ptr<px::RecordingSession>> finishingRecordings_{};
+    std::vector<ClientRecordingResult> recordingResults_{};
     std::shared_ptr<px::VoiceCallController> voiceCall_{};
     std::shared_ptr<px::SdkStatistics> statistics_{};
     mutable std::mutex mutex_{};

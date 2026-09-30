@@ -55,6 +55,8 @@ struct RemoteDeviceCard final {
     std::string streamId{};
     std::string name{};
     std::string deviceId{};
+    std::string publicDeviceCode{};
+    std::string consoleOrigin{};
     px::ui::DevicePlatform platform{px::ui::DevicePlatform::Unknown};
     bool online{false};
     std::string host{};
@@ -96,8 +98,9 @@ class RemoteControlPort {
     virtual void SetIncomingRemoteAccessEnabled(bool enabled) = 0;
     virtual void UpdateLocalDeviceName(std::string deviceName) = 0;
     [[nodiscard]] virtual bool RequiresPassword(const std::string& target) const = 0;
+    [[nodiscard]] virtual bool RequiresDevicePassword(const RemoteDeviceCard& device) const = 0;
     virtual void Connect(std::string target, std::string password, bool viewOnly = false) = 0;
-    virtual void StartStream(const std::string& streamId, bool viewOnly) = 0;
+    virtual void StartStream(const std::string& streamId, std::string password, bool viewOnly) = 0;
     virtual void StopStream(const std::string& streamId) = 0;
     virtual void StartFileTransfer(const std::string& streamId, std::string password) = 0;
     virtual void SendDeviceCommand(const std::string& streamId, RemoteDeviceCommand command) = 0;

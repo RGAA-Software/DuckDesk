@@ -184,6 +184,8 @@ public:
     std::string rtc_advertised_ipv4_;
     std::string service_ipc_token_;
     std::string device_id_;
+    std::string public_device_code_;
+    std::string console_origin_;
     std::string device_random_pwd_;
     std::string device_safety_pwd_;
     std::string relay_host_;

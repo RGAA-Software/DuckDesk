@@ -6,6 +6,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "network_settings_model.h"
@@ -34,6 +35,9 @@ struct PanelIdentity final {
     std::string securityPasswordHash{};
 };
 
+[[nodiscard]] bool IsValidTemporaryPassword(std::string_view password);
+[[nodiscard]] std::optional<std::string> GenerateTemporaryPassword();
+
 struct NodePorts final {
     int service{4603};
     int desktop{4601};
@@ -60,6 +64,8 @@ struct RemoteDevicePreference final {
 
 struct RemoteDeviceHistory final {
     std::string deviceId{};
+    std::string publicDeviceCode{};
+    std::string consoleOrigin{};
     std::string name{};
     std::string host{};
     int port{};
@@ -85,6 +91,8 @@ public:
     [[nodiscard]] bool ConsoleAddressEditable() const;
     [[nodiscard]] std::string OfficialConsoleAddress() const;
     [[nodiscard]] PanelIdentity Identity() const;
+    [[nodiscard]] std::string CachedPublicDeviceCode(const std::string& deviceId) const;
+    [[nodiscard]] std::string CachedNodeAccessHost(const std::string& deviceId) const;
     [[nodiscard]] NodePorts Ports() const;
     [[nodiscard]] ui::SettingsSnapshot Settings() const;
     [[nodiscard]] bool ShowTemporaryPassword() const;
@@ -98,6 +106,7 @@ public:
     bool SaveNetwork(const std::string& consoleAddress, const ConsoleEndpoint& endpoint);
     bool SaveOfficialNetwork();
     bool SaveIdentity(const PanelIdentity& identity);
+    bool SavePublicDeviceCode(const std::string& deviceId, const std::string& publicDeviceCode, const std::string& nodeAccessHost);
     bool SaveCustomDeviceName(const std::string& deviceName);
     bool SaveGeneral(const ui::GeneralSettings& settings);
     bool SaveController(const ui::ControllerSettings& settings);
@@ -121,6 +130,8 @@ public:
     [[nodiscard]] std::filesystem::path DataDirectory() const;
 
 private:
+    bool SelectConsoleAddress(const std::string& consoleAddress);
+
     std::shared_ptr<SharedPreference> preferences_{};
     std::filesystem::path executableDirectory_{};
     std::string fixedConsoleAddress_{};

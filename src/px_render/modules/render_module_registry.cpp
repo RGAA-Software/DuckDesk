@@ -103,6 +103,8 @@ void RenderModuleRegistry::StartModules() {
         .ws_listen_port = settings_.transmission_.listening_port_,
         .udp_listen_port = settings_.transmission_.listening_port_,
         .device_id = settings_.device_id_,
+        .public_device_code = settings_.public_device_code_,
+        .console_origin = settings_.console_origin_,
         .application_instance_id = settings_.IsRdpMode() ? settings_.rdp_launch_.instance_id : settings_.device_id_,
         .direct_allow_takeover = settings_.direct_allow_takeover_,
         .relay_device_id = settings_.relay_device_id_,
@@ -170,6 +172,16 @@ void RenderModuleRegistry::StartModules() {
                 }
                 co_return co_await application->AdmitConsoleFrontend(std::move(request), deadline);
             });
+        transport->ConfigureDirectStreamAuthorizer(
+            [weak_application](std::string stream_id, bool release,
+                               const std::chrono::steady_clock::time_point deadline) -> PxAwaitable<PxResult<std::uint32_t>> {
+                const auto application = weak_application.lock();
+                if (!application) {
+                    co_return PxResult<std::uint32_t>::Failure(
+                        MakePxAsyncError(PxAsyncErrorCode::kServiceStopped, "direct_stream_admission", "Render application is unavailable"));
+                }
+                co_return co_await application->RequestDirectStream(std::move(stream_id), release, deadline);
+            });
     };
     if (settings_.IsRdpMode()) {
         const auto transport = std::make_shared<WsTransport>(context_->GetAsyncRuntime());
@@ -229,6 +241,16 @@ void RenderModuleRegistry::StartModules() {
                         MakePxAsyncError(PxAsyncErrorCode::kServiceStopped, "frontend_admission", "Render application is unavailable"));
                 }
                 co_return co_await application->AdmitConsoleFrontend(std::move(request), deadline);
+            });
+        relay_transport->ConfigureDirectStreamAuthorizer(
+            [weak_application](std::string stream_id, bool release,
+                               const std::chrono::steady_clock::time_point deadline) -> PxAwaitable<PxResult<std::uint32_t>> {
+                const auto application = weak_application.lock();
+                if (!application) {
+                    co_return PxResult<std::uint32_t>::Failure(
+                        MakePxAsyncError(PxAsyncErrorCode::kServiceStopped, "relay_direct_admission", "Render application is unavailable"));
+                }
+                co_return co_await application->RequestDirectStream(std::move(stream_id), release, deadline);
             });
         relay_transport->ConfigureLogicalLeaseRenewer([weak_sessions](const LogicalSessionGrant& grant, const std::int64_t now_ms) {
             const auto sessions = weak_sessions.lock();

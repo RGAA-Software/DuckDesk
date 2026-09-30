@@ -1,12 +1,4 @@
 #include "client_window.h"
-#include "client_input_mapper.h"
-#include "client_text.h"
-#include "client_toolbar.h"
-#include "px_common/log.h"
-#include "px_ui/components/button.h"
-#include "px_ui/components/feedback.h"
-#include "px_ui/components/overlay.h"
-#include "px_message.pb.h"
 
 #include <SDL3/SDL.h>
 #include <imgui.h>
@@ -15,65 +7,77 @@
 #include <functional>
 #include <memory>
 
+#include "client_input_mapper.h"
+#include "client_text.h"
+#include "client_toolbar.h"
+#include "px_common/log.h"
+#include "px_message.pb.h"
+#include "px_ui/components/button.h"
+#include "px_ui/components/feedback.h"
+#include "px_ui/components/overlay.h"
+
 namespace px::client::imgui {
 namespace {
 
 ClientText FailureText(const ClientConnectionFailure failure) noexcept {
     switch (failure) {
-    case ClientConnectionFailure::Authorization:
-        return ClientText::AuthorizationRejected;
-    case ClientConnectionFailure::RemoteAccessDisabled:
-        return ClientText::RemoteAccessDisabled;
-    case ClientConnectionFailure::Occupied:
-        return ClientText::DeviceOccupied;
-    case ClientConnectionFailure::SessionPolicy:
-        return ClientText::SessionPolicyRejected;
-    case ClientConnectionFailure::TakenOver:
-        return ClientText::SessionTakenOver;
-    case ClientConnectionFailure::Transport:
-        return ClientText::TransportRejected;
-    case ClientConnectionFailure::None:
-    default:
-        return ClientText::ConnectionRejected;
+        case ClientConnectionFailure::Authorization:
+            return ClientText::AuthorizationRejected;
+        case ClientConnectionFailure::RemoteAccessDisabled:
+            return ClientText::RemoteAccessDisabled;
+        case ClientConnectionFailure::Occupied:
+            return ClientText::DeviceOccupied;
+        case ClientConnectionFailure::SessionPolicy:
+            return ClientText::SessionPolicyRejected;
+        case ClientConnectionFailure::TakenOver:
+            return ClientText::SessionTakenOver;
+        case ClientConnectionFailure::Transport:
+            return ClientText::TransportRejected;
+        case ClientConnectionFailure::None:
+        default:
+            return ClientText::ConnectionRejected;
     }
 }
 
 ImGuiMouseCursor RemoteMouseCursor(const std::uint32_t type) noexcept {
     switch (type) {
-    case px::CursorInfoSync::kIdcIBeam:
-        return ImGuiMouseCursor_TextInput;
-    case px::CursorInfoSync::kIdcWait:
-        return ImGuiMouseCursor_Wait;
-    case px::CursorInfoSync::kIdcCross:
-    case px::CursorInfoSync::kIdcSize:
-    case px::CursorInfoSync::kIdcSizeAll:
-        return ImGuiMouseCursor_ResizeAll;
-    case px::CursorInfoSync::kIdcSizeNWSE:
-        return ImGuiMouseCursor_ResizeNWSE;
-    case px::CursorInfoSync::kIdcSizeNESW:
-        return ImGuiMouseCursor_ResizeNESW;
-    case px::CursorInfoSync::kIdcSizeWE:
-        return ImGuiMouseCursor_ResizeEW;
-    case px::CursorInfoSync::kIdcSizeNS:
-        return ImGuiMouseCursor_ResizeNS;
-    case px::CursorInfoSync::kIdcHand:
-    case px::CursorInfoSync::kIdcPin:
-        return ImGuiMouseCursor_Hand;
-    case px::CursorInfoSync::kIdcArrow:
-    case px::CursorInfoSync::kIdcUpArrow:
-    case px::CursorInfoSync::kIdcIcon:
-    case px::CursorInfoSync::kIdcHelp:
-    case px::CursorInfoSync::kIdcPerson:
-    default:
-        return ImGuiMouseCursor_Arrow;
+        case px::CursorInfoSync::kIdcIBeam:
+            return ImGuiMouseCursor_TextInput;
+        case px::CursorInfoSync::kIdcWait:
+            return ImGuiMouseCursor_Wait;
+        case px::CursorInfoSync::kIdcCross:
+        case px::CursorInfoSync::kIdcSize:
+        case px::CursorInfoSync::kIdcSizeAll:
+            return ImGuiMouseCursor_ResizeAll;
+        case px::CursorInfoSync::kIdcSizeNWSE:
+            return ImGuiMouseCursor_ResizeNWSE;
+        case px::CursorInfoSync::kIdcSizeNESW:
+            return ImGuiMouseCursor_ResizeNESW;
+        case px::CursorInfoSync::kIdcSizeWE:
+            return ImGuiMouseCursor_ResizeEW;
+        case px::CursorInfoSync::kIdcSizeNS:
+            return ImGuiMouseCursor_ResizeNS;
+        case px::CursorInfoSync::kIdcHand:
+        case px::CursorInfoSync::kIdcPin:
+            return ImGuiMouseCursor_Hand;
+        case px::CursorInfoSync::kIdcArrow:
+        case px::CursorInfoSync::kIdcUpArrow:
+        case px::CursorInfoSync::kIdcIcon:
+        case px::CursorInfoSync::kIdcHelp:
+        case px::CursorInfoSync::kIdcPerson:
+        default:
+            return ImGuiMouseCursor_Arrow;
     }
 }
 
-} // namespace
+}  // namespace
 
 ClientWindow::ClientWindow(std::reference_wrapper<px::desktop::DesktopShell> shell, std::shared_ptr<ClientSession> session, const bool english,
-                           const bool darkTheme, const bool enhancedVisualEffects)
-    : shell_{shell}, session_{std::move(session)}, toolbar_{std::make_unique<ClientToolbar>(enhancedVisualEffects)}, english_{english},
+                           const bool darkTheme, const bool enhancedVisualEffects, ClientUiSettings settings)
+    : shell_{shell},
+      session_{std::move(session)},
+      toolbar_{std::make_unique<ClientToolbar>(enhancedVisualEffects, std::move(settings))},
+      english_{english},
       darkTheme_{darkTheme} {
     if (session_->UsesRdp()) rdpClipboard_ = std::make_unique<px::rdp::WindowsClipboard>();
 }
@@ -104,22 +108,17 @@ void ClientWindow::Draw() {
         const bool uploaded{snapshot.frame->native
                                 ? shell_.get().UpdateVideoFrame(snapshot.frame->native)
                                 : shell_.get().UpdateVideoTexture(snapshot.frame->width, snapshot.frame->height, snapshot.frame->bgra)};
-        if (uploaded)
-            uploadedFrame_ = snapshot.frame;
+        if (uploaded) uploadedFrame_ = snapshot.frame;
     }
-    const auto toolbarAction = toolbar_->Draw(session_, shell_.get().Logo(), english_, darkTheme_);
-    if (toolbarAction.toggleLanguage)
-        english_ = !english_;
+    const auto toolbarAction = toolbar_->Draw(session_, shell_.get().Logo(), english_, darkTheme_, shell_.get().IsFullscreen());
+    if (toolbarAction.toggleLanguage) english_ = !english_;
     if (toolbarAction.toggleTheme) {
         darkTheme_ = !darkTheme_;
         static_cast<void>(shell_.get().SetTheme(darkTheme_ ? px::ui::Theme::Dark : px::ui::Theme::Light));
     }
-    if (toolbarAction.toggleEnhancedVisualEffects)
-        static_cast<void>(shell_.get().SetEnhancedVisualEffects(!px::ui::EnhancedVisualEffectsEnabled()));
-    if (toolbarAction.toggleFullscreen)
-        static_cast<void>(shell_.get().ToggleFullscreen());
-    if (toolbarAction.requestExit)
-        openExitConfirmation_ = true;
+    if (toolbarAction.toggleEnhancedVisualEffects) static_cast<void>(shell_.get().SetEnhancedVisualEffects(!px::ui::EnhancedVisualEffectsEnabled()));
+    if (toolbarAction.toggleFullscreen) static_cast<void>(shell_.get().ToggleFullscreen());
+    if (toolbarAction.requestExit) openExitConfirmation_ = true;
 
     DrawExitConfirmation();
 
@@ -140,8 +139,7 @@ void ClientWindow::Draw() {
             }
             constexpr float buttonWidth{150.0F};
             px::ui::DialogFooter(buttonWidth);
-            if (px::ui::ActionButton({"client-error-ok"}, text(ClientText::Ok), {.width = buttonWidth}))
-                shell_.get().RequestExit();
+            if (px::ui::ActionButton({"client-error-ok"}, text(ClientText::Ok), {.width = buttonWidth})) shell_.get().RequestExit();
         }
         return;
     }
@@ -169,8 +167,7 @@ void ClientWindow::Draw() {
                                          {.icon = px::ui::VectorIcon::TriangleAlert, .tone = px::ui::BadgeVariant::Warning, .closeable = false}));
                 constexpr float buttonWidth{150.0F};
                 px::ui::DialogFooter(buttonWidth);
-                if (px::ui::ActionButton({"client-media-warning-ok"}, text(ClientText::Ok), {.width = buttonWidth}))
-                    ImGui::CloseCurrentPopup();
+                if (px::ui::ActionButton({"client-media-warning-ok"}, text(ClientText::Ok), {.width = buttonWidth})) ImGui::CloseCurrentPopup();
             }
         }
     }
@@ -194,19 +191,14 @@ void ClientWindow::Draw() {
         ImGui::TextDisabled("%s", text(ClientText::WaitingForFrame));
         return;
     }
-    const float frameAspect{static_cast<float>(uploadedFrame_->width) / static_cast<float>(uploadedFrame_->height)};
-    float width{available.x};
-    float height{width / frameAspect};
-    if (height > available.y) {
-        height = available.y;
-        width = height * frameAspect;
-    }
-    videoLeft_ = position.x + (available.x - width) * 0.5F;
-    videoTop_ = position.y + (available.y - height) * 0.5F;
-    videoWidth_ = width;
-    videoHeight_ = height;
+    videoLeft_ = position.x;
+    videoTop_ = position.y;
+    videoWidth_ = available.x;
+    videoHeight_ = available.y;
     ImGui::SetCursorScreenPos({videoLeft_, videoTop_});
-    ImGui::Image(ImTextureRef{static_cast<ImTextureID>(shell_.get().VideoTextureId())}, {width, height});
+    ImGui::PushStyleVar(ImGuiStyleVar_ImageBorderSize, 0.0F);
+    ImGui::Image(ImTextureRef{static_cast<ImTextureID>(shell_.get().VideoTextureId())}, available);
+    ImGui::PopStyleVar();
     const auto& mouse = ImGui::GetIO().MousePos;
     if (InVideo(mouse.x, mouse.y) && snapshot.remoteCursor.received)
         ImGui::SetMouseCursor(snapshot.remoteCursor.visible ? RemoteMouseCursor(snapshot.remoteCursor.type) : ImGuiMouseCursor_None);
@@ -283,8 +275,7 @@ void ClientWindow::HandleInput(const px::desktop::DesktopInputEvent& event) {
         lastMouseXRatio_ = (event.x - videoLeft_) / videoWidth_;
         lastMouseYRatio_ = (event.y - videoTop_) / videoHeight_;
         const bool down{event.type == SDL_EVENT_MOUSE_BUTTON_DOWN};
-        if (event.mouseButton < pressedMouseButtons_.size())
-            pressedMouseButtons_[event.mouseButton] = down;
+        if (event.mouseButton < pressedMouseButtons_.size()) pressedMouseButtons_[event.mouseButton] = down;
         const bool sent{session_->SendMouseButton(event.mouseButton, down, lastMouseXRatio_, lastMouseYRatio_)};
         const auto snapshot = session_->Snapshot();
         LOGI("Client input route: mouse button={} down={} remote=({:.3f},{:.3f}) sent={} state={} monitor=[{}]", event.mouseButton, down,
@@ -312,13 +303,11 @@ void ClientWindow::HandleInput(const px::desktop::DesktopInputEvent& event) {
         LOGI("Client input route: local UI captured type={} x={:.1f} y={:.1f} toolbar={} popup={}", event.type, pointerX, pointerY, toolbarCaptured,
              popupOpen);
     }
-    if (event.type == SDL_EVENT_MOUSE_BUTTON_UP && event.mouseButton < localPointerButtons_.size())
-        localPointerButtons_[event.mouseButton] = false;
+    if (event.type == SDL_EVENT_MOUSE_BUTTON_UP && event.mouseButton < localPointerButtons_.size()) localPointerButtons_[event.mouseButton] = false;
 }
 
 void ClientWindow::ReleasePressedInput() {
-    for (const auto& [scanCode, key] : pressedKeys_)
-        static_cast<void>(session_->SendKey(key.virtualKey, scanCode, false));
+    for (const auto& [scanCode, key] : pressedKeys_) static_cast<void>(session_->SendKey(key.virtualKey, scanCode, false));
     pressedKeys_.clear();
     for (std::size_t button = 1; button < pressedMouseButtons_.size(); ++button) {
         if (pressedMouseButtons_[button])
@@ -329,11 +318,11 @@ void ClientWindow::ReleasePressedInput() {
 
 namespace {
 struct SdlTextDeleter final {
-    void operator()(char* value) const noexcept { // NOLINT(pixels-raw-pointer-boundary): SDL-owned text ABI.
+    void operator()(char* value) const noexcept {  // NOLINT(pixels-raw-pointer-boundary): SDL-owned text ABI.
         SDL_free(value);
     }
 };
-} // namespace
+}  // namespace
 
 void ClientWindow::SynchronizeClipboard() {
     if (rdpClipboard_) {
@@ -346,18 +335,14 @@ void ClientWindow::SynchronizeClipboard() {
         return;
     }
     if (const auto remote = session_->TakeRemoteClipboardText()) {
-        if (SDL_SetClipboardText(remote->c_str()))
-            clipboardText_ = *remote;
+        if (SDL_SetClipboardText(remote->c_str())) clipboardText_ = *remote;
     }
     const auto now = std::chrono::steady_clock::now();
-    if (now < nextClipboardCheck_)
-        return;
+    if (now < nextClipboardCheck_) return;
     nextClipboardCheck_ = now + std::chrono::milliseconds{250};
-    if (!SDL_HasClipboardText())
-        return;
+    if (!SDL_HasClipboardText()) return;
     const std::unique_ptr<char, SdlTextDeleter> value{SDL_GetClipboardText()};
-    if (!value || clipboardText_ == value.get())
-        return;
+    if (!value || clipboardText_ == value.get()) return;
     clipboardText_ = value.get();
     static_cast<void>(session_->SendClipboardText(clipboardText_));
 }
@@ -367,4 +352,4 @@ bool ClientWindow::InVideo(const float x, const float y) const noexcept {
            y < videoTop_ + videoHeight_;
 }
 
-} // namespace px::client::imgui
+}  // namespace px::client::imgui

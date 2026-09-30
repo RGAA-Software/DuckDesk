@@ -37,6 +37,7 @@ impl RuntimeEpoch {
 pub struct NodeConnection {
     pub(crate) id: Uuid,
     pub(crate) device_id: Uuid,
+    pub(crate) public_device_code: String,
     pub(crate) generation: i64,
     pub(crate) epoch: RuntimeEpoch,
     pub(crate) key: TokenDigest,
@@ -48,6 +49,9 @@ impl NodeConnection {
     }
     pub fn device_id(&self) -> Uuid {
         self.device_id
+    }
+    pub fn public_device_code(&self) -> &str {
+        &self.public_device_code
     }
     pub fn generation(&self) -> i64 {
         self.generation

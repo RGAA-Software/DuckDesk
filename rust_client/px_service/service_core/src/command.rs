@@ -30,6 +30,11 @@ pub enum Command {
         revision: i64,
         frontend_token: String,
     },
+    DirectStream {
+        request_id: String,
+        stream_id: String,
+        release: bool,
+    },
     OpenResourceChannel {
         request_id: String,
         source_id: String,
@@ -149,6 +154,19 @@ pub fn dispatch_message(bytes: &[u8]) -> Result<DispatchResult, String> {
         ServiceMessageType::FrontendAdmissionResult => {
             return Err("frontend_admission_result is outbound only".to_string())
         }
+        ServiceMessageType::DirectStreamRequest => {
+            let request = message
+                .direct_stream_request
+                .ok_or("missing direct_stream_request payload")?;
+            Command::DirectStream {
+                request_id: request.request_id,
+                stream_id: request.stream_id,
+                release: request.release,
+            }
+        }
+        ServiceMessageType::DirectStreamResult => {
+            return Err("direct_stream_result is outbound only".to_string())
+        }
         ServiceMessageType::ResourceChannelOpenRequest => {
             let request = message
                 .resource_channel_open_request
@@ -239,11 +257,12 @@ pub fn dispatch_message(bytes: &[u8]) -> Result<DispatchResult, String> {
 mod tests {
     use super::*;
     use crate::proto::{
-        encode_service_message, MsgFileTransferBeginRequest, MsgFileTransferReportRequest,
-        MsgFrontendAdmissionRequest, MsgHeartBeat, MsgReqCtrlAltDelete,
-        MsgResourceChannelOpenRequest, MsgResourceChannelReportRequest, MsgRestartServer,
-        MsgStartServer, MsgVirtualDisplayRequest, ResourceChannelKind, ResourceChannelOutcome,
-        ServiceFileTransferDirection, ServiceFileTransferOutcome, ServiceMessage,
+        encode_service_message, MsgDirectStreamRequest, MsgFileTransferBeginRequest,
+        MsgFileTransferReportRequest, MsgFrontendAdmissionRequest, MsgHeartBeat,
+        MsgReqCtrlAltDelete, MsgResourceChannelOpenRequest, MsgResourceChannelReportRequest,
+        MsgRestartServer, MsgStartServer, MsgVirtualDisplayRequest, ResourceChannelKind,
+        ResourceChannelOutcome, ServiceFileTransferDirection, ServiceFileTransferOutcome,
+        ServiceMessage,
     };
 
     #[test]
@@ -377,6 +396,36 @@ mod tests {
         assert_eq!(
             dispatch_message(&bytes).unwrap_err(),
             "frontend_admission_result is outbound only"
+        );
+    }
+
+    #[test]
+    fn direct_stream_request_has_one_explicit_release_flag() {
+        let message = ServiceMessage {
+            r#type: ServiceMessageType::DirectStreamRequest as i32,
+            direct_stream_request: Some(MsgDirectStreamRequest {
+                request_id: "direct-1".into(),
+                stream_id: "01994ddb-b930-7480-a15d-0a5176d1cc61".into(),
+                release: true,
+            }),
+            ..Default::default()
+        };
+        let result = dispatch_message(&encode_service_message(&message)).unwrap();
+        assert_eq!(
+            result.command,
+            Command::DirectStream {
+                request_id: "direct-1".into(),
+                stream_id: "01994ddb-b930-7480-a15d-0a5176d1cc61".into(),
+                release: true,
+            }
+        );
+        let outbound_only = ServiceMessage {
+            r#type: ServiceMessageType::DirectStreamResult as i32,
+            ..Default::default()
+        };
+        assert_eq!(
+            dispatch_message(&encode_service_message(&outbound_only)).unwrap_err(),
+            "direct_stream_result is outbound only"
         );
     }
 

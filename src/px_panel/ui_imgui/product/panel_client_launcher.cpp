@@ -111,6 +111,7 @@ namespace {
 nlohmann::json BuildNativeEnvelope(const NativeLaunchRequest& request, const std::string& host, const int port, const PanelConfigStore& config) {
     const auto identity = config.Identity();
     const auto settings = config.Settings();
+    const auto console = config.Console();
     const std::string localHost{ResolveNodeAccessHost({}, CollectPanelLocalAddresses())};
     const std::array decoderNames{"Auto", "Hardware", "Software"};
     return {{"schema", 1},
@@ -125,6 +126,7 @@ nlohmann::json BuildNativeEnvelope(const NativeLaunchRequest& request, const std
             {"connection_nonce", request.nonce},
             {"device_id", identity.deviceId},
             {"remote_device_id", request.remoteDeviceId},
+            {"console_origin", console ? console->baseUrl : std::string{}},
             {"remote_platform", PlatformName(request.remotePlatform)},
             {"remote_password_hash", request.remotePasswordHash},
             {"frontend_session_id", request.frontendSessionId},
@@ -200,6 +202,7 @@ bool PanelClientLauncher::LaunchRdp(const NativeLaunchRequest& request, const st
     const auto executable = config_->ExecutableDirectory() / "px_client.exe";
     if (!std::filesystem::exists(executable)) return false;
     const auto settings = config_->Settings();
+    const auto console = config_->Console();
     nlohmann::json launch{{"schema", 1},
                           {"host", host},
                           {"port", port},
@@ -208,6 +211,7 @@ bool PanelClientLauncher::LaunchRdp(const NativeLaunchRequest& request, const st
                           {"connection_instance_id", request.instanceId},
                           {"device_id", config_->Identity().deviceId},
                           {"remote_device_id", request.remoteDeviceId},
+                          {"console_origin", console ? console->baseUrl : std::string{}},
                           {"remote_password_hash", request.remotePasswordHash},
                           {"frontend_session_id", request.frontendSessionId},
                           {"frontend_session_revision", request.frontendSessionRevision},

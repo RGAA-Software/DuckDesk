@@ -287,9 +287,29 @@ impl NodeStore {
         credential: &TokenDigest,
         connection_key: &TokenDigest,
     ) -> Result<NodeConnection, StoreError> {
+        self.establish_connection(epoch, credential, connection_key, None)
+            .await
+    }
+    pub async fn enroll_connection(
+        &self,
+        epoch: RuntimeEpoch,
+        credential: &TokenDigest,
+        connection_key: &TokenDigest,
+        product: NodeProduct,
+    ) -> Result<NodeConnection, StoreError> {
+        self.establish_connection(epoch, credential, connection_key, Some(product))
+            .await
+    }
+    async fn establish_connection(
+        &self,
+        epoch: RuntimeEpoch,
+        credential: &TokenDigest,
+        connection_key: &TokenDigest,
+        enrollment_product: Option<NodeProduct>,
+    ) -> Result<NodeConnection, StoreError> {
         let mut tx = self.pool.begin().await?;
-        control::read_gate(&mut tx).await?;
-        let node = sqlx::query_file_as!(
+        control::write_gate(&mut tx).await?;
+        let mut node = sqlx::query_file_as!(
             NodeProfile,
             "queries/open_node_connection.sql",
             credential.0.as_slice(),
@@ -297,13 +317,82 @@ impl NodeStore {
             epoch.0
         )
         .fetch_optional(&mut *tx)
-        .await?
-        .ok_or(StoreError::Rejected)?;
+        .await?;
+        if node.is_none() && enrollment_product.is_some() {
+            let existing_node = sqlx::query_scalar::<_, Uuid>(
+                "SELECT id FROM pixels.nodes WHERE credential_hash=$1",
+            )
+            .bind(credential.0.as_slice())
+            .fetch_optional(&mut *tx)
+            .await?;
+            if existing_node.is_some() {
+                return Err(StoreError::Rejected);
+            }
+            let retired_device = sqlx::query_scalar::<_, Uuid>(
+                "SELECT id FROM pixels.devices WHERE enrollment_hash=$1",
+            )
+            .bind(credential.0.as_slice())
+            .fetch_optional(&mut *tx)
+            .await?;
+            if retired_device.is_some() {
+                return Err(StoreError::Rejected);
+            }
+            let device_id = Uuid::new_v4();
+            let public_code = format!("{:09}", Uuid::new_v4().as_u128() % 1_000_000_000);
+            let product = enrollment_product.ok_or(StoreError::Rejected)?;
+            let device_name = format!(
+                "{} {}",
+                match product {
+                    NodeProduct::CloudNode => "Cloud Node",
+                    NodeProduct::Remote => "Remote",
+                },
+                &public_code[3..]
+            );
+            sqlx::query(
+                "INSERT INTO pixels.devices(id,public_code,name,platform,enrollment_hash) VALUES($1,$2,$3,'windows',$4)",
+            )
+            .bind(device_id)
+            .bind(&public_code)
+            .bind(&device_name)
+            .bind(credential.0.as_slice())
+            .execute(&mut *tx)
+            .await?;
+            let node_id = Uuid::new_v4();
+            sqlx::query(
+                "INSERT INTO pixels.nodes(id,device_id,product,credential_hash,max_instances) VALUES($1,$2,$3,$4,4)",
+            )
+            .bind(node_id)
+            .bind(device_id)
+            .bind(product.name())
+            .bind(credential.0.as_slice())
+            .execute(&mut *tx)
+            .await?;
+            crate::telemetry_alerts::insert_default_policy(&mut tx, node_id).await?;
+            node = sqlx::query_file_as!(
+                NodeProfile,
+                "queries/open_node_connection.sql",
+                credential.0.as_slice(),
+                connection_key.0.as_slice(),
+                epoch.0
+            )
+            .fetch_optional(&mut *tx)
+            .await?;
+        }
+        let node = node.ok_or(StoreError::Rejected)?;
+        if enrollment_product.is_some_and(|product| node.product != product.name()) {
+            return Err(StoreError::Rejected);
+        }
+        let public_device_code =
+            sqlx::query_scalar::<_, String>("SELECT public_code FROM pixels.devices WHERE id=$1")
+                .bind(node.device_id)
+                .fetch_one(&mut *tx)
+                .await?;
         crate::node_lifecycle::invalidate(&mut tx, Some(node.id)).await?;
         tx.commit().await?;
         Ok(NodeConnection {
             id: node.id,
             device_id: node.device_id,
+            public_device_code,
             generation: node.generation,
             epoch,
             key: connection_key.clone(),

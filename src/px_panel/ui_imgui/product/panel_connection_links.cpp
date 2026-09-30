@@ -52,9 +52,16 @@ std::string ResolveNodeAccessHost(const std::string& configuredAddress, const st
     return address == localAddresses.end() ? std::string{} : *address;
 }
 
-PanelConnectionLinks BuildPanelConnectionLinks(const PanelIdentity& identity, const NodePorts& ports, const std::string& publicAddress,
+PanelConnectionLinks BuildPanelConnectionLinks(const PanelIdentity& identity, const NodePorts& ports, const std::string& publicDeviceCode,
+                                               const std::string& consoleOrigin, const std::string& publicAddress,
                                                const std::vector<std::string>& localAddresses) {
     if (identity.deviceId.empty() || identity.randomPassword.empty()) {
+        return {};
+    }
+    const auto selectedConsole = ParseConsoleHttpsOrigin(consoleOrigin);
+    if (publicDeviceCode.size() != 9 ||
+        !std::ranges::all_of(publicDeviceCode, [](const char digit) { return digit >= '0' && digit <= '9'; }) || !selectedConsole ||
+        selectedConsole->baseUrl != consoleOrigin) {
         return {};
     }
 
@@ -68,8 +75,11 @@ PanelConnectionLinks BuildPanelConnectionLinks(const PanelIdentity& identity, co
             }
         }
     }
+    if (addresses.empty()) return {};
 
     const nlohmann::json desktopPayload{{"did", identity.deviceId},
+                                        {"pc", publicDeviceCode},
+                                        {"co", consoleOrigin},
                                         {"dn", identity.deviceName},
                                         {"rpwd", identity.randomPassword},
                                         {"iidx", DeviceIconIndex(identity.deviceId)},

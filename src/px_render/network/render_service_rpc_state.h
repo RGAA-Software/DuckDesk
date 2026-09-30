@@ -15,6 +15,7 @@ public:
     explicit RenderServiceRpcState(asio::any_io_executor executor)
         : virtual_display_requests_(std::make_shared<PxAsyncRequestRegistry<MsgVirtualDisplayServiceResult>>(executor)),
           frontend_admission_requests_(std::make_shared<PxAsyncRequestRegistry<MsgFrontendAdmissionServiceResult>>(executor)),
+          direct_stream_requests_(std::make_shared<PxAsyncRequestRegistry<MsgDirectStreamServiceResult>>(executor)),
           resource_channel_requests_(std::make_shared<PxAsyncRequestRegistry<MsgResourceChannelServiceResult>>(executor)),
           file_transfer_requests_(std::make_shared<PxAsyncRequestRegistry<MsgFileTransferServiceResult>>(std::move(executor))) {}
 
@@ -23,6 +24,7 @@ public:
 
     std::shared_ptr<PxAsyncRequestRegistry<MsgVirtualDisplayServiceResult>> virtual_display_requests_;
     std::shared_ptr<PxAsyncRequestRegistry<MsgFrontendAdmissionServiceResult>> frontend_admission_requests_;
+    std::shared_ptr<PxAsyncRequestRegistry<MsgDirectStreamServiceResult>> direct_stream_requests_;
     std::shared_ptr<PxAsyncRequestRegistry<MsgResourceChannelServiceResult>> resource_channel_requests_;
     std::shared_ptr<PxAsyncRequestRegistry<MsgFileTransferServiceResult>> file_transfer_requests_;
 };

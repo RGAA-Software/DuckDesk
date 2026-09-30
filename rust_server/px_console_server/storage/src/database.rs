@@ -68,6 +68,11 @@ impl ConsoleDatabase {
             pool: self.pool.clone(),
         }
     }
+    pub fn direct_streams(&self) -> crate::DirectStreamStore {
+        crate::DirectStreamStore {
+            pool: self.pool.clone(),
+        }
+    }
     pub fn file_transfers(&self) -> crate::FileTransferStore {
         crate::FileTransferStore {
             pool: self.pool.clone(),

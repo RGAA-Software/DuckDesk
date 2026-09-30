@@ -1,8 +1,5 @@
 #include "window_host.h"
 
-#include "title_bar.h"
-#include "windows_title_bar_behavior.h"
-
 #include <SDL3/SDL.h>
 
 #include <algorithm>
@@ -11,6 +8,9 @@
 #include <string>
 #include <string_view>
 #include <utility>
+
+#include "title_bar.h"
+#include "windows_title_bar_behavior.h"
 
 namespace px::desktop {
 namespace {
@@ -31,14 +31,15 @@ int ScaledWindowDimension(const int logicalSize, const float scale, const int av
 }
 
 struct SdlWindowDeleter final {
-    void operator()(SDL_Window* window) const noexcept { // NOLINT(pixels-raw-pointer-boundary)
+    void operator()(SDL_Window* window) const noexcept {  // NOLINT(pixels-raw-pointer-boundary)
         SDL_DestroyWindow(window);
     }
 };
 
 using SdlWindow = std::unique_ptr<SDL_Window, SdlWindowDeleter>;
 
-SDL_HitTestResult SDLCALL HitTest(SDL_Window* window, const SDL_Point* area, void*) { // NOLINT(pixels-raw-pointer-boundary)
+SDL_HitTestResult SDLCALL HitTest(SDL_Window* window, const SDL_Point* area, void*) {  // NOLINT(pixels-raw-pointer-boundary)
+    if ((SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) != 0) return SDL_HITTEST_NORMAL;
     int width{};
     int height{};
     SDL_GetWindowSize(window, &width, &height);
@@ -85,17 +86,14 @@ SDL_HitTestResult SDLCALL HitTest(SDL_Window* window, const SDL_Point* area, voi
     return SDL_HITTEST_NORMAL;
 }
 
-std::string LastSdlError(const std::string& operation) {
-    return operation + ": " + SDL_GetError();
-}
+std::string LastSdlError(const std::string& operation) { return operation + ": " + SDL_GetError(); }
 
-} // namespace
+}  // namespace
 
 struct WindowHost::Impl final {
     SdlWindow window{};
     std::optional<WindowsTitleBarBehavior> titleBarBehavior{};
     bool sdlInitialized{false};
-    bool fullscreen{};
     bool vulkanSurfaceAvailable{};
 
     ~Impl() {
@@ -160,17 +158,11 @@ WindowHost::WindowHost(WindowHost&&) noexcept = default;
 WindowHost& WindowHost::operator=(WindowHost&&) noexcept = default;
 WindowHost::~WindowHost() = default;
 
-SDL_Window& WindowHost::Native() const noexcept {
-    return *impl_->window;
-}
+SDL_Window& WindowHost::Native() const noexcept { return *impl_->window; }
 
-bool WindowHost::VulkanSurfaceAvailable() const noexcept {
-    return impl_->vulkanSurfaceAvailable;
-}
+bool WindowHost::VulkanSurfaceAvailable() const noexcept { return impl_->vulkanSurfaceAvailable; }
 
-void WindowHost::Minimize() const {
-    SDL_MinimizeWindow(impl_->window.get());
-}
+void WindowHost::Minimize() const { SDL_MinimizeWindow(impl_->window.get()); }
 
 void WindowHost::ToggleMaximize() const {
     if (IsMaximized()) {
@@ -180,29 +172,17 @@ void WindowHost::ToggleMaximize() const {
     }
 }
 
-bool WindowHost::ToggleFullscreen() {
-    const bool requested{!impl_->fullscreen};
-    if (!SDL_SetWindowFullscreen(impl_->window.get(), requested))
-        return false;
-    impl_->fullscreen = requested;
-    return true;
-}
+bool WindowHost::ToggleFullscreen() { return SDL_SetWindowFullscreen(impl_->window.get(), !IsFullscreen()); }
 
-bool WindowHost::IsMaximized() const {
-    return (SDL_GetWindowFlags(impl_->window.get()) & SDL_WINDOW_MAXIMIZED) != 0;
-}
+bool WindowHost::IsFullscreen() const noexcept { return (SDL_GetWindowFlags(impl_->window.get()) & SDL_WINDOW_FULLSCREEN) != 0; }
 
-bool WindowHost::IsMinimized() const {
-    return (SDL_GetWindowFlags(impl_->window.get()) & SDL_WINDOW_MINIMIZED) != 0;
-}
+bool WindowHost::IsMaximized() const { return (SDL_GetWindowFlags(impl_->window.get()) & SDL_WINDOW_MAXIMIZED) != 0; }
 
-float WindowHost::DisplayScale() const {
-    return SDL_GetWindowDisplayScale(impl_->window.get());
-}
+bool WindowHost::IsMinimized() const { return (SDL_GetWindowFlags(impl_->window.get()) & SDL_WINDOW_MINIMIZED) != 0; }
 
-void WindowHost::Hide() const {
-    SDL_HideWindow(impl_->window.get());
-}
+float WindowHost::DisplayScale() const { return SDL_GetWindowDisplayScale(impl_->window.get()); }
+
+void WindowHost::Hide() const { SDL_HideWindow(impl_->window.get()); }
 
 void WindowHost::ShowAndRaise() const {
     SDL_ShowWindow(impl_->window.get());
@@ -210,4 +190,4 @@ void WindowHost::ShowAndRaise() const {
     SDL_RaiseWindow(impl_->window.get());
 }
 
-} // namespace px::desktop
+}  // namespace px::desktop

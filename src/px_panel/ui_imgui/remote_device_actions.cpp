@@ -21,16 +21,15 @@ std::string RemoteDeviceActions::PopupId(const std::string_view name) const {
 }
 
 void RemoteDeviceActions::Start(const RemoteDeviceCard& device, const bool viewOnly) {
-    const std::string target{device.deviceId.empty() ? device.host : device.deviceId};
-    if (port_->RequiresPassword(target)) {
-        pendingTarget_ = target;
+    if (port_->RequiresDevicePassword(device)) {
+        pendingStreamId_ = device.streamId;
         pendingPassword_.clear();
         pendingViewOnly_ = viewOnly;
         pendingFileTransfer_ = false;
         openPasswordDialog_ = true;
         return;
     }
-    port_->StartStream(device.streamId, viewOnly);
+    port_->StartStream(device.streamId, {}, viewOnly);
 }
 
 void RemoteDeviceActions::Edit(const RemoteDeviceCard& device) {
@@ -39,9 +38,7 @@ void RemoteDeviceActions::Edit(const RemoteDeviceCard& device) {
 }
 
 void RemoteDeviceActions::FileTransfer(const RemoteDeviceCard& device) {
-    const std::string target{device.deviceId.empty() ? device.host : device.deviceId};
-    if (port_->RequiresPassword(target)) {
-        pendingTarget_ = target;
+    if (port_->RequiresDevicePassword(device)) {
         pendingStreamId_ = device.streamId;
         pendingPassword_.clear();
         pendingViewOnly_ = true;
@@ -96,7 +93,6 @@ void RemoteDeviceActions::DrawPasswordDialog(const px::ui::Localizer& localizer)
     px::ui::DialogFooter(passwordButtonWidth * 2.0F + ImGui::GetStyle().ItemSpacing.x);
     if (px::ui::ActionButton({"remote-device-cancel"}, localizer.Text(px::ui::TextId::Cancel),
                              {.variant = px::ui::ButtonVariant::Outline, .width = passwordButtonWidth})) {
-        pendingTarget_.clear();
         pendingStreamId_.clear();
         pendingPassword_.clear();
         pendingViewOnly_ = false;
@@ -111,8 +107,7 @@ void RemoteDeviceActions::DrawPasswordDialog(const px::ui::Localizer& localizer)
         if (pendingFileTransfer_)
             port_->StartFileTransfer(pendingStreamId_, std::move(pendingPassword_));
         else
-            port_->Connect(std::move(pendingTarget_), std::move(pendingPassword_), pendingViewOnly_);
-        pendingTarget_.clear();
+            port_->StartStream(pendingStreamId_, std::move(pendingPassword_), pendingViewOnly_);
         pendingStreamId_.clear();
         pendingViewOnly_ = false;
         pendingFileTransfer_ = false;

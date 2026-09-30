@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdio>
 #include <limits>
+#include <memory>
 #include <string>
 
 #include "px_ui/components/button.h"
@@ -19,6 +20,50 @@
 namespace {
 
 bool Equal(const float left, const float right) noexcept { return std::abs(left - right) < 0.0001F; }
+
+bool TopRightToastIsClickableAndDoesNotCaptureRemoteContent(const px::ui::Theme theme, const float scale) {
+    px::ui::ApplyPixelsTheme(theme, scale);
+    const auto host = std::make_shared<px::ui::ToastHost>();
+    const auto clicked = std::make_shared<bool>(false);
+    host->Push({.title = "Screenshot saved",
+                .description = "Click to open the screenshot folder",
+                .onClick = [weakHost = std::weak_ptr<px::ui::ToastHost>{host}, clicked] {
+                    if (const auto activeHost = weakHost.lock()) {
+                        *clicked = true;
+                        activeHost->Clear();
+                        activeHost->Push({.title = "Folder opened"});
+                    }
+                }});
+    const auto& viewport = *ImGui::GetMainViewport();
+    const float toastRight{viewport.WorkPos.x + viewport.WorkSize.x - px::ui::MetricsFor(scale).spacingLg};
+    const float pointerX{toastRight - 140.0F * scale};
+    const float pointerY{viewport.WorkPos.y + 40.0F + px::ui::MetricsFor(scale).spacingLg + 12.0F * scale};
+    // The first frame creates the window; the next frame can route events into it.
+    for (int frameIndex{}; frameIndex < 2; ++frameIndex) {
+        ImGui::NewFrame();
+        host->Draw(px::ui::ToastPlacement::TopRight, 40.0F);
+        ImGui::EndFrame();
+    }
+    if (!host->CapturesPointer(pointerX, pointerY) || host->CapturesPointer(10.0F, 200.0F) ||
+        host->CapturesPointer(pointerX, viewport.WorkPos.y + 20.0F)) return false;
+    ImGui::GetIO().AddMousePosEvent(pointerX, pointerY);
+    ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+    ImGui::NewFrame();
+    host->Draw(px::ui::ToastPlacement::TopRight, 40.0F);
+    ImGui::EndFrame();
+    ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+    ImGui::NewFrame();
+    host->Draw(px::ui::ToastPlacement::TopRight, 40.0F);
+    ImGui::EndFrame();
+    const bool succeeded{*clicked && host->Size() == 1U};
+    host->Clear();
+    if (host->CapturesPointer(pointerX, pointerY)) return false;
+    host->Push({.title = "Expired", .duration = std::chrono::milliseconds::zero()});
+    ImGui::NewFrame();
+    host->Draw(px::ui::ToastPlacement::TopRight, 40.0F);
+    ImGui::EndFrame();
+    return succeeded && host->Size() == 0U;
+}
 
 bool FieldActionsHaveMatchingBounds(const px::ui::Theme theme, const float scale) {
     px::ui::ApplyPixelsTheme(theme, scale);
@@ -247,7 +292,8 @@ int main() {
     for (const auto theme : {px::ui::Theme::Light, px::ui::Theme::Dark}) {
         for (const float scale : {1.0F, 1.25F, 1.5F, 2.0F}) {
             if (!FieldActionsHaveMatchingBounds(theme, scale) || !StandardControlsHaveMatchingMetrics(theme, scale) ||
-                !DropdownCanOpenAndClose(theme, scale) || !TableCellsHaveCenteredContents(theme, scale)) {
+                !DropdownCanOpenAndClose(theme, scale) || !TableCellsHaveCenteredContents(theme, scale) ||
+                !TopRightToastIsClickableAndDoesNotCaptureRemoteContent(theme, scale)) {
                 ImGui::DestroyContext();
                 return 11;
             }

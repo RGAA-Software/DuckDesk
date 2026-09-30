@@ -23,7 +23,7 @@ px::ui::TextId NetworkSettingsPresenter::StatusText(const NetworkOperation opera
         return px::ui::TextId::Verified;
     case NetworkOperation::Saving:
         return px::ui::TextId::Saving;
-    case NetworkOperation::SavedNeedsRestart:
+    case NetworkOperation::Saved:
         return px::ui::TextId::Saved;
     case NetworkOperation::Failed:
         return px::ui::TextId::OperationFailed;
@@ -35,7 +35,8 @@ px::ui::TextId NetworkSettingsPresenter::StatusText(const NetworkOperation opera
 
 void NetworkSettingsPresenter::Synchronize() {
     const auto state = port_->Snapshot();
-    if (state.operation != lastOperation_) {
+    const bool operationChanged = state.operation != lastOperation_;
+    if (operationChanged) {
         page_.SetStatus(StatusText(state.operation));
         lastOperation_ = state.operation;
     }
@@ -47,34 +48,10 @@ void NetworkSettingsPresenter::Synchronize() {
     draft.applicationPorts = state.settings.applicationPorts;
     draft.rtcPorts = state.settings.rtcPorts;
     draft.panelListeningPort = state.settings.panelListeningPort;
-    if (draft.consoleAddress.empty() || state.operation == NetworkOperation::SavedNeedsRestart) {
+    if (draft.consoleAddress.empty() || (operationChanged && state.operation == NetworkOperation::Saved)) {
         draft.consoleAddress = state.settings.consoleAddress;
     }
     page_.SetDraft(std::move(draft));
-}
-
-void NetworkSettingsPresenter::DrawRestartConfirmation(const px::ui::Localizer& localizer) {
-    if (lastOperation_ == NetworkOperation::SavedNeedsRestart) {
-        px::ui::OpenModal({"RestartConfirmation"});
-    }
-    px::ui::ModalScope dialog{{"RestartConfirmation"}, 440.0F};
-    if (dialog.Open()) {
-        static_cast<void>(px::ui::DialogHeader({"network-restart-close"}, localizer.Text(px::ui::TextId::Restart),
-                                               localizer.Text(px::ui::TextId::RestartRenderPrompt),
-                                               {.icon = px::ui::VectorIcon::Refresh, .closeable = false}));
-        const float buttonWidth{px::ui::Scale(140.0F)};
-        px::ui::DialogFooter(buttonWidth * 2.0F + ImGui::GetStyle().ItemSpacing.x);
-        if (px::ui::ActionButton({"network-restart-later"}, localizer.Text(px::ui::TextId::Later),
-                                 {.variant = px::ui::ButtonVariant::Outline, .width = buttonWidth})) {
-            port_->Acknowledge();
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::SameLine();
-        if (px::ui::ActionButton({"network-restart-now"}, localizer.Text(px::ui::TextId::RestartNow), {.width = buttonWidth})) {
-            port_->RestartRender();
-            ImGui::CloseCurrentPopup();
-        }
-    }
 }
 
 void NetworkSettingsPresenter::Draw(const px::ui::Localizer& localizer) {
@@ -97,7 +74,6 @@ void NetworkSettingsPresenter::Draw(const px::ui::Localizer& localizer) {
     case NetworkPageAction::None:
         break;
     }
-    DrawRestartConfirmation(localizer);
 }
 
 } // namespace px::panel::ui

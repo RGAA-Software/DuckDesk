@@ -164,11 +164,7 @@ fn reject_node_headers(headers: &HeaderMap, has_query: bool) -> Result<(), ApiEr
 }
 
 async fn session(mut socket: WebSocket, state: Arc<StateData>) {
-    let Some(NodeRequest::Authenticate {
-        request_id,
-        node_token,
-    }) = receive(&mut socket, &state, AUTHENTICATION_DEADLINE).await
-    else {
+    let Some(initial_request) = receive(&mut socket, &state, AUTHENTICATION_DEADLINE).await else {
         let _ = send(
             &mut socket,
             &NodeResponse::Error {
@@ -180,7 +176,32 @@ async fn session(mut socket: WebSocket, state: Arc<StateData>) {
         let _ = socket.close().await;
         return;
     };
-    let token = Zeroizing::new(node_token);
+    let (request_id, installation_key, enrollment_product) = match initial_request {
+        NodeRequest::Enroll {
+            request_id,
+            installation_key,
+            product,
+        } => {
+            let product = match product.as_str() {
+                "cloud_node" => NodeProduct::CloudNode,
+                "remote" => NodeProduct::Remote,
+                _ => {
+                    let _ = socket.close().await;
+                    return;
+                }
+            };
+            (request_id, installation_key, Some(product))
+        }
+        NodeRequest::Authenticate {
+            request_id,
+            node_token,
+        } => (request_id, node_token, None),
+        _ => {
+            let _ = socket.close().await;
+            return;
+        }
+    };
+    let token = Zeroizing::new(installation_key);
     let Some(credential) = request::secret_digest(&token) else {
         let _ = send(
             &mut socket,
@@ -198,13 +219,21 @@ async fn session(mut socket: WebSocket, state: Arc<StateData>) {
         return;
     }
     let (_, connection_key) = request::mint();
-    let connection = match timeout(
-        DATABASE_DEADLINE,
-        state
-            .db
-            .nodes()
-            .open_connection(state.epoch, &credential, &connection_key),
-    )
+    let connection = match timeout(DATABASE_DEADLINE, async {
+        if let Some(product) = enrollment_product {
+            state
+                .db
+                .nodes()
+                .enroll_connection(state.epoch, &credential, &connection_key, product)
+                .await
+        } else {
+            state
+                .db
+                .nodes()
+                .open_connection(state.epoch, &credential, &connection_key)
+                .await
+        }
+    })
     .await
     {
         Ok(Ok(connection)) => connection,
@@ -230,6 +259,7 @@ async fn session(mut socket: WebSocket, state: Arc<StateData>) {
             request_id,
             node_id: connection.id(),
             device_id: connection.device_id(),
+            public_device_code: connection.public_device_code().to_string(),
             generation: connection.generation(),
             control_epoch: connection.epoch().value(),
             relay: None,
@@ -264,7 +294,10 @@ async fn run_authenticated(
         let request_id = message.request_id();
         if request_id == 0
             || request_id <= last_request_id
-            || matches!(message, NodeRequest::Authenticate { .. })
+            || matches!(
+                message,
+                NodeRequest::Enroll { .. } | NodeRequest::Authenticate { .. }
+            )
         {
             let _ = send(
                 socket,
@@ -487,6 +520,34 @@ async fn operation(
                     grant: crate::node_wire::frontend_grant(grant),
                 })
             }
+            NodeRequest::AdmitDirectStream { stream_id, .. } => {
+                let expires_at = state
+                    .db
+                    .direct_streams()
+                    .admit(connection, stream_id, state.entitlement()?)
+                    .await?;
+                let remaining_ms = (expires_at - chrono::Utc::now()).num_milliseconds();
+                let valid_for_ms = u32::try_from(remaining_ms)
+                    .ok()
+                    .filter(|duration| *duration > 0 && *duration <= 30_000)
+                    .ok_or(ApiError::Unavailable)?;
+                Ok(NodeResponse::DirectStreamAdmitted {
+                    request_id,
+                    stream_id,
+                    valid_for_ms,
+                })
+            }
+            NodeRequest::ReleaseDirectStream { stream_id, .. } => {
+                state
+                    .db
+                    .direct_streams()
+                    .release(connection, stream_id)
+                    .await?;
+                Ok(NodeResponse::DirectStreamReleased {
+                    request_id,
+                    stream_id,
+                })
+            }
             NodeRequest::BeginFrontendRetirement { session_id, .. } => {
                 let retirement = state
                     .db
@@ -621,7 +682,7 @@ async fn operation(
                     uploads,
                 })
             }
-            NodeRequest::Authenticate { .. } => Err(ApiError::Invalid),
+            NodeRequest::Enroll { .. } | NodeRequest::Authenticate { .. } => Err(ApiError::Invalid),
         }
     };
     let response = timeout(DATABASE_DEADLINE, future)
@@ -649,6 +710,10 @@ fn management_event(message: &NodeRequest, node_id: Uuid) -> Option<(&'static st
         | NodeRequest::FinishFrontendRetirement { session_id, .. } => {
             Some(("sessions", Some(*session_id)))
         }
+        NodeRequest::AdmitDirectStream { stream_id, .. }
+        | NodeRequest::ReleaseDirectStream { stream_id, .. } => {
+            Some(("sessions", Some(*stream_id)))
+        }
         NodeRequest::OpenChannel { channel, .. } => Some(("sessions", Some(channel.session_id))),
         NodeRequest::ReportChannel { channel_id, .. } => Some(("channels", Some(*channel_id))),
         NodeRequest::BeginFileTransfer { .. } => Some(("file_transfers", Some(node_id))),
@@ -658,7 +723,8 @@ fn management_event(message: &NodeRequest, node_id: Uuid) -> Option<(&'static st
         NodeRequest::ReportRecording { recording, .. } => {
             Some(("recordings", recording.session_id.or(Some(node_id))))
         }
-        NodeRequest::Authenticate { .. }
+        NodeRequest::Enroll { .. }
+        | NodeRequest::Authenticate { .. }
         | NodeRequest::BeginReconciliation { .. }
         | NodeRequest::PollCommand { .. }
         | NodeRequest::FetchRdpWorkspace { .. }

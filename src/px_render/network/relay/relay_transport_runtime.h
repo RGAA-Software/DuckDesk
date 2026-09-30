@@ -39,6 +39,8 @@ class RelayServerSdk;
 
 using RelayFrontendAuthorizer =
     std::function<PxAwaitable<PxResult<ConsoleFrontendGrant>>(ConsoleFrontendAdmissionRequest, std::chrono::steady_clock::time_point)>;
+using RelayDirectStreamAuthorizer =
+    std::function<PxAwaitable<PxResult<std::uint32_t>>(std::string, bool, std::chrono::steady_clock::time_point)>;
 using RelayLogicalLeaseRenewer = std::function<bool(const LogicalSessionGrant&, std::int64_t)>;
 
 struct RelayTransportRuntimeConfig final {
@@ -49,6 +51,7 @@ struct RelayTransportRuntimeConfig final {
     RenderModuleSettings settings;
     std::shared_ptr<PxAsyncRuntime> async_runtime;
     RelayFrontendAuthorizer frontend_authorizer;
+    RelayDirectStreamAuthorizer direct_stream_authorizer;
     RelayLogicalLeaseRenewer logical_lease_renewer;
 };
 
@@ -66,6 +69,7 @@ public:
     void Stop();
     void UpdateSettings(const RenderModuleSettings& settings);
     void ConfigureFrontendAuthorizer(RelayFrontendAuthorizer authorizer);
+    void ConfigureDirectStreamAuthorizer(RelayDirectStreamAuthorizer authorizer);
     void ConfigureLogicalLeaseRenewer(RelayLogicalLeaseRenewer renewer);
 
     void PostMedia(std::shared_ptr<Data> message, bool run_through);
@@ -128,6 +132,8 @@ private:
         std::string binding_id{};
         std::int64_t descriptor_revision{};
         std::shared_ptr<const SecretBuffer> token{};
+        std::string direct_quota_id{};
+        std::uint32_t direct_valid_for_ms{};
         bool file_transfer{false};
     };
 
@@ -142,6 +148,8 @@ private:
                              const std::vector<class RelayDeviceNetInfo>& net_info);
     [[nodiscard]] PxAwaitable<PxResult<ConsoleFrontendGrant>> AuthorizeFrontend(ConsoleFrontendAdmissionRequest request,
                                                                                 std::chrono::steady_clock::time_point deadline) const;
+    [[nodiscard]] PxAwaitable<PxResult<std::uint32_t>> AuthorizeDirectStream(std::string stream_id, bool release,
+                                                                            std::chrono::steady_clock::time_point deadline) const;
     [[nodiscard]] bool RenewLogicalLease(const LogicalSessionGrant& grant, std::int64_t now_ms) const;
     static PxAwaitable<void> AuthorizeMediaControl(std::weak_ptr<RelayTransportRuntime> runtime, std::weak_ptr<RelayServerSdk> server,
                                                    std::uint64_t generation, std::shared_ptr<px_relay::RelayMessage> message,
@@ -150,6 +158,9 @@ private:
                                                           std::uint64_t generation, std::shared_ptr<px_relay::RelayMessage> message,
                                                           std::string visitor_device_id, std::int64_t revision,
                                                           std::shared_ptr<const SecretBuffer> token);
+    static PxAwaitable<void> AuthorizeDirectMediaControl(std::weak_ptr<RelayTransportRuntime> runtime, std::weak_ptr<RelayServerSdk> server,
+                                                         std::uint64_t generation, std::shared_ptr<px_relay::RelayMessage> message,
+                                                         std::string visitor_device_id);
     void DispatchMediaAdmission(std::weak_ptr<RelayServerSdk> server, std::uint64_t generation,
                                 const std::shared_ptr<px_relay::RelayMessage>& message, std::string visitor_device_id, LogicalSessionGrant grant,
                                 std::vector<std::string> permissions, std::optional<FrontendLeaseRegistration> frontend_lease);
@@ -214,6 +225,7 @@ private:
 
     mutable std::mutex frontend_services_mutex_{};
     RelayFrontendAuthorizer frontend_authorizer_{};
+    RelayDirectStreamAuthorizer direct_stream_authorizer_{};
     RelayLogicalLeaseRenewer logical_lease_renewer_{};
     std::shared_ptr<PxAsyncScope> frontend_scope_{};
     std::mutex frontend_leases_mutex_{};

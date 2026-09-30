@@ -17,7 +17,7 @@ struct WindowChromeConfig final {
 };
 
 class WindowHost final {
-  public:
+public:
     static std::expected<WindowHost, std::string> Create(const std::string& title, int width, int height, bool initiallyVisible,
                                                          bool requestVulkanSurface, int minimumWidth, int minimumHeight,
                                                          const WindowChromeConfig& chrome);
@@ -33,6 +33,7 @@ class WindowHost final {
     void Minimize() const;
     void ToggleMaximize() const;
     bool ToggleFullscreen();
+    [[nodiscard]] bool IsFullscreen() const noexcept;
     bool IsMaximized() const;
     bool IsMinimized() const;
     [[nodiscard]] bool VulkanSurfaceAvailable() const noexcept;
@@ -40,7 +41,7 @@ class WindowHost final {
     void Hide() const;
     void ShowAndRaise() const;
 
-  private:
+private:
     struct Impl;
 
     explicit WindowHost(std::unique_ptr<Impl> impl) noexcept;
@@ -48,4 +49,4 @@ class WindowHost final {
     std::unique_ptr<Impl> impl_{};
 };
 
-} // namespace px::desktop
+}  // namespace px::desktop

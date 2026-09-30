@@ -12,11 +12,13 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
+#include <vector>
 
 #include "connection_progress_tracker.h"
 #include "panel_connection_input.h"
 #include "panel_connection_links.h"
 #include "panel_credential_vault.h"
+#include "panel_device_presence.h"
 #include "panel_product_runtime.h"
 #include "px_common/http_client.h"
 #include "px_common/uuid.h"
@@ -27,6 +29,11 @@
 
 namespace px::panel::product {
 namespace {
+
+struct DeviceRefreshCompletion final {
+    std::shared_ptr<std::atomic_bool> pending{};
+    ~DeviceRefreshCompletion() { pending->store(false, std::memory_order_release); }
+};
 
 enum class DirectSessionMode : std::uint8_t {
     Control,
@@ -119,11 +126,25 @@ public:
     ui::RemoteControlState Snapshot() const override {
         const auto identity = runtime_->Config()->Identity();
         const auto ports = runtime_->Config()->Ports();
-        const auto localAddresses = CollectPanelLocalAddresses();
         const auto service = runtime_->Service();
-        const std::string nodeAccessHost{service ? service->Snapshot().nodeAccessHost : std::string{}};
-        const auto links = BuildPanelConnectionLinks(identity, ports, nodeAccessHost, localAddresses);
-        ui::RemoteControlState result{.deviceId = identity.deviceId,
+        const auto serviceSnapshot = service ? service->Snapshot() : ServiceSnapshot{};
+        const auto selectedConsole = ParseConsoleHttpsOrigin(runtime_->Config()->ConsoleAddress());
+        const bool currentServiceIdentity = serviceSnapshot.nodeControlReady && !identity.deviceId.empty() &&
+                                            serviceSnapshot.deviceId == identity.deviceId &&
+                                            selectedConsole && serviceSnapshot.authenticatedConsoleOrigin == selectedConsole->baseUrl;
+        const auto publicDeviceCode = currentServiceIdentity && !serviceSnapshot.publicDeviceCode.empty()
+                                          ? serviceSnapshot.publicDeviceCode
+                                          : runtime_->Config()->CachedPublicDeviceCode(identity.deviceId);
+        const auto nodeAccessHost = currentServiceIdentity && !serviceSnapshot.nodeAccessHost.empty()
+                                        ? serviceSnapshot.nodeAccessHost
+                                        : runtime_->Config()->CachedNodeAccessHost(identity.deviceId);
+        const auto localAddresses = selectedConsole ? std::vector<std::string>{} : CollectPanelLocalAddresses();
+        const auto links = selectedConsole && publicDeviceCode.empty()
+                               ? PanelConnectionLinks{}
+                               : BuildPanelConnectionLinks(identity, ports, publicDeviceCode,
+                                                           selectedConsole ? selectedConsole->baseUrl : std::string{}, nodeAccessHost,
+                                                           localAddresses);
+        ui::RemoteControlState result{.deviceId = publicDeviceCode,
                                       .temporaryPassword = identity.randomPassword,
                                       .deviceName = identity.deviceName,
                                       .desktopLink = links.desktop,
@@ -177,7 +198,12 @@ public:
         const auto runtime = runtime_;
         static_cast<void>(runtime_->Worker()->Post([runtime] {
             auto identity = runtime->Config()->Identity();
-            identity.randomPassword = px::GetUUID();
+            const auto replacementPassword = GenerateTemporaryPassword();
+            if (!replacementPassword) {
+                runtime->Notify(true, "Password", "The new temporary password could not be generated.");
+                return;
+            }
+            identity.randomPassword = *replacementPassword;
             if (!runtime->Config()->SaveIdentity(identity)) {
                 runtime->Notify(true, "Password", "The new temporary password could not be saved locally.");
                 return;
@@ -192,20 +218,41 @@ public:
 
     bool RequiresPassword(const std::string& target) const override {
         const auto parsed = ParseConnectionInput(target, runtime_->Config()->Ports().desktop);
-        if (!parsed || parsed->kind == ConnectionInputKind::SharedLink) {
-            return false;
+        if (!parsed) return false;
+        if (parsed->kind == ConnectionInputKind::DeviceCode) {
+            if (runtime_->Console()->Account().loggedIn) {
+                const std::scoped_lock lock{mutex_};
+                const std::string selectedConsoleOrigin{runtime_->Config()->ConsoleAddress()};
+                if (std::ranges::any_of(devices_, [&parsed, &selectedConsoleOrigin](const ui::RemoteDeviceCard& device) {
+                        return device.streamId.starts_with("console-device-") && device.publicDeviceCode == parsed->publicDeviceCode &&
+                               device.consoleOrigin == selectedConsoleOrigin && device.online;
+                    })) {
+                    return false;
+                }
+            }
+            return true;
         }
-        if (parsed->kind == ConnectionInputKind::DeviceId && runtime_->Console()->Account().loggedIn) {
-            return false;
-        }
+        if (parsed->kind != ConnectionInputKind::DirectEndpoint) return false;
         return !credentialVault_->Read(CredentialKey(*parsed)).has_value();
+    }
+
+    bool RequiresDevicePassword(const ui::RemoteDeviceCard& device) const override {
+        if (device.streamId.starts_with("console-device-") && runtime_->Console()->Account().loggedIn) return false;
+        if (device.host.empty()) return !runtime_->Console()->Account().loggedIn && !device.publicDeviceCode.empty();
+        const ParsedConnectionInput target{.kind = ConnectionInputKind::DirectEndpoint,
+                                           .deviceId = device.deviceId,
+                                           .publicDeviceCode = device.publicDeviceCode,
+                                           .consoleOrigin = device.consoleOrigin,
+                                           .hosts = device.host.empty() ? std::vector<std::string>{} : std::vector<std::string>{device.host},
+                                           .port = device.port};
+        return !credentialVault_->Read(CredentialKey(target)).has_value();
     }
 
     void Connect(std::string target, std::string password, const bool viewOnly) override {
         QueueConnectionInput(std::move(target), std::move(password), viewOnly ? DirectSessionMode::ViewOnly : DirectSessionMode::Control);
     }
 
-    void StartStream(const std::string& streamId, const bool viewOnly) override {
+    void StartStream(const std::string& streamId, std::string password, const bool viewOnly) override {
         std::optional<ui::RemoteDeviceCard> target{};
         {
             const std::scoped_lock lock{mutex_};
@@ -217,16 +264,23 @@ public:
                                    "The selected device is no longer in the device list. Refresh the list and retry.");
             return;
         }
+        if (target->streamId.starts_with("console-device-") && runtime_->Console()->Account().loggedIn) {
+            QueueConnectionInput(target->publicDeviceCode, {}, mode, *target);
+            return;
+        }
         if (target->host.empty()) {
-            QueueConnectionInput(target->deviceId, {}, mode);
+            QueueConnectionInput(target->publicDeviceCode, std::move(password), mode, *target);
             return;
         }
         QueueResolvedConnection({.kind = ConnectionInputKind::DirectEndpoint,
                                  .deviceId = target->deviceId,
+                                 .publicDeviceCode = target->publicDeviceCode,
+                                 .consoleOrigin = target->consoleOrigin,
                                  .displayName = target->name,
                                  .platform = target->platform,
                                  .hosts = {target->host},
-                                 .port = target->port},
+                                 .port = target->port,
+                                 .password = std::move(password)},
                                 mode);
     }
     void StartFileTransfer(const std::string& streamId, std::string password) override {
@@ -245,13 +299,19 @@ public:
 
         ParsedConnectionInput direct{.kind = ConnectionInputKind::DirectEndpoint,
                                      .deviceId = target->deviceId,
+                                     .publicDeviceCode = target->publicDeviceCode,
+                                     .consoleOrigin = target->consoleOrigin,
                                      .displayName = target->name,
                                      .platform = target->platform,
                                      .hosts = target->host.empty() ? std::vector<std::string>{} : std::vector<std::string>{target->host},
                                      .port = target->port,
                                      .password = std::move(password)};
+        if (target->streamId.starts_with("console-device-") && runtime_->Console()->Account().loggedIn) {
+            QueueConnectionInput(target->publicDeviceCode, {}, DirectSessionMode::FileTransfer, *target);
+            return;
+        }
         if (direct.hosts.empty()) {
-            QueueConnectionInput(target->deviceId, std::move(direct.password), DirectSessionMode::FileTransfer);
+            QueueConnectionInput(target->publicDeviceCode, std::move(direct.password), DirectSessionMode::FileTransfer, *target);
             return;
         }
         QueueResolvedConnection(std::move(direct), DirectSessionMode::FileTransfer);
@@ -365,11 +425,12 @@ private:
         std::int64_t revision{};
     };
 
-    static std::string CredentialKey(const ParsedConnectionInput& target) {
-        if (!target.deviceId.empty()) {
-            return "device:" + target.deviceId;
+    std::string CredentialKey(const ParsedConnectionInput& target) const {
+        const std::string origin{target.consoleOrigin.empty() ? runtime_->Config()->ConsoleAddress() : target.consoleOrigin};
+        if (!target.deviceId.empty() && !target.publicDeviceCode.empty() && !origin.empty()) {
+            return "device:" + origin + ":" + target.publicDeviceCode + ":" + target.deviceId;
         }
-        return target.hosts.empty() ? std::string{} : "endpoint:" + target.hosts.front() + ":" + std::to_string(target.port);
+        return target.hosts.empty() ? std::string{} : "endpoint:" + origin + ":" + target.hosts.front() + ":" + std::to_string(target.port);
     }
 
     void ReportImmediateFailure(const std::string& target, const DirectSessionMode mode, const ui::ConnectionFailureReason reason,
@@ -379,13 +440,19 @@ private:
         connectionProgress_.Fail(*generation, ui::ConnectionStepKind::ValidateTarget, reason, std::move(diagnostic));
     }
 
-    void QueueConnectionInput(std::string target, std::string password, const DirectSessionMode mode) {
-        const auto generation = connectionProgress_.Begin(ConnectionIntentFor(mode), target);
+    void QueueConnectionInput(std::string target, std::string password, const DirectSessionMode mode,
+                              std::optional<ui::RemoteDeviceCard> expectedDevice = std::nullopt) {
+        const auto preview = ParseConnectionInput(target, runtime_->Config()->Ports().desktop);
+        const std::string label{preview && !preview->publicDeviceCode.empty() ? preview->publicDeviceCode : target};
+        const auto generation = connectionProgress_.Begin(ConnectionIntentFor(mode), label);
         if (!generation) return;
         const std::weak_ptr<ProductRemoteControlPort> weakSelf{shared_from_this()};
         const bool queued =
-            runtime_->Worker()->Post([weakSelf, generation = *generation, target = std::move(target), password = std::move(password), mode] mutable {
-                if (const auto self = weakSelf.lock()) self->RunConnectionInput(generation, std::move(target), std::move(password), mode);
+            runtime_->Worker()->Post([weakSelf, generation = *generation, target = std::move(target), password = std::move(password), mode,
+                                      expectedDevice = std::move(expectedDevice)] mutable {
+                if (const auto self = weakSelf.lock()) {
+                    self->RunConnectionInput(generation, std::move(target), std::move(password), mode, std::move(expectedDevice));
+                }
             });
         if (!queued) {
             connectionProgress_.Fail(*generation, ui::ConnectionStepKind::ValidateTarget, ui::ConnectionFailureReason::WorkerUnavailable,
@@ -395,8 +462,8 @@ private:
 
     void QueueResolvedConnection(ParsedConnectionInput target, const DirectSessionMode mode) {
         const std::string label{
-            !target.deviceId.empty()
-                ? target.deviceId
+            !target.publicDeviceCode.empty()
+                ? target.publicDeviceCode
                 : (!target.displayName.empty() ? target.displayName : (target.hosts.empty() ? std::string{} : target.hosts.front()))};
         const auto generation = connectionProgress_.Begin(ConnectionIntentFor(mode), label);
         if (!generation) return;
@@ -421,11 +488,25 @@ private:
         }
     }
 
-    void RunConnectionInput(const std::uint64_t generation, std::string targetText, std::string password, const DirectSessionMode mode) {
+    void RunConnectionInput(const std::uint64_t generation, std::string targetText, std::string password, const DirectSessionMode mode,
+                            std::optional<ui::RemoteDeviceCard> expectedDevice) {
         auto parsed = ParseConnectionInput(std::move(targetText), runtime_->Config()->Ports().desktop);
         if (!parsed) {
             connectionProgress_.Fail(generation, ui::ConnectionStepKind::ValidateTarget, ui::ConnectionFailureReason::InvalidTarget,
                                      "Enter a device ID, a complete link:// address, or IP[:port].");
+            return;
+        }
+        const auto selectedConsole = ParseConsoleHttpsOrigin(runtime_->Config()->ConsoleAddress());
+        if (expectedDevice && (!selectedConsole || expectedDevice->consoleOrigin != selectedConsole->baseUrl ||
+                               expectedDevice->publicDeviceCode != parsed->publicDeviceCode)) {
+            connectionProgress_.Fail(generation, ui::ConnectionStepKind::ValidateTarget, ui::ConnectionFailureReason::InvalidTarget,
+                                     "This recent device belongs to another Console or its device code changed.");
+            return;
+        }
+        if (parsed->kind == ConnectionInputKind::SharedLink && selectedConsole && !parsed->consoleOrigin.empty() &&
+            parsed->consoleOrigin != selectedConsole->baseUrl) {
+            connectionProgress_.Fail(generation, ui::ConnectionStepKind::ValidateTarget, ui::ConnectionFailureReason::InvalidTarget,
+                                     "This link belongs to another Console. Select that Console before connecting.");
             return;
         }
         connectionProgress_.SucceedStep(generation, ui::ConnectionStepKind::ValidateTarget);
@@ -433,37 +514,75 @@ private:
         if (parsed->kind == ConnectionInputKind::DirectEndpoint) {
             parsed->password = std::move(password);
         }
-        if (parsed->kind == ConnectionInputKind::DeviceId) {
-            if (!runtime_->Console()->Account().loggedIn) {
-                connectionProgress_.Fail(generation, ui::ConnectionStepKind::ResolveDevice, ui::ConnectionFailureReason::ConsoleLoginRequired,
-                                         "Device ID lookup requires a signed-in Console account. A complete link:// address or IP[:port] can be used "
-                                         "without lookup.");
-                return;
-            }
-            const auto connection = runtime_->Console()->QueryNativeDeviceConnection(parsed->deviceId, mode == DirectSessionMode::ViewOnly);
-            if (!connection) {
+        if (parsed->kind == ConnectionInputKind::DeviceCode) {
+            const auto origin = ParseConsoleHttpsOrigin(runtime_->Config()->ConsoleAddress());
+            if (!origin) {
                 connectionProgress_.Fail(generation, ui::ConnectionStepKind::ResolveDevice, ui::ConnectionFailureReason::DeviceResolutionFailed,
-                                         "Console did not return a native address. The device may be offline or its presence may be stale.");
+                                         "The selected Console address is invalid.");
                 return;
             }
-            parsed->kind = ConnectionInputKind::DirectEndpoint;
-            parsed->password.clear();
-            parsed->hosts = {connection->host};
-            parsed->port = connection->port;
-            parsed->frontendSessionId = connection->session_id;
-            parsed->frontendSessionRevision = connection->session_revision;
-            parsed->frontendToken = connection->frontend_token;
-            parsed->relayHost = connection->relay_host;
-            parsed->relayPort = connection->relay_port;
-            parsed->relayDeviceId = "server_" + connection->device_id;
-            parsed->relayAdmissionTicket = connection->relay_admission_ticket;
-            {
-                const std::scoped_lock lock{mutex_};
-                if (const auto existing = std::ranges::find(devices_, parsed->deviceId, &ui::RemoteDeviceCard::deviceId);
-                    existing != devices_.end()) {
-                    parsed->displayName = existing->name;
-                    parsed->platform = existing->platform;
+            parsed->consoleOrigin = origin->baseUrl;
+            if (password.empty() && runtime_->Console()->Account().loggedIn) {
+                const auto visibleDevices = runtime_->Console()->QueryDevices();
+                const auto matchingDevice = std::ranges::find_if(visibleDevices, [&parsed](const auto& device) {
+                    return device && device->public_code_ == parsed->publicDeviceCode;
+                });
+                if (matchingDevice == visibleDevices.end() || !*matchingDevice || (*matchingDevice)->device_id_.empty() ||
+                    (*matchingDevice)->disabled_) {
+                    connectionProgress_.Fail(generation, ui::ConnectionStepKind::ResolveDevice, ui::ConnectionFailureReason::DeviceResolutionFailed,
+                                             "The current Console has no accessible device with that nine-digit code.");
+                    return;
                 }
+                parsed->deviceId = (*matchingDevice)->device_id_;
+                if (expectedDevice && expectedDevice->deviceId != parsed->deviceId) {
+                    connectionProgress_.Fail(generation, ui::ConnectionStepKind::ResolveDevice,
+                                             ui::ConnectionFailureReason::DeviceResolutionFailed,
+                                             "The current Console maps this device code to a different UUID.");
+                    return;
+                }
+                parsed->displayName = (*matchingDevice)->device_name_;
+                parsed->platform = px::ui::ParseDevicePlatform((*matchingDevice)->platform_);
+                const auto connection = runtime_->Console()->QueryNativeDeviceConnection(parsed->deviceId, mode == DirectSessionMode::ViewOnly);
+                if (!connection) {
+                    connectionProgress_.Fail(generation, ui::ConnectionStepKind::ResolveDevice,
+                                             ui::ConnectionFailureReason::DeviceResolutionFailed,
+                                             "Console did not return a native address. The device may be offline or its presence may be stale.");
+                    return;
+                }
+                parsed->kind = ConnectionInputKind::DirectEndpoint;
+                parsed->hosts = {connection->host};
+                parsed->port = connection->port;
+                parsed->frontendSessionId = connection->session_id;
+                parsed->frontendSessionRevision = connection->session_revision;
+                parsed->frontendToken = connection->frontend_token;
+                parsed->relayHost = connection->relay_host;
+                parsed->relayPort = connection->relay_port;
+                parsed->relayDeviceId = "server_" + connection->device_id;
+                parsed->relayAdmissionTicket = connection->relay_admission_ticket;
+            } else if (!password.empty()) {
+                const auto endpoint = runtime_->Console()->ResolvePublicDeviceCode(parsed->publicDeviceCode);
+                if (!endpoint) {
+                    connectionProgress_.Fail(generation, ui::ConnectionStepKind::ResolveDevice,
+                                             ui::ConnectionFailureReason::DeviceResolutionFailed,
+                                             "The selected Console could not resolve this online device code.");
+                    return;
+                }
+                parsed->kind = ConnectionInputKind::DirectEndpoint;
+                parsed->deviceId = endpoint->device_id;
+                parsed->displayName = endpoint->name;
+                if (expectedDevice && expectedDevice->deviceId != parsed->deviceId) {
+                    connectionProgress_.Fail(generation, ui::ConnectionStepKind::ResolveDevice,
+                                             ui::ConnectionFailureReason::DeviceResolutionFailed,
+                                             "The current Console maps this device code to a different UUID.");
+                    return;
+                }
+                parsed->hosts = {endpoint->host};
+                parsed->port = endpoint->port;
+                parsed->password = std::move(password);
+            } else {
+                connectionProgress_.Fail(generation, ui::ConnectionStepKind::ResolveDevice, ui::ConnectionFailureReason::PasswordRequired,
+                                         "Enter the remote device's temporary password to connect by device code.");
+                return;
             }
         }
         if (parsed->hosts.empty() || parsed->port <= 0 || parsed->port > 65535) {
@@ -479,7 +598,14 @@ private:
     void RunDirect(const std::uint64_t generation, ParsedConnectionInput target, const DirectSessionMode mode) {
         const bool fileTransfer{mode == DirectSessionMode::FileTransfer};
         const bool viewOnly{mode != DirectSessionMode::Control};
-        const std::string credentialKey{CredentialKey(target)};
+        const std::string unboundEndpointCredentialKey{target.deviceId.empty() && target.publicDeviceCode.empty() ? CredentialKey(target)
+                                                                                                                    : std::string{}};
+        const auto selectedConsole = ParseConsoleHttpsOrigin(runtime_->Config()->ConsoleAddress());
+        if (!target.consoleOrigin.empty() && (!selectedConsole || selectedConsole->baseUrl != target.consoleOrigin)) {
+            connectionProgress_.Fail(generation, ui::ConnectionStepKind::ValidateTarget, ui::ConnectionFailureReason::InvalidTarget,
+                                     "This device belongs to another Console. Select that Console before connecting.");
+            return;
+        }
         if (target.hosts.empty() || target.port <= 0 || target.port > 65535) {
             connectionProgress_.Fail(generation, ui::ConnectionStepKind::ResolveDevice, ui::ConnectionFailureReason::NoUsableAddress,
                                      "No valid remote host and desktop service port were resolved for this connection.");
@@ -499,11 +625,36 @@ private:
                 endpointFailures += endpoint + " returned HTTP/status " + std::to_string(configuration.error());
                 continue;
             }
-            if (!target.deviceId.empty() && !configuration->device_id_.empty() && configuration->device_id_ != target.deviceId) {
+            if (!ConnectionIdentityMatches(target, configuration->device_id_, configuration->public_device_code_,
+                                           configuration->console_origin_)) {
                 if (!endpointFailures.empty()) endpointFailures += "; ";
-                endpointFailures += endpoint + " belongs to device " + configuration->device_id_ + ", expected " + target.deviceId;
+                endpointFailures += endpoint + " returned a different device identity or Console device-code binding";
                 continue;
             }
+            if (target.deviceId.empty()) target.deviceId = configuration->device_id_;
+            if (target.publicDeviceCode.empty() && configuration->public_device_code_.size() == 9 &&
+                std::ranges::all_of(configuration->public_device_code_, [](const char digit) { return digit >= '0' && digit <= '9'; })) {
+                const auto origin = ParseConsoleHttpsOrigin(configuration->console_origin_);
+                const auto selectedConsole = ParseConsoleHttpsOrigin(runtime_->Config()->ConsoleAddress());
+                if (origin && origin->baseUrl == configuration->console_origin_ &&
+                    (!selectedConsole || selectedConsole->baseUrl == origin->baseUrl)) {
+                    target.publicDeviceCode = configuration->public_device_code_;
+                    target.consoleOrigin = origin->baseUrl;
+                }
+            }
+            {
+                const std::scoped_lock lock{mutex_};
+                const auto currentBinding = std::ranges::find_if(devices_, [&target](const ui::RemoteDeviceCard& device) {
+                    return device.streamId.starts_with("console-device-") && device.deviceId == target.deviceId;
+                });
+                if (currentBinding != devices_.end() &&
+                    (target.publicDeviceCode != currentBinding->publicDeviceCode || target.consoleOrigin != currentBinding->consoleOrigin)) {
+                    connectionProgress_.Fail(generation, ui::ConnectionStepKind::ResolveDevice, ui::ConnectionFailureReason::DeviceResolutionFailed,
+                                             "The current Console maps this UUID to a different device code.");
+                    return;
+                }
+            }
+            const std::string credentialKey{CredentialKey(target)};
             renderEndpointReached = true;
             connectionProgress_.SucceedStep(generation, ui::ConnectionStepKind::ReachEndpoint, endpoint);
             connectionProgress_.BeginStep(generation, ui::ConnectionStepKind::CheckPermission);
@@ -538,6 +689,9 @@ private:
             connectionProgress_.SucceedStep(generation, ui::ConnectionStepKind::CheckPermission);
             connectionProgress_.BeginStep(generation, ui::ConnectionStepKind::VerifyPassword);
             if (!consoleAuthorized && target.password.empty()) target.password = credentialVault_->Read(credentialKey).value_or(std::string{});
+            if (!consoleAuthorized && target.password.empty() && !unboundEndpointCredentialKey.empty()) {
+                target.password = credentialVault_->Read(unboundEndpointCredentialKey).value_or(std::string{});
+            }
             if (!consoleAuthorized && target.password.empty()) {
                 connectionProgress_.Fail(generation, ui::ConnectionStepKind::VerifyPassword, ui::ConnectionFailureReason::PasswordRequired,
                                          "No saved credential is available. Enter the current password shown on the remote device and retry.");
@@ -554,6 +708,7 @@ private:
                 }
                 if (!verified.value()) {
                     credentialVault_->Delete(credentialKey);
+                    if (!unboundEndpointCredentialKey.empty()) credentialVault_->Delete(unboundEndpointCredentialKey);
                     connectionProgress_.Fail(generation, ui::ConnectionStepKind::VerifyPassword, ui::ConnectionFailureReason::PasswordRejected,
                                              "The remote device rejected the supplied password. Its temporary password may have changed.");
                     return;
@@ -570,6 +725,15 @@ private:
                 connectionProgress_.Fail(generation, ui::ConnectionStepKind::LaunchClient, ui::ConnectionFailureReason::ClientLaunchFailed,
                                          "Console did not issue a Relay route for this resource session.");
                 return;
+            }
+            if (!target.consoleOrigin.empty()) {
+                const auto currentConsole = ParseConsoleHttpsOrigin(runtime_->Config()->ConsoleAddress());
+                if (!currentConsole || currentConsole->baseUrl != target.consoleOrigin) {
+                    connectionProgress_.Fail(generation, ui::ConnectionStepKind::LaunchClient,
+                                             ui::ConnectionFailureReason::InvalidTarget,
+                                             "The Console changed while this connection was being prepared. Retry with the current Console.");
+                    return;
+                }
             }
             const bool launched = runtime_->Launcher()->Launch(
                 {.connectionKind =
@@ -609,22 +773,35 @@ private:
             connectionProgress_.Complete(generation,
                                          std::string{px::ui::ApplicationName()} + (fileTransfer ? " File Transfer started." : " Client started."));
             if (!consoleAuthorized) {
-                static_cast<void>(credentialVault_->Write("device:" + remoteDeviceId, target.password));
-                if (credentialKey != "device:" + remoteDeviceId) static_cast<void>(credentialVault_->Write(credentialKey, target.password));
+                const bool identitySaved{credentialVault_->Write(credentialKey, target.password)};
+                const bool endpointSaved{unboundEndpointCredentialKey.empty() ||
+                                         credentialVault_->Write(unboundEndpointCredentialKey, target.password)};
+                if (!identitySaved || !endpointSaved) {
+                    runtime_->Notify(true, "Remote device", "Connected, but the password could not be saved for the next connection.");
+                }
             }
             const auto connectedAt = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
             static_cast<void>(runtime_->Config()->UnhideRemoteDevice(remoteDeviceId));
-            static_cast<void>(runtime_->Config()->SaveRemoteDeviceHistory(
-                {.deviceId = remoteDeviceId, .name = displayName, .host = host, .port = target.port, .lastConnectedAt = connectedAt}));
+            const std::string publicDeviceCode{target.publicDeviceCode};
+            static_cast<void>(runtime_->Config()->SaveRemoteDeviceHistory({.deviceId = remoteDeviceId,
+                                                                            .publicDeviceCode = publicDeviceCode,
+                                                                            .consoleOrigin = target.consoleOrigin,
+                                                                            .name = displayName,
+                                                                            .host = host,
+                                                                            .port = target.port,
+                                                                            .lastConnectedAt = connectedAt}));
             const std::scoped_lock lock{mutex_};
             std::string cardId{"direct-" + remoteDeviceId + "-" + host + ":" + std::to_string(target.port)};
             if (const auto consoleCard = std::ranges::find(devices_, remoteDeviceId, &ui::RemoteDeviceCard::deviceId);
-                consoleCard != devices_.end() && consoleCard->streamId.starts_with("console-device-")) {
+                consoleCard != devices_.end() && consoleCard->streamId.starts_with("console-device-") &&
+                consoleCard->publicDeviceCode == publicDeviceCode && consoleCard->consoleOrigin == target.consoleOrigin) {
                 cardId = consoleCard->streamId;
             }
             const ui::RemoteDeviceCard card{.streamId = cardId,
                                             .name = displayName,
                                             .deviceId = remoteDeviceId,
+                                            .publicDeviceCode = publicDeviceCode,
+                                            .consoleOrigin = target.consoleOrigin,
                                             .online = true,
                                             .host = host,
                                             .port = target.port,
@@ -653,9 +830,12 @@ private:
     }
 
     void RefreshDevices() {
+        if (refreshPending_->exchange(true, std::memory_order_acq_rel)) return;
+        const auto refreshCompletion = std::make_shared<DeviceRefreshCompletion>(refreshPending_);
         const auto runtime = runtime_;
         const std::weak_ptr<ProductRemoteControlPort> weakSelf{shared_from_this()};
-        static_cast<void>(runtime_->Worker()->Post([runtime, weakSelf] {
+        static_cast<void>(runtime_->Worker()->Post([runtime, weakSelf, refreshCompletion] {
+            const std::string selectedConsoleOrigin{runtime->Config()->ConsoleAddress()};
             const auto endpoint = runtime->Config()->Console();
             bool managerOnline{};
             if (endpoint) {
@@ -665,7 +845,6 @@ private:
             auto devices = runtime->Console()->QueryDevices();
             const auto self = weakSelf.lock();
             if (!self) return;
-            self->managerOnline_.store(managerOnline, std::memory_order_release);
             std::vector<ui::RemoteDeviceCard> previous{};
             {
                 const std::scoped_lock lock{self->mutex_};
@@ -680,12 +859,15 @@ private:
                 ui::RemoteDeviceCard card{.streamId = "console-device-" + binding->device_id_,
                                           .name = binding->device_name_,
                                           .deviceId = binding->device_id_,
+                                          .publicDeviceCode = binding->public_code_,
+                                          .consoleOrigin = selectedConsoleOrigin,
                                           .platform = px::ui::ParseDevicePlatform(binding->platform_),
-                                          .online = !binding->disabled_,
+                                          .online = false,
                                           .audio = true,
                                           .clipboard = true};
                 if (const auto connected = std::ranges::find(history, binding->device_id_, &RemoteDeviceHistory::deviceId);
-                    connected != history.end()) {
+                    connected != history.end() && connected->publicDeviceCode == binding->public_code_ &&
+                    connected->consoleOrigin == selectedConsoleOrigin) {
                     card.lastConnectedAt = connected->lastConnectedAt;
                     card.host = connected->host;
                     card.port = connected->port;
@@ -712,6 +894,8 @@ private:
                 cards.push_back({.streamId = "direct-" + historyItem.deviceId + "-" + historyItem.host + ":" + std::to_string(historyItem.port),
                                  .name = saved.name.empty() ? historyItem.name : saved.name,
                                  .deviceId = historyItem.deviceId,
+                                 .publicDeviceCode = historyItem.publicDeviceCode,
+                                 .consoleOrigin = historyItem.consoleOrigin,
                                  .online = false,
                                  .host = historyItem.host,
                                  .port = historyItem.port,
@@ -730,12 +914,23 @@ private:
             }
             for (const auto& existing : previous) {
                 if (!existing.streamId.starts_with("direct-") || existing.host.empty() || consoleDeviceIds.contains(existing.deviceId) ||
+                    existing.consoleOrigin != selectedConsoleOrigin ||
                     runtime->Config()->RemoteDeviceHidden(existing.deviceId) ||
                     (!existing.deviceId.empty() && !retainedDirectDeviceIds.insert(existing.deviceId).second)) {
                     continue;
                 }
                 cards.push_back(existing);
             }
+            RefreshConsoleDevicePresence(
+                cards, selectedConsoleOrigin,
+                [endpoint, managerOnline](const std::string& publicDeviceCode) -> std::optional<px_console::ConsolePublicDeviceEndpoint> {
+                    if (!endpoint || !managerOnline) return std::nullopt;
+                    auto resolved = px_console::ConsoleUserDeviceApi::ResolvePublicCode(endpoint->host, endpoint->port, publicDeviceCode);
+                    return resolved ? std::optional{std::move(resolved.value())} : std::nullopt;
+                });
+            // Do not publish responses from a Console that was changed while requests were in flight.
+            if (runtime->Config()->ConsoleAddress() != selectedConsoleOrigin) return;
+            self->managerOnline_.store(managerOnline, std::memory_order_release);
             std::ranges::sort(cards, [](const ui::RemoteDeviceCard& left, const ui::RemoteDeviceCard& right) {
                 if (left.lastConnectedAt != right.lastConnectedAt) return left.lastConnectedAt > right.lastConnectedAt;
                 if (left.online != right.online) return left.online;
@@ -754,6 +949,7 @@ private:
     ConnectionProgressTracker connectionProgress_{};
     std::atomic_bool showPassword_{};
     std::atomic_bool managerOnline_{};
+    std::shared_ptr<std::atomic_bool> refreshPending_{std::make_shared<std::atomic_bool>(false)};
     std::shared_ptr<RefreshLoopState> refreshLoopState_{std::make_shared<RefreshLoopState>()};
     std::jthread refreshThread_{};
 };

@@ -54,6 +54,7 @@ add_executable(px_panel WIN32
     product/environment_diagnostics.cpp
     product/panel_connection_input.cpp
     product/panel_connection_links.cpp
+    product/panel_device_presence.cpp
     product/panel_device_name.cpp
     product/panel_running_pipe.cpp
     product/render_api.cpp
@@ -177,6 +178,7 @@ if(BUILD_TESTING AND TARGET GTest::gtest)
         product/connection_progress_tracker.cpp
         product/panel_connection_input.cpp
         product/panel_connection_links.cpp
+        product/panel_device_presence.cpp
         product/panel_device_name.cpp
         product/panel_local_server.cpp
         product/panel_system_information.cpp

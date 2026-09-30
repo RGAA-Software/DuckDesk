@@ -98,3 +98,26 @@ function(pixels_stage_desktop_images target)
             "$<TARGET_FILE_DIR:${target}>/resources/licenses/FreeType.txt"
     )
 endfunction()
+
+if(BUILD_TESTING)
+    add_executable(test_title_bar_maximize tests/test_title_bar_maximize.cpp)
+    target_link_libraries(test_title_bar_maximize PRIVATE px_desktop_shell)
+    add_test(NAME title_bar_maximize COMMAND test_title_bar_maximize)
+    set_tests_properties(title_bar_maximize PROPERTIES TIMEOUT 10 RUN_SERIAL TRUE)
+
+    add_executable(test_desktop_shell_fullscreen tests/test_desktop_shell_fullscreen.cpp)
+    target_link_libraries(test_desktop_shell_fullscreen PRIVATE px_desktop_shell)
+    pixels_stage_desktop_images(test_desktop_shell_fullscreen)
+    add_custom_command(TARGET test_desktop_shell_fullscreen POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:test_desktop_shell_fullscreen>/resources/fonts"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_SOURCE_DIR}/src/px_ui/resources/fonts/Roboto-Regular.ttf"
+            "${CMAKE_SOURCE_DIR}/src/px_deps/px_imgui/misc/fonts/Roboto-Medium.ttf"
+            "$<TARGET_FILE_DIR:test_desktop_shell_fullscreen>/resources/fonts"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_SOURCE_DIR}/src/px_deps/px_3rdparty/libplacebo/lib/libplacebo-349.dll"
+            "$<TARGET_FILE_DIR:test_desktop_shell_fullscreen>/libplacebo-349.dll"
+    )
+    add_test(NAME desktop_shell_fullscreen COMMAND test_desktop_shell_fullscreen)
+    set_tests_properties(desktop_shell_fullscreen PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
+endif()
