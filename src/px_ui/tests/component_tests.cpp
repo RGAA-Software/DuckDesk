@@ -3,6 +3,7 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <limits>
 #include <string>
 
 #include "px_ui/components/button.h"
@@ -12,6 +13,7 @@
 #include "px_ui/components/navigation.h"
 #include "px_ui/device_platform.h"
 #include "px_ui/px_ui_theme.h"
+#include "px_ui/style_scope.h"
 #include "px_ui/theme_tokens.h"
 
 namespace {
@@ -83,6 +85,51 @@ bool StandardControlsHaveMatchingMetrics(const px::ui::Theme theme, const float 
     matches = matches && clipped != "Long device name" && ImGui::CalcTextSize(clipped.c_str()).x <= 40.0F * scale;
     ImGui::End();
     ImGui::EndFrame();
+    return matches;
+}
+
+bool TableCellsHaveCenteredContents(const px::ui::Theme theme, const float scale) {
+    px::ui::ApplyPixelsTheme(theme, scale);
+    const auto metrics{px::ui::MetricsFor(scale)};
+    ImGui::NewFrame();
+    ImGui::SetNextWindowSize({600.0F, 400.0F});
+    ImGui::Begin("Table cell alignment", nullptr, ImGuiWindowFlags_NoSavedSettings);
+    ImDrawList& drawing{*ImGui::GetWindowDrawList()};
+    const auto glyphTop = [&drawing](const int firstVertex) {
+        float minimumY{std::numeric_limits<float>::max()};
+        for (int vertexIndex{firstVertex}; vertexIndex < drawing.VtxBuffer.Size; ++vertexIndex) {
+            minimumY = std::min(minimumY, drawing.VtxBuffer[vertexIndex].pos.y);
+        }
+        return minimumY;
+    };
+    const int normalFirstVertex{drawing.VtxBuffer.Size};
+    px::ui::ClippedText("Hg", 100.0F * scale);
+    const float normalGlyphOffset{glyphTop(normalFirstVertex) - ImGui::GetItemRectMin().y};
+    bool matches{};
+    {
+        const px::ui::ScopedStyleVar padding{ImGuiStyleVar_CellPadding, ImVec2{metrics.spacingSm, metrics.spacingXs}};
+        if (ImGui::BeginTable("centered-content", 2)) {
+            ImGui::TableNextRow(ImGuiTableRowFlags_None, metrics.tableRowHeight);
+            ImGui::TableNextColumn();
+            const int centeredFirstVertex{drawing.VtxBuffer.Size};
+            px::ui::ClippedText("Hg", 0.0F, metrics.controlSm);
+            const ImVec2 textMinimum{ImGui::GetItemRectMin()};
+            const ImVec2 textMaximum{ImGui::GetItemRectMax()};
+            const float centeredGlyphOffset{glyphTop(centeredFirstVertex) - textMinimum.y};
+            const float expectedOffset{(metrics.controlSm - ImGui::GetTextLineHeight()) * 0.5F};
+            ImGui::TableNextColumn();
+            static_cast<void>(px::ui::IconAction({"centered-record-action"}, px::ui::VectorIcon::Copy, {}, {.size = px::ui::WidgetSize::IconSm}));
+            const ImVec2 actionMinimum{ImGui::GetItemRectMin()};
+            const ImVec2 actionMaximum{ImGui::GetItemRectMax()};
+            matches = Equal(textMaximum.y - textMinimum.y, metrics.controlSm) &&
+                      Equal((textMinimum.y + textMaximum.y) * 0.5F, (actionMinimum.y + actionMaximum.y) * 0.5F) &&
+                      std::abs(centeredGlyphOffset - normalGlyphOffset - expectedOffset) <= 1.0F;
+            ImGui::EndTable();
+        }
+    }
+    ImGui::End();
+    ImGui::EndFrame();
+    if (!matches) std::printf("Table cell alignment failed at scale %.2f\n", scale);
     return matches;
 }
 
@@ -200,7 +247,7 @@ int main() {
     for (const auto theme : {px::ui::Theme::Light, px::ui::Theme::Dark}) {
         for (const float scale : {1.0F, 1.25F, 1.5F, 2.0F}) {
             if (!FieldActionsHaveMatchingBounds(theme, scale) || !StandardControlsHaveMatchingMetrics(theme, scale) ||
-                !DropdownCanOpenAndClose(theme, scale)) {
+                !DropdownCanOpenAndClose(theme, scale) || !TableCellsHaveCenteredContents(theme, scale)) {
                 ImGui::DestroyContext();
                 return 11;
             }

@@ -46,12 +46,7 @@ void SecurityRecordsPage::DrawContent(const px::ui::Localizer& localizer) {
     }
     px::ui::HorizontalSeparator();
     ImGui::Spacing();
-    {
-        px::ui::CardScope records{{"SecurityRecordsCard"}, {0.0F, ImGui::GetContentRegionAvail().y}};
-        if (records.Visible()) {
-            DrawRecords(localizer);
-        }
-    }
+    DrawRecords(localizer);
     DrawDeleteDialog(localizer);
 }
 
@@ -65,8 +60,8 @@ void SecurityRecordsPage::DrawRecords(const px::ui::Localizer& localizer) {
     const int columns{visits ? 7 : 8};
     const px::ui::UiMetrics metrics{px::ui::MetricsFor(ImGui::GetStyle().FontScaleDpi)};
     const px::ui::ScopedStyleVar cellPadding{ImGuiStyleVar_CellPadding, ImVec2{metrics.spacingSm, metrics.spacingXs}};
-    const ImGuiTableFlags tableFlags{ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable |
-                                     ImGuiTableFlags_SizingStretchProp};
+    const ImGuiTableFlags tableFlags{ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable |
+                                     ImGuiTableFlags_NoBordersInBodyUntilResize | ImGuiTableFlags_SizingStretchProp};
     if (!ImGui::BeginTable(visits ? "SecurityVisits" : "SecurityTransfers", columns, tableFlags, {0.0F, ImGui::GetContentRegionAvail().y})) {
         return;
     }
@@ -85,26 +80,32 @@ void SecurityRecordsPage::DrawRecords(const px::ui::Localizer& localizer) {
     }
     ImGui::TableSetupColumn(localizer.Text(px::ui::TextId::Actions).data(), ImGuiTableColumnFlags_WidthFixed,
                             metrics.controlSm * 3.0F + metrics.spacingXs * 2.0F);
-    ImGui::TableHeadersRow();
+    {
+        const float headerPadding{(metrics.tableRowHeight - ImGui::GetTextLineHeight()) * 0.5F};
+        const px::ui::ScopedStyleVar headerCellPadding{ImGuiStyleVar_CellPadding, ImVec2{metrics.spacingSm, headerPadding}};
+        ImGui::TableHeadersRow();
+    }
+    const float contentHeight{metrics.tableRowHeight - metrics.spacingXs * 2.0F};
     for (const auto& record : records) {
         ImGui::PushID(record.id);
         ImGui::TableNextRow(ImGuiTableRowFlags_None, metrics.tableRowHeight);
         ImGui::TableNextColumn();
-        px::ui::ClippedText(visits ? std::string_view{record.type}
-                                   : localizer.Text(record.succeeded ? px::ui::TextId::Succeeded : px::ui::TextId::OperationFailed));
+        px::ui::ClippedText(
+            visits ? std::string_view{record.type} : localizer.Text(record.succeeded ? px::ui::TextId::Succeeded : px::ui::TextId::OperationFailed),
+            0.0F, contentHeight);
         ImGui::TableNextColumn();
-        px::ui::ClippedText(record.startedAt);
+        px::ui::ClippedText(record.startedAt, 0.0F, contentHeight);
         ImGui::TableNextColumn();
-        px::ui::ClippedText(record.endedAt);
+        px::ui::ClippedText(record.endedAt, 0.0F, contentHeight);
         ImGui::TableNextColumn();
-        px::ui::ClippedText(record.visitor);
+        px::ui::ClippedText(record.visitor, 0.0F, contentHeight);
         ImGui::TableNextColumn();
-        px::ui::ClippedText(record.target);
+        px::ui::ClippedText(record.target, 0.0F, contentHeight);
         ImGui::TableNextColumn();
-        px::ui::ClippedText(visits ? record.duration : record.direction);
+        px::ui::ClippedText(visits ? record.duration : record.direction, 0.0F, contentHeight);
         if (!visits) {
             ImGui::TableNextColumn();
-            px::ui::ClippedText(record.fileName);
+            px::ui::ClippedText(record.fileName, 0.0F, contentHeight);
         }
         ImGui::TableNextColumn();
         if (px::ui::IconAction({"record-copy"}, px::ui::VectorIcon::Copy, localizer.Text(px::ui::TextId::Copy),

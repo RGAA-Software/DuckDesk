@@ -8,7 +8,7 @@
 namespace px::ui {
 
 [[nodiscard]] std::string EllipsizedText(std::string_view text, float maximumWidth);
-void ClippedText(std::string_view text, float width = 0.0F);
+void ClippedText(std::string_view text, float width = 0.0F, float height = 0.0F);
 void KeyValueRow(std::string_view label, std::string_view value, float labelWidth);
 void EmptyState(VectorIcon icon, std::string_view title, std::string_view description);
 void LoadingSpinner(WidgetId id, float radius = 8.0F);

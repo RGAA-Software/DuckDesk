@@ -13,6 +13,8 @@
 #include "px_ui/components/form.h"
 #include "px_ui/components/surface.h"
 #include "px_ui/layout_metrics.h"
+#include "px_ui/style_scope.h"
+#include "px_ui/theme_tokens.h"
 
 namespace px::panel::ui {
 namespace {
@@ -26,13 +28,18 @@ void DrawDisabledText(const std::string_view text) {
 }
 
 void DrawEndpoint(const std::string_view label, const std::string_view value, const std::string_view purpose) {
-    ImGui::TableNextRow(ImGuiTableRowFlags_None, px::ui::Scale(32.0F));
+    const float rowHeight{px::ui::Scale(32.0F)};
+    const float contentHeight{rowHeight - ImGui::GetStyle().CellPadding.y * 2.0F};
+    ImGui::TableNextRow(ImGuiTableRowFlags_None, rowHeight);
     ImGui::TableNextColumn();
-    DrawDisabledText(label);
+    {
+        const px::ui::ScopedStyleColor labelColor{ImGuiCol_Text, px::ui::CurrentThemeTokens().mutedForeground};
+        px::ui::ClippedText(label, 0.0F, contentHeight);
+    }
     ImGui::TableNextColumn();
-    px::ui::ClippedText(value);
+    px::ui::ClippedText(value, 0.0F, contentHeight);
     ImGui::TableNextColumn();
-    px::ui::ClippedText(purpose);
+    px::ui::ClippedText(purpose, 0.0F, contentHeight);
 }
 
 bool BeginEndpointTable(const std::string_view identifier) {

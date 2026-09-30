@@ -27,15 +27,17 @@ std::string EllipsizedText(const std::string_view text, const float maximumWidth
     return std::string{text.substr(0, fittingLength)} + std::string{suffix};
 }
 
-void ClippedText(const std::string_view text, const float width) {
+void ClippedText(const std::string_view text, const float width, const float height) {
     const float resolvedWidth{std::max(1.0F, width > 0.0F ? width : ImGui::GetContentRegionAvail().x)};
+    const float textHeight{ImGui::GetTextLineHeight()};
+    const float resolvedHeight{std::max(textHeight, height)};
     const ImVec2 minimum{ImGui::GetCursorScreenPos()};
-    const ImVec2 maximum{minimum.x + resolvedWidth, minimum.y + ImGui::GetTextLineHeight()};
+    const ImVec2 maximum{minimum.x + resolvedWidth, minimum.y + resolvedHeight};
     const std::string visible{EllipsizedText(text, resolvedWidth)};
     ImGui::Dummy({resolvedWidth, maximum.y - minimum.y});
     ImDrawList& draw{*ImGui::GetWindowDrawList()};
     draw.PushClipRect(minimum, maximum, true);
-    draw.AddText(minimum, ImGui::GetColorU32(ImGuiCol_Text), visible.c_str());
+    draw.AddText({minimum.x, minimum.y + (resolvedHeight - textHeight) * 0.5F}, ImGui::GetColorU32(ImGuiCol_Text), visible.c_str());
     draw.PopClipRect();
     if (visible != text) Tooltip(text);
 }
