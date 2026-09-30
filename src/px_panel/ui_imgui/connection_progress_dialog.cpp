@@ -1,5 +1,12 @@
 #include "connection_progress_dialog.h"
 
+#include <imgui.h>
+
+#include <algorithm>
+#include <optional>
+#include <string>
+#include <utility>
+
 #include "px_ui/components/button.h"
 #include "px_ui/components/data_view.h"
 #include "px_ui/components/overlay.h"
@@ -8,69 +15,62 @@
 #include "px_ui/theme_tokens.h"
 #include "px_ui/vector_icon.h"
 
-#include <imgui.h>
-
-#include <algorithm>
-#include <optional>
-#include <string>
-#include <utility>
-
 namespace px::panel::ui {
 namespace {
 
 px::ui::TextId StepText(const ConnectionStepKind kind) {
     switch (kind) {
-    case ConnectionStepKind::ValidateTarget:
-        return px::ui::TextId::ConnectionStepValidateTarget;
-    case ConnectionStepKind::ResolveDevice:
-        return px::ui::TextId::ConnectionStepResolveDevice;
-    case ConnectionStepKind::ReachEndpoint:
-        return px::ui::TextId::ConnectionStepReachEndpoint;
-    case ConnectionStepKind::CheckPermission:
-        return px::ui::TextId::ConnectionStepCheckPermission;
-    case ConnectionStepKind::VerifyPassword:
-        return px::ui::TextId::ConnectionStepVerifyPassword;
-    case ConnectionStepKind::LaunchClient:
-        return px::ui::TextId::ConnectionStepLaunchClient;
+        case ConnectionStepKind::ValidateTarget:
+            return px::ui::TextId::ConnectionStepValidateTarget;
+        case ConnectionStepKind::ResolveDevice:
+            return px::ui::TextId::ConnectionStepResolveDevice;
+        case ConnectionStepKind::ReachEndpoint:
+            return px::ui::TextId::ConnectionStepReachEndpoint;
+        case ConnectionStepKind::CheckPermission:
+            return px::ui::TextId::ConnectionStepCheckPermission;
+        case ConnectionStepKind::VerifyPassword:
+            return px::ui::TextId::ConnectionStepVerifyPassword;
+        case ConnectionStepKind::LaunchClient:
+            return px::ui::TextId::ConnectionStepLaunchClient;
     }
     return px::ui::TextId::OperationFailed;
 }
 
 px::ui::TextId FailureText(const ConnectionFailureReason reason) {
     switch (reason) {
-    case ConnectionFailureReason::InvalidTarget:
-        return px::ui::TextId::ConnectionTargetInvalid;
-    case ConnectionFailureReason::ConsoleLoginRequired:
-        return px::ui::TextId::ConnectionConsoleLoginRequired;
-    case ConnectionFailureReason::DeviceResolutionFailed:
-        return px::ui::TextId::ConnectionDeviceResolutionFailed;
-    case ConnectionFailureReason::NoUsableAddress:
-        return px::ui::TextId::ConnectionNoUsableAddress;
-    case ConnectionFailureReason::DeviceUnreachable:
-        return px::ui::TextId::ConnectionDeviceUnreachable;
-    case ConnectionFailureReason::RemotePreflightUnavailable:
-        return px::ui::TextId::ConnectionRemotePreflightUnavailable;
-    case ConnectionFailureReason::RemoteAccessDisabled:
-        return px::ui::TextId::ConnectionRemoteAccessDisabled;
-    case ConnectionFailureReason::FileTransferDisabled:
-        return px::ui::TextId::ConnectionFileTransferDisabled;
-    case ConnectionFailureReason::RemoteSessionOccupied:
-        return px::ui::TextId::ConnectionRemoteSessionOccupied;
-    case ConnectionFailureReason::RemoteReconnectGrace:
-        return px::ui::TextId::ConnectionRemoteReconnectGrace;
-    case ConnectionFailureReason::PasswordRequired:
-        return px::ui::TextId::ConnectionPasswordRequired;
-    case ConnectionFailureReason::PasswordRejected:
-        return px::ui::TextId::ConnectionPasswordRejected;
-    case ConnectionFailureReason::PasswordVerificationUnavailable:
-        return px::ui::TextId::ConnectionPasswordVerificationUnavailable;
-    case ConnectionFailureReason::ClientLaunchFailed:
-        return px::ui::TextId::ConnectionClientLaunchFailed;
-    case ConnectionFailureReason::WorkerUnavailable:
-        return px::ui::TextId::ConnectionWorkerUnavailable;
-    case ConnectionFailureReason::None:
-    default:
-        return px::ui::TextId::OperationFailed;
+        case ConnectionFailureReason::InvalidTarget:
+            return px::ui::TextId::ConnectionTargetInvalid;
+        case ConnectionFailureReason::ConsoleLoginRequired:
+            return px::ui::TextId::ConnectionConsoleLoginRequired;
+        case ConnectionFailureReason::DeviceResolutionFailed:
+            return px::ui::TextId::ConnectionDeviceResolutionFailed;
+        case ConnectionFailureReason::NoUsableAddress:
+            return px::ui::TextId::ConnectionNoUsableAddress;
+        case ConnectionFailureReason::DeviceUnreachable:
+            return px::ui::TextId::ConnectionDeviceUnreachable;
+        case ConnectionFailureReason::RemotePreflightUnavailable:
+            return px::ui::TextId::ConnectionRemotePreflightUnavailable;
+        case ConnectionFailureReason::RemoteAccessDisabled:
+            return px::ui::TextId::ConnectionRemoteAccessDisabled;
+        case ConnectionFailureReason::FileTransferDisabled:
+            return px::ui::TextId::ConnectionFileTransferDisabled;
+        case ConnectionFailureReason::RemoteSessionOccupied:
+            return px::ui::TextId::ConnectionRemoteSessionOccupied;
+        case ConnectionFailureReason::RemoteReconnectGrace:
+            return px::ui::TextId::ConnectionRemoteReconnectGrace;
+        case ConnectionFailureReason::PasswordRequired:
+            return px::ui::TextId::ConnectionPasswordRequired;
+        case ConnectionFailureReason::PasswordRejected:
+            return px::ui::TextId::ConnectionPasswordRejected;
+        case ConnectionFailureReason::PasswordVerificationUnavailable:
+            return px::ui::TextId::ConnectionPasswordVerificationUnavailable;
+        case ConnectionFailureReason::ClientLaunchFailed:
+            return px::ui::TextId::ConnectionClientLaunchFailed;
+        case ConnectionFailureReason::WorkerUnavailable:
+            return px::ui::TextId::ConnectionWorkerUnavailable;
+        case ConnectionFailureReason::None:
+        default:
+            return px::ui::TextId::OperationFailed;
     }
 }
 
@@ -90,29 +90,29 @@ std::string IntentDescription(const px::ui::Localizer& localizer, const Connecti
 
 px::ui::BadgeVariant BadgeFor(const ConnectionStepState state) {
     switch (state) {
-    case ConnectionStepState::Succeeded:
-        return px::ui::BadgeVariant::Success;
-    case ConnectionStepState::Failed:
-        return px::ui::BadgeVariant::Destructive;
-    case ConnectionStepState::Running:
-        return px::ui::BadgeVariant::Default;
-    case ConnectionStepState::Pending:
-    default:
-        return px::ui::BadgeVariant::Secondary;
+        case ConnectionStepState::Succeeded:
+            return px::ui::BadgeVariant::Success;
+        case ConnectionStepState::Failed:
+            return px::ui::BadgeVariant::Destructive;
+        case ConnectionStepState::Running:
+            return px::ui::BadgeVariant::Default;
+        case ConnectionStepState::Pending:
+        default:
+            return px::ui::BadgeVariant::Secondary;
     }
 }
 
 std::string_view StatusText(const px::ui::Localizer& localizer, const ConnectionStepState state) {
     switch (state) {
-    case ConnectionStepState::Succeeded:
-        return localizer.Text(px::ui::TextId::Verified);
-    case ConnectionStepState::Failed:
-        return localizer.Text(px::ui::TextId::OperationFailed);
-    case ConnectionStepState::Running:
-        return localizer.Text(px::ui::TextId::Working);
-    case ConnectionStepState::Pending:
-    default:
-        return localizer.Text(px::ui::TextId::ConnectionWaiting);
+        case ConnectionStepState::Succeeded:
+            return localizer.Text(px::ui::TextId::Verified);
+        case ConnectionStepState::Failed:
+            return localizer.Text(px::ui::TextId::OperationFailed);
+        case ConnectionStepState::Running:
+            return localizer.Text(px::ui::TextId::Working);
+        case ConnectionStepState::Pending:
+        default:
+            return localizer.Text(px::ui::TextId::ConnectionWaiting);
     }
 }
 
@@ -121,6 +121,22 @@ void DrawStep(const px::ui::Localizer& localizer, const ConnectionProgressStep& 
     const px::ui::UiMetrics metrics{px::ui::MetricsFor(ImGui::GetStyle().FontScaleDpi)};
     const ImVec2 minimum{ImGui::GetCursorScreenPos()};
     const float width{ImGui::GetContentRegionAvail().x};
+    if (step.state == ConnectionStepState::Failed) {
+        const float detailWidth{std::max(1.0F, width - metrics.spacingMd * 2.0F)};
+        const ImVec2 detailSize{ImGui::CalcTextSize(step.detail.c_str(), {}, false, detailWidth)};
+        const float rowHeight{std::max(metrics.controlLg, detailSize.y + metrics.spacingSm * 2.0F)};
+        ImVec4 background{tokens.muted};
+        background.w = 0.38F;
+        ImGui::GetWindowDrawList()->AddRectFilled(minimum, {minimum.x + width, minimum.y + rowHeight}, ImGui::GetColorU32(background),
+                                                  metrics.controlRadius);
+        ImGui::SetCursorScreenPos({minimum.x + metrics.spacingMd, minimum.y + (rowHeight - detailSize.y) * 0.5F});
+        ImGui::PushTextWrapPos(minimum.x + width - metrics.spacingMd);
+        px::ui::MutedText(step.detail);
+        ImGui::PopTextWrapPos();
+        ImGui::SetCursorScreenPos({minimum.x, minimum.y + rowHeight});
+        ImGui::Dummy({width, metrics.spacingXs});
+        return;
+    }
     const float iconSize{metrics.iconDefault};
     const float textLeft{minimum.x + metrics.spacingMd + iconSize + metrics.spacingMd};
     const float detailWidth{width - (textLeft - minimum.x) - metrics.spacingMd};
@@ -139,13 +155,8 @@ void DrawStep(const px::ui::Localizer& localizer, const ConnectionProgressStep& 
         const std::string spinnerId{"connection-step-spinner-" + std::to_string(index)};
         px::ui::LoadingSpinner({spinnerId}, iconSize * 0.42F);
     } else {
-        const px::ui::VectorIcon icon{
-            step.state == ConnectionStepState::Succeeded
-                ? px::ui::VectorIcon::CircleCheck
-                : (step.state == ConnectionStepState::Failed ? px::ui::VectorIcon::TriangleAlert : px::ui::VectorIcon::Info)};
-        const ImVec4 color{step.state == ConnectionStepState::Succeeded
-                               ? tokens.success
-                               : (step.state == ConnectionStepState::Failed ? tokens.destructive : tokens.mutedForeground)};
+        const px::ui::VectorIcon icon{step.state == ConnectionStepState::Succeeded ? px::ui::VectorIcon::CircleCheck : px::ui::VectorIcon::Info};
+        const ImVec4 color{step.state == ConnectionStepState::Succeeded ? tokens.success : tokens.mutedForeground};
         px::ui::DrawVectorIcon(icon, iconPosition, iconSize, ImGui::GetColorU32(color));
     }
 
@@ -177,28 +188,24 @@ std::optional<ConnectionProgressStep> VisibleStep(const px::ui::Localizer& local
         return *running;
     }
     for (auto completed = progress.steps.rbegin(); completed != progress.steps.rend(); ++completed) {
-        if (completed->state == ConnectionStepState::Succeeded)
-            return *completed;
+        if (completed->state == ConnectionStepState::Succeeded) return *completed;
     }
     return std::nullopt;
 }
 
-} // namespace
+}  // namespace
 
 ConnectionProgressDialog::ConnectionProgressDialog(std::shared_ptr<RemoteControlPort> port) : port_{std::move(port)} {}
 
 void ConnectionProgressDialog::Draw(const px::ui::Localizer& localizer) {
     const auto progress = port_->ConnectionProgressSnapshot();
-    if (!progress)
-        return;
+    if (!progress) return;
     if (progress->generation != observedGeneration_) {
         observedGeneration_ = progress->generation;
-        if (progress->status != ConnectionProgressStatus::Succeeded)
-            px::ui::OpenModal({"ConnectionProgressDialog"});
+        if (progress->status != ConnectionProgressStatus::Succeeded) px::ui::OpenModal({"ConnectionProgressDialog"});
     }
     px::ui::ModalScope dialog{{"ConnectionProgressDialog"}, 560.0F};
-    if (!dialog.Open())
-        return;
+    if (!dialog.Open()) return;
 
     if (progress->status == ConnectionProgressStatus::Succeeded) {
         ImGui::CloseCurrentPopup();
@@ -217,8 +224,7 @@ void ConnectionProgressDialog::Draw(const px::ui::Localizer& localizer) {
         return;
     }
 
-    if (const auto step = VisibleStep(localizer, *progress))
-        DrawStep(localizer, *step, 0);
+    if (const auto step = VisibleStep(localizer, *progress)) DrawStep(localizer, *step, 0);
 
     if (!running) {
         const float buttonWidth{px::ui::Scale(140.0F)};
@@ -228,4 +234,4 @@ void ConnectionProgressDialog::Draw(const px::ui::Localizer& localizer) {
     }
 }
 
-} // namespace px::panel::ui
+}  // namespace px::panel::ui
