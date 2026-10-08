@@ -27,7 +27,8 @@ export default {
         checkedAt: "Checked at",
         restoreAdmission: "Restore admission",
         notEvaluated: "Not evaluated",
-        restoreCliOnly: "This is the last verification snapshot only. Actual restore still requires the controlled CLI and admission checks.",
+        restoreCliOnly:
+            "This is the last verification snapshot only. Actual restore still requires the controlled CLI and admission checks.",
     },
     realtime: {
         connected: "Live",
@@ -75,7 +76,8 @@ export default {
             usernameWhitespace: "Username cannot start or end with spaces",
         },
         users: {
-            protectedAccount: "Pixels is the built-in administrator. Only password reset is available.",
+            protectedAccount:
+                "Pixels is the built-in administrator. Only password reset is available.",
             actions: "Actions",
             create: "Create user",
             createdAt: "Created",
@@ -166,8 +168,6 @@ export default {
             deleteImpact:
                 "The device inventory entry, access grants, and associated node identity will become invalid.",
             deleteTitle: "Delete device {name}?",
-
-
         },
         messages: {
             accessSaved: "Device access saved",
@@ -183,6 +183,9 @@ export default {
         allowObserver: "Allow observers",
         allowTakeover: "Allow takeover",
         arguments: "Arguments",
+        disconnectGrace: "Disconnect grace (seconds)",
+        disconnectGraceHelp:
+            "Wait this long after the last client disconnects before stopping the instance. Reconnecting cancels exit. Default: 10 seconds; range: 1–3600. Changes apply to newly started instances. RDP preserves the Windows session and its applications.",
         bitrate: "Bitrate (kbps)",
         catalogTitle: "Application catalog",
         codec: "Codec",
@@ -191,7 +194,8 @@ export default {
         edit: "Edit application",
         entryUrl: "WebView entry URL",
         executable: "Absolute executable path",
-        executableHelp: "Enter the full path to the executable on the server, e.g. D:\\software\\2dadventure\\2dAdventure.exe. Put launch arguments in the separate arguments field.",
+        executableHelp:
+            "Enter the full path to the executable on the server, e.g. D:\\software\\2dadventure\\2dAdventure.exe. Put launch arguments in the separate arguments field.",
         groups: "Authorized groups",
         kind: "Type",
         kinds: { game_hook: "Game Hook", rdp: "RDP application", webview: "WebView" },
@@ -203,17 +207,23 @@ export default {
         },
         messages: {
             saved: "Application saved",
-            invalidInput: "The server rejected the application configuration. Check the absolute executable path, arguments, URL and bitrate.",
+            invalidInput:
+                "The server rejected the application configuration. Check the absolute executable path, arguments, URL and bitrate.",
             sessionExpired: "Your session has expired. Sign in again before saving.",
-            rejected: "You do not have permission to save this application. Check your administrator permissions.",
+            rejected:
+                "You do not have permission to save this application. Check your administrator permissions.",
             conflict: "The application configuration has changed. Refresh and edit it again.",
-            saveFailed: "Saving did not complete. Check your network and server status, then retry.",
+            saveFailed:
+                "Saving did not complete. Check your network and server status, then retry.",
         },
         validation: {
             groups: "Group access requires at least one authorized group",
             name: "Application names require 1–128 characters without leading/trailing spaces, line breaks or control characters",
-            executable: "Enter a full local .exe path such as D:\\Games\\game.exe. Use backslashes; omit enclosing quotes, .., reserved names and trailing spaces. Maximum length: 2048 bytes.",
-            arguments: "Launch arguments cannot contain line breaks or control characters (tabs are allowed). Maximum length: 8192 bytes.",
+            executable:
+                "Enter a full local .exe path such as D:\\Games\\game.exe. Use backslashes; omit enclosing quotes, .., reserved names and trailing spaces. Maximum length: 2048 bytes.",
+            arguments:
+                "Launch arguments cannot contain line breaks or control characters (tabs are allowed). Maximum length: 8192 bytes.",
+            disconnectGrace: "Disconnect grace must be an integer between 1 and 3600 seconds.",
             bitrate: "Bitrate must be an integer between 128 and 200000 kbps.",
         },
     },
@@ -298,8 +308,6 @@ export default {
             deleteImpact:
                 "The node identity, connection, and scheduling eligibility will become invalid. Drain active sessions first.",
             deleteTitle: "Delete this node?",
-
-
         },
         messages: { copied: "Node token copied" },
         validation: { device: "Select a device that is not already bound to a node" },
@@ -353,32 +361,55 @@ export default {
         manageTargets: "Select deployment machines",
         targetMachines: "Deployment machines (multiple selection)",
         selectMachines: "Select machines for scheduling this application",
-        targetsHelp: "An application can run on multiple machines; the scheduler selects an available machine at startup. Deselecting a machine disables its application deployment and retains the deployment record.",
+        targetsHelp:
+            "An application can run on multiple machines; the scheduler selects an available machine at startup. Deselecting a machine disables its application deployment and retains the deployment record.",
         newNodeCapacity: "Instance capacity per new machine",
-        preserveSettings: "Existing capacity and GPU settings are preserved. New machines select a GPU automatically; configure individual machines from the deployment list.",
-        noTargetsWarning: "No machines are selected. Saving will leave this application without an enabled deployment for new starts.",
-        targetsSaved: "Deployment machines saved. Each node becomes eligible for scheduling once it is ready.",
+        preserveSettings:
+            "Existing capacity and GPU settings are preserved. New machines select a GPU automatically; configure individual machines from the deployment list.",
+        noTargetsWarning:
+            "No machines are selected. Saving will leave this application without an enabled deployment for new starts.",
+        targetsSaved:
+            "Deployment machines saved. Each node becomes eligible for scheduling once it is ready.",
         saveTargets: "Save deployment machines",
         retryTargets: "Retry unfinished operations",
-        targetActions: { create: "Create deployment", enable: "Enable deployment", disable: "Disable deployment", keep: "Keep configuration" },
-        targetStates: { pending: "Pending", saving: "Saving", saved: "Saved", unchanged: "Preserved", error: "Failed", blocked: "New machine failed; original machine retained" },
-        duplicate: "This application already has a deployment on the selected node. Edit the existing deployment; increase its capacity to allow more concurrent instances.",
-        allNodesDeployed: "This application is already deployed to every available node. Edit an existing deployment to change its capacity, or add another node to deploy to another machine.",
+        targetActions: {
+            create: "Create deployment",
+            enable: "Enable deployment",
+            disable: "Disable deployment",
+            keep: "Keep configuration",
+        },
+        targetStates: {
+            pending: "Pending",
+            saving: "Saving",
+            saved: "Saved",
+            unchanged: "Preserved",
+            error: "Failed",
+            blocked: "New machine failed; original machine retained",
+        },
+        duplicate:
+            "This application already has a deployment on the selected node. Edit the existing deployment; increase its capacity to allow more concurrent instances.",
+        allNodesDeployed:
+            "This application is already deployed to every available node. Edit an existing deployment to change its capacity, or add another node to deploy to another machine.",
         noNodes: "No nodes are available for a new deployment. Add or enable a node first.",
         deployedNode: "{node} (already deployed)",
         editExisting: "Edit existing deployment",
-        fixedNodeHelp: "This edits one machine. To change the application's machine set, return to the list and select deployment machines.",
+        fixedNodeHelp:
+            "This edits one machine. To change the application's machine set, return to the list and select deployment machines.",
         sessionExpired: "Your session has expired. Sign in again before saving.",
-        forbidden: "The save request was rejected. Check your permissions and whether the application and node are still valid.",
-        invalidConfiguration: "Invalid deployment configuration. Check the node, GPU binding key, and capacity.",
-        configurationConflict: "The deployment configuration conflicts with the current state. Return to the list and edit it again to avoid overwriting another change.",
+        forbidden:
+            "The save request was rejected. Check your permissions and whether the application and node are still valid.",
+        invalidConfiguration:
+            "Invalid deployment configuration. Check the node, GPU binding key, and capacity.",
+        configurationConflict:
+            "The deployment configuration conflicts with the current state. Return to the list and edit it again to avoid overwriting another change.",
         manage: "View / Add",
         dialogTitle: "{name} — Application deployments",
         close: "Close",
         back: "Back to deployments",
         save: "Save deployment",
         loadFailed: "Could not load deployments or nodes. Please retry.",
-        saveFailed: "Could not save the deployment. Check the node, configuration, and sign-in status. If the configuration has changed, return to the list and edit it again.",
+        saveFailed:
+            "Could not save the deployment. Check the node, configuration, and sign-in status. If the configuration has changed, return to the list and edit it again.",
         retry: "Retry",
         empty: "This application has no deployments. Select deployment machines to add them.",
         application: "Application",
@@ -403,8 +434,10 @@ export default {
         idle: "Select an application and preview scheduling to check available nodes and reasons it cannot start.",
         checking: "Checking nodes, deployments, and available slots…",
         available: "Check complete: {count} deployment candidates meet the startup requirements.",
-        preferred: "Preferred node: {node}. Conditions are checked again at startup; no slots are reserved.",
-        noneEligible: "Check complete: no deployments currently meet the startup requirements. See the reasons below.",
+        preferred:
+            "Preferred node: {node}. Conditions are checked again at startup; no slots are reserved.",
+        noneEligible:
+            "Check complete: no deployments currently meet the startup requirements. See the reasons below.",
         failed: "Scheduling check failed. The network may have timed out or the service may be unavailable. Click Preview scheduling to retry.",
         sessionExpired: "Your session has expired. Sign in again to run the check.",
         forbidden: "Your account does not have permission to view scheduling results.",
@@ -637,13 +670,25 @@ export default {
         runtime: {
             nodesTitle: "Node resources",
             applicationsTitle: "Application runtime",
-            node: "Node", status: "Status", memory: "Memory used / total", gpu: "GPU / VRAM",
-            gpuUsage: "Usage", vram: "VRAM", running: "Running", application: "Application",
-            machines: "Deployed machines", pending: "Starting / cleaning up", headroom: "Estimated headroom",
-            streamCount: "{count} streams", manageNodes: "Manage devices", manageApps: "Manage applications",
+            node: "Node",
+            status: "Status",
+            memory: "Memory used / total",
+            gpu: "GPU / VRAM",
+            gpuUsage: "Usage",
+            vram: "VRAM",
+            running: "Running",
+            application: "Application",
+            machines: "Deployed machines",
+            pending: "Starting / cleaning up",
+            headroom: "Estimated headroom",
+            streamCount: "{count} streams",
+            manageNodes: "Manage devices",
+            manageApps: "Manage applications",
             refreshNotice: "Refreshes every 15 seconds and when runtime state changes.",
-            telemetryNotice: "Metrics use the latest node reports. Stale or unavailable readings show —. Running streams count server instances.",
-            capacityNotice: "Headroom estimates eligible node, deployment and port capacity without reserving it. Applications share machine capacity, so these values cannot be added. Launches also require license and user authorization checks. — means unavailable.",
+            telemetryNotice:
+                "Metrics use the latest node reports. Stale or unavailable readings show —. Running streams count server instances.",
+            capacityNotice:
+                "Headroom estimates eligible node, deployment and port capacity without reserving it. Applications share machine capacity, so these values cannot be added. Launches also require license and user authorization checks. — means unavailable.",
             loadFailed: "Overview data could not be loaded or is stale. Please refresh.",
         },
         activeSessions: "Active sessions",
@@ -662,7 +707,8 @@ export default {
         },
         licenseTitle: "License",
         licenseNotActivated: "No license is installed. Business services remain unavailable.",
-        starterLicenseLimits: "Starter license: one concurrent remote desktop, game, WebView and RDP stream each. Import a new license here to upgrade.",
+        starterLicenseLimits:
+            "Starter license: one concurrent remote desktop, game, WebView and RDP stream each. Import a new license here to upgrade.",
         licenseImport: "Import signed PXLIC2 license",
         licenseImportFailed: "License import failed. Check the file and try again.",
         licenseUnavailable: "License status is temporarily unavailable. Please retry.",
@@ -678,12 +724,15 @@ export default {
             lastObserved: "Last sample / report",
             nodeId: "Node ID",
             offline: "Offline / stale report",
-            offlineReason: "The node has not reported on time. Its current state is unknown; check the node service and network.",
-            thresholdReason: "{metric} · {resource}: last sample {value}%, trigger threshold {threshold}%",
+            offlineReason:
+                "The node has not reported on time. Its current state is unknown; check the node service and network.",
+            thresholdReason:
+                "{metric} · {resource}: last sample {value}%, trigger threshold {threshold}%",
             neverReported: "Not reported yet",
             empty: "There are no current node alerts",
             loading: "Loading node alerts…",
-            loadFailed: "Node alerts could not be loaded. Current status is unknown; select Refresh to retry.",
+            loadFailed:
+                "Node alerts could not be loaded. Current status is unknown; select Refresh to retry.",
         },
         refresh: "Refresh",
         users: "Users",
@@ -692,9 +741,11 @@ export default {
         play: "Play",
         preparing: "Preparing the recording from the node…",
         loading: "Loading the recording for playback…",
-        unavailable: "The recording could not be prepared or no longer exists. Check the node and retry.",
+        unavailable:
+            "The recording could not be prepared or no longer exists. Check the node and retry.",
         failed: "Cannot read the recording. The file may be missing, the node offline, or your session expired. Refresh and retry.",
-        unsupported: "This browser cannot play the recording. The codec may be unsupported or the file damaged. Download it to try a local player.",
+        unsupported:
+            "This browser cannot play the recording. The codec may be unsupported or the file damaged. Download it to try a local player.",
         retry: "Retry",
     },
     activity: {
@@ -704,7 +755,6 @@ export default {
         auditTitle: "Session and activity audit",
         channels: "Channels",
         client: "Client",
-        closedAt: "Closed",
         cloudApplication: "Cloud application",
         codec: "Codec",
         connectedAt: "First connected",
@@ -713,7 +763,6 @@ export default {
         direction: "Direction",
         download: "Download",
         file: "File",
-        includeClosed: "Include closed",
         kind: "Kind",
         node: "Node",
         observedAt: "Observed",
@@ -743,8 +792,31 @@ export default {
         sent: "Sent",
         session: "Session ID",
         sessionNotice:
-            "The management page reads session state and identity only. It never requests a connection descriptor, frontend secret, or short-lived ticket.",
-        sessionsTitle: "Resource sessions",
+            "Only connections that have not closed are shown. Click an application name for details. Visit Security audit for connection history.",
+        sessionsTitle: "Online connections",
+        sessionsLoadFailed:
+            "Connections could not be refreshed. Showing the previous results; please retry.",
+        applicationDetails: "Application details",
+        applicationEnabled: "Enabled",
+        applicationDisabled: "Disabled",
+        guest: "Guest",
+        unknownUser: "User unavailable",
+        unavailableDevice: "Device deleted or unavailable",
+        unavailableApplication: "Application deleted or unavailable",
+        clients: {
+            panel: "Windows client",
+            android: "Android client",
+            user_web: "Web client",
+            admin_web: "Admin console",
+            unknown: "Unknown client",
+        },
+        roles: { controller: "Control", observer: "View only", unknown: "Unknown role" },
+        sessionStates: {
+            pending: "Connecting",
+            connected: "Connected",
+            closed: "Closed",
+            unknown: "Unknown state",
+        },
         size: "Size",
         state: "State",
         target: "Target",

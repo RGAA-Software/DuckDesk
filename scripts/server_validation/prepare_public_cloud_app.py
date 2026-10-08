@@ -44,7 +44,7 @@ def main() -> None:
             json={"name": "90 WebView acceptance", "access": "public",
                   "launch": {"kind": "webview", "entry_url": f"{origin}/",
                              "video": {"codec": "h264", "bitrate_kbps": 8000}},
-                  "allow_observer": False, "allow_takeover": False, "disabled": False},
+                  "disconnect_grace_seconds": 10, "allow_observer": False, "allow_takeover": False, "disabled": False},
             timeout=15,
         )
         application_response.raise_for_status()

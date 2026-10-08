@@ -2454,6 +2454,7 @@ mod tests {
             executable_path: format!(r"{executable_directory}\Binaries\Win64\game.exe"),
             game_arguments: String::new(),
             listen_port: port,
+            disconnect_grace_seconds: 10,
             encoder_fps: 60,
             encoder_bitrate_kbps: 20_000,
             encoder_format: "h264".to_string(),

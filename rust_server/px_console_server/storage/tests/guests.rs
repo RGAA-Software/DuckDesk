@@ -164,6 +164,7 @@ async fn guest_user_and_client_types_are_disjoint_and_public_is_not_anonymous_au
         name: "Guest public RDP".into(),
         access: ApplicationAccess::Public,
         launch: ApplicationLaunch::Rdp,
+        disconnect_grace_seconds: 10,
         allow_observer: false,
         allow_takeover: false,
         disabled: false,

@@ -17,6 +17,7 @@ function gameSpec(
             arguments: argumentsText,
             video: { codec: "h264", bitrate_kbps: 20000 },
         },
+        disconnect_grace_seconds: 10,
         allow_observer: false,
         allow_takeover: false,
         disabled: false,
@@ -73,6 +74,36 @@ describe("application editor validation", () => {
         expect(validateApplicationSpec(spec)).toBeUndefined();
         spec.name = "Game\n";
         expect(validateApplicationSpec(spec)).toBe("applications.validation.name");
+    });
+
+    it.each([0, 3601, 1.5, NaN, null, undefined])(
+        "rejects invalid disconnect grace %s for every mode",
+        seconds => {
+            const spec = gameSpec();
+            for (const launch of [
+                spec.launch,
+                {
+                    kind: "webview",
+                    entry_url: "https://example.com",
+                    video: { codec: "h264", bitrate_kbps: 8000 },
+                },
+                { kind: "rdp" },
+            ] as const) {
+                expect(
+                    validateApplicationSpec({
+                        ...spec,
+                        launch,
+                        disconnect_grace_seconds: seconds as number,
+                    }),
+                ).toBe("applications.validation.disconnectGrace");
+            }
+        },
+    );
+
+    it.each([1, 10, 30, 3600])("accepts disconnect grace %s", seconds => {
+        expect(
+            validateApplicationSpec({ ...gameSpec(), disconnect_grace_seconds: seconds }),
+        ).toBeUndefined();
     });
 
     it("maps API failures to localized messages instead of displaying raw Axios errors", () => {

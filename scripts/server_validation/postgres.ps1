@@ -257,7 +257,7 @@ try {
         # Explicit developer command, never performed implicitly by acceptance tests.
         # PostgreSQL/SQLx generate these files; this is not evidence that runtime tests passed.
         foreach ($item in @(
-            @{Service='console';Crate='px_console_store';Path='rust_server/px_console_server/storage';Count=292},
+            @{Service='console';Crate='px_console_store';Path='rust_server/px_console_server/storage';Count=290},
             @{Service='desk';Crate='px_desk_server';Path='rust_server/px_desk_server';Count=9},
             @{Service='auth';Crate='px_auth_store';Path='rust_server/px_auth_server/storage';Count=28}
         )) {
@@ -479,7 +479,7 @@ try {
             Invoke-Checked 'docker' @('exec',$container,'psql','-X','-v','ON_ERROR_STOP=1','-U','pixels_admin','-d','pixels_desk','-c',
                 "CREATE TABLE pixels.pg_fixture(id uuid PRIMARY KEY,version text NOT NULL,created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP); ALTER TABLE pixels.pg_fixture OWNER TO pixels_desk_owner; GRANT SELECT,INSERT,UPDATE,DELETE ON pixels.pg_fixture TO pixels_desk_runtime") | Out-Null
         }
-        $suiteCounts = @{unit=19;identity=12;control=9;devices=8;applications=8;guests=9;nodes=14;'relay-nodes'=3;deployments=7;instances=19;commands=16;workspaces=6;database=2;sessions=19;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=17;activity=11;updates=7;desk=8;catalog=4;'update-authority'=6;lease=6;postgres=15;accounts=9}
+        $suiteCounts = @{unit=20;identity=12;control=9;devices=8;applications=8;guests=9;nodes=14;'relay-nodes'=3;deployments=7;instances=19;commands=16;workspaces=6;database=2;sessions=19;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=17;activity=11;updates=7;desk=8;catalog=4;'update-authority'=6;lease=6;postgres=15;accounts=9}
         $suiteCounts['console-api'] = 6
         $suiteCounts['directory-api'] = 8
         $suiteCounts['cn-license'] = 1
@@ -768,7 +768,7 @@ try {
     $committedMetadata = Join-Path $repo 'rust_server/px_console_server/storage/.sqlx'
     $expectedQueries = @(Get-ChildItem -LiteralPath $committedMetadata -Filter 'query-*.json' -File)
     $actualQueries = @(Get-ChildItem -LiteralPath $queryMetadata -Filter 'query-*.json' -File)
-    if ($expectedQueries.Count -ne 292 -or $actualQueries.Count -ne $expectedQueries.Count) { throw 'Missing or extra SQLx query metadata' }
+    if ($expectedQueries.Count -ne 290 -or $actualQueries.Count -ne $expectedQueries.Count) { throw 'Missing or extra SQLx query metadata' }
     foreach ($expected in $expectedQueries) {
         $actual = Join-Path $queryMetadata $expected.Name
         if (-not (Test-Path -LiteralPath $actual) -or (Get-FileHash -LiteralPath $expected.FullName).Hash -ne (Get-FileHash -LiteralPath $actual).Hash) {
@@ -777,9 +777,9 @@ try {
     }
     Set-LocalEnv 'SQLX_OFFLINE' 'true'
     Set-LocalEnv 'SQLX_OFFLINE_DIR' $committedMetadata
-    Add-Step 'QUERY: 292 Console SQLx queries compiled against fresh PG; offline metadata matches'
+    Add-Step 'QUERY: 290 Console SQLx queries compiled against fresh PG; offline metadata matches'
     $identityUnit = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--lib','--target-dir',$targetDir)
-    Add-TestCases $identityUnit 'native/identity-unit' 19
+    Add-TestCases $identityUnit 'native/identity-unit' 20
     $identityIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--test','identity','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $identityIntegration
     Add-TestCases $identityIntegration 'native/identity-integration' 12

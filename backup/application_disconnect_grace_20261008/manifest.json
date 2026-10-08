@@ -1,0 +1,174 @@
+{
+  "base_revision": "3395491477f28ff88bfed26e546171d3f6ef2df0",
+  "reason": "Replace fixed five-second application disconnect expiry with a Console-managed per-application policy.",
+  "files": [
+    {
+      "path": "rust_server/px_console_server/storage/src/application_model.rs",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "rust_server/px_console_server/storage/src/applications.rs",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "rust_server/px_console_server/storage/queries/create_application.sql",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "rust_server/px_console_server/storage/queries/update_application.sql",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "rust_server/px_console_server/storage/queries/managed_applications.sql",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "rust_server/px_console_server/storage/queries/lock_application.sql",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "rust_server/px_console_server/storage/queries/bump_application_access.sql",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "rust_server/px_console_server/storage/queries/reserve_instance.sql",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "rust_server/px_console_server/storage/queries/instance_launch.sql",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "rust_server/px_console_server/storage/src/command_model.rs",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "rust_server/px_node_protocol/src/lib.rs",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "rust_server/px_console_server/runtime/src/node_wire.rs",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "rust_client/px_service/src/node_control_client.rs",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "rust_client/px_service/service_core/src/app_instance.rs",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "src/px_render/app/application_idle_lifecycle.h",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "src/px_render/settings/rd_settings.h",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "src/px_render/rd_main.cpp",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "src/px_render/rd_app.cpp",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "rust_server/px_console_server/storage/tests/applications.rs",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "rust_server/px_console_server/storage/tests/commands.rs",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "rust_server/px_console_server/storage/tests/deployments.rs",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "rust_server/px_console_server/storage/tests/guests.rs",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "rust_server/px_console_server/storage/tests/instances.rs",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "rust_server/px_console_server/storage/tests/support/node_fixture.rs",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "rust_client/px_service/src/service_host.rs",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "web/px_console/src/model/managed_application_api.ts",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "web/px_console/src/views/apps/ApplicationCatalogCard.vue",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "web/px_console/src/views/apps/ApplicationDetailsModal.vue",
+      "local_modification_status": "?? web/px_console/src/views/apps/ApplicationDetailsModal.vue"
+    },
+    {
+      "path": "web/px_console/src/util/application_validation.ts",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "web/px_console/src/locales/zh.ts",
+      "local_modification_status": "M web/px_console/src/locales/zh.ts"
+    },
+    {
+      "path": "web/px_console/src/locales/en.ts",
+      "local_modification_status": "M web/px_console/src/locales/en.ts"
+    },
+    {
+      "path": "web/px_console/src/model/managed_catalog_api.test.ts",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "web/px_console/src/util/application_validation.test.ts",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "web/px_console/src/views/OnlineConnection.test.ts",
+      "local_modification_status": "?? web/px_console/src/views/OnlineConnection.test.ts"
+    },
+    {
+      "path": "rust_server/px_console_server/runtime/tests/cn_license.rs",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "rust_server/px_console_server/runtime/tests/directory_api.rs",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "rust_server/px_console_server/runtime/tests/node_control.rs",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "src/px_render/tests/unit/test_application_idle_lifecycle.cpp",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "scripts/server_validation/prepare_public_cloud_app.py",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "scripts/server_validation/postgres.ps1",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "rust_server/px_console_server/storage/queries/list_node_deployments.sql",
+      "local_modification_status": "clean"
+    },
+    {
+      "path": "rust_server/px_console_server/storage/queries/report_deployment.sql",
+      "local_modification_status": "clean"
+    }
+  ]
+}

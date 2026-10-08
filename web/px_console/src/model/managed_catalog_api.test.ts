@@ -42,6 +42,7 @@ describe("PostgreSQL managed catalog API", () => {
                 entry_url: "https://ide.example.test",
                 video: { codec: "h264", bitrate_kbps: 20_000 },
             },
+            disconnect_grace_seconds: 10,
             allow_observer: false,
             allow_takeover: false,
             disabled: false,

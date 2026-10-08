@@ -224,6 +224,7 @@ public:
     int record_max_file_count_ = 24;
     // WebView URL stays Base64URL encoded until the WebView source validates
     // and decodes it. Never include the decoded value in logs or dumps.
+    int application_disconnect_grace_seconds_{10};
     std::string webview_url_b64_;
     std::string webview_instance_id_;
     int webview_width_ = 1920;

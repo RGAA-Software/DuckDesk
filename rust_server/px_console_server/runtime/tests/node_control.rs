@@ -162,7 +162,7 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
                 "video":{"codec":"h264","bitrate_kbps":8000}
             },
             "access":"public",
-            "allow_observer":false,
+            "disconnect_grace_seconds":10,"allow_observer":false,
             "allow_takeover":false,
             "disabled":false
         }),
@@ -1232,7 +1232,7 @@ async fn rdp_start_fetches_one_leased_workspace_confirms_sid_and_issues_no_relay
             "name":format!("rdp-application-{}", Uuid::new_v4()),
             "launch":{"kind":"rdp"},
             "access":"public",
-            "allow_observer":false,
+            "disconnect_grace_seconds":10,"allow_observer":false,
             "allow_takeover":false,
             "disabled":false
         }),

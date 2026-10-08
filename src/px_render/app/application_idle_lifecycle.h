@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <mutex>
@@ -18,6 +19,9 @@ public:
         Clock::time_point expires_at{};
         bool startup{};
     };
+
+    explicit ApplicationIdleLifecycle(const std::chrono::seconds disconnect_grace = std::chrono::seconds{10})
+        : disconnect_grace_(std::clamp(disconnect_grace, std::chrono::seconds{1}, std::chrono::seconds{3600})) {}
 
     [[nodiscard]] std::optional<Deadline> ArmStartup(const Clock::time_point now) {
         const std::scoped_lock lock{mutex_};
@@ -64,10 +68,11 @@ public:
 
 private:
     Deadline MakeDeadline(const Clock::time_point now, const bool startup) {
-        deadline_ = Deadline{++generation_, now + std::chrono::seconds{startup ? 45 : 5}, startup};
+        deadline_ = Deadline{++generation_, now + (startup ? std::chrono::seconds{45} : disconnect_grace_), startup};
         return *deadline_;
     }
 
+    const std::chrono::seconds disconnect_grace_;
     mutable std::mutex mutex_{};
     std::unordered_set<std::string> clients_{};
     std::optional<Deadline> deadline_{};

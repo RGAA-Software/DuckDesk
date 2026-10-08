@@ -138,10 +138,10 @@ async fn cn_signed_customer_license_controls_live_console_api() {
     ] {
         let application_specification = match application_kind {
             "rdp" => {
-                json!({"name":Uuid::new_v4().to_string(),"launch":{"kind":"rdp"},"access":"public","allow_observer":false,"allow_takeover":false,"disabled":false})
+                json!({"name":Uuid::new_v4().to_string(),"launch":{"kind":"rdp"},"access":"public","disconnect_grace_seconds":10,"allow_observer":false,"allow_takeover":false,"disabled":false})
             }
             _ => {
-                json!({"name":Uuid::new_v4().to_string(),"launch":{"kind":"webview","entry_url":"https://example.test/app","video":{"codec":"h264","bitrate_kbps":8000}},"access":"public","allow_observer":false,"allow_takeover":false,"disabled":false})
+                json!({"name":Uuid::new_v4().to_string(),"launch":{"kind":"webview","entry_url":"https://example.test/app","video":{"codec":"h264","bitrate_kbps":8000}},"access":"public","disconnect_grace_seconds":10,"allow_observer":false,"allow_takeover":false,"disabled":false})
             }
         };
         let (create_status, application) = call(
@@ -208,7 +208,7 @@ async fn cn_signed_customer_license_controls_live_console_api() {
         "/api/console/managed/applications",
         "admin_web",
         Some(&administrator_token),
-        json!({"name":Uuid::new_v4().to_string(),"launch":{"kind":"webview","entry_url":"https://example.test/quota","video":{"codec":"h264","bitrate_kbps":8000}},"access":"public","allow_observer":false,"allow_takeover":false,"disabled":false}),
+        json!({"name":Uuid::new_v4().to_string(),"launch":{"kind":"webview","entry_url":"https://example.test/quota","video":{"codec":"h264","bitrate_kbps":8000}},"access":"public","disconnect_grace_seconds":10,"allow_observer":false,"allow_takeover":false,"disabled":false}),
     )
     .await;
     assert_eq!(application_status, StatusCode::CREATED, "{application}");

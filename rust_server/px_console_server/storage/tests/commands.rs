@@ -213,6 +213,7 @@ impl Fixture {
                     name: "应用".into(),
                     access: ApplicationAccess::Public,
                     launch,
+                    disconnect_grace_seconds: 10,
                     allow_observer: false,
                     allow_takeover: false,
                     disabled: false,
@@ -465,6 +466,7 @@ async fn config_change_or_drain_after_claim_reconciles_without_killing_existing_
                 .unwrap();
         } else {
             app.spec.name = "new name".into();
+            app.spec.disconnect_grace_seconds = 30;
             app.spec.launch = ApplicationLaunch::Webview {
                 entry_url: "https://changed.example.test/".into(),
                 video: VideoSpec {
@@ -505,8 +507,8 @@ async fn config_change_or_drain_after_claim_reconciles_without_killing_existing_
             .await
             .unwrap();
         assert_eq!(state(&fixture, instance.id).await.0, "running");
-        let snapshot: (i64, String) = sqlx::query_as(
-            "SELECT application_revision,entry_url FROM pixels.instances WHERE id=$1",
+        let snapshot: (i64, String, i32) = sqlx::query_as(
+            "SELECT application_revision,entry_url,disconnect_grace_seconds FROM pixels.instances WHERE id=$1",
         )
         .bind(instance.id)
         .fetch_one(&fixture.owner)
@@ -514,7 +516,11 @@ async fn config_change_or_drain_after_claim_reconciles_without_killing_existing_
         .unwrap();
         assert_eq!(
             snapshot,
-            (start.application_revision, "https://example.test/".into())
+            (
+                start.application_revision,
+                "https://example.test/".into(),
+                10
+            )
         );
         let stops: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM pixels.instance_commands WHERE instance_id=$1 AND kind='stop'",
@@ -797,9 +803,11 @@ async fn start_ack_stop_and_duplicate_receipts_never_touch_reused_capacity() {
     assert_eq!(start.instance_revision, 2);
     match &start.action {
         NodeCommandAction::Start {
+            disconnect_grace_seconds,
             launch: ApplicationLaunch::GameHook { arguments, .. },
             ..
         } => {
+            assert_eq!(*disconnect_grace_seconds, 10);
             assert_eq!(arguments, r#""含空格 参数""#);
         }
         _ => panic!("typed game launch required"),

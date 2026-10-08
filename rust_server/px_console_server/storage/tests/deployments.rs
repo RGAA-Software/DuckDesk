@@ -190,6 +190,7 @@ impl Fixture {
                     name: "应用".into(),
                     access: ApplicationAccess::Public,
                     launch,
+                    disconnect_grace_seconds: 10,
                     allow_observer: false,
                     allow_takeover: false,
                     disabled: false,
@@ -626,6 +627,41 @@ async fn concurrent_configuration_and_application_revisions_invalidate_preparati
         .report(&connection, deployment.id, &observation(&revised, 1))
         .await
         .is_ok());
+    app.spec.disconnect_grace_seconds = 30;
+    let updated_application = fixture
+        .apps
+        .update(&fixture.admin, app.id, 2, &app.spec)
+        .await
+        .unwrap();
+    let assignments = fixture
+        .deployments
+        .list_node(&connection, None, 50)
+        .await
+        .unwrap();
+    let assignment = assignments
+        .iter()
+        .find(|assignment| assignment.id == deployment.id)
+        .unwrap();
+    assert_eq!(
+        assignment.application_revision,
+        updated_application.revision
+    );
+    assert_eq!(assignment.deployment_revision, revised.revision);
+    let mut new_observation = observation(&revised, 2);
+    assert!(fixture
+        .deployments
+        .report(&connection, deployment.id, &new_observation)
+        .await
+        .is_err());
+    new_observation.application_revision = updated_application.revision;
+    let refreshed = fixture
+        .deployments
+        .report(&connection, deployment.id, &new_observation)
+        .await
+        .unwrap();
+    assert_eq!(refreshed.application_revision, updated_application.revision);
+    assert_eq!(refreshed.observed_state, "ready");
+    assert_eq!(refreshed.revision, revised.revision);
     fixture.close().await;
 }
 

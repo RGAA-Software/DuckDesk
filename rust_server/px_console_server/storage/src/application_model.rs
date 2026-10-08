@@ -121,6 +121,7 @@ pub struct ApplicationSpec {
     pub name: String,
     pub access: ApplicationAccess,
     pub launch: ApplicationLaunch,
+    pub disconnect_grace_seconds: u32,
     pub allow_observer: bool,
     pub allow_takeover: bool,
     pub disabled: bool,
@@ -131,6 +132,9 @@ impl ApplicationSpec {
             || self.name.trim() != self.name
             || self.name.chars().any(char::is_control)
         {
+            return Err(StoreError::InvalidInput);
+        }
+        if !(1..=3600).contains(&self.disconnect_grace_seconds) {
             return Err(StoreError::InvalidInput);
         }
         self.launch.validate()?;
@@ -179,6 +183,38 @@ fn webview_url(value: &str) -> Result<(), StoreError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn disconnect_grace_is_bounded_for_every_application_kind() {
+        for launch in [
+            ApplicationLaunch::Rdp,
+            ApplicationLaunch::Webview {
+                entry_url: "https://example.com".into(),
+                video: VideoSpec {
+                    codec: VideoCodec::H264,
+                    bitrate_kbps: 8000,
+                },
+            },
+        ] {
+            let mut spec = ApplicationSpec {
+                name: "Grace test".into(),
+                access: ApplicationAccess::Public,
+                launch,
+                disconnect_grace_seconds: 10,
+                allow_observer: false,
+                allow_takeover: false,
+                disabled: false,
+            };
+            for seconds in [1, 10, 30, 3600] {
+                spec.disconnect_grace_seconds = seconds;
+                assert!(spec.validate().is_ok());
+            }
+            for seconds in [0, 3601, u32::MAX] {
+                spec.disconnect_grace_seconds = seconds;
+                assert!(spec.validate().is_err());
+            }
+        }
+    }
+
     #[test]
     fn executable_paths_preserve_unicode_spaces_but_reject_escape_and_windows_aliases() {
         for good in [
@@ -240,6 +276,7 @@ mod tests {
             name: "应用".into(),
             access: ApplicationAccess::Acl,
             launch: ApplicationLaunch::Rdp,
+            disconnect_grace_seconds: 10,
             allow_observer: false,
             allow_takeover: false,
             disabled: false,

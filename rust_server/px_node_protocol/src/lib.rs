@@ -61,6 +61,7 @@ pub enum ApplicationLaunch {
 pub enum NodeCommandAction {
     Start {
         port: u16,
+        disconnect_grace_seconds: u32,
         launch: ApplicationLaunch,
         gpu_binding: Option<GpuBinding>,
         relay: Option<RelayEndpoint>,

@@ -5,7 +5,7 @@ SELECT d.id,
        d.gpu_key,
        d.disabled,
        d.revision AS deployment_revision,
-       d.application_revision
+       a.revision AS application_revision
 FROM pixels.application_deployments d
 JOIN pixels.applications a ON a.id = d.application_id
 WHERE d.node_id = $1

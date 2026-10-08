@@ -140,7 +140,8 @@ export default {
         disabled: "禁用设备",
         edit: "编辑设备",
         groups: "授权用户组",
-        inventoryNotice: "统一管理设备和访问权限；打开运行详情查看硬件监控、历史记录并配置运行服务。",
+        inventoryNotice:
+            "统一管理设备和访问权限；打开运行详情查看硬件监控、历史记录并配置运行服务。",
         name: "设备名称",
         platform: "平台",
         platforms: {
@@ -158,8 +159,6 @@ export default {
         confirm: {
             deleteImpact: "设备目录、访问授权及关联节点身份将失效。",
             deleteTitle: "删除设备 {name}？",
-
-
         },
         messages: {
             accessSaved: "设备访问授权已保存",
@@ -175,6 +174,9 @@ export default {
         allowObserver: "允许观看者",
         allowTakeover: "允许接管",
         arguments: "启动参数",
+        disconnectGrace: "断开宽限期（秒）",
+        disconnectGraceHelp:
+            "最后一位客户端断开后，等待此时长再停止实例；期间重新连接会取消退出。默认 10 秒，范围 1～3600 秒，保存后对新启动的实例生效。RDP 只停止连接运行时，保留 Windows 会话和应用。",
         bitrate: "码率（kbps）",
         catalogTitle: "应用目录",
         codec: "编码格式",
@@ -183,7 +185,8 @@ export default {
         edit: "编辑应用",
         entryUrl: "WebView 入口 URL",
         executable: "可执行文件绝对路径",
-        executableHelp: "直接填写服务器上的 exe 完整路径，例如 D:\\software\\2dadventure\\2dAdventure.exe；启动参数填写在单独的参数栏中。",
+        executableHelp:
+            "直接填写服务器上的 exe 完整路径，例如 D:\\software\\2dadventure\\2dAdventure.exe；启动参数填写在单独的参数栏中。",
         groups: "授权用户组",
         kind: "类型",
         kinds: { game_hook: "Game Hook", rdp: "RDP 应用", webview: "WebView" },
@@ -194,7 +197,8 @@ export default {
         },
         messages: {
             saved: "应用已保存",
-            invalidInput: "应用配置不符合服务器要求。请检查可执行文件绝对路径、启动参数、网址和码率。",
+            invalidInput:
+                "应用配置不符合服务器要求。请检查可执行文件绝对路径、启动参数、网址和码率。",
             sessionExpired: "登录已过期，请重新登录后保存。",
             rejected: "没有权限保存此应用，请检查管理员权限。",
             conflict: "应用配置已发生变化，请刷新后重新编辑。",
@@ -203,8 +207,10 @@ export default {
         validation: {
             groups: "用户组授权模式至少需要选择一个用户组",
             name: "应用名称需要 1–128 个字符，首尾不能有空格，不能包含换行或控制字符",
-            executable: "请填写包含盘符的本地 exe 完整路径，例如 D:\\Games\\game.exe；使用反斜杠，不要添加外层引号、..、保留文件名或末尾空格，长度不能超过 2048 字节。",
+            executable:
+                "请填写包含盘符的本地 exe 完整路径，例如 D:\\Games\\game.exe；使用反斜杠，不要添加外层引号、..、保留文件名或末尾空格，长度不能超过 2048 字节。",
             arguments: "启动参数不能包含换行或控制字符（允许制表符），长度不能超过 8192 字节。",
+            disconnectGrace: "断开宽限期必须是 1～3600 秒之间的整数。",
             bitrate: "码率必须是 128–200000 kbps 之间的整数。",
         },
     },
@@ -259,7 +265,8 @@ export default {
             notReady: "未就绪",
             unknown: "状态未获近期确认",
         },
-        statusNotice: "状态依据已认证上报；过期遥测不显示为当前指标。调度仍会检查能力、端点修订和容量。",
+        statusNotice:
+            "状态依据已认证上报；过期遥测不显示为当前指标。调度仍会检查能力、端点修订和容量。",
         title: "节点身份与状态",
         telemetryState: "遥测状态",
         telemetryStates: { ready: "完整", partial: "部分可用", unavailable: "不可用" },
@@ -285,8 +292,6 @@ export default {
         confirm: {
             deleteImpact: "节点身份、连接和调度资格将失效。请先排空正在运行的会话。",
             deleteTitle: "删除该节点？",
-
-
         },
         messages: { copied: "节点令牌已复制" },
         validation: { device: "请选择尚未绑定节点的设备" },
@@ -339,17 +344,33 @@ export default {
         manageTargets: "选择部署机器",
         targetMachines: "部署机器（可多选）",
         selectMachines: "选择一组机器参与此应用的启动调度",
-        targetsHelp: "同一应用可部署到多台机器，启动时由调度器选择可用机器。取消选择会禁用该机器上的应用部署，保留部署记录。",
+        targetsHelp:
+            "同一应用可部署到多台机器，启动时由调度器选择可用机器。取消选择会禁用该机器上的应用部署，保留部署记录。",
         newNodeCapacity: "新增机器的单机实例容量",
-        preserveSettings: "已有机器的容量和 GPU 配置保持不变；新增机器自动选择 GPU，可在部署列表中逐台配置。",
+        preserveSettings:
+            "已有机器的容量和 GPU 配置保持不变；新增机器自动选择 GPU，可在部署列表中逐台配置。",
         noTargetsWarning: "未选择任何机器，保存后此应用将没有启用的部署可供启动调度。",
         targetsSaved: "部署机器配置已保存。各节点准备就绪后即可参与启动调度。",
         saveTargets: "保存部署机器",
         retryTargets: "重试未完成的操作",
-        targetActions: { create: "新增部署", enable: "启用部署", disable: "禁用部署", keep: "保留配置" },
-        targetStates: { pending: "等待中", saving: "正在保存", saved: "已保存", unchanged: "已保留", error: "失败", blocked: "新增机器失败，暂不禁用原机器" },
-        duplicate: "该应用在所选节点上已经有部署，不能重复新建。请编辑现有部署；增加并发实例数量请调整容量。",
-        allNodesDeployed: "该应用已部署到所有可用节点，无需重复新建。增加并发实例数量请点击下方“编辑”调整容量；部署到其他机器需先添加节点。",
+        targetActions: {
+            create: "新增部署",
+            enable: "启用部署",
+            disable: "禁用部署",
+            keep: "保留配置",
+        },
+        targetStates: {
+            pending: "等待中",
+            saving: "正在保存",
+            saved: "已保存",
+            unchanged: "已保留",
+            error: "失败",
+            blocked: "新增机器失败，暂不禁用原机器",
+        },
+        duplicate:
+            "该应用在所选节点上已经有部署，不能重复新建。请编辑现有部署；增加并发实例数量请调整容量。",
+        allNodesDeployed:
+            "该应用已部署到所有可用节点，无需重复新建。增加并发实例数量请点击下方“编辑”调整容量；部署到其他机器需先添加节点。",
         noNodes: "没有可用于新建部署的节点，请先添加或启用节点。",
         deployedNode: "{node}（已部署）",
         editExisting: "编辑现有部署",
@@ -364,7 +385,8 @@ export default {
         back: "返回部署列表",
         save: "保存部署",
         loadFailed: "部署或节点列表加载失败，请重试。",
-        saveFailed: "部署保存失败。请检查节点、配置和登录状态；若配置已被修改，请返回列表重新编辑。",
+        saveFailed:
+            "部署保存失败。请检查节点、配置和登录状态；若配置已被修改，请返回列表重新编辑。",
         retry: "重试",
         empty: "该应用尚未添加部署，请点击“选择部署机器”。",
         application: "应用",
@@ -617,13 +639,25 @@ export default {
         runtime: {
             nodesTitle: "节点资源概况",
             applicationsTitle: "应用运行概况",
-            node: "节点", status: "状态", memory: "内存已用 / 总量", gpu: "GPU / 显存",
-            gpuUsage: "使用率", vram: "显存", running: "运行中", application: "应用",
-            machines: "部署机器数", pending: "启动中 / 清理中", headroom: "预计调度余量",
-            streamCount: "{count} 路", manageNodes: "管理设备", manageApps: "管理应用",
+            node: "节点",
+            status: "状态",
+            memory: "内存已用 / 总量",
+            gpu: "GPU / 显存",
+            gpuUsage: "使用率",
+            vram: "显存",
+            running: "运行中",
+            application: "应用",
+            machines: "部署机器数",
+            pending: "启动中 / 清理中",
+            headroom: "预计调度余量",
+            streamCount: "{count} 路",
+            manageNodes: "管理设备",
+            manageApps: "管理应用",
             refreshNotice: "每 15 秒自动刷新，也会随运行状态变化更新。",
-            telemetryNotice: "资源指标来自节点最新上报；过期或无法读取时显示 —。运行路数按服务端实例统计。",
-            capacityNotice: "余量按当前可调度节点、部署容量和端口估算，不预留资源；不同应用共享机器容量，不能相加。实际启动还需通过许可证及用户授权检查。— 表示暂时无法确认。",
+            telemetryNotice:
+                "资源指标来自节点最新上报；过期或无法读取时显示 —。运行路数按服务端实例统计。",
+            capacityNotice:
+                "余量按当前可调度节点、部署容量和端口估算，不预留资源；不同应用共享机器容量，不能相加。实际启动还需通过许可证及用户授权检查。— 表示暂时无法确认。",
             loadFailed: "总览数据读取失败或已过期，请刷新重试。",
         },
         activeSessions: "活动会话",
@@ -642,7 +676,8 @@ export default {
         },
         licenseTitle: "许可证",
         licenseNotActivated: "尚未安装许可证，业务服务暂不可用。",
-        starterLicenseLimits: "默认授权：远程桌面、游戏、WebView、RDP 各最多同时 1 路。可在此导入新许可证更新授权。",
+        starterLicenseLimits:
+            "默认授权：远程桌面、游戏、WebView、RDP 各最多同时 1 路。可在此导入新许可证更新授权。",
         licenseImport: "导入已签发的 PXLIC2 许可证",
         licenseImportFailed: "许可证导入失败，请检查文件后重试。",
         licenseUnavailable: "暂时无法读取许可证状态，请稍后重试。",
@@ -674,7 +709,8 @@ export default {
         loading: "正在加载录像，完成后可播放…",
         unavailable: "录像准备失败或文件已不存在，请检查节点状态后重试。",
         failed: "无法读取录像。文件可能已丢失、节点离线或登录授权已失效，请刷新后重试。",
-        unsupported: "浏览器无法播放该录像，可能是编码不受支持或文件损坏。可下载后使用本地播放器查看。",
+        unsupported:
+            "浏览器无法播放该录像，可能是编码不受支持或文件损坏。可下载后使用本地播放器查看。",
         retry: "重试",
     },
     activity: {
@@ -684,7 +720,6 @@ export default {
         auditTitle: "会话与活动审计",
         channels: "通道",
         client: "客户端",
-        closedAt: "关闭时间",
         cloudApplication: "云应用",
         codec: "编码",
         connectedAt: "首次连接",
@@ -693,7 +728,6 @@ export default {
         direction: "方向",
         download: "下载",
         file: "文件",
-        includeClosed: "包含已关闭",
         kind: "类型",
         node: "节点",
         observedAt: "观测时间",
@@ -720,9 +754,30 @@ export default {
         role: "访问角色",
         sent: "发送",
         session: "会话 ID",
-        sessionNotice:
-            "管理页面只读取会话状态和主体，不获取连接 descriptor、前端秘密或任何短期 ticket。",
-        sessionsTitle: "资源会话",
+        sessionNotice: "仅显示尚未关闭的连接。点击应用名称查看详情；历史访问请前往安全审计。",
+        sessionsTitle: "在线连接",
+        sessionsLoadFailed: "刷新连接信息失败，当前显示上次读取的结果，请重试。",
+        applicationDetails: "应用详情",
+        applicationEnabled: "已启用",
+        applicationDisabled: "已禁用",
+        guest: "访客",
+        unknownUser: "用户信息不可用",
+        unavailableDevice: "设备已删除或不可用",
+        unavailableApplication: "应用已删除或不可用",
+        clients: {
+            panel: "Windows 客户端",
+            android: "Android 客户端",
+            user_web: "Web 客户端",
+            admin_web: "管理后台",
+            unknown: "未知客户端",
+        },
+        roles: { controller: "控制", observer: "观看", unknown: "未知角色" },
+        sessionStates: {
+            pending: "连接中",
+            connected: "已连接",
+            closed: "已关闭",
+            unknown: "未知状态",
+        },
         size: "大小",
         state: "状态",
         target: "目标",

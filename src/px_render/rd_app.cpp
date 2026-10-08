@@ -201,7 +201,8 @@ std::shared_ptr<RdApplication> RdApplication::Make(const AppParams& args) {
     // Linux
 }
 
-RdApplication::RdApplication(const AppParams& args) : settings_(*RdSettings::Instance()) {
+RdApplication::RdApplication(const AppParams& args)
+    : settings_(*RdSettings::Instance()), application_idle_lifecycle_(std::chrono::seconds{settings_.application_disconnect_grace_seconds_}) {
     logical_session_registry_ = std::make_shared<LogicalSessionRegistry>();
     logical_session_registry_->SetIncomingAccessEnabled(
         ResolveIncomingAccessEnabled(settings_.IncomingAccessProduct(), settings_.incoming_remote_access_enabled_));
@@ -820,6 +821,7 @@ void RdApplication::InitAppTimer() {
 }
 
 void RdApplication::StartApplicationIdleLifecycle() {
+    LOGI("event=application.idle_policy disconnect_grace_seconds={} startup_grace_seconds=45", settings_.application_disconnect_grace_seconds_);
     if (const auto deadline = application_idle_lifecycle_.ArmStartup(ApplicationIdleLifecycle::Clock::now())) ScheduleApplicationIdleExit(*deadline);
 }
 
@@ -858,7 +860,8 @@ void RdApplication::InitConnectionLifecycle() {
             self->webview_runtime_->SendFocusEvent(false);
             self->webview_runtime_->SetActive(false);
         }
-        LOGI("Last application client disconnected; stop render in 5 seconds unless a client reconnects.");
+        LOGI("event=application.disconnect_grace seconds={}; last client disconnected, reconnect cancels exit",
+             self->settings_.application_disconnect_grace_seconds_);
         self->ScheduleApplicationIdleExit(*deadline);
     });
 }

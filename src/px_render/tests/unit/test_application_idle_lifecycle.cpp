@@ -21,16 +21,34 @@ TEST(ApplicationIdleLifecycle, NeverConnectedInstanceExitsAfterFortyFiveSecondsO
     EXPECT_FALSE(lifecycle.ClaimExpiry(*deadline, kStartedAt + 46s));
 }
 
-TEST(ApplicationIdleLifecycle, EarlyDisconnectUsesFiveSecondsInsteadOfStartupGrace) {
+TEST(ApplicationIdleLifecycle, EarlyDisconnectUsesTenSecondsInsteadOfStartupGrace) {
     ApplicationIdleLifecycle lifecycle{};
     const auto startup = lifecycle.ArmStartup(kStartedAt);
     lifecycle.Connected("first-viewer");
     const auto disconnect = lifecycle.Disconnected("first-viewer", kStartedAt + 2s);
     ASSERT_TRUE(disconnect);
     EXPECT_FALSE(disconnect->startup);
-    EXPECT_FALSE(lifecycle.ClaimExpiry(*disconnect, kStartedAt + 6999ms));
-    EXPECT_TRUE(lifecycle.ClaimExpiry(*disconnect, kStartedAt + 7s));
+    EXPECT_FALSE(lifecycle.ClaimExpiry(*disconnect, kStartedAt + 11999ms));
+    EXPECT_TRUE(lifecycle.ClaimExpiry(*disconnect, kStartedAt + 12s));
     EXPECT_FALSE(lifecycle.ClaimExpiry(*startup, kStartedAt + 45s));
+}
+
+TEST(ApplicationIdleLifecycle, CustomGraceKeepsStartupTimeoutAndReconnectCancellation) {
+    ApplicationIdleLifecycle lifecycle{30s};
+    const auto startup = lifecycle.ArmStartup(kStartedAt);
+    ASSERT_TRUE(startup);
+    EXPECT_EQ(startup->expires_at, kStartedAt + 45s);
+    lifecycle.Connected("viewer");
+    const auto first_disconnect = lifecycle.Disconnected("viewer", kStartedAt + 1s);
+    ASSERT_TRUE(first_disconnect);
+    EXPECT_EQ(first_disconnect->expires_at, kStartedAt + 31s);
+    EXPECT_FALSE(lifecycle.ClaimExpiry(*first_disconnect, kStartedAt + 30999ms));
+    lifecycle.Connected("viewer");
+    EXPECT_FALSE(lifecycle.ClaimExpiry(*first_disconnect, kStartedAt + 31s));
+    const auto second_disconnect = lifecycle.Disconnected("viewer", kStartedAt + 40s);
+    ASSERT_TRUE(second_disconnect);
+    EXPECT_FALSE(lifecycle.ClaimExpiry(*second_disconnect, kStartedAt + 69999ms));
+    EXPECT_TRUE(lifecycle.ClaimExpiry(*second_disconnect, kStartedAt + 70s));
 }
 
 TEST(ApplicationIdleLifecycle, ReconnectInvalidatesEveryPreviousDeadline) {
@@ -47,7 +65,7 @@ TEST(ApplicationIdleLifecycle, ReconnectInvalidatesEveryPreviousDeadline) {
     }
     const auto final_disconnect = lifecycle.Disconnected("viewer", kStartedAt + 1h);
     ASSERT_TRUE(final_disconnect);
-    EXPECT_TRUE(lifecycle.ClaimExpiry(*final_disconnect, kStartedAt + 1h + 5s));
+    EXPECT_TRUE(lifecycle.ClaimExpiry(*final_disconnect, kStartedAt + 1h + 10s));
 }
 
 TEST(ApplicationIdleLifecycle, RemainingConnectionsPreventExitAndDuplicatesDoNotExtendGrace) {
@@ -63,7 +81,7 @@ TEST(ApplicationIdleLifecycle, RemainingConnectionsPreventExitAndDuplicatesDoNot
     const auto disconnect = lifecycle.Disconnected("observer", kStartedAt + 1h);
     ASSERT_TRUE(disconnect);
     EXPECT_FALSE(lifecycle.Disconnected("observer", kStartedAt + 1h + 4s));
-    EXPECT_TRUE(lifecycle.ClaimExpiry(*disconnect, kStartedAt + 1h + 5s));
+    EXPECT_TRUE(lifecycle.ClaimExpiry(*disconnect, kStartedAt + 1h + 10s));
 }
 
 TEST(ApplicationIdleLifecycle, EmptyAndUnknownConnectionsCannotCancelStartupTimeout) {
@@ -81,7 +99,7 @@ TEST(ApplicationIdleLifecycle, ConnectionsBeforeStartupArmingArePreserved) {
     EXPECT_FALSE(lifecycle.ArmStartup(kStartedAt));
     const auto disconnect = lifecycle.Disconnected("early-viewer", kStartedAt + 1s);
     ASSERT_TRUE(disconnect);
-    EXPECT_TRUE(lifecycle.ClaimExpiry(*disconnect, kStartedAt + 6s));
+    EXPECT_TRUE(lifecycle.ClaimExpiry(*disconnect, kStartedAt + 11s));
 }
 
 TEST(ApplicationIdleLifecycle, DisconnectBeforeArmingReceivesDisconnectGrace) {
@@ -91,7 +109,7 @@ TEST(ApplicationIdleLifecycle, DisconnectBeforeArmingReceivesDisconnectGrace) {
     const auto deadline = lifecycle.ArmStartup(kStartedAt + 1s);
     ASSERT_TRUE(deadline);
     EXPECT_FALSE(deadline->startup);
-    EXPECT_TRUE(lifecycle.ClaimExpiry(*deadline, kStartedAt + 6s));
+    EXPECT_TRUE(lifecycle.ClaimExpiry(*deadline, kStartedAt + 11s));
 }
 
 TEST(ApplicationIdleLifecycle, ShutdownFromCallbackInvalidatesQueuedExpiryAndRepeatedStopIsSafe) {

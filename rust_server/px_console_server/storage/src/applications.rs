@@ -43,6 +43,7 @@ struct ApplicationRow {
     arguments: Option<String>,
     bitrate_kbps: Option<i32>,
     codec: Option<String>,
+    disconnect_grace_seconds: i32,
     allow_observer: bool,
     allow_takeover: bool,
     disabled: bool,
@@ -89,6 +90,10 @@ impl ApplicationRow {
                 "acl" => ApplicationAccess::Acl,
                 _ => return Err(invalid),
             },
+            disconnect_grace_seconds: self
+                .disconnect_grace_seconds
+                .try_into()
+                .map_err(|_| invalid)?,
             allow_observer: self.allow_observer,
             allow_takeover: self.allow_takeover,
             disabled: self.disabled,
@@ -180,7 +185,8 @@ impl ApplicationStore {
             spec.launch.video().map(|video| video.codec.name()),
             spec.allow_observer,
             spec.allow_takeover,
-            spec.disabled
+            spec.disabled,
+            spec.disconnect_grace_seconds as i32
         )
         .fetch_one(&mut *tx)
         .await?
@@ -336,7 +342,8 @@ impl ApplicationStore {
             spec.allow_observer,
             spec.allow_takeover,
             spec.disabled,
-            i64::from(access_changed)
+            i64::from(access_changed),
+            spec.disconnect_grace_seconds as i32
         )
         .fetch_one(&mut *tx)
         .await?

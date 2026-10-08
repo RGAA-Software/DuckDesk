@@ -17,6 +17,7 @@ export interface ApplicationSpec {
     name: string;
     access: ApplicationAccess;
     launch: ApplicationLaunch;
+    disconnect_grace_seconds: number;
     allow_observer: boolean;
     allow_takeover: boolean;
     disabled: boolean;

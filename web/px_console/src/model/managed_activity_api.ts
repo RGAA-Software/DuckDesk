@@ -1,7 +1,7 @@
 import axiosHttp from "@/http";
 import type { AxiosRequestConfig } from "axios";
 
-export type ResourceOwner = { user: { user_id: string } } | { guest: { guest_id: string } };
+export type ResourceOwner = { kind: "user"; user_id: string } | { kind: "guest"; guest_id: string };
 export type SessionTarget =
     | { kind: "desktop"; device_id: string }
     | { kind: "cloud_application"; application_id: string; instance_id: string };

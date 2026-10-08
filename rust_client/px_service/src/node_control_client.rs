@@ -1914,6 +1914,7 @@ async fn execute_command_before_deadline(
             launch,
             gpu_binding,
             relay,
+            ..
         } => {
             let rdp = matches!(launch, ApplicationLaunch::Rdp);
             if rdp != rdp_workspace.is_some() {
@@ -2067,6 +2068,16 @@ fn start_request(
     relay: Option<&px_node_protocol::RelayEndpoint>,
     security: StartSecurityContext,
 ) -> Result<StartAppRequest, String> {
+    let NodeCommandAction::Start {
+        disconnect_grace_seconds,
+        ..
+    } = &command.action
+    else {
+        return Err("start request requires a start command".into());
+    };
+    if !(1..=3600).contains(disconnect_grace_seconds) {
+        return Err("application disconnect grace must be between 1 and 3600 seconds".into());
+    }
     let (mode, executable, arguments, webview, bitrate, codec) = match launch {
         ApplicationLaunch::GameHook {
             executable_path,
@@ -2118,6 +2129,7 @@ fn start_request(
         executable_path: executable,
         game_arguments: arguments,
         listen_port: i32::from(port),
+        disconnect_grace_seconds: *disconnect_grace_seconds,
         encoder_fps: 60,
         encoder_bitrate_kbps: i32::try_from(bitrate)
             .map_err(|_| "video bitrate is outside the Render range".to_string())?,
@@ -2534,6 +2546,7 @@ mod tests {
     #[test]
     fn start_conversion_preserves_paths_arguments_and_video() {
         let command = command(NodeCommandAction::Start {
+            disconnect_grace_seconds: 37,
             port: 4613,
             launch: ApplicationLaunch::GameHook {
                 executable_path: "D:\\Cloud Games\\游戏 目录\\game.exe".into(),
@@ -2576,6 +2589,7 @@ mod tests {
     #[test]
     fn webview_conversion_uses_url_safe_payload_without_executable() {
         let command = command(NodeCommandAction::Start {
+            disconnect_grace_seconds: 37,
             port: 4614,
             launch: ApplicationLaunch::Webview {
                 entry_url: "https://example.com/云应用".into(),
@@ -2627,6 +2641,7 @@ mod tests {
     #[test]
     fn rdp_conversion_requires_workspace_omits_gpu_and_uses_authenticated_node_identity() {
         let command = command(NodeCommandAction::Start {
+            disconnect_grace_seconds: 37,
             port: 4615,
             launch: ApplicationLaunch::Rdp,
             gpu_binding: None,
@@ -2667,6 +2682,7 @@ mod tests {
             },
         )
         .unwrap();
+        assert_eq!(request.disconnect_grace_seconds, 37);
         assert_eq!(request.app_mode, service_core::app_instance::APP_MODE_RDP);
         assert_eq!(request.rdp_node_id, identity.node_id.to_string());
         assert_eq!(request.device_id, identity.device_id.to_string());

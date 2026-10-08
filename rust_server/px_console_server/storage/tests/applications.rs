@@ -56,6 +56,7 @@ fn spec() -> ApplicationSpec {
                 bitrate_kbps: 20_000,
             },
         },
+        disconnect_grace_seconds: 10,
         allow_observer: true,
         allow_takeover: true,
         disabled: false,
@@ -341,12 +342,14 @@ async fn public_acl_disable_and_configuration_versions_are_distinct() {
     let user = fixture.user().await;
     let current = fixture.session(user, ClientType::Panel).await;
     input.name = "renamed".into();
+    input.disconnect_grace_seconds = 30;
     let app = fixture
         .apps
         .update(&fixture.admin, app.id, 1, &input)
         .await
         .unwrap();
     assert_eq!((app.revision, app.access_revision), (2, 1));
+    assert_eq!(app.spec.disconnect_grace_seconds, 30);
     assert!(fixture
         .apps
         .get_visible(&current, ClientType::Panel, app.id)

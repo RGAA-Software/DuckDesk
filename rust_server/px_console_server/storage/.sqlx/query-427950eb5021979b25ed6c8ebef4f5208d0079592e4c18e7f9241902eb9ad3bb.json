@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT d.id,\r\n       d.application_id,\r\n       d.kind,\r\n       a.executable_path,\r\n       d.gpu_key,\r\n       d.disabled,\r\n       d.revision AS deployment_revision,\r\n       d.application_revision\r\nFROM pixels.application_deployments d\r\nJOIN pixels.applications a ON a.id = d.application_id\r\nWHERE d.node_id = $1\n  AND a.deleted_at IS NULL\n  AND ($2::uuid IS NULL OR d.id > $2)\r\nORDER BY d.id\r\nLIMIT $3\r\n",
+  "query": "SELECT d.id,\n       d.application_id,\n       d.kind,\n       a.executable_path,\n       d.gpu_key,\n       d.disabled,\n       d.revision AS deployment_revision,\n       a.revision AS application_revision\nFROM pixels.application_deployments d\nJOIN pixels.applications a ON a.id = d.application_id\nWHERE d.node_id = $1\n  AND a.deleted_at IS NULL\n  AND ($2::uuid IS NULL OR d.id > $2)\nORDER BY d.id\nLIMIT $3\n",
   "describe": {
     "columns": [
       {
@@ -62,5 +62,5 @@
       false
     ]
   },
-  "hash": "c4e7ef7d0f6a3837ed1f8d234e2edb540a9b28befcdbd0b44413c472e5a009a1"
+  "hash": "427950eb5021979b25ed6c8ebef4f5208d0079592e4c18e7f9241902eb9ad3bb"
 }

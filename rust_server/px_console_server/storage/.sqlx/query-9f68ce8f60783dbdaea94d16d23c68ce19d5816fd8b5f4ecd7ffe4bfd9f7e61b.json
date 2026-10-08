@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE pixels.application_deployments d SET observed_state=$9,observed_reason=$10,\r\nobserved_generation=n.generation,observed_epoch=n.control_epoch,observed_endpoint_revision=n.endpoint_revision,\r\nobserved_sequence=$8,observed_at=clock_timestamp()\r\nFROM pixels.nodes n,pixels.applications a,pixels.devices v\r\nWHERE d.id=$1 AND d.node_id=n.id AND a.id=d.application_id AND v.id=n.device_id\r\nAND n.connection_hash=$2 AND n.generation=$3 AND n.control_epoch=$4 AND $4=(SELECT epoch FROM pixels.control_runtime)\r\nAND n.endpoint_revision=$5 AND n.last_seen>clock_timestamp()-interval '30 seconds' AND n.report_sequence>0\r\nAND NOT n.disabled AND n.deleted_at IS NULL AND NOT v.disabled AND v.deleted_at IS NULL\r\nAND d.revision=$6 AND d.application_revision=$7 AND a.revision=$7 AND a.deleted_at IS NULL\r\nAND (d.observed_generation IS DISTINCT FROM $3 OR d.observed_epoch IS DISTINCT FROM $4 OR d.observed_sequence<$8)\r\nRETURNING d.id,d.application_id,d.node_id,d.kind,d.gpu_key,d.capacity,d.disabled,d.revision,d.application_revision,d.observed_state,d.observed_reason,d.observed_generation,d.observed_epoch,d.observed_endpoint_revision,d.observed_sequence,d.observed_at\r\n",
+  "query": "UPDATE pixels.application_deployments d SET observed_state=$9,observed_reason=$10,\nobserved_generation=n.generation,observed_epoch=n.control_epoch,observed_endpoint_revision=n.endpoint_revision,\napplication_revision=$7,observed_sequence=$8,observed_at=clock_timestamp()\nFROM pixels.nodes n,pixels.applications a,pixels.devices v\nWHERE d.id=$1 AND d.node_id=n.id AND a.id=d.application_id AND v.id=n.device_id\nAND n.connection_hash=$2 AND n.generation=$3 AND n.control_epoch=$4 AND $4=(SELECT epoch FROM pixels.control_runtime)\nAND n.endpoint_revision=$5 AND n.last_seen>clock_timestamp()-interval '30 seconds' AND n.report_sequence>0\nAND NOT n.disabled AND n.deleted_at IS NULL AND NOT v.disabled AND v.deleted_at IS NULL\nAND d.revision=$6 AND a.revision=$7 AND a.deleted_at IS NULL\nAND (d.observed_generation IS DISTINCT FROM $3 OR d.observed_epoch IS DISTINCT FROM $4 OR d.observed_sequence<$8)\nRETURNING d.id,d.application_id,d.node_id,d.kind,d.gpu_key,d.capacity,d.disabled,d.revision,d.application_revision,d.observed_state,d.observed_reason,d.observed_generation,d.observed_epoch,d.observed_endpoint_revision,d.observed_sequence,d.observed_at\n",
   "describe": {
     "columns": [
       {
@@ -117,5 +117,5 @@
       true
     ]
   },
-  "hash": "9649dd50e4db5e897c1697817be2088d3bf6faa083c164881070d167e4258224"
+  "hash": "9f68ce8f60783dbdaea94d16d23c68ce19d5816fd8b5f4ecd7ffe4bfd9f7e61b"
 }

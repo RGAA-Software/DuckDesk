@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id,name,kind,access_mode,entry_url,executable_path,arguments,bitrate_kbps,codec,allow_observer,allow_takeover,disabled,revision,access_revision FROM pixels.applications WHERE deleted_at IS NULL AND ($1::uuid IS NULL OR id>$1) ORDER BY id LIMIT $2\r\n",
+  "query": "SELECT id,name,kind,access_mode,entry_url,executable_path,arguments,bitrate_kbps,codec,allow_observer,allow_takeover,disabled,disconnect_grace_seconds,revision,access_revision FROM pixels.applications WHERE deleted_at IS NULL AND ($1::uuid IS NULL OR id>$1) ORDER BY id LIMIT $2\n",
   "describe": {
     "columns": [
       {
@@ -65,11 +65,16 @@
       },
       {
         "ordinal": 12,
+        "name": "disconnect_grace_seconds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 13,
         "name": "revision",
         "type_info": "Int8"
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "access_revision",
         "type_info": "Int8"
       }
@@ -94,8 +99,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "3b56d7f565e1acec43d1c28b39cde38d3056442d4c9eb289ed51f45bd5fe437c"
+  "hash": "642428ddbe0c628eaa8c14f749d1266392eaff28a93f0a74319e4a7365877a2a"
 }

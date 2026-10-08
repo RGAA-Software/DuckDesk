@@ -40,6 +40,7 @@ const form = reactive({
     arguments: "",
     entryUrl: "",
     codec: "h264" as VideoCodec,
+    disconnectGraceSeconds: 10,
     bitrateKbps: 20_000,
     allowObserver: false,
     allowTakeover: false,
@@ -70,6 +71,7 @@ function resetForm() {
         arguments: "",
         entryUrl: "",
         codec: "h264",
+        disconnectGraceSeconds: 10,
         bitrateKbps: 20_000,
         allowObserver: false,
         allowTakeover: false,
@@ -96,6 +98,7 @@ async function edit(application: ManagedApplication) {
         entryUrl: launch.kind === "webview" ? launch.entry_url : "",
         codec: launch.kind === "rdp" ? "h264" : launch.video.codec,
         bitrateKbps: launch.kind === "rdp" ? 20_000 : launch.video.bitrate_kbps,
+        disconnectGraceSeconds: application.spec.disconnect_grace_seconds,
         allowObserver: application.spec.allow_observer,
         allowTakeover: application.spec.allow_takeover,
         disabled: application.spec.disabled,
@@ -123,6 +126,7 @@ async function save() {
         name: form.name,
         access: form.access,
         launch: launch(),
+        disconnect_grace_seconds: form.disconnectGraceSeconds,
         allow_observer: form.kind === "rdp" ? false : form.allowObserver,
         allow_takeover: form.kind === "rdp" ? false : form.allowTakeover,
         disabled: form.disabled,
@@ -294,6 +298,17 @@ useManagementRefresh(["applications"], refresh);
                     ><a-form-item :label="t('applications.allowTakeover')"
                         ><a-switch v-model:checked="form.allowTakeover" /></a-form-item></a-col
             ></a-row>
+            <a-form-item
+                :label="t('applications.disconnectGrace')"
+                :extra="t('applications.disconnectGraceHelp')"
+            >
+                <a-input-number
+                    v-model:value="form.disconnectGraceSeconds"
+                    :min="1"
+                    :max="3600"
+                    :precision="0"
+                />
+            </a-form-item>
             <a-form-item :label="t('applications.access')"
                 ><a-radio-group v-model:value="form.access"
                     ><a-radio value="public">{{ t("applications.accessModes.public") }}</a-radio

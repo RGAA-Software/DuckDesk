@@ -228,6 +228,7 @@ impl Fixture {
                     name: "应用".into(),
                     access: ApplicationAccess::Public,
                     launch,
+                    disconnect_grace_seconds: 10,
                     allow_observer: false,
                     allow_takeover: false,
                     disabled: false,

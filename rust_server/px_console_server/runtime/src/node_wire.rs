@@ -343,12 +343,14 @@ pub fn command(value: store::NodeCommand, relay_app_key: Option<&str>) -> wire::
         action: match value.action {
             store::NodeCommandAction::Start {
                 port,
+                disconnect_grace_seconds,
                 launch,
                 gpu_binding,
             } => {
                 let rdp = matches!(&launch, store::ApplicationLaunch::Rdp);
                 wire::NodeCommandAction::Start {
                     port,
+                    disconnect_grace_seconds,
                     launch: application(launch),
                     gpu_binding: gpu_binding.map(|binding| wire::GpuBinding {
                         stable_key: binding.stable_key,
@@ -432,6 +434,7 @@ mod tests {
                 public_port: 4710,
             }),
             action: store::NodeCommandAction::Start {
+                disconnect_grace_seconds: 37,
                 port: 4613,
                 launch: store::ApplicationLaunch::Webview {
                     entry_url: "https://example.test/application".into(),
@@ -445,11 +448,14 @@ mod tests {
         };
         let mapped = command(stored_command, Some("deployment-relay-signing-key"));
         let wire::NodeCommandAction::Start {
-            relay: Some(relay), ..
+            relay: Some(relay),
+            disconnect_grace_seconds,
+            ..
         } = mapped.action
         else {
             panic!("expected a Relay-bound Start command");
         };
+        assert_eq!(disconnect_grace_seconds, 37);
         assert_eq!(relay.host, "selected-relay.example.test");
         assert_eq!(relay.port, 4710);
         assert_eq!(relay.app_key, "deployment-relay-signing-key");

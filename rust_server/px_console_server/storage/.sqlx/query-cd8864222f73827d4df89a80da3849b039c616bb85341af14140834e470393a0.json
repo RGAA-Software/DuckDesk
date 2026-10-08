@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO pixels.applications(id,name,kind,access_mode,entry_url,executable_path,arguments,bitrate_kbps,codec,allow_observer,allow_takeover,disabled)\r\nVALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id,name,kind,access_mode,entry_url,executable_path,arguments,bitrate_kbps,codec,allow_observer,allow_takeover,disabled,revision,access_revision\r\n",
+  "query": "UPDATE pixels.applications SET name=$2,access_mode=$3,entry_url=$4,executable_path=$5,arguments=$6,bitrate_kbps=$7,codec=$8,\nallow_observer=$9,allow_takeover=$10,disabled=$11,disconnect_grace_seconds=$13,revision=revision+1,access_revision=access_revision+$12,updated_at=clock_timestamp() WHERE id=$1\nRETURNING id,name,kind,access_mode,entry_url,executable_path,arguments,bitrate_kbps,codec,allow_observer,allow_takeover,disabled,disconnect_grace_seconds,revision,access_revision\n",
   "describe": {
     "columns": [
       {
@@ -65,11 +65,16 @@
       },
       {
         "ordinal": 12,
+        "name": "disconnect_grace_seconds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 13,
         "name": "revision",
         "type_info": "Int8"
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "access_revision",
         "type_info": "Int8"
       }
@@ -82,12 +87,13 @@
         "Text",
         "Text",
         "Text",
-        "Text",
         "Int4",
         "Text",
         "Bool",
         "Bool",
-        "Bool"
+        "Bool",
+        "Int8",
+        "Int4"
       ]
     },
     "nullable": [
@@ -104,8 +110,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "60cd255154c7a1fcd4db0907f93f29416d2424dd11041ce510e49c0298a2d204"
+  "hash": "cd8864222f73827d4df89a80da3849b039c616bb85341af14140834e470393a0"
 }

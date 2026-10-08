@@ -7,6 +7,7 @@ use uuid::Uuid;
 pub enum NodeCommandAction {
     Start {
         port: u16,
+        disconnect_grace_seconds: u32,
         launch: ApplicationLaunch,
         gpu_binding: Option<GpuBinding>,
     },
@@ -90,6 +91,7 @@ pub(crate) struct CommandRow {
 }
 #[derive(sqlx::FromRow)]
 pub(crate) struct LaunchRow {
+    pub disconnect_grace_seconds: i32,
     pub kind: String,
     pub executable_path: Option<String>,
     pub arguments: Option<String>,
@@ -147,6 +149,10 @@ impl LaunchRow {
         }
         Ok(NodeCommandAction::Start {
             port: port.try_into().map_err(|_| invalid)?,
+            disconnect_grace_seconds: self
+                .disconnect_grace_seconds
+                .try_into()
+                .map_err(|_| invalid)?,
             launch,
             gpu_binding,
         })

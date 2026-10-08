@@ -1,0 +1,1609 @@
+#[path = "support/runtime_fixture.rs"]
+mod fixture;
+use axum::http::StatusCode;
+use fixture::{call, config, login, register, resource_call, start, PASSWORD};
+use serde_json::{json, Value};
+use uuid::Uuid;
+const FIXTURE_KIND: &str = "directory";
+fn spec(kind: &str, access: &str) -> Value {
+    let launch = match kind {
+        "rdp" => json!({"kind":"rdp"}),
+        "webview" => {
+            json!({"kind":"webview","entry_url":"https://example.test/app","video":{"codec":"h264","bitrate_kbps":8000}})
+        }
+        _ => {
+            json!({"kind":"game_hook","executable_path":"D:\\游戏 目录\\game.exe","arguments":"--title \"应用 名称\"","video":{"codec":"h265","bitrate_kbps":8000}})
+        }
+    };
+    json!({"name":Uuid::new_v4().to_string(),"launch":launch,"access":access,"allow_observer":false,"allow_takeover":false,"disabled":false})
+}
+async fn create_device(router: &axum::Router, admin: &str) -> Value {
+    let (status, value) = call(
+        router,
+        "POST",
+        "/api/console/managed/devices",
+        "admin_web",
+        Some(admin),
+        json!({"name":Uuid::new_v4().to_string(),"platform":"windows"}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{value}");
+    value
+}
+
+fn saved_connection_settings(name: &str) -> Value {
+    json!({
+        "name":name,
+        "video_bitrate_bps":10_000_000,
+        "video_fps":60,
+        "audio_enabled":true,
+        "clipboard_enabled":true,
+        "view_only":false,
+        "maximize":false,
+        "split_windows":false,
+        "prefer_peer_to_peer":true,
+        "audio_capture":"system_mix",
+        "background_rgb":0
+    })
+}
+
+#[tokio::test]
+async fn update_catalog_requires_explicit_approval_and_exact_client_identity() {
+    let runtime = start().await;
+    let router = runtime.router();
+    let admin = login(&router, "initial-admin", PASSWORD, "admin_web").await;
+    let username = register(&router).await;
+    let android = login(&router, &username, PASSWORD, "android").await;
+    let (license_status_code, license_status) = call(
+        &router,
+        "GET",
+        "/api/console/managed/license",
+        "admin_web",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(license_status_code, StatusCode::OK, "{license_status}");
+    assert_eq!(license_status["max_streams"], u32::MAX);
+    assert!(license_status.get("distribution").is_none());
+    assert!(license_status.get("online_fresh_until").is_none());
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            "/api/console/managed/license",
+            "android",
+            Some(&android),
+            Value::Null,
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    let request_id = Uuid::new_v4();
+    let artifact = json!({
+        "target":{
+            "product":"android",
+            "distribution":"customer",
+            "release_namespace":"pixels.customer",
+            "oem_id":null,
+            "channel":"stable",
+            "os":"android",
+            "architecture":"aarch64"
+        },
+        "build_number":32018,
+        "version":"3.2.18",
+        "metadata_base_url":"https://downloads.example.test/metadata/",
+        "targets_base_url":"https://downloads.example.test/targets/",
+        "target_name":"android/android/customer/stable/aarch64/32018/pixels-3.2.18.apk",
+        "sha256":"a".repeat(64),
+        "platform_signer_sha256":"b".repeat(64),
+        "size_bytes":12345678
+    });
+    let create_body = json!({
+        "request_id":request_id,
+        "repository_publication_sha256":"c".repeat(64),
+        "repository_root_version":1,
+        "artifact":artifact
+    });
+    let mut wrong_domain_body = create_body.clone();
+    wrong_domain_body["request_id"] = json!(Uuid::new_v4());
+    wrong_domain_body["artifact"]["target"]["distribution"] = json!("official");
+    wrong_domain_body["artifact"]["target"]["release_namespace"] = json!("pixels.official");
+    assert_eq!(
+        call(
+            &router,
+            "POST",
+            "/api/console/managed/updates",
+            "admin_web",
+            Some(&admin),
+            wrong_domain_body,
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    let mut oem_domain_body = create_body.clone();
+    oem_domain_body["request_id"] = json!(Uuid::new_v4());
+    oem_domain_body["artifact"]["target"]["distribution"] = json!("oem");
+    oem_domain_body["artifact"]["target"]["release_namespace"] = json!("oem.acme-cloud");
+    oem_domain_body["artifact"]["target"]["oem_id"] = json!("acme-cloud");
+    assert_eq!(
+        call(
+            &router,
+            "POST",
+            "/api/console/managed/updates",
+            "admin_web",
+            Some(&admin),
+            oem_domain_body,
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    let (created_status, created) = call(
+        &router,
+        "POST",
+        "/api/console/managed/updates",
+        "admin_web",
+        Some(&admin),
+        create_body.clone(),
+    )
+    .await;
+    assert_eq!(created_status, StatusCode::CREATED, "{created}");
+    assert_eq!(created["state"], "pending");
+    assert_eq!(created["repository_publication_sha256"], "c".repeat(64));
+    assert_eq!(created["repository_root_version"], 1);
+    let mut missing_publication = create_body.clone();
+    missing_publication
+        .as_object_mut()
+        .unwrap()
+        .remove("repository_publication_sha256");
+    assert_eq!(
+        call(
+            &router,
+            "POST",
+            "/api/console/managed/updates",
+            "admin_web",
+            Some(&admin),
+            missing_publication,
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    let mut missing_root_version = create_body.clone();
+    missing_root_version
+        .as_object_mut()
+        .unwrap()
+        .remove("repository_root_version");
+    assert_eq!(
+        call(
+            &router,
+            "POST",
+            "/api/console/managed/updates",
+            "admin_web",
+            Some(&admin),
+            missing_root_version,
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        call(
+            &router,
+            "POST",
+            "/api/console/managed/updates",
+            "admin_web",
+            Some(&admin),
+            create_body,
+        )
+        .await
+        .1,
+        created
+    );
+    let latest_path = "/api/console/updates/latest";
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            latest_path,
+            "android",
+            Some(&android),
+            Value::Null,
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    let release_id = created["id"].as_str().unwrap();
+    let (approved_status, approved) = call(
+        &router,
+        "PATCH",
+        &format!("/api/console/managed/updates/{release_id}"),
+        "admin_web",
+        Some(&admin),
+        json!({"revision":1,"decision":"approve"}),
+    )
+    .await;
+    assert_eq!(approved_status, StatusCode::OK, "{approved}");
+    let (latest_status, latest) = call(
+        &router,
+        "GET",
+        latest_path,
+        "android",
+        Some(&android),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(latest_status, StatusCode::OK, "{latest}");
+    assert_eq!(latest, approved);
+    for client_supplied_target_path in [
+        concat!(
+            "/api/console/updates/latest?product=android&distribution=official",
+            "&release_namespace=pixels.official&channel=stable&os=android&architecture=aarch64"
+        ),
+        concat!(
+            "/api/console/updates/latest?product=android&distribution=oem",
+            "&release_namespace=oem.acme-cloud&oem_id=acme-cloud",
+            "&channel=stable&os=android&architecture=aarch64"
+        ),
+    ] {
+        assert_eq!(
+            call(
+                &router,
+                "GET",
+                client_supplied_target_path,
+                "android",
+                Some(&android),
+                Value::Null,
+            )
+            .await
+            .0,
+            StatusCode::FORBIDDEN
+        );
+    }
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            latest_path,
+            "panel",
+            Some(&android),
+            Value::Null,
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            "/api/console/managed/updates?limit=100",
+            "admin_web",
+            Some(&admin),
+            Value::Null,
+        )
+        .await
+        .1
+        .as_array()
+        .unwrap()
+        .len(),
+        1
+    );
+    let (withdrawn_status, withdrawn) = call(
+        &router,
+        "PATCH",
+        &format!("/api/console/managed/updates/{release_id}"),
+        "admin_web",
+        Some(&admin),
+        json!({"revision":2,"decision":"withdraw"}),
+    )
+    .await;
+    assert_eq!(withdrawn_status, StatusCode::OK, "{withdrawn}");
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            latest_path,
+            "android",
+            Some(&android),
+            Value::Null,
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    runtime.shutdown().await;
+}
+
+#[tokio::test]
+async fn saved_connections_are_user_client_acl_and_revision_bound() {
+    let runtime = start().await;
+    let router = runtime.router();
+    let admin = login(&router, "initial-admin", PASSWORD, "admin_web").await;
+    let username = Uuid::new_v4().to_string();
+    let (registration_status, registered_user) = call(
+        &router,
+        "POST",
+        "/api/console/accounts",
+        "android",
+        None,
+        json!({"username":username,"password":PASSWORD}),
+    )
+    .await;
+    assert_eq!(
+        registration_status,
+        StatusCode::CREATED,
+        "{registered_user}"
+    );
+    let device = create_device(&router, &admin).await;
+    let device_id = device["device"]["id"].as_str().unwrap();
+    assert_eq!(
+        call(
+            &router,
+            "PUT",
+            &format!("/api/console/managed/devices/{device_id}/access"),
+            "admin_web",
+            Some(&admin),
+            json!({"revision":1,"users":[registered_user["id"]],"groups":[]}),
+        )
+        .await
+        .0,
+        StatusCode::OK
+    );
+    // ACL changes invalidate sessions for every affected user. A newly issued
+    // Android session must observe the updated authorization revision.
+    let user = login(&router, &username, PASSWORD, "android").await;
+    let request_id = Uuid::new_v4();
+    let create_body = json!({
+        "request_id":request_id,
+        "target":{"kind":"desktop","device_id":device_id},
+        "settings":saved_connection_settings("工作电脑")
+    });
+    let (created_status, created) = call(
+        &router,
+        "POST",
+        "/api/console/saved-connections",
+        "android",
+        Some(&user),
+        create_body.clone(),
+    )
+    .await;
+    assert_eq!(created_status, StatusCode::CREATED, "{created}");
+    let (_, retried) = call(
+        &router,
+        "POST",
+        "/api/console/saved-connections",
+        "android",
+        Some(&user),
+        create_body,
+    )
+    .await;
+    assert_eq!(retried, created);
+    let connection_id = created["id"].as_str().unwrap();
+    let (_, listed) = call(
+        &router,
+        "GET",
+        "/api/console/saved-connections?limit=100",
+        "android",
+        Some(&user),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(listed.as_array().unwrap().len(), 1);
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            &format!("/api/console/saved-connections/{connection_id}"),
+            "panel",
+            Some(&user),
+            Value::Null,
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    let (updated_status, updated) = call(
+        &router,
+        "PATCH",
+        &format!("/api/console/saved-connections/{connection_id}"),
+        "android",
+        Some(&user),
+        json!({"revision":1,"settings":saved_connection_settings("工作电脑 2")}),
+    )
+    .await;
+    assert_eq!(updated_status, StatusCode::OK, "{updated}");
+    assert_eq!(updated["revision"], 2);
+    assert_eq!(
+        call(
+            &router,
+            "DELETE",
+            &format!("/api/console/saved-connections/{connection_id}?revision=1"),
+            "android",
+            Some(&user),
+            Value::Null,
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    let (deleted_status, deleted) = call(
+        &router,
+        "DELETE",
+        &format!("/api/console/saved-connections/{connection_id}?revision=2"),
+        "android",
+        Some(&user),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(deleted_status, StatusCode::OK, "{deleted}");
+    assert_eq!(deleted["revision"], 3);
+    assert!(!deleted["deleted_at"].is_null());
+    runtime.shutdown().await;
+}
+
+async fn issue_guest(router: &axum::Router) -> Value {
+    let (status, value) = call(
+        router,
+        "POST",
+        "/api/console/guest-sessions",
+        "android",
+        None,
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{value}");
+    value
+}
+
+#[tokio::test]
+async fn panel_guest_catalog_uses_public_access_not_deployment_readiness() {
+    let runtime = start().await;
+    let router = runtime.router();
+    let administrator_token = login(&router, "initial-admin", PASSWORD, "admin_web").await;
+    let mut public_application_ids = Vec::new();
+    for application_kind in ["game_hook", "webview", "rdp"] {
+        let (creation_status, application_record) = call(
+            &router,
+            "POST",
+            "/api/console/managed/applications",
+            "admin_web",
+            Some(&administrator_token),
+            spec(application_kind, "public"),
+        )
+        .await;
+        assert_eq!(creation_status, StatusCode::CREATED, "{application_record}");
+        public_application_ids.push(application_record["id"].clone());
+    }
+    let (restricted_status, restricted_application) = call(
+        &router,
+        "POST",
+        "/api/console/managed/applications",
+        "admin_web",
+        Some(&administrator_token),
+        spec("rdp", "acl"),
+    )
+    .await;
+    assert_eq!(
+        restricted_status,
+        StatusCode::CREATED,
+        "{restricted_application}"
+    );
+    let mut disabled_specification = spec("webview", "public");
+    disabled_specification["disabled"] = json!(true);
+    let (disabled_status, disabled_application) = call(
+        &router,
+        "POST",
+        "/api/console/managed/applications",
+        "admin_web",
+        Some(&administrator_token),
+        disabled_specification,
+    )
+    .await;
+    assert_eq!(
+        disabled_status,
+        StatusCode::CREATED,
+        "{disabled_application}"
+    );
+    // The shared database also tests source bans; use the independent resource-test peer.
+    let (guest_status, guest_session) = resource_call(
+        &router,
+        "POST",
+        "/api/console/guest-sessions",
+        "panel",
+        None,
+        None,
+        json!({}),
+    )
+    .await;
+    assert_eq!(guest_status, StatusCode::CREATED, "{guest_session}");
+    let guest_token = guest_session["token"].as_str().unwrap();
+    let (catalog_status, application_catalog) = call(
+        &router,
+        "GET",
+        "/api/console/guest/applications?limit=100",
+        "panel",
+        Some(guest_token),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(catalog_status, StatusCode::OK, "{application_catalog}");
+    let application_cards = application_catalog.as_array().unwrap();
+    for public_application_id in public_application_ids {
+        assert!(application_cards
+            .iter()
+            .any(|application_card| application_card["id"] == public_application_id));
+    }
+    for inaccessible_application in [restricted_application, disabled_application] {
+        assert!(!application_cards
+            .iter()
+            .any(|application_card| application_card["id"] == inaccessible_application["id"]));
+        let application_path = format!(
+            "/api/console/guest/applications/{}",
+            inaccessible_application["id"].as_str().unwrap()
+        );
+        assert_eq!(
+            call(
+                &router,
+                "GET",
+                &application_path,
+                "panel",
+                Some(guest_token),
+                Value::Null
+            )
+            .await
+            .0,
+            StatusCode::FORBIDDEN
+        );
+        assert_eq!(
+            resource_call(
+                &router,
+                "POST",
+                "/api/console/instances",
+                "panel",
+                Some(guest_token),
+                Some("guest"),
+                json!({"request_id":Uuid::new_v4(),"application_id":inaccessible_application["id"],"deployment_id":null}),
+            ).await.0,
+            StatusCode::FORBIDDEN
+        );
+    }
+    runtime.shutdown().await;
+}
+
+#[tokio::test]
+async fn guest_ingress_uses_direct_source_public_catalog_and_explicit_operator_blocks() {
+    let runtime = start().await;
+    let router = runtime.router();
+    let admin = login(&router, "initial-admin", PASSWORD, "admin_web").await;
+    let name = register(&router).await;
+    let user = login(&router, &name, PASSWORD, "android").await;
+
+    let (_, public) = call(
+        &router,
+        "POST",
+        "/api/console/managed/applications",
+        "admin_web",
+        Some(&admin),
+        spec("webview", "public"),
+    )
+    .await;
+    let (_, private) = call(
+        &router,
+        "POST",
+        "/api/console/managed/applications",
+        "admin_web",
+        Some(&admin),
+        spec("rdp", "acl"),
+    )
+    .await;
+
+    assert_eq!(
+        call(
+            &router,
+            "POST",
+            "/api/console/guest-sessions",
+            "android",
+            Some(&user),
+            json!({})
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        fixture::request(
+            &router,
+            "POST",
+            "/api/console/guest-sessions",
+            "android",
+            None,
+            json!({}),
+            Some(fixture::ORIGIN),
+            true,
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+
+    let first = issue_guest(&router).await;
+    let second = issue_guest(&router).await;
+    assert!(first["session"].get("expires_at").is_none());
+    assert!(second["session"].get("expires_at").is_none());
+    let first_token = first["token"].as_str().unwrap();
+    let second_token = second["token"].as_str().unwrap();
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            "/api/console/guest-session",
+            "android",
+            Some(first_token),
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            "/api/console/guest-session",
+            "android",
+            Some(&user),
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            "/api/console/session",
+            "android",
+            Some(first_token),
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+
+    let (status, cards) = call(
+        &router,
+        "GET",
+        "/api/console/guest/applications?limit=100",
+        "android",
+        Some(first_token),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{cards}");
+    assert!(cards
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|card| card["id"] == public["id"]));
+    assert!(!cards
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|card| card["id"] == private["id"]));
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            &format!(
+                "/api/console/guest/applications/{}",
+                private["id"].as_str().unwrap()
+            ),
+            "android",
+            Some(first_token),
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+
+    let (status, managed) = call(
+        &router,
+        "GET",
+        "/api/console/managed/guests?limit=100",
+        "admin_web",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{managed}");
+    assert!(!managed.to_string().contains(first_token));
+    assert!(!managed.to_string().contains("source_hash"));
+
+    let first_id = first["session"]["id"].as_str().unwrap();
+    let first_revision = first["session"]["revision"].as_i64().unwrap();
+    assert_eq!(
+        call(
+            &router,
+            "POST",
+            &format!("/api/console/managed/guests/{first_id}/block"),
+            "admin_web",
+            Some(&admin),
+            json!({"revision":first_revision})
+        )
+        .await
+        .0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            "/api/console/guest-session",
+            "android",
+            Some(first_token),
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+
+    let second_id = second["session"]["id"].as_str().unwrap();
+    let second_revision = second["session"]["revision"].as_i64().unwrap();
+    assert_eq!(
+        call(
+            &router,
+            "POST",
+            &format!("/api/console/managed/guests/{second_id}/block-source"),
+            "admin_web",
+            Some(&admin),
+            json!({"revision":second_revision,"lifetime_seconds":3600})
+        )
+        .await
+        .0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            "/api/console/guest-session",
+            "android",
+            Some(second_token),
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        call(
+            &router,
+            "POST",
+            "/api/console/guest-sessions",
+            "android",
+            None,
+            json!({})
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+
+    runtime.shutdown().await;
+}
+
+#[tokio::test]
+async fn resource_ingress_requires_one_explicit_principal_kind_without_token_fallback() {
+    let runtime = start().await;
+    let router = runtime.router();
+    let admin = login(&router, "initial-admin", PASSWORD, "admin_web").await;
+    let name = register(&router).await;
+    let user = login(&router, &name, PASSWORD, "android").await;
+    let web_user = login(&router, &name, PASSWORD, "user_web").await;
+    let (status, guest) = resource_call(
+        &router,
+        "POST",
+        "/api/console/guest-sessions",
+        "android",
+        None,
+        None,
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{guest}");
+    let guest_token = guest["token"].as_str().unwrap();
+    let (status, web_guest) = resource_call(
+        &router,
+        "POST",
+        "/api/console/guest-sessions",
+        "user_web",
+        None,
+        None,
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{web_guest}");
+    let web_guest_token = web_guest["token"].as_str().unwrap();
+    let (_, application) = call(
+        &router,
+        "POST",
+        "/api/console/managed/applications",
+        "admin_web",
+        Some(&admin),
+        spec("webview", "public"),
+    )
+    .await;
+    let start_request = json!({
+        "request_id": Uuid::new_v4(),
+        "application_id": application["id"],
+        "deployment_id": null
+    });
+
+    for (token, subject, catalog_path) in [
+        (
+            web_user.as_str(),
+            "user",
+            "/api/console/applications?limit=100",
+        ),
+        (
+            web_guest_token,
+            "guest",
+            "/api/console/guest/applications?limit=100",
+        ),
+    ] {
+        let (catalog_status, catalog) = call(
+            &router,
+            "GET",
+            catalog_path,
+            "user_web",
+            Some(token),
+            Value::Null,
+        )
+        .await;
+        assert_eq!(catalog_status, StatusCode::OK, "{catalog}");
+        assert!(catalog
+            .as_array()
+            .is_some_and(|items| { items.iter().any(|item| item["id"] == application["id"]) }));
+        let (instances_status, instances) = resource_call(
+            &router,
+            "GET",
+            "/api/console/instances?limit=100",
+            "user_web",
+            Some(token),
+            Some(subject),
+            Value::Null,
+        )
+        .await;
+        assert_eq!(instances_status, StatusCode::OK, "{instances}");
+        assert_eq!(instances, json!([]));
+    }
+
+    for (token, subject, client) in [
+        (Some(user.as_str()), None, "android"),
+        (Some(user.as_str()), Some("device"), "android"),
+    ] {
+        assert_eq!(
+            resource_call(
+                &router,
+                "POST",
+                "/api/console/instances",
+                client,
+                token,
+                subject,
+                start_request.clone(),
+            )
+            .await
+            .0,
+            StatusCode::BAD_REQUEST
+        );
+    }
+    for (token, subject, client) in [
+        (user.as_str(), "guest", "android"),
+        (guest_token, "user", "android"),
+        (admin.as_str(), "user", "admin_web"),
+    ] {
+        assert_eq!(
+            resource_call(
+                &router,
+                "POST",
+                "/api/console/instances",
+                client,
+                Some(token),
+                Some(subject),
+                start_request.clone(),
+            )
+            .await
+            .0,
+            StatusCode::FORBIDDEN
+        );
+    }
+
+    for (token, subject) in [(user.as_str(), "user"), (guest_token, "guest")] {
+        assert_eq!(
+            resource_call(
+                &router,
+                "POST",
+                "/api/console/instances",
+                "android",
+                Some(token),
+                Some(subject),
+                start_request.clone(),
+            )
+            .await
+            .0,
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+        let (status, instances) = resource_call(
+            &router,
+            "GET",
+            "/api/console/instances?limit=100",
+            "android",
+            Some(token),
+            Some(subject),
+            Value::Null,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{instances}");
+        assert_eq!(instances, json!([]));
+    }
+    assert_eq!(
+        resource_call(
+            &router,
+            "GET",
+            "/api/console/instances?limit=0",
+            "android",
+            Some(&user),
+            Some("user"),
+            Value::Null,
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    let (status, sessions) = call(
+        &router,
+        "GET",
+        "/api/console/managed/resource-sessions?limit=100",
+        "admin_web",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{sessions}");
+    assert_eq!(sessions, json!([]));
+
+    for path in [
+        "/api/console/activity/visits?limit=0",
+        "/api/console/activity/channels?limit=100&unexpected=1",
+        "/api/console/file-transfers?limit=101",
+        "/api/console/recordings?limit=100&unexpected=1",
+    ] {
+        assert_eq!(
+            resource_call(
+                &router,
+                "GET",
+                path,
+                "android",
+                Some(&user),
+                Some("user"),
+                Value::Null,
+            )
+            .await
+            .0,
+            StatusCode::BAD_REQUEST
+        );
+    }
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            "/api/console/managed/activity/visits?limit=100",
+            "android",
+            Some(&user),
+            Value::Null,
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        resource_call(
+            &router,
+            "GET",
+            "/api/console/activity/visits?limit=100",
+            "android",
+            Some(guest_token),
+            Some("guest"),
+            Value::Null,
+        )
+        .await,
+        (StatusCode::OK, json!([]))
+    );
+    assert_eq!(
+        resource_call(
+            &router,
+            "GET",
+            "/api/console/recordings?limit=100",
+            "android",
+            Some(guest_token),
+            Some("guest"),
+            Value::Null,
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+
+    runtime.shutdown().await;
+}
+#[tokio::test]
+async fn device_directory_enforces_live_acl_cas_secret_boundaries_and_atomic_failure() {
+    let runtime = start().await;
+    let router = runtime.router();
+    let admin = login(&router, "initial-admin", PASSWORD, "admin_web").await;
+    for path in [
+        "/api/console/managed/devices?limit=0",
+        "/api/console/managed/devices?limit=1&unexpected=1",
+        "/api/console/managed/devices/not-a-uuid/access",
+    ] {
+        let (status, error) =
+            call(&router, "GET", path, "admin_web", Some(&admin), Value::Null).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(error, json!({"code":"invalid_input"}));
+    }
+    let name = register(&router).await;
+    let token = login(&router, &name, PASSWORD, "android").await;
+    let (_, user) = call(
+        &router,
+        "GET",
+        "/api/console/session",
+        "android",
+        Some(&token),
+        Value::Null,
+    )
+    .await;
+    let created = create_device(&router, &admin).await;
+    let id = created["device"]["id"].as_str().unwrap();
+    let visible = format!("/api/console/devices/{id}");
+    let managed = format!("/api/console/managed/devices/{id}");
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            &visible,
+            "android",
+            Some(&token),
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        call(
+            &router,
+            "POST",
+            "/api/console/managed/devices",
+            "android",
+            Some(&token),
+            json!({"name":"forbidden","platform":"windows"})
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        call(
+            &router,
+            "PUT",
+            &format!("{managed}/access"),
+            "admin_web",
+            Some(&admin),
+            json!({"revision":1,"users":[user["id"]],"groups":[]})
+        )
+        .await
+        .0,
+        StatusCode::OK
+    );
+    let token = login(&router, &name, PASSWORD, "android").await;
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            &visible,
+            "android",
+            Some(&token),
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        call(&router, "GET", &visible, "panel", Some(&token), Value::Null)
+            .await
+            .0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        call(
+            &router,
+            "PATCH",
+            &managed,
+            "admin_web",
+            Some(&admin),
+            json!({"revision":1,"name":"stale","disabled":false})
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    let (status, _) = call(
+        &router,
+        "POST",
+        &format!("{managed}/credential"),
+        "admin_web",
+        Some(&admin),
+        json!({"revision":2}),
+    )
+    .await;
+    assert!(matches!(
+        status,
+        StatusCode::NOT_FOUND | StatusCode::METHOD_NOT_ALLOWED
+    ));
+    let (status, list) = call(
+        &router,
+        "GET",
+        "/api/console/managed/devices?limit=100",
+        "admin_web",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    for forbidden in [
+        "enrollment_token",
+        "enrollment_hash",
+        created["enrollment_token"].as_str().unwrap(),
+    ] {
+        assert!(!list.to_string().contains(forbidden))
+    }
+    let owner = config("OWNER").connect().await.unwrap();
+    let failed_name = Uuid::new_v4().to_string();
+    sqlx::query("REVOKE INSERT ON pixels.device_audit FROM pixels_console_runtime")
+        .execute(&owner)
+        .await
+        .unwrap();
+    let (status, error) = call(
+        &router,
+        "POST",
+        "/api/console/managed/devices",
+        "admin_web",
+        Some(&admin),
+        json!({"name":failed_name,"platform":"windows"}),
+    )
+    .await;
+    sqlx::query("GRANT INSERT ON pixels.device_audit TO pixels_console_runtime")
+        .execute(&owner)
+        .await
+        .unwrap();
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(error, json!({"code":"unavailable"}));
+    let count: i64 = sqlx::query_scalar("SELECT count(*) FROM pixels.devices WHERE name=$1")
+        .bind(failed_name)
+        .fetch_one(&owner)
+        .await
+        .unwrap();
+    assert_eq!(count, 0);
+    assert_eq!(
+        call(
+            &router,
+            "DELETE",
+            &format!("{managed}?revision=2"),
+            "admin_web",
+            Some(&admin),
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::NO_CONTENT
+    );
+    let token = login(&router, &name, PASSWORD, "android").await;
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            &visible,
+            "android",
+            Some(&token),
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    owner.close().await;
+    runtime.shutdown().await;
+}
+
+#[tokio::test]
+async fn cloud_catalog_is_independent_typed_and_never_falls_back_to_device_identity() {
+    let runtime = start().await;
+    let router = runtime.router();
+    let admin = login(&router, "initial-admin", PASSWORD, "admin_web").await;
+    let name = register(&router).await;
+    let user = login(&router, &name, PASSWORD, "android").await;
+    let mut applications = Vec::new();
+    for kind in ["game_hook", "webview", "rdp"] {
+        let (status, row) = call(
+            &router,
+            "POST",
+            "/api/console/managed/applications",
+            "admin_web",
+            Some(&admin),
+            spec(kind, "public"),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED, "{row}");
+        applications.push(row);
+    }
+    let (status, cards) = call(
+        &router,
+        "GET",
+        "/api/console/applications?limit=100",
+        "android",
+        Some(&user),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    for row in &applications {
+        assert!(cards
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|card| card["id"] == row["id"]));
+        let id = row["id"].as_str().unwrap();
+        assert_eq!(
+            call(
+                &router,
+                "GET",
+                &format!("/api/console/applications/{id}"),
+                "android",
+                Some(&user),
+                Value::Null
+            )
+            .await
+            .0,
+            StatusCode::OK
+        );
+        assert_eq!(
+            call(
+                &router,
+                "GET",
+                &format!("/api/console/devices/{id}"),
+                "android",
+                Some(&user),
+                Value::Null
+            )
+            .await
+            .0,
+            StatusCode::FORBIDDEN
+        );
+    }
+    assert!(!cards.to_string().contains("executable_path"));
+    assert!(!cards.to_string().contains("entry_url"));
+    let mut wrong = spec("rdp", "public");
+    wrong["launch"]["video"] = json!({"codec":"h264","bitrate_kbps":8000});
+    assert_eq!(
+        call(
+            &router,
+            "POST",
+            "/api/console/managed/applications",
+            "admin_web",
+            Some(&admin),
+            wrong
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    let (_, private) = call(
+        &router,
+        "POST",
+        "/api/console/managed/applications",
+        "admin_web",
+        Some(&admin),
+        spec("webview", "acl"),
+    )
+    .await;
+    let id = private["id"].as_str().unwrap();
+    let path = format!("/api/console/applications/{id}");
+    assert_eq!(
+        call(&router, "GET", &path, "android", Some(&user), Value::Null)
+            .await
+            .0,
+        StatusCode::FORBIDDEN
+    );
+    let (_, group) = call(
+        &router,
+        "POST",
+        "/api/console/groups",
+        "admin_web",
+        Some(&admin),
+        json!({"name":Uuid::new_v4().to_string(),"remark":""}),
+    )
+    .await;
+    let (_, profile) = call(
+        &router,
+        "GET",
+        "/api/console/session",
+        "android",
+        Some(&user),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(
+        call(
+            &router,
+            "PUT",
+            &format!(
+                "/api/console/groups/{}/members",
+                group["id"].as_str().unwrap()
+            ),
+            "admin_web",
+            Some(&admin),
+            json!({"revision":1,"members":[profile["id"]]})
+        )
+        .await
+        .0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        call(
+            &router,
+            "PUT",
+            &format!("/api/console/managed/applications/{id}/groups"),
+            "admin_web",
+            Some(&admin),
+            json!({"revision":1,"groups":[group["id"]]})
+        )
+        .await
+        .0,
+        StatusCode::OK
+    );
+    let user = login(&router, &name, PASSWORD, "android").await;
+    assert_eq!(
+        call(&router, "GET", &path, "android", Some(&user), Value::Null)
+            .await
+            .0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        call(
+            &router,
+            "DELETE",
+            &format!("/api/console/managed/applications/{id}?revision=2"),
+            "admin_web",
+            Some(&admin),
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::NO_CONTENT
+    );
+    assert_ne!(
+        call(&router, "GET", &path, "android", Some(&user), Value::Null)
+            .await
+            .0,
+        StatusCode::OK
+    );
+    runtime.shutdown().await;
+}
+#[tokio::test]
+async fn node_and_deployment_management_cannot_manufacture_readiness_or_change_target_mode() {
+    let runtime = start().await;
+    let router = runtime.router();
+    let admin = login(&router, "initial-admin", PASSWORD, "admin_web").await;
+    let summary_path = "/api/console/managed/instance-summary";
+    assert_eq!(
+        call(&router, "GET", summary_path, "admin_web", None, Value::Null)
+            .await
+            .0,
+        StatusCode::UNAUTHORIZED
+    );
+    let (summary_status, summary) = call(
+        &router,
+        "GET",
+        summary_path,
+        "admin_web",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(summary_status, StatusCode::OK);
+    assert!(summary.is_array());
+    let username = register(&router).await;
+    let user_token = login(&router, &username, PASSWORD, "android").await;
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            summary_path,
+            "android",
+            Some(&user_token),
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    let device = create_device(&router, &admin).await;
+    let (status, node) = call(
+        &router,
+        "POST",
+        "/api/console/managed/nodes",
+        "admin_web",
+        Some(&admin),
+        json!({"device_id":device["device"]["id"],"product":"cloud_node","max_instances":4}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{node}");
+    assert_ne!(node["node_token"], device["enrollment_token"]);
+    assert_eq!(node["node"]["fresh"], false);
+    let node_id = node["node"]["id"].as_str().unwrap();
+    let (status, app) = call(
+        &router,
+        "POST",
+        "/api/console/managed/applications",
+        "admin_web",
+        Some(&admin),
+        spec("rdp", "public"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let configuration = json!({
+        "target":{"kind":"rdp"},
+        "gpu_key":null,
+        "capacity":1,
+        "disabled":false
+    });
+    let (status, deployment) = call(
+        &router,
+        "POST",
+        "/api/console/managed/deployments",
+        "admin_web",
+        Some(&admin),
+        json!({"application_id":app["id"],"node_id":node_id,"configuration":configuration}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{deployment}");
+    assert_eq!(deployment["observed_state"], "pending");
+    let preview_request = json!({"application_id":app["id"],"deployment_id":deployment["id"]});
+    assert_eq!(
+        call(
+            &router,
+            "POST",
+            "/api/console/managed/scheduling/preview",
+            "admin_web",
+            None,
+            preview_request.clone()
+        )
+        .await
+        .0,
+        StatusCode::UNAUTHORIZED
+    );
+    let (status, preview) = call(
+        &router,
+        "POST",
+        "/api/console/managed/scheduling/preview",
+        "admin_web",
+        Some(&admin),
+        preview_request,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{preview}");
+    assert_eq!(preview["application_id"], app["id"]);
+    assert_eq!(preview["candidates"].as_array().unwrap().len(), 1);
+    assert_eq!(preview["candidates"][0]["eligible"], false);
+    assert!(preview["candidates"][0]["rejection_reasons"]
+        .as_array()
+        .unwrap()
+        .contains(&json!("node_disconnected")));
+    assert!(!preview.to_string().contains("token"));
+    let path = format!(
+        "/api/console/managed/deployments/{}",
+        deployment["id"].as_str().unwrap()
+    );
+    let invalid = json!({"revision":1,"configuration":{"target":{"kind":"webview"},"gpu_key":null,"capacity":0,"disabled":false}});
+    assert_ne!(
+        call(&router, "PATCH", &path, "admin_web", Some(&admin), invalid)
+            .await
+            .0,
+        StatusCode::OK
+    );
+    let fake = json!({"sequence":1,"ready":true,"generation":1});
+    assert_eq!(
+        call(
+            &router,
+            "POST",
+            &format!("/api/console/managed/nodes/{node_id}/report"),
+            "admin_web",
+            Some(&admin),
+            fake
+        )
+        .await
+        .0,
+        StatusCode::NOT_FOUND
+    );
+    let (status, list) = call(
+        &router,
+        "GET",
+        "/api/console/managed/nodes?limit=100",
+        "admin_web",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(!list
+        .to_string()
+        .contains(node["node_token"].as_str().unwrap()));
+    assert!(!list.to_string().contains("credential_hash"));
+    let trend_path = format!(
+        "/api/console/managed/nodes/{node_id}/telemetry/trend?window_minutes=60&bucket_seconds=60"
+    );
+    assert_eq!(
+        call(&router, "GET", &trend_path, "admin_web", None, Value::Null)
+            .await
+            .0,
+        StatusCode::UNAUTHORIZED
+    );
+    let (status, trend) = call(
+        &router,
+        "GET",
+        &trend_path,
+        "admin_web",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{trend}");
+    assert_eq!(trend["node_id"], node["node"]["id"]);
+    assert_eq!(trend["stale"], true);
+    assert_eq!(trend["latest_received_at"], Value::Null);
+    assert_eq!(trend["points"].as_array().unwrap().len(), 61);
+    assert!(trend["points"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|point| point["sample_count"] == 0));
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            &format!(
+                "/api/console/managed/nodes/{node_id}/telemetry/trend?window_minutes=1&bucket_seconds=30"
+            ),
+            "admin_web",
+            Some(&admin),
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    let path = format!("/api/console/managed/nodes/{node_id}");
+    assert_eq!(call(&router,"PATCH",&path,"admin_web",Some(&admin),json!({"revision":1,"configuration":{"draining":true,"disabled":false,"max_instances":2}})).await.0,StatusCode::OK);
+    assert_eq!(call(&router,"PATCH",&path,"admin_web",Some(&admin),json!({"revision":1,"configuration":{"draining":false,"disabled":false,"max_instances":4}})).await.0,StatusCode::FORBIDDEN);
+    runtime.shutdown().await;
+}

@@ -52,6 +52,7 @@ pub struct StartAppRequest {
     pub executable_path: String,
     pub game_arguments: String,
     pub listen_port: i32,
+    pub disconnect_grace_seconds: u32,
     pub encoder_fps: i32,
     pub encoder_bitrate_kbps: i32,
     pub encoder_format: String,
@@ -209,6 +210,10 @@ pub fn build_game_hook_launch_spec(
     let game_b64 = encode_game_path_b64(game_path);
     let mut args = vec![
         "--logfile".to_string(),
+        format!(
+            "--app_disconnect_grace_seconds={}",
+            req.disconnect_grace_seconds
+        ),
         format!("--app_mode={APP_MODE_GAME_HOOK}"),
         format!("--app_instance_id={}", req.instance_id),
         format!("--app_game_path={game_b64}"),
@@ -268,6 +273,10 @@ pub fn build_webview_launch_spec(
     };
     let mut args = vec![
         "--logfile".to_string(),
+        format!(
+            "--app_disconnect_grace_seconds={}",
+            req.disconnect_grace_seconds
+        ),
         format!("--app_mode={APP_MODE_WEBVIEW}"),
         "--capture_video=true".to_string(),
         "--capture_video_type=inner".to_string(),
@@ -435,6 +444,10 @@ pub fn build_rdp_launch_spec(
         args: vec![
             "--logfile".into(),
             "--app_mode=rdp".into(),
+            format!(
+                "--app_disconnect_grace_seconds={}",
+                req.disconnect_grace_seconds
+            ),
             format!("--rdp_instance_id={}", req.instance_id),
             format!("--rdp_workspace_id={}", account.workspace_id),
             format!("--rdp_node_id={}", req.rdp_node_id),
@@ -575,6 +588,9 @@ impl AppInstanceRegistry {
         work_dir: &str,
         req: StartAppRequest,
     ) -> Result<&AppInstanceRecord, String> {
+        if !(1..=3600).contains(&req.disconnect_grace_seconds) {
+            return Err("application disconnect grace must be between 1 and 3600 seconds".into());
+        }
         validate_relay_configuration(&req)?;
         if req.request_id.trim().is_empty() {
             return Err("request_id is empty".to_string());
@@ -885,6 +901,7 @@ mod tests {
                 .to_string(),
             game_arguments: "-dx11".to_string(),
             listen_port: port,
+            disconnect_grace_seconds: 10,
             encoder_fps: 60,
             encoder_bitrate_kbps: 20_000,
             encoder_format: "h264".to_string(),
@@ -903,6 +920,35 @@ mod tests {
         let resolved_path = resolve_game_path(r"D:\apps\CarGame\Binaries\Win64\game.exe").unwrap();
         assert!(resolved_path.to_string_lossy().contains("CarGame"));
         assert!(resolved_path.to_string_lossy().ends_with("game.exe"));
+    }
+
+    #[test]
+    fn every_application_mode_passes_custom_disconnect_grace_to_render() {
+        let mut request = sample_req("grace-test", 4613);
+        request.disconnect_grace_seconds = 37;
+        let game_launch = build_game_hook_launch_spec(
+            r"D:\Pixels",
+            &request,
+            4613,
+            Path::new(r"D:\Game.exe"),
+            None,
+        );
+        request.webview_url_b64 = URL_SAFE_NO_PAD.encode("https://example.com");
+        let webview_launch = build_webview_launch_spec(r"D:\Pixels", &request, 4613).unwrap();
+        let mut rdp_request = rdp_req("grace-rdp", 4614);
+        rdp_request.disconnect_grace_seconds = 37;
+        let rdp_launch = build_rdp_launch_spec(r"D:\Pixels", &rdp_request, 4614).unwrap();
+        for launch in [game_launch, webview_launch, rdp_launch] {
+            assert!(launch
+                .args
+                .contains(&"--app_disconnect_grace_seconds=37".to_string()));
+        }
+        for seconds in [0, 3601] {
+            request.disconnect_grace_seconds = seconds;
+            assert!(AppInstanceRegistry::new()
+                .begin_start(r"D:\Pixels", request.clone())
+                .is_err());
+        }
     }
 
     #[test]

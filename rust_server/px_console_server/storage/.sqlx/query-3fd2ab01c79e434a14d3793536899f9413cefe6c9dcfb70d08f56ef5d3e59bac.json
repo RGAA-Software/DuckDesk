@@ -1,45 +1,50 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT kind,executable_path,arguments,entry_url,codec,bitrate_kbps,gpu_key,gpu_inventory_revision FROM pixels.instances WHERE id=$1\r\n",
+  "query": "SELECT disconnect_grace_seconds,kind,executable_path,arguments,entry_url,codec,bitrate_kbps,gpu_key,gpu_inventory_revision FROM pixels.instances WHERE id=$1\n",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
+        "name": "disconnect_grace_seconds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
         "name": "kind",
         "type_info": "Text"
       },
       {
-        "ordinal": 1,
+        "ordinal": 2,
         "name": "executable_path",
         "type_info": "Text"
       },
       {
-        "ordinal": 2,
+        "ordinal": 3,
         "name": "arguments",
         "type_info": "Text"
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "entry_url",
         "type_info": "Text"
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "codec",
         "type_info": "Text"
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "bitrate_kbps",
         "type_info": "Int4"
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "gpu_key",
         "type_info": "Text"
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "gpu_inventory_revision",
         "type_info": "Int8"
       }
@@ -51,6 +56,7 @@
     },
     "nullable": [
       false,
+      false,
       true,
       true,
       true,
@@ -60,5 +66,5 @@
       true
     ]
   },
-  "hash": "094b0922cfc19e07fd1d991f222051db7ab3afe01505714c25c06e24d7c2e75b"
+  "hash": "3fd2ab01c79e434a14d3793536899f9413cefe6c9dcfb70d08f56ef5d3e59bac"
 }

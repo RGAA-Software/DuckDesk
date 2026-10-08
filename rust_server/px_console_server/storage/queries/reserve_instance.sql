@@ -2,7 +2,7 @@ WITH candidate AS (
 SELECT d.id,d.application_id,d.node_id,d.kind,gpu.stable_key AS gpu_key,
 gpu.inventory_revision AS gpu_inventory_revision,
 d.revision AS deployment_revision,a.revision AS application_revision,a.access_revision,a.executable_path,a.arguments,
-a.entry_url,a.codec,a.bitrate_kbps,n.generation,n.control_epoch,n.endpoint_revision,available.port,
+a.entry_url,a.codec,a.bitrate_kbps,a.disconnect_grace_seconds,n.generation,n.control_epoch,n.endpoint_revision,available.port,
 CASE WHEN d.kind='rdp' THEN 0::bigint
  WHEN gpu.dedicated_memory_bytes IS NULL OR gpu.dedicated_memory_bytes=0 OR gpu.used_memory_bytes IS NULL
   OR gpu.utilization_per_mille IS NULL OR gpu.encoder_utilization_per_mille IS NULL THEN NULL
@@ -43,8 +43,8 @@ ORDER BY dominant_pressure NULLS LAST,average_pressure NULLS LAST,node_slots DES
 )
 INSERT INTO pixels.instances AS i(id,application_id,deployment_id,node_id,kind,owner_user,owner_guest,client_type,request_id,request_hash,launch_id,
 application_revision,application_access_revision,deployment_revision,node_generation,control_epoch,endpoint_revision,port,
-executable_path,arguments,entry_url,codec,bitrate_kbps,gpu_key,gpu_inventory_revision,login_session_id,owner_revision)
+executable_path,arguments,entry_url,codec,bitrate_kbps,gpu_key,gpu_inventory_revision,login_session_id,owner_revision,disconnect_grace_seconds)
 SELECT $1,c.application_id,c.id,c.node_id,c.kind,$4,$5,$6,$7,$8,$10,c.application_revision,c.access_revision,c.deployment_revision,
 c.generation,c.control_epoch,c.endpoint_revision,c.port,c.executable_path,c.arguments,c.entry_url,c.codec,c.bitrate_kbps,
-c.gpu_key,c.gpu_inventory_revision,$11,$12
+c.gpu_key,c.gpu_inventory_revision,$11,$12,c.disconnect_grace_seconds
 FROM candidate c RETURNING i.id,i.application_id,i.node_id,i.owner_user,i.owner_guest,i.client_type,i.request_hash,i.state,i.revision,i.node_generation,i.control_epoch,i.created_at,i.ended_at,i.deployment_id,i.launch_id,i.desired_state,i.application_revision,i.deployment_revision,i.endpoint_revision,i.port

@@ -5,7 +5,8 @@ export type ApplicationValidationKey =
     | "applications.validation.name"
     | "applications.validation.executable"
     | "applications.validation.arguments"
-    | "applications.validation.bitrate";
+    | "applications.validation.bitrate"
+    | "applications.validation.disconnectGrace";
 
 function isControlCharacter(character: string): boolean {
     const codePoint = character.codePointAt(0) ?? 0;
@@ -53,6 +54,12 @@ export function validateApplicationSpec(
     ) {
         return "applications.validation.name";
     }
+    if (
+        !Number.isInteger(spec.disconnect_grace_seconds) ||
+        spec.disconnect_grace_seconds < 1 ||
+        spec.disconnect_grace_seconds > 3600
+    )
+        return "applications.validation.disconnectGrace";
     if (spec.launch.kind === "rdp") return undefined;
     const bitrate = spec.launch.video.bitrate_kbps;
     if (!Number.isInteger(bitrate) || bitrate < 128 || bitrate > 200_000)

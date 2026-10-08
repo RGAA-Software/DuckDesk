@@ -1,0 +1,30 @@
+[
+  {
+    "local_status": null,
+    "archive_batch": "backup/online_connection_columns_20261008",
+    "base_revision": "3395491477f28ff88bfed26e546171d3f6ef2df0",
+    "original_path": "web/px_console/src/views/OnlineConnection.vue",
+    "reason": "Correct resource owner wire contract and online session columns"
+  },
+  {
+    "local_status": null,
+    "archive_batch": "backup/online_connection_columns_20261008",
+    "base_revision": "3395491477f28ff88bfed26e546171d3f6ef2df0",
+    "original_path": "web/px_console/src/model/managed_activity_api.ts",
+    "reason": "Correct resource owner wire contract and online session columns"
+  },
+  {
+    "local_status": null,
+    "archive_batch": "backup/online_connection_columns_20261008",
+    "base_revision": "3395491477f28ff88bfed26e546171d3f6ef2df0",
+    "original_path": "web/px_console/src/locales/en.ts",
+    "reason": "Correct resource owner wire contract and online session columns"
+  },
+  {
+    "local_status": null,
+    "archive_batch": "backup/online_connection_columns_20261008",
+    "base_revision": "3395491477f28ff88bfed26e546171d3f6ef2df0",
+    "original_path": "web/px_console/src/locales/zh.ts",
+    "reason": "Correct resource owner wire contract and online session columns"
+  }
+]

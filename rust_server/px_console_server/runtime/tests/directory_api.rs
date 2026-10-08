@@ -15,7 +15,7 @@ fn spec(kind: &str, access: &str) -> Value {
             json!({"kind":"game_hook","executable_path":"D:\\游戏 目录\\game.exe","arguments":"--title \"应用 名称\"","video":{"codec":"h265","bitrate_kbps":8000}})
         }
     };
-    json!({"name":Uuid::new_v4().to_string(),"launch":launch,"access":access,"allow_observer":false,"allow_takeover":false,"disabled":false})
+    json!({"name":Uuid::new_v4().to_string(),"launch":launch,"access":access,"disconnect_grace_seconds":10,"allow_observer":false,"allow_takeover":false,"disabled":false})
 }
 async fn create_device(router: &axum::Router, admin: &str) -> Value {
     let (status, value) = call(

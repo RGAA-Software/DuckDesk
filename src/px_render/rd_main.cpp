@@ -87,6 +87,7 @@ DEFINE_bool(relay_enabled, true, "");
 
 DEFINE_int32(language, 0, "");
 
+DEFINE_int32(app_disconnect_grace_seconds, 10, "Application last-client disconnect grace in seconds (1-3600)");
 DEFINE_string(app_mode, "", "desktop | game-hook | webview | rdp; empty => settings.toml application.mode");
 DEFINE_string(app_instance_id, "", "Console application instance id");
 DEFINE_string(gpu_stable_key, "", "Console-selected physical GPU stable key");
@@ -247,6 +248,11 @@ bool UpdateSettings(RdSettings& settings) {
     private_environment_loaded &= ReadAndClearPrivateEnvironment(L"PIXELS_RENDER_WEBVIEW_URL_B64", settings.webview_url_b64_);
     settings.webview_instance_id_ = FLAGS_webview_instance_id;
     settings.app_instance_id_ = FLAGS_app_instance_id;
+    if (FLAGS_app_disconnect_grace_seconds < 1 || FLAGS_app_disconnect_grace_seconds > 3600) {
+        LOGE("Application disconnect grace must be between 1 and 3600 seconds");
+        return false;
+    }
+    settings.application_disconnect_grace_seconds_ = FLAGS_app_disconnect_grace_seconds;
     settings.gpu_stable_key_ = FLAGS_gpu_stable_key;
     settings.webview_width_ = std::clamp(FLAGS_webview_width, 320, 7680);
     settings.webview_height_ = std::clamp(FLAGS_webview_height, 240, 4320);

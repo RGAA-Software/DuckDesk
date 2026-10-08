@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id,name,kind,access_mode,entry_url,executable_path,arguments,bitrate_kbps,codec,allow_observer,allow_takeover,disabled,revision,access_revision FROM pixels.applications WHERE id=$1 AND deleted_at IS NULL FOR UPDATE\r\n",
+  "query": "UPDATE pixels.applications SET revision=revision+1,access_revision=access_revision+1,updated_at=clock_timestamp() WHERE id=$1 RETURNING id,name,kind,access_mode,entry_url,executable_path,arguments,bitrate_kbps,codec,allow_observer,allow_takeover,disabled,disconnect_grace_seconds,revision,access_revision\n",
   "describe": {
     "columns": [
       {
@@ -65,11 +65,16 @@
       },
       {
         "ordinal": 12,
+        "name": "disconnect_grace_seconds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 13,
         "name": "revision",
         "type_info": "Int8"
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "access_revision",
         "type_info": "Int8"
       }
@@ -93,8 +98,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "1c16ffbd819f3b4bf38b3cccf59e5e4078891dc4c5c65fe6f1d73d83c8bbe3fa"
+  "hash": "e2d2d43b4de6a54e699021b92874db7e499487262092fc5afdbb524d04d6747d"
 }
